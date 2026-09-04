@@ -74,3 +74,20 @@ then the IPI shootdown with its acknowledgement, then removing the flush behind 
 re-baselining `ctx_switch`. All four landed in that order in pull request #124. **Effort was
 deliberately not estimated** because the shootdown was the unknown; the note above records what it
 cost.
+
+## Follow-on
+
+- **Recorded.** `notes/riscv-tlb-shootdown.md`. The number this milestone existed to produce is not
+  measurable here: QEMU's softmmu TLB is not ASID-tagged, so it charges the added gate and credits
+  nothing for the removed flush, and icount came back +1.2% on `ctx_switch`. The note's BUGS says
+  only a hardware TLB settles it. This block points that measurement at milestone 24, which is an
+  aarch64 VMM board and cannot take a RISC-V number; where it actually belongs is unsettled.
+- **Recorded.** `notes/riscv-tlb-shootdown.md`. Three hazards the shootdown carries and cannot close
+  from S-mode: a firmware that implemented RFENCE asynchronously would break this silently and
+  nothing can check for it, the hart mask is a bitmap relative to base 0 so the shootdown reaches
+  harts 0..63, and `share_kernel_half`'s one-time copy of the kernel's top-level entries would hide
+  a later kernel mapping from every space created before it.
+- **Unclaimed.** Take the `ctx_switch` number on real RISC-V silicon, where the TLB is genuinely
+  ASID-tagged. QEMU charges the added gate and credits nothing for the removed flush, so the win
+  this milestone exists for has never been measured, and the block's citation of milestone 24 is
+  wrong (that is an aarch64 board). Somebody still has to say which board leg owns the measurement.

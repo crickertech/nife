@@ -146,3 +146,35 @@ arriving on a machine whose firmware turns it on.
   the OptiPlex's firmware leaves interrupt remapping off, that a real function's MSI-X table is
   reachable once *firmware* rather than this kernel has placed its BARs, and that a machine with
   more than one local APIC still delivers to the boot core's id.
+
+## Follow-on
+
+- **Refused.** Legacy INTx routing, in both available versions. Reading ACPI's `_PRT` means an AML
+  interpreter this tree does not have and would then have to maintain and verify, for four numbers.
+  Hardcoding `q35`'s swizzle passes every gate on patagonia and might fail on the OptiPlex, which
+  would be discovered at a null modem, this project's most expensive place to discover anything.
+- **Refused.** A `PCI_IRQ_BASE` fallback for a machine that wants MSI where the function has no
+  MSI-X. Bring-up fails loudly instead, because falling back to `intx_irq(0, ..)` there is the
+  original bug wearing the clothes of a graceful degradation.
+- **Recorded.** `design/roadmap/215-x86-64-pci-interrupt-routing.md`'s own `BUGS`: an MSI vector is
+  never handed back. `alloc_msi_vector` is a bump counter over a 63-vector band, so a device
+  brought up twice spends two. The number to watch is `find_*_device` calls per boot.
+- **Recorded.** `design/roadmap/215-x86-64-pci-interrupt-routing.md`'s own `BUGS`: every message is
+  addressed to the boot core. Nothing distributes device interrupts on this architecture.
+- **Recorded.** `design/roadmap/215-x86-64-pci-interrupt-routing.md`'s own `BUGS`: one MSI-X vector
+  per function, entry 0. A multi-queue driver would want more, and a per-queue table index rather
+  than the single one `PciVirtioDevice::msix_vector` carries.
+- **Recorded.** `notes/x86-port.md` holds what only xenon can confirm: that the OptiPlex's firmware
+  leaves interrupt remapping off, that a real function's MSI-X table is reachable once firmware
+  rather than this kernel has placed its BARs, and that a machine with more than one local APIC
+  still delivers to the boot core's id.
+- **Recorded.** `kernel/src/arch/x86_64/irq.rs`'s `BUGS`: a VT-d unit with `intremap=on` rejects
+  the compatibility-format message this builds, so it is the first thing to check if MSI stops
+  arriving on a machine whose firmware turns remapping on.
+- **Recorded.** `kernel/src/arch/x86_64/exceptions.rs`'s `BUGS`: the vector-to-intid inversion is
+  still owed. MSI never needs it, because an MSI intid is its vector; it is now owed only for the
+  console UART, which is the last candidate.
+- **Unclaimed.** Attach the rest of the x86_64 test fixtures now that a function's interrupt works:
+  the RedoxFS image, the GPT and blank disks, the NIC, the GPU, the keyboard and the RNG, each a
+  line in `scripts/qemu-runner-x86_64.sh` plus its wiring, starting with making the FS server's disk
+  lookup transport-blind. The measure is the 36 tests taking a "no RedoxFS disk attached" arm.

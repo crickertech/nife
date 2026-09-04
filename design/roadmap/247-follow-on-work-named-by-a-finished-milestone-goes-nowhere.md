@@ -81,3 +81,59 @@ to survive is stated instead:
   has to resolve to a milestone, the honest thing to write becomes expensive and people will write
   less, which costs more than the burial does. Whatever ships has to leave "this is a limitation and
   it stays one" cheap to say.
+
+## What was built, 2026-09-03
+
+**The mechanism.** A `## Follow-on` section on every BUILT or REMOVED block, gated by
+`script/roadmap --check` and therefore by `script/lint`. Seven dispositions, each resolving to
+something a script can check: `None.`, `Milestone N.` (the block must exist), `Done.` (what carried
+it), `Recorded.` (any path it cites must exist), `Refused.` (a reason), `Decision.` (a file under
+`design/decisions/`), `Unclaimed.` (what the work is). The vocabulary is tabulated in
+design/roadmap/README.md and argued in notes/follow-on-work.md.
+
+It hangs on the **status** rather than on a marker in prose, which is what keeps it off the rung
+this block ruled out. A block turning BUILT is the moment the burial happens and it is a state a
+script can see; nothing here greps prose for intent, so `git grep -w TODO`'s 82% false-positive rate
+does not apply. Third instance of a shape the tree already has, after the TODO gate and the
+citations gate.
+
+**The proof, which is the half this block said the sweep alone could not give.** Four burials were
+staged and each went red: a finished block with the section removed, a bullet naming a milestone number
+nothing has, beside a `Recorded.` pointing at a file that does not exist and a bare `Refused. Later.`, a block
+parked on the (then existing) exemption list after its `Built` date, and a block left on that list
+after it grew a section. The gate also found rot nobody staged: three roadmap blocks citing paths
+that renames had moved out from under them.
+
+**The sweep.** All 139 finished blocks read in full, in twelve parallel lanes, about 159,000 words.
+605 dispositions: 291 `Recorded.`, which is the `BUGS` convention working as designed, and 136
+`Milestone N.`, usually the successor the block had already cited by number.
+
+**And 42 pieces of work that were named and never taken, across 32 finished milestones**, which is the number this block existed to
+produce and which nothing in the tree could see before. Five are recommended for minting in
+notes/follow-on-work.md, on a stated bar: a claim this project makes rests on it, or a record is now
+known to be wrong. The rest stay `Unclaimed.` and queryable through `script/roadmap --unclaimed`.
+
+**Two dispositions were added by the sweep rather than designed before it**, and that is the
+finding worth keeping. `Unclaimed.` and `Done.` were each asked for by several lanes independently,
+on the same afternoon, having hit the same wall: work a block named honestly that nobody took, and
+work a block named that two ordinary commits then finished. Neither fits the four words the gate
+shipped with. The lanes that would not write a comfortable lie **left those items out**, which is
+this milestone's own failure mode arriving through this milestone's own mechanism.
+
+## Follow-on
+
+- **Unclaimed.** The 42 items the sweep found are listed nowhere but in the blocks that name them,
+  which is deliberate (they are queryable through `script/roadmap --unclaimed`) and means nothing
+  ages them. An entry written today and one that has sat for a year look identical, and nothing
+  escalates either. Whether the backlog wants a staleness signal is open.
+- **Recorded.** In `notes/follow-on-work.md`: `Unclaimed.` and `Recorded.` are separated by
+  judgment rather than by anything checkable, so the backlog is under-counted rather than
+  over-counted. `Recorded.` is the more comfortable word and the same text can defensibly take
+  either.
+- **Recorded.** In `notes/follow-on-work.md`: the gate fires once, when a block finishes. Follow-on
+  work identified after that lands in a block nothing re-checks, because the section already exists
+  and already passes.
+- **Decision.** The seven disposition words are a lane's and calef names things. He minted `REMOVED`
+  in the status vocabulary himself, so this one is the same shape one level down; the ratification
+  ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points at the
+  sweep's five proposed milestones.

@@ -170,3 +170,30 @@ because each is a scheduler-policy or syscall-surface question and those are cal
   tooling is built; what it needs is a bench, a night, and the numbers recorded in
   `notes/soak.md`'s table beside the QEMU rows. Milestone 218 (every boot needs a human typing four
   commands into U-Boot) makes it cheaper but does not block it.
+
+## Follow-on
+
+- **Milestone 221.** The first proposed milestone in this block's handoff: a workload can be made to
+  cross cores, or it is admitted that none can. calef answered the fork in
+  `design/decisions/138-cross-core-handoff-under-load.md` and 221 built the `sched::on_tick` hook.
+- **Milestone 225.** The second: run the soak on radon, argon and xenon, which is where its answer
+  means anything. The procedure is written and the tooling is built; it needs a bench and an evening.
+- **Milestone 245.** The duration this block declined to set. Every counter `script/soak` prints is
+  a volume, so no beat can be compared with the one before it and a run that stopped learning looks
+  exactly like one that has not.
+- **Refused.** A soak leg inside `script/test`. Twenty seconds per architecture would stop the
+  feature silently ceasing to compile, and it was judged too expensive for a gate every lane runs on
+  every push.
+- **Recorded.** `notes/soak.md`: a soak that finds nothing is weak evidence, and what a clean run
+  licenses is one sentence about round trips completed without a refused wake, a wrong reply or a
+  stalled worker. `script/soak` prints that caveat on every green run.
+- **Recorded.** `notes/soak.md`: a soak build is not the binary that ships. Its IPC fast path is
+  1.05 to 1.06x the production one, so no number here is a statement about how fast this kernel does
+  IPC, and `script/bench` is the instrument for that.
+- **Recorded.** `design/roadmap/219-a-workload-that-does-not-stop.md`: the heartbeat is guest time
+  and the watcher's deadline is host time, so a QEMU guest on a loaded host can produce a false
+  quiet verdict. The knob is `--quiet-after`, and not soaking beside other heavy work is the better
+  answer.
+- **Recorded.** `design/roadmap/219-a-workload-that-does-not-stop.md`: an x86_64 soak runs one core
+  unless told otherwise, because that runner defaults to one and its SMP bring-up has two open bugs.
+  A crossing count of zero says so out loud, and a single-core soak is not a multicore soak.

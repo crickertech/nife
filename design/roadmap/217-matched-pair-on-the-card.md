@@ -116,3 +116,22 @@ the build rather than after it. What no host check covers is a real card's files
   any other means is still unverifiable without booting it.
 - **The measured-boot refusal is only as good as the manifest.** This milestone treats the gate as
   correct because it fired on a real mismatch; it makes no claim about what the gate would miss.
+
+## Follow-on
+
+- **Recorded.** `design/roadmap/217-matched-pair-on-the-card.md` BUGS: this block does not fix any
+  card. Re-flashing is a bench action, and radon's pair is stale until somebody does it.
+- **Recorded.** `design/roadmap/217-matched-pair-on-the-card.md` BUGS: the card option has only ever
+  written to a directory on a Mac's own disk. Nothing here has touched a real microSD card, and the
+  `sync` it issues afterwards is the ordinary defence against pulling a card too early rather than a
+  tested one.
+- **Recorded.** `design/roadmap/217-matched-pair-on-the-card.md` BUGS: the measured-boot refusal is
+  treated as correct because it fired on a real mismatch, and this milestone makes no claim about
+  what that gate would miss.
+- **Refused.** Having the card option prove that the path it was given is really a memory card. The
+  refusals stay narrow: it requires an existing directory and declines the filesystem root, because
+  a check that guesses at intent fails the person with an unusual mount and protects nobody else.
+- **Unclaimed.** A tool that reads a mounted card and reports whether its kernel and its archive
+  match. `--card` narrows who needs one rather than removing the need: a card written by any other
+  means stays unverifiable without booting it, so a mismatch is found after a power cycle at the
+  bench instead of before one.

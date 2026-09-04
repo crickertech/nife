@@ -193,3 +193,35 @@ The wider question the rename raised is not this milestone's: calef asked what t
 for, a grep found that **nothing consumes it except the check that enforces it**, and the proposal to
 retire all of it except `milestone/N-` (the one prefix §90's roadmap-block check actually reads) is
 separate work.
+
+
+## Follow-on
+
+- **Decision.** `design/decisions/94-what-may-live-in-a-library.md` is the section this block's
+  scope note left for the integrator to mint if the `user_rt` change turned out to want one. It
+  does: the decision keeps the sound half (a `#[panic_handler]` is per-final-binary, so a library
+  defining one collides with any binary wanting its own) and retires the stale half (that each
+  binary must therefore hand-roll the trap).
+- **Refused.** Splitting `kernel_main`. Tried and measured: the two `cfg` blocks come out
+  byte-identical and the function drops to 112 lines, and the build breaks, because `bench`,
+  `shell`, `smb_serve` and `initboot` each park early in a `cfg`-gated block ending in
+  `arch::halt()`. One divergent function absorbs the unreachable tail; two do not, and `-D warnings`
+  is a gate. A reader still meets a 908-line function, and the thing to solve first is the
+  early-park pattern rather than the function.
+- **Refused.** Converting `xtask`'s forty-eight `-> bool` signatures to `Result`. Reading the sites
+  withdrew the finding: every command already prefixes its own name, most bare `return false` sites
+  are correct propagation where the callee has reported, and the one that looked silent
+  (`screendump`) is a documented retry signal. An error type plus a conversion at every boundary and
+  roughly ninety edits would reproduce diagnostics the tree already emits.
+- **Recorded.** `design/roadmap/130-the-copy-that-outlived-its-reason.md`'s BUGS section keeps what
+  the branch rename cost: GitHub closed the pull request rather than retargeting it, so #278 became
+  #284 with the same branch and the same commits. The next person to rename a branch under an open
+  pull request should expect it.
+- **Unclaimed.** Split `xtask/src/main.rs`, 6,785 lines with no module structure, into modules. The
+  compiler verifies the split completely so the edit is mechanical; what it needs is a scheduled
+  slot, because that file is one of the three merge hotspots every lane wires its test into and a
+  wholesale restructure conflicts with every branch in flight.
+- **Unclaimed.** Decide whether to retire the branch-prefix taxonomy down to `milestone/N-`, the one
+  prefix §90's roadmap-block check actually reads. A grep found nothing else consumes it, so the
+  rest is a gate enforcing a convention with no consumer. `design/decisions/77-branch-prefixes.md`
+  answers which prefixes belong on the list and assumes it stays, so retiring it is calef's call.

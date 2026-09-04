@@ -19,3 +19,21 @@ switch already flushes the world.
 
 **Detail.** Standard aarch64 (ASID in TTBRx, `TCR_EL1.A1`); kernel/src/arch/aarch64/mmu.rs carries
 the deferral.
+
+## Follow-on
+
+- **Milestone 58.** The RISC-V half. `sfence.vma` is local, so discharging an ASID machine-wide
+  needs an IPI to every hart through SBI RFENCE, and until that existed every RISC-V context switch
+  flushed the whole TLB and made the tag pointless.
+- **Refused.** The generation and rollover scheme this block sketched from Linux. Milestone 14
+  bounds concurrent address spaces at 160, below the smallest hardware ASID space of 256, so the
+  exhaustion path the generations guard is unreachable here, and machinery whose hard path can never
+  run is machinery that rots. If `MAX_SPACES` ever passes 255 the first answer is 16-bit ASIDs, not
+  a new algorithm.
+- **Recorded.** `notes/asids.md`: RISC-V permits `satp.ASID` to be zero bits wide, so "255 numbers
+  for at most 160 spaces" is an aarch64 fact. A machine that cannot tell the tags apart keeps
+  flushing on every switch, and the width is probed at boot.
+- **Unclaimed.** Put a number on what ASIDs bought. The switch stopped flushing the TLB in July and
+  no machine has measured what that changed, nor the address-space-switch cost this block calls
+  ASIDs the prerequisite for reasoning about. QEMU cannot show it; argon, radon or xenon can. The
+  mechanism ships with its payoff asserted rather than measured.

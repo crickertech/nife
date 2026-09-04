@@ -153,3 +153,42 @@ block already applies to power.
 
 **Nothing is blocked on the answer**, which is why it is a paragraph and not a milestone: the tool
 as built serves every read-only use, and 218 is the thing to do first either way.
+
+## Follow-on
+
+- **Milestone 218.** The board's own autoboot fails, so reading alone cannot boot it: reaching nife
+  means interrupting the two-second countdown and typing four commands at `StarFive #`. This block
+  proposed a milestone for making the console drive U-Boot and withdrew it, because 218 is the
+  better framing: fix the boot path and nothing needs to type. 218 also owns the degraded U-Boot
+  environment (`bad CRC, using default environment`, the `Invalid partition 3` lines, `"boot2" not
+  defined`), which the board boots through and which this milestone deliberately did not repair.
+- **Milestone 217.** The card carrying a kernel and an archive from different builds, minted the
+  same day out of the same bench session and taking the other half of the withdrawn proposal.
+- **Recorded.** `design/roadmap/216-board-console.md` BUGS: a captured log is not a test result.
+  Deciding pass or fail from console text is how a harness ends up asserting on a vendor's boot
+  message. The tool names its outcome `Reached`, for what it observed, rather than `Passed`, and
+  that is a wording rather than a mechanism, so the line is still uncrossed rather than defended.
+- **Recorded.** `notes/board-console.md` records the provenance of the markers: one board, on one
+  day, in two states. Better than documentation alone and not the same as proven. Uncovered are
+  other firmware builds and the two synthetic fixtures nobody has yet seen at a bench, which is why
+  the fixtures split into `captured/` and `synthetic/` so provenance is a path rather than a claim.
+- **Recorded.** `design/roadmap/216-board-console.md` records that remote power is unproven: the
+  Kasa plug was not reachable from either machine when this was written, discovery found nothing on
+  two subnets by broadcast and by unicast, so nothing should be built assuming it. The tool stands
+  without it and gains reset later.
+- **Refused.** Making the tool drive power. A tool that power-cycles is a different and more
+  dangerous object than one that reads, and the outlet next to the board's on that strip feeds an
+  external drive that must never be switched off. The built tool reads and never writes, to the port
+  or to the outlet, so the question stayed undecided rather than being settled by an
+  implementation.
+- **Recorded.** `notes/naming.md` holds the naming backlog this milestone added to:
+  `script/board-console`, `cargo xtask board-console` and `crates/board_console` all shipped
+  provisional, as a lane's names are, and `script/names --unratified` is the worklist.
+- **Unclaimed.** Whether `script/board-console` should ever be able to write to the serial port at
+  all, and if so whether that is this tool with an explicit mode or a second tool. It is calef's
+  call. Milestone 218 may remove the need by fixing autoboot, in which case the answer is no; while
+  it is open, a bench session facing a board that will not boot has no sanctioned way to type at it.
+- **Unclaimed.** Whether argon (aarch64) and xenon (x86_64) get this console with a board profile or
+  a tool each. Same behaviour, different banners and a different boot sequence, and the choice is
+  calef's. Until it is made the other two boards have no console tool at all, so the bench workflow
+  this milestone built exists for one board out of three.

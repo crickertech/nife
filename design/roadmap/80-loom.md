@@ -50,3 +50,17 @@ and a note recording the method and whether the second protocol is worth the ret
 Loom models C11, not the ARM or RISC-V memory model, so it narrows the gap rather than closing it;
 litmus-level confidence would need herd7-style tooling and is not this milestone. Milestone 81 is
 the complementary leg: real silicon executing the real orderings, unsearched but genuine.
+
+## Follow-on
+
+- **Refused.** Making `script/interleaving-check` a gate. A loom model's search cost is exponential
+  in the interleavings, so its runtime is a step function, and a gate whose cost is a step function
+  is a gate that gets skipped. Revisit when there is a CI job that can absorb it.
+- **Milestone 81.** The complementary leg. Loom searches the orderings a model permits; the HVF leg
+  runs the suite on a physical core, unsearched but genuine.
+- **Recorded.** `notes/interleaving.md`: loom models C11, not the ARM or RISC-V memory model, so a
+  clean result narrows the gap rather than closing it, and litmus-level confidence would need
+  herd7-style tooling that is nobody's deliverable.
+- **Recorded.** `notes/interleaving.md` names two protocols this method cannot reach:
+  `crates/user_rt`'s hand-rolled userspace spin lock, which is aarch64 inline `asm!` and does not
+  compile for the host, and the interrupt-routing lottery, which lives under `arch/`.

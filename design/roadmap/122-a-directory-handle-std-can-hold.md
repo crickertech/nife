@@ -162,3 +162,33 @@ is §82's stated failure mode.
 - **This does not make `cap-std` run.** It builds the object `cap-std` would bind to. The backend work
   is separate and §84 records that it is unmeasured, including whether `cap-primitives` has a seam a
   third backend can use at all.
+
+## Follow-on
+
+- **Milestone 121.** The per-component IPC is still unmeasured, which is the half of this block's
+  own recommendation it owes. A `std` program pays a round trip per path component with no way to
+  see it, and `File::open` on a path that must be created pays for the walk twice. 121's benchmark
+  is what prices it, and the answer is the input to whether the contract should grow a
+  multi-component resolve.
+- **Decision.** `design/decisions/98-opendir-cannot-attenuate.md` holds it: `OPENDIR` has no way to
+  say "attenuate to whatever you have", so a held directory asks for `dir::ALL` and, when a narrowed
+  grant refuses, probes one right at a time. The workaround ships and is recorded where a reader
+  meets it; the replacement is a sentinel in the rights word, which is a wire change.
+- **Milestone 108.** Lifetime and revocation of a retained directory handle: when it is closed, and
+  what a program observes if the directory it holds is revoked underneath it. 108 asks the same
+  question one level up.
+- **Recorded.** In `design/roadmap/122-a-directory-handle-std-can-hold.md`: a revoked FS endpoint
+  now reads as `PermissionDenied` rather than `Unsupported`, because `-1` is both the kernel's
+  `NoSuchSlot` and the server's `EPERM` and this milestone moved which one wins. The clean fix is a
+  tag or an offset in the reply word, which belongs to the contract.
+- **Recorded.** In `design/roadmap/122-a-directory-handle-std-can-hold.md`: handle exhaustion turned
+  out not to need a budget, since a walk holds two handles rather than one per level and a held
+  `Dir` is bounded by the same `EMFILE` as an open `File`. What is untried is a program holding many
+  `Dir`s at once.
+- **Recorded.** In `design/decisions/84-how-we-port.md`: this does not make `cap-std` run, it builds
+  the object `cap-std` would bind to. The backend work is separate and is unmeasured, including
+  whether `cap-primitives` has a seam a third backend can use at all.
+- **Unclaimed.** Spawn a `std` program on an `fs_subtree_caretaker` endpoint and run the PAL against
+  it, so the rights discipline is exercised under a narrowed grant. Every std test today grants the
+  mount root, which means a walk that over-asks for rights passes all of them. The PAL has already
+  come close once: `readdir` nearly shipped asking for `dir::ALL`.

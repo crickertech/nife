@@ -73,3 +73,20 @@ complete (no scrollback or reflow).
 **Sequencing.** Needs the PCIe transport (done) and wants 28's contract first so the display
 terminal implements a contract rather than inventing one. Optional and well off the thesis path;
 a reach in the 24 spirit. **Effort: 2 lanes** (measured: first pixels, then glyphs/VT/input).
+
+## Follow-on
+
+- **Decision.** `design/decisions/102-frame-names-a-run.md` settled the fork that blocked the font
+  increment: a `PageFrame` names a run of pages rather than exactly one, so a scanout no longer
+  costs one capability-table slot per page. calef chose it 2026-08-20.
+- **Milestone 142.** The scanout growth and the font itself. 142's increment one grew the surface
+  through that decision, and increments three through six own the glyph atlas and the palette that
+  gohufont-14 and its successors ride on.
+- **Milestone 142.** The deferred terminal behaviour: scrollback, UTF-8, arrow keys and line
+  editing at the display terminal. 142's increment two built them.
+- **Recorded.** `notes/glyphs.md` records that there is no reflow on resize, because nothing
+  resizes: a fixed scene has nothing to reflow to.
+- **Decision.** `design/decisions/37-text-as-a-value.md` holds the VT engine's language question,
+  left open on purpose with the cost measured. The recommendation is to adopt libghostty-vt as a
+  second engine behind the same seam rather than as a replacement, because the expensive part is
+  rebuilding the three-witness proof structure, not the rendering.

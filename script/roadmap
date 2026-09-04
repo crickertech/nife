@@ -64,8 +64,8 @@
 # With no arguments it prints the normalized status report, statuses first and gates after it.
 # `--ready` prints only the milestones a lane could start today (gate `NONE`, status `NOT-STARTED` or
 # `PARTIAL`), which is the query the maintainer actually makes. `--unswept` prints the milestones
-# that finished before milestone 247's follow-on sweep and still owe it a disposition, which is a
-# debt that may only shrink. `--check` validates and exits
+# `--unclaimed` prints the follow-on work finished milestones named that
+# nobody has taken. `--check` validates and exits
 # non-zero on a problem, which is what a gate wants. See design/roadmap/README.md for both
 # vocabularies.
 #
@@ -359,6 +359,29 @@ for fname in sorted(os.listdir(d)):
 #   - **Refused.**           it was considered and deliberately not taken; carries the reason.
 #   - **Decision.**          it is calef's call and is written up as one; names the file under
 #                            design/decisions/ that holds it.
+#   - **Unclaimed.**         the block named work, nobody has taken it, and it has not been
+#                            refused. Says concretely what the work is.
+#   - **Done.**              it was done, and not as a milestone. Says what carried it: a pull
+#                            request, a branch, a commit, or the file it now lives in.
+#
+# **`Done.` came from the same sweep, reported by four lanes independently.** Work named by a block
+# and then finished by two ordinary commits fits none of the other words: `Milestone N.` is a lie
+# about what happened and `Recorded.` is a lie about it still being open. Every one of those lanes
+# resolved it by leaving the item out, which is the silence this whole gate exists to stop, arriving
+# through the gate itself.
+#
+# **`Unclaimed.` was added by the sweep that this gate was built for, and three lanes asked for it
+# independently on the same afternoon.** The first four dispositions handle a limitation the block
+# accepts and a successor the block got. They handle badly the case that is this milestone's whole
+# subject: a block that wrote its follow-on work down honestly, in the place a reader meets it, and
+# nobody picked it up. `Recorded.` would lie about intent and `Refused.` would lie about the
+# decision, so a lane forced to choose between them writes the more comfortable one.
+#
+# **What stops it being silence with a heading over it is that it is queryable.**
+# `script/roadmap --unclaimed` prints every one of them tree-wide and `--check` prints the count on
+# every run, so the backlog is a number somebody can watch rather than a paragraph in a block nobody
+# opens. That is the difference between rung four and rung two, and it is the entire justification
+# for the token: an unclaimed item is findable by command, which a handoff paragraph never was.
 #
 # **`Decision.` is not a fifth tracked form**, it is the tree's existing second one. AGENTS.md:
 # "Open decisions live in a file, not in a conversation." Without this bullet a decision owed to
@@ -374,56 +397,27 @@ for fname in sorted(os.listdir(d)):
 # **An explicit refusal is a success.** The defect this attacks is silence, not the absence of a
 # milestone.
 #
-# **The unswept list is an exception and says so** (see notes/follow-on-work.md, which holds it).
-# 137 blocks were already BUILT the day this gate was written and sweeping all of them at once is
-# not a thing one lane can do honestly. So a block that finished before the sweep may sit on a list
-# instead of carrying a section, and the list may only shrink. The parking is closed by date rather
-# than by good intentions: an entry must name a block whose Built column is on or before
-# UNSWEPT_CUTOFF, so nothing that finishes after this gate exists can be parked on it.
-UNSWEPT_CUTOFF = "2026-09-03"
-UNSWEPT_FILE = os.path.join("notes", "follow-on-work.md")
-DISPOSITION = re.compile(r"^- \*\*(None|Recorded|Refused|Decision|Milestone (\d+))\.\*\*(.*)$")
-
-unswept = {}
-try:
-    unswept_text = open(os.path.join(root, UNSWEPT_FILE)).read()
-except FileNotFoundError:
-    unswept_text = ""
-    problems.append(f"{UNSWEPT_FILE} is missing: it holds the list of milestones that finished "
-                    f"before the follow-on sweep and the reason that list exists")
-inside = False
-for i, line in enumerate(unswept_text.split("\n"), start=1):
-    if line.strip() == "<!-- BEGIN UNSWEPT -->":
-        inside = True
-        continue
-    if line.strip() == "<!-- END UNSWEPT -->":
-        inside = False
-        continue
-    if not inside or not line.strip() or line.strip().startswith("```"):
-        continue
-    entry = line.strip()
-    if entry in unswept:
-        problems.append(f"{UNSWEPT_FILE}:{i}: {entry} is listed twice")
-    unswept[entry] = i
-
-for entry, i in sorted(unswept.items()):
-    m = FNAME.fullmatch(entry)
-    if not m or entry not in ids.values():
-        problems.append(f"{UNSWEPT_FILE}:{i}: {entry!r} is not a milestone file in design/roadmap/")
-        continue
-    num = int(m.group(1))
-    status = rows.get(num, ("", "", ""))[0]
-    if status not in DATED:
-        problems.append(f"{UNSWEPT_FILE}:{i}: milestone {num} is {status or 'unlisted'}, and the "
-                        f"list is only for work that had already finished when the sweep ran")
-        continue
-    built = built_dates.get(num, "")
-    if not built or built > UNSWEPT_CUTOFF:
-        problems.append(f"{UNSWEPT_FILE}:{i}: milestone {num} finished {built or 'on no date'}, "
-                        f"after the {UNSWEPT_CUTOFF} sweep. The list may only shrink: a block that "
-                        f"finishes now carries its own '## Follow-on' section")
+# **There is no exemption list, and there was one for about an hour.** The first draft let a block
+# that finished before the sweep sit on a list in notes/follow-on-work.md instead of carrying a
+# section, because 137 blocks is not something one lane can sweep honestly. The sweep then reached
+# all of them, the list closed to zero, and an empty list that permits parking is exactly the
+# hiding place its own BUGS section had called a foot gun. So it is gone rather than kept at zero.
+# **What counts as a path claim, and this had to be tightened twice.** A backticked span in this
+# tree is usually prose (`MAX_CPUS`, `scounteren.CY`), sometimes a command (`script/names
+# --unratified`), sometimes a shell example (`rm a/b/c.txt`), and only sometimes a file. Checking
+# every span that held a slash fired on all four. So a span is a path claim only when it has no
+# whitespace and begins with a directory this repository actually has, which still catches the rot
+# this check exists for: milestone 136's pin named `crates/regions` after §113 renamed it.
+PATHISH = re.compile(r"(?:" + "|".join([
+    "art", "bench", "crates", "design", "entropy_backend", "fuzz", "kernel", "notes", "patches",
+    "redoxfs_server", "script", "scripts", "std_exerciser", "targets", "tools", "uefi_loader",
+    "user", "vendor", "xtask", r"\.github",
+]) + r")/\S+")
+DISPOSITION = re.compile(
+    r"^- \*\*(None|Recorded|Refused|Decision|Unclaimed|Done|Milestone (\d+))\.\*\*(.*)$")
 
 swept = 0
+unclaimed = []
 for mid, fname in sorted(ids.items()):
     if not mid.isdigit():
         continue
@@ -437,18 +431,17 @@ for mid, fname in sorted(ids.items()):
         problems.append(f"{fname}: {len(heads)} '## Follow-on' sections; one milestone answers the "
                         f"question once, and a second copy is the one that stops being updated")
     if not heads:
-        if rows[num][0] in DATED and fname not in unswept:
+        if rows[num][0] in DATED:
             problems.append(
                 f"{fname}: milestone {num} is {rows[num][0]} and carries no '## Follow-on' "
                 f"section. A finished block is the last place anyone looks, so it says what "
                 f"happened to the work it named: bullets opening '**None.**', "
                 f"'**Milestone N.**', '**Recorded.**' (naming the file the limitation lives "
-                f"beside, in backticks) or '**Refused.**' with a reason. See "
-                f"design/roadmap/README.md and notes/follow-on-work.md")
+                f"beside, in backticks), '**Refused.**' with a reason, '**Done.**' with what "
+                f"carried it, '**Decision.**' naming a file under design/decisions/, or "
+                f"'**Unclaimed.**' saying what the work is. See design/roadmap/README.md and "
+                f"notes/follow-on-work.md")
         continue
-    if fname in unswept:
-        problems.append(f"{UNSWEPT_FILE}:{unswept[fname]}: {fname} has a '## Follow-on' section "
-                        f"now, so it is swept; take it off the list")
     swept += 1
     body, collecting = [], False
     for n, l in enumerate(lines, start=1):
@@ -459,7 +452,16 @@ for mid, fname in sorted(ids.items()):
             if l.startswith("#"):
                 break
             body.append((n, l))
-    bullets = [(n, l) for n, l in body if l.startswith("- ")]
+    # A bullet is its first line plus every continuation line under it, joined. Reading only the
+    # first line was this check's own first defect, found within the hour by a lane whose path
+    # wrapped onto line two: the bullet was correct and the gate called it pathless.
+    bullets = []
+    for n, l in body:
+        if l.startswith("- "):
+            bullets.append([n, l])
+        elif bullets and (l.startswith("  ") or l.startswith("\t")) and l.strip():
+            bullets[-1][1] += " " + l.strip()
+    bullets = [(n, l) for n, l in bullets]
     if not bullets:
         problems.append(f"{fname}: '## Follow-on' has no bullets. '- **None.**' is the whole "
                         f"answer when nothing was identified, and it is meant to be cheap to say")
@@ -482,13 +484,29 @@ for mid, fname in sorted(ids.items()):
             elif target == num:
                 problems.append(f"{fname}:{n}: names itself as its own follow-on")
         elif kind == "Recorded":
-            paths = re.findall(r"`([^`]+)`", rest)
-            real = [p for p in paths if os.path.exists(os.path.join(root, p.split("#")[0]))]
-            if not real:
+            # **A path is checked when one is named, and never demanded.** The first draft of this
+            # required every `Recorded.` bullet to name an existing file, and three lanes hit it
+            # within the hour on bullets that were correct: a backticked identifier is ordinary
+            # prose here (`MAX_CPUS`, `scounteren.CY`, `display_terminal`), and the common case is
+            # a limitation recorded in the block the reader is already holding, where repeating
+            # the block's own path in five consecutive bullets is noise.
+            #
+            # It is also the BUGS convention's own boundary, which this gate must not cross. "This
+            # is a limitation and it stays one" has to stay the cheapest sentence in the roadmap,
+            # or the honest thing becomes expensive to write and the BUGS sections thin out, which
+            # costs more than the burial does. So the bullet owes prose, the same as a refusal,
+            # and a citation is checked only for being true.
+            named = [p for p in re.findall(r"`([^`]+)`", rest) if PATHISH.fullmatch(p)]
+            dead = [p for p in named if not os.path.exists(os.path.join(root, p.split("#")[0]))]
+            if dead:
                 problems.append(
-                    f"{fname}:{n}: '**Recorded.**' says the limitation lives beside the feature, "
-                    f"so it names the file it lives in, in backticks, and that file has to exist "
-                    f"(found {paths if paths else 'no path'})")
+                    f"{fname}:{n}: '**Recorded.**' names {dead}, which does not exist. A citation "
+                    f"that resolves to nothing is a broken footnote, and a rename is how it "
+                    f"happens: milestone 136's pin still named crates/regions after §113 moved it")
+            elif len(rest) < 40:
+                problems.append(f"{fname}:{n}: '**Recorded.**' says what the limitation is and "
+                                f"where a reader meets it. A bare one is silence with a heading "
+                                f"over it (found {rest!r})")
         elif kind == "Decision":
             paths = re.findall(r"`([^`]+)`", rest)
             real = [p for p in paths
@@ -500,6 +518,19 @@ for mid, fname in sorted(ids.items()):
                     f"names the file under design/decisions/ that holds it, in backticks, and that "
                     f"file has to exist (found {paths if paths else 'no path'}). A decision that "
                     f"lives only in a conversation is the medium AGENTS.md abolished")
+        elif kind == "Done" and len(rest) < 40:
+            problems.append(f"{fname}:{n}: '**Done.**' says what carried the work, because a claim "
+                            f"that something happened is only useful if a reader can go and look: "
+                            f"a pull request, a branch, a commit, or the file it lives in now "
+                            f"(found {rest!r})")
+        elif kind == "Unclaimed":
+            if len(rest) < 40:
+                problems.append(f"{fname}:{n}: '**Unclaimed.**' says concretely what the work is, "
+                                f"because it is the one disposition a reader cannot resolve for "
+                                f"themselves. 'More work here' is the burial this gate exists to "
+                                f"stop (found {rest!r})")
+            else:
+                unclaimed.append((num, fname, n, rest))
         elif kind == "Refused" and len(rest) < 40:
             problems.append(f"{fname}:{n}: '**Refused.**' carries the reason it was refused. A "
                             f"refusal with a reason is a success here; a bare one is silence with "
@@ -563,20 +594,20 @@ if mode == "--check":
           f"index and files agree, every tree-wide citation resolves")
     print(f"roadmap: {len(gates)} of them classified by gate, {len(ready)} ready to start "
           f"(script/roadmap --ready)")
-    print(f"roadmap: {swept} blocks answer '## Follow-on', {len(unswept)} finished before the "
-          f"sweep and are still on the list (script/roadmap --unswept)")
+    print(f"roadmap: {swept} blocks answer '## Follow-on'")
+    print(f"roadmap: {len(unclaimed)} pieces of follow-on work are unclaimed "
+          f"(script/roadmap --unclaimed)")
     if lettered:
         print(f"roadmap: lettered addenda: {', '.join(lettered)}")
     sys.exit(0)
 
-if mode == "--unswept":
-    # What milestone 247's sweep did not reach. The list may only shrink, so this number is the
-    # remaining debt and is meant to be read as one.
-    for entry in sorted(unswept, key=lambda e: int(FNAME.fullmatch(e).group(1))):
-        num = int(FNAME.fullmatch(entry).group(1))
-        print(f"  {num:>3}  {rows[num][1][:66]}")
-    print(f"\n{len(unswept)} BUILT blocks with no follow-on disposition, of "
-          f"{len(unswept) + swept} read. See notes/follow-on-work.md")
+if mode == "--unclaimed":
+    # The backlog this roadmap could not see before milestone 247: work a finished block named and
+    # nobody took. Derived from the blocks, so it cannot go stale the way a separate list would.
+    for num, fname, n, rest in sorted(unclaimed):
+        print(f"  {num:>3}  {rest[:96]}")
+        print(f"       {fname}:{n}")
+    print(f"\n{len(unclaimed)} unclaimed, named by {len({u[0] for u in unclaimed})} milestones")
     sys.exit(0)
 
 if mode == "--ready":
@@ -588,7 +619,7 @@ if mode == "--ready":
     sys.exit(0)
 
 if mode:
-    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unswept, or --check)",
+    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, or --check)",
           file=sys.stderr)
     sys.exit(2)
 

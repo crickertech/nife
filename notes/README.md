@@ -94,8 +94,10 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [Follow-on work, and what happened to it](follow-on-work.md): milestone 247's answer to the same
   failure a third time. A finished milestone's block is the last place anyone looks, so the work it
   named on the way out evaporates; this is the `## Follow-on` section every BUILT block now answers,
-  the four dispositions a bullet may carry, why the gate hangs on the status rather than on prose,
-  and the unswept list of blocks that finished before the sweep, which may only shrink.
+  the dispositions a bullet may carry, and why the gate hangs on the status rather than on prose.
+  Also the sweep of all 139 finished blocks that produced it, the path rot it found in the roadmap's
+  own citations, and the reason `Unclaimed.` exists: three lanes hit the same wall on the same
+  afternoon, and the two that would not write a comfortable lie left the item out instead.
 
 - [Every place that enumerates architectures, and whether the list is complete](architecture-list-sweep.md):
   a one-time read of every list, match, `case`, CI step, TOML array, and per-architecture file set

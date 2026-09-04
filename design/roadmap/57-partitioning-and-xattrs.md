@@ -285,3 +285,52 @@ same size:
 
 **Effort: not estimated.** The GPT crate turned out to be about one lane on the history-calibrated
 scale, and so did the block-device lane.
+
+
+## Follow-on
+
+- **Milestone 61.** The caretakers (`fs_file_caretaker`, `fs_subtree_caretaker`,
+  `fs_nameset_caretaker`) answered `EOPNOTSUPP` to all four xattr verbs instead of forwarding, so a
+  program behind a per-file grant could not reach its own file's attributes. 61 closed it and found
+  the general defect underneath: nothing made a caretaker and the contract agree.
+- **Milestone 110.** `tools/redoxfs_host` reads a whole-device image and a real drive has a
+  partition table at offset zero. `crates/gpt` and the recovery verbs both existed here and nothing
+  joined them; 110 is that join, and the index calls it this milestone's residual.
+- **Refused.** Extending the RedoxFS on-disk format for extended attributes, in favour of layering
+  them in the FS server. Normally the layer is dismissible because on Linux anything can open the
+  file directly and bypass it; here nothing can, since all access goes through `fs_proto`. The
+  format extension would also be a materially larger divergence from the 0.9.1 pin that every future
+  bump pays for.
+- **Refused.** Filesystem-level encryption on the backup volume. calef, 2026-07-30: "If I'm
+  struggling to get the data off, I'm not all that worried about somebody else getting it."
+  Encryption belongs at the Time Machine layer, where the Mac encrypts before anything is sent, so
+  the server never holds plaintext and the recovery tool needs no key handling at all.
+- **Refused.** Re-enabling upstream's `fuse` feature for mounting. On Linux it is a feature flag and
+  nearly free, but the recovery story is `ls`/`cat`/`extract`/`xattr` in `tools/redoxfs_host`, which
+  is identical on macOS and Linux and needs no root. macOS mounting additionally wants macFUSE, a
+  third-party system extension plus reduced security mode on Apple Silicon, which makes it an
+  optional convenience rather than the answer to "can I get my data".
+- **Refused.** An indexed, typed attribute store in the BFS shape. Only opaque blobs are needed
+  today, and every attribute already carries a `u32` type code the layer stores, returns and never
+  interprets, so an indexed store later is a change of implementation rather than a format migration
+  plus a wire break.
+- **Recorded.** `notes/host-recovery.md` says an attribute's type code cannot survive extraction,
+  because no host filesystem has a per-attribute type word. Each dropped code is named and counted
+  and the raw `.nife-attrs` store still comes out beside the tree as its only home, which is also
+  why a recovered tree carries one directory the user did not put there.
+- **Recorded.** `notes/host-recovery.md` draws the consequence for pin bumps: a reader must match
+  the on-disk format version, so a bump to a different format strands every image already written
+  and is a migration rather than an upgrade. The operational rule that follows is to keep the
+  recovery tool, or its exact source pin, with the backup.
+- **Recorded.** `notes/gpt.md` records that `crates/gpt` will not invent a partition GUID, because a
+  GUID that is not random is not unique, the crate has no randomness, and inventing one from a
+  counter would be worse than refusing. The same note carries the two fixture findings: macOS writes
+  no GPT partition names, and the two tools disagree about the protective MBR's CHS fields.
+- **Unclaimed.** Partitioning on the target. `Gpt::create` is built and proved and only needs an
+  entropy endpoint plumbed into the program that does the partitioning, with no pin divergence to
+  take. Until someone writes that program a drive can only be partitioned from a Mac, so the
+  capability story stops at the host tool.
+- **Unclaimed.** `mkfs` on the target, which needs the entropy plumbing above plus
+  `Header::new_with_uuid` inside `vendor/redoxfs`: a new entry in the divergence patch and a new
+  file in `patches/` for upstream submission. §46 makes taking that divergence calef's call, and the
+  honest alternative is doing nothing, since `redoxfs_host` on a Mac formats the drive today.

@@ -79,3 +79,15 @@ whether the raw-input primitive should be a new syscall, a new `line_editor` opc
 narrowing of the existing terminal object; and whether `kilo`'s optional syntax-highlighting feature
 (a few hundred lines, off by default without a language database) is in scope for a first cut. Left
 for whoever picks this up, informed by how the raw-input primitive actually gets designed.
+
+## Follow-on
+
+- **Milestone 170.** `nano`, sequenced to start once this milestone's raw-input primitive exists. It
+  needs the identical terminal capability at roughly 25x the code size, plus the skippable
+  subprocess dependency for spell-check and external filtering that `kilo` never has to answer.
+- **Milestone 181.** A real `kilo.c` port. DECISIONS §31's foreign-language seam as built is a
+  one-shot call and cannot carry `kilo`'s own blocking event loop, which is why this milestone
+  shipped a Rust reimplementation named `rmle` instead, deliberately leaving the name `kilo` free.
+- **Recorded.** `user/src/rmle.rs`, in the module doc a reader meets first: no `SIGWINCH`-equivalent
+  resize notification, no syntax highlighting and no incremental search, so a resized terminal is
+  not noticed until something else forces a redraw.

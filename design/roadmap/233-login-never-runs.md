@@ -108,3 +108,24 @@ is not this case.
   `user/src/swish.rs`'s `BUGS`. Not fixed here: the pieces exist (init supervises every child) and
   what a faulted job should look like at the prompt is a design question `grant_plan::spawnproto`
   has no word for.
+
+## Follow-on
+
+- **Refused.** Handing `login` a mapping of the boot archive, for two reasons rather than one. It
+  could not be done with what init holds, since `supervision_proto::build_child` maps only pages
+  the spawner has a `PageFrame` capability for and the archive is reserved RAM nothing names, so it
+  would need a new kernel object naming reserved RAM and that is a syscall-surface decision. And it
+  is the wrong shape anyway: a program that answers a password should not be able to read every
+  file in the boot image.
+- **Milestone 235.** A spawned command that traps hangs the prompt, found by this milestone's own
+  trap experiment. `swish` waits on a job's result rendezvous and a killed thread never sends.
+- **Milestone 232.** Nothing else init starts has been checked program by program. The
+  no-thread-killed assertion catches a program that dies; a service that comes up and answers
+  nothing useful still passes every check in the tree, which is 232's territory.
+- **Recorded.** `design/roadmap/233-login-never-runs.md`'s own `BUGS`: how long `login` had been
+  dying is unknown. Nobody bisected it, and there is no green-to-red transition to search for,
+  because the check that would have noticed was itself not running.
+- **Recorded.** `design/roadmap/233-login-never-runs.md`'s own `BUGS`: the measurement check
+  `login` performs is weaker than it was. It used to read the same physical archive the kernel maps
+  for init; both blobs now come from init, which has already run the identical check, so what
+  remains is a consistency check on the hand-over.

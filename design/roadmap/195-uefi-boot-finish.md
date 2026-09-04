@@ -79,3 +79,23 @@ the bus and places every BAR before nife exists:
 - **Two firmware boots per `script/test --arch x86_64`**, the tour and the suite, because they carry
   two different kernels and the tour is the one that goes on the stick. The suite alone would leave
   the shipping image gated by nothing.
+
+## Follow-on
+
+- **Milestone 161.** The two open `ap_boot` defects this milestone met and deliberately did not
+  touch. `every_secondary_runs_scheduled_work` fails about half the time at two cores, which is why
+  the suite stays at one core and the tour is where the second one is gated.
+- **Recorded.** `notes/x86-port.md` carries the one thing only xenon can confirm out of milestone
+  215's three: whether the OptiPlex's firmware leaves VT-d interrupt remapping off. The other two
+  were answered on patagonia by this milestone.
+- **Recorded.** `design/roadmap/195-uefi-boot-finish.md`'s own `BUGS`: none of this is proved on a
+  Dell. OVMF is not a vendor firmware, and whether the OptiPlex leaves 32 MiB free is a question
+  for the bench.
+- **Recorded.** `design/roadmap/195-uefi-boot-finish.md`'s own `BUGS`: the x86_64 leg boots
+  firmware twice, once for the tour and once for the suite, because they carry two different
+  kernels and the tour is the one that goes on the stick. Gating the suite alone would leave the
+  shipping image gated by nothing.
+- **Unclaimed.** Make the x86_64 kernel image physically relocatable instead of linked at one
+  address. `PHYS_START` moved from 1 MiB to 32 MiB to clear OVMF's low reservations, which buys a
+  larger gap rather than a fix, and `.boot`'s absolute self-references have to become
+  position-independent because a 32-bit instruction stream cannot name a 64-bit one.

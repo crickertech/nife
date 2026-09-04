@@ -261,3 +261,34 @@ later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
   returns to init's job pool when the shell reaps it. Recorded rather than fixed: nothing asked for
   a rendering `doc` invocation to be surveyable, and the alternative (giving the shell a second,
   narrower view into `deaths` itself) is a bigger change than this increment needed.
+
+
+## Follow-on
+
+- **Milestone 151.** The caretaker-hop display race: with the `terminal_sink_caretaker` narrowing
+  built, a page's last line and the shell's next `$ ` prompt can interleave, because the caretaker's
+  trailing `CALL` to `line_editor` has no ordering primitive against the shell's next prompt. The
+  block names 151 (notification objects) as what lets the shell `WAIT` on the caretaker's queue
+  draining instead of racing it.
+- **Recorded.** `design/roadmap/40-documentation-service.md`'s own BUGS: a screen-narrowed child
+  does not appear in a concurrent `ps` or `pgrep`, because its fault target is a fresh endpoint the
+  shell mints rather than init's `deaths` domain channel, and domain membership is exactly having
+  `deaths` as that target. Its memory still returns to init's job pool when the shell reaps it.
+- **Refused.** A graphical viewer. Traced to its origin 2026-08-26 and found to be the scoping
+  lane's own unattributed addition rather than calef's direction; asked directly, he said "I don't
+  need a graphical viewer." Struck wherever it was named, and the sentence that quietly became a
+  requirement is kept in the block so a reader can see where it entered.
+- **Refused.** Adding a `readdir` verb so a viewer could walk a tree for documents. Enumeration is
+  authority, so a viewer that can list a directory can discover what it was not given. The design
+  indexes at package build time and ships the index instead, which sidesteps the missing verb and is
+  the shape Unix's prebuilt `mandb` reached for a different reason.
+- **Refused.** `comrak` for GFM tables, strikethrough and footnotes. It carries more dependencies
+  than the job needs and nothing in the corpus has wanted a GFM table, so the row stays "consider
+  later if tables matter" rather than work anyone owes.
+- **Refused.** `ratatui` for the pager. It needs a backend written against this tree's terminal
+  contract before it can render anything at all, so taking it would buy a widget library and leave
+  the actual work undone.
+- **Unclaimed.** The other two thirds of §106's spawn-protocol narrowing: a bit telling a tail stage
+  it ends at a real screen (colour, the honest `isatty` replacement), and a way to grant one line of
+  input without granting the keyboard (the pager). Both widen a protocol two programs agree on, so
+  both are calef's call; `notes/manual.md`'s "where this goes next" is the only record either has.

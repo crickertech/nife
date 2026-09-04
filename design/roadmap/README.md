@@ -141,15 +141,17 @@ left its own inventory in a pull request body for twelve days, and milestone 244
 unvouched-binary hazard and a design fork that surfaced only because calef asked for them by hand.
 
 A block whose status is `BUILT` or `REMOVED` carries the section, and `script/roadmap --check` fails
-on one that does not. It is a bullet list, and each bullet opens with one of five dispositions:
+on one that does not. It is a bullet list, and each bullet opens with one of six dispositions:
 
 | Bullet opens | Means | Must resolve to |
 |---|---|---|
 | `**None.**` | Nothing was identified. | Nothing; it stands alone as the whole answer |
 | `**Milestone N.**` | It became milestone N. | A block under `design/roadmap/`, not this one |
-| `**Recorded.**` | It is a limitation and it stays one. | A file, in backticks, that exists |
+| `**Done.**` | It was done, and not as a milestone. | What carried it: a pull request, a branch, a file |
+| `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
 | `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
+| `**Unclaimed.**` | Named, nobody took it, not refused. | Prose saying concretely what the work is |
 
 **An explicit refusal is a success here.** The defect being attacked is silence, not the absence of
 a milestone, and `**None.**` is meant to be the cheapest sentence in the roadmap.
@@ -160,11 +162,19 @@ observation had to resolve to a milestone, would make the honest thing expensive
 the `BUGS` sections out, which costs more than the burial does. Nothing here reads prose looking for
 intent: AGENTS.md priced that at `git grep -w TODO`'s 82% false-positive rate.
 
-**The unswept list is the exception, and it is named as one.** 137 blocks were already `BUILT` the
-day this gate landed and one lane cannot sweep them all honestly, so a block that finished on or
-before 2026-09-03 may sit on the list in notes/follow-on-work.md instead. The list may only shrink,
-and the cutoff is checked against the `Built` column, so nothing that finishes after the gate exists
-can be parked on it. `script/roadmap --unswept` prints what is left; read it as a debt.
+**`Unclaimed.` is the one that carries this milestone's whole subject**, and it was added by the
+sweep rather than designed before it: three lanes asked for it independently on the same afternoon,
+because a block that wrote its follow-on work down honestly and had nobody pick it up fits none of
+the other words. What stops it being silence with a heading over it is that it is queryable.
+`script/roadmap --unclaimed` prints every one tree-wide and `--check` prints the count on every run,
+so the backlog is a number somebody can watch rather than a paragraph in a block nobody opens.
+
+**`Done.` came from the same afternoon and four lanes**, for work a block named that two ordinary
+commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
+this gate exists to stop, arriving through the gate itself.
+
+**The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
+these six words are a lane's, offered with the sweep that produced them.
 
 **Reading it.** `script/roadmap --ready` prints only what a lane could pick up now: gate `NONE`, and a
 status of `NOT-STARTED` or `PARTIAL`, because `IN-PROGRESS` has somebody on it and `OPTIONAL` and

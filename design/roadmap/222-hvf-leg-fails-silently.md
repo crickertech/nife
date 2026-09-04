@@ -109,3 +109,23 @@ only visible by running the thing.
 - **The GICv3 boot was measured on a plain `cargo xtask build` kernel, not the test binary**, with
   no disk, NIC or GPU attached. What was proven is that interrupts stop arriving; the suite under
   GICv3 was not run, because a suite whose timer never ticks has nothing further to say.
+
+## Follow-on
+
+- **Milestone 227.** A GICv3 driver for aarch64, proposed in this block's `BUGS` and minted since.
+  It is what puts the HVF leg back, and `notes/aarch64-board-survey.md` already records GICv3 as the
+  largest single item barring most modern aarch64 boards, which makes it a customer-path constraint
+  rather than a test-harness one.
+- **Recorded.** `script/gates` says on the closing line of every run that the leg was skipped and
+  the run was TCG only. Until that driver exists this machine has no accelerated coverage at all,
+  and the loud skip is a record of the gap rather than a substitute for it.
+- **Recorded.** `design/roadmap/222-hvf-leg-fails-silently.md` states the split the probe holds: it
+  answers about the machine, not about the suite, so a QEMU that starts
+  `virt,accel=hvf,gic-version=2,iommu=smmuv3` is believed and a genuine red can never become a skip.
+  It should not be extended until it can hold that line.
+- **Recorded.** `notes/interrupts.md` carries the GICv3 measurement and the pricing built on it. The
+  boot was measured on a plain `cargo xtask build` kernel with no disk, NIC or GPU attached, so what
+  is proven is that interrupts stop arriving and not what the suite does under GICv3.
+- **Refused.** Extending the probe to the other accelerated paths, KVM on cordoba and WHPX. Neither
+  has a leg in `script/gates` today, so neither can fail this way yet, and a probe guarding a leg
+  that does not exist is the false-skip shape `script/lint` has deleted three checks for.

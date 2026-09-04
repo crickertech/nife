@@ -55,3 +55,20 @@ milestone 16, not here.
 **Prior art.** notes/portability.md: Linux's `arch/` with folded page-table levels, NetBSD's MI/MD
 split, NT's HAL from day one. seL4's dual-arch verified port is the "portable verified core"
 precedent.
+
+## Follow-on
+
+- **Milestone 161.** The x86_64 half of "Deliverable, in two parts". It was never tracked as open
+  work here and was split out on 2026-08-23, after a direct check found `kernel/src/arch/` holding
+  only `aarch64/` and `riscv64/`.
+- **Milestone 176.** The device-discovery seam this block asked for ("here is the hardware", device
+  tree today and ACPI/PCI later), taken up as the x86_64 discovery seam's wide half.
+- **Milestone 16.** Real-hardware aarch64, which this block names as the cheapest portability proof
+  of all and deliberately puts somewhere else because it is the same ISA on real silicon.
+- **Recorded.** In `design/roadmap/20a-name-the-seams.md`: the seam-naming subset that needs no
+  second architecture lives on as its own addendum block rather than being folded back in here. It
+  names and isolates the boundaries; it does not abstract across them.
+- **Refused.** Hardware breadth stays parked. Every driver on every board buys no proof coverage,
+  because the proofs live in the machine-independent crates that already do not care about the ISA,
+  and each new architecture enlarges the unverified TCB by one hand-written boot, MMU, trap and
+  syscall layer.

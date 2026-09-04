@@ -151,3 +151,37 @@ by hand and why nothing here claims to have found the last one.
   stale.** It is another milestone's block, so this lane did not edit it; the table above is the
   current reading. The same goes for `notes/load-sensitive-assertions.md`'s "300 passed, riscv64
   303, x86_64 189", which was already a dated snapshot of a different tree.
+
+## Follow-on
+
+- **Milestone 215.** The 24 x86_64 tests that now skip with one reason, "no RedoxFS disk attached".
+  They are 24 of the 25 that left the pass column, and they wait on a PCI function's interrupt
+  reaching nothing on x86_64. This block makes 215's own sizing of the disk arm visible in the
+  suite's final line instead of only in a lane's report.
+- **Refused.** Rung one, a `#[test_case]` returning `Result<(), Skipped>` so `?` carries an absent
+  fixture out of a helper and into the runner. It is the better mechanism on paper and it would have
+  caught the helper cases structurally, and it is a return-type change on every `#[test_case]` in
+  the tree plus an `Ok(())` on the end of each, for a defect the console check catches at the moment
+  it happens. If the helper shape recurs, that is the argument for paying for it.
+- **Recorded.** `design/roadmap/214-print-and-return-skips.md` records the blind spot in the other
+  direction: a test that returns early having proved nothing and printed nothing is invisible to a
+  check that reads what the machine printed. Pass 2 went looking for those by hand and nothing here
+  claims to have found the last one.
+- **Recorded.** `design/roadmap/214-print-and-return-skips.md`'s BUGS: the check matches the
+  substring `skip` anywhere in a console
+  fragment, so a test that prints an unrelated sentence containing the word and then passes fails
+  the run with a confusing message. That is the deliberate trade against a source-level rule with an
+  allow-list.
+- **Recorded.** `design/roadmap/214-print-and-return-skips.md`'s BUGS: a skip reason split across
+  two `write_str` fragments by a
+  format argument does not set the flag, so the failure direction is a missed catch rather than a
+  false alarm.
+- **Recorded.** `design/roadmap/214-print-and-return-skips.md`'s BUGS: milestone 164's block still
+  records "211 passed, 44 skipped"
+  for x86_64 and is two counts stale, as is `notes/load-sensitive-assertions.md`'s snapshot. Neither
+  was edited here because both belong to other work, and nothing in the tree tracks a test total as
+  a counted claim that would have caught the drift.
+- **Recorded.** `design/roadmap/214-print-and-return-skips.md` records
+  `fs_service::crash_disk_present` as a **provisional** name.
+  Public function names are calef's under milestone 160, and the block says so where the helper is
+  introduced.

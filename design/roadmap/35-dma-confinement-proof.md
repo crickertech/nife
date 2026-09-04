@@ -97,3 +97,21 @@ drivers) are *not* proof targets: the whole point of the capability core is that
 component need not be trusted. Proof effort belongs at the confinement boundary, not on the code
 it confines. Likewise the userspace-only crates (`user_heap`, `grant_plan`, `line_editor`) and scheduler
 placement policy stay host-tested; a bad placement is a performance bug, not a safety hole.
+
+## Follow-on
+
+- **Decision.** `design/decisions/30-dma-boundary-proof.md` holds the payload-borne address
+  question, and says outright that whoever sequences 16a chooses. A virtio-gpu's backing addresses
+  ride in a `RESOURCE_ATTACH_BACKING` command payload the validator structurally cannot see, so on a
+  board with no IOMMU the display driver is either trusted with all of physical memory or the
+  transport grows a device-aware check and pays the §18 cost knowingly.
+- **Recorded.** `notes/dma.md` leads with the what-is-proved-and-what-is-not map: the hardware
+  actually honouring the IOMMU's allow-list is still an attacker test rather than a proof, as is the
+  residual link "`Mapper::map` writes exactly one leaf and touches nothing else".
+  `notes/verification.md` carries the harness tables and the bounds beside them.
+- **Refused.** Proving the confined components themselves (`smoltcp`, RedoxFS, the drivers) was
+  considered and declined: the point of the capability core is that a confined component need not be
+  trusted, so proof effort belongs at the boundary and not on the code the boundary confines.
+- **Refused.** Proving the userspace-only crates (`user_heap`, `grant_plan`, `line_editor`) and
+  scheduler placement policy, on the same reasoning one step down. A bad placement is a performance
+  bug rather than a safety hole, and host tests are the right instrument for it.

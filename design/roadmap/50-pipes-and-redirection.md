@@ -172,3 +172,25 @@ natural order is unify the protocol, then `>` and `<`, then `|`, then revisit 48
 in hand. **Effort: 3 lanes estimated** (protocol, redirection, pipelines), noting estimates for
 unbuilt work are guesses on a history-calibrated scale, and that the unification is the one most
 likely to surprise.
+
+## Follow-on
+
+- **Refused.** A buffering stage. The block said measure before deciding, it was measured on
+  2026-08-03, and the verdict is build nothing: the lockstep is not the bottleneck, the sixteen-byte
+  register-only sink message is, and a buffer costs roughly double for decoupling rather than
+  bandwidth. `notes/pipes.md` carries the numbers and the honest caveat that the benchmark did not
+  measure the case a buffer is actually for.
+- **Refused.** Converting the console server to the sink protocol. `line_editor` is its only client
+  and now speaks for two writers, so once the terminal adapter existed the page-plus-ack channel
+  looked like the right answer rather than a gap; a second client of the console would hit the same
+  one-page wall one layer down with nothing gained. `notes/sink-protocol.md` has the reasoning.
+- **Decision.** `design/decisions/67-second-stream.md` settles `2>`, which this block named as a
+  design fork rather than a task. calef chose the manifest declaration: a program that has
+  diagnostics declares a second output, the shell plans an endpoint only for a declarer, and `2>`
+  aimed at a non-declarer is a refusal at the prompt.
+- **Milestone 48.** Revisiting `fg` with pipelines in hand, which this block's sequencing paragraph
+  put after the operators. Job control is still NOT-STARTED and carries it.
+- **Recorded.** `notes/pipes.md` names the slot problem beside the wiring a reader meets: slot 0 and
+  slot 1 each mean several things depending on what the line granted, so the ordered convention is
+  owed a numbered one, and the register fastpath wart `OutputSpec` refuses rather than fixes is
+  recorded with it.

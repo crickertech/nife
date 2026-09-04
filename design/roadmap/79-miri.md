@@ -21,3 +21,21 @@ Miri is an interpreter, roughly two orders of magnitude slower than native. The 
 under it as-is; the honest treatment is to exclude or sample them and say so, because "Miri-clean"
 then means "the sampled paths are clean". Cadence is a weekly scheduled workflow plus on-demand,
 not per-PR. `-Zmiri-strict-provenance` is a later ratchet to consider once the default run is clean.
+
+## Follow-on
+
+- **Recorded.** `notes/undefined-behavior.md` names each substitution in a table: "Miri-clean" means
+  the sampled paths, because the exhaustive suites cannot run under an interpreter, so `ntp_proto`
+  and `glob` run strided samples under a Miri configuration and one `glob` harness is skipped
+  outright, since a sample that misses its argmax fails against correct code.
+- **Recorded.** `notes/undefined-behavior.md` BUGS: strict provenance is not on, and for the user
+  heap it never can be, because the allocator mints pointers into separately donated regions.
+  Turning it on anywhere needs a per-crate carve-out.
+- **Recorded.** `notes/undefined-behavior.md` BUGS: the Miri-only samples are hand-maintained twins
+  of the native domains, and most carry no completeness pin, so a sample could shrink silently while
+  the run stayed green.
+- **Recorded.** `notes/undefined-behavior.md`: the board console crate is excluded from the run
+  entirely, so the memory rules are unchecked there.
+- **Refused.** Running Miri per pull request. It is an interpreter roughly two orders of magnitude
+  slower than native, so the cadence is a weekly scheduled workflow plus on demand; paying that on
+  every change would buy a check that already runs against the same tests once a week.

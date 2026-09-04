@@ -237,3 +237,42 @@ accounting move together and want a lane of their own.
   one, not a proof.
 - **The bisect is over first-parent merges**, so it names PR #556 rather than a commit inside it.
   `d1c81062` is identified by reading that branch, not by a boot at that commit.
+
+
+## Follow-on
+
+- **Milestone 233.** `login` dies on every interactive boot on both architectures, at
+  `nifefs::Fs::parse` refusing a zero-length archive, because `crates/system_initializer` starts it
+  with no mapping of the initrd while init measures the identity provisioning rather than the
+  process's survival. Left unfixed here because handing `login` the archive costs capability slots
+  at the exact peak this milestone had just sized the table against. 233 fixed the program and added
+  the assertion that a killed user thread fails the gate, which is the other item this block left
+  open.
+- **Milestone 231.** Nothing counted init's capability slots, so the high-water mark had to be
+  measured with temporary kernel `println!`s that were reverted, and three slots of headroom stood
+  in for a mechanism. 231 made every boot print `capability slots: N of M at peak` and this check
+  reads it.
+- **Milestone 177.** `script/shell-check --graphical` and `--graphical-serial` remain red behind
+  177's display driver bug. Neither `script/gates` nor CI runs them; the no-argument legs are green
+  and are what got wired in.
+- **Recorded.** `crates/user_rt/src/lib.rs` carries it in `trap`'s own BUGS: a fault line cannot say
+  where a program died, because the kernel prints the `pc` of the breakpoint inside `user_rt::trap`,
+  which is one address per program however many callers it has. The return address is in `x30`, `ra`
+  or on the stack at the moment the kernel takes the fault and is not printed. The workaround that
+  worked here is to fault on a *data* address derived from it, since `far` is printed.
+- **Recorded.** `script/shell-check`'s own BUGS says where the error moved: a boot that both stopped
+  reporting and faulted passes, because `boot_claim`'s third case reads a concurrent kernel write as
+  the explanation for an unreadable line and cannot tell that from init having gone silent in the
+  same boot. The trade is deliberate, since a false red taxes every lane whose change had nothing to
+  do with it and a false green is undone by repetition.
+- **Recorded.** `script/shell-check` also carries the residual in that third case: "was the kernel
+  writing during the boot" is six exact searches for short kernel strings, and a boot that destroyed
+  all six would give the false red this design otherwise rules out structurally. Six independent
+  chances is a better bet than one, not a proof.
+- **Recorded.** `design/roadmap/230-shell-check-is-red.md`'s BUGS is honest about the bisect. It
+  runs over first-parent merges, so it names PR #556 rather than a commit inside it, and `d1c81062`
+  was identified by reading that branch rather than by a boot at that commit.
+- **Unclaimed.** Decide where the kernel's own output goes once userspace owns the console. Today
+  the kernel and the `console` server drive the same UART from two address spaces with nothing
+  arbitrating, so the streams interleave at byte granularity. It corrupts every bench session on
+  argon, radon and xenon, and 243's BUGS points at a home that does not exist.

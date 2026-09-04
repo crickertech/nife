@@ -523,3 +523,70 @@ measurements rather than asserted, and this is the measurement that most weakens
   blocks" finding says a 65,536-node filesystem's full tree spine is 259 blocks; 64 slots holds one
   open file's spine comfortably and thrashes once enough distinct files are open at once to collide
   across the tree's shared upper levels. Nobody has measured a multi-file workload against it.
+
+## Follow-on
+
+- **Recorded.** `design/roadmap/138-file-io-throughput.md` BUGS: closing the 32x does not close the
+  gap to buffered Linux. Buffered Linux is 547 ns against this milestone's starting 1,509,270, so
+  removing the 32x leaves roughly two orders of magnitude, and the rest is page cache.
+- **Recorded.** `notes/benchmarks.md` carries the payload entropy caveat that travels with every
+  number here. RedoxFS lz4-compresses records, so an all-zero file reads and writes several times
+  faster than an incompressible one, and a re-measurement that quietly changes payload is not
+  comparable. Milestone 38's incompressible payload is the conservative choice and the one a backup
+  workload resembles.
+- **Recorded.** `design/roadmap/138-file-io-throughput.md` BUGS: `Transaction::write_node` compares
+  before writing, so rewriting a block with identical contents costs a read and no write. A
+  benchmark that sends one constant page repeatedly measures the comparison rather than the store.
+- **Recorded.** `design/roadmap/138-file-io-throughput.md` BUGS: `RECORD_LEVEL_MAX` keeps old images
+  readable and does not migrate them. A file created by an older build keeps its 128 KiB record
+  forever, reads correctly, and reads at the old price. There is no rewrite path and no `fsck` that
+  would make one, which is right today because no such image exists outside a test and wrong the
+  day somebody upgrades a populated disk.
+- **Recorded.** `notes/benchmarks.md` names the two sweeps nobody has run as the first things to run
+  next: `blk::TRANSFER_BLOCKS` and `CACHE_SLOTS` were each measured alone at the other's shipped
+  value and never against each other, and neither was swept for where its own curve bends. Both
+  were chosen by symmetry or by sizing against a known working set.
+- **Recorded.** `notes/fs-server.md` holds the cache-sizing limit: `CachedDisk`'s 64 slots were
+  sized against a small test fixture and milestone 37's crash-test heap budget, not against a real
+  deployment's node count. A 65,536-node filesystem's full tree spine is 259 blocks, so 64 slots
+  holds one open file's spine comfortably and thrashes once enough distinct files are open at once
+  to collide across the tree's shared upper levels. Nobody has measured a multi-file workload.
+- **Recorded.** `design/roadmap/138-file-io-throughput.md` BUGS: the space cost of the 8 KiB record
+  was never re-measured for step 1. The +19% figure is the sweep's, taken on text, which is the
+  payload most favourable to lz4; a backup workload is the incompressible case and would show only
+  the pointer half.
+- **Recorded.** `design/roadmap/138-file-io-throughput.md` BUGS: the measurement conditions differ
+  across the four steps and the block says so rather than presenting one number. Steps 1 and 3 ran
+  on a quiet machine; steps 2 and 4 ran at `uptime` load 15 to 21 with other lanes building, and
+  the `fs_read` control plus the two-term model's internal agreement are the evidence they are real
+  signals. Every figure is one lane's own, on one machine, and no second machine has confirmed any
+  of it.
+- **Refused.** A wire-level channel size for step 3's transfer. Nothing checks that a client asked
+  for no more than it mapped: the channel is 64 KiB, a client maps as much as it uses, and one that
+  asks for more takes a data abort on its own unmapped page after the server has done the work.
+  That is rung four, marked as such where a reader meets the constant, and the way to rung one is a
+  channel size on the wire, which is a new concept on a contract whose whole compatibility story is
+  that nothing in the packed word changed.
+- **Refused.** A `READV`-shaped scatter list, a new opcode, and a negotiated channel size at bind
+  time, all considered for step 3 and all declined. The length field already fits 40 bits, so the
+  page was the only limit; the other two add a concept where every existing agreement between a
+  client and this wiring is a compile-time constant both sides carry.
+- **Refused.** Replacing RedoxFS, option 3, ruled out on measurement rather than on preference. The
+  208 us fixed term is five single-block reads of the same five blocks on every request, 94% of it,
+  which is the absence of a cache and not a property of the store. Every store that maps an id to a
+  node has a root-to-node path it would fetch too, so a replacement buys a rewrite and arrives
+  needing the identical cache, against §46's pricing of a dependency this size.
+- **Refused.** A data cache, as opposed to step 2's metadata cache. Nothing here caches a record
+  body or gives a client `mmap`-shaped access to bytes the server already fetched. That design has
+  coherency and confinement questions of its own, where a 64-slot single-process metadata cache has
+  none: it lives inside one FS server's address space and RedoxFS's copy-on-write allocator is what
+  makes a bare write-through cache correct with no protocol between processes.
+- **Unclaimed.** Re-run the record-level sweep at the shipped transfer size: `sh
+  bench/record-level-sweep.sh 3 0 1 5` with `TRANSFER_PAGES = 16`. Step 1 chose record level 1 on 4
+  KiB evidence and step 3 then made 64 KiB the default request, so step 1's 5.13x is a ratio about a
+  contract the system no longer uses, and a headline number here describes a configuration nothing
+  ships.
+- **Unclaimed.** Design the capability-shaped way past the ~13 us per-request residual: grant the
+  client frames it can read directly instead of one IPC round trip per request, which is what `mmap`
+  over a page cache buys Linux. Frames are already capabilities here, so the primitive exists and
+  nobody has drawn the design. Until someone does, the residual stays a frontier described in prose.

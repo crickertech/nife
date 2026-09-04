@@ -43,3 +43,14 @@ quote a distinctive fragment rather than the whole thing), and that rule is the 
 here. Everything else is a sweep and a grep. Related but distinct: milestone 91 links acronyms to a
 glossary, milestone 93 audits claims for rot; this one is about a reference resolving to the thing
 its author meant.
+
+## Follow-on
+
+- **Refused.** Requiring a gloss on the first mention of every number in every file. Measured at
+  2,911 sites, each of which has to be read to know what its author meant, and a pattern-applied
+  gloss would put a confident falsehood beside every wrong number. The rule is "what you write is
+  checked", not "you must write it".
+- **Recorded.** `notes/citations.md` states what the check still cannot see once a gloss is written:
+  a citation whose number and gloss are wrong in the same direction grounds fine and passes, a gloss
+  may span at most one line break so a three-line one is invisible, and fenced code blocks in
+  markdown are skipped entirely.

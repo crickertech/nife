@@ -94,3 +94,18 @@ states what it still cannot check, which is the well-formed-but-wrong citation, 
 milestone 97. The interaction this entry's scope note predicted holds: 97's check is now a
 comparison against a file's own H1 rather than a scan for where §43 begins inside a 5,000-line
 document.
+
+## Follow-on
+
+- **Milestone 97.** The check this split makes cheap and could not build itself: a citation that is
+  well-formed but points at the wrong section still resolves, and `script/decisions --check`'s own
+  header now says so. Once a decision is a file with a title, a citation's parenthetical name is a
+  comparison against that file's H1 rather than a scan for where §43 begins inside a 5,000-line
+  document.
+- **Recorded.** `design/decisions/README.md` records what the split found and left standing: eleven
+  decisions carry a revision their opening paragraph does not mention, which is what the `AMENDED`
+  token exists to make visible. Flipping a status is a per-decision reading job, not something the
+  split could do in bulk.
+- **Refused.** Renumbering. 2,136 `§N` citations had to keep resolving, so content moved verbatim
+  and the diff was made reviewable as a move rather than an edit, proved by a reassembly script
+  that rebuilt the original file byte-for-byte from the split tree alone.

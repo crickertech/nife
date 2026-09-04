@@ -144,3 +144,23 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
   belongs on milestone 127's bench list beside its existing `PMCCNTR_EL0` item. `xenon` is the new
   member: OVMF already showed five `CR4` bits set that this kernel never wrote, and a real Dell
   firmware is a stronger version of the same case.
+
+## Follow-on
+
+- **Milestone 127.** Reading what firmware actually leaves in these registers on real silicon.
+  `PMUSERENR_EL0` on argon is unknown until somebody reads it at the bench, and this belongs on
+  milestone 127's bench list beside its existing `PMCCNTR_EL0` item. Radon and xenon want the same
+  reading. OVMF already showed five `CR4` bits set that this kernel never wrote, and a real Dell
+  firmware is a stronger version of the same case.
+- **Decision.** `design/decisions/139-cycle-counter-authority.md` holds it: whether EL0 may read the
+  cycle counter at all, and by what authority, is calef's call. This milestone deliberately changed
+  no policy. It made the default a fact rather than a firmware assumption, so that a grant means
+  something when the decision lands.
+- **Recorded.** In `notes/x86-port.md`, and in a BUGS section on `now()` itself: x86_64's `rdtsc`
+  stays ambient. `CR4.TSD` was left clear because `crates/user_rt`'s `now()` on that architecture is
+  `rdtsc` and there is no coarse alternative, so closing it today would break `Instant`,
+  `thread::sleep`, the random seed, smoltcp's timestamps and the benchmark harness at once.
+- **Refused.** A boot-time assertion that the bits stay closed. Reading `PMUSERENR_EL0` back proves
+  only that this line ran, and the drift worth catching is a later write elsewhere, which only a
+  periodic check or a review habit would see. So nothing gates it, and the block says so rather than
+  shipping a check that answers the wrong question.

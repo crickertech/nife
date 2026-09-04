@@ -1,11 +1,13 @@
 # Follow-on work, and what happened to it
 
 *Name: provisional (milestone 247). It names the thing it tracks, per §75's noun rule, but calef
-names notes as he names everything else in the tree.*
+names notes as he names everything else in the tree. The six disposition words below are provisional
+in the same way.*
 
 A milestone finishes and, on its way out, names work it is not doing. A hazard it noticed, a design
 fork it could not settle, a second phase somebody should take. **That work is what this project keeps
-losing**, and this note is where its fate is written down.
+losing**, and this note is the mechanism that stops it, plus the sweep that proved the mechanism was
+needed.
 
 ## The failure, three times
 
@@ -25,30 +27,9 @@ written is rung four: a lane report is read once, by one person, on the day it i
 ## The mechanism: a section a finished block has to answer
 
 **Every BUILT or REMOVED milestone block carries a `## Follow-on` section**, checked by
-`script/roadmap --check` and therefore by `script/lint`. Four dispositions, three of them one line:
-
-| Bullet opens | Means | Resolves to |
-|---|---|---|
-| `**None.**` | Nothing was identified. | Stands alone; it is the whole answer |
-| `**Milestone N.**` | It became milestone N. | A block under `design/roadmap/` |
-| `**Recorded.**` | It is a limitation and it stays one. | A file, in backticks, that exists |
-| `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
-| `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
-
-```markdown
-## Follow-on
-
-- **Milestone 244.** The `os_primitives_benchmarker` crate is proved by nothing.
-- **Recorded.** `notes/nifefs.md` BUGS: `NAME_LEN` is 32 bytes and raising it costs directory
-  entries per block. It is a constraint, not a defect.
-- **Refused.** A per-call audit hook was considered and dropped: it would cost a branch on the
-  fast path to record what the existing counters already show at the boundary.
-```
-
-**`Decision.` is not a fifth tracked form.** It is the tree's existing second one: AGENTS.md says
-open decisions live in a file rather than in a conversation, in `design/decisions/` with
-`**Status: PROPOSED.**`. Without this bullet a decision owed to calef would have to be spelled as a
-refusal, which would be a lie in the one place this gate exists to stop lying.
+`script/roadmap --check` and therefore by `script/lint`. The six dispositions are tabulated in
+design/roadmap/README.md, which is where a block author meets them. In short: `None.`,
+`Milestone N.`, `Done.`, `Recorded.`, `Refused.`, `Decision.`, `Unclaimed.`
 
 **Why it hangs on the status rather than on a marker in prose.** The moment a block turns BUILT is
 the last time anyone reads it on purpose, so it is exactly the moment the work gets buried. It is
@@ -61,7 +42,7 @@ resolves to something.
 This is the third instance of a shape the tree already knows, which is most of the argument for it:
 `script/lint` fails a `TODO` that does not name a milestone, `script/citations` checks that a glossed
 citation is grounded in the document it names, and this checks that a disposition resolves to a
-block, a file, or a reason.
+block, a file, a reason, or a decision.
 
 **`None.` and `Recorded.` are deliberately the cheapest things to write.** An over-strict version of
 this gate is worse than the burial it prevents: if every observation in a `BUGS` section had to
@@ -72,166 +53,95 @@ upstream of this check and is not touched by it.
 **An explicit refusal is a success.** The defect this attacks is silence, not the absence of a
 milestone.
 
-## The unswept list, which is an exception and says so
+## `Unclaimed.` is the disposition the sweep asked for, and it is the point
 
-137 blocks were already BUILT the day this gate was written, holding roughly 159,000 words of prose.
-Sweeping all of them at once is not something one lane can do honestly, and a sweep that claims
-coverage it does not have would be this milestone failing in its own image. So a block that finished
-**before** the sweep may sit on the list below instead of carrying a section.
+Four of the seven words were designed before the sweep. `Unclaimed.` and `Done.` were not: **three
+lanes asked for the first and four for the second, independently, on the same afternoon**, having hit
+the same wall. A block that wrote its follow-on work down honestly, in the place a reader meets it,
+and had nobody pick it up, fits none of the original words. `Recorded.` lies about intent and
+`Refused.` lies about the decision, so a lane forced to choose writes the more comfortable one, and
+the lanes that would not lie **left the item out instead**. That is the silence this gate exists to
+stop, arriving through the gate itself.
 
-**This is the exception, and per AGENTS.md's ladder it is named as one rather than left to read as a
-design.** The foot gun is that a list of blocks exempt from a gate is a place to hide from the gate.
+**What stops `Unclaimed.` being silence with a heading over it is that it is queryable.**
+`script/roadmap --unclaimed` prints every one tree-wide, and `--check` prints the count on every run.
+That is the entire justification for the word: an unclaimed item is findable by command, which a
+handoff paragraph never was. **Read the count as a backlog.** It is the first time this roadmap has
+been able to answer "what work do we know about and nobody holds", and the answer on the day it was
+built was **42, named by 32 different finished milestones**.
 
-**Two things close it.** The list **may only shrink**: an entry comes off when its block gets a
-section, and `script/roadmap --check` fails on an entry whose block already has one. And the parking
-is closed **by date rather than by good intentions**: an entry must name a block whose `Built` column
-is on or before **2026-09-03**, so nothing that finishes after this gate exists can be parked here.
-A block that turns BUILT tomorrow answers the question or fails the build.
+## The sweep, 2026-09-03
 
-`script/roadmap --unswept` prints what is left. Read the number as a debt.
+**All 139 finished blocks were read**, in twelve parallel lanes, roughly 159,000 words. Not skimmed:
+each lane read its blocks in full, including `BUGS` sections and handoff prose, and resolved
+successors against the index rather than guessing.
 
-<!-- BEGIN UNSWEPT -->
-```text
-01-first-boot.md
-02-exception-vectors.md
-03-frame-allocator.md
-04-mmu-and-heap.md
-05-gic-and-timer.md
-06-threads-and-preemption.md
-07-user-mode.md
-08-console-leaves-the-kernel.md
-09-virtio-blk-at-el0.md
-10-shell-and-spawn.md
-11-untyped-memory.md
-12-call-reply-ipc.md
-13-capability-revocation.md
-14-kernel-objects-from-untyped.md
-15-asids.md
-18-verify-capability-core.md
-19-real-workload.md
-20-portable-hal.md
-21-benchmarks.md
-22-trusted-init.md
-26-object-revocation.md
-27-rust-std.md
-28-line-discipline.md
-29-display-terminal.md
-30-network-stack.md
-31-capability-shell.md
-32-redoxfs-fs-server.md
-33-compositor.md
-35-dma-confinement-proof.md
-36-foreign-component.md
-37-redoxfs-crash-consistency.md
-38-filesystem-throughput.md
-40-documentation-service.md
-41-dead-code-triage.md
-42-supply-chain-and-fuzzing.md
-43-second-security-audit.md
-44-github-hardening.md
-45-codeql-triage.md
-46-component-renames.md
-49-users-and-attribution.md
-50-pipes-and-redirection.md
-51-wall-clock-time.md
-54-network-file-service.md
-56-secrets-and-entropy.md
-57-partitioning-and-xattrs.md
-58-riscv-tlb-shootdown.md
-59-cpu-model-matrix.md
-60-isa-discovery.md
-61-caretakers.md
-62-time-sensitive-tests.md
-63-name-spellings.md
-65-secrets-service.md
-67-swish-language.md
-68-code-quality-gates.md
-69-split-user-rs.md
-70-swish-logic-crate.md
-71-thread-start-fault.md
-72-lost-wakeup.md
-73-aarch64-file-names.md
-76-roadmap-split.md
-78-load-sensitive-assertions.md
-79-miri.md
-80-loom.md
-81-hvf-leg.md
-82-unsafe-op-in-unsafe-fn.md
-83-rule-1-lint.md
-84-stack-high-water.md
-85-mutation-testing.md
-86-time-command.md
-90-secondary-stack-guard.md
-92-security-audit-cadence.md
-93-doc-audit-cadence.md
-94-untracked-work.md
-96-one-init.md
-97-citations-that-name.md
-98-scheduler-naming.md
-100-psci-and-cpu-discovery.md
-104-init-measures-what-init-loads.md
-107-sockets-that-accept.md
-108-drivers-on-frame-capabilities.md
-109-xargs-at-the-grant-bound.md
-110-recovery-from-a-partition.md
-112-safety-comments-that-bind.md
-113-proofs-under-the-unsafe-lints.md
-114-decisions-split.md
-115-ratified-names.md
-116-one-sided-fences.md
-119-merge-throughput.md
-120-nife-and-the-organization.md
-122-a-directory-handle-std-can-hold.md
-124-a-thread-is-born-where-it-lives.md
-125-a-number-in-the-prose-is-a-claim.md
-130-the-copy-that-outlived-its-reason.md
-132-the-fastpath-footprint.md
-135-loom-region-claim.md
-136-one-decision-path.md
-138-file-io-throughput.md
-155-user-provisioning.md
-156-syscall-entry-diet.md
-158-kernel-object-rename-build.md
-162-cpu-instruction-entropy.md
-164-x86-64-fs-server-aes.md
-165-x86-64-pci-acpi-mcfg.md
-169-kilo-editor.md
-176-x86-64-discovery-seam-wide-half.md
-193-kernel-kani-reachable.md
-194-falsification-records.md
-195-uefi-boot-finish.md
-196-elf-physical-address.md
-197-user-and-xtask-proofs.md
-202-confinement-claims-falsified.md
-203-vendored-engine-upgrades.md
-204-lane-claim-check.md
-208-boot-section-wx.md
-210-run-one-kernel-test.md
-211-self-referential-harnesses.md
-212-falsification-ratio-is-partial.md
-213-harnesses-that-duplicate-the-implementation.md
-214-print-and-return-skips.md
-215-x86-64-pci-interrupt-routing.md
-216-board-console.md
-217-matched-pair-on-the-card.md
-219-a-workload-that-does-not-stop.md
-221-a-soak-that-crosses-cores.md
-222-hvf-leg-fails-silently.md
-226-qemu-bounded-orphans.md
-228-close-what-we-claim-is-closed.md
-229-the-counter-grant.md
-230-shell-check-is-red.md
-231-capability-slot-high-water-mark.md
-232-what-the-checks-actually-check.md
-233-login-never-runs.md
-234-project-metrics.md
-235-a-faulted-job-should-reach-the-prompt.md
-236-lift-the-copied-derivations.md
-237-the-cycle-grant-is-a-measurement-build.md
-238-the-scheduled-checks-that-never-run.md
-240-a-soak-should-say-where-its-threads-landed.md
-```
-<!-- END UNSWEPT -->
+**605 dispositions** were written. The shape of them is the interesting part:
+
+| Disposition | Count | What it says about the tree |
+|---|---|---|
+| `Recorded.` | 291 | The `BUGS` convention is working. Most follow-on prose is an honest limitation already sitting where a reader meets it |
+| `Milestone N.` | 136 | The successor usually exists, and the block usually already cited it by number |
+| `Refused.` | 105 | Refusals with reasons, which this convention counts as successes |
+| `Unclaimed.` | 42 | Work named, nobody holding it. The backlog nothing could see before |
+| `Decision.` | 24 | Forks already written up under `design/decisions/` |
+| `None.` | 7 | Almost all of them backfilled history blocks from milestones 1 to 11 |
+| `Done.` | 0 | The word exists because four lanes needed it; the sweep that asked for it had already worked around its absence |
+
+**Two things the sweep found that were not in its brief.**
+
+`Recorded.` bullets citing paths surfaced **real rot in the roadmap's own prose**: milestone 136's
+pin still named `crates/regions` after §113 renamed it to `crates/memory_regions`, 136's free-site
+pin still named `kernel/src/untyped.rs` after milestone 135 moved it, and 124 still named
+`crates/slots`. Nothing had been checking a path cited in a roadmap block.
+
+And **a block written after this convention existed is far cheaper to sweep than one written before
+it**. Blocks 196, 216 and 234 already carried their follow-on work in a legible shape, usually citing
+the successor by number. The older blocks name it only by implication, and cost several times the
+reading per bullet. That is the case for the gate as well as any argument in this note.
+
+**There was an exemption list, for about an hour.** The first design let a block that finished before
+the sweep sit on a list here instead of carrying a section, with a date cutoff so nothing new could
+be parked. The sweep then reached every block, the list closed to zero, and an empty list that
+permits parking is exactly the hiding place its own `BUGS` entry had called a foot gun. It is gone
+rather than kept at zero.
+
+## What the sweep could not settle, and what it recommends
+
+**Forty-two pieces of unclaimed work is far too many to mint**, and picking five is a judgment a lane
+should show rather than assert. The bar used: the work is concrete and bounded, nothing in the tree
+owns any part of it, and leaving it unminted costs more than tidiness, because **a claim this project
+makes rests on it or a record in the tree is now known to be wrong**. Everything else stays
+`Unclaimed.` and queryable, which is a real home rather than a holding pen.
+
+The five that clear that bar, offered as **proposed milestones with no numbers** (numbers are the
+integrator's, at merge):
+
+1. **The three instruments nothing runs.** `script/interleaving-check`, `script/crate-probes` and
+   `script/rule-violations --check` are referenced by neither CI nor `script/gates`. `crate-probes`
+   is the instrument behind **fatal risk 1, which is recorded GREEN on whatever somebody saw when
+   they last ran it by hand**. Named by milestone 232.
+2. **Replay the kernel falsification records.** Six of milestone 202's confinement claims have no
+   replay mechanism, so they are claims resting on nothing executable. Milestone 212 handed this back
+   explicitly and said it stays milestone 210's.
+3. **Two address spaces drive one UART with nothing arbitrating.** The kernel prints its boot tour
+   and its fault reports through its own driver while the userspace `console` server drives the same
+   device, so output interleaves at byte granularity. It affects every bench session on argon, radon
+   and xenon, and milestone 243's `BUGS` already tells readers it "has its own home", which does not
+   exist. Named by milestone 230.
+4. **Attach the rest of the x86_64 test fixtures.** The RedoxFS image, the GPT and blank disks, the
+   NIC, the GPU, the keyboard and the RNG. Its measure is the 36 tests taking a "no RedoxFS disk
+   attached" arm, and architectural parity is a gate in this tree rather than an aspiration. Named by
+   milestones 215 and 176 independently, which is itself evidence.
+5. **The records that went stale when the number under them moved.** `design/fatal-risks.md` risk 3
+   still reads MEASURED green on 92.4% mutation score against a published 83.4%, and AGENTS.md still
+   says `kernel/src` measures 40% comments against a measured 45.3%. Both are records this project
+   asks strangers to trust. Named by milestones 238 and 234.
+
+**The strongest of the rest, so the cut is visible**: milestone 238's bound on what one mutant may
+allocate. One mutant goes from 1.4 GB to 15.8 GB in twenty seconds and takes the machine with it, and
+the block prices three shapes for the fix. It stayed unclaimed only because nothing the project
+claims publicly depends on it.
 
 ## BUGS
 
@@ -239,6 +149,13 @@ A block that turns BUILT tomorrow answers the question or fails the build.
   not milestone 240 is the work the block meant, which is the same blind spot `script/decisions`
   records for `§N` citations and `script/roadmap` records for its own tree-wide citations. Check by
   content after any renumber.
+- **`Unclaimed.` and `Recorded.` are separated by judgment, not by anything checkable**, and lanes
+  said so. A `BUGS` entry that is a permanent caveat and one that is deferred work read identically
+  in prose, and the same text can defensibly take either word. Expect the backlog to be
+  under-counted rather than over-counted, because `Recorded.` is the more comfortable answer.
+- **A well-written block generates more unclaimed items than a lazy one.** A block that named its
+  follow-on work honestly has something for the sweep to find; one that named nothing looks clean.
+  Do not read a block's bullet count as a quality signal, in either direction.
 - **It cannot find work that was never written down.** A hazard named only in a chat window or in a
   lane report nobody landed is not in the tree to be found. The count of what has already been lost
   that way is unknowable rather than zero.
@@ -246,6 +163,11 @@ A block that turns BUILT tomorrow answers the question or fails the build.
   BUILT lands in a block nothing will re-check, because the section already exists and already
   passes. The `BUGS` convention and a `TODO(milestone N)` marker both still work there; this gate
   does not add to them.
-- **The list's date cutoff is the index's `Built` column, which is a claim a human types.** It is
-  gated for ISO shape and for presence, not for truth. A wrong date could park a block that should
-  not be parked, and only a reader would notice.
+- **Nothing ages an `Unclaimed.` item.** An entry written today and an entry written a year ago look
+  the same in `--unclaimed`, and nothing escalates one that has sat. The count is a backlog, not a
+  queue.
+- **A `Recorded.` bullet cannot quote a path-shaped example.** The path check treats a backticked
+  span beginning with a real top-level directory as a citation, so a bullet illustrating
+  `script/foo --bar` as a command rather than as a file has to spell it without backticks. That is
+  a real constraint on prose in a project whose subject is filenames, and it is the price of
+  catching the rot above.

@@ -301,3 +301,40 @@ proofs and tests run in a configuration nobody checks is not demonstrating.
 - **The `on_cpu` guard is a condition in one function**, which is rung two of AGENTS.md's ladder.
   Rung one would be a type that cannot name a thread still standing on its stack, and this tree does
   not have one. The next out-of-band remover can forget it exactly as this one did.
+
+## Follow-on
+
+- **Recorded.** In `design/roadmap/124-a-thread-is-born-where-it-lives.md`'s own BUGS: the refusal
+  is a race a caller can still see, one context switch wide. Any caller reclaiming a region that
+  holds a just-dead thread gets a `NotPermitted` and must retry, and `wait_for` is the in-tree idiom
+  both supervision tests now use.
+- **Recorded.** In `design/roadmap/124-a-thread-is-born-where-it-lives.md`: the `on_cpu` guard is a
+  condition in one function, which is rung two of AGENTS.md's ladder. Rung one would be a type that
+  cannot name a thread still standing on its stack, and this tree has no such type, so the next
+  out-of-band remover can forget the check exactly as this one did.
+- **Recorded.** In `design/roadmap/124-a-thread-is-born-where-it-lives.md`: `Thread::spawn` still
+  carries the copies for `sched::init`'s idle thread and `spawn_blocked`, which hold no TCB page
+  when they build. Nothing on those paths is near a guard page today, and this is where to look
+  first if one ever is.
+- **Recorded.** In `design/roadmap/124-a-thread-is-born-where-it-lives.md`: the ratchet is deleted
+  rather than lowered, so nothing holds these frames except the gate's own 4096-byte ceiling. That
+  is the state a ratchet exists to reach and then be deleted from.
+- **Recorded.** In `notes/stack-high-water.md`: `-Z emit-stack-sizes` bounds one frame and not the
+  depth of the path it sits in, so "every instantiation under 4096" and the watermark are each half
+  an answer and neither is sufficient alone.
+- **Recorded.** In `design/roadmap/124-a-thread-is-born-where-it-lives.md`: the prediction that
+  the slot table, `crates/generational_table` (this block's prose still calls it
+  crates/slots, its name before the rename), was the main cost was wrong, and it is kept because it is the plausible reading of
+  `Table::insert_with` and the next person will make it too. The table stores a pointer; the thread
+  is on its own page.
+- **Refused.** Raising `STACK_PAGES` from 4 to 8 as the fix. The guard page stays one page however
+  large the stack is, so a frame bigger than 4096 bytes can still step over it in a single move and
+  the overflow stays illegible. Growing the stack moves the fault further away without restoring the
+  mechanism that makes it a fault at all; shrinking the frames below 4096 restores it. Growing the
+  stack remains an independent question on its own merits.
+- **Unclaimed.** Delete the window in which a thread is published `Dead` while it still executes on
+  its own kernel stack, instead of refusing inside it: mark it `Departing` in `depart()` and promote
+  it to `Dead` from `finish_switch`, which already holds `SCHED` and already runs at the instant the
+  stack goes free. No caller would then see the transient `NotPermitted` this block records as a
+  race. It touches the death protocol and `RunState` in `crates/wake_handshake`, where loom searches
+  the transitions, so it wants a lane rather than a hotfix.

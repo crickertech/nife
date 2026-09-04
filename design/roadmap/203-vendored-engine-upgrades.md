@@ -120,3 +120,32 @@ mechanism works before it ever has to be right about something.
 - **A bump is where the divergences get re-litigated**, and divergence 3 in particular is one
   `vendor/README.md` says is kept rather than reverted only because reverting it is calef's call.
   Any bump lane will meet that.
+
+## Follow-on
+
+- **Recorded.** It reports and cannot decide. A newer version is not automatically a better one,
+  this tree pinned deliberately, and the output is a prompt a maintainer session acts on. It must
+  not quietly become an agent that acts on its own, the shape calef declined for the merge watchers.
+  `design/roadmap/203-vendored-engine-upgrades.md`.
+- **Recorded.** One consumer. RedoxFS is the only vendored engine, so this generalizes to `vendor/`
+  on paper and is really about one directory; writing it as a general mechanism would be abstraction
+  ahead of requirement. `design/roadmap/203-vendored-engine-upgrades.md`.
+- **Recorded.** Watching upstream git is noisier than watching releases, which is the cost of
+  putting it in scope: most upstream commits will not matter, and the "report what changed" half is
+  what keeps that side from becoming the log line nobody reads.
+  `design/roadmap/203-vendored-engine-upgrades.md`.
+- **Recorded.** A bump is where the five divergences get re-litigated, and divergence 3 is kept
+  rather than reverted only because reverting it is calef's call. Three of the five are re-applied
+  forever and can conflict, and if upstream restructures the code they touch they may not be
+  re-applicable at all, at which point the honest outcome is a decision (rewrite the divergences,
+  stay on the pin and record why, or fork permanently) rather than a forced patch.
+  `vendor/README.md`.
+- **Refused.** The expensive half of the workflow, which would re-apply the divergence patch and
+  report which of the five carried over. Automating a rebase before anyone has performed one by hand
+  is guessing at the shape of a job nobody has done; the cheap version raises the pin and lets
+  `script/vendor-verify` go red, which makes the upgrade a visible object.
+- **Unclaimed.** Perform the first real RedoxFS pin bump. The watch's first run found upstream 37
+  non-merge commits ahead of the pinned sha, including `fix: do not hardcode # of sectors per
+  block`, with 0.9.1 still the newest published version. Bumping means re-applying five divergences,
+  regenerating with `script/vendor-verify --write-patch`, and re-running the suite plus milestone
+  37's crash injector. Nobody owns it, and this is the engine holding backups.

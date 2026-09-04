@@ -74,3 +74,21 @@ quietly excludes them.
   from the Cargo target, and a `#[path]` module contributes whatever the including file calls it.
   `user/src` holds two such files today and neither carries a harness; `--check` reports the mismatch
   rather than accepting it silently.
+
+
+## Follow-on
+
+- **Milestone 210.** A kernel *test* falsification stays unsweepable, because no kernel test can be
+  run by name, and a sweep that runs the whole suite per record is not a sweep. Milestone 202's
+  record under `kernel/falsifications/` is now reported by name as a record nothing can replay,
+  counted in neither half of the ratio, rather than being invisible. A kernel *Kani* falsification
+  does sweep, at 3.1 seconds, and one now does.
+- **Recorded.** `notes/falsification.md` and this block's BUGS carry it: a patch that declares no
+  `Falsifies` target and has no harness is reported as rot, which is right for a patch that rotted
+  and wrong for a future non-Kani record whose author does not know the convention. The message
+  names the convention; nothing teaches it before the failure.
+- **Recorded.** `design/roadmap/212-falsification-ratio-is-partial.md` names the residual in the
+  module-path derivation: a harness inside a `#[path]` module of a binary would get a wrong patch
+  path, because the path comes from the Cargo target and a `#[path]` module contributes whatever the
+  including file calls it. `user/src` holds two such files and neither carries a harness today, and
+  `--check` reports the mismatch rather than accepting it silently.

@@ -111,3 +111,29 @@ notes/benchmarks.md rather than here because that is where a reader meets it: L1
 four to six times and is not still growing. It has been static at 32 to 64 KB for a decade, Zen 5
 included. L2 is what ballooned, which is a different and weaker safety net: overflowing L1 now costs
 tens of cycles instead of a trip to DRAM, rather than not costing anything.
+
+## Follow-on
+
+- **Milestone 188.** The hand-written IPC fastpath this block deliberately refused to fold in, and
+  with it the data-footprint half of the target. `syscall::dispatch` at 2,024 bytes is exactly what
+  seL4's fastpath exists to skip, and this block's whole argument was that the instrument should
+  exist before the change it justifies. 188 also holds the open question of whether "under 1 KiB
+  touched per IPC" can be estimated from the structures the path touches without waiting for a PMU.
+- **Recorded.** `design/roadmap/132-the-fastpath-footprint.md`. The gate reports an upper bound
+  rather than a footprint: whole symbol sizes, so a cold tail parked in a hot function counts
+  against us, indirect calls are invisible the way `script/stack-depth-check` records for itself,
+  and riscv64's tail instruction is assumed 4 bytes on an ISA that mixes 2 and 4.
+- **Recorded.** `design/roadmap/132-the-fastpath-footprint.md`. The cold list is the load-bearing
+  judgement in the script and a wrong entry there is silent by construction: a family wrongly marked
+  cold disappears from the number with no error. It is the one failure mode the script cannot detect
+  about itself, which is why each family carries a reason instead of a bare regex.
+- **Recorded.** `notes/benchmarks.md`. The under-4-KiB target is derived from cache sizes taken from
+  general knowledge rather than from the boards. The U74's 32 KB wants confirming against the
+  VisionFive 2 and the TX1's 48 KB against the silicon when it arrives, and nothing here models a
+  cache, an associativity or a line: this is a proxy, and milestone 74's counters on milestone 127's
+  hardware are what would turn it into a measurement.
+- **Recorded.** `script/fastpath-footprint`. The script's name is provisional and unratified, and
+  the script's own header says so where a reader meets it. This directory's suffix for a
+  build-failing gate is `-check`, so the consistent spelling is `fastpath-footprint-check`; it was
+  not taken because the name reads badly at nine syllables. Nothing depends on it and it is calef's
+  call.
