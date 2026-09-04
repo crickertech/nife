@@ -966,12 +966,7 @@ pub fn boot(
                         ..ChildEndowment::new(Retention::Nothing)
                     },
                 ));
-                must_ok(start_child(
-                    entropy,
-                    RNG_MODE_VIRTIO,
-                    dma_phys,
-                    0,
-                ));
+                must_ok(start_child(entropy, RNG_MODE_VIRTIO, dma_phys, 0));
                 cap_delete(g.virtio_rng_irq);
                 cap_delete(g.virtio_rng);
                 cap_delete(g.virtio_rng_dma);
@@ -1052,12 +1047,7 @@ pub fn boot(
             },
         );
         let line_editor = must(r);
-        must_ok(start_child(
-            line_editor,
-            LINE_EDITOR_MODE_DISPLAY,
-            0,
-            0,
-        ));
+        must_ok(start_child(line_editor, LINE_EDITOR_MODE_DISPLAY, 0, 0));
 
         // `g.disp_term_ep`/`g.disp_term_page` are ours no further: `line_editor` holds its own
         // narrowed copies, granting was a copy rather than a move (the same reason `con_shared`
@@ -1112,12 +1102,7 @@ pub fn boot(
                 ..ChildEndowment::new(Retention::Nothing)
             },
         ));
-        must_ok(start_child(
-            line_editor,
-            LINE_EDITOR_MODE_CONSOLE,
-            0,
-            0,
-        ));
+        must_ok(start_child(line_editor, LINE_EDITOR_MODE_CONSOLE, 0, 0));
 
         // `request`/`reply`/`con_shared` are ours no further: the console and `line_editor` both
         // hold their own narrowed copies (the console's own doc, one screen down, gives the
@@ -1880,12 +1865,7 @@ pub fn boot(
     // holds no directory and says so at every verb that would need one. `arg2` is the clock slot
     // (milestone 86), which moves with whether this boot had a disk, so it is told rather than
     // assumed.
-    must_ok(start_child(
-        shell,
-        0,
-        fs_rights,
-        sh_clock_slot,
-    ));
+    must_ok(start_child(shell, 0, fs_rights, sh_clock_slot));
 
     spawn_service(
         Channels {
