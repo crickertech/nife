@@ -49,11 +49,17 @@ will actually meet it.
 
 1. **Global assembly is skipped.** Boot entry, vectors, context switch, three architectures. Nothing
    in a harness reaches it, and nothing could.
-2. **`asm!` is an unsupported construct.** All of `kernel/src/arch/` plus the three sites above.
-   This is a *hard* boundary rather than a soft one, which is the good direction: if a harness ever
-   calls into that code, Kani reports the unsupported construct instead of proving past it. It also
-   means **the architecture layer stays unverified**, which is where the VisionFive 2's
-   undelivered-wake defect actually lived. This milestone does not touch that.
+2. **`asm!` is an unsupported construct.** Every `asm!` site in `kernel/src/arch/`, plus the three
+   above. This is a *hard* boundary rather than a soft one, which is the good direction: if a
+   harness ever calls into that code, Kani reports the unsupported construct instead of proving
+   past it.
+
+   **This was written as "all of `kernel/src/arch/`" and that was too strong** (milestone 255,
+   2026-09-04). The boundary is `asm!` and MMIO, not the directory: 4,004 of `arch/`'s 16,225 lines
+   are in files containing no `asm!` at all, and `arch/aarch64/iommu.rs` is now proved in place. The
+   architecture layer is still overwhelmingly unverified, and the VisionFive 2's undelivered-wake
+   defect is still on the far side of this line, but "unreachable by construction" was a claim about
+   a directory and the truth is a claim about two constructs.
 3. **The panic handler is absent.** Nothing proved here says anything about what the kernel does
    after a panic.
 4. **The link sections are absent.** Under `cfg(kani)` the host target is not `target_os = "none"`,
@@ -84,6 +90,42 @@ right: syscall dispatch is a boundary, not a library.
   re-checking the pages between. Given the two endpoints pass `is_user_page_va`, every page in the
   run does too, and no page is computed past the checked end. `k` is symbolic rather than iterated,
   so this covers every page of every run with no unwind bound.
+
+### And two in `kernel/src/arch/aarch64/iommu.rs` (milestone 255)
+
+The SMMUv3 driver, aarch64's IOMMU. It has no `asm!` in it at all, and what it computes is which
+physical addresses a device may touch, which is what `design/fatal-risks.md` risk 7 rests on. The
+word arithmetic was inline in `attach`, tangled with the volatile writes that make that function
+unreachable; it is now three functions in the same file, and `attach` is shorter for it. **Nothing
+moved out of `arch/`**, which is milestone 193's option A held to and milestone 244's refusal of
+option B applied again.
+
+- **`the_smmu_is_handed_exactly_the_tables_the_kernel_built`.** The context descriptor's TTB0 and
+  the stream table entry's `S1ContextPtr` are each a physical address split across two 32-bit words,
+  and each shares its low word with control bits (V, CONFIG and S1FMT sit under the STE's pointer).
+  For every page-frame `ttb` and every 64-byte-aligned `ctxptr` below 2^52, both fields read back
+  from the built words at the bit positions Arm IHI 0070 gives them are exactly the input, and the
+  control field is what it was written as rather than what an overlapping address bit made it. The
+  second half is the worse failure: an address bit landing on CONFIG turns the stream to **bypass**,
+  which is translation switched off rather than pointed somewhere wrong.
+- **`no_stream_can_reach_another_streams_tables`.** `table_offset` is the whole of the addressing
+  for both tables and its `assert!` is the only thing between a device-tree-supplied `StreamID` and
+  a raw write. For every pair of ids the bound admits, each entry lies inside the single frame that
+  holds the table and no two entries share a byte.
+
+**Both were falsified, and the falsifications are the argument.** Each patch leaves every test in
+the tree green. QEMU's `virt` board puts RAM at `0x4000_0000`, so bit 31 of a domain root is clear
+and `ttb >> 31` agrees with `ttb >> 32` on this board; and the one PCIe disk's requester id is far
+below 64, so raising `STRTAB_LOG2` to 7 writes off the end of a frame that nothing ever addresses.
+`script/falsifications --sweep kernel` replays both.
+
+**What this does not cover, said here as well as at the harness.** The register offsets and bit
+constants are unproved and unprovable in this tree: a harness asserting the constant it was given is
+a tautology, and if Arm IHI 0070 was misread then the code and the proof are wrong together. That is
+why `the_iommu_faults_a_dma_that_escapes_the_domain` in `kernel/src/virtio.rs` is not made redundant
+by this. And **a property proved of the SMMUv3 is not proved of the other two IOMMUs**:
+`riscv64/iommu.rs` writes its device context in 64-bit stores with no split at all, so this property
+has no counterpart there, and `x86_64/` is not even compiled under Kani on an aarch64 host.
 
 ### Why these two and not the timer
 
@@ -154,9 +196,15 @@ place rather than an assertion that they are.
 
 ## BUGS
 
-- **`kernel/src/arch/` is unreachable and will stay unreachable**, so nothing here should be read as
-  covering the architecture layer. Two of the corpus's own defects (the timer re-arm drift, the
-  VisionFive 2 undelivered wake) are inside it.
+- **`kernel/src/arch/` is very nearly unproved, and the part that is proved is one file.** Milestone
+  255 put two harnesses into `arch/aarch64/iommu.rs`; that is 347 of 16,225 lines. Two of the
+  corpus's own defects (the timer re-arm drift, the VisionFive 2 undelivered wake) are still on the
+  far side of the `asm!` boundary and nothing here touches them.
+- **Only one architecture's `arch/` is even compiled.** `crate::arch` dispatches on the host's
+  `target_arch`, so `cargo kani -p kernel` on the aarch64 runners sees `arch/aarch64/` and nothing
+  of `arch/riscv64/` or `arch/x86_64/`. The two largest asm-free files in the tree
+  (`x86_64/irq.rs`, `x86_64/machine.rs`) are unreachable for that reason rather than for the `asm!`
+  one, and reaching them needs a second `script/verify` row on an x86_64 host.
 - **Two harnesses is not coverage of a 64,818-line crate**, and the number to watch is not the count
   but whether the properties are ones a defect would violate. The two here were chosen because a
   defect *did* violate them.
