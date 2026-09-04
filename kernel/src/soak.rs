@@ -33,8 +33,9 @@
 //!
 //! That mattered because `design/fatal-risks.md`'s fifth entry has two halves and only one of them
 //! was runnable. The half that was not is the one the risk's single observed defect lived on: a
-//! receiver made `Ready` with nothing delivered, on radon, in `wake_load_aware`, reached from
-//! `sched::irq_notify`.
+//! receiver made `Ready` with nothing delivered, on JH7110 silicon (radon, the board it was seen
+//! on), in `wake_load_aware`, reached from `sched::irq_notify`. Silicon is the load-bearing half:
+//! it appeared on three harts and no emulator run had ever shown it.
 //!
 //! **So this module signals a rendezvous from `sched::on_tick`**, which all three architectures'
 //! timer dispatchers call in real interrupt context on every core, and adds one worker role that

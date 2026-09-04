@@ -222,7 +222,8 @@ const CY: u64 = 1 << 0;
 /// **What a `true` here does not promise** is that the read works. `mcounteren.CY` gates
 /// `scounteren.CY` from M-mode, and this kernel never runs in M-mode: if OpenSBI or a vendor
 /// firmware left `mcounteren.CY` clear, a granted U-mode `rdcycle` still takes an illegal
-/// instruction. Milestone 228 recorded that as unknown on **radon** and it is still unknown.
+/// instruction. Milestone 228 recorded that as unknown for the **VisionFive 2's OpenSBI build**
+/// (radon) and it is still unknown: nobody has read `mcounteren` on that firmware.
 ///
 /// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
 /// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the

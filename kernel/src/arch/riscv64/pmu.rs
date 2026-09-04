@@ -42,7 +42,8 @@
 //! `CSR_MCOUNTEREN, -1` ("Supervisor mode usage for all counters are enabled by default") and
 //! `CSR_MCOUNTINHIBIT, 0xFFFFFFF8`, which leaves bits 0 (`CY`) and 2 (`IR`) clear, so `mcycle` and
 //! `minstret` run and only the programmable counters are inhibited until S-mode asks. **That is
-//! upstream OpenSBI, not radon's firmware**, and it is a claim about somebody else's build until a
+//! upstream OpenSBI, not the firmware flashed on the VisionFive 2 this project benches on
+//! (radon)**, and it is a claim about somebody else's build until a
 //! bench reads it; notes/riscv-cycle-counters.md makes checking it step one of the procedure.
 //!
 //! # BUGS

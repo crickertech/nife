@@ -311,9 +311,10 @@ pub fn count_block_devices() -> usize {
 /// this kernel arrives, so those five were **moved** by `place_bars` rather than assigned by it,
 /// and the two milestone 215 tests that reach a `virtio-blk-pci` function through its MSI-X table
 /// pass on the far side of that move. It is
-/// the first thing to read on xenon's first boot (milestone 87): a machine whose RAM reaches above
-/// `PCI_BAR_PHYS` would have this kernel move most of its bus on top of memory, and that number
-/// says so on the line before anything is driven.
+/// the first thing to read on the first boot on a real x86 machine (milestone 87's Dell
+/// `OptiPlex`, xenon): a machine whose RAM reaches above `PCI_BAR_PHYS` would have this kernel move
+/// most of its bus on top of memory, and that number says so on the line before anything is
+/// driven.
 ///
 /// Counting only, like [`count_block_devices`] and for the same reason: no sizing writes, no
 /// command-register changes, nothing a function's existing owner could notice.

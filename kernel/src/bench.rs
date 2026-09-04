@@ -467,8 +467,9 @@ fn map_new() {
 ///
 /// QEMU-TCG's `cycle` CSR is an instruction count. The ratio printed on the merge machine is
 /// therefore a fact about the emulator and not about any silicon, and the line says so itself
-/// rather than leaving a reader to infer it from the milestone. The number is real on radon and
-/// nowhere else this harness currently runs; notes/riscv-cycle-counters.md is the procedure.
+/// rather than leaving a reader to infer it from the milestone. The number is real only on a real
+/// core, which for this harness today means the JH7110 (radon) and nothing else it runs on;
+/// notes/riscv-cycle-counters.md is the procedure.
 ///
 /// # Why the window is a timed spin
 ///

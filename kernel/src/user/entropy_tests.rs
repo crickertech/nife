@@ -101,7 +101,7 @@ fn a_client_obtains_unpredictable_bytes_from_a_virtio_rng_over_pcie() {
 /// fault (or worse, a read of some unrelated peripheral) on the one machine nobody can run this
 /// suite on.
 ///
-/// On radon (the `StarFive` VisionFive 2) this test skips and the boot tour's `hw entropy` line is
+/// On a `StarFive` VisionFive 2 (radon) this test skips and the boot tour's `hw entropy` line is
 /// what speaks instead; see `design/roadmap/159-jh7110-trng-driver.md` for the bench procedure.
 #[test_case]
 fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {

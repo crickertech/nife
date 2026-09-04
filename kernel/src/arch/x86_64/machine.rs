@@ -514,8 +514,8 @@ fn pciexbar_length_bits(bus_count: u32) -> Option<u32> {
 /// the same base under real firmware "should be a no-op". It is a no-op only if the length field
 /// agrees too, and firmware is free to choose 128 or 64 MiB where that wrote 256. On a machine
 /// that had chosen a smaller window an unconditional write **widens the chipset's decode over
-/// whatever physical addresses sit above it**, which on xenon (milestone 87's `OptiPlex`) would be
-/// discovered at a null modem. Some chipsets also lock the register once firmware has written it,
+/// whatever physical addresses sit above it**, which on the Dell `OptiPlex` (milestone 87's xenon)
+/// would be discovered at a null modem. Some chipsets also lock the register once firmware has written it,
 /// in which case the write is dropped and the value read back is the only thing that would say so.
 ///
 /// **And the complication that write was introduced for does not reproduce**, which is worth
