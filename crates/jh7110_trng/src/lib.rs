@@ -203,6 +203,52 @@ pub const ISTAT_LFSR_LOCKUP: u32 = 1 << 4;
 /// this project has no board for.
 pub const COMPATIBLE: &[u8] = b"starfive,jh7110-trng";
 
+/// **The spelling radon's own firmware uses for the same device**, and the reason milestone 239
+/// (radon's device tree does not describe the TRNG, so a working driver never runs) exists.
+///
+/// The tree nife is handed on the VisionFive 2 is the vendor U-Boot's control DTB (U-Boot 2021.10,
+/// `Build: jenkins-VF2_515_Branch_SDK_Release-24`, Feb 12 2023, per the board's own banner in
+/// `crates/board_console/tests/fixtures/captured/vf2-2026-09-01-manual-boot.log`). Its source is
+/// StarFive's fork, not Linux's, and it spells the node \[uboot-dtsi\]:
+///
+/// ```text
+/// trng: trng@1600C000 {
+///     compatible = "starfive,trng";
+///     reg = <0x0 0x1600C000 0x0 0x4000>;
+///     clocks = <&clkgen JH7110_SEC_HCLK>,
+///          <&clkgen JH7110_SEC_MISCAHB_CLK>;
+///     clock-names = "hclk", "miscahb_clk";
+///     resets = <&rstgen RSTN_U0_SEC_TOP_HRESETN>;
+///     interrupts = <30>;
+///     status = "disabled";
+/// };
+/// ```
+///
+/// **Same device, same window, same interrupt, different string**, and the difference is a stale
+/// fork rather than different silicon: StarFive's own kernel driver for this block already matched
+/// `starfive,jh7110-trng` in December 2022 \[vendor-driver\], two months before that firmware was
+/// built, and its register `#define`s are byte-for-byte the offsets in [`regs`]. Nothing on
+/// StarFive's side ever noticed, because Linux on this board is handed the kernel package's own
+/// DTB and never sees U-Boot's.
+///
+/// **Accepting it is a claim about the register layout, so here is the evidence for that claim.**
+/// The vendor Linux driver at the firmware's own vintage \[vendor-driver\] defines `STARFIVE_CTRL`
+/// 0x00, `STAT` 0x04, `MODE` 0x08, `SMODE` 0x0C, `IE` 0x10, `ISTAT` 0x14, `RAND0`..`RAND7`
+/// 0x20..0x3C, `AUTO_RQSTS` 0x60, `AUTO_AGE` 0x64, and the same `CTRL`/`STAT`/`ISTAT` bit
+/// positions mainline's `jh7110-trng.c` does. Two drivers written against one IP block agree
+/// completely, so a node claiming `starfive,trng` at `0x1600_C000` is claiming [`regs`].
+///
+/// \[uboot-dtsi\]: `arch/riscv/dts/jh7110.dtsi` in `starfive-tech/u-boot`, branch
+/// `JH7110_VisionFive2_devel`, read 2026-09-03 at commit `bfbdce9b86a2` (2023-01-06, the last
+/// change to that file before the flashed firmware's Feb 12 2023 build date) and unchanged at that
+/// branch's head:
+/// <https://github.com/starfive-tech/u-boot/blob/bfbdce9b86a2/arch/riscv/dts/jh7110.dtsi>
+///
+/// \[vendor-driver\]: `drivers/char/hw_random/starfive-trng.c` in `starfive-tech/linux`, commit
+/// `202b558ae34c` (2022-12-14), read 2026-09-03:
+/// <https://github.com/starfive-tech/linux/blob/202b558ae34c/drivers/char/hw_random/starfive-trng.c>
+pub const COMPATIBLE_VENDOR: &[u8] = b"starfive,trng";
+
 /// What [`discover`] found: the register window's physical base and size (from `reg`), and the
 /// PLIC interrupt number if the tree gives one (`interrupts`, \[binding\]'s single cell).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -215,33 +261,95 @@ pub struct Discovered {
     /// The PLIC interrupt line, if the tree names one. `None` is not an error: a tree with `reg`
     /// but no `interrupts` still names a real device, one a poll-only driver could still use.
     pub interrupt: Option<u32>,
+    /// Which `compatible` string matched: [`COMPATIBLE`] or [`COMPATIBLE_VENDOR`]. Carried rather
+    /// than discarded because the two spellings mean different things about the tree a bench
+    /// session is looking at, and a boot tour that says which one it found tells the next reader
+    /// whether they are on the vendor U-Boot's control DTB or on something fuller.
+    pub compatible: &'static [u8],
+    /// What the node's `status` property says, decoded to the one question a driver has: may this
+    /// device be used? `true` when the property is absent (the device-tree specification's default
+    /// is `"okay"`) or spells `"okay"`/`"ok"`; `false` for `"disabled"` and every other value.
+    ///
+    /// **[`discover`] reports this and does not act on it**, deliberately. The vendor control tree
+    /// marks the TRNG `status = "disabled"` because *U-Boot* has no driver for it, not because the
+    /// silicon is absent: StarFive's own Linux enables the same node from
+    /// `jh7110-common.dtsi` (`&trng { status = "okay"; };`). This tree also has a recorded reason
+    /// not to take that firmware's `status` at face value, in the other direction: the same DTB
+    /// marks the S7 monitor core `status = "okay"` and claims it has an Sv39 MMU, and both are
+    /// false (notes/visionfive2.md, "Second bench stop"). So the honest thing is to say what the
+    /// tree says and let the caller decide, rather than to refuse a device that is there or trust
+    /// one that is not.
+    ///
+    /// It is also the first thing to read when the register window comes back all zeros: a node
+    /// the firmware calls disabled is a node whose clocks the firmware had no reason to ungate.
+    pub status_okay: bool,
 }
 
 /// Find the JH7110 TRNG in `tree`, if it is there at all.
 ///
 /// **`Ok(None)` is not a parse failure, it is the honest answer on every machine this repository
-/// currently boots under CI**: QEMU's riscv64 `virt` board has no `starfive,jh7110-trng` node, so
-/// this function must return `None` against it, and the fixture test below pins exactly that
+/// currently boots under CI**: QEMU's riscv64 `virt` board has no TRNG node under either spelling,
+/// so this function must return `None` against it, and the fixture test below pins exactly that
 /// against the same `.dtb` `crates/dtb`'s own tests already boot-verify against. Discovery is the
 /// one piece of "does this device exist at all" this crate can prove without silicon: it is a pure
 /// query over bytes, and a device tree dumped from the real board (once someone captures one) is a
 /// drop-in fixture for the same test, not a new code path.
+///
+/// **Two spellings are tried, mainline's first** ([`COMPATIBLE`], then [`COMPATIBLE_VENDOR`]), and
+/// the order is the whole of the policy: a tree that carries both is describing itself in the
+/// language the binding standardised, and that is the one to believe. Trying the vendor string at
+/// all is milestone 239's finding; [`COMPATIBLE_VENDOR`] carries the evidence that it names the
+/// same register block.
 pub fn discover(tree: &dtb::Dtb<'_>) -> Result<Option<Discovered>, dtb::Error> {
+    for compatible in [COMPATIBLE, COMPATIBLE_VENDOR] {
+        if let Some(found) = discover_as(tree, compatible)? {
+            return Ok(Some(found));
+        }
+    }
+    Ok(None)
+}
+
+/// One spelling's worth of [`discover`]. Split out so the two attempts cannot drift apart: every
+/// property is read against the *same* string that matched the node, so a tree carrying an
+/// unrelated node under the other spelling can never contribute a `reg` or an `interrupts` to this
+/// answer.
+fn discover_as(
+    tree: &dtb::Dtb<'_>,
+    compatible: &'static [u8],
+) -> Result<Option<Discovered>, dtb::Error> {
     let mut regions = [dtb::Region { start: 0, size: 0 }; 1];
-    let n = tree.node_reg_compatible(COMPATIBLE, &mut regions)?;
+    let n = tree.node_reg_compatible(compatible, &mut regions)?;
     if n == 0 {
         return Ok(None);
     }
     let interrupt = tree
-        .node_prop_compatible(COMPATIBLE, b"interrupts")?
+        .node_prop_compatible(compatible, b"interrupts")?
         .and_then(|bytes| bytes.get(0..4))
         .and_then(|b| b.try_into().ok())
         .map(u32::from_be_bytes);
+    let status_okay = tree
+        .node_prop_compatible(compatible, b"status")?
+        .map_or(true, status_says_okay);
     Ok(Some(Discovered {
         reg_base: regions[0].start,
         reg_size: regions[0].size,
         interrupt,
+        compatible,
+        status_okay,
     }))
+}
+
+/// Decode a `status` property value. The device-tree specification defines `"okay"` as the only
+/// value meaning "operational", with `"disabled"`, `"fail"` and `"fail-sss"` all meaning it is
+/// not; `"ok"` is a widespread legacy spelling of `"okay"` that trees in the wild still carry, so
+/// it is accepted here rather than read as a fourth kind of "no".
+///
+/// The value is a NUL-terminated string in the tree, so both the terminated and the unterminated
+/// forms are matched here rather than trimming: a four-way `matches!` says exactly which byte
+/// strings count, where a trim would have to decide what an empty or multi-string value means and
+/// would answer for cases no tree produces.
+fn status_says_okay(value: &[u8]) -> bool {
+    matches!(value, b"okay\0" | b"ok\0" | b"okay" | b"ok")
 }
 
 /// The result of looking at one `ISTAT` snapshot (and the `RAND` words, if it looked ready).
@@ -473,6 +581,52 @@ mod tests {
         assert_eq!(found.reg_base, 0x1600_C000);
         assert_eq!(found.reg_size, 0x4000);
         assert_eq!(found.interrupt, Some(30));
+        assert_eq!(found.compatible, COMPATIBLE);
+        // Mainline's binding example states no `status`, and the device-tree specification's
+        // default for an absent `status` is "okay".
+        assert!(found.status_okay);
+    }
+
+    const JH7110_TRNG_VENDOR_UBOOT: &[u8] =
+        include_bytes!("../tests/fixtures/jh7110-trng-vendor-uboot.dtb");
+
+    /// **Milestone 239's whole finding, in one assertion.** radon is handed the vendor U-Boot's
+    /// control DTB, and that tree does describe the TRNG: as `trng@1600C000`, `compatible =
+    /// "starfive,trng"`, `status = "disabled"`. Before this milestone `discover` matched mainline's
+    /// string only and answered `None`, so the boot tour printed "this machine's tree describes no
+    /// starfive,jh7110-trng" against a tree that describes the device at the address the driver
+    /// wanted.
+    ///
+    /// The fixture is transcribed from the firmware's own source, not dumped from the board (see
+    /// its header), so what this test proves is that the decoder handles that shape. **Whether the
+    /// running firmware's tree really carries the node is a bench fact and is still open**;
+    /// `design/roadmap/239-radons-tree-describes-less-than-the-chip-has.md` carries the two
+    /// commands that settle it.
+    #[test]
+    fn discover_finds_the_device_under_the_vendor_uboots_own_spelling() {
+        let tree = dtb::Dtb::from_bytes(JH7110_TRNG_VENDOR_UBOOT).expect("fixture parses");
+        let found = discover(&tree)
+            .expect("no parse error")
+            .expect("the vendor tree describes the device under its own compatible");
+        assert_eq!(found.reg_base, 0x1600_C000);
+        assert_eq!(found.reg_size, 0x4000);
+        assert_eq!(found.interrupt, Some(30));
+        assert_eq!(found.compatible, COMPATIBLE_VENDOR);
+        // The one property a caller must not lose: the firmware calls its own TRNG disabled.
+        assert!(!found.status_okay);
+    }
+
+    /// `status` decoding, at the four values a tree can carry and one it cannot. This is a
+    /// three-line function guarding a fact a bench session will read off the boot tour, and the
+    /// failure it would cause is the expensive kind: a `status` misread as okay turns "the
+    /// firmware never ungated this device's clocks" into an unexplained window of zeros.
+    #[test]
+    fn status_is_decoded_the_way_the_specification_defines_it() {
+        assert!(status_says_okay(b"okay\0"));
+        assert!(status_says_okay(b"ok\0"));
+        assert!(!status_says_okay(b"disabled\0"));
+        assert!(!status_says_okay(b"fail\0"));
+        assert!(!status_says_okay(b""));
     }
 
     /// **The negative case this milestone can actually prove without hardware.** QEMU's riscv64
