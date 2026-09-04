@@ -1,6 +1,6 @@
 # 140. The words a finished milestone may use to say what happened to the work it named
 
-**Status: PROPOSED.** *(Number provisional. Section numbers are the integrator's at merge, per
+**Status: DECIDED.** Ratified 2026-09-03 by calef, who took the vocabulary as it stands: *"Ratify proposed."* The seven words are the gate's, and `Proposed.` is the one he was asked about. *(Number provisional. Section numbers are the integrator's at merge, per
 AGENTS.md, and this one was written by the milestone 247 lane.)*
 
 ## What is being decided

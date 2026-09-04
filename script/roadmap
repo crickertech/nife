@@ -513,7 +513,8 @@ for mid, fname in sorted(ids.items()):
                 f"'**Milestone N.**', '**Recorded.**' (naming the file the limitation lives "
                 f"beside, in backticks), '**Refused.**' with a reason, '**Done.**' with what "
                 f"carried it, '**Decision.**' naming a file under design/decisions/, or "
-                f"'**Unclaimed.**' saying what the work is. See design/roadmap/README.md and "
+                f"'**Proposed.**' naming its file under design/roadmap/proposed/. See "
+                f"design/roadmap/README.md and "
                 f"notes/follow-on-work.md")
         continue
     swept += 1

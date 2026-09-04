@@ -36,7 +36,7 @@ falls through only because the attribution step has nothing to say about it.
 Milestone 119's block, on what remained after sharding: *"that tail is nearly all false positives
 from three blind spots in the scope predicate (`scripts/` is not `script/`, a `Cargo.lock` touch
 proves everything, binary files count). Fixing those beats more shards ... Each is its own small
-lane."* Its Follow-on records the same thing as `**Unclaimed.**`, alongside a refusal of more
+lane."* Its Follow-on records the same thing as `**Proposed.**`, alongside a refusal of more
 shards for the reason above.
 
 ## What it would take
