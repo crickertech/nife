@@ -45,7 +45,7 @@ anyone holding the address can keep writing to them.
 So:
 
 ```text
-  firmware ──GOP──► uefi_loader ──"fb=0x80000000,1280,800,5120,bgrx"──► kernel ──glyphs──► monitor
+  firmware ──GOP──► uefi_loader ──"screen=0x80000000,1280,800,5120,bgrx"──► kernel ──glyphs──► monitor
                          │                  in hvm_start_info's                 │
                          │                  cmdline_paddr                       │
                     machine_discovery::framebuffer  (one crate, both parties)   screen_console

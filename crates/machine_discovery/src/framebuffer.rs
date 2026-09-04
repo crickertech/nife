@@ -48,7 +48,7 @@
 //!
 //! let mut buffer = [0u8; Framebuffer::MAX_LEN];
 //! let written = found.encode(&mut buffer);
-//! assert_eq!(&buffer[..written], b"fb=0x80000000,800,600,3200,bgrx");
+//! assert_eq!(&buffer[..written], b"screen=0x80000000,800,600,3200,bgrx");
 //!
 //! let text = core::str::from_utf8(&buffer[..written]).expect("ASCII");
 //! assert_eq!(Framebuffer::parse(text), Some(found));
@@ -60,7 +60,7 @@
 //! ```
 //! use machine_discovery::framebuffer::Framebuffer;
 //!
-//! assert!(Framebuffer::parse("quiet fb=0x1000,64,32,256,rgbx debug").is_some());
+//! assert!(Framebuffer::parse("quiet screen=0x1000,64,32,256,rgbx debug").is_some());
 //! assert_eq!(Framebuffer::parse("quiet debug"), None);
 //! ```
 //!
@@ -140,14 +140,21 @@ impl Framebuffer {
     /// The key this token opens with. `fb` rather than Linux's `video`, because Linux's takes a
     /// *mode request* (`video=1024x768`) and this takes an *answer*; borrowing the spelling would
     /// borrow the wrong meaning.
-    pub const KEY: &'static str = "fb=";
+    pub const KEY: &'static str = "screen=";
 
     /// The longest token [`Self::encode`] can produce, for a caller sizing a buffer.
     ///
-    /// `fb=` plus `0x` and sixteen hex digits, three ten-digit decimals with their commas, and a
+    /// `screen=` plus `0x` and sixteen hex digits, three ten-digit decimals with their commas, and a
     /// four-character order. Rounded up rather than derived, because the derivation would be a
     /// second thing to keep in step with the encoder.
-    pub const MAX_LEN: usize = 64;
+    ///
+    /// **72 rather than 64, and the reason is a lesson about rounding up.** The token was `fb=`
+    /// when 64 was chosen, and the worst case was 59 bytes: five bytes of slack. calef ratified
+    /// `screen=` on 2026-09-04, four characters longer, which took the worst case to **63 of 64**.
+    /// One byte of headroom is not slack, it is a trap for whoever adds a field, and a wire format
+    /// that overflows its own buffer fails at the boundary between two programs where it is hardest
+    /// to see. Raised in the same change as the rename rather than left for the next person.
+    pub const MAX_LEN: usize = 72;
 
     /// How many bytes one row of pixels occupies, and the last byte the console may touch.
     ///
@@ -370,13 +377,13 @@ mod tests {
     fn a_malformed_token_reads_as_no_screen_at_all() {
         for bad in [
             "",
-            "fb=",
-            "fb=80000000,800,600,3200,bgrx", // no 0x
-            "fb=0x8000,800,600,3200",        // no order
-            "fb=0x8000,800,600,3200,cmyk",   // an order nobody has
-            "fb=0x8000,800,600,3200,bgrx,7", // a field nobody wrote
-            "fb=0x8000,0,600,3200,bgrx",     // no pixels
-            "fb=0x8000,800,600,100,bgrx",    // a stride narrower than a row
+            "screen=",
+            "screen=80000000,800,600,3200,bgrx", // no 0x
+            "screen=0x8000,800,600,3200",        // no order
+            "screen=0x8000,800,600,3200,cmyk",   // an order nobody has
+            "screen=0x8000,800,600,3200,bgrx,7", // a field nobody wrote
+            "screen=0x8000,0,600,3200,bgrx",     // no pixels
+            "screen=0x8000,800,600,100,bgrx",    // a stride narrower than a row
         ] {
             assert_eq!(Framebuffer::parse(bad), None, "{bad:?} should not parse");
         }
@@ -386,7 +393,7 @@ mod tests {
     /// is a place other things will eventually be written too.
     #[test]
     fn the_token_is_found_among_other_words() {
-        let found = Framebuffer::parse("console=uart fb=0x1000,64,32,256,rgbx smp=2");
+        let found = Framebuffer::parse("console=uart screen=0x1000,64,32,256,rgbx smp=2");
         assert_eq!(found.map(|f| f.width), Some(64));
     }
 
