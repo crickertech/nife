@@ -59,6 +59,9 @@ block_roster = { version = "0.1.0", path = "../crates/block_roster" }
 # The soak workload's shared page (milestone 219): the kernel reads the progress counters the
 # `soaker` program writes, through one definition of the layout rather than two copies.
 soak_page = { version = "0.1.0", path = "../crates/soak_page" }
+# The multi-tasking workload's definition (milestone 168). The kernel-side supervisor and the EL0
+# task read one description of what a job is, rather than two copies that drift.
+job_mix = { version = "0.1.0", path = "../crates/job_mix" }
 # The compositor contract (milestone 33): the kernel wires the scene and its tests predict the
 # composed screen from the same definition the compositor and its clients paint from.
 compositor = { version = "0.1.0", path = "../crates/compositor" }
@@ -191,6 +194,13 @@ icount = ["bench"]
 # and watches them forever, so `design/fatal-risks.md` risk 5's decisive experiment has something to
 # run. Off by default; every ordinary boot still halts. See kernel/src/soak.rs and script/soak.
 soak = []
+# The multi-tasking workload benchmark (milestone 168): the tour does not halt, it sweeps a pool of
+# EL0 tasks through a heterogeneous job mix and prints jobs-per-minute against task count, which is
+# the instrument design/decisions/96-process-kernel-or-event-kernel.md says it is missing. Off by
+# default. A feature rather than a `bench.rs` row because the number has to be taken on a board, and
+# the path a board takes is script/board-image plus script/board-console. See kernel/src/jobmix.rs
+# and script/job-mix. Name provisional.
+jobmix = []
 # The rebooting soak (milestone 249): after a fixed window the soak asks SBI SRST for a **cold
 # reboot** instead of beating forever, so the boot-time thread-placement lottery can be drawn fifty
 # times unattended rather than nine times by a person walking to the board. riscv64 only, and

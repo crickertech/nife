@@ -1189,6 +1189,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   saturated workload **does not migrate** under this scheduler, measured across three topologies and
   two architectures, so the soak sustains contention on shared kernel state and does not sustain
   cross-core handoff. Also why the first instrument could not have shown that and the second could.
+- [The multi-tasking workload benchmark](job-mix.md): milestone 168's instrument, the one
+  `design/decisions/96-process-kernel-or-event-kernel.md` says it is missing. What AIM7 actually is
+  (read rather than recalled, with the provenance of the 20% figure and how it differs in strength
+  from Warton's own abstract), which four of its properties this workload keeps and which of its 53
+  jobs it deliberately does not, the QEMU rehearsal, and the bench procedure for radon with a table
+  mapping every outcome to what it means. Also the reason a jobs-per-minute figure from one boot is
+  a draw rather than a result: placement decides throughput on that board by up to fifteenfold.
 - [Scoping RISC-V / aarch64 parity](riscv-parity-scope.md): aarch64 is a strict superset once the
   port proved the capability core; this scopes the remaining gap (SMP, an in-kernel test run,
   virtio+DMA, the full boot/shell, benchmarks), what each proves, and the order to close them.

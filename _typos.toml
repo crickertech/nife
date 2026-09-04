@@ -105,3 +105,8 @@ everybodies = "everybodies"
 # RMRR/ATSR/RHSA/SATC in acpi.rs's `DmarEntry::Other` doc. The checker reads it as "AND" plus a
 # stray D.
 ANDD = "ANDD"
+# A misspelling in somebody else's document, quoted verbatim (milestone 168). Warton's 2005 thesis
+# abstract writes "single stack architecure", and notes/job-mix.md quotes the sentence because the
+# strength of that claim differs from the retrospective's summary of it, which is the whole point of
+# the quotation. Correcting a source inside quotation marks would be worse than the typo.
+architecure = "architecure"
