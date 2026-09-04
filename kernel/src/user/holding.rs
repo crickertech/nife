@@ -36,6 +36,12 @@
 //!   its own budget paid for does die. A service blocked on an endpoint from somewhere else does
 //!   not, and [`Holding::release`](crate::user::holding::Holding::release) returns `false` rather than pretending: see
 //!   `reap_region_objects`'s own note ("the cooperative tier's job").
+//!   **A thread blocked in `CALL` rather than `RECV` is a different case and milestone 254 fixed
+//!   it**: a caller parked awaiting a reply is freed the moment its server stops being able to
+//!   answer (it exits, faults, is killed, is reaped, or its rendezvous goes), wherever that caller
+//!   lives. So the leak this bullet describes no longer compounds one region per caller in flight.
+//!   What is unchanged is the *server*: a service parked in `RECV` on somebody else's rendezvous
+//!   still cannot be ended, which is milestone 133's question.
 //! - **`release` is destructive and cannot be used as a question.** Its first `reclaim_region` arms
 //!   kills, so calling it to find out whether a service is idle ends the service. That is
 //!   `reclaim_region`'s recorded BUGS entry, inherited here.
