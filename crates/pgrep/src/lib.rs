@@ -202,7 +202,7 @@ impl Selector {
     ///
     /// This is the one place zero is generous, and the asymmetry with [`of`](Selector::of) is
     /// deliberate. A program is started with its registers zeroed by whoever did not think about
-    /// them (`system_initializer` starts every child `thread_control_block_start(tcb, 0, arg, 0)` and the shell
+    /// them (`system_initializer` starts every child `start_child(child, 0, arg, 0)` and the shell
     /// leaves `arg` at zero for a program whose `ArgSpec` is `Forbidden`), so "nobody said" has to
     /// mean "no filter" or `pgrep` would print nothing at the prompt and look broken.
     ///

@@ -34,7 +34,7 @@ use abi::{Error, rendezvous};
 /// The endowment a child is born holding, for the one loader this tree has (milestone 96). The
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
-use supervision_proto::ChildEndowment;
+use supervision_proto::{Child, ChildEndowment, Retention};
 use user_rt::{
     call, exit, irq_wait, map_into, map_page_frame, map_region_page, recv, recv_cap as rt_recv_cap,
     reply, revoke_frame, send, send_cap, yield_now,
@@ -462,10 +462,10 @@ fn init_irq(initrd_len: u64) -> ! {
         (REPORT, abi::rights::WRITE),
         (TEST_IRQ, abi::rights::READ), // WAIT/ACK the interrupt
     ];
-    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
+    let Ok(child) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
-    check(thread_control_block_start(tcb, IRQ_CHILD, 0, 0));
+    check(start_child(child, IRQ_CHILD, 0, 0));
     exit();
 }
 
@@ -492,12 +492,12 @@ fn init_worker(initrd_len: u64) -> ! {
     // The worker's whole authority: the report endpoint as its slot 0, so its one SEND lands where
     // the test (or, in the boot system, the shell) is waiting.
     let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
-    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
+    let Ok(child) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
     // x0 is unused (a standalone binary needs no role selector); the input is in x1 (the multi-arg
     // START that 19e added).
-    check(thread_control_block_start(tcb, 0, WORKER_INPUT, 0));
+    check(start_child(child, 0, WORKER_INPUT, 0));
     exit();
 }
 
@@ -517,10 +517,10 @@ fn init_coremark(initrd_len: u64) -> ! {
         fail_report(REPORT)
     };
     let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
-    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
+    let Ok(child) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
         fail_report(REPORT)
     };
-    check(thread_control_block_start(tcb, 0, 0, 0)); // no args: the workload's iteration count is fixed
+    check(start_child(child, 0, 0, 0)); // no args: the workload's iteration count is fixed
     exit();
 }
 
@@ -665,10 +665,10 @@ fn init_console(initrd_len: u64) -> ! {
         (SHARED_VA, shared, abi::address_space::MAP_RO),
         (CHILD_UART_VA, UART_DEV, abi::address_space::MAP_RO),
     ];
-    let Ok(tcb) = build_child(MEMORY_REGION, &elf, caps, maps) else {
+    let Ok(child) = build_child(MEMORY_REGION, &elf, caps, maps) else {
         fail_report(REPORT)
     };
-    check(thread_control_block_start(tcb, 0, 0, 0)); // no role selector: console is its own binary
+    check(start_child(child, 0, 0, 0)); // no role selector: console is its own binary
 
     // Now init is the client. Write a line into the shared page, ask the server to print it.
     let msg = b"nife: the console server was built and started by userspace init.
@@ -718,9 +718,9 @@ fn init_build(initrd_len: u64, device: bool) -> ! {
     let maps = if device { dev_maps } else { no_maps };
 
     match build_child(MEMORY_REGION, &elf, caps, maps) {
-        Ok(child_tcb) => {
+        Ok(child) => {
             let role = if device { DEV_CHILD } else { CHILD };
-            check(thread_control_block_start(child_tcb, role, 0, 0));
+            check(start_child(child, role, 0, 0));
         }
         Err(_) => {
             send(REPORT, 0, 0, 0);
@@ -769,7 +769,7 @@ fn child() -> ! {
 /// `init_slot`, narrowed to `rights`). `maps` are extra pages mapped into the child before it starts
 /// (each `(child_va, init_slot, mode)`: init's `PageFrame` or `DeviceFrame` cap, mapped at `child_va` with
 /// a `MAP_*` mode), which is how init hands a driver its registers and a shared buffer (19d.2).
-/// Returns the child's TCB slot, ready to start.
+/// Returns the [`Child`], ready to start.
 ///
 /// **The loader itself is `supervision_proto`'s, and is the tree's only one** (milestone 96). It
 /// used to be written out here, once more in `system_initializer`, and once more in that crate, with
@@ -781,7 +781,7 @@ fn build_child(
     elf: &elf::Elf,
     caps: &[(u64, u64)],
     maps: &[(u64, u64, u64)],
-) -> Result<u64, ()> {
+) -> Result<Child, ()> {
     supervision_proto::build_child(
         untyped,
         untyped,
@@ -790,7 +790,14 @@ fn build_child(
             caps,
             maps,
             stack_pages: system_initializer::CHILD_STACK_PAGES,
-            ..ChildEndowment::new()
+            // **`Retention::Nothing`, and this file is where DECISIONS §142's audit landed.** All
+            // five of this program's roles kept their child's TCB capability past `START` before
+            // §142 was written, the only five sites in the tree that did, and not one of them
+            // recorded a reason. There was none: every one of them calls `exit()` a few lines
+            // later, so the capability was not retained on purpose, it was dropped by the process
+            // dying rather than by anybody deciding. Written down, the answer is the same one the
+            // other twenty-five sites give.
+            ..ChildEndowment::new(Retention::Nothing)
         },
     )
 }
@@ -805,10 +812,10 @@ fn retype_page_frame(untyped: u64) -> Result<u64, ()> {
     supervision_proto::retype_page_frame_from(untyped)
 }
 
-/// Start a configured TCB, handing the child `arg0`, `arg1`, `arg2` as its first three registers.
-/// True if the kernel started it.
-fn thread_control_block_start(tcb: u64, arg0: u64, arg1: u64, arg2: u64) -> bool {
-    supervision_proto::thread_control_block_start(tcb, arg0, arg1, arg2)
+/// Start a configured child, handing it `arg0`, `arg1`, `arg2` as its first three registers, and
+/// dispose of its TCB capability as [`build_child`] declared. True if the kernel started it.
+fn start_child(child: Child, arg0: u64, arg1: u64, arg2: u64) -> bool {
+    supervision_proto::start_child(child, arg0, arg1, arg2)
 }
 
 /// **Building another address space, milestone 19b.** Holds an untyped budget (slot 0) and a
