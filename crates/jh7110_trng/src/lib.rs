@@ -209,7 +209,7 @@ pub const COMPATIBLE: &[u8] = b"starfive,jh7110-trng";
 /// The tree nife is handed on the VisionFive 2 is the vendor U-Boot's control DTB (U-Boot 2021.10,
 /// `Build: jenkins-VF2_515_Branch_SDK_Release-24`, Feb 12 2023, per the board's own banner in
 /// `crates/board_console/tests/fixtures/captured/vf2-2026-09-01-manual-boot.log`). Its source is
-/// StarFive's fork, not Linux's, and it spells the node \[uboot-dtsi\]:
+/// `StarFive`'s fork, not Linux's, and it spells the node \[uboot-dtsi\]:
 ///
 /// ```text
 /// trng: trng@1600C000 {
@@ -225,10 +225,10 @@ pub const COMPATIBLE: &[u8] = b"starfive,jh7110-trng";
 /// ```
 ///
 /// **Same device, same window, same interrupt, different string**, and the difference is a stale
-/// fork rather than different silicon: StarFive's own kernel driver for this block already matched
+/// fork rather than different silicon: `StarFive`'s own kernel driver for this block already matched
 /// `starfive,jh7110-trng` in December 2022 \[vendor-driver\], two months before that firmware was
 /// built, and its register `#define`s are byte-for-byte the offsets in [`regs`]. Nothing on
-/// StarFive's side ever noticed, because Linux on this board is handed the kernel package's own
+/// `StarFive`'s side ever noticed, because Linux on this board is handed the kernel package's own
 /// DTB and never sees U-Boot's.
 ///
 /// **Accepting it is a claim about the register layout, so here is the evidence for that claim.**
@@ -272,7 +272,7 @@ pub struct Discovered {
     ///
     /// **[`discover`] reports this and does not act on it**, deliberately. The vendor control tree
     /// marks the TRNG `status = "disabled"` because *U-Boot* has no driver for it, not because the
-    /// silicon is absent: StarFive's own Linux enables the same node from
+    /// silicon is absent: `StarFive`'s own Linux enables the same node from
     /// `jh7110-common.dtsi` (`&trng { status = "okay"; };`). This tree also has a recorded reason
     /// not to take that firmware's `status` at face value, in the other direction: the same DTB
     /// marks the S7 monitor core `status = "okay"` and claims it has an Sv39 MMU, and both are
@@ -329,7 +329,7 @@ fn discover_as(
         .map(u32::from_be_bytes);
     let status_okay = tree
         .node_prop_compatible(compatible, b"status")?
-        .map_or(true, status_says_okay);
+        .is_none_or(status_says_okay);
     Ok(Some(Discovered {
         reg_base: regions[0].start,
         reg_size: regions[0].size,
