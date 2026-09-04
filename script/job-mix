@@ -39,6 +39,10 @@
 #   bench/baseline-*.txt because its icount counts are deterministic; a sweep whose whole subject is
 #   scheduling under contention is not, on any accelerator this tree has. Gating it would be
 #   asserting a tolerance nobody has measured.
+# - **Nothing builds `--features jobmix` unless somebody runs this script.** CI builds neither this
+#   feature nor `--features soak`, so a change elsewhere in the kernel can break either one and the
+#   build stays green until the next rehearsal. Recorded rather than fixed here because the fix is a
+#   feature-build matrix covering both, which is a change to CI's shape and not this milestone's.
 # - **This sweep and `script/soak` are alternatives, not a stack.** Both replace the end of the boot
 #   tour, and a build carrying both features would run this one and never soak.
 # - **No result from this instrument is comparable with `script/bench`'s.** The mix, the task count
