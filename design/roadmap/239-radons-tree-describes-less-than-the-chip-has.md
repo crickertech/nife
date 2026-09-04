@@ -172,7 +172,7 @@ there was no bench session. Two commands and one boot settle all of it.
   U-Boot's `fdt` subcommands and on a node path with an upper-case C in it. The one thing they would
   buy over the decoder change is flipping `status` to `okay`, and that buys nothing: U-Boot has no
   driver for this block either way, so no `fdt set` ungates a clock.
-- **None.** No further work on the device-tree source itself. The general worry this block was
+- **Refused.** Further work on the device-tree source itself. The general worry this block was
   minted with, that a tree describing less than the chip has is a limit on every future driver, did
   not survive contact: the vendor tree describes 56 nodes under `/soc` including this one. What it
   has is stale *names*, and the answer to a stale name is to match both, at the one place that reads
