@@ -1102,10 +1102,11 @@ hour count inherited from a tool's default.
   design and it is named rather than hidden.
 - **Nothing about the reboot has run on radon**, including whether that OpenSBI implements SRST
   reset type 1 at all. The whole of milestone 249's mechanism is code that builds and host tests
-  that pass, and the tally has never seen a real multi-boot capture: its fixture-backed test is the
-  single-boot QEMU log, and every multi-boot case it asserts on is text this project wrote rather
-  than text a machine printed. That is the same gap `crates/board_console`'s own `BUGS` records for
-  its recogniser, one milestone later.
+  that pass. The tally is judged against one real capture with a census in it
+  (`qemu-2026-09-03-riscv64-soak-census.log`, one clean core of four at 18,963/s), and **every
+  multi-boot case it asserts on is text this project wrote**, because no multi-boot capture exists
+  anywhere yet. That is the same gap `crates/board_console`'s own `BUGS` records for its recogniser,
+  one milestone later, and the first bench log closes it.
 - **A rebooting series and a long run are different experiments and neither substitutes.** Fifty
   two-minute draws measure the distribution over placements; the three-hour run above measures what
   one placement does over time, and it is the only evidence here that a slow draw is stable rather

@@ -545,4 +545,24 @@ mod tests {
         assert!(series.draws[0].rate.is_some(), "its beats were read");
         assert_eq!(series.draws[0].ending, Ending::Truncated);
     }
+
+    /// **A capture with a real census in it**, which is the only one this tree has and is why the
+    /// clean-core count is not proved solely against text this file wrote.
+    ///
+    /// `script/soak --arch riscv64 --for 30s` on patagonia, 2026-09-03. Three of the four grinders
+    /// land on one core and a fourth shares with the last group, so the settled arrangement has one
+    /// clean core; the rate at the last beat is 18,963/s, which is the low end of the spread radon
+    /// shows. The assertion is on the count rather than on the rate, because the rate is a property
+    /// of a busy laptop and the count is a property of the log.
+    #[test]
+    fn the_captured_census_run_is_judged_and_reads_one_clean_core() {
+        let log =
+            include_str!("../tests/fixtures/captured/qemu-2026-09-03-riscv64-soak-census.log");
+        let series = tally(log);
+        assert_eq!(series.draws.len(), 1);
+        assert_eq!(series.draws[0].cores, Some(4), "four online cores");
+        assert_eq!(series.draws[0].clean_cores, Some(1));
+        assert_eq!(series.draws[0].rate, Some(18_963));
+        assert!(series.report().contains("1/4"), "{}", series.report());
+    }
 }

@@ -69,8 +69,9 @@ board spends their time on the machine rather than on reconstructing what to typ
 - **`script/board-image --soak --reboot`**, which prints what the card will do and how to stop it
   before it builds anything.
 - **`script/board-console --tally <log>`** and `board_console::lottery` (names provisional): read a
-  capture of many boots and report what the lottery drew each time, plus the distribution. Seven
-  host tests, one of them over the real QEMU capture.
+  capture of many boots and report what the lottery drew each time, plus the distribution. Eight
+  host tests, two of them over real captures, including one taken for this milestone because the
+  tree had no capture carrying a placement census.
 - **notes/soak.md** gains the procedure, in order, with a table mapping each observable outcome to
   what it means and what to do, and four `BUGS` entries.
 
@@ -226,10 +227,11 @@ asks for, and it prints the caveats beside it so a count of draws is not quoted 
   is the weaker half and is unchanged.
 - **Nothing here explains the lottery**, only measures it. Why placement lands where it does is
   DECISIONS 138's territory and is not answered by more samples.
-- **The tally has never read a real multi-boot capture.** Its fixture-backed test is the single-boot
-  QEMU log; every multi-boot case it asserts on is text this project wrote rather than text a machine
-  printed. That is the same gap `crates/board_console`'s `BUGS` records for its recogniser, and the
-  first bench log closes it.
+- **The tally has never read a real multi-boot capture.** Its clean-core count is asserted against a
+  real one-boot capture carrying a census (`qemu-2026-09-03-riscv64-soak-census.log`, taken for this
+  milestone), but every case with more than one boot in it is text this project wrote, because no
+  multi-boot capture exists anywhere yet. That is the same gap `crates/board_console`'s `BUGS`
+  records for its recogniser, and the first bench log closes it.
 - **A rebooting series and a long run are different experiments.** Fifty two-minute draws measure the
   distribution over placements; the three-hour run in notes/soak.md measures what one placement does
   over time and is the only evidence that a slow draw is stable rather than a warm-up. Neither
