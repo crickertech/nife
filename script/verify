@@ -275,7 +275,7 @@ mdns_proto	21	the name decoder terminates and stays in bounds on every byte stri
 component_plan	10	no wiring grants a right its declaration did not ask for
 timetable	5	the scheduler's fire arithmetic: strictly forward, minimal, and a stall costs one fire
 jh7110_trng	6	the board TRNG's status decode, and that a lockup bit is never overridden
-kernel	5	the run arithmetic in the kernel's own syscall dispatch, on words a user program chose
+kernel	5	the run arithmetic in the kernel's own syscall dispatch, and the SMMU entries that say which frames a device may reach
 user	3	the EL0 programs: a bounded append that a configuration page this system did not write feeds
 TABLE
 )"
