@@ -230,6 +230,45 @@ have consumed zeros believing them random. **That is this milestone's to fix, no
 and it is worth fixing before 220 lands rather than after, because once the clock works the symptom
 disappears and the defect does not.
 
+### Fixed 2026-09-04, and the fix is wider than the report word
+
+`entropy_proto::readiness` now decides the readiness word **from the bytes**: `READY` only when the
+first bufferful has a nonzero byte in it, and `0xDEAD_0000_0000_0000 | step` otherwise, with two
+shared steps (`0x10` nothing arrived, `0x11` everything that arrived was zero) that cannot collide
+with a backend's own. All three backends call it: the JH7110 driver, the virtio-rng one, and the
+`RDSEED`/`RNDRRS` instruction one, which had the same shape of bug and had simply never met a dead
+device.
+
+**Fixing the report word alone would have left the defect in place**, which is the part worth
+recording. A report reaches whoever wired the service; a client only ever sees a reply. So a service
+that reported dead and went on serving its zero buffer would still have handed those zeros out as
+randomness to every client that was not watching the handshake. A backend that draws an all-zero
+first bufferful is therefore **condemned for the boot** and answers `NO_ENTROPY` to everything after
+it. A backend that drew *nothing* is not condemned: it has told the truth at every step, its replies
+already say `NO_ENTROPY` while it stays dry, and it recovers by itself if the device starts
+answering.
+
+`system_initializer` already gated the login stack on this word (`entropy_ready = verdict ==
+entropy_proto::READY`), so on radon as it stands today the real init now declines to build a
+credential stack on a gated TRNG instead of building one on zeros.
+
+**The judgement, stated where it can be argued with.** An all-zero bufferful is legitimate output
+with probability 2^-2048 (virtio), 2^-256 (JH7110) or 2^-64 (the instruction backend), so refusing
+one is a correctness claim about a random variable, and it is recorded as a `BUGS` entry in
+`entropy_proto`, in `user/src/entropy.rs` and in `user/src/jh7110_trng.rs` rather than left implicit.
+A false "the device is dead" costs one boot's entropy; a false "the device is alive" costs every
+secret derived from it.
+
+**It stops at bring-up, deliberately.** A source that answers once and degrades, or whose register
+file latches and repeats a nonzero answer, still passes. That is continuous health testing,
+`design/decisions/137-trng-health-tests.md` is `PROPOSED` and owns it, and its hard half is the
+failure action for a *running* service (refusing to serve is a denial of service that can brick a
+boot). A readiness handshake does not have that problem, because nothing depends on the service at
+the moment it reports, which is why this could ship without 137 and does not pre-empt it.
+
+The boot tour keeps its own two-draw client-side check. A tour that only repeated the service's
+verdict would have caught nothing on 2026-09-04.
+
 ## What this does not decide
 
 **DECISIONS §120's stopgap question is separate and not reopened by this milestone.** Whether the

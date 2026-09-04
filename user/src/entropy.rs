@@ -85,6 +85,24 @@
 //! exhausts the retry budget gets [`proto::NO_ENTROPY`], the same honest answer a dry virtio device
 //! gives, rather than a fallback to the DRBG-backed sibling instruction.
 //!
+//! # BUGS
+//!
+//! **A first bufferful of zeros is reported as a dead device, and it could in principle be
+//! randomness.** Both backends here refuse to report [`proto::READY`] when their first draw is all
+//! zero (`entropy_proto::readiness`), and then answer every request `NO_ENTROPY` for the rest of
+//! the boot rather than serving those bytes. On a working source that is wrong with probability
+//! 2^-2048 for the virtio backend's 256-byte bufferful and 2^-64 for the instruction backend's
+//! eight bytes. The trade is deliberate and is stated where the contract is:
+//! `entropy_proto`'s own `BUGS`, and the roadmap block that recorded the defect
+//! (`design/roadmap/159-jh7110-trng-driver.md`, "The bench ran it, 2026-09-04").
+//!
+//! **A condemned backend does not recover.** There is no path back short of restarting the
+//! service, even if the device starts producing bytes a moment later.
+//!
+//! **Nothing checks a byte after bring-up.** A device that answers correctly once and degrades, or
+//! whose buffer latches and repeats, is served through untouched. Continuous health testing is
+//! `design/decisions/137-trng-health-tests.md`'s question and is `PROPOSED`, not decided here.
+//!
 //! On-die conditioning is a different question from a DRBG and this service does not refuse it:
 //! both Intel's noise source and ARM's entropy source run an AES-CBC-MAC-shaped conditioner
 //! (SP800-90B's noise-source-plus-conditioning-function model) before either instruction's output is
@@ -190,6 +208,12 @@ const E_DEVICE_ID: u64 = 0x02;
 const E_FEATURES: u64 = 0x03;
 const E_QUEUE: u64 = 0x04;
 
+/// The virtio steps above are this backend's own, and `entropy_proto` reserves `0x01..=0x0f` for
+/// exactly that. The two steps every backend shares (`STEP_NO_FIRST_BYTES`, `STEP_FIRST_ALL_ZERO`)
+/// start at `0x10`, and this assert is what keeps a fifth virtio step from silently becoming one
+/// of them: a report word decodes to one step or it decodes to a lie.
+const _: () = assert!(E_QUEUE < proto::STEP_NO_FIRST_BYTES);
+
 fn r8(off: u64) -> u8 {
     WINDOW.r8(off)
 }
@@ -234,7 +258,7 @@ fn barrier() {
 }
 
 fn die(code: u64) -> ! {
-    send(READY, 0xDEAD_0000_0000_0000 | code, 0, 0);
+    send(READY, proto::bringup_failure(code), 0, 0);
     exit();
 }
 
@@ -437,14 +461,27 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
     // Fetch the first bufferful before reporting ready, so "the service is up" means "a client
     // that asks will be answered" rather than "the handshake completed". A device that produces
     // nothing is a fact worth learning at boot rather than at the first `CALL`.
+    //
+    // **And the bytes decide the word, not the fact that a request completed.** This line used to
+    // send `proto::READY` unconditionally with the truth in a second word; the JH7110 backend was
+    // the one that got caught doing it on silicon (2026-09-04, radon), but the shape of the bug
+    // was here too. `readiness` reads the bufferful the device actually left in the DMA page,
+    // through the same bounds-checked window everything else here uses.
     let first = pool.refill();
-    send(READY, proto::READY, u64::from(first), pool.filled);
+    let report = proto::readiness((0..pool.filled).map(|i| r8(POOL_OFF + i)));
+    send(READY, report, u64::from(first), pool.filled);
 
-    serve(pool)
+    // A device that wrote a page of zeros is condemned for the rest of the boot; a device that
+    // wrote nothing is not. See `jh7110_trng.rs`'s `_start`, which says why at length: the report
+    // word reaches whoever wired the service, and a client only ever sees a reply.
+    serve(
+        pool,
+        report == proto::bringup_failure(proto::STEP_FIRST_ALL_ZERO),
+    )
 }
 
 /// The serve loop: one endpoint, one wait point, forever.
-fn serve(mut pool: Pool) -> ! {
+fn serve(mut pool: Pool, refuse: bool) -> ! {
     loop {
         let (w0, cap, _) = recv_cap(REQ);
         if cap == rendezvous::NO_CAP {
@@ -454,7 +491,10 @@ fn serve(mut pool: Pool) -> ! {
             continue;
         }
         let (count, word) = match proto::op(w0) {
-            proto::GET => pool.take(proto::want(w0)),
+            // `refuse` is a device this service condemned at bring-up for answering with zeros. It
+            // is answered the way a dry device is: `NO_ENTROPY` already means the one thing a
+            // client has to know, which is that it is not getting randomness here.
+            proto::GET if !refuse => pool.take(proto::want(w0)),
             // There is exactly one operation, and the reply's first word is a byte count with no
             // room in it for an error code. So an unknown opcode is answered "you got nothing",
             // which is true. A second operation would be the moment to widen the reply, and that
@@ -569,12 +609,18 @@ mod instr {
 /// a dry source, reported the same way a request's own [`proto::NO_ENTROPY`] answer already is.
 fn serve_instruction() -> ! {
     let first = instr::draw();
+    let report = proto::readiness(first.into_iter().flatten());
     send(
         I_READY,
-        proto::READY,
+        report,
         u64::from(first.is_some()),
         first.map_or(0, |_| proto::MAX_BYTES),
     );
+    // Eight zero bytes out of `RDSEED`/`RNDRRS` condemn the source for the boot, the same rule the
+    // two device backends follow. The false-positive probability is 2^-64 here rather than the
+    // 2^-256 a 32-byte draw gets, which is the width of the answer rather than a weaker check;
+    // `entropy_proto`'s `BUGS` carries the number.
+    let refuse = report == proto::bringup_failure(proto::STEP_FIRST_ALL_ZERO);
     loop {
         let (w0, cap, _) = recv_cap(I_REQ);
         if cap == rendezvous::NO_CAP {
@@ -582,7 +628,7 @@ fn serve_instruction() -> ! {
             continue;
         }
         let (count, word) = match proto::op(w0) {
-            proto::GET => match instr::draw() {
+            proto::GET if !refuse => match instr::draw() {
                 Some(bytes) => (proto::want(w0), u64::from_le_bytes(bytes)),
                 None => (proto::NO_ENTROPY, 0),
             },

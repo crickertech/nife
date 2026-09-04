@@ -33,8 +33,10 @@
 //!
 //! - slot 0, the **request** endpoint (RECV): clients `CALL` here, `entropy_proto`'s wire format,
 //!   unchanged from `entropy.rs`'s;
-//! - slot 1, a **readiness** endpoint (WRITE): one message once the device answers a first
-//!   generation, or never, if bring-up fails;
+//! - slot 1, a **readiness** endpoint (WRITE): exactly one message, either
+//!   [`proto::READY`](entropy_proto::READY) once the device has answered a first generation with
+//!   bytes that are not all zero, or a
+//!   [`bringup_failure`](entropy_proto::bringup_failure) word naming which step failed;
 //! - mapped: **one page**, the TRNG's register block, device-typed at [`TRNG_VA`], placed there by
 //!   whoever spawns this (rule 2: a base address, passed in, nothing this driver looks up). The
 //!   binding's `reg` window is `0x4000` and the spawner maps `0x1000` of it, because
@@ -59,6 +61,15 @@
 //! whose registers answer at all will show a nonzero `STAT` there instead. If the zeros are what
 //! the bench sees, the next piece of work is a clock/reset driver for the `SoC`, not a change
 //! here; that is a milestone of its own and is proposed rather than assumed.
+//!
+//! **A device that answers with zeros is condemned for the whole boot, with no way back.** An
+//! all-zero first generation is treated as a bring-up failure
+//! ([`proto::STEP_FIRST_ALL_ZERO`](entropy_proto::STEP_FIRST_ALL_ZERO)) and this driver then
+//! answers every request `NO_ENTROPY` until it is restarted, even if the block is powered on
+//! underneath it a moment later. That is deliberate (a device that answers wrongly is worse than
+//! one that does not answer) and it is also the case a real clock driver would want to retry;
+//! milestone 220 is where that becomes worth building, and `entropy_proto`'s own `BUGS` carries the
+//! probability this refusal is wrong on a working device.
 //!
 //! **The polling bounds below are guesses.** [`POLL_TRIES`] and [`LOCKUP_RETRIES`] have no board
 //! measurement behind them. A bound that is too small reports `NO_ENTROPY` on a working device;
@@ -220,12 +231,19 @@ fn generate() -> Option<[u8; 32]> {
 pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     reseed_and_wait();
 
-    let mut pool = Pool::new();
-    // Fetch the first 32 bytes before reporting ready, the same discipline `entropy.rs` uses:
+    // Draw the first 32 bytes before reporting anything, the same discipline `entropy.rs` uses:
     // "the service is up" should mean "a client that asks will be answered", not just that the
-    // handshake completed.
-    let first = pool.refill(&mut generate);
-    // Word 2 is two different facts depending on word 1, and that is deliberate: `send` carries
+    // handshake completed. **The bytes decide the word**, which is the fix for the defect radon
+    // found on 2026-09-04: this line used to send `proto::READY` unconditionally and put the
+    // truth in a second word nothing was obliged to read, so a device whose clock was gated
+    // reported itself ready holding zeros.
+    let first = generate();
+    let report = proto::readiness(first.into_iter().flatten());
+    let mut pool = Pool::new();
+    if let Some(bytes) = first {
+        pool.refill(&mut || Some(bytes));
+    }
+    // Word 2 is two different facts depending on word 0, and that is deliberate: `send` carries
     // three words and the useful third one changes with the answer. On success it is how many
     // bytes are in hand (0 would mean a refill that reported success and produced nothing). On
     // failure it is the raw `(STAT << 32) | ISTAT` snapshot, which is the only diagnostic that
@@ -234,19 +252,29 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     // base address that is not the TRNG), while a nonzero `STAT` with `SEEDED` clear says the
     // device is alive and the seeding sequence is what did not finish. See the roadmap doc's
     // bench procedure, which is written to read this number.
-    let diagnostic = if first {
+    let diagnostic = if report == proto::READY {
         pool.remaining() as u64
     } else {
         (u64::from(regs().STAT.get()) << 32) | u64::from(regs().ISTAT.get())
     };
-    send(READY, proto::READY, u64::from(first), diagnostic);
+    send(READY, report, u64::from(first.is_some()), diagnostic);
 
-    serve(pool)
+    // **A device that answered with zeros is refused for the rest of the boot**, and that is a
+    // stronger response than the report word alone. The report reaches whoever wired this service;
+    // a client only ever sees a reply, so a service that reported dead and went on serving its
+    // zero buffer would hand out those zeros as randomness to everyone who was not watching the
+    // handshake. A device that answered with *nothing* is not refused: it has told the truth at
+    // every step, `take` already answers `NO_ENTROPY` while it stays dry, and it recovers by
+    // itself if it starts answering.
+    serve(
+        pool,
+        report == proto::bringup_failure(proto::STEP_FIRST_ALL_ZERO),
+    )
 }
 
 /// The serve loop: one endpoint, one wait point, forever. Identical in shape to `entropy.rs`'s,
 /// because the contract (`entropy_proto`) is the thing that does not change between backends.
-fn serve(mut pool: Pool) -> ! {
+fn serve(mut pool: Pool, refuse: bool) -> ! {
     loop {
         let (w0, cap, _) = recv_cap(REQ);
         if cap == rendezvous::NO_CAP {
@@ -255,7 +283,10 @@ fn serve(mut pool: Pool) -> ! {
             continue;
         }
         let (count, word) = match proto::op(w0) {
-            proto::GET => pool.take(proto::want(w0), &mut generate),
+            // `refuse` is a device this driver condemned at bring-up (see `_start`). It is
+            // answered exactly the way a dry device is, because `NO_ENTROPY` already means the one
+            // thing a client has to know: it is not getting randomness here.
+            proto::GET if !refuse => pool.take(proto::want(w0), &mut generate),
             _ => (proto::NO_ENTROPY, 0),
         };
         reply(cap, count, word);
