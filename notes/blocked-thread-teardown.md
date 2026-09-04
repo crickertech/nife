@@ -511,10 +511,10 @@ sleeper) is exactly the kind of state-dependent rule this tree's ladder says to 
 
 ### Endpoint-only naming survives, but only if the authority is an existing capability
 
-The rule is that nothing may acquire the ability to name a thread it was not handed. A `Tcb`
+The rule is that nothing may acquire the ability to name a thread it was not handed. A `ThreadControlBlock`
 capability *is* a thread name that was handed over, so it does not breach the rule. But note what it
-would change: **`Object::Tcb` is a construction-time authority today.** Every method on it
-(`CONFIGURE`, `CAP_INSERT`, `START`) refuses a thread that is not an `Embryo`, so a `Tcb` cap is inert
+would change: **`Object::ThreadControlBlock` is a construction-time authority today.** Every method on it
+(`CONFIGURE`, `CAP_INSERT`, `START`) refuses a thread that is not an `Embryo`, so a `ThreadControlBlock` cap is inert
 the moment the thread runs. Giving it a method that works on a *running* thread converts it from a
 builder's tool into a lifetime handle, which is a real widening and has to be decided as one.
 
@@ -544,7 +544,7 @@ consequences.
 | Candidate | Who holds it today | What it already authorizes | What ending a blocked thread would add |
 |---|---|---|---|
 | **The region capability** (`Untyped`) | the builder | `DESTROY`: reclaim the region and everything retyped from it | nothing new. `DESTROY` already commits to ending every resident; it just cannot finish |
-| **The `Tcb` capability** | the builder, during construction | configure, endow, start | a lifetime handle where there is now a construction tool. seL4's answer |
+| **The `ThreadControlBlock` capability** | the builder, during construction | configure, endow, start | a lifetime handle where there is now a construction tool. seL4's answer |
 | **The supervision endpoint** (`READ`) | the supervisor | `RECV` a death message, `REAP` a corpse | the "stronger right" §32 declined, and the hung-component note showed it is insufficient for case (c) anyway |
 | **A new right** (`Rights::TERMINATE`) | nobody | nothing | a fifth bit; `Rights::ALL` is `0b1111` today, so this is an ABI change to `abi::rights` |
 
@@ -557,10 +557,10 @@ every `Blocked` one permanently killed-and-refused. It cannot only *finish*. Fra
 a blocked resident is not a new power; it is the completion of one that is already granted and
 already destructive, and `reclaim_region`'s own `BUGS` already says a refused reclaim is destructive.
 
-**The `Tcb` capability is the answer that composes**, and it is what seL4 chose. It names one thread
+**The `ThreadControlBlock` capability is the answer that composes**, and it is what seL4 chose. It names one thread
 rather than a region, so it can end a hung component without touching its neighbours, and it is
 already delegable and already narrowable. What it costs is the widening above: a builder that hands
-out a `Tcb` cap today is handing out "you may assemble this thread", and afterwards would be handing
+out a `ThreadControlBlock` cap today is handing out "you may assemble this thread", and afterwards would be handing
 out "you may end this thread whenever you like, forever". Those are different offers and existing
 call sites made the first one.
 
@@ -628,28 +628,28 @@ in an endpoint queue: the worst failure mode in the set. That argues for a `debu
 
 ---
 
-### Proposal B: a terminate verb on the `Tcb` capability
+### Proposal B: a terminate verb on the `ThreadControlBlock` capability
 
-**Provisional names, all unratified: `Tcb::TERMINATE`, `Tcb::STOP`, `Tcb::CANCEL`. calef's call, and
+**Provisional names, all unratified: `ThreadControlBlock::TERMINATE`, `ThreadControlBlock::STOP`, `ThreadControlBlock::CANCEL`. calef's call, and
 the vocabulary matters more than usual because L4 shipped two words for this and cannot tell them
 apart in its own documentation.**
 
 **Mechanism.** seL4's `suspend()`, transliterated: cancel the IPC (unlink, sweep the reply caps),
-dequeue, set a terminal state. A `Tcb` capability's methods stop refusing non-`Embryo` threads for
+dequeue, set a terminal state. A `ThreadControlBlock` capability's methods stop refusing non-`Embryo` threads for
 this one verb.
 
-**Authority: a `Tcb` capability with `WRITE`.** Delegable, narrowable, and it names exactly one thread
+**Authority: a `ThreadControlBlock` capability with `WRITE`.** Delegable, narrowable, and it names exactly one thread
 that the holder was handed. Endpoint-only naming is not breached.
 
 **What it costs.** A new method number in `abi::tcb`, a `DECISIONS` section for its semantics (§10's
-rule), and the widening of what a `Tcb` cap means. Existing holders gain a power they were not offered;
+rule), and the widening of what a `ThreadControlBlock` cap means. Existing holders gain a power they were not offered;
 `crates/system_initializer` and every spawn path would need auditing for who ends up holding one after
 `START`.
 
 **What it breaks.**
 
-- **The construction-time invariant.** Today a `Tcb` cap is inert once the thread runs, and that is a
-  clean, checkable property. Afterwards it is a lifetime handle, and "who holds a `Tcb` cap on this
+- **The construction-time invariant.** Today a `ThreadControlBlock` cap is inert once the thread runs, and that is a
+  clean, checkable property. Afterwards it is a lifetime handle, and "who holds a `ThreadControlBlock` cap on this
   thread" becomes a question with security weight that it does not have now.
 - **It gives a *narrower* authority than proposal A gives**, which sounds like an advantage and is
   also the risk: a holder can end one thread without owning its region, so the thread's memory is not
@@ -658,7 +658,7 @@ rule), and the widening of what a `Tcb` cap means. Existing holders gain a power
   wrong.
 
 **How it fails.** If the answer is "suspend, then the region owner destroys", it needs both
-authorities to be held by cooperating parties, and a supervisor holding a `Tcb` cap but no region
+authorities to be held by cooperating parties, and a supervisor holding a `ThreadControlBlock` cap but no region
 capability can stop a hang without reclaiming anything. That may be exactly right (it separates
 policy from memory) or exactly wrong (it produces a stopped thread nobody can free), and which one it
 is depends on a spawn-time endowment convention that does not exist yet.
@@ -750,17 +750,17 @@ in having no way out at all, which is a claim a stranger reading the demonstrato
 
 ### Side by side
 
-| | A: completed reclaim | B: `Tcb` terminate | C: caller's side | D: accept and bound |
+| | A: completed reclaim | B: `ThreadControlBlock` terminate | C: caller's side | D: accept and bound |
 |---|---|---|---|---|
-| **New syscall / method** | none | one method on `Tcb` | none (piece 1) | none |
+| **New syscall / method** | none | one method on `ThreadControlBlock` | none (piece 1) | none |
 | **New right** | none | none | none | none |
 | **New error visible to userspace** | none | none | `Gone` at a new place | none |
-| **Authority** | the region cap, unchanged | a `Tcb` cap, widened | unchanged | unchanged |
+| **Authority** | the region cap, unchanged | a `ThreadControlBlock` cap, widened | unchanged | unchanged |
 | **Reclaims the hung component's region** | yes | only with a region cap too | no | no |
 | **Frees its stranded callers** | each by its own owner | no | **yes** | no |
 | **Needs the reply-cap sweep** | yes | yes | yes | n/a |
 | **Victim runs again** | no | no | yes, with `Gone` | n/a |
-| **Overturns a recorded decision** | no | widens `Tcb` semantics | no | no |
+| **Overturns a recorded decision** | no | widens `ThreadControlBlock` semantics | no | no |
 | **Rough size** | ~30 lines + `remove_receiver` | that plus ABI and a §-section | ~40 lines + sweep | docs and a program |
 
 **What I would want to know more about, offered as questions rather than as a ranking.**
