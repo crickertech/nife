@@ -1,18 +1,22 @@
 # 133. Ending a permanently blocked thread, and deciding who may
 
-**Status: NOT-STARTED.** Proposed 2026-08-17 by the research lane
-`roadmap/blocked-thread-teardown`, from the residual milestone 23's hung-component lane recorded and
-declined to open. **The number 131 is PROVISIONAL**, and the hazard is not hypothetical: this lane first wrote 130 and
-found `feature/130-code-smells` already holding it, by listing remote branches before reporting. The
-integrator mints the real one at merge, per the rule that anything global to the tree is assigned
-there and never claimed by a lane.
+**Status: IN-PROGRESS** on `milestone/133-blocked-thread-teardown`. Proposed 2026-08-17 by the
+research lane `roadmap/blocked-thread-teardown`, from the residual milestone 23's hung-component lane
+recorded and declined to open.
 
-**Gate: DECISION.** Four proposals are laid out in notes/blocked-thread-teardown.md with their costs,
-their authorities and their failure modes, and no lane may pick one. The fork is calef's because it
-is a capability question before it is a scheduler question: **which held capability expresses the
-right to end a thread**, and the candidates (a region capability, a `ThreadControlBlock` capability, a supervision
-endpoint, a new right) each concede something different. Proposal B would also add a method to the
-syscall surface, which §10 makes a design fork on its own.
+**Gate: NONE.** **The fork is answered: calef chose proposal A on 2026-09-03**, *`DESTROY` finishes
+what it starts*. The authority is the region capability, unchanged; nothing is added to the syscall
+surface, no new right, and no new error is visible to userspace. The paragraphs below are kept as
+they were written, because the argument they record is what the decision was made against; what has
+changed is only that it is no longer open.
+
+**Why A and not B, so it is not relitigated.** A's one live risk was that it would settle *what a
+spawner retains over a child after `START`* by accident. DECISIONS §142 settled that on its own terms
+the same day (retention becomes a declared field, and it declares "retain nothing"), which removed
+the accident and freed A to ship. **B stays open behind a customer that does not exist**: a terminate
+verb on a `ThreadControlBlock` capability widens a construction-time authority into a lifetime
+handle, and nobody has asked to end a thread without owning its region. C is milestone 254, minted
+separately. D is what the tree did until today.
 
 **In brief.** `Untyped::DESTROY` on a region holding a live thread marks the thread `killed` and
 refuses, so the owner's retry reclaims a runaway (§16's amendment, §24's forcible `^C`). The kill is
