@@ -1,10 +1,40 @@
 # 246. Measured boot's refusal path is tested by nothing, and one mutant turns it off
 
-**Status: NOT-STARTED.** Minted 2026-09-03 by calef, from milestone 244's (the largest crate in the
-tree is proved by nothing a mutation can reach) recorded limitation. *(Number provisional until the
-merge queue lands it.)*
+**Status: BUILT.** Minted 2026-09-03 by calef, from milestone 244's (the largest crate in the tree is
+proved by nothing a mutation can reach) recorded limitation. Built 2026-09-03 by the lane on
+`milestone/246-measured-refusal`.
 
-**Gate: NONE.** The function is eighteen lines and its dependencies already compile for the host.
+## What was built, and the falsification
+
+**The decision moved to `measured_boot::verdict`**, beside `verify_in_manifest`, whose rule it
+applies. `system_initializer::measured` is now one line: an archive read and a call. Nothing about
+the boot path changed, and `script/shell-check` still proves that the boot makes the call.
+
+**`Lookup` did not have to move, which is the `BUGS` clause below not firing.** The signature takes
+`Option<&[u8]>` rather than a `nifefs::Fs`, so the crate gained no archive dependency and the caller
+passes `fs.read(name)` straight through; and it returns the parsed image rather than the bytes, so
+the caller is left with no struct literal of its own to get wrong. The one dependency added is `elf`,
+which has none of its own and is already in every build that links `measured_boot`. The public
+surface gained one struct (`Verdict`, the old private `Lookup` with its two fields) and one function.
+
+**The mutant, and it was run.** `unvouched: true` changed to `false` in `verdict`'s refusal arm, by
+hand, before the test was committed: `substituted_bytes_are_refused_and_reported_as_unvouched` fails
+with *"a substituted program must be reported unvouched"*, and nothing else in the tree goes red.
+Reverted.
+
+**Then the hand-run mutant was made a standing one**, which is the ladder's rung two rather than
+rung four. `cargo mutants`' only operator on a function returning a struct is to replace the body
+with `Default::default()`; without a `Default` impl that does not compile, so the tool scored the
+mutant **unviable** and reported nothing at all about this function. `Verdict` now derives `Default`,
+which is the fail-safe value (no image means nothing runs) and is exactly the dangerous wrong answer
+here, an absence where there was a refusal. `cargo mutants -p measured_boot --in-diff` over this
+lane's diff: **1 mutant, 1 caught.** Before the derive: 1 unviable, 0 tested.
+
+**Three tests, one per answer**, because the three are not interchangeable and that distinction is
+the interesting part of this function: substituted bytes (and a name the table never mentions, and
+an empty table) are a refusal; an absent entry is not; and bytes the table vouches for that are not
+an ELF report `unvouched: false`, because the measurement did its job and the packaging did not.
+Putting a security word on a build defect would be the wrong answer there.
 
 **In brief.** `system_initializer::measured` decides whether a component the system is about to start
 was vouched for by the measured-boot manifest. It is the enforcement point of DECISIONS §104's
@@ -56,6 +86,14 @@ Not a test that only takes the accept path, which `script/shell-check` already d
 - **A refusal proved on the host is not a refusal proved on the boot path.** The host test asserts
   the function's contract; that the boot *calls* it, on both ISAs, with the table the kernel measured,
   stays `script/shell-check`'s claim and nothing here strengthens it.
-- **`Lookup` may have to move with the function**, which widens a public surface for a test's benefit.
-  If that turns out to cost more than the test buys, say so and record the limitation instead: this
-  block is not worth a worse tree.
+- **`Lookup` did not have to move as a `nifefs`-shaped thing, but a struct did become public.**
+  `measured_boot::Verdict` is the old private `Lookup`, and `measured_boot` gained a dependency on
+  `elf`. That is the smallest version of the cost this clause anticipated, not none of it.
+- **`system_initializer::measured` still exists and is still unreachable by any host test.** It is a
+  delegation with no branch and no literal, so `cargo mutants` generates nothing for it, but "no
+  mutants generated" is a property of the tool rather than a proof. What is proved is the decision it
+  delegates to.
+- **The other refusal path in this tree was not touched.** `user/src/login.rs` runs the identical
+  `verify_in_manifest` over the caretaker blob it was handed and folds all three outcomes into
+  `None`; it takes bytes rather than an archive, so `verdict`'s signature already fits it, and
+  nothing here changed it. See the handoff in this lane's report.

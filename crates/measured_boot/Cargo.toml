@@ -6,3 +6,12 @@ license.workspace = true
 
 [lints]
 workspace = true
+
+[dependencies]
+# The one dependency, and it is here so that the *whole* of the load-or-refuse decision can live in
+# a crate a host test can reach (milestone 246). `verdict` answers "may this program run", and the
+# honest answer for a vouched program is the parsed image rather than its bytes; splitting the parse
+# back out to the caller would leave a two-field struct literal at the call site, which is exactly
+# the shape whose mutant nothing in this tree caught. `elf` has no dependencies of its own, compiles
+# for the host, and is already in every build that links this crate.
+elf = { version = "0.1.0", path = "../elf" }

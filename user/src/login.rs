@@ -230,6 +230,16 @@
 //!
 //! # BUGS
 //!
+//! **This program spells measured boot's load-or-refuse decision itself, and milestone 246 moved the
+//! other copy of it into a crate.** `_start` runs `measured_boot::verify_in_manifest` over the
+//! caretaker blob and folds all three outcomes (absent, refused, not an ELF) into `None`, which is
+//! the considered answer here and is argued at the call site. `crates/system_initializer` used to
+//! carry an eighteen-line version of the same decision; it now calls `measured_boot::verdict`, whose
+//! signature takes `Option<&[u8]>` and therefore already fits this program. Switching would cost a
+//! `Verdict` whose `unvouched` field this program has nothing to do with, and would buy the one
+//! thing 246 was about: the refusal branch tested rather than assumed. Not done here, on the record,
+//! because it is a change to a boot path this lane was not gating.
+//!
 //! **Resolved, milestone 233 (2026-09-02): this program used to die at `_start` on every real
 //! interactive boot, on both architectures.** `_start` read the boot archive to find
 //! `fs_subtree_caretaker`, from `initrd_len` in `a1` and the kernel's mapping at

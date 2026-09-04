@@ -353,6 +353,104 @@ pub fn verify_in_manifest(text: &str, name: &str, bytes: &[u8]) -> Result<(), Ve
     }
 }
 
+/// What a loader found when it asked an archive for a program, after the table had its say.
+///
+/// One rule produces both fields: **nothing runs that the table will not vouch for.** So `elf` is
+/// `None` whenever the entry is missing, refused, or not an ELF, and a caller may treat all three
+/// the same way it treats a missing entry. `unvouched` exists for the sentence a loader prints: a
+/// build that did not pack a program and a program whose bytes are not the ones this system was
+/// measured against are the same decision and very different news.
+///
+/// **The two `elf: None` answers are not the same answer**, which is why this is a struct rather
+/// than an `Option`. `unvouched: false` with no image means the archive did not have it; a build
+/// left it out, and the loader carries on without it. `unvouched: true` means the archive *had* it
+/// and the measurement refused it, which is a security event and is what the boot says out loud.
+///
+/// **`Default` is "the archive did not have it", and it is derived on purpose** (milestone 246).
+/// Two reasons, and the second is the one worth writing down. It is the fail-safe value: no image
+/// means nothing runs, whatever `unvouched` says, so a default-constructed `Verdict` cannot vouch
+/// for anything. And it is what makes [`verdict`] *mutable*: `cargo mutants`' only operator on a
+/// function returning a struct is to replace the body with `Default::default()`, which without this
+/// derive does not compile and is scored unviable, so the tool reports nothing at all about the one
+/// decision in this crate that says whether unmeasured code may run. With the derive, that mutant
+/// is exactly the dangerous wrong answer (a refusal reported as an absence) and the tests below
+/// kill it on every run, rather than a lane having to falsify it by hand once.
+#[derive(Default)]
+pub struct Verdict<'a> {
+    /// The parsed image, if and only if the table vouched for the bytes and they are an ELF.
+    pub elf: Option<elf::Elf<'a>>,
+    /// The archive **had** this entry and the table would not vouch for it.
+    pub unvouched: bool,
+}
+
+/// Decide whether a program may be loaded: measure `bytes` against `table` under `name`, and hand
+/// back the parsed image or a refusal.
+///
+/// `bytes` is `None` for "the archive does not have this entry", which is the caller's
+/// `fs.read(name)` passed straight through: an absent program is not a refusal, and folding the two
+/// together here is what keeps the caller free of a struct literal it would have to get right.
+///
+/// [`VerifyError::Unmeasured`] (the table says nothing about this name) and
+/// [`VerifyError::Mismatch`] (it says something else) are both refusals, which is
+/// [`verify_in_manifest`]'s own rule and the kernel's: a check that passes when there is nothing to
+/// check against is not a check. In particular a table that failed to generate refuses
+/// **everything**, and a boot that consults one stops at the console rather than coming up
+/// unmeasured.
+///
+/// **A program the table vouches for but which is not an ELF is not a refusal.** It reports
+/// `unvouched: false` with no image, the same as an absent entry, because the measurement did its
+/// job: those bytes are the bytes this system was built against, and their not being a loadable
+/// program is a build defect rather than a substitution. Saying "unvouched" there would put a
+/// security word on a packaging mistake.
+///
+/// # Examples
+///
+/// ```
+/// use measured_boot::{sha256, hex, verdict};
+///
+/// let swish = b"the real swish";
+/// let d = hex(&sha256(swish));
+/// let table = std::format!("swish {}\n", std::str::from_utf8(&d).unwrap());
+///
+/// // Substituted bytes: the archive had it, and the table would not vouch for it.
+/// let v = verdict(&table, "swish", Some(b"a tampered swish"));
+/// assert!(v.unvouched);
+/// assert!(v.elf.is_none());
+///
+/// // A name the table never mentions is the same refusal, not a pass.
+/// let v = verdict(&table, "stowaway", Some(&b"anything"[..]));
+/// assert!(v.unvouched);
+///
+/// // Absent from the archive is a DIFFERENT answer: nothing was substituted.
+/// let v = verdict(&table, "swish", None);
+/// assert!(!v.unvouched);
+/// assert!(v.elf.is_none());
+/// ```
+///
+/// Names **provisional** (milestone 246's lane): `verdict` and [`Verdict`] are this lane's choice,
+/// picked to sit beside [`verify`] and [`verify_in_manifest`] as the third member of that family and
+/// to read as a noun at the call site. Public function and type names are calef's (AGENTS.md,
+/// milestone 160); a name inside one crate is reversible, so the lane shipped one rather than
+/// waiting.
+pub fn verdict<'a>(table: &str, name: &str, bytes: Option<&'a [u8]>) -> Verdict<'a> {
+    let Some(bytes) = bytes else {
+        return Verdict {
+            elf: None,
+            unvouched: false,
+        };
+    };
+    if verify_in_manifest(table, name, bytes).is_err() {
+        return Verdict {
+            elf: None,
+            unvouched: true,
+        };
+    }
+    Verdict {
+        elf: elf::Elf::parse(bytes).ok(),
+        unvouched: false,
+    }
+}
+
 /// Parse 64 hex characters back into a digest. Used by `kernel/build.rs` to read the manifest the
 /// build wrote; strict, because a manifest we cannot parse must not silently become an empty trust
 /// root (see [`VerifyError::Unmeasured`]).
@@ -523,6 +621,129 @@ mod tests {
             Err(VerifyError::Unmeasured),
             "an empty table vouches for nothing"
         );
+    }
+
+    /// A minimal, genuinely parseable ELF64 for this host's architecture.
+    ///
+    /// Hand-rolled rather than borrowed from `elf`'s own test builder, which is private to that
+    /// crate. One `PT_LOAD` segment, readable and executable, with the entry point inside it, which
+    /// is the least `elf::Elf::parse` accepts. `elf::NATIVE_MACHINE` exists for exactly this: a
+    /// forged header has to write *some* machine number and the native one is what gets past the
+    /// machine check.
+    fn tiny_elf() -> Vec<u8> {
+        const EHDR: usize = 64;
+        const PHDR: usize = 56;
+        let entry: u64 = 0x40_0000;
+        let code = [0xaau8; 16];
+
+        let mut out = vec![0u8; EHDR + PHDR];
+        out[0..4].copy_from_slice(&[0x7f, b'E', b'L', b'F']);
+        out[4] = 2; // ELFCLASS64
+        out[5] = 1; // ELFDATA2LSB
+        out[6] = 1; // EV_CURRENT
+        out[16..18].copy_from_slice(&2u16.to_le_bytes()); // ET_EXEC
+        out[18..20].copy_from_slice(&elf::NATIVE_MACHINE.to_le_bytes());
+        out[24..32].copy_from_slice(&entry.to_le_bytes());
+        out[32..40].copy_from_slice(&(EHDR as u64).to_le_bytes()); // e_phoff
+        out[54..56].copy_from_slice(&(PHDR as u16).to_le_bytes());
+        out[56..58].copy_from_slice(&1u16.to_le_bytes()); // e_phnum
+
+        let ph = &mut out[EHDR..EHDR + PHDR];
+        ph[0..4].copy_from_slice(&1u32.to_le_bytes()); // PT_LOAD
+        ph[4..8].copy_from_slice(&(elf::PF_R | elf::PF_X).to_le_bytes());
+        ph[8..16].copy_from_slice(&((EHDR + PHDR) as u64).to_le_bytes()); // p_offset
+        ph[16..24].copy_from_slice(&entry.to_le_bytes()); // p_vaddr
+        ph[24..32].copy_from_slice(&entry.to_le_bytes()); // p_paddr
+        ph[32..40].copy_from_slice(&(code.len() as u64).to_le_bytes()); // p_filesz
+        ph[40..48].copy_from_slice(&(code.len() as u64).to_le_bytes()); // p_memsz
+
+        out.extend_from_slice(&code);
+        out
+    }
+
+    /// A one-line table vouching for `name`'s real bytes.
+    fn table_for(name: &str, bytes: &[u8]) -> std::string::String {
+        let d = hex(&sha256(bytes));
+        std::format!("{name} {}\n", core::str::from_utf8(&d).unwrap())
+    }
+
+    /// **The test milestone 246 exists for.** Nothing in this tree took the refusing branch of the
+    /// load-or-refuse decision until this ran: the boot gate proves it by booting a system whose
+    /// table happens to be right, which exercises the accept path and never this one.
+    ///
+    /// Falsified by hand before it was committed: changing `unvouched: true` to `false` in
+    /// [`verdict`]'s refusal arm turns this red, and turns nothing else in the tree red.
+    #[test]
+    fn substituted_bytes_are_refused_and_reported_as_unvouched() {
+        let real = tiny_elf();
+        let table = table_for("swish", &real);
+
+        let mut tampered = real.clone();
+        let last = tampered.len() - 1;
+        tampered[last] ^= 0xff;
+
+        let v = verdict(&table, "swish", Some(&tampered));
+        assert!(
+            v.unvouched,
+            "a substituted program must be reported unvouched"
+        );
+        assert!(
+            v.elf.is_none(),
+            "a refused program must not come back as a loadable image"
+        );
+
+        // The other refusal, and it is the one an empty or stale table produces for everything: the
+        // table says nothing about this name. `Unmeasured` and `Mismatch` are one answer here.
+        let v = verdict(&table, "stowaway", Some(&real));
+        assert!(v.unvouched);
+        assert!(v.elf.is_none());
+
+        let v = verdict("", "swish", Some(&real));
+        assert!(v.unvouched, "an empty table vouches for nothing");
+    }
+
+    /// Absent and refused are different answers, and the difference is the whole reason [`Verdict`]
+    /// has two fields instead of being an `Option`. A build that did not pack a program is not a
+    /// security event; a program whose bytes were substituted is.
+    #[test]
+    fn an_absent_program_is_not_an_unvouched_one() {
+        let real = tiny_elf();
+        let table = table_for("swish", &real);
+
+        let v = verdict(&table, "swish", None);
+        assert!(
+            !v.unvouched,
+            "an entry the archive does not have was not substituted, and must not be announced as if it were"
+        );
+        assert!(v.elf.is_none());
+
+        // And a name the table would refuse is *still* not unvouched when the archive lacks it:
+        // there are no bytes to measure, so the table is never consulted.
+        let v = verdict("", "absent", None);
+        assert!(!v.unvouched);
+    }
+
+    /// The accept path, and the third `elf: None` case, which is neither of the other two. Bytes the
+    /// table vouches for that are not an ELF report `unvouched: false`: the measurement did its job
+    /// and the packaging did not, and calling that a refusal would put a security word on a build
+    /// defect.
+    #[test]
+    fn a_vouched_program_parses_and_vouched_junk_is_not_called_unvouched() {
+        let real = tiny_elf();
+        let table = table_for("swish", &real);
+
+        let v = verdict(&table, "swish", Some(&real));
+        assert!(!v.unvouched);
+        assert!(v.elf.is_some(), "vouched, well-formed bytes must load");
+
+        let junk = b"not an elf at all";
+        let table = table_for("swish", junk);
+        let v = verdict(&table, "swish", Some(junk));
+        assert!(
+            !v.unvouched,
+            "vouched-for junk is a build defect, not a substitution"
+        );
+        assert!(v.elf.is_none());
     }
 
     /// The format has exactly one definition, and `kernel/build.rs` reads it through this iterator
