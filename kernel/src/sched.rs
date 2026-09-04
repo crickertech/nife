@@ -2744,6 +2744,32 @@ pub fn ipc_reply(caller: ThreadId, msg: [u64; 2]) {
     }
 }
 
+/// **Delete every unconsumed `Reply` capability naming `caller`, wherever in the machine it sits.**
+/// Caller holds `IPC_TABLES`.
+///
+/// The property both of this kernel's reply-park teardowns maintain, lifted into one function
+/// because they arrived a day apart with a copy each and the invariant is the same one:
+/// **no unconsumed reply capability names a thread that has left its park.** Milestone 254's
+/// [`strand_reply_caller`] runs it *before waking* a stranded caller, which is seL4's
+/// `cteDeleteOne(callerCap)` from `cancelIPC`; milestone 133's [`finish_blocked_resident`] runs it
+/// on a caller it is about to end and never wake, where the wake half does not apply.
+///
+/// **`outgoing_cap` goes too**, and it is the half a second copy would forget: a caller that met no
+/// server rides its own reply capability there awaiting a `RECV_CAP` that will now never collect
+/// it, and a live `Reply` in a hand-off slot is the same forgery one step earlier.
+///
+/// Cost is O(threads x slots), on a teardown path in both callers.
+fn delete_reply_caps_naming(sched: &mut IpcTables, caller: ThreadId) {
+    let target = crate::cap::Object::Reply(caller);
+    for t in sched.threads.iter_mut() {
+        t.capability_table
+            .delete_matching(|object: &crate::cap::Object| *object == target);
+        if matches!(t.outgoing_cap, Some(c) if c.object == target) {
+            t.outgoing_cap = None;
+        }
+    }
+}
+
 /// **Free one caller a server can no longer answer** (milestone 254). `abi::Error::Gone` reaches a
 /// rendezvous's *wait queues*, and a `CALL` caller whose request was already taken left those queues
 /// at the rendezvous: it is linked on nothing, and [`ipc_reply`] is the only thing that wakes it. So
@@ -2783,17 +2809,7 @@ fn strand_reply_caller(sched: &mut IpcTables, caller: ThreadId) -> bool {
     if !parked {
         return false;
     }
-    // The sweep, before the wake. `outgoing_cap` goes too: a caller that met no server rides its
-    // own reply capability there awaiting a `RECV_CAP` that will now never collect it, and leaving
-    // a live `Reply` in a hand-off slot is the same forgery one step earlier.
-    let target = crate::cap::Object::Reply(caller);
-    for t in sched.threads.iter_mut() {
-        t.capability_table
-            .delete_matching(|object: &crate::cap::Object| *object == target);
-        if matches!(t.outgoing_cap, Some(c) if c.object == target) {
-            t.outgoing_cap = None;
-        }
-    }
+    delete_reply_caps_naming(sched, caller); // the sweep, before the wake
     set_ipc_aborted(sched, caller);
     wake(sched, caller);
     true
@@ -3069,6 +3085,15 @@ pub fn create_thread_control_block(region: u64) -> Option<ThreadId> {
 /// `Finished` threads are removed here (dropped, and their generational names killed, so every
 /// outstanding `ThreadControlBlock` capability to them goes stale on its next use).
 ///
+/// **A `Blocked` resident is not refused-and-armed; it is ended** (milestone 133, proposal A,
+/// calef 2026-09-03). The arm is spent by `schedule()` only for a thread whose state is `Running`,
+/// so a resident blocked on a rendezvous nobody will ever serve was armed and never reaped and the
+/// region never came back. The finish phase unlinks each such thread from whatever queue holds it,
+/// deletes every outstanding `Reply` capability naming it, and writes it to `Finished` **without
+/// waking it**; see [`finish_blocked_resident`] for why not waking it is the security half. The
+/// authority is unchanged: it is still the untyped capability, and nothing was added to the
+/// syscall surface.
+///
 /// **The region's endpoints go first, on every pass, refusal or not**, and that ordering is
 /// load-bearing rather than tidy: it is what wakes a resident blocked in `RECV` so the armed kill
 /// can actually land on it. The long comment at the sweep says why, and notes/frames.md carries the
@@ -3088,6 +3113,16 @@ enum RegionReap {
     /// It is dead but has not left its own kernel stack yet. Refuse, and arm **nothing**: there is
     /// nothing left to doom, and the condition clears on its own one context switch from now.
     RefuseStanding,
+    /// **It is `Blocked`, and arming a kill would not reach it** (milestone 133). Unlink it from
+    /// whatever queue holds it, sweep the outstanding `Reply` capabilities that name it, and write
+    /// it straight to `Finished` without ever letting it run again. That is proposal A's whole
+    /// mechanism, and the verdict exists as its own word because the fact that
+    /// [`RegionReap::RefuseAndArm`] is *insufficient* for a `Blocked` thread is the defect this
+    /// milestone fixes and is not visible from the arm itself.
+    ///
+    /// Named for what the pass does rather than for the state it found, because the reader who
+    /// needs it is the one asking why a `Blocked` resident is not simply armed like the others.
+    FinishInPlace,
 }
 
 /// **The refuse phase's rule, lifted out so it can be stated and tested without staging a race.**
@@ -3099,12 +3134,101 @@ enum RegionReap {
 /// asked only the first for months, and the answer to the second is what four CI panics were.
 /// See notes/stack.md, "a kernel stack freed under its owner".
 fn region_reap_verdict(state: State, on_cpu: bool) -> RegionReap {
-    if matches!(state, State::Ready | State::Running | State::Blocked) {
+    if matches!(state, State::Ready | State::Running) {
         RegionReap::RefuseAndArm
+    } else if state == State::Blocked && !on_cpu {
+        // Milestone 133, proposal A. `Blocked` used to sit in the arm above, and being there is
+        // what made a permanently blocked resident unreclaimable for the life of the machine: the
+        // arm is spent at the top of `schedule()` and only for a thread whose state is `Running`,
+        // and a thread blocked on a rendezvous nobody will ever serve does not become `Running`
+        // again. The arm was not too weak, it was aimed at a thread that never arrives.
+        RegionReap::FinishInPlace
     } else if on_cpu {
+        // A `Blocked` thread with `on_cpu` still set reaches here, and that is deliberate. It is
+        // mid-switch-out, so its saved context is stale and a core is standing on the stack that
+        // freeing its `Thread` would unmap; ending it now is the four-CI-panic bug wearing a new
+        // hat. Refusing without arming is exactly right, because the condition clears itself one
+        // context switch from now and the owner's next retry finds it `Blocked` and off its stack.
         RegionReap::RefuseStanding
     } else {
         RegionReap::Reap
+    }
+}
+
+/// **End one permanently blocked resident of a region being destroyed** (milestone 133, proposal
+/// A). Unlink it from whatever queue holds it, delete every outstanding `Reply` capability that
+/// names it, and write it straight to `Finished`. Caller holds `IPC_TABLES`.
+///
+/// **It never wakes the victim, and that is a security property rather than an economy.** The
+/// research (notes/blocked-thread-teardown.md) found a live hazard that any waking design has to
+/// buy its way out of: `cap::reply_cap` mints `Object::Reply(tid)` whose payload is a generational
+/// thread name with **no call identity**, and `ipc_reply`'s guard checks the `WaitRole` and
+/// discards the rendezvous. That is sound today only because nothing can leave a reply park and
+/// enter a second `CALL` while an unconsumed `Reply` still names it. Wake a reply-parked caller,
+/// hand it `Gone`, let it call a healthy server, and a hung server's stale `Reply` passes the role
+/// check and forges an answer to a different conversation. `L4Re` documents the identical hazard as
+/// a consequence of its own finite receive timeouts, and Zircon documents it for
+/// `zx_channel_call`'s timeout. **A change that traded a permanent block for a forgeable reply
+/// would be a worse defect than the one it fixes.**
+///
+/// Both of seL4's fixes are taken here, deliberately, and the second is why the first is cheap.
+/// The victim is set to `Finished` and never runs another instruction, which is
+/// `ThreadState_Inactive` and means no second `CALL` can exist to be forged against. **And the
+/// reply capabilities are swept anyway**, through [`delete_reply_caps_naming`], which is
+/// `cteDeleteOne(callerCap)` from `cancelIPC` and is the same function milestone 254's
+/// [`strand_reply_caller`] runs before *its* wake. The two milestones took one of seL4's answers
+/// each, a day apart, and share the invariant: **no unconsumed reply capability names a thread
+/// that has left its park.**
+///
+/// **The role is not trusted to say which queue holds the thread, and must not be.** A `CALL`
+/// caller that met no server is recorded as `WaitRole::Reply` and *is* on the sender queue
+/// (`ipc_call`'s `Send::Blocked` arm), so the role and the queue genuinely disagree in a case that
+/// happens on every unserved call. Both queues are asked; each remove compares pointers and
+/// reports whether it found anything, so asking the wrong one costs one drain-and-repush of a
+/// short queue and cannot be wrong. This is the sharpest failure mode the research named
+/// (`thread_wake_handshake`'s own BUGS says nothing forces a block site to call `park`, so
+/// `wait_on` can in principle go stale) narrowed to the one part of it a caller can defend
+/// against: the *rendezvous name* is still taken on trust, and a stale one leaves a dangling
+/// pointer in a queue, which is why the `debug_assert` below pairs `Blocked` with a recorded wait.
+fn finish_blocked_resident(sched: &mut IpcTables, tid: ThreadId) {
+    debug_assert!(
+        sched
+            .threads
+            .get(tid)
+            .is_none_or(|t| t.handshake.wait_on.is_some()),
+        "a Blocked thread with no recorded wait: some block site wrote the state by hand",
+    );
+
+    // Unlink. `wait_on` names the rendezvous; the pointer identifies the thread on its queue.
+    if let Some((ep, _role)) = sched.threads.get(tid).and_then(|t| t.handshake.wait_on) {
+        let ptr = thread_control_block_ptr(sched, tid);
+        if let Some(rendezvous) = rendezvous_of(sched, ep) {
+            // SAFETY: `ptr` is compared by pointer and never dereferenced. Every other queued
+            // waiter is popped and pushed again and is still live (a blocked thread or a corpse,
+            // neither of which is freed while linked), which is `remove_sender`'s existing
+            // contract on the very same queues.
+            unsafe {
+                rendezvous.remove_sender(ptr);
+                rendezvous.remove_receiver(ptr);
+            }
+        }
+    }
+
+    // Sweep the outstanding reply capabilities, sharing milestone 254's function rather than
+    // carrying a second copy of the same invariant. This victim is never woken, so the sweep is
+    // belt as well as braces; it is here anyway because the thread name is generational and a
+    // `Reply` outliving its thread would go stale only on its *next use*, which leaves the tree
+    // depending on a slot generation nobody reading `ipc_reply` can see.
+    delete_reply_caps_naming(sched, tid);
+
+    // End it. `killed` is set as well as the state, so the flag keeps one meaning: it marks a
+    // thread this teardown doomed, whoever ends up observing it. `wait_on` is cleared because the
+    // thread is on no queue any more and a `Some` here is what a hang dump reads as "still
+    // waiting".
+    if let Some(t) = sched.threads.get_mut(tid) {
+        t.killed = true;
+        t.handshake.state = State::Finished;
+        t.handshake.wait_on = None;
     }
 }
 
@@ -3185,6 +3309,49 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
         strand_callers_awaiting(sched, name);
     }
 
+    // --- Finish phase: end every resident the arm below could never reach (milestone 133). ---
+    //
+    // **This is proposal A, "`DESTROY` finishes what it starts"** (calef, 2026-09-03;
+    // design/roadmap/133-blocked-thread-teardown.md, and notes/blocked-thread-teardown.md for the
+    // four proposals and the survey they came from). The refuse phase below arms DECISIONS §16's
+    // kill, `schedule()` spends that kill only for a thread whose state is `Running`, and a thread
+    // blocked on a rendezvous nobody will ever serve never becomes `Running` again. So the arm was
+    // armed and never landed, the refusal was permanent, and **the region was unreclaimable for
+    // the life of the machine**. No privilege fixed that, because it was a scheduler property and
+    // not an authorization one, which is why §32's "stronger right" was insufficient rather than
+    // merely large.
+    //
+    // The rendezvous sweep above already rescues the case where the rendezvous the resident waits
+    // on came out of *this* region. What it cannot rescue is a resident blocked on somebody
+    // else's, which is the ordinary shape of a hung component: a server parked in `RECV` on a
+    // client's rendezvous, or a client parked in `CALL` on a server that will never reply.
+    //
+    // **The authority is unchanged, and that is the whole reason this shape was chosen.** The
+    // holder of the untyped capability could already end every `Ready` and `Running` thread in the
+    // region and could already leave every `Blocked` one killed-and-refused. It could not only
+    // *finish*. Nothing is added to the syscall surface, no new right, and no new error reaches
+    // userspace.
+    //
+    // **Rescan for one at a time**, the same rule the rendezvous sweep states and for the same
+    // reason: a `[u64; MAX_THREADS]` worklist is a kilobyte of scratch on the deepest frame in the
+    // kernel. Each pass writes one resident to `Finished`, which no longer matches, so this
+    // terminates.
+    loop {
+        let doomed = sched
+            .threads
+            .iter_mut()
+            .find(|t| {
+                let phys = crate::arch::mmu::virt_to_phys(&raw const **t as u64);
+                base <= phys
+                    && phys < end
+                    && region_reap_verdict(t.handshake.state, t.handshake.on_cpu)
+                        == RegionReap::FinishInPlace
+            })
+            .map(|t| t.id);
+        let Some(tid) = doomed else { break };
+        finish_blocked_resident(sched, tid);
+    }
+
     // --- Refuse phase: no thread in the region may still be able to run. ---
 
     // A live thread (Ready/Running/Blocked) in the region: freeing its page would pull the stack,
@@ -3242,6 +3409,15 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
                 live = true;
             }
             RegionReap::RefuseStanding => standing = true,
+            // Unreachable: the finish phase above ran this same verdict to exhaustion, so nothing
+            // in the region is still `Blocked` and off its stack. Written as the conservative
+            // refusal rather than as an `unreachable!`, because the cost of being wrong here is a
+            // panic on a teardown path against the cost of one more retry by an owner that already
+            // has a retry loop.
+            RegionReap::FinishInPlace => {
+                t.killed = true;
+                live = true;
+            }
             RegionReap::Reap => {}
         }
     }
@@ -3311,7 +3487,11 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
 ///
 /// **`Err` is destructive, and it does not read that way at a call site.** A refusal caused by a
 /// live thread arms DECISIONS §16's kill on *every* live thread in the region, so the first call
-/// dooms them and the owner's retry reclaims. That is the point (§24's `^C` escalation is built on
+/// dooms them and the owner's retry reclaims. **Since milestone 133 an `Ok` is destructive in one
+/// more way**: a resident that was `Blocked` is ended outright by the call that succeeded, without
+/// running another instruction and without returning from its syscall, and a waiter it was queued
+/// beside on somebody else's rendezvous simply stops being there. The rendezvous's owner observes
+/// a peer that never arrived, which it cannot tell from a client that never called. That is the point (§24's `^C` escalation is built on
 /// it), but it makes `reclaim_region(r).is_err()` unusable as a question: asking it kills the
 /// answer. A caller that wants to know whether a region is busy without ending what is in it has no
 /// such call today. Milestone 72 traced an intermittent lost-wakeup hang to one line of test code
@@ -5349,7 +5529,7 @@ mod tests {
         }
 
         // A thread that can still be scheduled is the older refusal, and it still arms the kill.
-        for state in [State::Ready, State::Running, State::Blocked] {
+        for state in [State::Ready, State::Running] {
             assert_eq!(
                 region_reap_verdict(state, false),
                 RegionReap::RefuseAndArm,
@@ -5361,6 +5541,26 @@ mod tests {
                 "being on a cpu must not downgrade a live thread's refusal to the passive one",
             );
         }
+
+        // **`Blocked` left the arm on 2026-09-03** (milestone 133, proposal A), and it left for a
+        // reason this assertion is the record of: the arm is spent by `schedule()` only for a
+        // thread whose state is `Running`, so arming a thread that never runs again armed nothing
+        // and refused forever. It is now finished in place.
+        assert_eq!(
+            region_reap_verdict(State::Blocked, false),
+            RegionReap::FinishInPlace,
+            "a blocked resident must be ended, because arming it never reaches it",
+        );
+
+        // And a `Blocked` thread still standing on its kernel stack is the one that must NOT be
+        // finished in place: freeing its `Thread` unmaps the stack a core is standing on, which is
+        // the same four-CI-panic bug the `Dead` case above pins. The refusal is passive, so the
+        // owner's next retry finds it off its stack and ends it then.
+        assert_eq!(
+            region_reap_verdict(State::Blocked, true),
+            RegionReap::RefuseStanding,
+            "a blocked thread mid-switch-out must not have its stack unmapped",
+        );
     }
 
     /// **The slots are contiguous, so one stack's guard page begins where the previous stack

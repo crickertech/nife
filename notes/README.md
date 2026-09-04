@@ -305,8 +305,8 @@ in the code or the conversation doesn't make sense, it belongs here.
   ownership plus generational staleness instead of a capability derivation tree, why destroy is
   the owner's explicit act and must stay off the scheduler lock, `Untyped::SPLIT`/`DESTROY`, and
   the generational region slots that make a repeatable spawn loop finally possible.
-- [Ending a permanently blocked thread](blocked-thread-teardown.md): research and four proposals,
-  no decision. `Untyped::DESTROY` arms a kill that `schedule()` spends only for a `Running` thread,
+- [Ending a permanently blocked thread](blocked-thread-teardown.md): the research and its four
+  proposals, with **proposal A chosen by calef on 2026-09-03 and built as milestone 133**. `Untyped::DESTROY` arms a kill that `schedule()` spends only for a `Running` thread,
   so a permanently `Blocked` one is refused forever and its region never comes back. The finding that
   reframes it: **the mechanism is about thirty lines and the authority is the whole problem**, because
   `WaitRole` already enumerates the three places a blocked thread can be and the abort-and-wake pair

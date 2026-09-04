@@ -1,10 +1,22 @@
 # Ending a permanently blocked thread
 
-*Research, not a decision. This note starts where notes/hung-component.md stopped: its case (c), a
-thread `Blocked` on an endpoint its supervisor cannot reach, which nothing in this kernel can end.
-Read that note first for the taxonomy and for why the supervisor's whole vocabulary is refused. This
-one surveys how seven other systems solve the same problem, maps each onto this kernel, and lays four
-proposals side by side. **calef takes this fork; nothing here is a recommendation of a winner.***
+*This note starts where notes/hung-component.md stopped: its case (c), a thread `Blocked` on an
+endpoint its supervisor cannot reach, which nothing in this kernel could end. Read that note first
+for the taxonomy and for why the supervisor's whole vocabulary is refused. This one surveys how
+seven other systems solve the same problem, maps each onto this kernel, and lays four proposals side
+by side.*
+
+**The fork is answered. calef chose proposal A on 2026-09-03, and milestone 133 built it**
+(design/roadmap/133-blocked-thread-teardown.md). Everything below is kept as it was written, because
+the argument is what the decision was made against and a note edited into agreement with its own
+outcome is worth nothing to the next reader. What changed against the text: the mechanism landed in
+`sched::finish_blocked_resident` and `RegionReap::FinishInPlace`; `Endpoint` is spelled
+`Rendezvous` in this tree and `remove_receiver` is now written; **and the claim below that
+`WaitRole` says which queue holds a thread is wrong**, which the implementation found and this note
+did not. `ipc_call`'s `Send::Blocked` arm records a caller as `WaitRole::Reply` while queueing it as
+a sender, so role and queue disagree on every call that meets no server, and the shipped code asks
+both queues rather than believing the role. See this note's own BUGS for what else was left
+untested.
 
 **One piece of this is no longer research: proposal C's first half shipped as milestone 254 on
 2026-09-04**, on calef's ruling that it is a defect rather than a fork, because it asks for no
@@ -842,26 +854,32 @@ git show origin/milestone/23-hung-component:notes/hung-component.md
 
 ## BUGS
 
-**Nothing here is built except proposal C's first piece, and nothing else here should be built before
-calef rules.** This note is analysis. The proposals are sketches at the level of "which lines
-change", not designs; each would owe a `DECISIONS` section for its semantics before a lane took it,
-and B would owe one for a new method under §10's rule. C's piece 1 was exempted by calef on
-2026-09-04 for the reason its own block gives: it adds no authority, no method and no error, so
-there is no semantics to record that §12's reply capability did not already imply.
+**Proposal A is built (milestone 133), proposal C's first piece is built (milestone 254), and B,
+C's piece 2 and D are not.** The remaining proposals are sketches at the level of "which lines
+change", not designs; B would still owe a `DECISIONS` section for a new method under §10's rule.
+C's piece 1 was exempted by calef on 2026-09-04 for the reason its own block gives: it adds no
+authority, no method and no error, so there is no semantics to record that §12's reply capability
+did not already imply.
 
-**The stale-reply-capability hazard was unreachable when this note was written and is now reached and
-tested.** It was established here by reading `cap::reply_cap`, `slots`'s generational naming, and
-`ipc_reply`'s guard, and by enumerating the exits from a reply park: an argument, not a proof. Since
-milestone 254 there is a path, and two tests in `kernel/src/sched.rs` assert that no live `Reply`
-names a freed caller (`outstanding_reply_capabilities`) and that the server's own slot no longer
-resolves through `sched::current_cap`, which is the lookup `abi::reply::REPLY` performs. What is
-still untested is the *negative* the note's argument rested on: nothing proves that the sweep runs at
-every future way a server can stop answering, which is why the payload fix
-(`design/roadmap/proposals/a-reply-capability-that-names-a-call.md`) is proposed rather than
-considered unnecessary.
+**The stale-reply-capability hazard was unreachable when this note was written. Milestone 254 made
+it reachable and tested; milestone 133 is the one design here that does not reach it at all.** It
+was established here by reading `cap::reply_cap`, the generational naming, and `ipc_reply`'s guard,
+and by enumerating the exits from a reply park: an argument, not a proof. Two milestones then took
+seL4's two fixes, one each and for different reasons. 254 wakes a stranded caller and so must delete
+the outstanding capability before the wake (`cteDeleteOne(callerCap)` from `cancelIPC`), which two
+tests in `kernel/src/sched.rs` assert. 133 never wakes its victim at all
+(`ThreadState_Inactive`, so no second `CALL` can exist to be forged against) **and** sweeps anyway,
+which `user::force_kill_tests::tearing_down_a_reply_parked_caller_sweeps_the_reply_capability`
+pins.
+
+What neither can test is the *negative* the argument rested on: nothing proves the sweep runs at
+every future way a server can stop answering, and nothing states the guard's rule anywhere a checker
+can read it. That is `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`, and it is
+rung one where both sweeps are rung two.
 
 **The claim that `WaitRole` enumerates every blocked thread depends on every block site calling
-`park`.** `wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
+`park`, and milestone 133 made that claim load-bearing rather than diagnostic**
+(`design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`). `wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
 kernel has legitimate out-of-protocol writers, so a future block site writing `state = Blocked`
 directly opts out silently and would leave `wait_on` stale. Proposals A, B and C all unlink using
 `wait_on`, so all three inherit that as their sharpest failure mode. I did not audit every write of
@@ -878,5 +896,5 @@ documentation's word and not verified.
 **No number in this note was measured.** The line counts ("about thirty lines") are estimates from
 reading, the sweep cost is arithmetic from `MAX_THREADS` and `CAPABILITY_TABLE_SLOTS`, and no benchmark was run.
 
-**The milestone number in the roadmap block this lane proposes is provisional** and belongs to the
-integrator to mint, per the rule that anything global to the tree is assigned at merge.
+**No number in the survey table was re-checked at build time.** The prior art was fetched and read on
+2026-08-17 and none of those systems was consulted again while milestone 133 was written.
