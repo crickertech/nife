@@ -2,7 +2,33 @@
 
 **Status: NOT-STARTED.** Minted 2026-08-25, from [DECISIONS §96](../decisions/96-process-kernel-or-event-kernel.md)'s own recommendation: *"Build the instrument that could decide it. The blocker is that a multi-tasking workload is the only place the difference appears, and we have none."*
 
-**Gate: HARDWARE, MILESTONE 127.** §96's own text: *"milestone 127's TX1 is where such a number would finally mean something."* Milestone 127 is itself `NOT-STARTED` as of this writing (its kit was in transit, estimated arrival 2026-08-19 to -26; check its own current status before starting, since that window has since passed). This milestone cannot produce a meaningful number without it: a multi-tasking difference is exactly the kind of result that needs real hardware scheduling behavior, not TCG or HVF timing.
+**Gate: HARDWARE.** Real silicon, and that is all. **Corrected 2026-09-04 by calef**; it read
+`HARDWARE, MILESTONE 127` from 2026-08-25 until then, and the paragraph below explains why that was
+right when written and is not now.
+
+**The old gate was doing two jobs and only one of them still needs argon.** Its stated reasons are
+that a multi-tasking difference *"needs real hardware scheduling behavior, not TCG or HVF timing"*
+and that it wants *"a place to run it that has real PMU access"*. **radon satisfies both.** It is
+real silicon, it boots, and milestone 74's riscv64 half landed on 2026-09-04, so
+`kernel/src/arch/riscv64/pmu.rs` reads cycles through the SBI PMU extension. When this block was
+written radon had no cycle counter at all, which is why milestone 127 was named.
+
+**What milestone 127 is actually for is a different question**, and its own title says so: *the seL4
+machine: a Jetson TX1, so identical silicon referees the comparison.* That matters for **milestone
+25**'s cross-OS numbers, which are compared against seL4's published runs and therefore want the
+machine those runs were made on. It does not matter for DECISIONS §96's question, which asks how much
+of *this kernel's* time goes into process-kernel overhead under multi-tasking load. That is a number
+nife produces about itself, on any real silicon.
+
+**So the two uses split, and this block serves both without needing the same machine for each:**
+
+- **For §96** (process kernel or event kernel), radon is sufficient and available now.
+- **For milestone 25**'s comparison against seL4, argon is still required, and nothing here loosens
+  that.
+
+**And building the instrument is gated by neither.** The workload is architecture-neutral and can be
+developed and tested under QEMU; what needs silicon is the *number*, not the code. A lane may build
+this today and leave the measurement to a bench evening, which is how this milestone was launched.
 
 ## What this is for
 
