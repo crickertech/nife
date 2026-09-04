@@ -1143,8 +1143,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //
         // **The skip is the honest answer on every machine CI boots.** QEMU's riscv64 `virt` board
         // has no TRNG node under either spelling, so `jh7110_trng_device` returns `None` there and
-        // this prints the skip rather than a claim. Only radon (the `StarFive` VisionFive 2) can
-        // print the other line, and the line only prints when bytes actually arrived.
+        // this prints the skip rather than a claim. Only a `StarFive` VisionFive 2 (radon, the one
+        // this project benches on) can print the other line, and the line only prints when bytes
+        // actually arrived.
         //
         // **Both spellings are named in the skip because milestone 239 (radon's device tree does
         // not describe the TRNG, so a working driver never runs) was mis-diagnosed off the old

@@ -394,8 +394,8 @@ pub fn init() {
 /// what `boot.s` sets) and **0x668** under OVMF (`DE`, `PAE`, `MCE`, `OSFXSR`, `OSXMMEXCPT`). Bit 8
 /// was clear in both, so nothing was actually closed. But five bits this kernel never wrote were
 /// already set by firmware before any of our code ran, on the one "firmware" this port has ever
-/// booted under, and that is the argument for the read in one number. On **xenon**, the Dell
-/// machine, real firmware runs first and the value is unknown.
+/// booted under, and that is the argument for the read in one number. On the **Dell `OptiPlex`**
+/// (xenon), real firmware runs first and the value is unknown.
 ///
 /// Per core, like the GDT and the IDT above it: `CR4` is per-CPU state, so a secondary that skipped
 /// this would run on whatever its own path left behind.

@@ -2594,8 +2594,9 @@ pub enum KeystrokeSource {
 ///
 /// **A GPU with no keyboard attached is milestone 192's option A**, not an absence: the terminal
 /// comes up on the framebuffer and the board's own UART receive line plays the keystroke source,
-/// which is the configuration every one of the three target machines actually has (argon, radon
-/// and xenon all have a serial line and none has a virtio-input device). What is still treated as
+/// which is the configuration every one of the three target boards actually has (the Jetson, the
+/// `StarFive` VisionFive 2 and the Dell `OptiPlex` all have a serial line and none has a
+/// virtio-input device). What is still treated as
 /// absent overall is a boot with no GPU, or one where the machine has neither a virtio keyboard
 /// **nor** a page for a UART device capability (`x86_64`, DECISIONS §121): there, the already-
 /// spawned GPU driver and terminal are left running, unused, the same "idle forever" shape the

@@ -186,8 +186,8 @@ pub fn init() {
 ///
 /// Arm says of every field in `PMUSERENR_EL0`, `EN`, `SW`, `CR` and `ER` alike, that on a warm reset
 /// it "resets to an architecturally UNKNOWN value". Under QEMU it is almost certainly zero. On
-/// **argon**, the Jetson TX1 nobody has booted this kernel on, it is whatever TF-A and the boot ROM
-/// left, and a claim that rests on that is not a claim. Linux writes the same zero for the same
+/// the **Jetson TX1** nobody has booted this kernel on (argon), it is whatever TF-A and the boot
+/// ROM left, and a claim that rests on that is not a claim. Linux writes the same zero for the same
 /// reason, in the commit `arm64: kernel: enforce pmuserenr_el0 initialization and restore`, whose
 /// message says the register "is architecturally UNKNOWN on reset".
 ///
