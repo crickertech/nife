@@ -8946,6 +8946,35 @@ fn module_doc(src: &str) -> String {
 /// this command has four answers and not two: reached, announced a failure, went quiet, ran out.
 /// A caller scripting a bench run wants to tell those apart, and squeezing them into
 /// success/failure is exactly the loss of information the milestone is about.
+/// **Read a finished capture of many boots and print what the lottery drew** (milestone 249).
+///
+/// `board_console::lottery` is the whole of the logic and has the tests; this reads a file and
+/// prints. Two exit statuses only, and they are not the watcher's four: this is an analysis of a
+/// log that has already happened, so there is no board to have gone quiet.
+///
+/// `0` even when a series is short or a draw is unjudged, because those are results and the report
+/// says so in words. `4` only when the file cannot be read, which is the same code the watcher
+/// gives an argument it cannot use.
+fn board_console_tally(path: &std::path::Path) -> ExitCode {
+    let log = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("board-console: cannot read {}: {e}", path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let series = board_console::lottery::tally(&log);
+    print!("{}", series.report());
+    if series.draws.len() < 50 {
+        eprintln!(
+            "board-console: {} draw(s). Milestone 249 asks for at least fifty before this is a \
+             distribution rather than a handful of boots.",
+            series.draws.len()
+        );
+    }
+    ExitCode::SUCCESS
+}
+
 fn board_console() -> ExitCode {
     use std::io::Write;
 
@@ -8972,6 +9001,15 @@ fn board_console() -> ExitCode {
             },
             "--replay" => match value(i) {
                 Ok(v) => replay = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            // **Milestone 249's reader**, and it is the only mode that does not watch anything: it
+            // reads a finished capture of *many* boots and reports what the placement lottery drew
+            // each time. It returns before the log file below is created, because a tally writes no
+            // capture of its own and a fresh empty `board-console-<stamp>.log` beside a fifty-boot
+            // one is litter a reader has to tell apart.
+            "--tally" => match value(i) {
+                Ok(v) => return board_console_tally(std::path::Path::new(v)),
                 Err(code) => return code,
             },
             "--log" => match value(i) {
@@ -9010,7 +9048,8 @@ fn board_console() -> ExitCode {
                 eprintln!("board-console: unknown argument {other}");
                 eprintln!(
                     "usage: cargo xtask board-console [--port <dev>] [--replay <log>] \
-                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]"
+                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]\n\
+                     \x20      cargo xtask board-console --tally <log>"
                 );
                 return ExitCode::from(4);
             }

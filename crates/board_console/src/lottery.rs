@@ -1,0 +1,548 @@
+//! **Fifty boots in a log, and what the placement lottery drew each time** (milestone 249).
+//!
+//! [`progress`](crate::progress) reads *one* boot and answers "how far did it get". This module
+//! reads a capture of many and answers the question milestone 249 exists for: **how often does each
+//! arrangement come up, and does the top of the curve ever get drawn at all?**
+//!
+//! Nine hand-cycled boots of radon on 2026-09-03 produced a fifteenfold throughput range, and
+//! milestone 240's placement census explained it: the rate tracks the number of cores that hold no
+//! grinder and do hold part of an IPC group. Those nine landed on two clean cores six times, one
+//! twice and zero once. **Three and four have never been drawn**, and nobody knows whether that is
+//! rare or structurally impossible. Fifty unattended boots would say; counting them by hand would
+//! not be done twice.
+//!
+//! # What counts as a clean core, stated once and used everywhere
+//!
+//! A core is **clean** when it carries at least one responder or caller and no grinder.
+//!
+//! Both halves are load-bearing and both come from measurement rather than from taste, which is
+//! recorded at length in notes/soak.md. A grinder is pure compute that never yields, so a core
+//! holding one starves whatever IPC threads share it; a core holding no IPC thread at all is idle
+//! as far as the round-trip rate is concerned, whatever else is on it. The three arrangements the
+//! board has actually drawn line up with the count this produces: two clean cores gave 342-347k/s,
+//! one gave 184-188k/s, and none gave 23k/s.
+//!
+//! **This is a summary of the census and not a theory of it.** Why placement lands where it does is
+//! DECISIONS 138's territory. If a series shows the rate does not follow this count, that is the
+//! result, and the count is still the right thing to have measured, which is why the report prints
+//! the rate beside every draw instead of only the tally.
+//!
+//! # Which census a draw is judged on
+//!
+//! **The last one printed**, not the first. The kernel prints a census at spawn and reprints it
+//! whenever `drifted=` says the old one stopped being true, and on radon the spawn arrangement is
+//! replaced about twenty-five seconds in by one that then holds for hours. The spawn census is the
+//! lottery's *ticket*; the settled one is what the machine ran.
+//!
+//! # BUGS
+//!
+//! - **A draw with no census at all is still a draw**, and it reports `clean=?`. A pre-milestone-240
+//!   kernel prints no census, and a boot truncated before its first one has none yet. Both are
+//!   counted in the series and excluded from the distribution, because dropping them would make a
+//!   log of forty good boots and ten wedged ones read as forty boots.
+//! - **A boot that never reaches `soak: started` is invisible except as an attempt.** The counts
+//!   are printed side by side for exactly that reason: `attempts` above `draws` is the shape of
+//!   "three boots and then a wedge at 2am", which is the failure an unattended series is most
+//!   likely to suffer and the one nothing else here would report.
+//! - **The attempt count is U-Boot SPL's banner**, so it counts boots of the *board* rather than of
+//!   this kernel, and it counts zero on a QEMU capture, which has no SPL. A QEMU rehearsal
+//!   therefore reports fewer attempts than draws, which is honest and looks odd.
+//! - **Nothing here reads the rate as a function of anything.** It prints the pairs. Fitting a
+//!   curve to fifty points from one board would be a stronger claim than fifty points support.
+
+use core::fmt::Write as _;
+
+/// How one draw ended, which is the difference between a series that ran and one that stopped.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Ending {
+    /// The kernel announced the reset. The next draw in the log is the boot it produced.
+    Rebooted,
+    /// Somebody typed on the console and the loop disarmed itself. A deliberate end to a series.
+    Disarmed,
+    /// The firmware refused the cold reboot. **This is the one that means the mechanism is not
+    /// available on this board**, and it is why the kernel prints `sbiret.error` rather than
+    /// halting quietly.
+    Refused,
+    /// The soak failed and the kernel panicked, carrying the reason. A series ends here on purpose:
+    /// the failure is the result, and rebooting over it would destroy the evidence.
+    Failed(String),
+    /// The log ended during this draw. The last draw of a healthy capture is always this one; an
+    /// earlier one is a board that stopped speaking.
+    Truncated,
+}
+
+/// One boot's draw: the arrangement it settled into, the rate it ran at, and how it ended.
+#[derive(Debug, Clone)]
+pub struct Draw {
+    /// Cores holding an IPC thread and no grinder, from the last census this boot printed. `None`
+    /// when the boot printed no census.
+    pub clean_cores: Option<usize>,
+    /// Cores the last census listed, which is the online count. `None` with no census.
+    pub cores: Option<usize>,
+    /// The `rate=` of the last heartbeat, in round trips per second.
+    pub rate: Option<u64>,
+    /// The `beat=` of the last heartbeat, so a truncated draw is visible as a short one.
+    pub beats: u64,
+    /// How it ended.
+    pub ending: Ending,
+}
+
+/// Every draw in one capture, plus what the log says about boots that produced none.
+#[derive(Debug, Clone, Default)]
+pub struct Series {
+    /// U-Boot SPL banners seen: boots of the board, whether or not they reached the workload.
+    pub attempts: usize,
+    /// One per `soak: started`, in the order they were captured.
+    pub draws: Vec<Draw>,
+}
+
+/// **Read a capture into a series of draws.**
+///
+/// Takes the whole log as text rather than a reader, because the callers are a test with a fixture
+/// and a subcommand handed a file that has already finished being written. A live watch is
+/// [`watch`](crate::watch)'s job and is a different shape.
+pub fn tally(log: &str) -> Series {
+    let mut series = Series::default();
+    // The census being accumulated: one entry per `core=` line since the last census header.
+    let mut census: Vec<CoreLine> = Vec::new();
+    // The last complete census this draw printed, which is the one it is judged on.
+    let mut settled: Option<Vec<CoreLine>> = None;
+
+    for raw in log.lines() {
+        let line = raw.trim_end_matches(['\r', '\n']);
+
+        if line.contains("U-Boot SPL") {
+            series.attempts += 1;
+        }
+
+        if line.contains("soak: started") {
+            // Close the previous draw before opening this one. A draw that reached here without an
+            // ending was cut off by whatever produced this boot, which from inside the log is
+            // indistinguishable from a truncation, and is reported as one.
+            finish(&mut series, &mut settled, &mut census);
+            series.draws.push(Draw {
+                clean_cores: None,
+                cores: None,
+                rate: None,
+                beats: 0,
+                ending: Ending::Truncated,
+            });
+            continue;
+        }
+
+        let Some(draw) = series.draws.last_mut() else {
+            // Anything before the first `soak: started` is a boot that has not announced a workload
+            // yet: U-Boot, the tour, or a boot that failed before either.
+            continue;
+        };
+
+        // A census header opens a fresh block. Matching on the legend rather than on the sentence
+        // in front of it, because the sentence differs between the spawn census, the re-census and
+        // the failure census, and the legend is the same words in all three.
+        if line.contains("R=responder") {
+            if !census.is_empty() {
+                settled = Some(core::mem::take(&mut census));
+            }
+            census.clear();
+            continue;
+        }
+        if let Some(parsed) = parse_core_line(line) {
+            census.push(parsed);
+            continue;
+        }
+
+        if line.contains("soak: t=") {
+            if let Some(beat) = field(line, "beat=") {
+                draw.beats = beat;
+            }
+            if let Some(rate) = field(line, "rate=") {
+                draw.rate = Some(rate);
+            }
+            continue;
+        }
+
+        // **The endings are ranked rather than first-past-the-post**, and the rank was written
+        // after a test refused the first version. `soak-reboot: rebooting now` is printed *before*
+        // the `ecall`, because once the firmware starts a reset the UART stops draining; so a
+        // refusal always arrives after an announcement that the board was about to reboot, and
+        // taking the first line seen would report the one draw that proves the mechanism does not
+        // work on this board as a draw that worked. A finding outranks the loop working.
+        if let Some(at) = line.find("soak: FAILED") {
+            draw.ending = Ending::Failed(line[at..].to_string());
+        } else if line.contains("soak-reboot: FAILED") {
+            draw.ending = Ending::Refused;
+        } else if draw.ending == Ending::Truncated {
+            if line.contains("soak-reboot: DISARMED") {
+                draw.ending = Ending::Disarmed;
+            } else if line.contains("soak-reboot: rebooting now") {
+                draw.ending = Ending::Rebooted;
+            }
+        }
+    }
+    finish(&mut series, &mut settled, &mut census);
+    series
+}
+
+/// One `soak-census: core=N threads=M ...` line, reduced to the two questions asked of it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CoreLine {
+    grinder: bool,
+    ipc: bool,
+}
+
+/// Attach the census in hand to the draw in hand, and clear both for the next boot.
+fn finish(series: &mut Series, settled: &mut Option<Vec<CoreLine>>, census: &mut Vec<CoreLine>) {
+    // The block still being accumulated when the draw ended is the last one printed, so it wins
+    // over the one before it. This is what makes a re-census the judgement rather than the spawn
+    // census, and it falls out of the ordering instead of needing a rule.
+    if !census.is_empty() {
+        *settled = Some(core::mem::take(census));
+    }
+    if let (Some(draw), Some(block)) = (series.draws.last_mut(), settled.take()) {
+        draw.cores = Some(block.len());
+        draw.clean_cores = Some(block.iter().filter(|c| c.ipc && !c.grinder).count());
+    }
+    census.clear();
+    *settled = None;
+}
+
+/// Parse `soak-census: core=1 threads=5 C0 W1 C2 R3 W3` into the two facts the count needs.
+///
+/// Returns `None` for every other `soak-census:` line, of which there are several: the legend, the
+/// three explanatory sentences, and the `unplaced=` line. Keyed on `core=` and `threads=` together
+/// rather than on either alone, so a sentence that happens to contain one of the words is not
+/// mistaken for a core.
+fn parse_core_line(line: &str) -> Option<CoreLine> {
+    if !line.contains("soak-census:") {
+        return None;
+    }
+    let at = line.find(" threads=")?;
+    line.find("core=")?;
+    let rest = &line[at + " threads=".len()..];
+    let tokens = rest.split_whitespace().skip(1);
+    let mut grinder = false;
+    let mut ipc = false;
+    for token in tokens {
+        // A token is a role letter and a group number. Anything else on the line is not a worker,
+        // and a token whose tail is not a number is not one either.
+        let mut chars = token.chars();
+        let role = chars.next()?;
+        if !chars.as_str().chars().all(|c| c.is_ascii_digit()) || chars.as_str().is_empty() {
+            continue;
+        }
+        match role {
+            'G' => grinder = true,
+            'R' | 'C' => ipc = true,
+            _ => {}
+        }
+    }
+    Some(CoreLine { grinder, ipc })
+}
+
+/// Read `name=<digits>` out of a heartbeat line.
+fn field(line: &str, name: &str) -> Option<u64> {
+    let at = line.find(name)?;
+    let rest = &line[at + name.len()..];
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
+impl Series {
+    /// **The distribution, and the two lines of arithmetic that are the milestone's whole result.**
+    ///
+    /// Plain text on purpose: this goes into notes/soak.md beside the nine hand-drawn boots, and a
+    /// table a person can paste is worth more than a format a program would have to re-read.
+    pub fn report(&self) -> String {
+        let mut out = String::new();
+        let _ = writeln!(
+            out,
+            "boot lottery: {} draw{} from {} board boot{} (SPL banners)",
+            self.draws.len(),
+            plural(self.draws.len()),
+            self.attempts,
+            plural(self.attempts),
+        );
+        if self.attempts > self.draws.len() {
+            let _ = writeln!(
+                out,
+                "  {} boot(s) never reached the workload: read the log around them, because an \
+                 unattended board can fail unattended",
+                self.attempts - self.draws.len()
+            );
+        }
+        let _ = writeln!(out);
+        let _ = writeln!(out, "  draw  clean/cores  rate      beats  ended");
+        for (i, d) in self.draws.iter().enumerate() {
+            let clean = match (d.clean_cores, d.cores) {
+                (Some(c), Some(n)) => format!("{c}/{n}"),
+                _ => "?".to_string(),
+            };
+            let rate = d.rate.map_or("?".to_string(), |r| format!("{r}/s"));
+            let _ = writeln!(
+                out,
+                "  {:>4}  {:>11}  {:>8}  {:>5}  {}",
+                i + 1,
+                clean,
+                rate,
+                d.beats,
+                describe(&d.ending)
+            );
+        }
+
+        let judged: Vec<&Draw> = self
+            .draws
+            .iter()
+            .filter(|d| d.clean_cores.is_some())
+            .collect();
+        let widest = judged
+            .iter()
+            .filter_map(|d| d.cores)
+            .max()
+            .unwrap_or_default();
+        let _ = writeln!(out);
+        // No header when there is nothing under it. A table of zeroes reads as a measurement of
+        // zero, and what it actually means is that no boot in this log printed a census.
+        if !judged.is_empty() {
+            let _ = writeln!(out, "  clean cores  draws  rates seen");
+        }
+        for clean in 0..=widest {
+            let here: Vec<&&Draw> = judged
+                .iter()
+                .filter(|d| d.clean_cores == Some(clean))
+                .collect();
+            let rates: Vec<u64> = here.iter().filter_map(|d| d.rate).collect();
+            let span = match (rates.iter().min(), rates.iter().max()) {
+                (Some(lo), Some(hi)) if lo == hi => format!("{lo}/s"),
+                (Some(lo), Some(hi)) => format!("{lo}-{hi}/s"),
+                _ => "-".to_string(),
+            };
+            let _ = writeln!(out, "  {clean:>11}  {:>5}  {span}", here.len());
+        }
+        if judged.len() < self.draws.len() {
+            let _ = writeln!(
+                out,
+                "  ({} draw(s) printed no census and are excluded from the distribution)",
+                self.draws.len() - judged.len()
+            );
+        }
+        let _ = writeln!(out);
+        let _ = writeln!(
+            out,
+            "  A count of draws is not a probability. It is this board, this firmware and this \
+             build, and DECISIONS 138 is where the mechanism lives; see notes/soak.md."
+        );
+        out
+    }
+}
+
+/// The `s` in "3 draws". One draw is not "1 draws", and a report a person pastes into a note is
+/// read by people.
+fn plural(n: usize) -> &'static str {
+    if n == 1 { "" } else { "s" }
+}
+
+fn describe(ending: &Ending) -> String {
+    match ending {
+        Ending::Rebooted => "rebooted".to_string(),
+        Ending::Disarmed => "DISARMED (a key was pressed; the series ends here)".to_string(),
+        Ending::Refused => {
+            "REFUSED (the firmware does not do SRST reset type 1; see the log)".to_string()
+        }
+        Ending::Failed(why) => format!("FAILED: {why}"),
+        Ending::Truncated => "log ends here".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **The clean-core count, against the arrangement radon actually printed.**
+    ///
+    /// This census is quoted from notes/soak.md's record of the 17:06 run's settled arrangement,
+    /// which is the only one this project has off a board. Three of the four grinders are on core
+    /// 3 and core 4 holds no grinder at all, so the count is: core 1 clean, core 2 has a grinder,
+    /// core 3 has grinders, core 4 has callers and a responder and no grinder. Two clean cores,
+    /// which is what a 188,687/s run is expected to look like.
+    #[test]
+    fn the_settled_arrangement_off_radon_counts_two_clean_cores() {
+        let log = concat!(
+            "soak: started 4 groups\n",
+            "soak-census: where the workers are NOW: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=1 threads=7 C0 C1 W1 R2 C3 C3 W3\n",
+            "soak-census: core=2 threads=7 R0 C0 R1 C1 C2 C2 G3\n",
+            "soak-census: core=3 threads=6 C0 G0 C1 G1 G2 C3\n",
+            "soak-census: core=4 threads=4 W0 C2 W2 R3\n",
+            "soak: t=5s beat=1 rounds=943435 rate=188687/s workers=24\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.draws.len(), 1);
+        assert_eq!(series.draws[0].cores, Some(4));
+        assert_eq!(series.draws[0].clean_cores, Some(2));
+        assert_eq!(series.draws[0].rate, Some(188_687));
+        assert_eq!(series.draws[0].ending, Ending::Truncated);
+    }
+
+    /// **A core holding only waiters is not clean.** It carries no grinder, and counting it would
+    /// report three clean cores on an arrangement whose IPC lives on two.
+    #[test]
+    fn a_core_with_only_tick_waiters_is_not_clean() {
+        let log = concat!(
+            "soak: started\n",
+            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=2 W0 W1\n",
+            "soak-census: core=1 threads=3 R0 C0 C0\n",
+            "soak-census: core=2 threads=1 G0\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.draws[0].clean_cores, Some(1));
+        assert_eq!(series.draws[0].cores, Some(3));
+    }
+
+    /// **The last census wins, because the spawn one is the ticket and not the result.**
+    ///
+    /// The spawn block here has two clean cores and the re-census has none. notes/soak.md records
+    /// that on radon the arrangement converges once, about twenty-five seconds in, and then holds;
+    /// judging on the spawn block would misattribute every run.
+    #[test]
+    fn a_re_census_replaces_the_spawn_census() {
+        let log = concat!(
+            "soak: started\n",
+            "soak-census: where the kernel placed each worker at spawn: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=2 R0 C0\n",
+            "soak-census: core=1 threads=2 R1 C1\n",
+            "soak: t=5s beat=1 rate=300000/s drifted=4\n",
+            "soak-census: where the workers are NOW: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=3 R0 C0 G0\n",
+            "soak-census: core=1 threads=3 R1 C1 G1\n",
+            "soak: t=10s beat=2 rate=23000/s drifted=0\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.draws[0].clean_cores, Some(0));
+        assert_eq!(series.draws[0].rate, Some(23_000));
+        assert_eq!(series.draws[0].beats, 2);
+    }
+
+    /// **Three boots in one capture, each ending its own way**, which is the shape of the log a
+    /// bench run produces and the thing no single-boot reader can report.
+    #[test]
+    fn a_series_separates_boots_and_records_how_each_ended() {
+        let log = concat!(
+            "U-Boot SPL 2021.10\n",
+            "soak: started\n",
+            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=2 R0 C0\n",
+            "soak-census: core=1 threads=1 G0\n",
+            "soak: t=120s beat=24 rate=342000/s\n",
+            "soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
+            "U-Boot SPL 2021.10\n",
+            "soak: started\n",
+            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=3 R0 C0 G0\n",
+            "soak-census: core=1 threads=1 C1\n",
+            "soak: t=120s beat=24 rate=184000/s\n",
+            "soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
+            "U-Boot SPL 2021.10\n",
+            "soak: started\n",
+            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=2 R0 C0\n",
+            "soak-census: core=1 threads=2 R1 C1\n",
+            "soak: t=15s beat=3 rate=347000/s\n",
+            "soak-reboot: DISARMED at t=15s: a byte arrived on this console.\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.attempts, 3);
+        assert_eq!(series.draws.len(), 3);
+        assert_eq!(series.draws[0].clean_cores, Some(1));
+        assert_eq!(series.draws[0].ending, Ending::Rebooted);
+        assert_eq!(series.draws[1].clean_cores, Some(1));
+        assert_eq!(series.draws[2].clean_cores, Some(2));
+        assert_eq!(series.draws[2].ending, Ending::Disarmed);
+
+        let report = series.report();
+        assert!(report.contains("3 draws from 3 board boots"));
+        assert!(report.contains("DISARMED"));
+        // Two draws at one clean core, spanning the two rates; one at two.
+        assert!(report.contains("184000-342000/s"), "{report}");
+    }
+
+    /// **A boot that never announced a workload is counted as an attempt and nothing else**, which
+    /// is the only way a wedge at 2am shows up in a tally at all.
+    #[test]
+    fn a_boot_that_never_soaked_is_visible_as_a_missing_draw() {
+        let log = concat!(
+            "U-Boot SPL 2021.10\n",
+            "soak: started\n",
+            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=2 R0 C0\n",
+            "soak: t=120s beat=24 rate=342000/s\n",
+            "soak-reboot: rebooting now\n",
+            "U-Boot SPL 2021.10\n",
+            "### ERROR ### Please RESET the board ###\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.attempts, 2);
+        assert_eq!(series.draws.len(), 1);
+        assert!(
+            series
+                .report()
+                .contains("1 boot(s) never reached the workload")
+        );
+    }
+
+    /// **A firmware that refuses the reset ends the series and says which**, which is the outcome
+    /// this milestone could not check without the board and the reason the kernel prints
+    /// `sbiret.error` rather than halting quietly.
+    #[test]
+    fn a_refused_reset_is_its_own_ending() {
+        let log = concat!(
+            "soak: started\n",
+            "soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
+            "soak-reboot: FAILED: the firmware refused a cold reboot and returned sbiret.error=-2\n",
+        );
+        let series = tally(log);
+        // `rebooting now` is printed first and the refusal follows it, so the first ending seen is
+        // the wrong one. The refusal is the finding, so it must win. This test failed on the first
+        // version of `tally`, which took the first ending it met, and that is why the endings are
+        // ranked.
+        assert_eq!(series.draws[0].ending, Ending::Refused);
+    }
+
+    /// **A draw with no census is counted and not judged**, so a log of good boots and truncated
+    /// ones does not read as a log of good boots.
+    #[test]
+    fn a_draw_with_no_census_is_excluded_from_the_distribution_and_not_from_the_series() {
+        let log = concat!(
+            "soak: started\n",
+            "soak: t=5s beat=1 rate=100/s\n",
+            "soak-reboot: rebooting now\n",
+            "soak: started\n",
+            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-census: core=0 threads=2 R0 C0\n",
+            "soak: t=5s beat=1 rate=200/s\n",
+        );
+        let series = tally(log);
+        assert_eq!(series.draws.len(), 2);
+        assert_eq!(series.draws[0].clean_cores, None);
+        assert_eq!(series.draws[1].clean_cores, Some(1));
+        assert!(
+            series
+                .report()
+                .contains("1 draw(s) printed no census and are excluded")
+        );
+    }
+
+    /// **The real QEMU capture parses**, so the recogniser is exercised against text a machine
+    /// printed rather than only against text this test wrote. That capture predates the census, so
+    /// its draw is unjudged, which is itself the case the bug above describes.
+    #[test]
+    fn the_captured_qemu_soak_reads_as_one_unjudged_draw() {
+        let log = include_str!("../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log");
+        let series = tally(log);
+        assert_eq!(series.draws.len(), 1, "one boot, one draw");
+        assert!(series.draws[0].rate.is_some(), "its beats were read");
+        assert_eq!(series.draws[0].ending, Ending::Truncated);
+    }
+}
