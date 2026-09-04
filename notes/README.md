@@ -1139,9 +1139,10 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [How portable kernels are written](portability.md): what actually goes in `arch/` (a
   surprisingly short list), what can't be abstracted (the memory model), and why the second
   port should come early and be as alien as possible.
-- [Where nife could actually run](target-hardware.md): the ISA is almost never the
-  constraint. What decides bootability, why a Pi 4 is the next port, and why the port
-  *after* it should probably be a UEFI/ACPI machine rather than another Device Tree board.
+- [Where nife could actually run, and what the three bench machines are named](target-hardware.md):
+  the ISA is almost never the constraint. What decides bootability, why a Pi 4 is the next port,
+  why the port *after* it should probably be a UEFI/ACPI machine rather than another Device Tree
+  board, and the table that resolves `argon`, `radon` and `xenon` to actual hardware.
 - [The aarch64 board for the seL4 comparison](aarch64-board-survey.md): milestone 25's leftover
   needs a real PMU, and the board has to be one sel4bench *really* runs on, read from seL4's own CI
   configs rather than the support matrix. The three evidence tiers, the candidate table with checked
