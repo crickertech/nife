@@ -2,80 +2,201 @@
 
 **Status: NOT-STARTED.** Minted 2026-09-03 by calef, from the first bench session that ran milestone
 159's (a real hardware entropy source: the JH7110's TRNG) driver on the board it was written for.
-*(Number provisional until the merge queue lands it.)*
+**The premise in that title is false and the title is kept anyway**, because milestone 241 (what a
+fourth board would have to be for, so that GICv3 is bought rather than justified) cites this
+milestone by that name and a lane does not edit another milestone's block. Read the title as the
+diagnosis this work was minted on; the section below is what it turned out to be. The token follows
+milestone 218's (every boot of the VisionFive 2 needs a human typing four commands into U-Boot)
+precedent exactly: **a route was taken on 2026-09-03 and radon was powered off, so the status says
+what the outcome is rather than what was built.**
 
-**Gate: NONE.** The diagnosis needs two commands at a U-Boot prompt, and the fix is a boot-path
-change rather than hardware.
+**Gate: HARDWARE.** Everything that does not need the board is built, host-tested and merged; what
+remains is two commands at a U-Boot prompt and one boot, and QEMU cannot stand in, because the
+`virt` machine has no JH7110 anything.
 
-**In brief.** radon booted nife hands-free on 2026-09-03 (milestone 218, every boot of the
-VisionFive 2 needs a human typing four commands into U-Boot, confirmed on the board that day) and
-the tour reported:
+**In brief, and the brief is a correction.** radon booted nife hands-free on 2026-09-03 (milestone
+218) and the tour reported:
 
 ```
 hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; QEMU virt has none)
 ```
 
-**The silicon has a TRNG and the device tree does not mention it.** Milestone 159's driver looks for
-`compatible = "starfive,jh7110-trng"` at `reg = <0x1600C000 0x4000>`, transcribed from Linux's own
-binding (`Documentation/devicetree/bindings/rng/starfive,jh7110-trng.yaml`) and its driver
-(`drivers/char/hw_random/jh7110-trng.c`). The node is in Linux's `jh7110.dtsi`. It is apparently not
-in the tree radon actually hands us.
+The line was true. The conclusion drawn from it, that the tree omits the device, was not. **The tree
+radon hands us does describe the TRNG. It describes it under a different node name and a different
+`compatible` string, and calls it disabled.**
 
-**So this is not milestone 159's driver and not milestone 220** (this kernel drives no clock or
-reset controller, and the first real device will need one). 159's block anticipated exactly this as
-one of its five possible outcomes, and the outcome it names routes here rather than to either of
-those.
+## What it actually is
 
-## Where the tree comes from, which is the whole question
-
-The boot script does `fdt addr ${fdtcontroladdr}` and `fdt move ${fdtcontroladdr} 0x86000000`, so
-**nife is handed U-Boot's own control device tree**: a vendor U-Boot dated February 2023, describing
-what U-Boot needs rather than what the SoC has. That was the right choice when milestone 16a made it,
-and `notes/visionfive2.md` records why: the control DTB describes the board correctly, and the
-alternative addresses landed outside the kernel's boot page table.
-
-**Nobody has read what is actually in it.** Two commands at the prompt settle it, and milestone 159's
-block already asks for them:
+`fdt addr ${fdtcontroladdr}` hands nife the vendor U-Boot's own control device tree: U-Boot 2021.10,
+`Build: jenkins-VF2_515_Branch_SDK_Release-24`, dated `Feb 12 2023`, from the board's own banner in
+`crates/board_console/tests/fixtures/captured/vf2-2026-09-01-manual-boot.log`. That tree is compiled
+from `arch/riscv/dts/jh7110.dtsi` in StarFive's U-Boot fork, and that file says:
 
 ```
-StarFive # fdt addr ${fdtcontroladdr}
-StarFive # fdt print /soc/rng@1600c000
+trng: trng@1600C000 {
+	compatible = "starfive,trng";
+	reg = <0x0 0x1600C000 0x0 0x4000>;
+	clocks = <&clkgen JH7110_SEC_HCLK>,
+		 <&clkgen JH7110_SEC_MISCAHB_CLK>;
+	clock-names = "hclk", "miscahb_clk";
+	resets = <&rstgen RSTN_U0_SEC_TOP_HRESETN>;
+	interrupts = <30>;
+	status = "disabled";
+};
 ```
 
-## The shapes a fix could take, none chosen
+Read at commit `bfbdce9b86a2` (2023-01-06), the last change to that file before the flashed
+firmware's build date, and unchanged at that branch's head:
+<https://github.com/starfive-tech/u-boot/blob/bfbdce9b86a2/arch/riscv/dts/jh7110.dtsi>. Mainline
+Linux spells the same device `rng@1600c000`, `compatible = "starfive,jh7110-trng"`, and that is what
+`crates/jh7110_trng` was written against.
 
-- **Load a fuller DTB from the card** and pass that instead of `${fdtcontroladdr}`. A `board.dtb`
-  has been sitting on radon's card since 2026-09-01 and nobody has checked what it contains; it was
-  deliberately left there when the stale test images were removed, precisely because it might be
-  this.
-- **Carry a minimal overlay** adding the node Linux's `jh7110.dtsi` already has. Smaller, and it
-  makes this project the author of a hardware description, which is a different kind of claim.
-- **Accept the vendor tree's limits** and record that the TRNG is out of reach until the boot path
-  supplies a fuller description. Honest, and it leaves fatal risk 6 (a capability-confined userspace
-  driver cannot drive real hardware at real speed) without the device milestone 159 was built to
-  give it.
+**Every observation from the bench holds, and none of them meant what it was read to mean.**
 
-## Why it matters beyond entropy
+| What was seen on 2026-09-03 | What it was read as | What it was |
+|---|---|---|
+| `fdt print /soc/rng@1600c000` -> `FDT_ERR_NOTFOUND` | no such device in the tree | no such **path**: the node is `trng`, not `rng`, and its unit address carries an **upper-case C**, so `/soc/trng@1600c000` misses too |
+| `fdt list /soc` -> 56 nodes, no random number generator | the device is absent | `trng@1600C000` is one of the 56; it was not recognised |
+| `crypto@16000000` and `sec_dma@16008000` present, their neighbour absent | a specific omission, so a firmware build choice | both are spelled identically in the two trees, so both matched a reader's eye where the third did not |
+| `hw entropy : skipped (... describes no starfive,jh7110-trng ...)` | the tree names no TRNG | the tree names no `starfive,jh7110-trng`, which is a narrower claim than the sentence reads as, and it was the exact truth |
 
-**A device tree that describes less than the chip has is a limit on every future driver**, not just
-this one. The same question will be asked by the GMAC (milestone 53), by the PCIe root complex
-(milestone 163), and by anything else that needs a node to be discovered. Answering it once, with a
-recorded reason, is worth more than answering it for the TRNG.
+**The three shapes of fix this block was minted with are all answers to a question that was not the
+question.** Loading a fuller DTB from the card, carrying an overlay, and accepting the vendor tree's
+limits all assume a missing node. Nothing is missing.
 
-**And it already changed a second number.** The same boot reported `capability slots: 4 of 24 at
-peak`, against 21 in QEMU. That is not a different measurement, it is the same finding: milestone 230
-(`script/shell-check` is red on `main`, on both architectures, and nothing says so) established that
-`have_login_stack` requires an entropy client, so no TRNG node means no entropy, which means no login
-stack, which means a much smaller peak. **The 24-slot ceiling was sized against a QEMU boot richer
-than the real board's.**
+## Why the vendor tree spells it that way, which decides whether to trust it
+
+`starfive,trng` is not a different device and it is not a different register block. It is a stale
+fork, and there are two pieces of evidence rather than an argument:
+
+- **StarFive's own kernel driver had already moved on.** `drivers/char/hw_random/starfive-trng.c` in
+  `starfive-tech/linux` matched `starfive,jh7110-trng` at commit `202b558ae34c`, 2022-12-14, two
+  months before this firmware was built
+  (<https://github.com/starfive-tech/linux/blob/202b558ae34c/drivers/char/hw_random/starfive-trng.c>).
+  Its register `#define`s are `CTRL` 0x00, `STAT` 0x04, `MODE` 0x08, `SMODE` 0x0C, `IE` 0x10,
+  `ISTAT` 0x14, `RAND0`..`RAND7` 0x20..0x3C, `AUTO_RQSTS` 0x60, `AUTO_AGE` 0x64, with the same
+  `CTRL`/`STAT`/`ISTAT` bit positions mainline's `jh7110-trng.c` carries. Two drivers written
+  against one IP block agree completely, which is what makes accepting the vendor string a claim
+  about a spelling rather than a claim about silicon.
+- **Nobody on their side had a reason to notice.** Linux on this board is handed the kernel
+  package's own DTB. It never sees U-Boot's, so U-Boot's copy could drift for a year without
+  costing StarFive anything. It costs us, because nife takes U-Boot's tree and nothing else.
+
+**And the `status = "disabled"` is U-Boot's, not the board's.** StarFive's Linux enables the
+identical node from `jh7110-common.dtsi` (`&trng { status = "okay"; };`), along with `&crypto` and
+`&sec_dma`. U-Boot marks it disabled because U-Boot has no driver for it.
+
+## What was built, and the one decision inside it
+
+`crates/jh7110_trng::discover` now tries mainline's `starfive,jh7110-trng` first and the vendor's
+`starfive,trng` second, reads every property against the string that matched, and carries two new
+facts out: which spelling it was, and what the node's `status` says.
+
+**`status` is reported and not acted on**, which is the decision. Refusing a node the firmware calls
+disabled would be correct device-tree semantics and wrong here, and this tree already has the reason
+written down in the other direction: the same DTB marks the S7 monitor core `status = "okay"` and
+claims it has an Sv39 MMU, and both are false (notes/visionfive2.md, "Second bench stop"). A tree
+that lies about `status` in one direction has not earned obedience in the other. So the boot tour's
+failure line now carries the tree's own two words (`tree says starfive,trng, status disabled`)
+beside the bring-up diagnostic, because those two facts together are what triage needs: an all-zero
+register window on a node the firmware calls disabled is a clock or a reset nobody ungated, which is
+milestone 220's (a clock and reset controller, because the first real device needs one) territory
+rather than a driver bug.
+
+The skip line names both strings now. The old wording was the exact truth and was still read as a
+stronger claim than it made, which is a defect in the line rather than in the reader. Observed on a
+riscv64 boot under QEMU on 2026-09-03 (`script/soak --arch riscv64`), which is the only machine
+available to say it:
+
+```
+hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither)
+```
+
+**The fixture is transcribed, not captured**:
+`crates/jh7110_trng/tests/fixtures/jh7110-trng-vendor-uboot.dts`, from the firmware's own source at
+the commit above, wrapped in the `/soc` node with the two-cell `#address-cells`/`#size-cells` that
+were measured off the board and are already committed in
+`crates/machine_discovery/tests/fixtures/visionfive2-uboot-control.dts`. `dtc` warns
+`simple-bus unit address format error, expected "1600c000"` when compiling it, which is the
+upper-case C being genuinely irregular rather than a transcription slip.
+
+## What is left, and it is a bench session
+
+**Nothing in this milestone has run on radon.** The board was powered off when the work was done and
+there was no bench session. Two commands and one boot settle all of it.
+
+1. At the `StarFive #` prompt, with a serial terminal that can type (`screen /dev/cu.usbmodem*
+   115200`; `script/board-console` deliberately cannot type):
+
+   ```
+   StarFive # fdt addr ${fdtcontroladdr}
+   StarFive # fdt print /soc/trng@1600C000
+   ```
+
+   **The upper-case C is required** and is the whole reason the first attempt missed. If that path
+   is not found, fall back to `fdt list /soc` and read the whole list rather than scanning it for a
+   word.
+
+2. Then let the board boot normally (the card's `boot.scr.uimg` needs nothing typed) and read the
+   `hw entropy` line, which is the last line of the tour before the banner.
+
+| What comes back | What it means |
+|---|---|
+| `fdt print` shows the node, `compatible = "starfive,trng"`, `status = "disabled"` | **The finding above is confirmed.** Whatever the `hw entropy` line then says is about the device, not about the tree |
+| `hw entropy : JH7110 TRNG at 0x1600c000 served 32+32 bytes ...` | **Milestone 159's line, and fatal risk 6 answered.** Record it whole; the tree question is closed and this block is BUILT |
+| `hw entropy : FAILED: ... (tree says starfive,trng, status disabled): ... bring-up diagnostic 0x0000000000000000 ...` | The node was found and the register window read as nothing. The expected outcome if the firmware never ungated the block's clocks or deasserted its reset, which is exactly what `status = "disabled"` predicts. **This routes to milestone 220**, not back here |
+| `hw entropy : FAILED: ... bring-up diagnostic 0x<nonzero> ...` | The device answered and the driver's sequence is wrong. Milestone 159's own table decodes the word |
+| `hw entropy : skipped (... neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng ...)` | **The node really is absent from the running firmware's tree**, whatever its source says, and this block's three original shapes of fix come back. Capture the tree (`fdt print` to a file, or the raw dump route notes/visionfive2.md's PLIC fixture used) before deciding anything |
+| `fdt print` finds the node but the boot still skips | A discovery bug, not a tree question. The fixture test says the decode works on this shape, so suspect the `/soc` wrapper's cells or a node deeper than `crates/dtb`'s `MAX_DEPTH` of 16 |
+
+## Follow-on
+
+- **Done.** `crates/jh7110_trng::discover` accepts both spellings, carries which one matched and the
+  node's `status`, and is host-tested against a fixture transcribed from the firmware's own source.
+- **Done.** notes/visionfive2.md's "The TRNG is not in the tree" section carries the correction
+  beside the original reading, rather than replacing it, and its "To measure at the bench" item 9
+  now asks the question that can actually be answered.
+- **Recorded.** Milestone 159's step-4 outcome table still quotes the old skip line
+  (`... describes no starfive,jh7110-trng; ...`) and still reads that line as "the board's own
+  device tree has no TRNG node". Both are now stale. A lane does not edit another milestone's block,
+  so the corrected table is the one above and 159's is superseded by it; the maintainer owns
+  reconciling them.
+- **Milestone 220.** A clock and reset controller. If the bench run comes back with an all-zero
+  bring-up diagnostic, that is not a defect in this milestone or in 159: it is the firmware never
+  having ungated a block it calls disabled, and 220 is where it goes. This milestone's work makes
+  that outcome distinguishable from "no such device", which it was not before.
+- **Refused.** Shipping a fuller DTB from the card, or an overlay, or a `fdt mknode` sequence in the
+  boot script. All three were priced and all three lost to a four-line decoder change: they make
+  this project the author of a hardware description, they change every discovery input at once on a
+  board nobody can currently test, and the boot-script route additionally depends on the vendor
+  U-Boot's `fdt` subcommands and on a node path with an upper-case C in it. The one thing they would
+  buy over the decoder change is flipping `status` to `okay`, and that buys nothing: U-Boot has no
+  driver for this block either way, so no `fdt set` ungates a clock.
+- **Refused.** Further work on the device-tree source itself. The general worry this block was
+  minted with, that a tree describing less than the chip has is a limit on every future driver, did
+  not survive contact: the vendor tree describes 56 nodes under `/soc` including this one. What it
+  has is stale *names*, and the answer to a stale name is to match both, at the one place that reads
+  it.
 
 ## BUGS
 
-- **The premise is one line of tour output**, not a device-tree dump. It is consistent with the
-  driver's discovery logic and with `capability slots: 4 of 24`, and it has not been confirmed by
-  reading the tree.
-- **This block assumes the node's absence is the vendor U-Boot's doing.** It could equally be a
-  build-time choice in that firmware, in which case the fix might be a firmware update rather than a
-  tree we supply, and that is a different piece of work.
-- **Nothing here says what other nodes are missing.** The TRNG is the one a driver happened to look
-  for. Whatever else the vendor tree omits is unknown and unexamined.
+- **Nothing here has touched silicon.** The node's presence in the running firmware's tree is
+  inferred from that firmware's source at the right vintage, not read off the board. It is a strong
+  inference (the model string, the two neighbour nodes, and the PLIC node in
+  `crates/machine_discovery/tests/fixtures/visionfive2-uboot-control.dts` all match that source) and
+  it is still an inference. The `fdt print` above is what turns it into a fact.
+- **The firmware could have been built from a tree this repository has not read.** The banner names
+  a Jenkins build of a release branch, not a commit, so "the last change before Feb 12 2023 on
+  `JH7110_VisionFive2_devel`" is a reasonable reading of which source went in and not a proven one.
+  The last row of the table above is what that possibility looks like from the boot tour.
+- **Accepting `starfive,trng` is a claim about a register layout, made from two drivers agreeing.**
+  Neither driver was run. If the vendor tree's node were somehow a different block at the same
+  address, this change would hand a confined userspace process a mapping of it, which is the same
+  authority milestone 159 already grants and no more.
+- **`status` is read and deliberately ignored.** A future device whose tree honestly says
+  `disabled`, meaning it, will be driven anyway. That is the right trade for this board and it is
+  not obviously right for the next one; the field is there so a caller can change its mind without
+  changing the decoder.
+- **The `dtb` crate's `MAX_DEPTH` is 16 and this fixture's node sits at depth 3.** The real control
+  DTB's `/soc/trng@1600C000` is at the same depth, so the limit is not in play, but nothing in the
+  test proves that about the real tree because the real tree is not in the test.
