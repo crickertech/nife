@@ -1,7 +1,14 @@
 # 247. Follow-on work named by a finished milestone goes nowhere, and this is the third time
 
-**Status: BUILT 2026-09-03.** Minted 2026-09-03 by calef, after milestone 244 named work that would have
-been buried had he not asked for it by name. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT** on 2026-09-03. Minted the same day by calef, after milestone 244 named work that
+would have been buried had he not asked for it by name. Landed as pull request #692: the
+`## Follow-on` section, its dispositions, the sweep of all 139 finished blocks, and
+`design/roadmap/proposals/`.
+
+*(Status corrected by milestone 252's lane. It merged still reading IN-PROGRESS on its own branch,
+which `script/roadmap --check` refuses, so `main` was red for every lane until somebody moved it.
+That is the milestone-69 defect this very family of gates exists to catch, happening to the block
+that added the newest member of the family, one merge after it landed.)*
 
 **In brief.** calef, 2026-09-03: *"we keep burying work identified by completed milestones."*
 
