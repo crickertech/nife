@@ -248,14 +248,25 @@ where the `arch/` boundary either holds up or gets exposed as fiction.
 
 Graviton bare metal costs a few dollars an hour, with no hardware to buy or brick.
 
-## The plan
+## The plan, and what actually happened
 
-1. **Raspberry Pi 4 is the next port.** Cheap, open, enormous community, and it delivers the
-   "I ran my OS on a computer I can hold" moment, which is worth more motivationally than it
-   sounds. It teaches us what real hardware quirks feel like.
-2. **Then a UEFI/ACPI target**, precisely because it is alien. This is the one that tests
-   whether the hardware abstraction boundary is real.
-3. **Apple Silicon as the trophy.** Hardest, most impressive, and we already own the machine.
+**This section was written before the recast at the top of the page and was never reconciled with
+it.** It is kept because the reasoning was sound and the outcome is a better answer to it than the
+plan was, but read it against the record rather than as a queue.
+
+1. ~~**Raspberry Pi 4 is the next port.**~~ **It was not.** The recast of 2026-07-27 made first
+   silicon a VisionFive 2 instead, on the argument this note's own thesis supplies: the ISA is
+   almost never the constraint, so the board whose firmware contract the kernel already speaks
+   wins. radon booted nife and delivered the "I ran my OS on a computer I can hold" moment this
+   item was really about. The aarch64 board is argon, a Jetson, and no Pi was bought.
+2. **Then a UEFI/ACPI target, precisely because it is alien.** **This one happened, and it did
+   exactly what it was predicted to do.** xenon (milestone 87) boots from real firmware, and the
+   places it broke were the boundary: a loader that had to place an image at physical addresses,
+   a low-memory range the firmware holds, and a framebuffer console because the serial chain was
+   not the channel that worked. notes/x86-uefi-boot.md and notes/xenon-firmware.md.
+3. **Apple Silicon as the trophy.** Still the trophy, still not attempted bare metal. What exists
+   is the HVF leg (notes/hvf-leg.md): the aarch64 suite on the physical core under Apple's
+   hypervisor, which is a flag rather than a port and was never claimed to be the trophy.
 
 ---
 

@@ -205,8 +205,9 @@ in the code or the conversation doesn't make sense, it belongs here.
 ## Rust
 
 - [Vec, Box, String, BTreeMap](collections.md): the four types the heap gave back. Why
-  `Box` is what makes a recursive type finite, why `Vec` doubles, why `&str` works in
-  `no_std` and `String` doesn't, and why a kernel uses `BTreeMap` and not `HashMap`.
+  `Box` is what makes a recursive type finite, why `Vec` doubles, and why `&str` works in
+  `no_std` and `String` doesn't. Its closing gap table was corrected in 2026-09-05's sweep: five of
+  its six rows had been built, and the kernel it describes no longer has a heap at all.
 - [`no_std`](no-std.md): why the kernel can't use the standard library, what `core` still
   gives us, and how we earn each missing piece back by building the thing `std` assumed.
 
@@ -705,8 +706,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   finding 6 one layer down (the IOMMU confines placement, not values). `mdns_proto`'s decoder and the
   cred/ntlm secret handling are cleared, with the reachability and scope caveats attached.
 - [A security audit](security.md): an adversarial four-part review of the whole kernel. The
-  MMU and capability confinement held up; two panics on untrusted input were fixed; the DMA/no-IOMMU
-  limitation and the missing resource quotas are named rather than hidden.
+  MMU and capability confinement held up and two panics on untrusted input were fixed. Read as a
+  dated record: the review ran after milestone 11, and its closing conditions (single core, no
+  delegation, no IOMMU, no quotas) have all moved since, which the page now says at the bottom
+  rather than leaving a reader to infer.
 - [Rustdoc coverage](doc-coverage.md): the doc-example floor and the `missing_docs` ratchet
   (milestone 68's two unfinished halves). Every crate now has a worked example (49 doctests became 116); item documentation is
   a 401-item worklist with a per-crate opt-in in the 23 crates already clean. Two findings worth
@@ -1152,9 +1155,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   surprisingly short list), what can't be abstracted (the memory model), and why the second
   port should come early and be as alien as possible.
 - [Where nife could actually run, and what the three bench machines are named](target-hardware.md):
-  the ISA is almost never the constraint. What decides bootability, why a Pi 4 is the next port,
-  why the port *after* it should probably be a UEFI/ACPI machine rather than another Device Tree
-  board, and the table that resolves `argon`, `radon` and `xenon` to actual hardware.
+  the ISA is almost never the constraint. What decides bootability, the table that resolves
+  `argon`, `radon` and `xenon` to actual hardware, and a plan section kept against its own outcome:
+  the Pi 4 it named as the next port was never bought, and the UEFI/ACPI machine it wanted second
+  is xenon, which had first light on 2026-09-05 and broke in exactly the places the plan predicted
+  a boundary test would.
 - [The aarch64 board for the seL4 comparison](aarch64-board-survey.md): milestone 25's leftover
   needs a real PMU, and the board has to be one sel4bench *really* runs on, read from seL4's own CI
   configs rather than the support matrix. The three evidence tiers, the candidate table with checked
