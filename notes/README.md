@@ -110,10 +110,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   stale is a string in a shell script; and a priced proposal for deriving the one list the tree
   already has in `rust-toolchain.toml`.
 
-- [Handing a session over](session-handoff.md): what a fresh context needs to pick this up:
-  the standing autonomy grant, the merge and lane discipline, which gates are cheap and which
-  are slow, and the traps that have cost real time more than once (leaked QEMU, fixed-iteration
-  waits that measure host load, ceilings that grow with the suite rather than the system).
+- [Handing a session over](session-handoff.md): **superseded, and this entry advertised it as
+  current for thirty-eight days.** Written 2026-07-29 as a restart point for one session, and its
+  own opening asked to be deleted or overwritten once stale. What a fresh context needs now is
+  `AGENTS.md` (roles, merge authority, lane discipline) and `design/roadmap/README.md` (the queue).
+  The page is kept for its account of what landed on 2026-07-29, which is the only narration
+  several of those decisions have, and it now carries a banner saying not to follow its process.
 
 ## Devices
 

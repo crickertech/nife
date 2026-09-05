@@ -90,7 +90,7 @@ Two registers beyond the general-purpose file are essential:
   the program counter from it.
 - **`SPSR_EL1`**: Saved Program Status Register. The processor state (condition flags,
   exception level, interrupt masks) at the moment of the exception. `eret` restores it, and
-  **that includes the exception level**, which is exactly how milestone 7 will enter userspace:
+  **that includes the exception level**, which is exactly how milestone 7 entered userspace:
   set `SPSR_EL1` to say EL0, and `eret` drops privilege.
 
 ### The layout is a contract with assembly
