@@ -1,12 +1,11 @@
 # 159. A real hardware entropy source: the JH7110's TRNG
 
-**Status: NOT-STARTED.** Minted 2026-08-23, surfaced while investigating milestone 49's boot-wiring
+**Status: BUILT 2026-09-04.** Minted 2026-08-23, surfaced while investigating milestone 49's boot-wiring
 fork (DECISIONS §120): the entropy service (milestone 56, `BUILT`) only has a virtio-rng backend,
 which exists in QEMU and not on the VisionFive 2 the tree already boots (milestone 16a). Checked
 before minting: the StarFive JH7110's TRNG is already named as the real-hardware candidate in two
 places (`notes/entropy.md`, milestone 56's own doc) and tracked by no milestone in either.
 
-**Gate: HARDWARE.** In milestone 53's sense: the board is on the desk and this needs hands on it.
 The driver's own logic can be written and host-tested without silicon; whether it actually produces
 usable entropy, and at what rate, can only be verified by reading real bits off a real TRNG.
 
@@ -186,6 +185,56 @@ because nothing here has a driver for the JH7110's TRNG.
   testing" section for the full argument, and treat this as a candidate for a PROPOSED entry in
   `design/decisions/` if calef wants the question tracked formally rather than left in this
   paragraph and the crate's own doc.
+
+## It served, 2026-09-04, and the experiment is run
+
+**The success line printed.** Two boots of radon, transcript at
+`target/board/radon-2026-09-04-trng-success.log`:
+
+```
+hw entropy : JH7110 TRNG at 0x1600c000 served 32+32 bytes to a client through a capability
+             that names no device; first draw 3faa07e1.., second differs;
+             STAT after init 0x00040308 (256-bit: all eight RAND words are the answer)
+```
+
+**Four things had to be true at once and each was fixed separately:** milestone 239 taught `discover`
+the vendor U-Boot's `starfive,trng` spelling; milestone 220 clocked the block and released its reset;
+this milestone's `fill` replaced a `get` that asked for 32 bytes down a channel carrying 8, so the
+tour's success line had been **unreachable on any device, working or dead, since the day it was
+written**; and `ISTAT`'s `R/W1C` clear stopped the second generation returning the first one's
+latched register file.
+
+**It is a measurement rather than an anecdote**, which is what the bench procedure above asks for.
+Two boots, and the first draw differs across them:
+
+| boot | first draw | second draw |
+|---|---|---|
+| 1 | `3faa07e1` | differs |
+| 2 | `731191ba` | differs |
+
+So the device is **reseeded per boot** rather than returning a constant baked into silicon or a stale
+register file, and each boot's two draws differ from each other, so the pool is genuinely refilled
+between them.
+
+**And the one question no documentation could settle is answered.** `STAT after init 0x00040308`
+reports **256-bit** mode, so all eight `RAND` words are the answer and no byte-count correction is
+owed. It is a build-time silicon parameter; the lane that wrote `MODE.R256` recorded that one bench
+line would close it, and it did.
+
+### What it establishes for fatal risk 6, and what it does not
+
+Risk 6 is *a capability-confined userspace driver cannot drive real hardware at real speed*, and it
+has three parts:
+
+- **Confined**: demonstrated 2026-09-03. An EL0 process from the archive, reaching the device through
+  a capability that names no device.
+- **Drives real hardware**: demonstrated now, reproducibly, on the tree's only confined driver for a
+  real non-virtio device.
+- **At real speed**: **unmeasured.** The tour prints nothing between `pcie` and `hw entropy`, and
+  nothing timestamps either line, so a stopwatch resolves "under a second, by eye" and no more. That
+  is `design/roadmap/proposals/time-the-hw-entropy-step.md`.
+
+**Nothing here says the driver is fast**, and the block should not be quoted as if it did.
 
 ## The bench ran it, 2026-09-04, and the failure is cleanly attributed
 

@@ -209,6 +209,32 @@ ratified RISC-V IOMMU, over the §18 PCIe transport, and milestone 35 built the 
 it is virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist
 (milestone 143).
 
+**Status: RUN, 2026-09-04. The experiment is run and two of its three parts are green.**
+
+The risk names three things and they were never one claim. Measured on radon, transcript at
+`target/board/radon-2026-09-04-trng-success.log`:
+
+- **Confined: yes**, 2026-09-03. Milestone 159's driver is an EL0 process started from the archive,
+  reaching the JH7110's TRNG through a capability that names no device. This is the tree's only
+  confined driver for a real, non-virtio device.
+- **Drives real hardware: yes**, 2026-09-04, reproducibly. `served 32+32 bytes`, two boots, first
+  draws `3faa07e1` and `731191ba`, each boot's two draws differing from each other. Reseeded per
+  boot rather than a constant in silicon or a stale register file.
+- **At real speed: unmeasured**, and nothing here should be read as answering it. The tour prints
+  nothing between `pcie` and `hw entropy` and nothing timestamps either line, so a stopwatch
+  resolves "under a second, by eye". `design/roadmap/proposals/time-the-hw-entropy-step.md` is the
+  instrument that would.
+
+**What it took is worth recording, because none of it was the driver.** Milestone 239 found the
+device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's
+`starfive,jh7110-trng`. Milestone 220 found the block's clocks gated and its reset asserted, and this
+kernel had never programmed either. And milestone 159's own boot tour asked for 32 bytes down a
+channel that carries 8, so its success line had been **unreachable on any device, working or dead,
+since the day it was written** and survived because QEMU has no TRNG node to take the other arm.
+
+**The remaining part is the one the risk is named for.** A driver that serves entropy slowly still
+refutes nothing; the claim is about cost, and cost is what has not been measured.
+
 **The decisive experiment:** one real, non-virtio device on real silicon, confined, at throughput.
 The JH7110's GMAC (milestone 53) or NVMe behind milestone 163 (the JH7110's PCIe root complex) are
 the candidates.
