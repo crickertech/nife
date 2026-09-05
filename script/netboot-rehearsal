@@ -1,0 +1,703 @@
+#!/bin/sh
+# script/netboot-rehearsal: boot nife the way xenon will, on patagonia, with nothing plugged in (260).
+#
+#   script/netboot-rehearsal                    # the whole path, end to end, ~90 seconds
+#   script/netboot-rehearsal --keep-going       # do not stop QEMU when the marker appears
+#   script/netboot-rehearsal --mac 02:00:00:00:00:01   # NOT xenon; must NOT be offered a boot file
+#   script/netboot-rehearsal --check            # the configuration's answers alone, no QEMU, instant
+#
+# **Name provisional** (AGENTS.md §75: calef names the interfaces). A lane picked
+# `netboot-rehearsal`, hyphenated because `script/` entry points are, and `rehearsal` rather than
+# `netboot-test` because the thing it is standing in for is a bench session with a camera, not a
+# unit under test. `board-netboot-rehearsal` was refused for length and because there is no board.
+#
+# WHAT THIS IS FOR. Milestone 260's proof is a photograph of xenon booting nife with no removable
+# media in it, and getting that photograph costs calef an evening at the bench with no serial
+# console. Everything that can fail on that evening except the physical NIC and the house router
+# can be made to fail here instead, in ninety seconds, repeatedly.
+#
+# WHAT IT ACTUALLY EXERCISES, and each of these is a thing that can be wrong:
+#
+#   * `bench/xenon-netboot/dnsmasq.conf`, PARSED AND OBEYED rather than read. The DHCP answers below
+#     come out of that file: its `dhcp-host` decides whether this MAC is offered anything at all,
+#     its `dhcp-match` decides whether this architecture is, and its `dhcp-boot` supplies the
+#     filename and the server address. A typo in the config fails here.
+#   * `script/board-netboot`, THE REAL ONE, started as a subprocess and serving `target/esp`. The
+#     bytes the firmware executes came out of the same server that will serve xenon. Milestone
+#     260's block lists "has never served a 9 MB single file to a UEFI client" as a bug; this is
+#     what answers it.
+#   * OVMF, which is EDK2, which is the same codebase Dell's firmware is built from. The DHCP
+#     option parsing, the option-93 architecture value, the TFTP `blksize` negotiation and the
+#     PE image loading are all real.
+#   * `uefi_loader` started with NO FILESYSTEM UNDER IT. A PXE-loaded UEFI application has no
+#     simple-file-system on its device handle, and a loader that reached for one would work off a
+#     stick and fail over the wire. This is the only thing that proves it does not.
+#
+# WHAT IT CANNOT EXERCISE, said plainly because a rehearsal that overclaims is worse than none:
+#
+#   * The house router. Nothing in this repository has ever talked to it. This harness implements
+#     the dnsmasq lines' MEANING; it does not prove dnsmasq implements them the same way, and it
+#     does not prove OpenWRT's UI will accept them.
+#   * xenon's own firmware, which is EDK2 but not this EDK2, and which is at BIOS 1.27.0 with a
+#     Broadcom LOM rather than QEMU's e1000.
+#   * The two firmware settings that are calef's (`Enable UEFI Network Stack`, Integrated NIC to
+#     `Enabled w/PXE`). Nothing here can turn those on.
+#   * A real ethernet. There is no cable, no switch, no other host's broadcast traffic and no
+#     packet loss, so a timeout tuned against this harness is tuned against a perfect wire.
+#
+# WHY A FAKE NETWORK RATHER THAN QEMU'S OWN. `-netdev user` has a DHCP server and a TFTP server
+# built in, and pointing them at `target/esp` PXE-boots this image in one line. That was the first
+# thing tried and it works, and it proves the payload; it proves nothing about our config or our
+# server, because neither is in the path. Worse, it cannot be made to include them: slirp's NAT has
+# no TFTP helper, and TFTP moves to a fresh server port after the first packet, so the DATA reply
+# is dropped by the very NAT that was supposed to carry it. `-netdev socket,udp=` hands this script
+# raw ethernet frames instead, and the ~200 lines below are what a router would have done.
+#
+# BUGS
+#   * The fake network is one host, one guest, and no loss. See above.
+#   * The dnsmasq parser understands the four directives this configuration uses and nothing else.
+#     It is deliberately strict: an unrecognised line is an error rather than a shrug, because a
+#     directive silently ignored here is a directive that appears tested and is not.
+#   * IPv6 is not answered at all. EDK2 tries IPv4 PXE first, so this costs nothing today; a
+#     firmware that preferred IPv6 would spend its retries in silence before falling back.
+#   * The client address handed out is this script's, not the config's, because the config
+#     deliberately assigns none (it tags without an address so it cannot collide with the router's
+#     range). So the one DHCP field that is NOT under test is the one that does not matter.
+#   * A guest that never speaks leaves this waiting for the timeout with nothing to say about why.
+#     The `--trace` flag prints every frame, which is the only tool here for that.
+
+set -e
+cd "$(dirname "$0")/.."
+
+exec python3 - "$@" <<'PYEOF'
+"""Boot the staged ESP over a synthetic PXE network, against the real board-netboot."""
+
+import os
+import re
+import select
+import signal
+import socket
+import struct
+import subprocess
+import sys
+import time
+
+ETH_ARP, ETH_IP = 0x0806, 0x0800
+IP_UDP = 17
+BOOTP_SERVER, BOOTP_CLIENT = 67, 68
+TFTP_PORT = 69
+
+# The house network, as the config's own server address implies it. These are the facts a router
+# owns rather than facts the config file states, which is why they are here and not there: the
+# config deliberately assigns xenon no address, so the range it would come from is not in it.
+NET_PREFIX = "192.168.8"
+ROUTER_IP = f"{NET_PREFIX}.1"
+CLIENT_IP = f"{NET_PREFIX}.60"
+NETMASK = "255.255.255.0"
+HARNESS_MAC = bytes.fromhex("525400beef01")
+BOOT_MARKER = "nife x86_64: boot complete"
+
+
+def die(message):
+    sys.exit(f"netboot-rehearsal: {message}")
+
+
+class Pump:
+    """Lines out of a child process, WITHOUT ever blocking on a partial one.
+
+    This class is here because of the bug that cost this harness an afternoon, and the shape of
+    that bug is worth keeping. `select` says a pipe is readable the moment ONE BYTE arrives;
+    `readline()` then waits for the newline. OVMF prints `>>Start PXE over IPv4.` and does not end
+    the line until its DHCP retries give up sixty seconds later, so the harness sat inside
+    `readline()` for a minute with four DHCP DISCOVERs queued behind it, answered all four at once,
+    and every offer arrived long after the client had stopped listening.
+
+    The failure looked exactly like a rejected offer, which is the expensive part: three real
+    theories (the ethernet destination, the option layout, the choice of emulated NIC) were tested
+    and discarded before a packet capture showed all four replies leaving in the same microsecond.
+    Milestone 257 recorded the same shape one board over, a network boot failing in a way that
+    looks like something else entirely.
+    """
+
+    def __init__(self, stream, prefix):
+        self.fd = stream.fileno()
+        self.prefix = prefix
+        self.rest = b""
+        self.lines = []
+        os.set_blocking(self.fd, False)
+
+    def fileno(self):
+        return self.fd
+
+    def drain(self):
+        try:
+            chunk = os.read(self.fd, 65536)
+        except BlockingIOError:
+            return
+        if not chunk:
+            return
+        self.rest += chunk
+        while b"\n" in self.rest:
+            line, self.rest = self.rest.split(b"\n", 1)
+            text = line.decode("utf-8", "replace").rstrip("\r")
+            self.lines.append(text)
+            print(f"  {self.prefix} | {text}", flush=True)
+
+
+# ---------------------------------------------------------------------------
+# The configuration, parsed rather than paraphrased.
+# ---------------------------------------------------------------------------
+
+
+class Offer:
+    """What `bench/xenon-netboot/dnsmasq.conf` says to answer, for one client.
+
+    Deliberately a decision function rather than a bag of values: the interesting behaviour of that
+    file is which clients get a boot file and which get silence, and a structure that held only the
+    filename would have thrown the interesting half away.
+    """
+
+    def __init__(self, path):
+        self.path = path
+        self.host_tags = {}  # mac -> set of tags it is given
+        self.arch_tags = {}  # option-93 value -> set of tags
+        self.boots = []  # (required tags, filename, server name, server address)
+        self._parse()
+
+    def _parse(self):
+        with open(self.path) as handle:
+            for number, raw in enumerate(handle, 1):
+                line = raw.split("#")[0].strip()
+                if not line:
+                    continue
+                key, _, value = line.partition("=")
+                where = f"{self.path}:{number}"
+                if key == "dhcp-host":
+                    self._host(value, where)
+                elif key == "dhcp-match":
+                    self._match(value, where)
+                elif key == "dhcp-boot":
+                    self._boot(value, where)
+                else:
+                    die(f"{where}: this harness does not implement `{key}`")
+
+    def _host(self, value, where):
+        parts = value.split(",")
+        mac = parts[0].lower()
+        if not re.fullmatch(r"([0-9a-f]{2}:){5}[0-9a-f]{2}", mac):
+            die(f"{where}: `{parts[0]}` is not a MAC address")
+        tags = {p[4:] for p in parts[1:] if p.startswith("set:")}
+        addresses = [p for p in parts[1:] if not p.startswith("set:")]
+        if addresses:
+            die(f"{where}: this harness assigns addresses itself; drop `{addresses[0]}`")
+        self.host_tags.setdefault(mac, set()).update(tags)
+
+    def _match(self, value, where):
+        parts = value.split(",")
+        if not parts[0].startswith("set:"):
+            die(f"{where}: a dhcp-match this harness understands begins `set:`")
+        tag = parts[0][4:]
+        if len(parts) != 3 or parts[1] != "option:client-arch":
+            die(f"{where}: only `option:client-arch` matching is implemented")
+        self.arch_tags.setdefault(int(parts[2]), set()).add(tag)
+
+    def _boot(self, value, where):
+        parts = value.split(",")
+        tags = {p[4:] for p in parts if p.startswith("tag:")}
+        rest = [p for p in parts if not p.startswith("tag:")]
+        if len(rest) != 3:
+            die(f"{where}: expected filename, server name and server address after the tags")
+        self.boots.append((tags, rest[0], rest[1], rest[2]))
+
+    def decide(self, mac, arch):
+        """The filename and server for this client, or None with the reason it got nothing."""
+        tags = set(self.host_tags.get(mac, set()))
+        if not tags:
+            return None, f"no dhcp-host line tags {mac}"
+        for value, arch_tags in self.arch_tags.items():
+            if value == arch:
+                tags |= arch_tags
+        for required, filename, server_name, server_address in self.boots:
+            if required <= tags:
+                return (filename, server_name, server_address), None
+        wanted = sorted(set().union(*(b[0] for b in self.boots)) - tags)
+        return None, f"{mac} carries {sorted(tags)} and no dhcp-boot matched (missing {wanted})"
+
+
+# ---------------------------------------------------------------------------
+# Just enough of ethernet, ARP, IP, UDP and BOOTP to be a router.
+# ---------------------------------------------------------------------------
+
+
+def checksum(data):
+    if len(data) % 2:
+        data += b"\0"
+    total = sum(struct.unpack(f"!{len(data) // 2}H", data))
+    while total >> 16:
+        total = (total & 0xFFFF) + (total >> 16)
+    return (~total) & 0xFFFF
+
+
+def ip4(address):
+    return socket.inet_aton(address)
+
+
+def ethernet(dst, src, ethertype, payload):
+    return dst + src + struct.pack("!H", ethertype) + payload
+
+
+def ip_datagram(src, dst, protocol, payload, identifier, mtu=1500):
+    """One IPv4 datagram, fragmented if the payload will not fit in a frame.
+
+    Fragmentation is here because nothing downstream chooses the size: the TFTP block size is
+    negotiated between EDK2 and `board-netboot`, `board-netboot` caps it at a jumbo frame, and this
+    harness only finds out how big a datagram is when one arrives.
+    """
+    room = ((mtu - 20) // 8) * 8
+    pieces = []
+    offset = 0
+    while offset < len(payload) or not pieces:
+        chunk = payload[offset : offset + room]
+        more = offset + len(chunk) < len(payload)
+        flags_and_offset = (0x2000 if more else 0) | (offset // 8)
+        header = struct.pack(
+            "!BBHHHBBH4s4s",
+            0x45, 0, 20 + len(chunk), identifier & 0xFFFF, flags_and_offset,
+            64, protocol, 0, ip4(src), ip4(dst),
+        )
+        header = header[:10] + struct.pack("!H", checksum(header)) + header[12:]
+        pieces.append(header + chunk)
+        offset += len(chunk)
+    return pieces
+
+
+def udp_datagram(src, sport, dst, dport, payload):
+    header = struct.pack("!HHHH", sport, dport, 8 + len(payload), 0)
+    pseudo = ip4(src) + ip4(dst) + struct.pack("!BBH", 0, IP_UDP, 8 + len(payload))
+    total = checksum(pseudo + header + payload)
+    return struct.pack("!HHHH", sport, dport, 8 + len(payload), total or 0xFFFF) + payload
+
+
+def parse_options(blob):
+    """DHCP options, as a dict of code to raw bytes. Stops at 255, skips padding."""
+    options, i = {}, 0
+    while i < len(blob):
+        code = blob[i]
+        if code == 255:
+            break
+        if code == 0:
+            i += 1
+            continue
+        length = blob[i + 1]
+        options[code] = blob[i + 2 : i + 2 + length]
+        i += 2 + length
+    return options
+
+
+class Network:
+    """The router, the DHCP server and the TFTP path, over QEMU's `socket` netdev."""
+
+    def __init__(self, sock, offer, netboot_port, client_mac, trace):
+        self.sock = sock
+        self.offer = offer
+        self.netboot_port = netboot_port
+        self.client_mac = bytes.fromhex(client_mac.replace(":", ""))
+        self.trace = trace
+        self.flows = {}  # guest source port -> host socket
+        self.identifier = 1
+        self.transcript = []
+        self.server_ip = None
+        self.decided = None
+
+    def say(self, message):
+        self.transcript.append(message)
+        print(f"netboot-rehearsal: {message}", flush=True)
+
+    def send(self, frame):
+        """One ethernet frame to the guest.
+
+        QEMU's stream `socket` netdev length-prefixes every frame with a four-byte big-endian
+        count, which is the whole reason this harness uses the stream form rather than the datagram
+        one. `socket,udp=` does not send from the port `localaddr` names, so a reply addressed the
+        way the command line said produced a guest repeating DHCP DISCOVER into silence: a wiring
+        fault wearing the costume of a rejected offer. A stream has no address to get wrong.
+        """
+        self.sock.sendall(struct.pack("!I", len(frame)) + frame)
+
+    def to_guest(self, dst_mac, src_ip, dst_ip, sport, dport, payload):
+        datagram = udp_datagram(src_ip, sport, dst_ip, dport, payload)
+        for piece in ip_datagram(src_ip, dst_ip, IP_UDP, datagram, self.identifier):
+            self.send(ethernet(dst_mac, HARNESS_MAC, ETH_IP, piece))
+        self.identifier += 1
+
+    # -- ARP ----------------------------------------------------------------
+
+    def arp(self, frame):
+        body = frame[14:]
+        if struct.unpack("!H", body[6:8])[0] != 1:  # not a request
+            return
+        sender_mac, sender_ip, target_ip = body[8:14], body[14:18], body[24:28]
+        reply = (
+            struct.pack("!HHBBH", 1, ETH_IP, 6, 4, 2)
+            + HARNESS_MAC + target_ip + sender_mac + sender_ip
+        )
+        self.send(ethernet(sender_mac, HARNESS_MAC, ETH_ARP, reply))
+        if self.trace:
+            self.say(f"arp who-has {socket.inet_ntoa(target_ip)} -> us")
+
+    # -- DHCP ---------------------------------------------------------------
+
+    def bootp(self, frame, request):
+        if request[0] != 1:  # BOOTREQUEST only
+            return
+        xid = request[4:8]
+        chaddr = request[28:34]
+        options = parse_options(request[240:])
+        kind = options.get(53, b"\0")[0]
+        if kind not in (1, 3):  # DISCOVER, REQUEST
+            return
+        mac = ":".join(f"{b:02x}" for b in chaddr)
+        arch = struct.unpack("!H", options[93])[0] if len(options.get(93, b"")) == 2 else None
+        decided, why = self.offer.decide(mac, arch)
+
+        if self.decided is None:
+            self.decided = (decided, why)
+            vendor = options.get(60, b"").decode("latin1")
+            self.say(f"dhcp: {mac} says option 93 = {arch}, vendor class {vendor!r}")
+            if decided:
+                filename, server_name, server_address = decided
+                self.say(
+                    f"dhcp: the config offers {filename!r} from {server_name} "
+                    f"({server_address}); serving it out of the real board-netboot"
+                )
+            else:
+                self.say(f"dhcp: the config offers NO boot file: {why}")
+
+        server_address = decided[2] if decided else ROUTER_IP
+        self.server_ip = server_address
+        filename = decided[0].encode() if decided else b""
+
+        reply = bytearray(240)
+        reply[0:4] = bytes([2, 1, 6, 0])
+        reply[4:8] = xid
+        reply[16:20] = ip4(CLIENT_IP)  # yiaddr
+        # siaddr, and the filename in the BOOTP `file` field rather than in option 67. That is what
+        # dnsmasq's `dhcp-boot` does, and the difference is not cosmetic: EDK2 classifies an offer
+        # carrying option 67 with no PXEClient vendor option as a "BINL" offer and goes looking for
+        # a boot server on udp/4011, which nothing here answers. The header field is the path that
+        # works, so it is the path the rehearsal has to take.
+        reply[20:24] = ip4(server_address) if decided else b"\0\0\0\0"
+        reply[28:34] = chaddr
+        if decided:
+            reply[44 : 44 + len(decided[1])] = decided[1].encode()
+        reply[108 : 108 + len(filename)] = filename
+        reply[236:240] = b"\x63\x82\x53\x63"
+        tail = (
+            bytes([53, 1, 2 if kind == 1 else 5])
+            + bytes([54, 4]) + ip4(ROUTER_IP)
+            + bytes([51, 4]) + struct.pack("!I", 3600)
+            + bytes([1, 4]) + ip4(NETMASK)
+            + bytes([3, 4]) + ip4(ROUTER_IP)
+            + bytes([255])
+        )
+        if self.trace:
+            self.say(f"dhcp: msg type {kind} from {mac}, replying {2 if kind==1 else 5}")
+        # Broadcast, both in the ethernet header and in the IP one. The client has no address yet,
+        # so RFC 2131 §4.1 allows it to be filtering everything but broadcast, and EDK2 sets the
+        # broadcast flag in its DISCOVER.
+        self.to_guest(b"\xff" * 6, ROUTER_IP, "255.255.255.255", BOOTP_SERVER, BOOTP_CLIENT,
+                      bytes(reply) + tail)
+
+    # -- TFTP, relayed to the real server ------------------------------------
+
+    def tftp(self, sport, dport, payload):
+        flow = self.flows.get(sport)
+        if flow is None:
+            flow = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            flow.bind(("127.0.0.1", 0))
+            self.flows[sport] = flow
+        # udp/69 is the one port this harness rewrites; board-netboot answers from a fresh ephemeral
+        # port for the transfer itself, and that port is a real host port, so it passes through.
+        target = self.netboot_port if dport == TFTP_PORT else dport
+        flow.sendto(payload, ("127.0.0.1", target))
+        if self.trace:
+            self.say(f"tftp guest:{sport} -> 127.0.0.1:{target} ({len(payload)} bytes)")
+
+    def from_server(self, sock):
+        payload, (_host, port) = sock.recvfrom(65536)
+        sport = next(p for p, s in self.flows.items() if s is sock)
+        source = TFTP_PORT if port == self.netboot_port else port
+        self.to_guest(self.client_mac, self.server_ip, CLIENT_IP, source, sport, payload)
+        if self.trace:
+            self.say(f"tftp 127.0.0.1:{port} -> guest:{sport} ({len(payload)} bytes)")
+
+    # -- the frame loop ------------------------------------------------------
+
+    def frame(self, data):
+        if len(data) < 14:
+            return
+        ethertype = struct.unpack("!H", data[12:14])[0]
+        if ethertype == ETH_ARP:
+            return self.arp(data)
+        if ethertype != ETH_IP:
+            return
+        ip = data[14:]
+        header_length = (ip[0] & 0x0F) * 4
+        if ip[9] != IP_UDP:
+            return
+        udp = ip[header_length:]
+        sport, dport = struct.unpack("!HH", udp[:4])
+        payload = udp[8 : struct.unpack("!H", udp[4:6])[0]]
+        if dport == BOOTP_SERVER:
+            return self.bootp(data, payload)
+        if dport == TFTP_PORT or dport in {s.getsockname()[1] for s in self.flows.values()} or sport in self.flows:
+            return self.tftp(sport, dport, payload)
+
+
+# ---------------------------------------------------------------------------
+# Driving it.
+# ---------------------------------------------------------------------------
+
+
+def ovmf_paths():
+    """Where this machine keeps OVMF, by the same search scripts/qemu-uefi-x86_64.sh makes."""
+    qemu = subprocess.run(["command", "-v", "qemu-system-x86_64"], capture_output=True)
+    binary = subprocess.run(
+        ["sh", "-c", "command -v qemu-system-x86_64"], capture_output=True, text=True
+    ).stdout.strip()
+    prefix = os.path.dirname(os.path.dirname(binary)) if binary else ""
+    code = os.environ.get("NIFE_OVMF_CODE") or next(
+        (c for c in [
+            f"{prefix}/share/qemu/edk2-x86_64-code.fd",
+            f"{prefix}/share/edk2-x86_64-code.fd",
+            "/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+            "/usr/local/share/qemu/edk2-x86_64-code.fd",
+            "/usr/share/OVMF/OVMF_CODE_4M.fd",
+            "/usr/share/OVMF/OVMF_CODE.fd",
+        ] if os.path.isfile(c)), "",
+    )
+    template = os.environ.get("NIFE_OVMF_VARS") or next(
+        (c for c in [
+            f"{prefix}/share/qemu/edk2-i386-vars.fd",
+            f"{prefix}/share/edk2-i386-vars.fd",
+            "/opt/homebrew/share/qemu/edk2-i386-vars.fd",
+            "/usr/local/share/qemu/edk2-i386-vars.fd",
+            "/usr/share/OVMF/OVMF_VARS.fd",
+        ] if os.path.isfile(c)), "",
+    )
+    if not code or not template:
+        die("no OVMF firmware found; set NIFE_OVMF_CODE and NIFE_OVMF_VARS")
+    del qemu
+    return code, template
+
+
+# Every case worth asserting about `bench/xenon-netboot/dnsmasq.conf`, as (what, MAC, option 93,
+# whether a boot file is owed). The architecture rows are the reason this table exists at all:
+# only one of them can be exercised under OVMF, because OVMF is a UEFI machine and cannot be asked
+# to be a BIOS one, and a configuration that answered every client identically would hand a legacy
+# client 9 MB of the wrong instruction set.
+XENON = "d8:9e:f3:74:b2:a2"
+CHECKS = [
+    ("xenon in UEFI mode, which is the whole point", XENON, 7, True),
+    ("xenon whose firmware sends the other EFI x86-64 arch value", XENON, 9, True),
+    ("xenon after somebody sets Boot List Option to Legacy", XENON, 0, False),
+    ("xenon asking for an HTTP boot, which this serves no file for", XENON, 16, False),
+    ("xenon on a firmware too old to send option 93 at all", XENON, None, False),
+    ("any other machine in the house", "02:00:00:00:00:01", 7, False),
+]
+
+
+def check(config):
+    """Answer every client in CHECKS out of the config, and say whether the config agrees.
+
+    Fast, no QEMU, and it covers the rows the OVMF rehearsal cannot reach.
+    """
+    offer = Offer(config)
+    bad = 0
+    print(f"netboot-rehearsal: checking {config}", flush=True)
+    for what, mac, arch, owed in CHECKS:
+        decided, why = offer.decide(mac, arch)
+        got = decided is not None
+        mark = "ok  " if got == owed else "WRONG"
+        detail = f"offers {decided[0]} from {decided[2]}" if decided else f"offers nothing ({why})"
+        print(f"  {mark}  option 93 = {str(arch):>4}  {what}: {detail}", flush=True)
+        bad += got != owed
+    if bad:
+        die(f"{bad} of {len(CHECKS)} clients would be answered wrongly")
+    print(f"netboot-rehearsal: {len(CHECKS)} clients answered as the configuration intends.")
+    return 0
+
+
+def main():
+    esp = "target/esp"
+    config = "bench/xenon-netboot/dnsmasq.conf"
+    mac = "d8:9e:f3:74:b2:a2"
+    timeout = 180
+    trace = keep_going = check_only = False
+    rest = list(sys.argv[1:])
+    while rest:
+        arg = rest.pop(0)
+        if arg == "--esp" and rest:
+            esp = rest.pop(0)
+        elif arg == "--config" and rest:
+            config = rest.pop(0)
+        elif arg == "--mac" and rest:
+            mac = rest.pop(0).lower()
+        elif arg == "--timeout" and rest:
+            timeout = int(rest.pop(0))
+        elif arg == "--trace":
+            trace = True
+        elif arg == "--keep-going":
+            keep_going = True
+        elif arg == "--check":
+            check_only = True
+        else:
+            die(f"unknown argument {arg}")
+
+    if check_only:
+        return check(config)
+
+    payload = os.path.join(esp, "EFI/BOOT/BOOTX64.EFI")
+    if not os.path.isfile(payload):
+        die(f"{payload} does not exist; run `cargo xtask uefi-image` first")
+    size = os.path.getsize(payload)
+    offer = Offer(config)
+    code, template = ovmf_paths()
+
+    variables = "target/ovmf-vars-netboot.fd"
+    subprocess.run(["cp", template, variables], check=True)
+
+    # board-netboot on a port of its own rather than udp/69, so a rehearsal cannot collide with a
+    # bench session serving radon on the same machine, and so this needs no privileges anywhere.
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    probe.bind(("127.0.0.1", 0))
+    netboot_port = probe.getsockname()[1]
+    probe.close()
+
+    server = subprocess.Popen(
+        ["script/board-netboot", "--root", esp, "--port", str(netboot_port)],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    harness_port = listener.getsockname()[1]
+
+    print(
+        f"netboot-rehearsal: {payload} is {size} bytes\n"
+        f"netboot-rehearsal: board-netboot on udp/{netboot_port}, "
+        f"the fake network on tcp/{harness_port}, client MAC {mac}",
+        flush=True,
+    )
+
+    qemu = subprocess.Popen(
+        [
+            "scripts/qemu-bounded.sh", str(timeout), "qemu-system-x86_64",
+            "-machine", "q35", "-cpu", "max", "-smp", "1", "-m", "2048",
+            "-display", "none", "-serial", "stdio", "-no-reboot",
+            "-drive", f"if=pflash,format=raw,unit=0,readonly=on,file={code}",
+            "-drive", f"if=pflash,format=raw,unit=1,file={variables}",
+            # No disk of any kind. That is the whole claim: the only way this machine can reach an
+            # operating system is the wire.
+            "-netdev", f"socket,id=n0,connect=127.0.0.1:{harness_port}",
+            "-device", f"e1000,netdev=n0,mac={mac}",
+        ],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+
+    listener.settimeout(30)
+    try:
+        wire, _who = listener.accept()
+    except socket.timeout:
+        die("QEMU never connected to the fake network")
+    listener.close()
+    wire.setblocking(False)
+
+    network = Network(wire, offer, netboot_port, mac, trace)
+    guest_output = Pump(qemu.stdout, "guest")
+    server_output = Pump(server.stdout, "tftp ")
+    started = time.monotonic()
+    booted = False
+    pending = b""
+    try:
+        while time.monotonic() - started < timeout:
+            if qemu.poll() is not None:
+                guest_output.drain()
+                break
+            watching = [wire, guest_output, server_output] + list(network.flows.values())
+            ready, _, _ = select.select(watching, [], [], 0.5)
+            for source in ready:
+                if source is wire:
+                    chunk = wire.recv(65536)
+                    if not chunk:
+                        break
+                    pending += chunk
+                    while len(pending) >= 4:
+                        length = struct.unpack("!I", pending[:4])[0]
+                        if len(pending) < 4 + length:
+                            break
+                        frame, pending = pending[4 : 4 + length], pending[4 + length :]
+                        if trace:
+                            print(f"  <- {length}B ethertype {frame[12:14].hex()}", flush=True)
+                        network.frame(frame)
+                elif source is guest_output:
+                    guest_output.drain()
+                elif source is server_output:
+                    server_output.drain()
+                else:
+                    network.from_server(source)
+            booted = any(BOOT_MARKER in line for line in guest_output.lines)
+            if booted and not keep_going:
+                break
+    finally:
+        for process in (qemu, server):
+            if process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+        for flow in network.flows.values():
+            flow.close()
+        wire.close()
+
+    elapsed = time.monotonic() - started
+    print(flush=True)
+    if network.decided is None:
+        die(
+            f"the guest never sent a DHCP DISCOVER in {elapsed:.0f}s. It reached PXE (the serial "
+            "log says so) but nothing arrived on the fake network, so the fault is between QEMU's "
+            "netdev and this script rather than anywhere in the boot path."
+        )
+    decided, why = network.decided
+    if decided is None:
+        print(f"netboot-rehearsal: no boot file was offered ({why}).", flush=True)
+        if booted:
+            die("the guest booted anyway, which means something other than this offer fed it")
+        print(
+            "netboot-rehearsal: and the guest did not boot, which is the correct outcome for a "
+            "client the configuration does not name.",
+            flush=True,
+        )
+        return 0
+    if not booted:
+        die(
+            f"the guest never printed {BOOT_MARKER!r} in {elapsed:.0f}s. "
+            "Re-run with --trace: silence after the DHCP ACK means the firmware never reached "
+            "the TFTP server, and silence after the transfer means the image did not execute."
+        )
+    print(
+        f"netboot-rehearsal: booted over the network in {elapsed:.1f}s, "
+        f"{size} bytes, no disk attached.",
+        flush=True,
+    )
+    return 0
+
+
+try:
+    sys.exit(main())
+except KeyboardInterrupt:
+    sys.exit("\nnetboot-rehearsal: stopped.")
+PYEOF
