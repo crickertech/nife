@@ -1,6 +1,9 @@
 # 224. Nothing can power-cycle radon, so a hung soak needs a person
 
-**Status: NOT-STARTED.** Minted 2026-09-02 by the maintainer, from milestone 221's (the soak never
+**Status: RECORDED, and what is recorded is a decision to stay manual.** calef, 2026-09-04, on the four options
+below after the diagnosis was re-measured: **accept manual power for now.** The gate is answered
+rather than removed, so this block stays open as the place the question lives when it is revisited.
+Originally NOT-STARTED. Minted 2026-09-02 by the maintainer, from milestone 221's (the soak never
 crosses cores, so build the hook that makes it) lane, which named it as the soak's remaining gap.
 *(Number provisional until the merge queue lands it.)*
 
@@ -44,6 +47,51 @@ rescued either.
 - **Accept manual power** and treat a hung soak as a bench event. Honest, and it costs an evening
   every time the experiment produces its most interesting result.
 
+## Re-measured 2026-09-04, and the diagnosis got sharper
+
+The 2026-09-01 finding reproduces exactly. From patagonia, on the evening radon was first put on
+ethernet: **zero Kasa replies**, by broadcast on both of patagonia's interfaces and by unicast to
+all 254 addresses on the subnet, using the legacy port-9999 protocol. The plug is not reachable and
+this is not a transient.
+
+**Two facts this block did not have.**
+
+**The subnet is `192.168.8.0/24` and the gateway is `94:83:c4:be:26:de` at `192.168.8.1`, which is
+GL.iNet.** That address is GL.iNet's factory default LAN and their guest network is isolated by
+design, so "client isolation" stops being an inference from a symptom and becomes a named feature of
+a specific product. Nobody has still read the configuration, so the BUGS entry below stands, but the
+guess is now a much better one.
+
+**patagonia is already dual-homed, and the second interface is redundant.** `en0` is Wi-Fi
+(`192.168.8.216`) and `en9` is a USB ethernet adapter (`192.168.8.206`), both on the same subnet.
+Kasa plugs are Wi-Fi only, so the plug is on some SSID this machine is not on.
+
+## Two options this block did not list, recorded for whoever revisits it
+
+Both are cheaper than the network-wide toggle this block declined to recommend, and neither was
+available to it because both depend on the two facts above.
+
+- **Put patagonia's Wi-Fi on the network the plug is on, and leave the main LAN on the wired
+  adapter.** Nothing changes on the router, no isolation is weakened anywhere, and **cordoba is not
+  involved**, which is the whole of this block's stated objection to the first option. The cost is
+  real and is patagonia's rather than the network's: the dev machine becomes reachable from the IoT
+  network. Reversible in one click.
+- **One firewall rule rather than a global toggle.** This block's first option is written as
+  "turn off client isolation", and an accept rule from one source to one destination is a materially
+  different security decision from disabling the control network-wide. GL.iNet may not expose
+  per-host exceptions above the LuCI layer, which is what would have to be checked.
+
+## Why it was still declined, and this is the honest version
+
+**Not because the options are bad.** calef chose manual power on 2026-09-04 with all four in front
+of him. What changed the calculus that evening is that **milestone 257 removed the larger tax**: the
+card, not the power button, was what made a bench session expensive, and network boot takes that
+away without touching anyone's network. Remote power buys the *hung board* case, which fatal risk
+5's soak produces and ordinary work does not.
+
+So the cost of staying manual is now narrower than this block priced it, and it is still exactly
+what this block said: an evening every time the soak produces its most interesting result.
+
 ## BUGS
 
 - **This block cannot verify its own diagnosis.** Client isolation is inferred from the symptom, a
@@ -51,4 +99,9 @@ rescued either.
   subnet, and from the absence of any other explanation. Nobody has read the access point's
   configuration.
 - **Remote power is not remote recovery.** A board wedged before U-Boot hands off is fixed by a power
-  cycle; a board that needs a different card is not.
+  cycle; a board that needs a different card is not. **Milestone 257 narrows this**: with the payload
+  served over TFTP the "different card" case mostly becomes "different file on patagonia", so what
+  remains genuinely card-bound is a change to the boot script itself.
+- **Nothing here was tried against the plug's own network**, because nobody has said which one that
+  is. Every measurement in this block is a negative taken from networks the plug is not on, which is
+  consistent with the diagnosis and proves less than it appears to.
