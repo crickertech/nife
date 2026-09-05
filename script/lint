@@ -1515,7 +1515,10 @@ echo "==> naming conventions"
 #    Allowed: `cred` is the abbreviation of "credential", the ordinary kind of shortening. The
 #    thing it names is a store and a verifier, not a long-running process; the long-running
 #    process that holds one is spelled out in full, as `credentialer` (notes/credentials.md).
-naming_allow=" asid cred "
+# `uuid` is RFC 9562's own term for the object (milestone 111); the trailing d is the last letter of
+# "identifier", not a daemon suffix, and there is no long-running process here at all: the program
+# draws sixteen bytes, prints one line and exits.
+naming_allow=" asid cred uuid "
 named_for_a_daemon=""
 for name in \
     $(ls "$(dirname "$0")/../user/src" | sed 's/\.rs$//') \

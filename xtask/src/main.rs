@@ -3585,6 +3585,10 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // (kernel/src/arch/*/timer.rs), so the "needed no new capability" claim is about the
         // capability model and has to hold on both or it is not one.
         ("uptime", "uptime"),
+        // A version-4 UUID drawn from the entropy service (milestone 111). Both archives: "a
+        // program's dependence on randomness is visible in what it holds" is a claim about the
+        // capability model, and `printenv` is already the same shape one field over.
+        ("uuid", "uuid"),
     ]
 }
 
@@ -4424,6 +4428,9 @@ fn initrd_aarch64() -> bool {
         // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
         // every process unconditionally.
         ("uptime", "uptime"),
+        // `uuid` (milestone 111): a version-4 UUID drawn from the entropy service, and the first
+        // program a person can type that needs randomness at all.
+        ("uuid", "uuid"),
     ];
     let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
     for &(archive_name, bin_name) in entries {
@@ -6580,7 +6587,7 @@ fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 60] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -6761,6 +6768,40 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 60] = [
     // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
     // elapsed time is not asserted because a real boot's timing is not this check's business.
     ("uptime", &["up "]),
+    // **`uuid`, at the real prompt** (milestone 111), and this is the only gate that can run it.
+    // The endowment is `crates/system_initializer`'s to make: init holds the entropy service's
+    // request endpoint and places a `WRITE` view of it at `grant_plan::ENTROPY_SLOT` for a child
+    // whose manifest declares it, exactly as it places the clock. Every other test that runs the
+    // shell has the KERNEL play init, and `Spawn` fills a capability table from slot 0 upward, so
+    // nothing else in this tree can put a capability at a slot a manifest names.
+    //
+    // **The value is deliberately not asserted, and the shape is.** A version-4 identifier that a
+    // gate could predict would be a version-4 identifier drawn from nothing, so pinning one would
+    // assert the opposite of what this milestone is about. What is pinned is the framing: `uuid >
+    // id.txt` puts 36 characters and a newline in a file, and `wc` counts one line, one word, 37
+    // bytes. A `uuid` init endowed nothing would leave that file **empty** (its refusal goes to the
+    // second stream, `Manifest::output`'s whole reason here), so `1 1 37` fails on exactly the
+    // condition this milestone exists to create.
+    ("uuid > id.txt", &[]),
+    ("wc < id.txt", &["1 1 37"]),
+    // And the second stream is empty, which is the same trick the `pgrep 2>` line above uses: this
+    // program complains in exactly one case (it holds no entropy capability), so an empty second
+    // stream is the assertion that the case did not happen. The two lines together are "it drew
+    // real bytes and had nothing to complain about", said without asserting any byte of them.
+    ("uuid 2> ent.txt", &[]),
+    ("wc < ent.txt", &["0 0 0"]),
+    // And the visibility surface, which is what a person meets before anything is spawned. On
+    // Linux there is nothing here to say: no tool reports whether a program will read
+    // `/dev/urandom`, and nothing about running one reveals it either. Here it is a row, and the
+    // right on it (`WRITE`, so it may ask the service and may not receive another client's
+    // request) is the claim rather than decoration.
+    (
+        "caps uuid",
+        &[
+            "cap 9  endpoint  entropy  WRITE",
+            "draws no randomness at all",
+        ],
+    ),
     // **`2>`, at the one interface a human touches** (DECISIONS §67). The four lines below are the
     // whole of the decision, and only this gate runs them through the real init: the guest tests
     // wire the shell from the kernel, whose `Spawn` fills a capability table from zero and cannot place a
