@@ -196,6 +196,12 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// three. The two previous raises each took the number to exactly what that day's boot needed and
 /// both times the next addition hit the wall in the same silence; at 32 bytes a slot the three cost
 /// 96 bytes a thread, 24 KiB across `MAX_THREADS`, which is the cheapest insurance in this file.
+///
+/// **Two of those three are left** (2026-09-05, milestone 111): the measured peak is 22, not 21,
+/// because init now holds the entropy service's request endpoint for the life of the boot instead
+/// of releasing it after the login block. The insurance is being spent as intended and the ceiling
+/// is unchanged; see [`CAPABILITY_TABLE_PEAK_MEASURED`] for what moved and why the answer was not
+/// to raise this.
 pub const CAPABILITY_TABLE_SLOTS: usize = 24;
 pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_SLOTS>;
 
@@ -220,7 +226,22 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// some fraction of it would be a margin picked out of the air, which is the shape this tree has
 /// deleted three `script/lint` checks for. A recorded measurement going stale is neither: it is a
 /// fact about the tree that stopped being true.
-pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 21;
+///
+/// **Twenty-two since 2026-09-05, milestone 111**, and this is the mechanism doing exactly what
+/// its own doc above describes rather than a surprise. Init used to release the entropy service's
+/// request endpoint once `credentialer` held its own copy; it now keeps it for the life of the
+/// boot, because a child whose manifest declares `grant_plan::Manifest::entropy` is endowed a
+/// `WRITE` view of that same endpoint at spawn, and init is the only process that can make that
+/// grant. One capability held across the peak is one slot on the peak.
+///
+/// It was found by `script/shell-check` failing on this sentence, on the first run after the
+/// wiring landed, which is the whole point of milestone 231: every raise of
+/// [`CAPABILITY_TABLE_SLOTS`] before that one was reactive, after a silent halt that named
+/// something else. **The ceiling is not raised**, per this constant's own instruction: twenty-four
+/// minus twenty-two is two, and two is still headroom rather than a wall. The next addition that
+/// holds a capability across init's login block should expect to spend one of them and should read
+/// [`CAPABILITY_TABLE_SLOTS`]'s arithmetic before assuming there is a third.
+pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 22;
 
 // The headroom milestone 230 left is what this pair means, so the two cannot silently invert.
 const _: () = assert!(CAPABILITY_TABLE_PEAK_MEASURED < CAPABILITY_TABLE_SLOTS);
@@ -242,6 +263,8 @@ static PEAK_STABLE_PASSES: core::sync::atomic::AtomicUsize =
 /// interactive boot printed six lines (4, 5, 12, 14, 16, 21 of 24): init blocks on IPC several
 /// times while it is building the login stack, so the machine goes idle mid-climb and each pause
 /// looked like an ending. At sixteen it prints one, and the number it prints is the same 21.
+/// (Those figures are that day's boot, kept because the argument is about the *window*; the peak
+/// itself is 22 since milestone 111, and the window did not have to move for it.)
 ///
 /// It is a coalescing window rather than a threshold on the thing being measured, which is why it
 /// is not the kind of guessed margin `CAPABILITY_TABLE_PEAK_MEASURED`'s own doc refuses. Getting it
