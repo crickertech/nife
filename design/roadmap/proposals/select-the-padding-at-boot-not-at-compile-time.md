@@ -10,8 +10,8 @@ different kernels**. The comparison therefore rests on trusting that two builds 
 intended, and the bench session pays for it twice over: six card rewrites to interleave the boots,
 and no way for a booted machine to say which arm it is running.
 
-**If the padding were selected at boot instead** — a token on the command line, the way milestone
-243's `screen=` now carries the framebuffer geometry from `uefi_loader` to the kernel — the session
+**If the padding were selected at boot instead**, a token on the command line, the way milestone
+243's `screen=` now carries the framebuffer geometry from `uefi_loader` to the kernel, the session
 becomes **one card, one write, six boots**, and the two arms are provably the same binary.
 
 **Why the mechanism is already proven.** Milestone 243 established the whole path on 2026-09-04:
