@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1043 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1048 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,20 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Raised from 1043 to 1048 on 2026-09-05, the third raise that day, and this paragraph is the
+sentence the rule asks for.** Five lines add a **seventh question** to the list a fork must arrive
+answered: *would we still choose this if both options cost the same?* It is not new reasoning. It is
+§92's test, which already existed and lived inside a tenet, so it fired only when somebody remembered
+it. calef asked for it as a standing question after it had gone unasked for a month on milestone 51's
+"three problems, one addition", which counted effort and read as design until he applied the test
+himself.
+
+**Three raises in one day is the argument for milestone 262, not against the raises.** Each was a
+considered act with its sentence, which is what this budget asks. But the file grew fifteen lines
+between 1033 and 1048 in a morning, and the naming section alone is 12% of it and mostly argument.
+The constitution should carry the tests a lane applies and the notes should carry the cases; until
+that split is made, every good rule costs the budget the same as a bad one.
 
 **Raised from 1037 to 1043 on 2026-09-05, and this paragraph is the sentence the rule asks for.**
 Six lines, and they replace a list with a test. The naming section protected eight standard terms by
