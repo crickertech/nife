@@ -108,7 +108,7 @@ nothing new of anybody's machine.
 **There is no server address constant anywhere in this tree.** `cargo xtask board-script --tftp`
 reads the address off the machine writing the card, at the moment it writes it, and the script
 echoes it at boot so a console log says what a card expects before anything depends on it. A moved
-lease is then one line at the prompt (`setenv nife_server <addr>`, `source ${scriptaddr}`) rather
+lease is then one line at the prompt (`setenv nife_boot_server <addr>`, `source ${scriptaddr}`) rather
 than a card reader.
 
 **The first implementation of that was wrong and the machine said so**, which is worth recording
@@ -191,10 +191,20 @@ three are lanes; the third is a decision that has been made the other way, on pu
 - **Recorded.** The bench confirmation. Everything here is unexercised on radon, and this block's
   BUGS section names which claims specifically. It is not a milestone: it is the first ten minutes of the
   next bench session, and the triage row in `notes/visionfive2.md` is what to read.
-- **Recorded.** The names `script/board-netboot` and `nife_server` are this lane's provisional coinage,
-  recorded where a reader meets them: `script/board-netboot`'s header carries the provenance block and
-  the refusal of `tftpd`, and the boot script prints `nife_server` at every boot. Both are calef's
-  to ratify. `nife_server` is a U-Boot environment variable rather than a crate or a program, so it
+- **Done.** Both names are ratified by calef, 2026-09-05. The lane shipped `board-tftp` and
+  `nife_server`; the answers are **`script/board-netboot`** and **`nife_boot_server`**, and the two
+  corrections are the same one applied at two levels. `board-netboot` beat `board-tftp` because the
+  `board-*` family names the thing rather than the mechanism (`board-image` names the image,
+  `board-console` names the console, and `script/server`'s header says outright that "an OS is what
+  you start"), so naming the wire would have made this the one member describing its transport.
+  `nife_boot_server` beat both `nife_server` and `nife_tftp_server` for the same reason one level
+  down: the protocol is not what the address is for.
+
+  **`nife_boot_server` also earns its extra word where the name actually lives.** The variable
+  outlives the script, in the U-Boot environment, where a person meets it at `printenv`; there
+  `nife_server` reads as "nife's server, which one?". The provenance is in
+  `script/board-netboot`'s header, which carries the refusals, and the boot script prints the
+  variable at every boot. It is a U-Boot environment variable rather than a crate or a program, so it
   falls outside the naming rule's stated scope, and it is still a name a person types at a prompt.
 - **Recorded.** `blksize` and the 428 KiB/s, in this block's BUGS. Nobody has measured whether the
   limit is the option, the window, or the board, and 20 seconds against a two-minute walk does not

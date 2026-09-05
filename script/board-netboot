@@ -48,6 +48,13 @@
 # the exact form DECISIONS §39 spends a whole vocabulary avoiding, and `script/lint`'s first
 # naming check rejects it.
 #
+# The U-Boot variable this script tells you to set is `nife_boot_server`, ratified the same day and
+# corrected from `nife_server` on the same principle one level down: the address is for booting, not
+# for TFTP, so `nife_tftp_server` was refused too. It is namespaced rather than U-Boot's own
+# `serverip` because the generated script sets `serverip` FROM it, which leaves an override path (set
+# `nife_boot_server` at the prompt and the baked address is not used) without writing a firmware-wide
+# setting as the source of truth.
+#
 # BUGS
 #   * One transfer at a time, and one board. Two boards fetching at once will make the second
 #     wait or time out. There is exactly one board.
@@ -222,7 +229,7 @@ def main():
             flush=True,
         )
         for addr in addresses:
-            print(f"            StarFive # setenv nife_server {addr}", flush=True)
+            print(f"            StarFive # setenv nife_boot_server {addr}", flush=True)
     print("\nCtrl-C to stop.", flush=True)
 
     while True:

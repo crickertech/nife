@@ -9965,13 +9965,13 @@ fn board_network_boot_script(server: &str) -> String {
 echo nife: boot.scr is driving this boot, milestones 218 and 257
 setenv nife_source none
 setenv netretry no
-if test x${{nife_server}} = x; then
-setenv nife_server {server}
+if test x${{nife_boot_server}} = x; then
+setenv nife_boot_server {server}
 fi
-echo nife: tftp server is ${{nife_server}}, setenv nife_server to point somewhere else
+echo nife: tftp server is ${{nife_boot_server}}, setenv nife_boot_server to point somewhere else
 setenv nife_next none
 if dhcp; then
-setenv serverip ${{nife_server}}
+setenv serverip ${{nife_boot_server}}
 setenv nife_next kernel
 fi
 if test x${{nife_next}} = xkernel; then
@@ -10926,8 +10926,8 @@ utun6: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1280
             script.contains("booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000")
         );
         // The address is baked, and it is also announced before anything depends on it.
-        assert!(script.contains("setenv nife_server 10.1.2.3"));
-        assert!(script.contains("echo nife: tftp server is ${nife_server}"));
+        assert!(script.contains("setenv nife_boot_server 10.1.2.3"));
+        assert!(script.contains("echo nife: tftp server is ${nife_boot_server}"));
         // And the card script is untouched by any of this: the default is still the default, and
         // it still has no network verb in it at all.
         assert!(!BOARD_BOOT_SCRIPT.contains("tftpboot"));

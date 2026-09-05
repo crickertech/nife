@@ -322,12 +322,12 @@ so write it once and leave it in the board. On the serving machine, in another t
 
 The board announces which address it will ask, before it asks:
 
-  nife: tftp server is 192.168.8.x, setenv nife_server to point somewhere else
+  nife: tftp server is 192.168.8.x, setenv nife_boot_server to point somewhere else
 
 If that is not this machine's address any more (a lease moved), the fix is one line at the
 U-Boot prompt and no card at all:
 
-  StarFive # setenv nife_server <address>
+  StarFive # setenv nife_boot_server <address>
   StarFive # source ${scriptaddr}
 
 ...and rebuilding the card's script with `script/board-image --tftp --card /Volumes/NIFE` is

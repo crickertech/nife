@@ -629,14 +629,14 @@ address off the machine writing the card, at the moment it writes it, and the sc
 boot:
 
 ```
-nife: tftp server is 192.168.8.216, setenv nife_server to point somewhere else
+nife: tftp server is 192.168.8.216, setenv nife_boot_server to point somewhere else
 ```
 
 A console log therefore says what a card expects before anything depends on it. When the address
 has moved, the fix is one line at the prompt and no card reader:
 
 ```
-StarFive # setenv nife_server 192.168.8.42
+StarFive # setenv nife_boot_server 192.168.8.42
 StarFive # source ${scriptaddr}
 ```
 
@@ -681,7 +681,7 @@ Setup, in order:
    and is what to write when there will be no serving machine.
 
    Then, on patagonia and in a second terminal, `script/board-netboot`, for as long as the session
-   lasts. It serves `target/board` on udp/69 and prints the `setenv nife_server` line for each
+   lasts. It serves `target/board` on udp/69 and prints the `setenv nife_boot_server` line for each
    address the board might reach it on. Leave it running: every later boot is
    `script/board-image --tftp` and a power cycle, with no card in anybody's hand.
 2. DIP switches to QSPI: RGPIO_1 = 0 (L), RGPIO_0 = 0 (L) [QSG].
@@ -715,7 +715,7 @@ worth reading rather than skipping, because a session that thinks it is testing 
 the network and is silently booting the card's older copy is a session whose numbers mean nothing:
 
 ```
-nife: tftp server is 192.168.8.216, setenv nife_server to point somewhere else
+nife: tftp server is 192.168.8.216, setenv nife_boot_server to point somewhere else
 nife: payload came from net
 ```
 
@@ -740,7 +740,7 @@ jumping without complaint; the banner is the second target, after the driver wor
 | Nothing on serial at all | TX/RX not crossed; wrong device (`cu.*` vs `tty.*`); DIP switches not on QSPI; a bad SPI flash (fall back to UART recovery mode [uboot-doc]) |
 | Firmware banners but garbage | Baud mismatch in the terminal (must be 115200); a 5 V adapter on 3.3 V pins has by then possibly cost a board |
 | U-Boot fine, `Bad Linux RISCV Image magic!` | The file is the ELF, not the objcopy output; `script/board-image` verifies the magic at offset 0x38 at build time, so a stale card is the other suspect |
-| `payload came from card` when you expected `net` | The serving machine is not running `script/board-netboot`; or its address moved and the card's baked one is stale (the `tftp server is` line one above says which address was tried); or the board is on the other ethernet port. `setenv nife_server <addr>` then `source ${scriptaddr}` retries without a card reader |
+| `payload came from card` when you expected `net` | The serving machine is not running `script/board-netboot`; or its address moved and the card's baked one is stale (the `tftp server is` line one above says which address was tried); or the board is on the other ethernet port. `setenv nife_boot_server <addr>` then `source ${scriptaddr}` retries without a card reader |
 | `nife: still at the prompt, so nothing loaded` | Neither path had a payload: no serving machine AND no card, or a card whose files are named something else. The board is at the prompt and everything is still typeable |
 | `Starting kernel ...` then silence | Expected until the UART driver handles reg-shift/io-width: the kernel may be running and polling LSR at the wrong offset. Also: DTB left at `$fdtcontroladdr`/`fdt_addr_r` (outside the boot map, faults with the trap path not yet printing); or the relocation did not happen (check U-Boot printed `Moving Image from ... to 0x80200000`) |
 | `Starting kernel ...` then garbage | Kernel is alive and the divisor is wrong: driver reprogrammed the divisor against the wrong clock (needs 13 at 24 MHz, not 1) |
