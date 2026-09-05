@@ -1,12 +1,26 @@
 # 111. A shell that can endow a child with entropy
 
-**Status: NOT-STARTED.** Raised 2026-08-04 from `notes/entropy.md:194`, which calls it "future work
+**Status: NOT-STARTED.** *(Gate answered 2026-09-05; see below.)* Raised 2026-08-04 from `notes/entropy.md:194`, which calls it "future work
 with no design problem in it". The smallest entry in this sweep, and the block should say so rather
 than dress it up.
 
-**Gate: DECISION.** Whether this is a lane at all: the block recommends folding it into milestone
-65 or milestone 31's phase two rather than running it alone, and what would decide it is whether
-anything typed at the prompt needs entropy before either of those runs. Today nothing does.
+**Gate: NONE.** Answered by calef on 2026-09-05: **give it a lane now**, against this block's own
+recommendation, which was to fold it into milestone 65 or milestone 31's phase two.
+
+**The recommendation was not wrong when it was written; its premise acquired an expiry date.** The
+gate asked whether anything typed at the prompt needs entropy before either of those runs, and said
+nothing does. That is still literally true: `disk_partitioner` is spawned only by the test harness
+(`kernel/src/user/disk_tests.rs`), never by `init` and never as a shell command. But it is the
+program a person types to partition a disk, and on the same day a milestone was minted to wipe
+xenon's NVMe so nife can drive it (the EL0 NVMe driver §86 decided, whose number the integrator
+mints at merge). A GPT gives every partition a random globally unique id and
+`crates/gpt` refuses to invent one, so the moment that disk is partitioned from a prompt this is on
+the path.
+
+**The ranking argument against a lane was that this has no consumer today**, and calef's answer is
+sequencing: the work is an afternoon whichever way it is done, and doing it now means it lands
+before 261 needs it rather than after. Folding it would have made it arrive late for the one
+consumer that can be named.
 
 **The finding.** Milestone 56 built the entropy service and the grant that reaches it. Nothing at
 the prompt can pass that grant on. The note, under BUGS:
