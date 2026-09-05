@@ -2,8 +2,18 @@
 
 **Name: ratified 2026-08-15 (calef).** The mascot is **Cobble**, a stone golem holding a gear,
 drawn by **Clay** (calef's kid, the project's artist; their name travels with the artwork the way
-Larry Ewing's travels with Tux). The art is in first-draft form and will land here when Clay
-calls it done.
+Larry Ewing's travels with Tux).
+
+**Two images are in the tree, and the credit is the same for both because the design is one thing.**
+`art/cobble-first-draft.jpg` is Clay's drawing, photographed from their screen. `art/cobble-realistic.jpg`
+is a realistic render of that design, added 2026-09-04 and now the one the README carries; its caption
+reads *designed by Clay; realistic render*, which is the whole of what the record claims about it.
+
+**The render was checked against the rulings below rather than accepted on looks**, and it keeps every
+one: the gear is **held, not embedded**; the reference gear is **plain**, with no "Ni · Fe" stamp; the
+posture is standing and top-heavy over small feet; and the moss is there. It is a rendering of the
+ratified design rather than a reinterpretation of it, which is what makes it usable as the reference
+rather than a variant.
 
 ## The claim the name makes
 
@@ -38,8 +48,8 @@ may hear homage, ruled acceptable by the artist being of that generation.
 
 ## BUGS
 
-- The artwork in the tree (`art/cobble-first-draft.jpg`, also on the README) is the first
-  draft, photographed from Clay's screen rather than exported; it stands in until Clay calls a
-  draft final and exports it properly.
+- `art/cobble-first-draft.jpg` is photographed from Clay's screen rather than exported, and it
+  stands until Clay calls a draft final and exports it properly. **The realistic render does not
+  retire that**: it renders the design, and the design is still Clay's to call done.
 - No icon-size rendering exists yet. The draft passes the squint test (boxy head, red eyes,
   center gear), but a real small-size cut is future work for when the art is final.
