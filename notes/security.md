@@ -106,6 +106,33 @@ pointer path at all. Corrected, and the historical `abi::console` methods are ma
 
 The MMU-and-capability confinement, the part the whole architecture is built to get right, held up
 under adversarial reading with no exploitable hole. The real defects were two panics on untrusted
-input, both now fixed and tested, and the honest limitations are the ones a single-core learning
-kernel without an IOMMU or resource quotas is expected to have. Naming them is the point; a kernel
-that pretends to isolate a hostile DMA driver is worse than one that says it cannot.
+input, both now fixed and tested, and the honest limitations were the ones a single-core kernel
+without an IOMMU or resource quotas is expected to have. Naming them is the point; a kernel that
+pretends to isolate a hostile DMA driver is worse than one that says it cannot.
+
+### What has changed under this audit since (2026-09-05)
+
+**This is a dated record of a review done after milestone 11 and everything above stays in its own
+present tense.** Four of its standing conditions have moved, and a reader who took the paragraph
+above as current would be wrong about all four:
+
+- **Single core.** The threat model says "single core", and the scheduler section says the IPC
+  blocking races and the untyped-MAP TOCTOU "check out on single core". SMP landed at milestone 41
+  (DECISIONS §11, superseding §6). What was checked by reading here is now searched by loom
+  (notes/interleaving.md) and inventoried by notes/memory-ordering.md, and neither existed when
+  this was written.
+- **"delegation is not even exposed to userspace yet".** It is. `SEND_CAP` hands a capability over
+  an endpoint, and notes/delegation.md is honest that until it existed the kernel was "a central
+  authority-granting oracle", which is a sharper statement of the same gap this audit recorded.
+- **"without an IOMMU".** Milestone 16b built one, on both architectures, at the QEMU tier: an
+  identity-mapped domain per device with the existing DMA-escape tests run behind it, plus two Kani
+  harnesses over the aarch64 entry arithmetic. The shadow ring (notes/dma.md) deliberately stays as
+  defence in depth. notes/iommu.md carries the honest limits, which are real.
+- **"without resource quotas".** The mechanism exists (`Thread`'s quota slot, returned by ownership
+  rather than by bookkeeping; notes/quotas.md), and `sched::spawn_with_quota` **has no caller
+  today**, so the exhaustion attack this audit named is still reachable. That row moved from
+  "no mechanism" to "a mechanism nobody wired", which is a different piece of work.
+
+The word "learning" was in this paragraph and is removed. The project pivoted from a learning
+project to a demonstrator on 2026-07-26, before this note was written, and `AGENTS.md` asks for the
+old framing to be corrected wherever it is found.
