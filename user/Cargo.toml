@@ -652,6 +652,18 @@ path = "src/uptime.rs"
 test = false
 bench = false
 
+# `uuid` (milestone 111): a version-4 UUID drawn from the entropy service. The first program a
+# person can type that needs randomness: before it, the entropy grant reached only what the system
+# spawned (`credentialer` at boot, `disk_partitioner` under the kernel's test harness), so a
+# program's dependence on unpredictable bytes was real and unreachable from a prompt. Its whole
+# authority is `grant_plan::Manifest::entropy`, which init endows and no token on the command line
+# can name. Portable, so both ISAs' archives carry it. **Provisional name.**
+[[bin]]
+name = "uuid"
+path = "src/uuid.rs"
+test = false
+bench = false
+
 [lints]
 workspace = true
 
