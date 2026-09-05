@@ -374,21 +374,29 @@ the **host** and can call anything they like), then grep every package's `src/` 
 std APIs the PAL refuses. The "probes" column is how many of the 50 dependency closures contain at
 least one call site.
 
+**Six rows in this table were stale until 2026-09-05** (milestone 259's notes sweep), all in the
+same direction: `Unsupported` where milestone 64 had since bound the call. The table's own
+annotations are what made it obvious, because five of the six already carried a **verb exists**
+note, which is a gap list saying out loud that it is one binding away and then not being reread
+when the binding landed. The PAL's own header (`sys/fs/nife.rs`) had recorded all six under "Also
+bound since milestone 64" and nothing propagated it here. Nothing gates this; the only mechanism is
+somebody reading the PAL and this page together.
+
 | rank | gap | PAL today | probes | packages | note |
 |---|---|---|---|---|---|
-| 1 | `getrandom` backend | **CLOSED** 2026-08-17 | 8 failed outright | `rand`, `uuid`, `ring`, all of `gix` | not a std gap; `patches/getrandom-nife` |
+| 1 | `getrandom` backend | **CLOSED** 2026-08-17 | 8 failed outright | `rand`, `uuid`, `ring`, all of `gix` | not a std gap; the `entropy_backend` workspace crate (named by calef, 2026-08-18). This cell said `patches/getrandom-nife`, which has never existed under that name |
 | 2 | `std::os::unix` fallthrough | absent, **declined** | 21 | 34 | mostly benign (behind `cfg(unix)`); fatal in `filetime`, `gix-sec`. See below |
-| 3 | `thread::spawn` | `Unsupported`, **a fork** | 20 | 33 | `rayon`, `crossbeam`, `tokio`, `diesel`. See below |
+| 3 | `thread::spawn` | `Unsupported`, **decided** | 20 | 33 | `rayon`, `crossbeam`, `tokio`, `diesel`. The fork was resolved by DECISIONS §105 (2026-08-22): declined for want of a customer, not for want of a mechanism. See below, and notes/thread-spawn-fork.md |
 | 4 | `env::var` | **CLOSED** 2026-08-17 | 16 | 24 | `chrono` (TZ), `clap`, `gix`, `figment`; `vars()` used to **panic** |
-| 5 | `fs::create_dir(_all)` | `Unsupported` | 11 | 17 | **verb exists** (`MKDIR`) |
+| 5 | `fs::create_dir(_all)` | **CLOSED**, milestone 64 | 11 | 17 | bound on `MKDIR`. `create_dir_all` also needed rank 19a |
 | 6 | `available_parallelism` | `Ok(1)` | 11 | 7 | already answers honestly |
 | 7 | `fs::read_link` | `Unsupported` | 10 | 10 | no symlinks in the contract |
 | 8 | `File::set_len` | **CLOSED** 2026-08-17 | 10 | 9 | `TRUNCATE` existed all along; only the size word was missing |
 | 9 | `fs::symlink_metadata` | **already bound** | 9 | 13 | the row was stale: std routes it to `lstat`, which this PAL binds |
 | 10 | `std::os::fd` | absent | 9 | 12 | `mio`, `memmap2`, `is-terminal` |
-| 11 | `fs::read_dir` | `Unsupported` | 8 | 13 | **verbs exist** (`OPENDIR`, `READDIR`) |
-| 12 | `fs::remove_file` | `Unsupported` | 7 | 12 | **verb exists** (`UNLINK`) |
-| 13 | `fs::remove_dir(_all)` | `Unsupported` | 7 | 8 | **verb exists** (`RMDIR`) |
+| 11 | `fs::read_dir` | **CLOSED**, milestone 64 | 8 | 13 | bound on `OPENDIR` and `READDIR` |
+| 12 | `fs::remove_file` | **CLOSED**, milestone 64 | 7 | 12 | bound on `UNLINK` |
+| 13 | `fs::remove_dir(_all)` | **CLOSED**, milestone 64, with `remove_dir_all` at milestone 122 | 7 | 8 | bound on `RMDIR`; `remove_dir_all` needed no verb once nested paths resolved |
 | 14 | `fs::hard_link` | `Unsupported` | 7 | 4 | no verb |
 | 15 | `Permissions` | `readonly` is `false` | 7 | 8 | authority is a capability, not a mode bit |
 | 16 | `env::temp_dir` | **CLOSED** 2026-08-18 | 11 | 9 | it was a `panic!`, not a refusal; re-counted from 7 |
@@ -396,14 +404,14 @@ least one call site.
 | 16b | `process::id` | **CLOSED** 2026-08-18 | 5 | 5 | also a `panic!`; `gix-tempfile`'s fork check |
 | 17 | `process::Command` | no PAL at all | 6 | 10 | `gix-command`, `gix-credentials` |
 | 18 | `env::current_dir` | `Unsupported`, **declined** | 6 | 5 | refuses honestly; it is the namespace question |
-| 19 | `Metadata::modified` | `Unsupported` | 5 | 7 | no verb reports mtime, but §51 gave us a clock |
+| 19 | `Metadata::modified` | `Unsupported` | 5 | 7 | the server keeps an mtime and §43 gave us a clock to read it against, so the only missing piece is a **wire-format change** to `FSTAT`'s reply, which two programs have to agree on and is not a lane's to make |
 | 19a | `Path::is_dir` on a directory | was always `false` | (not counted) | | closed with the five above; `create_dir_all` needed it |
 | 20 | `fs::set_permissions` | `Unsupported` | 4 | 3 | |
 | 21 | `TcpListener` | **CLOSED** 2026-08-18 | 4 | 11 | the LISTEN verb landed at milestone 107; the reason column was stale for a fortnight |
 | 22 | `ToSocketAddrs` / DNS | numeric only | 4 | 5 | |
 | 23 | `Metadata::created` | `Unsupported` | 3 | 3 | |
 | 24 | `set_nonblocking` | `Unsupported` | 3 | 4 | contract is blocking-only |
-| 25 | `fs::rename` | `Unsupported` | 2 | 2 | **verb exists** (`RENAME`); undercounted, see BUGS |
+| 25 | `fs::rename` | **CLOSED**, milestone 64 | 2 | 2 | bound on `RENAME`; undercounted, see BUGS |
 | 26 | `fs::copy` | **CLOSED** 2026-08-17 | 2 | 2 | needs no verb: an open, a read/write loop, two closes |
 | 27 | `fs::canonicalize` | `Unsupported` | 2 | 1 | |
 | 28 | `File::set_times` | `Unsupported` | 2 | 1 | same shape as rank 19: no verb sets an mtime, wire-format, wants a decision |
