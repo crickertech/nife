@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1037 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1043 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,20 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Raised from 1037 to 1043 on 2026-09-05, and this paragraph is the sentence the rule asks for.**
+Six lines, and they replace a list with a test. The naming section protected eight standard terms by
+enumeration, which told a reader nothing about the ninth; it now carries calef's rule that **an
+acronym is spelled out unless its expansion teaches nothing**, which can be applied to a name nobody
+has coined yet. It also overturns a ratification of his own (`dma_validator`, 2026-08-01) and says
+so, because a reader who remembers that decision should be able to see it reconsidered rather than
+quietly dropped.
+
+**The growth is six lines and not thirty because the argument went to notes/naming.md**, where the
+same clause was also stated and would otherwise have contradicted the constitution the moment this
+landed. That duplication is itself the subject of a milestone now: the constitution should carry the
+tests a lane applies and the note should carry the history, and today the naming section is 12% of
+`AGENTS.md` with most of that being argument.
 
 **Raised from 1035 to 1037 on 2026-09-05, and this paragraph is the sentence the rule asks for.**
 Two lines, and they buy a correction rather than an addition: §90's paragraph justified the

@@ -151,10 +151,33 @@ their own initiative either, because a rename is a naming decision with extra st
 that names are what make this OS legible to humans and to LLMs, and in a capability system a name is
 often the only thing that says what a program can *do*.
 
-**Standard terms are already right and must not be touched.** `elf`, `pci`, `dtb`, `gpt`, `ipc`,
-`paging`, `glob`, `asid`, `socket_proto` are names a reader knows from outside this project, so they
-cost nothing to learn. This tenet is a naming authority, not a renaming mandate, and renaming `elf`
-would destroy the recognition the whole thing exists to buy.
+**Standard terms are already right and must not be touched.** `elf`, `pci`, `paging`, `glob`,
+`socket_proto` are names a reader knows from outside this project, so they cost nothing to learn.
+This tenet is a naming authority, not a renaming mandate, and renaming `elf` would destroy the
+recognition the whole thing exists to buy.
+
+**But an acronym is spelled out unless its expansion teaches nothing** (calef, 2026-09-05), and this
+paragraph used to protect four names that fail that test. **The test is an asymmetry**: a reader who
+knows the term recognises its expansion instantly, so spelling it out costs the expert nothing and
+saves the newcomer a bounce. The acronym only ever helps the reader who was already fine.
+
+**It was settled by the architect not knowing one.** `mmu::bar_window` was defended on 2026-09-05
+with the argument that `BAR` was the vocabulary the retired `PCI_BAR_PHYS` already used. calef asked
+what BAR stood for, which is the whole answer: **an argument from this project's own history is not
+an argument that a reader knows the word.** He then named the general form, and deratified `dma` in
+the same breath: *"we want accessible names which means spelling out acronyms except in the most
+obvious cases because the knowledgeable reader would recognize the expansion of an acronym they
+knew."*
+
+**What survives and what does not.** `pci` expands to peripheral component interconnect and the
+reader is no wiser; `elf`, `paging` and `glob` are the same. **`dma`, `dtb`, `gpt`, `ipc` and `asid`
+all expand into something more informative than themselves** (direct memory access, device tree
+blob, GUID partition table, inter-process communication, address space identifier) and are therefore
+deratified. `dma_validator` was ratified by calef on 2026-08-01, before the test existed, and this
+overturns that rather than quietly dropping it from a list.
+
+**The sweep is its own milestone**, because `ipc` in particular is load-bearing across the tree and
+a rename that size is not a side effect of a rule change.
 
 **One constraint:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, so a program's name is
 bounded. Crates are not in the archive and are unbounded.
