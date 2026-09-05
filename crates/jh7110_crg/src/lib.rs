@@ -136,16 +136,18 @@
 //! procedure that would settle it, with a table mapping each observable outcome to what it means,
 //! is `notes/jh7110-clock-and-reset.md`.
 //!
-//! Name: unrecorded, provisional (introduced 2026-09-04 by milestone 220's lane). `crg` is not an
-//! abbreviation this project coined: both device trees that describe this chip spell the blocks
-//! `syscrg`, `stgcrg` and `aoncrg` (mainline's `starfive,jh7110-stgcrg`, the vendor's
-//! `reg-names = "syscrg", "stgcrg", ...`), which puts it in the protected class of names a reader
-//! already knows from outside, beside `elf`, `pci` and `dtb`. Chip-qualified for `jh7110_trng`'s
-//! reason: a bare `crg` would name almost anything, and this tree has one `SoC` today and intends
-//! more. Refused `jh7110_clock` (this controller also owns resets, and a name that says only
-//! clock would make the reset half read as a surprise) and `jh7110_clkgen` (the vendor's own label,
-//! but it names one of the two published spellings and this crate reads both). calef has not
-//! ratified it; see `Cargo.toml`'s header for the same note and `script/names`.
+//! Name: provisional. Introduced 2026-09-04 by milestone 220's lane. `crg` is not an abbreviation
+//! this project coined: both device trees that describe this chip spell the blocks `syscrg`,
+//! `stgcrg` and `aoncrg` (mainline's `starfive,jh7110-stgcrg`, the vendor's `reg-names =
+//! "syscrg", "stgcrg", ...`), which puts it in the class of names a reader of the hardware
+//! documentation already has. Chip-qualified for `jh7110_trng`'s reason: a bare `crg` would name
+//! almost anything, and this tree has one system on a chip today and intends more. Refused
+//! `jh7110_clock` (this controller also owns resets, and a name that says only clock would make
+//! the reset half read as a surprise) and `jh7110_clkgen` (the vendor's own label, but it names
+//! one of the two published spellings and this crate reads both). The 2026-09-05 acronym test
+//! cuts against the stem, since clock and reset generator is more informative than `crg`, and it
+//! collides with the protected-class argument above rather than settling it; that is the acronym
+//! sweep's to resolve. calef has not ratified it.
 //!
 //! # Examples
 //!

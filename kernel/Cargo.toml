@@ -1,8 +1,10 @@
-# Name: unrecorded. `kernel` is the standard term for the thing this is, and the naming tenet's
-# protected class covers exactly that case: a word a reader already knows from outside costs a
-# newcomer nothing, so `elf`, `pci`, `dtb` and `paging` were left alone for the same reason. Nobody
-# recorded a decision because nobody had to make one. Kept `unrecorded` rather than claimed as
-# `recorded`, because `recorded` asserts the reasoning is written down somewhere and it is not.
+# Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+# outside"). This block previously declined to claim `recorded` on the ground that the reasoning
+# was not written down anywhere, and that was wrong by one file: AGENTS.md's protected-class
+# paragraph is the written reasoning, and it covers this case exactly, which is why `elf`, `pci`,
+# `paging` and `glob` were left alone by the same rule. `kernel` is the standard term for the
+# thing this is, so nobody recorded a decision because nobody had to make one, and the general
+# rule is the record. calef has not ratified it.
 
 [package]
 name = "kernel"
