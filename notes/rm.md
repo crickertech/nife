@@ -71,7 +71,7 @@ necessary, that is a signal something else broke, not a licence to add it.
 `RM_MISSING` is deliberately a name the fixture **never stages**. Without that, the `-f` run and the
 plain run would be indistinguishable, because the whole of `-f` is that a name which is not there is
 not an error. A fixture that accidentally shipped that name would make the test pass while proving
-nothing, and `fs_proto` has a host test asserting it is never staged.
+nothing, and `filesystem_proto` has a host test asserting it is never staged.
 
 ## `rm *.txt`: the operand can be a set, and then it is the namespace
 

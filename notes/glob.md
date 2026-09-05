@@ -24,7 +24,7 @@ The roadmap's four candidate answers and its verdict:
 | **a directory capability attenuated to a name set** | the principled one |
 
 `fs_file_caretaker` today serves a namespace of exactly one name; globbing generalizes it to a
-**set**. Same caretaker, same `fs_proto` above and below, nothing new in the kernel. That is a
+**set**. Same caretaker, same `filesystem_proto` above and below, nothing new in the kernel. That is a
 wiring job, it needs the directory-capability verb, and it is a different lane.
 
 What falls out is this crate: a total function on two byte strings, which is exactly the part that
@@ -91,7 +91,7 @@ subdirectory, which in this system means *holding a capability for it*. That is 
 granting. Putting `**` inside a string matcher hides an authority question inside a pure function,
 which is the exact mistake this OS exists to not make.
 
-So the crate matches **one name**, a single path component, which is what `fs_proto` actually
+So the crate matches **one name**, a single path component, which is what `filesystem_proto` actually
 carries. When path syntax is settled, recursive descent lands as a traversal layer *above* this
 crate: walk the directory capabilities you hold, call `matches` per component. `**` belongs there,
 because that is where the authority to descend is.
@@ -278,7 +278,7 @@ The unit tests exist for these. Every one is a place a real glob implementation 
 
 ## What is not in the crate
 
-- No filesystem access of any kind, no enumeration, no `fs_proto`, no `grant_plan`. It does not depend on
+- No filesystem access of any kind, no enumeration, no `filesystem_proto`, no `grant_plan`. It does not depend on
   anything, inside the tree or out.
 - No allocation. `literal` writes into a caller buffer and returns `None` rather than truncating,
   because a truncated filename is a different file and this is the path that decides what gets

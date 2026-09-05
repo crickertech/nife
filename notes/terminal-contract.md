@@ -85,7 +85,7 @@ terminal writes, it reads).
   of a limit `OP_WRITE` has that is easy to miss: it reads from **the client's output page**, and
   there is exactly one of those. init maps a single frame into the terminal read-only and into the
   shell read/write, so a second page-based client would need a second frame and a page index in
-  every request. That is `fs_proto`'s one-page-two-clients problem (DECISIONS §55) arriving in a
+  every request. That is `filesystem_proto`'s one-page-two-clients problem (DECISIONS §55) arriving in a
   second contract.
 
   Register-only sidesteps it: `user/src/terminal_sink_caretaker.rs` turns the sink contract into terminal

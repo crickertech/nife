@@ -297,7 +297,7 @@ Host tests (`cargo test -p cred -p cred_proto`, milliseconds, no emulator):
 - The lookup lands on the decoy for a miss and on the record for a hit, at every slot position.
 - A miss and a hit take comparable time.
 
-Proofs (`script/verify`, three Kani harnesses over `cred_proto`, 30 checks, 0.2 s). Both properties
+Proofs (`script/verify`, three Kani harnesses over `credential_proto`, 30 checks, 0.2 s). Both properties
 are about what an adversary can send or receive, and an adversary is not limited to the values a
 test author thought of:
 
@@ -356,7 +356,7 @@ in the same place.
   branch nothing reaches. A real deployment with a fourth person edits a constant and rebuilds.
 - **One verify page means one client at a time.** The page is per service, not per channel, so two
   clients sharing the endpoint would share the frame each writes its presented secret into. Nothing
-  detects that. `fs_proto`'s answer (one page per channel) is the shape to copy when a second client
+  detects that. `filesystem_proto`'s answer (one page per channel) is the shape to copy when a second client
   exists; today the intended client is the single SMB adapter.
 - **No rate limit, no lockout, no attempt counter.** A client holding the verify endpoint can guess
   as fast as it can `CALL`. Each guess costs the service one Argon2id derivation, which is the only

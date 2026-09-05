@@ -280,7 +280,7 @@ counterparty; the expiry wakes it; it returns.
    machine-checked proofs of its one-queue invariant, so the proofs move with it. Bounded by
    `MAX_THREADS`, paid only on an actual expiry, and the census in section 6 says a queue can really
    hold most of the table.
-2. **Nothing else.** The half that looks harder is already built. `wake_handshake`'s undelivered-wake
+2. **Nothing else.** The half that looks harder is already built. `thread_wake_handshake`'s undelivered-wake
    gate refuses a wake with `wait_on.is_some()` and nothing delivered (boot 8), so a timeout looks
    like exactly the wake the gate exists to stop; but `Handshake::abort()` already passes the gate for
    this reason, and `sched::set_ipc_aborted` + `wake` is already the pair that revocation uses on a

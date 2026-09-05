@@ -68,10 +68,10 @@ capability's meaning cannot change out from under its holder.
 
 On Linux, layering metadata above a filesystem is worthless: anything can `open(2)` the file
 directly and walk around the layer. **Here nothing can.** Every path to these bytes goes through
-`fs_proto`, so a layer above the filesystem is as authoritative as the filesystem. That is a
+`filesystem_proto`, so a layer above the filesystem is as authoritative as the filesystem. That is a
 capability-system property doing real work rather than a consolation.
 
-The argument that actually decided it was **reversibility** (DECISIONS §34). `fs_proto` hides which
+The argument that actually decided it was **reversibility** (DECISIONS §34). `filesystem_proto` hides which
 implementation was chosen, so if attributes later prove central enough to justify diverging from a
 pinned upstream, or if the change is accepted into RedoxFS, the implementation moves and no client
 changes. Choosing the layer is therefore low-regret rather than a bet.
@@ -294,7 +294,7 @@ Named here because a reader who meets the feature deserves to meet its edges at 
 
 **Host, milliseconds, no emulator.** The whole of the layer's semantics is pure functions over a
 byte slice (`filesystem_proto::xattr::store`), so what replaces what, which ceiling refuses, and what a
-truncated blob means are all tested without a filesystem: seven tests in `fs_proto`, including a
+truncated blob means are all tested without a filesystem: seven tests in `filesystem_proto`, including a
 sweep that cuts a blob at every byte and asserts it reads back **short rather than wrong**. Ten more
 in `redoxfs_server` drive the real engine against a `DiskMemory` image: persistence across a mount the
 attribute was not written in, the rename property, the purge with a provoked node-id reuse, the

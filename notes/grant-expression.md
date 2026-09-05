@@ -342,7 +342,7 @@ more than deleting it, because three landed as written and the fourth was worse 
 directory grant travels as its own messages. It is two, not one, and the shape is better than the
 "five words of names" this note guessed: each message is a **process's three `START` words**, the
 caretaker's and then the program's, forwarded by init without being decoded. That is what lets
-`grant_plan` carry a filesystem grant while keeping its deliberate non-dependency on `fs_proto`.
+`grant_plan` carry a filesystem grant while keeping its deliberate non-dependency on `filesystem_proto`.
 
 **The depth.** As predicted, and it is the one thing still open. Every caretaker wiring in this tree
 descends exactly one name, so `rm rmtree/rm-solo` works and `rm gate.txt` at the top prompt does not:

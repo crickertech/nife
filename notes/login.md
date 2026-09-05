@@ -35,7 +35,7 @@ the same trade the credential service (milestone 56) already made for the secret
 ```
 
 `login` relays the presented identity and secret to the credential service's `VERIFY` unchanged: it
-never touches `cred_proto`'s protocol or `credentialer.rs`. On a match it **builds**, rather than
+never touches `credential_proto`'s protocol or `credentialer.rs`. On a match it **builds**, rather than
 narrows, a capability set: a fresh `fs_subtree_caretaker` (the same construction
 `crates/system_initializer` performs for a directory-granted spawn) and a fresh budget split off its
 own construction untyped. Two different successful logins therefore hold two different endpoint
@@ -121,7 +121,7 @@ assert_eq!(verdict, proto::DENIED);
 ## What is proven, and where
 
 Host tests (`cargo test -p login_proto`, milliseconds, no emulator): the request page's encoding
-round-trips through the same `cred_proto` helpers the credential service uses, and the attribution
+round-trips through the same `credential_proto` helpers the credential service uses, and the attribution
 hint is stable per identity and distinct across identities.
 
 Guest tests (`kernel::user::login_tests`, both aarch64 and riscv64):

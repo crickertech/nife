@@ -789,7 +789,7 @@ loop rather than a signature change. The block server's DMA region was already w
 
 - **A 4 KiB request no longer moves 128 KiB, and the transfer unit is no longer 4 KiB.** This entry
   used to record a 32x amplification: the client's transfer unit is one page, because that is what a
-  `fs_proto` request can carry, and RedoxFS's record was 128 KiB, so a read fetched 32 blocks and a
+  `filesystem_proto` request can carry, and RedoxFS's record was 128 KiB, so a read fetched 32 blocks and a
   write read 32, changed one and wrote 32 back. Both halves are gone.
   **Milestone 138 step 1 took the record to 8 KiB** (`RECORD_LEVEL` 1, vendor/README.md divergence
   5), measured at **5.13x on a 4 KiB read and 3.01x on a 4 KiB write**: 1,458 us to 284 us, and

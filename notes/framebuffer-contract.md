@@ -60,7 +60,7 @@ Two verbs, and that is the whole surface today:
 
 A rectangle outside the surface is **refused, not clamped**. A clamp hides a client's coordinate bug,
 and the client is the only party that can tell the difference. `EINVAL` (-22), the same
-negative-is-an-error convention `fs_proto` sets.
+negative-is-an-error convention `filesystem_proto` sets.
 
 Why two device commands per flush, in this order: `TRANSFER_TO_HOST_2D` is what actually reads the
 guest pixels (the device DMAs them out of the backing into its own host-side image), and

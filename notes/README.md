@@ -414,7 +414,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   reader into `Gone` for a live writer. A builtin can lead a pipeline because the shell can be a
   writer. Both directions are proven the same way, one binary against two sources or two
   destinations. And the finding that finished it: the file behind a `>` is **the shell's own
-  filesystem session**, not a sink process, because `fs_proto` shares one page between the FS server
+  filesystem session**, not a sink process, because `filesystem_proto` shares one page between the FS server
   and its clients and `ls > out.txt` is a line where the shell must read the filesystem while the
   redirection is being written. Since 2026-08-04 it also holds the constraint the second reader
   found: **a process has one wait point**, so a shell that feeds a stage cannot also receive from
@@ -1043,7 +1043,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   built for milestone 31 phase 2) and is a builtin in `mkdir`'s category rather than `rm`'s, since it
   takes no more than the directory capability the shell already holds. The mtime half (bumping an
   existing name's timestamp, and `-t`'s sharper ability to lie about history) is not built, because
-  `fs_proto` carries no verb for it and whether "set to now" is the write right already held or a
+  `filesystem_proto` carries no verb for it and whether "set to now" is the write right already held or a
   separate authority is an open question the roadmap block names rather than answers.
 
 - [The inert-configuration page](env-config.md): milestone 47's environment-variable fork
@@ -1054,7 +1054,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   not parse as a real timezone/locale/terminal type is refused at assembly time rather than
   carried through disguised as configuration. No seqlock, unlike the clock: the page has exactly
   one writer and it finishes before the page has a second reader. Built end to end for a std
-  program (`env_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
+  program (`environment_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
   on both ISAs; no shell-facing program declares wanting it yet, the same position `clock` was in
   before `date` existed.
 

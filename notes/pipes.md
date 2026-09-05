@@ -187,7 +187,7 @@ serves the sink contract, `sink_tests` proves it against a real RedoxFS image, s
 init to build one per redirection and hands the child the endpoint. **That does not work, and the
 reason is worth more than the feature.**
 
-`fs_proto` shares **one page** between the FS server and its clients (`fs_service`'s
+`filesystem_proto` shares **one page** between the FS server and its clients (`fs_service`'s
 `FILE_VA_CLIENT`; the server maps the same frame at `FILE_PAGE`). A client stages bytes or a name in
 that page and *then* calls, so its use of the page straddles the call boundary. Two client
 **processes** doing that at once race, and nothing in the contract orders them: there is no lock, and
@@ -563,7 +563,7 @@ input source or the `--mem` untyped, whichever the request carried, and that is 
 because no manifest declares both (this note's BUGS has carried the entry since the milestone
 landed). A third stream makes an ordered slot convention untenable and forces a numbered one first.
 
-**An opcode on the one endpoint.** `sink_proto` puts the operation in the top byte of the request
+**An opcode on the one endpoint.** `byte_sink_proto` puts the operation in the top byte of the request
 word, so `OP_BYTES = 0` and `OP_EOF = 1` leave 254 spellings free. A third, "these bytes are a
 diagnostic", would carry the distinction on the wire the writer already holds: no second capability,
 no second slot, no spawnproto change, no init change, and §51 intact word for word. The **reader**
@@ -623,7 +623,7 @@ the head's input off the `Line`, which has no `<` on it, so a planned `Source::F
 and the stage was spawned with an **empty** input slot.
 
 **It did not hang, and that is the part worth keeping.** A `recv` on an empty slot answers
-`NoSuchSlot` rather than blocking; the error word's top byte is an opcode `sink_proto` does not
+`NoSuchSlot` rather than blocking; the error word's top byte is an opcode `byte_sink_proto` does not
 define, so it decodes as `Msg::Malformed`; and every reader in this tree treats a malformed message
 as the end of the document, because a page silently missing a paragraph is worse than a page that
 stops. Three correct local decisions compose into a stage that runs to completion over nothing and
@@ -790,7 +790,7 @@ again, so the bound has to be an honest part of it.
 **What is not a way out is an adapter process at the file end.** The obvious move for
 `doc page.md > out.txt` is to give the writing end to a component so the shell is only the producer,
 and it does not work for the reason ["The file behind a `>` is this
-shell"](#the-file-behind-a--is-this-shell-and-that-was-not-the-plan) already gives: `fs_proto` shares
+shell"](#the-file-behind-a--is-this-shell-and-that-was-not-the-plan) already gives: `filesystem_proto` shares
 one page between the FS server and its clients, and this line has the shell reading the filesystem
 while the adapter writes it. Same race, same page, and no ordering fix.
 

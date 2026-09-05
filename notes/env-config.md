@@ -1,6 +1,6 @@
 # The inert-configuration page: `TZ`, `LANG`, `TERM`, and what still waits
 
-Milestone 47's environment-variable fork. Built 2026-08-23. The contract is `env_proto` (a
+Milestone 47's environment-variable fork. Built 2026-08-23. The contract is `environment_proto` (a
 provisional name; naming crates is calef's call, per AGENTS.md); the decision is DECISIONS §111.
 
 ## What this is
@@ -97,4 +97,4 @@ magic both reading as "no configuration," and the layout offsets not overlapping
   exists today is one fixed default `std_service.rs` assembles for every std program it spawns,
   which is closer to `date`'s "init endows unconditionally" shape than to a per-shell,
   per-session default.
-- **The domains are curated, not exhaustive.** See `env_proto`'s own `BUGS` section.
+- **The domains are curated, not exhaustive.** See `environment_proto`'s own `BUGS` section.

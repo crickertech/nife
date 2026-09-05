@@ -1423,7 +1423,7 @@ is one design constant in the store we vendored.
 
 ### What one transfer is, and why that is most of the story
 
-A `fs_proto` `READ` or `WRITE` moves its payload through the **one page the client shares with the
+A `filesystem_proto` `READ` or `WRITE` moves its payload through the **one page the client shares with the
 server**, so 4096 bytes is the protocol's ceiling per request. Every figure below is therefore a
 request rate wearing throughput's clothes, and any system whose client may pass a 64 KiB buffer is
 being asked an easier question. That is priced explicitly in the ext4 table below, the same way
@@ -1528,7 +1528,7 @@ with the same flags and a unit a real program would use, in ns per **64 KiB** tr
 
 **A 64 KiB request costs about what a 4 KiB one does**, so sixteen times the payload arrives for the
 same price: 600 to 900 MiB/s against 40 to 80. That number is the size of the prize a multi-page
-transfer on `fs_proto` would be chasing, and it is why the 4 KiB cap is the first caveat rather than
+transfer on `filesystem_proto` would be chasing, and it is why the 4 KiB cap is the first caveat rather than
 the last.
 
 **One ordering artefact, stated because it moves a number.** The `rawdev` rows run last, after the
@@ -1586,13 +1586,13 @@ the rest of this page worth reading.
 The map bench's tie and the spawn bench's "lighter object than a Unix process" are the model here:
 the caveats are the substantive half, and a figure quoted without them is worth less than no figure.
 
-1. **The 4 KiB unit is ours by constraint and theirs by choice.** A `fs_proto` request cannot carry
+1. **The 4 KiB unit is ours by constraint and theirs by choice.** A `filesystem_proto` request cannot carry
    more than a page. The 64 KiB row prices exactly that, at about sixteen times.
 2. **We have no cache and they have several.** No `DiskCache`, no readahead, no metadata cache; the
    identical cost of our sequential, random and record-aligned reads is the proof. `O_DIRECT` and
    `F_NOCACHE` remove the page cache on the other side but not the in-kernel metadata caching that
    lets ext4 map a block without reading one.
-3. **Our write is between Linux's two.** Every `fs_proto` write goes through a RedoxFS transaction
+3. **Our write is between Linux's two.** Every `filesystem_proto` write goes through a RedoxFS transaction
    that commits to the header ring before the reply, so the filesystem's own state is durable per
    request the way `O_DSYNC` makes ext4's; but no `VIRTIO_BLK_T_FLUSH` is issued unless a client asks
    (`filesystem_proto::fs::SYNC`, milestone 55), so the bytes sit where `O_DIRECT` alone leaves them. Both
@@ -1941,7 +1941,7 @@ per-file level out of reach today:
   `read_block` allocates its buffer through `T::empty(ptr.addr().level())`. So **lowering the constant
   makes every record already stored at a higher level unreadable**, with `ENOENT`, on an image that
   was perfectly good before.
-- Nothing in `fs_proto` can name a level, so the FS server would have nothing to pass down even if the
+- Nothing in `filesystem_proto` can name a level, so the FS server would have nothing to pass down even if the
   engine took one.
 
 So option 2 has two shapes and they are not the same decision. **Lowering the default** is one line
@@ -1968,7 +1968,7 @@ which are large and sequential, and a 128 KiB record is plausibly right for thos
 
 **It is not the atypical case. It is the only case this system has.** `user/src/smb_server.rs` chunks
 every SMB read and every SMB write into `filesystem_proto::PAGE`-sized requests, in a loop, because that is
-what a `fs_proto` request carries:
+what a `filesystem_proto` request carries:
 
 ```rust
 let want = (out.len() - done).min(filesystem_proto::PAGE);      // read
@@ -2129,7 +2129,7 @@ step 1 shipped and measured, that can be restated against real numbers rather th
   record boundary, which is the only property the phase needs, and keeping the constant is what makes
   every figure this phase has produced comparable across the whole sweep. It is no longer named after
   the record size, and `redoxfs_server` now asserts at compile time that the two divide; before this step
-  `fs_proto` called the mismatch "the one soft spot in this module" and nothing checked it.
+  `filesystem_proto` called the mismatch "the one soft spot in this module" and nothing checked it.
 - **Only levels 5, 1 and 0 were measured here.** The six-point sweep above is what establishes the
   line; this run confirms two points on it and one off it, and it would not have caught a
   non-linearity at 2, 3 or 4.
@@ -2246,7 +2246,7 @@ varies only the transfer, so it cannot confirm or refute that. `sh bench/record-
   when the number got bigger. It got smaller: 64 KiB is the buffer size milestone 38's ext4
   comparison used, so the *transfer size* half of the mismatch is now closed and the page-cache half
   is not. ext4 buffered remains three orders of magnitude away and the reason is still structural.
-- **The write comparison is `O_DSYNC`-shaped, unchanged.** Every `fs_proto` write still commits a
+- **The write comparison is `O_DSYNC`-shaped, unchanged.** Every `filesystem_proto` write still commits a
   RedoxFS transaction before it replies; what changed is how much payload one commit covers.
 
 ## Step 4 taken: the blk contract carries 16 blocks, and the win is smaller than the block count

@@ -27,7 +27,7 @@ The roadmap's four candidates and its verdict, which this lane implements rather
 
 The finding that makes it tractable is that this is a small change: `fs_file_caretaker` already
 serves *a namespace of exactly one name*, so globbing generalizes the namespace and nothing else.
-Same caretaker shape, same `fs_proto` protocol above and below, **nothing new in the kernel**.
+Same caretaker shape, same `filesystem_proto` protocol above and below, **nothing new in the kernel**.
 
 That generalization is in the type system rather than only in the prose. `grant_plan::DirGrant` used to
 carry `name: &[u8]`; it now carries `names: NameSet`, and a literal operand is the set of one.

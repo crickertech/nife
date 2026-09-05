@@ -220,7 +220,7 @@ sidesteps it by keeping its UDP and TCP sockets on distinct ids at once.
 
 `sys/fs/nife.rs` binds std's `File` to the FS server's file contract (DECISIONS §27,
 notes/fs-server.md, `crates/filesystem_proto`). Like the net PAL it is a **client** of a frozen contract and
-nothing more, and like the net PAL its wire constants are generated verbatim (`fs_proto` becomes
+nothing more, and like the net PAL its wire constants are generated verbatim (`filesystem_proto` becomes
 `sys/pal/nife/fsproto.rs` by `std-src`), so the PAL's numbers cannot drift from the server's.
 
 ### The interesting part: `File::open` takes a path, and there is no global namespace
@@ -292,7 +292,7 @@ reachability first, so a kernel `NoSuchSlot` cannot follow a reply. The cost of 
 made deliberately, because `EPERM` is reachable every day and revoking the FS endpoint is milestone
 108's open question. `-3` still reads as the kernel's, because `ESRCH` really is not in the server's
 vocabulary. The clean fix is a tag or an offset in the reply word, which is a contract change
-(`fs_proto`, the FS server, and `fs_test_client`), reported up rather than papered over here.
+(`filesystem_proto`, the FS server, and `fs_test_client`), reported up rather than papered over here.
 
 ### What binds, and what stays Unsupported
 
@@ -575,7 +575,7 @@ completes, not why the poll path did not.
   leaves the process.
 
   **`TZ`, `LANG` and `TERM` are seeded from a grant** (milestone 47's environment-variable fork,
-  DECISIONS §111, `env_proto`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
+  DECISIONS §111, `environment_proto`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
   a `Frame` with `READ`, the same rights-ladder shape as the clock) has those three keys in its
   table from the first line of `main` onward, read by `pal::nife::init` before the program's own
   code runs; a process granted no such page is seeded with nothing. This is the *inert

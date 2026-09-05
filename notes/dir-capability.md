@@ -162,7 +162,7 @@ It costs no memory: the granted name and the rights mask ride in the three `STAR
 ### The verb table, and how it stayed a translation (milestone 61)
 
 Each of the three caretakers used to be a hand-written `match` over the opcode, and nothing made a
-`match` and the contract agree. So the way it failed was that **a verb added to `fs_proto` was
+`match` and the contract agree. So the way it failed was that **a verb added to `filesystem_proto` was
 simply absent from a caretaker and the capability silently was not there**. That is not
 hypothetical: milestone 57 added the four extended-attribute verbs, none of the three was taught
 them, and nothing failed. Programs behind every kind of grant just could not reach their files'

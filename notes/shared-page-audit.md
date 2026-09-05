@@ -103,7 +103,7 @@ Worth stating before the findings, because it is the reason there are so few.
 never in the page.** The kernel copies a message's words into its own state at `SEND` time and hands
 them to the receiver in registers, so by the time a server sees them they are in memory only that
 server can write. `filesystem_proto::fs::req` packs opcode, handle and a 40-bit length into one word;
-`graphics_proto` packs a whole rectangle into four 14-bit fields of one word; `cred_proto` packs two
+`graphics_proto` packs a whole rectangle into four 14-bit fields of one word; `credential_proto` packs two
 lengths into one word. There is **no contract in this tree whose length field lives in the shared
 page**, which removes the entire classic form of the bug (read a length from the page, bound-check
 it, read it again to size the copy) by construction rather than by care.
@@ -173,7 +173,7 @@ those three are never runnable at once on the same page: the shell is parked in 
 spawned program's stream for the whole time that program exists, the program is inside a blocking
 `CALL` whenever the caretaker is forwarding, and the caretaker touches the page exactly once at
 startup and then only relays handles. **Init itself never writes it at all**, which is worth stating
-because it now holds the capability: it maps the frame into children and does not speak `fs_proto`.
+because it now holds the capability: it maps the frame into children and does not speak `filesystem_proto`.
 In the kernel test suite several caretaker chains do coexist on the one frame, but each is blocked on
 `recv_cap` between tests, and the confined clients `exit()` after reporting.
 

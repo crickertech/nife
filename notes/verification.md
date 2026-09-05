@@ -293,7 +293,7 @@ userspace virtio driver's DMA: on every `NOTIFY` the kernel walks the driver's d
 any whose buffer escapes the driver's granted region (or is indirect), and copies the validated ones
 into a kernel-private **shadow ring** the device reads, so the driver cannot touch what the device
 acts on. The logic was lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it)
-so it could be proved, the same Phase-2 move `regions` and `ipc` made; the kernel's QEMU attacker
+so it could be proved, the same Phase-2 move `memory_regions` and `ipc` made; the kernel's QEMU attacker
 suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged and green, so
 the extraction is faithful.
 
@@ -725,7 +725,7 @@ how a kernel-only pull request stops paying the 42 minutes.
 
 - **Proofs live behind `#[cfg(kani)]`.** An ordinary `cargo build`/`cargo test` never compiles them,
   and the crate needs no dependency on `kani` (its intrinsics are injected only under `cargo kani`).
-- **Verify pure logic first.** The §7 host crates (`capability`, `paging`, `elf`, `frames`, the ASID
+- **Verify pure logic first.** The §7 host crates (`capability`, `paging`, `elf`, `page_frames`, the ASID
   allocator when it lands) are the frontier: small, allocation-light, already host-compiled. Bounded
   model checking is happiest there.
 - **Spread inward from the capability core**, the order §14 sets: `capability`, then IPC (rendezvous,
