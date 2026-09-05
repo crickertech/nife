@@ -5,15 +5,25 @@ nothing here adds a syscall or an object, and the fork it informs is calef's. Na
 everything a lane mints: `timer-capability.md` is a sibling of `timed-wait.md` rather than a second
 copy of it, and the two answer different halves of one question.)*
 
-**The answer, first.** On riscv64 a userspace timer service cannot hold a timer, and the reason is
-architectural rather than a gap in this kernel. There is no comparator at any address or CSR that
-U-mode may write, on any RISC-V machine, and no configuration bit anywhere in the privileged
-architecture that would open one. So the userspace-timer-service answer to milestone 106 **does not
-survive [§19](../design/decisions/19-architectural-parity.md) parity.**
+**The answer, first.** The userspace-timer-service answer to milestone 106 **does not survive
+[§19](../design/decisions/19-architectural-parity.md) parity**, and the reason is not the one the
+milestone block predicted.
 
-The other two architectures come out the other way, and one of them contradicts the milestone block
-that scoped this spike. aarch64 **can** grant a timer comparator to one thread rather than to all of
-EL0, using machinery this tree built for a different reason two days ago.
+Two clauses, and both are needed:
+
+1. **On riscv64 no *architected* timer can be granted to U-mode**, on any machine, by the privileged
+   architecture rather than by a gap in this kernel. There is no U-mode timer-compare CSR, no enable
+   bit that would create one, and no route to SBI from U-mode.
+2. **The only mechanism that works on all three is per-board MMIO**, and it is not uniformly
+   available. The two real boards have generous MMIO timer blocks (argon fourteen channels, radon
+   four, each with its own interrupt line), but **QEMU's aarch64 `virt` has no MMIO timer device at
+   all** and that is the machine every gate in this tree runs on. So a userspace timer service would
+   be a different driver per board, absent on the aarch64 CI machine, which is §19's own definition
+   of the bug rather than a parity story.
+
+The correction worth having is on the third architecture the block wrote off. aarch64 **can** grant a
+timer comparator to one thread rather than to all of EL0, using machinery this tree built for a
+different reason three days ago.
 
 ## What each specification actually says
 
@@ -137,6 +147,69 @@ read, so §139's conclusion (the HPET loses to a syscall as a *clock*) does not 
 as a *timer*. That distinction is worth keeping straight, because the two uses share a device and
 nothing else.
 
+## The other route: an MMIO timer the kernel already knows how to delegate
+
+The three sections above are about the *architected* timer on each ISA. There is a second route that
+needs no new mechanism at all, because this tree already has it: an MMIO timer block is a
+`DeviceFrame` plus an `Object::Irq`, which is exactly how every userspace driver in this system
+already owns a device. If a machine has a spare MMIO timer, a userspace timer service can hold it
+today.
+
+**The machines do have them, and QEMU does not.** Read 2026-09-05 from the vendor manuals, mainline
+Linux bindings and QEMU's own source:
+
+| machine | spare MMIO timer | channels | per-channel interrupt |
+|---|---|---|---|
+| **argon**, Jetson TX1 (Tegra X1 / T210) | yes, `timer@60005000` | **14** 29-bit counters plus a 32-bit timestamp | **yes**, 14 distinct GIC SPIs |
+| **radon**, VisionFive 2 (JH7110) | yes, `timer@13050000` (`si5_timer`) | **4**, 24 MHz | **yes**, 4 distinct PLIC lines |
+| **xenon**, OptiPlex 7050 | HPET, presumed present, **not confirmed on this machine** | up to 32; the spec's recommended minimum is 3 | yes, per-timer routing when the legacy route is off |
+| **QEMU `virt`, aarch64** | **none** | | |
+| **QEMU `virt`, riscv64** | the goldfish RTC's alarm only | **1** comparator | yes, IRQ 11 |
+
+Sources and the exact text:
+
+- **Tegra X1.** `Documentation/devicetree/bindings/timer/nvidia,tegra-timer.yaml` in mainline Linux:
+  *"The Tegra210 timer provides fourteen 29-bit timer counters and one 32-bit timestamp counter... Each
+  TMR can be programmed to generate one-shot, periodic, or watchdog interrupts."* and *"A list of 14
+  interrupts; one per each timer channels 0 through 13"*, with `arch/arm64/boot/dts/nvidia/tegra210.dtsi`
+  listing all fourteen SPIs. **The Tegra X1 TRM itself is behind an NVIDIA developer login and was not
+  read**, so this row is mainline Linux written by NVIDIA's own maintainers rather than the vendor
+  manual.
+- **JH7110.** StarFive JH-7110 TRM, Preliminary V2 (2023-04-24, JH7110-TRMEN-001), *Timer → Overview*:
+  *"Si5_timer consists of 4 decrement bd_timer that cause interrupts in single-run or continuous-run
+  mode and have their own clock input."* Its *Interrupt Connections* table gives `TIMER_INTR[0..3]`
+  four separate PLIC sources. **There is no mainline Linux driver**: the binding was posted ten times
+  from December 2022 and never merged, and mainline's `jh7110.dtsi` has only the CLINT. The driver
+  exists in StarFive's vendor tree (`drivers/clocksource/timer-starfive.c`,
+  `compatible = "starfive,jh7110-timers"`). So this hardware would be a driver this project writes.
+- **QEMU aarch64 `virt`.** `hw/arm/virt.c`'s `base_memmap[]` has no timer device. The only
+  timer-adjacent entries are `VIRT_RTC` (a PL031) and `VIRT_GWDT_*`, the SBSA watchdog, which is not
+  created by default. And the PL031's alarm is **one-second resolution**: `pl031_set_alarm` computes
+  `ticks = s->mr - pl031_get_count(s)` and arms `now + ticks * NANOSECONDS_PER_SECOND`. Useless as a
+  general-purpose timer.
+- **QEMU riscv64 `virt`.** `hw/riscv/virt.c`'s `virt_memmap[]` has the CLINT and a goldfish RTC and no
+  general-purpose timer. The goldfish RTC's alarm *is* usable: `hw/rtc/goldfish_rtc.c` has
+  `RTC_ALARM_LOW/HIGH`, a nanosecond counter, and a real one-shot `timer_mod`. One comparator, and
+  this tree already drives that device for the wall clock (`crates/clock_proto`, §43).
+- **HPET.** IA-PC HPET Specification 1.0a (Intel, October 2004). §2.3.4, `NUM_TIM_CAP` (bits 12:8):
+  *"This indicates the number of timers in this block. The number in this field indicates the last
+  timer"*, so the count is `NUM_TIM_CAP + 1`. §2.2's recommended minimum is **3 comparators**, all
+  three one-shot capable and one periodic capable. §2.3.5's `LEG_RT_CNF`, when set, spends timer 0 on
+  IRQ0 and timer 1 on IRQ8 and leaves *"Timer 2-n... routed as per the routing in the timer n config
+  registers"*. **On a minimum implementation with the legacy route on, that is exactly one free
+  general-purpose timer.**
+
+**Why this route does not rescue the userspace-service answer.** It is a per-board driver rather than
+a portable capability, so §19's *"a kernel capability ships on every supported architecture, proven by
+the same suite"* is not met by it: the suite runs on QEMU, and QEMU's aarch64 `virt` has nothing to
+drive. A userspace timer service would exist on argon, exist differently on radon, exist a third way
+on xenon, and not exist at all on the machine this tree gates against. That is three drivers and a
+hole, against one syscall method.
+
+**It is a good answer to a different question.** If a *particular* workload on a *particular* board
+wants a private high-resolution timer, this is how it gets one, and it needs nothing built. It is not
+how a kernel serves `thread::sleep`.
+
 ## What the fourth shape costs
 
 `Timer::ARM(deadline, notification)` -> the kernel signals that notification at the deadline.
@@ -242,6 +315,11 @@ The fourth shape signals **a notification**, and notification objects are
   version of that experiment (set `EL0PTEN`, have a user program write the comparator, see whether
   INTID 30 arrives) was not run, and it is the thing that would turn this section from a reading into
   a measurement. Under a hypervisor it is *expected* to fail, for the reason milestone 9 recorded.
+- **The Tegra X1 TRM was not read.** NVIDIA's download redirects to a developer login. The argon row
+  is mainline Linux's devicetree binding and DTS, which NVIDIA's own maintainers wrote, so the channel
+  count and the fourteen SPIs are solid; anything register-level is not established here.
+- **The JH7110 timer has no mainline driver and this project has not driven it.** Four channels with
+  four PLIC lines is what the TRM says; nothing in this tree has touched the device.
 - **The Arm citation is a rendering of Arm's machine-readable system-register description, not the
   Architecture Reference Manual PDF.** developer.arm.com's register pages render their content in
   JavaScript and returned no field text to a fetch; the rendering used is generated from Arm's own
