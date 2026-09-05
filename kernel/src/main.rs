@@ -322,9 +322,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 let (functions, outside) = pci::bar_census();
                 println!(
                     "                {functions} function(s) on the bus, \
-                     {outside} with a BAR outside {:#x}..{:#x}",
-                    bar.0,
-                    bar.0 + bar.1,
+                     {outside} with a BAR this kernel can neither use nor adopt",
                 );
             }
             // **No MCFG means no PCI, and deliberately no fallback to the legacy 0xcf8/0xcfc
