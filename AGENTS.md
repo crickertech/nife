@@ -660,7 +660,7 @@ question below was one calef had to ask a maintainer on 2026-08-18, about a crat
 of them changed the answer. Writing it as a rule for lanes would let the same failure straight
 through.
 
-### The six questions, because they are stable
+### The seven questions, because they are stable
 
 They are not a template to fill in. They are the questions that actually got asked, and a proposal
 that cannot answer one should say so rather than leave it implied.
@@ -684,6 +684,11 @@ that cannot answer one should say so rather than leave it implied.
    mechanism is about thirty lines and the authority is the whole problem.
 6. **How reversible is it, and who has already acted on it?** The *move fast on what can be undone*
    tenet's test, verbatim, because it decides how much of the above is worth buying.
+7. **Would we still choose this if both options cost the same?** §92's test, moved onto this list
+   because a test applied only when somebody remembers it is not a test. **If the answer is no, the
+   recommendation is about effort and must say so in those words**, so a reader can weigh it as
+   effort rather than mistake it for judgement. It is not an argument against cheap options: it asks
+   whether cost is doing the deciding, and cost deciding is legitimate when it is *stated*.
 
 **The tell that a proposal is not ready is that it argues rather than shows.** Questions 2 through 5
 are all lookups. If the presenter is reaching for an adjective where a command would do, the work is
@@ -700,7 +705,7 @@ machine.
 
 **A fork only earns a lane when nobody can say what the options cost.** A lane costs a few hundred
 thousand tokens and up to an hour. If calef can answer in a sentence, researching first spends more
-than a wrong answer would. Most of the six questions are minutes of grepping by whoever is holding
+than a wrong answer would. Most of the seven questions are minutes of grepping by whoever is holding
 the problem, and that is the common case rather than a lane.
 
 **And the failure mode to guard is proposal-shaped procrastination.** Some forks want a decision now
