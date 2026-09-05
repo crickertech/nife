@@ -65,6 +65,10 @@
 #     about to be published anyway, and the traversal check keeps the request inside it.
 #   * The addresses it prints are every private IPv4 this machine has. It cannot tell you which
 #     one radon can route to, only that these are the candidates.
+#   * The filename is taken verbatim, so a client that spells its path with backslashes gets a
+#     "file not found". UEFI PXE clients send the DHCP option 67 string unchanged and dnsmasq
+#     passes it through, so `EFI/BOOT/BOOTX64.EFI` arrives as written (measured under OVMF,
+#     milestone 260); a client that did otherwise would need this to normalise separators.
 #   * A transfer that stalls is retried six times per block and then abandoned, and the board is
 #     told nothing; it sees its own timeout. U-Boot then fails `tftpboot`, which is the boot
 #     script's fallback condition, so the failure mode is the card rather than a hang.
@@ -83,6 +87,22 @@ import sys
 import time
 
 RRQ, DATA, ACK, ERROR, OACK = 1, 3, 4, 5, 6
+
+
+class Cancelled(Exception):
+    """The client sent a TFTP ERROR, which for a UEFI client is ROUTINE rather than a fault.
+
+    EDK2's PXE base code asks for a file twice: once to learn its size, which it does by starting a
+    read, taking the `tsize` out of the option acknowledgement, and then sending an ERROR to stop
+    the transfer it just started; and once to actually fetch it. Milestone 260 found this server
+    treating that cancellation as silence, retrying its acknowledgement six times, and printing
+    `FAILED` on the one transfer of a boot that was working perfectly. Two costs, and the second is
+    the one that mattered: the retries held the server long enough that the client's real request
+    timed out and had to be sent again, and the log said a healthy netboot had failed.
+
+    Milestone 257 wrote down the shape of that (`design/roadmap/257-network-boot-radon.md`): a
+    network boot can fail in a way that looks like success. This is the same coin's other face.
+    """
 
 # U-Boot asks for a large block and the transfer is 6,200 round trips at the 512-byte default, so
 # the option is the difference between twenty seconds and several minutes. Capped at a jumbo frame
@@ -165,6 +185,8 @@ def serve_file(peer, path, name, options):
                     reply, _from = xfer.recvfrom(1024)
                 except socket.timeout:
                     continue
+                if struct.unpack("!H", reply[:2])[0] == ERROR:
+                    raise Cancelled("after the option acknowledgement")
                 if struct.unpack("!HH", reply[:4]) == (ACK, 0):
                     break
             else:
@@ -182,6 +204,8 @@ def serve_file(peer, path, name, options):
                     except socket.timeout:
                         continue
                     op, acked = struct.unpack("!HH", reply[:4])
+                    if op == ERROR:
+                        raise Cancelled(f"at block {block}")
                     if op == ACK and acked == (block & 0xFFFF):
                         break
                 else:
@@ -193,6 +217,13 @@ def serve_file(peer, path, name, options):
         rate = size / elapsed / 1024 if elapsed > 0 else 0.0
         print(
             f"board-netboot: {name} done, {size} bytes in {elapsed:.2f}s ({rate:.0f} KiB/s)",
+            flush=True,
+        )
+    except Cancelled as where:
+        # Not a failure, and saying so is the point. See Cancelled's docstring.
+        print(
+            f"board-netboot: {name} cancelled by the client {where} "
+            f"(a UEFI client's file-size probe does exactly this)",
             flush=True,
         )
     except Exception as why:
@@ -230,6 +261,16 @@ def main():
         )
         for addr in addresses:
             print(f"            StarFive # setenv nife_boot_server {addr}", flush=True)
+        # The same list, for the other consumer. radon reads its server address off a card and can
+        # be corrected at a prompt; xenon reads it out of a DHCP offer and cannot be corrected at
+        # all, because the machine has no console this project can type into. So the address in the
+        # router's `dhcp-boot` has to be right before the machine is powered on, and this list is
+        # where it comes from. Which of these a board can route to is not knowable from here.
+        print(
+            "\nFor a UEFI client (xenon, milestone 260) the same address goes in the router's\n"
+            "dhcp-boot line; see bench/xenon-netboot/dnsmasq.conf. There is no prompt to fix it at.",
+            flush=True,
+        )
     print("\nCtrl-C to stop.", flush=True)
 
     while True:
