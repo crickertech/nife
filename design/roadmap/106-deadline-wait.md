@@ -4,7 +4,28 @@
 lane recorded the cost of not having one. It is a kernel-surface addition, so it is **a design fork
 for calef before it is a task**, and it is the same fork **milestone 51** already records.
 
-**Gate: DECISION.** A timed wait is a kernel-surface addition and **milestone 51's block**
+**Gate: MILESTONE 263.** The three-shape fork below is **not being decided**, which is calef's
+answer of 2026-09-05 rather than a deferral by neglect. **The timed wait should be served from a
+userspace timer service signalling a notification**, which is [§101](../decisions/101-notification-objects.md)'s
+own anticipated shape and how seL4 does it, so none of the three kernel shapes has to be lived with.
+
+**All four consumers this block names are userspace**, and §101's carve-out for a kernel timed wait
+names kernel needs (a watchdog, a scheduling deadline, an in-kernel retransmit) of which the tree has
+no instance: both of `sched.rs`'s no-timeout complaints are about userspace callers being hung. **So
+this block stays owed against a kernel-side consumer appearing**, and that trigger is the whole of
+what would reopen it.
+
+**One prerequisite is unpriced and could sink the answer**, which is why the gate points at a spike
+rather than at nothing. A userspace timer service needs a timer of its own, because it cannot use a
+timed wait to implement one, and on two of three architectures there may be nothing to hand it:
+aarch64's is part of the CPU with no base address, and riscv64's is an SBI call U-mode cannot make.
+Milestone 263 settles that and prices a fourth shape (`Timer::ARM(deadline, notification)`) that
+neither this block nor milestone 51 lists.
+
+*(The original gate is kept below, because the three shapes are still the record of what was
+considered.)*
+
+**Original gate: DECISION.** A timed wait is a kernel-surface addition and **milestone 51's block**
 (`design/roadmap/51-wall-clock-time.md`, "The fork this exposes, which is bigger than the milestone")
 already records the fork with three candidate shapes. The block adds the fourth consumer and asks for
 the decision to be made against all of them at once, and warns against settling it by accident.
