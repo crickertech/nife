@@ -540,6 +540,18 @@ in the code or the conversation doesn't make sense, it belongs here.
   `RECV`/`CALL` needs that a `SYS_SLEEP` does not (a targeted unlink on a singly-linked queue, and
   nothing else, because `abort()` already exists), and the stale-`Reply` hazard that wants a lane of
   its own. Names no winner: the fork is calef's.
+- [Can a userspace process hold a timer?](timer-capability.md): milestone 263, the spike underneath
+  106's answer. **No, not on riscv64, and the reason is architectural**: `stimecmp` is a supervisor
+  CSR by its own address (`0x14D`, bits `[9:8]` = supervisor), Sstc's every enable gates S-mode and
+  VS-mode, a U-mode `ecall` raises a different cause from the one SBI decodes, and the machine has one
+  `mtimecmp` per hart which the tick already spends. So the userspace-timer-service answer to 106 does
+  not survive §19. Also the correction that makes the spike worth reading: **aarch64 can grant a
+  comparator to one thread**, because `CNTKCTL_EL1` has four enables and this kernel writes one of
+  them (`EL0VCTEN`), `EL0PTEN` opens `CNTP_CVAL_EL0` to EL0, and milestones 229/237 built the
+  per-thread system-register grant that §139 said this tree did not have. And the fourth shape's
+  measured price: the `Object` variant is **free** (the enum is already 24 bytes wide), `ipc_fastpath`
+  does not move on any ISA, `syscall_entry` grows 12/158/96 bytes, and the kernel grows under a
+  quarter of a per cent. Recommends nothing: the syscall surface is calef's.
 - [`date`](date.md): milestone 51's deliverable: the command that makes the wall clock visible, and
   the first thing to put the clock service and the calendar crate in one process. It reads and
   cannot set, which is a fact about its wiring (a read-only mapping) rather than a missing flag, so
