@@ -9834,6 +9834,197 @@ booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000
 /// The name in the image header. `iminfo` prints it and nothing else reads it.
 const BOARD_BOOT_SCRIPT_NAME: &str = "nife board boot";
 
+/// The address the archive is loaded to, and the one `booti` is then handed. Written once here
+/// because the two have to agree and there are now four places that name it: two `load` lines and
+/// two `tftpboot` lines, in two scripts.
+const BOARD_ARCHIVE_ADDR: &str = "0x90000000";
+
+/// This machine's own private IPv4 addresses, paired with the interface each sits on, in the order
+/// the host's tool lists them.
+///
+/// **There is deliberately no address constant anywhere in this tree**, and that is milestone 256's
+/// lesson applied one layer out: `192.168.8.216` was true on the evening the network boot was
+/// proved by hand, it is checked by nobody afterwards, and a DHCP lease can move it. So the address
+/// baked into a card is the address of the machine that wrote the card, read off that machine at
+/// the moment it writes it, and the script echoes it at boot so the console log says what the card
+/// expects before anything depends on it.
+///
+/// **Why not ask the routing table.** The obvious trick, a connected UDP socket whose local address
+/// the kernel picks from the route, was written first and was wrong on the only machine that
+/// matters: patagonia's default route belongs to a Tailscale interface, so every probe answered
+/// `100.75.22.70`, a CGNAT address on a network radon cannot reach. Interfaces are enumerated
+/// instead and anything not in RFC 1918 space is dropped, because the board is on a private LAN by
+/// construction.
+///
+/// **More than one is normal and is not an error.** patagonia has two addresses on the bench LAN
+/// (`en0` and a USB adapter), and either serves TFTP equally well because the server binds every
+/// interface. The first is taken and all of them are printed, so an operator who needs the other
+/// one can see that it exists and pass `--server`.
+fn host_private_addresses() -> Vec<(String, std::net::Ipv4Addr)> {
+    // BSD/macOS first, then iproute2, because the bench machine is the Mac and CI is Ubuntu.
+    if let Some(out) = host_tool_output("ifconfig", &[]) {
+        let found = parse_ifconfig_addresses(&out);
+        if !found.is_empty() {
+            return found;
+        }
+    }
+    if let Some(out) = host_tool_output("ip", &["-4", "-o", "addr", "show"]) {
+        return parse_ip_addr_addresses(&out);
+    }
+    Vec::new()
+}
+
+/// Run a host tool and hand back its stdout, or `None` if it is not there or refused.
+fn host_tool_output(program: &str, args: &[&str]) -> Option<String> {
+    let out = Command::new(program).args(args).output().ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Keep only the addresses a board on a private LAN could route to.
+fn keep_private(found: Vec<(String, std::net::Ipv4Addr)>) -> Vec<(String, std::net::Ipv4Addr)> {
+    found
+        .into_iter()
+        .filter(|(_, addr)| addr.is_private())
+        .collect()
+}
+
+/// Parse BSD `ifconfig` output: an interface name in column zero ending in `:`, then indented
+/// `inet <addr> netmask ...` lines belonging to it.
+fn parse_ifconfig_addresses(text: &str) -> Vec<(String, std::net::Ipv4Addr)> {
+    let mut interface = String::new();
+    let mut found = Vec::new();
+    for line in text.lines() {
+        if !line.starts_with(char::is_whitespace) {
+            if let Some(name) = line.split(':').next() {
+                interface = name.to_string();
+            }
+            continue;
+        }
+        let mut words = line.split_whitespace();
+        if words.next() != Some("inet") {
+            continue;
+        }
+        if let Some(Ok(addr)) = words.next().map(str::parse) {
+            found.push((interface.clone(), addr));
+        }
+    }
+    keep_private(found)
+}
+
+/// Parse `ip -4 -o addr show`: `2: en0    inet 192.168.8.216/24 brd ... scope global en0`.
+fn parse_ip_addr_addresses(text: &str) -> Vec<(String, std::net::Ipv4Addr)> {
+    let mut found = Vec::new();
+    for line in text.lines() {
+        let mut words = line.split_whitespace();
+        let (_index, interface) = (words.next(), words.next());
+        let Some(interface) = interface else { continue };
+        if words.next() != Some("inet") {
+            continue;
+        }
+        let Some(cidr) = words.next() else { continue };
+        if let Ok(addr) = cidr.split('/').next().unwrap_or(cidr).parse() {
+            found.push((interface.to_string(), addr));
+        }
+    }
+    keep_private(found)
+}
+
+/// **The network-first script, with the card underneath it** (milestone 257).
+///
+/// The two `load` lines of [`BOARD_BOOT_SCRIPT`] become `dhcp` plus two `tftpboot` lines, and the
+/// card's own copy stays as the fallback. `fdt addr`, `fdt move` and `booti` are byte for byte what
+/// milestone 218 already emits, which is why the 2026-09-04 bench proof of the network path is
+/// evidence about this script and not only about the commands.
+///
+/// **Why the card is still in here at all.** A card written once and left in the board is only an
+/// improvement if it survives the network going away. A cable out of the hub, a router rebooting,
+/// a lease that does not arrive: each of those turns a card that only knows about TFTP into a board
+/// that boots nothing, and the fix is a walk to the bench with a card reader, which is the exact
+/// cost this milestone exists to remove. So the network is an optimisation over the card rather
+/// than a replacement for it.
+///
+/// **The shape, and why it is this shape.** U-Boot's parser is a cut-down hush and nothing here has
+/// been watched running on the board, so the structure is deliberately the dullest one that can
+/// express a fallback: one state variable, `if cmd; then` and `fi`, nesting never deeper than two,
+/// and no `else` anywhere. A chain of guards costs a few more lines than nested branches and has
+/// fewer parser features between us and a board that boots.
+///
+/// **Nothing is loaded twice from two places.** The kernel and the archive are one measured pair
+/// (`script/board-image` says so at length), so a network transfer that gets the kernel and loses
+/// the archive falls all the way back and takes BOTH from the card. Half a pair boots to
+/// `MEASURED BOOT REFUSED`, which is the gate working, and it would be working on a fault we built.
+///
+/// **`autoload no`** because bare `dhcp` in U-Boot means "get an address **and** TFTP the bootfile
+/// from the server DHCP names", not "get an address". Without it the board fetches from whatever the
+/// DHCP server advertises, which on a home network is the router; radon did exactly that on
+/// 2026-09-05, reported `TFTP from server 192.168.8.1` and then `TFTP server died`, and because
+/// `dhcp` returns failure when its autoload fails, the whole network branch was skipped and the card
+/// fallback fired. The boot looked like a clean fallback and was a bug. The line was in the manual
+/// sequence that proved this path on 2026-09-04 and was left out of the transcript the script was
+/// written from, which is why no test could have caught it: every test stubbed `dhcp`.
+///
+/// **`netretry no`** so that a network that is not there fails in seconds instead of retrying while
+/// nobody is watching. That is the whole difference between a fallback and a hang.
+fn board_network_boot_script(server: &str) -> String {
+    let archive = BOARD_ARCHIVE_ADDR;
+    format!(
+        "\
+echo nife: boot.scr is driving this boot, milestones 218 and 257
+setenv nife_source none
+setenv netretry no
+setenv autoload no
+if test x${{nife_boot_server}} = x; then
+setenv nife_boot_server {server}
+fi
+echo nife: tftp server is ${{nife_boot_server}}, setenv nife_boot_server to point somewhere else
+setenv nife_next none
+if dhcp; then
+setenv serverip ${{nife_boot_server}}
+setenv nife_next kernel
+fi
+if test x${{nife_next}} = xkernel; then
+setenv nife_next none
+if tftpboot ${{kernel_addr_r}} nife-vf2.img; then
+setenv nife_next archive
+fi
+fi
+if test x${{nife_next}} = xarchive; then
+setenv nife_next none
+if tftpboot {archive} nife-initrd.img; then
+setenv nife_archive_size ${{filesize}}
+setenv nife_source net
+fi
+fi
+if test x${{nife_source}} = xnone; then
+echo nife: nothing came over the network, falling back to the card
+setenv nife_next kernel
+fi
+if test x${{nife_next}} = xkernel; then
+setenv nife_next none
+if load ${{devtype}} ${{devnum}}:${{distro_bootpart}} ${{kernel_addr_r}} /nife-vf2.img; then
+setenv nife_next archive
+fi
+fi
+if test x${{nife_next}} = xarchive; then
+setenv nife_next none
+if load ${{devtype}} ${{devnum}}:${{distro_bootpart}} {archive} /nife-initrd.img; then
+setenv nife_archive_size ${{filesize}}
+setenv nife_source card
+fi
+fi
+echo nife: payload came from ${{nife_source}}
+if test x${{nife_source}} != xnone; then
+fdt addr ${{fdtcontroladdr}}
+fdt move ${{fdtcontroladdr}} 0x86000000
+booti ${{kernel_addr_r}} {archive}:${{nife_archive_size}} 0x86000000
+fi
+echo nife: still at the prompt, so nothing loaded or booti refused what did
+"
+    )
+}
+
 /// `0x27051956`, the legacy U-Boot image magic, big-endian at offset 0 (u-boot `include/image.h`).
 const UIMAGE_MAGIC: u32 = 0x2705_1956;
 /// The 64-byte header in front of every legacy image.
@@ -9912,20 +10103,85 @@ fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
 
 /// Write `target/board/boot.scr.uimg`, and the script's text beside it as `target/board/boot.cmd`
 /// so that what the board will run can be read without a hex dump.
+///
+///     cargo xtask board-script                        the card, and only the card (milestone 218)
+///     cargo xtask board-script --tftp                 the network first, the card underneath (257)
+///     cargo xtask board-script --tftp --server 10.0.0.5   ...and say the address rather than ask
+///
+/// The default is the card and stays the card. A network-booting script is a promise about a
+/// machine that has to be running, so it is asked for rather than arrived at.
 fn board_script() -> bool {
+    let mut tftp = false;
+    let mut server: Option<String> = None;
+    let mut args = std::env::args().skip(2);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--tftp" => tftp = true,
+            "--server" => match args.next() {
+                Some(value) => server = Some(value),
+                None => {
+                    eprintln!("board-script: --server needs an address");
+                    return false;
+                }
+            },
+            other => {
+                eprintln!("board-script: unknown argument {other} (--tftp, --server <ip>)");
+                return false;
+            }
+        }
+    }
+    if server.is_some() && !tftp {
+        eprintln!("board-script: --server only means something with --tftp");
+        return false;
+    }
+
+    // The address, and the one thing that must never happen: a card carrying a stale one that
+    // nothing announces. Either the operator names it, or this machine reads it off its own
+    // interfaces here and now, or the script is not written at all. There is no built-in default,
+    // on purpose; see `host_private_addresses`.
+    let script = if tftp {
+        let address = match server {
+            Some(given) => {
+                println!("  tftp server: {given} (as given)");
+                given
+            }
+            None => {
+                let candidates = host_private_addresses();
+                let Some((interface, first)) = candidates.first() else {
+                    eprintln!(
+                        "board-script: no private IPv4 address on this machine, so there is no\n\
+                         \x20              address a board could fetch from. Pass --server <ip>."
+                    );
+                    return false;
+                };
+                println!("  tftp server: {first} (this machine, on {interface})");
+                for (other, addr) in candidates.iter().skip(1) {
+                    println!(
+                        "               also here: {addr} on {other}, pass --server to use it"
+                    );
+                }
+                first.to_string()
+            }
+        };
+        board_network_boot_script(&address)
+    } else {
+        BOARD_BOOT_SCRIPT.to_string()
+    };
+    let script = script.as_str();
+
     let out = Path::new("target/board");
     if let Err(e) = std::fs::create_dir_all(out) {
         eprintln!("board-script: cannot create {}: {e}", out.display());
         return false;
     }
-    let image = uboot_script_image(BOARD_BOOT_SCRIPT_NAME, BOARD_BOOT_SCRIPT);
+    let image = uboot_script_image(BOARD_BOOT_SCRIPT_NAME, script);
     let image_path = out.join("boot.scr.uimg");
     let text_path = out.join("boot.cmd");
     if let Err(e) = std::fs::write(&image_path, &image) {
         eprintln!("board-script: cannot write {}: {e}", image_path.display());
         return false;
     }
-    if let Err(e) = std::fs::write(&text_path, BOARD_BOOT_SCRIPT) {
+    if let Err(e) = std::fs::write(&text_path, script) {
         eprintln!("board-script: cannot write {}: {e}", text_path.display());
         return false;
     }
@@ -10541,7 +10797,7 @@ pub const GET: u64 = 1;
             !script.contains('#'),
             "no comments: hush's handling of them is untested here"
         );
-        for forbidden in ['(', ')', '`', '\'', '&', '|', '<', '>'] {
+        for forbidden in ['(', ')', '`', '\'', '&', '|', '<', '>', ';'] {
             assert!(
                 !script.contains(forbidden),
                 "{forbidden} is not in the proven vocabulary"
@@ -10565,5 +10821,266 @@ pub const GET: u64 = 1;
             .expect("the archive length is stashed");
         let boot = script.find("booti").expect("the script boots something");
         assert!(stash < boot);
+    }
+
+    /// **The address in a card is read off the machine that writes it**, so the reading has to be
+    /// right on both host tools. Both samples below are real output, taken from patagonia on
+    /// 2026-09-05 and from an `ip -4 -o addr show` line, rather than written to suit the parser.
+    ///
+    /// The `utun6` row is the whole reason this function exists. patagonia's default route belongs
+    /// to Tailscale, so the first version of this discovery asked the routing table and got
+    /// `100.75.22.70`, an address radon has no path to. The private-space filter is what drops it,
+    /// and the test asserts the drop rather than only asserting the keeps.
+    #[test]
+    fn the_hosts_own_lan_addresses_are_read_off_both_tools() {
+        let ifconfig = "\
+lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
+\tinet 127.0.0.1 netmask 0xff000000
+en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+\tinet 192.168.8.216 netmask 0xffffff00 broadcast 192.168.8.255
+en9: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+\tinet 192.168.8.206 netmask 0xffffff00 broadcast 192.168.8.255
+utun6: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1280
+\tinet 100.75.22.70 --> 100.75.22.70 netmask 0xffffffff
+";
+        let found = parse_ifconfig_addresses(ifconfig);
+        assert_eq!(
+            found,
+            vec![
+                ("en0".to_string(), "192.168.8.216".parse().unwrap()),
+                ("en9".to_string(), "192.168.8.206".parse().unwrap()),
+            ],
+            "loopback and the CGNAT tunnel are both dropped, and en0 comes first"
+        );
+
+        let ip_addr = "\
+1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever preferred_lft forever
+2: eth0    inet 10.1.2.3/24 brd 10.1.2.255 scope global eth0\\       valid_lft forever
+3: wg0    inet 100.64.0.5/32 scope global wg0\\       valid_lft forever
+";
+        assert_eq!(
+            parse_ip_addr_addresses(ip_addr),
+            vec![("eth0".to_string(), "10.1.2.3".parse().unwrap())]
+        );
+    }
+
+    /// The network-first script obeys the same vocabulary rule, plus the two it needs of its own.
+    ///
+    /// **`;` is a command separator in hush**, so a stray one inside an `echo` would run the rest of
+    /// the line as a command. The card script forbids the character outright; this one cannot,
+    /// because `if cmd; then` is how a branch is written, so the rule becomes positional: the only
+    /// `;` on any line is the one immediately before `then`.
+    ///
+    /// **Nesting never goes deeper than two and there is no `else`.** Nothing here has been watched
+    /// running on the board, and every parser feature between us and a booting kernel is a place
+    /// for it to fail with nobody at the bench. The guard is on the shape rather than the outcome,
+    /// which is the same posture the card script's test takes.
+    #[test]
+    fn the_network_script_stays_inside_a_deliberately_dull_shape() {
+        let script = board_network_boot_script("10.1.2.3");
+        assert!(script.ends_with('\n'), "every line is terminated");
+        assert!(!script.contains('#'), "no comments");
+        for forbidden in ['(', ')', '`', '\'', '&', '|', '<', '>'] {
+            assert!(
+                !script.contains(forbidden),
+                "{forbidden} is not in the proven vocabulary"
+            );
+        }
+
+        let mut depth = 0usize;
+        let mut deepest = 0usize;
+        for line in script.lines() {
+            let mut words = line.split_whitespace();
+            let first = words.next().expect("no blank lines");
+
+            // Positional `;`, and only there.
+            let semicolons = line.matches(';').count();
+            if semicolons > 0 {
+                assert_eq!(semicolons, 1, "one `;` per line at most: {line}");
+                assert!(
+                    line.ends_with("; then"),
+                    "the only `;` precedes `then`: {line}"
+                );
+            }
+
+            match first {
+                "if" => {
+                    depth += 1;
+                    deepest = deepest.max(depth);
+                    // The command being branched on has to be a verb too, which a naive first-word
+                    // check would skip entirely.
+                    let guarded = words
+                        .next()
+                        .expect("`if` branches on something")
+                        .trim_end_matches(';');
+                    assert!(
+                        matches!(guarded, "test" | "dhcp" | "tftpboot" | "load"),
+                        "{guarded} is not a status this script knows how to read"
+                    );
+                }
+                "fi" => depth = depth.checked_sub(1).expect("no `fi` without an `if`"),
+                // `else` is deliberately not in this list: a chain of guards costs a few more
+                // lines and needs one fewer parser feature than a branch does.
+                other => assert!(
+                    matches!(other, "echo" | "setenv" | "load" | "fdt" | "booti"),
+                    "{other} is a verb the bench transcript does not show"
+                ),
+            }
+        }
+        assert_eq!(depth, 0, "every `if` is closed");
+        assert!(deepest <= 2, "nesting stays shallow, was {deepest}");
+
+        // The tail milestone 218 proved is unchanged, which is why this is a small change.
+        assert!(script.contains("fdt move ${fdtcontroladdr} 0x86000000"));
+        assert!(
+            script.contains("booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000")
+        );
+        // The address is baked, and it is also announced before anything depends on it.
+        assert!(script.contains("setenv nife_boot_server 10.1.2.3"));
+        assert!(script.contains("echo nife: tftp server is ${nife_boot_server}"));
+        // And the card script is untouched by any of this: the default is still the default, and
+        // it still has no network verb in it at all.
+        assert!(!BOARD_BOOT_SCRIPT.contains("tftpboot"));
+        assert!(!BOARD_BOOT_SCRIPT.contains("dhcp"));
+        assert!(!BOARD_BOOT_SCRIPT.contains("if "));
+    }
+
+    /// **The fallback, actually taken.**
+    ///
+    /// The board is not available to this test and will not be, so the branch is exercised where it
+    /// can be: `if cmd; then ... fi`, `test x${v} = xy` and `${v}` expansion are all common to
+    /// U-Boot's hush and POSIX `sh`, so the generated script runs under `/bin/sh` with the six
+    /// U-Boot verbs stubbed as shell functions whose exit status the test chooses.
+    ///
+    /// **What this proves and what it does not.** It proves the control flow: which loads are
+    /// attempted in which order, that a network failure reaches the card, that a half-transfer
+    /// takes BOTH halves from the card rather than mixing a pair, and that `booti` is handed the
+    /// archive length the load that actually happened reported. It proves nothing at all about
+    /// whether U-Boot's parser accepts the file, because `sh` is not hush. That one is still owed
+    /// to a bench session and the block's BUGS says so.
+    ///
+    /// `tftp_fails_at` is a call number rather than a status, because the interesting failure is
+    /// the SECOND transfer: the kernel arrives and the archive does not, which is how a pair gets
+    /// mixed. A single status could not express it.
+    fn run_under_sh(script: &str, dhcp: i32, tftp_fails_at: i32, load: i32) -> String {
+        let preamble = format!(
+            "\
+kernel_addr_r=0x40200000
+fdtcontroladdr=0x4fe00000
+devtype=mmc
+devnum=1
+distro_bootpart=1
+tftp_calls=0
+setenv() {{ name=$1; shift; eval \"$name=\\\"\\$*\\\"\"; }}
+dhcp() {{ echo CALL dhcp; return {dhcp}; }}
+tftpboot() {{
+  tftp_calls=$((tftp_calls + 1))
+  echo CALL tftpboot $1 $2
+  filesize=9044480
+  [ \"$tftp_calls\" != \"{tftp_fails_at}\" ]
+}}
+load() {{ echo CALL load $3 $4; filesize=1234; return {load}; }}
+fdt() {{ echo CALL fdt $*; }}
+booti() {{ echo CALL booti $*; }}
+"
+        );
+        let dir = std::env::temp_dir().join(format!(
+            "nife-boot-script-{}-{dhcp}{tftp_fails_at}{load}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("boot.cmd");
+        std::fs::write(&path, format!("{preamble}{script}")).expect("write the script");
+        let out = Command::new("/bin/sh")
+            .arg(&path)
+            .output()
+            .expect("/bin/sh runs the generated script");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(out.status.success(), "the script itself must not fail");
+        String::from_utf8(out.stdout).expect("utf-8 output")
+    }
+
+    #[test]
+    fn the_network_script_falls_back_to_the_card_when_the_network_is_not_there() {
+        let script = board_network_boot_script("10.1.2.3");
+
+        // Everything works: two TFTP transfers, no card read at all, and the archive length is the
+        // one TFTP reported.
+        let net = run_under_sh(&script, 0, 0, 0);
+        assert!(
+            net.contains("CALL tftpboot 0x40200000 nife-vf2.img"),
+            "{net}"
+        );
+        assert!(
+            net.contains("CALL tftpboot 0x90000000 nife-initrd.img"),
+            "{net}"
+        );
+        assert!(!net.contains("CALL load"), "the card is not touched: {net}");
+        assert!(net.contains("payload came from net"), "{net}");
+        assert!(
+            net.contains("CALL booti 0x40200000 0x90000000:9044480 0x86000000"),
+            "{net}"
+        );
+
+        // No lease: the card path runs, and it is the whole card path rather than a kernel from one
+        // place and an archive from another.
+        let card = run_under_sh(&script, 1, 0, 0);
+        assert!(
+            !card.contains("CALL tftpboot"),
+            "no lease, no transfer: {card}"
+        );
+        assert!(
+            card.contains("CALL load 0x40200000 /nife-vf2.img"),
+            "{card}"
+        );
+        assert!(
+            card.contains("CALL load 0x90000000 /nife-initrd.img"),
+            "{card}"
+        );
+        assert!(card.contains("payload came from card"), "{card}");
+        assert!(
+            card.contains("CALL booti 0x40200000 0x90000000:1234 0x86000000"),
+            "the length is the card load's, not a stale one: {card}"
+        );
+
+        // A lease and a kernel, and then the archive transfer dies. This is the case worth having:
+        // a kernel over TFTP with an archive off the card is a mismatched pair, which halts at
+        // MEASURED BOOT REFUSED, so the fallback has to take BOTH halves from the card.
+        let half = run_under_sh(&script, 0, 2, 0);
+        assert_eq!(
+            half.matches("CALL tftpboot").count(),
+            2,
+            "the kernel arrived and the archive was attempted: {half}"
+        );
+        assert!(
+            half.contains("CALL load 0x40200000 /nife-vf2.img"),
+            "{half}"
+        );
+        assert!(
+            half.contains("CALL load 0x90000000 /nife-initrd.img"),
+            "{half}"
+        );
+        assert!(half.contains("payload came from card"), "{half}");
+        assert!(
+            half.contains("CALL booti 0x40200000 0x90000000:1234 0x86000000"),
+            "and the length is the card's, not the abandoned transfer's: {half}"
+        );
+
+        // The kernel transfer itself failing stops there rather than chasing the archive.
+        let first = run_under_sh(&script, 0, 1, 0);
+        assert_eq!(
+            first.matches("CALL tftpboot").count(),
+            1,
+            "no archive after a failed kernel: {first}"
+        );
+        assert!(first.contains("payload came from card"), "{first}");
+
+        // Neither: nothing is booted, and the board says so rather than jumping into whatever is
+        // at 0x40200000 from a previous boot.
+        let neither = run_under_sh(&script, 1, 0, 1);
+        assert!(!neither.contains("CALL booti"), "{neither}");
+        assert!(!neither.contains("CALL fdt"), "{neither}");
+        assert!(neither.contains("payload came from none"), "{neither}");
+        assert!(neither.contains("still at the prompt"), "{neither}");
     }
 }

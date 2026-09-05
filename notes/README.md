@@ -1198,8 +1198,10 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
-  and `script/board-image`, the bench runbook with its failure-triage ladder, and the honest list of
-  what only the bench can measure.
+  and `script/board-image`, booting over the network with the card kept underneath as the fallback
+  (`script/board-netboot`, milestone 257, and why no server address is written down anywhere in this
+  tree), the bench runbook with its failure-triage ladder, and the honest list of what only the
+  bench can measure.
 - [Programming a clock and a reset line, for the first time](jh7110-clock-and-reset.md):
   milestone 220. Every device this kernel had driven came up already running, and on 2026-09-04
   radon proved the JH7110's TRNG does not: its whole register file read back as zeros. The two
