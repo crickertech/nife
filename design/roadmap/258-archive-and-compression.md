@@ -27,6 +27,15 @@ comment about load inflating a median and `crates/gpt`'s note naming the zlib CR
 That matters beyond bookkeeping, because 99's whole case is that unlike Vaultwarden it needs nothing
 that does not exist. One of its five things does not exist.
 
+**One qualification, and it is the tree correcting this block rather than the reverse.** There is no
+compression code here, but there *is* a measurement nobody cited when this milestone was raised:
+`notes/crates-io-on-nife.md` records `flate2` 1.1.9 (`rust_backend`) and `miniz_oxide` 0.8.9 building
+against this tree's `std` farm on 2026-08-04, with `flate2` among the twelve crates rebuilt as
+executables calling the crate for real, doing **a gzip round trip that linked**. The same note is
+careful that *"whether they work is a different question"*, and that `flate2`'s **default** C backend
+would fail. So the take side of §146 is better evidenced than "a crate exists", and this block should
+not be read as saying the ground is bare. It is saying nothing here is written, gated, or proved.
+
 **Milestone 198 (the package manager) will need a container and probably a compressor**, and says
 outright that it *"does not decide the format, the activation shape, or the repository split."*
 AGENTS.md makes 198 a precondition on the ranking function itself, since no third party sees nife

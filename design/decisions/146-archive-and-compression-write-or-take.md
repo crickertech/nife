@@ -59,9 +59,23 @@ handing it to a dependency would mean adopting its policy instead of ours.
 
 This is the piece worth arguing, so both sides get stated properly.
 
-**For taking it.** `miniz_oxide` is pure Rust with no C dependency (read 2026-09-05 at
-`docs.rs/miniz_oxide`), does both directions, and carries enormous exposure: it is what the Rust
-ecosystem's own tooling leans on. Decompressors are a classic attack surface, and rule 4's
+**For taking it, and this is stronger than the first draft of this section knew.** `miniz_oxide`
+is pure Rust with no C dependency (read 2026-09-05 at `docs.rs/miniz_oxide`), does both directions,
+and carries enormous exposure. **It also already builds here.** `notes/crates-io-on-nife.md` probed
+27 crates against this tree's `std` farm on 2026-08-04 and lists both `flate2` 1.1.9 (with
+`rust_backend`) and `miniz_oxide` 0.8.9 as building, and `flate2` was among the twelve rebuilt as
+executables calling the crate for real: **a gzip round trip, which linked.**
+
+**Read that measurement exactly as far as it goes**, which the note is careful about: *"Whether they
+work is a different question."* Linking is not running. It also records the caveat that decides this
+row: *"`flate2` was probed with `rust_backend`; its default C backend would land in class C."* So the
+pure-Rust path is the one that builds and the default is not.
+
+**This section's first draft did not cite any of that**, and the maintainer told calef there was no
+coverage of compression in the tree. The code claim was right and the coverage claim was wrong. It
+matters because it moves this row's evidence from "a crate exists on crates.io" to "a crate builds
+in this tree and its round trip links", which is the difference between an argument and a
+measurement. Decompressors are a classic attack surface, and rule 4's
 "correctness is won by exposure" is the clause that put crypto on the take side. If that clause
 applies here, this is a dependency and the argument is over.
 
@@ -142,8 +156,11 @@ a quieter way: it is `NOT-STARTED`, and its block currently claims a dependency 
 
 - **`miniz_oxide`'s `no_std` support was not confirmed.** The crate is pure Rust with no C
   dependency, read on 2026-09-05, and the docs page consulted did not state its `no_std` status or
-  list its feature flags. Anyone acting on the "take it" side owes that check first, because this
-  tree's user programs are `no_std` and a dependency that needs `std` is a different decision.
+  list its feature flags. Milestone 64's probe built it against the **`std` farm**, which is what
+  user programs use and is not the same question. Anyone acting on the "take it" side owes the
+  `no_std` check first if the consumer is not a `std` program.
+- **The measurement is one version on one nightly**, which `notes/crates-io-on-nife.md` says of
+  itself: the pinned toolchain of 2026-08-04 and the crate versions resolved that day.
 - **The stored-block deflate idea is untested here.** It is correct by the specification and this
   tree has not written a byte of it, so "tiny and provable" is a prediction.
 - **No measurement supports "inflate is small".** It is a judgment from the shape of RFC 1951, not a
