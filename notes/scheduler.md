@@ -52,7 +52,7 @@ enforces that. Every genuine wake of a thread parked in IPC happens in the same 
 section that gave the parked operation something to return: a rendezvous stages the mailbox, an
 interrupt counts a signal, a reply fills the reply words, revocation flags the abort. Each of
 those sites sets the handshake's `ipc_served` (or `ipc_aborted`; both on
-`wake_handshake::Handshake`, embedded in `Thread`) before calling `wake`, and `wake` /
+`thread_wake_handshake::Handshake`, embedded in `Thread`) before calling `wake`, and `wake` /
 `wake_load_aware` **refuse** to make a waiting thread Ready when neither flag is set, recording
 `refuse:tid` on the per-core event ring. The parked thread stays parked and still linked on its
 endpoint's wait queue, and the real counterparty completes the rendezvous normally later.
@@ -76,7 +76,7 @@ harness below proves that as a property of the protocol rather than as a story a
 changes is the claim: this is hardening against a reachable state, not a repair of a field failure,
 and anything that cites it as the latter is now wrong.
 
-Recorded here on 2026-08-15, ahead of the lane that found it, because `crates/wake_handshake` and
+Recorded here on 2026-08-15, ahead of the lane that found it, because `crates/thread_wake_handshake` and
 this section both asserted the original reading as fact while that lane sat blocked on a merge
 conflict. The fifth stop's full write-up is notes/visionfive2.md's fifth bench stop, landed with
 the same change that added the `serve:` witnesses.
@@ -93,7 +93,7 @@ already-consumed context and time-travels the thread onto a reused stack. Guarde
 **The protocol is a crate now, and loom searches it** (2026-08-14, the retrofit the fourth bench
 stop's audit asked for). The whole block/wake state machine (`state`, `on_cpu`, `wake_pending`,
 `wait_on`, `ipc_served`, `ipc_aborted`, and the gate, deferral and finish-switch transitions over
-them) lives in `crates/wake_handshake`, embedded in `Thread` and **called** by `sched.rs` rather
+them) lives in `crates/thread_wake_handshake`, embedded in `Thread` and **called** by `sched.rs` rather
 than mirrored, so the model-checked code and the shipped code are the same code. Each of the
 protocol's three hazards (wake-before-switch-out, the steal edge of the same window, and the
 undelivered wake) is a loom harness that holds with the current semantics and a `#[should_panic]`
@@ -283,7 +283,7 @@ is wide there, not evidence of a second bug.
 | 2026-08-03 | CI, PR #29, which changed `design/roadmap.md` and nothing else | **aarch64** |
 
 Every row is the same test and the same watchdog. The last one arrived in the wild, on the aarch64
-runner (`scripts/qemu-runner.sh`, `target/aarch64-unknown-none-softfloat`), while this milestone was
+runner (`scripts/qemu-runner-aarch64.sh`, `target/aarch64-unknown-none-softfloat`), while this milestone was
 being written, and it is the independent confirmation of what the widened-window control had already
 shown.
 

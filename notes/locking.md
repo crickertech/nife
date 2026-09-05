@@ -18,9 +18,11 @@ A plain spinlock in a kernel that takes interrupts is a hang waiting for a sched
 moment the timing lines up, and it will look exactly like the mystery in
 [stack.md](stack.md) that cost us two hours.
 
-And note what it does **not** need: a second core. Our "single-core for now" decision
-([DECISIONS](../design/decisions/06-single-core-first.md) §6) does not protect us here at all. One core, one lock,
-one interrupt, dead machine.
+And note what it does **not** need: a second core. This was written while §6 still said
+single-core, and the point was that the decision
+([DECISIONS](../design/decisions/06-single-core-first.md) §6, since **superseded by §11**) did not
+protect us here at all. One core, one lock, one interrupt, dead machine. Cores 1 to n arriving at
+milestone 41 added races; it did not remove this one.
 
 ## The fix
 

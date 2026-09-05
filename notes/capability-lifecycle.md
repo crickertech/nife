@@ -2,7 +2,10 @@
 
 The companion to [ipc-naming.md](ipc-naming.md). That note is about *naming* (IPC names an
 endpoint, never the peer). This one is about the *lifecycle* of the capabilities themselves: how
-authority is copied, how it narrows, and, at the end, why it cannot yet be revoked.
+authority is copied, how it narrows, and, at the end, how it is revoked. *(That last clause read
+"why it cannot yet be revoked" until 2026-09-05, contradicting this note's own "Revocation
+(milestone 13)" section, which has said **Built** since 13 landed. The section was updated and its
+own opening sentence was not.)*
 
 ## Authority moves by copy-with-narrowing, never by widening
 
@@ -21,7 +24,7 @@ point (DECISIONS.md §10): if delegation could widen authority, the model is the
 `ENUMERATE` is the newest and the one that shows why the count is worth gating rather than
 retyping: it arrived on 2026-08-17 with milestone 126, this line still said three bits the next
 day, and the 2026-08-17 documentation sweep is what found it. It is **the right to learn what
-exists, as distinct from acting on it**, the kernel-level twin of `fs_proto`'s directory
+exists, as distinct from acting on it**, the kernel-level twin of `filesystem_proto`'s directory
 `ENUMERATE`, and `endpoint::SURVEY` is its only consumer today. The argument for a right of its own
 rather than a corner of `READ` is on `capability::Rights::ENUMERATE`, where a reader meets it:
 `READ` on a supervision endpoint is what `RECV` and `REAP` take, so a `ps` granted `READ` could

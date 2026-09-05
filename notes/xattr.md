@@ -8,7 +8,7 @@ members. Time Machine speaks SMB, Samba stores Apple's metadata as extended attr
 (`streams_xattr`), and RedoxFS has none. So this is on the critical path to hardware, not a
 feature we thought would be nice.
 
-The contract is `fs_proto::xattr`; the layer is `redoxfs_server/src/lib.rs`; the mechanism was decided
+The contract is `filesystem_proto::xattr`; the layer is `redoxfs_server/src/lib.rs`; the mechanism was decided
 in DECISIONS §34's 2026-07-31 amendment.
 
 ## The shape, in one picture
@@ -68,10 +68,10 @@ capability's meaning cannot change out from under its holder.
 
 On Linux, layering metadata above a filesystem is worthless: anything can `open(2)` the file
 directly and walk around the layer. **Here nothing can.** Every path to these bytes goes through
-`fs_proto`, so a layer above the filesystem is as authoritative as the filesystem. That is a
+`filesystem_proto`, so a layer above the filesystem is as authoritative as the filesystem. That is a
 capability-system property doing real work rather than a consolation.
 
-The argument that actually decided it was **reversibility** (DECISIONS §34). `fs_proto` hides which
+The argument that actually decided it was **reversibility** (DECISIONS §34). `filesystem_proto` hides which
 implementation was chosen, so if attributes later prove central enough to justify diverging from a
 pinned upstream, or if the change is accepted into RedoxFS, the implementation moves and no client
 changes. Choosing the layer is therefore low-regret rather than a bet.
@@ -188,7 +188,7 @@ through rather than an inconsistency:
 
 | caretaker | who refuses a write through a read-only grant |
 |---|---|
-| `fs_file_caretaker` | **the caretaker.** It holds one handle opened with the *directory's* rights, so the grant's direction lives only in this process. `SETXATTR` and `REMOVEXATTR` are refused with `EROFS`, by the same rule that refuses `WRITE` and `TRUNCATE`, derived from `fs_proto::verb`'s `mutates()` rather than from a list |
+| `fs_file_caretaker` | **the caretaker.** It holds one handle opened with the *directory's* rights, so the grant's direction lives only in this process. `SETXATTR` and `REMOVEXATTR` are refused with `EROFS`, by the same rule that refuses `WRITE` and `TRUNCATE`, derived from `filesystem_proto::verb`'s `mutates()` rather than from a list |
 | `fs_subtree_caretaker` | **the FS server.** The caretaker performs no checks at all; a file handle inherits `READ`/`WRITE` from the directory it was opened through, so a read-only subtree grant is refused on the handle the server minted |
 | `fs_nameset_caretaker` | **the FS server**, as above. The caretaker filters *directory names*, and an attribute name is not one, so it passes the filter without being compared against the set |
 
@@ -196,7 +196,7 @@ That last row is the one worth staring at. `fs_nameset_caretaker` asks "is this 
 every verb whose operand is a name in the granted directory, and the four attribute verbs carry a
 name in the shared page that is **not** such a name. Filtering it would have refused a program its
 own file's attributes on the grounds that `user.com.apple.metadata` is not a name the pattern
-matched. The distinction is a variant of `fs_proto::verb::Operand` (`Name` versus `Payload`) rather
+matched. The distinction is a variant of `filesystem_proto::verb::Operand` (`Name` versus `Payload`) rather
 than a comment, so it is checked by a host test instead of remembered.
 
 **How it is proven**, both ISAs, three witnesses, each with a control that must fail:
@@ -293,8 +293,8 @@ Named here because a reader who meets the feature deserves to meet its edges at 
 ## How it is proven
 
 **Host, milliseconds, no emulator.** The whole of the layer's semantics is pure functions over a
-byte slice (`fs_proto::xattr::store`), so what replaces what, which ceiling refuses, and what a
-truncated blob means are all tested without a filesystem: seven tests in `fs_proto`, including a
+byte slice (`filesystem_proto::xattr::store`), so what replaces what, which ceiling refuses, and what a
+truncated blob means are all tested without a filesystem: seven tests in `filesystem_proto`, including a
 sweep that cuts a blob at every byte and asserts it reads back **short rather than wrong**. Ten more
 in `redoxfs_server` drive the real engine against a `DiskMemory` image: persistence across a mount the
 attribute was not written in, the rename property, the purge with a provoked node-id reuse, the

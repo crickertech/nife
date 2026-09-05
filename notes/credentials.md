@@ -11,7 +11,7 @@ An identity, a secret, and a way to check the second against the first without e
 read it. Milestone 56's second half; the first half is [entropy](entropy.md), and this depends on
 it for every salt it uses.
 
-The contract is `crates/cred_proto`, the logic is `crates/cred`, the service is
+The contract is `crates/credential_proto`, the logic is `crates/cred`, the service is
 `user/src/credentialer.rs`, and its clients are `user/src/credentialer_test_client.rs`.
 
 **Milestone 65 generalised this into a secrets service, in place.** The same process now holds two
@@ -205,7 +205,7 @@ to the contract rather than a bug in a serve loop.
 
 The reply codes are all small positives (1..=6), which is the trick `entropy_proto` established: every
 failure the kernel can return from a `CALL` is one of its small negatives, which read as enormous
-`u64`s. So `cred_proto::authenticated` can collapse "there is no credential service", "the request
+`u64`s. So `credential_proto::authenticated` can collapse "there is no credential service", "the request
 was malformed", "the service died" and "wrong password" into one `false`, and no caller has to
 remember which of six codes were the good ones. **A caller that mistook a missing capability for a
 successful authentication would be the single worst bug this contract could permit**, so it is the
@@ -297,7 +297,7 @@ Host tests (`cargo test -p cred -p cred_proto`, milliseconds, no emulator):
 - The lookup lands on the decoy for a miss and on the record for a hit, at every slot position.
 - A miss and a hit take comparable time.
 
-Proofs (`script/verify`, three Kani harnesses over `cred_proto`, 30 checks, 0.2 s). Both properties
+Proofs (`script/verify`, three Kani harnesses over `credential_proto`, 30 checks, 0.2 s). Both properties
 are about what an adversary can send or receive, and an adversary is not limited to the values a
 test author thought of:
 
@@ -356,7 +356,7 @@ in the same place.
   branch nothing reaches. A real deployment with a fourth person edits a constant and rebuilds.
 - **One verify page means one client at a time.** The page is per service, not per channel, so two
   clients sharing the endpoint would share the frame each writes its presented secret into. Nothing
-  detects that. `fs_proto`'s answer (one page per channel) is the shape to copy when a second client
+  detects that. `filesystem_proto`'s answer (one page per channel) is the shape to copy when a second client
   exists; today the intended client is the single SMB adapter.
 - **No rate limit, no lockout, no attempt counter.** A client holding the verify endpoint can guess
   as fast as it can `CALL`. Each guess costs the service one Argon2id derivation, which is the only

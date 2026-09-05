@@ -42,9 +42,11 @@ lz4_flex, seahash, bitflags, endian-num, base64ct, uuid-core, redox_syscall) com
 
 ## The real costs, priced
 
-1. **A `GlobalAlloc` in the FS-server process.** The core is alloc-heavy and our userspace has
-   no allocator yet. This is the untyped-backed allocator milestone 27's PAL needs anyway;
-   whichever milestone lands first builds it, the other inherits it. This is the largest cost,
+1. **A `GlobalAlloc` in the FS-server process.** *(Resolved: milestone 27 landed first and built
+   it, exactly as this costing predicted. `crates/user_heap` is the algorithm, drawing from a
+   `MemoryRegion` the program was granted.)* The core is alloc-heavy and our userspace had
+   no allocator when this was audited. This is the untyped-backed allocator milestone 27's PAL needs
+   anyway; whichever milestone lands first builds it, the other inherits it. This is the largest cost,
    and it was already on the books.
 2. **The two-line import patch**, worth offering upstream (with a `--no-default-features` CI
    check so it stays fixed) so the pin can eventually drop it.

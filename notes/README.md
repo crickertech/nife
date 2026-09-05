@@ -110,10 +110,12 @@ in the code or the conversation doesn't make sense, it belongs here.
   stale is a string in a shell script; and a priced proposal for deriving the one list the tree
   already has in `rust-toolchain.toml`.
 
-- [Handing a session over](session-handoff.md): what a fresh context needs to pick this up:
-  the standing autonomy grant, the merge and lane discipline, which gates are cheap and which
-  are slow, and the traps that have cost real time more than once (leaked QEMU, fixed-iteration
-  waits that measure host load, ceilings that grow with the suite rather than the system).
+- [Handing a session over](session-handoff.md): **superseded, and this entry advertised it as
+  current for thirty-eight days.** Written 2026-07-29 as a restart point for one session, and its
+  own opening asked to be deleted or overwritten once stale. What a fresh context needs now is
+  `AGENTS.md` (roles, merge authority, lane discipline) and `design/roadmap/README.md` (the queue).
+  The page is kept for its account of what landed on 2026-07-29, which is the only narration
+  several of those decisions have, and it now carries a banner saying not to follow its process.
 
 ## Devices
 
@@ -203,8 +205,9 @@ in the code or the conversation doesn't make sense, it belongs here.
 ## Rust
 
 - [Vec, Box, String, BTreeMap](collections.md): the four types the heap gave back. Why
-  `Box` is what makes a recursive type finite, why `Vec` doubles, why `&str` works in
-  `no_std` and `String` doesn't, and why a kernel uses `BTreeMap` and not `HashMap`.
+  `Box` is what makes a recursive type finite, why `Vec` doubles, and why `&str` works in
+  `no_std` and `String` doesn't. Its closing gap table was corrected in 2026-09-05's sweep: five of
+  its six rows had been built, and the kernel it describes no longer has a heap at all.
 - [`no_std`](no-std.md): why the kernel can't use the standard library, what `core` still
   gives us, and how we earn each missing piece back by building the thing `std` assumed.
 
@@ -298,8 +301,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   supervisor would rather have held.
 - [How authority moves, narrows, and ends](capability-lifecycle.md): capabilities spread by
   copy-with-narrowing (never widening), `SEND_CAP` is share not move, the two independent
-  narrowings (rights vs. GRANT), and why there's no revocation yet (a control gap, not a
-  safety hole: spend-only untyped keeps shared frames valid).
+  narrowings (rights vs. GRANT), and revocation from milestone 13 onward: `PageFrame::REVOKE`
+  unmaps a page from every holder, and the note keeps the pre-13 design in the present tense of
+  before it existed, because why it was not a safety hole (spend-only regions keep shared frames
+  valid) is the part worth still having.
 - [Object revocation: tearing a process back down](object-revocation.md): reclaiming the TCBs,
   address spaces, and endpoints a process built (extends §13 from frames to objects). Region
   ownership plus generational staleness instead of a capability derivation tree, why destroy is
@@ -410,7 +415,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   reader into `Gone` for a live writer. A builtin can lead a pipeline because the shell can be a
   writer. Both directions are proven the same way, one binary against two sources or two
   destinations. And the finding that finished it: the file behind a `>` is **the shell's own
-  filesystem session**, not a sink process, because `fs_proto` shares one page between the FS server
+  filesystem session**, not a sink process, because `filesystem_proto` shares one page between the FS server
   and its clients and `ls > out.txt` is a line where the shell must read the filesystem while the
   redirection is being written. Since 2026-08-04 it also holds the constraint the second reader
   found: **a process has one wait point**, so a shell that feeds a stage cannot also receive from
@@ -701,8 +706,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   finding 6 one layer down (the IOMMU confines placement, not values). `mdns_proto`'s decoder and the
   cred/ntlm secret handling are cleared, with the reachability and scope caveats attached.
 - [A security audit](security.md): an adversarial four-part review of the whole kernel. The
-  MMU and capability confinement held up; two panics on untrusted input were fixed; the DMA/no-IOMMU
-  limitation and the missing resource quotas are named rather than hidden.
+  MMU and capability confinement held up and two panics on untrusted input were fixed. Read as a
+  dated record: the review ran after milestone 11, and its closing conditions (single core, no
+  delegation, no IOMMU, no quotas) have all moved since, which the page now says at the bottom
+  rather than leaving a reader to infer.
 - [Rustdoc coverage](doc-coverage.md): the doc-example floor and the `missing_docs` ratchet
   (milestone 68's two unfinished halves). Every crate now has a worked example (49 doctests became 116); item documentation is
   a 401-item worklist with a per-crate opt-in in the 23 crates already clean. Two findings worth
@@ -799,7 +806,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   missing the store-store barrier between claiming the sequence and writing the data, unreachable on
   x86 and invisible to every other gate. Including which fixes do *not* work: `AcqRel` and `SeqCst`
   on the claim both still tear. Extended 2026-08-14 with the scheduler's block/wake protocol
-  (`crates/wake_handshake`, the fourth bench stop's retrofit): a lock-based protocol whose search
+  (`crates/thread_wake_handshake`, the fourth bench stop's retrofit): a lock-based protocol whose search
   space is the gaps between critical sections, with each of its three recorded races held as a
   harness plus a `#[should_panic]` reconstruction. Run by `script/interleaving-check`.
 - [Mutation testing](mutation-testing.md): milestone 85, and the question coverage cannot ask:
@@ -907,11 +914,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   **false**, and the real cost is a grant that acquires a referent later. And `ARG_MAX` as a
   capability limit, with the bound set at eight by a stack overflow rather than by reasoning.
 - [Generational names](generational-names.md): milestone 14 phase A: the thread table becomes a
-  fixed generational slot table (`crates/slots`). A Tid is `(generation, slot)`; a dead thread's
+  fixed generational slot table (`crates/generational_table`). A Tid is `(generation, slot)`; a dead thread's
   name can never resolve again, even after slot reuse. Bounded like an array, safe like a
   never-reused counter, and the first step toward capability-only thread naming.
 - [Intrusive queues](intrusive-queues.md): milestone 14 phase A.2: the run queues and migration
-  inboxes become intrusive (`crates/intrusive`); the link lives inside the TCB, a push is two
+  inboxes become intrusive (`crates/intrusive_fifo`); the link lives inside the TCB, a push is two
   pointer writes that cannot allocate or fail, and a pop hands back the thread itself. One link
   means one queue, which is the scheduler's state machine made physical.
 - [Benchmarks with teeth](benchmarks.md): milestone 21: two instruments, because gating and
@@ -1003,7 +1010,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   device that lies about persistence, plus the controls that prove the injector bites (with the header
   ring's history removed, 92 of 93 fault points stop mounting) and the honest limit (a lying device is
   never survivable and never silent). Milestone 61 added the **verb table**: one row per opcode in
-  `fs_proto::verb`, saying what a request's words mean and which rights the server demands, so the
+  `filesystem_proto::verb`, saying what a request's words mean and which rights the server demands, so the
   three caretakers that proxy this contract dispatch off the contract instead of off three
   hand-written matches, and a verb with no row is a compile error rather than a capability that is
   quietly missing. Milestone 57's write half added `mkfs`, the server's opposite (it creates a
@@ -1035,11 +1042,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   at the interactive prompt for a name one directory down, and the shape it still cannot be given is
   a grant on the root of the shell's own namespace.
 - [`touch`: create if absent](touch.md): milestone 47's other builtin split by what needs a
-  decision and what does not. The create half needed nothing new (`fs_proto::fs::CREATE`, already
+  decision and what does not. The create half needed nothing new (`filesystem_proto::fs::CREATE`, already
   built for milestone 31 phase 2) and is a builtin in `mkdir`'s category rather than `rm`'s, since it
   takes no more than the directory capability the shell already holds. The mtime half (bumping an
   existing name's timestamp, and `-t`'s sharper ability to lie about history) is not built, because
-  `fs_proto` carries no verb for it and whether "set to now" is the write right already held or a
+  `filesystem_proto` carries no verb for it and whether "set to now" is the write right already held or a
   separate authority is an open question the roadmap block names rather than answers.
 
 - [The inert-configuration page](env-config.md): milestone 47's environment-variable fork
@@ -1050,7 +1057,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   not parse as a real timezone/locale/terminal type is refused at assembly time rather than
   carried through disguised as configuration. No seqlock, unlike the clock: the page has exactly
   one writer and it finishes before the page has a second reader. Built end to end for a std
-  program (`env_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
+  program (`environment_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
   on both ISAs; no shell-facing program declares wanting it yet, the same position `clock` was in
   before `date` existed.
 
@@ -1148,9 +1155,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   surprisingly short list), what can't be abstracted (the memory model), and why the second
   port should come early and be as alien as possible.
 - [Where nife could actually run, and what the three bench machines are named](target-hardware.md):
-  the ISA is almost never the constraint. What decides bootability, why a Pi 4 is the next port,
-  why the port *after* it should probably be a UEFI/ACPI machine rather than another Device Tree
-  board, and the table that resolves `argon`, `radon` and `xenon` to actual hardware.
+  the ISA is almost never the constraint. What decides bootability, the table that resolves
+  `argon`, `radon` and `xenon` to actual hardware, and a plan section kept against its own outcome:
+  the Pi 4 it named as the next port was never bought, and the UEFI/ACPI machine it wanted second
+  is xenon, which had first light on 2026-09-05 and broke in exactly the places the plan predicted
+  a boundary test would.
 - [The aarch64 board for the seL4 comparison](aarch64-board-survey.md): milestone 25's leftover
   needs a real PMU, and the board has to be one sel4bench *really* runs on, read from seL4's own CI
   configs rather than the support matrix. The three evidence tiers, the candidate table with checked

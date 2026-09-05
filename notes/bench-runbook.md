@@ -13,7 +13,7 @@ spend an evening on, in what order, and what a result would mean.**
 | | what it is | has it booted nife? |
 |---|---|---|
 | **radon** | StarFive VisionFive 2, JH7110, riscv64 | **yes**, including userspace, `init`, a child process and a confined driver |
-| **xenon** | Dell OptiPlex 7050 Micro, x86_64 | **no.** Milestone 87 is first light |
+| **xenon** | Dell OptiPlex 7050 Micro, x86_64 | **yes**, first light 2026-09-05: the milestone 243 framebuffer console carried the whole boot tour on video, with no serial cable. `notes/x86-uefi-boot.md` |
 | **argon** | NVIDIA Jetson TX1, aarch64 | **no.** Milestone 127 is first light |
 
 `notes/target-hardware.md` records the names and why they exist.
@@ -74,10 +74,11 @@ line verbatim.
 
 ## xenon, if there is a second evening
 
-Milestone 87 (the x86_64 bare-metal machine) is first light. The procedure is
-`notes/x86-uefi-boot.md`'s "The bench: booting nife on the OptiPlex 7050", which is written to be
-followed rather than interpreted: `cargo xtask uefi-image`, one file to a FAT32 stick at
-`\EFI\BOOT\BOOTX64.EFI`, and the serial chain already on the desk.
+Milestone 87 (the x86_64 bare-metal machine) **was** first light, and it has now happened once,
+on 2026-09-05. The procedure is `notes/x86-uefi-boot.md`'s "The bench: booting nife on the OptiPlex
+7050", which is written to be followed rather than interpreted: `cargo xtask uefi-image`, one file
+to a FAT32 stick at `\EFI\BOOT\BOOTX64.EFI`, and the serial chain already on the desk. A second
+evening on xenon is now a bench evening rather than a bring-up one.
 
 **Milestone 195 closed two of the three questions only xenon could answer**, on patagonia, on
 2026-09-02: a real function's MSI-X table reachable once *firmware* placed the BARs, and a

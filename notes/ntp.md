@@ -13,7 +13,7 @@ capability, belongs with the service and is recorded in notes/clock.md.
 
 ## Why the protocol is a crate and not part of a component
 
-The same reason `fs_proto` and `graphics_proto` are crates. A wire format is arithmetic and byte layout,
+The same reason `filesystem_proto` and `graphics_proto` are crates. A wire format is arithmetic and byte layout,
 which is the cheapest thing in the system to get wrong and the most expensive to debug from inside a
 QEMU boot against a live server. Here it is 21 host tests and 7 Kani harnesses, and the whole lot
 runs in under a second with no emulator.

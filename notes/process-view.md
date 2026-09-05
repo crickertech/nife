@@ -80,7 +80,7 @@ userspace program decide how long the scheduler is locked, which is a latency ho
 open on purpose.
 
 The cost is that **a survey is a sequence of snapshots rather than one**. The cursor is a *slot
-index*, not a position in a filtered sequence (`slots::Table::iter_from`), which is what makes the
+index*, not a position in a filtered sequence (`generational_table::Table::iter_from`), which is what makes the
 resume safe: the entry that was at slot `k` is the only thing that can be at slot `k`, and if it
 died, `k` is empty rather than somebody else's thread. So a resumed walk never reports a member twice
 and never resolves a cursor to the wrong thread. It can miss a member born into an already-passed
@@ -90,7 +90,7 @@ knowingly.
 ## Refused, empty, and populated are three answers
 
 **This is the deliverable, not a detail.** A monitor that reports nothing because it *could not look*
-reads exactly like a quiet machine, which is the worst failure this tool has available. `fs_proto`
+reads exactly like a quiet machine, which is the worst failure this tool has available. `filesystem_proto`
 chose `EPERM` over an empty listing for the same reason (milestone 108's shape).
 
 | what the viewer holds | answer |
@@ -334,7 +334,7 @@ regular expression is not a designation of anything.
   mostly evaporated when calef ruled that a domain names its members and does not act on them: there
   was no second decision to wait for, and the deferral was buying nothing.
 
-  The fix is `capability::Rights::ENUMERATE`, the kernel-level twin of `fs_proto`'s directory
+  The fix is `capability::Rights::ENUMERATE`, the kernel-level twin of `filesystem_proto`'s directory
   `ENUMERATE`, and it is the same argument one layer down. `SURVEY` takes it; `RECV` and `REAP`
   still take `READ`; `system_initializer` grants a viewer `ENUMERATE` **alone**. So a `ps` does not
   get refused a reap, it cannot name one, which is the ladder's top rung in place of an argument
@@ -351,7 +351,7 @@ regular expression is not a designation of anything.
 
   The mechanism, in two lines of kernel. `sched::survey_supervised` returns `slot as u64 + 1` as
   the `next_cursor`, where `slot` is the index into `Scheduler::threads`, which is the **whole
-  machine's** thread table. And a tid is a `slots` generational name, `(generation << 32) | slot`,
+  machine's** thread table. And a tid is a `generational_table` generational name, `(generation << 32) | slot`,
   so the low half of every tid a survey reports *is* that same index and the high half is the
   number of times that slot has been recycled since boot, machine-wide.
 

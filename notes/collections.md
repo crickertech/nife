@@ -9,9 +9,18 @@ works because we supplied a `#[global_allocator]`.
 ```
 BTreeMap ─┐
 String ───┤
-Vec ──────┼──▶ #[global_allocator] ──▶ our heap ──▶ our frame allocator ──▶ RAM
-Box ──────┘                            (crates/heap)   (crates/frames)     (from the DTB)
+Vec ──────┼──▶ #[global_allocator] ──▶ our heap ──▶ a MemoryRegion the ──▶ RAM
+Box ──────┘                        (crates/user_heap)   program was granted
 ```
+
+**Where that diagram was drawn matters, and it moved.** It was written when the *kernel* had a
+heap, `crates/heap` and `crates/frames` under it. Milestone 14's thesis retired that: the kernel
+allocates nothing after boot, `crates/heap` and `crates/slab` were deleted once nothing referenced
+them ([heap.md](heap.md)'s banner), and `kernel/src/` has no `#[global_allocator]` at all today. So
+the chain above is a **userspace** one. The allocator algorithm is `crates/user_heap`, the memory
+under it is a `MemoryRegion` capability the program's parent granted, and a program nobody granted
+one to has no heap rather than a smaller one. The frame allocator still exists, as
+`crates/page_frames`, one level below anything a program can name.
 
 ## `Box<T>`: "this lives on the heap, and I own it"
 
@@ -200,18 +209,25 @@ see, and a kernel spends a great deal of time outside that boundary.
 
 ## What we still don't have, and the pattern in it
 
-| Missing | Why | Where it comes from |
-|---|---|---|
-| `HashMap` | needs a randomly-seeded hasher; a seed needs OS entropy | `hashbrown` crate, or just `BTreeMap` |
-| `Mutex`, `RwLock`, `Condvar` | these **block**, and blocking needs a scheduler to block *on* | **we build them at M6** |
-| `thread::spawn` | needs a scheduler | **M6** |
-| `Instant`, `SystemTime` | needs a clock | **M5** |
-| `File`, `Path`, `fs` | needs a filesystem | **M8** |
-| `TcpStream` | needs a network stack | out of scope |
+**Corrected 2026-09-05 (milestone 259), and the old column is kept because the rate is the point.**
+This table was written when none of these services existed, said "every gap is a milestone", and
+was then not reread for the six weeks in which five of its six rows were built. The `Then` column
+is what it claimed; `Now` is what `script/test` runs.
 
-Read the third column. **Everything `std` has that we lack, we lack because it needs a kernel
-service we have not built.** Every gap is a milestone. Same shape as the table in
-[no-std.md](no-std.md), and still the honest map of where we are.
+| | Then | Now |
+|---|---|---|
+| `HashMap` | "needs a randomly-seeded hasher; a seed needs OS entropy" | **Works.** Entropy is a capability (milestone 56, [entropy.md](entropy.md)). Granted, the seed is real; ungranted, std's PAL falls back to a splitmix64 stream over the counter **and labels it**, which is the §42 rule about not inventing a value silently |
+| `Mutex`, `RwLock` | "these **block**, and blocking needs a scheduler to block *on*" | **Compile and work uncontended**, because a process is still one thread. `Condvar::wait` and `Once::wait` are the two that genuinely have no answer and end the process; see [std.md](std.md)'s abort census |
+| `thread::spawn` | "needs a scheduler / M6" | **Still `Unsupported`, and this is the one row that held.** The scheduler arrived at milestone 6; what is missing is a decision, not a service. See [thread-spawn-fork.md](thread-spawn-fork.md) |
+| `Instant`, `SystemTime` | "needs a clock / M5" | **Both real.** `Instant` is the virtual counter; `SystemTime` is a clock page a granted program maps read-only (milestone 51, [clock.md](clock.md)) |
+| `File`, `Path`, `fs` | "needs a filesystem / M8" | **Real and writable.** RedoxFS confined as a userspace server (milestone 32, [fs-server.md](fs-server.md)), bound into `std::fs` by milestone 27 phase two; `std::fs::write` works |
+| `TcpStream` | "needs a network stack / out of scope" | **Bound, and it was never out of scope.** smoltcp in a confined net server (milestone 30, [net.md](net.md)); `TcpStream`, `TcpListener` and outbound `UdpSocket` all speak the socket contract |
+
+**The third column's claim survived and the rows under it did not**, which is the useful half.
+Everything `std` had that we lacked, we lacked because it needed a kernel service nobody had built,
+and every one of those gaps did turn out to be a milestone. What the table got wrong was tense: it
+described a floor as though it were a ceiling. The honest current map of the `std` surface is
+[std.md](std.md), which is derived from what the compiler actually built rather than written once.
 
 (`core::time::Duration` already exists, incidentally: it is arithmetic on nanoseconds and needs
 nothing. It is `Instant` that needs hardware, because `Instant` means **now**, and nothing in
