@@ -110,8 +110,8 @@ bench = false
 # `--features jobmix` sweeps. In every archive, because the instrument develops under QEMU and the
 # number is taken on a board, and both have to run the same workload.
 [[bin]]
-name = "job_mixer"
-path = "src/job_mixer.rs"
+name = "job_mix_task"
+path = "src/job_mix_task.rs"
 test = false
 bench = false
 

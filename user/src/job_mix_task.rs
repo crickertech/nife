@@ -50,6 +50,20 @@
 //! properties and none of its 53 jobs, and a name claiming the original would be a claim about
 //! comparability that `crates/job_mix`'s `BUGS` explicitly denies. `worker` was refused because
 //! `user/src/worker.rs` already exists.
+//!
+//! **Name: ratified 2026-09-05 (calef, milestone 168).** Shipped provisionally as `job_mixer`, which
+//! was wrong rather than merely inconsistent: **this program does not mix anything.** It is one task
+//! *inside* the mix, and the `-er` suffix claimed an agent role it does not have, which is the
+//! failure `dwarden` is cited for in AGENTS.md's own evidence, a name for the wrong relationship so
+//! a reader who correctly infers the scheme gets it wrong.
+//!
+//! `job_mix_task` was calef's, over the maintainer's `mix_task`, and it is better for a reason the
+//! maintainer had not made: **the family stays greppable as one string**, so `job_mix` finds the
+//! crate, the script and this program. `job` alone was refused because this tree already uses the
+//! word in the shell sense (milestone 48 is job control, and `job_undertaker` collects them).
+//!
+//! **`task` is this crate's own word**, not a new one: 26 of the tree's 70 uses of it are inside
+//! `crates/job_mix`, and `abi` never uses it, so it competes with no kernel concept.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
