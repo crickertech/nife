@@ -205,7 +205,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 144 | DECIDED | [The fastpath footprint gate gets a delta and a ceiling, and the ceiling is 16 KiB](144-fastpath-footprint-ceiling.md) |
 | 145 | PROPOSED | [Compartmentalization at process cost: is Qubes' mission the reason the world needs this OS?](145-compartmentalization-at-process-cost.md) |
 | 146 | PROPOSED | [Archive and compression: which pieces we write, which we take, and which we refuse](146-archive-and-compression-write-or-take.md) |
-| 147 | PROPOSED | [A timer a userspace service cannot hold: how the timed wait gets served instead](147-a-timer-a-userspace-service-cannot-hold.md) |
+| 147 | DECIDED | [A timer a userspace service cannot hold: how the timed wait gets served instead](147-a-timer-a-userspace-service-cannot-hold.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

@@ -1,6 +1,34 @@
-# 147. A timer a userspace service cannot hold: how the timed wait gets served instead
+# 147. A timer a userspace service cannot hold
 
-**Status: PROPOSED.** Raised by milestone 263's lane, 2026-09-05, because that spike's answer
+**Status: DECIDED.** calef, 2026-09-05: **option 1, the new object.** Option 2 was ruled out first
+(*"§19 exists to make this expensive"*, and a scope note recording something that **cannot** be done
+is not the thing a scope note is for). Between 1 and 3 his reason was one sentence: *"A new object
+seems like the winner. A deadline argument seems like a work around to reduce effort."*
+
+**That is [§92](92-caretaker-lifetime.md)'s test applied**, and it is worth recording as such because
+§92 exists for exactly this shape: *"the failure mode is not laziness, it is a recommendation that
+sounds like design."* Milestone 51 called the deadline argument strongest on **"three problems, one
+addition"**, which counts effort. Asked §92's question, *would I still choose this if both options
+were the same amount of work*, it loses on the merits:
+
+- **It changes a primitive every program uses**, where a new object is opt-in. §10 calls the surface
+  *"a boundary, not a habit"*, and an addition can be ignored while a changed `RECV` cannot.
+- **"One addition" undercounts.** `net_stack` blocks on an interrupt, not an endpoint, so milestone
+  106 has to add `Irq::WAIT` with a deadline **as well**. A notification takes IPC and IRQ signals
+  alike, so option 1 needs one mechanism where this needs two.
+- **Sleeping becomes something you do to an endpoint**, which a thread that only wants to sleep must
+  then acquire.
+
+**Two of option 3's three shapes never reached the comparison**, and this section says so rather than
+leaving them as live alternatives: `SYS_SLEEP` is ambient, which §10 refuses by design, and answers
+one of four consumers; and a timer object with a blocking `WAIT` has **one** wake source, so it does
+not meet milestone 106's own title, which is a wait ending on *either* the interrupt or the deadline.
+Option 1 is that shape with the blocking removed, which is what makes it work.
+
+**The cost accepted.** This is two builds rather than one. Milestone 151 (notification objects)built) must land first, because without the TCB binding this buys a thread a timer and no way to
+wait on a timer and a message at once. Option 1 is 151 plus one object and was priced that way.
+
+*(Was PROPOSED from 2026-09-05, written by milestone 263's lane, which named no winner deliberately.)*
 invalidates the premise of a decision calef made the same day. *(Section number provisional until the
 merge queue lands it.)*
 
