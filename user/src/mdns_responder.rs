@@ -71,11 +71,15 @@
 //! - **IPv4 only.** No AAAA, so a Mac on an IPv6-only segment finds nothing. `mdns_proto`'s
 //!   `Advertisement` carries no IPv6 address yet.
 //!
-//! Name: unrecorded, and explicitly **provisional**, minted by milestone 55's responder lane on
-//! 2026-08-16. `mdns_responder` is what macOS calls its own service (`mDNSResponder`), which is
-//! the argument for it (a reader knows what it does before reading a word) and against it (it is
-//! somebody else's product name, and this tree's `net_stack` deliberately does not spell itself
-//! `netd`). Not put to calef.
+//! Name: provisional. Minted by milestone 55's responder lane on 2026-08-16. `mdns_responder` is
+//! what macOS calls its own service (`mDNSResponder`), which is the argument for it (a reader
+//! knows what it does before reading a word) and against it (it is somebody else's product name,
+//! and this tree's `net_stack` deliberately does not spell itself `netd`). The 2026-09-05 acronym
+//! test reaches the stem and does not settle it either way here: mDNS expands to multicast DNS,
+//! which contains a second acronym, so spelling it out yields
+//! `multicast_domain_name_system_responder` and the expansion has stopped teaching before it
+//! finishes. That belongs to the acronym sweep notes/naming.md puts in its own milestone rather
+//! than to this block. calef has not ratified it.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

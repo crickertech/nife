@@ -21,9 +21,17 @@
 //! device-specific fact (the NS16550 register layout) is the driver's own knowledge, which is exactly
 //! what a driver is for.
 //!
-//! Name: unrecorded, and the vaguest name on this surface. It is the UART interrupt driver, and the
-//! word could label a dozen programs in a tree that has several drivers. Introduced 2026-07-27 when
-//! the UART interrupt moved to userspace; nothing records the choice.
+//! Name: provisional, and this lane proposes a rename. Introduced 2026-07-27 when the UART
+//! interrupt moved to userspace; nothing records the choice. The problem is not that the name
+//! lacks a signature, it is that the tree grew three siblings that make it wrong: `block_driver`,
+//! `gpu_driver` and `keyboard_driver` are all `<device>_driver`, and this is the fourth driver
+//! and the only unqualified one. A reader who has correctly inferred the scheme cannot tell which
+//! device this drives, which is the `dwarden` failure AGENTS.md cites as the evidence the naming
+//! rule was needed. `keyboard_driver` is the precedent that settles the form: it was `kbd` until
+//! 2026-08-27 and was spelled out. This program is the interrupt-driven console input driver for
+//! the NS16550, so the case is for `serial_driver`, with `uart_driver` the alternative and the
+//! acronym test the reason to prefer the first. `console_driver` is refused because `console` is
+//! already a program. Proposed, not performed: a rename is calef's.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

@@ -16,9 +16,15 @@
 //!   other view). The heeder reads [`job_page_frame::INTERRUPT`] and writes the rest. No capabilities: it
 //!   touches only this page and exits. Its whole authority is one shared page.
 //!
-//! Name: unrecorded. Introduced 2026-07-28 with the cooperative interrupt tier: the program that
-//! heeds an interrupt request rather than being killed by one. An agent noun in a family milestone
-//! 63 later named, with no record of the choice.
+//! Name: provisional. Introduced 2026-07-28 with the cooperative interrupt tier (DECISIONS §24),
+//! and cited as an established family member by milestone 63 without ever being argued for
+//! itself. The case. §24 splits interrupt handling into a cooperative tier and a forcible one,
+//! and this program is the whole of the cooperative one: it reads the interrupt flag between
+//! units of work and stops when the flag is set. So the name says the exact property the tier
+//! turns on, which is that the job *heeds* rather than that it can be stopped. The agent noun
+//! follows 63's family rule. Its counterpart is `spinner`, and the pair is legible together in a
+//! way `cooperative_job` and `runaway_job` would not be, because the distinction is behaviour
+//! under one signal rather than a kind of job.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
