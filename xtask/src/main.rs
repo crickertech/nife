@@ -9956,6 +9956,15 @@ fn parse_ip_addr_addresses(text: &str) -> Vec<(String, std::net::Ipv4Addr)> {
 /// the archive falls all the way back and takes BOTH from the card. Half a pair boots to
 /// `MEASURED BOOT REFUSED`, which is the gate working, and it would be working on a fault we built.
 ///
+/// **`autoload no`** because bare `dhcp` in U-Boot means "get an address **and** TFTP the bootfile
+/// from the server DHCP names", not "get an address". Without it the board fetches from whatever the
+/// DHCP server advertises, which on a home network is the router; radon did exactly that on
+/// 2026-09-05, reported `TFTP from server 192.168.8.1` and then `TFTP server died`, and because
+/// `dhcp` returns failure when its autoload fails, the whole network branch was skipped and the card
+/// fallback fired. The boot looked like a clean fallback and was a bug. The line was in the manual
+/// sequence that proved this path on 2026-09-04 and was left out of the transcript the script was
+/// written from, which is why no test could have caught it: every test stubbed `dhcp`.
+///
 /// **`netretry no`** so that a network that is not there fails in seconds instead of retrying while
 /// nobody is watching. That is the whole difference between a fallback and a hang.
 fn board_network_boot_script(server: &str) -> String {
@@ -9965,6 +9974,7 @@ fn board_network_boot_script(server: &str) -> String {
 echo nife: boot.scr is driving this boot, milestones 218 and 257
 setenv nife_source none
 setenv netretry no
+setenv autoload no
 if test x${{nife_boot_server}} = x; then
 setenv nife_boot_server {server}
 fi

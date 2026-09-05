@@ -156,6 +156,68 @@ network boot (this block), an on-board test-suite exit so a machine rather than 
 result (milestone 16's remaining piece), and remote power (224, accepted as manual). Two of the
 three are lanes; the third is a decision that has been made the other way, on purpose.
 
+## Confirmed on radon, 2026-09-05, and it found a bug no test could have
+
+Three boots, with the card written by `--tftp` and left in the board throughout.
+
+**Boot 1, ethernet unplugged. The fallback works and hush accepts the script.** That was this
+block's headline risk, since the generated script had only ever been run under `/bin/sh` with the
+U-Boot verbs stubbed:
+
+```
+nife: tftp server is 192.168.8.216, setenv nife_boot_server to point somewhere else
+ethernet@16030000 Waiting for PHY auto negotiation to complete......... TIMEOUT !
+ethernet@16040000 Waiting for PHY auto negotiation to complete......... TIMEOUT !
+nife: nothing came over the network, falling back to the card
+nife: payload came from card
+```
+
+The whole capture, two PHY timeouts plus a complete boot tour, fit in **under 25 seconds**. A card
+left in radon with no network is not a session-killer.
+
+**Two claims in this block's BUGS are answered by that boot, and one is corrected.** U-Boot tries
+**both** of radon's ports, `16030000` then `16040000`, so the cost of no network is two PHY
+timeouts rather than one. And **`netretry no` was not what bounded it**: PHY auto-negotiation times
+out first, in the ethernet driver, before `dhcp` gets far enough for retry logic to matter. The
+practical answer is unchanged and the mechanism named in this block was the wrong one.
+
+**Boot 2, ethernet plugged in, `board-netboot` serving. It fell back to the card anyway**, and the
+reason is a real defect:
+
+```
+DHCP client bound to address 192.168.8.200 (257 ms)
+TFTP from server 192.168.8.1; our IP address is 192.168.8.200
+TFTP server died; starting again
+nife: nothing came over the network, falling back to the card
+```
+
+**Bare `dhcp` in U-Boot means "get an address AND TFTP the bootfile from the server DHCP names",
+not "get an address".** So the board fetched from `192.168.8.1`, the house router, failed, and
+because `dhcp` returns failure when its own autoload fails, the entire network branch was skipped.
+**The boot looked like a clean fallback and was a bug**, which is the worst shape a defect can take
+in a mechanism whose whole job is to fall back quietly.
+
+**Boot 3 confirmed the one-line fix without rewriting the card.** Autoboot was interrupted,
+`setenv autoload no` typed by hand, and the card's existing script sourced:
+
+```
+TFTP from server 192.168.8.216; our IP address is 192.168.8.200
+Bytes transferred = 282624
+Bytes transferred = 9051648
+nife: payload came from net
+```
+
+`setenv autoload no` is now emitted by `board_network_boot_script`, with the reason at the call
+site.
+
+**Why no test could have caught it, which is the part worth keeping.** Every test of this script
+stubs `dhcp` and chooses its exit status, so no test can observe what the real command *does* on
+success. The line was in the manual sequence that proved this path on 2026-09-04 and was left out of
+the transcript in this block that the script was written from. **The record was the defect**, and
+the lane built correctly from an incomplete one.
+
+Transcripts: `bench/radon-2026-09-05/`.
+
 ## BUGS
 
 - **None of this has run on radon**, and that is the honest headline. The board needs calef at the
