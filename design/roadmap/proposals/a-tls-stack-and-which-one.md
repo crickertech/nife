@@ -52,7 +52,7 @@ would be a **choice about what to prove** rather than a lack of options.
 
 | | who needs it | blocked on |
 |---|---|---|
-| **client** | milestone 198 (a package manager), fetching what it installs; milestone 99 (`git` on nife), for the `clone` half; milestone 174 (nife as a thin development client), reaching its build service | nothing |
+| **client** | milestone 99 (`git` on nife), for the `clone` half; milestone 174 (nife as a thin development client), reaching its build service | nothing |
 | **server** | milestone 66 (Vaultwarden) | 66's own concurrency gap: `ACCEPT` re-arms but the backlog is one connection deep |
 
 Client-side needs `connect`, which has existed since the contract did. **So the half with three
@@ -60,6 +60,47 @@ consumers is the half that is not blocked**, and it is the one to build first if
 
 **Milestone 174 is explicit that it can wait:** *"TLS is not a hard prerequisite for a first cut.
 nife has no TLS/crypto stack today."*
+
+## Milestone 198 was listed here as a consumer and should not have been
+
+An earlier version of the table above named milestone 198 (a package manager) as needing client-side
+TLS, to fetch what it installs. **That is probably wrong, and the reason is worth keeping because it
+also answers the question about `ca-certificates` that produced it.**
+
+**Debian fetches packages over plain HTTP and verifies signed `Release` files with a project key.**
+Authenticity of the content, not confidentiality of the transport. That is a deliberate design and
+not an oversight: it lets any mirror or cache serve the bytes, and it reduces the trust surface from
+roughly 150 certificate authorities to **one key the project controls**.
+
+**So a package manager needs signature verification, which it needs anyway, and does not obviously
+need TLS at all.** Signature verification is a smaller piece of the crypto surface than a TLS stack,
+it has no certificate parsing and no trust store, and 198 will need it whatever the transport is.
+
+**There is also a circularity that makes the TLS answer worse than it looks.** A package manager that
+fetched over HTTPS would need a certificate trust store; a trust store must be updatable
+independently of the system, because authorities are compromised (DigiNotar, 2011) and roots expire
+(DST Root X3, 2021, which broke a large fraction of the internet); and the mechanism for updating
+data independently of the system **is the package manager**. Shipping the roots inside the image
+resolves it and then freezes them until the next image.
+
+None of that decides 198's transport, which is 198's to decide. It removes 198 from this proposal's
+list of consumers, leaving two.
+
+## `ca-certificates` is not a milestone here, and there is a nife-shaped reason
+
+**It is a data set rather than code**, roughly 150 roots from Mozilla's NSS store, and on every Unix
+it is a package. Whatever needs it will need it as data with an update path, which is the paragraph
+above.
+
+**And the interesting part is that a trust store should not be ambient here.** On Unix
+`/etc/ssl/certs` is readable by every process, so a program that only ever talks to one host can
+still verify against all 150 authorities. **In a capability system a trust store is a capability**,
+and a client granted exactly the roots its one peer chains to cannot be induced to trust anything
+else. That is a small, concrete instance of
+[§145](../../decisions/145-compartmentalization-at-process-cost.md)'s argument, and it is the kind of
+thing that is cheap to do here and impossible to retrofit into Unix.
+
+Recorded rather than minted, because it has no consumer until this proposal does.
 
 ## Why this is a proposal and not a milestone
 

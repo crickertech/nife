@@ -245,7 +245,7 @@ echo "  $IMG  ($SIZE bytes, Image header verified)"
 echo "  $OUT/nife-initrd.img  ($ARCHIVE_SIZE bytes, the userspace archive this kernel measures)"
 if [ "$TFTP" = yes ]; then
     echo "  boot.scr.uimg fetches over the network first and falls back to the card (257)"
-    echo "  serve them:  script/board-tftp"
+    echo "  serve them:  script/board-netboot"
 fi
 echo
 echo "The kernel and the archive are ONE pair. The kernel compiles in a hash of the archive it was"
@@ -318,7 +318,7 @@ cat <<'EOF'
 This card's boot script tries the network FIRST and falls back to these same files on the card,
 so write it once and leave it in the board. On the serving machine, in another terminal:
 
-  script/board-tftp                # serves target/board on udp/69, no sudo needed
+  script/board-netboot                # serves target/board on udp/69, no sudo needed
 
 The board announces which address it will ask, before it asks:
 

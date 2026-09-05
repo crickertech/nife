@@ -979,9 +979,12 @@ in the code or the conversation doesn't make sense, it belongs here.
 ## Design
 
 - [Why this isn't a general-purpose OS](why-not-general-purpose.md): what an application
-  would actually hit (no POSIX/libc, no writable FS, no network, no GUI), why that's a
-  deliberate teaching-subset choice rather than a limit of the model (Fuchsia is a
-  general-purpose capability microkernel), and what it would take to grow toward one.
+  actually hits today, rewritten 2026-09-05 when five of its six gap rows turned out to be
+  false (the writable FS, the network, the display and SMP all shipped, and milestone 121 ran
+  unmodified `ripgrep`). What is genuinely missing is now a short list headed by DNS, and the
+  page keeps the part that did not change: porting is deliberately hard because there is no
+  ambient authority, and the model is not the barrier (Fuchsia is a general-purpose capability
+  microkernel).
 - [RedoxFS std-footprint audit](redoxfs-audit.md): milestone 32's engine, costed by building
   it: the no_std core compiles for both bare-metal targets three imports away from clean, the
   Disk trait is a blk-IPC client's exact shape, and the one real cost (a userspace GlobalAlloc)
@@ -1196,7 +1199,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
   and `script/board-image`, booting over the network with the card kept underneath as the fallback
-  (`script/board-tftp`, milestone 257, and why no server address is written down anywhere in this
+  (`script/board-netboot`, milestone 257, and why no server address is written down anywhere in this
   tree), the bench runbook with its failure-triage ladder, and the honest list of what only the
   bench can measure.
 - [Programming a clock and a reset line, for the first time](jh7110-clock-and-reset.md):

@@ -1,9 +1,9 @@
 #!/bin/sh
-# script/board-tftp: serve the board payload over TFTP, so radon boots without a card (257).
+# script/board-netboot: serve the board payload over TFTP, so radon boots without a card (257).
 #
-#   script/board-tftp                        # serve target/board on udp/69 until Ctrl-C
-#   script/board-tftp --root /some/dir       # serve somewhere else
-#   script/board-tftp --port 6969            # a port an unprivileged bind is certain to get
+#   script/board-netboot                        # serve target/board on udp/69 until Ctrl-C
+#   script/board-netboot --root /some/dir       # serve somewhere else
+#   script/board-netboot --port 6969            # a port an unprivileged bind is certain to get
 #
 # Read-only, one directory, one transfer at a time. It exists to answer three files:
 # nife-vf2.img, nife-initrd.img, and whatever else a bench session wants to hand the board.
@@ -29,12 +29,24 @@
 # The cost, stated rather than implied: this is ours to maintain, and it is a bench tool rather
 # than a hardened server. See the BUGS section at the end of this comment.
 #
-# Name: provisional, this lane's coinage (2026-09-05, milestone 257). Hyphenated because `script/`
-# entry points are (AGENTS.md's naming table), and `board-` to sit with `board-image` and
-# `board-console`: build the payload, serve it, watch it boot. `tftp` is a standard term and a
-# reader already knows it, which AGENTS.md says is the best name available. `tftpd` was refused:
-# its `d` suffix is the exact form DECISIONS §39 spends a whole vocabulary avoiding, and
-# `script/lint`'s first naming check rejects it outright. Expect the integrator to surface it.
+# Name: ratified 2026-09-05 (calef, milestone 257). Hyphenated because `script/` entry points are
+# (AGENTS.md's naming table), and `board-` to sit with `board-image` and `board-console`: build
+# the payload, serve it, watch it boot.
+#
+# The lane shipped this provisionally as `board-tftp` and calef chose `board-netboot` instead.
+# The reason is the family's own scheme rather than a preference: `board-image` names the image it
+# builds and `board-console` names the console it gives you, and `script/server`'s header states
+# the rule outright, that "an OS is what you start, so this is script/server". Every member names
+# the thing, and `board-tftp` would have been the one member naming its wire instead. `netboot`
+# keeps the property that argued for `tftp`, which is that a reader already knows the word from
+# outside this project, and AGENTS.md calls that the best name available.
+#
+# **The name overclaims slightly and that was accepted rather than missed:** this script serves
+# files, and U-Boot does the booting. `board-payload` was refused for a worse collision, since
+# `board-image` already builds the thing called the payload and two scripts named for one noun
+# leave a reader guessing which end they are at. `tftpd` was refused outright: its `d` suffix is
+# the exact form DECISIONS §39 spends a whole vocabulary avoiding, and `script/lint`'s first
+# naming check rejects it.
 #
 # BUGS
 #   * One transfer at a time, and one board. Two boards fetching at once will make the second
@@ -85,7 +97,7 @@ def parse_args(argv):
         elif arg == "--port" and rest:
             port = int(rest.pop(0))
         else:
-            sys.exit(f"board-tftp: unknown argument {arg} (--root <dir>, --port <n>)")
+            sys.exit(f"board-netboot: unknown argument {arg} (--root <dir>, --port <n>)")
     return os.path.abspath(root), port
 
 
@@ -128,7 +140,7 @@ def serve_file(peer, path, name, options):
     xfer = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     xfer.bind(("0.0.0.0", 0))
     xfer.settimeout(BLOCK_TIMEOUT)
-    print(f"board-tftp: {peer[0]} <- {name} ({size} bytes, blksize {blksize})", flush=True)
+    print(f"board-netboot: {peer[0]} <- {name} ({size} bytes, blksize {blksize})", flush=True)
     started = time.monotonic()
     try:
         acknowledged = {}
@@ -173,11 +185,11 @@ def serve_file(peer, path, name, options):
         elapsed = time.monotonic() - started
         rate = size / elapsed / 1024 if elapsed > 0 else 0.0
         print(
-            f"board-tftp: {name} done, {size} bytes in {elapsed:.2f}s ({rate:.0f} KiB/s)",
+            f"board-netboot: {name} done, {size} bytes in {elapsed:.2f}s ({rate:.0f} KiB/s)",
             flush=True,
         )
     except Exception as why:
-        print(f"board-tftp: {name} FAILED: {why}", flush=True)
+        print(f"board-netboot: {name} FAILED: {why}", flush=True)
     finally:
         xfer.close()
 
@@ -185,7 +197,7 @@ def serve_file(peer, path, name, options):
 def main():
     root, port = parse_args(sys.argv[1:])
     if not os.path.isdir(root):
-        sys.exit(f"board-tftp: {root} is not a directory (script/board-image builds it)")
+        sys.exit(f"board-netboot: {root} is not a directory (script/board-image builds it)")
 
     server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -193,11 +205,11 @@ def main():
         server.bind(("0.0.0.0", port))
     except PermissionError:
         sys.exit(
-            f"board-tftp: udp/{port} needs privileges on this machine.\n"
+            f"board-netboot: udp/{port} needs privileges on this machine.\n"
             f"            --port 6969, plus `setenv tftpdstp 6969` at the U-Boot prompt."
         )
 
-    print(f"board-tftp: serving {root} on udp/{port}", flush=True)
+    print(f"board-netboot: serving {root} on udp/{port}", flush=True)
     for entry in sorted(os.listdir(root)):
         full = os.path.join(root, entry)
         if os.path.isfile(full):
@@ -229,7 +241,7 @@ def main():
         path = os.path.abspath(os.path.join(root, name.lstrip("/")))
         if not path.startswith(root + os.sep) or not os.path.isfile(path):
             error(server, peer, 1, "file not found")
-            print(f"board-tftp: {peer[0]} asked for {name!r}: NOT FOUND", flush=True)
+            print(f"board-netboot: {peer[0]} asked for {name!r}: NOT FOUND", flush=True)
             continue
         serve_file(peer, path, name, options)
 
@@ -237,5 +249,5 @@ def main():
 try:
     main()
 except KeyboardInterrupt:
-    print("\nboard-tftp: stopped.", flush=True)
+    print("\nboard-netboot: stopped.", flush=True)
 PYEOF

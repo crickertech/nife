@@ -95,7 +95,7 @@ archive's fails, which must still take **both** halves from the card because a m
 says so rather than jumping into whatever a previous boot left at `0x4020_0000`. That last case is
 a guard the manual sequence does not have.
 
-**`script/board-tftp`**, a read-only TFTP server with `blksize` and `tsize`, in python3. **The
+**`script/board-netboot`**, a read-only TFTP server with `blksize` and `tsize`, in python3. **The
 decision against dnsmasq is recorded in the script's own header**, where a reader meets it, and the
 argument that decided it is not the dependency one: dnsmasq is a DHCP server that also does TFTP,
 this bench LAN is a family's house network with a router already handing out leases, and a second
@@ -172,7 +172,7 @@ three are lanes; the third is a decision that has been made the other way, on pu
   check on the next bench session, by unplugging the cable and powering the board.
 - **428 KiB/s is slow**, and the 9 MB archive is 20 seconds of it. That is fine against a two-minute
   walk and it is worse than a card read, so a session that boots many times pays it many times.
-  Nobody has looked at whether U-Boot's `blksize` or the TFTP window is the limit. `script/board-tftp`
+  Nobody has looked at whether U-Boot's `blksize` or the TFTP window is the limit. `script/board-netboot`
   accepts a block size up to 9000 and will honour whatever U-Boot asks for.
 - **The card still has to be written once**, and a change to the boot script means writing it again.
   The loop is shorter, not gone.
@@ -180,7 +180,7 @@ three are lanes; the third is a decision that has been made the other way, on pu
   here says what happens on the other, or whether U-Boot would find it. A `--tftp` card on the wrong
   port falls back to the card rather than failing, which makes this quieter than it was: read the
   `payload came from` line rather than assuming.
-- **`script/board-tftp` serves one transfer at a time and trusts the LAN.** Any host that can reach
+- **`script/board-netboot` serves one transfer at a time and trusts the LAN.** Any host that can reach
   udp/69 can read any file under `target/board`. There is one board, and the directory holds a
   kernel and an archive that are about to be published anyway.
 - **The measure is not met yet.** "A bench session that never touches the card" needs a bench
@@ -191,8 +191,8 @@ three are lanes; the third is a decision that has been made the other way, on pu
 - **Recorded.** The bench confirmation. Everything here is unexercised on radon, and this block's
   BUGS section names which claims specifically. It is not a milestone: it is the first ten minutes of the
   next bench session, and the triage row in `notes/visionfive2.md` is what to read.
-- **Recorded.** The names `script/board-tftp` and `nife_server` are this lane's provisional coinage,
-  recorded where a reader meets them: `script/board-tftp`'s header carries the provenance block and
+- **Recorded.** The names `script/board-netboot` and `nife_server` are this lane's provisional coinage,
+  recorded where a reader meets them: `script/board-netboot`'s header carries the provenance block and
   the refusal of `tftpd`, and the boot script prints `nife_server` at every boot. Both are calef's
   to ratify. `nife_server` is a U-Boot environment variable rather than a crate or a program, so it
   falls outside the naming rule's stated scope, and it is still a name a person types at a prompt.

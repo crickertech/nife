@@ -26,6 +26,7 @@
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
+use paging::PAGE_SIZE;
 use pci::{Bar, Bdf, VirtioCap};
 
 use crate::arch::mmu::{self, PCI_BAR_MAPPED, PCI_ECAM_BUSES, PCI_IRQ_BASE};
@@ -72,8 +73,19 @@ fn host_bridge_present() -> bool {
 /// Place every unassigned BAR of `bdf` at a size-aligned address drawn from the shared cursor,
 /// writing the config-space BAR registers. Returns false (after saying so) if the window is
 /// exhausted. A BAR that already carries an address **inside the window `mmu::map_everything`
-/// actually mapped** is left alone; one that carries an address outside it is reassigned exactly
-/// as if it had read zero.
+/// actually mapped** is left alone; one that carries an address the machine chose and that is not
+/// memory is **adopted** where it stands ([`adopt`]); only a BAR that is unassigned, or assigned
+/// somewhere this kernel cannot honour, is moved.
+///
+/// **The adoption arm is milestone 256's, and it exists because relocating a real machine's whole
+/// bus is the wrong answer rather than a slow one.** QEMU hands this kernel BARs that are
+/// unassigned, so for a year every BAR it met wanted placing and the code that placed them was
+/// never wrong. Real firmware hands over BARs it has already put somewhere, having read the host
+/// bridge's `_CRS` that this kernel cannot: on xenon's second boot the census read **13 of 15
+/// functions** carrying a BAR outside the kernel's window, and moving thirteen functions into a
+/// 2 MiB window would have exhausted it after the first one that wanted a megabyte. Firmware's
+/// placement is better evidence about where the bus decodes than anything this kernel can derive,
+/// so where it is honourable it is honoured.
 ///
 /// **The "leave a nonzero BAR alone" half of that rule is not enough on its own**, found here
 /// 2026-08-25 (decisions §86's VT-d/NVMe data point). The comment this replaced assumed a nonzero
@@ -81,8 +93,8 @@ fn host_bridge_present() -> bool {
 /// mapped: true on the two device-tree architectures, where nothing runs before this kernel to
 /// place one. It is false on `x86_64`'s PVH boot: nothing here runs any firmware either, yet
 /// QEMU's `-device nvme`, attached directly to the root complex, resets with a live, working BAR0
-/// already assigned (`0xfebd4000` on this boot) that has no relationship to `PCI_BAR_PHYS`, the
-/// kernel's own hardcoded, mapped window. Trusting it produced a controller whose registers page
+/// already assigned (`0xfebd4000` on this boot) that has no relationship to the kernel's own
+/// mapped window. Trusting it produced a controller whose registers page
 /// fault on first touch, because nothing in `mmu::map_everything` maps wherever QEMU chose. The
 /// same gap would bite a real UEFI machine too (milestone 87): firmware there also picks its own
 /// addresses, unrelated to this kernel's hardcoded window, so "nonzero" was never sufficient
@@ -107,6 +119,12 @@ fn place_bars(bdf: Bdf, bars: &mut [Option<Bar>; 6]) -> bool {
         {
             continue; // already placed, and inside memory this kernel actually mapped
         }
+        // **Adopt what the machine placed, when the machine placed it somewhere that is not
+        // memory** (milestone 256). Mapping it is what makes adoption real: the fine map was built
+        // before this ran and covers the kernel's own window, not wherever firmware put this one.
+        if bar.base != 0 && adopt(bdf, i, bar) {
+            continue;
+        }
         // A BAR's address must be aligned to its size (the writable-bits mask encodes that). Reserve
         // size-aligned space from the shared cursor.
         let align = bar.size.max(0x10);
@@ -130,6 +148,67 @@ fn place_bars(bdf: Bdf, bars: &mut [Option<Bar>; 6]) -> bool {
             cfg_write32(bdf, off + 4, (base >> 32) as u32);
         }
         bar.base = base;
+    }
+    true
+}
+
+/// **Does `lo..hi` overlap any region the machine called usable RAM?**
+///
+/// The one safety question adoption turns on, and deliberately the weakest one that is sufficient:
+/// a device window this kernel maps over RAM is a device answering at addresses the frame
+/// allocator hands out, which is the corruption milestone 256 exists to prevent. Whether the
+/// address *also* decodes to the bus is the machine's claim to make and it has already made it by
+/// writing the BAR.
+fn overlaps_ram(lo: u64, hi: u64) -> bool {
+    crate::memory::ram_regions().any(|(start, size)| lo < start + size && hi > start)
+}
+
+/// **Take a BAR the machine already placed, and map it where it stands** (milestone 256). True
+/// when it was adopted, false when the caller must place it instead.
+///
+/// Refused, and the BAR moved instead, when the address the machine chose overlaps RAM: that is
+/// not a window firmware meant this kernel to drive through, whatever wrote it, and mapping device
+/// registers over memory the allocator owns is the failure this whole milestone is about. It is
+/// also refused when a page of it cannot be mapped for any reason other than being mapped
+/// already, since a half-mapped BAR faults on first touch and is worse than a moved one.
+///
+/// **`AlreadyMapped` is success here and is not treated as success anywhere else in this tree.**
+/// Two BARs of the same function routinely share a page, and a BAR may sit inside the window
+/// `mmu::map_everything` mapped up front; both are the same page mapped device-typed twice with
+/// the same flags, which is the one shape where the second mapping asks for nothing new.
+///
+/// On the two device-tree architectures this is unreachable: every BAR there arrives zero, so the
+/// caller never asks.
+fn adopt(bdf: Bdf, index: usize, bar: &pci::Bar) -> bool {
+    let lo = bar.base & !(PAGE_SIZE - 1);
+    let hi = (bar.base + bar.size).next_multiple_of(PAGE_SIZE);
+    if overlaps_ram(lo, hi) {
+        crate::println!(
+            "  pci: {:02x}:{:02x}.{} BAR{index} at {:#x} overlaps RAM; moving it",
+            bdf.bus,
+            bdf.dev,
+            bdf.func,
+            bar.base,
+        );
+        return false;
+    }
+    let mut pa = lo;
+    while pa < hi {
+        match mmu::map_page(mmu::phys_to_virt(pa), pa, paging::Flags::device()) {
+            Ok(()) | Err(paging::MapError::AlreadyMapped) => {}
+            Err(e) => {
+                crate::println!(
+                    "  pci: {:02x}:{:02x}.{} BAR{index} at {:#x} could not be mapped ({e:?}); \
+                     moving it",
+                    bdf.bus,
+                    bdf.dev,
+                    bdf.func,
+                    bar.base,
+                );
+                return false;
+            }
+        }
+        pa += PAGE_SIZE;
     }
     true
 }
@@ -291,30 +370,35 @@ pub fn count_block_devices() -> usize {
 
 /// **A read-only census of what the machine left on the bus**, provisional name (milestone 165).
 ///
-/// Returns `(functions, outside)`: how many functions answer at all, and how many carry at least
-/// one memory BAR the machine placed **outside** the window `mmu::map_everything` maps, which is
-/// the pair of numbers that says whether this port's hardcoded BAR window is adequate on the
+/// Returns `(functions, stranded)`: how many functions answer at all, and how many carry at least
+/// one memory BAR this kernel can **neither use where it is nor adopt** (milestone 256), which is
+/// the pair of numbers that says whether the BAR window this port derived is adequate on the
 /// machine it is running on.
+///
+/// **The second number changed meaning on 2026-09-04 and got smaller for a good reason.** It used
+/// to count every BAR outside the kernel's own window, which was the right question while
+/// [`place_bars`] moved all of them: each one was a relocation, and a relocation onto a hardcoded
+/// window nobody had checked against this machine was the risk being measured. Since that window
+/// is derived from the machine and a BAR the machine placed outside it is adopted rather than
+/// moved, "outside the window" stopped being a problem and "outside the window **and** on top of
+/// RAM" became the whole of it. That is the count here, and **zero is the passing answer**: it
+/// means every function on the bus is reachable exactly where the machine left it or in a window
+/// the machine agreed to.
 ///
 /// **Why this is worth a boot line rather than a comment.** [`place_bars`] leaves a nonzero BAR
 /// alone only when it already lies inside that window, and **moves it** otherwise. That arm is
 /// exercised and correct (its own doc records the `-device nvme` case that found it), so the open
 /// question is not whether the move works but **how much of the machine it moves and whether the
-/// place it moves things to is free.** `mmu::PCI_BAR_PHYS` is a hardcoded `0xc000_0000`, checked
-/// once against QEMU's `info mtree` and against nothing else, because the window a real machine
-/// wants BARs in is in its host bridge's `_CRS` and `_CRS` is AML.
+/// place it moves things to is free.** That window was a hardcoded `0xc000_0000` until milestone
+/// 256, checked once against QEMU's `info mtree` and against nothing else, because the window a
+/// real machine wants BARs in is in its host bridge's `_CRS` and `_CRS` is AML.
 ///
-/// So the second number is the count of functions this kernel will relocate, measured 2026-09-02:
-/// **5 of 8 under PVH, 3 of 6 under OVMF on the bare tour machine, and 5 of 8 under OVMF with the
-/// PVH runner's devices attached** (milestone 195, where the suite runs under firmware). The last
-/// of those is the one that answers something: OVMF enumerates the bus and places every BAR before
-/// this kernel arrives, so those five were **moved** by `place_bars` rather than assigned by it,
-/// and the two milestone 215 tests that reach a `virtio-blk-pci` function through its MSI-X table
-/// pass on the far side of that move. It is
-/// the first thing to read on the first boot on a real x86 machine (milestone 87's Dell
-/// `OptiPlex`, xenon): a machine whose RAM reaches above `PCI_BAR_PHYS` would have this kernel move
-/// most of its bus on top of memory, and that number says so on the line before anything is
-/// driven.
+/// **What the old number measured, kept because it is the evidence for the change.** Under the
+/// relocate-everything rule it read 5 of 8 under PVH and 3 of 6 under OVMF on the bare tour
+/// machine (2026-09-02), and on xenon's second boot, on real firmware, **13 of 15**. That last one
+/// is the measurement milestone 256 was minted from: thirteen functions of fifteen were about to
+/// be moved out of windows the machine's own firmware had chosen, into a 2 MiB hardcoded window
+/// that was RAM on that machine.
 ///
 /// Counting only, like [`count_block_devices`] and for the same reason: no sizing writes, no
 /// command-register changes, nothing a function's existing owner could notice.
@@ -326,30 +410,38 @@ pub fn bar_census() -> (usize, usize) {
     if !host_bridge_present() {
         return (0, 0);
     }
-    let lo = BAR_NEXT.load(Ordering::Relaxed);
+    let lo = crate::memory::pci_regions().map_or(0, |(_, (base, _))| base);
     let hi = BAR_LIMIT.load(Ordering::Relaxed);
-    let (mut functions, mut outside) = (0usize, 0usize);
+    let (mut functions, mut stranded) = (0usize, 0usize);
     pci::enumerate(
         PCI_ECAM_BUSES,
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, _, _| {
             functions += 1;
-            // The raw BAR registers, not `pci::read_bars`, which sizes them by writing all-ones.
-            // A BAR is out of the window when it is nonzero, is a memory BAR (bit 0 clear), and
-            // its base falls outside it. Its length is unknown without sizing, so this counts the
-            // base only: a BAR that starts inside and runs past the end is `place_bars`' problem
-            // and is already handled there.
-            let out = (0..6).any(|i| {
+            // The raw BAR registers, not `pci::read_bars`, which sizes them by writing all-ones:
+            // this runs on every function on the bus, including ones nothing will ever drive, and
+            // a census that wrote to them would not be a census. Counting only, like
+            // `count_block_devices` and for the same reason.
+            //
+            // A BAR is stranded when it is nonzero, is a memory BAR (bit 0 clear), sits outside
+            // the window this kernel places into, and is on top of RAM, which is what stops
+            // `place_bars` adopting it. Its length is unknown without sizing, so this asks about
+            // its first page only; a BAR that starts clear of RAM and runs into it is
+            // `place_bars`' problem and is refused there, on a span it has sized.
+            let stuck = (0..6).any(|i| {
                 let raw = cfg_read32(bdf, pci::BAR0 + i * 4);
                 let base = u64::from(raw & !0xf);
-                raw & 1 == 0 && base != 0 && !(lo..hi).contains(&base)
+                raw & 1 == 0
+                    && base != 0
+                    && !(lo..hi).contains(&base)
+                    && overlaps_ram(base, base + PAGE_SIZE)
             });
-            if out {
-                outside += 1;
+            if stuck {
+                stranded += 1;
             }
         },
     );
-    (functions, outside)
+    (functions, stranded)
 }
 
 /// Enumerate the bus for the first function matching `modern`, warning (once) if only a

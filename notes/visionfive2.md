@@ -604,7 +604,7 @@ Two commands, in two terminals:
 
 ```
 script/board-image --tftp --card /Volumes/NIFE   # once, ever
-script/board-tftp                                # in the other terminal, while you work
+script/board-netboot                                # in the other terminal, while you work
 ```
 
 Then every later boot is `script/board-image --tftp` and a power cycle. The card is never touched
@@ -659,7 +659,7 @@ inside the card-booted cluster of three. **How the kernel arrives does not pertu
 measures**, which is the one thing that could have made this workflow useless for the bench work it
 exists to serve.
 
-**Why `script/board-tftp` and not dnsmasq.** dnsmasq is somebody else's tested code and is not in
+**Why `script/board-netboot` and not dnsmasq.** dnsmasq is somebody else's tested code and is not in
 the shipping graph, which is a real argument and is why the decision was made rather than assumed
 (DECISIONS §46). It lost on one point: dnsmasq is a DHCP server that also does TFTP, this LAN is a
 family's house network with a router already handing out leases, and a second DHCP server on it is
@@ -680,7 +680,7 @@ Setup, in order:
    for; `script/board-image --card /Volumes/NIFE` without `--tftp` is still the card-only script
    and is what to write when there will be no serving machine.
 
-   Then, on patagonia and in a second terminal, `script/board-tftp`, for as long as the session
+   Then, on patagonia and in a second terminal, `script/board-netboot`, for as long as the session
    lasts. It serves `target/board` on udp/69 and prints the `setenv nife_server` line for each
    address the board might reach it on. Leave it running: every later boot is
    `script/board-image --tftp` and a power cycle, with no card in anybody's hand.
@@ -740,7 +740,7 @@ jumping without complaint; the banner is the second target, after the driver wor
 | Nothing on serial at all | TX/RX not crossed; wrong device (`cu.*` vs `tty.*`); DIP switches not on QSPI; a bad SPI flash (fall back to UART recovery mode [uboot-doc]) |
 | Firmware banners but garbage | Baud mismatch in the terminal (must be 115200); a 5 V adapter on 3.3 V pins has by then possibly cost a board |
 | U-Boot fine, `Bad Linux RISCV Image magic!` | The file is the ELF, not the objcopy output; `script/board-image` verifies the magic at offset 0x38 at build time, so a stale card is the other suspect |
-| `payload came from card` when you expected `net` | The serving machine is not running `script/board-tftp`; or its address moved and the card's baked one is stale (the `tftp server is` line one above says which address was tried); or the board is on the other ethernet port. `setenv nife_server <addr>` then `source ${scriptaddr}` retries without a card reader |
+| `payload came from card` when you expected `net` | The serving machine is not running `script/board-netboot`; or its address moved and the card's baked one is stale (the `tftp server is` line one above says which address was tried); or the board is on the other ethernet port. `setenv nife_server <addr>` then `source ${scriptaddr}` retries without a card reader |
 | `nife: still at the prompt, so nothing loaded` | Neither path had a payload: no serving machine AND no card, or a card whose files are named something else. The board is at the prompt and everything is still typeable |
 | `Starting kernel ...` then silence | Expected until the UART driver handles reg-shift/io-width: the kernel may be running and polling LSR at the wrong offset. Also: DTB left at `$fdtcontroladdr`/`fdt_addr_r` (outside the boot map, faults with the trap path not yet printing); or the relocation did not happen (check U-Boot printed `Moving Image from ... to 0x80200000`) |
 | `Starting kernel ...` then garbage | Kernel is alive and the divisor is wrong: driver reprogrammed the divisor against the wrong clock (needs 13 at 24 MHz, not 1) |
