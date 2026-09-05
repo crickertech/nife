@@ -72,6 +72,27 @@
 //!   number and [`flush_asid`] flushes the whole TLB rather than one space's entries. Both say so in
 //!   their own words; neither pretends to a selectivity the hardware does not have. Same reason as
 //!   PGE above: there is nothing to measure it against yet.
+//!
+//! - **The cacheable fill follows the firmware's map only as far as that map describes memory
+//!   *contiguously*** ([`firmware_fill_ceiling`]). That is a claim about how firmware writes
+//!   memory maps, not an architectural guarantee: DRAM and the carve-outs taken out of it abut
+//!   each other, and the 32-bit MMIO hole above them is a gap. A machine whose map had an
+//!   undescribed gap *inside* low DRAM, with ACPI tables above it, would have those tables left
+//!   out of the direct map and would fault reading one. No map in this tree has that shape and
+//!   xenon's does not (`notes/x86-uefi-boot.md` transcribes it). The bound it replaced was "the
+//!   top of RAM", which was the same number on every machine whose RAM ends below the hole and
+//!   swallowed every MMIO window on the first machine whose RAM does not.
+//!
+//! - **An aperture that firmware reports as usable RAM would panic, and that is deliberate.** It
+//!   was the leading hypothesis for the 2026-09-05 `AlreadyMapped` and it was wrong: xenon's
+//!   framebuffer is in the MMIO hole, in no RAM region. If a machine ever did report both, the fix
+//!   is to exclude the aperture from the RAM direct map *and* from the frame allocator, not to
+//!   skip the second mapping and not to remap the frames device-typed. Skipping leaves the
+//!   aperture cacheable, and this architecture leaves the effective memory type **undefined** when
+//!   one frame is reachable through two mappings with conflicting types, so that is wrong rather
+//!   than merely slow. Remapping would give one correct mapping and leave the allocator handing
+//!   out frames the display adapter answers at. Until a machine forces the question, the panic
+//!   names both ranges and is the better answer.
 
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
