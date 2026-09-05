@@ -7,6 +7,20 @@ and its argument are [DECISIONS §39](../design/decisions/39-component-names.md)
 the parts §39 does not: crates, scripts, where a document goes, and the two numbering schemes that
 look alike and are not.
 
+**This note is the case, not the authority** (milestone 262, 2026-09-05). The rules a lane applies
+live in `AGENTS.md`, which is the file an agent has in front of it every session; this note carries
+the argument each of them came from, the refusals that shaped them, and the conventions a lane meets
+too rarely to keep in the constitution. **Where the two disagree, `AGENTS.md` is the rule and this
+note is the bug**, and the disagreement is worth reporting rather than reconciling on your own
+judgement.
+
+The split exists because the rule was previously written out twice, in full, in both files. On
+2026-09-05 the acronym test changed and had to be edited here and in `AGENTS.md` in one commit or
+this note would have contradicted the constitution the moment it merged. Nothing compares the two,
+and nothing plausibly could, since they are meant to say different things about the same subject.
+What milestone 262 could do was shrink the surface: one statement per rule up there, the case for it
+down here.
+
 ## The rule everything else is a corollary of
 
 **A name is a claim, and it is made before a reader sees a line of code.** That is the whole
@@ -150,6 +164,70 @@ ships a **provisional** name, says so in its report, and expects it to change. N
 their own initiative either, because a rename is a naming decision with extra steps. The reason is
 that names are what make this OS legible to humans and to LLMs, and in a capability system a name is
 often the only thing that says what a program can *do*.
+
+#### Why it needed a rule, and how far the rule reaches
+
+The evidence is the tree itself, and every one of these was a locally reasonable choice by whoever
+was mid-task. `dwarden` is named for what it **holds** while its two siblings are named for what they
+**serve**, so a reader who correctly infers the scheme gets it wrong. `conx` has no recorded
+expansion anywhere: not in §41, not in [live-replacement.md](live-replacement.md), not in the commit
+that introduced it. `cseam.rs` sat among 48 programs and was not one; it was a shared module.
+
+**Crates came into scope on 2026-08-01**, and they are the most reader-facing names in the tree: a
+newcomer greps `crates/` before they ever open `user/src/`, and a crate name appears in every
+`Cargo.toml` that depends on it, in every `use` statement, and in the dependency graph an outsider
+reads to understand the shape of the system.
+
+**Shared modules came in for a reason of their own.** `user/src/` used to hold 48 `[[bin]]` programs
+and a handful of modules compiled into them with `#[path = "..."] mod ...`, with **nothing in the
+naming distinguishing them**, so a reader who tried to run `cseam` was misled by the directory.
+`AGENTS.md` rule 7 retired that category the same day: what two binaries share is a crate, and what
+remains in `user/src/` beside the programs is single-consumer submodules (`vnet`, `netcli`), which
+are ordinary Rust. `script/lint` counts consumers per `#[path]` target and fails at two. A shared
+module's name still has to answer a question a program's name never raises, which is *"where does
+this get compiled into?"*, and that makes it a naming problem of its own rather than a smaller
+version of the program one.
+
+The count in an earlier draft of that paragraph said "three modules" and was wrong: the grep that
+produced it matched only single-line includes, and several were two lines. **Take a count from the
+merged tree, with a pattern you have checked against the real shapes.**
+
+**Public function and method names came in on 2026-08-23** (milestone 160), after a crate-naming pass
+across everything the kernel depends on raised the natural next question. A function name is more
+reversible than a crate's, typically fewer call sites and all of them inside one crate, so the
+"recommend on reversible forks" latitude applies more freely there than it does one level up.
+
+#### Nouns, not verbs, and the three crates that were settled by it
+
+A crate, a program or a module is a *thing*, so it takes the name of a thing. A verb names an action
+and a namespace is not one, which is audible at the call site: `line_edit::expand_output` reads as an
+instruction where `line_editor::expand_output` reads as a location. The exception is a **term of art
+that happens to be a verb**, where the word is the one the field already uses; `bind` (§50) is Plan
+9's, and respelling it as a noun would assert novelty where there is none, which is the
+standard-terms guard rail rather than a hole in this rule.
+
+Three crates predated the rule and were settled by it the day it was written: `compose` became
+`compositor`, `measure` became `measured_boot`, and `dma_validate` became `dma_validator`. **Each had
+named itself a noun in its own first line while carrying a verb as its name**, which is what makes
+the test worth applying rather than merely stating. (`dma_validator` has since been deratified by the
+acronym test above, on the other half of its name.)
+
+#### The domain table's own argument
+
+`AGENTS.md` carries the table of which form each domain takes. Two things about its shape are worth
+keeping here, because both were argued.
+
+**The splits are *across* domains on a stable property**, not within one on an unstable property.
+That is the difference calef identified when he rejected the two-tier rule: `wc` moved from internal
+plumbing to prompt-typed pipeline stage inside a day, where a file either is a Cargo target or is an
+executable in `script/`, and `script/test` will never become a `[[bin]]`.
+
+**And it is the standard-terms guard rail applied to form rather than to vocabulary.** We do not
+rename `elf`, and we should not respell `supply-chain` either: a name whose *shape* a reader already
+knows from outside this project costs them nothing.
+
+The directory rows are that same principle one level out rather than a new tier, and the three
+directories that violated them are in [Directories](#directories-milestone-63) below.
 
 **Standard terms are already right and must not be touched.** `elf`, `pci`, `paging`, `glob`,
 `socket_proto` are names a reader knows from outside this project, so they cost nothing to learn.
