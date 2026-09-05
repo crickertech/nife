@@ -32,9 +32,9 @@
 # Name: provisional, this lane's coinage (2026-09-05, milestone 257). Hyphenated because `script/`
 # entry points are (AGENTS.md's naming table), and `board-` to sit with `board-image` and
 # `board-console`: build the payload, serve it, watch it boot. `tftp` is a standard term and a
-# reader already knows it, which AGENTS.md says is the best name available. `tftpd` was refused
-# as naming a daemon, which DECISIONS §39 spends a whole vocabulary avoiding. Expect the
-# integrator to surface it.
+# reader already knows it, which AGENTS.md says is the best name available. `tftpd` was refused:
+# its `d` suffix is the exact form DECISIONS §39 spends a whole vocabulary avoiding, and
+# `script/lint`'s first naming check rejects it outright. Expect the integrator to surface it.
 #
 # BUGS
 #   * One transfer at a time, and one board. Two boards fetching at once will make the second
