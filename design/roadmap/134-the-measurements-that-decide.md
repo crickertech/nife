@@ -290,9 +290,24 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
 - **Done.** The silicon this register waits on arrived: `notes/target-hardware.md` lists argon as
   in hand and radon as booting nife and wired as a bench target, which is the small-cache board
   this block names as milestone 127's alternative.
-- **Outstanding.** The small-cache re-run of E1, E3's latency half and E4 has not been taken.
-  `notes/register-of-measures.md` still says all four ran on the dev Mac only, and radon's
-  availability makes this actionable rather than blocked. Checked 2026-09-03.
+- **Outstanding.** The small-cache re-run of E1, E3's latency half and E4 is now
+  *runnable* and has still not been *taken*. E1 and E4 were `#[cfg(target_arch = "aarch64")]` and
+  are now built for riscv64 as well; the `single_hart` kernel feature parks radon's other three
+  U74s, because both experiments need one hart and a card has no `-smp 1`; and
+  `script/board-image --bench [--extra-features fastpath_pad]` writes the pair of cards E3
+  compares. The procedure, with a table mapping each observable outcome to what it settles and
+  which milestone it routes to, is **notes/footprint-perturbation.md**. **No number came off radon**: the
+  board was powered off and there was no bench session, so the register's E1/E3/E4 rows still say
+  dev Mac only, correctly. What is outstanding is the session.
+- **Recorded.** A correction found on the way, 2026-09-04, which would otherwise have wasted the
+  session. E3's padding
+  was reachable only from `sched::ipc_send`. Milestone 188 phase 1 (2026-09-04) split the footprint
+  gate into `ipc_send_recv` and `ipc_call_reply` and established the second as the shape services
+  actually run; measured on riscv64 the day after, `--features fastpath_pad` moved `ipc_send_recv`
+  to **2.10x** and `ipc_call_reply` to **1.00x**. E3 was padding a path essentially nothing in this
+  tree uses. `sched::ipc_call` now calls `maybe_pad` as well, and both shapes pad to roughly 1.85x
+  on both ISAs. The experiment was correct when it was built; the thing it measures moved
+  underneath it, which is what a dated instrument does.
 - **Outstanding.** The per-IPC kernel stack depth is still an estimate.
   `notes/stack-high-water.md` reports a deepest standing path across the whole suite rather than a
   per-IPC figure, so E1's prediction remains a sighting shot. Checked 2026-09-03.

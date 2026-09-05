@@ -106,10 +106,10 @@ row pretending to be one.
 | filesystem throughput, milestone 38's four phases | 2026-08-18 | `script/bench --real --smp`, with a RedoxFS disk attached |
 | primitives against Linux and macOS on the same host | **no date recorded** | `bench/host/run_linux.sh`, then `script/bench --real` |
 | `unsafe {}` blocks inside `kernel/src/arch/` | every run | `script/lint`, which prints it and asserts nothing |
-| E1: IPC round trip against thread count | 2026-08-22 | `cargo xtask bench --real` (`ipc_scale_*` rows, aarch64 only) |
+| E1: IPC round trip against thread count | 2026-08-22 (dev Mac); **never on a board** | `cargo xtask bench --real` (`ipc_scale_*` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
-| E3: IPC fastpath footprint doubled, and the latency it costs | 2026-08-22 | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64 only) |
-| E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | 2026-08-23 | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows, aarch64 only) |
+| E3: IPC fastpath footprint doubled, and the latency it costs | 2026-08-22 (dev Mac); **never on a board** | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
+| E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | 2026-08-23 (dev Mac); **never on a board** | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
 | multi-tasking throughput, jobs per minute against task count (milestone 168) | **no run on silicon** | `script/board-image --jobmix --card ...`, then `script/board-console`; the rehearsal is `script/job-mix` |
 
 **E1 through E4, taken 2026-08-22 (milestone 134's Tier A lane).** All four ran on the dev Mac
@@ -170,6 +170,30 @@ QEMU at all.
   independent finding. It wants the same small-cache board E1 and E3's latency half already want,
   because on this machine the two conditions are separated by a few percentage points riding on top
   of run-to-run noise of a similar size.
+
+**E1, E3 and E4 can now reach a board, and have not, 2026-09-04.** The three rows above whose
+2026-08-22 readings all end with "and it wants a small-cache board" now have one they can run on.
+E1 and E4 were compiled for aarch64 only, and the reason recorded in `bench.rs` was that this tree
+has no riscv64 *accelerator* with a real cache. That is true and was never the same statement as
+"no riscv64 machine with a real cache": radon is a VisionFive 2 whose four U74s have 32 KB L1i and
+32 KB L1d each, which is the number E1's prediction was computed against by name. What was missing
+was a path to running there, and it is now three things: the two benchmarks build for riscv64, the
+`single_hart` kernel feature parks the other three harts (both experiments need one hart, and a
+card has no `-smp 1` to pass), and `script/board-image --bench` writes the card. The procedure and
+its outcome table are **notes/footprint-perturbation.md**.
+
+**The date column above says "never on a board" rather than being left to a reader's inference**,
+which is this file's own complaint about the cross-OS row, applied to itself. Nothing here has been
+measured on silicon; the board was powered off and there was no bench session on the day the
+instrument was made runnable.
+
+**And one thing E3 measures changed underneath it.** The padding was reachable only from
+`sched::ipc_send`, so with milestone 188 phase 1's split (2026-09-04) it moved `ipc_send_recv` to
+2.10x and `ipc_call_reply` to **1.00x** on riscv64: E3 was doubling the footprint of the shape
+nothing in this tree runs, while leaving untouched the shape every service issues. `sched::ipc_call`
+now pads too, and both shapes read roughly 1.85x on both ISAs. The 2026-08-22 E3 reading was correct
+when taken and describes a quantity that no longer means what it said, which is the exact failure
+this register exists to make visible.
 
 **The milestone 168 row is the register's first `dated` row that has never been taken**, and the
 date column says so in words rather than being left blank, which is the failure mode this file's own

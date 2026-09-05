@@ -1202,6 +1202,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   sequence from the serial text, why the read is on its own thread so the deadline holds whatever
   the board does, why the device is opened *before* `stty` configures it, why there is no serial
   dependency, and how the whole thing was tested with the board powered off.
+- [Taking a benchmark on radon](footprint-perturbation.md): milestone 134's E1, E3 and E4 on the machine they
+  were designed for, a SiFive U74 with a 32 KB L1i. Why an instrument that ran on the dev Mac
+  proved little there and what three things stood between it and the board (an aarch64-only `cfg`,
+  a precondition of one hart on a machine that seats four, and a pad that had drifted onto the IPC
+  shape nothing runs). The procedure in order with real commands, a table mapping every observable
+  outcome to what it settles and which milestone it routes to, how a single-hart card removes the
+  placement lottery rather than controlling for it, and what milestone 74's cycle counters would
+  add and still could not see. **Nothing in it has been run on silicon**, and it says so first.
 - [The workload that does not stop](soak.md): milestone 219's sustained multicore run, which is
   what `design/fatal-risks.md`'s multicore entry needs before its decisive experiment can happen at
   all. What the workload is, the round-trip number it produces and the only three comparisons that

@@ -275,6 +275,27 @@ cycle_counter_grant = []
 # the two run byte-identical IPC work. Off by default: an ordinary build never links the padding
 # in. See kernel/src/fastpath_pad.rs. Name provisional.
 fastpath_pad = []
+# The single-hart boot (milestone 134's E1/E3/E4 on radon): `smp::bring_up_secondaries` marks the
+# boot core online and starts nobody, so the kernel runs on one hart on a machine that seats four.
+#
+# **It exists because a precondition and a machine disagreed.** E1 and E4 require a single hart, so
+# that every thread in the sweep contends for the SAME core's cache, which is the effect under test;
+# under QEMU that is `-smp 1` on the runner's command line, and a board has no command line. radon
+# seats four U74s, so a plain `board,bench` card satisfies E1's "real cache" half and fails its
+# "one hart" half, and both benchmarks print a skip line on the exact machine they were designed
+# for. This is the flag that closes that gap.
+#
+# **What it costs, and it is not free:** `smp_throughput` self-skips on a card built with it (it
+# requires more than one core, for the opposite reason), and so do `fs_read` and `fs_throughput`.
+# A bench session that wants both takes two cards. Off by default; nothing but a deliberate
+# measurement build ever parks a core the machine paid for.
+#
+# Name provisional (2026-09-04): it says what the machine will do, the same test `reboot_soak`'s
+# name was chosen by. `bench_single_core` was refused as naming the caller rather than the effect.
+# **Ratified by calef, 2026-09-04.** `one_core` and `no_secondaries` were the alternatives; `hart` is
+# RISC-V's own word and the reader who knows the ISA knows it, which is the same argument that keeps
+# `elf` and `pci` unrenamed. The feature is not riscv64-only and the name is, which is the cost taken.
+single_hart = []
 
 # Typed wrappers over aarch64 system registers, so we write
 # `SCTLR_EL1.modify(SCTLR_EL1::M::Enable)` instead of hand-rolling `msr` and getting a bit position

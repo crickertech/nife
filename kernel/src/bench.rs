@@ -75,9 +75,9 @@ pub fn run() -> ! {
     null_syscall_el0();
     ctx_switch_el0();
     ipc_rtt_el0();
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
     ipc_thread_scaling();
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
     app_displacement();
     sink_throughput();
     map_el0();
@@ -686,10 +686,15 @@ fn ipc_rtt_el0() {
 // see. Both need a real cache (no TCG models one) and one hart (so everything contends for the
 // SAME core's cache, the effect under test); see `real_single_hart_or_skip`.
 //
-// aarch64-only. Not a parity gap in the DECISIONS §19 sense (nothing here is a kernel capability):
-// it is that this tree has no riscv64 accelerator with a real cache, the same reason `fs_read` and
-// `smp_throughput` above are `--real`-only and, in practice, aarch64-only. See this milestone's
-// BUGS for the honest statement and notes/riscv-port.md for the general shape of the gap.
+// **Both architectures since 2026-09-04, and the second one is the point.** These were aarch64-only
+// because this tree has no riscv64 *accelerator* with a real cache, which is true and was never the
+// same statement as "no riscv64 machine with a real cache": radon is a StarFive VisionFive 2 whose
+// four U74s have 32 KB L1i and 32 KB L1d each, and that is the machine E1's prediction was built
+// against and the machine E3's own design says a negative result needs. What was missing was a way
+// to RUN them there, which is a board card (`script/board-image --bench`) plus a single-hart boot
+// (the `single_hart` feature). Under QEMU nothing changes: the riscv64 runs are TCG, so both still
+// self-skip, by the same one-value counter-frequency test the aarch64 half already used. See
+// notes/footprint-perturbation.md for the procedure and design/roadmap/134-the-measurements-that-decide.md.
 
 /// QEMU's `virt` machine fixes `CNTFRQ_EL0` at 62.5 MHz under TCG, with or without `-icount`
 /// (measured on this tree's pinned QEMU: `cargo xtask bench` and `cargo xtask bench --check` both
@@ -700,12 +705,35 @@ fn ipc_rtt_el0() {
 #[cfg(target_arch = "aarch64")]
 const TCG_VIRT_CNTFRQ_HZ: u64 = 62_500_000;
 
+/// The riscv64 twin, and the reason this experiment can reach a small-cache board at all.
+///
+/// RISC-V has no `CNTFRQ_EL0`; the counter rate is a device-tree property
+/// (`/cpus/timebase-frequency`, read by `arch::riscv64::timer::init_frequency`). QEMU `virt`
+/// states **10 MHz**; the JH7110 on radon states **4 MHz** (notes/visionfive2.md, "Timebase is
+/// 4 MHz"). So the same one-value test that separates HVF from TCG on aarch64 separates the board
+/// from TCG here, and it fails safe in the direction that matters: an unknown riscv64 machine
+/// reads as real, and the only value that self-skips is the emulator's own.
+///
+/// **What it does not distinguish**, and this is the honest limitation: it says "not QEMU `virt`",
+/// not "has a 32 KB L1". A second riscv64 machine with a different timebase and a large cache
+/// would run this and be believed. The operator's runbook (notes/footprint-perturbation.md) is what records
+/// which machine a number came from; nothing in the kernel can.
+#[cfg(target_arch = "riscv64")]
+const TCG_VIRT_CNTFRQ_HZ: u64 = 10_000_000;
+
 /// Shared precondition for E1 and E4: a real core (so there is a cache to model at all) and a
 /// single hart (so every thread contends for the SAME core's cache, which is the effect under
 /// test; spreading pairs across cores would dilute it, the opposite reason `smp_throughput`
 /// requires more than one). Prints why and returns `false` when either does not hold, the same
 /// self-skip shape every `--real`-only bench in this file already uses.
-#[cfg(target_arch = "aarch64")]
+///
+/// **The single-hart half is why a board card needs `single_hart`** (kernel/Cargo.toml). radon
+/// seats four U74s and `smp::bring_up_secondaries` starts all of them, so a plain `board,bench`
+/// card satisfies the "real core" half and fails this one, and both E1 and E4 would print a skip
+/// line on the machine they were designed for. `single_hart` parks the secondaries at bring-up;
+/// the cost is that `smp_throughput` self-skips on the same card, which is why the runbook takes
+/// two cards rather than one. See notes/footprint-perturbation.md.
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn real_single_hart_or_skip(name: &str) -> bool {
     let cores = crate::smp::online_count();
     if cores != 1 {
@@ -717,8 +745,8 @@ fn real_single_hart_or_skip(name: &str) -> bool {
     let freq = crate::arch::timer::frequency();
     if freq == TCG_VIRT_CNTFRQ_HZ {
         println!(
-            "bench: {name} skipped (TCG detected via cntfrq={freq} Hz; icount models no cache, \
-             see design/roadmap/134-the-measurements-that-decide.md)"
+            "bench: {name} skipped (QEMU virt detected via counter frequency {freq} Hz; TCG \
+             models no cache, see design/roadmap/134-the-measurements-that-decide.md)"
         );
         return false;
     }
@@ -739,9 +767,9 @@ fn real_single_hart_or_skip(name: &str) -> bool {
 /// where it stops would make every future run incomparable with every recorded one, for a point
 /// well past the knee this experiment exists to find. The number to change if the knee ever moves
 /// is this one, and it should be changed for that reason rather than because more room appeared.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const SCALE_MAX_PAIRS: usize = 48;
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const SCALE_PAIRS: &[usize] = &[1, 2, 4, 8, 16, 32, SCALE_MAX_PAIRS];
 
 /// **E1: IPC round-trip latency against thread count.** Kernel stacks are `STACK_SLOT_SPAN`
@@ -758,7 +786,7 @@ const SCALE_PAIRS: &[usize] = &[1, 2, 4, 8, 16, 32, SCALE_MAX_PAIRS];
 /// more of them as N grows. A flat line across the sweep says the process-kernel penalty is
 /// invisible on this machine's cache; a knee reproduces Warton's effect on this kernel and gives
 /// its magnitude.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn ipc_thread_scaling() {
     if !real_single_hart_or_skip("ipc_thread_scaling") {
         return;
@@ -785,22 +813,22 @@ fn ipc_thread_scaling() {
 /// Working-set sizes for [`app_displacement`] (E4), in KiB: below, at, and above a typical L1d
 /// (32 KB) and into L2 territory, so the sweep can show whether displacement tracks a specific
 /// cache level rather than growing uniformly.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_WORKINGSET_KIB: &[usize] = &[4, 16, 32, 64, 128];
 /// Bytes per working-set word; the workload reads and writes `u64`s.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_WORD_BYTES: usize = 8;
 /// The largest working set above, in words: the static scratch buffer's size.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_MAX_WORDS: usize = 128 * 1024 / APPDISP_WORD_BYTES;
 /// Roughly this many word-touches per measurement, regardless of working-set size, so every point
 /// in the sweep takes about the same wall time: `passes = TARGET / words`.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_TARGET_TOUCHES: u64 = 8_000_000;
 /// Background IPC pairs during the "with traffic" batch: 16 threads, a realistic concurrent load
 /// (comfortably inside [`SCALE_PAIRS`]'s own sweep, so its curve says what this load costs the
 /// kernel's own IPC path; this bench asks what the same load costs an unrelated application).
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_IPC_PAIRS: usize = 8;
 /// Background IPC pairs for the second, higher-load condition: [`SCALE_MAX_PAIRS`] itself, 96
 /// threads, the same pair count E1's own sweep tops out at and "3x past the predicted knee" by
@@ -808,34 +836,34 @@ const APPDISP_IPC_PAIRS: usize = 8;
 /// BUGS) named this the missing half of E4: the 8-pair condition sits inside E1's flat region, so
 /// a null result there is expected from E1's own curve rather than independent evidence, and a
 /// load nearer or past the knee is the stronger version of the experiment.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_IPC_PAIRS_HIGH: usize = SCALE_MAX_PAIRS;
 
 /// Interior-mutable scratch the workload reads and writes. One `Racy<T>` per benchmark file:
 /// `sched.rs`'s corruption canary (`memory_corruption_canary_gate::arm`) defines the same idiom for the same reason,
 /// a scratch region one thread at a time uses, serialized by the caller rather than by a lock that
 /// would then be part of the very cost this benchmark measures the absence of.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 struct Racy<T>(core::cell::UnsafeCell<T>);
 // SAFETY: access is serialized by `appdisp_batch`: the workload thread is the only one ever handed
 // a reference into this buffer, and one batch's workload always finishes (and its reference drops)
 // before the next batch's does (see `appdisp_batch`'s reap-to-baseline wait, which runs after
 // `appdisp_workload` returns).
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 unsafe impl<T> Sync for Racy<T> {}
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 static APPDISP_BUFFER: Racy<[u64; APPDISP_MAX_WORDS]> =
     Racy(core::cell::UnsafeCell::new([0; APPDISP_MAX_WORDS]));
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 static APPDISP_STOP: AtomicBool = AtomicBool::new(false);
 
 /// One background IPC pair for the "with traffic" batch: a server that echoes until the sentinel,
 /// and a client that sends-then-receives until [`APPDISP_STOP`], then releases the server. Same
 /// sentinel idiom as [`ipc_rtt`], parameterized on a stop flag instead of an iteration count
 /// because this pair must outlive an unknown number of the workload's passes.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn appdisp_background_pair(rq: sched::RendezvousId, rp: sched::RendezvousId) {
     sched::spawn(move || {
         loop {
@@ -865,7 +893,7 @@ fn appdisp_background_pair(rq: sched::RendezvousId, rp: sched::RendezvousId) {
 /// in the solo condition too, so the two conditions differ only in whether anything else is ready
 /// to run, not in the workload's own control flow.
 #[inline(never)]
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn appdisp_workload(words: usize, passes: u64) -> u64 {
     // SAFETY: the caller (`appdisp_batch`) guarantees this thread is the only one with a reference
     // into the buffer for the duration of this call; see `Racy`'s doc.
@@ -892,7 +920,7 @@ fn appdisp_workload(words: usize, passes: u64) -> u64 {
 /// solo condition), running for exactly as long as [`appdisp_workload`] takes, then released.
 /// Returns the workload's own ticks, which is the number E4 cares about: what the APPLICATION's
 /// throughput did, not what the kernel's did.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn appdisp_batch(
     words: usize,
     passes: u64,
@@ -923,11 +951,11 @@ fn appdisp_batch(
 /// nominally identical conditions (a host-scheduling artifact of a batch running for a much longer
 /// window than a ping-pong pipeline does, so it has more chances to catch a host preemption), which
 /// is exactly the least-contended-sample problem `tp_best` exists to solve, just louder here.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 const APPDISP_REPEAT: usize = 5;
 
 /// Minimum ticks over [`APPDISP_REPEAT`] batches: the least host-contended sample.
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn appdisp_best(
     words: usize,
     passes: u64,
@@ -960,7 +988,7 @@ fn appdisp_best(
 /// puts the background load where E1 *did* find a knee (8-11% by 64-96 threads), which is where
 /// this experiment can actually distinguish "the kernel's own path got slower" from "the
 /// application's cache got evicted".
-#[cfg(target_arch = "aarch64")]
+#[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn app_displacement() {
     if !real_single_hart_or_skip("app_displacement") {
         return;
