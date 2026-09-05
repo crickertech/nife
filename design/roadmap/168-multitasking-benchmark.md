@@ -51,7 +51,7 @@ a kernel feature printing to the serial console.
   guessed at; which four of its methodological properties are kept (heterogeneity, per-task random
   order, a task-count sweep, a throughput metric) and which of its 53 Unix-shaped jobs are
   deliberately not. Five jobs stand in for its categories.
-- **`user/src/job_mixer.rs`**, one EL0 task. Processes rather than kernel threads, which is the one
+- **`user/src/job_mix_task.rs`**, one EL0 task. Processes rather than kernel threads, which is the one
   place this differs from milestone 134's E1 on purpose: §96 asks what a process kernel costs a
   *workload*, and a workload is processes.
 - **`kernel/src/jobmix.rs`** (`--features jobmix`), the supervisor. It builds the pool once, releases
