@@ -219,13 +219,40 @@ pub enum Prog {
     /// arguments): a term of art already right, per this tree's own naming convention for
     /// standard terms.
     Printenv,
+    /// **Print a version-4 UUID drawn from the entropy service** (milestone 111, `user/src/uuid.rs`).
+    ///
+    /// The reason [`Manifest::entropy`] exists, and [`Prog::Date`]'s asymmetry a fourth time: the
+    /// grant is real and no token on the line designates it. Before this program the entropy
+    /// service existed, answered, and was reachable only by something the *system* spawned
+    /// (`credentialer` at boot, `disk_partitioner` under the kernel's own test harness), so a
+    /// program that needed randomness could not be run by a person. `date` before [`Prog::Date`]
+    /// existed is the position notes/entropy.md's `BUGS` described; this is that milestone's
+    /// `date`.
+    ///
+    /// **It is `disk_partitioner`'s draw with the disk taken away**, which is what makes it an
+    /// honest consumer rather than a demonstration. Both call `gpt::guid::Guid::v4_from_random`
+    /// over sixteen bytes from the same service, because a GPT gives every partition a random
+    /// globally unique id and `crates/gpt` refuses to invent one. The partitioner needs a disk
+    /// capability this shell does not hold and cannot attenuate; the sixteen bytes and the stamping
+    /// are the half that does not, so this program is the part of that path a prompt can reach
+    /// today.
+    ///
+    /// Takes no argument, no memory, no file: its whole authority is the client view of the entropy
+    /// service. `OutputSpec::BytesAndDiagnostics` for [`Prog::Ps`]'s reason, and here the second
+    /// stream carries the one sentence that matters: a boot with no entropy service must leave
+    /// `uuid > id.txt` **empty** and say why on the terminal, because a file containing a
+    /// predictable identifier is worse than a file containing nothing.
+    ///
+    /// **Provisional name.** RFC 9562's own term for the object, and `crates/gpt` calls the same
+    /// sixteen bytes a `Guid` because that is what GPT's spec calls them.
+    Uuid,
 }
 
 /// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
 /// it. Init's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
 /// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
 /// can be written against one number.
-pub const PROG_COUNT: usize = 13;
+pub const PROG_COUNT: usize = 14;
 
 impl Prog {
     /// Resolve a program by the name typed on the command line.
@@ -250,6 +277,7 @@ impl Prog {
             b"watch" => Some(Prog::Watch),
             b"uptime" => Some(Prog::Uptime),
             b"printenv" => Some(Prog::Printenv),
+            b"uuid" => Some(Prog::Uuid),
             _ => None,
         }
     }
@@ -270,6 +298,7 @@ impl Prog {
             Prog::Watch => "watch",
             Prog::Uptime => "uptime",
             Prog::Printenv => "printenv",
+            Prog::Uuid => "uuid",
         }
     }
 
@@ -289,6 +318,7 @@ impl Prog {
             Prog::Watch => 10,
             Prog::Uptime => 11,
             Prog::Printenv => 12,
+            Prog::Uuid => 13,
         }
     }
 
@@ -308,6 +338,7 @@ impl Prog {
             10 => Some(Prog::Watch),
             11 => Some(Prog::Uptime),
             12 => Some(Prog::Printenv),
+            13 => Some(Prog::Uuid),
             _ => None,
         }
     }
@@ -334,6 +365,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             Prog::Budgeter => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -352,6 +384,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             // The two interrupt demonstrators. Both run until interrupted, take no argument and no
             // memory grant, and report through the shared job frame rather than the result endpoint
@@ -373,6 +406,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             Prog::Spinner => Manifest {
                 arg: ArgSpec::Forbidden,
@@ -387,6 +421,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             // `date` declares an empty grant expression, and that is the interesting part: its
             // authority (a read-only mapping of the clock page) is not something the command line
@@ -430,6 +465,7 @@ impl Prog {
                 clock: true,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             // **The first program endowed a directory**, and the first with options. It takes no
             // integer and no memory: what it needs is the authority to take a name out of the
@@ -458,6 +494,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             // **The consumer**, and the only program that declares an input. Everything else about
             // it is empty: no argument, no memory, no file, no directory, no options. What it does
@@ -481,6 +518,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             // **The viewer**, whose manifest is "a stream in, a stream out" like `wc`'s, and handed
             // bytes like every other stage. The one place it parts from `wc` is the field milestone
@@ -505,6 +543,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
             },
             // **`ps`: a stream out, a domain in, and nothing else** (milestone 126).
             //
@@ -532,6 +571,7 @@ impl Prog {
                 clock: false,
                 domain: true,
                 config: false,
+                entropy: false,
             },
             // **`pgrep`: `ps`'s manifest, field for field, and the sameness is the claim.**
             //
@@ -562,6 +602,7 @@ impl Prog {
                 clock: false,
                 domain: true,
                 config: false,
+                entropy: false,
             },
             // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
             // whole difference: this program needs a typed redraw count, because it cannot be spun up
@@ -586,6 +627,7 @@ impl Prog {
                 clock: false,
                 domain: true,
                 config: false,
+                entropy: false,
             },
             // **The one program in this table that declares the inert-configuration page.** Same
             // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
@@ -603,6 +645,7 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: true,
+                entropy: false,
             },
             // **`worker`'s manifest, not `date`'s.** `uptime` reads `user_rt::monotonic_nanos`,
             // which is granted to every process unconditionally, so there is no capability here to
@@ -623,6 +666,36 @@ impl Prog {
                 clock: false,
                 domain: false,
                 config: false,
+                entropy: false,
+            },
+            // **The one program in this table that declares the entropy service** (milestone 111).
+            // `printenv`'s block one authority over, and `ps`'s output shape: every designated
+            // grant is `Forbidden`, so nothing a person could type widens what this program
+            // reaches, and its whole authority is `entropy`, which init endows and the command line
+            // cannot name.
+            //
+            // `OutputSpec::BytesAndDiagnostics` is load-bearing rather than copied. `uuid` has
+            // exactly one way to fail (it was spawned holding no entropy capability), and the
+            // failure must not travel on the byte stream: `uuid > id.txt` on a boot with no entropy
+            // service has to leave the file empty and put the reason on the terminal, because a
+            // predictable identifier written into a file is worse than an empty file. That is
+            // DECISIONS §67 applied to a program whose whole product is unpredictability.
+            Prog::Uuid => Manifest {
+                arg: ArgSpec::Forbidden,
+                mem: MemSpec::Forbidden,
+                file: FileSpec::Forbidden,
+                dir: DirSpec::Forbidden,
+                flags: NO_FLAGS,
+                output: OutputSpec::BytesAndDiagnostics {
+                    slot: DIAGNOSTICS_SLOT,
+                },
+                input: InputSpec::Forbidden,
+                reports: true,
+                interruptible: false,
+                clock: false,
+                domain: false,
+                config: false,
+                entropy: true,
             },
         }
     }
@@ -751,6 +824,26 @@ pub const DIAGNOSTICS_SLOT: u64 = 8;
 /// in it, and a program spawned without the declaration holds an empty slot here and is refused by
 /// the kernel rather than shown an empty domain.
 pub const DOMAIN_SLOT: u64 = 7;
+
+/// **The capability table slot a client view of the entropy service lands in** (milestone 111), for
+/// the programs that declare [`Manifest::entropy`].
+///
+/// Nine, one past [`DIAGNOSTICS_SLOT`], so the three named slots stay one small contiguous block a
+/// person can hold in their head. Placed rather than taken from the next free slot for the reason
+/// the other two are: how many low slots a child gets depends on what else the line granted it, and
+/// a program that reads a fixed number needs that number not to move.
+///
+/// **It clears the shell's own table as well as a child's**, which the other two named slots never
+/// had to: init hands the shell up to seven positional capabilities (slots 0 through 6), so a
+/// number below seven would have collided with the shell's clock on a boot with a filesystem and a
+/// second directory grant. Nine is above every one of them and far below
+/// `abi::fault::FAULT_EP_SLOT`.
+///
+/// A number is not a right. What it means to hold this slot is decided by the capability init puts
+/// in it, and a program spawned without the declaration holds an empty slot here: its first `CALL`
+/// answers `abi::Error::NoSuchSlot`, which `entropy_proto::delivered` reads as `None` rather than
+/// as a count.
+pub const ENTROPY_SLOT: u64 = 9;
 
 /// A program's expectation about the integer argument (`worker 9`'s `9`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -921,6 +1014,28 @@ pub struct Manifest {
     /// declaring this can read the three inert values and has no object through which it could
     /// change what a shell hands its children. **Provisional field name.**
     pub config: bool,
+    /// **Endowed a client view of the entropy service** (milestone 111; DECISIONS §44,
+    /// `crates/entropy_proto`, notes/entropy.md).
+    ///
+    /// The fourth member of [`clock`](Manifest::clock)'s family and the first one that is an
+    /// *endpoint a service answers on* rather than a page: randomness is not a name a person types,
+    /// so there is no token to place and no refusal to write, and what this field does is tell
+    /// **init** which children to endow and tell a person reading `caps uuid` that the program
+    /// draws random numbers at all.
+    ///
+    /// It lands in [`ENTROPY_SLOT`] carrying `WRITE`, which on an endpoint is the right to `CALL`
+    /// and nothing else: a declaring program may ask the service for bytes and may not receive
+    /// another client's request, and it holds no `GRANT`, so it cannot hand randomness to anything
+    /// it spawns. A program that does not declare it holds an empty slot there and its first
+    /// `CALL` comes back as a kernel error, which `entropy_proto::delivered` reports as `None`
+    /// rather than as a short reply: **that difference is the whole feature**, and it is what
+    /// `disk_partitioner` already turns into `R_NO_ENTROPY` instead of writing a GPT full of
+    /// counter-derived ids.
+    ///
+    /// **Ambient entropy would be ambient authority.** A shell that handed every child a random
+    /// source would make a program's dependence on randomness invisible, which is the one property
+    /// the service was built to have (DECISIONS §44).
+    pub entropy: bool,
 }
 
 /// A parsed command line. The shell dispatches on this; only [`Command::Run`] carries a grant
@@ -3045,6 +3160,7 @@ mod tests {
         clock: false,
         domain: false,
         config: false,
+        entropy: false,
     };
 
     /// The writable twin: a program that is endowed a file it may write.
@@ -3070,6 +3186,7 @@ mod tests {
         clock: false,
         domain: false,
         config: false,
+        entropy: false,
     };
 
     /// A shell that WAS granted a directory to narrow, standing at its root.
@@ -3958,6 +4075,7 @@ mod tests {
         clock: false,
         domain: false,
         config: false,
+        entropy: false,
     };
 
     /// Plan one stage against an explicit manifest, with the operators' answer folded in.

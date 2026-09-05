@@ -908,13 +908,19 @@ pub fn boot(
     // init-side copy is now kept (not `cap_delete`d) exactly when a client will need it, so
     // `credentialer` can be handed a working view of it further down.
     let mut entropy_ready = false;
-    // **`request`'s init-side copy, kept only when there is a real client waiting for it**
-    // (milestone 49's boot-wiring update). `None` on every path that used to `cap_delete` it
-    // (device absent, mapping failed, the handshake did not answer `READY`); `Some(request)`
-    // exactly once entropy is proven up, so the login stack below can delegate a working view of
-    // it to `credentialer` without re-probing anything. Consumed (delegated once, then dropped) by
-    // the login-stack block below; `cap_delete`d there instead if that block ends up skipping
-    // entirely (no filesystem, or one of the four programs missing/unvouched).
+    // **`request`'s init-side copy, kept for the life of the boot** (milestone 49's boot-wiring
+    // update, widened by milestone 111). `None` on every path that `cap_delete`s it (device
+    // absent, mapping failed, the handshake did not answer `READY`); `Some(request)` exactly once
+    // entropy is proven up.
+    //
+    // **It used to be dropped once `credentialer` held its own copy**, with the login stack as its
+    // only consumer. Milestone 111 gave it a second one that outlives the boot: a child whose
+    // manifest declares [`grant_plan::Manifest::entropy`] is endowed a `WRITE` view of this same
+    // endpoint at spawn, so init is the only process that can hand a program at the prompt a
+    // random source, exactly as it is the only one that can hand it a clock. That costs one
+    // permanent capability slot in a table milestone 230 measured at 21 of 24 at peak; milestone
+    // 231's `capability slots: N of M at peak` line is what says whether that is still true, and it
+    // is printed by every boot.
     let mut entropy_client: Option<u64> = None;
     if let Some(ent_program) = ent_elf.as_ref() {
         // `invoke`'s own `NoSuchSlot` (-1) on an ungranted slot is the probe: there is no fourth
@@ -978,8 +984,9 @@ pub fn boot(
                 cap_delete(ready);
                 entropy_ready = verdict == entropy_proto::READY;
                 if entropy_ready {
-                    // Kept for the login stack below (`credentialer`'s own client view); see
-                    // `entropy_client`'s own doc.
+                    // Kept for the login stack below (`credentialer`'s own client view) and, since
+                    // milestone 111, for the spawn service after it; see `entropy_client`'s own
+                    // doc.
                     entropy_client = Some(request);
                 } else {
                     // No login stack will be built without a working entropy service (this
@@ -1453,11 +1460,10 @@ pub fn boot(
     let mut login_ready = false;
     let mut login_password = [0u8; PASSWORD_HEX_LEN];
     if !have_login_stack {
-        // Nothing below will use it; give it back rather than leak a permanent slot for the rest
-        // of the boot.
-        if let Some(req) = entropy_client {
-            cap_delete(req);
-        }
+        // **Not given back any more** (milestone 111). A boot with a working entropy service and
+        // no login stack (no filesystem, or one of the four programs missing) still reaches a
+        // prompt, and `uuid` at that prompt needs this endpoint; before, the slot was released
+        // here because nothing downstream had a use for it.
     } else {
         let request = entropy_client.expect("have_login_stack checked entropy_client.is_some()");
 
@@ -1466,8 +1472,10 @@ pub fn boot(
         // password, and this whole block is abandoned rather than provisioning one with something
         // weaker (DECISIONS §42).
         let mut password_bytes = [0u8; PASSWORD_BYTES];
+        // `request` is not released on either arm any more (milestone 111): the spawn service holds
+        // it for the life of the boot, so a service that could not fill a password is still a
+        // service a program at the prompt may `CALL` and be refused by honestly.
         if !fill_entropy(request, &mut password_bytes) {
-            cap_delete(request);
         } else {
             hex_password(&password_bytes, &mut login_password);
 
@@ -1502,8 +1510,11 @@ pub fn boot(
                 },
             ));
             must_ok(start_child(cred_child, 0, 0, 0));
-            cap_delete(request); // credentialer holds its own copy now
-            cap_delete(cred_budget); // ditto
+            // `request` is deliberately **not** deleted here, unlike `cred_budget` below.
+            // `credentialer` holds its own copy, and so does this process, because the spawn
+            // service endows the same endpoint to a child declaring `Manifest::entropy`
+            // (milestone 111). See `entropy_client`'s own doc for the slot it costs.
+            cap_delete(cred_budget);
 
             // **`cred_ready` is not read yet, and that ordering is load-bearing rather than an
             // oversight.** `credentialer.rs`'s own `_start` sends its one readiness message
@@ -1882,6 +1893,12 @@ pub fn boot(
             // nothing else with them.
             term_sink: sink_elf.is_some().then_some(term_sink),
             fs,
+            // **The client view of the entropy service, if this boot has one** (milestone 111).
+            // The same endpoint the login stack drew its password from, kept rather than dropped,
+            // so a program a *person* types can be endowed randomness the same way `date` is
+            // endowed a clock. `None` here is not a boot failure: it is a `uuid` that says on its
+            // second stream that it holds no entropy capability, which is the true sentence.
+            entropy: entropy_client,
         },
         &progs,
         care_elf,
@@ -1943,6 +1960,22 @@ struct Channels {
     /// holds nothing it could hand a caretaker; init is the only process here that can build one,
     /// which is what made `rm` a refusal at the prompt for six weeks.
     fs: Option<Fs>,
+    /// **A client view of the entropy service** (milestone 111), endowed to a child whose manifest
+    /// declares [`grant_plan::Manifest::entropy`]. `None` on a boot that built no entropy service
+    /// (no virtio-rng device, no `entropy` program in the initrd, or a service that did not answer
+    /// `READY`), and then a declaring child is spawned with an empty [`grant_plan::ENTROPY_SLOT`]
+    /// and says so on its second stream rather than drawing predictable bytes.
+    ///
+    /// [`deaths`](Channels::deaths)'s shape rather than [`clock_page`](Channels::clock_page)'s: an
+    /// endpoint init holds and places a narrowed copy of, not a frame it maps. `WRITE` is what a
+    /// child gets, which on an endpoint is the right to `CALL` and nothing more; init keeps the
+    /// full-rights capability it retyped, and never receives on it.
+    ///
+    /// **The shell does not hold one.** The shell needs no randomness of its own (nothing it does
+    /// as a builtin is unpredictable), and endowing it one would be an authority nothing uses,
+    /// which is the same call `config_page` and `deaths` already make and the opposite of
+    /// `clock_page`, which the shell holds because `time` measures with it.
+    entropy: Option<u64>,
 }
 
 /// The file service, as init holds it for the life of the boot.
@@ -1990,6 +2023,7 @@ fn spawn_service(
         config_page,
         term_sink,
         fs,
+        entropy,
     } = c;
     loop {
         let (w0, w1, w2) = recv(spawn_ep);
@@ -2056,6 +2090,13 @@ fn spawn_service(
         // command line can designate, so there is no bit on the wire for it either
         // (`Manifest::config`).
         let wants_config = prog.is_some_and(|p| p.manifest().config);
+        // `clock`'s family a fourth time, and the first member of it that is an endpoint rather
+        // than a page (milestone 111). Randomness is not something a command line designates, so
+        // there is no bit on the wire for it either; the program's own declaration is what decides,
+        // which is what keeps a program's dependence on unpredictable bytes visible in what it
+        // holds. A boot with no entropy service answers `None` here and a declaring child is born
+        // with an empty slot, which is the state its second stream exists to report.
+        let wants_entropy = prog.is_some_and(|p| p.manifest().entropy);
 
         if interruptible {
             // Build the whole child from the shell's job untyped, mapping the shared job frame; no
@@ -2229,7 +2270,7 @@ fn spawn_service(
             // collect a corpse, and only the viewer's own source code said it did not. A domain names
             // its members and does not act on them (calef, 2026-08-17); `capability::Rights::ENUMERATE`
             // is what makes that a property of the grant. notes/process-view.md carries the argument.
-            let mut placed_buf = [(0u64, 0u64, 0u64); 2];
+            let mut placed_buf = [(0u64, 0u64, 0u64); 3];
             let mut placed_n = 0usize;
             if let (Some(ep), Some(slot)) = (diagnostics.or(default_diag), diag_slot) {
                 placed_buf[placed_n] = (slot, ep, abi::rights::WRITE);
@@ -2240,6 +2281,20 @@ fn spawn_service(
                 // `RECV` and `REAP` on the supervision endpoint as well, which is authority to
                 // collect a child rather than to name one. See `Rights::ENUMERATE`.
                 placed_buf[placed_n] = (grant_plan::DOMAIN_SLOT, deaths, abi::rights::ENUMERATE);
+                placed_n += 1;
+            }
+            // **The third named slot** (milestone 111), placed for the same reason the other two
+            // are: how many low slots a child gets depends on what else the line granted it, and
+            // `uuid` reads a fixed number.
+            //
+            // `WRITE` alone, and the narrowing is the grant rather than a formality. On a
+            // rendezvous `WRITE` is the right to `CALL`, so a declaring child may ask the service
+            // for bytes; `READ` would additionally let it `RECV`, which is to take another
+            // client's request out from under the service, and `GRANT` would let it hand a random
+            // source to anything it spawned. Neither is given, so the only thing this capability
+            // authorizes is the one thing the manifest declared.
+            if let (true, Some(ep)) = (wants_entropy, entropy) {
+                placed_buf[placed_n] = (grant_plan::ENTROPY_SLOT, ep, abi::rights::WRITE);
                 placed_n += 1;
             }
             let placed: &[(u64, u64, u64)] = &placed_buf[..placed_n];
