@@ -6,7 +6,7 @@ story the prior-art survey predicted (notes/prior-art.md, notes/redoxfs-audit.md
 confines a serious component it knows nothing about, and the thing milestone 31's per-file grants
 point at (they now exist; see the caretaker section below).
 
-The written contract lives with its code in `crates/fs_proto`, the way the terminal contract lives
+The written contract lives with its code in `crates/filesystem_proto`, the way the terminal contract lives
 in `line_editor::proto` (notes/terminal-contract.md). This note is the design around it.
 
 ## Three processes, two protocols
@@ -59,8 +59,8 @@ data.
 RedoxFS speaks its own error type everywhere (`syscall::error::Error`, redox_syscall's errno). The
 sans-IO core (`redoxfs_server::Server`) and the `Disk` impl both return `syscall::error::Result`,
 unmapped. The translation to the wire happens in **one place**, the FS server's serve loop
-(`redoxfs_server.rs::serve`), via `fs_proto::reply_err`, which is just the negated errno. The client
-inverts it with `fs_proto::reply_errno`. Keeping the core in RedoxFS's vocabulary is what makes the
+(`redoxfs_server.rs::serve`), via `filesystem_proto::reply_err`, which is just the negated errno. The client
+inverts it with `filesystem_proto::reply_errno`. Keeping the core in RedoxFS's vocabulary is what makes the
 rule enforceable: there is no ABI type below the boundary to leak. The blk IPC has the same
 convention (a negative reply is a negated errno), and the `Disk` impl maps a negative blk reply to
 `Error::new(EIO)`, which is the trait's own vocabulary, not an ABI leak.
@@ -230,8 +230,8 @@ pointing at a block that never landed. What is guaranteed is that this is never 
 **Half of that gap was ours and is closed** (milestone 55's durability half, 2026-08-18). The
 sentence that used to sit here said our block server issued no `VIRTIO_BLK_T_FLUSH`, so on real
 hardware the durability of the last acknowledged write was the device's word rather than ours. It
-now issues one: `fs_proto::blk::FLUSH` (op 4) is a real device flush the block server waits on, and
-`fs_proto::fs::SYNC` (op 19) is the file-service verb that asks for it. A device that never offered
+now issues one: `filesystem_proto::blk::FLUSH` (op 4) is a real device flush the block server waits on, and
+`filesystem_proto::fs::SYNC` (op 19) is the file-service verb that asks for it. A device that never offered
 `VIRTIO_BLK_F_FLUSH` gets `EOPNOTSUPP` all the way up rather than a quiet success, which is the part
 that matters: the old behaviour's problem was not the missing flush so much as that nothing above it
 could tell.
@@ -611,7 +611,7 @@ added here was simply absent from a caretaker, and the capability quietly was no
 That happened. Milestone 57 added the four extended-attribute verbs; none of the three was taught
 them; nothing failed. It took a reader asking why there were three of these to find it.
 
-`fs_proto::verb::TABLE` is one row per opcode:
+`filesystem_proto::verb::TABLE` is one row per opcode:
 
 | field | what it answers |
 |---|---|
@@ -646,18 +646,18 @@ SMB share was reporting a 64 MiB constant with a `BUGS` entry explaining that no
 could ask.
 
 **The wire.** `fs::req(fs::STATFS, handle, 0)`, second word 0. The reply fills the shared page with
-`fs_proto::statfs`'s record (three little-endian `u64`s: the allocation unit in bytes, the volume's
+`filesystem_proto::statfs`'s record (three little-endian `u64`s: the allocation unit in bytes, the volume's
 size in those units, and how many are free) and `r0` is its length. That is `READDIR`'s and
 `LISTXATTR`'s existing shape rather than a new one, and it is forced: a reply word carries one
 `i64`, and two 64-bit counts do not fit in one however they are packed.
 
 Three choices in it are worth disagreeing with rather than skipping past:
 
-- **The allocation unit is a field, not `fs_proto::PAGE`.** They are the same number today (4096)
+- **The allocation unit is a field, not `filesystem_proto::PAGE`.** They are the same number today (4096)
   and they are not the same *thing*: one is the filesystem's granularity, the other is a page. A
   client that assumed they were equal would mis-size a volume the day a filesystem with 64 KiB
   records is served through this contract. **The IPC transfer unit stopped being either of them at
-  milestone 138 step 3** and is now `fs_proto::fs::TRANSFER_MAX`, which is the same distinction
+  milestone 138 step 3** and is now `filesystem_proto::fs::TRANSFER_MAX`, which is the same distinction
   arriving a second time and proving the field was worth having.
 - **The record's length is its version.** A later field extends the record and raises `LEN`; a
   client written against this version reads its prefix correctly because it checks `r0 >= LEN` for
@@ -758,7 +758,7 @@ uncached build and is a fact about that build, not a fact this section now retra
 A `READ` or `WRITE` moves its bytes through the region the client and the FS server share, and that
 region was one page. **Nothing in the wire word ever required that**: `fs::req` has carried a 40-bit
 length since milestone 32. So the multi-page transfer milestone 38's `BUGS` entry called for turned
-out to be one constant, `fs_proto::fs::TRANSFER_PAGES`, and no new opcode, reply word, descriptor or
+out to be one constant, `filesystem_proto::fs::TRANSFER_PAGES`, and no new opcode, reply word, descriptor or
 changed field.
 
 **What a party maps, and the one rule that makes old clients safe.** The FS server maps the whole
@@ -794,7 +794,7 @@ loop rather than a signature change. The block server's DMA region was already w
   **Milestone 138 step 1 took the record to 8 KiB** (`RECORD_LEVEL` 1, vendor/README.md divergence
   5), measured at **5.13x on a 4 KiB read and 3.01x on a 4 KiB write**: 1,458 us to 284 us, and
   2,400 us to 797 us. **Step 3 then took the transfer unit to 64 KiB**
-  (`fs_proto::fs::TRANSFER_PAGES`, below), measured at **5.67x on a read and 8.02x on a sequential
+  (`filesystem_proto::fs::TRANSFER_PAGES`, below), measured at **5.67x on a read and 8.02x on a sequential
   write** against the same harness: 80.30 MiB/s and 42.77, from 14.16 and 5.33.
   What survives is a fixed ~204 us per request that neither touches, and step 3 moved it from 74% of
   a read to **26%**, because the payload it is charged against is sixteen times larger. That term is
@@ -808,7 +808,7 @@ loop rather than a signature change. The block server's DMA region was already w
   variables, and the residual.
 - **Closed 2026-08-19 (milestone 138 step 4).** This entry recorded that the block contract had the
   one-page limit the file contract used to have, and had become the binding constraint rather than
-  the wall behind one: `IpcDisk::read_at` chunked every record into one `fs_proto::blk` request per
+  the wall behind one: `IpcDisk::read_at` chunked every record into one `filesystem_proto::blk` request per
   4 KiB block, so a 64 KiB read was 16 device round trips rather than one. `blk::TRANSFER_BLOCKS`
   (16, mirroring `fs::TRANSFER_PAGES`) and batched `IpcDisk` calls close it: a `Disk::read_at`/
   `write_at` call now moves up to 16 contiguous blocks in one blk `CALL` and one virtio descriptor.

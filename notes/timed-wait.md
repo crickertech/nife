@@ -39,7 +39,7 @@ The two numbers that decide anything are the last two, and neither is a data str
 The brief for this lane said "`MAX_THREADS` is 128 and the thread pool is a static BSS array". That
 was true at milestone 14 phase B.2 and **stopped being true at 19c.2**: the static pool is gone, and
 every `Thread` now lives at the start of one page drawn from `kmem` or from a user process's own
-untyped (`sched.rs:80-93`, notes/tcb.md). The table is `slots::Table<TcbPtr, 128>`, about 2 KiB of
+untyped (`sched.rs:80-93`, notes/tcb.md). The table is `generational_table::Table<TcbPtr, 128>`, about 2 KiB of
 pointers.
 
 So the question "what does a per-thread deadline field cost in bytes" has an answer nobody has to
@@ -273,7 +273,7 @@ counterparty; the expiry wakes it; it returns.
 
 **A deadline on `Endpoint::RECV`/`CALL` needs two things the other two do not**, and both are concrete:
 
-1. **A targeted unlink from an endpoint's wait queue.** `crates/intrusive`'s `Fifo` is **singly
+1. **A targeted unlink from an endpoint's wait queue.** `crates/intrusive_fifo`'s `Fifo` is **singly
    linked**: one `next` per node, `head`/`tail`/`len`, and its whole API is `push_back`, `pop_front`,
    `is_empty`, `len`. `ipc::Endpoint` adds only `drain_waiters`, which drains *all* of them. Removing
    one specific waiter is a new method, O(queue length) from the head, on a crate that carries

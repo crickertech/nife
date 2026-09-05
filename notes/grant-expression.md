@@ -201,7 +201,7 @@ less than that. It names one file, so it must grant one file.
 
 The narrowing is a **caretaker**, Mark Miller's pattern: a process that holds the wider capability,
 exports a narrower one, and is the only path between them. `user/src/fs_file_caretaker.rs` opens the
-granted name once at startup and then serves the *same* `fs_proto::fs` contract on its own endpoint:
+granted name once at startup and then serves the *same* `filesystem_proto::fs` contract on its own endpoint:
 
 ```text
   FS server ──file IPC──► fs_file_caretaker ──narrowed file IPC──► the confined program
@@ -224,7 +224,7 @@ This is the caretaker that needs a **per-verb** answer, and the other two do not
 directory protocol their client speaks, so every verb means what it always meant and the attenuation
 lives elsewhere. A file capability is a *different protocol*: nothing to enumerate, nothing to
 create a name in, one handle. So "which verbs exist" is not a filter over a wider surface, it is
-what the capability **is**, and it is written down in `fs_proto::verb::file_grant::POLICY`, one row
+what the capability **is**, and it is written down in `filesystem_proto::verb::file_grant::POLICY`, one row
 per opcode, in a crate host tests and Kani can reach.
 
 Three policies, and the third is the one worth keeping distinct:
@@ -266,7 +266,7 @@ capability table, not of a branch it is trusted to take. The boundary is an addr
 reason milestone 36's checker lives outside the component it checks.
 
 The grant costs no memory. The name and the direction ride in the caretaker's three `START` argument
-words (`fs_proto::grant`, 16 bytes of name), and one frame is shared by all three processes, which is
+words (`filesystem_proto::grant`, 16 bytes of name), and one frame is shared by all three processes, which is
 sound because every request on both hops is a blocking `CALL`: the client is parked inside its own
 call for the whole time the caretaker touches the page.
 

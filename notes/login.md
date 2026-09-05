@@ -22,7 +22,7 @@ the same trade the credential service (milestone 56) already made for the secret
 ## The shape
 
 ```text
-   a client ──login_proto::LOGIN, identity+secret──► login ──cred_proto::VERIFY──► credentialer
+   a client ──login_proto::LOGIN, identity+secret──► login ──credential_proto::VERIFY──► credentialer
                                                        │        (unmodified;
                                                        │         milestone 56)
                                                        │
@@ -53,7 +53,7 @@ independently revocable object per principal.
 
 ### Why the same subtree for everyone, in this slice
 
-Every login is attenuated to `fs_proto::fixture::tree::SUB` with the same rights. Wiring a specific
+Every login is attenuated to `filesystem_proto::fixture::tree::SUB` with the same rights. Wiring a specific
 identity to a specific subtree needs a lookup this milestone does not build (a table, a naming
 convention, a directory layout), and guessing at its shape would be scope invented rather than found.
 Milestone 47's per-shell root is already the isolation mechanism; what is missing is only the wiring
@@ -103,7 +103,7 @@ let (_, fs_frame, _) = recv_cap(RESULT);
 let (_, budget, _) = recv_cap(RESULT);
 
 map_frame(fs_frame, FS_VA, true, budget);
-let (bytes, _) = call(dir_ep, fs_proto::fs::req(fs_proto::fs::READDIR, fs_proto::fs::ROOT, 0), 0);
+let (bytes, _) = call(dir_ep, filesystem_proto::fs::req(filesystem_proto::fs::READDIR, filesystem_proto::fs::ROOT, 0), 0);
 ```
 
 ### A refusal sends nothing further

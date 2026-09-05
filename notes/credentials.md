@@ -11,7 +11,7 @@ An identity, a secret, and a way to check the second against the first without e
 read it. Milestone 56's second half; the first half is [entropy](entropy.md), and this depends on
 it for every salt it uses.
 
-The contract is `crates/cred_proto`, the logic is `crates/cred`, the service is
+The contract is `crates/credential_proto`, the logic is `crates/cred`, the service is
 `user/src/credentialer.rs`, and its clients are `user/src/credentialer_test_client.rs`.
 
 **Milestone 65 generalised this into a secrets service, in place.** The same process now holds two
@@ -205,7 +205,7 @@ to the contract rather than a bug in a serve loop.
 
 The reply codes are all small positives (1..=6), which is the trick `entropy_proto` established: every
 failure the kernel can return from a `CALL` is one of its small negatives, which read as enormous
-`u64`s. So `cred_proto::authenticated` can collapse "there is no credential service", "the request
+`u64`s. So `credential_proto::authenticated` can collapse "there is no credential service", "the request
 was malformed", "the service died" and "wrong password" into one `false`, and no caller has to
 remember which of six codes were the good ones. **A caller that mistook a missing capability for a
 successful authentication would be the single worst bug this contract could permit**, so it is the

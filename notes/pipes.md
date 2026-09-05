@@ -1296,7 +1296,7 @@ reader would look. The symptom is always a data abort one word below the lowest 
   the right shape for an adapter whose client is not the shell, and `sink_tests` still proves them
   against a real image, but nothing at the prompt builds one. (`user/src/terminal_sink_caretaker.rs` is that
   shape with a client the prompt does build, which is the closest this has come to being used.) The source role also still opens the
-  one name in `sink_proto::fixture` and cannot be told another; the shell would have had to hand it
+  one name in `byte_sink_proto::fixture` and cannot be told another; the shell would have had to hand it
   a name the way `fs_file_caretaker` is handed one, and it turned out not to need to.
 - **The interactive prompt holds the image root, unnarrowed.** A `fs_subtree_caretaker` between it
   and the FS server would cost one process and would make the prompt's own authority as legible as

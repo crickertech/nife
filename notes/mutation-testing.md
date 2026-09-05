@@ -678,12 +678,12 @@ claims rest on argument alone, and the weekly run is what will check them.
 **The alarming survivors, named.** A survivor in a security boundary is worth more attention than
 fifty in a display crate, so: `capability`, `regions`, `dma_validator`, `nifefs` and `elf` have
 **zero real survivors** between them, and the three trust-boundary parsers score 100%. The one
-security-relevant survivor the run found anywhere was `fs_proto::xattr::store::write_record`, whose
+security-relevant survivor the run found anywhere was `filesystem_proto::xattr::store::write_record`, whose
 value limit stopped being enforced under a single `||` to `&&`, on a path that re-emits records
 whose lengths come off the blob rather than from a bounds-checked caller. It is closed. The
 next-most-serious were `paging`'s user-VA gate and `Mapper::root` (a constant there installs the
 wrong table in silicon), `machine_discovery`'s widest-wins fold (an rv32 hart booting an rv64 answer), and
-`slots::get_mut` (a `None` the kernel `unwrap()`s on the switch path). All closed.
+`generational_table::get_mut` (a `None` the kernel `unwrap()`s on the switch path). All closed.
 
 
 ## 2026-09-03: `measured_boot` re-run, and its five survivors proved equivalent rather than argued

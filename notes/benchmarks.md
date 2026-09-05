@@ -1595,7 +1595,7 @@ the caveats are the substantive half, and a figure quoted without them is worth 
 3. **Our write is between Linux's two.** Every `fs_proto` write goes through a RedoxFS transaction
    that commits to the header ring before the reply, so the filesystem's own state is durable per
    request the way `O_DSYNC` makes ext4's; but no `VIRTIO_BLK_T_FLUSH` is issued unless a client asks
-   (`fs_proto::fs::SYNC`, milestone 55), so the bytes sit where `O_DIRECT` alone leaves them. Both
+   (`filesystem_proto::fs::SYNC`, milestone 55), so the bytes sit where `O_DIRECT` alone leaves them. Both
    rows are printed and neither is *the* comparison.
 4. **The copy counts differ, in our favour.** A completed read lands in the page the client already
    shares with the server, so the bytes can be used in place; buffered Linux copies into the caller's
@@ -1786,7 +1786,7 @@ which paints a page in 820 ns: sixteen pages is **13 us against 837**, under 2%.
   here is evidence that RedoxFS is the problem.**
 
 **And the wall behind all three, which is new.** The ceiling row is not rhetorical. `IpcDisk::read_at`
-chunks every record into **one `fs_proto::blk` request per 4 KiB block**, because the block contract
+chunks every record into **one `filesystem_proto::blk` request per 4 KiB block**, because the block contract
 shares exactly one page with the block server, the same limit the file contract has. A 128 KiB record
 read is therefore 32 device round trips rather than one 128 KiB transfer, and 39.0 us is the price of
 a round trip rather than of the bytes. At that price **no request size and no record level can exceed
@@ -1823,7 +1823,7 @@ files and a `motd` share blocks 1 through 4 and differ only in block 5.
 **How it was counted.** A `Disk` implementation over an in-memory image that logs every `read_at`,
 built as a temporary probe in `redoxfs_server`'s host tests and reverted before this note was committed
 (see the reproduction below). `BlockDisk` splits a `Disk` call into whole-block transfers, one
-`fs_proto::blk` request each, exactly as `IpcDisk` does on device, so `ceil(len / 4096)` per call is
+`filesystem_proto::blk` request each, exactly as `IpcDisk` does on device, so `ceil(len / 4096)` per call is
 the number of block-server round trips the request costs on the machine. The block *numbers* differ
 on device (a different image, behind a partition offset); the counts and the repetition do not.
 
@@ -1956,7 +1956,7 @@ change, which is a larger thing than the block priced.
 
 **The code quoted below was changed on 2026-08-19 (milestone 55) and the section is left standing,
 because the reasoning is what makes the change legible.** `smb_server`'s two `min`s now read
-`fs::TRANSFER_MAX` rather than `fs_proto::PAGE`, so a Mac writing a megabyte arrives as 16 requests
+`fs::TRANSFER_MAX` rather than `filesystem_proto::PAGE`, so a Mac writing a megabyte arrives as 16 requests
 rather than 256. Measured through a real SMB client: **write 4.8x, read 2.4x**, against the 8.02x
 and 5.67x step 3 measured on the contract itself, with the residual now owned by the socket
 contract's own 4080-byte chunking. The table and the reasoning are in notes/smb.md's throughput
@@ -1967,12 +1967,12 @@ Milestone 138 asks whether 4 KiB is the atypical case, since a Time Machine back
 which are large and sequential, and a 128 KiB record is plausibly right for those.
 
 **It is not the atypical case. It is the only case this system has.** `user/src/smb_server.rs` chunks
-every SMB read and every SMB write into `fs_proto::PAGE`-sized requests, in a loop, because that is
+every SMB read and every SMB write into `filesystem_proto::PAGE`-sized requests, in a loop, because that is
 what a `fs_proto` request carries:
 
 ```rust
-let want = (out.len() - done).min(fs_proto::PAGE);      // read
-let chunk = (data.len() - done).min(fs_proto::PAGE);    // write
+let want = (out.len() - done).min(filesystem_proto::PAGE);      // read
+let chunk = (data.len() - done).min(filesystem_proto::PAGE);    // write
 ```
 
 A Mac writing a megabyte into a band file therefore arrives at the store as **256 separate 4 KiB
@@ -2008,7 +2008,7 @@ network, no SMB, and no second copy of anything.
 - **The record-aligned phase stays aligned by luck rather than by design.** `fs_record_read` reads at
   multiples of 128 KiB, which is a multiple of every record size at or below level 5, so it means the
   same thing at every point in this sweep. It would stop meaning it the moment anyone swept above
-  level 5, and nothing checks that; `fs_proto::fixture::throughput::RECORD` says so in its own
+  level 5, and nothing checks that; `filesystem_proto::fixture::throughput::RECORD` says so in its own
   comment.
 - **The machine was not quiet and the headline figures are normalised rather than raw.** The method is
   above and the raw minimums are printed beside them. Both agree with the two runs taken at an
@@ -2021,7 +2021,7 @@ network, no SMB, and no second copy of anything.
   answer.** A block a record has vacated keeps its old bytes, so the count would drift upward on an
   image that had been rewritten; these images were made, imported into once, and never written
   again, which is the case where the count and the allocation agree. RedoxFS's own free-block count
-  (`fs_proto::fs::STATFS`) would be exact and needs a guest or a verb the host tool does not have.
+  (`filesystem_proto::fs::STATFS`) would be exact and needs a guest or a verb the host tool does not have.
 
 ## Step 1 taken: the record is 8 KiB, and 72% of a read is now the part it does not touch (milestone 138, 2026-08-18)
 
@@ -2144,7 +2144,7 @@ Taken **before step 2, deliberately**. Step 1 measured that after it a write's f
 per 4 KiB, 87% of the request, and that step 2's read cache does not touch a write at all. Only this
 step does, and a backup is writes.
 
-`fs_proto::fs::TRANSFER_PAGES` goes from an unwritten 1 to 16, so the region a client and the FS
+`filesystem_proto::fs::TRANSFER_PAGES` goes from an unwritten 1 to 16, so the region a client and the FS
 server share is 64 KiB of contiguous pages and a `READ` or `WRITE` may carry all of it in one
 request. Nothing in the packed request word changed: the length field has been 40 bits since
 milestone 32, and the page was always what bounded a transfer.
@@ -2193,7 +2193,7 @@ whole problem. Step 3's is that **the residual changed owner**:
 | after (sixteen pages, per request) | 778,354 ns | 204,076 (**26%**) | **574,278 (74%)** |
 
 That is step 1's table read backwards. A read is no longer dominated by the per-request walk; it is
-dominated by **sixteen single-block trips through `fs_proto::blk`**, which is the block contract's
+dominated by **sixteen single-block trips through `filesystem_proto::blk`**, which is the block contract's
 one-page limit and is the thing notes/fs-server.md's BUGS section has recorded as a ~100 MiB/s
 ceiling since milestone 38. **`fs_seq_read` now measures 80.30 MiB/s, which is 80% of that ceiling.**
 
@@ -2253,8 +2253,8 @@ varies only the transfer, so it cannot confirm or refute that. `sh bench/record-
 ## predicts (milestone 138, 2026-08-19)
 
 Step 3's own residual pointed here: after it, `fs_seq_read` was 74% single-block trips through
-`fs_proto::blk`, one per filesystem block, against a ~100 MiB/s ceiling notes/fs-server.md's `BUGS`
-section had already named. `fs_proto::blk::TRANSFER_BLOCKS` goes from an unwritten 1 to 16, so the
+`filesystem_proto::blk`, one per filesystem block, against a ~100 MiB/s ceiling notes/fs-server.md's `BUGS`
+section had already named. `filesystem_proto::blk::TRANSFER_BLOCKS` goes from an unwritten 1 to 16, so the
 region the FS server and the block server share is 64 KiB of contiguous pages, `IpcDisk` batches
 contiguous whole-block runs into one blk `CALL` (up to 16 blocks), and the block server issues one
 virtio descriptor for the whole batch instead of one per block. The crash injector and the

@@ -1,6 +1,6 @@
 # `rm`, `rm -r`, and why removal needs a directory
 
-Milestone 47. Built 2026-07-31. The contract side is `fs_proto::fs::RMDIR`; the program is
+Milestone 47. Built 2026-07-31. The contract side is `filesystem_proto::fs::RMDIR`; the program is
 `user/src/rm.rs`; the grant is `grant_plan::DirSpec`.
 
 ## Removal is an operation on the directory, not on the file
@@ -83,7 +83,7 @@ for a literal one, which is the honest state: a single name still travels throug
 `fs_subtree_caretaker`.
 
 A set does not fit in the two argument words a name rides in, so `rm` is started with a grant whose
-name is **zero bytes long** (`fs_proto::grant::WHOLE_NAMESPACE`). It means "the operand is your
+name is **zero bytes long** (`filesystem_proto::grant::WHOLE_NAMESPACE`). It means "the operand is your
 namespace", and `rm` learns the names by enumerating the capability it holds, which reveals exactly
 what the command line already printed.
 
@@ -103,10 +103,10 @@ the names this run has already taken away.
   caretaker and a deeper grant is a chain of them. See notes/dir-capability.md's BUGS for both, and
   design/roadmap/31-capability-shell.md for the fork the root case is waiting on.
 - **The end of the stream is the verdict**, and it must not look like a byte count. The report channel
-  carries text frames (first word = a byte count, at most 16) and then `sink_proto::eof()`, whose
+  carries text frames (first word = a byte count, at most 16) and then `byte_sink_proto::eof()`, whose
   first word is `OP_EOF << 56`; the status and the removal count ride in the two words that message
   leaves free. A receiver reads "the first message ends the stream" as "the run printed nothing",
-  which is what makes `rm(1)`'s silence-on-success checkable. It used to be `fs_proto::fixture::VERDICT`
+  which is what makes `rm(1)`'s silence-on-success checkable. It used to be `filesystem_proto::fixture::VERDICT`
   instead, which no reader that was not a guest test could decode, so this program could not be piped
   even though its manifest declared the sink contract.
 - **No `rm -i`.** There is no prompting anywhere in this system, so the flag has nothing to mean.
@@ -114,7 +114,7 @@ the names this run has already taken away.
   buffer by value. `rm` asks for 4 stack pages. A deep enough tree will exhaust it, and the failure
   will be a data abort rather than a diagnostic.
 - **`rm` removes nothing this contract has since grown**, and that is now checked rather than
-  assumed. Milestone 61 made the caretakers dispatch off `fs_proto::verb`, so a verb added to the
+  assumed. Milestone 61 made the caretakers dispatch off `filesystem_proto::verb`, so a verb added to the
   contract is forwarded by them from the day its row exists; `rm` still holds `REMOVE` and nothing
   else, so what it can *send* is unchanged. The two facts are independent and it is worth saying so:
   the caretaker got wider, the grant did not.

@@ -88,7 +88,7 @@ Each of these now carries a `PAIR:` comment at the site naming where its other h
 | Site | Side | Partner | Adjudication |
 |---|---|---|---|
 | `crates/clock_proto` `read` | acquire | the writer's `W_SEQ` release store in `publish` | **Sound as far as it goes, and the writer's opening fence is milestone 80's bug.** The only protocol where both halves must be in this tree |
-| `crates/cred_proto` `wipe` | neither | none, and none wanted | **Sound.** A `compiler_fence` emits no instruction and orders nothing between cores. Now says so |
+| `crates/credential_proto` `wipe` | neither | none, and none wanted | **Sound.** A `compiler_fence` emits no instruction and orders nothing between cores. Now says so |
 | `kernel/src/arch/aarch64/exceptions.rs` `last_user_fault` | acquire | `USER_FAULTS.fetch_add(1, Release)` in `user_fault` | **Sound, and the model for the tree.** Both halves present, both load-bearing, both explained at the site before this milestone |
 | `kernel/src/arch/riscv64/exceptions.rs` `last_user_fault` | acquire | the same pair on the other ISA | **Sound.** Parity holds |
 | `kernel/src/user.rs` `term_print` | release | none; the `ipc_call` below it is the edge | **Sound, redundant.** The terminal is blocked in `recv_cap` |
@@ -137,14 +137,14 @@ would try to reconcile three against four.
 | Protocol | Where | Adjudication |
 |---|---|---|
 | Clock page seqlock | `crates/clock_proto` | Writer's opening fence missing. **Milestone 80's finding**; fixed on its branch, loom-checked |
-| Work-steal request slot | `kernel/src/sched.rs`, `crates/steal_request` | Release CAS to claim, acquire swap to take. **Loom-checked** by milestone 80, six harnesses |
+| Work-steal request slot | `kernel/src/sched.rs`, `crates/work_steal_slot` | Release CAS to claim, acquire swap to take. **Loom-checked** by milestone 80, six harnesses |
 | User fault record | `kernel/src/arch/*/exceptions.rs` | Relaxed record, release counter, acquire fence on the read. Correct, on both ISAs |
 | Boot roster | `kernel/src/smp.rs` | `ROSTER`, `DESCRIBED`, `ONLINE`, `ONLINE_MASK`: relaxed arrays under a release flag, acquire flag then relaxed arrays. Textbook array publication, single-shot at boot |
 | IRQ routing table | `kernel/src/sched.rs` `IRQ_ROUTES` | Release store, acquire load, same array. Paired |
 | One-shot service wiring | `fs_service`, `entropy_service`, `disk_service`, `credential_service` | **Four instances of one correct idiom**: relaxed fields, then a release flag; readers acquire the flag, then read the fields relaxed |
 | Spin locks | `crates/user_rt`, `patches/std-nife` (3), `redoxfs_server/src/bin/second_mount.rs` | Acquire CAS, release store. **The one shape that cannot be one-sided**, because the lock is both halves |
 | Benchmark start barrier | `kernel/src/bench.rs` `TP_GO` | Release store, acquire spin. Paired. The `SeqCst` reset is over-strong and has no reader yet, so it orders nothing and costs nothing |
-| Secret wipe | `crates/cred_proto` | `compiler_fence`, no cross-core meaning, no partner wanted |
+| Secret wipe | `crates/credential_proto` | `compiler_fence`, no cross-core meaning, no partner wanted |
 
 ### The two sites that are sound for a reason that was not written down
 

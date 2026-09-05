@@ -113,7 +113,7 @@ fn that would be unsound if the sentence were false.
 **2. `#[cfg(kani)]` code is invisible to both lints. FIXED in milestone 113**, and the section below
 records what the gate found. `cfg(kani)` is set by the model checker and by nothing else, so
 `script/lint` never compiled those modules and neither lint could fire in them. The tree has 14
-`unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive` and `crates/ipc`. `intrusive`'s two
+`unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive_fifo` and `crates/ipc`. `intrusive`'s two
 both carry SAFETY comments. **Eleven of `ipc`'s twelve do not**, and the gate had never said so. A
 real fix is a gate rather than a pass of comments (a clippy invocation with `--cfg kani`, or
 `-D warnings` on the `script/verify` build); adding the comments alone leaves nothing to stop the
@@ -760,7 +760,7 @@ that one already carries, a scratch buffer one thread at a time touches, seriali
 rather than by a lock. Same shape, same reasoning, a different file.
 
 Raised from 18 to 20 by milestone 47's environment-variable fork (2026-08-23, DECISIONS §111):
-`crates/env_proto::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_proto::ClockPage`
+`crates/environment_proto::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_proto::ClockPage`
 already carries and for the same argument, restated for a type with a plainer contract. The config
 page is shared across address spaces by construction (that is the whole point of a page-shaped
 endowment), and every access goes through the same immutable byte reads regardless of which

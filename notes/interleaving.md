@@ -196,7 +196,7 @@ needed two cores. Pull request #316 fixed it by removing the slot under the same
 to destroy it, and said plainly in [object-revocation.md](object-revocation.md)'s BUGS that the
 single-winner claim was argued from lock discipline and gated by nothing.
 
-**What moved.** The region table and every decision taken over it left `kernel/src/untyped.rs` for
+**What moved.** The region table and every decision taken over it left `kernel/src/memory_region.rs` for
 `crates/memory_regions`, where the arithmetic it calls (`split_new_watermark`, `destroy_outcome`) was
 already Kani-proved. `RegionTable::claim_for_destroy` takes `&mut self` and does both halves, which
 is rung one of CLAUDE.md's ladder rather than a tidier spelling: **the pre-fix shape is not
@@ -427,7 +427,7 @@ two halves that are each insufficient alone:
 | Half | Asserts | Catches |
 |---|---|---|
 | the surface pin | the public items of `crates/memory_regions/src/table.rs`, **with receivers**, are exactly a pinned set | a new observer; a method removed; `claim_for_destroy` respelled `&self`, which deletes the single-borrow argument while changing no name |
-| the warrant pin | each function in `kernel/src/untyped.rs` that reaches a free loop made its entitling call first (`create`/`insert_root`, `destroy`/`claim_for_destroy`) | the rebuilt gap above, and any third path that returns region pages |
+| the warrant pin | each function in `kernel/src/memory_region.rs` that reaches a free loop made its entitling call first (`create`/`insert_root`, `destroy`/`claim_for_destroy`) | the rebuilt gap above, and any third path that returns region pages |
 
 Two `compile_fail` doctests on `DestroyClaim` cover what neither half can see, since a
 `#[derive(Clone)]` and a `pub` on a field change no name and no call: the claim cannot be forged
@@ -505,7 +505,7 @@ evaluates `cfg(loom)` as false for every real target, so:
   it is the same division `thread_wake_handshake` records for `SCHED`.
 - **The gate on `untyped.rs` is narrower than the property it protects.** Milestone 136 closed the
   hole this bullet used to name (see *A lift is only worth what its caller does* above), and what it
-  buys is bounded: the free-site pin covers `kernel/src/untyped.rs` only, so region pages freed from
+  buys is bounded: the free-site pin covers `kernel/src/memory_region.rs` only, so region pages freed from
   another kernel module are not caught; the warrant is line order rather than dataflow; and
   **nothing checks that a newly pinned public method is modelled at all**, so a lane can widen the
   surface, pin it, and never write a harness. That last one is the same gap one level up, and it is

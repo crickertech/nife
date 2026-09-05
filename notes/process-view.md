@@ -80,7 +80,7 @@ userspace program decide how long the scheduler is locked, which is a latency ho
 open on purpose.
 
 The cost is that **a survey is a sequence of snapshots rather than one**. The cursor is a *slot
-index*, not a position in a filtered sequence (`slots::Table::iter_from`), which is what makes the
+index*, not a position in a filtered sequence (`generational_table::Table::iter_from`), which is what makes the
 resume safe: the entry that was at slot `k` is the only thing that can be at slot `k`, and if it
 died, `k` is empty rather than somebody else's thread. So a resumed walk never reports a member twice
 and never resolves a cursor to the wrong thread. It can miss a member born into an already-passed

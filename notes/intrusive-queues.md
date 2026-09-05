@@ -1,6 +1,6 @@
 # Intrusive queues
 
-*(Milestone 14 phase A.2. The mechanism behind `crates/intrusive`, which the per-CPU run queues
+*(Milestone 14 phase A.2. The mechanism behind `crates/intrusive_fifo`, which the per-CPU run queues
 and migration inboxes are built on. See design/kernel-objects-from-untyped.md, decision D1.)*
 
 ## The idea
@@ -82,7 +82,7 @@ A `Finished` thread cannot be freed while its core is still switching off its st
 reaps it from its **successor**, after the switch (`finish_switch`). Being woken is the same
 hazard as being freed, for the same reason, with the same fix:
 
-- `on_cpu` (on the thread's embedded `wake_handshake::Handshake`): set when a core schedules a
+- `on_cpu` (on the thread's embedded `thread_wake_handshake::Handshake`): set when a core schedules a
   thread in, cleared by that core's successor after the switch away.
 - `wake()` finding `on_cpu` set does not queue the thread; it parks the wake in the handshake's
   `wake_pending`.
@@ -92,7 +92,7 @@ hazard as being freed, for the same reason, with the same fix:
 
 Verified at the time by moving the suite back to repeated clean runs (statistics, not proof).
 Since 2026-08-14 it is also searched: the `on_cpu`/`wake_pending` protocol lives in
-`crates/wake_handshake`, and loom explores every interleaving of the waker against the switch-out,
+`crates/thread_wake_handshake`, and loom explores every interleaving of the waker against the switch-out,
 including a `#[should_panic]` reconstruction of exactly this race (the wake with the deferral
 removed), which fails the model the way the flake failed the suite. That covers the protocol's
 logic under the kernel's locking discipline; the discipline itself, and the ISA-level orderings,

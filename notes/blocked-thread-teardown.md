@@ -28,7 +28,7 @@ end a **blocked thread**, and whether anybody should) is untouched and is milest
 
 *The code this note reads: `kernel/src/sched.rs` (`schedule`, `ipc_call`, `ipc_reply`,
 `set_ipc_aborted`, `reap_region_objects`), `crates/ipc/src/lib.rs` (`drain_waiters`,
-`remove_sender`), `crates/wake_handshake/src/lib.rs` (`park`, `abort`, `try_wake`), and
+`remove_sender`), `crates/thread_wake_handshake/src/lib.rs` (`park`, `abort`, `try_wake`), and
 `kernel/src/thread.rs`'s `WaitRole`.*
 
 ## The problem in one paragraph
