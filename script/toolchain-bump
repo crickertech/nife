@@ -13,9 +13,13 @@
 # farm, ready to commit; on failure it says what broke and leaves the old pin in place, because a
 # half-applied toolchain bump is worse than none.
 #
-# Name: unrecorded. Introduced 2026-07-30. A verb phrase where the tenet says noun, and the tenet's
-# rule is written for crates, programs and modules rather than for commands, which is arguably the
-# right exemption and is recorded nowhere.
+# Name: recorded (DECISIONS §134, which puts a `script/` entry point that *does* something in the
+# verb half). Introduced 2026-07-30. AGENTS.md's name-things-with-nouns rule is written for
+# crates, programs and modules and does not reach this directory, which §134 then made explicit by
+# splitting the family: the verbs are the ones that act (`verify`, `test`, `fuzz`, `bench`) and
+# this acts. What is left unsigned is the word order rather than the words. `<object>-<verb>` is
+# established here only by this script and `vendor-verify`, which is two scripts establishing each
+# other, and nothing weighs it against `bump-toolchain`. calef has not ratified it.
 
 set -e
 cd "$(dirname "$0")/.."

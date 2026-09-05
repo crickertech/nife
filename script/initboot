@@ -4,9 +4,18 @@
 # budget through the granular verbs; the kernel stops wiring services itself. Add --hvf for the
 # real Apple Silicon core. See design/init-and-granular-spawn.md.
 #
-# Name: unrecorded, and it is the one entry point in this directory that does not follow the tree's
-# own separator rule: two words run together, where milestone 63 made `script/` names hyphenated.
-# Introduced 2026-07-25 with milestone 19d.2c.
+# Name: provisional, and this lane proposes a rename to `init-boot`. Introduced 2026-07-25 with
+# milestone 19d.2c to boot with userspace init as the boot path. The name is not wrong about what
+# it does; it is the **one entry point in this directory of fifty-two that runs two words
+# together**, where every other multiword name is hyphenated and AGENTS.md's naming table makes
+# that the rule, because a shell command is hyphenated everywhere outside this project and an
+# underscore or a squish reads as a mistake. Milestone 63 made the rule and swept the tree on
+# 2026-08-01 and this one survived the sweep rather than being exempted by it. The same holds one
+# level along: `cargo xtask initboot` is likewise the only run-together subcommand beside
+# `shell-check`, `board-console`, `initrd-aarch64` and `std-src`, so the rename is two strings
+# rather than one. The Rust-side role it names is spelled `init_boot` in `user/src/hello.rs`,
+# which is the same two words under the same table's other row. Proposed, not performed: a rename
+# is calef's.
 set -e
 cd "$(dirname "$0")/.."
 exec cargo xtask initboot "$@"

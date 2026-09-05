@@ -8,8 +8,16 @@
 //! §26) against a real supervisor: a crash that must be restarted, and a clean exit that must not be.
 //! A program that only crashed would prove the restart but not the policy.
 //!
-//! Name: unrecorded. Introduced 2026-07-29 as a supervision fixture: a program that fails on
-//! purpose so a restart policy has something to restart.
+//! Name: provisional, and the second of the two adjectives on this surface (`chatty` is the
+//! other, from the day before). Introduced 2026-07-29 as a supervision fixture: attempt 0 crashes
+//! on purpose and any later attempt exits cleanly, which exercises both halves of the fault
+//! endpoint (DECISIONS §26) against a real supervisor. Nothing records the choice. The case, and
+//! it is weaker than `chatty`'s. "Flaky" is the field's established word for a test that fails
+//! intermittently, and this program does not fail intermittently: it fails deterministically,
+//! once, by attempt number. So the name borrows recognition it then contradicts, which is the
+//! opposite of what the protected class is for. A reader who knows the word arrives with the
+//! wrong model. `dies_once`, which is what the header calls it, is the shape a replacement would
+//! take.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

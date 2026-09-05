@@ -167,10 +167,14 @@
 //! program that will eventually hold a `DeviceFrame` capability for that address is future work.
 //! See the roadmap doc for exactly what is and is not ready for a customer to pick up.
 //!
-//! Name: unrecorded, provisional (introduced 2026-08-24 by milestone 159's lane). Chip-qualified
-//! and unambiguous rather than generic (`trng` alone would be the "generic word that could name
-//! almost anything" AGENTS.md warns off), the same reasoning `nvme` and `pci` already establish for
-//! a spec-named device. calef has not ratified it; see `Cargo.toml`'s header for the same note.
+//! Name: provisional. Introduced 2026-08-24 by milestone 159's lane. Chip-qualified and
+//! unambiguous rather than generic, since `trng` alone would be the "generic word that could name
+//! almost anything" AGENTS.md warns off, and this is the reasoning `nvme` and `pci` already
+//! establish for a spec-named device. The 2026-09-05 acronym test reaches the stem: true random
+//! number generator is more informative than `trng` and the acronym is not one a reader outside
+//! hardware carries, so this is a candidate for the acronym sweep notes/naming.md puts in its own
+//! milestone rather than a name to settle here. calef has not ratified it; see `Cargo.toml`'s
+//! header for the same note.
 //!
 //! [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
 //! [driver]: https://github.com/torvalds/linux/blob/master/drivers/char/hw_random/jh7110-trng.c

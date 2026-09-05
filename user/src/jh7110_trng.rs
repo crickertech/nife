@@ -101,9 +101,12 @@
 //!
 //! [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
 //!
-//! Name: unrecorded, provisional (introduced 2026-08-24 by milestone 159's lane), matching the
-//! crate it is the volatile shell over (`jh7110_trng`), the way `coremark` and `line_editor` share
-//! a crate's name with the program built from it. calef has not ratified it.
+//! Name: provisional. Introduced 2026-08-24 by milestone 159's lane, matching the crate it is the
+//! volatile shell over (`jh7110_trng`), which is the deliberate crate-and-program pair AGENTS.md
+//! describes: the crate is the logic, host-tested and reachable by the prover, and the program
+//! keeps the IO. Splitting the two names would hide that relationship. The chip qualifier is the
+//! same argument the crate makes and is not repeated here. calef has not ratified it; see the
+//! crate's header for the refusals.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

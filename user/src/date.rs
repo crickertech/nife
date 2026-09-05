@@ -87,9 +87,11 @@
 //! - **No `strftime`.** Five named formats, because a format-string interpreter is a second parser
 //!   with runtime errors in a program that has no allocator (notes/calendar.md).
 //!
-//! Name: unrecorded. Introduced 2026-07-31. A short name for a command a person types, which the
-//! tenet makes a choice its author makes rather than a convention to apply; nothing records the
-//! choice being made.
+//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+//! outside"). Introduced 2026-07-31. The Unix command's own name, and a plain noun, so it
+//! satisfies the protected class and the name-things-with-nouns rule at once and there was
+//! nothing left to decide. The reasoning is the general rule rather than a ruling on this string,
+//! which is what `recorded` means and is why this is not claimed as ratified.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

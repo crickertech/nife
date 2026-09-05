@@ -1,9 +1,13 @@
-# Name: unrecorded, and the weakest of the four structural ones. `user` is the package holding every
-# EL0 program, so it is named for the privilege level its contents run at, which a reader meets as
-# `user/src/<program>.rs` far more often than as a package name. It is generic in the way AGENTS.md
-# flags (`compose`, `measure`, `regions` were all renamed away from words like it), and it survives on
-# the same argument `kernel` does: position supplies the meaning and the name appears in one manifest.
-# If any of these four wants revisiting, this is the one.
+# Name: provisional, and the weakest of the four structural package names. `user` is the package
+# holding every EL0 program, so it is named for the privilege level its contents run at, which a
+# reader meets as `user/src/<program>.rs` far more often than as a package name. That positional
+# argument is the whole case and it is the same one `kernel` rests on. The difference, and it is
+# why this one is provisional where `kernel` is recorded: `kernel` is a standard term a reader
+# knows from outside, and `user` is a **generic word** of the kind AGENTS.md flags, since
+# `compose`, `measure`, `regions`, `slots`, `caps` and `frames` were all renamed away from words
+# like it. It survives on position supplying the meaning and on the name appearing in exactly one
+# manifest. If any of the four wants revisiting, this is the one, and the replacement would say
+# what the package holds (`programs`, or the privilege level spelled out) rather than who runs it.
 
 [package]
 name = "user"

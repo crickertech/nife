@@ -153,9 +153,15 @@
 //!   for more known answers; this crate answers it immediately. Harmless (an extra response), and
 //!   recorded so nobody mistakes the omission for a decision.
 //!
-//! Name: unrecorded. Provisional, minted by milestone 55's mDNS lane on 2026-08-15. The `_proto`
-//! suffix is the tree's rule for a wire contract (notes/naming.md); the stem is the protocol's own
-//! name (RFC 6762), the same derivation that produced `ntp_proto`. Not yet put to calef.
+//! Name: provisional. Minted by milestone 55's mDNS lane on 2026-08-15. The `_proto` suffix is
+//! the tree's rule for a wire contract (notes/naming.md), and that half is settled; the stem is
+//! the protocol's own name from RFC 6762, the same derivation that produced `ntp_proto`, which
+//! calef ratified on 2026-08-23. The 2026-09-05 acronym test reaches the stem and does not
+//! resolve here: mDNS expands to multicast DNS, whose second word is itself an acronym, so a full
+//! spelling runs to `multicast_domain_name_system_proto` and has stopped teaching well before it
+//! ends. That question belongs to the acronym sweep notes/naming.md puts in a milestone of its
+//! own, since `ipc` and the other four have to move together or not at all. calef has not
+//! ratified it.
 
 use core::cmp::Ordering;
 

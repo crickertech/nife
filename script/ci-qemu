@@ -25,8 +25,12 @@
 # Idempotent: if the prefix already holds the wanted version (a warm cache), it does nothing, which is
 # what makes it cheap to call unconditionally.
 #
-# Name: unrecorded. Introduced 2026-07-30. It follows `ci-build`'s hyphenated shape, which milestone
-# 63 later made a rule, but nothing records the choice.
+# Name: recorded (AGENTS.md's naming table, which makes `script/` entry points hyphenated, and the
+# sibling `ci-build` this was formed against). Introduced 2026-07-30. Both halves are standard
+# terms a reader brings with them, and the `ci-` prefix says which machine is meant to run it,
+# which is the distinction that matters at a glance beside `script/test`. The hyphen was this
+# directory's practice before milestone 63 made it a rule on 2026-08-01, and this script is part
+# of what that rule was describing. calef has not ratified it.
 
 set -e
 cd "$(dirname "$0")/.."
