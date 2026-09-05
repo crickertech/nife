@@ -253,7 +253,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // runs; `arch::iommu::init` itself is called later, once the fine map it needs exists.
         //
         // **It moved above the PCI block on 2026-09-04** (milestone 256) and the order is now
-        // load-bearing rather than incidental: `arch::mmu::bar_window` takes the windows this
+        // load-bearing rather than incidental: `arch::mmu::memory_mapped_io_window` takes the windows this
         // kernel already knows about out of the hole it picks a BAR window from, and VT-d's
         // register file is one of them. Recorded afterwards, it would be a window the choice below
         // could not see.
@@ -265,7 +265,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // look: `memory::pci_regions()`, the same static a device-tree machine fills from its
         // `pci-host-ecam-generic` node. No MCFG, no PCI at all, the same treatment the other two
         // architectures give a tree with no such node. The BAR window has no ACPI or AML source
-        // and is derived from the machine instead (`arch::mmu::bar_window`, milestone 256).
+        // and is derived from the machine instead (`arch::mmu::memory_mapped_io_window`, milestone 256).
         match acpi.ecam {
             // The MCFG's base is the configuration space of its FIRST bus, and `pci.rs` addresses a
             // function as `base + (bus << 20 | ...)` with an absolute bus number. Those agree only
@@ -288,7 +288,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 // with it would be placing device registers over memory the allocator owns. The
                 // message is the whole diagnosis, because the machine that produces it has no
                 // serial cable and a photograph of the screen is the entire transcript.
-                let bar = match arch::mmu::bar_window(ecam) {
+                let bar = match arch::mmu::memory_mapped_io_window(ecam) {
                     Ok(window) => window,
                     Err(why) => panic!("no PCI BAR window on this machine: {why}"),
                 };

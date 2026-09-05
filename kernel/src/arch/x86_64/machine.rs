@@ -804,7 +804,7 @@ const INTEL_VENDOR: u32 = 0x8086;
 ///   chipset would answer with a plausible-looking address, and `None` is the better answer than
 ///   a number nobody checked. QEMU's `q35` models neither (both offsets read zero, measured
 ///   2026-09-04 on QEMU 11.1.1 under PVH *and* under OVMF), so under emulation this is always
-///   `None` and the firmware memory map is the only source. See [`super::mmu::bar_window`].
+///   `None` and the firmware memory map is the only source. See [`super::mmu::memory_mapped_io_window`].
 ///
 /// **Name provisional**: calef names the functions, and this one was minted by a lane. It is the
 /// register's own expansion spelled out (`TOLUD` is "top of low usable DRAM"), on the same

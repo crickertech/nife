@@ -818,11 +818,17 @@ reads to understand the shape of the system.
 
 The crate names have the same three failure modes the programs did. **Abbreviations** that need a
 decoder (`capsh`, `uheap`, `vt`). **Generic words** that could name almost anything in an operating
-system (`compose`, `measure`, `regions`, `slots`, `caps`, `frames`). And **standard terms that are
-genuinely right** and should not be touched (`elf`, `pci`, `dtb`, `gpt`, `ipc`, `paging`, `glob`,
-`asid`), because renaming those would cost a reader the recognition the whole tenet exists to buy.
-That last group matters: this rule is not a licence to rename everything, and a name a reader already
-knows from outside this project is the best name available.
+system (`compose`, `measure`, `regions`, `slots`, `caps`, `frames`). And **standard terms a reader
+already knows from outside**, which are the best names available (`elf`, `pci`, `paging`, `glob`).
+That group matters: this rule is not a licence to rename everything.
+
+**An acronym is spelled out unless its expansion teaches nothing** (calef, 2026-09-05). The test is
+an asymmetry, and it is why the old list was wrong: **a reader who knows the term recognises its
+expansion instantly, so spelling it out costs the expert nothing and saves the newcomer a bounce.**
+`pci` expands to peripheral component interconnect and the reader is no wiser, so it stays. `dma`
+expands to direct memory access and the reader now knows what the crate guards, so it goes. **This
+deratifies `dma_validator`**, ratified 2026-08-01 before the test existed; `dtb`, `gpt`, `ipc` and
+`asid` sit the same way, and notes/naming.md carries the sweep and the case for each.
 
 **Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
 takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,
