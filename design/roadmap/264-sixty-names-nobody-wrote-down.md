@@ -1,11 +1,12 @@
 # 264. Sixty names the history cannot justify, and the research that would let calef rule on them
 
-**Status: NOT-STARTED.** Minted 2026-09-05 by calef, after measuring the naming backlog rather than
-working through it. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT** 2026-09-05. Minted the same day by calef, after measuring the naming backlog
+rather than working through it. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Reading the history of names that already exist. Nothing waits on it and it blocks
-nothing, which is `script/names --unratified`'s own design: a worklist rather than a wall, so an
-unratified name never fails anybody's build.
+It gated on nothing while it ran, which is `script/names --unratified`'s own design: a worklist
+rather than a wall, so an unratified name never fails anybody's build. `script/names --unratified`
+now reports **zero unrecorded**, which was this block's own proof condition and is checkable by
+anyone who doubts the paragraph.
 
 ## The measurement that scoped it
 
@@ -79,6 +80,68 @@ prepared; adding to their argument is not this lane's business.
 with its reason or moved to provisional with a case. The count is the deliverable and it is
 mechanically checkable, which is unusual for a documentation milestone and worth having.
 
+## What it found
+
+**The counts, of the 60.** 28 became `recorded`, 32 became `provisional`, and 5 of the 32 carry a
+proposed rename. The tree-wide table moved from 9 recorded to 37 and from 60 unrecorded to 0; the
+provisional tier grew from 31 to 63, which is the point rather than a side effect, since a
+provisional name is one calef can rule on in a read and an unrecorded one is not.
+
+**The number that is honest rather than flattering: 10.** Ten of the sixty had nothing in the tree
+justifying them beyond the date they appeared, so the case beside them is this lane's own reading and
+is labelled as such. They are `budgeter`, `heeder`, `spinner`, `outlaw`, `chatty`, `flaky`, `worker`,
+`driver`, `gates` and the `user` package. The BUGS section below predicted this and was right about
+its existence; the size is smaller than the prediction implied.
+
+### The shape: a third of the worklist was a sorting bug, not a research gap
+
+**21 of the 60 already held a complete argument, refusals included, and said "provisional" in their
+own prose while carrying `unrecorded` as their status token.** `script/names` was built with two
+states and gained `recorded` and `provisional` afterwards, precisely because "nobody can say why this
+is called that" and "here is the argument, nobody signed it" are different amounts of calef's time.
+Nothing swept the blocks written before the third state existed, so they kept saying the old word.
+
+That is worth more than the twenty-one sentences it cost to fix. The worklist over-reported its
+hardest tier by roughly a third, which made the backlog look worse than it was, and it interleaved
+prepared names with unprepared ones in the one report whose entire job is telling them apart. A
+reader of `--unratified` on 2026-09-04 could not see which twenty-one were a read and which were a
+research task, which is the failure the three states were introduced to prevent.
+
+**The general form, and the one to watch for elsewhere: a vocabulary change swept the tool and not
+the records the tool reads.** `script/names --check` gates on the presence of a block and on its
+first token parsing, never on the token being the right one, and the header says so under BUGS. So
+nothing could have caught this, and nothing would have caught it next time either.
+
+### The second shape: a name is usually argued by the lane that refused it for something else
+
+The 28 `recorded` outcomes were not found in the places one would look. Almost none came from an
+introducing commit or from a milestone block about the thing itself. They came from lanes arguing
+about a **different** name and reaching for this one as evidence:
+
+- Milestone 63 settled `credentialer` by departing from the `clock`/`entropy` resource pattern and
+  saying why the departure was earned, which is an argument for the pattern it departed from. That
+  one sentence recorded two names it was not about.
+- `system_initializer`'s ratification refused `system_builder` twice to protect the phrase
+  `builder.rs` uses about itself, so the tree reasoned about `builder` by twice declining to give it
+  away.
+- DECISIONS §134, naming `script/falsifications`, wrote down the `script/` family's verb-and-noun
+  split that nobody had recorded and listed `names`, `citations`, `decisions`, `roadmap`, `coverage`
+  and `bench` as the evidence the family existed. Six names settled by a decision about a seventh.
+- `undefined-behavior-check`'s ratification established the `-check` suffix and cited `qemu-check`
+  and `shell-check` by name while doing it.
+
+So **`script/names --refused` is also an index of implicit justifications**, and it is currently read
+as only half of that. The refusals are the valuable half for the question "has this been proposed
+before"; they turn out to be the valuable half for "why is this called that" as well, because the
+place a name gets argued hardest is the moment somebody wants it for something else.
+
+### The third shape: the backlog is almost exactly "named before the mechanism existed"
+
+Of the 60, **33 were introduced between 2026-07-14 and 2026-08-03**, and milestone 115 built
+`script/names` on 2026-08-04. Every one of the later entries is either a chip driver from the RISC-V
+board work or one of the 21 mis-tokened blocks above. The unrecorded tier is therefore not a habit
+this project still has; it is the sediment from before it had the habit, plus a token nobody swept.
+
 ## BUGS
 
 - **A recorded name is not a ratified one**, and this milestone deliberately does not reduce what
@@ -94,3 +157,74 @@ mechanically checkable, which is unusual for a documentation milestone and worth
 - **It touches ~60 files across `user/src/`, `crates/`, `script/` and `Cargo.toml`s**, so it collides
   with almost anything. It should run when the tree is quiet, the same scheduling constraint
   milestone 91 carries.
+
+## Follow-on
+
+Five renames are proposed and none is performed, which is the split this block set out: milestone 63
+did the renaming and this writes down why the survivors survived. **Each case lives in the provenance
+block beside the name it is about**, which is milestone 115's mechanism and the reason none of these
+needs a file of its own; what is listed here is where to read it and what happens if calef says no.
+
+- **Recorded.** **`crates/cred` wants its name spelled out, as `credential`**, in that crate's header. The
+  strongest of the five, because the evidence is calef's own hand moving the other way twice: he
+  ratified `credentialer` in full on 2026-08-01 and renamed `cred_proto` to `credential_proto` on
+  2026-08-23 with the reason recorded as "spell out the contraction fully". This crate is that same
+  contraction, left behind by both sweeps rather than exempted by either, so one word is now spelled
+  two ways across three things that are the same thing. `kbd` to `keyboard_driver` on 2026-08-27 is
+  the same shape a third time. The seventh question, in its own words: if renaming and keeping cost
+  the same, nothing would keep `cred`, so the only argument for it is effort. If he says no, the tree
+  keeps a contraction his own two rulings rejected, and `script/lint`'s `-d` allow-list keeps carrying
+  the exemption that is currently the name's only written reason.
+- **Recorded.** **`crates/user_rt` wants its name spelled out, as `user_runtime`**, in that crate's header. The
+  `rt` half has never been weighed against `runtime` by anyone, and the crate's own first line spells
+  it out. The `user_` half is on the record only because `user_heap`'s ratification cites *this crate*
+  as establishing the prefix, which is a circle rather than a reason, so ruling here settles half a
+  convention rather than one name. Same precedent as `cred`. If he says no that is cheap, but the
+  circle wants breaking out loud, because the next lane to reach for a `user_` prefix will cite
+  `user_heap` citing `user_rt`.
+- **Recorded.** **`user/src/driver.rs` wants a device in its name**, in that program's header. It is
+  the fourth driver in that directory and the only unqualified one, beside `block_driver`,
+  `gpu_driver` and `keyboard_driver`, and `keyboard_driver` is the precedent since it was `kbd` until
+  2026-08-27. This one drives the NS16550 for interrupt-driven console input, so the case is for
+  `serial_driver`, with `uart_driver` the alternative and the 2026-09-05 acronym test the reason to
+  prefer the first; `console_driver` is refused because `console` is already a program. If he says
+  no, a reader who has correctly inferred the `<device>_driver` scheme still cannot tell what this
+  drives, which is the `dwarden` failure AGENTS.md cites as the evidence the naming rule was needed.
+- **Recorded.** **`script/initboot` wants the hyphen every sibling has, as `init-boot`**, in that script's header. It is
+  the one entry point of fifty-two that runs two words together, and it survived milestone 63's
+  2026-08-01 hyphenation sweep rather than being exempted by it. `cargo xtask initboot` is likewise
+  the only run-together subcommand beside `shell-check`, `board-console`, `initrd-aarch64` and
+  `std-src`, so the change is two strings. The reversible half of the naming rule, and cheap.
+- **Recorded.** **`script/shell-check` wants a name that is not one hyphen from `shellcheck`**, in
+  that script's header. `shellcheck` is the shell linter `script/lint` itself runs, so two names
+  differ by punctuation while naming unrelated things. Compounding it, notes/naming.md's BUGS already
+  records that `shell` no longer names any program here, because the shell is `swish`. The case is
+  for `swish-check`, naming the program actually driven, with `prompt-check` the alternative if he
+  would rather name the surface. Two loose ends the rename carries without closing: the cargo feature
+  is spelled `shell`, and `cargo xtask shell-check` is the same string one level along.
+- **Proposed.** `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md`. The 2026-09-05
+  acronym test reaches at least seven of the sixty and this milestone deliberately settled none of
+  them, because notes/naming.md already says the sweep is its own milestone and one lane spelling one
+  acronym out would leave a program disagreeing with a crate calef ratified. Each affected block asks
+  the question and records the answer as open.
+- **Proposed.** `design/roadmap/proposals/a-provenance-token-that-agrees-with-its-own-prose.md`. The
+  21-block sorting bug this milestone found was invisible to every gate, because `script/names
+  --check` validates that a block's leading token parses and never that it is the right one. A block
+  saying "provisional" or "not yet put to calef" in prose while its token says `unrecorded` is
+  mechanically detectable, and it is a false entry in the one record whose job is saying what is
+  prepared.
+- **Recorded.** **`user/src/hello.rs` carries the `init_boot` role on aarch64 and the name does not
+  say so**, in that program's own block. Not proposed as a rename: `hello` is right for what it was
+  and the gap is that the thing grew, which is a fact to record rather than a naming error.
+- **Recorded.** **`script/gates` is DECISIONS §134's one clear exception**, a noun that acts where
+  the family's rule gives nouns to things that report. Stated in its header rather than resolved,
+  because both verb forms are worse: `check` collides with the `-check` suffix eight scripts already
+  carry, and `gate` singular would name one of three.
+- **Recorded.** **`flaky` borrows a word it then contradicts**, in its own block. The field's term
+  means a test that fails intermittently; this program fails deterministically, once, by attempt
+  number, so a reader who knows the word arrives with the wrong model. No rename proposed, because
+  the replacement is a design question rather than a spelling one, and `chatty` beside it raises the
+  same adjective question, which is one ruling rather than two.
+
+The 31 names that were already `provisional` on 2026-09-05 are untouched on purpose: they are
+prepared, and adding to their argument is not this milestone's business.
