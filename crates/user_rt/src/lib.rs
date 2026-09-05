@@ -118,13 +118,18 @@
 //! counter frequency at all**, which is why [`cntfrq`] carries a `BUGS` section rather than a number
 //! with a comment. Everything else is the same three instructions in a different spelling.
 //!
-//! Name: unrecorded, and half-argued in the way that keeps it that way. Milestone 63 treats
-//! `user_` as settled precedent while renaming `uheap`: "the `u` was *userspace*, and `user_rt`
-//! already establishes `user_` as the prefix for it." So the prefix is on the record because this
-//! crate established it, which is a circle rather than a reason. The `rt` half is an
-//! **abbreviation**, the first of the naming tenet's three failure modes, and nothing weighs it
-//! against `runtime`. Introduced 2026-07-25 when the shared EL0 runtime was lifted out; the
-//! decision here is worth more than one name, because half a convention rests on it.
+//! Name: provisional, and this lane proposes a rename to `user_runtime`. Introduced 2026-07-25
+//! when the shared EL0 runtime was lifted out of five binaries that had copied it verbatim. It is
+//! half-argued in a way that keeps it unargued: milestone 63 ratified `user_heap` over `uheap` on
+//! the ground that "`user_rt` already establishes `user_` as the prefix", so the prefix is on the
+//! record because this crate established it, which is a circle rather than a reason. The prefix
+//! is fine on its own merits and is not what is at issue. The `rt` half is, and nothing in the
+//! tree has ever weighed it against `runtime`: it is an **abbreviation that needs a decoder**,
+//! the first of the three failure modes AGENTS.md lists, and the crate's own first line spells it
+//! out ("the tiny EL0 runtime shared by nife userspace programs"). The precedent is `cred_proto`
+//! to `credential_proto`, ratified 2026-08-23 for "spell out the contraction fully". This
+//! decision is worth more than one name, because half a naming convention rests on it. Proposed,
+//! not performed.
 
 #![no_std]
 

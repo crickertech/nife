@@ -74,8 +74,10 @@
 # with it, leaving half a sentence spliced onto the next. Corrected by milestone 252's lane, which
 # was reading the header to add to it.)
 #
-# Name: unrecorded. Introduced 2026-07-30 with the status vocabulary and its gate. Named for the
-# record it reads, like `script/decisions`.
+# Name: recorded (DECISIONS §134, which lists this script by name in the `script/` family's noun
+# half). Introduced 2026-07-30 with the status vocabulary and its gate. It reports rather than
+# does, so §134's split gives it a noun, and the noun is the record it reads, which leaves nothing
+# else to decide. calef has not ratified it.
 
 set -e
 

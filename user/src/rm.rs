@@ -42,9 +42,14 @@
 //! [`filesystem_proto::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
 //! and holds nothing that names an init, a terminal, or the filesystem above its grant.
 //!
-//! Name: unrecorded. Introduced 2026-07-31. The Unix command's own name, which the tenet's guard
-//! rail would keep anyway; the tenet also makes a short name for a typed command a choice its
-//! author makes rather than a convention, so there was no rule to apply.
+//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+//! outside"). Introduced 2026-07-31. The Unix command's own name, so the protected class keeps it
+//! and a rename would spend a newcomer's recognition to buy nothing. It is a shortening rather
+//! than an acronym, so the acronym test set on 2026-09-05 does not reach it; read as one anyway,
+//! "remove" is what a reader already takes from `rm`, which is that test's own criterion for an
+//! expansion that teaches nothing. The tenet also makes a short name for a typed command a choice
+//! its author makes rather than a convention to apply, so no rule was skipped here because none
+//! applied.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

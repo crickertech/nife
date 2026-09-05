@@ -16,7 +16,16 @@
 # Cheapest first, so a formatting slip costs twenty seconds rather than ten minutes. See
 # notes/scripts.md.
 #
-# Name: unrecorded. Introduced 2026-08-03 as one command for the three a pull request must pass.
+# Name: provisional, and it sits on the wrong side of a line that was drawn after it. Introduced
+# 2026-08-03 as one command for the three a pull request must pass, after a change was pushed
+# having run two of them. DECISIONS §134 later wrote the `script/` family's rule down: what *does*
+# something takes a verb and what *reports* takes a noun. This is a noun and it does something,
+# running three gates in cheapest-first order, so it is the family's one clear exception. The case
+# for keeping it anyway: the noun names the set rather than the act, which is what makes it
+# memorable at the moment it is needed, and the verb forms are all worse, since `check` collides
+# with the `-check` suffix eight scripts here already carry and `gate` in the singular would name
+# one of three. calef has not ratified it, and the exception is worth his attention rather than a
+# quiet pass.
 
 set -e
 cd "$(dirname "$0")/.."

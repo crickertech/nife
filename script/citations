@@ -75,11 +75,14 @@
 #   script/citations           report: every citation, classified
 #   script/citations --check   validate; non-zero on a problem (wired into script/lint)
 #
-# Name: unrecorded. Provisional, minted by milestone 97's lane on 2026-08-04 and not yet put to
-# calef. Named for the thing it reads rather than for the act, in the family of `script/roadmap`,
-# `script/decisions` and `script/names`. This block was added at merge rather than by that lane: the
-# provenance gate arrived from milestone 115 in a *different* pull request, so both were green apart
-# and red together, and `main` was briefly red until it was noticed. See notes/naming.md.
+# Name: recorded (DECISIONS §134, which cites this name as the shape a later report should match).
+# Introduced by milestone 97's lane on 2026-08-04. §134 puts it in the noun half of the `script/`
+# family and then reaches for it as the model, settling `script/falsifications` on the ground that
+# "the name matches `citations` in shape", which is the tree using this name to decide another
+# one. The stem is the thing it reads. This block was added at merge rather than by that lane: the
+# provenance gate arrived from milestone 115 in a *different* pull request, so both were green
+# apart and red together, and `main` was briefly red until it was noticed. calef has not ratified
+# it.
 
 set -e
 

@@ -53,9 +53,12 @@
 #   script/decisions           print the index, grouped by status
 #   script/decisions --check   validate; non-zero on a problem (wired into script/lint)
 #
-# Name: unrecorded. Introduced 2026-07-30 with the decision index. It is named for the record it
-# reads, as `script/roadmap` is; nothing records the choice, and neither of the two carries a verb,
-# which is the tenet's rule arrived at without being cited.
+# Name: recorded (DECISIONS §134, which writes the `script/` family's split down). Introduced
+# 2026-07-30 with the decision index. §134 states the rule nobody had recorded until then: what
+# *does* something in this directory takes a verb (`verify`, `test`, `fuzz`, `bench`) and what
+# *reports* takes a noun, and it lists this script by name in the noun half beside `names`,
+# `citations`, `roadmap`, `coverage` and `mutation`. The stem raises no second question, because
+# the noun is the record it reads. calef has not ratified it.
 
 set -e
 
