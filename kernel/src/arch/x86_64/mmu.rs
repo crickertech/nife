@@ -677,6 +677,201 @@ fn firmware_fill_ceiling(mut spans: impl FnMut(&mut dyn FnMut(u64, u64))) -> u64
     }
 }
 
+/// **The floor and the ceiling of the 32-bit MMIO hole, from the firmware's memory map alone**
+/// (milestone 256).
+///
+/// The floor is [`firmware_fill_ceiling`]: the point where the map stops describing memory
+/// contiguously upward from the low megabyte, which is where DRAM and the carve-outs taken out of
+/// it end. The ceiling is the next thing the map does describe above that, because whatever it is
+/// (a reserved window, the ECAM aperture, the flash at the top of the address space) it is not
+/// space for this kernel to place a BAR in. A map that describes nothing at all above the floor
+/// gives 4 GiB, which is where a 32-bit BAR stops being addressable anyway.
+///
+/// Pure in its argument, like [`firmware_fill_ceiling`] and for the same reason: the machine that
+/// makes this interesting has 16 GiB and cannot be booted under QEMU, so the map goes into the
+/// tests as a value (see `map_tests`).
+///
+/// # BUGS
+///
+/// **A gap in the firmware's map is not a promise that nothing decodes there.** It is only a
+/// promise that firmware did not call it RAM, which is the property that matters for not writing
+/// device registers over memory the allocator owns, and is strictly weaker than knowing what the
+/// host bridge routes. The MMIO hole on a real machine holds things no table this kernel reads
+/// will name; [`bar_window`] takes the windows it *does* know about out of the answer, and the
+/// ones it does not know about are the residual risk this note exists to name.
+fn firmware_mmio_hole(mut spans: impl FnMut(&mut dyn FnMut(u64, u64))) -> (u64, u64) {
+    let floor = firmware_fill_ceiling(&mut spans);
+    let mut ceiling = FOUR_GIB;
+    spans(&mut |start, end| {
+        if end > floor && start > floor && start < ceiling {
+            ceiling = start;
+        }
+    });
+    (floor, ceiling)
+}
+
+/// One past the last address a 32-bit BAR can name.
+const FOUR_GIB: u64 = 0x1_0000_0000;
+
+/// **The lowest `size`-aligned span of `size` bytes inside `lo..hi` that overlaps nothing in
+/// `avoid`**, or `None` when the hole has no such room.
+///
+/// Alignment is `size` rather than a page, because that is what a BAR register can express: the
+/// writable bits of a BAR encode its size, so its address has to be a multiple of it, and a window
+/// that begins at an address the BARs inside it cannot be aligned to wastes its own first bytes.
+///
+/// `avoid` is enumerated once per candidate rather than sorted, which is quadratic in a list that
+/// has never had more than five entries in it (the framebuffer, the ECAM aperture, both APICs and
+/// VT-d's register file). The bound on the outer loop is what keeps that honest: each step moves
+/// the candidate strictly past the end of something it collided with, so it runs at most once per
+/// entry in `avoid` plus one.
+fn window_in_hole(
+    lo: u64,
+    hi: u64,
+    size: u64,
+    mut avoid: impl FnMut(&mut dyn FnMut(u64, u64)),
+) -> Option<u64> {
+    let mut candidate = lo.next_multiple_of(size);
+    loop {
+        if candidate + size > hi {
+            return None;
+        }
+        // The furthest end of anything this candidate runs into. Taking the furthest rather than
+        // the first means one pass per collision group instead of one per entry.
+        let mut past = candidate;
+        avoid(&mut |start, end| {
+            if end > start && start < candidate + size && end > candidate && end > past {
+                past = end;
+            }
+        });
+        if past == candidate {
+            return Some(candidate);
+        }
+        candidate = past.next_multiple_of(size);
+    }
+}
+
+/// **Why [`bar_window`] could not answer.** Each arm is a machine this kernel does not know how to
+/// place a BAR on, and every one of them is a panic rather than a fallback: the constant this
+/// replaced was right on emulated machines and was RAM on the first real one, so falling back to
+/// it would be the original bug wearing the clothes of a graceful degradation. Milestone 215 took
+/// the same posture for the analogous case (no MCFG means no PCI, and deliberately no legacy
+/// fallback).
+///
+/// **Name provisional**: calef names the types, and this one was minted by a lane.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarWindowError {
+    /// The boot structure could not be re-read, so there is no memory map to find a hole in.
+    NoMemoryMap,
+    /// **The two sources disagree.** The firmware's map stops describing memory at one address and
+    /// the host bridge's `TOLUD` names another. One of them is wrong about this machine and
+    /// nothing here can tell which, so neither is used.
+    Disagreement { map: u64, tolud: u64 },
+    /// The hole is real and has no room left in it for a window of the size asked for, once the
+    /// windows this kernel already knows about are taken out of it. On xenon the framebuffer
+    /// aperture sits at the very floor of the hole, so this arm is closer than it looks.
+    NoRoom { lo: u64, hi: u64, size: u64 },
+}
+
+impl core::fmt::Display for BarWindowError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            BarWindowError::NoMemoryMap => write!(f, "no firmware memory map to read a hole from"),
+            BarWindowError::Disagreement { map, tolud } => write!(
+                f,
+                "the firmware map stops describing memory at {map:#x} but the host bridge's \
+                 TOLUD says {tolud:#x}"
+            ),
+            BarWindowError::NoRoom { lo, hi, size } => write!(
+                f,
+                "no {size:#x}-byte window free inside the MMIO hole {lo:#x}..{hi:#x}"
+            ),
+        }
+    }
+}
+
+/// **Where this machine's PCI BARs may go, asked of the machine rather than assumed** (milestone
+/// 256).
+///
+/// This replaced `PCI_BAR_PHYS`, a hardcoded `0xc000_0000` that was q35's conventional 32-bit PCI
+/// hole and was checked once, against QEMU's own `info mtree` at `-m 256M`. On xenon (a Dell
+/// `OptiPlex` 7050, 16 GiB) low DRAM runs to `0xc894_0000`, straight through it, and the kernel
+/// panicked mapping a device window on top of memory it had already claimed. The panic was the
+/// lucky half: a machine whose RAM ended just below the constant would have had thirteen of
+/// fifteen functions relocated on top of memory the allocator believes it owns, and the failure
+/// would have arrived as corruption somewhere unrelated.
+///
+/// **Two sources, and they must agree.** The firmware's memory map names the gap
+/// ([`firmware_mmio_hole`]), and Intel's host bridge names the same boundary in `TOLUD`
+/// (`super::machine::top_of_low_dram`). When both answer and they differ, this returns
+/// [`BarWindowError::Disagreement`] and the boot stops; there is no arm that quietly picks one.
+///
+/// **A `TOLUD` that is absent is not a `TOLUD` that disagrees**, and the distinction is what lets
+/// this run under emulation at all: QEMU's `q35` does not model the register (measured
+/// 2026-09-04, zero on both the PVH and the OVMF path), so on that machine the firmware map is the
+/// only source and is used alone. That is not a fallback to the constant, which no arm of this
+/// function can reach: it is one of the machine's two answers rather than both.
+///
+/// `ecam` is passed in rather than read from `memory::pci_regions`, because the boot tour calls
+/// this in order to *fill* that static and it is empty until this answers.
+///
+/// **Name provisional** (this and [`firmware_mmio_hole`], [`window_in_hole`], [`BarWindowError`]):
+/// calef names the functions and the types, and these were minted by a lane. `bar_window` is a
+/// noun for the reason the tenet gives, and it is the name the retired `PCI_BAR_PHYS` already used
+/// for the thing in its own first line.
+pub fn bar_window(ecam: (u64, u64)) -> Result<(u64, u64), BarWindowError> {
+    let Some(info) = super::machine::boot_info(crate::DTB.load(Ordering::Relaxed)) else {
+        return Err(BarWindowError::NoMemoryMap);
+    };
+    let spans = |span: &mut dyn FnMut(u64, u64)| {
+        for i in 0..info.memmap_entries as usize {
+            let Some(e) = super::machine::memory_map_entry(&info, i) else {
+                break;
+            };
+            span(
+                e.addr & !(PAGE_SIZE - 1),
+                e.end().next_multiple_of(PAGE_SIZE),
+            );
+        }
+    };
+    let (lo, hi) = firmware_mmio_hole(spans);
+    if let Some(tolud) = super::machine::top_of_low_dram()
+        && tolud != lo
+    {
+        return Err(BarWindowError::Disagreement { map: lo, tolud });
+    }
+
+    // Everything this kernel already knows decodes inside the hole. The APICs and VT-d's register
+    // file are usually above it (on xenon all three are, and the hole ends at 0xf0000000), so most
+    // of this list costs nothing on most machines; the framebuffer is the one that earns it, and it
+    // earns it on the only real machine this port has met. xenon's aperture is at 0xd0000000, which
+    // is the floor of its hole *exactly*, so a window that took the floor and did not ask would
+    // have collided with the screen the panic would have been printed on.
+    let window = window_in_hole(lo, hi, PCI_BAR_MAPPED, |avoid| {
+        avoid(ecam.0, ecam.0 + ecam.1);
+        if let Some(apic) = super::irq::local_apic_phys() {
+            avoid(apic, apic + PAGE_SIZE);
+        }
+        if let Some(io_apic) = super::irq::io_apic_phys() {
+            avoid(io_apic, io_apic + PAGE_SIZE);
+        }
+        if let Some((base, size)) = memory::vtd_region() {
+            avoid(base, base + size);
+        }
+        if let Some((base, size)) = memory::framebuffer() {
+            avoid(base, base + size);
+        }
+    });
+    match window {
+        Some(base) => Ok((base, PCI_BAR_MAPPED)),
+        None => Err(BarWindowError::NoRoom {
+            lo,
+            hi,
+            size: PCI_BAR_MAPPED,
+        }),
+    }
+}
+
 /// **Every physical range the direct map covers, in the order [`map_everything`] builds them.**
 ///
 /// Split out from the mapping loop so that the failure path can ask the same question the mapping
@@ -763,8 +958,9 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
     });
 
     // The PCIe windows: bus 0 of the ECAM config space ACPI's MCFG named, and the BAR window the
-    // kernel assigns device registers from (hardcoded; see PCI_BAR_PHYS, which has no ACPI or AML
-    // source). Same shape as the other two architectures' `memory::pci_regions()` (a device-tree
+    // kernel assigns device registers from (derived from this machine's own memory map and host
+    // bridge; see `bar_window`, milestone 256, which has no ACPI or AML source to read instead).
+    // Same shape as the other two architectures' `memory::pci_regions()` (a device-tree
     // node there, ACPI's MCFG here, both recorded before this function runs): no window recorded,
     // no mapping, and every probe in `pci.rs` reports nobody home rather than touching MMIO that
     // was never confirmed present. The one-bus cap on the ECAM side is the same as the other two
@@ -1573,20 +1769,16 @@ pub const VIRTIO_SLOTS: u64 = 0;
 #[cfg_attr(not(test), allow(dead_code))]
 pub const VIRTIO_IRQ_BASE: u32 = 0;
 
-/// **Where PCI BARs are placed.** Unlike the ECAM window (ACPI's MCFG names it directly) there is
-/// no table this port can read for the BAR/MMIO window: on a real ACPI machine that address lives
-/// in the PCI host bridge's `_CRS` object, which is AML, and this port has no AML interpreter (see
-/// notes/x86-port.md, "What is deliberately not decoded"). Hardcoded to q35's conventional 32-bit
-/// PCI hole, confirmed disjoint from RAM, the ECAM window, the HPET and both APICs by reading
-/// QEMU's own `info mtree` on 2026-08-24 with `-m 256M` (nothing decodes
-/// `0xc000_0000..0xfec0_0000` until a BAR is placed there). **Exercised since milestone 215**: the
-/// runner attaches a `virtio-blk-pci` function, whose BARs arrive unassigned and are placed here,
-/// and whose MSI-X table is read and written through one of them.
-#[cfg_attr(not(test), allow(dead_code))]
-pub const PCI_BAR_PHYS: u64 = 0xc000_0000;
-
 /// Bytes of PCI BAR space the kernel maps for device registers, matching what the other two
-/// architectures reserve. 2 MiB covers every BAR QEMU hands out on this machine.
+/// architectures reserve. 2 MiB covers every BAR QEMU hands out on this machine, and since
+/// milestone 256 it is the size of the window rather than a slice of a larger one: **where** that
+/// window goes is [`bar_window`]'s answer and is the machine's, not a constant's.
+///
+/// It stays small on purpose. It only ever has to hold the BARs this kernel **places**, and a BAR
+/// the machine placed itself is adopted where it stands (`pci::place_bars`) rather than moved into
+/// here, so on real firmware almost nothing is drawn from it. Every byte of it is mapped with
+/// 4 KiB leaves at boot, which is this module's first recorded BUG, so a window sized for the
+/// whole MMIO hole would be page tables for hundreds of megabytes nothing decodes.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_BAR_MAPPED: u64 = 0x20_0000;
 
@@ -1701,6 +1893,103 @@ mod map_tests {
             ceiling(XENON) <= LOCAL_APIC_PHYS,
             "the local APIC is inside the cacheable fill again"
         );
+    }
+
+    /// **The hole xenon's BARs have to go in**, both ends of it, from the map alone.
+    ///
+    /// The floor is the same number [`the_fill_stops_below_the_devices_on_a_17_gib_machine`]
+    /// asserts and that is the point: one walk of the map answers "how far may the cacheable fill
+    /// follow memory" and "where does the MMIO hole start", because they are the same boundary
+    /// asked from the two sides. The ceiling is the next thing the firmware describes above it,
+    /// which on this machine is the reserved window at `0xf0000000`.
+    #[test_case]
+    fn the_mmio_hole_on_a_17_gib_machine_is_bounded_at_both_ends() {
+        let hole = super::firmware_mmio_hole(|span| {
+            for &(start, end, _) in XENON {
+                span(start, end);
+            }
+        });
+        assert_eq!(hole, (0xd000_0000, 0xf000_0000), "xenon's 32-bit MMIO hole");
+        assert!(
+            hole.0 > 0xc000_0000,
+            "the retired constant was 0xc0000000, and this machine's hole starts above it, \
+             which is the whole reason it is gone"
+        );
+    }
+
+    /// **The window steps over the screen**, which on this machine is at the floor of the hole.
+    ///
+    /// xenon's framebuffer is at `0xd0000000`, byte for byte where its MMIO hole begins, so a
+    /// derivation that took the floor and asked nothing else would put the first BAR it placed on
+    /// top of the console the panic would have been printed on. 1920x1080 at 4 bytes is `0x7e9000`,
+    /// and the next 2 MiB boundary above that is `0xd0800000`.
+    ///
+    /// **This is not only a prediction about a machine nobody here can boot.** The same collision
+    /// reproduces under OVMF on QEMU, whose framebuffer also sits at the floor of its hole, and the
+    /// boot line there reads `bar window 0x80400000..0x80600000` for the same reason.
+    #[test_case]
+    fn the_window_steps_over_a_framebuffer_at_the_floor_of_the_hole() {
+        const FB: u64 = 0xd000_0000;
+        const FB_END: u64 = FB + 1920 * 1080 * 4;
+        let at = super::window_in_hole(0xd000_0000, 0xf000_0000, 0x20_0000, |avoid| {
+            avoid(FB, FB_END);
+        });
+        assert_eq!(at, Some(0xd080_0000));
+        let at = at.expect("checked above");
+        assert!(at >= FB_END, "the window overlaps the screen");
+        assert_eq!(
+            at % 0x20_0000,
+            0,
+            "a BAR window must be aligned to its size"
+        );
+    }
+
+    /// With nothing in the way the window is the floor itself, which is what both QEMU paths do
+    /// when no aperture is in the first megabytes of the hole.
+    #[test_case]
+    fn an_empty_hole_gives_up_its_floor() {
+        let at = super::window_in_hole(0x1000_0000, 0xb000_0000, 0x20_0000, |_| {});
+        assert_eq!(at, Some(0x1000_0000));
+    }
+
+    /// **A hole with no room in it is refused rather than squeezed.** The caller panics on this,
+    /// which is the posture the whole milestone turns on: there is no arm that falls back to a
+    /// constant, because the constant is what put device registers on top of RAM.
+    #[test_case]
+    fn a_hole_with_no_room_answers_none() {
+        assert_eq!(
+            super::window_in_hole(0xd000_0000, 0xd010_0000, 0x20_0000, |_| {}),
+            None,
+            "a 1 MiB hole cannot hold a 2 MiB window"
+        );
+        assert_eq!(
+            super::window_in_hole(0xd000_0000, 0xd040_0000, 0x20_0000, |avoid| {
+                avoid(0xd000_0000, 0xd030_0000);
+            }),
+            None,
+            "the only aligned slot left starts past the end"
+        );
+    }
+
+    /// The two sources' disagreement is a sentence a person reads off a photograph, so it names
+    /// both numbers. Asserted for the same reason [`the_failure_names_both_ranges`] is.
+    #[test_case]
+    fn the_disagreement_names_both_sources() {
+        let mut s = Line::default();
+        core::fmt::write(
+            &mut s,
+            format_args!(
+                "{}",
+                super::BarWindowError::Disagreement {
+                    map: 0xd000_0000,
+                    tolud: 0xc000_0000,
+                }
+            ),
+        )
+        .expect("formatting cannot fail");
+        let line = s.as_str();
+        assert!(line.contains("0xd0000000"), "{line}");
+        assert!(line.contains("0xc0000000"), "{line}");
     }
 
     /// A machine whose RAM ends below the hole, which is every machine this tree had booted before

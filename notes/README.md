@@ -979,9 +979,12 @@ in the code or the conversation doesn't make sense, it belongs here.
 ## Design
 
 - [Why this isn't a general-purpose OS](why-not-general-purpose.md): what an application
-  would actually hit (no POSIX/libc, no writable FS, no network, no GUI), why that's a
-  deliberate teaching-subset choice rather than a limit of the model (Fuchsia is a
-  general-purpose capability microkernel), and what it would take to grow toward one.
+  actually hits today, rewritten 2026-09-05 when five of its six gap rows turned out to be
+  false (the writable FS, the network, the display and SMP all shipped, and milestone 121 ran
+  unmodified `ripgrep`). What is genuinely missing is now a short list headed by DNS, and the
+  page keeps the part that did not change: porting is deliberately hard because there is no
+  ambient authority, and the model is not the barrier (Fuchsia is a general-purpose capability
+  microkernel).
 - [RedoxFS std-footprint audit](redoxfs-audit.md): milestone 32's engine, costed by building
   it: the no_std core compiles for both bare-metal targets three imports away from clean, the
   Disk trait is a blk-IPC client's exact shape, and the one real cost (a userspace GlobalAlloc)
