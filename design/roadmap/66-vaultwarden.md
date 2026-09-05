@@ -23,17 +23,32 @@ Machine backups **and** their passwords is a home server, not an exhibit.
 
 | Gap | State today |
 |---|---|
-| **TCP listen and accept** | **absent from the contract.** `socket_proto` has `OP_CONNECT`, `OP_SEND`, `OP_RECV`, `OP_CLOSE`. There is no way to be a server. |
+| **TCP listen and accept** | **built, and this row said otherwise until 2026-09-05.** `OP_LISTEN` and `OP_ACCEPT` have been on the wire since milestone 107 (2026-08-04) and bound into `std`'s PAL by milestone 64. What remains is **concurrency, not the contract**: the backlog is one connection deep and two cannot be served at once, because the client blocks in one call at a time. For a web application that is the real limit. |
 | `std::thread` | 4 of 6 PAL functions answer `Unsupported` |
 | `std::fs` | 32 of 54 answer `Unsupported` (milestone 64) |
 | async runtime | none. Vaultwarden uses Rocket, which uses tokio: timers, wakers, and a reactor |
-| TLS | none. `rustls` needs entropy (have it) and a large crypto surface |
+| TLS | none, and there is still no crypto stack beyond `argon2`, `subtle` and `aes`. `rustls` needs entropy (have it) and a large crypto surface. The fork between `rustls` and a confined OpenSSL is `design/roadmap/proposals/a-tls-stack-and-which-one.md`; **server-side TLS is this block's, and client-side has three other consumers that do not need it to be a server** |
 | SQLite | a **C library**, so the §31 seam plus real filesystem locking |
 
-**The listen/accept gap is the interesting one**, because it is a design question rather than missing
-code. A listening socket is a *capability to accept connections on a port*, and `accept` mints a new
-capability per connection. That is a genuinely new shape in this contract, and it is where the
-capability model meets the server model for the first time.
+**The listen/accept question was the interesting one and it has been answered**, which is why the
+row above changed. A listening socket is a *capability to accept connections on a port* and `accept`
+mints a new capability per connection, and milestone 107 settled the shape: `bind` is `OP_LISTEN`,
+`accept` is `OP_ACCEPT` into a **second** socket id with a frame attached, and a listener carries no
+frame at all because a listener carries no bytes ([§25](../decisions/25-socket-identity.md)). The authority
+is a listen grant `net_stack` is spawned with, so the same binary is a client or a server depending
+on what it was given, and neither is a fallback.
+
+**This block had it wrong in two places and half-right in a third**, which is worth recording rather
+than quietly fixing. The gate line was corrected on 2026-08-15 (*"the MILESTONE 107 half cleared
+2026-08-04; found stale"*), and the gap table and this paragraph were not. That is §76's defect class
+exactly: a status fixed where somebody happened to look and left wrong where they did not. The gate
+gets read when ranking work and the table gets read when scoping it, so the two audiences saw
+different answers for three weeks.
+
+**The honest remaining gap is smaller and more specific than the one this block claimed.** Serving
+two connections at once wants userspace threads or a select-shaped wait, which is recorded in
+`notes/net.md` beside the verbs and is phase one of the concurrency model rather than a hole in the
+contract.
 
 ## Its relationship to the rest
 
