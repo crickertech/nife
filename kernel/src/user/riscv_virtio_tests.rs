@@ -165,12 +165,17 @@ fn the_page_tables_say_u_mode_cannot_read_the_kernels_memory() {
 fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
     use crate::arch::exceptions::ROUTED_IRQS;
 
+    // Sampled before the device is wired, not after: `ROUTED_IRQS` is bumped ahead of the
+    // `irq_notify` that wakes the driver, so a report proves the counter moved, and the only way
+    // this assertion can fail is a baseline taken after the completion. See
+    // notes/load-sensitive-assertions.md and the aarch64/x86_64 twin.
+    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
+
     let Some(report) = virtio_service::start(blk_image()) else {
         // No disk attached to this run. Nothing to test; do not fail.
         crate::testing::skip!("no virtio disk attached");
     };
 
-    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
     let word = sched::ipc_recv(report)[0];
 
     assert_eq!(
@@ -178,9 +183,11 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
         b"nife: re",
         "the driver reported the wrong file contents",
     );
+    let irqs_after = ROUTED_IRQS.load(Ordering::Relaxed);
     assert!(
-        ROUTED_IRQS.load(Ordering::Relaxed) > irqs_before,
-        "the read completed but no device interrupt was delivered as a message",
+        irqs_after > irqs_before,
+        "the read completed but no device interrupt was delivered as a message \
+         ({irqs_before} routed before the device was wired, {irqs_after} after the report)",
     );
 }
 
@@ -702,11 +709,16 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
 fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     use crate::arch::exceptions::ROUTED_IRQS;
 
+    // Sampled before the device is wired, not after: `ROUTED_IRQS` is bumped ahead of the
+    // `irq_notify` that wakes the driver, so a report proves the counter moved, and the only way
+    // this assertion can fail is a baseline taken after the completion. See
+    // notes/load-sensitive-assertions.md and the aarch64/x86_64 twin.
+    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
+
     let Some(report) = virtio_service::start_pci(blk_image()) else {
         crate::testing::skip!("no virtio-pci disk on the bus");
     };
 
-    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
     let word = sched::ipc_recv(report)[0];
 
     assert_eq!(
@@ -714,9 +726,11 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
         b"nife: re",
         "the driver reported the wrong file contents over pci",
     );
+    let irqs_after = ROUTED_IRQS.load(Ordering::Relaxed);
     assert!(
-        ROUTED_IRQS.load(Ordering::Relaxed) > irqs_before,
-        "the read completed but no INTx interrupt was delivered through the PLIC",
+        irqs_after > irqs_before,
+        "the read completed but no INTx interrupt was delivered through the PLIC \
+         ({irqs_before} routed before the device was wired, {irqs_after} after the report)",
     );
 }
 
