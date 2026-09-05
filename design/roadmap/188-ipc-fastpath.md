@@ -518,6 +518,50 @@ something, phase 4's option 1 (a fast path that still calls the proved `Rendezvo
 skips only the scheduler and the error plumbing) is aimed at 34% of the closure and is the one to
 build first.
 
+### E3 ran on radon, 2026-09-04, and it did not decide this
+
+**The paragraph above named the measurement that would settle phase 4, and the measurement came
+back confounded rather than positive or null.** The capture is in
+notes/footprint-perturbation.md; six boots, interleaved, on a `single_hart` card where the
+placement lottery cannot appear.
+
+| row | unpadded (3 boots) | padded (3 boots) | delta |
+|---|---|---|---|
+| `ipc_rtt` | 4259 · 4259 · 4259 | 4311 · 4310 · 4310 | +1.21% |
+| `call_reply` | 5015 · 5013 · 5013 | 5088 · 5089 · 5088 | **+1.49%** |
+| `ipc_rtt_el0` | 128606 · 128626 · 128615 | 124958 · 124391 · 124903 | **-3.01%** |
+
+Every separation is non-overlapping, with a within-condition spread of 0 to 2 units against gaps of
+74 and 3,865. On the arithmetic this is the row-1 outcome of the block's own routing table and
+phase 4 is justified.
+
+**It is not, because the third row is impossible.** The padded build is 3% *faster* on the round
+trip that crosses EL0, and the padding is never executed: it is reached through
+`core::hint::black_box` on a branch that is never taken. Resident dead code has no mechanism by
+which to make anything faster. What moved is the **layout**, and the layout effect is 193 ns where
+the footprint effect it is sitting on top of is 19 ns.
+
+**So the +1.49% on `call_reply` is a real difference between two binaries and is not evidence about
+two footprints.** E3 varies a Cargo feature, and a Cargo feature that inserts a symbol changes the
+address of everything after it. This is the Mytkowicz result (*Producing Wrong Data Without Doing
+Anything Obviously Wrong*, ASPLOS 2009) reaching our own bench data, and it was equally true of the
+2026-08-22 patagonia run; the small cache is what made it visible rather than what caused it.
+
+**Phase 4 therefore stays exactly where it was, and the reason is now sharper than "no evidence".**
+It is that the instrument built to produce the evidence cannot separate the effect from an artifact
+an order of magnitude larger. A second IPC path is a permanent verification obligation, and 19 ns
+under a 193 ns artifact is not what anyone should buy one with.
+
+**What would decide it is a layout control**, and it is cheap: run `fastpath_pad` at several sizes
+rather than as a boolean, because footprint predicts a monotonic dose response and layout does not.
+Written up as `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`.
+
+**One thing the session did settle, in phase 4's disfavour but not against it.** The board can now
+resolve these differences at all: `bench: cycles_per_tick 250.00` from milestone 74's riscv64 PMU,
+and a boot-to-boot spread of 0 to 2 units on a four-figure count. The methodological complaint
+nobody could answer on patagonia, that a small percentage might be a timer artifact, is answered.
+The measurement is precise. It is the attribution that is missing.
+
 ## Follow-on
 
 - **Recorded.** The closure half of `script/fastpath-footprint` counts bytes no IPC fetches, for the
@@ -530,9 +574,15 @@ build first.
   `kernel/src/arch/riscv64/fastpath_pad.rs` exist. In `script/fastpath-footprint`'s `BUGS` section.
   It blocks running milestone 134's E3 on xenon and not on radon, which is the machine that matters
   for the paragraph above.
-- **Proposed.** Run milestone 134's E3 (the footprint-perturbation experiment) on radon with
-  milestone 74's cycle counters, which is the measurement that decides phase 4.
-  `design/roadmap/proposals/e3-on-radon-with-real-cycles.md`.
+- **Done.** Run milestone 134's E3 (the footprint-perturbation experiment) on radon with
+  milestone 74's cycle counters, which this block named as the measurement that decides phase 4.
+  Run 2026-09-04, six interleaved boots; notes/footprint-perturbation.md. It did not decide phase 4,
+  for the reason the section above gives: the comparison cannot separate footprint from code layout,
+  and the layout artifact is ten times the footprint effect.
+- **Proposed.** A layout control for the perturbation experiments, which is what E3 now needs before
+  any reading of it can be attributed to footprint.
+  `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`. Until it exists,
+  no E3 number should be quoted as a footprint result, this block's included.
 - **Proposed.** DECISIONS §144's 16 KiB ceiling is stated over "the sum of `ipc_fastpath` and
   `syscall_entry`", and this milestone changed both terms. The honest subject is now
   `max(ipc_send_recv, ipc_call_reply) + syscall_entry`, which is what the gate prints as `total`,

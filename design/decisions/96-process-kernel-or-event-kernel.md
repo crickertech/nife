@@ -124,12 +124,57 @@ multi-tasking workload** (AIM7). Read that pairing carefully, because it is the 
 tripwire and milestone 132's footprint gate would all show approximately nothing. The one number that
 would move is the one we have no way to produce.
 
+**Update, 2026-09-04: half of that is now false, and the half that moved is the one this section
+said would not.** Milestone 134's E1 (IPC round trip against thread count) ran on radon, six boots
+on a `single_hart` card. It is still a micro-benchmark, so the paragraph above stands as written
+about AIM7. But it is a micro-benchmark **with a thread-count axis on a 32 KB L1i**, and it did not
+show approximately nothing:
+
+| threads | ns per round trip | vs 2 threads |
+|---|---|---|
+| 2 | 1152 | 1.00x |
+| 4 | 1189 | 1.03x |
+| 8 | 1377 | 1.20x |
+| 16 | 1938 | **1.68x** |
+| 32 | 1953 | 1.69x |
+| 64 | 1966 | 1.71x |
+| 96 | 1975 | 1.71x |
+
+**A 68% rise with the bend between 8 and 16 threads, then flat to 96** (the last four points span
+1.2%). That is the shape of a per-thread working set crossing a cache and then saturating, which is
+what a process kernel's per-thread kernel stacks would produce and what an event kernel's shared
+continuation would not. The same sweep on patagonia rose 8 to 11% across the whole range with no
+identifiable knee, which is the large-cache muting E1's own note predicted.
+
+**Two things stop this from answering the section, and both should be said before anyone quotes
+it.**
+
+**The workload is not in the regime.** E2's thread census found the customer path running 4 to 8
+threads, which is on the flat part *below* the knee, where the effect is 3 to 20% rather than 68%.
+Input 3's re-open trigger was written as *"a customer-path workload starts creating threads in the
+hundreds"*, and the measurement now says the trigger should have been **in the low tens**. That is
+a correction to the trigger, not a reason to pull it.
+
+**And the mechanism is inferred, not observed.** A knee at 16 threads on a 32 KB cache is
+consistent with kernel stacks displacing each other, and it is also consistent with several other
+things (the scheduler's own state, the archive's heap layout, the rendezvous structures). Nothing
+in this tree reads a cache-miss counter on any architecture, so the attribution is an argument from
+shape. Milestone 134's tier B is what would settle it.
+
+**So: the deciding number still does not exist, and the instrument is closer to producing one than
+this section assumed.** The honest movement is that the performance input went from unmeasurable to
+partially measured, in the direction that favours the event kernel, on an axis the workload does
+not currently use.
+
 **4. Verification. The paper's reason does not transfer; a weaker version might.**
 
 Their stated argument is specific: an event kernel avoiding in-kernel page-fault exceptions
 "preserves the semantics of the C language", and staying inside C's semantics reduces verification
 complexity. **We are not verifying C and Kani does not reach `kernel/src` at all** (§95), so that
-argument is simply not ours.
+argument is simply not ours. *(That parenthetical is stale as of 2026-08-30: milestone 193 put
+`kernel/src` within the prover's reach and two syscall properties are proved there. `kernel/src/arch/`
+remains unreachable. It does not change this paragraph's conclusion, which is about C's semantics
+rather than about coverage.)*
 
 The version that may transfer is an inference and is marked as one: a continuation is **explicit,
 data-shaped state**, where a kernel stack is **implicit, control-shaped state**, and explicit

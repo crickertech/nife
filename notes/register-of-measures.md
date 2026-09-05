@@ -106,11 +106,32 @@ row pretending to be one.
 | filesystem throughput, milestone 38's four phases | 2026-08-18 | `script/bench --real --smp`, with a RedoxFS disk attached |
 | primitives against Linux and macOS on the same host | **no date recorded** | `bench/host/run_linux.sh`, then `script/bench --real` |
 | `unsafe {}` blocks inside `kernel/src/arch/` | every run | `script/lint`, which prints it and asserts nothing |
-| E1: IPC round trip against thread count | 2026-08-22 (dev Mac); **never on a board** | `cargo xtask bench --real` (`ipc_scale_*` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
+| E1: IPC round trip against thread count | **2026-09-04 (radon, 6 boots)**; 2026-08-22 (dev Mac) | `cargo xtask bench --real` (`ipc_scale_*` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
-| E3: IPC fastpath footprint doubled, and the latency it costs | 2026-08-22 (dev Mac); **never on a board** | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
-| E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | 2026-08-23 (dev Mac); **never on a board** | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
+| E3: IPC fastpath footprint doubled, and the latency it costs | **2026-09-04 (radon, 6 boots); confounded, see below**; 2026-08-22 (dev Mac) | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
+| E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | **2026-09-04 (radon, 6 boots)**; 2026-08-23 (dev Mac) | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
 | multi-tasking throughput, jobs per minute against task count (milestone 168) | **no run on silicon** | `script/board-image --jobmix --card ...`, then `script/board-console`; the rehearsal is `script/job-mix` |
+
+**E1, E3 and E4 re-taken on radon, 2026-09-04, which is the board all three were designed
+against.** Six boots on a `board,bench,single_hart` card, interleaved unpadded and padded, one
+microSD card written six times. Every boot printed `cntfrq 4000000` and reached `bench: done`;
+nothing self-skipped. The capture is `bench/radon-2026-09-04/` and the reading is
+notes/footprint-perturbation.md.
+
+- **E1 found a knee at 16 threads**: 1.00x, 1.03x, 1.20x, **1.68x**, then flat to 96 (the last four
+  points span 1.2%). The prediction was a knee in the low tens, computed against radon's 32 KB L1i
+  by name. Recorded against `design/decisions/96-process-kernel-or-event-kernel.md`'s input 3, with
+  the caveat that E2's customer path runs 4 to 8 threads, below the knee.
+- **E4 found displacement that is real and load-dependent**: 0 to 1% at ordinary IPC load, **5 to
+  8% at 96 threads**, peaking at a 32 KiB working set, which is radon's L1d exactly. Three times
+  the magnitude the dev Mac read, with a peak on the cache size rather than at an end of the sweep.
+- **E3 separated cleanly and cannot be attributed.** The padded build is 1.49% slower on
+  `call_reply` and **3.01% faster** on `ipc_rtt_el0`, both non-overlapping across three boots each.
+  Resident dead code cannot make anything faster, so the experiment is measuring code layout summed
+  with footprint and reporting the total. **Do not quote an E3 number as a footprint result** until
+  `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md` exists. This flaw
+  was present in the 2026-08-22 dev-Mac reading too; the small cache made it visible rather than
+  causing it.
 
 **E1 through E4, taken 2026-08-22 (milestone 134's Tier A lane).** All four ran on the dev Mac
 under HVF; none of the four needed silicon, which is what the block promised, but three of them
