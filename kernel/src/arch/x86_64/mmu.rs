@@ -697,7 +697,7 @@ fn firmware_fill_ceiling(mut spans: impl FnMut(&mut dyn FnMut(u64, u64))) -> u64
 /// promise that firmware did not call it RAM, which is the property that matters for not writing
 /// device registers over memory the allocator owns, and is strictly weaker than knowing what the
 /// host bridge routes. The MMIO hole on a real machine holds things no table this kernel reads
-/// will name; [`bar_window`] takes the windows it *does* know about out of the answer, and the
+/// will name; [`memory_mapped_io_window`] takes the windows it *does* know about out of the answer, and the
 /// ones it does not know about are the residual risk this note exists to name.
 fn firmware_mmio_hole(mut spans: impl FnMut(&mut dyn FnMut(u64, u64))) -> (u64, u64) {
     let floor = firmware_fill_ceiling(&mut spans);
@@ -751,7 +751,7 @@ fn window_in_hole(
     }
 }
 
-/// **Why [`bar_window`] could not answer.** Each arm is a machine this kernel does not know how to
+/// **Why [`memory_mapped_io_window`] could not answer.** Each arm is a machine this kernel does not know how to
 /// place a BAR on, and every one of them is a panic rather than a fallback: the constant this
 /// replaced was right on emulated machines and was RAM on the first real one, so falling back to
 /// it would be the original bug wearing the clothes of a graceful degradation. Milestone 215 took
@@ -760,7 +760,7 @@ fn window_in_hole(
 ///
 /// **Name provisional**: calef names the types, and this one was minted by a lane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BarWindowError {
+pub enum MemoryMappedIoWindowError {
     /// The boot structure could not be re-read, so there is no memory map to find a hole in.
     NoMemoryMap,
     /// **The two sources disagree.** The firmware's map stops describing memory at one address and
@@ -773,16 +773,16 @@ pub enum BarWindowError {
     NoRoom { lo: u64, hi: u64, size: u64 },
 }
 
-impl core::fmt::Display for BarWindowError {
+impl core::fmt::Display for MemoryMappedIoWindowError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            BarWindowError::NoMemoryMap => write!(f, "no firmware memory map to read a hole from"),
-            BarWindowError::Disagreement { map, tolud } => write!(
+            MemoryMappedIoWindowError::NoMemoryMap => write!(f, "no firmware memory map to read a hole from"),
+            MemoryMappedIoWindowError::Disagreement { map, tolud } => write!(
                 f,
                 "the firmware map stops describing memory at {map:#x} but the host bridge's \
                  TOLUD says {tolud:#x}"
             ),
-            BarWindowError::NoRoom { lo, hi, size } => write!(
+            MemoryMappedIoWindowError::NoRoom { lo, hi, size } => write!(
                 f,
                 "no {size:#x}-byte window free inside the MMIO hole {lo:#x}..{hi:#x}"
             ),
@@ -804,7 +804,7 @@ impl core::fmt::Display for BarWindowError {
 /// **Two sources, and they must agree.** The firmware's memory map names the gap
 /// ([`firmware_mmio_hole`]), and Intel's host bridge names the same boundary in `TOLUD`
 /// (`super::machine::top_of_low_dram`). When both answer and they differ, this returns
-/// [`BarWindowError::Disagreement`] and the boot stops; there is no arm that quietly picks one.
+/// [`MemoryMappedIoWindowError::Disagreement`] and the boot stops; there is no arm that quietly picks one.
 ///
 /// **A `TOLUD` that is absent is not a `TOLUD` that disagrees**, and the distinction is what lets
 /// this run under emulation at all: QEMU's `q35` does not model the register (measured
@@ -815,13 +815,23 @@ impl core::fmt::Display for BarWindowError {
 /// `ecam` is passed in rather than read from `memory::pci_regions`, because the boot tour calls
 /// this in order to *fill* that static and it is empty until this answers.
 ///
-/// **Name provisional** (this and [`firmware_mmio_hole`], [`window_in_hole`], [`BarWindowError`]):
-/// calef names the functions and the types, and these were minted by a lane. `bar_window` is a
-/// noun for the reason the tenet gives, and it is the name the retired `PCI_BAR_PHYS` already used
-/// for the thing in its own first line.
-pub fn bar_window(ecam: (u64, u64)) -> Result<(u64, u64), BarWindowError> {
+/// **Name ratified 2026-09-05 (calef).** The lane shipped `bar_window`, on the grounds that it was
+/// the vocabulary the retired `PCI_BAR_PHYS` used for the thing in its own first line. calef asked
+/// what BAR stood for, which settled it: an argument from this project's own history is not an
+/// argument that a reader knows the word. **BAR is base address register**, a PCI term, and the
+/// window is where the blocks those registers point at appear in the physical address space.
+///
+/// `memory_mapped_io_window` was chosen over `device_register_window` **for accuracy**: a base
+/// address register can map a framebuffer or a memory aperture as well as a register block, so the
+/// plainer name would have been slightly narrower than the truth. `mmio_window` was refused under
+/// the naming rule calef set the same day: an acronym is spelled out unless its expansion teaches
+/// nothing, and a reader who knows the term recognises the expansion instantly, so spelling it out
+/// costs the expert nothing. `io` stays, because nobody bounces off it.
+///
+/// [`firmware_mmio_hole`], [`window_in_hole`] and [`top_of_low_dram`] are still provisional.
+pub fn memory_mapped_io_window(ecam: (u64, u64)) -> Result<(u64, u64), MemoryMappedIoWindowError> {
     let Some(info) = super::machine::boot_info(crate::DTB.load(Ordering::Relaxed)) else {
-        return Err(BarWindowError::NoMemoryMap);
+        return Err(MemoryMappedIoWindowError::NoMemoryMap);
     };
     let spans = |span: &mut dyn FnMut(u64, u64)| {
         for i in 0..info.memmap_entries as usize {
@@ -838,7 +848,7 @@ pub fn bar_window(ecam: (u64, u64)) -> Result<(u64, u64), BarWindowError> {
     if let Some(tolud) = super::machine::top_of_low_dram()
         && tolud != lo
     {
-        return Err(BarWindowError::Disagreement { map: lo, tolud });
+        return Err(MemoryMappedIoWindowError::Disagreement { map: lo, tolud });
     }
 
     // Everything this kernel already knows decodes inside the hole. The APICs and VT-d's register
@@ -864,7 +874,7 @@ pub fn bar_window(ecam: (u64, u64)) -> Result<(u64, u64), BarWindowError> {
     });
     match window {
         Some(base) => Ok((base, PCI_BAR_MAPPED)),
-        None => Err(BarWindowError::NoRoom {
+        None => Err(MemoryMappedIoWindowError::NoRoom {
             lo,
             hi,
             size: PCI_BAR_MAPPED,
@@ -959,7 +969,7 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
 
     // The PCIe windows: bus 0 of the ECAM config space ACPI's MCFG named, and the BAR window the
     // kernel assigns device registers from (derived from this machine's own memory map and host
-    // bridge; see `bar_window`, milestone 256, which has no ACPI or AML source to read instead).
+    // bridge; see `memory_mapped_io_window`, milestone 256, which has no ACPI or AML source to read instead).
     // Same shape as the other two architectures' `memory::pci_regions()` (a device-tree
     // node there, ACPI's MCFG here, both recorded before this function runs): no window recorded,
     // no mapping, and every probe in `pci.rs` reports nobody home rather than touching MMIO that
@@ -1772,7 +1782,7 @@ pub const VIRTIO_IRQ_BASE: u32 = 0;
 /// Bytes of PCI BAR space the kernel maps for device registers, matching what the other two
 /// architectures reserve. 2 MiB covers every BAR QEMU hands out on this machine, and since
 /// milestone 256 it is the size of the window rather than a slice of a larger one: **where** that
-/// window goes is [`bar_window`]'s answer and is the machine's, not a constant's.
+/// window goes is [`memory_mapped_io_window`]'s answer and is the machine's, not a constant's.
 ///
 /// It stays small on purpose. It only ever has to hold the BARs this kernel **places**, and a BAR
 /// the machine placed itself is adopted where it stands (`pci::place_bars`) rather than moved into
@@ -1980,7 +1990,7 @@ mod map_tests {
             &mut s,
             format_args!(
                 "{}",
-                super::BarWindowError::Disagreement {
+                super::MemoryMappedIoWindowError::Disagreement {
                     map: 0xd000_0000,
                     tolud: 0xc000_0000,
                 }
