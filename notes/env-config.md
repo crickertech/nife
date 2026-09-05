@@ -42,8 +42,9 @@ atomics at all.
   or a zeroed frame reading as "no configuration" (DECISIONS §42's rule, applied here), every
   domain member fitting its field's byte cap.
 - `kernel/src/user/std_service.rs`: assembles a page (`TZ=UTC`, `LANG=C`, `TERM=dumb`, the
-  conservative universal defaults, chosen because there is no shell yet to hold a *different*
-  default and pass it explicitly) and maps it read-only into a std program at `CONFIG_PAGE_STD`
+  conservative universal defaults, chosen because nothing holds a *different* default to pass
+  explicitly: the shell exists, but the "a shell holds its own default" mechanism does not, which is
+  this note's own second BUGS entry) and maps it read-only into a std program at `CONFIG_PAGE_STD`
   (`0x1300_0000`), granting a `Frame` with `READ` at `CONFIG_SLOT` (7), the same shape as the
   clock's slot 5.
 - `patches/std-nife/overlay/std/src/sys/pal/nife/rt.rs`: `CONFIG_SLOT`/`CONFIG_PAGE` constants,
