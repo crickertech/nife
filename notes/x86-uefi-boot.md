@@ -317,9 +317,93 @@ which is why the PVH runner defaults to one as well. The tour does not run that 
 `NIFE_OVMF_CODE` and `NIFE_OVMF_VARS` name the firmware images on a machine that keeps them
 somewhere other than Homebrew's QEMU share; `NIFE_UEFI_TIMEOUT` moves the bound.
 
+## First light on xenon, 2026-09-05
+
+**It has now been done, and the machine talked without a serial cable.** Photograph:
+`art/bench/xenon-2026-09-05-first-light.jpg`, which is the transcript, because patagonia could not be
+moved to the bench and the Dell's video output was the only channel.
+
+**Milestone 243's framebuffer console carried the whole boot tour on its first contact with real
+firmware.** It had never run outside OVMF:
+
+```
+screen : 1920x1080 bgrx @ 0xd0000000, 274x135 cells (boot cmdline)
+```
+
+**How far it got**, all of it read off the screen: long mode, high-half kernel, the long-mode jump
+landed, a breakpoint caught and stepped over, **148 memory regions** from the PVH handoff, ACPI
+revision 2 with a real XSDT at `0xcae090b8` and the full table list, **4 cores enumerated, 4 enabled**,
+PCI ECAM, TSC and PIT-measured timers at 100 Hz, and **17,119 MiB total**.
+
+**Three things are firsts against real firmware rather than OVMF**, and each was predicted here:
+
+- **`8259s present (must be masked)`.** Real legacy PICs.
+- **`PCI_ECAM_PHYS says 0xb0000000`** while the MCFG reports `0xe0000000`. The hardcoded constant
+  disagrees with the firmware table and the kernel follows the table, which is exactly what the
+  "What it proves, measured" section above says the UEFI path exercises and the PVH path cannot.
+- **148 regions** against OVMF's 118 and PVH's 9.
+
+### What the boot menu documents, which is more than it looks
+
+`art/bench/xenon-2026-09-05-boot-menu.jpg`, the F12 menu, is the first record of this machine's own
+identity rather than of the model:
+
+- **OptiPlex 7050, BIOS revision 1.27.0.**
+- **Boot mode UEFI, Secure Boot OFF**, which is what steps 1 and 2 below ask for and confirms they
+  were reachable as written.
+- The stick enumerates as **`UEFI: SanDisk Ultra 1.26`**, so the removable-media fallback at
+  `\EFI\BOOT\BOOTX64.EFI` is found with no boot entry created.
+- **A `Windows Boot Manager` entry**, so this machine dual-boots and its internal disk holds
+  somebody's installation. Worth knowing before anything here writes to a disk.
+- **`UEFI: Micron 2450 NVMe 256GB`.**
+
+**That last line matters beyond the bench.** DECISIONS §86 (whether an NVMe driver can leave the
+kernel, and what capability would let it) was decided on 2026-09-03, and its own research recorded
+that no board this project owns has an IOMMU in front of a real NVMe controller. **xenon has both**:
+milestone 87's requirements list says it was selected partly for VT-d, and this photograph shows the
+NVMe. So the confined-driver experiment §86 exists to enable has real hardware to run on, which
+nobody had established.
+
+### And then it panicked, in the one place a bigger machine would find
+
+```
+[PANIC] panicked at kernel/src/arch/x86_64/mmu.rs:325:33:
+failed to build the kernel page tables: AlreadyMapped
+```
+
+**The leading hypothesis, and it is a hypothesis rather than a diagnosis**: milestone 243 added a
+framebuffer mapping to `map_everything` on 2026-09-04, after every RAM region is direct-mapped:
+
+```rust
+if let Some((base, size)) = memory::framebuffer() {
+    direct_map(m, base, base + size, Flags::device())?;
+}
+```
+
+The aperture is at `0xd0000000` and **this machine has 17 GB of RAM**. Under OVMF at 2 GiB the
+aperture sits far above every RAM region and the two mappings cannot meet; here they can, and
+`direct_map` refuses a frame it has already mapped. **The failure would appear only where RAM is
+large enough to reach the aperture**, which is a machine no emulator run in this tree has modelled.
+
+**It is not certain and the record should not pretend otherwise.** `map_everything` maps several
+other things, and `AlreadyMapped` names the symptom rather than the pair of ranges that collided.
+The first thing a fix owes is a message that says which two.
+
+### What it settles about the procedure below
+
+**The procedure worked**, including its warning that firmware-menu wording would differ. calef also
+photographed every page of the BIOS configuration, which is the first real record of this machine's
+settings; the `BUGS` entry saying every setting name here came from Dell's documentation rather than
+from the machine can be retired once those are transcribed.
+
+**And one thing it changes:** step 1's expectation that the loader's two lines are "the only sign the
+stick was read at all" is no longer true. With milestone 243 the screen carries the whole tour, so a
+serial-less bring-up is a real bench session rather than a stare.
+
 ## The bench: booting nife on the OptiPlex 7050
 
-**This has not been done.** Everything above is QEMU with real firmware in the loop, which is as
+**This section was written before first light and is kept as the procedure. It has now been run
+once**; see above. Everything above is QEMU with real firmware in the loop, which is as
 far as this lane could get; the machine is calef's bench. This section is the procedure, written to
 be followed rather than interpreted.
 
