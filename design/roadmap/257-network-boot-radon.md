@@ -1,10 +1,7 @@
 # 257. Boot radon over the network, so the microSD card stops being the tax on every experiment
 
-**Status: NOT-STARTED.** Minted 2026-09-04 by calef, the same evening the path was proved by hand at
-radon's U-Boot prompt. *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The board side is proved and needs nothing built. What remains is a boot script, a
-TFTP server on patagonia, and the `xtask` arm that writes the script.
+**Status: BUILT.** Minted 2026-09-04 by calef, the same evening the path was proved by hand at
+radon's U-Boot prompt; built 2026-09-05. *(Number provisional until the merge queue lands it.)*
 
 ## The card is the bottleneck, and the tree predicted the day this would matter
 
@@ -71,7 +68,60 @@ All three land inside the card-booted cluster. **How the kernel arrives does not
 measures**, which is the one thing that could have made this workflow useless for the bench work it
 exists to serve, and it is now checked rather than assumed.
 
-## What to build
+## What was built, 2026-09-05
+
+Three things, and the second is the one that matters.
+
+**`cargo xtask board-script --tftp`**, which emits `dhcp` plus two `tftpboot` lines where the card
+script has two `load` lines. `script/board-image --tftp` passes it through. **The default is
+unchanged and stays unchanged**: `script/board-image` and `script/board-image --card` write the
+same card-only script milestone 218 shipped, byte for byte, and a test asserts the constant is
+untouched. A network-booting card is a promise about a machine that has to be running, so it is
+asked for rather than arrived at.
+
+**The card underneath the network, and it is exercised rather than asserted.** The script tries
+DHCP and two transfers and falls back to `load` when any of them fails, so a card written once can
+be left in radon and still boots with the cable out. Its shape is deliberately the dullest thing
+that can express a fallback: one state variable, `if cmd; then` and `fi`, nesting never deeper than
+two, no `else` anywhere, and `netretry no` first so an absent network fails in seconds instead of
+retrying at an empty bench.
+
+`if cmd; then ... fi`, `test x${v} = xy` and `${v}` expansion are common to U-Boot's hush and POSIX
+`sh`, so the generated script is run under `/bin/sh` in a test with the six U-Boot verbs stubbed as
+shell functions whose exit status the test picks. Four cases: everything works and the card is
+never touched; no lease, so the card supplies both halves; the kernel transfer succeeds and the
+archive's fails, which must still take **both** halves from the card because a mixed pair halts at
+`MEASURED BOOT REFUSED`; and neither path having a payload, where nothing is booted and the board
+says so rather than jumping into whatever a previous boot left at `0x4020_0000`. That last case is
+a guard the manual sequence does not have.
+
+**`script/board-tftp`**, a read-only TFTP server with `blksize` and `tsize`, in python3. **The
+decision against dnsmasq is recorded in the script's own header**, where a reader meets it, and the
+argument that decided it is not the dependency one: dnsmasq is a DHCP server that also does TFTP,
+this bench LAN is a family's house network with a router already handing out leases, and a second
+DHCP server on it is an outage for everyone in the building. A tool that cannot speak DHCP cannot
+get that wrong. python3 is already what ten `script/` entry points are written in, so it asks
+nothing new of anybody's machine.
+
+### The address expectation, which is now not an expectation
+
+**There is no server address constant anywhere in this tree.** `cargo xtask board-script --tftp`
+reads the address off the machine writing the card, at the moment it writes it, and the script
+echoes it at boot so a console log says what a card expects before anything depends on it. A moved
+lease is then one line at the prompt (`setenv nife_server <addr>`, `source ${scriptaddr}`) rather
+than a card reader.
+
+**The first implementation of that was wrong and the machine said so**, which is worth recording
+because it is milestone 256's own lesson arriving in a new place. The obvious discovery is a
+connected UDP socket whose local address the kernel picks from the route. patagonia's default route
+belongs to a Tailscale interface, so every probe answered `100.75.22.70`, a CGNAT address radon has
+no path to, and a card written that evening would have silently fallen back to the card forever.
+Interfaces are enumerated instead and anything outside RFC 1918 is dropped. patagonia turns out to
+have **two** addresses on the bench LAN, `en0` at `.216` and a USB adapter at `.206`; the first is
+taken, both are printed, and `--server` picks the other. `.216` is what the 2026-09-04 boot used, so
+the discovery reproduces the proved value without anyone having written it down.
+
+## What was to be built
 
 1. **A `--tftp` mode for `cargo xtask board-script`**, emitting `dhcp` and two `tftpboot` lines in
    place of the two `load` lines. `script/board-image` grows the matching flag.
@@ -108,12 +158,46 @@ three are lanes; the third is a decision that has been made the other way, on pu
 
 ## BUGS
 
+- **None of this has run on radon**, and that is the honest headline. The board needs calef at the
+  bench and the lane did not have him. What the 2026-09-04 evening proved is the *sequence*, typed
+  by hand; what is unproved is that U-Boot's hush accepts this *file*. `sh` is not hush, so the
+  fallback test above proves the control flow and says nothing about the parser. The specific
+  untested claims: that hush takes `if cmd; then` on one line, `test x${v} = xy`, `!=`, and `if`
+  nested one deep inside another; that `dhcp` and `tftpboot` return a failing status rather than
+  halting the script; and that `netretry no` makes a dead network fail in seconds. Each is
+  documented U-Boot behaviour and none of it has been watched here.
+- **A misjudged `netretry` is the one that would hurt.** If a network that is not there hangs `dhcp`
+  instead of failing it, a card left in the board waits at an empty bench rather than falling back,
+  which is the exact failure this milestone was written to make impossible. It is the first thing to
+  check on the next bench session, by unplugging the cable and powering the board.
 - **428 KiB/s is slow**, and the 9 MB archive is 20 seconds of it. That is fine against a two-minute
   walk and it is worse than a card read, so a session that boots many times pays it many times.
-  Nobody has looked at whether U-Boot's `blksize` or the TFTP window is the limit.
-- **Everything here was proved on one evening, on one board, with one image.** The fallback path in
-  item 2 has never been exercised at all, because the card was ignored rather than tested.
+  Nobody has looked at whether U-Boot's `blksize` or the TFTP window is the limit. `script/board-tftp`
+  accepts a block size up to 9000 and will honour whatever U-Boot asks for.
 - **The card still has to be written once**, and a change to the boot script means writing it again.
   The loop is shorter, not gone.
 - **`ethernet@16030000` is one of radon's two ports**, and it is the one that was plugged in. Nothing
-  here says what happens on the other, or whether U-Boot would find it.
+  here says what happens on the other, or whether U-Boot would find it. A `--tftp` card on the wrong
+  port falls back to the card rather than failing, which makes this quieter than it was: read the
+  `payload came from` line rather than assuming.
+- **`script/board-tftp` serves one transfer at a time and trusts the LAN.** Any host that can reach
+  udp/69 can read any file under `target/board`. There is one board, and the directory holds a
+  kernel and an archive that are about to be published anyway.
+- **The measure is not met yet.** "A bench session that never touches the card" needs a bench
+  session, and the next one is where this is either true or a bug report.
+
+## Follow-on
+
+- **Recorded.** The bench confirmation. Everything here is unexercised on radon, and this block's
+  BUGS section names which claims specifically. It is not a milestone: it is the first ten minutes of the
+  next bench session, and the triage row in `notes/visionfive2.md` is what to read.
+- **Recorded.** The names `script/board-tftp` and `nife_server` are this lane's provisional coinage,
+  recorded where a reader meets them: `script/board-tftp`'s header carries the provenance block and
+  the refusal of `tftpd`, and the boot script prints `nife_server` at every boot. Both are calef's
+  to ratify. `nife_server` is a U-Boot environment variable rather than a crate or a program, so it
+  falls outside the naming rule's stated scope, and it is still a name a person types at a prompt.
+- **Recorded.** `blksize` and the 428 KiB/s, in this block's BUGS. Nobody has measured whether the
+  limit is the option, the window, or the board, and 20 seconds against a two-minute walk does not
+  buy an investigation yet.
+- **Milestone 224.** Remote power, and it stays there: manual power was accepted on 2026-09-04 and
+  nothing here changes that argument.

@@ -1,0 +1,241 @@
+#!/bin/sh
+# script/board-tftp: serve the board payload over TFTP, so radon boots without a card (257).
+#
+#   script/board-tftp                        # serve target/board on udp/69 until Ctrl-C
+#   script/board-tftp --root /some/dir       # serve somewhere else
+#   script/board-tftp --port 6969            # a port an unprivileged bind is certain to get
+#
+# Read-only, one directory, one transfer at a time. It exists to answer three files:
+# nife-vf2.img, nife-initrd.img, and whatever else a bench session wants to hand the board.
+#
+# **Port 69 binds without root on macOS**, checked on patagonia on 2026-09-04, so there is no
+# `sudo` in the runbook. If a machine refuses it, `--port` plus `setenv tftpdstp <port>` at the
+# U-Boot prompt is the way out, and the board's script does not know about it.
+#
+# **Why this and not dnsmasq**, which is the other obvious answer and was considered properly
+# (DECISIONS §46: taking a dependency is a decision, not a convenience). Three reasons, and the
+# second is the one that decided it:
+#
+#   * It is not in the shipping graph, so §46's weight is lower here than it would be for a crate.
+#     That argument cuts toward dnsmasq, and is stated first so it is not hidden.
+#   * dnsmasq is a DHCP server that also does TFTP. On this bench the LAN is a family's house
+#     network with a router already handing out leases, and a second DHCP server on it is an
+#     outage for everyone in the building. `--port=0 --enable-tftp` with no `--dhcp-range` is
+#     safe, and it is safe only as long as every future invocation stays right. A tool that
+#     cannot speak DHCP at all cannot get that wrong.
+#   * python3 is already what ten `script/` entry points are written in, so this is no new
+#     requirement on anybody's machine, while `brew install dnsmasq` is.
+#
+# The cost, stated rather than implied: this is ours to maintain, and it is a bench tool rather
+# than a hardened server. See the BUGS section at the end of this comment.
+#
+# Name: provisional, this lane's coinage (2026-09-05, milestone 257). Hyphenated because `script/`
+# entry points are (AGENTS.md's naming table), and `board-` to sit with `board-image` and
+# `board-console`: build the payload, serve it, watch it boot. `tftp` is a standard term and a
+# reader already knows it, which AGENTS.md says is the best name available. `tftpd` was refused
+# as naming a daemon, which DECISIONS §39 spends a whole vocabulary avoiding. Expect the
+# integrator to surface it.
+#
+# BUGS
+#   * One transfer at a time, and one board. Two boards fetching at once will make the second
+#     wait or time out. There is exactly one board.
+#   * No write support, and none is wanted: a board that can write to the machine that builds its
+#     kernel is a worse rig than one that cannot.
+#   * It trusts the LAN. Any host that can reach the port can read any file under the served
+#     directory. The directory is `target/board`, which holds a kernel and an archive that are
+#     about to be published anyway, and the traversal check keeps the request inside it.
+#   * The addresses it prints are every private IPv4 this machine has. It cannot tell you which
+#     one radon can route to, only that these are the candidates.
+#   * A transfer that stalls is retried six times per block and then abandoned, and the board is
+#     told nothing; it sees its own timeout. U-Boot then fails `tftpboot`, which is the boot
+#     script's fallback condition, so the failure mode is the card rather than a hang.
+
+set -e
+cd "$(dirname "$0")/.."
+
+exec python3 - "$@" <<'PYEOF'
+"""A read-only TFTP server, just enough for U-Boot: RFC 1350 plus blksize/tsize (RFC 2348/2349)."""
+
+import os
+import socket
+import struct
+import subprocess
+import sys
+import time
+
+RRQ, DATA, ACK, ERROR, OACK = 1, 3, 4, 5, 6
+
+# U-Boot asks for a large block and the transfer is 6,200 round trips at the 512-byte default, so
+# the option is the difference between twenty seconds and several minutes. Capped at a jumbo frame
+# because nothing on this path fragments usefully.
+MAX_BLKSIZE = 9000
+# Six tries per block, three seconds each. Long enough to ride out a board that is busy, short
+# enough that a board that has gone away does not hold the server for a minute.
+BLOCK_TRIES = 6
+BLOCK_TIMEOUT = 3.0
+
+
+def parse_args(argv):
+    root, port = "target/board", 69
+    rest = list(argv)
+    while rest:
+        arg = rest.pop(0)
+        if arg == "--root" and rest:
+            root = rest.pop(0)
+        elif arg == "--port" and rest:
+            port = int(rest.pop(0))
+        else:
+            sys.exit(f"board-tftp: unknown argument {arg} (--root <dir>, --port <n>)")
+    return os.path.abspath(root), port
+
+
+def private_addresses():
+    """Every RFC 1918 address on this machine, which is what the board could fetch from.
+
+    Read off the interfaces rather than out of the routing table, for the reason
+    `cargo xtask board-script` records at length: patagonia's default route belongs to a
+    Tailscale interface, and the address it hands back is one radon has no path to.
+    """
+    for command in (["ifconfig"], ["ip", "-4", "-o", "addr", "show"]):
+        try:
+            out = subprocess.run(command, capture_output=True, text=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            continue
+        found = []
+        for line in out.splitlines():
+            words = line.split()
+            for i, word in enumerate(words):
+                if word == "inet" and i + 1 < len(words):
+                    addr = words[i + 1].split("/")[0]
+                    octets = addr.split(".")
+                    if len(octets) != 4 or not all(o.isdigit() for o in octets):
+                        continue
+                    a, b = int(octets[0]), int(octets[1])
+                    if a == 10 or (a == 172 and 16 <= b <= 31) or (a == 192 and b == 168):
+                        found.append(addr)
+        if found:
+            return found
+    return []
+
+
+def error(sock, peer, code, message):
+    sock.sendto(struct.pack("!HH", ERROR, code) + message.encode() + b"\0", peer)
+
+
+def serve_file(peer, path, name, options):
+    size = os.path.getsize(path)
+    blksize = min(int(options.get("blksize", 512)), MAX_BLKSIZE)
+    xfer = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    xfer.bind(("0.0.0.0", 0))
+    xfer.settimeout(BLOCK_TIMEOUT)
+    print(f"board-tftp: {peer[0]} <- {name} ({size} bytes, blksize {blksize})", flush=True)
+    started = time.monotonic()
+    try:
+        acknowledged = {}
+        if "blksize" in options:
+            acknowledged["blksize"] = str(blksize)
+        if "tsize" in options:
+            acknowledged["tsize"] = str(size)
+        if acknowledged:
+            oack = struct.pack("!H", OACK) + b"".join(
+                k.encode() + b"\0" + v.encode() + b"\0" for k, v in acknowledged.items()
+            )
+            for _ in range(BLOCK_TRIES):
+                xfer.sendto(oack, peer)
+                try:
+                    reply, _from = xfer.recvfrom(1024)
+                except socket.timeout:
+                    continue
+                if struct.unpack("!HH", reply[:4]) == (ACK, 0):
+                    break
+            else:
+                raise TimeoutError("no ACK for the option acknowledgement")
+
+        with open(path, "rb") as payload:
+            block = 1
+            while True:
+                chunk = payload.read(blksize)
+                packet = struct.pack("!HH", DATA, block & 0xFFFF) + chunk
+                for _ in range(BLOCK_TRIES):
+                    xfer.sendto(packet, peer)
+                    try:
+                        reply, _from = xfer.recvfrom(1024)
+                    except socket.timeout:
+                        continue
+                    op, acked = struct.unpack("!HH", reply[:4])
+                    if op == ACK and acked == (block & 0xFFFF):
+                        break
+                else:
+                    raise TimeoutError(f"no ACK for block {block}")
+                if len(chunk) < blksize:
+                    break
+                block += 1
+        elapsed = time.monotonic() - started
+        rate = size / elapsed / 1024 if elapsed > 0 else 0.0
+        print(
+            f"board-tftp: {name} done, {size} bytes in {elapsed:.2f}s ({rate:.0f} KiB/s)",
+            flush=True,
+        )
+    except Exception as why:
+        print(f"board-tftp: {name} FAILED: {why}", flush=True)
+    finally:
+        xfer.close()
+
+
+def main():
+    root, port = parse_args(sys.argv[1:])
+    if not os.path.isdir(root):
+        sys.exit(f"board-tftp: {root} is not a directory (script/board-image builds it)")
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        server.bind(("0.0.0.0", port))
+    except PermissionError:
+        sys.exit(
+            f"board-tftp: udp/{port} needs privileges on this machine.\n"
+            f"            --port 6969, plus `setenv tftpdstp 6969` at the U-Boot prompt."
+        )
+
+    print(f"board-tftp: serving {root} on udp/{port}", flush=True)
+    for entry in sorted(os.listdir(root)):
+        full = os.path.join(root, entry)
+        if os.path.isfile(full):
+            print(f"            {entry}  ({os.path.getsize(full)} bytes)", flush=True)
+    addresses = private_addresses()
+    if addresses:
+        print(
+            "\nThe card's boot script expects one of these, and says which at boot.\n"
+            "If it names a different one, the lease moved and this is the fix:",
+            flush=True,
+        )
+        for addr in addresses:
+            print(f"            StarFive # setenv nife_server {addr}", flush=True)
+    print("\nCtrl-C to stop.", flush=True)
+
+    while True:
+        packet, peer = server.recvfrom(65536)
+        if len(packet) < 4 or struct.unpack("!H", packet[:2])[0] != RRQ:
+            continue
+        parts = packet[2:].split(b"\0")
+        name = parts[0].decode("latin1")
+        options = {
+            parts[i].decode("latin1").lower(): parts[i + 1].decode("latin1")
+            for i in range(2, len(parts) - 1, 2)
+            if parts[i]
+        }
+
+        # No traversal: the name asked for has to resolve inside the served directory.
+        path = os.path.abspath(os.path.join(root, name.lstrip("/")))
+        if not path.startswith(root + os.sep) or not os.path.isfile(path):
+            error(server, peer, 1, "file not found")
+            print(f"board-tftp: {peer[0]} asked for {name!r}: NOT FOUND", flush=True)
+            continue
+        serve_file(peer, path, name, options)
+
+
+try:
+    main()
+except KeyboardInterrupt:
+    print("\nboard-tftp: stopped.", flush=True)
+PYEOF

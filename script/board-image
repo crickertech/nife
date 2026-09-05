@@ -8,6 +8,8 @@
 #   script/board-image --bench --extra-features fastpath_pad   # ...and E3's padded fastpath
 #   script/board-image --soak --reboot        # ...and the board cold-reboots every two minutes (249)
 #   script/board-image --card /Volumes/NIFE   # and copy the matched set onto an already-formatted card
+#   script/board-image --tftp                 # a boot script that fetches over the network first (257)
+#   script/board-image --tftp --server 10.0.0.5   # ...from an address you name rather than one read here
 #
 # Builds the riscv64 release kernel, strips it to the flat Image format U-Boot's `booti` loads
 # (the RISC-V Linux Image header sits at offset 0; boot.s emits it), verifies the header magic,
@@ -71,6 +73,12 @@ REBOOT=no
 BENCH=no
 EXTRA=""
 CARD=""
+# **The network-first boot script** (milestone 257). Off by default and it stays off by default: a
+# script that fetches over the network is a promise about a machine that has to be running, so it is
+# asked for rather than arrived at. The card path is unchanged whether this is set or not, because
+# the network script keeps the card underneath it as its fallback. See `cargo xtask board-script`.
+TFTP=no
+SERVER=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --soak) SOAK=yes; shift ;;
@@ -83,7 +91,11 @@ while [ $# -gt 0 ]; do
         --card)
             [ $# -ge 2 ] || { echo "board-image: --card needs a path" >&2; exit 2; }
             CARD="$2"; shift 2 ;;
-        *) echo "board-image: unknown argument $1 (--soak, --jobmix, --reboot, --bench, --extra-features <list>, --card <dir>)" >&2; exit 2 ;;
+        --tftp) TFTP=yes; shift ;;
+        --server)
+            [ $# -ge 2 ] || { echo "board-image: --server needs an address" >&2; exit 2; }
+            SERVER="$2"; shift 2 ;;
+        *) echo "board-image: unknown argument $1 (--soak, --jobmix, --reboot, --bench, --extra-features <list>, --card <dir>, --tftp, --server <ip>)" >&2; exit 2 ;;
     esac
 done
 
@@ -91,6 +103,10 @@ done
 # `[features]` entry. Refusing here rather than quietly implying --soak, because the two flags
 # together are what the notes and the roadmap both spell, and a card built from a command nobody
 # has written down is a card nobody can reproduce.
+if [ -n "$SERVER" ] && [ "$TFTP" = no ]; then
+    echo "board-image: --server only means something with --tftp" >&2
+    exit 2
+fi
 if [ "$REBOOT" = yes ] && [ "$SOAK" = no ]; then
     echo "board-image: --reboot needs --soak (there is nothing to reboot between)" >&2
     exit 2
@@ -207,7 +223,18 @@ fi
 # the board ###`, which is a hang, before a single instruction of ours runs. What goes on the card
 # instead is a U-Boot script carrying the exact commands the 2026-09-01 bench boot proves, so the
 # boot sequence is unchanged and only the typing is gone. See notes/visionfive2.md.
-cargo xtask board-script
+if [ "$TFTP" = yes ]; then
+    # The network-first script (257). The address is not a constant anywhere in this tree: xtask
+    # reads it off this machine's own interfaces, or takes the one named here, and the board echoes
+    # it at boot so a console log says what the card expects. See notes/visionfive2.md.
+    if [ -n "$SERVER" ]; then
+        cargo xtask board-script --tftp --server "$SERVER"
+    else
+        cargo xtask board-script --tftp
+    fi
+else
+    cargo xtask board-script
+fi
 
 SIZE="$(wc -c < "$IMG" | tr -d ' ')"
 ARCHIVE_SIZE="$(wc -c < "$OUT/nife-initrd.img" | tr -d ' ')"
@@ -216,6 +243,10 @@ echo "built:"
 echo "  features: $FEATURES"
 echo "  $IMG  ($SIZE bytes, Image header verified)"
 echo "  $OUT/nife-initrd.img  ($ARCHIVE_SIZE bytes, the userspace archive this kernel measures)"
+if [ "$TFTP" = yes ]; then
+    echo "  boot.scr.uimg fetches over the network first and falls back to the card (257)"
+    echo "  serve them:  script/board-tftp"
+fi
 echo
 echo "The kernel and the archive are ONE pair. The kernel compiles in a hash of the archive it was"
 echo "built against and halts rather than hand init an archive that does not match, so a card that"
@@ -280,9 +311,26 @@ commands typed by hand are still the fallback (this is what boot.scr.uimg contai
 ...and the two things to read out while you are there, because they are what says why the script
 did not run: `printenv scriptaddr` and `printenv fdt_addr_r`.
 
-TFTP instead of the card (cordoba serves; board side only, see the note):
-
-  StarFive # dhcp
-  StarFive # tftpboot ${kernel_addr_r} nife-vf2.img
-  ...then the same fdt move and booti.
 EOF
+
+if [ "$TFTP" = yes ]; then
+cat <<'EOF'
+This card's boot script tries the network FIRST and falls back to these same files on the card,
+so write it once and leave it in the board. On the serving machine, in another terminal:
+
+  script/board-tftp                # serves target/board on udp/69, no sudo needed
+
+The board announces which address it will ask, before it asks:
+
+  nife: tftp server is 192.168.8.x, setenv nife_server to point somewhere else
+
+If that is not this machine's address any more (a lease moved), the fix is one line at the
+U-Boot prompt and no card at all:
+
+  StarFive # setenv nife_server <address>
+  StarFive # source ${scriptaddr}
+
+...and rebuilding the card's script with `script/board-image --tftp --card /Volumes/NIFE` is
+what makes it stick.
+EOF
+fi

@@ -590,19 +590,100 @@ so nothing later that touches `filesize` can change what `booti` is handed.
 control DTB near the top of RAM, above gigapage 2 on every variant and above 4 GiB on this 8 GB
 board, which is why the sequence moves it to 0x8600_0000 rather than passing it where it lies.
 
-**TFTP alternative** (not built): cordoba is the designated PXE/TFTP host (milestone 87's scope
-note). The board side is just `dhcp; tftpboot ${kernel_addr_r} nife-vf2.img` followed by the
-same `fdt move` + `booti`; the cordoba side (dnsmasq or tftpd serving the image) is its own small
-piece of work and turns the flash-a-card loop into a rebuild-and-reset loop. Worth building the
-moment the card loop gets annoying, which history says is the second bench session.
+## Booting over the network, so the card stops being the tax
+
+**Built by milestone 257** (2026-09-05), after the path was proved by hand at the prompt on
+2026-09-04. The paragraph this replaces predicted the day it would matter and was right: the
+2026-09-04 bench session wrote the card six times, once per boot, because a comparison of two
+builds has to interleave them. It also got one thing wrong, corrected by calef the same evening.
+**The server is on patagonia, not cordoba.** radon's UART goes into patagonia and patagonia is
+where the images are built, so serving from there means there is no copy step at all: build, power
+cycle, watch, on one machine.
+
+Two commands, in two terminals:
+
+```
+script/board-image --tftp --card /Volumes/NIFE   # once, ever
+script/board-tftp                                # in the other terminal, while you work
+```
+
+Then every later boot is `script/board-image --tftp` and a power cycle. The card is never touched
+again unless the boot script itself changes.
+
+**The card is still underneath, and that is the point rather than a hedge.** The generated script
+tries `dhcp` and two `tftpboot` transfers, and falls back to `load` from the card's own copy when
+any of it fails: no cable, no hub, no lease, and the board still boots something. A card that can
+be bricked by an unplugged cable would be a worse rig than the one being replaced. `netretry` is
+set to `no` first, so a network that is not there fails in seconds rather than retrying while
+nobody is watching.
+
+**Nothing is ever assembled from two places.** The kernel and the archive are one measured pair, so
+a transfer that gets the kernel and loses the archive falls all the way back and takes *both* from
+the card. Half a pair halts at `MEASURED BOOT REFUSED`, which is the gate working, and it would be
+working on a fault we built.
+
+**There is no server address written down anywhere in this tree, on purpose.** `192.168.8.216` was
+true on the evening the path was proved, it is checked by nobody afterwards, and a DHCP lease can
+move it: milestone 256's defect class exactly. So `cargo xtask board-script --tftp` reads the
+address off the machine writing the card, at the moment it writes it, and the script echoes it at
+boot:
+
+```
+nife: tftp server is 192.168.8.216, setenv nife_server to point somewhere else
+```
+
+A console log therefore says what a card expects before anything depends on it. When the address
+has moved, the fix is one line at the prompt and no card reader:
+
+```
+StarFive # setenv nife_server 192.168.8.42
+StarFive # source ${scriptaddr}
+```
+
+**It reads interfaces, not the routing table**, and the first version did the opposite and was
+wrong. The obvious trick is a connected UDP socket whose local address the kernel picks from the
+route; on patagonia the default route belongs to a Tailscale interface, so every probe answered
+`100.75.22.70`, a CGNAT address radon has no path to. Interfaces are enumerated instead and
+anything outside RFC 1918 is dropped. patagonia has **two** addresses on the bench LAN (`en0` at
+`.216` and a USB adapter at `.206`); either serves equally well because the server binds every
+interface, the first is taken, and both are printed so `--server` can pick the other.
+
+**Measured on 2026-09-04, over the wire**: 282,624 bytes of kernel in 1.4 s, 9,044,480 bytes of
+archive in 20.6 s, which is 428 KiB/s and about 6,200 round trips. Slower than a card read and
+very much faster than a walk to the bench.
+
+**And that boot was a control nobody asked for.** The image served was the padded E3 build, so it
+is a fourth reading of that condition taken through a completely different load path: DHCP, ARP and
+TFTP instead of a FAT read. `ipc_rtt` 4311, `call_reply` 5089, `ipc_rtt_el0` 124917, every one
+inside the card-booted cluster of three. **How the kernel arrives does not perturb what it
+measures**, which is the one thing that could have made this workflow useless for the bench work it
+exists to serve.
+
+**Why `script/board-tftp` and not dnsmasq.** dnsmasq is somebody else's tested code and is not in
+the shipping graph, which is a real argument and is why the decision was made rather than assumed
+(DECISIONS §46). It lost on one point: dnsmasq is a DHCP server that also does TFTP, this LAN is a
+family's house network with a router already handing out leases, and a second DHCP server on it is
+an outage for everyone in the building. `--port=0 --enable-tftp` with no `--dhcp-range` is safe,
+and only as long as every future invocation stays right. A tool that cannot speak DHCP at all
+cannot get that wrong. python3 is also already what ten `script/` entry points are written in, so
+this asks nothing new of anybody's machine while `brew install dnsmasq` does. Port 69 binds without
+root on patagonia (checked 2026-09-04, rechecked 2026-09-05), so there is no `sudo` in the runbook.
 
 ## The bench runbook
 
 Setup, in order:
 
 1. microSD: format it once by hand (`diskutil eraseDisk FAT32 NIFE MBR /dev/diskN`, and be certain
-   of the device), then `script/board-image --card /Volumes/NIFE` puts the matched set on it.
-   Eject, insert the card.
+   of the device), then `script/board-image --tftp --card /Volumes/NIFE` puts the matched set on it
+   with a boot script that fetches over the network and falls back to what is on the card. Eject,
+   insert the card. **This step is once, not once per boot**, which is what the section above is
+   for; `script/board-image --card /Volumes/NIFE` without `--tftp` is still the card-only script
+   and is what to write when there will be no serving machine.
+
+   Then, on patagonia and in a second terminal, `script/board-tftp`, for as long as the session
+   lasts. It serves `target/board` on udp/69 and prints the `setenv nife_server` line for each
+   address the board might reach it on. Leave it running: every later boot is
+   `script/board-image --tftp` and a power cycle, with no card in anybody's hand.
 2. DIP switches to QSPI: RGPIO_1 = 0 (L), RGPIO_0 = 0 (L) [QSG].
 3. Serial: pins 6/8/10 as wired above, 115200 8N1, terminal attached **before** power so the SPL
    banner is not missed. `script/board-console` (milestone 216) is that terminal, and it recognises
@@ -628,6 +709,19 @@ our payload's doing.
 What appears, in order, on a good day: the SPL banner, OpenSBI's banner (version line included:
 record it), U-Boot's banner and countdown, then either the extlinux menu or the `StarFive #`
 prompt for the manual commands, then `## Flattened Device Tree`/`Starting kernel ...`, then ours:
+
+With a `--tftp` card the boot script says which path it took before any of that, and the line is
+worth reading rather than skipping, because a session that thinks it is testing a fresh build off
+the network and is silently booting the card's older copy is a session whose numbers mean nothing:
+
+```
+nife: tftp server is 192.168.8.216, setenv nife_server to point somewhere else
+nife: payload came from net
+```
+
+`payload came from card` is the fallback having fired, and `nife: nothing came over the network,
+falling back to the card` on the line above says so explicitly.
+
 a blank line and
 
 ```
@@ -646,6 +740,8 @@ jumping without complaint; the banner is the second target, after the driver wor
 | Nothing on serial at all | TX/RX not crossed; wrong device (`cu.*` vs `tty.*`); DIP switches not on QSPI; a bad SPI flash (fall back to UART recovery mode [uboot-doc]) |
 | Firmware banners but garbage | Baud mismatch in the terminal (must be 115200); a 5 V adapter on 3.3 V pins has by then possibly cost a board |
 | U-Boot fine, `Bad Linux RISCV Image magic!` | The file is the ELF, not the objcopy output; `script/board-image` verifies the magic at offset 0x38 at build time, so a stale card is the other suspect |
+| `payload came from card` when you expected `net` | The serving machine is not running `script/board-tftp`; or its address moved and the card's baked one is stale (the `tftp server is` line one above says which address was tried); or the board is on the other ethernet port. `setenv nife_server <addr>` then `source ${scriptaddr}` retries without a card reader |
+| `nife: still at the prompt, so nothing loaded` | Neither path had a payload: no serving machine AND no card, or a card whose files are named something else. The board is at the prompt and everything is still typeable |
 | `Starting kernel ...` then silence | Expected until the UART driver handles reg-shift/io-width: the kernel may be running and polling LSR at the wrong offset. Also: DTB left at `$fdtcontroladdr`/`fdt_addr_r` (outside the boot map, faults with the trap path not yet printing); or the relocation did not happen (check U-Boot printed `Moving Image from ... to 0x80200000`) |
 | `Starting kernel ...` then garbage | Kernel is alive and the divisor is wrong: driver reprogrammed the divisor against the wrong clock (needs 13 at 24 MHz, not 1) |
 | Banner, then hang or trap dump | DTB parsing or the memory map: RAM at 0x4000_0000 exercises paths QEMU never did (bitmap placement, gigapage 1 unmapped, the S7's cpu node in `smp::init`, the PLIC context formula) |
