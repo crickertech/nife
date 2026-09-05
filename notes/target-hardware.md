@@ -16,7 +16,7 @@ unambiguous phrase in a conversation. One noble gas per architecture:
 |---|---|---|---|
 | **argon** | aarch64 | NVIDIA Jetson (milestone 127) | in hand |
 | **radon** | riscv64 | StarFive VisionFive 2, JH7110 | boots nife, wired as a bench target |
-| **xenon** | x86_64 | Dell OptiPlex, serial port and null modem (milestone 87) | in hand, no first light yet |
+| **xenon** | x86_64 | Dell OptiPlex, serial port and null modem (milestone 87) | **boots nife**, first light 2026-09-05 (the cell said "no first light yet" until 2026-09-05) |
 
 **Why they earn names rather than descriptions.** This project's own tenet is that a name is a
 claim and a reader meets it before anything else. "The board" was serviceable while there was
