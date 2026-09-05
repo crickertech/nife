@@ -1,73 +1,98 @@
 # Why nife isn't suited to general-purpose applications
 
-Two answers, layered. The first is about intent, the second about mechanics, and the third
-is the nuance that keeps both honest.
+**Rewritten 2026-09-05, because most of what this page said had stopped being true and it was
+telling newcomers so with confidence.** The version before this one is in git. It was written when
+the project's stated goal was understanding rather than demonstration, and it grounded itself in
+that goal by quoting it; AGENTS.md names that framing and says what to do with it: *"This began as a
+learning project and pivoted to a demonstrator, deliberately and on the record (2026-07-26). If you
+find the old 'understanding is the goal, explain every line as we build it together' framing
+anywhere, it is stale."* This page was where it was.
 
-## It was never trying to be
+**It also asked to be updated and was not.** Its closing line said to add to it *"when a subsystem
+that would move the needle (a writable FS, a POSIX shim, a net stack) actually gets built."* Two of
+those three were built and the page kept saying they did not exist. That is AGENTS.md's ladder
+working as advertised: a note is rung four, it fires only when somebody remembers, and nobody did.
 
-The stated goal (top of [CLAUDE.md](../CLAUDE.md), and [DECISIONS](../design/decisions/10-capability-microkernel.md) §10)
-is understanding how operating systems work, not running applications. *Velocity is not the
-goal. Understanding is.*
+**The title now overstates the case** and is left alone on purpose, because note names are calef's
+(AGENTS.md's naming rule) and a rename is a naming decision with extra steps. Read it as *"what a
+general-purpose application still hits"*, which is what the page is actually about.
 
-So "not suited to general-purpose use" is not a shortfall against the aim. It is a
-consequence of choices made to maximize learning, several of which trade *away*
-general-purpose readiness on purpose:
+## The part that has not changed, and it is the interesting half
 
-- Capability-based, with **no `open(path)` and no ambient authority**, which makes porting
-  existing software deliberately hard (§10: we are not building the back door).
-- **No xv6 to copy from**, so every design is derived rather than transcribed. A feature if
-  the goal is understanding, a cost if the goal is shipping.
-- Drivers pushed out to **userspace for isolation**, not throughput (§10). More crossings,
-  chosen for what it teaches and proves.
+**Porting is deliberately hard, and that is a design choice rather than an omission.** nife is
+capability-based with **no `open(path)` and no ambient authority**
+([§10](../design/decisions/10-capability-microkernel.md)). A program cannot name a file it was not
+given, cannot open a socket it was not granted, and cannot widen its own authority. Every assumption
+a Unix program makes about reaching for things by name is an assumption this system refuses on
+purpose. §10's own words: we are not building the back door.
 
-## What an application would actually hit
+**Drivers are pushed to userspace for isolation rather than throughput**, which costs crossings and
+buys the thing the project exists to demonstrate.
 
-A "general-purpose application" (a browser, a database, `curl`, anything people wrote) needs
-a world to run in. nife does not provide it, roughly in order of severity:
+**And the model is not the barrier.** Fuchsia's Zircon is a capability microkernel shipping as a
+general-purpose OS on real devices. Nothing here is unsuited *because* it uses capabilities. What is
+missing is the userspace built on top, and [§4](../design/decisions/04-kernel-shape.md)'s rules were
+chosen to keep those additive rather than blocked: capabilities to a Unix-shaped API is additive,
+and the reverse is a rewrite. That asymmetry is what decided §5 and §10.
 
-| Gap | What breaks |
-|---|---|
-| **No POSIX, no libc, no `std` target** | The big one. Real programs are written against an API (POSIX, Win32) and linked with a libc. Nothing targets our tiny capability syscall surface. You cannot drop in existing software; every program is hand-written against our ABI, which is why the only programs are the handful in `user/` that we wrote. |
-| **No writable filesystem** | `nifefs` is read-only, one block, built at compile time by `xtask`. Apps read config and write output and keep state; there is nowhere to do any of that at runtime. |
-| **No networking** | No TCP/IP, no sockets. A huge fraction of general-purpose software is a network client or server. |
-| **No display, GUI, or input beyond a serial console** | No framebuffer, windowing, keyboard, or mouse. The only I/O to a human is a UART. |
-| **No dynamic linking** | Static only; every program is a standalone ELF baked into the initrd. No shared libraries, no `dlopen`, no loading code from a filesystem you populate. |
-| **Tiny, fixed platform** | QEMU `virt` (and HVF), 128 MiB, virtio-blk as the only storage, no swap, no demand paging, and single-core until the §11 SMP work lands. |
+## What an application actually hits today
 
-The kernel genuinely **can** run an arbitrary ELF it never compiled: that was milestone 7's
-whole point, the "run code it did not compile" thesis ([userspace.md](userspace.md)). What
-it cannot do is run *useful* software, because there is no ecosystem to build that software
-against and no subsystems for it to touch once running.
+The previous version of this table is a useful record of how fast this moves, so what changed is
+shown rather than quietly replaced.
 
-## The nuance: the model is not the barrier
+| Gap | Then | Today |
+|---|---|---|
+| **No POSIX, no libc, no `std` target** | *"The big one... You cannot drop in existing software; every program is hand-written against our ABI"* | **Substantially false.** There is a `std` target (the `nife-dev` toolchain and milestone 64), `notes/crates-io-on-nife.md` probed 27 crates against it, and **milestone 121 ran unmodified `ripgrep` with zero patches** on 2026-08-31. That was fatal risk 1's experiment and it came back green. What remains is narrower and is below. |
+| **No writable filesystem** | *"nifefs is read-only, one block, built at compile time"* | **False.** Milestone 57's write half landed. |
+| **No networking** | *"No TCP/IP, no sockets"* | **False.** `net_stack` (milestone 30) with TCP, UDP, DHCP and mDNS; listen and accept since milestone 107. |
+| **No display, GUI, or input beyond a serial console** | *"The only I/O to a human is a UART"* | **False.** The compositor landed 2026-08-26, and [§131](../design/decisions/131-hold-at-rung-two.md) is a decision about which rung of the display ladder to stop at rather than an absence. |
+| **Tiny, fixed platform** | *"QEMU virt, 128 MiB, single-core until the §11 SMP work lands"* | **False.** Three architectures, four cores on radon, and single-core is now an opt-in `single_hart` feature. |
+| **No dynamic linking** | *"Static only; no shared libraries, no `dlopen`"* | **Still true**, and see below. |
 
-A capability-based microkernel is exactly what **Fuchsia / Zircon** ships as a
-general-purpose OS on real devices. nife is not unsuited because capabilities cannot
-do general-purpose work. It is unsuited because it is a deliberately small **teaching subset**
-of that model.
+## What is genuinely missing, as of 2026-09-05
 
-What is missing is the userspace built *on top* of the kernel:
+This is the list to trust, and it is much shorter than the one above it.
 
-- a **POSIX personality** (Fuchsia's `fdio`; §10 notes this is additive, `open`/`read`/`write`
-  over capability handles),
-- a real **VFS and writable filesystem**,
-- a **network stack**,
-- a **display server**.
+- **No DNS.** `smoltcp` is built with `socket-udp`, `socket-tcp`, `socket-dhcpv4` and no
+  `socket-dns`, and nothing else in the tree resolves names. **A program cannot turn a hostname into
+  an address**, so nothing here can fetch a URL however much HTTP it has. See
+  `design/roadmap/proposals/a-name-resolver-and-who-holds-it.md`.
+- **No HTTP, and no TLS.** No client, no server, and a crypto surface of `argon2`, `subtle` and
+  `aes`. The TLS fork is `design/roadmap/proposals/a-tls-stack-and-which-one.md`.
+- **No dynamic linking.** Static only, every program a standalone ELF in the archive. This is the
+  one row of the old table that survived intact, and it is a real barrier for software that expects
+  to `dlopen` a plugin.
+- **No async runtime.** Milestone 66 names it: Vaultwarden uses Rocket, which uses tokio, which
+  wants timers, wakers and a reactor.
+- **Concurrency at the socket layer is phase one.** `ACCEPT` re-arms, but the backlog is one
+  connection deep and two connections cannot be served at once.
+- **`std` is honest rather than complete.** Milestone 64 measures it: of the PAL's own functions,
+  `thread` answers `Unsupported` for 4 of 6 and `fs` for 32 of 54. That is
+  [§42](../design/decisions/42-truthful-filesystem.md)'s posture working as designed, and it is still a
+  ceiling on what will run.
+- **No SQLite, and no drop-in Rust replacement**, which
+  [§83](../design/decisions/83-rust-over-c-implementations.md) calls its own limiting case.
 
-Each is a milestone someone could build, and the kernel was shaped ([DECISIONS §4](../design/decisions/04-kernel-shape.md)
-rules) to keep them **additive** rather than blocked. This is the same asymmetry argument
-that decided §5 and §10: capabilities → a Unix-shaped API is additive; the reverse is a
-rewrite.
+## So what it is suited for
 
-## So what it *is* suited for
+**A demonstrator, which is what [§14](../design/decisions/14-project-direction.md) says it is**: a
+verified-Rust capability microkernel that runs real workloads, built to stand next to Linux, macOS
+and seL4 on the primitives that define an OS. The honest claim is no longer "it cannot run other
+people's software", because it ran `ripgrep` unmodified. It is that **the set of other people's
+software it can run is bounded by the list above**, and every item on that list is a milestone
+somebody could build rather than a consequence of the model.
 
-An early, honest, thoroughly-understood floor. It is not the wrong *kind* of thing to grow
-into a general-purpose OS; it is missing the large subsystems and the compatibility ecosystem
-that turn a kernel into a platform. Every one of those is out of scope on purpose, because
-building them teaches less per unit of debugging pain than the foundation did, and because
-the point was to understand the machine, not to ship a product.
+**What has not changed is the ranking.** AGENTS.md ranks work by the shortest path to a system a
+customer runs, and that path has been vacant since 2026-08-30. None of the gaps above is being
+worked because an application demanded it.
 
----
+## BUGS
 
-*Add to this file if the scope question comes up again, or when a subsystem that would move
-the needle (a writable FS, a POSIX shim, a net stack) actually gets built.*
+- **Nothing gates this page.** It went stale in five rows at once and was corrected only because
+  somebody asked an unrelated question about `curl`. There is no check comparing a note's claims
+  against the roadmap, and the same thing will happen again.
+- **The "today" column is a snapshot** taken on 2026-09-05 and will rot the same way. Where a row
+  names a milestone or a decision, follow it rather than trusting the summary.
+- **"Substantially false" is doing work in the first row.** `ripgrep` ran and reached its own
+  argument parsing; that is not the same as a browser running, and milestone 121's own block is
+  careful about the difference.
