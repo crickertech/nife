@@ -254,10 +254,15 @@ proven here is the handoff below: the suite does not run under real firmware, on
   confirm, which are that `PCI_BAR_PHYS` is free on that machine, that its firmware presents an MCFG
   with first bus 0 and a bus count `PCIEXBAR` can encode, and that its ACPI tables sit below 4 GiB.
   `pci::bar_census` prints the first of them on the boot line, so it is the number to read first.
-- **Proposed.** `design/roadmap/proposals/a-bar-window-the-machine-agreed-to.md`, take the 32-bit
-  MMIO window that BARs are placed in from the machine rather than from the hardcoded
-  `arch::x86_64::mmu::PCI_BAR_PHYS`. `_CRS` is AML and stays refused, but the firmware memory map
-  already names the gaps and Intel's host bridge reports `TOLUD` in its own configuration space. The
-  measure is `pci::bar_census`'s second number reaching zero, or a window the machine agreed to.
-  Recording it is not enough: a machine whose RAM reaches above `0xc000_0000` would have this kernel
-  relocate most of its bus on top of memory.
+- **Milestone 256.** Take the 32-bit MMIO window that BARs are placed in from the machine rather
+  than from the hardcoded `arch::x86_64::mmu::PCI_BAR_PHYS`. `_CRS` is AML and stays refused, but the
+  firmware memory map already names the gaps and Intel's host bridge reports `TOLUD` in its own
+  configuration space. The measure is `pci::bar_census`'s second number reaching zero, or a window
+  the machine agreed to. Recording it is not enough: a machine whose RAM reaches above `0xc000_0000`
+  would have this kernel relocate most of its bus on top of memory.
+
+  **This stopped being a prediction on 2026-09-04.** xenon's second boot panicked at
+  `AlreadyMapped mapping pci bar window 0xc0000000..0xc0200000: 0xc0000000 is also claimed by ram
+  above the image 0xb9fbf000..0xc8940000`, with the census one line above reading **13 of 15
+  functions outside the window**. The sentence above about reading that number first was written two
+  days earlier and is why the boot needed no second attempt to diagnose.

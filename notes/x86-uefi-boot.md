@@ -331,7 +331,7 @@ screen : 1920x1080 bgrx @ 0xd0000000, 274x135 cells (boot cmdline)
 ```
 
 **How far it got**, all of it read off the screen: long mode, high-half kernel, the long-mode jump
-landed, a breakpoint caught and stepped over, **148 memory regions** from the PVH handoff, ACPI
+landed, a breakpoint caught and stepped over, **38 memory regions** from the PVH handoff, ACPI
 revision 2 with a real XSDT at `0xcae090b8` and the full table list, **4 cores enumerated, 4 enabled**,
 PCI ECAM, TSC and PIT-measured timers at 100 Hz, and **17,119 MiB total**.
 
@@ -341,7 +341,10 @@ PCI ECAM, TSC and PIT-measured timers at 100 Hz, and **17,119 MiB total**.
 - **`PCI_ECAM_PHYS says 0xb0000000`** while the MCFG reports `0xe0000000`. The hardcoded constant
   disagrees with the firmware table and the kernel follows the table, which is exactly what the
   "What it proves, measured" section above says the UEFI path exercises and the PVH path cannot.
-- **148 regions** against OVMF's 118 and PVH's 9.
+- **38 regions** against OVMF's 118 and PVH's 9. *(Read as 148 when this section was first
+  written, and corrected 2026-09-04 against both photographs: the count is 38 in the first-light
+  shot and 38 again on the second boot. The misreading was mine and it propagated into the memory-map
+  fixture's own doc comment, where it understated how much of the machine that fixture covers.)*
 
 ### What the boot menu documents, which is more than it looks
 

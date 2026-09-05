@@ -1616,8 +1616,11 @@ mod map_tests {
     //! never produce the memory map that killed the first boot on real hardware. They do not need
     //! it to: [`super::firmware_fill_ceiling`] is a function of the map alone, so the map goes in
     //! as a value. It is transcribed from `art/bench/xenon-2026-09-05-first-light.jpg`, which is
-    //! the only transcript that boot left, and is a subset of the 148 entries the machine reported
-    //! (every entry the photograph shows, which is the tail plus the chain above 2 MiB).
+    //! the only transcript that boot left. **It is 33 of the 38 entries the machine reports**, which
+    //! is nearly the whole map rather than a small sample: every entry the photograph shows, being
+    //! the tail plus the chain above 2 MiB. (This comment said 148 until 2026-09-04, from a
+    //! misreading of the photograph that the second boot's clearer shot corrected. The count was
+    //! wrong in the direction that undersold the fixture.)
 
     use super::{LOCAL_APIC_PHYS, firmware_fill_ceiling};
 
