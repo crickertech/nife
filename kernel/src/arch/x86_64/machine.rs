@@ -806,6 +806,10 @@ const INTEL_VENDOR: u32 = 0x8086;
 ///   2026-09-04 on QEMU 11.1.1 under PVH *and* under OVMF), so under emulation this is always
 ///   `None` and the firmware memory map is the only source. See [`super::mmu::bar_window`].
 ///
+/// **Name provisional**: calef names the functions, and this one was minted by a lane. It is the
+/// register's own expansion spelled out (`TOLUD` is "top of low usable DRAM"), on the same
+/// reasoning that keeps `elf` and `pci` spelled the way the field already spells them.
+///
 /// - **Zero is read as "not reported", not as "low DRAM is empty."** A machine executing this code
 ///   has DRAM below the hole by construction, so zero cannot be a truthful `TOLUD`; it is what an
 ///   unimplemented configuration-space register reads as. Values that are not 1 MiB aligned are

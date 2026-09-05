@@ -814,6 +814,11 @@ impl core::fmt::Display for BarWindowError {
 ///
 /// `ecam` is passed in rather than read from `memory::pci_regions`, because the boot tour calls
 /// this in order to *fill* that static and it is empty until this answers.
+///
+/// **Name provisional** (this and [`firmware_mmio_hole`], [`window_in_hole`], [`BarWindowError`]):
+/// calef names the functions and the types, and these were minted by a lane. `bar_window` is a
+/// noun for the reason the tenet gives, and it is the name the retired `PCI_BAR_PHYS` already used
+/// for the thing in its own first line.
 pub fn bar_window(ecam: (u64, u64)) -> Result<(u64, u64), BarWindowError> {
     let Some(info) = super::machine::boot_info(crate::DTB.load(Ordering::Relaxed)) else {
         return Err(BarWindowError::NoMemoryMap);
