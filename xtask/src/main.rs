@@ -10928,9 +10928,11 @@ utun6: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1280
         // The address is baked, and it is also announced before anything depends on it.
         assert!(script.contains("setenv nife_server 10.1.2.3"));
         assert!(script.contains("echo nife: tftp server is ${nife_server}"));
-        // And the card script is untouched by any of this: the default is still the default.
-        assert_eq!(BOARD_BOOT_SCRIPT, BOARD_BOOT_SCRIPT);
+        // And the card script is untouched by any of this: the default is still the default, and
+        // it still has no network verb in it at all.
         assert!(!BOARD_BOOT_SCRIPT.contains("tftpboot"));
+        assert!(!BOARD_BOOT_SCRIPT.contains("dhcp"));
+        assert!(!BOARD_BOOT_SCRIPT.contains("if "));
     }
 
     /// **The fallback, actually taken.**
