@@ -261,6 +261,16 @@ def main():
         )
         for addr in addresses:
             print(f"            StarFive # setenv nife_boot_server {addr}", flush=True)
+        # The same list, for the other consumer. radon reads its server address off a card and can
+        # be corrected at a prompt; xenon reads it out of a DHCP offer and cannot be corrected at
+        # all, because the machine has no console this project can type into. So the address in the
+        # router's `dhcp-boot` has to be right before the machine is powered on, and this list is
+        # where it comes from. Which of these a board can route to is not knowable from here.
+        print(
+            "\nFor a UEFI client (xenon, milestone 260) the same address goes in the router's\n"
+            "dhcp-boot line; see bench/xenon-netboot/dnsmasq.conf. There is no prompt to fix it at.",
+            flush=True,
+        )
     print("\nCtrl-C to stop.", flush=True)
 
     while True:

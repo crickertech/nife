@@ -6,10 +6,14 @@
 #   script/netboot-rehearsal --mac 02:00:00:00:00:01   # NOT xenon; must NOT be offered a boot file
 #   script/netboot-rehearsal --check            # the configuration's answers alone, no QEMU, instant
 #
-# **Name provisional** (AGENTS.md §75: calef names the interfaces). A lane picked
-# `netboot-rehearsal`, hyphenated because `script/` entry points are, and `rehearsal` rather than
-# `netboot-test` because the thing it is standing in for is a bench session with a camera, not a
-# unit under test. `board-netboot-rehearsal` was refused for length and because there is no board.
+# Name: provisional (milestone 260). calef names the interfaces (AGENTS.md's naming tenet), and this
+# is a lane's pick waiting on him. Hyphenated because `script/` entry points are, and a noun because
+# things are named for what they are. Refused `netboot-test`, because what this stands in for is a
+# bench session with a camera rather than a unit under test, and the word would promise a verdict on
+# xenon that no gate on patagonia can give. Refused `board-netboot-rehearsal`, which reads as a
+# rehearsal of `board-netboot` rather than of a boot, and names a board where there is none: the
+# machine under test here is QEMU. Refused `pxe-rehearsal`, on `board-netboot`'s own precedent that
+# a name should be the thing rather than its wire.
 #
 # WHAT THIS IS FOR. Milestone 260's proof is a photograph of xenon booting nife with no removable
 # media in it, and getting that photograph costs calef an evening at the bench with no serial
@@ -109,7 +113,7 @@ class Pump:
     that bug is worth keeping. `select` says a pipe is readable the moment ONE BYTE arrives;
     `readline()` then waits for the newline. OVMF prints `>>Start PXE over IPv4.` and does not end
     the line until its DHCP retries give up sixty seconds later, so the harness sat inside
-    `readline()` for a minute with four DHCP DISCOVERs queued behind it, answered all four at once,
+    `readline()` for a minute with four DHCP DISCOVER messages queued behind it, answered all four at once,
     and every offer arrived long after the client had stopped listening.
 
     The failure looked exactly like a rejected offer, which is the expensive part: three real
