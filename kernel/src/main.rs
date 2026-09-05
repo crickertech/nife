@@ -247,11 +247,25 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // interrupt-driven driver, or a test, finds a real answer instead of `None`.
         memory::record_uart_irq(acpi.isa_irqs[4].gsi);
 
+        // VT-d's register window, recorded now (before `arch::mmu::init()` a few lines down)
+        // rather than where it is actually brought up. `mmu::map_everything` reads
+        // `memory::vtd_region()` to decide what to map device-typed, and it has to know before it
+        // runs; `arch::iommu::init` itself is called later, once the fine map it needs exists.
+        //
+        // **It moved above the PCI block on 2026-09-04** (milestone 256) and the order is now
+        // load-bearing rather than incidental: `arch::mmu::bar_window` takes the windows this
+        // kernel already knows about out of the hole it picks a BAR window from, and VT-d's
+        // register file is one of them. Recorded afterwards, it would be a window the choice below
+        // could not see.
+        if let Some(base) = acpi.vtd_base {
+            memory::record_vtd_region(base, page_frames::FRAME_SIZE);
+        }
+
         // Turn the MCFG's ECAM window on and record it where kernel/src/pci.rs already knows to
         // look: `memory::pci_regions()`, the same static a device-tree machine fills from its
         // `pci-host-ecam-generic` node. No MCFG, no PCI at all, the same treatment the other two
         // architectures give a tree with no such node. The BAR window has no ACPI or AML source
-        // (see `arch::mmu::PCI_BAR_PHYS`), so it is always the hardcoded one.
+        // and is derived from the machine instead (`arch::mmu::bar_window`, milestone 256).
         match acpi.ecam {
             // The MCFG's base is the configuration space of its FIRST bus, and `pci.rs` addresses a
             // function as `base + (bus << 20 | ...)` with an absolute bus number. Those agree only
@@ -267,10 +281,18 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             Some((base, lo, hi)) => {
                 let buses = hi as u32 - lo as u32 + 1;
                 let decode = arch::machine::enable_pcie_ecam(base, buses);
-                memory::record_pci_regions(
-                    (base, buses as u64 * 0x10_0000),
-                    (arch::mmu::PCI_BAR_PHYS, arch::mmu::PCI_BAR_MAPPED),
-                );
+                let ecam = (base, buses as u64 * 0x10_0000);
+                // **Where BARs may go, asked of the machine** (milestone 256). A failure here is a
+                // panic and not a fallback: the constant this replaced was checked against one
+                // emulated machine and was RAM on the first real one, so a kernel that carried on
+                // with it would be placing device registers over memory the allocator owns. The
+                // message is the whole diagnosis, because the machine that produces it has no
+                // serial cable and a photograph of the screen is the entire transcript.
+                let bar = match arch::mmu::bar_window(ecam) {
+                    Ok(window) => window,
+                    Err(why) => panic!("no PCI BAR window on this machine: {why}"),
+                };
+                memory::record_pci_regions(ecam, bar);
                 println!(
                     "  pci         : ecam at {base:#x} (buses {lo}..={hi}), decode {}",
                     match decode {
@@ -280,6 +302,18 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             "LEFT AS FOUND: this bus count has no PCIEXBAR length field",
                     }
                 );
+                println!(
+                    "                bar window {:#x}..{:#x}, from the firmware map{}",
+                    bar.0,
+                    bar.0 + bar.1,
+                    match arch::machine::top_of_low_dram() {
+                        Some(t) => {
+                            let _ = t;
+                            " and TOLUD, agreeing"
+                        }
+                        None => " alone (this host bridge reports no TOLUD)",
+                    }
+                );
                 // The census is here, in the x86 arm, because this is the only architecture whose
                 // BARs may already be placed by something else when the kernel arrives. Both
                 // `virt` boards boot with `-bios default` and every BAR is zero, so there would be
@@ -287,9 +321,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 // watch on real firmware.
                 let (functions, outside) = pci::bar_census();
                 println!(
-                    "                {functions} function(s) on the bus, {outside} with a BAR outside {:#x}..{:#x}",
-                    arch::mmu::PCI_BAR_PHYS,
-                    arch::mmu::PCI_BAR_PHYS + arch::mmu::PCI_BAR_MAPPED,
+                    "                {functions} function(s) on the bus, \
+                     {outside} with a BAR outside {:#x}..{:#x}",
+                    bar.0,
+                    bar.0 + bar.1,
                 );
             }
             // **No MCFG means no PCI, and deliberately no fallback to the legacy 0xcf8/0xcfc
@@ -304,14 +339,6 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             None => {
                 println!("  pci         : skipped, no MCFG: no PCI at all (no legacy fallback)");
             }
-        }
-
-        // VT-d's register window, recorded now (before `arch::mmu::init()` a few lines down)
-        // rather than where it is actually brought up. `mmu::map_everything` reads
-        // `memory::vtd_region()` to decide what to map device-typed, and it has to know before it
-        // runs; `arch::iommu::init` itself is called later, once the fine map it needs exists.
-        if let Some(base) = acpi.vtd_base {
-            memory::record_vtd_region(base, page_frames::FRAME_SIZE);
         }
 
         // The local APIC, and then a real hardware interrupt. Until this point the only trap the

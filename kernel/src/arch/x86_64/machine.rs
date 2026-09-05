@@ -760,3 +760,73 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
     crate::memory::bring_up_page_frames(&ram[..count], &forbidden[..forbidden_count]);
     count
 }
+
+// ---------------------------------------------------------------------------------------------
+// Where low DRAM stops, from the host bridge itself (milestone 256).
+// ---------------------------------------------------------------------------------------------
+
+/// `CONFIG_ADDRESS` naming bus 0, device 0, function 0, register `0x00`: the host bridge's vendor
+/// and device id. Read before [`top_of_low_dram`] trusts anything else in that configuration
+/// space, because the register it goes on to read is one vendor's and not the architecture's.
+const HOST_BRIDGE_ID_CONFIG_ADDRESS: u32 = 0x8000_0000;
+
+/// `CONFIG_ADDRESS` naming the same function's register `0xbc`, `TOLUD`.
+const TOLUD_CONFIG_ADDRESS: u32 = 0x8000_00bc;
+
+/// PCI's vendor id for Intel, which is whose register [`top_of_low_dram`] reads.
+const INTEL_VENDOR: u32 = 0x8086;
+
+/// **Where the machine says its low DRAM stops, or `None` when it does not say** (milestone 256).
+///
+/// `TOLUD` (top of low usable DRAM) is the host bridge's own statement of the boundary between
+/// DRAM and the 32-bit MMIO hole above it: memory below it is answered by the memory controller,
+/// and addresses above it are routed to the buses. That is exactly the number a PCI BAR window has
+/// to start at, and unlike the `_CRS` object that describes the same window in ACPI it is a
+/// configuration-space register rather than AML, so this kernel can read it with the ports it
+/// already drives (milestone 165 refused an AML interpreter and milestone 256 does not reopen it).
+///
+/// Bits 31:20 carry the address; bit 0 is a lock bit and the rest are reserved, so the value is
+/// masked rather than used whole.
+///
+/// # BUGS
+///
+/// - **`TOLUD` is Intel's register, not the architecture's**, and this function does not pretend
+///   otherwise: it checks the host bridge's vendor id and answers `None` for anyone else. A
+///   non-Intel host bridge (AMD, VIA, a hypervisor's own model) states the same fact in a
+///   different register or in no register at all, and guessing that its `0xbc` means the same
+///   thing would produce a confident wrong address rather than an absent one. The machine this
+///   port owns (xenon, a Dell `OptiPlex` 7050) is Intel, which is why this is the right source
+///   for it and not a portable one.
+///
+/// - **The offset is the modern one, and Intel has moved it.** `0xbc` is where every Core-era
+///   host bridge puts `TOLUD`; the older 82G33/Q35-era chipsets put a 16-bit `TOLUD` at `0xb0`.
+///   Only `0xbc` is read, deliberately: a register that is something else entirely on an older
+///   chipset would answer with a plausible-looking address, and `None` is the better answer than
+///   a number nobody checked. QEMU's `q35` models neither (both offsets read zero, measured
+///   2026-09-04 on QEMU 11.1.1 under PVH *and* under OVMF), so under emulation this is always
+///   `None` and the firmware memory map is the only source. See [`super::mmu::bar_window`].
+///
+/// - **Zero is read as "not reported", not as "low DRAM is empty."** A machine executing this code
+///   has DRAM below the hole by construction, so zero cannot be a truthful `TOLUD`; it is what an
+///   unimplemented configuration-space register reads as. Values that are not 1 MiB aligned are
+///   refused for the same reason: the register cannot express one, so a value that is not aligned
+///   is not this register.
+pub fn top_of_low_dram() -> Option<u64> {
+    // SAFETY: 0xcf8/0xcfc are the legacy PCI configuration ports, present on every PC-compatible
+    // machine independent of ECAM (see `enable_pcie_ecam`), and reading the host bridge's own
+    // configuration space through them is side-effect-free.
+    let id = unsafe {
+        super::port::out32(CONFIG_ADDRESS, HOST_BRIDGE_ID_CONFIG_ADDRESS);
+        super::port::in32(CONFIG_DATA)
+    };
+    if id & 0xffff != INTEL_VENDOR {
+        return None;
+    }
+    // SAFETY: as above.
+    let raw = unsafe {
+        super::port::out32(CONFIG_ADDRESS, TOLUD_CONFIG_ADDRESS);
+        super::port::in32(CONFIG_DATA)
+    };
+    let tolud = u64::from(raw & 0xfff0_0000);
+    (tolud != 0).then_some(tolud)
+}
