@@ -63,11 +63,14 @@
 //!   second would need positional arity the shell does not have yet. Unix prints a per-file table
 //!   and a total; that is formatting over a set, and this program counts one stream.
 //!
-//! Name: unrecorded. Introduced 2026-07-31, and it is the program that settled a naming rule
-//! without ever being named by one. The tenet's rejected two-tier draft (short names for typed
-//! commands, underscores for spawned programs) was refused because the category is not stable, and
-//! `wc` is the proof: it was internal plumbing and became a prompt-typed pipeline stage inside a
-//! day.
+//! Name: recorded (AGENTS.md's naming section, which reasons about this exact string twice). The
+//! Unix command's own name, in the protected class the tenet calls the best names available: a
+//! word a reader already knows from outside this project costs a newcomer nothing to learn.
+//! AGENTS.md does not merely cover it by rule, it argues it by name, first as the case that
+//! killed the two-tier draft (it was internal plumbing and became a prompt-typed pipeline stage
+//! inside a day, so "a short name for a typed command" is not a stable property to key a
+//! convention on) and then as the rule's closing line, that nobody needs a rule to know `wc`
+//! beats `word_count`. Introduced 2026-07-31. What is missing is calef's signature, not a reason.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

@@ -19,9 +19,13 @@
 //! the thing that could be confused (a kernel doing I/O for a user) no longer exists. The
 //! architecture dissolved the bug.
 //!
-//! Name: unrecorded. Introduced 2026-07-14 as the first program the kernel ever loaded, and the
-//! name has outlived the description: on aarch64 it also carries the `init_boot` role, which the
-//! name does not say.
+//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+//! outside"). The universal name for a first program, and this was the first program this kernel
+//! ever loaded, on 2026-07-14. The known limitation, recorded rather than fixed: the name has
+//! outlived the description, because on aarch64 this binary also carries the `init_boot` role,
+//! and a reader who takes `hello` at face value will not expect to find boot sequencing inside
+//! it. That is a gap between the name and what the thing grew into rather than a bad name for
+//! what it was, and closing it is a rename, which is calef's.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
