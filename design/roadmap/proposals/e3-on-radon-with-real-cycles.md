@@ -7,6 +7,19 @@ IPC fastpath's footprint three ways and could not observe a single cycle of cons
 measures; this proposes running it on hardware rather than minting a new measure. It also wants
 milestone 74's riscv64 half, which landed 2026-09-04.
 
+**Half of it is built, 2026-09-04** (the maintainer/e3-on-radon lane). E1, E3 and E4 now compile and
+run on a riscv64 board build: `script/board-image --bench` writes a `board,bench,single_hart` card,
+`--extra-features fastpath_pad` writes its padded twin, and the procedure with its outcome table is
+notes/board-bench.md. **No number has come off radon**; the board was powered off and there was no
+bench session, so what remains of this proposal is the session itself plus the cycle counter, which
+is `design/roadmap/proposals/cycles-per-ipc-on-the-bench-card.md`.
+
+That lane also found something this proposal assumed away. The padding was reachable only from
+`ipc_send`, so measured on riscv64 it moved `ipc_send_recv` to 2.10x and **`ipc_call_reply` to
+1.00x**: E3 was padding the shape nothing in this tree runs, which is the shape milestone 188 phase 1
+had just established as the one that matters. `ipc_call` calls `maybe_pad` too now, and both shapes
+pad to roughly 1.85x.
+
 ## In brief
 
 `script/fastpath-footprint` bounds a **quantity**, not a harm. Liedtke's argument is that a kernel
