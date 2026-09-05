@@ -72,6 +72,27 @@
 //!   number and [`flush_asid`] flushes the whole TLB rather than one space's entries. Both say so in
 //!   their own words; neither pretends to a selectivity the hardware does not have. Same reason as
 //!   PGE above: there is nothing to measure it against yet.
+//!
+//! - **The cacheable fill follows the firmware's map only as far as that map describes memory
+//!   *contiguously*** ([`firmware_fill_ceiling`]). That is a claim about how firmware writes
+//!   memory maps, not an architectural guarantee: DRAM and the carve-outs taken out of it abut
+//!   each other, and the 32-bit MMIO hole above them is a gap. A machine whose map had an
+//!   undescribed gap *inside* low DRAM, with ACPI tables above it, would have those tables left
+//!   out of the direct map and would fault reading one. No map in this tree has that shape and
+//!   xenon's does not (`notes/x86-uefi-boot.md` transcribes it). The bound it replaced was "the
+//!   top of RAM", which was the same number on every machine whose RAM ends below the hole and
+//!   swallowed every MMIO window on the first machine whose RAM does not.
+//!
+//! - **An aperture that firmware reports as usable RAM would panic, and that is deliberate.** It
+//!   was the leading hypothesis for the 2026-09-05 `AlreadyMapped` and it was wrong: xenon's
+//!   framebuffer is in the MMIO hole, in no RAM region. If a machine ever did report both, the fix
+//!   is to exclude the aperture from the RAM direct map *and* from the frame allocator, not to
+//!   skip the second mapping and not to remap the frames device-typed. Skipping leaves the
+//!   aperture cacheable, and this architecture leaves the effective memory type **undefined** when
+//!   one frame is reachable through two mappings with conflicting types, so that is wrong rather
+//!   than merely slow. Remapping would give one correct mapping and leave the allocator handing
+//!   out frames the display adapter answers at. Until a machine forces the question, the panic
+//!   names both ranges and is the better answer.
 
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
@@ -322,7 +343,11 @@ pub fn init() {
         )
     };
 
-    map_everything(&mut mapper).expect("failed to build the kernel page tables");
+    if let Err(f) = map_everything(&mut mapper) {
+        // Not `expect`: the message is the whole transcript on a machine with no serial cable, so
+        // it names the two ranges rather than the symptom. See `MapFailure`.
+        panic!("failed to build the kernel page tables: {f}");
+    }
     verify(&mapper);
     TABLE_FRAMES.store(
         (free_before - memory::free_page_frames()) as u64,
@@ -578,15 +603,87 @@ pub fn is_mapped(va: u64) -> bool {
     mapper.translate(va).is_some()
 }
 
-/// Build every mapping the kernel needs. Mirrors the aarch64 and RISC-V `map_everything`, and the
-/// order is the same: physical memory first, then the image's own sections over the top of it.
-fn map_everything<A, P>(m: &mut Mapper<A, P, Ia32e>) -> Result<(), MapError>
-where
-    A: FnMut() -> Option<u64>,
-    P: Fn(u64) -> *mut PageTable,
-{
-    // 1. The direct map. **Every RAM region**, not just the low gigabyte the old single-base
-    //    arithmetic could reach, which is the whole point of this milestone's step.
+/// The first megabyte: real-mode legacy that is nonetheless memory, and the only part of the address
+/// space this kernel reads by absolute physical address (the BIOS Data Area's EBDA pointer at
+/// `0x40e`, the BIOS area the RSDP is scanned out of). The frame allocator clips it rather than
+/// managing it, so it is in no RAM region and would otherwise be unmapped.
+const LOW_MEGABYTE: u64 = 0x10_0000;
+
+/// **One physical range the direct map covers, and what to call it when it goes wrong.**
+///
+/// Every direct-map range [`map_everything`] builds comes out of [`direct_map_claims`] as one of
+/// these, and the failure path walks the *same* enumeration to say what a refused mapping collided
+/// with. That is the point of the type: a diagnosis derived from a second, hand-written list of
+/// "what we probably map" can drift from what is mapped, and the first time anyone reads it will be
+/// on a bench with no debugger.
+///
+/// **Name provisional**: calef names the types, and this one was minted by a lane.
+struct Claim {
+    /// What a reader of [`map_everything`] would call this range, short enough to fit a panic line
+    /// on a screen console.
+    what: &'static str,
+    /// The physical range, half-open. Empty (`hi <= lo`) is legal and maps nothing.
+    lo: u64,
+    hi: u64,
+    flags: Flags,
+    /// **Map page by page, skipping what is already mapped, instead of refusing.**
+    ///
+    /// True only for the loader's reserved entries, which may abut or overlap each other and the
+    /// RAM regions in the map the firmware wrote; nobody promised that list is disjoint. Everywhere
+    /// else a second mapping of a frame is a real defect and [`MapError::AlreadyMapped`] is the
+    /// mechanism that says so, so this is deliberately not a convenience anything else may reach
+    /// for.
+    guarded: bool,
+}
+
+/// **How high the cacheable direct map may follow the loader's map**, given every span the map
+/// describes (RAM and reserved alike, in whatever order the firmware wrote them).
+///
+/// The chain, and it is the whole rule: start at [`LOW_MEGABYTE`] and keep extending upward for as
+/// long as some entry in the map begins at or below the current top and ends above it. **DRAM and
+/// the carve-outs firmware takes out of it are contiguous** (ACPI tables, NVS, the SMM and graphics
+/// reservations at the top of low memory), so the chain covers them. **The 32-bit MMIO hole above
+/// them is a gap the map does not describe at all**, so the chain stops at its floor and the local
+/// APIC, the IO APIC, the ECAM window, the SPI flash and the framebuffer aperture stay out of it.
+/// Those are device windows, they must be device-typed rather than cacheable, and
+/// [`map_everything`]'s step 5 maps each by name.
+///
+/// **This replaced a bound of "the top of RAM", which was the same rule for a machine whose RAM
+/// ends below the hole and no rule at all for one whose RAM does not.** That is what killed the
+/// first boot on real hardware: xenon has 16.7 GiB, so the top of its RAM is `0x42e000000`, every
+/// MMIO window on the machine is below that, and the fill claimed the local APIC's page cacheably
+/// a few lines before step 5 asked for it device-typed. `AlreadyMapped`, in
+/// `mmu.rs:325`, on 2026-09-05. See notes/x86-uefi-boot.md.
+///
+/// Nothing here is a 4 GiB constant on purpose. The hole is where it is because 32-bit BARs have to
+/// be addressable, but its floor moves with how much memory the firmware stole, and asking the map
+/// where it stops describing memory needs no such number.
+fn firmware_fill_ceiling(mut spans: impl FnMut(&mut dyn FnMut(u64, u64))) -> u64 {
+    let mut ceiling = LOW_MEGABYTE;
+    loop {
+        let mut grown = ceiling;
+        // One pass extends through every entry that already chains in map order; the outer loop is
+        // what makes the answer independent of that order, since the firmware's map is not sorted
+        // (xenon's puts `0xa0000..0x100000` after a 16 GiB region). It runs at most once per entry.
+        spans(&mut |start, end| {
+            if start <= grown && end > grown {
+                grown = end;
+            }
+        });
+        if grown == ceiling {
+            return ceiling;
+        }
+        ceiling = grown;
+    }
+}
+
+/// **Every physical range the direct map covers, in the order [`map_everything`] builds them.**
+///
+/// Split out from the mapping loop so that the failure path can ask the same question the mapping
+/// asked. See [`Claim`].
+fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
+    // 1. **Every RAM region**, not just the low gigabyte the old single-base arithmetic could
+    //    reach.
     //
     //    The kernel image's own frames are skipped: on this architecture the image lives at a
     //    *different* base, so a direct-map entry for those frames would not collide with the
@@ -598,67 +695,72 @@ where
     let image_hi = memory::image_end();
     for (start, size) in memory::ram_regions() {
         let end = start + size;
-        direct_map(m, start, image_lo.min(end), Flags::kernel_data())?;
-        direct_map(m, image_hi.max(start), end, Flags::kernel_data())?;
+        each(Claim {
+            what: "ram",
+            lo: start,
+            hi: image_lo.min(end),
+            flags: Flags::kernel_data(),
+            guarded: false,
+        });
+        each(Claim {
+            what: "ram above the image",
+            lo: image_hi.max(start),
+            hi: end,
+            flags: Flags::kernel_data(),
+            guarded: false,
+        });
     }
 
     // 1b. **One deliberate hole inside the excluded image range** (milestone 161's SMP item): the
     //     AP trampoline's LMA, the gap link-x86_64.ld opens between `.rodata` and `.data` so the
     //     trampoline's *source* bytes are not `.boot_scratch` or the secondary stacks (both
-    //     runtime-mutated; see that file's comment). It is inside `image_lo..image_hi`, so step 1's
-    //     loop skips it same as `.text`, and it is *between* two mapped sections rather than inside
-    //     either, so neither section's own mapping (step 3, below) reaches it either. Nobody's
-    //     mapping covers it unless this does. `ap_boot::prepare` is the one reader, through the
-    //     direct map; see `ap_boot::trampoline_lma`'s own doc for the full account.
-    direct_map(
-        m,
-        super::ap_boot::trampoline_lma(),
-        super::ap_boot::trampoline_lma() + super::ap_boot::trampoline_size(),
-        Flags::kernel_data(),
-    )?;
+    //     runtime-mutated; see that file's comment). It is inside `image_lo..image_hi`, so step 1
+    //     skips it same as `.text`, and it is *between* two mapped sections rather than inside
+    //     either, so neither section's own mapping reaches it either. Nobody's mapping covers it
+    //     unless this does. `ap_boot::prepare` is the one reader, through the direct map.
+    each(Claim {
+        what: "ap trampoline",
+        lo: super::ap_boot::trampoline_lma(),
+        hi: super::ap_boot::trampoline_lma() + super::ap_boot::trampoline_size(),
+        flags: Flags::kernel_data(),
+        guarded: false,
+    });
 
-    // 2. Memory the loader did not call usable RAM but which is still *memory*: the first megabyte
-    //    (IVT, BDA, EBDA, the BIOS area the ACPI RSDP is scanned out of, and the page below 1 MiB a
-    //    STARTUP IPI's vector will have to name), and the block of ACPI tables QEMU parks just
-    //    above the top of RAM. Those are read through `phys_to_virt` and are in no RAM region, so
-    //    without this they become arithmetic with no mapping the moment the boot map goes.
-    map_firmware_regions(m)?;
-
-    // 3. The kernel image, section by section, at its linked VAs. W^X: text executable and
-    //    read-only, rodata neither writable nor executable, everything else writable and never
-    //    executable. Until this map is installed the boot table had all of it present, writable AND
-    //    executable, in both halves.
-    map_range(m, text_start(), text_end(), Flags::kernel_code())?;
-    map_range(m, rodata_start(), rodata_end(), Flags::kernel_rodata())?;
-    map_range(m, data_start(), bss_end(), Flags::kernel_data())?;
-
-    // 4. The stacks. The guard page below each is deliberately NOT mapped, which is the entire
-    //    stack-overflow mechanism and is asserted in `verify`: a mapped guard page is protection
-    //    that is silently off.
-    map_range(m, stack_bottom(), stack_top(), Flags::kernel_data())?;
-    for id in 0..crate::cpu::MAX_CPUS {
-        let (bottom, top) = crate::smp::secondary_stack_span(id);
-        map_range(m, bottom, top, Flags::kernel_data())?;
-    }
-    for id in 0..crate::cpu::MAX_CPUS {
-        let (bottom, top) = crate::interrupt_stack::span(id);
-        map_range(m, bottom, top, Flags::kernel_data())?;
-    }
-
-    // 5. The device registers, device-typed (uncacheable), one window each.
+    // 5. **The device registers, device-typed (uncacheable), one window each**, and they come
+    //    before the firmware reservations rather than after.
+    //
+    //    **The order is load-bearing and it did not used to be.** The reservation fill is guarded
+    //    and these are not, so whichever runs first decides the memory type of any page both want,
+    //    and only one of the two answers is correct: a cacheable mapping of a device window is a
+    //    write that may sit in a cache line and never reach the device. Naming the windows first
+    //    makes device typing win by construction, rather than by [`firmware_fill_ceiling`] being
+    //    right about where the hole starts. Both now hold; this is the one that holds without
+    //    knowing anything about the machine.
     //
     //    The local APIC's address comes from the machine's own MADT when ACPI answered, and falls
     //    back to the architectural reset default when it did not: `IA32_APIC_BASE` is relocatable,
     //    and mapping the constant while the hardware is somewhere else would be a page of nothing
     //    that reads as all-ones.
     let apic = super::irq::local_apic_phys().unwrap_or(LOCAL_APIC_PHYS);
-    direct_map(m, apic, apic + PAGE_SIZE, Flags::device())?;
+    each(Claim {
+        what: "local apic",
+        lo: apic,
+        hi: apic + PAGE_SIZE,
+        flags: Flags::device(),
+        guarded: false,
+    });
 
     // The IO APIC's own page, from the MADT when ACPI answered and from the architectural default
     // when it did not, for the same reason the local APIC's is: the address is the machine's to
     // state, and a machine with two of them puts the second somewhere this constant does not name.
     let io_apic = super::irq::io_apic_phys().unwrap_or(IO_APIC_PHYS);
-    direct_map(m, io_apic, io_apic + PAGE_SIZE, Flags::device())?;
+    each(Claim {
+        what: "io apic",
+        lo: io_apic,
+        hi: io_apic + PAGE_SIZE,
+        flags: Flags::device(),
+        guarded: false,
+    });
 
     // The PCIe windows: bus 0 of the ECAM config space ACPI's MCFG named, and the BAR window the
     // kernel assigns device registers from (hardcoded; see PCI_BAR_PHYS, which has no ACPI or AML
@@ -669,13 +771,20 @@ where
     // architectures apply and for the same reason: everything QEMU puts on this machine is on bus
     // 0, and all 256 buses would be 64K leaves describing space that reads all-ones.
     if let Some(((ecam, ecam_size), (bar, bar_size))) = memory::pci_regions() {
-        direct_map(
-            m,
-            ecam,
-            ecam + PCI_ECAM_MAPPED.min(ecam_size),
-            Flags::device(),
-        )?;
-        direct_map(m, bar, bar + PCI_BAR_MAPPED.min(bar_size), Flags::device())?;
+        each(Claim {
+            what: "pci ecam",
+            lo: ecam,
+            hi: ecam + PCI_ECAM_MAPPED.min(ecam_size),
+            flags: Flags::device(),
+            guarded: false,
+        });
+        each(Claim {
+            what: "pci bar window",
+            lo: bar,
+            hi: bar + PCI_BAR_MAPPED.min(bar_size),
+            flags: Flags::device(),
+            guarded: false,
+        });
     }
 
     // VT-d's register file (milestone 161, roadmap item 6), one page, device-typed, at the
@@ -685,7 +794,13 @@ where
     // reads fault the instant the fine map replaces the coarse boot map that covered every
     // physical address indiscriminately; the first version of this driver found that by faulting.
     if let Some((base, _)) = memory::vtd_region() {
-        direct_map(m, base, base + PAGE_SIZE, Flags::device())?;
+        each(Claim {
+            what: "vt-d registers",
+            lo: base,
+            hi: base + PAGE_SIZE,
+            flags: Flags::device(),
+            guarded: false,
+        });
     }
 
     // **The screen** (milestone 243), when the boot handoff described one. Device-typed like every
@@ -694,73 +809,77 @@ where
     // the instant this fine map replaces that one an unmapped framebuffer would fault inside
     // `println!`, whose fault handler prints. There is no diagnostic that survives that.
     //
-    // It is the largest window in this function by three orders of magnitude: 1280x800 is 4 MiB,
-    // which is 1024 leaves. That is the price of a screen and it is paid once.
+    // It is the largest window in this function by three orders of magnitude: 1920x1080 is 8 MiB,
+    // which is 2026 leaves. That is the price of a screen and it is paid once.
     //
     // **Device-typed means uncacheable, and uncacheable means slow**, which the `screen_console`
     // crate's own BUGS records. Write-combining (a PAT entry) is the fix and is a milestone rather
     // than a line: this kernel does not program the PAT at all today, and a framebuffer is the
     // first thing in it that would care.
+    //
+    // **An aperture inside a RAM region would be a different problem and is not this one.** On
+    // xenon the aperture sits in the 32-bit MMIO hole, which the firmware's map does not describe;
+    // it is in no RAM region and never was. See this module's BUGS for what a machine that really
+    // did report both would need, and why "map it twice" is not among the options on x86.
     if let Some((base, size)) = memory::framebuffer() {
-        direct_map(m, base, base + size, Flags::device())?;
+        each(Claim {
+            what: "framebuffer",
+            lo: base,
+            hi: base + size,
+            flags: Flags::device(),
+            guarded: false,
+        });
     }
 
-    Ok(())
+    // 2. **Memory the loader did not call usable RAM but which is still *memory***: the first
+    //    megabyte (IVT, BDA, EBDA, the BIOS area the ACPI RSDP is scanned out of, and the page
+    //    below 1 MiB a STARTUP IPI's vector will have to name), and the reserved entries carved out
+    //    of DRAM (the ACPI tables, NVS, firmware scratch). Those are read through `phys_to_virt`
+    //    and are in no RAM region, so without this they become arithmetic with no mapping the
+    //    moment the boot map goes.
+    //
+    //    Guarded, because a reserved entry can abut or overlap something step 1 already mapped and
+    //    nothing promises the firmware's list is disjoint. **`AlreadyMapped` is not treated as
+    //    success anywhere**; asking first is what keeps the refusal meaning something everywhere
+    //    else.
+    firmware_claims(each);
 }
 
-/// The first megabyte: real-mode legacy that is nonetheless memory, and the only part of the address
-/// space this kernel reads by absolute physical address (the BIOS Data Area's EBDA pointer at
-/// `0x40e`, the BIOS area the RSDP is scanned out of). The frame allocator clips it rather than
-/// managing it, so it is in no RAM region and would otherwise be unmapped.
-const LOW_MEGABYTE: u64 = 0x10_0000;
-
-/// **Direct-map memory the frame allocator does not manage but the kernel still reads**: the first
-/// megabyte, and every loader-reserved entry below the top of RAM (ACPI tables, firmware
-/// scratch).
-///
-/// The bound is the top of RAM, and it is the load-bearing part rather than a tidiness rule. The
-/// reserved entries *above* the top of RAM are MMIO windows (the PCIe ECAM range, the LAPIC/HPET
-/// block, the flash at 4 GiB), which must be device-typed rather than cacheable and are mapped by
-/// name in [`map_everything`]'s step 5. Mapping "everything below the highest reserved address"
-/// instead would be correct on QEMU's 256 MiB and would swallow a real machine's whole 3-4 GiB MMIO
-/// hole into a cacheable direct map.
+/// The loader-reserved half of [`direct_map_claims`]: the low megabyte, every reserved entry below
+/// [`firmware_fill_ceiling`], and the initrd.
 ///
 /// Physical page 0 is deliberately left out, so that `phys_to_virt(0)` faults instead of quietly
 /// naming the interrupt vector table.
 ///
-/// Maps only the low megabyte when the PVH structure cannot be re-read. That is the right failure:
-/// this kernel got its RAM regions from the same structure, so a machine that reaches here without
-/// one had no ACPI tables to lose access to either.
+/// Claims only the low megabyte when the boot structure cannot be re-read. That is the right
+/// failure: this kernel got its RAM regions from the same structure, so a machine that reaches here
+/// without one had no ACPI tables to lose access to either.
 ///
-/// **Name provisional** (milestone 161).
-fn map_firmware_regions<A, P>(m: &mut Mapper<A, P, Ia32e>) -> Result<(), MapError>
-where
-    A: FnMut() -> Option<u64>,
-    P: Fn(u64) -> *mut PageTable,
-{
-    // A reserved entry can abut or overlap something step 1 already mapped, and the mapper refuses
-    // to overwrite (break-before-make). Ask before mapping rather than treating `AlreadyMapped` as
-    // success, which would also swallow a genuine collision.
-    let fill = |m: &mut Mapper<A, P, Ia32e>, from: u64, to: u64| -> Result<(), MapError> {
-        for pa in (from..to).step_by(PAGE_SIZE as usize) {
-            if m.translate(phys_to_virt(pa)).is_none() {
-                m.map(phys_to_virt(pa), pa, Flags::kernel_data())?;
-            }
-        }
-        Ok(())
-    };
+/// **Name provisional** (milestone 161, renamed from `map_firmware_regions` when it stopped mapping
+/// and started describing).
+fn firmware_claims(each: &mut dyn FnMut(Claim)) {
+    each(Claim {
+        what: "low megabyte",
+        lo: PAGE_SIZE,
+        hi: LOW_MEGABYTE,
+        flags: Flags::kernel_data(),
+        guarded: true,
+    });
 
-    fill(m, PAGE_SIZE, LOW_MEGABYTE)?;
-
-    let Some(top_of_ram) = memory::ram_regions()
-        .map(|(start, size)| start + size)
-        .max()
-    else {
-        return Ok(());
-    };
     let Some(info) = super::machine::boot_info(crate::DTB.load(Ordering::Relaxed)) else {
-        return Ok(());
+        return;
     };
+    let ceiling = firmware_fill_ceiling(|span| {
+        for i in 0..info.memmap_entries as usize {
+            let Some(e) = super::machine::memory_map_entry(&info, i) else {
+                break;
+            };
+            span(
+                e.addr & !(PAGE_SIZE - 1),
+                e.end().next_multiple_of(PAGE_SIZE),
+            );
+        }
+    });
 
     for i in 0..info.memmap_entries as usize {
         let Some(e) = super::machine::memory_map_entry(&info, i) else {
@@ -770,32 +889,202 @@ where
             continue; // step 1 already did these, and did them minus the kernel image
         }
         let start = (e.addr & !(PAGE_SIZE - 1)).max(LOW_MEGABYTE);
-        let end = e.end().next_multiple_of(PAGE_SIZE).min(top_of_ram);
-        if end <= start {
-            continue;
-        }
-        fill(m, start, end)?;
+        let end = e.end().next_multiple_of(PAGE_SIZE).min(ceiling);
+        each(Claim {
+            what: "firmware reservation",
+            lo: start,
+            hi: end,
+            flags: Flags::kernel_data(),
+            guarded: true,
+        });
     }
 
     // **The initrd, explicitly, regardless of how the memmap classified the bytes it occupies.**
     // Found 2026-08-25 (decisions §86's VT-d/NVMe data point): attaching an NVMe controller grows
-    // the ACPI tables enough that the memmap's reserved entry immediately above `top_of_ram`
+    // the ACPI tables enough that the memmap's reserved entry immediately above the top of RAM
     // widens to swallow the initrd's last few hundred bytes (PVH's loader places it at a fixed
     // offset below the top of guest memory, sized for a smaller device set than this boot's
-    // tables need). The `top_of_ram` clamp above exists to keep this loop from identity-mapping
-    // the enormous, genuinely-bogus reserved entries elsewhere in the map (some span terabytes,
-    // nowhere near real RAM), so narrowing it is not the fix; it would also have to stop
-    // excluding the one legitimate sliver we need. Mapping the initrd's own recorded bounds
-    // directly sidesteps the question of which reserved entry is real backing memory and which
-    // is not: `bring_up_memory` already claimed this exact range as `forbidden` before this runs,
-    // so nothing else can be relying on it staying unmapped, and `fill` is idempotent over
-    // anything the loop above already covered.
+    // tables need). The ceiling above exists to keep this loop out of the MMIO hole, so widening
+    // it is not the fix. Claiming the initrd's own recorded bounds directly sidesteps the question
+    // of which reserved entry is real backing memory and which is not: `bring_up_memory` already
+    // claimed this exact range as `forbidden` before this runs, so nothing else can be relying on
+    // it staying unmapped, and a guarded claim is idempotent over anything already covered.
     if let Some((istart, isize)) = memory::initrd_region() {
-        let start = istart & !(PAGE_SIZE - 1);
-        let end = (istart + isize).next_multiple_of(PAGE_SIZE);
-        fill(m, start, end)?;
+        each(Claim {
+            what: "initrd",
+            lo: istart & !(PAGE_SIZE - 1),
+            hi: (istart + isize).next_multiple_of(PAGE_SIZE),
+            flags: Flags::kernel_data(),
+            guarded: true,
+        });
+    }
+}
+
+/// **Which mapping [`map_everything`] was making when the mapper refused, and what else claims the
+/// page it refused.**
+///
+/// [`MapError`] names the symptom. `AlreadyMapped` on its own cost a bench session on 2026-09-05:
+/// the machine had no serial cable, a photograph of the screen was the entire transcript, and the
+/// panic distinguished none of the eleven kinds of range this function maps. The pair of ranges is
+/// what makes such a photograph a diagnosis rather than a hypothesis, and it is worth more than any
+/// particular fix, because the next machine nobody can attach a debugger to is the one after this.
+///
+/// **Name provisional.**
+struct MapFailure {
+    what: &'static str,
+    lo: u64,
+    hi: u64,
+    err: MapError,
+    /// The first page of `lo..hi` some *other* claim also covers, and that claim. `None` when
+    /// nothing else in the enumeration wants it, which for `AlreadyMapped` is itself a finding:
+    /// something outside [`direct_map_claims`] put it there.
+    conflict: Option<(u64, &'static str, u64, u64)>,
+}
+
+impl core::fmt::Display for MapFailure {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "{:?} mapping {} {:#x}..{:#x}",
+            self.err, self.what, self.lo, self.hi
+        )?;
+        match self.conflict {
+            Some((pa, other, olo, ohi)) => write!(
+                f,
+                ": {:#x} is also claimed by {} {:#x}..{:#x}",
+                pa, other, olo, ohi
+            ),
+            None => write!(
+                f,
+                ": no other claim covers it, so something outside map_everything did"
+            ),
+        }
+    }
+}
+
+/// The first page of `lo..hi` that a claim other than `what` also covers.
+///
+/// Walks the claims rather than the page tables, and walks them by range rather than page by page:
+/// a RAM region on a 17 GiB machine is four million pages and this runs inside a panic path.
+fn first_conflict(what: &'static str, lo: u64, hi: u64) -> Option<(u64, &'static str, u64, u64)> {
+    let mut best: Option<(u64, &'static str, u64, u64)> = None;
+    direct_map_claims(&mut |c| {
+        if c.what == what || c.hi <= c.lo {
+            return;
+        }
+        let start = c.lo.max(lo);
+        let end = c.hi.min(hi);
+        if start >= end {
+            return;
+        }
+        if best.is_none_or(|(pa, ..)| start < pa) {
+            best = Some((start, c.what, c.lo, c.hi));
+        }
+    });
+    best
+}
+
+/// Build every mapping the kernel needs. Mirrors the aarch64 and RISC-V `map_everything`, and the
+/// order is the same: physical memory first, then the image's own sections over the top of it.
+fn map_everything<A, P>(m: &mut Mapper<A, P, Ia32e>) -> Result<(), MapFailure>
+where
+    A: FnMut() -> Option<u64>,
+    P: Fn(u64) -> *mut PageTable,
+{
+    // Steps 1, 1b, 5 and 2, in the order `direct_map_claims` yields them. The closure stops doing
+    // work after the first failure rather than returning early, because the enumeration is a
+    // callback and there is nothing to return through; the cost is a few dozen no-op calls on the
+    // one path that is about to panic.
+    let mut failed: Option<MapFailure> = None;
+    direct_map_claims(&mut |c| {
+        if failed.is_some() {
+            return;
+        }
+        let result = if c.guarded {
+            guarded_direct_map(m, c.lo, c.hi, c.flags)
+        } else {
+            direct_map(m, c.lo, c.hi, c.flags)
+        };
+        if let Err(err) = result {
+            failed = Some(MapFailure {
+                what: c.what,
+                lo: c.lo,
+                hi: c.hi,
+                err,
+                conflict: if err == MapError::AlreadyMapped {
+                    first_conflict(c.what, c.lo, c.hi)
+                } else {
+                    None
+                },
+            });
+        }
+    });
+    if let Some(f) = failed {
+        return Err(f);
     }
 
+    // 3. The kernel image, section by section, at its linked VAs. W^X: text executable and
+    //    read-only, rodata neither writable nor executable, everything else writable and never
+    //    executable. Until this map is installed the boot table had all of it present, writable AND
+    //    executable, in both halves.
+    let mut va = |what: &'static str, lo: u64, hi: u64, flags: Flags| -> Result<(), MapFailure> {
+        map_range(m, lo, hi, flags).map_err(|err| MapFailure {
+            what,
+            lo,
+            hi,
+            err,
+            conflict: None, // these are virtual ranges; the claim enumeration is physical
+        })
+    };
+    va(".text", text_start(), text_end(), Flags::kernel_code())?;
+    va(
+        ".rodata",
+        rodata_start(),
+        rodata_end(),
+        Flags::kernel_rodata(),
+    )?;
+    va(".data/.bss", data_start(), bss_end(), Flags::kernel_data())?;
+
+    // 4. The stacks. The guard page below each is deliberately NOT mapped, which is the entire
+    //    stack-overflow mechanism and is asserted in `verify`: a mapped guard page is protection
+    //    that is silently off.
+    va(
+        "boot stack",
+        stack_bottom(),
+        stack_top(),
+        Flags::kernel_data(),
+    )?;
+    for id in 0..crate::cpu::MAX_CPUS {
+        let (bottom, top) = crate::smp::secondary_stack_span(id);
+        va("secondary stack", bottom, top, Flags::kernel_data())?;
+    }
+    for id in 0..crate::cpu::MAX_CPUS {
+        let (bottom, top) = crate::interrupt_stack::span(id);
+        va("interrupt stack", bottom, top, Flags::kernel_data())?;
+    }
+
+    Ok(())
+}
+
+/// Map a range of *physical* addresses into the direct map, **skipping pages already mapped**.
+///
+/// The one concession to a list nobody promised is disjoint, and it is deliberately not reachable
+/// from the ordinary path: see [`Claim::guarded`].
+fn guarded_direct_map<A, P>(
+    m: &mut Mapper<A, P, Ia32e>,
+    pa_start: u64,
+    pa_end: u64,
+    flags: Flags,
+) -> Result<(), MapError>
+where
+    A: FnMut() -> Option<u64>,
+    P: Fn(u64) -> *mut PageTable,
+{
+    for pa in (pa_start..pa_end).step_by(PAGE_SIZE as usize) {
+        if m.translate(phys_to_virt(pa)).is_none() {
+            m.map(phys_to_virt(pa), pa, flags)?;
+        }
+    }
     Ok(())
 }
 
@@ -1318,3 +1607,169 @@ pub const PCI_BAR_MAPPED: u64 = 0x20_0000;
 /// `alloc_msi_vector` answers `None`, which this one never does.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_IRQ_BASE: u32 = 0;
+
+#[cfg(test)]
+mod map_tests {
+    //! **The 17 GiB machine, without the 17 GiB machine.**
+    //!
+    //! These run in the `x86_64` kernel leg under QEMU, which boots with 2 GiB and can therefore
+    //! never produce the memory map that killed the first boot on real hardware. They do not need
+    //! it to: [`super::firmware_fill_ceiling`] is a function of the map alone, so the map goes in
+    //! as a value. It is transcribed from `art/bench/xenon-2026-09-05-first-light.jpg`, which is
+    //! the only transcript that boot left, and is a subset of the 148 entries the machine reported
+    //! (every entry the photograph shows, which is the tail plus the chain above 2 MiB).
+
+    use super::{LOCAL_APIC_PHYS, firmware_fill_ceiling};
+
+    /// xenon's memory map: `(start, end, usable)`, physical, in the order the firmware wrote it.
+    /// **Not sorted**, and that is faithful rather than sloppy: the low `0xa0000..0x100000`
+    /// reservation comes after a 16 GiB RAM region on this machine, which is why the ceiling walk
+    /// takes more than one pass.
+    const XENON: &[(u64, u64, bool)] = &[
+        (0x0, 0xa_0000, true),
+        (0x10_0000, 0x200_0000, true),
+        (0x200_0000, 0x214_c000, false),
+        (0x214_c000, 0xacfc_0000, true),
+        (0xacfc_0000, 0xad00_0000, false),
+        (0xad00_0000, 0xb7e1_b000, true),
+        (0xb7e1_b000, 0xb82c_5000, false),
+        (0xb82c_5000, 0xb9ef_d000, true),
+        (0xb9ef_d000, 0xb9ef_e000, false),
+        (0xb9ef_e000, 0xb9ef_f000, false),
+        (0xb9ef_f000, 0xb9fb_0000, true),
+        (0xb9fb_0000, 0xb9fb_a000, true),
+        (0xb9fb_a000, 0xb9fb_b000, true),
+        (0xb9fb_b000, 0xb9fb_f000, false),
+        (0xb9fb_f000, 0xc894_0000, true),
+        (0xc894_0000, 0xc8d3_e000, true),
+        (0xc8d3_e000, 0xc97c_4000, true),
+        (0xc97c_4000, 0xcadf_b000, false),
+        (0xcadf_b000, 0xcae4_1000, false),
+        (0xcae4_1000, 0xcb77_5000, false),
+        (0xcb77_5000, 0xcbd1_8000, false),
+        (0xcbd1_8000, 0xcbdf_f000, false),
+        (0xcbdf_f000, 0xcbe0_0000, true),
+        // The last entry below the 32-bit MMIO hole: firmware's own reservation at the top of low
+        // DRAM. Above it the map describes nothing until 0xf0000000.
+        (0xcbe0_0000, 0xd000_0000, false),
+        (0x1_0000_0000, 0x1_4000_0000, true),
+        (0x1_4000_0000, 0x1_408c_0000, true),
+        (0x1_408c_0000, 0x4_2e00_0000, true),
+        (0xa_0000, 0x10_0000, false),
+        (0xf000_0000, 0xf800_0000, false),
+        (0xfe00_0000, 0xfe01_1000, false),
+        (0xfec0_0000, 0xfec0_1000, false),
+        (0xfee0_0000, 0xfee0_1000, false),
+        (0xff00_0000, 0x1_0000_0000, false),
+    ];
+
+    fn ceiling(map: &[(u64, u64, bool)]) -> u64 {
+        firmware_fill_ceiling(|span| {
+            for &(start, end, _) in map {
+                span(start, end);
+            }
+        })
+    }
+
+    /// **The panic, reproduced as an assertion.** The old bound was the top of RAM, which on this
+    /// machine is `0x42e000000`: every MMIO window it has is below that, so the cacheable
+    /// reservation fill claimed the local APIC's page a few lines before the device mapping asked
+    /// for it, and the mapper refused. The chain rule stops at the floor of the MMIO hole instead.
+    #[test_case]
+    fn the_fill_stops_below_the_devices_on_a_17_gib_machine() {
+        let top_of_ram = XENON
+            .iter()
+            .filter(|(.., usable)| *usable)
+            .map(|(_, end, _)| *end)
+            .max()
+            .expect("the fixture has RAM");
+        assert_eq!(top_of_ram, 0x4_2e00_0000, "the fixture is not xenon's map");
+        assert!(
+            top_of_ram > LOCAL_APIC_PHYS,
+            "the old bound would not have reached the local APIC, so this is not the failure"
+        );
+
+        assert_eq!(
+            ceiling(XENON),
+            0xd000_0000,
+            "the fill should stop where the firmware's map stops describing memory"
+        );
+        assert!(
+            ceiling(XENON) <= LOCAL_APIC_PHYS,
+            "the local APIC is inside the cacheable fill again"
+        );
+    }
+
+    /// A machine whose RAM ends below the hole, which is every machine this tree had booted before
+    /// xenon: the new rule has to answer what the old one did, or it is a different bug.
+    #[test_case]
+    fn a_small_machine_is_unchanged() {
+        let qemu: &[(u64, u64, bool)] = &[
+            (0x0, 0x9_fc00, true),
+            (0x9_fc00, 0xa_0000, false),
+            (0xf_0000, 0x10_0000, false),
+            (0x10_0000, 0xffd_d000, true),
+            (0xffd_d000, 0x1000_0000, false),
+            (0xfffc_0000, 0x1_0000_0000, false),
+        ];
+        assert_eq!(ceiling(qemu), 0x1000_0000);
+    }
+
+    /// The failure message names both ranges, which is the whole point of it. Asserted rather than
+    /// eyeballed, because the reader it is written for is holding a camera.
+    #[test_case]
+    fn the_failure_names_both_ranges() {
+        let f = super::MapFailure {
+            what: "local apic",
+            lo: 0xfee0_0000,
+            hi: 0xfee0_1000,
+            err: paging::MapError::AlreadyMapped,
+            conflict: Some((
+                0xfee0_0000,
+                "firmware reservation",
+                0xfee0_0000,
+                0xfee0_1000,
+            )),
+        };
+        let mut s = Line::default();
+        core::fmt::write(&mut s, format_args!("{f}")).expect("formatting a failure cannot fail");
+        let line = s.as_str();
+        assert!(line.contains("local apic 0xfee00000..0xfee01000"), "{line}");
+        assert!(
+            line.contains("firmware reservation 0xfee00000..0xfee01000"),
+            "{line}"
+        );
+    }
+
+    /// A fixed line of text to format into. The kernel has no allocator, and one panic line is the
+    /// only thing anything here needs to build.
+    struct Line {
+        bytes: [u8; 256],
+        len: usize,
+    }
+
+    impl Default for Line {
+        fn default() -> Self {
+            Line {
+                bytes: [0; 256],
+                len: 0,
+            }
+        }
+    }
+
+    impl Line {
+        fn as_str(&self) -> &str {
+            core::str::from_utf8(&self.bytes[..self.len]).expect("we only wrote &str into it")
+        }
+    }
+
+    impl core::fmt::Write for Line {
+        fn write_str(&mut self, s: &str) -> core::fmt::Result {
+            let end = (self.len + s.len()).min(self.bytes.len());
+            let take = end - self.len;
+            self.bytes[self.len..end].copy_from_slice(&s.as_bytes()[..take]);
+            self.len = end;
+            Ok(())
+        }
+    }
+}
