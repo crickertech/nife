@@ -74,3 +74,51 @@ happened twice on 2026-08-15 and is a different problem with a different answer 
 rule now reads against the collision surface, and `git ls-remote --heads` is the ledger). And a
 draft pull request claims work that has a branch; a design question with no branch is a
 `design/decisions/` entry with `**Status: PROPOSED.**`, which is where those already live.
+
+## Amendment, 2026-09-05: the claim needs an empty commit, and one sentence here was false
+
+**A draft pull request whose head holds nothing its base does not will be closed by GitHub as
+`merged`, while still a draft.** So the claim disappears from the board without anybody doing
+anything, and `gh pr list --draft` reads empty while a lane is working. That is the one outcome this
+section exists to prevent.
+
+**The window is narrow, which is why it took three days to see.** It opens when a lane bases on a
+`maintainer/mint-*` branch (the milestone block is not on `main` yet, so the lane has to) and closes
+at the lane's first commit. If the mint pull request lands inside that window, the head has no commit
+of its own, GitHub concludes the work is already in `main`, and the draft is marked merged.
+
+**The fix is one line and it closes the window by construction**, rather than making it smaller:
+
+```sh
+git commit --allow-empty -m "claim: milestone N"
+```
+
+The head then carries something the base never will, so nothing that happens to the base can conclude
+the pull request is finished. AGENTS.md's instruction now says this; this section carries the reason.
+
+**The sentence this corrects.** AGENTS.md used to justify the convention with *"a draft cannot be
+stuck in the merge queue because a draft cannot be merged."* A draft cannot be **enqueued**, which is
+the useful half and is still true. It can be merged, by GitHub, without passing through the queue at
+all.
+
+### The four cases, and why the rate mattered more than the mechanism
+
+Measured 2026-09-05 over the last two hundred merged pull requests:
+
+| branch | date |
+|---|---|
+| `milestone/221-soak-crossing` | 2026-09-02 |
+| `milestone/220-jh7110-clock-and-reset` | 2026-09-04 |
+| `milestone/259-notes-sweep` | 2026-09-05 |
+| `milestone/260-xenon-netboot` | 2026-09-05 |
+
+The first is the day the `maintainer/mint-*` pattern began, so this has been true for as long as the
+pattern has. **It went unnoticed because it is rate-dependent**, and that is the part worth carrying
+to the next rare failure in this tree: at one occurrence every couple of days it reads as noise and
+nobody connects two incidents two days apart. Two in one evening reads as a pattern. **Nothing about
+the mechanism changed on 2026-09-05, only the number of lanes**, which is AGENTS.md's own observation
+about the bottleneck moving, arriving as a defect becoming visible rather than as a constraint.
+
+**Both 2026-09-05 lanes recovered on their own** by opening a replacement pull request, so nothing was
+lost. What was lost is the property the board is for: for part of that evening it showed no claim on
+two milestones that were actively being worked.
