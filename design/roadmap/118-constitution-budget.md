@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1035 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1037 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,21 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Raised from 1035 to 1037 on 2026-09-05, and this paragraph is the sentence the rule asks for.**
+Two lines, and they buy a correction rather than an addition: §90's paragraph justified the
+draft-pull-request convention with *"a draft cannot be stuck in the merge queue because a draft
+cannot be merged"*, and that is false. GitHub closes a draft as **merged** when its head holds
+nothing its base does not, which happens whenever a lane bases on a `maintainer/mint-*` branch that
+lands before the lane's first commit. The board then reads empty while a lane is working, which is
+the single property the board exists to provide, and it had done so four times since 2026-09-02.
+
+**The growth is two lines because the evidence went elsewhere**, which is this budget working as
+designed rather than being worked around. The instruction (`git commit --allow-empty` before the
+draft) is in `AGENTS.md` because that is where a lane reads it; the four cases, the window, and why a
+rate-dependent failure hid for three days are in
+[§90](../decisions/90-claiming-and-closing.md)'s amendment, because that is where evidence belongs.
+The constitution gained the rule and not the argument.
 
 **Raised from 990 to 1012 on 2026-08-30, and this paragraph is the sentence the rule asks for.** The
 addition is principle 1: the customer path it had named since 2026-08-05 ended that day, when calef
