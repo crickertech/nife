@@ -5,18 +5,7 @@
 ran 2026-08-23**; **E1, E3 and E4 were re-taken on radon on 2026-09-04**, which is the small-cache
 board all three were designed against and where the dev Mac's large L1 had been muting them.
 Tier B remains gated on milestone 74's counters and
-milestone 127's silicon (see "What is built, and what is not" below for both).
-
-**The board session's three results, because two of them are stronger than the dev Mac's and one is
-a defect in the experiment.** Six interleaved boots on a `single_hart` card; the reading is
-notes/footprint-perturbation.md and the capture is `bench/radon-2026-09-04/`. **E1 found the knee**,
-at 16 threads, 68% up from 2 and then flat to 96, where patagonia showed 8 to 11% with no bend.
-**E4 found displacement**, 5 to 8% under 96-thread IPC load against 0 to 1% at ordinary load,
-peaking at a 32 KiB working set which is radon's L1d exactly. **E3 found that it cannot separate
-footprint from code layout**: the padded build is 1.49% slower on `call_reply` and 3.01% *faster* on
-`ipc_rtt_el0`, and dead code that is never executed has no mechanism for the second. That is a flaw
-in E3's design rather than in the session, it was equally present on 2026-08-22, and the fix is
-`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`. What landed
+milestone 127's silicon (see "What is built, and what is not" below for both). What landed
 2026-08-18 is the register itself
 (notes/register-of-measures.md), with the test for what belongs in it and the three states a measure
 can be in, plus the unsafe census calef folded into this block the same day and the `count-at-most`
@@ -28,6 +17,18 @@ number does not exist, and §96 said the instrument "wants a roadmap block of it
 this block: §95 and §96 both say to wait for milestone 74's counters on milestone 127's TX1, and both
 over-gated, because the experiments that produce a *verdict* need no silicon. The PMU produces
 *mechanism*. See the correction section below.
+
+**The board session's three results, because two of them are stronger than the dev Mac's and one is
+a defect in the experiment.** Six interleaved boots on a `single_hart` card; the reading is
+notes/footprint-perturbation.md and the capture is `bench/radon-2026-09-04/`. **E1 found the knee**,
+at 16 threads, 68% up from 2 and then flat to 96, where patagonia showed 8 to 11% with no bend.
+**E4 found displacement**, 5 to 8% under 96-thread IPC load against 0 to 1% at ordinary load,
+peaking at a 32 KiB working set which is radon's L1d exactly. **E3 found that it cannot separate
+footprint from code layout**: the padded build is 1.49% slower on `call_reply` and 3.01% *faster* on
+`ipc_rtt_el0`, and dead code that is never executed has no mechanism for the second. That is a flaw
+in E3's design rather than in the session, it was equally present on 2026-08-22, and the fix is
+`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`.
+
 
 **Extended the same day, at calef's direction**, and the extension changes what this block is. The
 first draft listed only the experiments runnable today, on the reasoning that a measure we cannot take
