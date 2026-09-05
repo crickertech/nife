@@ -109,7 +109,15 @@ un-gated are `a_userspace_driver_reads_a_file_over_the_pcie_transport` and
 **The skip count did not move, and reading that as "no progress" is the mistake.** What moved is
 what the passing tests *prove*. The read test asserts `ROUTED_IRQS` increased, so it fails if the
 completion arrives by polling rather than by interrupt; and the IOMMU escape test stopped being a
-no-op on this architecture. The 44 skips are still waiting on fixtures and on `std`, which is the
+no-op on this architecture.
+
+**Correction, 2026-09-04** (the `maintainer/msix-completion-flake` lane): that sentence about the
+read test was not true on this architecture when it was written. `arch::x86_64::exceptions::
+ROUTED_IRQS` also counted the local APIC timer, which aarch64's and riscv64's never did, so a timer
+tick landing in the test's window satisfied the assertion whatever the device had done, and a
+polling driver would have passed it most of the time. The counter now counts what its two siblings
+count and the sentence is true as written. That divergence is also half of why the test flaked here;
+see notes/load-sensitive-assertions.md. The 44 skips are still waiting on fixtures and on `std`, which is the
 handoff below.
 
 ## What this does not cover

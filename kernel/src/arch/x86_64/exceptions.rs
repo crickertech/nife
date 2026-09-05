@@ -221,8 +221,24 @@ unsafe extern "C" {
     static ISR_STUBS: [u64; 256];
 }
 
-/// **How many interrupts were routed to a handler.** The portable counter every architecture's
-/// interrupt tests read.
+/// **How many interrupts became a message to a userspace endpoint**: the trap handler took one,
+/// `sched::irq_route` found an endpoint bound to it, and `sched::irq_notify` was called. The
+/// portable counter every architecture's interrupt tests read, and it now means on this
+/// architecture what it has always meant on the other two.
+///
+/// **It used to count the local APIC timer, the reschedule IPI, and device vectors nothing had
+/// claimed.** That was a divergence rather than a richer number, and it made every portable test
+/// that reads this counter weaker here than elsewhere: an assertion that a *device's* completion
+/// reached the kernel was satisfied by a timer tick landing in the same window, so on `x86_64` those
+/// tests passed for the wrong reason whenever a tick obliged. That is not what *caused*
+/// `user::tests::a_userspace_driver_reads_a_file_over_the_pcie_transport` to flake (it sampled its
+/// baseline after the driver was already spawned, and both were fixed together), but it is why the
+/// flake was rare instead of constant, and why fixing the sample alone would have been a widening
+/// rather than a fix. See notes/load-sensitive-assertions.md for the whole account.
+///
+/// Nothing lost a number to this. Timer ticks are counted by `arch::timer::ticks()` and printed by
+/// the bring-up tour from there; an unclaimed device vector is counted by [`DEVICE_IRQS`] and, when
+/// there was nothing to route it to, by [`SPURIOUS_IRQS`].
 pub static ROUTED_IRQS: AtomicUsize = AtomicUsize::new(0);
 
 /// **How many interrupts arrived with nothing to route them to.** A spurious interrupt is normal on
@@ -720,7 +736,9 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
         v if v == super::irq::TIMER_VECTOR as u64 => {
             super::timer::tick();
             crate::sched::on_tick();
-            ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+            // Not counted in ROUTED_IRQS: nothing routed this to a driver. It used to be, and
+            // the cost was that a tick could answer a test asking whether a *device's* completion
+            // had arrived. `timer::ticks()` is the count of these.
             super::irq::end_of_interrupt();
             true
         }
@@ -735,7 +753,8 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
         v if v == super::irq::RESCHEDULE_VECTOR as u64 => {
             crate::sched::drain_inbox();
             crate::sched::serve_steal_request();
-            ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
+            // Not counted in ROUTED_IRQS, for the timer arm's reason: this is the kernel talking
+            // to itself, not an interrupt becoming a driver's message.
             super::irq::end_of_interrupt();
             true
         }
@@ -811,8 +830,10 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
         // Nothing needs it: a PCI function reaches its driver by MSI-X on this architecture
         // (milestone 215), and the console UART's line is the only other candidate.
         v if super::irq::is_device_vector(v) => {
+            // [`DEVICE_IRQS`] only: a line outside the CPU reached it, which is what that counter
+            // claims, but the BUGS note above is exactly that nothing here can route it to a
+            // driver. Counting it as routed said the opposite.
             DEVICE_IRQS.fetch_add(1, Ordering::Relaxed);
-            ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
             super::irq::end_of_interrupt();
             true
         }

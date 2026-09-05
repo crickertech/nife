@@ -343,11 +343,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 arch::wait_for_interrupt();
             }
             arch::interrupts::disable();
+            // The tick count is the delivery evidence; `ROUTED_IRQS` used to be printed beside
+            // it and no longer counts a timer tick, because nothing routes one to a driver.
             println!(
-                "  timer       : {} ticks in ~0.2s at {} Hz ({} routed, {} spurious)",
+                "  timer       : {} ticks in ~0.2s at {} Hz ({} spurious)",
                 arch::timer::ticks(),
                 arch::timer::TICK_HZ,
-                arch::exceptions::ROUTED_IRQS.load(core::sync::atomic::Ordering::Relaxed),
                 arch::exceptions::SPURIOUS_IRQS.load(core::sync::atomic::Ordering::Relaxed),
             );
         } else {

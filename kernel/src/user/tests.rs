@@ -1043,12 +1043,14 @@ fn a_new_thread_holds_no_capabilities() {
 fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
     use crate::arch::exceptions::ROUTED_IRQS;
 
+    // Sampled before the device is wired, not after. The pcie test further down this file
+    // carries the argument for why that ordering, and not a longer wait, is the whole fix.
+    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
+
     let Some(report) = virtio_service::start(init_image()) else {
         // No disk attached to this run. Nothing to test; do not fail.
         crate::testing::skip!("no virtio disk attached");
     };
-
-    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
 
     // Blocks until the driver has done the whole read. If the driver faults, it never sends,
     // and the scheduler idles; the QEMU-level timeout is the backstop.
@@ -1059,9 +1061,11 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
         b"nife: re",
         "the driver reported the wrong file contents",
     );
+    let irqs_after = ROUTED_IRQS.load(Ordering::Relaxed);
     assert!(
-        ROUTED_IRQS.load(Ordering::Relaxed) > irqs_before,
-        "the read completed but no device interrupt was delivered as a message",
+        irqs_after > irqs_before,
+        "the read completed but no device interrupt was delivered as a message \
+         ({irqs_before} routed before the device was wired, {irqs_after} after the report)",
     );
 }
 
@@ -2046,11 +2050,30 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
 fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     use crate::arch::exceptions::ROUTED_IRQS;
 
+    // **The baseline is sampled before the device is wired, and the ordering is the fix rather
+    // than a longer wait.** The trap handler bumps `ROUTED_IRQS` immediately *before*
+    // `sched::irq_notify`, and `Irq::WAIT` is an `ipc_recv` on the endpoint that notify signals
+    // (`syscall::irq_wait`), so a driver cannot reach its report without this counter having
+    // already moved. The assertion can therefore only fail one way: a baseline sampled after the
+    // completion it is asking about. Sampling here forecloses that, because until `start_pci`
+    // runs there is no queue, no route and no driver, so nothing this device does can be counted
+    // before this line.
+    //
+    // It used to be sampled between the wiring and the `ipc_recv`, which is *after* the driver is
+    // spawned, and that is what made this test flake on x86_64. See
+    // notes/load-sensitive-assertions.md.
+    //
+    // So the assertion is now implied by the report rather than racing it, which is the point of
+    // keeping it: it is a guard on that implication. A driver rewritten to poll the used ring, or
+    // a handler that counted after `irq_notify` instead of before it, breaks the chain and this
+    // fires. The first assertion alone would pass on a polled driver, which is why deleting this
+    // one was never an option.
+    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
+
     let Some(report) = virtio_service::start_pci(init_image()) else {
         crate::testing::skip!("no virtio-pci disk on the bus");
     };
 
-    let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
     let word = sched::ipc_recv(report)[0];
 
     assert_eq!(
@@ -2058,9 +2081,11 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
         b"nife: re",
         "the driver reported the wrong file contents over pci",
     );
+    let irqs_after = ROUTED_IRQS.load(Ordering::Relaxed);
     assert!(
-        ROUTED_IRQS.load(Ordering::Relaxed) > irqs_before,
-        "the read completed but the device's interrupt was never delivered to this kernel",
+        irqs_after > irqs_before,
+        "the read completed but the device's interrupt was never delivered to this kernel \
+         ({irqs_before} routed before the device was wired, {irqs_after} after the report)",
     );
 }
 
