@@ -298,8 +298,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   supervisor would rather have held.
 - [How authority moves, narrows, and ends](capability-lifecycle.md): capabilities spread by
   copy-with-narrowing (never widening), `SEND_CAP` is share not move, the two independent
-  narrowings (rights vs. GRANT), and why there's no revocation yet (a control gap, not a
-  safety hole: spend-only untyped keeps shared frames valid).
+  narrowings (rights vs. GRANT), and revocation from milestone 13 onward: `PageFrame::REVOKE`
+  unmaps a page from every holder, and the note keeps the pre-13 design in the present tense of
+  before it existed, because why it was not a safety hole (spend-only regions keep shared frames
+  valid) is the part worth still having.
 - [Object revocation: tearing a process back down](object-revocation.md): reclaiming the TCBs,
   address spaces, and endpoints a process built (extends §13 from frames to objects). Region
   ownership plus generational staleness instead of a capability derivation tree, why destroy is
@@ -799,7 +801,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   missing the store-store barrier between claiming the sequence and writing the data, unreachable on
   x86 and invisible to every other gate. Including which fixes do *not* work: `AcqRel` and `SeqCst`
   on the claim both still tear. Extended 2026-08-14 with the scheduler's block/wake protocol
-  (`crates/wake_handshake`, the fourth bench stop's retrofit): a lock-based protocol whose search
+  (`crates/thread_wake_handshake`, the fourth bench stop's retrofit): a lock-based protocol whose search
   space is the gaps between critical sections, with each of its three recorded races held as a
   harness plus a `#[should_panic]` reconstruction. Run by `script/interleaving-check`.
 - [Mutation testing](mutation-testing.md): milestone 85, and the question coverage cannot ask:
@@ -907,11 +909,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   **false**, and the real cost is a grant that acquires a referent later. And `ARG_MAX` as a
   capability limit, with the bound set at eight by a stack overflow rather than by reasoning.
 - [Generational names](generational-names.md): milestone 14 phase A: the thread table becomes a
-  fixed generational slot table (`crates/slots`). A Tid is `(generation, slot)`; a dead thread's
+  fixed generational slot table (`crates/generational_table`). A Tid is `(generation, slot)`; a dead thread's
   name can never resolve again, even after slot reuse. Bounded like an array, safe like a
   never-reused counter, and the first step toward capability-only thread naming.
 - [Intrusive queues](intrusive-queues.md): milestone 14 phase A.2: the run queues and migration
-  inboxes become intrusive (`crates/intrusive`); the link lives inside the TCB, a push is two
+  inboxes become intrusive (`crates/intrusive_fifo`); the link lives inside the TCB, a push is two
   pointer writes that cannot allocate or fail, and a pop hands back the thread itself. One link
   means one queue, which is the scheduler's state machine made physical.
 - [Benchmarks with teeth](benchmarks.md): milestone 21: two instruments, because gating and
@@ -1003,7 +1005,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   device that lies about persistence, plus the controls that prove the injector bites (with the header
   ring's history removed, 92 of 93 fault points stop mounting) and the honest limit (a lying device is
   never survivable and never silent). Milestone 61 added the **verb table**: one row per opcode in
-  `fs_proto::verb`, saying what a request's words mean and which rights the server demands, so the
+  `filesystem_proto::verb`, saying what a request's words mean and which rights the server demands, so the
   three caretakers that proxy this contract dispatch off the contract instead of off three
   hand-written matches, and a verb with no row is a compile error rather than a capability that is
   quietly missing. Milestone 57's write half added `mkfs`, the server's opposite (it creates a
@@ -1035,7 +1037,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   at the interactive prompt for a name one directory down, and the shape it still cannot be given is
   a grant on the root of the shell's own namespace.
 - [`touch`: create if absent](touch.md): milestone 47's other builtin split by what needs a
-  decision and what does not. The create half needed nothing new (`fs_proto::fs::CREATE`, already
+  decision and what does not. The create half needed nothing new (`filesystem_proto::fs::CREATE`, already
   built for milestone 31 phase 2) and is a builtin in `mkdir`'s category rather than `rm`'s, since it
   takes no more than the directory capability the shell already holds. The mtime half (bumping an
   existing name's timestamp, and `-t`'s sharper ability to lie about history) is not built, because
