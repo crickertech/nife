@@ -4,6 +4,8 @@
 #   script/board-image
 #   script/board-image --soak                 # the sustained multicore workload instead of a halt (219)
 #   script/board-image --jobmix               # the multi-tasking workload sweep instead of a halt (168)
+#   script/board-image --bench                # the microbenchmark suite instead of a halt, one hart (134)
+#   script/board-image --bench --extra-features fastpath_pad   # ...and E3's padded fastpath
 #   script/board-image --soak --reboot        # ...and the board cold-reboots every two minutes (249)
 #   script/board-image --card /Volumes/NIFE   # and copy the matched set onto an already-formatted card
 #
@@ -53,20 +55,35 @@ cd "$(dirname "$0")/.."
 # because it is a different promise about what the card will do to the machine, and the operator
 # should have to type the word "reboot" to get it. The build prints what it is and how to stop it
 # before it does anything, below.
+# **The benchmark payload** (milestone 134's E1, E3 and E4 on radon): the same image, with the
+# `bench` feature that runs the microbenchmark suite instead of the tour, and with `single_hart`,
+# which is not optional here. E1 and E4 require ONE hart so their threads contend for the same
+# core's cache; QEMU gets that from `-smp 1` on a runner's command line and a card has no command
+# line, so a `board,bench` card would boot four U74s and both benchmarks would self-skip on the
+# exact machine they were designed for. The two features go on together for that reason, rather
+# than being offered separately for somebody to get wrong at the bench. The cost is stated where a
+# reader meets it, in `single_hart`'s own entry in kernel/Cargo.toml: `smp_throughput`, `fs_read`
+# and `fs_throughput` skip on this card. See notes/board-bench.md.
 FEATURES=board
 SOAK=no
 JOBMIX=no
 REBOOT=no
+BENCH=no
+EXTRA=""
 CARD=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --soak) SOAK=yes; shift ;;
         --jobmix) JOBMIX=yes; shift ;;
         --reboot) REBOOT=yes; shift ;;
+        --bench) BENCH=yes; shift ;;
+        --extra-features)
+            [ $# -ge 2 ] || { echo "board-image: --extra-features needs a comma-separated list" >&2; exit 2; }
+            EXTRA="$2"; shift 2 ;;
         --card)
             [ $# -ge 2 ] || { echo "board-image: --card needs a path" >&2; exit 2; }
             CARD="$2"; shift 2 ;;
-        *) echo "board-image: unknown argument $1 (--soak, --jobmix, --reboot, --card <dir>)" >&2; exit 2 ;;
+        *) echo "board-image: unknown argument $1 (--soak, --jobmix, --reboot, --bench, --extra-features <list>, --card <dir>)" >&2; exit 2 ;;
     esac
 done
 
@@ -85,6 +102,12 @@ fi
 # a card is how the number is actually taken. A flag here rather than a second script for --soak's
 # reason: everything else about the payload is identical, and the archive/kernel ORDER below is the
 # thing that must not be re-derived by hand. See notes/job-mix.md.
+# `--bench` replaces the end of the boot tour too, so it is exclusive with the other two for the
+# same reason and with the same refusal rather than a silent preference.
+if [ "$BENCH" = yes ] && { [ "$SOAK" = yes ] || [ "$JOBMIX" = yes ]; }; then
+    echo "board-image: --bench, --soak and --jobmix all replace the end of the boot tour; pick one" >&2
+    exit 2
+fi
 if [ "$SOAK" = yes ] && [ "$JOBMIX" = yes ]; then
     # Both features replace the end of the boot tour, and the kernel would run the sweep and never
     # soak. Refused here rather than silently preferring one, because a card built from an ambiguous
@@ -94,6 +117,7 @@ if [ "$SOAK" = yes ] && [ "$JOBMIX" = yes ]; then
 fi
 if [ "$SOAK" = yes ]; then FEATURES="board,soak"; fi
 if [ "$JOBMIX" = yes ]; then FEATURES="board,jobmix"; fi
+if [ "$BENCH" = yes ]; then FEATURES="board,bench,single_hart"; fi
 if [ "$REBOOT" = yes ]; then
     FEATURES="board,soak,reboot_soak"
     cat >&2 <<'WARNING'
@@ -112,6 +136,17 @@ board-image: --reboot builds a card that makes the board RESET ITSELF every two 
 
 WARNING
 fi
+
+# **The extra features, appended last** (milestone 134's E3). `fastpath_pad` is the one this exists
+# for: E3 compares a padded IPC fastpath against an un-padded one on the SAME machine, so it needs
+# two cards that differ in exactly one Cargo feature and in nothing else. Appending rather than
+# replacing is what keeps that true.
+#
+# **The hazard this cannot fix, so it prints instead.** Both cards write the same three filenames
+# into target/board/, so a padded and an un-padded image are indistinguishable once they are on a
+# card, and a bench session that mixes them up produces a comparison of a build against itself. The
+# feature set is echoed below and it is the one line worth copying into the log beside the numbers.
+if [ -n "$EXTRA" ]; then FEATURES="$FEATURES,$EXTRA"; fi
 
 # Checked before the build rather than after it, so a typo costs a message instead of four minutes
 # of cargo. The refusals are narrow on purpose: this writes into a directory somebody named, and
@@ -178,6 +213,7 @@ SIZE="$(wc -c < "$IMG" | tr -d ' ')"
 ARCHIVE_SIZE="$(wc -c < "$OUT/nife-initrd.img" | tr -d ' ')"
 echo
 echo "built:"
+echo "  features: $FEATURES"
 echo "  $IMG  ($SIZE bytes, Image header verified)"
 echo "  $OUT/nife-initrd.img  ($ARCHIVE_SIZE bytes, the userspace archive this kernel measures)"
 echo

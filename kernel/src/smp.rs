@@ -410,10 +410,26 @@ unsafe extern "C" {
 /// - **The conduit half is proved by parsing and not by calling.** `crates/machine_discovery`'s host tests read a
 ///   real QEMU dump that states `smc`, so the decode is exercised; no machine here boots that
 ///   configuration, so the `smc` instruction path has never executed. See `arch::cpu_start`.
+#[cfg_attr(feature = "single_hart", allow(unreachable_code))]
 pub fn bring_up_secondaries() {
     // Record the boot core as online before starting anyone, so a TLB shootdown from here on names
     // it. (Secondaries add their own bits as they come up.)
     ONLINE_MASK.fetch_or(1 << cpu::id(), Ordering::Release);
+
+    // **The single-hart measurement build** (milestone 134's E1/E3/E4 on radon; kernel/Cargo.toml's
+    // `single_hart`). Mark the boot core online, as above, and start nobody. It returns HERE rather
+    // than at the top, because the mask is not optional: everything that broadcasts reads it, and a
+    // kernel with an empty online set while `online_count` says one is the disagreement the x86
+    // bring-up already caught once.
+    //
+    // A card, unlike a QEMU runner, has no `-smp 1` to pass, and E1 and E4 need one hart so their
+    // threads contend for the same core's cache. `bench::real_single_hart_or_skip` is what would
+    // otherwise refuse on radon; see notes/board-bench.md.
+    #[cfg(feature = "single_hart")]
+    {
+        println!("  smp: 1 core(s) online (single_hart: secondaries left parked)");
+        return;
+    }
 
     // Paint every secondary's stack before any CPU_ON, while the slots are still untouched `.bss`,
     // so no live frame can be painted over (milestone 84). Whole slots: nothing has run on them.
