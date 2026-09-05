@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1048 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 988 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,20 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Lowered from 1048 to 988 on 2026-09-05 by milestone 262, and a lowering deserves the sentence as
+much as a raise does.** The naming section went 137 lines to 77 without losing a rule: the argument
+moved to `notes/naming.md`, which now says in its own first paragraph that it is the case and not the
+authority, and that where the two disagree this file is the rule and the note is the bug.
+
+**Most of the 60 lines were not moved, they were deleted as duplicates.** The two-tier rejection, the
+`wc` example, the "0 of 57" measurement, the standard-terms guard rail and the `NAME_LEN` history
+were each already written out in full in both files. That is the defect milestone 262 was minted for,
+found four more times while fixing it once, and it is the answer to the question this budget could not
+ask: the file was not only growing, it was growing things it already had.
+
+**The ceiling is set at the new exact value with zero headroom**, per this section's own rule, so the
+next addition argues for itself the way the three on 2026-09-05 did.
 
 **Raised from 1043 to 1048 on 2026-09-05, the third raise that day, and this paragraph is the
 sentence the rule asks for.** Five lines add a **seventh question** to the list a fork must arrive
