@@ -296,7 +296,7 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   U74s, because both experiments need one hart and a card has no `-smp 1`; and
   `script/board-image --bench [--extra-features fastpath_pad]` writes the pair of cards E3
   compares. The procedure, with a table mapping each observable outcome to what it settles and
-  which milestone it routes to, is **notes/board-bench.md**. **No number came off radon**: the
+  which milestone it routes to, is **notes/footprint-perturbation.md**. **No number came off radon**: the
   board was powered off and there was no bench session, so the register's E1/E3/E4 rows still say
   dev Mac only, correctly. What is outstanding is the session.
 - **Recorded.** A correction found on the way, 2026-09-04, which would otherwise have wasted the

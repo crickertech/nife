@@ -694,7 +694,7 @@ fn ipc_rtt_el0() {
 // to RUN them there, which is a board card (`script/board-image --bench`) plus a single-hart boot
 // (the `single_hart` feature). Under QEMU nothing changes: the riscv64 runs are TCG, so both still
 // self-skip, by the same one-value counter-frequency test the aarch64 half already used. See
-// notes/board-bench.md for the procedure and design/roadmap/134-the-measurements-that-decide.md.
+// notes/footprint-perturbation.md for the procedure and design/roadmap/134-the-measurements-that-decide.md.
 
 /// QEMU's `virt` machine fixes `CNTFRQ_EL0` at 62.5 MHz under TCG, with or without `-icount`
 /// (measured on this tree's pinned QEMU: `cargo xtask bench` and `cargo xtask bench --check` both
@@ -716,7 +716,7 @@ const TCG_VIRT_CNTFRQ_HZ: u64 = 62_500_000;
 ///
 /// **What it does not distinguish**, and this is the honest limitation: it says "not QEMU `virt`",
 /// not "has a 32 KB L1". A second riscv64 machine with a different timebase and a large cache
-/// would run this and be believed. The operator's runbook (notes/board-bench.md) is what records
+/// would run this and be believed. The operator's runbook (notes/footprint-perturbation.md) is what records
 /// which machine a number came from; nothing in the kernel can.
 #[cfg(target_arch = "riscv64")]
 const TCG_VIRT_CNTFRQ_HZ: u64 = 10_000_000;
@@ -732,7 +732,7 @@ const TCG_VIRT_CNTFRQ_HZ: u64 = 10_000_000;
 /// card satisfies the "real core" half and fails this one, and both E1 and E4 would print a skip
 /// line on the machine they were designed for. `single_hart` parks the secondaries at bring-up;
 /// the cost is that `smp_throughput` self-skips on the same card, which is why the runbook takes
-/// two cards rather than one. See notes/board-bench.md.
+/// two cards rather than one. See notes/footprint-perturbation.md.
 #[cfg(any(target_arch = "aarch64", target_arch = "riscv64"))]
 fn real_single_hart_or_skip(name: &str) -> bool {
     let cores = crate::smp::online_count();

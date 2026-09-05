@@ -50,4 +50,4 @@ and that block's own BUGS warns that real PMUs do not implement every architecte
 
 ## Where it came from
 
-notes/board-bench.md, "What milestone 74's riscv64 half adds, and what it still cannot see".
+notes/footprint-perturbation.md, "What milestone 74's riscv64 half adds, and what it still cannot see".

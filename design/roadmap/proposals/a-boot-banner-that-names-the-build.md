@@ -43,4 +43,4 @@ than a debugging aid) and should not ride along on this one.
 
 ## Where it came from
 
-notes/board-bench.md's BUGS, "the padded and un-padded images are indistinguishable on the card".
+notes/footprint-perturbation.md's BUGS, "the padded and un-padded images are indistinguishable on the card".

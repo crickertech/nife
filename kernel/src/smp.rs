@@ -424,7 +424,7 @@ pub fn bring_up_secondaries() {
     //
     // A card, unlike a QEMU runner, has no `-smp 1` to pass, and E1 and E4 need one hart so their
     // threads contend for the same core's cache. `bench::real_single_hart_or_skip` is what would
-    // otherwise refuse on radon; see notes/board-bench.md.
+    // otherwise refuse on radon; see notes/footprint-perturbation.md.
     #[cfg(feature = "single_hart")]
     {
         println!("  smp: 1 core(s) online (single_hart: secondaries left parked)");
