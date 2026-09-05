@@ -87,10 +87,30 @@ nothing more:
 - A microSD card already formatted and mounted, and its mount path.
 - patagonia, this checkout, and about ten minutes of building per card.
 
-**Two cards, or one card written twice.** E3 is a comparison of two builds that differ in exactly
-one Cargo feature, so the session writes the card twice and boots twice. They produce the same three
-filenames, so nothing on the card says which is which; `script/board-image` echoes its feature list
-for exactly this reason and that line belongs in the log beside the numbers.
+**Two cards, or one card written six times, and this page said something looser until 2026-09-04.**
+E3 is a comparison of two builds differing in exactly one Cargo feature. It said "writes the card
+twice and boots twice", which describes a *blocked* order, and the section below requires an
+**interleaved** one. With two cards those agree. **With one card they do not**, and calef has one.
+
+So, with a single card, the order is:
+
+```
+unpadded -> padded -> unpadded -> padded -> unpadded -> padded
+```
+
+**six writes, not two.** A rewrite is about two minutes once the build is warm (`script/board-image`
+rebuilds only what changed and the copy is 9 MB), so the session costs roughly 75 minutes rather
+than 60.
+
+**Do not take the blocked order to save the flashes.** Three unpadded boots followed by three padded
+ones puts everything that drifts across the session, board temperature most obviously, entirely on
+the second group, where it is indistinguishable from the effect being measured. The interleaving is
+not tidiness; it is what makes a few-percent difference mean anything.
+
+They produce the same three filenames, so nothing on the card says which is which;
+`script/board-image` echoes its feature list for exactly this reason and that line belongs in the log
+beside the numbers. **That the card cannot say what it is, is the reason six writes are risky rather
+than merely slow**, and `design/roadmap/proposals/a-boot-banner-that-names-the-build.md` is the fix.
 
 ## The procedure, in order
 
