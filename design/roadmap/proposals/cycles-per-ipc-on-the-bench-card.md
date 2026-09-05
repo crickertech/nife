@@ -1,0 +1,53 @@
+# Cycles per IPC on the bench card, so E3's verdict is not a 250 ns quantum
+
+**Status: PROPOSED 2026-09-04.** Found by the maintainer/e3-on-radon lane, which made milestone
+134's E1, E3 and E4 runnable on radon and then noticed what their clock is.
+
+**Gate: MILESTONE 74, HARDWARE.** Milestone 74's riscv64 half landed 2026-09-04
+(`kernel/src/arch/riscv64/pmu.rs`), so the counter exists; what is left is wiring it into
+`kernel/src/bench.rs`'s rows and a bench session on radon to read them. Nothing here is blocked on
+design.
+
+## In brief
+
+Every row a bench card prints is a `rdtime` tick count. On the JH7110 the timebase is **4 MHz**, so
+one tick is **250 ns**. An IPC round trip on this class of core is single-digit microseconds, and
+E3's whole question is whether a 1.86x footprint change moves it by a few percent. That is a handful
+of ticks, measured with a ruler whose smallest mark is a large fraction of the effect.
+
+`kernel/src/arch/riscv64/pmu.rs` reads real cycles through the SBI PMU extension, and milestone
+229's per-thread grant (`cycle_counter_grant`) is the authority DECISIONS 139 decided. Neither is
+wired into `kernel/src/bench.rs`'s rows. Wiring them turns E3's comparison from "a few ticks" into
+"a few thousand cycles", which is the difference between a result and a shrug.
+
+## What it is
+
+`bench::timed` reads `arch::timer::now()`. The proposal is a second, additive reading: keep the tick
+column exactly as it is, so every recorded baseline stays comparable, and print a cycle column
+beside it when the counter is available and the build asked for it (`cycle_counter_grant`, which
+already exists for this reason and already costs a measured 136 bytes on the aarch64 fastpath
+closure).
+
+The rows that want it are the ones a bench session actually reads:
+`ipc_rtt`, `ipc_rtt_el0`, `call_reply`, and E1's `ipc_scale_*`.
+
+## Why it is not this lane's
+
+Two reasons, and the second is the real one. It is a change to the shape of every benchmark row,
+which is a published measurement format that `script/bench --check` compares against
+`bench/baseline-*.txt`; that is a decision about a recorded artifact rather than an addition to one.
+And it is worth doing **after** a first bench session rather than before, because the session will
+say whether the tick quantum was actually the binding problem or whether boot-to-boot spread
+dominates it anyway. Building the finer instrument first is the classic way to spend a day
+sharpening a ruler nobody needed.
+
+## What it still would not see
+
+Cycles say *whether* a round trip got slower. They do not say the instruction cache is why. That is
+M6 (instruction-cache misses per IPC) in milestone 134's tier B, and **nothing in this tree reads a
+cache-miss counter on any architecture**; whether the U74's PMU counts what M6 wants is unverified,
+and that block's own BUGS warns that real PMUs do not implement every architected event.
+
+## Where it came from
+
+notes/board-bench.md, "What milestone 74's riscv64 half adds, and what it still cannot see".
