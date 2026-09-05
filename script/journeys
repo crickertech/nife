@@ -23,8 +23,11 @@
 # own H1, and that every milestone and decision a step cites exists in its index, and exits non-zero
 # on a problem, which is what a gate wants.
 #
-# Name: unrecorded, like script/roadmap and script/decisions, whose pattern this script is
-# deliberately a third instance of.
+# Name: recorded (DECISIONS §134's split of the `script/` family, and design/journeys/README.md
+# for the stem). Deliberately the third instance of the `script/roadmap` and `script/decisions`
+# pattern, and §134 later wrote that pattern down: a script that reports takes a noun, and the
+# noun is the record it reads. Here that record is `design/journeys/`, indexed by its own README,
+# so the name is fixed by the directory rather than chosen. calef has not ratified it.
 
 set -e
 
