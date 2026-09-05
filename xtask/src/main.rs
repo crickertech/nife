@@ -3453,7 +3453,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
-        ("job_mixer", "job_mixer"),
+        ("job_mix_task", "job_mix_task"),
         // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops the
         // budget. Portable, so both archives carry all four.
@@ -4337,7 +4337,7 @@ fn initrd_aarch64() -> bool {
         // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
-        ("job_mixer", "job_mixer"),
+        ("job_mix_task", "job_mix_task"),
         // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops
         // the budget.
