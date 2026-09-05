@@ -277,6 +277,24 @@ That splits this risk into three, and two of them are now answered:
 
 The decisive experiment above is unchanged, because throughput is what a TRNG cannot test.
 
+**And the machine for it exists, which nobody had established until 2026-09-05.** The decisive
+experiment is one real non-virtio device on real silicon, confined, at throughput.
+[§86](decisions/86-el0-nvme-driver.md) was decided on 2026-09-03 and its own research recorded that
+**no board this project owns has an IOMMU in front of a real NVMe controller**. xenon has both, and
+its firmware transcription says so precisely: a `Micron 2450 NVMe 256GB` on M.2 PCIe SSD-0 with SATA
+in AHCI rather than RAID, *"so the NVMe is a plain PCIe function rather than hidden behind Intel
+RST"*, on a machine milestone 87 selected partly for VT-d.
+
+**What stood in the way was not hardware, it was that the disk held somebody else's Windows**, and a
+disk this project must not write to is not a disk it can drive. calef confirmed on 2026-09-05 that
+the installation is a freshly wiped image from the seller rather than anyone's data, and that the
+machine's own firmware can clear it (Maintenance, Data Wipe, `Wipe on Next Boot`, which covers M.2
+PCIe SSD; `notes/xenon-firmware.md`, IMG_4091).
+
+So the remaining distance to this risk's decisive experiment is an EL0 NVMe driver under §86's
+option 2a, and a bench evening. **That is a long way, and it is a known road rather than a missing
+machine**, which is a different position from the one this entry was in a week ago.
+
 ## 7. The confinement claim is false
 
 **The claim:** a confined component escapes, and the property the whole system is built to provide
