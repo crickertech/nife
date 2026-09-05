@@ -2735,6 +2735,16 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
 /// capability would reopen that. The structural fix is a call identity in the payload:
 /// `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`.
 pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
+    // E3's footprint padding, on the CALL side as well as the SEND side (milestone 134, extended
+    // 2026-09-04). It was on `ipc_send` alone, and that was the whole of the fastpath when the
+    // padding was written; milestone 188 phase 1 then split the footprint gate into two closures
+    // and found the CALL/reply one is the larger and **is the shape real services run**, at which
+    // point a pad reachable only from `ipc_send` was padding a shape nothing in this tree uses.
+    // Measured on riscv64 before this line existed: `ipc_send_recv` 2.10x, `ipc_call_reply` 1.00x.
+    // One call site per shape, so the untaken-branch confound the module doc names stays one
+    // branch per round trip rather than three.
+    #[cfg(feature = "fastpath_pad")]
+    crate::fastpath_pad::maybe_pad();
     {
         let mut guard = IPC_TABLES.lock();
         let sched = guard.as_mut().expect("no scheduler");
