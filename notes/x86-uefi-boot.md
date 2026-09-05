@@ -371,23 +371,79 @@ nobody had established.
 failed to build the kernel page tables: AlreadyMapped
 ```
 
-**The leading hypothesis, and it is a hypothesis rather than a diagnosis**: milestone 243 added a
-framebuffer mapping to `map_everything` on 2026-09-04, after every RAM region is direct-mapped:
+**Diagnosed 2026-09-05 from this photograph, and the leading hypothesis was wrong.** It read the
+framebuffer aperture at `0xd0000000` against 17 GB of RAM and concluded the two had met. They had
+not, and the memory map on the screen is what says so: the aperture sits in the 32-bit MMIO hole,
+which this firmware's map **does not describe at all**. The last entry below it ends at
+`0xd0000000`, the next begins at `0xf0000000`, and the aperture is in no RAM region and never was.
 
-```rust
-if let Some((base, size)) = memory::framebuffer() {
-    direct_map(m, base, base + size, Flags::device())?;
-}
-```
+**What actually collided is the local APIC**, and the mechanism is one line older than milestone
+243. `map_firmware_regions` direct-mapped every loader-reserved entry **below the top of RAM**,
+cacheably, and its own comment said why that bound was the load-bearing part: the reserved entries
+*above* the top of RAM are the MMIO windows, and those must be device-typed. That is a true
+statement about a machine whose RAM ends below the hole, which is every machine this tree had
+booted. xenon's RAM ends at **`0x42e000000`**, so *every* MMIO window it has is below the bound:
 
-The aperture is at `0xd0000000` and **this machine has 17 GB of RAM**. Under OVMF at 2 GiB the
-aperture sits far above every RAM region and the two mappings cannot meet; here they can, and
-`direct_map` refuses a frame it has already mapped. **The failure would appear only where RAM is
-large enough to reach the aperture**, which is a machine no emulator run in this tree has modelled.
+| Reserved entry, from the photograph | What it is | Below `0x42e000000`? |
+|---|---|---|
+| `0xcbe00000..0xd0000000` | firmware's carve-out at the top of low DRAM | yes |
+| `0xf0000000..0xf8000000` | PCH decode | yes |
+| `0xfe000000..0xfe011000` | PCH | yes |
+| `0xfec00000..0xfec01000` | **IO APIC** | yes |
+| `0xfee00000..0xfee01000` | **local APIC** | yes |
+| `0xff000000..0x100000000` | SPI flash | yes |
 
-**It is not certain and the record should not pretend otherwise.** `map_everything` maps several
-other things, and `AlreadyMapped` names the symptom rather than the pair of ranges that collided.
-The first thing a fix owes is a message that says which two.
+So the cacheable fill claimed `0xfee00000` a few lines before step 5 asked for the same page
+device-typed, and the mapper refused, which is exactly what it is for. The framebuffer never got
+that far: the local APIC is the first window step 5 maps.
+
+**Two things are worth separating here.** The panic is the smaller half. The larger half is that on
+this machine the fill was also mapping the IO APIC, the SPI flash and 128 MiB of PCH decode
+**cacheably**, which is a write that can sit in a cache line and never reach the device. Nothing
+had touched those yet, so nothing had failed; the panic is what made it visible.
+
+**The fix, on `maintainer/already-mapped-on-real-ram`.** The fill's bound is now the address at
+which the firmware's map stops describing memory, walked as a chain upward from the low megabyte:
+DRAM and the carve-outs firmware takes out of it are contiguous, and the MMIO hole above them is a
+gap. On xenon that is `0xd0000000`; on every machine whose RAM ends below the hole it is the same
+number the old bound produced. The device windows are also enumerated before the fill now, so
+device typing wins by construction rather than by that bound being right.
+
+**And the panic now names both ranges.** `AlreadyMapped` on its own cost this session a diagnosis:
+`map_everything` maps eleven kinds of range and the message distinguished none of them. Every
+direct-map range now comes out of one enumeration that the failure path also walks, so the message
+is `AlreadyMapped mapping local apic 0xfee00000..0xfee01000: 0xfee00000 is also claimed by firmware
+reservation 0xfee00000..0xfee01000`. That is the difference between a bench session that ends in a
+diagnosis and one that ends in a hypothesis, and it is the half worth keeping regardless of whether
+the fix is right.
+
+### Confirming the fix, which only xenon can do
+
+**A green QEMU run is not a confirmation and should not be reported as one.** The runner boots with
+2 GiB, `notes/x86-uefi-boot.md`'s own comparison table was taken at `-m 256M`, and neither reaches a
+memory map with RAM above the MMIO hole. `-m 17G` on patagonia (16 GB) swaps rather than reproduces.
+What the suite does prove is that the rule answers the old bound's number on a small machine, and
+the `x86_64` kernel leg carries xenon's map as a fixture (`map_tests` in
+`kernel/src/arch/x86_64/mmu.rs`, transcribed from the photograph) so the 17 GiB case is asserted
+without the machine.
+
+The bench session that confirms it, in the shape of the procedure below:
+
+1. Build the stick exactly as step 3 below says, from `maintainer/already-mapped-on-real-ram` or
+   from `main` once it has landed.
+2. Boot it. **The line to watch for is `mmu`**, which the boot tour prints after `map_everything`
+   returns:
+   `mmu : fine W^X 4-level map installed (cr3 ...), image 0xffffffff80000000, direct map 0xffff888000000000`
+   followed by the page-table cost in KiB. Reaching that line at all is the confirmation: it is one
+   line past where the machine stopped on 2026-09-05.
+3. **Photograph the whole screen anyway**, not just that line. The page-table cost on the second
+   line is the number nobody has ever seen from a real machine, and this module's `BUGS` prices 4
+   KiB leaves at 0.2% of RAM, so ~33 MiB is the prediction to check against.
+4. **If it panics again, the message is now the deliverable.** Photograph it and stop; it names the
+   two ranges, so no further bench time is needed to say what happened.
+5. The tour continues past the `mmu` line into ring 3 and the scheduler. Everything after it is new
+   ground on this machine and none of it has been seen on real firmware, so expect the next stop
+   somewhere else and treat that as progress rather than as this fix failing.
 
 ### What it settles about the procedure below
 
