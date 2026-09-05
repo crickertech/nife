@@ -710,6 +710,11 @@ stick procedure copies, at the same path, staged once.
      NBP file downloaded successfully.
    ```
 
+   **The byte count is not a constant and is not worth checking against.** It is whatever
+   `cargo xtask uefi-image` last wrote, and it moves with every kernel and archive change: two runs
+   an hour apart on 2026-09-05 measured 9,210,880 and 9,797,120. What matters is that the number the
+   firmware prints and the number `board-netboot` prints are **the same number**.
+
 2. **In patagonia's `board-netboot` terminal**, two requests and not one, in this order:
 
    ```text
@@ -718,6 +723,10 @@ stick procedure copies, at the same path, staged once.
    board-netboot: 192.168.8.NN <- EFI/BOOT/BOOTX64.EFI (9210880 bytes, blksize 1468)
    board-netboot: EFI/BOOT/BOOTX64.EFI done, 9210880 bytes in N.NNs
    ```
+
+   **`blksize 1468` is EDK2's own ask** and is what a full-size ethernet frame holds once the IP,
+   UDP and TFTP headers are out of it. A client that negotiated 512 instead would still work and
+   would take about three times as long.
 
    **The cancellation line is normal and is the boot working.** EDK2 asks for the file twice: once
    to learn its size, which it does by starting a read and then stopping it, and once to fetch it.

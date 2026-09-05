@@ -88,7 +88,9 @@ config file above. **No disk of any kind is attached**: the wire is the only way
 
 **Measured, 2026-09-05 on patagonia:** `nife x86_64: boot complete, halting.` in **8.2 seconds**
 from QEMU start, **9,210,880 bytes** transferred, **blksize 1468** as EDK2 asks for it, the whole
-boot tour on serial. The negative case (`--mac 02:00:00:00:00:01`) produces `PXE-E16: No valid offer
+boot tour on serial. A second run an hour later, after the suite had rebuilt the image, measured
+**7.9 seconds** and **9,797,120 bytes**, which is the same claim twice and is also the evidence for
+the size not being a constant. The negative case (`--mac 02:00:00:00:00:01`) produces `PXE-E16: No valid offer
 received` and no boot, which is what a house machine that is not xenon must see.
 
 **`-netdev user` was refused rather than missed.** QEMU's slirp has a DHCP server and a TFTP server
