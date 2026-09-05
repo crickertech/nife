@@ -101,7 +101,7 @@ trips. `bench/` prices a round trip; nothing about this is free.
 The reply's first word is a byte count in `0..=8`. Every failure the kernel can return from a `CALL`
 is one of its small negatives (-1..-8), which read as enormous `u64`s. So "there is no entropy
 service" and "the service has no entropy" are distinguishable with no probe request and no ambiguity
-to reason about. `fs_proto` could not manage that (its errno space collides with the kernel's, a
+to reason about. `filesystem_proto` could not manage that (its errno space collides with the kernel's, a
 wart notes/std.md records), and a contract this new had no excuse to inherit the collision.
 
 ## What `std::random` does
@@ -233,9 +233,23 @@ it.
   adaptive-proportion tests are the cheap standard answer and are not implemented.
 - **No rate limit and no quota.** A client holding the endpoint can drain the service as fast as it
   can `CALL`. Eight bytes per round trip is a cost, not a defence.
-- **`init` does not endow the shell with entropy.** The std wiring and the milestone-56 tests do.
-  Ambient entropy would be ambient authority, and the point of the grant is that a program's
-  dependence on randomness is visible in what it holds. A shell that needs to hand entropy to a child
-  is future work with no design problem in it.
+- **A program at the prompt can hold entropy, since milestone 111** (2026-09-05). This entry used to
+  read "`init` does not endow the shell with entropy", and its own last sentence ("future work with
+  no design problem in it") turned out to be right: no new mechanism, no new right, nothing on the
+  wire. `grant_plan::Manifest::entropy` joined `clock`, `domain` and `config`; init reads the
+  declaration and places a `WRITE` view of the entropy service's request endpoint at
+  `grant_plan::ENTROPY_SLOT`; a program that did not declare it holds an empty slot there and
+  `entropy_proto::delivered` answers `None` rather than a short count. `user/src/uuid.rs` is the
+  first consumer a person can type, and `caps uuid` prints the row.
+
+  **Ambient entropy would still be ambient authority**, and nothing here made randomness ambient:
+  the endowment is per program, declared, and previewed before anything is spawned. **The shell
+  itself holds none**, deliberately, because nothing it does as a builtin is unpredictable;
+  `config` and `domain` make the same call, and `clock` is the exception only because `time`
+  measures with it.
+
+  What it cost: one permanent capability slot in init, which used to release the endpoint once
+  `credentialer` held its own copy. `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED` moved 21 to 22 of
+  24, caught by milestone 231's own gate on the first boot after the wiring landed.
 - **No cryptography anywhere.** No hash, no cipher, no key derivation. Milestone 56's other half
   (vendoring RustCrypto) is a separate decision, and this lane deliberately did not pre-empt it.

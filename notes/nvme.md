@@ -44,7 +44,7 @@ in the driver's space except what commands point it at.
    because an SQ names its CQ at creation). Admin commands and I/O commands are the same wire
    shape through the same rings, so bring-up itself exercises the transfer machinery.
 
-The driver serves whole 4096-byte filesystem blocks, `fs_proto::blk`'s unit, and exposes exactly
+The driver serves whole 4096-byte filesystem blocks, `filesystem_proto::blk`'s unit, and exposes exactly
 the blk-IPC verbs as methods: `read_block`, `write_block`, `size_bytes`. A block is one to eight
 logical blocks depending on the namespace's LBA format (QEMU's default is 512-byte LBAs, so eight);
 IDENTIFY tells the driver the format and `IdentifyNamespace::blocks_per` does the arithmetic.

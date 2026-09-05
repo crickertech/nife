@@ -92,7 +92,7 @@ the next stop rather than the end of the tour.
 ## What was built
 
 **The window is derived, and the constant is gone.** `arch::x86_64::mmu::PCI_BAR_PHYS` no longer
-exists; `arch::x86_64::mmu::bar_window` answers instead, and the boot tour panics rather than
+exists; `arch::x86_64::mmu::memory_mapped_io_window` answers instead, and the boot tour panics rather than
 booting if it cannot.
 
 Two sources, exactly as the block asked, and one distinction the block did not anticipate:
@@ -106,7 +106,7 @@ Two sources, exactly as the block asked, and one distinction the block did not a
   bridge's own configuration space with the legacy `0xcf8`/`0xcfc` ports `enable_pcie_ecam` already
   drives. The vendor id is checked first, so a non-Intel bridge answers `None` instead of having
   one vendor's register read out of it.
-- **A disagreement is a panic naming both numbers**, `BarWindowError::Disagreement`, with no arm
+- **A disagreement is a panic naming both numbers**, `MemoryMappedIoWindowError::Disagreement`, with no arm
   that quietly picks one and no arm that reaches a constant.
 
 **And the derived window steps over what the kernel already knows decodes in the hole**, which is
@@ -185,7 +185,7 @@ the disagreement message naming both numbers. `script/test` passes on all three 
   on an older chipset would answer with a plausible address, and `None` is better than a number
   nobody checked.
 - **A gap in the firmware map is still not a promise that nothing decodes there.** It is a promise
-  that firmware did not call it RAM. `bar_window` subtracts the windows this kernel knows about
+  that firmware did not call it RAM. `memory_mapped_io_window` subtracts the windows this kernel knows about
   (the framebuffer, ECAM, both APICs, VT-d) and cannot subtract the ones it does not: the SPI flash,
   the LPC decode ranges, and anything else in a real machine's hole that no table this kernel reads
   will name. **A BAR the machine itself placed is stronger evidence than this derivation**, which is

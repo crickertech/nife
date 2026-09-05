@@ -346,7 +346,7 @@ the program ids `spawnproto` already sends in word 0.
 
 ### BUGS
 
-- **Recovery is LIFO** (§16, `crates/regions`). A job region reclaimed while it is not at the top of
+- **Recovery is LIFO** (§16, `crates/memory_regions`). A job region reclaimed while it is not at the top of
   the pool's watermark returns nothing and leaves a hole until the pool's owner dies, which init never
   does. Sequential commands at a prompt are exactly LIFO and recover fully; two jobs alive at once (a
   pipeline stage outliving its producer) permanently costs one region, so a long enough session of

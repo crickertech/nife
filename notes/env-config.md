@@ -1,6 +1,6 @@
 # The inert-configuration page: `TZ`, `LANG`, `TERM`, and what still waits
 
-Milestone 47's environment-variable fork. Built 2026-08-23. The contract is `env_proto` (a
+Milestone 47's environment-variable fork. Built 2026-08-23. The contract is `environment_proto` (a
 provisional name; naming crates is calef's call, per AGENTS.md); the decision is DECISIONS §111.
 
 ## What this is
@@ -22,7 +22,7 @@ endpoint (as the clock's propose half uses) would be the wrong shape here.
 terminal type; a value that does not parse as a member of its key's domain is refused when the page
 is assembled, not carried through disguised as configuration. This closes the gap DECISIONS §111
 identifies: a capability governs reach, not meaning, so once a value is bytes on a page nothing
-about the capability model can tell a password from a timezone. `env_proto::domain`'s three lists
+about the capability model can tell a password from a timezone. `environment_proto::domain`'s three lists
 are curated and real, not the full IANA/glibc/terminfo databases; see the crate's own `BUGS`
 section for why growing them on demand is deliberate rather than a gap.
 
@@ -32,24 +32,25 @@ The clock page is published to repeatedly by a running service while readers hol
 so a reader can catch a writer mid-publish and must retry rather than blend. The config page has
 **exactly one writer, and it finishes before the page has a second reader**: it is assembled in a
 buffer nothing else can see, and only *then* mapped read-only into the process that will read it.
-There is nothing to race, so `env_proto::ConfigPage` is a plain length-prefixed byte layout with no
+There is nothing to race, so `environment_proto::ConfigPage` is a plain length-prefixed byte layout with no
 atomics at all.
 
 ## What's built end to end
 
-- `crates/env_proto`: the page layout, the three validated domains, `PageBuilder` (assemble,
+- `crates/environment_proto`: the page layout, the three validated domains, `PageBuilder` (assemble,
   validated) and `ConfigPage` (read). Host-tested: round trips, refusals, an unrecognized magic
   or a zeroed frame reading as "no configuration" (DECISIONS §42's rule, applied here), every
   domain member fitting its field's byte cap.
 - `kernel/src/user/std_service.rs`: assembles a page (`TZ=UTC`, `LANG=C`, `TERM=dumb`, the
-  conservative universal defaults, chosen because there is no shell yet to hold a *different*
-  default and pass it explicitly) and maps it read-only into a std program at `CONFIG_PAGE_STD`
+  conservative universal defaults, chosen because nothing holds a *different* default to pass
+  explicitly: the shell exists, but the "a shell holds its own default" mechanism does not, which is
+  this note's own second BUGS entry) and maps it read-only into a std program at `CONFIG_PAGE_STD`
   (`0x1300_0000`), granting a `Frame` with `READ` at `CONFIG_SLOT` (7), the same shape as the
   clock's slot 5.
 - `patches/std-nife/overlay/std/src/sys/pal/nife/rt.rs`: `CONFIG_SLOT`/`CONFIG_PAGE` constants,
   the std PAL's twin of the kernel-side ones.
 - `patches/std-nife/overlay/std/src/sys/pal/nife/mod.rs`: the `envproto` module (generated
-  verbatim from `crates/env_proto` by `cargo xtask std-src`, the same mechanism `clockproto` and
+  verbatim from `crates/environment_proto` by `cargo xtask std-src`, the same mechanism `clockproto` and
   `fsproto` use) and the call into `sys::env::seed()` from `pal::nife::init`, before `main` runs.
 - `patches/std-nife/overlay/std/src/sys/env/nife.rs`: `seed()`, which probes `CONFIG_SLOT` the
   same way `sys/time/nife.rs` probes `CLOCK_SLOT` (an invocation with a method number no object
@@ -78,7 +79,7 @@ atomics at all.
 
 ## Tests
 
-`crates/env_proto` host suite: 9 unit tests plus 2 doctests, covering the round trip, every domain
+`crates/environment_proto` host suite: 9 unit tests plus 2 doctests, covering the round trip, every domain
 check, an undeclared key reading as absent rather than empty, a zeroed frame and an unrecognized
 magic both reading as "no configuration," and the layout offsets not overlapping.
 `kernel::user::std_tests::a_whole_std_program_runs_on_the_native_abi`, both ISAs: the real
@@ -97,4 +98,4 @@ magic both reading as "no configuration," and the layout offsets not overlapping
   exists today is one fixed default `std_service.rs` assembles for every std program it spawns,
   which is closer to `date`'s "init endows unconditionally" shape than to a per-shell,
   per-session default.
-- **The domains are curated, not exhaustive.** See `env_proto`'s own `BUGS` section.
+- **The domains are curated, not exhaustive.** See `environment_proto`'s own `BUGS` section.

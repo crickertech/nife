@@ -810,6 +810,7 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  budgeter --mem N        grant a process N pages from this shell's budget\n");
     out(b"  date                    print the wall-clock time\n");
     out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
+    out(b"  uuid                    a version-4 UUID, from the entropy service it is granted\n");
     out(b"  wc                      count lines, words and bytes on its INPUT\n");
     out(b"  doc <page>              render markdown from its INPUT (apropos names the pages)\n");
     out(b"  <prog> <name>           grant a process one file, and only that file\n");
@@ -933,7 +934,8 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         | Prog::Pgrep
         | Prog::Watch
         | Prog::Uptime
-        | Prog::Printenv => {}
+        | Prog::Printenv
+        | Prog::Uuid => {}
     }
 }
 
@@ -1221,6 +1223,26 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
             b"                              defaults; nothing here can change what a shell hands\n",
         );
         out(b"                              its children\n");
+    }
+    // **The row milestone 111 exists to print, and it is the point of that milestone rather than a
+    // decoration on it.** Randomness is the one authority a program can hold whose use leaves no
+    // trace at all: a process that draws a key and a process that hardcodes one look identical from
+    // outside, run the same syscalls, and produce output of the same shape. So "does this program
+    // depend on unpredictable bytes" is a question no observation of a running system answers, and
+    // this line answers it before anything is spawned.
+    //
+    // `WRITE` is the whole grant, and on an endpoint that is the right to `CALL`: this child may
+    // ask the service for bytes. It may not receive another client's request (that would be `READ`,
+    // which the service holds and nothing else does), and it holds no `GRANT`, so it cannot pass
+    // randomness on to anything at all.
+    if e.prog.manifest().entropy {
+        out(b"    cap 9  endpoint  entropy  WRITE. it may ask the entropy service for random\n");
+        out(
+            b"                              bytes, and nothing else: it cannot reach the device,\n",
+        );
+        out(b"                              cannot receive another client's request, and cannot\n");
+        out(b"                              hand a random source to anything it spawns\n");
+        out(b"                              a program without this row draws no randomness at all\n");
     }
     // **The row this milestone exists to print.** On Linux there is nothing here to say: `ps` reads
     // /proc and the answer is "every process on the machine", which no command line chose and no
@@ -1968,6 +1990,45 @@ mod tests {
         assert!(s.contains("read-only"), "{s}");
         // A program that declares no config page is not given a row that says it has one.
         assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("config"));
+    }
+
+    #[test]
+    fn uuid_says_the_entropy_endpoint_is_not_on_the_line() {
+        // `clock`'s family a fourth time, and the one member whose absence is otherwise invisible.
+        // A process that draws a key and a process that hardcodes one look identical from outside,
+        // so "does this program depend on unpredictable bytes" is a question no observation of a
+        // running system answers. This row answers it before anything is spawned.
+        let s = shown(|o| write_preview(&endowment(Prog::Uuid), o));
+        assert!(s.contains("cap 9  endpoint  entropy"), "{s}");
+        // `WRITE`, and the word is the claim rather than decoration: it is the right to `CALL` the
+        // service and not the right to receive another client's request, nor to hand a random
+        // source to anything spawned. A preview naming a wider right would describe a grant that is
+        // not being made, which is the failure a `caps` output has available.
+        assert!(s.contains("WRITE"), "{s}");
+        // The half that carries the claim in English, for a reader who does not know the rights.
+        assert!(s.contains("draws no randomness at all"), "{s}");
+        // And a program that declares no entropy is not given a row that says it has one. This is
+        // the refusal, in the one place a person meets it before anything runs.
+        assert!(!shown(|o| write_preview(&endowment(Prog::Date), o)).contains("entropy"));
+        assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("entropy"));
+    }
+
+    #[test]
+    fn exactly_one_program_declares_entropy() {
+        // The manifest table is the whole of who may draw random bytes at this prompt, so a count
+        // of it is a claim worth gating rather than a tautology: a second program declaring
+        // `entropy` without anybody deciding to is exactly the drift toward ambient authority
+        // DECISIONS §44 exists to prevent, and it would otherwise be visible only to whoever read
+        // the diff.
+        let mut declared = 0;
+        for id in 0..grant_plan::PROG_COUNT as u64 {
+            let p = Prog::from_id(id).expect("PROG_COUNT and Prog::from_id agree");
+            if p.manifest().entropy {
+                assert_eq!(p, Prog::Uuid, "{} declares entropy", p.name());
+                declared += 1;
+            }
+        }
+        assert_eq!(declared, 1);
     }
 
     #[test]

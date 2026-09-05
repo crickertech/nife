@@ -439,14 +439,22 @@ and 2 the kernel places into the trap frame's `x1`/`x2` directly, because a sysc
 register and a message is three. Writing the trap frame is writing the user's registers ([see
 7a](userspace.md)).
 
-## Single core is a gift here
+## Single core was a gift here, and the bill arrived
+
+*(Written at milestone 7e, when §6 said one core. **SMP landed at milestone 41 under §11**, which
+supersedes §6, so read the paragraph below as the record of what was true before it did. That was
+this section's own stated purpose; the tense is corrected here rather than the argument deleted.)*
 
 Every worry that makes IPC hard on a real machine: a sender and receiver racing on the queue, a
-message half-delivered: cannot arise, because **only one thread runs at a time**. Between a
-thread releasing the scheduler lock and calling `schedule()` to block, the *only* thing that can
-run is the timer IRQ, and the one-line `runnable` check already handles that. When SMP arrives
-(DECISIONS §6) this all gets harder, and the notes here will be the record of what was true before
-it did.
+message half-delivered: could not arise, because **only one thread ran at a time**. Between a
+thread releasing the scheduler lock and calling `schedule()` to block, the *only* thing that could
+run was the timer IRQ, and the one-line `runnable` check already handled that.
+
+What it costs now that cores are real is written down rather than left to inference:
+[scheduler.md](scheduler.md) for the per-core run queues and the message-shaped stealing that
+replaced the one big lock, [memory-ordering.md](memory-ordering.md) for which sites actually rely
+on the weak model, and [interleaving.md](interleaving.md) for the protocols loom searches because
+reading them was no longer enough.
 
 ## What it looks like
 
@@ -462,10 +470,12 @@ thread blocked on the other end:
       one capability for it and no other way to find it.
 ```
 
-## The server is a kernel thread, for one more milestone
+## The server was a kernel thread, for one more milestone
 
-The thing on the other end of that endpoint is a kernel thread. That is the last piece of
-scaffolding. **Milestone 8 makes it a userspace process**: the console driver leaves the kernel,
+*(Milestone 8 has since shipped; this is the record of the last piece of scaffolding and why it
+came down in that order. See [userspace-drivers.md](userspace-drivers.md).)*
+
+The thing on the other end of that endpoint was a kernel thread. **Milestone 8 made it a userspace process**: the console driver leaves the kernel,
 `Object::Console` becomes an `Endpoint` to a console *server*, and `write` becomes an ordinary
 `SEND` to it. Everything 7e built (endpoints, blocking, the rendezvous, message-in-registers) is
 exactly the machinery that move needs, which is why it came first.

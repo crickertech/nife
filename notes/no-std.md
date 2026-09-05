@@ -51,15 +51,19 @@ operating system removed**. And we are the ones building the operating system.
 So every missing piece of `std` is something we **earn back by implementing the thing
 `std` assumed existed**:
 
-| Missing | Because we haven't built | Milestone |
+| Missing | Because we haven't built | Earned back at |
 |---|---|---|
-| `println!` | somewhere for bytes to go | **1** |
-| `thread::spawn` | a scheduler | **6** |
-| `Vec`, `String`, `Box` | a heap allocator | **4** |
-| `File::open` | a filesystem | **8** |
+| `println!` | somewhere for bytes to go | milestone 1, and again at 8 when the console driver left the kernel |
+| `thread::spawn` | a scheduler | the scheduler is milestone 6; `thread::spawn` itself is **still `Unsupported`**, and the reason is a design fork rather than a missing service ([thread-spawn-fork.md](thread-spawn-fork.md)) |
+| `Vec`, `String`, `Box` | a heap allocator | milestone 4 in the kernel, then **taken back out**: milestone 14 made the kernel allocate nothing after boot, and the heap moved to userspace as `crates/user_heap` |
+| `File::open` | a filesystem | milestone 32 (RedoxFS behind a capability FS server), bound into `std::fs` by milestone 27 phase two |
 
-At milestone 4 we write a `#[global_allocator]`, add `extern crate alloc;`, and `Vec`
-starts working. Not because we imported it. Because we built the heap it needed.
+**The heap row is the one worth reading twice, and this table said the opposite until
+2026-09-05.** At milestone 4 the kernel did get a `#[global_allocator]`, `extern crate alloc;`,
+and a working `Vec`. Milestone 14 then argued the kernel should not have a heap at all and
+deleted it, so `kernel/src/` has no global allocator today. Earning a piece of `std` back is
+what this note claims and it is still true; what it did not anticipate is that the kernel would
+give one back on purpose. See [heap.md](heap.md) and [collections.md](collections.md).
 
 ---
 

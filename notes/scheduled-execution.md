@@ -292,7 +292,7 @@ is now 4 and `timetable.conf`'s `at-boot budgeter --mem 4` is planned, backed, a
 
 Milestone 129's block said to split the grant out of the *instance's own region*, "so that a
 single `Untyped::DESTROY` still reclaims both and a restart loop is not a leak". **The kernel
-refuses precisely that.** `regions::destroy_outcome` answers `Refused` for any region with a live
+refuses precisely that.** `memory_regions::destroy_outcome` answers `Refused` for any region with a live
 child, `split_stays_within_budget_and_progresses`' sibling proof pins it, and
 `sched::reap_supervised` passes the refusal straight back as `NotPermitted`. So a corpse whose
 region carries a split grant is uncollectable through `reap` until the grant is destroyed first, by

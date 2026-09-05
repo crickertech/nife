@@ -94,14 +94,14 @@ TOTAL             4654     391       96       410    5551    92.4
 one is a detected hang (below). It is over viable mutants, so `unviable` is excluded from the
 denominator: an unviable mutant does not compile, which says nothing about the tests.
 
-**Five crates scored 100%**: `nifefs`, `dma_validator`, `elf`, `regions` and `bitmap_font`. The first
+**Five crates scored 100%**: `nifefs`, `dma_validator`, `elf`, `memory_regions` and `bitmap_font`. The first
 two are the trust-boundary parsers, and they got there the hard way, by having every one of their
 24 first-pass survivors turn out to be a real gap that a test then closed. That is the number to
 compare a crate against next week.
 
 **Four numbers deserve their asterisk before anyone reads them as quality.** `video_terminal` at
 72.8% and `pci` at 77.3% were simply untriaged when the run happened; both are now done and the
-survivors were overwhelmingly real. `intrusive` at 57.1% is 4 caught out of 7 viable, which is a
+survivors were overwhelmingly real. `intrusive_fifo` at 57.1% is 4 caught out of 7 viable, which is a
 crate small enough that one mutant moves the percentage nine points. And `line_editor` at 80.1% is
 what a terminal looks like when its tests assert what the screen shows and never where the cursor
 is.
@@ -659,8 +659,8 @@ loop rather than an undetected bug.
 | the 1-survivor crates | 4 | 0 | 4 | 0 | 0 |
 | **total** | **487** | **225** | **170** | **95** | **0** |
 
-The 2-survivor crates are `asid`, `cred_proto`, `entropy_proto`, `sink_proto`, `socket_proto` and
-`slots`' siblings; the 1-survivor crates are `abi`, `block_roster`, `c_seam` and `capability`. Their
+The 2-survivor crates are `asid`, `credential_proto`, `entropy_proto`, `byte_sink_proto`, `socket_proto` and
+`generational_table`' siblings; the 1-survivor crates are `abi`, `block_roster`, `c_seam` and `capability`. Their
 survivors are the recurring patterns named at the top of this section, one or two each.
 
 **Nothing is deferred, and that is a claim worth being suspicious of**, so here is what it rests on.
@@ -672,18 +672,18 @@ check, `cred`'s memory ceiling, `gpt::check_partitions`' one-block partition), a
 first pass turned out to have written its tests where `cargo test` could not see them. **A verdict
 reached by reading is wrong about ten percent of the time; a verdict reached by running is not.**
 The crates that were not re-audited (`grant_plan`, `machine_discovery`, `measured_boot`, `ntp_proto`, `ipc`,
-`intrusive`) had their kills verified the same way when they were written, but their *equivalence*
+`intrusive_fifo`) had their kills verified the same way when they were written, but their *equivalence*
 claims rest on argument alone, and the weekly run is what will check them.
 
 **The alarming survivors, named.** A survivor in a security boundary is worth more attention than
-fifty in a display crate, so: `capability`, `regions`, `dma_validator`, `nifefs` and `elf` have
+fifty in a display crate, so: `capability`, `memory_regions`, `dma_validator`, `nifefs` and `elf` have
 **zero real survivors** between them, and the three trust-boundary parsers score 100%. The one
-security-relevant survivor the run found anywhere was `fs_proto::xattr::store::write_record`, whose
+security-relevant survivor the run found anywhere was `filesystem_proto::xattr::store::write_record`, whose
 value limit stopped being enforced under a single `||` to `&&`, on a path that re-emits records
 whose lengths come off the blob rather than from a bounds-checked caller. It is closed. The
 next-most-serious were `paging`'s user-VA gate and `Mapper::root` (a constant there installs the
 wrong table in silicon), `machine_discovery`'s widest-wins fold (an rv32 hart booting an rv64 answer), and
-`slots::get_mut` (a `None` the kernel `unwrap()`s on the switch path). All closed.
+`generational_table::get_mut` (a `None` the kernel `unwrap()`s on the switch path). All closed.
 
 
 ## 2026-09-03: `measured_boot` re-run, and its five survivors proved equivalent rather than argued

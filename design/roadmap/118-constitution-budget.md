@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 1035 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 988 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,63 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Lowered from 1048 to 988 on 2026-09-05 by milestone 262, and a lowering deserves the sentence as
+much as a raise does.** The naming section went 137 lines to 77 without losing a rule: the argument
+moved to `notes/naming.md`, which now says in its own first paragraph that it is the case and not the
+authority, and that where the two disagree this file is the rule and the note is the bug.
+
+**Most of the 60 lines were not moved, they were deleted as duplicates.** The two-tier rejection, the
+`wc` example, the "0 of 57" measurement, the standard-terms guard rail and the `NAME_LEN` history
+were each already written out in full in both files. That is the defect milestone 262 was minted for,
+found four more times while fixing it once, and it is the answer to the question this budget could not
+ask: the file was not only growing, it was growing things it already had.
+
+**The ceiling is set at the new exact value with zero headroom**, per this section's own rule, so the
+next addition argues for itself the way the three on 2026-09-05 did.
+
+**Raised from 1043 to 1048 on 2026-09-05, the third raise that day, and this paragraph is the
+sentence the rule asks for.** Five lines add a **seventh question** to the list a fork must arrive
+answered: *would we still choose this if both options cost the same?* It is not new reasoning. It is
+§92's test, which already existed and lived inside a tenet, so it fired only when somebody remembered
+it. calef asked for it as a standing question after it had gone unasked for a month on milestone 51's
+"three problems, one addition", which counted effort and read as design until he applied the test
+himself.
+
+**Three raises in one day is the argument for milestone 262, not against the raises.** Each was a
+considered act with its sentence, which is what this budget asks. But the file grew fifteen lines
+between 1033 and 1048 in a morning, and the naming section alone is 12% of it and mostly argument.
+The constitution should carry the tests a lane applies and the notes should carry the cases; until
+that split is made, every good rule costs the budget the same as a bad one.
+
+**Raised from 1037 to 1043 on 2026-09-05, and this paragraph is the sentence the rule asks for.**
+Six lines, and they replace a list with a test. The naming section protected eight standard terms by
+enumeration, which told a reader nothing about the ninth; it now carries calef's rule that **an
+acronym is spelled out unless its expansion teaches nothing**, which can be applied to a name nobody
+has coined yet. It also overturns a ratification of his own (`dma_validator`, 2026-08-01) and says
+so, because a reader who remembers that decision should be able to see it reconsidered rather than
+quietly dropped.
+
+**The growth is six lines and not thirty because the argument went to notes/naming.md**, where the
+same clause was also stated and would otherwise have contradicted the constitution the moment this
+landed. That duplication is itself the subject of a milestone now: the constitution should carry the
+tests a lane applies and the note should carry the history, and today the naming section is 12% of
+`AGENTS.md` with most of that being argument.
+
+**Raised from 1035 to 1037 on 2026-09-05, and this paragraph is the sentence the rule asks for.**
+Two lines, and they buy a correction rather than an addition: §90's paragraph justified the
+draft-pull-request convention with *"a draft cannot be stuck in the merge queue because a draft
+cannot be merged"*, and that is false. GitHub closes a draft as **merged** when its head holds
+nothing its base does not, which happens whenever a lane bases on a `maintainer/mint-*` branch that
+lands before the lane's first commit. The board then reads empty while a lane is working, which is
+the single property the board exists to provide, and it had done so four times since 2026-09-02.
+
+**The growth is two lines because the evidence went elsewhere**, which is this budget working as
+designed rather than being worked around. The instruction (`git commit --allow-empty` before the
+draft) is in `AGENTS.md` because that is where a lane reads it; the four cases, the window, and why a
+rate-dependent failure hid for three days are in
+[§90](../decisions/90-claiming-and-closing.md)'s amendment, because that is where evidence belongs.
+The constitution gained the rule and not the argument.
 
 **Raised from 990 to 1012 on 2026-08-30, and this paragraph is the sentence the rule asks for.** The
 addition is principle 1: the customer path it had named since 2026-08-05 ended that day, when calef

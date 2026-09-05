@@ -1,6 +1,6 @@
 # Generational names
 
-*(Milestone 14 phase A. The mechanism behind `crates/slots`, the scheduler's thread table since
+*(Milestone 14 phase A. The mechanism behind `crates/generational_table`, the scheduler's thread table since
 the `BTreeMap` was retired. See design/kernel-objects-from-untyped.md, decision D2.)*
 
 ## The problem it solves
@@ -64,7 +64,7 @@ audit may pass over it; §71 says what would promote it. See notes/untracked-wor
 
 ## What is proved (milestone 18 style, before anything leans on it)
 
-Three Kani harnesses in `crates/slots` (`script/verify`):
+Three Kani harnesses in `crates/generational_table` (`script/verify`):
 
 | Harness | Property |
 |---|---|

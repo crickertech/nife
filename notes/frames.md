@@ -542,9 +542,14 @@ went), and the difference is accounted rather than shrugged at:
   **And a boot now says what it actually used**, which is the thing this section's whole argument
   was conducted without. `kernel::cap::report_peak` prints `capability slots: N of M at peak` from
   the scheduler's idle loop, and `script/shell-check` echoes it on every run: the interactive boot
-  reaches **21 of 24**. That number cost milestone 230 four instrumented boots to learn and now costs
+  reaches **22 of 24**. That number cost milestone 230 four instrumented boots to learn and now costs
   a boot, which is the difference between a fork priced against a guess and one priced against a
   measurement. See design/roadmap/231-capability-slot-high-water-mark.md.
+
+  It was 21 until 2026-09-05, when milestone 111 gave init a reason to hold the entropy service's
+  request endpoint for the whole boot rather than release it after the login block, and the gate
+  caught the move on the first run rather than at the next silent halt. Two of the three slots of
+  headroom are left.
 
   Three ways out, priced:
 

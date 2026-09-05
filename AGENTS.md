@@ -349,13 +349,15 @@ are new.
   the mechanism is 128's App, and this is what the record says in the meantime. (calef, 2026-08-16:
   *"it looks like I'm talking to myself a lot and the record would be nice to clarify who is
   talking."*)
-- **A lane's first act is a draft pull request** (§90, 2026-08-16). Cut the branch, push it, open
-  the pull request as a **draft**, before any work. That is the claim, and it is why two lanes
-  cannot silently take the same milestone: the board is `gh pr list --draft`, it costs one
-  command, and a draft cannot be stuck in the merge queue because a draft cannot be merged. The
-  claim and the deliverable are one object, so nothing has to be closed by hand, and a lane that
-  dies leaves a visible stale draft instead of an invisible gap. **Check that board before
-  briefing**, alongside `git ls-remote --heads`.
+- **A lane's first act is a draft pull request** (§90, 2026-08-16, amended 2026-09-05). Cut the
+  branch, **make one empty commit** (`git commit --allow-empty -m "claim: milestone N"`), push it,
+  and open the pull request as a **draft**, before any work. That is the claim, and it is why two
+  lanes cannot silently take the same milestone: the board is `gh pr list --draft` and it costs one
+  command. The claim and the deliverable are one object, so nothing has to be closed by hand, and a
+  lane that dies leaves a visible stale draft instead of an invisible gap. **The empty commit is
+  what keeps that true**: without it GitHub closes the draft as *merged* when the lane's base lands,
+  and the board reads empty while a lane works. §90 has the four cases and why they hid. **Check
+  that board before briefing**, alongside `git ls-remote --heads`.
 - **A developer works in a lane**, and the lane is the isolation rather than the person: its own
   worktree, its own branch, one milestone, no visibility into the others. Two developers in one lane
   is the merge problem this vocabulary exists to prevent.
@@ -658,7 +660,7 @@ question below was one calef had to ask a maintainer on 2026-08-18, about a crat
 of them changed the answer. Writing it as a rule for lanes would let the same failure straight
 through.
 
-### The six questions, because they are stable
+### The seven questions, because they are stable
 
 They are not a template to fill in. They are the questions that actually got asked, and a proposal
 that cannot answer one should say so rather than leave it implied.
@@ -682,6 +684,11 @@ that cannot answer one should say so rather than leave it implied.
    mechanism is about thirty lines and the authority is the whole problem.
 6. **How reversible is it, and who has already acted on it?** The *move fast on what can be undone*
    tenet's test, verbatim, because it decides how much of the above is worth buying.
+7. **Would we still choose this if both options cost the same?** §92's test, moved onto this list
+   because a test applied only when somebody remembers it is not a test. **If the answer is no, the
+   recommendation is about effort and must say so in those words**, so a reader can weigh it as
+   effort rather than mistake it for judgement. It is not an argument against cheap options: it asks
+   whether cost is doing the deciding, and cost deciding is legitimate when it is *stated*.
 
 **The tell that a proposal is not ready is that it argues rather than shows.** Questions 2 through 5
 are all lookups. If the presenter is reaching for an adjective where a command would do, the work is
@@ -698,7 +705,7 @@ machine.
 
 **A fork only earns a lane when nobody can say what the options cost.** A lane costs a few hundred
 thousand tokens and up to an hour. If calef can answer in a sentence, researching first spends more
-than a wrong answer would. Most of the six questions are minutes of grepping by whoever is holding
+than a wrong answer would. Most of the seven questions are minutes of grepping by whoever is holding
 the problem, and that is the common case rather than a lane.
 
 **And the failure mode to guard is proposal-shaped procrastination.** Some forks want a decision now
@@ -762,79 +769,47 @@ the requirements are known.
 
 ## calef names the crates, the programs, and the shared modules
 
-**Contributors are referred to by their GitHub username** in prose, attributions, records, and
-lane reports; legal names appear only in legal and authorship strings (`Cargo.toml` authors,
-licenses, patch `From:` headers). The reason is the mechanism, which is this file's recurring
-test for a rule: a username is unique and matches the identity every pull request and
-`git log --author` already carries, so the records and the tooling agree on who someone is, and a
-grep for a contributor finds them instead of every other person sharing a first name. The worked
-example is the architect himself: calef, renamed from Chris throughout on 2026-08-15 (UTC, per
-the dates convention) at his request.
+**Contributors are referred to by their GitHub username** in prose, attributions, records and lane
+reports; legal names appear only in legal and authorship strings (`Cargo.toml` authors, licenses,
+patch `From:` headers). A username is unique and matches the identity every pull request and
+`git log --author` already carries, so a grep for a contributor finds them rather than everyone who
+shares a first name.
 
 **The name of a crate, a program, or a shared module is calef's call, not a lane's and not yours**
-(2026-08-01). This is the same rule as `DECISIONS.md` section numbers, one level up: it is global to
-the tree, so it is decided by the person who can see the whole tree.
-
-**Extended to public function and method names** (2026-08-23, milestone 160), after a crate-naming
-pass across everything the kernel depends on raised the natural next question. A function name is
-more reversible than a crate's (typically fewer call sites, all inside one crate), so the same
-"recommend on reversible forks" latitude applies more freely here than it does one level up.
-
-**Shared modules are in scope for a reason.** `user/src/` used to hold 48 `[[bin]]` programs and a
-handful of modules compiled into them with `#[path = "..."] mod ...`, with **nothing in the naming
-distinguishing them**, so a reader who tried to run `cseam` was misled by the directory. Rule 7
-retired that category on 2026-08-01: what two binaries share is a crate, and what remains in
-`user/src/` beside the programs is single-consumer submodules (`vnet`, `netcli`), which are ordinary
-Rust. `script/lint` now counts consumers per `#[path]` target and fails at two.
-
-The count in an earlier draft of this paragraph said "three modules" and was wrong: the grep that
-produced it matched only single-line includes, and several were two lines. Take a count from the
-merged tree, with a pattern you have checked against the real shapes. A shared module's name has to answer a question a program's
-name never raises, which is *"where does this get compiled into?"*, and that makes it a naming problem
-of its own rather than a smaller version of the program one.
-
-The reason is his: **names are what make this OS accessible to humans and to LLMs.** A reader meets a
-name before they meet anything else, and in a capability system the name is often the only thing that
-says what a program can *do*. `DECISIONS.md` §39 already says a name is a claim; this says who gets to
-make the claim.
-
-The evidence that it needed a rule is the tree itself. `dwarden` is named for what it **holds** while
-its two siblings are named for what they **serve**, so a reader who correctly infers the scheme gets
-it wrong. `conx` has no recorded expansion anywhere: not in §41, not in `notes/live-replacement.md`,
-not in the commit that introduced it. `cseam.rs` sits among 48 programs and is not one; it is a shared
-module. Every one of those was a locally reasonable choice by whoever was mid-task.
+(2026-08-01), and since 2026-08-23 that covers **public function and method names** too. Same rule
+as `DECISIONS.md` section numbers, one level up: it is global to the tree, so it is decided by the
+person who can see the whole tree. The reason is his: names are what make this OS accessible to
+humans and to LLMs, and in a capability system the name is often the only thing that says what a
+program can *do*.
 
 **How to work it.** Propose names with what each thing actually does, and wait. A lane that needs a
-new program or module ships a **provisional** name, says so in its report, and expects it to change;
-the integrator surfaces it. Never rename on your own initiative either, because a rename is a naming
-decision with extra steps.
+new crate, program or module ships a **provisional** name, says so in its report, and expects it to
+change; the integrator surfaces it. Never rename on your own initiative, because a rename is a naming
+decision with extra steps. A function name is more reversible than a crate's, typically fewer call
+sites and all inside one crate, so the "recommend on reversible forks" latitude applies more freely
+there than one level up.
 
-**Crates are in scope too** (extended 2026-08-01). They are the most reader-facing names in the tree:
-a newcomer greps `crates/` before they ever open `user/src/`, and a crate name appears in every
-`Cargo.toml` that depends on it, in every `use` statement, and in the dependency graph an outsider
-reads to understand the shape of the system.
+**The three failure modes to name against.** **Abbreviations** that need a decoder (`capsh`,
+`uheap`, `vt`). **Generic words** that could name almost anything in an operating system (`compose`,
+`measure`, `regions`, `slots`, `caps`, `frames`). And, on the other side of the line, **standard
+terms a reader already knows from outside**, which are the best names available (`elf`, `pci`,
+`paging`, `glob`): this rule is not a licence to rename everything.
 
-The crate names have the same three failure modes the programs did. **Abbreviations** that need a
-decoder (`capsh`, `uheap`, `vt`). **Generic words** that could name almost anything in an operating
-system (`compose`, `measure`, `regions`, `slots`, `caps`, `frames`). And **standard terms that are
-genuinely right** and should not be touched (`elf`, `pci`, `dtb`, `gpt`, `ipc`, `paging`, `glob`,
-`asid`), because renaming those would cost a reader the recognition the whole tenet exists to buy.
-That last group matters: this rule is not a licence to rename everything, and a name a reader already
-knows from outside this project is the best name available.
+**An acronym is spelled out unless its expansion teaches nothing** (calef, 2026-09-05). The test is
+an asymmetry, and it is why the old list was wrong: **a reader who knows the term recognises its
+expansion instantly, so spelling it out costs the expert nothing and saves the newcomer a bounce.**
+`pci` expands to peripheral component interconnect and the reader is no wiser, so it stays. `dma`
+expands to direct memory access and the reader now knows what the crate guards, so it goes. **This
+deratifies `dma_validator`**, ratified 2026-08-01 before the test existed; `dtb`, `gpt`, `ipc` and
+`asid` sit the same way.
 
 **Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
 takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,
 `fs_subtree_caretaker`. A verb names an action and a namespace is not one, which is audible at the
 call site: `line_edit::expand_output` reads as an instruction where `line_editor::expand_output`
-reads as a location.
-
-The exception is a **term of art that happens to be a verb**, where the word is the one the field
-already uses. `bind` (§50) is Plan 9's, and respelling it as a noun would assert novelty where there
-is none. That is the paragraph above, not a hole in this one.
-
-Three crates predated this rule and were settled by it on the day it was written: `compose` becomes
-`compositor`, `measure` becomes `measured_boot`, and `dma_validate` becomes `dma_validator`. Each had
-named itself a noun in its own first line while carrying a verb as its name.
+reads as a location. The exception is a **term of art that happens to be a verb**, where the word is
+the one the field already uses: `bind` (§50) is Plan 9's, and respelling it as a noun would assert
+novelty where there is none.
 
 **A crate and a program may share a name, and it says something when they do**: the crate is that
 program's logic, lifted out so it can be host-tested and Kani-reachable while the program keeps the
@@ -843,22 +818,7 @@ a relationship worth seeing.
 
 ### The convention: one rule per domain, and each domain's own
 
-Crates already do this (`fs_proto`, `cred_proto`, `user_rt`). Programs did not: **0 of 57** used an
-underscore, so multiword names were squished (`fsclient`, `sysinit`, `credcli`).
-
-An earlier draft of this rule had two tiers, short names for programs a user types and underscores for
-programs only the system spawns. **calef rejected it, correctly**: the category is not a stable
-property of a program. `wc` was internal plumbing and became a prompt-typed pipeline stage in one day,
-and a convention keyed to something that changes produces renames. It is also not how Unix got its
-names; the terseness of `ls` is an emergent pressure on words people type constantly, not a rule
-anyone wrote down. Codifying an emergent property turns it into a classification chore that every
-contributor has to get right.
-
-So: one rule, no branch to get wrong. A short name for a typed command is then a *choice its author
-makes*, not a convention to apply, and nobody needs a rule to know `wc` beats `word_count`.
-
-**But `snake_case` is the rule for Rust things, not for everything**, and an earlier draft of this
-section said "everywhere" and was wrong. Three domains, each keeping its own convention:
+**`snake_case` is the rule for Rust things, not for everything.** Six domains, each keeping its own:
 
 | Domain | Form | Because |
 |---|---|---|
@@ -866,31 +826,24 @@ section said "everywhere" and was wrong. Three domains, each keeping its own con
 | `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
 | Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
 | Repo-root markdown | `SCREAMING_SNAKE_CASE` | **GitHub behaviour, not style.** It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
-| A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name; thirteen under `crates/` already do this |
+| A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name |
 | Any other directory | `hyphens` if it needs two words | a directory is a path element, and paths are hyphenated outside this repository |
 
-The directory rows are the same principle one level out, not a new tier: a package directory is a
-Rust name, and everything else is a path. Three directories violated them when this was written
-(`fs-server/`, `tools/redoxfs-host/`, and `user-std/`, whose package was called `hellostd` and
-matched neither); **milestone 63 fixed all three on 2026-08-01**, along with about twenty other
-names. The rule is now descriptive of the tree rather than aspirational.
+These are splits *across* domains on a **stable** property: a file either is a Cargo target or is an
+executable in `script/`, and `script/test` will never become a `[[bin]]`. **There is no second tier
+*within* a domain**, because a split inside one would key on something unstable, which is the two-tier
+rule calef rejected. A short name for a typed command is then a *choice its author makes* rather than
+a convention to apply, and nobody needs a rule to know `wc` beats `word_count`.
 
-**This is not the two-tier rule calef rejected**, and the difference is the one he identified. That
-split was *within* one domain, keyed on an **unstable** property: `wc` moved from internal plumbing
-to prompt-typed pipeline stage inside a day. These splits are *across* domains on a **stable**
-property. A file either is a Cargo target or is an executable in `script/`; `script/test` will never
-become a `[[bin]]`.
+**One constraint to know:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, which bounds a
+program's name and not a crate's. It can be raised, at a cost in directory entries per block. Do not
+let the limit pick a name; do not spend a format change on bytes nothing needs.
 
-It is also the same guard rail as "standard terms are already right", applied to **form** rather than
-vocabulary. We do not rename `elf`, and we should not respell `supply-chain` either: a name whose
-shape a reader already knows from outside costs them nothing.
-
-**One constraint to know:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, raised from 24 on
-2026-08-01 so `os_primitives_benchmarker` would fit. It can be raised again, and there is no data
-migration because every image regenerates from that crate, but it costs directory entries per block.
-(The old warning that it also costs kernel stack was stale: `Fs` stopped holding entries as a fixed
-array when the FS-server stack bug was fixed. See notes/nifefs.md.) Do not let it pick a name; do
-not spend a format change on bytes nothing needs.
+**The case for every rule above, and the refusals that shaped them, are in
+[notes/naming.md](notes/naming.md)**, along with the conventions a lane meets less often (shell
+builtins, branch prefixes, where a document goes, what `script/lint` can and cannot check). That note
+is the argument and the history, **not a second authority**: where the two disagree, this file is the
+rule and the note is the bug.
 
 ## The syscall surface is a boundary, not a habit
 

@@ -1100,7 +1100,7 @@ published as `Dead` before it is off its stack. Marking it `Departing` in `depar
 it to `Dead` from `finish_switch` (which already holds `SCHED`, and which already runs at exactly
 the instant the stack is free) would delete the window instead of refusing inside it, and no caller
 would ever see a transient refusal. That is a change to the death protocol and to `RunState`, which
-lives in `crates/wake_handshake` where loom searches the transitions, so it is a lane and a decision
+lives in `crates/thread_wake_handshake` where loom searches the transitions, so it is a lane and a decision
 of its own rather than a hotfix. See milestone 124's block.
 
 ## BUGS

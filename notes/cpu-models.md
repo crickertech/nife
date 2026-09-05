@@ -157,7 +157,7 @@ through SBI, so it works on both.
   beyond timing; this model, the matrix's slowest, is merely where the window landed twice. The
   suite's logs show the benign half of the same interleaving routinely on every model and both
   ISAs: a tick's pass absorbing the flip (the `0xa5 -> 0x5a` canary line) before the test's own
-  check runs. The fix (crates/canary_gate, loom-searched): the serialization is one state word
+  check runs. The fix (crates/memory_corruption_canary_gate, loom-searched): the serialization is one state word
   with exclusive guards, `check()` reports whether a pass actually ran, the tick shrugs at a
   refusal, and the test loops until a pass of its own completes. The rework also closed a second
   hole the old spelling permitted and loom falsifies (an `arm()` could rewrite the watch plan

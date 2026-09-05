@@ -553,8 +553,10 @@ independent implementation of `str_eq` standing on the expectation side on purpo
   a `#[path]` module would get a patch path naming the file, which `--check` reports as a mismatch
   rather than accepting.
 - **A kernel `#[test_case]` falsification is recorded and unswept**, and the section above says how
-  it is told apart from rot. It stays that way until milestone 210 (no kernel test can be run by
-  name) lands.
+  it is told apart from rot. This bullet said it stays that way "until milestone 210 (no kernel test
+  can be run by name) lands"; **210 landed on 2026-08-31**, and `cargo xtask test --test <substring>`
+  now filters the kernel suite, so the sweep this was waiting on is affordable and nobody has run
+  it. That is a lane rather than a limitation now.
 - **Vacuity is still unguarded.** §134 recommended option A (a lint requiring `kani::cover!`)
   alongside option C, and this milestone built only C. 23 `cover!` sites across 4 of 24 harness
   crates is the current state, from milestone 191. That wants a lane.

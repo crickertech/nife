@@ -2684,6 +2684,24 @@ mod date_tests;
 #[cfg(all(test, initrd))]
 mod printenv_tests;
 
+/// **`uuid`** (milestone 111, `user/src/uuid.rs`, notes/entropy.md).
+///
+/// `printenv`'s proof one manifest field over, and the field is
+/// [`grant_plan::Manifest::entropy`]: the first spawnable, shell-facing program that needs random
+/// bytes, which before this milestone was authority the *system* could grant and a person could
+/// not reach. Arch-neutral, so **both ISAs run literally this test** (DECISIONS §19).
+///
+/// What it proves that nothing else does: a real spawned process holding an **empty** entropy slot
+/// prints no identifier at all, says why, and ends normally. That is the direction the milestone
+/// rests on, because randomness is the one authority whose use leaves no trace in what a program
+/// does; only removing the capability distinguishes a program that drew bytes from one that
+/// invented them. The endowed direction is proven at the real prompt by `script/shell-check`,
+/// through the real `crates/system_initializer`, for the reason this module's own
+/// `spawn_uuid_holding_no_entropy` records: `Spawn::grants` fills a capability table from zero and
+/// cannot place one at the slot a manifest names.
+#[cfg(all(test, initrd))]
+mod uuid_tests;
+
 /// **The entropy service** (milestone 56, DECISIONS §44): a virtio-rng device, its DMA page, its
 /// interrupt, and the request endpoint clients hold, in one confined userspace process.
 ///

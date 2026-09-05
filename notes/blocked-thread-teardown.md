@@ -28,7 +28,7 @@ end a **blocked thread**, and whether anybody should) is untouched and is milest
 
 *The code this note reads: `kernel/src/sched.rs` (`schedule`, `ipc_call`, `ipc_reply`,
 `set_ipc_aborted`, `reap_region_objects`), `crates/ipc/src/lib.rs` (`drain_waiters`,
-`remove_sender`), `crates/wake_handshake/src/lib.rs` (`park`, `abort`, `try_wake`), and
+`remove_sender`), `crates/thread_wake_handshake/src/lib.rs` (`park`, `abort`, `try_wake`), and
 `kernel/src/thread.rs`'s `WaitRole`.*
 
 ## The problem in one paragraph
@@ -117,7 +117,7 @@ This is a live correctness bug that no current code path can reach, and **the fi
 wakes a reply-parked caller reaches it.**
 
 `cap::reply_cap` mints `Object::Reply(tid)`. The payload is a generational `Tid` and nothing else:
-there is no call sequence number, no endpoint, no nonce. `slots` bumps a slot's generation when the
+there is no call sequence number, no endpoint, no nonce. `generational_table` bumps a slot's generation when the
 *thread* is removed, not per call.
 
 `ipc_reply`'s guard, the one boot 8 added, checks the **role and not the call**:
@@ -138,7 +138,7 @@ server holds an unconsumed `Reply(tid)` at the end of any of them**:
   *both* Reply-parked and queued as a sender, with the reply cap riding in `outgoing_cap` rather than
   in anyone's capability table, so `drain_waiters` reaches it and `Gone` does resolve. **No server ever held
   that cap**, because no server ever collected the message.
-- **The caller dies.** The `slots` generation bumps and every `Reply(tid)` naming it goes stale on its
+- **The caller dies.** The `generational_table` generation bumps and every `Reply(tid)` naming it goes stale on its
   next use.
 
 The dangerous shape is the one no path produces: a caller that resumes from a `CALL` whose request
@@ -544,7 +544,7 @@ builder's tool into a lifetime handle, which is a real widening and has to be de
 
 ### Weak memory ordering
 
-Everything in this area is written under `SCHED`, which is the reason `wake_handshake`'s module doc
+Everything in this area is written under `SCHED`, which is the reason `thread_wake_handshake`'s module doc
 opens by saying there are no hand-rolled atomics in the protocol. The concurrency lives in the gaps
 between critical sections, and the three rules that guard those gaps (the deferred wake for an
 `on_cpu` thread, the undelivered-wake gate, the single-owner run queue) all apply unchanged to an
@@ -645,7 +645,7 @@ documentation outside the kernel changes.
 server, blocked in `CALL`, sits in its own region, and freeing that region is its own owner's act.
 Proposal A makes each region individually reclaimable by its own owner, which is enough for the
 capacity problem and is not the same as an abort. If `wait_on` is ever stale (a future block site that
-writes `state = Blocked` by hand instead of calling `park`, which `wake_handshake`'s `BUGS` says
+writes `state = Blocked` by hand instead of calling `park`, which `thread_wake_handshake`'s `BUGS` says
 nothing prevents), the unlink targets the wrong queue or none, and the failure is a dangling pointer
 in an endpoint queue: the worst failure mode in the set. That argues for a `debug_assert!` pairing
 `Blocked` with `Some(wait_on)`, and possibly for the lint-shaped fix that crate declined.
@@ -879,7 +879,7 @@ rung one where both sweeps are rung two.
 
 **The claim that `WaitRole` enumerates every blocked thread depends on every block site calling
 `park`, and milestone 133 made that claim load-bearing rather than diagnostic**
-(`design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`). `wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
+(`design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`). `thread_wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
 kernel has legitimate out-of-protocol writers, so a future block site writing `state = Blocked`
 directly opts out silently and would leave `wait_on` stale. Proposals A, B and C all unlink using
 `wait_on`, so all three inherit that as their sharpest failure mode. I did not audit every write of

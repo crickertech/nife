@@ -6,7 +6,7 @@ This note is the design that splits that into separable rights, the verb that ha
 back rather than bytes, and the process that makes a subtree grant checkable from outside the
 program being confined.
 
-The contract lives with its code in `crates/fs_proto` (the `dir` and `dirent` modules, and the
+The contract lives with its code in `crates/filesystem_proto` (the `dir` and `dirent` modules, and the
 `OPENDIR`/`READDIR`/`MKDIR`/`RENAME` verbs in `fs`). The engine-side implementation is
 `redoxfs_server/src/lib.rs`; the caretaker is `user/src/fs_subtree_caretaker.rs`; the wiring and the
 attacks are `kernel/src/user/fs_service.rs`'s `start_granted_dir` and
@@ -157,18 +157,18 @@ guessing in a table with a handful of inhabitants, none of which it chose, and a
 caretaker never minted is `EBADF` from one check.
 
 It costs no memory: the granted name and the rights mask ride in the three `START` argument words
-(`fs_proto::grant`), and one frame is shared by all three processes.
+(`filesystem_proto::grant`), and one frame is shared by all three processes.
 
 ### The verb table, and how it stayed a translation (milestone 61)
 
 Each of the three caretakers used to be a hand-written `match` over the opcode, and nothing made a
-`match` and the contract agree. So the way it failed was that **a verb added to `fs_proto` was
+`match` and the contract agree. So the way it failed was that **a verb added to `filesystem_proto` was
 simply absent from a caretaker and the capability silently was not there**. That is not
 hypothetical: milestone 57 added the four extended-attribute verbs, none of the three was taught
 them, and nothing failed. Programs behind every kind of grant just could not reach their files'
 attributes.
 
-`fs_proto::verb` is a row per verb saying what the request word's length field counts
+`filesystem_proto::verb` is a row per verb saying what the request word's length field counts
 (`Operand::None`, `Name`, `Payload`, `Rename`), whether the second word means anything, whether the
 reply is a new handle, and which `dir` rights the server will demand. `verb::of(op)` is the whole of
 a caretaker's dispatch now, and a verb with no row is a **compile error**, so forgetting fails the
@@ -420,7 +420,7 @@ Known limitations, next to the feature rather than only in a tracker.
   two capabilities is being handed over in a sentence ("...and everything under it: -r grants the
   walk") rather than as a rights mask, so a reader learns the shape of the grant and not its bits.
   (§27's amendment records an older refusal, from before the boot had a filesystem at all.)
-- **A wrong row in `fs_proto::verb` is wrong in three programs at once** (milestone 61). The
+- **A wrong row in `filesystem_proto::verb` is wrong in three programs at once** (milestone 61). The
   mitigation is that it is pure data in a host-testable crate, so the tests and Kani can reach it,
   which a hand-written match in a `no_std` binary could not. The row that decides a security
   property rather than a formatting one is `takes_name()`, because it is what `fs_nameset_caretaker`
@@ -443,7 +443,7 @@ let report = fs_service::start_granted_dir(
     program("fs_subtree_caretaker").unwrap(),
     program("fs_test_client").unwrap(),
     fs_service::DirGrant {
-        name: fs_proto::fixture::tree::SUB,
+        name: filesystem_proto::fixture::tree::SUB,
         rights: dir::DESCEND | dir::READ | dir::ENUMERATE,
         role: 5,  // ROLE_DIR_ATTACKER
         arg: 1,   // the run index

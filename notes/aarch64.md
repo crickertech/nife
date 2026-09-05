@@ -151,7 +151,9 @@ for the same reason: the target isn't known at assembly time.
 
 "Compare and branch if (not) zero." aarch64 folds the compare and the branch into one
 instruction for the common test-against-zero case. We use `cbnz x0, park` in `boot.s` to
-park CPU cores 1-3 in a spin loop while we stay single-core.
+park every core but the boot core in a spin loop at reset. That was the whole SMP story until
+milestone 41; it is now just the reset path, because a secondary is started deliberately by a PSCI
+`CPU_ON` that lands it at `secondary_boot` rather than at `_start`.
 
 ## Decoding `aarch64-unknown-none-softfloat`
 
