@@ -776,7 +776,9 @@ pub enum MemoryMappedIoWindowError {
 impl core::fmt::Display for MemoryMappedIoWindowError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            MemoryMappedIoWindowError::NoMemoryMap => write!(f, "no firmware memory map to read a hole from"),
+            MemoryMappedIoWindowError::NoMemoryMap => {
+                write!(f, "no firmware memory map to read a hole from")
+            }
             MemoryMappedIoWindowError::Disagreement { map, tolud } => write!(
                 f,
                 "the firmware map stops describing memory at {map:#x} but the host bridge's \
