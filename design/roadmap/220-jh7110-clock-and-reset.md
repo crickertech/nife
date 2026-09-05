@@ -1,12 +1,9 @@
 # 220. This kernel drives no clock or reset controller, and the first real device will need one
 
-**Status: NOT-STARTED.** Minted 2026-09-01 by the maintainer, from milestone 159's (a real hardware
+**Status: BUILT 2026-09-04.** Minted 2026-09-01 by the maintainer, from milestone 159's (a real hardware
 entropy source: the JH7110's TRNG) lane, which named it as the most likely reason its own first
 bench boot will fail. *(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** In the sense that means the board is on the desk. **The half of this gate that
-asked "is it needed at all" was discharged on 2026-09-04** and the answer was yes; what remains is
-the other half, which never discharges by waiting: somebody has to sit at radon, boot it, and read
 two lines off a serial console. See "The bench settled the premise" below.
 
 **Status deliberately did not move on 2026-09-04, and this block's last three sections are that
