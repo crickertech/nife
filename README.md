@@ -5,9 +5,10 @@ lowercase everywhere, sentence starts included, and is said like* knife: *Ni + F
 nickel-iron core. The full story, refused spellings included, is
 [notes/naming.md](notes/naming.md).*
 
-<img src="art/cobble-first-draft.jpg" alt="Cobble, the nife mascot: a stone golem with red eyes and mossy shoulders, holding a gear" width="300">
+<img src="art/cobble-realistic.jpg" alt="Cobble, the nife mascot: a stone golem with red eyes and mossy shoulders, holding a gear" width="300">
 
-*Cobble, guardian of the machinery. First draft, by Clay. The full naming record is
+*Cobble, guardian of the machinery. Designed by Clay; realistic render. The first draft is
+[art/cobble-first-draft.jpg](art/cobble-first-draft.jpg) and the full naming record is
 [notes/mascot.md](notes/mascot.md).*
 
 [![CI](https://github.com/crickertech/nife/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/crickertech/nife/actions/workflows/ci.yml)
