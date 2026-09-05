@@ -70,11 +70,17 @@
 # **The two graphical legs are red** behind milestone 177's display driver bug, and neither
 # `script/gates` nor CI runs them.
 #
-# Name: unrecorded, and audibly collided with. It boots the kernel's `--features shell`
-# configuration and types at the prompt; `shellcheck`, the shell linter this tree runs inside
-# `script/lint`, is one hyphen away. The boot mode it names is itself a stale word, since
-# notes/naming.md's BUGS records that `shell` no longer names any program (the shell is `swish`).
-# Introduced 2026-08-02.
+# Name: provisional, and this lane proposes a rename. Introduced 2026-08-02. It boots the kernel's
+# `--features shell` configuration and types at the prompt. Two problems, and the first is the one
+# that bites. **It is one hyphen from `shellcheck`**, the shell linter `script/lint` itself runs,
+# so the two names differ by punctuation while naming unrelated things, and a reader who has met
+# the linter meets this and is wrong. Second, the word it is built from is stale:
+# notes/naming.md's BUGS records that `shell` no longer names any program in this tree, because
+# the shell is `swish`. The case is therefore for `swish-check`, which fixes both at once by
+# naming the program actually driven, with `prompt-check` the alternative if calef would rather
+# name the surface than the binary. Two loose ends the rename has to carry: the cargo feature is
+# spelled `shell` and would still read as the old vocabulary, and `cargo xtask shell-check` is the
+# same string one level along. Proposed, not performed.
 
 set -e
 cd "$(dirname "$0")/.."
