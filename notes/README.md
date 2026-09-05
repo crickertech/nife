@@ -1173,6 +1173,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   code paths that had never executed until firmware ran them, the 54 MiB of RAM deliberately left
   reported as reserved and how to get it back, and **the bench procedure for the OptiPlex 7050**
   with its failure-triage table.
+- [xenon's firmware, page by page](xenon-firmware.md): the Dell OptiPlex 7050's entire setup UI at
+  BIOS 1.27.0, transcribed from the 70 photographs calef took on 2026-09-04, because a reader should
+  be able to grep a setting instead of scrolling a phone. The short list nife actually depends on
+  first (UEFI, Secure Boot off, `Serial Port = COM1` at `3F8h`/IRQ 4, SATA in AHCI, the
+  `Micron 2450 NVMe 256GB`), then every page with its `IMG_` number. **VT-d is enabled**, which gives
+  DECISIONS §86's confined-driver experiment real hardware; **interrupt remapping has no control
+  anywhere in the menu**, which moves that question off the bench and into the DMAR. Also the POST
+  prompt that will stop this machine dead the first time it boots without a keyboard, and an honest
+  account of what 70 photographs of a menu tree still do not show. Name provisional.
 - [A machine with no serial port](serial-less-output.md): milestone 243's answer to the fact that
   every word nife had ever said went down a UART, and none of the six commodity machines a nife USB
   stick can boot has one. What was chosen (the firmware's linear framebuffer, carried across the

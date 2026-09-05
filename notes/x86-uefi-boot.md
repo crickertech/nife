@@ -449,8 +449,10 @@ The bench session that confirms it, in the shape of the procedure below:
 
 **The procedure worked**, including its warning that firmware-menu wording would differ. calef also
 photographed every page of the BIOS configuration, which is the first real record of this machine's
-settings; the `BUGS` entry saying every setting name here came from Dell's documentation rather than
-from the machine can be retired once those are transcribed.
+settings; **those 70 photographs are now transcribed in `notes/xenon-firmware.md`**, the `BUGS`
+entry saying every setting name here came from Dell's documentation is retired to the extent the
+transcription earns, and the four firmware steps below now say which of them the machine agreed
+with.
 
 **And one thing it changes:** step 1's expectation that the loader's two lines are "the only sign the
 stick was read at all" is no longer true. With milestone 243 the screen carries the whole tour, so a
@@ -494,18 +496,43 @@ file, because the loader carries both inside itself (`uefi_loader/build.rs`).
 
 Enter setup with **F2** at the Dell splash; **F12** is the one-time boot menu.
 
+**These four steps have now been checked against the machine's own menus** rather than against
+Dell's documentation, from the 70 photographs calef took on 2026-09-04. Three were right as
+written and one was worded differently; both facts are recorded below, and every value each step
+asks for is **already set on xenon**, page by page, in `notes/xenon-firmware.md`.
+
 1. **Secure Boot: off.** This image is unsigned and nothing in this tree signs it. On a 7050 that
    is *Secure Boot → Secure Boot Enable → Disabled*, and it may require *Boot List Option* to be
    **UEFI** first. **Expect to have to do this**; a Secure Boot machine will refuse the stick with a
-   security-violation message and no other explanation.
+   security-violation message and no other explanation. **Right as written**: the panel is
+   `Secure Boot Enable` with a Disabled/Enabled radio pair, and its own help text states the UEFI
+   precondition. It is already Disabled.
 2. **Boot List Option: UEFI**, not Legacy. Legacy/CSM boot would look for an MBR boot sector, which
-   this stick does not have.
-3. **Serial port: enabled.** The C4PDJ module presents COM1 at I/O port `0x3f8`, which is where the
-   kernel's console driver looks (`arch::x86_64::port`). If the firmware exposes an address or IRQ
-   choice, `0x3f8` / IRQ 4 is the one.
+   this stick does not have. **Right as written**, with one refinement: `Boot List Option` is not a
+   page of its own, it is the lower half of *General → Boot Sequence*, and on xenon the Legacy
+   radio is greyed out because `Enable Legacy Option ROMs` is off. Already UEFI.
+3. **Serial port: COM1.** The C4PDJ module presents COM1 at I/O port `0x3f8`, which is where the
+   kernel's console driver looks (`arch::x86_64::port`). **This is the one that was worded
+   differently.** The old wording said "Serial port: enabled" and guessed that the firmware might
+   offer an address or IRQ choice. It does not: *System Configuration → Serial Port* is a single
+   five-way radio, `Disabled` / `COM1` / `COM2` / `COM3` / `COM4`, with no separate enable, and the
+   page's own help says `COM1 = Port is configured at 3F8h with IRQ 4`. So there is nothing to
+   enable and nothing to enter; pick **COM1** and the address and IRQ follow. Already COM1.
 4. **Leave the rest alone on the first attempt.** In particular do not disable the integrated NIC
    or change the SATA mode: nothing here needs them, and a changed setting is one more variable in
-   a bring-up that already has enough.
+   a bring-up that already has enough. **Right as written**: both settings exist under
+   *System Configuration* (`Integrated NIC`, `SATA Operation`), and on xenon they are `Enabled` and
+   `AHCI`. AHCI rather than `RAID On` is the reason the NVMe appears as an ordinary PCIe function.
+
+**And one hazard these four steps do not name, which only the transcription found.** xenon's
+`POST Behavior → Warnings and Errors` is set to `Prompt on Warnings and Errors` and
+`Keyboard Errors → Enable Keyboard Error Detection` is ticked, so **the machine stops at POST and
+waits for a keypress when it finds no keyboard**, which its own event log shows it doing eight
+times over the past year. That did not bite during first light because a keyboard was attached. It
+will bite the first time anybody tries to power-cycle this machine and let it boot unattended,
+which is what `notes/bench-runbook.md` and `notes/serial-less-output.md` both want next. Changing
+it is two settings and it is calef's call, because it changes the machine's behaviour for
+everything else it is used for.
 
 ### Watch it
 
@@ -579,9 +606,13 @@ patagonia**, because the suite runs under firmware with the same devices the PVH
   at two cores under OVMF and its `device irq` line shows the PIT's interrupt arriving 20 times in
   0.2 s at 100 Hz, with two APICs in the MADT.
 
-**The third is still xenon's, and so is everything below it**: whether the OptiPlex's firmware leaves
-interrupt remapping off. Nothing under QEMU can answer that, because the answer is a setting in
-somebody else's firmware.
+**The third is still open, but it is no longer the shape this paragraph gave it**: whether the
+OptiPlex's firmware leaves interrupt remapping off. This said the answer is a setting in somebody
+else's firmware, and the 2026-09-04 transcription found **no such setting exists**. The whole of
+the 7050's Virtualization Support menu is three pages (`Virtualization`, `VT for Direct I/O`,
+`Trusted Execution`), and `VT for Direct I/O` is **enabled**. So the answer is not in a menu; it is
+in the DMAR the firmware publishes, which any kernel can read and which QEMU synthesises too. That
+moves the question off the bench and into code: `design/roadmap/proposals/read-the-dmar-on-xenon.md`.
 
 And this milestone added one of its own for the bench, which is the more interesting of the two:
 **whether the Dell's firmware leaves 32 MiB free.** OVMF's low-memory habits are OVMF's. If it does
@@ -590,9 +621,15 @@ is the whole difference between a bring-up and a stare.
 
 ## BUGS
 
-- **The bench procedure is written and untested.** Every firmware-menu path, key and setting name
-  above is from the 7050's documented behaviour rather than from this machine, and the first person
-  to follow it should expect at least one of them to be worded differently on the screen.
+- **The bench procedure's firmware steps are now checked against the machine; the rest of it is
+  still one run old.** The old entry here said every firmware-menu path, key and setting name above
+  came from the 7050's documented behaviour rather than from this machine, and that the first person
+  to follow it should expect one of them to be worded differently on the screen. That prediction was
+  right, once: step 3's "Serial port: enabled" is a single five-way radio with no enable, and
+  picking `COM1` is the whole of it. Steps 1, 2 and 4 were correct as written. `notes/xenon-firmware.md`
+  is the full transcription and is what a bench session should read instead of guessing. What is
+  **not** retired: the F2 and F12 keys, the `\EFI\BOOT\BOOTX64.EFI` fallback and the triage table
+  below are still from one successful run and Dell's documentation, not from repeated use.
 - **The kernel is placed at one address chosen at link time, and 32 MiB is not a guarantee.** It
   clears every low reservation OVMF makes and nothing more; a firmware that wants that range refuses
   the boot. The image is not physically relocatable, and making it so is a milestone rather than a
