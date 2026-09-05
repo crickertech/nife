@@ -127,7 +127,7 @@ record is worse than one with none: a Mac caches it and then cannot connect.
 file needs a file capability wired through the spawn and a fixture the QEMU gate cannot seed today.
 That is a delivery limitation and not a design one: the format, the parser, the line-numbered errors
 and every test are unaffected by where the bytes come from. The fix is a `FileSpec` grant plus an
-`fs_proto` open-and-read at startup, and it is the shortest remaining piece of milestone 55's
+`filesystem_proto` open-and-read at startup, and it is the shortest remaining piece of milestone 55's
 discovery half.
 
 The gate reads the same document (`xtask` depends on `mdns_config`) and derives its expectations

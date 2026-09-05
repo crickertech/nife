@@ -113,7 +113,7 @@ fn that would be unsound if the sentence were false.
 **2. `#[cfg(kani)]` code is invisible to both lints. FIXED in milestone 113**, and the section below
 records what the gate found. `cfg(kani)` is set by the model checker and by nothing else, so
 `script/lint` never compiled those modules and neither lint could fire in them. The tree has 14
-`unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive` and `crates/ipc`. `intrusive`'s two
+`unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive_fifo` and `crates/ipc`. `intrusive_fifo`'s two
 both carry SAFETY comments. **Eleven of `ipc`'s twelve do not**, and the gate had never said so. A
 real fix is a gate rather than a pass of comments (a clippy invocation with `--cfg kani`, or
 `-D warnings` on the `script/verify` build); adding the comments alone leaves nothing to stop the
@@ -202,12 +202,12 @@ gates in one line.
 | Crate | Sites | Shape |
 |---|---|---|
 | `ipc` | 11 blocks + 1 `unsafe impl` | the harness's `seed`, and every call into `send`/`recv` |
-| `intrusive` | 1 `unsafe impl` | `Node for N` in the proof module (its two blocks were already commented) |
+| `intrusive_fifo` | 1 `unsafe impl` | `Node for N` in the proof module (its two blocks were already commented) |
 
 The other thirteen are ordinary clippy, in crates nobody suspected: `doc_markdown` (4),
 `manual_range_contains` (4), `manual_let_else` (2), `len_zero` (2), `needless_range_loop` (1),
-`assertions_on_constants` (1), across `asid`, `calendar`, `cred_proto`, `nifefs`, `dma_validator`,
-`paging`, `pci` and `slots`. That half is the answer to "does this find anything besides unsafe",
+`assertions_on_constants` (1), across `asid`, `calendar`, `credential_proto`, `nifefs`, `dma_validator`,
+`paging`, `pci` and `generational_table`. That half is the answer to "does this find anything besides unsafe",
 and it is yes: **half of what the pass finds has nothing to do with unsafe at all.** One of them,
 `dma_validator`'s `assert!(RING_END <= RING_BLOCK)` over two constants, became a `const {}` assertion
 and so moved from a proof-time check to a compile-time one.
@@ -760,14 +760,14 @@ that one already carries, a scratch buffer one thread at a time touches, seriali
 rather than by a lock. Same shape, same reasoning, a different file.
 
 Raised from 18 to 20 by milestone 47's environment-variable fork (2026-08-23, DECISIONS §111):
-`crates/env_proto::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_proto::ClockPage`
+`crates/environment_proto::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_proto::ClockPage`
 already carries and for the same argument, restated for a type with a plainer contract. The config
 page is shared across address spaces by construction (that is the whole point of a page-shaped
 endowment), and every access goes through the same immutable byte reads regardless of which
 process is doing the reading, so there is no non-atomic mutable aliasing for either trait to
 protect against. `ClockPage` needs the same two impls despite carrying a seqlock precisely because
 its *writer* uses atomics too; `ConfigPage` needs them for the simpler reason that it has no writer
-at all once it is mapped (see `env_proto`'s own docs on why it needs no seqlock), which makes the
+at all once it is mapped (see `environment_proto`'s own docs on why it needs no seqlock), which makes the
 claim, if anything, easier to justify than its precedent's.
 
 Raised from 20 to 22 by milestone 161's x86_64 timebase-page work (2026-08-25):

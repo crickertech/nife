@@ -5,7 +5,7 @@ on two byte strings with no filesystem in it; this note is the layer that turns 
 **authority**, and the demonstration that hangs on it.
 
 The code is `crates/grant_plan/src/expand.rs` (the expander and the name set, host-tested),
-`crates/fs_proto`'s `nameset` module (the wire encoding), `user/src/fs_nameset_caretaker.rs` (the
+`crates/filesystem_proto`'s `nameset` module (the wire encoding), `user/src/fs_nameset_caretaker.rs` (the
 caretaker), `user/src/swish.rs` (`echo`, and the grant path), `user/src/rm.rs` (the namespace mode),
 and `kernel/src/user/fs_service.rs`'s `start_granted_set`, and `kernel/src/user/glob_grant_tests.rs`.
 
@@ -27,7 +27,7 @@ The roadmap's four candidates and its verdict, which this lane implements rather
 
 The finding that makes it tractable is that this is a small change: `fs_file_caretaker` already
 serves *a namespace of exactly one name*, so globbing generalizes the namespace and nothing else.
-Same caretaker shape, same `fs_proto` protocol above and below, **nothing new in the kernel**.
+Same caretaker shape, same `filesystem_proto` protocol above and below, **nothing new in the kernel**.
 
 That generalization is in the type system rather than only in the prose. `grant_plan::DirGrant` used to
 carry `name: &[u8]`; it now carries `names: NameSet`, and a literal operand is the set of one.
@@ -119,7 +119,7 @@ is the price of keeping "this caretaker checks nothing" true of the one that say
 Milestone 61 removed the *other* duplication, which was the dangerous one. Which verbs got asked
 "is this name in the set" used to be a list of match arms in this program, so a name-taking verb
 added to the contract would have arrived **unfiltered** and a set capability would quietly have
-reached a name the pattern never matched. It is now `fs_proto::verb`'s `takes_name()`, one row per
+reached a name the pattern never matched. It is now `filesystem_proto::verb`'s `takes_name()`, one row per
 verb, in a host-testable crate: the filter covers a new verb from the moment its row exists. What is
 *not* shared is the attenuation. `fs_subtree_caretaker` consults no policy at all and still does
 not, which is exactly the property a mode would have destroyed.
@@ -167,7 +167,7 @@ directory said. That is the same resolve-at-grant-time rule the rest of a grant 
 ## `rm` is told "everything you can see"
 
 A set grant has no single name to put in the `START` words, so `rm` is started with a grant whose
-name is **zero bytes long** (`fs_proto::grant::WHOLE_NAMESPACE`). A name cannot be empty, so that
+name is **zero bytes long** (`filesystem_proto::grant::WHOLE_NAMESPACE`). A name cannot be empty, so that
 spelling was free. It means the operand is the namespace, and `rm` learns the names by enumerating
 its own capability.
 
@@ -504,7 +504,7 @@ let report = fs_service::start_granted_set(
         dir: tree::GLOBSET,
         names: &[(b"gl-one.txt", false), (b"gl-two.txt", false)],
         rights: dir::REMOVE,                       // take names out, and nothing else
-        role: fs_proto::grant::spec(0, 0),         // no name: the operand is the namespace
+        role: filesystem_proto::grant::spec(0, 0),         // no name: the operand is the namespace
         arg: 0,
         arg2: 0,
         stack_pages: 4,

@@ -19,7 +19,7 @@ its siblings) and it is exactly the machinery milestone 19 declined to build.
 nife has a different lever already in hand, and it decided the whole design:
 
 - **Objects carry generational names.** A `Tcb`, `Endpoint`, or `AddressSpace` capability holds a
-  `(generation, slot)` name into a registry (`crates/slots`, notes/generational-names.md). Free the
+  `(generation, slot)` name into a registry (`crates/generational_table`, notes/generational-names.md). Free the
   registry slot and every outstanding capability to that object stops resolving, *forever*, because
   its generation no longer matches. There is no capability to hunt down; invalidation is a side
   effect of freeing the object. This is the milestone-14 machinery, reused for teardown.
@@ -107,7 +107,7 @@ we still do not build one.
 The untyped region table used to be a fixed count-based array whose slots were never reused, so its
 256 entries bounded region *creations over the kernel's lifetime*, not concurrent use. A system that
 spawns and reaps without end would wedge after 256 regions ever. Object revocation made the table a
-generational `slots::Table`: `destroy` removes a region's slot, bumping its generation (so every stale
+generational `generational_table::Table`: `destroy` removes a region's slot, bumping its generation (so every stale
 `Untyped` capability fails, the same stale-safety as everything else), and the next `create` reuses it.
 Now the bound is on *concurrent* regions. This is what turns a one-shot reclaim into a repeatable one.
 
@@ -275,7 +275,7 @@ timing exposed it.
   deterministic test asserts the property that makes the overlap harmless (a lent region is never
   freed by its borrower) rather than the overlap itself. The single-winner claim used to be argued
   from the lock discipline at the call site and gated by nothing. It is now the whole of
-  `RegionTable::claim_for_destroy` in `crates/regions`, which decides and removes the name in one
+  `RegionTable::claim_for_destroy` in `crates/memory_regions`, which decides and removes the name in one
   `&mut self` borrow, and `script/interleaving-check` searches every interleaving of it. The
   falsification is standing rather than remembered: one harness reconstructs the pre-fix protocol
   and passes only when loom finds its double free. See [interleaving.md](interleaving.md).

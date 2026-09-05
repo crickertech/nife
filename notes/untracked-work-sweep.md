@@ -106,13 +106,13 @@ decision rather than as everything that happened to be found.
 | Candidate | Why it is not in the nine |
 |---|---|
 | `notes/benchmarks.md`, the seL4 comparison deferred to real hardware | tracked since 2026-08-15 by milestone 127 (the seL4 machine), whose board is bought |
-| `notes/sched-lock-inventory.md`, contention that only exists on hardware we do not have | the same shape as above and waiting on the same silicon; a hardware trigger, not a decision |
+| `notes/ipc-tables-lock-inventory.md` (`sched-lock-inventory.md` when this table was written), contention that only exists on hardware we do not have | the same shape as above and waiting on the same silicon; a hardware trigger, not a decision |
 | `notes/load-sensitive-assertions.md`, "Recommended here, not built here" | milestone 78 owns it |
 | `notes/host-recovery.md`, a backup when the primary fails | the neighbouring finding in the same note became milestone 110; this one is a proposal nobody has taken, which is trigger 3's territory rather than a recorded limitation |
 | `notes/live-replacement.md`, the real derivation tree still wanted | the same object as the `notes/generational-names.md` blessing; blessed once, at the note that explains the alternative |
 | `notes/verification.md`, whole-parse totality deferred | a verification bound with its own analysis, and milestone 18's surface |
 | `notes/supervision.md`, runtime reattach deferred to milestone 23 | already tracked, and it names the milestone |
-| `notes/untyped.md` and `notes/userspace-drivers.md`, §10's deferred third axis | already tracked as milestone 11 |
+| `notes/memory-regions.md` (`untyped.md` when this table was written) and `notes/userspace-drivers.md`, §10's deferred third axis | already tracked as milestone 11 |
 
 ## The lesson this note is
 

@@ -16,9 +16,12 @@ simulated memory, points the simulated CPU at the first instruction, and lets go
 the kernel's point of view it has woken up on bare metal and is alone in the universe.
 It cannot tell the difference.
 
-## Why not develop on a real Raspberry Pi
+## Why not develop on real hardware
 
-Eventually we will (that's a planned milestone). But compare the loops:
+We do, now: **radon** (a VisionFive 2, riscv64) boots nife from a card, and **xenon** (a Dell
+OptiPlex, x86_64) is the x86 target (milestones 16a and 87; see [target-hardware.md](target-hardware.md)).
+The Raspberry Pi this section originally named is not the board that got there, and QEMU is still
+the default rather than the fallback. Compare the loops:
 
 | | Real hardware | QEMU |
 |---|---|---|

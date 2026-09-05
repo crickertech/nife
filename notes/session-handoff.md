@@ -1,5 +1,25 @@
 # Session handoff (2026-07-29)
 
+> **Superseded, and kept as a record rather than as instructions (2026-09-05, milestone 259).**
+> This page said of itself: *"Delete or overwrite once its contents are stale."* Thirty-eight days
+> went by and neither happened, and `notes/README.md` was still advertising it as what a fresh
+> session needs. **Do not follow the process in it.** Every rule it states has since been replaced,
+> and following one would now do harm rather than nothing:
+>
+> - **Merge discipline.** It says to run the gates yourself and push to `main`. The merge queue has
+>   been the single merge authority since milestone 119 (2026-08-15); a session that merges by hand
+>   bypasses the group build that arbitrates between sessions. `AGENTS.md` is the authority.
+> - **Where lanes live.** It says `.claude/worktrees/`, which does not exist. Lane worktrees are
+>   `~/projects/nife-worktrees/<milestone>`.
+> - **The board.** It says the VisionFive 2 purchase is deferred. radon is in hand and boots nife;
+>   so does xenon, since 2026-09-05. See `notes/target-hardware.md`.
+> - **`std::fs::write`.** Item 3 says it "stays Unsupported" for want of a `CREATE`/`TRUNCATE`
+>   verb. Both verbs exist and it works; see `notes/std.md`.
+> - **"What's next".** Its wave-3 list is six weeks old. `design/roadmap/README.md` is the queue.
+>
+> What is still worth reading is the account of what landed on 2026-07-29 and why, which is the
+> only place several of those decisions are narrated. Read it in the past tense throughout.
+
 A restart point, written so a fresh session resumes without re-deriving state. Delete or
 overwrite once its contents are stale; this is a working note, not a permanent record. The
 permanent records are DECISIONS.md, design/roadmap/, and the notes/ they point to.

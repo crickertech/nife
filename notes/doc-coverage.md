@@ -17,11 +17,11 @@ Measured 2026-08-17, against the block's 2026-08-02 numbers.
 |---|---|
 | 28 host crates with no doc example | **31**, before this pass. Now **0** |
 | 23 doctests in the host workspace | **49**, before this pass. Now **116** (109 of them run by `script/test`'s selection; see BUGS) |
-| Item coverage 36.4% (`socket_proto`) to 100% | **50.0%** (`intrusive`) to 100%; `socket_proto` is now 57.6% |
+| Item coverage 36.4% (`socket_proto`) to 100% | **50.0%** (`intrusive_fifo`) to 100%; `socket_proto` is now 57.6% |
 
 **The deficit grew while work was being done, and both halves of that are worth seeing.** Three of
 the four crates the block named as the hard ones left (`dtb`, `nifefs`, `gpt`) got their examples in
-the following fortnight, and `machine_discovery`, `manual`, `swish` and `slots` gained theirs too. Meanwhile five
+the following fortnight, and `machine_discovery`, `manual`, `swish` and `generational_table` gained theirs too. Meanwhile five
 crates arrived with none: `ntlm` and `system_initializer` (2026-08-04), `nvme` (2026-08-15), and
 `mdns_proto` and `smb_proto` (2026-08-15). `ntlm` and `smb_proto` were removed from the tree on
 2026-08-30 (notes/smb.md); their rows below are left as the record they always were. A count of
@@ -92,13 +92,13 @@ of those 404, crate by crate, re-measuring the same way after every batch: **235
 `#![warn(missing_docs)]` beside each crate's `#![no_std]`. Under `script/lint`'s `-D warnings` that is
 a hard gate, so those crates cannot regress:
 
-`abi`, `asid`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `canary_gate`, `capability`,
-`clock_proto`, `component_plan`, `coremark`, `cpu_set`, `cred`, `cred_proto`, `dma_validator`, `dtb`,
-`elf`, `entropy_proto`, `frames`, `fs_proto`, `graphics_proto`, `glob`, `intrusive`, `ipc`, `line_editor`,
+`abi`, `asid`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `memory_corruption_canary_gate`, `capability`,
+`clock_proto`, `component_plan`, `coremark`, `cpu_set`, `cred`, `credential_proto`, `dma_validator`, `dtb`,
+`elf`, `entropy_proto`, `page_frames`, `filesystem_proto`, `graphics_proto`, `glob`, `intrusive_fifo`, `ipc`, `line_editor`,
 `manual`, `mdns_config`, `measured_boot`, `nifefs`, `ntp_proto`, `nvme`, `paging`, `pgrep`,
-`ps`, `regions`, `sink_proto`, `slots`, `socket_proto`, `steal_request`, `supervision_proto`,
+`ps`, `memory_regions`, `byte_sink_proto`, `generational_table`, `socket_proto`, `work_steal_slot`, `supervision_proto`,
 `swap_proto`, `swish`, `system_initializer`, `timetable`, `user_heap`, `user_rt`, `video_terminal`,
-`virtio`, `wake_handshake`.
+`virtio`, `thread_wake_handshake`.
 
 The worklist, largest first, so the next person can take one crate and turn its line on:
 

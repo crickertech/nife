@@ -105,7 +105,7 @@ The last two run over a *symbolic* table (every slot independently empty or hold
 with symbolic object and rights), so "no state exists in which a consumed slot works again" is
 quantified over table states, not sampled.
 
-Two in `crates/regions/src/lib.rs`, the untyped-region accounting behind object revocation
+Two in `crates/memory_regions/src/lib.rs`, the untyped-region accounting behind object revocation
 (DECISIONS §16), where the scary property is **no double-free**:
 
 | Harness | Property |
@@ -114,7 +114,7 @@ Two in `crates/regions/src/lib.rs`, the untyped-region accounting behind object 
 | `destroy_never_frees_a_child_to_the_allocator` | a pinned or parent region refuses; a **root** frees to the allocator; a **child** *never* does, its pages return to the parent. So a page reaches the allocator only through the one root that owns it, exactly once |
 
 The second is the no-double-free crux, and the kernel (`untyped::split`, `untyped::destroy`) *calls*
-`regions::split_new_watermark` and `regions::destroy_outcome` rather than keeping a parallel copy, so
+`memory_regions::split_new_watermark` and `memory_regions::destroy_outcome` rather than keeping a parallel copy, so
 the proved arithmetic is the arithmetic that runs. It is a Phase-2-style extraction: the pure page
 accounting is here (address-agnostic, in page units), the byte arithmetic and the I/O (freeing frames,
 un-bumping the parent) stay in the kernel around it.
@@ -150,7 +150,7 @@ walk that actually matter, index-in-bounds, distinct pages take distinct paths, 
 split, are *already* proved in the `paging` arithmetic harnesses above. So the round-trip would burn
 the solver to re-cover proved ground or hit the wall. It stays covered by the host and kernel tests.
 
-Five in `crates/frames/src/lib.rs`, the physical frame allocator:
+Five in `crates/page_frames/src/lib.rs`, the physical frame allocator:
 
 | Harness | Property |
 |---|---|
@@ -227,7 +227,7 @@ one rests on:
 No rewire because `capability::CapabilityTable` and `ipc::Endpoint` already *are* the kernel's capability table and endpoint
 state; the proofs landed on code the kernel was running all along.
 
-Three in `crates/slots/src/lib.rs`, the generational thread table (milestone 14 phase A; see
+Three in `crates/generational_table/src/lib.rs`, the generational thread table (milestone 14 phase A; see
 notes/generational-names.md):
 
 | Harness | Property |
@@ -236,7 +236,7 @@ notes/generational-names.md):
 | `live_names_are_distinct_and_resolve_to_their_own_entry` | the `(generation, slot)` packing cannot alias two live entries |
 | `a_name_the_table_never_minted_resolves_to_nothing` | for any u64, resolution succeeds only on exactly a name the table issued |
 
-One in `crates/intrusive/src/lib.rs`, the scheduler's queue structure (milestone 14 phase A.2;
+One in `crates/intrusive_fifo/src/lib.rs`, the scheduler's queue structure (milestone 14 phase A.2;
 see notes/intrusive-queues.md):
 
 | Harness | Property |
@@ -293,7 +293,7 @@ userspace virtio driver's DMA: on every `NOTIFY` the kernel walks the driver's d
 any whose buffer escapes the driver's granted region (or is indirect), and copies the validated ones
 into a kernel-private **shadow ring** the device reads, so the driver cannot touch what the device
 acts on. The logic was lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it)
-so it could be proved, the same Phase-2 move `regions` and `ipc` made; the kernel's QEMU attacker
+so it could be proved, the same Phase-2 move `memory_regions` and `ipc` made; the kernel's QEMU attacker
 suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged and green, so
 the extraction is faithful.
 
@@ -725,7 +725,7 @@ how a kernel-only pull request stops paying the 42 minutes.
 
 - **Proofs live behind `#[cfg(kani)]`.** An ordinary `cargo build`/`cargo test` never compiles them,
   and the crate needs no dependency on `kani` (its intrinsics are injected only under `cargo kani`).
-- **Verify pure logic first.** The §7 host crates (`capability`, `paging`, `elf`, `frames`, the ASID
+- **Verify pure logic first.** The §7 host crates (`capability`, `paging`, `elf`, `page_frames`, the ASID
   allocator when it lands) are the frontier: small, allocation-light, already host-compiled. Bounded
   model checking is happiest there.
 - **Spread inward from the capability core**, the order §14 sets: `capability`, then IPC (rendezvous,

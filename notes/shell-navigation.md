@@ -12,7 +12,7 @@ every user forever. So the bar is not "is this more capability-pure", it is **"d
 actually force this"**, and three divergences clear it. The rest of Unix's surface survives.
 
 The pure half is `crates/grant_plan/src/nav.rs` (host-tested in milliseconds); the requests are
-`user/src/swish.rs`; the wire verb `rm` needed is `fs_proto::fs::UNLINK` with `Server::unlink` behind
+`user/src/swish.rs`; the wire verb `rm` needed is `filesystem_proto::fs::UNLINK` with `Server::unlink` behind
 it; the guest proof is `kernel/src/user/shell_navigation_tests.rs` and the host half is
 `xtask::shell_navigation_landed`.
 
@@ -113,7 +113,7 @@ Why revoke is absent is a fact about the contract rather than a preference: it w
 invalidating handles the FS server minted for clients **it cannot enumerate**. The handle table is
 per *server* (that is [dir-capability.md](dir-capability.md)'s structural finding), and the server
 does not track which client holds which handle. §13 revokes frames and §16 revokes objects because
-the kernel owns those tables; nothing owns this one that way yet. `crates/slots`' generational names
+the kernel owns those tables; nothing owns this one that way yet. `crates/generational_table`' generational names
 would make a revoked handle fail safely once something does.
 
 ### Unlink was not free, and the first version of it was a revoke
@@ -137,7 +137,7 @@ server**, exactly as a leaked fd does on Unix, and this table outlives its clien
 
 `UNLINK` answers `EISDIR` for a directory, which is POSIX's own answer. **This section said "there
 is no `RMDIR` verb on this contract" until 2026-08-18, and that stopped being true when DECISIONS
-§49 landed one** (`fs_proto::fs::RMDIR`, refusing a non-empty directory with `ENOTEMPTY`, and the
+§49 landed one** (`filesystem_proto::fs::RMDIR`, refusing a non-empty directory with `ENOTEMPTY`, and the
 two halves proven by `navscape::RMDIR_REFUSED_NON_EMPTY` and `RMDIR_REMOVED_EMPTY`). The reasoning
 this paragraph carried survived the change and is what shaped the verb: a single call that removed
 whatever it found is how one word takes a subtree away, so the recursion in `rm -r` lives in
@@ -191,7 +191,7 @@ curiosity: `OPENDIR` refuses with `EPERM` when the intersection is smaller than 
 (deliberately, per §42's rule against silent degradation), so a shell that asked for `dir::ALL` from
 a narrower capability could not `cd` at all. It has to ask for exactly what it holds.
 
-So the shell is **told** its rights at spawn, in the same `fs_proto::grant::spec` word the
+So the shell is **told** its rights at spawn, in the same `filesystem_proto::grant::spec` word the
 caretaker's own grant rides in. That works and it is a gap: a program handed a directory capability
 by someone else has no way to ask what it can do with it, and its options are to be told out of band
 or to probe by attempting things. Reported rather than fixed, because widening the contract to suit
@@ -223,7 +223,7 @@ should be able to answer for every capability rather than a flag on one verb.
   the navigating role on both ISAs; what is missing is a boot that wires an FS service into the
   interactive system, which is a wiring change and not a change here.
 - **The shell tracks 8 levels and 16-byte components.** Both are `grant_plan::nav`'s constants: the path
-  stack is an array because this program has no allocator, and 16 bytes is `fs_proto::grant::MAX_NAME`
+  stack is an array because this program has no allocator, and 16 bytes is `filesystem_proto::grant::MAX_NAME`
   (a name that could be `cd`'d into but not granted would be a place you can reach and cannot talk
   about). Deeper is `TooDeep`, refused rather than truncated, because a truncated path names a
   different directory.

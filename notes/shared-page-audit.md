@@ -42,16 +42,16 @@ against one.
 
 | Contract | Server | Client(s) | Files |
 |---|---|---|---|
-| blk IPC | block server | FS server | `crates/fs_proto` (`blk`), `user/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
-| file IPC | FS server | every FS client | `crates/fs_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
+| blk IPC | block server | FS server | `crates/filesystem_proto` (`blk`), `user/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
+| file IPC | FS server | every FS client | `crates/filesystem_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC, narrowed | the three caretakers | one confined program each | `user/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
-| the sink | `user/src/sink.rs` | a redirected program | `crates/sink_proto` |
+| the sink | `user/src/sink.rs` | a redirected program | `crates/byte_sink_proto` |
 | the serial terminal | `user/src/line_editor.rs` | the shell | `crates/line_editor` |
 | the console | `user/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
 | the display | `user/src/gpu_driver.rs` | painter, terminal, compositor | `crates/graphics_proto` |
 | the compositor | `user/src/compositor.rs` | window clients, the input source | `crates/compositor` |
 | the display terminal | `user/src/display_terminal.rs` | an application | `crates/video_terminal` |
-| credentials | `user/src/credentialer.rs` | provisioner, verifier | `crates/cred_proto` |
+| credentials | `user/src/credentialer.rs` | provisioner, verifier | `crates/credential_proto` |
 | the wall clock | `kernel/src/user/clock_service.rs` | init, the shell, `date` | `crates/clock_proto` |
 | the C seam | `user/src/c_shim.rs` (C) | `user/src/c_confiner.rs` | `crates/c_seam`, `user/c/c_seam.c` |
 | the input ring | the compositor | the keyboard driver | `crates/compositor` (`proto::ring`) |
@@ -89,7 +89,7 @@ in flight; each is named so the clearance above is not read as covering work it 
   `crates/socket_proto` there stops at `OP_CLOSE` and `net_stack.rs` has no listener. What is
   audited here is the outbound contract only. The `net_transport.rs` finding below applies to both,
   the file being identical across them.
-- **`crates/cred_proto` and `user/src/credentialer.rs`** are being substantially rewritten with an
+- **`crates/credential_proto` and `user/src/credentialer.rs`** are being substantially rewritten with an
   NTLM path. The clearance recorded below is of the version on `main` and does not transfer.
 - **The clock page's seqlock** has a live finding of its own from another lane (see finding 7's last
   paragraph). This audit did not re-derive it and does not claim `clock_proto` is clear; it uses that
@@ -102,8 +102,8 @@ Worth stating before the findings, because it is the reason there are so few.
 **Lengths, offsets, counts, handles, opcodes and rectangles all travel in the IPC register words,
 never in the page.** The kernel copies a message's words into its own state at `SEND` time and hands
 them to the receiver in registers, so by the time a server sees them they are in memory only that
-server can write. `fs_proto::fs::req` packs opcode, handle and a 40-bit length into one word;
-`graphics_proto` packs a whole rectangle into four 14-bit fields of one word; `cred_proto` packs two
+server can write. `filesystem_proto::fs::req` packs opcode, handle and a 40-bit length into one word;
+`graphics_proto` packs a whole rectangle into four 14-bit fields of one word; `credential_proto` packs two
 lengths into one word. There is **no contract in this tree whose length field lives in the shared
 page**, which removes the entire classic form of the bug (read a length from the page, bound-check
 it, read it again to size the copy) by construction rather than by care.
@@ -114,8 +114,8 @@ Three consequences fell out of the sweep and bound the search:
   local, not a re-read. `redoxfs_server.rs:246` `let len = fs::req_len(w0).min(BLOCK);` is the pattern,
   and the three caretakers, `line_editor`, `display_terminal` and `sink` all repeat it.
 - **The one contract whose decode lives in a host-testable crate is the one with a proof.**
-  `cred_proto::read` takes the page and the register word, checks both lengths against their
-  maxima, and returns two subslices; `crates/cred_proto/src/lib.rs` carries a harness asserting the
+  `credential_proto::read` takes the page and the register word, checks both lengths against their
+  maxima, and returns two subslices; `crates/credential_proto/src/lib.rs` carries a harness asserting the
   returned slices' lengths match the word and stay inside the page. Every other contract's decode is
   inlined into a `no_std` serve loop, where neither a host test nor Kani can reach it. That is rule
   7's argument arriving from a new direction.
@@ -173,7 +173,7 @@ those three are never runnable at once on the same page: the shell is parked in 
 spawned program's stream for the whole time that program exists, the program is inside a blocking
 `CALL` whenever the caretaker is forwarding, and the caretaker touches the page exactly once at
 startup and then only relays handles. **Init itself never writes it at all**, which is worth stating
-because it now holds the capability: it maps the frame into children and does not speak `fs_proto`.
+because it now holds the capability: it maps the frame into children and does not speak `filesystem_proto`.
 In the kernel test suite several caretaker chains do coexist on the one frame, but each is blocked on
 `recv_cap` between tests, and the confined clients `exit()` after reporting.
 
@@ -466,7 +466,7 @@ that sum is the line to revisit.
 **`GETXATTR` copies the name to the stack before writing the reply over it**, and says why. That is
 this audit's lens applied correctly, in the tree, before the audit existed.
 
-**`cred_proto::read`.** Both lengths from the register word, checked against `MAX_IDENTITY` and
+**`credential_proto::read`.** Both lengths from the register word, checked against `MAX_IDENTITY` and
 `MAX_SECRET`, fixed offsets, one bound against the page. The returned slices alias the page and their
 *contents* can change under the store, but their lengths cannot, and the party that would change them
 is the one that wrote the secret in the first place. The credentialer also wipes the request area on

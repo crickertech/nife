@@ -74,7 +74,7 @@ The syscall glue (`sys/pal/nife/rt.rs`) is a deliberate twin of `crates/user_rt`
 `svc`/`ecall` wrappers, restated because std cannot depend on the crate. The ABI **constants** are
 not restated: `abi.rs` is generated verbatim from `crates/abi` by `std-src`, so the numbers cannot
 drift. Likewise `user_heap.rs` from `crates/user_heap` (the host-tested heap algorithm is the only heap
-algorithm), `netproto.rs` from `crates/socket_proto/src/lib.rs`, and `fsproto.rs` from `crates/fs_proto`: every
+algorithm), `netproto.rs` from `crates/socket_proto/src/lib.rs`, and `fsproto.rs` from `crates/filesystem_proto`: every
 wire format the PAL speaks has exactly one definition, and it lives with the server that answers it.
 
 ## The toolchain: build-std against a patched rust-src
@@ -219,8 +219,8 @@ sidesteps it by keeping its UDP and TCP sockets on distinct ids at once.
 ## `std::fs` over the FS-service contract (milestone 27 phase two)
 
 `sys/fs/nife.rs` binds std's `File` to the FS server's file contract (DECISIONS §27,
-notes/fs-server.md, `crates/fs_proto`). Like the net PAL it is a **client** of a frozen contract and
-nothing more, and like the net PAL its wire constants are generated verbatim (`fs_proto` becomes
+notes/fs-server.md, `crates/filesystem_proto`). Like the net PAL it is a **client** of a frozen contract and
+nothing more, and like the net PAL its wire constants are generated verbatim (`filesystem_proto` becomes
 `sys/pal/nife/fsproto.rs` by `std-src`), so the PAL's numbers cannot drift from the server's.
 
 ### The interesting part: `File::open` takes a path, and there is no global namespace
@@ -292,7 +292,7 @@ reachability first, so a kernel `NoSuchSlot` cannot follow a reply. The cost of 
 made deliberately, because `EPERM` is reachable every day and revoking the FS endpoint is milestone
 108's open question. `-3` still reads as the kernel's, because `ESRCH` really is not in the server's
 vocabulary. The clean fix is a tag or an offset in the reply word, which is a contract change
-(`fs_proto`, the FS server, and `fs_test_client`), reported up rather than papered over here.
+(`filesystem_proto`, the FS server, and `fs_test_client`), reported up rather than papered over here.
 
 ### What binds, and what stays Unsupported
 
@@ -424,7 +424,7 @@ is one place to be wrong.
 
 **The rights it asks for are the design**, and they look like a widening until you do the
 arithmetic. Each hop asks for `DESCEND | needs`, where `needs` is what the *final* verb requires on
-the directory it lands in (`fs_proto::verb::TABLE` is the list; `OPEN`'s "READ or WRITE" is the one
+the directory it lands in (`filesystem_proto::verb::TABLE` is the list; `OPEN`'s "READ or WRITE" is the one
 row a caller has to resolve from its own `OpenOptions`). Carrying `needs` down the whole chain rather
 than asking for it only at the end costs nothing that was ever available, because a child's rights
 are its parent's *intersected* with the request: a right an ancestor lacks is a right no descendant
@@ -575,7 +575,7 @@ completes, not why the poll path did not.
   leaves the process.
 
   **`TZ`, `LANG` and `TERM` are seeded from a grant** (milestone 47's environment-variable fork,
-  DECISIONS §111, `env_proto`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
+  DECISIONS §111, `environment_proto`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
   a `Frame` with `READ`, the same rights-ladder shape as the clock) has those three keys in its
   table from the first line of `main` onward, read by `pal::nife::init` before the program's own
   code runs; a process granted no such page is seeded with nothing. This is the *inert
