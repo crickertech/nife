@@ -292,6 +292,9 @@ fastpath_pad = []
 #
 # Name provisional (2026-09-04): it says what the machine will do, the same test `reboot_soak`'s
 # name was chosen by. `bench_single_core` was refused as naming the caller rather than the effect.
+# **Ratified by calef, 2026-09-04.** `one_core` and `no_secondaries` were the alternatives; `hart` is
+# RISC-V's own word and the reader who knows the ISA knows it, which is the same argument that keeps
+# `elf` and `pci` unrenamed. The feature is not riscv64-only and the name is, which is the cost taken.
 single_hart = []
 
 # Typed wrappers over aarch64 system registers, so we write

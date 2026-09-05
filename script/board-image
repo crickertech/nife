@@ -63,7 +63,7 @@ cd "$(dirname "$0")/.."
 # exact machine they were designed for. The two features go on together for that reason, rather
 # than being offered separately for somebody to get wrong at the bench. The cost is stated where a
 # reader meets it, in `single_hart`'s own entry in kernel/Cargo.toml: `smp_throughput`, `fs_read`
-# and `fs_throughput` skip on this card. See notes/board-bench.md.
+# and `fs_throughput` skip on this card. See notes/footprint-perturbation.md.
 FEATURES=board
 SOAK=no
 JOBMIX=no

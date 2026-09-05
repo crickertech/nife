@@ -1,9 +1,11 @@
 # Taking a benchmark on radon: E1, E3 and E4 on the small-cache board
 
-*(Milestone 134. The name `board-bench.md` is **provisional**, this lane's coinage, 2026-09-04:
-hyphens because ordinary markdown here is hyphenated, and the `board-` prefix so it sits beside
-`board-console.md` and `visionfive2.md`, the other two pages about the machine at the bench. Names
-are calef's; expect the integrator to surface it.)*
+*(Milestone 134. Named by calef on 2026-09-04, from three candidates. `board-bench.md` was refused
+for a collision the file itself could not fix: `notes/bench-runbook.md` already exists and answers
+"which machine should an evening be spent on", so two pages about benching on boards would have had
+names that do not tell them apart. This one is named for the experiment, which is milestone 134's own
+word for E3, so a reader looking for "does the fastpath's size cost anything" finds it. That it is a
+board procedure is the first line's job rather than the filename's.)*
 
 **Nothing in this page has been run on silicon.** radon was powered off and there was no bench
 session on the day it was written. What exists is the instrument, built and compiled for the board,

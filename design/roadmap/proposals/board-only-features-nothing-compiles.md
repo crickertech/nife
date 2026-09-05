@@ -56,5 +56,5 @@ that file belongs on a card.
 
 ## Where it came from
 
-notes/board-bench.md's BUGS, and the observation that `single_hart` shipped into a tree where
+notes/footprint-perturbation.md's BUGS, and the observation that `single_hart` shipped into a tree where
 nothing but a person's own `script/board-image` run has ever compiled it.
