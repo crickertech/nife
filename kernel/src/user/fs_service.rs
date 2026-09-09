@@ -905,7 +905,7 @@ pub const NO_MKFS: &str = "no mkfs in this archive (nothing built one for this t
                            the archive was packed)";
 
 /// **The binary carrying the block server's role**, which is the one thing the two ISAs
-/// disagree about here: on aarch64 it is a role of the `init`/hello binary, on riscv the
+/// disagree about here: on aarch64 it is a role of the `hello` binary, on riscv the
 /// dedicated `block_driver` one. Every caller goes through this so the disagreement is one `cfg`
 /// rather than a second copy of every wiring.
 ///
@@ -913,7 +913,7 @@ pub const NO_MKFS: &str = "no mkfs in this archive (nothing built one for this t
 /// not finish, not a machine without a disk; the disk's absence is [`root_directory`]'s `None`.
 pub fn blk_server_image() -> &'static [u8] {
     #[cfg(target_arch = "aarch64")]
-    return program("init").expect("no init program in the initrd archive");
+    return program(super::INIT_ROLES_ENTRY).expect("no hello program in the initrd archive");
     #[cfg(target_arch = "riscv64")]
     return program("block_driver").expect("no block_driver program in the initrd archive");
     // x86_64 (milestone 161) packs RISC-V's archive, so it gets RISC-V's answer: the dedicated

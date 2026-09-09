@@ -1254,12 +1254,13 @@ fn std_relative(p: &Path) -> String {
 
 /// The archive entries the kernel itself may enter as the boot program, per architecture. Everything
 /// else in the archive is loaded by init, in userspace, so it is not part of the kernel's trust root.
-/// aarch64 boots `init` (the `hello` binary's init role); riscv64's tour boots `init` (the portable
-/// `builder`) and its shell boot boots `system_initializer`.
+/// **Every architecture boots `system_initializer`**: aarch64 packs it as the archive entry `init`,
+/// riscv64 and `x86_64` pack it under its own name and reach it through `riscv_shell_boot`. riscv64's
+/// tour additionally enters `init`, which on that archive is milestone 20's portable `builder`.
 ///
-/// riscv64 also lists **`hello`**, which is the same program aarch64 measures as `init`: `spawn_init`
-/// enters it directly for the userspace-init tests, and `trust::require` refuses any entry the trust
-/// root does not name. A kernel that could enter a program it never measured would be the hole
+/// Every list also carries **`hello`**, which is not a boot program in the ordinary sense: it holds
+/// milestone 19d's test roles and `spawn_init` enters it directly for them, and `trust::require`
+/// refuses any entry the trust root does not name. A kernel that could enter a program it never measured would be the hole
 /// measured boot exists to close, so the entry is here rather than the check being relaxed there.
 /// `x86_64` (milestone 161) packs RISC-V's archive, so it needs RISC-V's list: its `init` is the
 /// portable `builder`, and `hello` is a separate entry `spawn_init` enters directly for the
@@ -1269,7 +1270,7 @@ fn std_relative(p: &Path) -> String {
 fn boot_programs(arch: &str) -> &'static [&'static str] {
     match arch {
         "riscv64" | "x86_64" => &["init", "system_initializer", "hello"],
-        _ => &["init"],
+        _ => &["init", "hello"],
     }
 }
 
@@ -4271,8 +4272,9 @@ const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 /// kernel hands init (milestone 19f).
 ///
 /// The initrd is a **nifefs image**, the same format the virtio disk uses, so one parser serves
-/// both the RAM archive and the disk. It holds `init` (the `hello` binary, which the kernel loads
-/// and init re-enters at its remaining roles) plus the distinct binaries lifted out of hello:
+/// both the RAM archive and the disk. It holds `init` (the `system_initializer` binary, the boot
+/// program on all three architectures) and `hello` (the role catalogue the kernel re-enters for
+/// milestone 19d's tests), plus the distinct binaries lifted out of hello:
 /// `worker` (19f.2) and `console` (19f.3). The kernel reads the `init` entry to boot; init loads the
 /// rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
 /// in git is a blob nobody can review.
@@ -4296,15 +4298,23 @@ fn initrd_aarch64() -> bool {
     // data were the two that drifted.
     //
     // `(archive_name, bin_name)` because the two differ exactly once: the kernel loads the entry
-    // called **`init`**, and on aarch64 that is the `hello` binary, which init then re-enters at
-    // its remaining roles (19f). Every other row is a name repeated, and that is fine: the pair is
-    // what lets the one exception be data instead of a special case in the loop.
+    // called **`init`**, and that is now `system_initializer`, the same program riscv64 and x86_64
+    // boot. `hello` is packed under its own name for milestone 19d's test roles, which `spawn_init`
+    // enters directly. Every other row is a name repeated, and that is fine: the pair is what lets
+    // the one exception be data instead of a special case in the loop.
     //
     // Order is preserved from the hand-written vector it replaces. It is not load-bearing (init
     // looks entries up by name) but the measurement table is computed over this sequence, so
     // reordering would churn the manifest for nothing.
     let entries: &[(&str, &str)] = &[
-        ("init", "hello"),
+        // **The boot program.** This row read `("init", "hello")` until aarch64 stopped booting a
+        // role of the demo catalogue; the entry the kernel loads is now the same program on all
+        // three architectures.
+        ("init", "system_initializer"),
+        // **The milestone 7-19 role catalogue, under its own name**, as it already was on the other
+        // two archives. `spawn_init` enters it directly for 19d's test roles, so it is in
+        // `boot_programs` and measured.
+        ("hello", "hello"),
         ("worker", "worker"),
         ("console", "console"),
         ("input", "input"),

@@ -797,22 +797,20 @@ pub const NO_UART_PAGE: &str = "this machine's console UART is in the I/O port s
 /// The archive entry holding the milestone 7-19 **role catalogue**: the one binary the kernel
 /// re-enters at a chosen role to play a client, a server, or init itself.
 ///
-/// It is `hello` in both cases; only the name it is packed under differs. aarch64 packs it as
-/// `init`, because there it *is* the boot program. RISC-V's `init` is the portable `builder` demo,
-/// so hello goes in under its own name. Reading the wrong one gets a program with no such roles.
+/// One name on all three architectures. aarch64 used to pack it as `init`, because there it carried
+/// the boot role as well as the catalogue; that role is `user/src/system_initializer.rs`'s program
+/// now, and `hello` is packed as `hello` everywhere. The kernel still enters it directly for
+/// milestone 19d's test roles, which is why it is in `boot_programs` and measured.
 #[cfg_attr(not(test), allow(dead_code))]
-#[cfg(target_arch = "aarch64")]
-pub const INIT_ROLES_ENTRY: &str = "init";
-#[cfg_attr(not(test), allow(dead_code))]
-#[cfg(target_arch = "riscv64")]
 pub const INIT_ROLES_ENTRY: &str = "hello";
-/// `x86_64` packs RISC-V's archive (milestone 161, item 4's hand-off), so it gets RISC-V's answer:
-/// its `init` is the portable `builder` demo and hello is packed under its own name. This constant
-/// said the same thing before there was an archive, and it turned out to be right; the reason it
-/// was right is that the archive was going to be RISC-V's rather than that the name was a guess.
+
+/// **The archive entry the kernel enters as the boot process on this architecture.**
+///
+/// One program on all three boards: `user/src/system_initializer.rs`. riscv64 and `x86_64` reach the
+/// same binary under its own name through `riscv_shell_boot`; aarch64 keeps the entry name `init`
+/// here because that is the string the archive and the trust root already agree on.
 #[cfg_attr(not(test), allow(dead_code))]
-#[cfg(target_arch = "x86_64")]
-pub const INIT_ROLES_ENTRY: &str = "hello";
+pub const INIT_BOOT_ENTRY: &str = "init";
 
 /// Init's stack, in pages (19d.2c): init loads whole ELFs with deep call chains, so its stack is
 /// larger than an ordinary process's one page. 8 pages (32 KiB) is generous.
@@ -879,11 +877,20 @@ pub fn spawn_init(
             crate::arch::halt();
         }
     };
-    let Some(init_bytes) = boot_fs.read(INIT_ROLES_ENTRY) else {
-        crate::println!("  boot archive has no '{INIT_ROLES_ENTRY}' program");
+    // **Which entry depends on the role, and that is the whole structural change on this side.**
+    // The boot role gets the boot program; 19d's test roles get `hello`, which holds them. Both
+    // were the same archive entry on this architecture until now, which is what made the kernel's
+    // first process a role of a demo binary here and a purpose-built program everywhere else.
+    let entry = if role == INIT_BOOT_ROLE {
+        INIT_BOOT_ENTRY
+    } else {
+        INIT_ROLES_ENTRY
+    };
+    let Some(init_bytes) = boot_fs.read(entry) else {
+        crate::println!("  boot archive has no '{entry}' program");
         crate::arch::halt();
     };
-    crate::trust::require(INIT_ROLES_ENTRY, init_bytes);
+    crate::trust::require(entry, init_bytes);
     // And the table init measures *its* loads against (milestone 104). The whole archive is about to
     // be mapped into init, so this is the same decision one link down: what the kernel hands over
     // has to be what this kernel image was built against, or the refusals init makes with it are

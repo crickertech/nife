@@ -1249,10 +1249,10 @@ fn fs_read() {
     if crate::smp::online_count() <= 1 {
         return;
     }
-    // The three binaries the service needs. On aarch64 the block server is a role of `init` (the
-    // hello multiplexer), as in the redoxfs_server test. Absent any of them, or the RedoxFS disk, skip.
+    // The three binaries the service needs. On aarch64 the block server is a role of the `hello`
+    // multiplexer, as in the redoxfs_server test. Absent any of them, or the RedoxFS disk, skip.
     let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
-        crate::user::program("init"),
+        crate::user::program(crate::user::INIT_ROLES_ENTRY),
         crate::user::program("redoxfs_server"),
         crate::user::program("fs_test_client"),
     ) else {
@@ -1304,7 +1304,7 @@ fn fs_throughput() {
         return;
     }
     let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
-        crate::user::program("init"),
+        crate::user::program(crate::user::INIT_ROLES_ENTRY),
         crate::user::program("redoxfs_server"),
         crate::user::program("fs_test_client"),
     ) else {

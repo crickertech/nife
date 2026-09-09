@@ -19,20 +19,16 @@ use crate::sched;
 /// A test that loads a real user program wants the program's bytes, not the whole nifefs
 /// archive; only the `spawn_init` tests pass the archive, because init parses it itself.
 ///
-/// The archive name differs by ISA and that is the one place it shows. aarch64 packs hello as
-/// **`init`**, because on that ISA hello *is* the boot program. RISC-V's `init` is the portable
-/// `builder` demo, so hello is packed under its own name there. Both point at the same source
-/// file compiled for the local target.
-#[cfg(target_arch = "aarch64")]
-const HELLO_ENTRY: &str = "init";
-#[cfg(target_arch = "riscv64")]
-const HELLO_ENTRY: &str = "hello";
+/// **The archive name used to differ by ISA and this was the one place it showed.** aarch64 packed
+/// hello as `init`, because on that ISA hello also carried the boot role. That role is its own
+/// program now, so the name is `hello` on all three and the three arms this constant used to need
+/// collapsed into `super::INIT_ROLES_ENTRY`.
+///
 /// **`x86_64` packs no initrd at all**, because no user program is built for
-/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). This
-/// names what the entry would be called rather than what is there, and every test that reaches for
-/// it skips instead: see [`init_image`].
-#[cfg(target_arch = "x86_64")]
-const HELLO_ENTRY: &str = "hello";
+/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). The
+/// constant names what the entry would be called rather than what is there, and every test that
+/// reaches for it skips instead: see [`init_image`].
+const HELLO_ENTRY: &str = super::INIT_ROLES_ENTRY;
 
 fn init_image() -> &'static [u8] {
     program(HELLO_ENTRY).expect("no hello program in the initrd archive")

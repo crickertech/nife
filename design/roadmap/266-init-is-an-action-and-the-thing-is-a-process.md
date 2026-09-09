@@ -25,8 +25,13 @@ from outside is the best available. The maintainer quoted that at `init` and cal
 *"The kernel loads this as the boot process, maps the initrd, and grants it the capabilities...
 **From those, and nothing else, it builds the whole interactive system out of its own budget.**"* So
 the first process here is not merely first in time; it holds the machine's entire authority at boot
-and hands slices away. Milestone 22 is called trusted init for that reason, and §148's fork about
-whether a supervisor can restart without regaining construction authority is the same subject.
+and hands slices away. Milestone 22 is called trusted init for that reason, and
+[§32](../decisions/32-reap-without-build.md)'s fork about whether a supervisor can restart without
+regaining construction authority is the same subject. *(That citation named decision 148 when this
+block was minted, a number no decision has, and `script/decisions --check` failed on it from the
+moment the block landed. Corrected by this milestone's lane. Written without the section sigil on
+purpose: spelling it would make this sentence itself a dangling citation, which is the gate working
+as designed.)*
 
 ## The name
 

@@ -1727,7 +1727,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                         // shares with the server; the kernel never touches the bytes. The server is
                         // its own binary now ("console", 19f.3); the demo client is still a role of
                         // hello, so it takes the "init" entry of the archive.
-                        let prog = user::program("init").expect("no init program in the initrd");
+                        let prog = user::program(user::INIT_ROLES_ENTRY)
+                            .expect("no hello program in the initrd");
                         let console = user::console_service::start();
                         user::console_service::spawn_client(prog, console);
                         timer::spin_for(timer::frequency() / 10);
@@ -1745,7 +1746,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 let _ = SVC_COUNT.load(Ordering::Relaxed);
 
                 // Milestone 11: a process spends its own memory; the kernel allocates nothing.
-                if let Some(image) = user::program("init")
+                if let Some(image) = user::program(user::INIT_ROLES_ENTRY)
                     && let Some((_region, report, _demo)) =
                         user::memory_region_service::start(image, 24)
                 {
@@ -1845,7 +1846,7 @@ fn mode_note(stat: u32) -> &'static str {
 #[cfg_attr(any(feature = "shell", feature = "initboot"), allow(dead_code))]
 #[cfg(not(feature = "bench"))]
 fn image_for_virtio() -> &'static [u8] {
-    user::program("init").expect("no init program in the initrd")
+    user::program(user::INIT_ROLES_ENTRY).expect("no hello program in the initrd")
 }
 
 fn interrupts_init(_dtb: usize) {
