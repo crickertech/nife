@@ -14,7 +14,7 @@
 //! travel in the record rather than being compiled in, so raising them is a provisioning change.
 //!
 //! ```
-//! use cred::{Block, Cost, SALT_LEN, Store, TAG_LEN, Verdict};
+//! use credentialer::{Block, Cost, SALT_LEN, Store, TAG_LEN, Verdict};
 //!
 //! let cost = Cost::new(64, 1, 1).expect("a cheap cost, for the example only");
 //! let mut scratch: Vec<Block> = vec![Block::new(); cost.blocks()];
@@ -42,7 +42,7 @@
 //! [`Record`] can be encoded and decoded, and what comes out the other side is still a tag.
 //!
 //! ```
-//! use cred::{Block, Cost, Record, SALT_LEN};
+//! use credentialer::{Block, Cost, Record, SALT_LEN};
 //!
 //! let cost = Cost::new(64, 1, 1).unwrap();
 //! let mut scratch: Vec<Block> = vec![Block::new(); cost.blocks()];
@@ -64,7 +64,7 @@
 //! derivation that would have used it:
 //!
 //! ```
-//! use cred::Cost;
+//! use credentialer::Cost;
 //!
 //! assert!(Cost::new(4096, 3, 1).is_some());
 //! assert!(Cost::new(0, 3, 1).is_none()); // no memory is not a memory-hard KDF

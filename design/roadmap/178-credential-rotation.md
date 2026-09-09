@@ -17,7 +17,7 @@ else's. It does not exist today, and it is not an oversight.
 
 ## Why the gap is deliberate, and why that makes this a real design question rather than a bug fix
 
-`cred::Store::put`'s own doc comment names the reason directly: **"replacing an existing identity
+`credentialer::Store::put`'s own doc comment names the reason directly: **"replacing an existing identity
 is not offered: this runs once, before the seal, and 'put twice, second wins' is a rule with a bug
 in it (which of two concurrent provisioners won?) that a store with no update path simply does not
 have."** `credential_proto::provision::SEAL`'s own doc is blunter still: after it, "the store

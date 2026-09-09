@@ -6447,7 +6447,7 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 /// puzzle: five reach the host filesystem (`open`, `/dev`, the temp dir), which isolation refuses,
 /// and five in `watch` are wall-clock driven, so a 15-second quiet timeout and a 120-second budget
 /// expire against interpreted time and the watcher reports `Reached(Banner)` where a real run
-/// reaches `Reached(Tour)`. That last family is the same category as `cred`'s timing test, which
+/// reaches `Reached(Tour)`. That last family is the same category as `credentialer`'s timing test, which
 /// notes/undefined-behavior.md already records: a wall-clock ratio under an interpreter measures
 /// Miri, not the thing being timed.
 ///
@@ -6458,7 +6458,7 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 /// **"Miri-clean" means the sampled paths.** An interpreter runs roughly a thousand times slower
 /// than the silicon, so the exhaustive suites gate themselves down under `cfg(miri)`: `ntp_proto`
 /// strides its 10^9-value sweep, `gpt` skips its 460k-parse corruption sweeps, `calendar` and
-/// `glob` shrink their strides and scales, `cred` derives at Argon2's floor (each site says so,
+/// `glob` shrink their strides and scales, `credentialer` derives at Argon2's floor (each site says so,
 /// next to the test). What Miri certifies is every path the sampled suite executes, not the
 /// exhaustive claims; those remain native-only.
 ///

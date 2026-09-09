@@ -17,7 +17,7 @@ members = [
     "crates/compositor",
     "crates/cpu_set",
     "crates/grant_plan",
-    "crates/cred",
+    "crates/credentialer",
     "crates/credential_proto",
     "crates/clock_proto",
     "crates/environment_proto",
@@ -246,10 +246,10 @@ opt-level = 2
 # under QEMU. Argon2 is memory-hard on purpose, so an unoptimised build does not make an attacker's
 # job harder, only ours; and the honest cost parameter to publish is one measured against a build
 # that is not throwing away an order of magnitude for no reason. Correctness is pinned by
-# `crates/cred`'s known-answer tests against RFC 9106 and the reference implementation's vectors, so
-# the optimised build is not the less trustworthy one. `blake2` and `digest` are argon2's own
-# arithmetic and carry the same argument.
-[profile.dev.package.cred]
+# `crates/credentialer`'s known-answer tests against RFC 9106 and the reference implementation's
+# vectors, so the optimised build is not the less trustworthy one. `blake2` and `digest` are
+# argon2's own arithmetic and carry the same argument.
+[profile.dev.package.credentialer]
 opt-level = 2
 [profile.dev.package.argon2]
 opt-level = 2

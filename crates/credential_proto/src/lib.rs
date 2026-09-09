@@ -126,7 +126,7 @@
 //!
 //! [`MISMATCH`] means "not this secret for this identity", and it is what an identity that is not
 //! in the store gets too. Distinguishing them would turn the verify endpoint into an identity
-//! oracle: ask about a thousand names and learn which three exist. `cred::Store` also spends the
+//! oracle: ask about a thousand names and learn which three exist. `credentialer::Store` also spends the
 //! same work on both, so the timing does not distinguish them either; see notes/credentials.md.
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
@@ -252,7 +252,7 @@ pub const fn secret_len(w0: u64) -> usize {
 ///
 /// An empty identity is refused here and not merely at the server, because "the empty name" is the
 /// one string that would otherwise collide with an unwritten slot in the service's fixed-size
-/// store. `cred::Store` refuses it too; two refusals for one hazard is deliberate.
+/// store. `credentialer::Store` refuses it too; two refusals for one hazard is deliberate.
 pub fn place(page: &mut [u8], identity: &[u8], secret: &[u8], op: u64) -> Option<u64> {
     if page.len() < SECRET_OFF + MAX_SECRET {
         return None;

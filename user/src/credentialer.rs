@@ -137,8 +137,8 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use cred::{Block, Cost, Store, Verdict};
 use credential_proto as proto;
+use credentialer::{Block, Cost, Store, Verdict};
 use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, cap_delete, exit, recv_cap, reply, send};
 
@@ -194,8 +194,8 @@ const E_SCRATCH: u64 = 0x02;
 /// layout deliberately written twice with nothing checking that the two copies agree, whose drift
 /// shows up as a component scribbling on the wrong bytes arbitrarily far from the edit. A page
 /// offset that disagreed here would put a client's blob where the service reads a proof.
-const _: () = assert!(proto::MAX_IDENTITY == cred::MAX_IDENTITY);
-const _: () = assert!(proto::MAX_SECRET == cred::MAX_SECRET);
+const _: () = assert!(proto::MAX_IDENTITY == credentialer::MAX_IDENTITY);
+const _: () = assert!(proto::MAX_SECRET == credentialer::MAX_SECRET);
 // There were six until 2026-08-30; four of them were the NTLM path's and went with the SMB
 // implementation that was its only consumer (notes/smb.md).
 
@@ -212,8 +212,8 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     // lands on, so that "no such identity" costs one full derivation instead of returning
     // instantly; a decoy of zeros would be a tag an attacker could aim a preimage at, and a
     // constant salt would let one precomputation cover every miss on every machine.
-    let mut decoy_salt = [0u8; cred::SALT_LEN];
-    let mut decoy_tag = [0u8; cred::TAG_LEN];
+    let mut decoy_salt = [0u8; credentialer::SALT_LEN];
+    let mut decoy_tag = [0u8; credentialer::TAG_LEN];
     if !fill(&mut decoy_salt) || !fill(&mut decoy_tag) {
         die(E_ENTROPY);
     }
@@ -279,7 +279,7 @@ fn put(store: &mut Store<CAPACITY>, scratch: &mut [Block], w0: u64, _w1: u64) ->
     let Some((identity, secret)) = proto::read(page, w0) else {
         return proto::MALFORMED;
     };
-    let mut salt = [0u8; cred::SALT_LEN];
+    let mut salt = [0u8; credentialer::SALT_LEN];
     if !fill(&mut salt) {
         // No unpredictable bits, so no record. Answering with a weak salt would be the silent
         // degradation DECISIONS §42 forbids, and it would be invisible: every login would still
@@ -288,7 +288,7 @@ fn put(store: &mut Store<CAPACITY>, scratch: &mut [Block], w0: u64, _w1: u64) ->
     }
     match store.put(identity, secret, salt, scratch) {
         Ok(()) => proto::OK,
-        Err(cred::Error::Full) => proto::FULL,
+        Err(credentialer::Error::Full) => proto::FULL,
         Err(_) => proto::MALFORMED,
     }
 }
