@@ -4346,6 +4346,13 @@ fn initrd_aarch64() -> bool {
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
         ("heeder", "heeder"),
         ("spinner", "spinner"),
+        // The narrator (milestone 267, provisional name): the milestone narrative, which used to
+        // be twenty `println!`s in `kernel_main`. The tour spawns it as the console server's
+        // client, so the story is told by a program at EL0 through a driver at EL0. aarch64 only:
+        // the riscv64 and x86_64 boots each have their own self-contained arch tour and halt
+        // before the shared path this one belongs to, so packing it there would be archive bytes
+        // nothing can reach. See design/roadmap/267-the-tour-is-three-things-wearing-one-name.md.
+        ("narrator", "narrator"),
         // The sustained multicore workload (milestone 219): the program `--features soak` builds a
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
