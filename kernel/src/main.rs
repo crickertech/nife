@@ -1498,47 +1498,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     #[cfg(not(any(test, feature = "bench")))]
     {
-        println!();
-        println!("nife");
-        // The exception level is an aarch64 concept and reads an aarch64 system register, so the
-        // line is gated rather than the whole banner. This is also what keeps `aarch64-cpu` out of
-        // the other two architectures' dependency graphs; see the target table in kernel/Cargo.toml.
-        #[cfg(target_arch = "aarch64")]
-        {
-            use aarch64_cpu::registers::CurrentEL;
-            use tock_registers::interfaces::Readable;
-            // Two numbers, because on a board they are the two different questions. Where the
-            // kernel is now, and where firmware put it: U-Boot enters a payload at EL2 and
-            // `boot.s` drops itself, and on the first boot of a new board this line is how
-            // anyone finds out which of those happened. See milestone 127 (the seL4 machine).
-            let entered = arch::entry_el();
-            let now = CurrentEL.read(CurrentEL::EL);
-            if entered == now {
-                println!("  exception level : EL{now}  (entered here)");
-            } else {
-                println!(
-                    "  exception level : EL{now}  (entered at EL{entered}, dropped in boot.s)"
-                );
-            }
-        }
-        arch::isa::print_summary();
-        println!("  stack top       : {:#018x}", stack_top());
-        println!("  device tree     : {boot_info_pointer:#018x}");
-        memory::print_summary();
-        arch::mmu::print_summary();
-        {
-            use crate::arch::{interrupts, timer};
-            println!(
-                "  timer           : {} Hz tick, counter at {} MHz, interrupts {}",
-                timer::TICK_HZ,
-                timer::frequency() / 1_000_000,
-                if interrupts::enabled() { "ON" } else { "off" },
-            );
-            println!(
-                "  scheduler       : {} thread(s), round robin, preemptive",
-                sched::thread_count(),
-            );
-        }
+        print_machine_description(boot_info_pointer);
 
         // The milestone tour. Compiled out by `cargo xtask shell` and `cargo xtask initboot`,
         // which boot straight to the system instead of scrolling all of this first.
@@ -1881,6 +1841,71 @@ fn stack_top() -> usize {
         static __stack_top: core::ffi::c_void;
     }
     (&raw const __stack_top) as usize
+}
+
+/// **The machine description: what this machine is, printed on every boot that reaches here.**
+///
+/// Paging, the ISA, firmware, the cores, the timer, the scheduler, and the memory map. It is
+/// diagnostics rather than decoration, and it is the reason it is a function of its own rather
+/// than the first half of a block whose second half is a demonstration.
+///
+/// **xenon is why.** At first light on that machine there was no serial console this project could
+/// read, so these lines *were* the transcript, photographed off a monitor, and they are what
+/// diagnosed the local-APIC collision and the PCI BAR window landing in RAM. A port is verified by
+/// reading them.
+///
+/// **So nothing in here may be gated on a boot-mode feature.** `script/lint` checks that: the body
+/// of this function must contain no `feature = "..."` cfg, because the failure it guards against is
+/// somebody putting one line of a bring-up transcript behind the same switch that removes a
+/// demonstration. Milestone 267 split the two for that reason; before it, one
+/// `#[cfg(not(any(feature = "shell", feature = "initboot")))]` sat in the middle of a single block
+/// and the boundary between the two audiences was a reader's inference rather than a name.
+///
+/// The `test` and `bench` exclusions on the signature are not that switch and are deliberately
+/// kept. A `bench` boot diverges into `bench::run` before this point and never returns, and a
+/// `test` boot exits through semihosting; neither is a boot anybody reads to bring up a board.
+/// Every boot that reaches this line prints all of it.
+#[cfg(not(any(test, feature = "bench")))]
+fn print_machine_description(boot_info_pointer: usize) {
+    println!();
+    println!("nife");
+    // The exception level is an aarch64 concept and reads an aarch64 system register, so the
+    // line is gated rather than the whole banner. This is also what keeps `aarch64-cpu` out of
+    // the other two architectures' dependency graphs; see the target table in kernel/Cargo.toml.
+    #[cfg(target_arch = "aarch64")]
+    {
+        use aarch64_cpu::registers::CurrentEL;
+        use tock_registers::interfaces::Readable;
+        // Two numbers, because on a board they are the two different questions. Where the
+        // kernel is now, and where firmware put it: U-Boot enters a payload at EL2 and
+        // `boot.s` drops itself, and on the first boot of a new board this line is how
+        // anyone finds out which of those happened. See milestone 127 (the seL4 machine).
+        let entered = arch::entry_el();
+        let now = CurrentEL.read(CurrentEL::EL);
+        if entered == now {
+            println!("  exception level : EL{now}  (entered here)");
+        } else {
+            println!("  exception level : EL{now}  (entered at EL{entered}, dropped in boot.s)");
+        }
+    }
+    arch::isa::print_summary();
+    println!("  stack top       : {:#018x}", stack_top());
+    println!("  device tree     : {boot_info_pointer:#018x}");
+    memory::print_summary();
+    arch::mmu::print_summary();
+    {
+        use crate::arch::{interrupts, timer};
+        println!(
+            "  timer           : {} Hz tick, counter at {} MHz, interrupts {}",
+            timer::TICK_HZ,
+            timer::frequency() / 1_000_000,
+            if interrupts::enabled() { "ON" } else { "off" },
+        );
+        println!(
+            "  scheduler       : {} thread(s), round robin, preemptive",
+            sched::thread_count(),
+        );
+    }
 }
 
 #[cfg(test)]

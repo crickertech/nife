@@ -355,6 +355,73 @@ if git grep -nE 'asm!\(|core::arch::' -- \
 fi
 echo "rule 1: no asm outside kernel/src/arch/"
 
+# The machine description prints on every boot (milestone 267).
+#
+# `kernel/src/main.rs`'s `print_machine_description` is the bring-up transcript: paging, the ISA,
+# firmware, the cores, the timer, the memory map. On xenon there was no serial console this project
+# could read at first light, so those lines *were* the record, photographed off a monitor, and they
+# are what diagnosed the local-APIC collision and the PCI BAR window landing in RAM.
+#
+# Before milestone 267 they shared one block with the milestone tour, under a single
+# `#[cfg(not(any(feature = "shell", feature = "initboot")))]` sitting in the middle of it, so the
+# boundary between a diagnostic and a demonstration was a reader's inference. A line moved a few
+# rows up or down changed which audience it served and nothing said so. This is the mechanism that
+# replaces the inference: the split is a function name, and no boot-mode feature may appear inside
+# it.
+#
+# It checks the body only. The signature carries `#[cfg(not(any(test, feature = "bench")))]` on
+# purpose (a `bench` boot diverges before this point and a `test` boot exits through semihosting;
+# neither is a boot anybody reads to bring up a board), which is why the scan starts after the
+# opening brace rather than at the attribute.
+echo "==> the machine description is not gated on a boot mode"
+python3 - <<'M267EOF' || exit 1
+import re, sys
+
+src = open("kernel/src/main.rs", encoding="utf8").read()
+start = src.find("fn print_machine_description")
+if start < 0:
+    print("lint: kernel/src/main.rs has no `print_machine_description`. Milestone 267 made the",
+          file=sys.stderr)
+    print("      machine description a function so that nothing could gate half of it. If it was",
+          file=sys.stderr)
+    print("      renamed, rename it here too and say why in design/roadmap/267-*.md.",
+          file=sys.stderr)
+    sys.exit(1)
+
+# Brace-match from the opening brace of the body. The function contains no string or char literal
+# with an unbalanced brace (every pair in its format strings is a placeholder and balanced), so
+# counting is enough and a Rust parser is not.
+open_at = src.index("{", start)
+depth, end = 0, None
+for i in range(open_at, len(src)):
+    if src[i] == "{":
+        depth += 1
+    elif src[i] == "}":
+        depth -= 1
+        if depth == 0:
+            end = i
+            break
+if end is None:
+    print("lint: could not find the end of `print_machine_description`.", file=sys.stderr)
+    sys.exit(1)
+
+body = src[open_at:end]
+bad = sorted(set(re.findall(r'feature\s*=\s*"[a-z_0-9]+"', body)))
+if bad:
+    print("lint: the machine description is gated on a boot-mode feature: " + ", ".join(bad),
+          file=sys.stderr)
+    print("", file=sys.stderr)
+    print("These lines are how a port is verified on a machine with no serial console, so they",
+          file=sys.stderr)
+    print("print on every boot. A demonstration that should be compiled out belongs in the tour",
+          file=sys.stderr)
+    print("block in `kernel_main`, or in a userspace program. See design/roadmap/267-*.md.",
+          file=sys.stderr)
+    sys.exit(1)
+
+print("machine description: %d lines, no boot-mode feature inside it" % body.count("\n"))
+M267EOF
+
 # Every `fence` names where its other half is (milestone 116, CLAUDE.md rule 4).
 #
 # A release fence with no matching acquire orders nothing and reads as though it does, which is
