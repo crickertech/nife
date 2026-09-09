@@ -1500,27 +1500,74 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     {
         print_machine_description(boot_info_pointer);
 
-        // The milestone tour. Compiled out by `cargo xtask shell` and `cargo xtask initboot`,
-        // which boot straight to the system instead of scrolling all of this first.
+        // **The milestone tour, and what is left of it after milestone 267.**
+        //
+        // It was three things wearing one name: a machine description, a narrative, and a set of
+        // demonstrations. The description is `print_machine_description` above and prints on every
+        // boot. The narrative is `user/src/narrator.rs` and runs at EL0. What remains here is the
+        // third thing, and every entry is here because it needs a privilege a program does not
+        // have. The list is short on purpose, and it is the whole list:
+        //
+        //   - **Two threads that never yield**, spawned with `sched::spawn`, counted against
+        //     `sched::preemptions()`, timed with `timer::spin_for`. No syscall, no function call,
+        //     no cooperation. A program at EL0 cannot make this claim about the scheduler because
+        //     an EL0 spinner proves only that EL0 was preempted; these run *inside* the kernel and
+        //     are still taken off the CPU, which is the stronger statement and the thesis in
+        //     miniature.
+        //   - **The virtio and PCIe block demos.** The kernel enumerates the bus, mints the
+        //     device's registers, a DMA page and an interrupt into a driver's world, and receives
+        //     the driver's report with `sched::ipc_recv`. Every one of those is an authority whose
+        //     whole point is that the driver did not have it until the kernel granted it, so the
+        //     granter cannot be the grantee.
+        //   - **The outlaw.** `&raw const USER_FAULTS` is the address of a kernel static, handed to
+        //     a program that then faults reading it and increments the very counter it reached for.
+        //     A program cannot name that address, which is the demonstration.
+        //   - **The memory-region demo.** It prints `memory::stats().used` before and after a
+        //     process spends its own budget, and the claim is that the number did not move. The
+        //     number is the kernel's own frame accounting and is not exposed to EL0 (see the
+        //     preemption-counter note in design/roadmap/267-*.md: an ambient fact nobody needs yet).
+        //
+        // The console server and the narrator are started at the top of this block rather than
+        // being on that list. They are not survivors; they are the move.
+        //
+        // Compiled out by `cargo xtask shell` and `cargo xtask initboot`, which boot straight to
+        // the system instead of scrolling all of this first. **Both features mean exactly this
+        // one thing** and `initboot` names nothing `shell` does not; whether that is still worth a
+        // compile-time switch is measured in the milestone block and proposed there rather than
+        // decided here.
         #[cfg(not(any(feature = "shell", feature = "initboot")))]
         {
-            println!();
-            println!(
-                "milestone 1: we are running our own code on a CPU with nothing underneath it."
-            );
-            println!("milestone 2: and when it goes wrong, we get told.");
-            println!(
-                "           : and the machine now tells us what it is, instead of us guessing."
-            );
-            println!("milestone 3: and we know which parts of it are ours to give away.");
-            println!("milestone 4: and nothing writable is executable, and Vec works again.");
-            println!("milestone 5: and the machine can now interrupt us. we are preemptible.");
-            println!("milestone 6: and a thread that refuses to yield gets preempted anyway.");
-            println!("milestone 7: and now it runs a binary it did not compile, unprivileged.");
-            println!(
-                "           : and that binary can talk to a server it can only name, not reach."
-            );
-            println!();
+            // **The narrative is a program** (milestone 267). These nine lines were twenty
+            // `println!`s here until then, and nothing about them needed EL1: they are text, and
+            // text in the kernel costs bytes on every boot including the ones that compile it out.
+            //
+            // So the console server comes up first now, and `narrator` is its client. The story is
+            // told by a program at EL0, through a driver at EL0 that holds the UART's registers,
+            // and the last thing the story claims is exactly that. It used to be the kernel
+            // claiming it on the program's behalf, which was the one line of the tour not
+            // demonstrated by the thing saying it.
+            //
+            // The initrd is asked for first because both `expect`s inside
+            // `console_service::start` are about the archive rather than the machine: a run with no
+            // `-initrd` has no console program to start and no narrator to run, and the initrd
+            // step further down is where that boot says so.
+            //
+            // Written as a `map` rather than the `is_some() && let` that reads more directly,
+            // because it measures 340 bytes smaller in the release kernel's `.text` (194,336
+            // against 193,996 by `script/fastpath-footprint`'s method). That is 0.17% and it is
+            // also, as milestone 267's block records, larger than anything the nine lines of prose
+            // this block used to hold ever weighed. Both facts are worth a reader knowing.
+            let console = user::initrd().map(|_| user::console_service::start());
+            if let Some(console) = console
+                && let Some(image) = user::program("narrator")
+            {
+                use crate::arch::timer;
+                user::console_service::spawn_client(image, console);
+                // Long enough for fifteen short lines, each of which is one rendezvous round trip
+                // through the server. The kernel's own `println!` resumes after it, so this window
+                // is also what keeps two writers off the same UART.
+                timer::spin_for(timer::frequency() / 10);
+            }
 
             // The whole argument, executable.
             {
@@ -1579,7 +1626,6 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             {
                 use core::sync::atomic::Ordering;
 
-                use crate::arch::exceptions::SVC_COUNT;
                 use crate::arch::timer;
 
                 println!();
@@ -1681,34 +1727,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             image.len(),
                             memory::initrd_region().unwrap().0,
                         );
-                        println!();
-                        println!(
-                            "  the console driver now runs at EL0. what follows is printed by it:"
-                        );
-                        println!();
-
-                        // Start the console SERVER as a user process that owns the UART, then a
-                        // CLIENT wired to it. The lines the client prints travel through a page it
-                        // shares with the server; the kernel never touches the bytes. The server is
-                        // its own binary now ("console", 19f.3); the demo client is still a role of
-                        // hello, so it takes the `hello` entry of the archive.
-                        let prog = user::program(user::HELLO_ENTRY)
-                            .expect("no hello program in the initrd");
-                        let console = user::console_service::start();
-                        user::console_service::spawn_client(prog, console);
-                        timer::spin_for(timer::frequency() / 10);
-
-                        println!();
-                        println!(
-                            "  ...and control is back in the kernel, which never saw those bytes."
-                        );
+                        // The console server and its client both came up at the top of the tour
+                        // (milestone 267): the narrative above is what they printed. This line
+                        // says where their images came from, which is the milestone-8 claim, and
+                        // no longer starts a second server to restate it.
                     }
                 }
-
-                println!();
-                println!("  a userspace program printed to the screen, and the kernel does not");
-                println!("  contain a line of code that puts a user's bytes on the wire.");
-                let _ = SVC_COUNT.load(Ordering::Relaxed);
 
                 // Milestone 11: a process spends its own memory; the kernel allocates nothing.
                 if let Some(image) = user::program(user::HELLO_ENTRY)

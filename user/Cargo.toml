@@ -121,6 +121,16 @@ path = "src/spinner.rs"
 test = false
 bench = false
 
+# The narrator (milestone 267): the milestone narrative, lifted out of `kernel_main` and printed by
+# a program at EL0 through the console server, which is another program at EL0. The last claim it
+# makes is about itself, which is why it is worth being a program rather than a `println!`.
+# Provisional name. `initrd_aarch64` packs it into the archive as "narrator".
+[[bin]]
+name = "narrator"
+path = "src/narrator.rs"
+test = false
+bench = false
+
 # The outlaw (milestone 19, the user-test port): reads an address it is not allowed to touch, and
 # round-trips through user mode. The two programs kernel::user::tests used to hand-assemble as
 # aarch64 machine code; a real ELF here is what lets those tests run on both ISAs.
