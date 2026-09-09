@@ -22,8 +22,8 @@
 # by. It is NOT a substitute for a bench run: QEMU has neither board's framebuffer handoff
 # (milestone 157) nor its real UART timing.
 #
-# This is the gate for `user/src/system_initializer.rs`. Every other test that runs the shell has
-# the KERNEL play init, so a broken init fails nothing; the interactive boot is the only thing that
+# This is the gate for `user/src/progenitor.rs`. Every other test that runs the shell has
+# the KERNEL play the first process, so a broken progenitor fails nothing; the interactive boot is the only thing that
 # runs the real one, and until this existed nothing ran the interactive boot. Milestone 50 hit three
 # bugs that way and all three printed nothing at all. See notes/pipes.md.
 #
@@ -37,30 +37,32 @@
 # Both places rather than one. `script/gates` is what a person runs before pushing and pays 30
 # seconds against an already-warm target directory; CI's copy is appended to `script/ci-build`
 # rather than given a job, so it reuses that job's build instead of paying ten minutes for thirty
-# seconds of checking. Run it directly when you touch init, the shell, or what the boot grants them.
+# seconds of checking. Run it directly when you touch the progenitor, the shell, or what the boot
+# grants them.
 #
 # BUGS
 #
 # **The transcript is written by two processes at once and can arrive shuffled.** The kernel prints
 # its user-fault reports with its own UART driver; the userspace `console` server drives the same
-# device from another address space; nothing arbitrates. So a thread dying while init prints
+# device from another address space; nothing arbitrates. So a thread dying while the progenitor prints
 # splices the two lines together at byte granularity, nondeterministically: milestone 230 watched
 # the same commit pass one CI run and fail the next, and watched `construction budget dropped` come
 # out with a longest surviving run of five characters. That is a defect in the system rather than in
 # this script, it has consequences well past this gate (anything reading a board's serial log), and
 # it is proposed as its own milestone in `design/roadmap/230-shell-check-is-red.md`.
 #
-# What this script does about it: the two boot-line checks put their teeth on the sentence init
+# What this script does about it: the two boot-line checks put their teeth on the sentence the progenitor
 # prints when the answer is NO, searched exactly, because interleaving can destroy a string and
 # cannot create one. A line that cannot be read at all is reported rather than failed, but only when
 # the kernel demonstrably wrote during the boot; with one writer there is nothing to shuffle, so a
 # missing line is a real one and still fails. See `boot_claim` in `xtask/src/main.rs`.
 #
-# **The cost of that choice, stated plainly: it can pass a boot it should have failed.** If init's
+# **The cost of that choice, stated plainly: it can pass a boot it should have failed.** If the
+# progenitor's
 # report were deleted AND a thread faulted in the same boot, this reads the second as an explanation
 # for the first. Both halves have to happen together and the second is itself a defect the
 # transcript shows. The trade is deliberate: a false red taxes every lane whose change had nothing
-# to do with it, and a false green here is undone by repetition, since an init that stops dropping
+# to do with it, and a false green here is undone by repetition, since a progenitor that stops dropping
 # its budget prints the failing sentence on every boot of both legs on every push.
 #
 # **A killed user thread is not itself a failure here**, which is how `login` dying at `_start` on

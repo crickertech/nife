@@ -28,12 +28,12 @@ const NO_RIPGREP: &str = "no rg in this archive: build it with scripts/build-rip
                           fetches the published ripgrep crate from crates.io (milestone 121)";
 
 /// **The block server's ELF**, which the two archives carry in different programs. On aarch64 it is
-/// a role of `hello` (`super::INIT_ROLES_ENTRY`); RISC-V has a dedicated `block_driver`
-/// (`riscv_virtio_tests::blk_image`). The archive names stopped differing when aarch64 stopped
-/// packing hello as `init`; what still differs is which binary carries the role.
+/// a role of `hello` (`super::HELLO_ENTRY`); RISC-V has a dedicated `block_driver`
+/// (`riscv_virtio_tests::blk_image`). The names stopped differing at milestone 266; what still
+/// differs is which binary carries the role.
 fn block_server_image() -> &'static [u8] {
     #[cfg(target_arch = "aarch64")]
-    return program(super::INIT_ROLES_ENTRY).expect("no hello program in the initrd archive");
+    return program(super::HELLO_ENTRY).expect("no hello program in the initrd archive");
     #[cfg(target_arch = "riscv64")]
     return program("block_driver").expect("no block_driver program in the initrd archive");
 }

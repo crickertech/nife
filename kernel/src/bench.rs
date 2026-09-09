@@ -1252,7 +1252,7 @@ fn fs_read() {
     // The three binaries the service needs. On aarch64 the block server is a role of the `hello`
     // multiplexer, as in the redoxfs_server test. Absent any of them, or the RedoxFS disk, skip.
     let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
-        crate::user::program(crate::user::INIT_ROLES_ENTRY),
+        crate::user::program(crate::user::HELLO_ENTRY),
         crate::user::program("redoxfs_server"),
         crate::user::program("fs_test_client"),
     ) else {
@@ -1304,7 +1304,7 @@ fn fs_throughput() {
         return;
     }
     let (Some(blk_image), Some(redoxfs_server), Some(fs_test_client)) = (
-        crate::user::program(crate::user::INIT_ROLES_ENTRY),
+        crate::user::program(crate::user::HELLO_ENTRY),
         crate::user::program("redoxfs_server"),
         crate::user::program("fs_test_client"),
     ) else {

@@ -363,7 +363,7 @@ a stack-top-looking pc, svc frozen at 20.
 
 The re-audit of the fourth stop's endpoint census confirmed its two positive claims and
 overturned its conclusion. At the park point on this path the report endpoint really is the only
-endpoint (`0x0`: the tour's release build creates no other, `boot_via_init` and the service
+endpoint (`0x0`: the tour's release build creates no other, `boot_via_progenitor` and the service
 modules being aarch64- or test-gated), and `user/src/builder.rs` really issues no receive (its
 verbs are `invoke`, `send`, `cap_delete`, `exit`, and its retypes are ASPACE, FRAME and TCB,
 never ENDPOINT). What the census never asked is what the machine looks like *after* the recv
@@ -960,7 +960,7 @@ been closed; its entry carries the record):
   `<type number flags>` with the bank base added). Host tests hold the whole claim: the same
   read answers 10 on QEMU's tree and **32 on both JH7110 fixtures**
   (`crates/machine_discovery/tests/interrupt_ids.rs`), and 33 on aarch64 `virt`, where `UART_RX_INTID = 33`
-  was the same bug one board away and was fixed in the same motion (`user::spawn_init` now asks
+  was the same bug one board away and was fixed in the same motion (`user::spawn_progenitor` now asks
   the tree first). The constants survive as the documented fallback for a tree that does not
   say, and every boot path prints a `uart irq` line naming which source won, so the next bench
   transcript answers this question instead of raising it. What QEMU cannot prove, as ever: that

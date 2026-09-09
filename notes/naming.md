@@ -91,8 +91,11 @@ the FS service). "Daemon" appears nowhere.
 - The binary name, the source file name and the archive entry name are the same string. `xtask`'s
   `initrd_aarch64` (`mkinitrd` before 2026-08-27) pairs them positionally in a flat array, so a mismatch is a runtime "program not found"
   rather than a compile error, which is exactly the kind of thing to keep boring.
-- The one deliberate exception: `builder` is packed as `init`, because `init` is the entry the kernel
-  loads by name. The name in the archive is a role; the name in `user/src/` is the program.
+- **There used to be one deliberate exception**, and milestone 266 closed it: `builder` was packed
+  as `init` on riscv64 and `hello` was packed as `init` on aarch64, because `init` was the entry the
+  kernel loaded by name. The archive name was a role and the `user/src/` name was the program, which
+  meant one string named two binaries. The role is now a program of its own, `progenitor`, and the
+  three names agree in every row.
 
 Fixtures and benchmarks (`heeder`, `spinner`, `flaky`, `allocator_exerciser`, `worker`, `coremark`,
 `os_primitives_benchmarker`) live in `user/` next to the real components and are not components.

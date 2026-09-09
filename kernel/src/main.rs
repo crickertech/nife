@@ -1012,12 +1012,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
         // Running a real compiled ELF at U-mode, two ways, depending on the initrd.
         if let Some(initrd) = user::initrd() {
-            // A nifefs archive with an "init" entry means the richer path: the kernel loads only
-            // "init" (the portable `builder`), maps the whole archive into it, grants it a budget and
-            // a report endpoint, and init loads "worker" from the archive and builds it as a child.
-            // Anything else is treated as a single bare ELF and run directly (the simpler path).
+            // A nifefs archive with a `progenitor` entry means the richer path: the kernel loads
+            // only `builder` (milestone 20's minimal system builder), maps the whole archive into
+            // it, grants it a budget and a report endpoint, and the builder loads "worker" from the
+            // archive and builds it as a child. Anything else is treated as a single bare ELF and
+            // run directly (the simpler path).
+            //
+            // The probe names `progenitor` rather than the entry the demo actually loads, because
+            // it is asking "is this one of our archives at all", and since milestone 266 that entry
+            // is on every archive this tree packs.
             let is_archive = nifefs::Fs::parse(initrd)
-                .map(|fs| fs.read("init").is_some())
+                .map(|fs| fs.read(user::PROGENITOR_ENTRY).is_some())
                 .unwrap_or(false);
             if is_archive {
                 sched::note_boot_stage(4);
@@ -1726,8 +1731,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                         // CLIENT wired to it. The lines the client prints travel through a page it
                         // shares with the server; the kernel never touches the bytes. The server is
                         // its own binary now ("console", 19f.3); the demo client is still a role of
-                        // hello, so it takes the "init" entry of the archive.
-                        let prog = user::program(user::INIT_ROLES_ENTRY)
+                        // hello, so it takes the `hello` entry of the archive.
+                        let prog = user::program(user::HELLO_ENTRY)
                             .expect("no hello program in the initrd");
                         let console = user::console_service::start();
                         user::console_service::spawn_client(prog, console);
@@ -1746,7 +1751,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 let _ = SVC_COUNT.load(Ordering::Relaxed);
 
                 // Milestone 11: a process spends its own memory; the kernel allocates nothing.
-                if let Some(image) = user::program(user::INIT_ROLES_ENTRY)
+                if let Some(image) = user::program(user::HELLO_ENTRY)
                     && let Some((_region, report, _demo)) =
                         user::memory_region_service::start(image, 24)
                 {
@@ -1796,7 +1801,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to userspace init.");
-            user::boot_via_init(image);
+            user::boot_via_progenitor(image);
             // The boot thread's work is done; init and the services it builds run until halt.
         }
     }
@@ -1846,7 +1851,7 @@ fn mode_note(stat: u32) -> &'static str {
 #[cfg_attr(any(feature = "shell", feature = "initboot"), allow(dead_code))]
 #[cfg(not(feature = "bench"))]
 fn image_for_virtio() -> &'static [u8] {
-    user::program(user::INIT_ROLES_ENTRY).expect("no hello program in the initrd")
+    user::program(user::HELLO_ENTRY).expect("no hello program in the initrd")
 }
 
 fn interrupts_init(_dtb: usize) {

@@ -107,10 +107,10 @@ fn main() -> ExitCode {
                 ])
         }
         "initboot" => {
-            // Milestone 19d.2c: boot with userspace init as the boot path (it brings up the
+            // Milestone 19d.2c: boot with the userspace progenitor as the boot path (it brings up the
             // console). Add --hvf for the real core.
             maybe_hvf();
-            eprintln!("--- booting nife via userspace init (Ctrl-C to quit) ---");
+            eprintln!("--- booting nife via the userspace progenitor (Ctrl-C to quit) ---");
             mkdisk()
                 && user()
                 && cargo(&[
@@ -1247,30 +1247,32 @@ fn std_relative(p: &Path) -> String {
 //
 // The kernel loads exactly one program itself, the boot program, and until now it loaded whatever
 // bytes it was handed. Now the build measures that entry and the kernel image carries the digest, so
-// the check means "this kernel runs exactly this init." The ordering is one-way and the build
+// the check means "this kernel runs exactly this progenitor." The ordering is one-way and the build
 // already had it: userspace -> archive -> manifest -> kernel. See kernel/build.rs (which consumes
 // the manifest) and notes/trusted-init.md.
 // ===========================================================================================
 
 /// The archive entries the kernel itself may enter as the boot program, per architecture. Everything
-/// else in the archive is loaded by init, in userspace, so it is not part of the kernel's trust root.
-/// **Every architecture boots `system_initializer`**: aarch64 packs it as the archive entry `init`,
-/// riscv64 and `x86_64` pack it under its own name and reach it through `riscv_shell_boot`. riscv64's
-/// tour additionally enters `init`, which on that archive is milestone 20's portable `builder`.
+/// else in the archive is loaded by the progenitor, in userspace, so it is not part of the kernel's
+/// trust root.
 ///
-/// Every list also carries **`hello`**, which is not a boot program in the ordinary sense: it holds
-/// milestone 19d's test roles and `spawn_init` enters it directly for them, and `trust::require`
-/// refuses any entry the trust root does not name. A kernel that could enter a program it never measured would be the hole
-/// measured boot exists to close, so the entry is here rather than the check being relaxed there.
-/// `x86_64` (milestone 161) packs RISC-V's archive, so it needs RISC-V's list: its `init` is the
-/// portable `builder`, and `hello` is a separate entry `spawn_init` enters directly for the
-/// userspace-init tests. The `_` arm used to catch this architecture, which was correct only while
-/// there was no x86 archive at all; leaving it would have measured `init` and refused `hello` as
-/// `Unmeasured` the first time a test reached for it.
+/// **`progenitor` is on every list** (milestone 266): one first process, one name, on all three
+/// boards. Before that the entry was called `init` and meant a different binary depending on the
+/// architecture, and this table was where that showed.
+///
+/// **`hello` is on every list too, and it is not a boot program in the ordinary sense.** It carries
+/// milestone 19d's test roles, and `spawn_progenitor` enters it directly for them; `trust::require`
+/// refuses any entry the trust root does not name. A kernel that could enter a program it never
+/// measured would be the hole measured boot exists to close, so the entry is here rather than the
+/// check being relaxed there.
+///
+/// riscv64 and `x86_64` add **`builder`**, milestone 20's richer-initrd demo, which the RISC-V boot
+/// tour enters directly to prove that userspace composes the system. aarch64's tour has no such
+/// step. `x86_64` (milestone 161) packs RISC-V's archive, so it takes RISC-V's list.
 fn boot_programs(arch: &str) -> &'static [&'static str] {
     match arch {
-        "riscv64" | "x86_64" => &["init", "system_initializer", "hello"],
-        _ => &["init", "hello"],
+        "riscv64" | "x86_64" => &["progenitor", "builder", "hello"],
+        _ => &["progenitor", "hello"],
     }
 }
 
@@ -1280,7 +1282,7 @@ fn measure_manifest_path(arch: &str) -> PathBuf {
     workspace_root().join(format!("target/init-measure-{arch}.txt"))
 }
 
-/// **The table init measures its own loads against** (milestone 104), packed as an ordinary archive
+/// **The table the progenitor measures its own loads against** (milestone 104), packed as an ordinary archive
 /// entry under [`measured_boot::PROGRAM_MEASUREMENTS`].
 ///
 /// One line per program, in the same `name <sha256>` format the kernel's manifest uses, because
@@ -1293,13 +1295,13 @@ fn measure_manifest_path(arch: &str) -> PathBuf {
 /// happened to list them in. An unsorted table would rewrite itself, and therefore relink the
 /// kernel, whenever somebody reordered the file list for readability.
 ///
-/// **Why this is an archive entry rather than something compiled into init.** The kernel's own trust
+/// **Why this is an archive entry rather than something compiled into the progenitor.** The kernel's own trust
 /// root is compiled into the kernel image, which works because the kernel is not in the archive it
-/// measures. init is. Generating a table of its siblings into init's own binary would mean building
+/// measures. The progenitor is. Generating a table of its siblings into its own binary would mean building
 /// userspace, measuring it, and building userspace again, with a "and nothing else changed in the
 /// second build" invariant holding up the whole chain. Packing the table beside the programs and
 /// letting the kernel's trust root name it buys the same guarantee with a one-pass build: the
-/// kernel vouches for the table exactly as it vouches for init.
+/// kernel vouches for the table exactly as it vouches for the progenitor.
 fn measurement_table(files: &[(&str, &[u8])]) -> String {
     let mut lines: Vec<String> = files
         .iter()
@@ -1312,7 +1314,7 @@ fn measurement_table(files: &[(&str, &[u8])]) -> String {
         .collect();
     lines.sort();
     let mut text = String::from(
-        "# generated by cargo xtask: every program in this archive, for init to measure what it \
+        "# generated by cargo xtask: every program in this archive, for the progenitor to measure what it \
          loads\n",
     );
     for line in lines {
@@ -1338,17 +1340,17 @@ fn write_measure_manifest(arch: &str, image: &[u8]) -> bool {
     let mut text = format!(
         "# generated by cargo xtask; the boot programs this {arch} kernel image is built against\n"
     );
-    // The boot programs the kernel may enter, plus the table it vouches for on init's behalf
+    // The boot programs the kernel may enter, plus the table it vouches for on the progenitor's behalf
     // (milestone 104). The kernel never reads the table's contents; it hashes the entry and refuses
-    // to hand the archive to init if it is not the one this kernel image was built against, which is
-    // what makes init's refusals worth as much as init's own measurement.
+    // to hand the archive over if it is not the one this kernel image was built against, which is
+    // what makes the progenitor's refusals worth as much as its own measurement.
     for name in boot_programs(arch)
         .iter()
         .copied()
         .chain([measured_boot::PROGRAM_MEASUREMENTS])
     {
         let Some(bytes) = fs.read(name) else {
-            // Not every archive carries every boot program (the aarch64 one has no `system_initializer`). A
+            // Not every archive carries every boot program (the aarch64 one has no `builder`). A
             // name that is absent simply gets no measurement, and the kernel refuses to enter a
             // program it has no measurement for, so nothing is quietly waved through.
             continue;
@@ -3401,10 +3403,11 @@ fn riscv_initrd_path() -> String {
 /// argument (what two things must agree on gets one definition) applied to a table instead of a
 /// wire format.
 ///
-/// `(archive_name, bin_name)`, because the two differ exactly once: the kernel loads the entry
-/// called **`init`**, and on both these architectures that is the portable `builder` demo rather
-/// than `hello`. aarch64 packs hello as `init` and so keeps its own table in [`initrd_aarch64`]; that is
-/// the one asymmetry, and it is why `hello` appears here under its own name.
+/// `(archive_name, bin_name)`, and since milestone 266 the two are **the same in every row**: the
+/// archive entry `init` was the last place a name meant a different binary depending on the board,
+/// and one progenitor retired it. The pair is kept rather than collapsed to a list because it is
+/// what would let an exception be data instead of a special case in the loop, and because
+/// [`initrd_aarch64`] beside it has the same shape.
 ///
 /// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
 /// on `x86_64` (`console`, `input`, `keyboard_driver` and `gpu_driver` all need a device a ring-3
@@ -3421,12 +3424,18 @@ fn riscv_initrd_path() -> String {
 /// program to the second and third architectures.
 fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
     &[
-        ("init", "builder"),
+        // **The first process** (milestone 266). Packed under this name on all three architectures,
+        // and the kernel's `riscv_shell_boot` looks it up by it.
+        ("progenitor", "progenitor"),
         ("worker", "worker"),
         ("driver", "driver"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
         ("coremark", "coremark"),
-        ("system_initializer", "system_initializer"),
+        // Milestone 20's richer-initrd demo, under its own name since 266: the RISC-V boot tour
+        // enters it to show that userspace, not the kernel, composes the system. It used to be the
+        // entry called `init` here, which is what made `init` mean two different binaries depending
+        // on the board.
+        ("builder", "builder"),
         ("console", "console"),
         ("input", "input"),
         ("swish", "swish"),
@@ -3462,9 +3471,9 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("spawner", "spawner"),
         ("sub_server_supervisor", "sub_server_supervisor"),
         ("flaky", "flaky"),
-        // The interactive boot's undertaker (milestone 22, the interactive increment): init
+        // The interactive boot's undertaker (milestone 22, the interactive increment): the progenitor
         // endows every job it builds with one supervision endpoint and this collects the corpses, so
-        // a job's region comes back to init's budget. Portable, so both archives carry it.
+        // a job's region comes back to the progenitor's budget. Portable, so both archives carry it.
         ("job_undertaker", "job_undertaker"),
         // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
         // into the surface it serves. Portable, so both archives carry both.
@@ -3548,13 +3557,11 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble as aarch64 machine code.
         ("outlaw", "outlaw"),
-        // **`hello` under its own name.** On aarch64 the archive's "init" IS hello, and the whole
-        // milestone 7-19 role catalogue (the printing client, the untyped demo, the granter and
-        // receiver, the call server, the init roles) lives in it. riscv's "init" is the `builder`
-        // demo instead, so the roles need their own entry here for the test suite to reach them.
-        // The stale claim this replaces read "hello/console/input/shell are aarch64-wired and do not
-        // build here"; three of the four are in the list above, and hello only ever needed its
-        // hand-rolled syscalls routed through user_rt.
+        // **`hello` under its own name**, which since milestone 266 is the only name it has on any
+        // board. It is the milestone 7-19 role catalogue (the printing client, the untyped demo,
+        // the granter and receiver, the call server), and the test suite reaches it by this name on
+        // all three architectures. aarch64 used to pack it as `init` because there it also carried
+        // the boot role; that role is `progenitor` now, and the alias went with it.
         ("hello", "hello"),
         // The sink contract's ends (milestone 50). Portable, so both archives carry it: the claim
         // is that a program cannot tell what its output slot holds, and that has to hold on either
@@ -3593,11 +3600,12 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
     ]
 }
 
-/// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the two
-/// portable programs the second architecture runs (`builder`, the minimal init, and `worker`, the
-/// child it loads) for the riscv target, and packs them into a nifefs archive: `builder` under
-/// the name `init` (the entry the kernel loads first), `worker` under `worker` (the one init loads by
-/// name). Point `NIFE_INITRD` at the result and boot the riscv kernel, e.g.:
+/// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the
+/// portable programs the second architecture runs and packs them into a nifefs archive. The kernel
+/// enters `progenitor` for the interactive boot and `builder` (milestone 20's minimal system
+/// builder) for the tour; `builder` is the one that loads `worker` by name. Every entry is packed
+/// under its own name since milestone 266. Point `NIFE_INITRD` at the result and boot the riscv
+/// kernel, e.g.:
 ///
 /// ```text
 /// cargo xtask initrd-riscv
@@ -3626,8 +3634,9 @@ fn initrd_riscv() -> bool {
             .to_string()
     };
     // Read each bin's ELF into an owned buffer, then pack. The archive name comes first, the bin
-    // name second: `builder` is packed as `init` (the entry the kernel loads); the rest keep their
-    // names. `system_initializer`/`console`/`input`/`shell` are the interactive-shell system (parity D).
+    // name second; since milestone 266 every row is a name repeated, because `progenitor` retired
+    // the one entry whose name and binary differed. `progenitor`/`console`/`input`/`shell` are the
+    // interactive-shell system (parity D).
     let entries = portable_archive_entries();
     let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
     for &(archive_name, bin_name) in entries {
@@ -3666,7 +3675,7 @@ fn initrd_riscv() -> bool {
     }
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The measurement table (milestone 104), on the same terms as aarch64's: last, so it measures
-    // everything above it, and vouched for by the kernel's trust root so init's refusals mean
+    // everything above it, and vouched for by the kernel's trust root so the progenitor's refusals mean
     // something. Parity is the point (§19): the same table, the same parser, the same policy.
     let table = measurement_table(&files);
     files.push((measured_boot::PROGRAM_MEASUREMENTS, table.as_bytes()));
@@ -3691,7 +3700,7 @@ fn initrd_riscv() -> bool {
         return false;
     }
     eprintln!(
-        "wrote {} ({size} bytes): init=builder, worker=worker",
+        "wrote {} ({size} bytes): progenitor, builder, worker",
         riscv_initrd_path()
     );
     true
@@ -3795,7 +3804,7 @@ fn initrd_x86() -> bool {
     }
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The measurement table (milestone 104), on the same terms as the other two: last, so it
-    // measures everything above it, and vouched for by the kernel's trust root so init's refusals
+    // measures everything above it, and vouched for by the kernel's trust root so the progenitor's refusals
     // mean something. Parity is the point (§19): the same table, the same parser, the same policy.
     let table = measurement_table(&files);
     files.push((measured_boot::PROGRAM_MEASUREMENTS, table.as_bytes()));
@@ -3816,12 +3825,13 @@ fn initrd_x86() -> bool {
     // **Measure the boot programs before the x86 kernel is built** (milestone 22 phase B.1), and on
     // this architecture that is not a nicety: with no manifest the generated `TRUST_ROOT` is empty
     // and `trust::require` refuses every boot program as `Unmeasured`, so the kernel would come up
-    // and refuse to start init with an error about measurement rather than about the archive.
+    // and refuse to start the progenitor with an error about measurement rather than about the
+    // archive.
     if !write_measure_manifest("x86_64", &img) {
         return false;
     }
     eprintln!(
-        "wrote {} ({size} bytes): init=builder, {} entries",
+        "wrote {} ({size} bytes): progenitor plus {} entries",
         x86_initrd_path(),
         files.len()
     );
@@ -4268,15 +4278,14 @@ fn uefi_test() -> bool {
 /// number for cargo's benefit. Three files naming one number is the cost of a convention QEMU owns.
 const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 
-/// **Build the aarch64 userspace archive.** Pack the built user ELF into the initrd archive the
-/// kernel hands init (milestone 19f).
+/// **Build the aarch64 userspace archive.** Pack the built user ELFs into the initrd archive the
+/// kernel hands the progenitor (milestone 19f).
 ///
 /// The initrd is a **nifefs image**, the same format the virtio disk uses, so one parser serves
-/// both the RAM archive and the disk. It holds `init` (the `system_initializer` binary, the boot
-/// program on all three architectures) and `hello` (the role catalogue the kernel re-enters for
-/// milestone 19d's tests), plus the distinct binaries lifted out of hello:
-/// `worker` (19f.2) and `console` (19f.3). The kernel reads the `init` entry to boot; init loads the
-/// rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
+/// both the RAM archive and the disk. It holds `progenitor` (the first process, milestone 266) and
+/// `hello` (the role catalogue the kernel re-enters for milestone 19d's tests), plus the distinct
+/// binaries lifted out of hello: `worker` (19f.2) and `console` (19f.3). The kernel reads the
+/// `progenitor` entry to boot; the progenitor loads the rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
 /// in git is a blob nobody can review.
 ///
 /// **Renamed from `mkinitrd` (2026-08-27), and given aarch64 its own `initrd-aarch64`
@@ -4297,23 +4306,20 @@ fn initrd_aarch64() -> bool {
     // meant editing four places that all said its name, and the two that were prose rather than
     // data were the two that drifted.
     //
-    // `(archive_name, bin_name)` because the two differ exactly once: the kernel loads the entry
-    // called **`init`**, and that is now `system_initializer`, the same program riscv64 and x86_64
-    // boot. `hello` is packed under its own name for milestone 19d's test roles, which `spawn_init`
-    // enters directly. Every other row is a name repeated, and that is fine: the pair is what lets
-    // the one exception be data instead of a special case in the loop.
+    // `(archive_name, bin_name)`, and since milestone 266 every row is a name repeated: the kernel
+    // loads **`progenitor`**, and `hello` is packed under its own name for the 19d test roles the
+    // boot path shares. The pair is kept rather than collapsed to a list because it is what would
+    // let an exception be data instead of a special case in the loop.
     //
-    // Order is preserved from the hand-written vector it replaces. It is not load-bearing (init
+    // Order is preserved from the hand-written vector it replaces. It is not load-bearing (the progenitor
     // looks entries up by name) but the measurement table is computed over this sequence, so
     // reordering would churn the manifest for nothing.
     let entries: &[(&str, &str)] = &[
-        // **The boot program.** This row read `("init", "hello")` until aarch64 stopped booting a
-        // role of the demo catalogue; the entry the kernel loads is now the same program on all
-        // three architectures.
-        ("init", "system_initializer"),
-        // **The milestone 7-19 role catalogue, under its own name**, as it already was on the other
-        // two archives. `spawn_init` enters it directly for 19d's test roles, so it is in
-        // `boot_programs` and measured.
+        // **The first process** (milestone 266). Until then this row read `("init", "hello")` and
+        // aarch64's boot was a role of the demo catalogue.
+        ("progenitor", "progenitor"),
+        // **The milestone 7-19 role catalogue, under its own name.** `spawn_progenitor` enters it
+        // directly for 19d's test roles, so it is in `boot_programs` and measured.
         ("hello", "hello"),
         ("worker", "worker"),
         ("console", "console"),
@@ -4356,7 +4362,7 @@ fn initrd_aarch64() -> bool {
         ("sub_server_supervisor", "sub_server_supervisor"),
         ("flaky", "flaky"),
         // The interactive boot's undertaker (milestone 22, the interactive increment): one endpoint
-        // capability and nothing else, so a job's region comes back to init's budget.
+        // capability and nothing else, so a job's region comes back to the progenitor's budget.
         ("job_undertaker", "job_undertaker"),
         // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
         // into the surface it serves.
@@ -4484,10 +4490,10 @@ fn initrd_aarch64() -> bool {
     if let Some(bytes) = &ripgrep {
         files.push(("rg", bytes.as_slice()));
     }
-    // **The measurement table, last, so it measures everything above it** (milestone 104). init
+    // **The measurement table, last, so it measures everything above it** (milestone 104). The progenitor
     // reads this entry out of the archive it already holds and refuses to load a program whose
     // bytes it does not match. See [`measurement_table`] for why it lives here rather than inside
-    // init's own image.
+    // The progenitor's own image.
     let table = measurement_table(&files);
     files.push((measured_boot::PROGRAM_MEASUREMENTS, table.as_bytes()));
 
@@ -6503,14 +6509,14 @@ fn undefined_behavior_check() -> bool {
 /// # Why this exists
 ///
 /// Everything else that exercises the shell wires it from **the kernel**, which serves the spawn
-/// protocol in place of `user/src/system_initializer.rs`. The shell cannot tell the difference, and
-/// that is the problem: a change to init that broke the spawn path fails nothing. The interactive
-/// boot is the only thing that runs the real init, and until this verb existed nothing ran the
+/// protocol in place of `user/src/progenitor.rs`. The shell cannot tell the difference, and
+/// that is the problem: a change to the progenitor that broke the spawn path fails nothing. The interactive
+/// boot is the only thing that runs the real progenitor, and until this verb existed nothing ran the
 /// interactive boot.
 ///
 /// It bit milestone 50 three times in one session and **all three presented as a boot that printed
 /// nothing at all**: a virtual-address collision between the shell's terminal page and the page six
-/// FS clients map, init's sixteen-slot capability table overflowing when the kernel handed it two more grants,
+/// FS clients map, the progenitor's sixteen-slot capability table overflowing when the kernel handed it two more grants,
 /// and four stack pages being one deep call short of the redirection path. Each cost a manual bisect
 /// against a live prompt. Each is caught here in one boot.
 ///
@@ -6528,12 +6534,12 @@ fn undefined_behavior_check() -> bool {
 /// wc gate                    -> 2 4 24   milestone 31: the name IS the grant, same bytes
 /// wc                         -> refused  ... and with no name there is nothing to read
 /// caps wc gate               -> input     ... and the preview says which file, and how
-/// date                       -> ...UTC   a real wall clock, wired through the real init
+/// date                       -> ...UTC   a real wall clock, wired through the real progenitor
 /// caps date                  -> cap 1    ... and `caps` names the capability that made it real
 /// ```
 ///
 /// One line would meet the BUGS entry that asked for this. Five is still seconds, and it walks the
-/// whole endowment: a spawn through the real init, the FS service the real init narrowed into the
+/// whole endowment: a spawn through the real progenitor, the FS service the real progenitor narrowed into the
 /// shell, and both redirection operators.
 fn shell_check() -> bool {
     let legs = match flag_value("--arch").as_deref() {
@@ -6703,8 +6709,8 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // the check is the one word that separates a real time from both ways of not having one:
     // `Format::Human` ends in the offset's name and the two unknown-clock sentences ("the machine
     // has no clock it believes" / "this process holds no clock capability") contain no `UTC` at
-    // all. So this fails if the clock service did not run, if the kernel granted init no page, if
-    // init did not endow `date`, or if `date` was handed a page nobody published to.
+    // all. So this fails if the clock service did not run, if the kernel granted the progenitor no page, if
+    // the progenitor did not endow `date`, or if `date` was handed a page nobody published to.
     ("date", &["UTC"]),
     // And the visibility surface agrees with the wiring. `caps` is the only thing in this system
     // that claims to print a process's whole authority, so a clock endowed and not printed would
@@ -6713,9 +6719,9 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     ("caps date", &["cap 1  frame     clock"]),
     // **The inert-configuration page, from the prompt** (milestone 47's environment-variable fork,
     // DECISIONS §111). `date`'s own proof, one manifest field over: this fails if the kernel
-    // granted init no config page, if init did not endow `printenv`, or if the page's validated
+    // granted the progenitor no config page, if the progenitor did not endow `printenv`, or if the page's validated
     // domains rejected the boot's own defaults, none of which a host test can see, because
-    // `crates/system_initializer`'s spawn wiring is provable only against a real init
+    // `crates/system_initializer`'s spawn wiring is provable only against a real progenitor
     // (this file's module doc names `script/shell-check` as exactly that gate).
     ("printenv", &["TZ=UTC", "LANG=C", "TERM=dumb"]),
     // And the visibility surface agrees with the wiring, `date`'s own check repeated for `config`:
@@ -6723,13 +6729,13 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // would make that claim false.
     ("caps printenv", &["cap 1  frame     config"]),
     // **`ps`, at the real prompt** (milestone 126). The listing itself: a header, and at least the
-    // row for `ps` itself, which is a member of the domain init spawned it into. Asserting the
+    // row for `ps` itself, which is a member of the domain the progenitor spawned it into. Asserting the
     // header rather than a tid is deliberate: a tid is a generational name that moves with how many
     // jobs ran before it, and a gate that pinned one would be pinning the boot's history.
     ("ps", &["TID  STATE"]),
     // **`ps` cannot see the machine, and this is the shape of the evidence at the prompt.** The
     // listing above is short: at this line the shell's domain holds `ps` itself and whatever else
-    // the shell has running, which is nothing. A `/proc`-shaped `ps` would be listing init, the
+    // the shell has running, which is nothing. A `/proc`-shaped `ps` would be listing the progenitor, the
     // shell, the terminal, the FS server, the compositor, the net stack and every driver.
     //
     // **The count is deliberately not asserted here.** `ps | wc` answered three lines on one run
@@ -6748,7 +6754,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // history. So the claim is made through the **second stream**, which is the same trick the four
     // `date 2>` lines above use: `pgrep`'s diagnostics carry a sentence in exactly three cases (the
     // walk was refused, the selector can never match, or nothing matched), so an *empty* second
-    // stream is the assertion that none of the three happened. This one line fails if init endowed
+    // stream is the assertion that none of the three happened. This one line fails if the progenitor endowed
     // no domain, if it endowed one the kernel refuses, or if the filter came back empty.
     ("pgrep 2> pgrep.txt", &[]),
     ("wc < pgrep.txt", &["0 0 0"]),
@@ -6779,17 +6785,17 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // elapsed time is not asserted because a real boot's timing is not this check's business.
     ("uptime", &["up "]),
     // **`uuid`, at the real prompt** (milestone 111), and this is the only gate that can run it.
-    // The endowment is `crates/system_initializer`'s to make: init holds the entropy service's
+    // The endowment is `crates/system_initializer`'s to make: the progenitor holds the entropy service's
     // request endpoint and places a `WRITE` view of it at `grant_plan::ENTROPY_SLOT` for a child
     // whose manifest declares it, exactly as it places the clock. Every other test that runs the
-    // shell has the KERNEL play init, and `Spawn` fills a capability table from slot 0 upward, so
+    // shell has the KERNEL play the progenitor, and `Spawn` fills a capability table from slot 0 upward, so
     // nothing else in this tree can put a capability at a slot a manifest names.
     //
     // **The value is deliberately not asserted, and the shape is.** A version-4 identifier that a
     // gate could predict would be a version-4 identifier drawn from nothing, so pinning one would
     // assert the opposite of what this milestone is about. What is pinned is the framing: `uuid >
     // id.txt` puts 36 characters and a newline in a file, and `wc` counts one line, one word, 37
-    // bytes. A `uuid` init endowed nothing would leave that file **empty** (its refusal goes to the
+    // bytes. A `uuid` the progenitor endowed nothing would leave that file **empty** (its refusal goes to the
     // second stream, `Manifest::output`'s whole reason here), so `1 1 37` fails on exactly the
     // condition this milestone exists to create.
     ("uuid > id.txt", &[]),
@@ -6813,7 +6819,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
         ],
     ),
     // **`2>`, at the one interface a human touches** (DECISIONS §67). The four lines below are the
-    // whole of the decision, and only this gate runs them through the real init: the guest tests
+    // whole of the decision, and only this gate runs them through the real progenitor: the guest tests
     // wire the shell from the kernel, whose `Spawn` fills a capability table from zero and cannot place a
     // capability at the slot a manifest names, so `date` there never receives a second stream.
     //
@@ -6832,7 +6838,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     ("wc gate.txt 2> err.txt", &["declares no second output"]),
     // **`time`, at the one interface a human touches** (milestone 86). Only this gate runs the real
     // inits, and the clock the shell times with is granted by them: the guest tests wire it from the
-    // kernel, so a boot where init never handed the shell a clock would pass every one of those and
+    // kernel, so a boot where the progenitor never handed the shell a clock would pass every one of those and
     // print "this shell holds no clock capability" here.
     //
     // The answer is the same three numbers `wc gate.txt` gave four lines up, which is the claim the
@@ -6850,9 +6856,9 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // GRANT is why nothing typed here can hand a clock to a child.
     //
     // **The second wanted phrase is milestone 31 phase 3's**, and it is the machine-checked form of "flip
-    // `holdings()`": the shell's `holdings().dir` is true exactly when init granted it a directory,
+    // `holdings()`": the shell's `holdings().dir` is true exactly when the progenitor granted it a directory,
     // and this row is the only place a person can read that at the real prompt. Every other test
-    // that runs the shell has the kernel play init, so a boot that stopped granting it would fail
+    // that runs the shell has the kernel play the progenitor, so a boot that stopped granting it would fail
     // nothing; `wc gate.txt` above would keep working, because the shell opens that file itself.
     (
         "caps",
@@ -6863,7 +6869,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     ),
     // **Milestone 31 phase 3, at the one interface a human touches** (2026-08-17). Naming a
     // directory in a command IS granting a capability to it, and until this landed the prompt could
-    // say so and not do it: init deleted the file service during the boot, so a directory grant had
+    // say so and not do it: the progenitor deleted the file service during the boot, so a directory grant had
     // nothing to build a caretaker out of and `rm` was a refusal.
     //
     // Four lines, and they are one argument in order. **The preview first**, because the whole claim
@@ -6877,7 +6883,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
             "and nothing under it: no -r, so it cannot even look",
         ],
     ),
-    // **The removal, through a caretaker init built for this one command.** `-v` because `rm`'s
+    // **The removal, through a caretaker the progenitor built for this one command.** `-v` because `rm`'s
     // default is silence and a gate needs something to read; the name it prints is the name the
     // command line designated, which is the whole of the endowment.
     ("rm -v rmtree/rm-solo", &["rm-solo"]),
@@ -6887,7 +6893,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // Eleven bytes of `rm-doomed/` and eight of `rm-keep`, newlines included.
     ("ls rmtree | wc", &["2 2 19"]),
     // **The one shape this still cannot deliver, and the refusal now says what is true.** It used to
-    // read "needs init to build the caretaker", which stopped being true on the line above. A
+    // read "needs the progenitor to build the caretaker", which stopped being true on the line above. A
     // caretaker's whole attenuation is one `OPENDIR` *into* the granted directory, and a name typed
     // at the top prompt designates the root of this shell's namespace, which has no name to descend
     // into; the contract has no verb for "the directory I already hold, with fewer rights". So this
@@ -6964,7 +6970,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // Init now holds a pool with room for six live jobs instead of the kernel's whole construction
     // budget, and every job runs in a region of its own that `job_undertaker` returns when the job ends.
     // **Sixteen spawns above plus these six are twenty-two jobs through a six-job pool**, so a boot
-    // where nothing collected would answer "could not spawn (init is out of memory)" somewhere in
+    // where nothing collected would answer "could not spawn (the progenitor is out of memory)" somewhere in
     // here rather than the arithmetic. (Eleven when milestone 22 wrote this line, `2>` added two
     // more spawning lines above, milestone 86's `time` added two more, milestone 67's quoting added
     // three, milestone 40 phase 2's `wc doc/bundles` added one, milestone 31 phase 3 added two: an
@@ -7014,7 +7020,7 @@ const SHELL_CHECK_MARKER_SLACK: usize = 400;
 /// the userspace console has started.
 ///
 /// Six of them, deliberately, and short ones. This is the test for "was a second writer active
-/// while init was printing", and the honest thing to say about it is that any single string can
+/// while the progenitor was printing", and the honest thing to say about it is that any single string can
 /// itself be shuffled apart: milestone 230's second CI failure destroyed `the kernel is fine.` into
 /// `the kernel iis fnit: constiner.`. Six independent chances is not a proof, it is a much better
 /// bet than one, and what happens when they all lose is a loud failure rather than a silent pass.
@@ -7106,7 +7112,7 @@ fn find_marker<'a>(haystack: &str, needle: &'a str) -> Marker<'a> {
     }
 }
 
-/// Was the kernel writing the UART **while init was printing**?
+/// Was the kernel writing the UART **while the progenitor was printing**?
 ///
 /// Only the boot phase counts, which is everything before the shell's banner: a fault after the
 /// prompt is out cannot explain a boot line that was already read. The kernel's boot tour is
@@ -7119,22 +7125,22 @@ fn kernel_wrote_during_boot(transcript: &str) -> bool {
     KERNEL_FAULT_TOKENS.iter().any(|t| boot.contains(t))
 }
 
-/// What a transcript says about one thing init reports on itself.
+/// What a transcript says about one thing the progenitor reports on itself.
 enum BootClaim {
-    /// init said the thing that is true. Carries the intruding text when it had to be un-shuffled.
+    /// The progenitor said the thing that is true. Carries the intruding text when it had to be un-shuffled.
     Affirmed(Option<String>),
-    /// **init said the opposite**, contiguously. The failing answer, and the one with teeth.
+    /// **The progenitor said the opposite**, contiguously. The failing answer, and the one with teeth.
     Denied,
-    /// Neither sentence is readable, and the kernel was writing over init while it printed. Not a
+    /// Neither sentence is readable, and the kernel was writing over the progenitor while it printed. Not a
     /// failure: this check cannot see through a shuffle and should not pretend it can.
     Unreadable { longest_run: String },
-    /// Neither sentence is there and nothing else was writing, so nothing shuffled it. init did not
+    /// Neither sentence is there and nothing else was writing, so nothing shuffled it. The progenitor did not
     /// say this at all, which is a real failure and the one that keeps this check from passing
     /// against a boot that stopped reporting.
     Silent,
 }
 
-/// Read one of init's claims about itself out of a transcript that **two processes wrote at once**.
+/// Read one of the progenitor's claims about itself out of a transcript that **two processes wrote at once**.
 ///
 /// # Why this is shaped the way it is
 ///
@@ -7151,30 +7157,30 @@ enum BootClaim {
 ///
 /// > Interleaving can **destroy** a string. It cannot **create** one.
 ///
-/// Therefore an exact search for the sentence init prints when the answer is *no* has no false
-/// positives: if `construction budget NOT dropped` is in the transcript, init printed it. That is
+/// Therefore an exact search for the sentence the progenitor prints when the answer is *no* has no false
+/// positives: if `construction budget NOT dropped` is in the transcript, the progenitor printed it. That is
 /// the check with the teeth, it runs first, and it is exact rather than tolerant precisely so that
 /// nothing shuffled can be mistaken for it.
 ///
 /// Everything after it only decides between passing and saying why:
 ///
-/// 1. `negative` present, **exactly** -> [`BootClaim::Denied`]. init reported the failing answer.
+/// 1. `negative` present, **exactly** -> [`BootClaim::Denied`]. The progenitor reported the failing answer.
 /// 2. `positive` present, exactly or shuffled -> [`BootClaim::Affirmed`].
 /// 3. Neither, and the kernel was writing during the boot -> [`BootClaim::Unreadable`]. A pass, and
 ///    the caller says so out loud.
 /// 4. Neither, and nothing else was writing -> [`BootClaim::Silent`]. A failure: with one writer
-///    there is nothing to shuffle, so init really did not say it.
+///    there is nothing to shuffle, so the progenitor really did not say it.
 ///
 /// # What this trades, said plainly
 ///
 /// It moves the residual error from **false red to false green**, on purpose, and that is the right
 /// direction for a check that runs in CI on every lane. A false red taxes work that is not the cause
 /// and this tree has deleted three checks for that signature. A false green here is recoverable by
-/// repetition, because the failure it guards is persistent rather than transient: an init that stops
+/// repetition, because the failure it guards is persistent rather than transient: a progenitor that stops
 /// dropping its budget prints the negative sentence on *every* boot, on both legs, on every push, so
 /// hiding it requires the shuffle to land on that sentence every time.
 ///
-/// The residual hole is case 4's converse and is named in `script/shell-check`'s own BUGS: if init's
+/// The residual hole is case 4's converse and is named in `script/shell-check`'s own BUGS: if the progenitor's
 /// report were deleted **and** a thread faulted in the same boot, this passes. Both halves have to
 /// happen together, and the second is itself a defect the transcript shows.
 fn boot_claim(transcript: &str, positive: &str, negative: &str) -> BootClaim {
@@ -7205,16 +7211,16 @@ fn transcript_now(seen: &std::sync::Arc<std::sync::Mutex<String>>) -> String {
     seen.lock().expect("transcript lock").clone()
 }
 
-/// Check one of init's claims and turn it into a complaint, or `None` if it passed.
+/// Check one of the progenitor's claims and turn it into a complaint, or `None` if it passed.
 ///
 /// The two passing outcomes both print to stderr when they were not clean, because a transcript
 /// that needed un-shuffling is evidence of the UART defect and swallowing it would hide the thing
 /// this whole mechanism exists because of.
 ///
-/// `subject` is what init reports on, in words a reader can act on. It describes the **program's**
+/// `subject` is what the progenitor reports on, in words a reader can act on. It describes the **program's**
 /// behaviour, which this function can honestly assert. It never describes the machine's state,
-/// which it cannot: the diagnostic this replaced said a missing string meant init "still holds the
-/// kernel's root untyped, or the delete did not take", about a boot where init had dropped the
+/// which it cannot: the diagnostic this replaced said a missing string meant the progenitor "still holds the
+/// kernel's root untyped, or the delete did not take", about a boot where the progenitor had dropped the
 /// budget and said so, and sent a maintainer hunting a capability bug that does not exist.
 fn boot_claim_complaint(
     transcript: &str,
@@ -7236,7 +7242,7 @@ fn boot_claim_complaint(
         }
         BootClaim::Unreadable { longest_run } => {
             eprintln!(
-                "shell-check: could not read init's report on {subject}. Neither sentence survives \
+                "shell-check: could not read the progenitor's report on {subject}. Neither sentence survives \
                  in the transcript (the longest run of the affirmative one that does is \
                  {longest_run:?}), AND the kernel printed a fault report during the boot, so two \
                  processes were writing the UART at once and the line cannot be recovered. NOT \
@@ -7247,14 +7253,14 @@ fn boot_claim_complaint(
             None
         }
         BootClaim::Denied => Some(format!(
-            "init reported the failing answer on {subject}: the transcript contains {negative:?}, \
-             contiguously. Interleaving can destroy a string and cannot create one, so init printed \
+            "The progenitor reported the failing answer on {subject}: the transcript contains {negative:?}, \
+             contiguously. Interleaving can destroy a string and cannot create one, so the progenitor printed \
              this."
         )),
         BootClaim::Silent => Some(format!(
-            "the transcript carries neither of init's two sentences about {subject} ({positive:?} \
+            "the transcript carries neither of the progenitor's two sentences about {subject} ({positive:?} \
              nor {negative:?}), and nothing else was writing the UART during the boot, so nothing \
-             shuffled them. init did not report this at all. That is what this check knows; it \
+             shuffled them. The progenitor did not report this at all. That is what this check knows; it \
              reads strings out of a transcript and asserts nothing about the kernel. The full \
              transcript is below."
         )),
@@ -7393,7 +7399,7 @@ fn shell_check_leg(riscv: bool) -> bool {
 
     // Everything below must reach the kill, so failures are recorded rather than returned.
     let mut failed: Vec<String> = Vec::new();
-    // The banner is the first claim: init built the console, the line editor, the input driver and
+    // The banner is the first claim: the progenitor built the console, the line editor, the input driver and
     // the shell, and gave the shell every capability it needs to say hello. A boot that dies in any
     // of that prints nothing, which is the symptom all three of this milestone's bugs shared.
     if !wait_after(0, "nife capability shell", SHELL_CHECK_BOOT_SECS) {
@@ -7407,14 +7413,14 @@ fn shell_check_leg(riscv: bool) -> bool {
         // before starting the shell, and it prints it only when `RETYPE` and `RETYPE_OBJ` on that
         // slot both answered `NoSuchSlot`: the capability is gone, not narrowed. The other branch
         // says "NOT dropped", so a boot that kept its budget fails here rather than passing quietly.
-        // It is already in the transcript by now, because the banner comes from a shell init starts
+        // It is already in the transcript by now, because the banner comes from a shell the progenitor starts
         // afterwards; there is nothing to wait for.
         //
         // **The message says what was not found, and nothing about the kernel.** It used to name
         // two capability states ("it still holds the root untyped, or the delete did not take"),
-        // which are the two reasons init would print the other branch, and which this check has no
+        // which are the two reasons the progenitor would print the other branch, and which this check has no
         // evidence for: all it ever knows is whether a string is in a transcript. On milestone
-        // 230's first CI run it said exactly that about a boot where init had dropped the budget
+        // 230's first CI run it said exactly that about a boot where the progenitor had dropped the budget
         // and had said so, and sent a maintainer looking for a capability bug that does not exist.
         // A missing marker means a missing marker. The transcript is printed below; that is the
         // evidence, and this line's job is to say which string was wanted and how close it came.
@@ -7426,11 +7432,11 @@ fn shell_check_leg(riscv: bool) -> bool {
         ) {
             failed.push(complaint);
         }
-        // **And init measured every program it loaded** (milestone 104), which is the line that
+        // **And the progenitor measured every program it loaded** (milestone 104), which is the line that
         // keeps the second link of the chain from evaporating. A kernel built without the
         // measurement step refuses to boot at all, but a *table* that stopped naming things would
         // leave a system that boots, prompts, and vouches for nothing, and it would look exactly
-        // like a healthy one. So init says which way it went either way, and the affirmative
+        // like a healthy one. So the progenitor says which way it went either way, and the affirmative
         // sentence is what this gate reads. The other branch names the programs it refused, so a
         // boot that quietly stopped spawning half the prompt's commands fails here.
         if let Some(complaint) = boot_claim_complaint(
@@ -7508,7 +7514,7 @@ fn shell_check_leg(riscv: bool) -> bool {
     // **Nothing may have died** (milestone 233), which is the ratchet milestone 230's lane
     // identified and deliberately left, because it would have been red on both architectures until
     // `login` was fixed. It was: `login` faulted at `_start` on every interactive boot, on both
-    // ISAs, for an unknown length of time, while every check above passed and init went on printing
+    // ISAs, for an unknown length of time, while every check above passed and the progenitor went on printing
     // a line about a login service.
     //
     // **The whole transcript, not the boot**, because the typed script is where a death would be
@@ -7544,7 +7550,7 @@ fn shell_check_leg(riscv: bool) -> bool {
         failed.push(format!(
             "the kernel reported killing a user thread during this run: {line:?}. Every \
              program this boot starts is supposed to survive it, and one that does not is \
-             invisible everywhere else: init's own report says what init measured, not what \
+             invisible everywhere else: the progenitor's own report says what the progenitor measured, not what \
              stayed alive. The transcript below has the fault's registers, and `llvm-objdump -d` \
              on the program at that `pc` names the function."
         ));
@@ -7591,14 +7597,14 @@ fn shell_check_leg(riscv: bool) -> bool {
             "shell-check ({arch}): the prompt booted, piped, redirected, appended, named a \
              file to a reader, read the clock, timed a command with a clock of its own, kept \
              a declared second stream off the redirection, previewed a directory grant and \
-             then removed exactly the name it designated through a caretaker init built for \
+             then removed exactly the name it designated through a caretaker the progenitor built for \
              that one command, swept a \
              match too large to hand over in batches whose authority is exactly what each was \
              designated, named a file whose name has a space in it, searched an installed \
              documentation store and got back pages a following line could then designate, \
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
              a && past a command that succeeded and not past one it refused, and ran \
-             twenty-one jobs through init's six-job pool after init gave its construction \
+             twenty-one jobs through the progenitor's six-job pool after the progenitor gave its construction \
              budget away"
         );
         return true;
@@ -7658,7 +7664,7 @@ fn shell_check_leg(riscv: bool) -> bool {
 /// It looks for `$ ` (the exact two bytes `swish` prints for every prompt, `proto`-unrelated to
 /// anything this leg computed in advance) anywhere in the decoded grid, not at a predicted row: a
 /// terminal this small scrolls before the banner finishes, and which row the prompt lands on is
-/// exactly the thing not worth predicting twice. Finding it at all is the proof that init built the
+/// exactly the thing not worth predicting twice. Finding it at all is the proof that the progenitor built the
 /// console... no: that it built `line_editor`, `display_terminal` and the display driver, wired
 /// them to each other with no wrong slot, and that `swish` is alive and printing through them.
 /// Finding `$ a` after `sendkey "a"` is the proof that a keystroke makes the same round trip back:
@@ -7734,7 +7740,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     // either. The device arm keeps it, unchanged, because that is milestone 177's leg.
     //
     // It also currently makes the difference between a prompt and no prompt, which is how the
-    // asymmetry got noticed: **the interactive boot traps in init on both architectures whenever
+    // asymmetry got noticed: **the interactive boot traps in the progenitor on both architectures whenever
     // a virtio-rng is attached**, so `shell_check_leg`'s own plain legs are red on `main` for a
     // reason that has nothing to do with either graphical leg. Reproduced at 8167d806 on
     // nightly-2026-09-01 as well as -09-02, so it is not the toolchain bump. See
@@ -7745,7 +7751,7 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     // The flags [`shell_check_leg`] never sets: a virtio-gpu and (in the device arm) a
     // virtio-keyboard, the same devices `cargo xtask test` already attaches, read by
     // `scripts/qemu-runner-*.sh` exactly the way they always have been (milestone 177 changed what
-    // *init* does with them existing, not how they get attached).
+    // *the progenitor* does with them existing, not how they get attached).
     cmd.env("NIFE_GPU", "1");
     if keystrokes == Keystrokes::Device {
         cmd.env("NIFE_KEYBOARD", "1");
@@ -8675,7 +8681,7 @@ fn image() -> bool {
 /// boundary; the kernel prints a raw `pc` on a fault and symbolisation is done offline, against the
 /// unstripped binary that is still sitting in `target/`. So this is pure waste, and milestone 23 is
 /// where it stopped being free: five more programs pushed the archive 4 MB up and a *later,
-/// unrelated* test could no longer find a contiguous eight-megabyte region for init.
+/// unrelated* test could no longer find a contiguous eight-megabyte region for the progenitor.
 ///
 /// `--strip-debug` rather than `--strip-all`, deliberately: it takes the `.debug_*` sections, which
 /// is all of the bulk, and leaves the symbol table for anything that later wants to read it out of
@@ -9304,7 +9310,7 @@ fn board_console() -> ExitCode {
     // The difference between the two captured successes, and the one a reader would otherwise have
     // to go back to the log for: whether there was an archive on the card at all.
     if session.progress.userspace_ran() {
-        eprintln!("board-console: userspace init built its child");
+        eprintln!("board-console: the userspace progenitor built its child");
     }
     if session.bytes == 0 && replay.is_none() {
         // The runbook's first triage row, said here so nobody starts by suspecting the kernel.
@@ -10253,7 +10259,7 @@ mod tests {
     /// rather than reconstructed, because the exact shape of the shuffle is the whole point.
     ///
     /// Two writers on one UART with nothing arbitrating: the kernel's user-fault printer and the
-    /// userspace `console` server. `init: construction budget dropped...` is spliced through the
+    /// userspace `console` server. `progenitor: construction budget dropped...` is spliced through the
     /// kernel's register line one and two characters at a time. Every byte of both is present and
     /// in order.
     const INTERLEAVED_CI_TRANSCRIPT: &str = "\
@@ -10261,7 +10267,7 @@ mod tests {
     pc 0x0000000000406aa0   stval 0x000000000i0406aa0   usern sp 0x0000000000500da0
 it:   cthe kernel is fine.
 onstruction budget dropped; retype answers NoSuchSlot
-init: every program measured against the archive table
+progenitor: every program measured against the archive table
 
 nife capability shell. naming a resource in a command IS granting it.
 ";
@@ -10278,7 +10284,7 @@ nife capability shell. naming a resource in a command IS granting it.
     pc 0x0000000000406aa0   stval 0x0000000000406aa0   user sp 0x0000000000500da0
   the kernel iis fnit: constiner.
 uction budget dropped; retype answers NoSuchSlot
-init: every program measured against the archive table
+progenitor: every program measured against the archive table
 
 nife capability shell. naming a resource in a command IS granting it.
 ";
@@ -10286,7 +10292,7 @@ nife capability shell. naming a resource in a command IS granting it.
     /// A clean boot reads exactly; a mildly shuffled one still reads, and says what it stepped over.
     #[test]
     fn a_claim_survives_being_interleaved_with_another_writer() {
-        let clean = "init: construction budget dropped; retype answers NoSuchSlot\n";
+        let clean = "progenitor: construction budget dropped; retype answers NoSuchSlot\n";
         assert!(matches!(
             boot_claim(
                 clean,
@@ -10324,7 +10330,7 @@ nife capability shell. naming a resource in a command IS granting it.
     /// they were tested against, so this stops betting on the matcher. What passes this transcript
     /// is not a cleverer match: it is that neither sentence is readable AND the kernel was
     /// demonstrably writing during the boot, which is the only condition under which a line can go
-    /// missing without init having gone quiet.
+    /// missing without the progenitor having gone quiet.
     ///
     /// Synthetic, and said so: no CI run has produced a shuffle this bad, and the point is that
     /// nothing rules one out. Every character of the marker is present and in order, spread through
@@ -10345,7 +10351,7 @@ nife capability shell. naming a resource in a command IS granting it.
         ) else {
             panic!("a transcript this badly shuffled cannot be read and must not be failed");
         };
-        // "co", from `code 3` in the fault line rather than from init: with the marker spread this
+        // "co", from `code 3` in the fault line rather than from the progenitor: with the marker spread this
         // thin, the longest surviving run of it is noise. Which is the fact worth reporting.
         assert!(
             longest_run.len() <= 3,
@@ -10354,13 +10360,13 @@ nife capability shell. naming a resource in a command IS granting it.
         );
     }
 
-    /// **The teeth.** init printing the failing answer is the thing this check exists to catch, and
+    /// **The teeth.** The progenitor printing the failing answer is the thing this check exists to catch, and
     /// it survives every amount of shuffling elsewhere in the transcript, because the search for it
     /// is exact and interleaving can destroy a string but never create one.
     #[test]
     fn init_reporting_the_failing_answer_is_a_failure_however_shuffled_the_rest_is() {
         let denied = format!(
-            "{}init: construction budget NOT dropped; it can still build\n",
+            "{}progenitor: construction budget NOT dropped; it can still build\n",
             SHREDDED_CI_TRANSCRIPT
         );
         assert!(matches!(
@@ -10373,7 +10379,7 @@ nife capability shell. naming a resource in a command IS granting it.
         ));
     }
 
-    /// **And the vacuity guard.** A boot where init simply stopped reporting, with nothing else
+    /// **And the vacuity guard.** A boot where the progenitor simply stopped reporting, with nothing else
     /// writing the UART, has nothing that could have shuffled the line away, so its absence is real
     /// and this fails. Without this, "cannot read it" would be a way to pass against a check that
     /// had quietly stopped checking anything.
@@ -10381,7 +10387,7 @@ nife capability shell. naming a resource in a command IS granting it.
     fn a_silent_init_fails_when_nothing_else_was_writing() {
         let quiet = "\
   uart irq: source 10 (machine description)
-init: every program measured against the archive table
+progenitor: every program measured against the archive table
 
 nife capability shell. naming a resource in a command IS granting it.
 ";
@@ -10401,7 +10407,7 @@ nife capability shell. naming a resource in a command IS granting it.
     #[test]
     fn a_fault_after_the_prompt_does_not_excuse_a_missing_boot_line() {
         let late = "\
-init: every program measured against the archive table
+progenitor: every program measured against the archive table
 
 nife capability shell. naming a resource in a command IS granting it.
 $ outlaw

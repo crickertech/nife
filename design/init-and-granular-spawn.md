@@ -116,7 +116,7 @@ names the space through the same registry revocation uses.
   code, and receives the word the child SENDs through a capability it was granted: a thread no
   `spawn` created, running code no wiring wrote.
 - **19d.1: init parses a real ELF in userspace and builds a running child. (Built.)** The `elf`
-  crate links into the user binary; `spawn_init` (the one program the kernel still loads) hands
+  crate links into the user binary; `spawn_progenitor` (the one program the kernel still loads) hands
   init the initrd mapped read-only, a building untyped, and a report endpoint. init's `build_child`
   mirrors the kernel's `map_segments` entirely through the granular verbs: retype an aspace, copy
   each segment into retyped frames and `MAP_INTO` the child (a new `MAP_CODE` mode + kernel
@@ -124,7 +124,7 @@ names the space through the same registry revocation uses.
   code the kernel never parsed and reports home. `SYS_CAP_DELETE` was added (a loader recycles a
   16-slot cspace over hundreds of frames); `START` gained an initial-`x0` so init tells a child
   its role. Witnessed end to end: `userspace_init_parses_an_elf_and_builds_a_running_child`, four
-  clean runs. See notes/init-and-loading.md.
+  clean runs. See notes/progenitor-and-loading.md.
 - **19d.2: init becomes the boot path, incrementally. (In progress.)** Migrating service
   construction into init, one service green before the next. The first step surfaced the real
   blocker: every boot service needs *device* access, which the kernel wired at spawn with no
@@ -151,7 +151,7 @@ names the space through the same registry revocation uses.
       the interrupt fires, and it is delivered as a message through the delegated capability.
       (`userspace_init_delegates_an_interrupt_to_a_child`.) Bug found and fixed: the route must be
       set up *before* the child could receive, and an interrupt that fires unrouted is dropped, not
-      queued -- so `spawn_init` routes before spawning init, and the pending-signal count carries
+      queued -- so `spawn_progenitor` routes before spawning init, and the pending-signal count carries
       the early fire to the child's later `WAIT`.
 
     **The two full drivers that remain, and their honest blockers (not 2b work):**
@@ -164,7 +164,7 @@ names the space through the same registry revocation uses.
       Deferred to land with 16.
   - **19d.2c: init becomes the boot path, whole interactive system. (Built.)** Behind the
     `initboot` feature the kernel stops wiring services and hands the machine to init
-    (`boot_via_init` -> `spawn_init`). init then builds the **entire interactive system** out of
+    (`boot_via_progenitor` -> `spawn_progenitor`). init then builds the **entire interactive system** out of
     its own budget: the console server, the input driver (on the UART receive interrupt init
     delegated), and the shell, wired together with endpoints and shared pages init created, plus
     init staying alive as a stub spawn service. A bounded `script/initboot` boot reaches the

@@ -23,11 +23,11 @@
 //! outside"). The universal name for a first program, and this was the first program this kernel
 //! ever loaded, on 2026-07-14.
 //!
-//! **The limitation that used to be recorded here is closed.** It read that the name had outlived
-//! the description, because on aarch64 this binary also carried the `init_boot` role and a reader
-//! who took `hello` at face value would not expect to find boot sequencing inside it. That role is
-//! `user/src/system_initializer.rs` now, on every architecture, and what is left here is the demo
-//! catalogue the name always described.
+//! **The limitation that used to be recorded here is closed** (milestone 266). It read that the
+//! name had outlived the description, because on aarch64 this binary also carried the `init_boot`
+//! role and a reader who took `hello` at face value would not expect to find boot sequencing
+//! inside it. That role is `user/src/progenitor.rs` now, on every architecture, and what is left
+//! here is the demo catalogue the name always described.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -114,8 +114,8 @@ static mut BSS_MARKER: u64 = 0;
 #[unsafe(no_mangle)]
 // `_arg2`: the third `START` word. Nothing in this catalogue reads it any more. The one role that
 // did was `init_boot`, which carried the filesystem rights the kernel granted the boot process;
-// that role is `user/src/system_initializer.rs` now, and the parameter stays in the signature
-// because the kernel passes three words to every program it enters.
+// that role is `user/src/progenitor.rs` now (milestone 266), and the parameter stays in the
+// signature because the kernel passes three words to every program it enters.
 pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
     match role {
         PRINTING => printing_client(),
@@ -315,17 +315,18 @@ fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
 
 /// **The archive entry holding this binary**, which is now the same name on every machine.
 ///
-/// Several roles build a child out of *this* program's own ELF and re-enter it at a different role
-/// ([`CHILD`], [`DEV_CHILD`], [`IRQ_CHILD`]). To do that they have to find hello in the archive. The
-/// kernel side of the same fact is `kernel::user::INIT_ROLES_ENTRY`; the two must agree.
+/// Several roles build a child out of *this* program's own ELF and re-enter it at a different
+/// role ([`CHILD`], [`DEV_CHILD`], [`IRQ_CHILD`]). To do that they have to find hello in the
+/// archive. The kernel side of the same fact is `kernel::user::HELLO_ENTRY`; the two must agree.
 ///
-/// **Three `cfg` arms stood here** until aarch64 stopped packing hello as `init` (there hello also
-/// carried the boot role) while the other two boards packed it as `hello`. That asymmetry cost a
-/// real bug before it was understood: a hardcoded `"init"` was right on aarch64 and silently wrong
-/// on RISC-V, so this program happily built a child out of `builder`'s ELF and started it at a role
-/// `builder` does not have; the child reached for an initrd mapping it did not own, faulted, was
-/// killed, and the test waiting on its report blocked until the watchdog fired. Nothing said "wrong
-/// program"; it just never answered. One boot program retired the alias, and the three arms with it.
+/// **Three `cfg` arms stood here until milestone 266**, because aarch64 packed hello as `init`
+/// (there hello also carried the boot role) while the other two boards packed it as `hello`. That
+/// asymmetry cost a real bug before it was understood: a hardcoded `"init"` was right on aarch64
+/// and silently wrong on RISC-V, so this program happily built a child out of `builder`'s ELF and
+/// started it at a role `builder` does not have; the child reached for an initrd mapping it did not
+/// own, faulted, was killed, and the test waiting on its report blocked until the watchdog fired.
+/// Nothing said "wrong program"; it just never answered. One progenitor retired the alias, and the
+/// three arms with it.
 const ROLES_ENTRY: &str = "hello";
 
 /// The init role that builds a device-driver child (milestone 19d.2); matches kernel test wiring.
@@ -368,7 +369,7 @@ const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
 /// of its own budget through the granular verbs (retype an address space, copy each segment into
 /// retyped frames and map them in, retype a TCB, endow it, configure, start). The child reports
 /// a word home; receiving it proves init parsed a real ELF and built a running process, with the
-/// kernel never touching the child's bytes. See kernel/src/user.rs `spawn_init`.
+/// kernel never touching the child's bytes. See kernel/src/user.rs `spawn_progenitor`.
 fn init(initrd_len: u64) -> ! {
     init_build(initrd_len, false)
 }
@@ -382,7 +383,7 @@ fn init(initrd_len: u64) -> ! {
 fn init_irq(initrd_len: u64) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
-    const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted init (spawn_init)
+    const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted this program (spawn_progenitor)
 
     let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {
         fail_report(REPORT)
@@ -633,7 +634,7 @@ fn init_dev(initrd_len: u64) -> ! {
 fn init_build(initrd_len: u64, device: bool) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
-    const UART_DEV: u64 = 2; // the UART device cap the kernel granted init (spawn_init)
+    const UART_DEV: u64 = 2; // the UART device cap the kernel granted this program (spawn_progenitor)
     const CHILD_UART_VA: u64 = 0x0070_0000;
 
     let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {

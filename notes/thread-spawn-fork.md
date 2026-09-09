@@ -48,7 +48,7 @@ mechanism at reduced scope.
 **Process spawn already does exactly the RETYPE/CONFIGURE/CAP_INSERT/START sequence Option B
 would reuse**, unprivileged, from userspace: `kernel/src/user.rs`'s `Spawn` struct documents a
 process's entire authority as "a function of `arg0`, `grants`, and `maps`", and init itself
-becomes "the spawn service" after boot (`INIT_BOOT_ROLE`'s doc comment) and spawns every other
+becomes "the spawn service" after boot (`PROGENITOR_ROLE`'s doc comment) and spawns every other
 process the same way a std program's PAL would spawn a thread. So Option B needs no new
 mechanism at the kernel boundary at all; it is a userspace consumer of machinery that has
 existed since milestone 19c.3.

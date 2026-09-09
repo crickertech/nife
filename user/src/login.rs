@@ -267,8 +267,8 @@
 //! Two things are gone with it. This process no longer refuses to start over the caretaker at all:
 //! absent, unparseable and unvouched-for all become `care_elf = None` and a `DENIED` per login,
 //! which is the posture `crates/system_initializer` already had toward this exact component. And
-//! `init: login ready` is now `init: login credentials provisioned`, which is what init actually
-//! measured; the survival claim moved to `script/shell-check`, which fails if the kernel reported
+//! `init: login ready` is now `progenitor: login credentials provisioned`, which is what the first
+//! process actually measured; the survival claim moved to `script/shell-check`, which fails if the kernel reported
 //! killing any user thread during the run.
 //!
 //! **What this cost in the currency that was scarce: nothing.** Milestone 231's gauge says the
@@ -432,7 +432,8 @@
 //! `"shell"` command both set `NIFE_RNG`, where before it was a test-leg-only flag). `crates/
 //! system_initializer::boot` builds a real entropy service from that grant, at the very top of the
 //! function, and proves it drew real device bytes before building anything else (`script/shell-check`
-//! now reads `"init: entropy service up; drew real bytes from a virtio-rng device"` on both ISAs).
+//! now reads `"progenitor: entropy service up; drew real bytes from a virtio-rng device"` on both
+//! ISAs; it said `init:` until milestone 266 renamed the program).
 //! **This is the harder half of the original blocker, and it required no help from this program**:
 //! `credentialer.rs` and `entropy.rs` are unmodified, because the entropy service they both already
 //! assumed now genuinely exists under a real boot.

@@ -130,7 +130,7 @@ The port is worth doing precisely because it finds where the abstraction leaked.
    after `finish_switch`). So the TCB path ran `enter_frame` with `sstatus.SIE` clear and could not be
    hit. The **exec** path could: `spawn` makes an ordinary kernel thread, `thread_entry` enables
    interrupts, and that thread later becomes a user process through `run` -> `enter_frame`. Every
-   `spawn_bare` subject and `spawn_init` is on that path.
+   `spawn_bare` subject and `spawn_progenitor` is on that path.
 
    The two paths are not distinguishable from a panic message, and an early reading of this
    investigation got it wrong by trying: a TCB child configured at `CODE_VA` 0x40_0000 with
@@ -354,7 +354,7 @@ is the thread's or the hart's.** `tp` is the hart's.
 
    **And userspace init builds the system, from a richer initrd.** The single-ELF initrd became a
    nifefs archive holding two programs: `init` (the portable `builder`) and `worker`. The kernel
-   (`riscv_initrd_demo`, a minimal `spawn_init` with no GIC/PL011/IRQ baggage) loads only `init`, maps
+   (`riscv_initrd_demo`, a minimal `spawn_progenitor` with no GIC/PL011/IRQ baggage) loads only `init`, maps
    the whole archive read-only into it, and grants it two capabilities: an untyped budget and a report
    endpoint. From those, `init` reads `worker` out of the archive by name, builds it as a child
    *entirely from its own budget* through the capability verbs (retype an address space, copy each
@@ -390,7 +390,7 @@ is the thread's or the hart's.** `tp` is the hart's.
 
    Then `arch::irq` was extracted with two working consumers behind it (the GIC and the PLIC), and
    `drivers::gic` was gated to aarch64. Every portable caller (`sched::place_on`, `smp`,
-   `user::spawn_init`, `main::interrupts_init`, the `Irq` ACK) now names `arch::irq`, not a
+   `user::spawn_progenitor`, `main::interrupts_init`, the `Irq` ACK) now names `arch::irq`, not a
    controller. The only code still naming `drivers::gic` is aarch64 arch code (rule #1 lets arch name
    its own driver) and the `cfg(test)` aarch64 IRQ tests. **That was the last HAL leak.** A new ISA is
    a new `arch/` directory, not a diff across the kernel, with zero exceptions in portable non-test

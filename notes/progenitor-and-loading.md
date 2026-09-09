@@ -1,14 +1,15 @@
-# init, and loading a program from userspace
+# The progenitor, and loading a program from userspace
 
-*(Milestone 19d. `kernel/src/user.rs` `spawn_init`, and the `init`/`child` roles in
+*(Milestone 19d. `kernel/src/user.rs` `spawn_progenitor`, and the `init`/`child` roles in
 `user/src/hello.rs`. The loader described here lived in that file until milestone 96 gave the tree
 one of them; it is `crates/supervision_proto`'s `build_child` now, and every caller reaches it there.
 What the loader does is unchanged, and the steps below are still the steps.)*
 
-*What this note does not cover: the archive entry named `init` means a different program on each
-architecture today (`hello`'s `init_boot` role on aarch64, `system_initializer` reached by its own
-name on riscv64, and whatever `builder`-descended path x86_64 lands on), which is its own open
-question, not a fact this note states. See [milestone 166](../design/roadmap/166-init-boot-parity.md).*
+*This note said, until milestone 266, that the archive entry named `init` meant a different program
+on each architecture and pointed at [milestone 166](../design/roadmap/166-init-boot-parity.md) as the
+open question. That is settled: the entry is `progenitor` on all three boards and it is one program,
+`user/src/progenitor.rs`. Where the text below says init it is describing milestone 19d, when the
+role and the demo catalogue were the same binary.*
 
 ## The one thing 19d moves, and why it matters
 
@@ -22,19 +23,20 @@ the trusted core the whole §14 thesis rests on. So 19d moves the parser **out**
 confined program where a parser bug is just that program's problem, confined by the same
 capability walls as any workload.
 
-That program is **init**: the first program the kernel starts, whose job is to start the others.
+That program is the **progenitor**: the first process, the one the kernel starts and from which
+every other descends. It was called init until milestone 266.
 
-## What still loads init (the honest residue)
+## What still loads the progenitor (the honest residue)
 
 Something has to load the *first* program, so the kernel keeps exactly enough loader for one: it
-`spawn_init`s init and nothing else. init loads every *other* program. "The kernel loads exactly
-one program" is not a slogan we rounded up to; it is literally one call site. (19d.2 removes the
-kernel's other loaders, the ones that wire up the console and shell services today, by moving that
-wiring into init.)
+`spawn_progenitor`s the progenitor and nothing else. The progenitor loads every *other* program.
+"The kernel loads exactly one program" is not a slogan we rounded up to; it is literally one call
+site. (19d.2 removes the kernel's other loaders, the ones that wire up the console and shell
+services today, by moving that wiring into the first process.)
 
-## How init loads a child (the loader, in userspace, through the verbs)
+## How the progenitor loads a child (the loader, in userspace, through the verbs)
 
-init is handed three things by `spawn_init`: a building **untyped** budget (slot 0), a **report**
+It is handed three things by `spawn_progenitor`: a building **untyped** budget (slot 0), a **report**
 endpoint (slot 1, with `GRANT` so it can endow a child), and the whole **initrd mapped read-only**
 at `INITRD_VA` so it can read the ELF. Its length arrives in `x1`.
 
@@ -98,16 +100,17 @@ init, to load a child, parsed that same blob again (children were roles of the o
 turns the blob into a **nifefs archive**, the same named-file format the virtio disk uses, so one
 parser serves both the RAM archive and the disk. `cargo xtask` packs it (`initrd_aarch64`, renamed
 from `mkinitrd` 2026-08-27); it holds one
-entry today, `init`.
+entry today, `progenitor`.
 
 Two readers changed, each in its own domain:
 
-- The **kernel** (`spawn_init`) reads the superblock, looks up the `"init"` entry, and loads *that*
+- The **kernel** (`spawn_progenitor`) reads the superblock, looks up the `"progenitor"` entry
+  (`"init"` until milestone 266), and loads *that*
   as the ELF. This is the same honest residue as before ("something has to load the first program"),
   now naming that program through a fixed archive index instead of assuming it sits at offset 0. The
   kernel gains a nifefs read, which is proportionate to the ELF parse it already does for init and
   is bounded (a 512-byte superblock, count capped at 15). The milestone tour and the kernel-wired
-  demos load a program the same way, through `user::program("init")`.
+  demos load a program the same way, through `user::program(user::HELLO_ENTRY)`.
 - **init** (`hello.rs` `program()`) parses `INITRD_VA` as a nifefs archive and looks up a program
   by name, rather than treating the whole blob as one ELF.
 
@@ -150,7 +153,7 @@ The worker is the first program that is **its own binary**, not a role of `hello
 `user/src/worker.rs`: its own `_start`, its own panic handler, ~30 lines, and not one line of hello's
 code. It shares the `user` package's `link.ld` (so it links at `0x40_0000` like hello), which is not
 a conflict because each program runs in its own address space. `initrd_aarch64` packs it as a second
-archive entry, `"worker"`, beside `"init"`.
+archive entry, `"worker"`, beside the boot program's.
 
 Every consumer that used to spawn "a role-6 worker of hello" now loads `"worker"` by name and starts
 it with `x0 = 0` (a standalone binary needs no role selector) and the input in `x1`:
@@ -251,5 +254,5 @@ Two things deliberately stayed out of `user_rt`:
 **Resolved since this was written.** The kernel's own pre-init service wiring is gone: §28 retired
 `shell_service` as a boot path and milestone 41 deleted it and `input_service` outright, because they
 had no caller in any configuration. `console_service` remains, spawned by the milestone tour only.
-Every interactive build now reaches userspace through `boot_via_init`, so the kernel has one way in
+Every interactive build now reaches userspace through `boot_via_progenitor`, so the kernel has one way in
 rather than two.

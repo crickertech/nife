@@ -138,7 +138,7 @@ tests came along unchanged once three things moved.
   it at a role `builder` does not have, and the child reached for an initrd mapping it did not own
   and died. Nothing said "wrong program": the test waiting on that child's report just never got one
   and the 90 s ceiling fired. `hello::ROLES_ENTRY` now names the entry per ISA, matching the kernel's
-  `INIT_ROLES_ENTRY`, and the two must agree.
+  `HELLO_ENTRY`, and the two must agree.
 
 - **The fault record was published before it was written.** Every test that reads the last-fault
   record watches `USER_FAULTS` rise and then calls `last_user_fault()`, so the counter is the
@@ -183,7 +183,7 @@ because a blanket comment is exactly how the old claim survived past being true.
 | `el1_runs_on_sp_el1` | **No RISC-V analogue exists.** RISC-V does not bank `sp` by privilege level; there is one `sp`, swapped with `sscratch` on trap entry. The hazard (two names for one register, silently) cannot arise, so a twin would have nothing to assert. |
 | ~~`asid_tagging_keeps_address_spaces_apart_without_flushes`~~ | **Closed by milestone 58; it runs on both ISAs now.** It was here because the property was not true on RISC-V: `write_satp` issued an unconditional `sfence.vma` on every root switch, so a twin would have read the right byte because everything was just flushed, not because the tagging works. The row stays, struck through, because the *reason* is the useful part: this is what a test that cannot fail for its stated reason looks like before anyone notices. |
 | `the_hardware_says_el0_cannot_read_the_kernels_memory` | Twin exists: `riscv_virtio_tests::the_page_tables_say_u_mode_cannot_read_the_kernels_memory`. Kept separate on purpose, because the *mechanism* is the subject: aarch64 asks the silicon (`AT S1E0R`), RISC-V has no such instruction and walks in software. Merging them would assert only what both can say. |
-| `userspace_init_delegates_an_interrupt_to_a_child` | RISC-V has no second interrupt to raise. Its only hand-assertable line is the console UART's, which `spawn_init` is already routing for the input driver, so a twin would prove delivery through whichever route was bound last rather than through the delegated capability. The property is covered by `riscv_virtio_tests::a_userspace_driver_reads_a_file_from_a_virtio_disk` (which asserts `ROUTED_IRQS` rises while a userspace driver waits on its own Irq cap) and by `sched::tests::an_interrupt_becomes_a_message`. |
+| `userspace_init_delegates_an_interrupt_to_a_child` | RISC-V has no second interrupt to raise. Its only hand-assertable line is the console UART's, which `spawn_progenitor` is already routing for the input driver, so a twin would prove delivery through whichever route was bound last rather than through the delegated capability. The property is covered by `riscv_virtio_tests::a_userspace_driver_reads_a_file_from_a_virtio_disk` (which asserts `ROUTED_IRQS` rises while a userspace driver waits on its own Irq cap) and by `sched::tests::an_interrupt_becomes_a_message`. |
 | `userspace_init_builds_a_driver_that_reads_real_hardware` | The assertion is `0xB105F00D` in the PL011's PrimeCell identification registers, and RISC-V `virt` has no PL011. That constant is what makes the test exact rather than "the read did not fault"; substituting a virtio magic number would be a different test wearing this one's name. Device delegation to a userspace driver is proved on RISC-V by the virtio-blk driver test, which is a stronger version of the same claim. |
 | 24 device / filesystem / network tests | **Twins already exist** in `riscv_virtio_tests`, which drives the same properties through the dedicated `blk` and `net_stack` binaries. Running both copies would double the suite's slowest tests (including the ~300 s `std_net`) to prove nothing new. This duplication is itself worth revisiting: see the open gap below. |
 
@@ -456,7 +456,7 @@ mostly porting userspace, not proving new kernel behavior.
 - Port the device-specific programs to the NS16550: `console.rs` (writes the UART, ~6 PL011 register
   sites) and `input.rs` (reads RX + the UART IRQ, ~2 sites). Either parameterize the register layout
   or ship NS16550 variants. `swish.rs` is already mostly portable (IPC, no direct hardware).
-- A riscv `spawn_init` (or a generalized one) that grants the PLIC/NS16550 equivalents of the
+- A riscv `spawn_progenitor` (or a generalized one) that grants the PLIC/NS16550 equivalents of the
   GIC/PL011/IRQ capabilities aarch64's grants.
 - Wire the riscv boot to hand off to init-as-PID-1 instead of halting.
 - **Proves:** the full interactive system runs on riscv. Lowest *kernel* value of the list; highest

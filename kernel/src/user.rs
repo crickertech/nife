@@ -557,7 +557,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
 
 /// Map the `x86_64` timebase page into `space`, if this process needs one built directly rather
 /// than through [`load`]. Several kernel-side functions build a top-level process's own
-/// `AddressSpace` by hand instead of calling `load` (`spawn_init`, and every
+/// `AddressSpace` by hand instead of calling `load` (`spawn_progenitor`, and every
 /// `spawn_<program>`-shaped test harness that hands a narrowed archive to a named program:
 /// `timetable_tests::spawn_timetable`, `authority_tests`' `root_supervisor` spawn,
 /// `c_seam_tests::spawn_confiner`, `login_service`, `live_swap_tests`' `swapper` spawn), because
@@ -579,7 +579,8 @@ fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
 }
 
 /// Lay an ELF's loadable segments into `space`, honouring their permissions exactly (milestone
-/// 19d factored this out of `load` so `spawn_init` shares it; init's userspace loader mirrors it).
+/// 19d factored this out of `load` so `spawn_progenitor` shares it; the progenitor's userspace
+/// loader mirrors it).
 /// A read-only segment gets `user_rodata`, not `user_data`: a loader that widens permissions is
 /// a loader you cannot reason about. `.bss` is free because `map_new` zeroes every page.
 fn map_segments(space: &mut AddressSpace, elf: &Elf) -> Result<(), LoadError> {
@@ -637,10 +638,11 @@ pub fn initrd() -> Option<&'static [u8]> {
 }
 
 /// The bytes of the program named `name` inside the initrd archive (milestone 19f). The initrd is a
-/// nifefs image carrying init plus the programs init loads. The milestone tour and the
-/// kernel-side service demos still run a role of the one `hello` binary, so they ask for `"init"`;
-/// `spawn_init` and `boot_via_init` instead take the whole archive, because init parses the rest
-/// itself. Returns `None` if there is no initrd, it will not parse, or it holds no such program.
+/// nifefs image carrying the progenitor plus the programs it loads. The milestone tour and the
+/// kernel-side service demos still run a role of the one `hello` binary, so they ask for
+/// [`HELLO_ENTRY`]; `spawn_progenitor` and `boot_via_progenitor` instead take the whole archive,
+/// because the progenitor parses the rest itself. Returns `None` if there is no initrd, it will not
+/// parse, or it holds no such program.
 // Used by the milestone tour, the kernel-wired virtio/console/shell demos, and the tests that load
 // a user program; dead only in the bench boot, which runs no user programs.
 #[cfg_attr(feature = "bench", allow(dead_code))]
@@ -700,7 +702,7 @@ pub const INITRD_VA: u64 = 0x2000_0000;
 /// RISC-V has no software-generated interrupt a test can raise on itself at all (the SBI IPI
 /// arrives down the *software*-interrupt arm, never touching `irq_route`), so it names the console
 /// UART's own line, which is the one interrupt this ISA can assert by hand. That makes it the same
-/// number as [`UART_RX_INTID`] there, deliberately; [`spawn_init`] binds the route once and grants
+/// number as [`UART_RX_INTID`] there, deliberately; [`spawn_progenitor`] binds the route once and grants
 /// two capabilities naming it. See `sched::tests`' `DELIVERY_IRQ`, which reached the same conclusion.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "aarch64")]
@@ -794,45 +796,64 @@ pub const NO_UART_PAGE: &str = "this machine's console UART is in the I/O port s
                                 no page for a device capability to be a mapping of and no \
                                 capability shape for a port yet (DECISIONS \u{a7}121)";
 
-/// The archive entry holding the milestone 7-19 **role catalogue**: the one binary the kernel
-/// re-enters at a chosen role to play a client, a server, or init itself.
+/// **The archive entry the kernel enters as the first process**, on every architecture.
 ///
-/// One name on all three architectures. aarch64 used to pack it as `init`, because there it carried
-/// the boot role as well as the catalogue; that role is `user/src/system_initializer.rs`'s program
-/// now, and `hello` is packed as `hello` everywhere. The kernel still enters it directly for
-/// milestone 19d's test roles, which is why it is in `boot_programs` and measured.
+/// One name, one binary, one program (milestone 266). This used to be `init`, and it meant
+/// `user/src/hello.rs`'s `init_boot` role on aarch64 and `system_initializer` on riscv64: an alias
+/// standing over two implementations of one job, which is DECISIONS §19's own failure mode and had
+/// already been paid for once as a boot that reached userspace and printed nothing at all.
 #[cfg_attr(not(test), allow(dead_code))]
-pub const INIT_ROLES_ENTRY: &str = "hello";
+pub const PROGENITOR_ENTRY: &str = "progenitor";
 
-/// **The archive entry the kernel enters as the boot process on this architecture.**
+/// The archive entry holding the milestone 7-19 **role catalogue**: the one binary the kernel
+/// re-enters at a chosen role to play a client or a server.
 ///
-/// One program on all three boards: `user/src/system_initializer.rs`. riscv64 and `x86_64` reach the
-/// same binary under its own name through `riscv_shell_boot`; aarch64 keeps the entry name `init`
-/// here because that is the string the archive and the trust root already agree on.
+/// One name on all three architectures since milestone 266. aarch64 used to pack it as `init`,
+/// because there it carried the boot role as well as the catalogue; that role is
+/// [`PROGENITOR_ENTRY`]'s own program now, and `hello` is packed as `hello` everywhere. The kernel
+/// still enters it directly for milestone 19d's test roles, which is why it is in `boot_programs`
+/// and measured.
+///
+/// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
+/// reader meets at eight call sites, and `kernel::user::tests` already spelled it this way.
 #[cfg_attr(not(test), allow(dead_code))]
-pub const INIT_BOOT_ENTRY: &str = "init";
+pub const HELLO_ENTRY: &str = "hello";
 
 /// Init's stack, in pages (19d.2c): init loads whole ELFs with deep call chains, so its stack is
 /// larger than an ordinary process's one page. 8 pages (32 KiB) is generous.
 #[cfg_attr(not(test), allow(dead_code))]
 const INIT_STACK_PAGES: u64 = 8;
 
-/// The role at which `hello` **is** the boot path: it builds the console, the line discipline, the
-/// input driver and the shell, then stays alive as the spawn service. It is named at module level
-/// because [`spawn_init`] has to know which role gets a filesystem, and "the one that runs the
-/// prompt" is the answer.
+/// **The role that means "boot the system"**, as opposed to milestone 19d's test roles.
+///
+/// It is what [`spawn_progenitor`] switches on: at this role it loads [`PROGENITOR_ENTRY`] and
+/// grants it a filesystem, a clock, a configuration page and whatever devices this boot found; at
+/// any other it loads [`HELLO_ENTRY`] and grants the bare 19d world. The progenitor itself ignores
+/// the role it is entered at, having only one.
+///
+/// The number is 27 because that is the role `hello`'s retired `init_boot` had, and every 19d role
+/// number around it is load-bearing to a test. **Name provisional** (milestone 266), replacing
+/// `PROGENITOR_ROLE`.
 #[cfg_attr(not(test), allow(dead_code))]
-pub const INIT_BOOT_ROLE: u64 = 27;
+pub const PROGENITOR_ROLE: u64 = 27;
 
-/// Returns a [`holding::Holding`] over init's thread and its building budget, so a test that is
-/// finished with this init can hand **2048 frames** back. That number is not incidental: six
-/// `spawn_init` tests reserve 8 MiB each and the measured aarch64 boot spent 12289 frames on them,
-/// **42% of everything the suite never returned** (notes/frames.md). The boot path ignores the
-/// holding, correctly: the boot's init is the system.
-// The aarch64 test module is the only caller: 19d.2 shipped, and the shape that actually became
-// the boot path is `init_boot` below. RISC-V boots the same system through `riscv_shell_boot`.
+/// **Spawn the first process with the aarch64 boot endowment** (milestone 19d.2c, unified at 266).
+///
+/// At [`PROGENITOR_ROLE`] the program is [`PROGENITOR_ENTRY`] and this is the real boot. At any
+/// other role it is [`HELLO_ENTRY`], entered at one of milestone 19d's test roles, which share this
+/// path and this slot numbering; that sharing is why the aarch64 endowment carries two
+/// capabilities the interactive system has no use for, and why its slots are not riscv64's.
+///
+/// Returns a [`holding::Holding`] over the thread and its building budget, so a test that is
+/// finished with it can hand **2048 frames** back. That number is not incidental: six
+/// `spawn_progenitor` tests reserve 8 MiB each and the measured aarch64 boot spent 12289 frames on
+/// them, **42% of everything the suite never returned** (notes/frames.md). The boot path ignores
+/// the holding, correctly: on that path the progenitor is the system.
+// RISC-V and x86_64 boot the same program through `riscv_shell_boot`, which grants the same
+// capabilities in a different order. That order is the one thing the boards genuinely disagree
+// about, and `user/src/progenitor.rs` carries both tables under the single `cfg` it costs.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn spawn_init(
+pub fn spawn_progenitor(
     image: &'static [u8],
     role: u64,
     report: crate::sched::RendezvousId,
@@ -860,11 +881,21 @@ pub fn spawn_init(
         crate::arch::irq::enable(uart_rx_intid);
     }
 
-    // The initrd is a nifefs archive (milestone 19f), not a bare ELF: it carries init plus the
-    // programs init will load. The kernel reads only the one entry it must, "init". This is the same
-    // "honest residue" as before (something has to load the first program), now naming that program
-    // through a fixed archive index instead of assuming it sits at offset 0. Every other program is
-    // init's to parse. See notes/init-and-loading.md.
+    // The initrd is a nifefs archive (milestone 19f), not a bare ELF: it carries the progenitor
+    // plus the programs the progenitor will load. The kernel reads only the one entry it must. This
+    // is the same "honest residue" as before (something has to load the first program), now naming
+    // that program through a fixed archive name instead of assuming it sits at offset 0. Every
+    // other program is the progenitor's to parse. See notes/progenitor-and-loading.md.
+    //
+    // **Which entry depends on the role, and that is the whole of milestone 266's structural
+    // change on this side.** The boot role gets `progenitor`; 19d's test roles get `hello`, which
+    // holds them. Before 266 both were the same archive entry on this architecture, which is what
+    // made `init` mean one thing here and another on RISC-V.
+    let entry = if role == PROGENITOR_ROLE {
+        PROGENITOR_ENTRY
+    } else {
+        HELLO_ENTRY
+    };
     //
     // Read and MEASURE it here, on the boot path, before anything is spawned (milestone 22 phase
     // B.1): the check has to be the thing that decides whether a thread is created at all, not
@@ -876,15 +907,6 @@ pub fn spawn_init(
             crate::println!("  boot archive is not a nifefs image: {e:?}");
             crate::arch::halt();
         }
-    };
-    // **Which entry depends on the role, and that is the whole structural change on this side.**
-    // The boot role gets the boot program; 19d's test roles get `hello`, which holds them. Both
-    // were the same archive entry on this architecture until now, which is what made the kernel's
-    // first process a role of a demo binary here and a purpose-built program everywhere else.
-    let entry = if role == INIT_BOOT_ROLE {
-        INIT_BOOT_ENTRY
-    } else {
-        INIT_ROLES_ENTRY
     };
     let Some(init_bytes) = boot_fs.read(entry) else {
         crate::println!("  boot archive has no '{entry}' program");
@@ -903,7 +925,7 @@ pub fn spawn_init(
     // a real prompt. `None` is the ordinary case for a run with no RedoxFS disk attached, and the
     // whole chain from here to the prompt treats it as "this boot has no filesystem" rather than as
     // a failure. The other roles are milestone 19d's tests, which wire their own worlds.
-    let fs = if role == INIT_BOOT_ROLE {
+    let fs = if role == PROGENITOR_ROLE {
         program("redoxfs_server").and_then(|redoxfs_server| {
             fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
         })
@@ -916,7 +938,7 @@ pub fn spawn_init(
     // spawned after its client would be a race. See [`boot_clock_page`] for why the grant does not
     // depend on whether the machine turned out to have an RTC. The other roles are milestone 19d's
     // tests, whose slot numbering must not move.
-    let clock_page = if role == INIT_BOOT_ROLE {
+    let clock_page = if role == PROGENITOR_ROLE {
         Some(boot_clock_page())
     } else {
         None
@@ -925,7 +947,7 @@ pub fn spawn_init(
     // **The inert-configuration page, for the boot role only** (milestone 47's environment-
     // variable fork, DECISIONS §111). [`clock_page`]'s twin: assembled here, before init exists,
     // unconditionally, so the slot is the same on every boot. See [`boot_config_page`].
-    let config_page = if role == INIT_BOOT_ROLE {
+    let config_page = if role == PROGENITOR_ROLE {
         Some(boot_config_page())
     } else {
         None
@@ -936,7 +958,7 @@ pub fn spawn_init(
     // such device (real hardware, or a run with `NIFE_RNG` unset): the whole chain past this point
     // treats it exactly as "this boot has no filesystem" is already treated, as an absence rather
     // than a failure. See [`boot_virtio_rng_device`] for what wiring it costs.
-    let virtio_rng = if role == INIT_BOOT_ROLE {
+    let virtio_rng = if role == PROGENITOR_ROLE {
         boot_virtio_rng_device()
     } else {
         None
@@ -955,7 +977,7 @@ pub fn spawn_init(
     // init builds the plain console/input pair instead. A keyboard is no longer required, because
     // the board's own UART is a keystroke source too; see [`boot_graphical_terminal`] for what
     // wiring it costs, why it is built here rather than by init, and which source it picks.
-    let graphical = if role == INIT_BOOT_ROLE {
+    let graphical = if role == PROGENITOR_ROLE {
         boot_graphical_terminal(uart_rx_intid)
     } else {
         None
@@ -1186,11 +1208,11 @@ pub fn spawn_init(
     held
 }
 
-/// **The init boot path** (milestone 19d.2c): spawn init at the boot role and return. init
-/// brings up the console out of its own budget and announces the system through it, so the
-/// system's first output comes from a userspace driver init built, not from the kernel. The
-/// report endpoint is unused on this path (init prints via the console it builds, not back to the
-/// kernel); it is created only to satisfy `spawn_init`'s shape.
+/// **The boot path** (milestone 19d.2c): spawn the progenitor at [`PROGENITOR_ROLE`] and return.
+/// It brings up the console out of its own budget and announces the system through it, so the
+/// system's first output comes from a userspace driver the progenitor built, not from the kernel.
+/// The report endpoint is unused on this path (the progenitor prints via the console it builds, not
+/// back to the kernel); it is created only to satisfy `spawn_progenitor`'s shape.
 // The aarch64 interactive boot hands off here for every non-bench build (the tour, `--features
 // shell`, and `--features initboot`), since milestone 28 retired the kernel-wired `shell_service`.
 #[cfg(not(any(test, feature = "bench")))]
@@ -1198,11 +1220,11 @@ pub fn spawn_init(
 // that also brought up a console, a line discipline and a shell would be soaking those too. So on
 // that build this function has no caller, which is a configuration rather than a mistake.
 #[cfg_attr(feature = "soak", allow(dead_code))]
-pub fn boot_via_init(image: &'static [u8]) {
+pub fn boot_via_progenitor(image: &'static [u8]) {
     let report = crate::sched::create_rendezvous();
-    // The holding is dropped on purpose: on this path init **is** the system, and there is nobody
-    // to hand its memory back to.
-    let _ = spawn_init(image, INIT_BOOT_ROLE, report);
+    // The holding is dropped on purpose: on this path the progenitor **is** the system, and there
+    // is nobody to hand its memory back to.
+    let _ = spawn_progenitor(image, PROGENITOR_ROLE, report);
 }
 
 /// Load the initrd program and become it, handed the world described by `spawn`. Never returns.
@@ -1663,31 +1685,36 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
 }
 
 /// **The richer initrd: userspace init builds the system** (milestone 20). The RISC-V counterpart of
-/// [`spawn_init`], trimmed to the portable core (no GIC, no PL011 device cap, no IRQ delegation: this
+/// [`spawn_progenitor`], trimmed to the portable core (no GIC, no PL011 device cap, no IRQ delegation: this
 /// proves the composition model, not the aarch64 interactive system).
 ///
-/// The initrd is a nifefs archive holding `init` (the portable `builder` program) plus `worker`.
-/// The kernel loads only `init`, maps the whole archive read-only into its address space, and grants
-/// it exactly two capabilities: a large untyped budget (slot 0) and a report endpoint with
-/// WRITE|GRANT (slot 1). From those, `init` reads `worker` out of the archive by name, builds it as a
-/// child entirely from its own budget (a userspace ELF loader), hands the child a WRITE view of the
+/// The initrd is a nifefs archive holding `builder` (milestone 20's minimal system builder) plus
+/// `worker`. The kernel loads only `builder`, maps the whole archive read-only into its address
+/// space, and grants it exactly two capabilities: a large untyped budget (slot 0) and a report
+/// endpoint with WRITE|GRANT (slot 1). From those, `builder` reads `worker` out of the archive by
+/// name, builds it as a child entirely from its own budget (a userspace ELF loader), hands the child a WRITE view of the
 /// report endpoint as its slot 0, and starts it with an input. The child squares the input and SENDs
 /// the answer straight to the report endpoint, which this function is waiting on. The kernel never
 /// parsed or mapped the worker: init did. That is the whole point (DECISIONS §17, and the aarch64
-/// init lineage in notes/init-and-loading.md), now on RISC-V.
+/// init lineage in notes/progenitor-and-loading.md), now on RISC-V.
 #[cfg(target_arch = "riscv64")]
 pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
 
-    // Read only the one entry the kernel must: "init" (the builder). The rest is init's to parse.
+    // Read only the one entry the kernel must: `builder`. The rest is the builder's to parse.
+    // **Its own name since milestone 266.** This entry used to be called `init`, which made the
+    // word mean this demo here and the interactive first process on aarch64; one progenitor took
+    // the name and this demo kept the one it always had in `user/src/builder.rs`.
     let fs = nifefs::Fs::parse(archive).expect("initrd is not a nifefs archive");
-    let init_bytes = fs.read("init").expect("archive has no 'init' program");
+    let init_bytes = fs
+        .read("builder")
+        .expect("archive has no 'builder' program");
     // Measured boot (milestone 22 phase B.1): the boot program is checked against the digest compiled
     // into this kernel image before its address space exists, and a mismatch halts. Same check, same
-    // trust root, same place in the sequence as aarch64's `spawn_init`; the parity gate (§19) asks
+    // trust root, same place in the sequence as aarch64's `spawn_progenitor`; the parity gate (§19) asks
     // for exactly that.
-    crate::trust::require("init", init_bytes);
+    crate::trust::require("builder", init_bytes);
     // The measurement table too (milestone 104). `builder` does not read it (it loads exactly one
     // worker and is milestone 20's demo, not the interactive system), but the whole archive is
     // mapped into it either way and the parity gate (§19) asks for the same check in the same place
@@ -1893,7 +1920,7 @@ pub fn riscv_uart_driver_demo(
 }
 
 /// **Boot the interactive shell system on RISC-V** (parity D). The riscv counterpart of aarch64's
-/// `spawn_init` + `init_boot`: load `system_initializer` (the portable system builder) as the boot process, map
+/// `spawn_progenitor`: load `progenitor` (the first process) as the boot process, map
 /// the whole initrd into it, and grant it a large untyped budget (slot 0), the NS16550's registers as
 /// a device cap (slot 1), the UART receive interrupt as an `Irq` cap (slot 2), the wall clock page
 /// read-only (slot 3, milestone 51's wiring), the inert-configuration page read-only (slot 4,
@@ -1913,11 +1940,12 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
 
     let fs = nifefs::Fs::parse(archive).expect("initrd is not a nifefs archive");
     let init_bytes = fs
-        .read("system_initializer")
-        .expect("archive has no 'system_initializer' program");
-    // Measured boot (milestone 22 phase B.1): `system_initializer` is riscv's boot program, so it is in the
-    // trust root under its own name and checked here, before its address space is built.
-    crate::trust::require("system_initializer", init_bytes);
+        .read(PROGENITOR_ENTRY)
+        .unwrap_or_else(|| panic!("archive has no '{PROGENITOR_ENTRY}' program"));
+    // Measured boot (milestone 22 phase B.1): the progenitor is this board's boot program too, so
+    // it is in the trust root under its own name and checked here, before its address space is
+    // built.
+    crate::trust::require(PROGENITOR_ENTRY, init_bytes);
     // And the table it measures the six boot components and every spawnable program against
     // (milestone 104). This is the boot path that genuinely uses it: `crates/system_initializer` is
     // the same code aarch64's init runs, so the two boards extend the chain by the same lines.
@@ -2351,7 +2379,7 @@ pub mod input_service;
 pub mod clock_service;
 
 /// **The clock page the interactive boot hands init**, and the one place both ISAs agree on what a
-/// machine with no clock looks like (milestone 51's wiring; `spawn_init`, `riscv_shell_boot`).
+/// machine with no clock looks like (milestone 51's wiring; `spawn_progenitor`, `riscv_shell_boot`).
 ///
 /// The grant is **unconditional**, and that is the design rather than an oversight. A zeroed page
 /// reads as `clock_proto::state::UNKNOWN` (`a_zeroed_page_reads_as_unknown`), so a boot with no
@@ -2422,7 +2450,7 @@ const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
 /// (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a
 /// boot with no such device: real hardware (milestone 55's actual target has no virtio-rng at all,
 /// §120's own text), or a run with `NIFE_RNG` unset. The whole chain past this point treats that
-/// exactly as "this boot has no filesystem" is already treated by [`spawn_init`]/
+/// exactly as "this boot has no filesystem" is already treated by [`spawn_progenitor`]/
 /// `riscv_shell_boot`: an absence the caller can act on, not a failure.
 ///
 /// **Only the MMIO transport**, unlike `entropy_service::start`'s own test-harness wiring, which
@@ -2477,7 +2505,7 @@ fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
 }
 
 /// **The inert-configuration page the interactive boot hands init** (milestone 47's
-/// environment-variable fork, DECISIONS §111; `spawn_init`, `riscv_shell_boot`).
+/// environment-variable fork, DECISIONS §111; `spawn_progenitor`, `riscv_shell_boot`).
 /// [`boot_clock_page`]'s twin, minus the service: nothing here runs, so there is nothing to spawn
 /// and nothing to wait for a report from. The page is assembled once, into a frame nothing else
 /// can see, and only then handed to init; see `environment_proto`'s own docs for why that
@@ -2583,7 +2611,7 @@ pub enum KeystrokeSource {
 ///
 /// **The keyboard driver is spawned here too, for a different reason than the GPU's.** Its own raw
 /// materials (an `Irq`, a `Virtio`, one DMA `PageFrame`) would fit the three slots aarch64's
-/// `spawn_init` has left, on their own -- but option A's target endpoint is `line_editor`'s own
+/// `spawn_progenitor` has left, on their own -- but option A's target endpoint is `line_editor`'s own
 /// served endpoint, which does not exist until init builds it, and a driver init spawns can only be
 /// wired to capabilities init itself already holds (`ChildEndowment::maps`' own contract: it maps
 /// what the caller has, not what the caller could ask the kernel for). Creating that endpoint here
@@ -3210,7 +3238,7 @@ mod live_swap_tests;
 ///
 /// Cross-ISA, because the check is portable: one hash implementation (`crates/measured_boot`), one trust
 /// root generated into the kernel image by `build.rs`, called from the boot path on both
-/// architectures (aarch64 `spawn_init`, riscv `riscv_initrd_demo` / `riscv_shell_boot`).
+/// architectures (aarch64 `spawn_progenitor`, riscv `riscv_initrd_demo` / `riscv_shell_boot`).
 ///
 /// **What these two prove, and why the boot path itself cannot be tested directly.** A real refusal
 /// halts the machine, so a test cannot take that branch and live. What *can* be proven, and is what

@@ -254,7 +254,7 @@ The largest single causes, before:
 
 | page frames | who | what it was |
 |---|---|---|
-| 12289 | the six `spawn_init` tests | 2048 page frames of building budget each, reserved and never returned |
+| 12289 | the six `spawn_progenitor` tests | 2048 page frames of building budget each, reserved and never returned |
 | 2759 | the ten net tests | a `net_stack`'s 128-page-frame budget, its stack, and its client's, ten times |
 | 2284 | the FS service | one block server and one FS server with an 8 MiB heap budget |
 | 2146 | the two `authority_tests` | `root_supervisor`'s 1024-page-frame budget, twice |
@@ -283,7 +283,7 @@ missing was a handle and an ordering.
   destructive (it arms kills; see `reclaim_region`'s BUGS), so this is the same commitment one object
   over.
 
-- **`spawn_init` carves init's building budget outside the spawned thread** and hands the caller a
+- **`spawn_progenitor` carves init's building budget outside the spawned thread** and hands the caller a
   holding over it. The region is unchanged; who can name it is not, and that is the whole difference
   between 8 MiB spent and 8 MiB lent.
 
