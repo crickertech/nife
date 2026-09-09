@@ -1,0 +1,156 @@
+# 266. One progenitor, on all three architectures, and `init` stops being a role
+
+**Status: NOT-STARTED.** Minted 2026-09-08 by calef, who refused the guard rail that had been quoted
+at him: *"init still isn't a good name even though it comes with history. This is the first process."*
+*(Number provisional until the merge queue lands it.)*
+
+**Gate: NONE.** The rename needs nobody's permission. The sequencing below is not optional, and
+milestone 265's block carries the same constraint for the same reason.
+
+## The argument, which turns on a word in the rule rather than against it
+
+AGENTS.md protects **standard terms that are genuinely right** and says a name a reader already knows
+from outside is the best available. The maintainer quoted that at `init` and calef's answer was that
+`init` is not genuinely right, only **familiar**:
+
+- **It names an action for a thing.** `init` is short for *initialize*, a verb, and AGENTS.md's own
+  rule is *name things with nouns*, because a verb names an action and a process is not one.
+- **The thing is the first process**, the one the kernel starts and from which every other descends,
+  and the name says none of that.
+- **Familiarity is not correctness.** `elf` is genuinely right because that is the format's name.
+  `pci` is genuinely right because the expansion teaches nothing better. `init` is a truncated verb
+  that a reader recognises from Unix, which is a different thing from a name that is right.
+
+**And in this tree the role is larger than Unix's**, which sharpens it. `crates/system_initializer`:
+*"The kernel loads this as the boot process, maps the initrd, and grants it the capabilities...
+**From those, and nothing else, it builds the whole interactive system out of its own budget.**"* So
+the first process here is not merely first in time; it holds the machine's entire authority at boot
+and hands slices away. Milestone 22 is called trusted init for that reason, and §148's fork about
+whether a supervisor can restart without regaining construction authority is the same subject.
+
+## The name
+
+**`progenitor`.** Ratified by calef 2026-09-08.
+
+- **It is the ancestor every process descends from**, which is the actual relationship rather than a
+  position in a sequence.
+- **It matches the house style**, which is overwhelming: `builder`, `spawner`, `supervisor`,
+  `caretaker`, `undertaker`, `provisioner`, `reviver`, `surveyor`, `responder`, `editor`,
+  `initializer`. Thirty-odd agent nouns. A role here is named for who does the thing.
+
+**`prime` was calef's own first suggestion and he set it aside on the argument against it.** In
+English it usually means *chief* or *best* (prime minister, prime rib) rather than first in sequence,
+and in a tree carrying Argon2, GUIDs and CRC polynomials a systems reader meets `prime` and thinks
+number theory. That is a decoder problem, which is the failure mode the naming rule refuses.
+
+**`origin` and `first` were considered.** `origin` captures what makes the role load-bearing here and
+is not an agent noun; `first` is unambiguous and generic enough to sit with `compose` and `measure`
+in the words that could name anything.
+
+## What is in scope: one program, not a relabelling
+
+**calef, 2026-09-08: one progenitor for all three architectures.** The rename falls out of that
+rather than preceding it, and the reason is that **the role exists to abstract over several
+implementations and there should not be several.**
+
+Today three programs stand behind one archive entry:
+
+| | what it is |
+|---|---|
+| `hello` | *"one binary, two roles"* that grew into the milestone 7-19 catalogue. On aarch64 the archive packs it **as** `init`, because that is where the PL011 wiring already was |
+| `builder` | *"a minimal init... deliberately small and fully portable"*, which exists to prove on a second ISA that **userspace, not the kernel, composes the system** |
+| `system_initializer` | the full one: console, input driver, line discipline, shell, sink adapter and job undertaker, then resident as the spawn service |
+
+**The alias layer is what makes them look like one thing, and it is already wrong.**
+`crates/system_initializer` says the entry `init` *"is `user/src/hello.rs`'s `init_boot` role on
+aarch64 and this program on riscv64"*, while `xtask`'s `portable_archive_entries()` maps
+`("init", "builder")` and lists `system_initializer` separately. One of those is stale, **and the
+contradiction exists because there is an alias to be stale about.** Collapse the alias and the class
+goes with it: the kernel looks up `progenitor`, and `progenitor` is the program.
+
+### The parity violation, stated as the tree states it
+
+`hello` is **not** a one-platform program: it is in the riscv64 and x86_64 archives under its own
+name. What is aarch64-only is its **init role**, and `user/src/hello.rs` records what that cost in
+its own comment:
+
+> aarch64 packs `hello` as `init`, because there hello *is* [init]... This was a hardcoded `"init"`,
+> which is **right on aarch64 and silently wrong on RISC-V**
+
+That is [§19](../decisions/19-architectural-parity.md)'s own failure mode, *a feature that works on
+one ISA and silently not another*, and the bill was paid once already:
+`crates/system_initializer` records a fix landing in one and not the other presenting as **"a boot
+that reached userspace and printed nothing at all, with no fault and no message."**
+
+**So the violation is not that `hello` exists. It is that one architecture's first process is a role
+bolted inside a demo binary while the others get a purpose-built one.**
+
+### What survives
+
+- **`hello` stays, on all three, as the demo catalogue it actually is.** One role moves out of it,
+  on one architecture. Milestone 96 already lifted the shared construction into
+  `crates/system_initializer`, so what moves is a boot entry rather than logic.
+- **`builder` stays as itself** if it still earns its keep: it is a demonstrator artifact with its
+  own argument, not a third init. The lane should say whether that argument still holds once one
+  progenitor exists, and **not delete it silently** if it does not.
+
+### The one genuine difference to reconcile
+
+`crates/system_initializer` names it exactly: the boot entry is *"the one thing the two boards
+genuinely disagree about, which is **the order their kernels grant capabilities in**."* One
+difference. A `cfg` may be the right answer and the lane should argue it rather than reach for it.
+
+## The measurement, so nobody starts by guessing
+
+Taken 2026-09-08.
+
+| what | count |
+|---|---|
+| the contract string `"init"` in `kernel/`, `crates/`, `xtask/` | **39** |
+| `initboot` | 29 |
+| `init_boot` and `INIT_BOOT` | 14 |
+| `INIT_ROLES_ENTRY` | 8 |
+| `init_worker` | 3 |
+| **the word `init` in `notes/` and `design/` prose** | **1,011** |
+| files and directories named for it | 6, including three notes and `design/init-and-granular-spawn.md` |
+
+**The contract is small and the prose is the work.** Thirty-nine sites is an afternoon. **The 1,011
+is a judgement per occurrence** and cannot be done by a pattern: *"userspace init brings up the
+console"* is the role, *"trusted init"* is milestone 22's title, `notes/trusted-init.md` is a
+filename, and a great many are the ordinary English sense of initialisation. **This is precisely the
+shape a blind `sed` has damaged this tree with before**, when one swept a rename tree-wide and
+rewrote the row recording that a name had been *refused*.
+
+## What a lane must do rather than assume
+
+- **Read every prose occurrence.** A pattern that changes 1,011 things is wrong by construction.
+  Report how many were the role, how many were English, and how many were historical titles left
+  alone.
+- **Leave records that describe the past.** Milestone titles, dated audit rows and measurement
+  tables recorded what was true under the name it had, and rewriting them makes the record lie. The
+  `cred` rename on 2026-09-08 set that precedent and named the files it left alone.
+- **Rename the three notes and one design file only if their subject is the role**, and say so
+  either way. `notes/trusted-init.md` is milestone 22's record and its title may be history.
+- **Check the archive manifest in `xtask` first, not last.** It is the copy no compiler checks, and
+  it is what broke CI on the `job_mix_task` rename on 2026-09-05.
+
+## A contradiction to resolve on the way
+
+`crates/system_initializer`'s header says the archive entry `init` *"is `user/src/hello.rs`'s
+`init_boot` role on aarch64 and this program on riscv64"*, while `xtask`'s
+`portable_archive_entries()` maps `("init", "builder")` and lists `system_initializer` as a separate
+entry. **One of those is stale and this block does not know which.** Settle it and say so; a rename
+that carries a wrong claim forward has spent the opportunity to find it.
+
+## BUGS
+
+- **This is a kernel-to-image contract**, which AGENTS.md puts in the expensive category alongside a
+  wire format. The edit is easy and the un-shipping is not, and nothing outside this repository has
+  acted on it, which is the only reason it is cheap today.
+- **`init` is the one name a stranger arrives already knowing**, and that cost is real rather than
+  rhetorical. Every other rename in this sweep replaced a name nobody outside knew.
+- **The 1,011 figure is a word count, not a role count.** Nobody knows how many are the role, and
+  the lane's first honest deliverable is that number.
+- **`initboot`'s successor is unnamed.** `progenitor-boot` is the mechanical answer and it is a
+  mouthful, and naming the boot path for what it does rather than which role it hands to may be
+  better. That is a decision this block defers rather than makes.
