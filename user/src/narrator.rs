@@ -24,7 +24,7 @@
 //! No device, no memory budget, no way to name a second console. The kernel hands it exactly this
 //! and nothing else (`kernel/src/user/console_service.rs`, `spawn_client`).
 //!
-//! Name: **provisional** (milestone 267's lane, 2026-09-09). Every name in this tree is calef's;
+//! Name: provisional (milestone 267's lane, 2026-09-09). Every name in this tree is calef's;
 //! this one is shipped so the program can exist and is expected to change. The case for it: it is
 //! an agent noun, which is milestone 63's family and what `spinner`, `heeder` and `budgeter`
 //! already are, and it names what the program does rather than what it holds, which is the scheme
