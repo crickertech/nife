@@ -8,7 +8,7 @@ const PROV_VA: u64 = 0x0000_0000_00e0_0000;
 const VERIFY_VA: u64 = 0x0000_0000_00e1_0000;
 
 /// The service's untyped budget, in pages: 6 MiB. It pays for one thing, the Argon2id scratch,
-/// which is `cred::Cost::DEFAULT.blocks()` KiB (4 MiB today), plus the page tables that map it
+/// which is `credentialer::Cost::DEFAULT.blocks()` KiB (4 MiB today), plus the page tables that map it
 /// and the allocator's slack. Sized from the cost parameter rather than guessed, so raising the
 /// cost is a change in two places that fail loudly together rather than one that fails at run
 /// time under load.

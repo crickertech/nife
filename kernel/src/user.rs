@@ -1815,11 +1815,13 @@ pub fn riscv_uart_driver_demo(
     archive: &'static [u8],
     uart_irq: u32,
 ) -> Result<crate::sched::RendezvousId, LoadError> {
-    const DRIVER_UART_VA: u64 = 0x0070_0000; // must match user/src/driver.rs UART_VA
+    const DRIVER_UART_VA: u64 = 0x0070_0000; // must match user/src/serial_driver.rs UART_VA
     const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt
 
     let fs = nifefs::Fs::parse(archive).expect("initrd is not a nifefs archive");
-    let driver_bytes = fs.read("driver").expect("archive has no 'driver' program");
+    let driver_bytes = fs
+        .read("serial_driver")
+        .expect("archive has no 'serial_driver' program");
     let elf = Elf::parse(driver_bytes).map_err(LoadError::NotLoadable)?;
 
     // The driver's address space: its segments, a stack, and the UART's registers device-typed.

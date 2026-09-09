@@ -70,13 +70,16 @@
 #                                         # build's numbers are an experiment's reading, not a new
 #                                         # baseline, so they print and are never checked or written.
 #
-# Name: unrecorded, and provisional like everything a lane mints. `fastpath` is the field's own word
-# for the thing being measured: it is what seL4 calls its hand-written common-case IPC path, so a
-# reader who knows the literature meets a term they already have. `footprint` is the quantity rather
-# than the verdict, which is deliberate: `-check` is this directory's suffix for a gate that fails a
-# build (`interleaving-check`, `qemu-check`, `stack-frame-check`), and by that convention this should
-# probably be `fastpath-footprint-check`. It is not, because the name would then be nine syllables to
-# say a thing calef may want spelled differently anyway. Worth settling; nothing depends on it.
+# Name: provisional. `fastpath` is the field's own word for the thing measured: it is what seL4
+# calls its hand-written common-case IPC path, so a reader who knows the literature meets a term
+# they already have. `footprint` is the quantity rather than the verdict, which is deliberate. The
+# known inconsistency, stated rather than left for a reader to notice: `-check` is this
+# directory's suffix for a gate that fails a build (`interleaving-check`, `qemu-check`,
+# `stack-frame-check`), and by that convention this should be `fastpath-footprint-check`. It is
+# not, because the name would then be nine syllables to say a thing calef may want spelled
+# differently anyway, and that is an argument from typing cost rather than from design. DECISIONS
+# §134's split points the other way and would put a reporter in the noun half, where this already
+# sits. Nothing depends on it. calef has not ratified it.
 #
 # See notes/benchmarks.md and script/stack-frame-check, whose shape this copies: derive a number
 # from the built kernel, compare it against a rule, fail the build. That gate exists because

@@ -21,9 +21,17 @@
 //! - slot 0: the result endpoint (SEND: report the page count).
 //! - slot 1: an untyped budget (the delegated `--mem` grant). Absent when `--mem` was 0.
 //!
-//! Name: unrecorded. Introduced 2026-07-28 with the grant expression. It is an agent noun in the
-//! `broker`/`spawner`/`painter` family milestone 63 later named as a family, but nothing records
-//! the choice.
+//! Name: provisional. Introduced 2026-07-28 with the grant expression, and never argued for
+//! itself. The case, made here so calef has one to rule on. It is an agent noun in the family
+//! milestone 63 argues for while settling `os_primitives_benchmarker`, where the reasoning is
+//! that "the agent noun names the producer, distinct from the product" and the family is listed
+//! as `broker`, `spawner`, `painter`, `budgeter`, `compositor` and `credentialer`. That citation
+//! is the form rather than this stem, which is the whole gap: 63 uses `budgeter` as evidence that
+//! the family exists and never asks whether this member earned its place. It did. The program
+//! spends exactly the memory it was granted and reports the count, so the stem is the verb of
+//! what it does to the thing it was handed, and the plain resource noun `budget` would name the
+//! grant instead of the program that exhausts it, which is the same mistake 63 refused for the
+//! credential service in the other direction.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

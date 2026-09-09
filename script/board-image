@@ -31,8 +31,14 @@
 # milestone 218), so leaving a stale one beside a working boot script would quietly undo the fix.
 # It is matched by its content before removal, so somebody else's extlinux config is left alone.
 #
-# Name: unrecorded. Provisional, this lane's coinage (2026-08-14, milestone 16a): it builds the
-# payload image a board loads, named for the artifact. Expect the integrator to surface it.
+# Name: provisional. Minted 2026-08-14 by milestone 16a's lane: it builds the payload image a
+# board loads, named for the artifact rather than for the act. The family it belongs to has since
+# been ratified around it, which is the strongest thing this block can say. calef signed
+# `script/board-netboot` on 2026-09-05 and gave the scheme its reason in doing so: every member
+# names the thing rather than its wire, so `board-image` names the image it builds,
+# `board-console` names the console it gives you, and `board-tftp` was turned down for naming a
+# protocol. This script is the member that scheme was read off. calef has not ratified it
+# directly.
 #
 # Exception, on the record: this entry point only partly delegates to `cargo xtask`. It is a
 # build-and-copy step with no QEMU, no test harness, and no shared engine code to reuse; a `sh`

@@ -1,6 +1,6 @@
 # NTLMv2, and the operation a secret exposes (removed 2026-08-30)
 
-**`crates/ntlm` and the NTLM path through `crates/cred` and `crates/credential_proto` were removed
+**`crates/ntlm` and the NTLM path through `crates/credentialer` and `crates/credential_proto` were removed
 from the tree on 2026-08-30**, with the SMB implementation that was their only consumer. Read
 everything below in the past tense; none of it can be built from `main`. `685900ec` is the last
 commit that holds the code.
@@ -27,8 +27,8 @@ Milestone 65: **hold the key, expose the operation, never the key.** The half of
 service that lets an SMB server authenticate a Mac without ever holding the thing that
 authenticates it.
 
-The arithmetic is `crates/ntlm`, the store is `crates/cred`, the wire contract is
-`crates/cred_proto`, and the service is `user/src/credentialer.rs`. The password half of the same
+The arithmetic is `crates/ntlm`, the store is `crates/credentialer`, the wire contract is
+`crates/credential_proto`, and the service is `user/src/credentialer.rs`. The password half of the same
 store is [credentials](credentials.md), and every salt in it comes from [entropy](entropy.md).
 
 ## The observation that made this a milestone
@@ -126,7 +126,7 @@ bytes, which is a key an attacker **knows**: anyone could compute the proof unde
 `MATCH`. Filling it with entropy instead works and was the second design, but it makes every
 provisioning path need a randomness source for a field nothing reads. What shipped is a `has_ntlm`
 flag, folded into the verdict **after** the MAC has run, so it costs no branch anybody can time.
-`cred`'s tests present exactly that forgery and require the answer to be no.
+`credentialer`'s tests present exactly that forgery and require the answer to be no.
 
 **A refusal must cost what an acceptance costs.** The session key is derived on every well-formed
 request and then zeroed by conditional assignment rather than skipped by a branch, and the lookup
@@ -166,7 +166,7 @@ A dependency whose answers you never check is a dependency you have merely hoped
 The last one is the one that pins **our wiring** rather than the libraries' arithmetic: the UTF-16LE
 encoding, which of the two names is uppercased, the order of the challenge and the blob, and the key
 each HMAC runs under. It is transcribed twice on purpose, once in `crates/ntlm` and once in
-`crates/cred`, because the two crates should be checked against the published document and not
+`crates/credentialer`, because the two crates should be checked against the published document and not
 against each other.
 
 **A correction worth keeping.** The first transcription of the blob carried four extra trailing
@@ -241,11 +241,11 @@ let session = ntlm::session_base_key(&key, &proof);
 
 Note what is missing from the service's API and present here: there is no `store.ntowfv2_for()`,
 no way to ask the store for a key. `crates/ntlm` is a function of inputs a caller already has;
-`crates/cred` is where the secret lives, and it has no getter.
+`crates/credentialer` is where the secret lives, and it has no getter.
 
 ## What is proven, and where
 
-Host tests (`cargo test -p ntlm -p cred -p cred_proto`, milliseconds, no emulator):
+Host tests (`cargo test -p ntlm -p credentialer -p credential_proto`, milliseconds, no emulator):
 
 - The **published vectors** above, through the same entry points the service uses.
 - A different challenge, an edited blob, or a proof with any single byte flipped is a mismatch, and
@@ -311,7 +311,7 @@ in the same place.
 - **Nothing survives a reboot.** The store is memory only, provisioned at boot. Secrets at rest is
   the open question, and it is sharper for a key than for a password verifier: an `NTOWFv2` written
   to a disk is a password-equivalent secret at rest, where an Argon2id tag is a one-way image.
-  `cred::Record`'s encoding is versioned (version 2 carries the NTLM half) so the question has a
+  `credentialer::Record`'s encoding is versioned (version 2 carries the NTLM half) so the question has a
   starting point, and nothing in the tree writes one to a disk.
 - **The provisioner holds every password in the clear.** Provisioning takes a password, not a
   derived key, because the service derives both halves itself. Today that is a test program with
@@ -321,6 +321,6 @@ in the same place.
   the key the rest would hang off.
 - **`crates/ntlm` is not constant-time and does not need to be**: its inputs are either public or
   keys whose bytes never branch. The one comparison that must be constant-time is the proof
-  comparison, and it lives in `cred` next to the store, where `subtle` already is. There is no
+  comparison, and it lives in `credentialer` next to the store, where `subtle` already is. There is no
   defence here against an adversary who can observe the service's memory access pattern or shares a
   core with it; that is outside this threat model, as it is for the password half.

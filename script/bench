@@ -13,9 +13,15 @@
 # reads them that way); --smp boots the whole machine for the aggregate-throughput bench.
 # See design/roadmap/21-benchmarks.md and notes/benchmarks.md.
 #
-# Name: unrecorded. Introduced 2026-07-23 with milestone 21. It is not one of the Scripts to Rule
-# Them All names and nothing records the choice; `bench/` is also a directory holding the committed
-# baselines, so the word does two jobs in this tree.
+# Name: recorded (DECISIONS §134 for the form, and milestone 63's name table for the word).
+# Introduced 2026-07-23 with milestone 21. §134 lists this script by name in the verb half of the
+# `script/` family, which is where a thing that runs the benchmarks belongs. Milestone 63 settled
+# the word from the other side while naming `os_primitives_benchmarker`: "this tree already uses
+# benchmark for the output", `bench/baseline.txt` holds the committed measurements, and the agent
+# noun names the producer as distinct from the product. That is the recorded reason the directory
+# and the script share a stem rather than an accident, and the two jobs the word does are the
+# product and the act. It is not one of the Scripts to Rule Them All names. calef has not ratified
+# it.
 #
 # BUGS
 #

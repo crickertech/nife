@@ -87,8 +87,15 @@
 //! else's network. The honest summary is that the client is proven against a server we wrote, over a
 //! network we wrote, and the parts we did not write are proven elsewhere.
 //!
-//! Name: unrecorded. Introduced 2026-07-31 with milestone 55; the protocol's own name, which would
-//! put it in the tenet's protected group had anyone filed it there.
+//! Name: recorded (crate `ntp_proto`, ratified 2026-08-23 by calef in a kernel-dependency crate
+//! naming review). Introduced 2026-07-31 with milestone 55. The protocol's own name, and the stem
+//! of a crate name calef signed, which is the strongest evidence available short of a ruling on
+//! this string. The acronym test set on 2026-09-05 was not available to that ratification and it
+//! does reach this name: network time protocol expands into something more informative than
+//! itself, which is the class `dtb`, `gpt` and `asid` were deratified into. That is deliberately
+//! left open here rather than settled, because notes/naming.md puts the acronym sweep in a
+//! milestone of its own, and one lane spelling one acronym out ahead of it would leave the
+//! program and its ratified crate disagreeing.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

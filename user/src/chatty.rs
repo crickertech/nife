@@ -29,8 +29,17 @@
 //! capability carries `WRITE` and not `READ`, and the same object handed out with different rights
 //! is a one-way pipe in whichever direction each holder was trusted with. It reports the refusal.
 //!
-//! Name: unrecorded. Introduced 2026-07-30 with milestone 23's live replacement, as a fixture
-//! rather than a component.
+//! Name: provisional, and the one on this surface that fails a rule rather than merely lacking a
+//! signature. Introduced 2026-07-30 with milestone 23's live replacement, as a fixture rather
+//! than a component. **It is an adjective**, where AGENTS.md says a program is a thing and takes
+//! the name of a thing, and it is one of exactly two adjectives among the seventy-odd programs in
+//! `user/src/` (`flaky` is the other, from the following day). The case for keeping it anyway,
+//! which calef should weigh rather than assume: the program's defining property really is a
+//! manner rather than a role, since it calls a stable endpoint sixty-four times in a loop with no
+//! reconnect and no retry, and the point of the fixture is that the volume and the obliviousness
+//! are what make the boundary test fair. A noun for that is `caller` or `client`, and both are so
+//! generic they would name half the tree. If the adjective goes, the honest replacement names the
+//! demonstration rather than the manner.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

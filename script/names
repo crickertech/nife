@@ -87,10 +87,13 @@
 # script/decisions records for `§N` citations, and it is not closeable by a script: a reason is
 # prose, and prose is checked by reading.
 #
-# Name: unrecorded. Provisional, minted by milestone 115's lane on 2026-08-04 and not yet put to
-# calef, who names things. `provenance` was considered and set aside as naming the mechanism rather
-# than the subject; `ratifications` names half the record and drops the refusals, which are the half
-# that pays.
+# Name: provisional, and it is this script's own three-state vocabulary applied to itself. Minted
+# by milestone 115's lane on 2026-08-04. `provenance` was considered and set aside as naming the
+# mechanism rather than the subject; `ratifications` names half the record and drops the refusals,
+# which are the half that pays. DECISIONS §134 has since cited this script by name as an
+# established member of the `script/` family's reporting half, which signs the form and leaves the
+# stem where it was: 134 was choosing between `falsifications` and `falsify`, not between `names`
+# and `provenance`. calef has not ratified it.
 
 set -e
 

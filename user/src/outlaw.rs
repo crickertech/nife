@@ -15,8 +15,15 @@
 //! Keeping it separate also keeps it tiny, which the frame-accounting test cares about: it spawns
 //! this program five times and asserts every frame comes back exactly.
 //!
-//! Name: unrecorded. Introduced 2026-07-31 as a fixture: a program that does what it is not
-//! permitted to do, so the kernel's refusal has a witness.
+//! Name: provisional. Introduced 2026-07-31 as the fixture that does what it is not permitted to
+//! do, so the kernel's refusal has a witness: it reads a kernel address from EL0 and round-trips
+//! through user mode, and both used to be hand-assembled inside the kernel until a second
+//! instruction set made that untenable. Nothing records the choice. The case. It is a noun, it
+//! names the program by its relation to the rule rather than by the instruction it executes, and
+//! that generalises correctly: the file already holds two roles and would hold a third without
+//! the name going stale, where `kernel_address_reader` would have to be renamed the first time a
+//! second violation was added. The metaphor is doing real work rather than decorating, since what
+//! the privilege tests need is a program defined by being outside the permission set.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

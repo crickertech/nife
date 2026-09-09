@@ -32,9 +32,9 @@ Two things make it the right lens for today's tree rather than a re-run of
   read the tree, and both take input from a party the threat model (DECISIONS §20, §23, §30, and
   SECURITY.md) declares untrusted.
 - **The secret-material crates were explicitly out of the previous scope.** The shared-page audit
-  recorded that `crates/cred_proto` and `user/src/credentialer.rs` were "being substantially
+  recorded that `crates/credential_proto` and `user/src/credentialer.rs` were "being substantially
   rewritten with an NTLM path" and that "the clearance recorded below is of the version on `main` and
-  does not transfer." That rewrite has landed (`crates/ntlm`, `crates/cred`), so §79's secret-material
+  does not transfer." That rewrite has landed (`crates/ntlm`, `crates/credentialer`), so §79's secret-material
   rules want a fresh read.
 
 The four questions asked of each site are the arch audit's, transposed one more time:
@@ -55,7 +55,7 @@ added or rewritten after the shared-page audit read the tree (it read `313a055` 
 |---|---|---|
 | `crates/mdns_proto` | a datagram from a network peer | 2026-08-15 |
 | `crates/nvme` + `kernel/src/nvme.rs` | a PCIe device's completions and identify data | 2026-08-14 |
-| `crates/ntlm`, `crates/cred` | a presented secret and an NTLM client blob | 2026-08-04 |
+| `crates/ntlm`, `crates/credentialer` | a presented secret and an NTLM client blob | 2026-08-04 |
 
 ## What was deliberately not examined
 
@@ -187,7 +187,7 @@ not from any device-supplied index, and `CqState::owned` distinguishes fresh fro
 tag, not by `cid`. So `cid` is never used to index anything (finding 1 is that it is used in an
 *assert*, not that it indexes memory), and the read is memory-safe whatever the device writes.
 
-**`crates/cred` and `crates/ntlm`, against §79.** The secret-material rules are followed, and in
+**`crates/credentialer` and `crates/ntlm`, against §79.** The secret-material rules are followed, and in
 several places the code is already at the standard an audit would ask for:
 
 - **The tag comparison is constant-time** (`subtle`), and the identity lookup is constant-time and
@@ -206,7 +206,7 @@ several places the code is already at the standard an audit would ask for:
 - **The honest limits are named where a reader meets them**: secrets-at-rest is unsolved
   (notes/credentials.md), there is no rehash-on-verify when cost parameters move, and no lockout.
   Provisioning an NTLM secret *lowers* the strength of a record (an unsalted `NTOWFv2` beside a
-  salted Argon2id tag), and `crates/cred` says so at the method rather than hiding it. None of these
+  salted Argon2id tag), and `crates/credentialer` says so at the method rather than hiding it. None of these
   is a finding; each is a limitation recorded in the place §71 wants it.
 
 ## The honest summary

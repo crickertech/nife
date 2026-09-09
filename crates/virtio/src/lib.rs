@@ -47,13 +47,16 @@
 //! If any of the register programming below is wrong, **this process faults and the kernel does
 //! not**, which is milestone 9's headline and the thing a reader should take from the crate.
 //!
-//! Name: unrecorded, and the tree comes one clause short of recording it. notes/naming.md's BUGS
-//! says "the crate keeps its name, which is right, but the sentence under it is wrong", which
-//! asserts the conclusion and never gives the reason, so a reader learns that somebody agreed
-//! rather than why. Milestone 63 treats the name as claimed territory from the other side, refusing
-//! `virtio_net` for the transport adapter because "`crates/virtio` also drives net". It is the
-//! device family's own name from the specification and would sit in the tenet's protected group if
-//! anyone had filed it there; nobody has. Introduced 2026-07-14 with milestone 9's block driver.
+//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+//! outside"; and milestone 63's name table, which treats the name as claimed territory).
+//! Introduced 2026-07-14 with milestone 9's block driver. It is the device family's own name from
+//! the specification, which is the protected class exactly, and the tree has reasoned about it
+//! from the far side: milestone 63 refused `virtio_net` for the transport adapter because
+//! "`crates/virtio` also drives net", which is an argument that this crate owns the whole
+//! family's name rather than one device's. notes/naming.md's BUGS comes one clause short of the
+//! same conclusion, saying "the crate keeps its name, which is right" without giving the reason,
+//! so a reader there learns that somebody agreed rather than why; the reason is the two citations
+//! above. calef has not ratified it.
 
 use abi::irq;
 use filesystem_proto::blk;

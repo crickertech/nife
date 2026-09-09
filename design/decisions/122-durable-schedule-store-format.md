@@ -31,8 +31,8 @@ literal, never from a live read. There is no `timetable`-side `fs_proto` client 
 **Corrected: milestone 152's own doc misdescribes its nearest precedent, and this matters for what
 "already does this" means below.** 152's design section calls "the credential store's own existing
 persistence (milestone 56's sealed store)" one of the two things boot-time trust rests on. Reading
-`crates/cred/src/lib.rs`, `user/src/credentialer.rs` and `notes/credentials.md` directly finds the
-opposite: `cred::Store<N>` is an in-memory, `no_std`, no-`alloc` structure built during a **Provision**
+`crates/credentialer/src/lib.rs`, `user/src/credentialer.rs` and `notes/credentials.md` directly finds the
+opposite: `credentialer::Store<N>` is an in-memory, `no_std`, no-`alloc` structure built during a **Provision**
 phase and never written to any block device, and `notes/credentials.md`'s own BUGS section says so in
 so many words: **"Nothing survives a reboot. The store is memory only, provisioned at boot... Secrets
 at rest is the open question."** "Sealed" there means *write-locked* (the provision endpoint is
@@ -47,7 +47,7 @@ is named as Option 1 below.
 
 ## What else was considered, and prior art outside the tree
 
-**A binary, fixed-record format** (mirroring `cred::Record`'s `encode`/`decode` shape: no allocator,
+**A binary, fixed-record format** (mirroring `credentialer::Record`'s `encode`/`decode` shape: no allocator,
 fixed field widths, a round-trip test). Considered and folded into Option 1 below as an *encoding*
 choice rather than a separate option, because the harder question is where the bytes live and who may
 write them, not whether they are text or binary.
@@ -109,7 +109,7 @@ session, read at boot by whatever process performs re-derivation.**
   only genuinely new code is the two IPC call sites (write it, read it), which is a page of client code
   each, not a new subsystem.
 
-**Option 2: a binary, fixed-record format purpose-built for this store**, `cred::Record`'s
+**Option 2: a binary, fixed-record format purpose-built for this store**, `credentialer::Record`'s
 `encode`/`decode` shape applied to a schedule entry (identity, schedule, grant expression, as fixed
 fields).
 
@@ -123,12 +123,12 @@ fields).
   (the shipped `timetable.conf` is plain text, checked into the repo, edited by whoever has commit
   access), so the property option 2 buys is not one this decision needs to buy.
 
-**Option 3: extend `crates/cred`'s `Store<N>` shape (or a sibling crate built the same way) as a
+**Option 3: extend `crates/credentialer`'s `Store<N>` shape (or a sibling crate built the same way) as a
 dedicated "schedule store" service**, mirroring the credentialer's provision/serve split.
 
 - *For*: reuses a real in-tree pattern (fixed-size, `no_std`, no-`alloc`, a round-trip-tested record
   encoding) rather than the filesystem.
-- *Against*: rejected on the corrected premise above. `cred::Store` is memory-only *by design*
+- *Against*: rejected on the corrected premise above. `credentialer::Store` is memory-only *by design*
   ("nothing survives a reboot" is stated as an open problem, not a feature), so building the schedule
   store the same way would import the exact gap this decision exists to close, and would need to solve
   "how does this survive a reboot" from scratch rather than inheriting it from a filesystem that

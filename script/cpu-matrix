@@ -14,8 +14,11 @@
 # finishes tells you which ones did, which is the difference between "something is wrong" and a
 # diagnosis. The exit status is still non-zero if any model failed.
 #
-# Name: unrecorded. Introduced 2026-07-31 to run the riscv64 suite across QEMU's CPU models.
-# Hyphenated, which milestone 63 later made the rule for this directory.
+# Name: recorded (AGENTS.md's naming table, which makes `script/` entry points hyphenated).
+# Introduced 2026-07-31 to run the riscv64 suite across QEMU's CPU models. A noun phrase naming
+# the thing it sweeps, and "CPU matrix" is the ordinary term for the axis a test suite is run
+# across, so neither half needs decoding. The 2026-09-05 acronym test does not reach `cpu`, whose
+# expansion tells a reader nothing they did not have. calef has not ratified it.
 
 set -e
 cd "$(dirname "$0")/.."

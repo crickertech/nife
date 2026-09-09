@@ -5,8 +5,36 @@
 the driver* but *what board would force it, and what would that board prove*. *(Number provisional
 until the merge queue lands it.)*
 
-**Gate: DECISION.** The decision is calef's and it is a purchase, which is the one kind this project
-cannot walk back by reverting a commit.
+**Gate: DECISION.** Deferred rather than open. calef, 2026-09-05: *"On the fourth board,
+making the decision and making the purchase are two different things. But I think we defer both
+because we don't have enough to know what we need from a fourth board to drive a decision."*
+
+**The separation is his correction and it matters.** The maintainer had called this block a purchase,
+which is what its own gate line said. It is not: the title asks **what a fourth board would have to
+be for**, which is criteria, and a purchase is downstream of criteria. Conflating them makes the
+cheap half look as irreversible as the expensive half, and that is backwards. Criteria can be
+written and rewritten; only the money cannot be recalled.
+
+**Both are deferred for one reason: the requirement does not exist yet.** Nothing in the tree says
+what a fourth board must prove that the three already owned do not. Deciding criteria without that
+would be inventing a requirement to justify a driver, which is the exact failure this block was
+minted to prevent, one level up: *"a driver bought to justify a board"* becomes *"criteria written to
+justify a driver"*.
+
+**What would make it decidable**, and none of these has happened:
+
+- **A fatal risk needing it.** Milestone 227's own block says it is **not on any fatal risk's
+  critical path**, and that is still true.
+- **A parity gap the three boards cannot close.** §19 makes parity a gate, and today argon, radon
+  and xenon cover the three architectures; a fourth board earns its place by proving something none
+  of them can.
+- **Accelerated testing on patagonia mattering enough to buy for.** HVF requires GICv3, so there has
+  been no accelerated coverage on the development machine since milestone 222. That is the strongest
+  live argument and it is a convenience, which this block already says is *"an option, not a
+  claim."*
+
+**Recorded rather than closed**, because the question is good and the answer is only "not yet". The
+trigger is any one of the three above.
 
 **In brief.** Milestone 227 is real, priced, and **not on any fatal risk's critical path**, which its
 own block says. It restores accelerated testing on patagonia (HVF requires GICv3, so since milestone

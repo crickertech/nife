@@ -42,15 +42,14 @@
 #   --coverage-from <lcov.info>    fill the coverage cell from an lcov file the caller produced
 #                                  (`script/coverage` writes target/llvm-cov/lcov.info)
 #
-# Name: unrecorded. Provisional, minted by this lane on 2026-09-02 and not yet put to calef, who
-# names things. `metrics` is a noun, which is the half of the `script/` family DECISIONS §134 put
-# reports in (`names`, `citations`, `decisions`, `roadmap`, `coverage`, `falsifications` report;
-# `verify`, `test`, `fuzz`, `bench` do something), and this only reports. Considered and set aside:
-# `dashboard`, which names the rendering rather than the numbers and would go stale the day the
-# charts changed shape; `measures`, which collides with notes/register-of-measures.md, a different
-# thing (what the kernel owes itself, rather than what moved this week). The directory
-# `notes/project-metrics/` holding the CSV and the SVGs is provisional for the same reason; the
-# page name `notes/project-metrics.md` is calef's, ratified 2026-09-02.
+# Name: provisional. Minted 2026-09-02. `metrics` is a noun, which DECISIONS §134 puts on the
+# reporting half of the `script/` family (`names`, `citations`, `decisions`, `roadmap`,
+# `coverage`, `falsifications` report; `verify`, `test`, `fuzz`, `bench` do something), and this
+# only reports. Considered and set aside: `dashboard`, which names the rendering rather than the
+# numbers and would go stale the day the charts changed shape; `measures`, which collides with
+# notes/register-of-measures.md, a different thing (what the kernel owes itself, rather than what
+# moved this week). The directory `notes/project-metrics/` holding the CSV and the SVGs follows
+# this name and moves with it. calef has not ratified it.
 #
 # **One spelling of a week, everywhere.** A week is `2026W36`: the chart axis, the CSV's `week`
 # column, this script's own output and the prose on `notes/project-metrics.md` all use it. calef

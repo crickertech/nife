@@ -60,7 +60,7 @@ where the record of what it proved costs a file.
 
 - **`crates/mdns_proto` and `user/src/mdns_responder.rs`.** Service discovery is a standalone service
   and is useful without a share to advertise.
-- **`crates/cred`, `credentialer`, `session_reviver`**, and milestone 49's and 65's identity work,
+- **`crates/credentialer`, `credentialer`, `session_reviver`**, and milestone 49's and 65's identity work,
   minus the NTLM half (see the section below). The credential service's headline property (a server
   answers an authentication without ever holding the key) is proven by `credentialer_test_client`
   against the password verifier and never needed the SMB adapter.
@@ -72,7 +72,7 @@ where the record of what it proved costs a file.
 ## The NTLM half went with it, and that is the transferable lesson
 
 **Removed in the same pass, 2026-08-30**: `crates/ntlm` entirely, the NTLM path through
-`crates/cred` (`Record`'s `nt` field and `has_ntlm` flag, `derive_ntlm`, `put_ntlm`, `ntlm_proof`
+`crates/credentialer` (`Record`'s `nt` field and `has_ntlm` flag, `derive_ntlm`, `put_ntlm`, `ntlm_proof`
 and the `NTLM_CHALLENGE_LEN`/`NTLM_KEY_LEN` re-exports), the `provision::PUT_NTLM` and
 `verify::NTLM_PROOF` opcodes in `crates/credential_proto` with their request accessors, and the
 four dependency crates that existed only underneath them: `md4`, `md-5`, `hmac` and `digest`.
@@ -99,7 +99,7 @@ now stale and needs amending, and the amendment is calef's.
 
 **Two facts that made the removal safe**, verified in the tree rather than assumed:
 
-- **Nothing was ever stored.** `crates/cred`'s own module docs say it outright: *"No persistence. A
+- **Nothing was ever stored.** `crates/credentialer`'s own module docs say it outright: *"No persistence. A
   `Store` is memory only, and everything in it dies with the process."* No checked-in fixture and no
   disk image ever held an encoded `Record`, so changing `Record`'s layout migrated nothing.
 - **The opcode spaces are not positional.** `verify::VERIFY` is 1 and `verify::NTLM_PROOF` was 2;
@@ -801,7 +801,7 @@ last attempt knew it had not solved, written while the code was in front of some
    semantics to be an exception to. Milestone 55's block listed this as work; it is not, and the
    real gap next door is `ReplaceIfExists` in the BUGS section above.
 
-6. **Identity**: the NTLMSSP proof check against milestone 65's `cred` service, so a share can
+6. **Identity**: the NTLMSSP proof check against milestone 65's `credentialer` service, so a share can
    be more than guest-readable. The seam is marked in `smb_proto::ntlmssp`. **Writes raised the
    stakes**: guest means everyone, and on a writable share that means everyone may change it.
 

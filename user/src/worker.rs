@@ -12,8 +12,17 @@
 //! own `_start` and panic handler. The syscall runtime (`send`/`exit`) comes from the shared
 //! `user_rt` crate, lifted out at 19f.6 once all the split binaries existed.
 //!
-//! Name: unrecorded. Introduced 2026-07-25 when the worker became its own binary rather than a role
-//! of `hello`.
+//! Name: provisional. Introduced 2026-07-25 when the worker became its own binary rather than a
+//! role of `hello`, and nothing records the choice. The case, with its own weakness stated first.
+//! `worker` is a **generic word** of exactly the kind AGENTS.md flags for crates (`compose`,
+//! `measure`, `regions`), and in a kernel tree it could name a thread-pool member, a scheduler
+//! entity or a job. What it names here is narrower and is the demonstration rather than the
+//! computation: a whole program in one job, holding one endpoint and nothing else, so that least
+//! authority is a program rather than a claim. The squaring is arbitrary and the authority is the
+//! point. That argues the name is under-specific rather than wrong, and a replacement would have
+//! to say which of those two things it is naming. Left as a question rather than a proposal,
+//! because the good answer depends on whether calef reads this file as a fixture or as the
+//! canonical minimal program.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

@@ -20,7 +20,7 @@
 # notes/job-mix.md's procedure.
 #
 # What it boots is `--features jobmix`, where the boot tour ends in the sweep instead of a halt.
-# See kernel/src/jobmix.rs and user/src/job_mixer.rs.
+# See kernel/src/jobmix.rs and user/src/job_mix_task.rs.
 #
 # Exit statuses:
 #

@@ -50,8 +50,12 @@
 //! [`REFILL_TRIES`] attempts, the reply is [`entropy_proto::NO_ENTROPY`] and the caller finds out,
 //! because a caller who cannot be given randomness must not be told otherwise (DECISIONS §42).
 //!
-//! Name: unrecorded. Introduced 2026-07-30 with milestone 56, on the resource-name pattern `clock`
-//! also follows.
+//! Name: recorded (milestone 63's name table, design/roadmap/63-name-spellings.md). Introduced
+//! 2026-07-30 with milestone 56. The same argument `clock` carries, made in the same sentence: 63
+//! cites the two together as the resource-name pattern it departed from for `credentialer`, on
+//! the ground that a credential service never hands you a credential. This service does hand you
+//! entropy, so the pattern holds. The word is also the field's own for the quantity, which the
+//! protected class keeps. calef has not ratified it.
 //!
 //! # A second backend, and a smaller authority than the first (milestone 162)
 //!

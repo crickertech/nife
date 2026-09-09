@@ -209,7 +209,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
 /// **A genuine duplicate is refused, and nothing already there is disturbed.** The second attempt
 /// inside `wired()`'s setup reused `chris`, the identity the first attempt already provisioned; its
 /// `MKDIR` found the subtree already there (`EEXIST`, tolerated, per this tool's own module docs)
-/// and its credential `PUT` was refused as a duplicate (`cred::Store::put`'s own rule: "a duplicate
+/// and its credential `PUT` was refused as a duplicate (`credentialer::Store::put`'s own rule: "a duplicate
 /// identity is refused"). This test asserts both halves of that outcome, and that the *original*
 /// credential from attempt one still verifies afterward, which is the property the whole ordering
 /// argument in `identity_provisioner.rs`'s module docs is for: a failed second attempt must not cost
@@ -225,7 +225,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     assert_eq!(
         w.duplicate,
         [ips::RPT_CRED_FAILED, credential_proto::MALFORMED],
-        "a genuine duplicate PUT was not refused the way cred::Store::put's own rule says it must \
+        "a genuine duplicate PUT was not refused the way credentialer::Store::put's own rule says it must \
          be (a duplicate identity answers MALFORMED, the same code a malformed request gets, \
          because neither is an authentication outcome)",
     );

@@ -67,10 +67,11 @@
 //! - **No IPv6.** [`Config::advertisement`] takes an optional IPv4 address because
 //!   `mdns_proto::Advertisement` carries one; the reference emits AAAA as well.
 //!
-//! Name: unrecorded, and explicitly **provisional**, minted by milestone 55's responder lane on
-//! 2026-08-16. `mdns_advertisement` was the alternative and reads better beside
-//! `mdns_proto::Advertisement`; `mdns_config` was taken because what the crate holds is the whole
-//! of the responder's configuration and the type it produces is only part of it. Not put to calef.
+//! Name: provisional. Minted by milestone 55's responder lane on 2026-08-16. `mdns_advertisement`
+//! was the alternative and reads better beside `mdns_proto::Advertisement`; `mdns_config` was
+//! taken because what the crate holds is the whole of the responder's configuration and the type
+//! it produces is only part of it. The stem inherits `mdns_proto`'s acronym question and does not
+//! add to it. calef has not ratified it.
 
 use mdns_proto::{Advertisement, Disk};
 

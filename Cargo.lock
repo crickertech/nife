@@ -173,16 +173,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "cred"
+name = "credential_proto"
+version = "0.1.0"
+
+[[package]]
+name = "credentialer"
 version = "0.1.0"
 dependencies = [
  "argon2",
  "subtle",
 ]
-
-[[package]]
-name = "credential_proto"
-version = "0.1.0"
 
 [[package]]
 name = "crypto-common"
@@ -939,8 +939,8 @@ dependencies = [
  "component_plan",
  "compositor",
  "coremark",
- "cred",
  "credential_proto",
+ "credentialer",
  "elf",
  "entropy_proto",
  "environment_proto",

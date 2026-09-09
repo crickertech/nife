@@ -13,8 +13,14 @@
 //!
 //! It holds nothing: no capabilities, and it does not even map the shared job frame it was granted.
 //!
-//! Name: unrecorded. Introduced 2026-07-28 as a fixture for the cooperative interrupt tier: a
-//! program that spins so something has to interrupt it.
+//! Name: provisional. Introduced 2026-07-28 as the fixture the cooperative interrupt tier cannot
+//! reach: a tight loop that touches nothing and checks nothing, so only the forcible tier of
+//! DECISIONS §24 ends it. Nothing records the choice. The case. It is an agent noun in milestone
+//! 63's family, it is the field's ordinary word for a thread that burns cycles rather than
+//! blocking, and it is `heeder`'s counterpart, which is why the two want names of the same shape.
+//! What the name does not say is that it holds no memory the shell granted it, which is the
+//! property that makes it the honest worst case; that is in the header rather than the name, and
+//! no one-word name would carry it.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

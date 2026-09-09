@@ -32,9 +32,14 @@
 # correctly ignored: the question is what we committed, not what is lying around. See
 # notes/scripts.md and design/roadmap/42-supply-chain-and-fuzzing.md.
 #
-# Name: unrecorded. Introduced 2026-07-30 to prove the RedoxFS pin is upstream plus our patches. It
-# reads as a verb phrase and sits beside `script/verify`, which is a different thing; nothing
-# records either choice.
+# Name: recorded (DECISIONS §134, which puts a `script/` entry point that *does* something in the
+# verb half). Introduced 2026-07-30 to prove the RedoxFS pin is upstream plus our patches. It acts
+# rather than reports, so §134's split gives it a verb, and the noun rule AGENTS.md writes for
+# crates, programs and modules does not reach this directory. Two residuals, stated rather than
+# smoothed over. The word order is established only by this script and `script/toolchain-bump`,
+# which establish each other. And it sits one word away from `script/verify`, which verifies
+# something else entirely: the two are distinguishable by their qualifier and are not
+# distinguished by anything stronger. calef has not ratified it.
 
 set -e
 

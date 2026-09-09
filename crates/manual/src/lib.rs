@@ -6,11 +6,14 @@
 //! allocator on the path a confined program takes. `user/src/doc.rs` is the program; this is what
 //! it computes.
 //!
-//! Name: unrecorded. Provisional, minted by milestone 40's lane on 2026-08-04 and not yet put to
-//! calef. Named for what a reader is looking for rather than for what the code does, in the family
-//! of `elf` and `pci`, terms a reader already knows from outside this project. The lane split this
-//! name from the program's on purpose: `crates/doc` would be ungreppable against rustdoc's
-//! vocabulary and collides with `cargo doc` in conversation. See notes/naming.md.
+//! Name: provisional. Minted by milestone 40's lane on 2026-08-04. Named for what a reader is
+//! looking for rather than for what the code does, in the family of `elf` and `pci`, terms a
+//! reader already knows from outside this project. The lane split this name from its program's on
+//! purpose, which is the one place it departs from the crate-and-program pairing AGENTS.md
+//! describes: `crates/doc` would be ungreppable against rustdoc's own vocabulary and collides
+//! with `cargo doc` in conversation, so the pair is `manual` and `doc` rather than one word
+//! twice. That departure is the part worth ruling on, because it is the tree's only deliberate
+//! break of the pairing and nobody has signed it. See notes/naming.md.
 //!
 //! # The renderer is a stream, not a parser
 //!

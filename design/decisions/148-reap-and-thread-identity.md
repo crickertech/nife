@@ -109,7 +109,7 @@ handle reveals no fact the supervisor did not receive."*
 ### The name, and what it is not
 
 **`ThreadControlBlock::RESOLVE`**, in `abi::thread_control_block`. `Tcb` became
-`ThreadControlBlock` under [§113](113-plain-terms.md) with the reason *"acronym spelled out"*, which
+`ThreadControlBlock` under [§113](113-kernel-object-plain-names.md) with the reason *"acronym spelled out"*, which
 is the rule calef set on the same day this was decided, applied before it was written down.
 
 **`resolve` is the tree's own verb for this relation** rather than a coinage: `abi` says *"a stale

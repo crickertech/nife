@@ -10,9 +10,12 @@
 # separately, because each compiles different code and a warning can hide in a configuration the
 # default build never compiles. See notes/scripts.md.
 #
-# Name: unrecorded. Introduced 2026-07-22 with the Scripts to Rule Them All adoption, though it is
-# not one of the canonical names; "lint" is the field's word, which is the guard rail the tenet
-# keeps.
+# Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+# outside"; and DECISIONS §134 for the verb half). Introduced 2026-07-22 with the Scripts to Rule
+# Them All adoption, though it is not one of that convention's canonical names. "Lint" is the
+# field's own word for the thing, from the 1978 C checker onward, so the protected class keeps it
+# and a rename would spend a newcomer's recognition to buy nothing. It does rather than reports,
+# which puts it in §134's verb half where its form already sits. calef has not ratified it.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -1512,13 +1515,10 @@ echo "==> naming conventions"
 #    shape as a per-item `#[allow]`.
 #
 #    Allowed: `asid` is Address Space IDentifier, the aarch64/RISC-V hardware term (notes/asids.md).
-#    Allowed: `cred` is the abbreviation of "credential", the ordinary kind of shortening. The
-#    thing it names is a store and a verifier, not a long-running process; the long-running
-#    process that holds one is spelled out in full, as `credentialer` (notes/credentials.md).
 # `uuid` is RFC 9562's own term for the object (milestone 111); the trailing d is the last letter of
 # "identifier", not a daemon suffix, and there is no long-running process here at all: the program
 # draws sixteen bytes, prints one line and exits.
-naming_allow=" asid cred uuid "
+naming_allow=" asid uuid "
 named_for_a_daemon=""
 for name in \
     $(ls "$(dirname "$0")/../user/src" | sed 's/\.rs$//') \

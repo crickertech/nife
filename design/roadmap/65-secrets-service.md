@@ -93,7 +93,7 @@ login would use `verify`; and anything later that signs.
 - **Milestone 49.** The other named consumer, login's use of `verify`. Built, and it authenticates
   against this service unmodified.
 - **Recorded.** Nothing survives a reboot: the store is memory only, provisioned at boot. Secrets at
-  rest is the open question behind it (encrypted under what key, held where), and `cred::Record`'s
+  rest is the open question behind it (encrypted under what key, held where), and `credentialer::Record`'s
   versioned encoding is a starting point rather than a durability claim. `notes/credentials.md`.
 - **Recorded.** It does not protect against an attacker who holds the endpoint right now. They can
   authenticate sessions for as long as they hold it; the claim is that compromise is bounded and

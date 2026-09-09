@@ -21,9 +21,13 @@
 # rule) that is calef's or the integrator's, never a lane's. Whether to wire it in is an open question
 # named there rather than answered here.
 #
-# Name: unrecorded. Provisional, minted by milestone 118's lane on 2026-08-22 and not yet put to
-# calef. Named for what it reads, in the family of `script/roadmap`, `script/decisions` and
-# `script/names`, none of which are verbs either.
+# Name: provisional. Minted by milestone 118's lane on 2026-08-22. Named for what it reads, in the
+# family of `script/roadmap`, `script/decisions` and `script/names`, none of which are verbs
+# either, and DECISIONS §134 has since written that family rule down. What is unsigned is the stem
+# rather than the form. `rule-violations` names the exceptions rather than the rules, which is
+# deliberate, since the rules live in AGENTS.md and DECISIONS.md and this reports only where the
+# tree departs from them; the alternative reading, that it reports on rules, is the misreading to
+# weigh against. calef has not ratified it.
 
 set -e
 

@@ -617,7 +617,7 @@ const IDP_FS_VA: u64 = 0x0000_0000_00e5_0000;
 const PROVISION_SCRATCH_VA: u64 = 0x0f20_0000;
 
 /// `credentialer`'s own construction budget, in pages: matches
-/// `kernel::user::credential_service::CRED_BUDGET_PAGES` (6 MiB, sized from `cred::Cost::DEFAULT`'s
+/// `kernel::user::credential_service::CRED_BUDGET_PAGES` (6 MiB, sized from `credentialer::Cost::DEFAULT`'s
 /// own scratch requirement, not guessed).
 const CRED_BUDGET_PAGES: u64 = 1536;
 /// Extra stack pages `credentialer` needs, beyond the one page `build_child` maps: matches

@@ -224,9 +224,14 @@
 //! - mapped, dynamically, starting at [`CONNECT_VA_BASE`]: one page per channel [`connect`] mints,
 //!   for as long as this process runs (see BUGS: never unmapped or reused in this slice).
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-22 for milestone 49 and not yet put to calef.
-//! `login` is the plain noun for what this program answers a request to do, on the pattern
-//! `clock`/`entropy`/`credentialer` already set, which is the reasoning a ratification would test.
+//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
+//! outside"; and milestone 63's name table for the resource-noun pattern). Minted 2026-08-22 for
+//! milestone 49. Two arguments land on it and neither is this block's. It is the Unix name for
+//! the program that answers exactly this request, which the protected class keeps. And it is the
+//! plain noun on the `clock`/`entropy` pattern milestone 63 weighs by name: 63 departed from that
+//! pattern for the credential service on the ground that the service "will never hand you a
+//! credential", and this program does perform a login, so the reason 63 gives for its exception
+//! does not reach here. calef has not ratified it.
 //!
 //! # BUGS
 //!

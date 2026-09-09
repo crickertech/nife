@@ -14,7 +14,7 @@
 //! travel in the record rather than being compiled in, so raising them is a provisioning change.
 //!
 //! ```
-//! use cred::{Block, Cost, SALT_LEN, Store, TAG_LEN, Verdict};
+//! use credentialer::{Block, Cost, SALT_LEN, Store, TAG_LEN, Verdict};
 //!
 //! let cost = Cost::new(64, 1, 1).expect("a cheap cost, for the example only");
 //! let mut scratch: Vec<Block> = vec![Block::new(); cost.blocks()];
@@ -42,7 +42,7 @@
 //! [`Record`] can be encoded and decoded, and what comes out the other side is still a tag.
 //!
 //! ```
-//! use cred::{Block, Cost, Record, SALT_LEN};
+//! use credentialer::{Block, Cost, Record, SALT_LEN};
 //!
 //! let cost = Cost::new(64, 1, 1).unwrap();
 //! let mut scratch: Vec<Block> = vec![Block::new(); cost.blocks()];
@@ -64,7 +64,7 @@
 //! derivation that would have used it:
 //!
 //! ```
-//! use cred::Cost;
+//! use credentialer::Cost;
 //!
 //! assert!(Cost::new(4096, 3, 1).is_some());
 //! assert!(Cost::new(0, 3, 1).is_none()); // no memory is not a memory-hard KDF
@@ -113,11 +113,18 @@
 //! rate limit, no attempt counting; the service that owns the store is the only thing that could
 //! enforce those and it does not.
 //!
-//! Name: unrecorded. Introduced 2026-07-31 with milestone 56. `script/lint`'s `-d` allow-list
-//! carries a reason for it (the abbreviation of "credential", the same ordinary kind of shortening
-//! `kbd` was of "keyboard" before its 2026-08-27 rename to `keyboard_driver`), but that entry is
-//! the lane's own; milestone 63 spelled the long-running process `credentialer` in full and left
-//! this crate as it stood, without saying so.
+//! Name: provisional, and this lane proposes a rename to `credential`. Introduced 2026-07-31 with
+//! milestone 56. The history says only that, and the one entry that carries a reason is
+//! `script/lint`'s `-d` allow-list, written by the lane that needed the exemption. Everything
+//! else in the tree has moved the other way, twice, by calef's own hand: milestone 63 spelled the
+//! service `credentialer` in full on 2026-08-01, and on 2026-08-23 he renamed `cred_proto` to
+//! `credential_proto` with the reason recorded as "spell out the contraction fully". This crate
+//! is that same contraction, left behind by both sweeps rather than exempted from either, so the
+//! tree now spells one word two ways across three things that are the same thing. `kbd` to
+//! `keyboard_driver` on 2026-08-27 is the same shape. The seventh question, asked plainly: if
+//! renaming and keeping cost the same, nothing would keep this name, so the only argument for it
+//! is effort, and it is stated here as effort rather than dressed as judgment. Proposed, not
+//! performed.
 
 #![cfg_attr(not(test), no_std)]
 

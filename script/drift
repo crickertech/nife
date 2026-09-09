@@ -19,8 +19,14 @@
 # bare-metal is a fact about the workspace, and a copy of that fact in a workflow file drifts
 # silently as the workspace changes. Keep it here, where it is one fact in one place.
 #
-# Name: unrecorded. Introduced 2026-07-31 to put the toolchain-drift commands where a developer can
-# run them.
+# Name: recorded (notes/scripts.md, which states what it answers, and the `toolchain drift`
+# workflow it backs). Introduced 2026-07-31 to put the toolchain-drift commands where a developer
+# can run them. "Drift" is not this script's coinage: it is the word the daily workflow and
+# notes/scripts.md both use for the question, which that note phrases as "does a toolchain still
+# build us". Bare rather than `toolchain-drift` because the toolchain is the only thing in this
+# tree that drifts against a moving upstream, and the sibling it would pair with,
+# `script/toolchain-bump`, is the fix rather than the detector. That last clause is this lane's
+# reading rather than the record's, and it is the part worth ruling on. calef has not ratified it.
 
 set -e
 cd "$(dirname "$0")/.."

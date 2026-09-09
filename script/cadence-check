@@ -90,13 +90,14 @@
 #   somebody runs them. There is no way to tell a correct red from a broken one from out here, and
 #   inventing an allow-list would be the first step toward the mute this is trying to prevent.
 #
-# Name: unrecorded. Provisional, minted 2026-09-03 by a lane and not yet put to calef. `cadence` is
-# the word this tree already uses for the thing being checked (`audit-cadence.yml`,
-# `stranger-cadence.yml`, and milestone 232's own prose about "a dead cadence"), and the `-check`
-# suffix is established here in `shell-check`, `qemu-check` and `undefined-behavior-check`. Refused
-# `workflow-health` (it names GitHub's noun rather than the function, and this is about whether an
-# answer is still arriving, not about whether a workflow is well) and `schedules` (a plural noun
-# names an inventory, and `notes/check-inventory.md` is the inventory; this is the tripwire).
+# Name: provisional. Minted 2026-09-03. `cadence` is the word this tree already uses for the thing
+# being checked (`audit-cadence.yml`, `stranger-cadence.yml`, and milestone 232's own prose about
+# "a dead cadence"), and the `-check` suffix is established here in `shell-check`, `qemu-check`
+# and `undefined-behavior-check`, which calef ratified on 2026-08-03. Refused `workflow-health`
+# (it names GitHub's noun rather than the function, and this is about whether an answer is still
+# arriving, not about whether a workflow is well) and `schedules` (a plural noun names an
+# inventory, and notes/check-inventory.md is the inventory; this is the tripwire). calef has not
+# ratified it.
 
 set -e
 cd "$(dirname "$0")/.."

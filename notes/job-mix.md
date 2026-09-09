@@ -150,7 +150,7 @@ invisible to ARP from both patagonia and cordoba, so this is a person at the ben
 
 | What the log shows | What it means | Where it routes |
 |---|---|---|
-| `jobmix: FAILED: no 'job_mixer' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --jobmix --card ...`, which packs the archive before the kernel for exactly this reason |
+| `jobmix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --jobmix --card ...`, which packs the archive before the kernel for exactly this reason |
 | `jobmix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
 | the census, then nothing, ever | a task or a server wedged before the first subrun finished | the hang case. `crates/job_mix`'s `ROUND_TRIP` job is the only one that blocks on another process; a wedged echo server looks exactly like this |
 | `jpm` roughly flat across the whole sweep | this machine's scheduling is not the bottleneck at 32 tasks | **the honest negative**, and it is a result: §96's performance argument does not bite at this scale on this silicon |

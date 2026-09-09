@@ -11,7 +11,7 @@ An identity, a secret, and a way to check the second against the first without e
 read it. Milestone 56's second half; the first half is [entropy](entropy.md), and this depends on
 it for every salt it uses.
 
-The contract is `crates/credential_proto`, the logic is `crates/cred`, the service is
+The contract is `crates/credential_proto`, the logic is `crates/credentialer`, the service is
 `user/src/credentialer.rs`, and its clients are `user/src/credentialer_test_client.rs`.
 
 **Milestone 65 generalised this into a secrets service, in place.** The same process now holds two
@@ -114,7 +114,7 @@ all and would make a GPU attack cheap.
 ### The vectors are the point
 
 A dependency whose answers you never check is a dependency you have merely hoped about. So
-`crates/cred`'s tests run:
+`crates/credentialer`'s tests run:
 
 - **RFC 9106 §5.3**'s Argon2id vector (m=32 KiB, t=3, p=4, with a secret key and associated data);
 - the **reference implementation's** vectors (phc-winner-argon2 `src/test.c`) at its two smallest
@@ -339,7 +339,7 @@ in the same place.
   deployment needing finer granularity runs more than one service.
 - **Nothing survives a reboot.** The store is memory only, provisioned at boot. Secrets at rest is
   the open question and it is the same chicken-and-egg as milestone 51's NTS problem: encrypted
-  under what key, held where? `cred::Record` has a versioned encoding with a round-trip test
+  under what key, held where? `credentialer::Record` has a versioned encoding with a round-trip test
   precisely so that question has a starting point, but nothing in the tree writes one to a disk and
   this note does not imply a durability we do not have.
 - ~~**This cannot serve NTLMv2.**~~ **Closed by milestone 65**, and the gap turned out to be

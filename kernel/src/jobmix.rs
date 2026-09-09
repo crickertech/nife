@@ -10,7 +10,7 @@
 //!
 //! `crates/job_mix` is the workload's definition, and its header carries what AIM7 actually is,
 //! which of its properties are kept and which of its 53 jobs are deliberately not.
-//! `user/src/job_mixer.rs` is one task. This file is the supervisor: it builds the pool, releases a
+//! `user/src/job_mix_task.rs` is one task. This file is the supervisor: it builds the pool, releases a
 //! subrun's worth of tasks, owns the wall clock, and prints.
 //!
 //! # The division of labour, and why it is the soak's and not the bench's
@@ -102,8 +102,8 @@ const CENSUS_MARKER: &str = "jobmix-census:";
 pub fn run() -> ! {
     let cores = smp::online_count();
 
-    let Some(image) = user::program("job_mixer") else {
-        println!("jobmix: FAILED: no 'job_mixer' program in the initrd archive; nothing to run");
+    let Some(image) = user::program("job_mix_task") else {
+        println!("jobmix: FAILED: no 'job_mix_task' program in the initrd archive; nothing to run");
         arch::halt();
     };
 

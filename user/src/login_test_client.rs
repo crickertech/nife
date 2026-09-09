@@ -65,8 +65,12 @@
 //!   `kernel::user::login_service::CLIENT_SCRATCH_UT_PAGES`).
 //! - `a0`: the role.
 //!
-//! Name: unrecorded. Provisional, minted 2026-08-22 for milestone 49 and not yet put to calef, on
-//! `credentialer_test_client`'s own pattern (`<service>_test_client`).
+//! Name: recorded (program `credentialer_test_client`, ratified 2026-08-01 by calef in milestone
+//! 63). Minted 2026-08-22 for milestone 49 on the `<service>_test_client` pattern, which is not
+//! this lane's invention: calef signed that exact shape for the credential service, turning down
+//! `credcli` as a squished abbreviation and `credentialer_client` because that name belongs to
+//! the real client a later milestone needs. The same reservation holds here, so a future real
+//! login client is not squatted. calef has not ratified this instance.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

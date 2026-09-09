@@ -1,9 +1,13 @@
-# Name: unrecorded, and the weakest of the four structural ones. `user` is the package holding every
-# EL0 program, so it is named for the privilege level its contents run at, which a reader meets as
-# `user/src/<program>.rs` far more often than as a package name. It is generic in the way AGENTS.md
-# flags (`compose`, `measure`, `regions` were all renamed away from words like it), and it survives on
-# the same argument `kernel` does: position supplies the meaning and the name appears in one manifest.
-# If any of these four wants revisiting, this is the one.
+# Name: provisional, and the weakest of the four structural package names. `user` is the package
+# holding every EL0 program, so it is named for the privilege level its contents run at, which a
+# reader meets as `user/src/<program>.rs` far more often than as a package name. That positional
+# argument is the whole case and it is the same one `kernel` rests on. The difference, and it is
+# why this one is provisional where `kernel` is recorded: `kernel` is a standard term a reader
+# knows from outside, and `user` is a **generic word** of the kind AGENTS.md flags, since
+# `compose`, `measure`, `regions`, `slots`, `caps` and `frames` were all renamed away from words
+# like it. It survives on position supplying the meaning and on the name appearing in exactly one
+# manifest. If any of the four wants revisiting, this is the one, and the replacement would say
+# what the package holds (`programs`, or the privilege level spelled out) rather than who runs it.
 
 [package]
 name = "user"
@@ -106,8 +110,8 @@ bench = false
 # `--features jobmix` sweeps. In every archive, because the instrument develops under QEMU and the
 # number is taken on a board, and both have to run the same workload.
 [[bin]]
-name = "job_mixer"
-path = "src/job_mixer.rs"
+name = "job_mix_task"
+path = "src/job_mix_task.rs"
 test = false
 bench = false
 
@@ -146,10 +150,10 @@ bench = false
 # The interrupt-driven console input driver (milestone 20): an unprivileged userspace device driver.
 # It holds an Irq capability, a report endpoint, and a device mapping of the UART, and services the
 # receive interrupt with the seL4 WAIT/read/report/ACK loop. Portable; the riscv initrd packs it as
-# "driver". The aarch64 input driver is the PL011-wired role of `hello`; this is its portable analog.
+# "serial_driver". The aarch64 input driver is the PL011-wired role of `hello`; this is its portable analog.
 [[bin]]
-name = "driver"
-path = "src/driver.rs"
+name = "serial_driver"
+path = "src/serial_driver.rs"
 test = false
 bench = false
 
@@ -705,7 +709,7 @@ soak_page = { version = "0.1.0", path = "../crates/soak_page" }
 job_mix = { version = "0.1.0", path = "../crates/job_mix" }
 clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
 environment_proto = { version = "0.1.0", path = "../crates/environment_proto" }
-cred = { version = "0.1.0", path = "../crates/cred" }
+credentialer = { version = "0.1.0", path = "../crates/credentialer" }
 credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
 login_proto = { version = "0.1.0", path = "../crates/login_proto" }
 compositor = { version = "0.1.0", path = "../crates/compositor" }

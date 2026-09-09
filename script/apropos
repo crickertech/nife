@@ -55,11 +55,13 @@
 #   this is currently written for people who already know the tree. Recorded rather than fixed,
 #   because where it should be named is a claim about the reading order and those are calef's.
 #
-# Name: unrecorded. Provisional, minted by milestone 40's lane on 2026-08-18 and not put to calef.
-# It is deliberately the same word as the builtin at the nife prompt, which is the claim: one verb,
-# one index, two places you can be standing. `script/search` and `script/docs` were the
-# alternatives and both lose that; `apropos` also carries the Unix meaning a reader already has,
-# which AGENTS.md's naming rule says is the best name available.
+# Name: provisional. Minted by milestone 40's lane on 2026-08-18. It is deliberately the same word
+# as the builtin at the nife prompt, which is the claim: one verb, one index, two places you can
+# be standing. `script/search` and `script/docs` were the alternatives and both lose that.
+# `apropos` also carries the Unix meaning a reader already has, which AGENTS.md's naming rule
+# calls the best name available, and it is the one entry point here whose name is fixed from two
+# directions at once, since changing it changes what a person types inside the running system as
+# well. calef has not ratified it.
 
 set -e
 cd "$(dirname "$0")/.."

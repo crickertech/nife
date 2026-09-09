@@ -41,8 +41,14 @@
 //! | `ROLE_FILE` | the sink, `READ` | FS service, `WRITE` | report, `WRITE` | shared with the FS server |
 //! | `ROLE_VERIFY` | the sink, `WRITE` | FS service, `WRITE` | report, `WRITE` | shared with the FS server |
 //!
-//! Name: unrecorded. Introduced 2026-07-31 with the sink contract (DECISIONS §51), taking the
-//! contract's own word.
+//! Name: recorded (DECISIONS §51 and notes/sink-protocol.md, whose contract supplies the word).
+//! Introduced 2026-07-31. This program is the sink contract's ends in one binary and it takes the
+//! contract's own noun; the field already uses "sink" for the receiving end of a stream, so the
+//! protected class covers it as well. One asymmetry worth a reader's attention rather than their
+//! suspicion: calef renamed the crate from `sink_proto` to `byte_sink_proto` on 2026-08-23 to
+//! match that crate's opening line, "the byte-sink contract", and this program's opening line
+//! says "the sink contract". The two are consistent by the same rule rather than in spite of it.
+//! calef has not ratified this one.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

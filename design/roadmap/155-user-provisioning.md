@@ -29,7 +29,7 @@ holds the principal tree.
   tree, unnarrowed in this slice's own wiring for the same reason `login.rs` names for its own fixed
   subtree grant. A real deployment's answer to how an operator comes to hold those two capabilities
   is the same open boot-wiring question `login.rs` already leaves open, not decided here.
-- **What happens if the identity already exists.** Checked, not assumed: `cred::Store::put`'s own
+- **What happens if the identity already exists.** Checked, not assumed: `credentialer::Store::put`'s own
   rule is "a duplicate identity is refused" (`Error::Identity`, which the credential service maps to
   `cred_proto::MALFORMED`, the same code a malformed request gets, because neither is an
   authentication outcome). This tool does not special-case it; it reports the raw code back

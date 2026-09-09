@@ -85,13 +85,14 @@
 # the verb this tree already uses for what the integrator does with a number, so the vocabulary got
 # closer to the tree's own while it was being moved out of the way.
 #
-# Name: unrecorded. Provisional, minted by milestone 92's lane on 2026-08-16 and not yet put to
-# calef, who names things. Refused `audit` (singular reads as a command that performs one, which is
-# exactly the "an automation ran it for you" misreading the mechanism must not invite), `tripwire`
-# (names the mechanism rather than the record, where this tree's family of report scripts is named
-# for what it reads: `roadmap`, `decisions`, `names`), and `audit-cadence` (names the policy, while
-# this also validates the index, which is not cadence). `audits` over `audit-reports` because the
-# script answers about the audits and the directory holds the reports.
+# Name: provisional. Minted by milestone 92's lane on 2026-08-16. Refused `audit` (singular reads
+# as a command that performs one, which is exactly the "an automation ran it for you" misreading
+# the mechanism must not invite), `tripwire` (names the mechanism rather than the record, where
+# this tree's family of report scripts is named for what it reads), and `audit-cadence` (names the
+# policy, while this also validates the index, which is not cadence). `audits` over
+# `audit-reports` because the script answers about the audits and the directory holds the reports.
+# DECISIONS §134 has since written down the family rule this was reaching for, that a `script/`
+# entry point which reports takes a noun. calef has not ratified it.
 #
 # See notes/scripts.md, design/audit-reports/README.md, and design/decisions/74-audit-cadence.md.
 

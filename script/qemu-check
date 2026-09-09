@@ -20,9 +20,12 @@
 #
 # Run it directly any time; `script/bootstrap` calls it after installing.
 #
-# Name: unrecorded. Introduced 2026-07-30. `-check` is an established suffix in this directory,
-# which the 2026-08-03 refusal of `script/sanitize` later cited as a reason the long form costs
-# nothing.
+# Name: recorded (script/undefined-behavior-check, ratified 2026-08-03 by calef). Introduced
+# 2026-07-30. The `-check` suffix is not this script's coinage to defend: calef signed it while
+# replacing `miri`, and the ratification cites this script by name as one of the two that had
+# already established the suffix, concluding that "the long form costs nothing the directory was
+# not already paying" because eight of twenty-six scripts were hyphenated already. The stem is the
+# tool it checks the version of. calef has not ratified this instance.
 
 set -e
 cd "$(dirname "$0")/.."
