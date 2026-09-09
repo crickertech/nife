@@ -32,6 +32,19 @@
 //! the NS16550, so the case is for `serial_driver`, with `uart_driver` the alternative and the
 //! acronym test the reason to prefer the first. `console_driver` is refused because `console` is
 //! already a program. Proposed, not performed: a rename is calef's.
+//!
+//! **Name: ratified 2026-09-08 (calef, milestone 264).** Shipped as `driver`, which was the fourth
+//! driver in `user/src/` and the only unqualified one, beside `block_driver`, `gpu_driver` and
+//! `keyboard_driver`. A reader scanning the directory met three programs that say what they drive
+//! and one that does not.
+//!
+//! **`serial` over `uart_driver`**, on the acronym rule calef set on 2026-09-05: an acronym is
+//! spelled out unless its expansion teaches nothing, and *universal asynchronous
+//! receiver-transmitter* teaches a reader almost nothing useful about a program that reads console
+//! input. `serial` is the plain word for the same wire and needs no expansion at all.
+//!
+//! **`console_driver` refused**: `console` already names a program here, and a driver named for
+//! another program invites a reader to think it drives that program rather than a device.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

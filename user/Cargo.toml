@@ -150,10 +150,10 @@ bench = false
 # The interrupt-driven console input driver (milestone 20): an unprivileged userspace device driver.
 # It holds an Irq capability, a report endpoint, and a device mapping of the UART, and services the
 # receive interrupt with the seL4 WAIT/read/report/ACK loop. Portable; the riscv initrd packs it as
-# "driver". The aarch64 input driver is the PL011-wired role of `hello`; this is its portable analog.
+# "serial_driver". The aarch64 input driver is the PL011-wired role of `hello`; this is its portable analog.
 [[bin]]
-name = "driver"
-path = "src/driver.rs"
+name = "serial_driver"
+path = "src/serial_driver.rs"
 test = false
 bench = false
 

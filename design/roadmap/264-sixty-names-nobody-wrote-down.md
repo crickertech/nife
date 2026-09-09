@@ -182,14 +182,14 @@ needs a file of its own; what is listed here is where to read it and what happen
   convention rather than one name. Same precedent as `cred`. If he says no that is cheap, but the
   circle wants breaking out loud, because the next lane to reach for a `user_` prefix will cite
   `user_heap` citing `user_rt`.
-- **Recorded.** **`user/src/driver.rs` wants a device in its name**, in that program's header. It is
-  the fourth driver in that directory and the only unqualified one, beside `block_driver`,
-  `gpu_driver` and `keyboard_driver`, and `keyboard_driver` is the precedent since it was `kbd` until
-  2026-08-27. This one drives the NS16550 for interrupt-driven console input, so the case is for
-  `serial_driver`, with `uart_driver` the alternative and the 2026-09-05 acronym test the reason to
-  prefer the first; `console_driver` is refused because `console` is already a program. If he says
-  no, a reader who has correctly inferred the `<device>_driver` scheme still cannot tell what this
-  drives, which is the `dwarden` failure AGENTS.md cites as the evidence the naming rule was needed.
+- **Done.** **`user/src/driver.rs` is `serial_driver`**, ratified by calef 2026-09-08. It was the
+  fourth driver in that directory and the only unqualified one, beside `block_driver`, `gpu_driver`
+  and `keyboard_driver`, and `keyboard_driver` was the precedent since it was `kbd` until
+  2026-08-27. It drives the NS16550 for interrupt-driven console input. **`uart_driver` lost on the
+  2026-09-05 acronym test**: *universal asynchronous receiver-transmitter* teaches a reader almost
+  nothing about a program that reads console input, where `serial` is the plain word for the same
+  wire. `console_driver` stays refused because `console` is already a program, and a driver named
+  for another program invites a reader to think it drives that program rather than a device.
 - **Recorded.** **`script/initboot` wants the hyphen every sibling has, as `init-boot`**, in that script's header. It is
   the one entry point of fifty-two that runs two words together, and it survived milestone 63's
   2026-08-01 hyphenation sweep rather than being exempted by it. `cargo xtask initboot` is likewise

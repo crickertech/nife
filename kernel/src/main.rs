@@ -1128,7 +1128,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             let started = user::initrd()
                 .filter(|a| {
                     nifefs::Fs::parse(a)
-                        .map(|fs| fs.read("driver").is_some())
+                        .map(|fs| fs.read("serial_driver").is_some())
                         .unwrap_or(false)
                 })
                 .and_then(|a| user::riscv_uart_driver_demo(a, uart_irq).ok());

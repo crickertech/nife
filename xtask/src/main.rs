@@ -3422,7 +3422,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
     &[
         ("init", "builder"),
         ("worker", "worker"),
-        ("driver", "driver"),
+        ("serial_driver", "serial_driver"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
         ("coremark", "coremark"),
         ("system_initializer", "system_initializer"),
