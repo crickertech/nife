@@ -5,19 +5,22 @@
 #![allow(clippy::result_unit_err)]
 //! **The interactive system, built once** (milestone 96).
 //!
-//! There are two inits, because the two boards' kernels hand off differently: `user::initrd()` loads
-//! the archive entry `init`, which is `user/src/hello.rs`'s `init_boot` role on aarch64 and
-//! `user/src/system_initializer.rs` on riscv64. There is **one** system they build, and this crate
-//! is it. What each init still holds is the table of slot numbers its own kernel granted, which is a
-//! fact about that boot path and nothing else; everything from parsing the archive to serving the
-//! shell's last `run` is here.
+//! There is **one** first process, `user/src/progenitor.rs`, on all three architectures
+//! (milestone 266), and **one** system it builds, which is this crate. What that program still
+//! holds is the table of slot numbers its own kernel granted, which is a fact about a boot path and
+//! nothing else; everything from parsing the archive to serving the shell's last `run` is here.
+//!
+//! **There used to be two.** `user::initrd()` loaded an archive entry called `init`, which was
+//! `user/src/hello.rs`'s `init_boot` role on aarch64 and a separate program on riscv64: an alias
+//! standing over two implementations of one job. This crate ended the duplicated *code* at
+//! milestone 96 and 266 ended the duplicated *program*.
 //!
 //! Before this crate the construction and the spawn service were written twice, about three hundred
-//! near-identical lines, and the failure that caused is the reason the milestone exists: a fix that
-//! lands in one init and not the other is **a boot that reaches userspace and prints nothing at
+//! near-identical lines, and the failure that caused is the reason milestone 96 exists: a fix that
+//! lands in one copy and not the other is **a boot that reaches userspace and prints nothing at
 //! all**, with no fault and no message. That shape cost three separate lanes an evening each.
 //! `script/shell-check` boots both ISAs and types at the prompt, which is what makes it the gate
-//! that proves this: it is the only thing in the tree that runs a real init.
+//! that proves this: it is the only thing in the tree that runs the real progenitor.
 //!
 //! # Examples
 //!
@@ -301,12 +304,14 @@ use supervision_proto::{
 };
 use user_rt::{call, cap_delete, granted, invoke, recv, recv_cap, send};
 
-/// **The capabilities the kernel granted this init, by slot.** The one thing the two boards do not
-/// agree on, so it is data each init states rather than code this crate repeats.
+/// **The capabilities the kernel granted the progenitor, by slot.** The one thing the boards do not
+/// agree on, so it is data the boot entry states rather than code this crate repeats, and since
+/// milestone 266 it is also the only thing left under a `cfg` in that entry.
 ///
-/// The two orders come from `kernel::user::spawn_init` (aarch64) and `kernel::user::riscv_shell_boot`
-/// (riscv64). They differ because the aarch64 path is shared with milestone 19d's test roles, which
-/// were granted a report endpoint and a test interrupt this system has no use for; see
+/// The two orders come from `kernel::user::spawn_progenitor` (aarch64) and
+/// `kernel::user::riscv_shell_boot` (riscv64, and `x86_64` through the same archive). They differ
+/// because the aarch64 path is shared with milestone 19d's test roles, which were granted a report
+/// endpoint and a test interrupt this system has no use for; see
 /// [`for_test_roles`](BootEndowment::for_test_roles).
 pub struct BootEndowment {
     /// The construction budget, held `WRITE | GRANT`: everything this system is made of.
@@ -415,8 +420,8 @@ pub struct BootEndowment {
 /// kernel already granted.
 ///
 /// **`None` at every real entry point today.** The mechanism here is real and reachable through
-/// the one function both boards' real inits call (`user/src/system_initializer.rs`,
-/// `user/src/hello.rs`'s `init_boot` role), not a synthetic kernel-side test harness. What it does
+/// the one function the real progenitor calls (`user/src/progenitor.rs`), not a synthetic
+/// kernel-side test harness. What it does
 /// not decide is *what* the second subtree should be: [DECISIONS
 /// §126](../../../design/decisions/126-two-directory-cwd.md) named that a boot-time policy
 /// question reserved for calef, so no shipped boot enables it. A second, separate gap: nothing
@@ -1150,7 +1155,7 @@ pub fn boot(
                 term_ep,
                 sentence(
                     &mut buf,
-                    b"init: cannot vouch for",
+                    b"progenitor: cannot vouch for",
                     &unvouched,
                     b"; halting rather than building an unmeasured system\n",
                 ),
@@ -1765,9 +1770,9 @@ pub fn boot(
     announce(
         term_ep,
         if frame == -1 && object == -1 {
-            b"init: construction budget dropped; retype answers NoSuchSlot\n"
+            b"progenitor: construction budget dropped; retype answers NoSuchSlot\n"
         } else {
-            b"init: construction budget NOT dropped; it can still build\n"
+            b"progenitor: construction budget NOT dropped; it can still build\n"
         },
     );
     // **And what the measurement decided** (milestone 104), on the same terms as the line above: a
@@ -1780,11 +1785,11 @@ pub fn boot(
     announce(
         term_ep,
         if refused_n == 0 {
-            b"init: every program measured against the archive table\n"
+            b"progenitor: every program measured against the archive table\n"
         } else {
             sentence(
                 &mut buf,
-                b"init: measurement refused",
+                b"progenitor: measurement refused",
                 &refused[..refused_n],
                 b"; they cannot be spawned\n",
             )
@@ -1801,7 +1806,7 @@ pub fn boot(
     if entropy_ready {
         announce(
             term_ep,
-            b"init: entropy service up; drew real bytes from a virtio-rng device\n",
+            b"progenitor: entropy service up; drew real bytes from a virtio-rng device\n",
         );
     }
     // **The generated login credential** (milestone 49's boot-wiring update), said here for
@@ -1842,7 +1847,7 @@ pub fn boot(
         push(
             &mut buf,
             &mut n,
-            b"init: login credentials provisioned -- identity '",
+            b"progenitor: login credentials provisioned -- identity '",
         );
         push(&mut buf, &mut n, DEMO_IDENTITY);
         push(&mut buf, &mut n, b"' password '");

@@ -67,7 +67,8 @@ there is no per-program `--bin` list on any of them any more:
 
 - `initrd_aarch64()` (renamed from `mkinitrd()`, 2026-08-27) for aarch64: **one
   `("your_program", "your_program")` row in its `entries` table.** The pair is `(archive_name,
-  bin_name)` and they differ exactly once in the whole table, for `init`.
+  bin_name)` and since milestone 266 they are the same string in every row: `progenitor` retired
+  the one entry whose archive name and binary differed.
 - `initrd_riscv()` for riscv64: the same shape, one `("your_program", "your_program")` row in its
   own `entries` table (from [`portable_archive_entries`], shared with `initrd_x86()`). **It used to
   also need a `"--bin", "your_program",` pair in a hand-maintained `cargo build` argument list**,
@@ -225,12 +226,13 @@ $ triple 21
   suite total is identical with and without one: 1312 tests before `tally` and 1312 after. A
   program's presence is proven only by a transcript line somebody remembered to write into
   `SHELL_CHECK_SCRIPT`.
-- **The archives do not boot the same binary, and the sentence saying so is 200 lines from where
-  you need it.** `initrd_aarch64()` packs `hello` under the archive name `init`; `initrd_riscv()`
-  and `initrd_x86()` pack `builder`. `xtask/src/main.rs` does state this, in a comment on the
-  aarch64 table's `hello` row rather than on either `("init", ...)` row, and run 4's stranger read
-  both tables in the same minute and still reported the asymmetry as undocumented. For a project
-  whose loudest claim is architectural parity that is worth meeting at the table you are editing.
+- **The archives used to boot different binaries under one name, and the sentence saying so was
+  200 lines from where you needed it.** `initrd_aarch64()` packed `hello` under the archive name
+  `init` while `initrd_riscv()` and `initrd_x86()` packed `builder`; `xtask/src/main.rs` stated it
+  in a comment on the aarch64 table's `hello` row rather than on either `("init", ...)` row, and
+  run 4's stranger read both tables in the same minute and still reported the asymmetry as
+  undocumented. **Milestone 266 removed the asymmetry rather than the documentation gap**: every
+  archive now packs one `progenitor`, and every row in both tables is a name repeated.
 - **Removal is the same eight places and has no page.** Taking a program out is clean only while
   you can still name every file you touched; a half-removed program is a `PROG_COUNT` too large
   and an init table slot no variant claims, which is the same silent failure as a forgotten

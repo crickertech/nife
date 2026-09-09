@@ -137,10 +137,11 @@ path = "src/coremark.rs"
 test = false
 bench = false
 
-# The minimal init / system builder (milestone 20): a fully portable init that loads the worker from
-# a multi-entry initrd archive and builds it as a child through the capability verbs. It is the
-# RISC-V richer-initrd demonstration (the aarch64 init is a role of the PL011-wired `hello`). Same
-# test/bench reasoning as the others; the riscv initrd packs it under the name "init".
+# The minimal system builder (milestone 20): a fully portable program that loads the worker from a
+# multi-entry initrd archive and builds it as a child through the capability verbs. It is the
+# RISC-V richer-initrd demonstration, and its claim is that **userspace, not the kernel, composes
+# the system**, proven on a second ISA in the smallest form that can prove it. It is not a boot
+# program (milestone 266 gave every board one progenitor); the riscv tour enters it by its own name.
 [[bin]]
 name = "builder"
 path = "src/builder.rs"
@@ -157,12 +158,14 @@ path = "src/serial_driver.rs"
 test = false
 bench = false
 
-# The system builder / boot init (parity D): the portable counterpart of hello's init_boot role. It
-# builds the interactive system (console + input + shell) out of its own budget and stays as the
-# spawn service. The riscv boot loads it as the boot process; aarch64 keeps using hello's init_boot.
+# **The progenitor** (milestone 266): the first process, on all three architectures. The kernel
+# loads it as the boot process and it builds the interactive system (console, input, line
+# discipline, shell) out of its own budget, then stays alive as the spawn service. Until 266 this
+# was riscv64's only and aarch64 booted a role of `hello` instead; the archive entry is now
+# `progenitor` on every board and the alias layer that hid the difference is gone.
 [[bin]]
-name = "system_initializer"
-path = "src/system_initializer.rs"
+name = "progenitor"
+path = "src/progenitor.rs"
 test = false
 bench = false
 

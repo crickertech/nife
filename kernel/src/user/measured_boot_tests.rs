@@ -1,9 +1,9 @@
 use super::*;
 
-/// The boot-program entry both architectures' kernels load themselves. (riscv's shell boot loads
-/// `system_initializer` instead, measured under that name by the same trust root; `init` is the entry both
-/// ISAs have, so it is the one this test can assert on portably.)
-const BOOT_PROGRAM: &str = "init";
+/// **The boot-program entry every architecture's kernel loads itself**, which since milestone 266
+/// is one name for one program rather than an alias over three. Before that this constant had to
+/// pick the entry both ISAs happened to share and say so in a parenthesis.
+const BOOT_PROGRAM: &str = super::PROGENITOR_ENTRY;
 
 /// **The initrd in RAM is the initrd this kernel was built against.** The end-to-end build
 /// composition check: nothing here is hard-coded, the digest comes out of the kernel's own

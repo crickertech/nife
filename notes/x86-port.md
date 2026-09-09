@@ -952,7 +952,7 @@ the argument for doing item 4's hand-off rather than deferring it.
 1. **`arch::x86_64::irq::enable` conflated two numbering schemes.** An intid on x86 is either a
    legacy IRQ (0..15, which needs the MADT's override table and a redirection entry) or a **local
    APIC vector** (0x20..0x2f, raised by writing the ICR, with no controller input to unmask).
-   `enable` assumed the first, always. `spawn_init` enables `user::INIT_TEST_SGI`, which on this
+   `enable` assumed the first, always. `spawn_progenitor` enables `user::INIT_TEST_SGI`, which on this
    architecture *is* `SELF_TEST_VECTOR` = 0x22 = 34, and the kernel panicked with
    `gsi 34 is outside the IO APIC's range`. The fix is three lines and the ranges were already
    documented as disjoint in `GSI_VECTOR_BASE`'s own doc comment; nothing above the arch layer had
@@ -1012,7 +1012,7 @@ Every item is a device or a toolchain, and none is `user_rt` any more.
   `user::UART_PHYS` is zero and `console`, `input`, `keyboard_driver` and `swapper` are packed but cannot run;
   their arms `trap()` rather than no-op, so a boot that reached one would say so on the first byte.
   That is DECISIONS §121, still PROPOSED. **One foot gun is marked rather than removed**:
-  `spawn_init` grants slot 2 a device capability over `UART_PHYS`, which on this architecture is
+  `spawn_progenitor` grants slot 2 a device capability over `UART_PHYS`, which on this architecture is
   *physical page zero*. The slot is positional, so declining to grant would renumber the interrupt
   capability and every role that names it, and there is nothing better to put there until §121 is
   answered. Nothing reaches it: every fixture that would map it asks

@@ -21,11 +21,13 @@
 //!
 //! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
 //! outside"). The universal name for a first program, and this was the first program this kernel
-//! ever loaded, on 2026-07-14. The known limitation, recorded rather than fixed: the name has
-//! outlived the description, because on aarch64 this binary also carries the `init_boot` role,
-//! and a reader who takes `hello` at face value will not expect to find boot sequencing inside
-//! it. That is a gap between the name and what the thing grew into rather than a bad name for
-//! what it was, and closing it is a rename, which is calef's.
+//! ever loaded, on 2026-07-14.
+//!
+//! **The limitation that used to be recorded here is closed** (milestone 266). It read that the
+//! name had outlived the description, because on aarch64 this binary also carried the `init_boot`
+//! role and a reader who took `hello` at face value would not expect to find boot sequencing
+//! inside it. That role is `user/src/progenitor.rs` now, on every architecture, and what is left
+//! here is the demo catalogue the name always described.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -110,7 +112,11 @@ static mut DATA_MARKER: u64 = 0x0000_c0ff_ee00_d0d0;
 static mut BSS_MARKER: u64 = 0;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
+// `_arg2`: the third `START` word. Nothing in this catalogue reads it any more. The one role that
+// did was `init_boot`, which carried the filesystem rights the kernel granted the boot process;
+// that role is `user/src/progenitor.rs` now (milestone 266), and the parameter stays in the
+// signature because the kernel passes three words to every program it enters.
+pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
     match role {
         PRINTING => printing_client(),
         VIRTIO_BLK => virtio::run(dma_phys),
@@ -136,7 +142,6 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
         INIT_CONSOLE => init_console(dma_phys),
         INIT_IRQ => init_irq(dma_phys),
         IRQ_CHILD => irq_child(),
-        INIT_BOOT => init_boot(dma_phys, arg2),
         INIT_WORKER => init_worker(dma_phys),
         INIT_COREMARK => init_coremark(dma_phys),
         CYCLE_COUNTER_CHILD => cycle_counter_child(),
@@ -308,27 +313,20 @@ fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
     nifefs::Fs::parse(archive).ok()?.read(name)
 }
 
-/// **The archive entry holding this binary**, which is not the same name on both machines.
+/// **The archive entry holding this binary**, which is now the same name on every machine.
 ///
-/// Several init roles build a child out of *this* program's own ELF and re-enter it at a different
-/// role ([`CHILD`], [`DEV_CHILD`], [`IRQ_CHILD`]). To do that they have to find hello in the archive,
-/// and the name it is packed under differs: aarch64 packs hello as `init`, because there hello *is*
-/// the boot program; RISC-V's `init` is the portable `builder` demo, so hello goes in under its own
-/// name. The kernel side of the same fact is `kernel::user::INIT_ROLES_ENTRY`; the two must agree.
+/// Several roles build a child out of *this* program's own ELF and re-enter it at a different
+/// role ([`CHILD`], [`DEV_CHILD`], [`IRQ_CHILD`]). To do that they have to find hello in the
+/// archive. The kernel side of the same fact is `kernel::user::HELLO_ENTRY`; the two must agree.
 ///
-/// This was a hardcoded `"init"`, which is right on aarch64 and silently wrong on RISC-V: init
-/// happily built a child out of `builder`'s ELF and started it at a role `builder` does not have, so
-/// the child reached for an initrd mapping it did not own, faulted, was killed, and the test waiting
-/// on its report blocked until the watchdog fired. Nothing said "wrong program"; it just never
-/// answered.
-#[cfg(target_arch = "aarch64")]
-const ROLES_ENTRY: &str = "init";
-#[cfg(target_arch = "riscv64")]
-const ROLES_ENTRY: &str = "hello";
-/// `x86_64`'s archive follows RISC-V's layout rather than aarch64's (milestone 161): its `init` is the
-/// portable `builder` demo, so hello is packed under its own name here too. The kernel side is
-/// `kernel::user::INIT_ROLES_ENTRY`, which already said `"hello"` before this archive existed.
-#[cfg(target_arch = "x86_64")]
+/// **Three `cfg` arms stood here until milestone 266**, because aarch64 packed hello as `init`
+/// (there hello also carried the boot role) while the other two boards packed it as `hello`. That
+/// asymmetry cost a real bug before it was understood: a hardcoded `"init"` was right on aarch64
+/// and silently wrong on RISC-V, so this program happily built a child out of `builder`'s ELF and
+/// started it at a role `builder` does not have; the child reached for an initrd mapping it did not
+/// own, faulted, was killed, and the test waiting on its report blocked until the watchdog fired.
+/// Nothing said "wrong program"; it just never answered. One progenitor retired the alias, and the
+/// three arms with it.
 const ROLES_ENTRY: &str = "hello";
 
 /// The init role that builds a device-driver child (milestone 19d.2); matches kernel test wiring.
@@ -337,8 +335,6 @@ const INIT_DEV: u64 = 23;
 const INIT_CONSOLE: u64 = 24;
 /// The init role that builds an interrupt-driven child, to prove IRQ delegation (milestone 19d.2b).
 const INIT_IRQ: u64 = 25;
-/// The init role that IS the boot path: brings up the console and announces the system (19d.2c).
-const INIT_BOOT: u64 = 27;
 /// The init role that builds a worker, passes it an argument via START, and reports its answer
 /// (milestone 19e: the first workload that needs START to carry data, not just a role).
 const INIT_WORKER: u64 = 28;
@@ -373,74 +369,9 @@ const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
 /// of its own budget through the granular verbs (retype an address space, copy each segment into
 /// retyped frames and map them in, retype a TCB, endow it, configure, start). The child reports
 /// a word home; receiving it proves init parsed a real ELF and built a running process, with the
-/// kernel never touching the child's bytes. See kernel/src/user.rs `spawn_init`.
+/// kernel never touching the child's bytes. See kernel/src/user.rs `spawn_progenitor`.
 fn init(initrd_len: u64) -> ! {
     init_build(initrd_len, false)
-}
-
-/// **The boot init, milestone 19d.2c.** This is the program the kernel hands the machine to, and it
-/// builds the whole interactive system out of its own budget: the console server, the input driver,
-/// the line discipline, the shell, the terminal's sink adapter and the job undertaker, wired
-/// together with endpoints and shared pages init creates. The kernel wires none of it. Then it stays
-/// alive as the spawn service the shell directs.
-///
-/// **All of that is `crates/system_initializer` now** (milestone 96), shared with riscv64's
-/// `user/src/system_initializer.rs`, and so is the reasoning: what init gives away once the system
-/// is up, why the job pool is bounded, and the honest limits. What is left in this file is the one
-/// thing the two boards genuinely disagree about, which is the order their kernels grant
-/// capabilities in.
-///
-/// The duplication that ended there was expensive rather than untidy. `user::initrd()` loads the
-/// archive entry `init`, which is this role on aarch64 and `system_initializer` on riscv64, and the
-/// construction and the spawn service were written once in each: a fix that landed in one and not
-/// the other presented as a boot that reached userspace and printed nothing at all, with no fault
-/// and no message. `script/shell-check` runs both, which is what makes it the gate for this role.
-fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
-    /// The kernel's report endpoint. Nothing receives on it here: this role prints through the
-    /// console it builds, and `spawn_init` creates the endpoint only to satisfy its own shape.
-    const REPORT: u64 = 1;
-    /// The milestone-19d.2b test interrupt. It belongs to the tests that share this boot path, and
-    /// no interactive component waits on it.
-    const TEST_IRQ: u64 = 3;
-
-    /// **What `kernel::user::spawn_init` grants, in order.** This path is shared with milestone
-    /// 19d's test roles, which is why it carries two capabilities the interactive system has no use
-    /// for and why its numbering is not riscv64's; `system_initializer` deletes them with the device
-    /// authority once the drivers exist.
-    ///
-    /// The clock and the inert-configuration page are both granted ahead of the filesystem pair on
-    /// purpose, so their slots are the same on every boot whether or not a disk was attached. Slots
-    /// 7 and 8 hold nothing when this boot attached no RedoxFS disk, which is what `fs_rights` (0
-    /// for no disk) says.
-    const GRANTS: system_initializer::BootEndowment = system_initializer::BootEndowment {
-        untyped: 0,
-        uart_dev: 2,
-        uart_irq: 4,
-        clock_page: 5,
-        config_page: 6,
-        fs_ep: 7,
-        fs_page: 8,
-        // Always these three (`kernel::user::spawn_init` grants them with `grant_at`, not
-        // `grant`'s first-free numbering, for exactly this reason): a boot with no virtio-rng
-        // device leaves them empty, and `system_initializer::boot`'s own probe is what tells it
-        // apart from a granted one. Fixed past the filesystem pair's own max reach (slot 8), not
-        // past slot 7, because milestone 47's config_page (slot 6) shifted that pair down by one.
-        virtio_rng: 9,
-        virtio_rng_irq: 10,
-        virtio_rng_dma: 11,
-        // The graphical terminal stack (milestone 177, option A), fixed past the virtio-rng
-        // trio's own floor (slot 11) for its own reason: a boot with no GPU or no keyboard
-        // attached leaves all three empty, and `system_initializer::boot`'s own probe is what
-        // tells it apart from a granted one.
-        disp_term_ep: 12,
-        disp_term_page: 13,
-        kbd_ep: 14,
-        for_test_roles: &[REPORT, TEST_IRQ],
-    };
-
-    // `None`: see `user/src/system_initializer.rs`'s matching call for why (DECISIONS §126, the
-    // second-grant subtree is a boot-time policy decision this call site does not make).
-    system_initializer::boot(&GRANTS, initrd_len, fs_rights, None)
 }
 
 /// **init delegates an interrupt to a driver it builds, milestone 19d.2b.** The third and last
@@ -452,7 +383,7 @@ fn init_boot(initrd_len: u64, fs_rights: u64) -> ! {
 fn init_irq(initrd_len: u64) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
-    const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted init (spawn_init)
+    const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted this program (spawn_progenitor)
 
     let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {
         fail_report(REPORT)
@@ -703,7 +634,7 @@ fn init_dev(initrd_len: u64) -> ! {
 fn init_build(initrd_len: u64, device: bool) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
-    const UART_DEV: u64 = 2; // the UART device cap the kernel granted init (spawn_init)
+    const UART_DEV: u64 = 2; // the UART device cap the kernel granted this program (spawn_progenitor)
     const CHILD_UART_VA: u64 = 0x0070_0000;
 
     let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {

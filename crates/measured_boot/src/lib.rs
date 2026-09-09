@@ -48,16 +48,16 @@
 //! ```
 //! use measured_boot::{Measurement, sha256, verify, VerifyError};
 //!
-//! let root = [Measurement { name: "init", digest: sha256(b"the real init") }];
+//! let root = [Measurement { name: "progenitor", digest: sha256(b"the real progenitor") }];
 //!
-//! assert!(verify(&root, "init", b"the real init").is_ok());
-//! assert_eq!(verify(&root, "init", b"a tampered init"), Err(VerifyError::Mismatch));
+//! assert!(verify(&root, "progenitor", b"the real progenitor").is_ok());
+//! assert_eq!(verify(&root, "progenitor", b"a tampered progenitor"), Err(VerifyError::Mismatch));
 //!
 //! // A name the trust root says nothing about is a REFUSAL, not a pass. An empty or stale root
 //! // must fail closed, or the check evaporates the first time someone skips the build step that
 //! // fills it in.
 //! assert_eq!(verify(&root, "stowaway", b"anything"), Err(VerifyError::Unmeasured));
-//! assert_eq!(verify(&[], "init", b"the real init"), Err(VerifyError::Unmeasured));
+//! assert_eq!(verify(&[], "progenitor", b"the real progenitor"), Err(VerifyError::Unmeasured));
 //! ```
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `measure`. Refused `measure` (a verb,
@@ -230,10 +230,10 @@ pub fn sha256(bytes: &[u8]) -> Digest {
 ///
 /// The kernel's copy is generated into its image by `kernel/build.rs` from the archive the build
 /// just packed, which is what makes the check mean "this kernel runs exactly this init" without any
-/// key management. Names are the nifefs archive names (`"init"`, `"system_initializer"`).
+/// key management. Names are the nifefs archive names (`"progenitor"`, `"hello"`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Measurement {
-    /// The nifefs archive name this digest was measured for (`"init"`, `"system_initializer"`).
+    /// The nifefs archive name this digest was measured for (`"progenitor"`, `"hello"`).
     pub name: &'static str,
     /// The expected SHA-256 of the program's bytes.
     pub digest: Digest,
@@ -535,24 +535,24 @@ mod tests {
 
     /// The three verdicts the boot path can get, including the one that matters most: a trust root
     /// that does not mention the program is a **refusal**. A kernel built without the measurement
-    /// step must not boot an unmeasured init.
+    /// step must not boot an unmeasured progenitor.
     #[test]
     fn verification_accepts_the_measured_bytes_and_refuses_everything_else() {
         let root = [Measurement {
-            name: "init",
-            digest: sha256(b"the real init"),
+            name: "progenitor",
+            digest: sha256(b"the real progenitor"),
         }];
-        assert_eq!(verify(&root, "init", b"the real init"), Ok(()));
+        assert_eq!(verify(&root, "progenitor", b"the real progenitor"), Ok(()));
         assert_eq!(
-            verify(&root, "init", b"the real init!"),
+            verify(&root, "progenitor", b"the real progenitor!"),
             Err(VerifyError::Mismatch)
         );
         assert_eq!(
-            verify(&root, "system_initializer", b"the real init"),
+            verify(&root, "hello", b"the real progenitor"),
             Err(VerifyError::Unmeasured)
         );
         assert_eq!(
-            verify(&[], "init", b"the real init"),
+            verify(&[], "progenitor", b"the real progenitor"),
             Err(VerifyError::Unmeasured)
         );
     }

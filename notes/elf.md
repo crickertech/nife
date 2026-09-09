@@ -58,7 +58,7 @@ still handed that blob to the *ELF* loader. The parser read
 `43 52 4B 52` (`CRKR`) where it wanted `7F 45 4C 46`, and refused: `LoadError::NotLoadable(BadMagic)`,
 followed by "the kernel is fine." The bug was upstream (feeding the wrong bytes); the magic check is
 what surfaced it cleanly instead of letting the loader read archive bytes as machine code and crash
-three steps later somewhere unrelated. See notes/init-and-loading.md for the 19f archive.
+three steps later somewhere unrelated. See notes/progenitor-and-loading.md for the 19f archive.
 
 ## What QEMU does with `-kernel kernel.elf`
 

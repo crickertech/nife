@@ -17,22 +17,18 @@ use crate::sched;
 /// This is the binary carrying the milestone 7-19 role catalogue: the printing client, the
 /// untyped demo, the granter and receiver, the call server, the address space builder, the init roles.
 /// A test that loads a real user program wants the program's bytes, not the whole nifefs
-/// archive; only the `spawn_init` tests pass the archive, because init parses it itself.
+/// archive; only the `spawn_progenitor` tests pass the archive, because the program parses it itself.
 ///
-/// The archive name differs by ISA and that is the one place it shows. aarch64 packs hello as
-/// **`init`**, because on that ISA hello *is* the boot program. RISC-V's `init` is the portable
-/// `builder` demo, so hello is packed under its own name there. Both point at the same source
-/// file compiled for the local target.
-#[cfg(target_arch = "aarch64")]
-const HELLO_ENTRY: &str = "init";
-#[cfg(target_arch = "riscv64")]
-const HELLO_ENTRY: &str = "hello";
+/// **The archive name used to differ by ISA and this was the one place it showed.** aarch64 packed
+/// hello as `init`, because on that ISA hello also carried the boot role. Milestone 266 moved that
+/// role into its own program, so the name is `hello` on all three and the three arms this constant
+/// used to need collapsed into `super::HELLO_ENTRY`.
+///
 /// **`x86_64` packs no initrd at all**, because no user program is built for
-/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). This
-/// names what the entry would be called rather than what is there, and every test that reaches for
-/// it skips instead: see [`init_image`].
-#[cfg(target_arch = "x86_64")]
-const HELLO_ENTRY: &str = "hello";
+/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). The
+/// constant names what the entry would be called rather than what is there, and every test that
+/// reaches for it skips instead: see [`init_image`].
+const HELLO_ENTRY: &str = super::HELLO_ENTRY;
 
 fn init_image() -> &'static [u8] {
     program(HELLO_ENTRY).expect("no hello program in the initrd archive")
@@ -2387,7 +2383,7 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
 /// **aarch64-only, because RISC-V has no second interrupt to raise.** It has no
 /// software-generated interrupt a test can assert on itself at all (the SBI IPI arrives down the
 /// software-interrupt arm and never reaches `irq_route`), so the only line it can raise by hand
-/// is the console UART's own, which `spawn_init` is already routing for the input driver init
+/// is the console UART's own, which `spawn_progenitor` is already routing for the input driver init
 /// builds. A twin would have to share that one source between init's UART capability and the
 /// test's delegated one, and would then prove delivery through whichever route was bound last
 /// rather than through the delegated capability, which is the entire claim. The *property*
@@ -2402,7 +2398,7 @@ fn userspace_init_delegates_an_interrupt_to_a_child() {
     const INIT_IRQ_ROLE: u64 = 25;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_init(initrd().expect("no initrd"), INIT_IRQ_ROLE, report);
+    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_IRQ_ROLE, report);
 
     // Raise the test interrupt. The rendezvous counts it if the child is not waiting yet (it is
     // still being built), and the child's WAIT drains that pending signal, so there is no race.
@@ -2434,7 +2430,7 @@ fn userspace_init_brings_up_the_console_server() {
     const INIT_CONSOLE_ROLE: u64 = 24;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_init(initrd().expect("no initrd"), INIT_CONSOLE_ROLE, report);
+    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_CONSOLE_ROLE, report);
 
     let acked = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2467,7 +2463,7 @@ fn userspace_init_builds_a_driver_that_reads_real_hardware() {
     const INIT_DEV_ROLE: u64 = 23;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_init(initrd().expect("no initrd"), INIT_DEV_ROLE, report);
+    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_DEV_ROLE, report);
 
     let id = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2491,7 +2487,7 @@ fn userspace_init_parses_an_elf_and_builds_a_running_child() {
     const INIT_ROLE: u64 = 20;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_init(initrd().expect("no initrd"), INIT_ROLE, report);
+    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_ROLE, report);
 
     let word = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2513,7 +2509,7 @@ fn init_builds_a_worker_and_passes_it_an_argument() {
     const WORKER_INPUT: u64 = 7;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_init(initrd().expect("no initrd"), INIT_WORKER_ROLE, report);
+    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_WORKER_ROLE, report);
 
     let answer = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2614,7 +2610,7 @@ fn init_runs_the_coremark_workload_and_it_checks_out() {
     const INIT_COREMARK_ROLE: u64 = 29;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_init(initrd().expect("no initrd"), INIT_COREMARK_ROLE, report);
+    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_COREMARK_ROLE, report);
 
     let [crc, ticks, freq, _, _] = crate::sched::ipc_recv(report);
     assert_eq!(

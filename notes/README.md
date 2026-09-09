@@ -969,7 +969,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   an ordinary IPI deadlocks here (the sender holds `KERNEL_MMU`, which masks interrupts, and so does
   every core it is waiting for), and why the NMI is therefore forced rather than chosen. The test
   that already existed and fails without it.
-- [init, and loading a program from userspace](init-and-loading.md): milestone 19d: the ELF
+- [The progenitor, and loading a program from userspace](progenitor-and-loading.md): milestone 19d: the ELF
   parser leaves the kernel for init, an ordinary confined program. How init loads a child through
   the granular verbs (retype, copy-and-map each segment, endow, configure, start), why
   SYS_CAP_DELETE exists (a loader recycles a 16-slot capability table over hundreds of frames), and the two

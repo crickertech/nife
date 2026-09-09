@@ -88,7 +88,7 @@ reserved case:
 - For most programs, `x0`/`x1`/`x2` are plain arguments. A worker takes its input `n` in `x1`. A
   standalone binary that needs no argument ignores all three.
 - **init** is the exception the loader knows about: the kernel starts init with the initrd length in
-  `x1`, because init must find the archive it loads everything else from (notes/init-and-loading.md).
+  `x1`, because init must find the archive it loads everything else from (notes/progenitor-and-loading.md).
 - Historically `x0` was a *role selector* for the one multi-tool `hello` binary. After the 19f split
   every program is its own binary, so `x0` is a free argument again, not a dispatch key.
 

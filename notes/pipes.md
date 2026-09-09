@@ -2,7 +2,7 @@
 
 *Milestone 50, the operators lane and its closure. `crates/grant_plan/src/line.rs`,
 `user/src/wc.rs`, `user/src/swish.rs`, `user/src/date.rs`, `user/src/terminal_sink_caretaker.rs`,
-`user/src/system_initializer.rs`, `user/src/hello.rs`, `crates/grant_plan/src/spawnproto.rs`,
+`user/src/progenitor.rs`, `user/src/hello.rs`, `crates/grant_plan/src/spawnproto.rs`,
 `script/shell-check`. The protocol half is notes/sink-protocol.md and you should read that first.*
 
 **All five operators run at a real prompt on both ISAs.** `|` landed first; `>` and `<` needed a
@@ -428,7 +428,7 @@ found it the hard way: the shell delegated a diagnostic endpoint, nobody receive
 hung on the first `date` with no fault and no message.
 
 `kernel/src/main.rs` hands off to `user::initrd()`, which loads the program named **`init`**, and on
-aarch64 that is `user/src/hello.rs`'s `init_boot` role. `user/src/system_initializer.rs` is riscv64's.
+aarch64 that is `user/src/hello.rs`'s `init_boot` role. `user/src/progenitor.rs` is riscv64's.
 Both serve `grant_plan::spawnproto`, and **the serving loop was written twice**, once in each file,
 about a hundred and forty near-identical lines: the same delegation order, the same slot ordering,
 the same clock rule, the same `build_child_at`.
@@ -1173,7 +1173,7 @@ the shell.
 
 The guest tests above wire the shell **from the kernel**: it serves the terminal contract and, on a
 second thread, `grant_plan::spawnproto` in place of init. The shell cannot tell the difference, and
-that is the problem. `user/src/system_initializer.rs` is not the same code, so a change that broke
+that is the problem. `user/src/progenitor.rs` is not the same code, so a change that broke
 the real spawn path failed nothing, and the `--features shell` boot is the only thing that runs it.
 
 That cost this milestone three manual bisects, and **all three presented as a boot that printed

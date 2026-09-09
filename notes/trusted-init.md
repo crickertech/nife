@@ -55,7 +55,7 @@ Three pieces, no new syscall, no new capability, no key material.
    and no certificate chain.
 
 3. **The boot path refuses.** `trust::require(name, bytes)` runs before the boot program's address
-   space is built: aarch64 `spawn_init`, riscv `riscv_initrd_demo` and `riscv_shell_boot`. On a
+   space is built: aarch64 `spawn_progenitor`, riscv `riscv_initrd_demo` and `riscv_shell_boot`. On a
    mismatch it prints what it expected, what it measured, and calls `arch::halt()`.
 
 The meaning of the whole arrangement is one sentence: **this kernel image runs exactly this init.**
@@ -377,14 +377,15 @@ the program ids `spawnproto` already sends in word 0.
 
 This increment left two duplications behind on purpose, and both are gone now.
 
-The larger one was **the system itself**. `user::initrd()` loads the archive entry `init`, which is
-`user/src/hello.rs`'s `init_boot` role on aarch64 and `user/src/system_initializer.rs` on riscv64, and
+The larger one was **the system itself**. `user::initrd()` loaded an archive entry called `init`,
+which was `user/src/hello.rs`'s `init_boot` role on aarch64 and a separate program on riscv64
+(milestone 266 later collapsed both the alias and the two programs into one `progenitor`), and
 everything above (the six boot components, the giveaway, the negative control, the spawn service) was
-written once in each. About three hundred near-identical lines, and the failure mode is the reason it
+was written once in each. About three hundred near-identical lines, and the failure mode is the reason it
 mattered rather than the line count: a fix that lands in one and not the other is **a boot that
 reaches userspace and prints nothing at all**, with no fault and no message, which cost three separate
-lanes an evening each. It is now `crates/system_initializer`, and each init is the table of slot numbers
-its own kernel granted plus a call into it. Those tables are the one thing the two boards genuinely
+lanes an evening each. It is now `crates/system_initializer`, and the boot entry is the table of slot numbers
+its own kernel granted plus a call into it. Those tables are the one thing the boards genuinely
 disagree about: aarch64's boot path is shared with milestone 19d's test roles, so it grants a report
 endpoint and a test SGI the interactive system never uses and numbers everything after them
 differently. That is data the crate takes (`BootEndowment::unused`), not code it repeats.

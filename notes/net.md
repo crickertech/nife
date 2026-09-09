@@ -929,7 +929,7 @@ much as of the tree. Reproduce the margin, not the failure.
 
 The prediction above was right about the cause and wrong about the size of it: **the net services
 were the second biggest spender, not the first.** Measured across a whole aarch64 boot with the frame
-ledger (notes/frames.md), the ten net tests held **2759 frames**; the six `spawn_init` tests held
+ledger (notes/frames.md), the ten net tests held **2759 frames**; the six `spawn_progenitor` tests held
 **12289**. Both are fixed, and the note is corrected rather than quietly updated, because "we knew
 which one it was" is exactly the kind of claim this file exists to keep honest.
 
