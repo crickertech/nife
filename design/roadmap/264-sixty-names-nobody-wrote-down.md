@@ -165,16 +165,16 @@ did the renaming and this writes down why the survivors survived. **Each case li
 block beside the name it is about**, which is milestone 115's mechanism and the reason none of these
 needs a file of its own; what is listed here is where to read it and what happens if calef says no.
 
-- **Recorded.** **`crates/cred` wants its name spelled out, as `credential`**, in that crate's header. The
-  strongest of the five, because the evidence is calef's own hand moving the other way twice: he
-  ratified `credentialer` in full on 2026-08-01 and renamed `cred_proto` to `credential_proto` on
-  2026-08-23 with the reason recorded as "spell out the contraction fully". This crate is that same
-  contraction, left behind by both sweeps rather than exempted by either, so one word is now spelled
-  two ways across three things that are the same thing. `kbd` to `keyboard_driver` on 2026-08-27 is
-  the same shape a third time. The seventh question, in its own words: if renaming and keeping cost
-  the same, nothing would keep `cred`, so the only argument for it is effort. If he says no, the tree
-  keeps a contraction his own two rulings rejected, and `script/lint`'s `-d` allow-list keeps carrying
-  the exemption that is currently the name's only written reason.
+- **Done.** **`crates/cred` is `crates/credentialer`**, renamed 2026-09-08. This lane proposed
+  `credential`; **calef chose `credentialer`**, which is better for a reason the proposal missed.
+  AGENTS.md's naming section: *"a crate and a program may share a name, and it says something when
+  they do: the crate is that program's logic, lifted out so it can be host-tested and Kani-reachable
+  while the program keeps the IO."* This crate describes itself in exactly those terms and names
+  `user/src/credentialer.rs` as its service, so `credential` would have fixed the contraction while
+  creating a fourth shape the tree does not have: a crate named for the subject beside a program
+  named for the actor, with nothing saying they are one thing lifted apart. `credential_proto` is
+  untouched, because the wire is about credentials rather than about the servicer, the same shape as
+  `fs_proto` beside a server.
 - **Recorded.** **`crates/user_rt` wants its name spelled out, as `user_runtime`**, in that crate's header. The
   `rt` half has never been weighed against `runtime` by anyone, and the crate's own first line spells
   it out. The `user_` half is on the record only because `user_heap`'s ratification cites *this crate*

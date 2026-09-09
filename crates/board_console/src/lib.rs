@@ -40,7 +40,7 @@
 //! **wall-clock driven**: the policy's 15-second quiet timeout and 120-second budget are measured
 //! with `Instant`, so under an interpreter they expire while the replay is still feeding bytes and
 //! the watcher reports `Reached(Banner)` where a real run reaches `Reached(Tour)`. That is Miri
-//! being slow, not this crate being wrong, and it is the same category as `cred`'s timing test.
+//! being slow, not this crate being wrong, and it is the same category as `credentialer`'s timing test.
 //! See notes/undefined-behavior.md and the exclusion list in `xtask`.
 //!
 //! # Examples

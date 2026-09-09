@@ -280,7 +280,7 @@ is a known gap rather than a decision.
   predates the suffix.
 - **Format and hardware parsers**: `elf`, `dtb`, `pci`, `gpt`, `nifefs`.
 - **Userspace libraries**: `user_rt`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
-  `bitmap_font`, `glob`, `calendar`, `cred`, `compositor`, `coremark`, `c_seam`.
+  `bitmap_font`, `glob`, `calendar`, `credentialer`, `compositor`, `coremark`, `c_seam`.
 
 **`compositor` and `line_editor` are the two that look like contracts and are not**, and an earlier
 version of this section listed them as such. Both are *logic* crates that happen to contain a
@@ -474,7 +474,7 @@ queues), `script/fmt` (the name was itself the fix, and the header cites §39 fo
 `cred_proto` had abbreviated stems, which is the first of the three failure modes the tenet lists
 for crate names, and the rule that yields `<service>_proto` does not pick which word goes in front
 of the underscore. `gfx_proto` was ratified 2026-08-23 (a kernel-dependency crate naming review) as
-`graphics_proto`, spelling the abbreviation out in full. `cred` is the sharper case: milestone 63
+`graphics_proto`, spelling the abbreviation out in full. `cred` was the sharper case, and was renamed to `credentialer` on 2026-09-08: milestone 63
 expanded `credcli` and argued `credentialer` in full, then left two crates spelled `cred` without
 saying why. `user_rt` fails the same way twice over, since the only thing establishing `user_` as a
 prefix is `user_rt` itself.

@@ -137,8 +137,8 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use credentialer::{Block, Cost, Store, Verdict};
 use credential_proto as proto;
+use credentialer::{Block, Cost, Store, Verdict};
 use user_rt::mapped_window::MappedWindow;
 use user_rt::{call, cap_delete, exit, recv_cap, reply, send};
 

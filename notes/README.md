@@ -716,7 +716,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   supplies in one message or completion is bounded before it is believed. One finding: the NVMe kernel
   driver panics on two device-written completion fields, the reciprocal of shared-page-audit.md's
   finding 6 one layer down (the IOMMU confines placement, not values). `mdns_proto`'s decoder and the
-  cred/ntlm secret handling are cleared, with the reachability and scope caveats attached.
+  credentialer/ntlm secret handling are cleared, with the reachability and scope caveats attached.
 - [A security audit](security.md): an adversarial four-part review of the whole kernel. The
   MMU and capability confinement held up and two panics on untrusted input were fixed. Read as a
   dated record: the review ran after milestone 11, and its closing conditions (single core, no

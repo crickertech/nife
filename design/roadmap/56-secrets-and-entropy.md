@@ -40,7 +40,7 @@ constant would be passed straight through. notes/entropy.md carries the full lis
 ## The credential half: BUILT, 2026-07-31 (notes/credentials.md)
 
 An identity, a secret, and a way to check the second against the first without ever being able to
-read it. `crates/cred` (Argon2id, the store, constant-time verification), `crates/cred_proto` (the
+read it. `crates/credentialer` (Argon2id, the store, constant-time verification), `crates/credential_proto` (the
 wire contract), `user/src/credentialer.rs` (the service), `user/src/credentialer_test_client.rs` (its provisioner,
 client, and attacker). Five kernel tests on both ISAs, 26 host tests, three Kani harnesses.
 
@@ -143,7 +143,7 @@ than "the service checks". See notes/credentials.md.
   problem (certificates need time, time needs the network). The honest v1 is provisioned at boot and
   held only in memory; say so plainly rather than implying durability we do not have. **Still
   unsolved, and scoped exactly that small 2026-07-31**: the store is memory only and dies with the
-  process. `cred::Record` has a versioned encoding with a round-trip test so the question has a
+  process. `credentialer::Record` has a versioned encoding with a round-trip test so the question has a
   starting point, and nothing writes one to a disk.
 - ~~**Entropy is a capability**, and the service that holds it should be the only thing that can read
   the device. Whether `std::random` transparently improves or programs must ask for a real RNG is a
@@ -176,7 +176,7 @@ milestone 55's critical path, because provisioning at boot is enough to authenti
 - **Recorded.** `notes/credentials.md`: the Argon2id cost parameters are below OWASP's, 4 MiB rather
   than 19, because the whole machine is 128 MiB of QEMU RAM.
 - **Recorded.** `notes/credentials.md`: nothing in the credential store survives a reboot, and
-  secrets at rest are unanswered. Scoped exactly that small on purpose, since `cred::Record` has a
+  secrets at rest are unanswered. Scoped exactly that small on purpose, since `credentialer::Record` has a
   versioned encoding with a round-trip test so the question has a starting point and nothing writes
   one to a disk.
 - **Recorded.** `notes/credentials.md`: one verify page means one client, and there is no rate limit
