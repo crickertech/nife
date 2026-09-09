@@ -709,7 +709,7 @@ soak_page = { version = "0.1.0", path = "../crates/soak_page" }
 job_mix = { version = "0.1.0", path = "../crates/job_mix" }
 clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
 environment_proto = { version = "0.1.0", path = "../crates/environment_proto" }
-cred = { version = "0.1.0", path = "../crates/cred" }
+credentialer = { version = "0.1.0", path = "../crates/credentialer" }
 credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
 login_proto = { version = "0.1.0", path = "../crates/login_proto" }
 compositor = { version = "0.1.0", path = "../crates/compositor" }
