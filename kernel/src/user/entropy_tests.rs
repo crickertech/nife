@@ -254,16 +254,40 @@ fn a_fill_gathers_across_round_trips() {
 /// (`cortex-a72`, an ARMv8.0-A part) does not implement: `FEAT_RNG` is ARMv8.5. This is the same
 /// shape as the virtio tests above skipping when `NIFE_RNG` is unset, one level down the stack:
 /// a real hardware precondition this suite cannot fake, named rather than assumed. Run this test
-/// for real with `script/test --arch aarch64 --cpu neoverse-n2` (verified 2026-08-24 against QEMU
-/// 11.0.2). **Not `--cpu max`**: QEMU's `max` model does carry `FEAT_RNG`, but this kernel refuses
-/// to boot on it at all ("no 4 KiB stage-1 granule (`ID_AA64MMFR0_EL1.TGran4`)"), a QEMU-model quirk
-/// unrelated to entropy; `neoverse-n2` (Armv9.0-A) has both. On `x86_64`, `RDSEED` has no such gap
+/// for real **under TCG** with `script/test --arch aarch64 --cpu neoverse-n2` (verified 2026-08-24
+/// against QEMU 11.0.2). **Not `--cpu max`**: QEMU's `max` model does carry `FEAT_RNG`, but this
+/// kernel refuses to boot on it at all ("no 4 KiB stage-1 granule (`ID_AA64MMFR0_EL1.TGran4`)"), a
+/// QEMU-model quirk unrelated to entropy; `neoverse-n2` (Armv9.0-A) has both.
+///
+/// **That flag reaches a TCG run and nothing else, which is a narrower fix than it sounds**
+/// (checked 2026-09-10, after the earlier wording here read as though a flag reliably fixed this
+/// skip). `--cpu` selects an *emulated* CPU model, so it has no meaning under HVF, where the guest
+/// runs the physical Apple Silicon core: `scripts/qemu-runner-aarch64.sh` refuses `NIFE_CPU` there
+/// outright ("the guest runs the physical core; `-cpu host` is mandatory"). And the HVF leg cannot
+/// answer the question anyway, for a reason that has nothing to do with entropy: QEMU 11.1.1's HVF
+/// accelerator wants `GICv3` and `kernel/src/drivers/gic.rs` speaks GICv2 only, so `--hvf` refuses
+/// before a single test runs (milestone 227, a `GICv3` driver; milestone 222 is why that refusal is
+/// loud rather than silent, and `notes/interrupts.md`'s `BUGS` section has the detail). **So
+/// whether Apple Silicon implements `FEAT_RNG` is unknown here, not known to be absent**, and
+/// nobody can find out from this machine until 227 lands.
+///
+/// **The practical consequence: this test has passed exactly once, by hand, when milestone 162
+/// landed.** CI never takes the passing leg either. `.github/workflows/ci.yml`'s `test` job runs
+/// `script/ci-build` over QEMU/TCG with no `NIFE_CPU` set anywhere, so it gets the default
+/// `cortex-a72`, and the `cpu-matrix` job that does sweep CPU models is riscv64-only by its own
+/// name. Every run since has read as clean with this test in the skip column. Giving aarch64 the
+/// CPU-matrix coverage riscv64 already has is a roadmap item of its own rather than this file's
+/// job; what this comment owes a reader in the meantime is not to imply that a flag will fix their
+/// skip. On `x86_64`, `RDSEED` has no such gap
 /// because ring 3 does not exist yet on that port at all (see
 /// `design/roadmap/162-cpu-instruction-entropy.md`), so there is no service to test end to end
 /// there yet, only the kernel-side probe the boot tour already proves. This test also compiles and
 /// runs (and skips) on riscv64, which has neither instruction: `instruction_backend_available`
 /// there is unconditionally `false`, the JH7110's real hardware source (milestone 159) being a
-/// separate driver entirely, so the skip is correct there too, just for a different reason.
+/// separate driver entirely, so the skip is correct there too, just for a different reason. **That
+/// exclusion is checked, not pending**: milestone 162 refused a riscv64 arm outright, having read
+/// the ISA rather than assumed it, and recorded the refusal under "Follow-on" in
+/// `design/roadmap/162-cpu-instruction-entropy.md`.
 ///
 /// **`x86_64`'s `instruction_backend_available` arm now checks `arch::isa::get().rdseed`** (ring 3
 /// landed, milestone 161 item 3), so this test's logic is complete on that architecture too. It does
@@ -277,8 +301,11 @@ fn a_fill_gathers_across_round_trips() {
 fn a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all() {
     let Some(w) = start(Bus::Instruction) else {
         crate::testing::skip!(
-            "no instruction-mode entropy source on this build (aarch64 needs FEAT_RNG, \
-             ID_AA64ISAR0_EL1.RNDR clear here; try --cpu neoverse-n2. riscv64 has none.)"
+            "no instruction-mode entropy source on this build (aarch64: ID_AA64ISAR0_EL1.RNDR is \
+             clear, so no FEAT_RNG. riscv64: the ISA has neither instruction, refused on purpose \
+             in design/roadmap/162-cpu-instruction-entropy.md). --cpu neoverse-n2 reaches the \
+             passing path under TCG only, no CI leg takes it, and the HVF leg cannot boot this \
+             kernel at all today (milestone 227). Read this test's doc comment first"
         );
     };
     assert!(
