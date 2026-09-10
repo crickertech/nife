@@ -128,17 +128,18 @@ facts this leans on and its failure-triage ladder for everything that goes wrong
    anecdote. **Boot twice** and confirm the two first-draw prefixes differ across boots (a device
    reseeded per boot, rather than a constant baked into silicon or a stale register file). **Read
    the mode note** in that same line: anything but `256-bit` means the byte count is overstated,
-   per the table above. And **time it**: the tour prints nothing between `pcie` and `hw entropy`,
-   so the wall time between those two lines is roughly one bring-up plus eight round trips, which
-   is the first datum for this milestone's open rate question.
+   per the table above. And **read the three timing figures**, which are the last clause of the
+   same line and did not exist when this procedure was first written.
 
-   **The rate measurement wants a stopwatch, not a guess, and here is why it is worth saying.**
-   Nothing in the tour timestamps either line, so the only clock available is a person watching a
-   serial console, which resolves to about a second. That is enough to answer the question risk 6
-   actually asks (is this milliseconds or is it minutes) and not enough for a bytes-per-second
-   number worth publishing. If the gap is visibly instant, record "under a second, by eye" and
-   leave it; a real figure needs the tour to print the timebase around the step, which is
-   `design/roadmap/proposals/time-the-hw-entropy-step.md`.
+   **Bring no stopwatch.** Until 2026-09-10 nothing in the tour timestamped either line, so the
+   only clock available was a person watching a serial console at about a second of resolution:
+   enough to answer the question risk 6 actually asks (is this milliseconds or is it minutes) and
+   not enough for a bytes-per-second number worth publishing. The tour now times itself. The line
+   carries `since the pcie line N us` (the whole gap, which is what a stopwatch was measuring), the
+   bring-up alone, and the two draws with a rate over their eight round trips. Record all three
+   verbatim. `design/roadmap/proposals/time-the-hw-entropy-step.md` has what each one counts, the
+   QEMU reference figures to read them against, and the reason the bring-up excludes the `hw clock`
+   line's own console time.
 
 6. Whatever happened, **capture the board's device tree** while you have it: at the `StarFive #`
    prompt, `fdt addr ${fdtcontroladdr}` then `fdt print /soc/rng@1600c000` (and `fdt list /soc` if
@@ -230,9 +231,12 @@ has three parts:
   a capability that names no device.
 - **Drives real hardware**: demonstrated now, reproducibly, on the tree's only confined driver for a
   real non-virtio device.
-- **At real speed**: **unmeasured.** The tour prints nothing between `pcie` and `hw entropy`, and
-  nothing timestamps either line, so a stopwatch resolves "under a second, by eye" and no more. That
-  is `design/roadmap/proposals/time-the-hw-entropy-step.md`.
+- **At real speed**: **unmeasured on silicon**, and since 2026-09-10 measurable by one boot rather
+  than by eye. The tour now reads the timebase around this step and prints the whole `pcie`-to-`hw
+  entropy` gap, the bring-up, and the draws with a rate; the instrument was exercised under QEMU
+  against virtio-rng, which is the same client path with a free device at the end and so gives the
+  denominator radon's figure will be read against. Nothing has run it on the board.
+  `design/roadmap/proposals/time-the-hw-entropy-step.md` has the numbers and the caveats.
 
 **Nothing here says the driver is fast**, and the block should not be quoted as if it did.
 
@@ -386,8 +390,9 @@ Risk 6 is *"a capability-confined userspace driver cannot drive real hardware at
   confined EL0 process wrote a JH7110 register, polled it, and handed a client bytes that were not
   zero and that changed between draws, through a capability that names no device. The clock work
   that made it possible was milestone 220's.
-- **At real speed**: still unmeasured, and now measurable for the first time. See the bench
-  procedure's step 5 for what a session would have to do, and its honest limit.
+- **At real speed**: still unmeasured on silicon. It was "measurable for the first time" here and
+  the instrument to measure it with landed on 2026-09-10: the step times itself now, so the bench
+  procedure's step 5 asks for three numbers off the line rather than for a stopwatch.
 
 **The success line has still never printed**, which is why this block's status has not moved. What
 printed was a FAILED line whose numbers, read correctly, describe a working device.
@@ -443,8 +448,12 @@ Three sources settle them, all cited in the crate with URLs and fetch dates: mai
 - **Recorded.** `POLL_TRIES` and `LOCKUP_RETRIES` bound loop iterations, not time, so what they
   bound depends on the core and on what the compiler did to the loop. Noted in the same `BUGS`
   section; a real timeout needs a clock the driver does not hold.
-- **Proposed.** Timing the `hw entropy` step, which is the "at real speed" half of fatal risk 6 and
-  is unanswerable by eye: `design/roadmap/proposals/time-the-hw-entropy-step.md`.
+- **Proposed.** Timing the `hw entropy` step, which is the "at real speed" half of fatal risk 6:
+  `design/roadmap/proposals/time-the-hw-entropy-step.md`. **Its QEMU half is built** (2026-09-10,
+  branch `milestone/159-time-hw-entropy`): the tour reads the timebase around the step and prints
+  the gap, the bring-up and the draw rate, exercised against virtio-rng because QEMU has no JH7110.
+  The file stays a proposal because what is left is one boot of radon and only the integrator mints
+  a number.
 - **Decision.** Whether these bytes need a NIST SP 800-90B-class health test before anything
   security-shaped trusts them: `design/decisions/137-trng-health-tests.md`, already `PROPOSED` and
   untouched by this lane.
