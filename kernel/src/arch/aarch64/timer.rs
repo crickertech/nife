@@ -86,8 +86,9 @@ use crate::drivers::gic;
 /// software CPU and would work on bare metal. It **traps under a hypervisor**: the physical timer
 /// belongs to EL2, and a guest at EL1 that writes `CNTP_CVAL_EL0` takes an "Unknown reason" trap
 /// (ESR EC 0x00). We found this the first time we booted under Apple's Hypervisor.framework on an
-/// M3, which is exactly the "which assumptions were secretly QEMU-shaped" moment DECISIONS.md and
-/// notes/portability.md anticipate for a new target, arriving early because HVF runs the real
+/// M3, which is exactly the "which assumptions were secretly QEMU-shaped" moment
+/// design/decisions/ and notes/portability.md anticipate for a new target, arriving early because
+/// HVF runs the real
 /// core.
 ///
 /// The **virtual** timer (`CNTV_*`, INTID 27) is the one a guest is meant to use, and it is
@@ -500,7 +501,7 @@ pub mod miss_detail {
 /// the machine drowns in its own timer.
 ///
 /// This is the whole handler, and it is deliberately tiny: bump a counter, reload the
-/// countdown, return. DECISIONS.md §9: **interrupt handlers record and defer; they do not do
+/// countdown, return. DECISIONS §9: **interrupt handlers record and defer; they do not do
 /// work.** At milestone 6 this will also set a "reschedule wanted" flag, and the *scheduler*
 /// will act on it in normal context.
 pub fn tick() {
@@ -813,7 +814,7 @@ mod tests {
     /// deadline passes, we re-arm to a deadline already in the past, and the only sane thing to
     /// do is give up on it and re-anchor.
     ///
-    /// This is exactly why DECISIONS.md §9 says **keep critical sections short**, and it is the
+    /// This is exactly why DECISIONS §9 says **keep critical sections short**, and it is the
     /// reason that rule has teeth rather than being good manners. At milestone 6, a lost tick is
     /// a thread that didn't get preempted.
     ///
@@ -874,7 +875,7 @@ mod tests {
 
     /// **THE TEST.**
     ///
-    /// Everything in DECISIONS.md §9 and notes/locking.md exists to prevent one thing: a timer
+    /// Everything in DECISIONS §9 and notes/locking.md exists to prevent one thing: a timer
     /// interrupt landing inside a critical section, taking the same lock, and spinning forever
     /// waiting for code that cannot run until it returns. On one core. Permanently.
     ///

@@ -30,7 +30,7 @@
 //! Splitting the access out this way is also what keeps rule #1: `in`/`out` are instructions, so
 //! the port-space implementation lives under `arch/x86_64/`, not here.
 //!
-//! Same rule as every driver here (DECISIONS.md §4): **it reaches into no globals.** It is
+//! Same rule as every driver here (DECISIONS §4): **it reaches into no globals.** It is
 //! constructed with a base address and a shape and knows nothing else. It is the sibling of
 //! `pl011.rs`, selected by the console at compile time. See notes/riscv-port.md.
 

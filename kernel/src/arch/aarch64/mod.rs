@@ -3,7 +3,7 @@
 //! Assembly, system registers, and CPU-specific behaviour live here and nowhere
 //! else. When the Raspberry Pi port happens, this is the module that gets a
 //! sibling, and everything above `arch::` should be untouched. See
-//! notes/portability.md and DECISIONS.md §4.
+//! notes/portability.md and DECISIONS §4.
 
 use core::arch::global_asm;
 
@@ -83,7 +83,7 @@ pub fn entry_el() -> u64 {
 /// `TPIDR_EL1` is a scratch system register the architecture reserves for software's own use;
 /// the kernel keeps a per-core pointer in it and reads it back in one `mrs`. This is the
 /// standard aarch64 per-CPU base (Linux uses `TPIDR_EL1` identically). The portable side of
-/// this lives in `kernel/src/cpu.rs`; only the register touch belongs here (DECISIONS.md §4).
+/// this lives in `kernel/src/cpu.rs`; only the register touch belongs here (DECISIONS §4).
 pub fn set_percpu(ptr: usize) {
     TPIDR_EL1.set(ptr as u64);
 }

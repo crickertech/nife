@@ -3,7 +3,7 @@
 *(Milestone 27. The first wall an application hits on nife was "no std": you could write a
 `no_std` binary against `crates/user_rt`, and nothing else. This milestone makes ordinary Rust,
 `Vec` and `String` and `println!` and `Instant`, compile and run on the capability ABI. See
-DECISIONS.md §22 for the decision and why; notes/abi.md for the ABI it binds to.)*
+DECISIONS §22 for the decision and why; notes/abi.md for the ABI it binds to.)*
 
 The shape is **Hermit's, not Redox's**. Hermit implements std's platform layer directly on a
 non-POSIX unikernel ABI; Redox writes a POSIX C library (relibc) first and puts std on top of that.

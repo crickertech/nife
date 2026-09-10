@@ -1,7 +1,7 @@
 //! An ELF64 loader's front half: parse, validate, and hand back the segments to map.
 //!
 //! **Pure logic, so it compiles for the host and its tests run in milliseconds** with no
-//! emulator (DECISIONS.md §7). Nothing in here knows what a page table is. It answers one
+//! emulator (DECISIONS §7). Nothing in here knows what a page table is. It answers one
 //! question: *what does this file want me to put where, and with what permissions?*
 //!
 //! Deliberately narrow. We parse **static, little-endian, aarch64, `ET_EXEC`** binaries and

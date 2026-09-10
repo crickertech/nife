@@ -20,7 +20,7 @@
 //! 2. **Testability.** A free list stores its metadata inside the memory it manages, so
 //!    testing it requires handing it real memory and doing unsafe pointer writes. A
 //!    bitmap's logic is *pure*: given a bitmap and a request, which frame? We can test
-//!    it exhaustively on the host with no memory at all, which is DECISIONS.md §7.
+//!    it exhaustively on the host with no memory at all, which is DECISIONS §7.
 //!
 //! The cost is 1 bit per frame: 32 KiB of bitmap per GiB of RAM. Cheap.
 //!

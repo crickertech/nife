@@ -5,7 +5,7 @@
 //! say anything at all, which is why it is the first thing every kernel learns to
 //! do. See notes/qemu.md.
 //!
-//! Note the rule from DECISIONS.md §4: **this driver reaches into no globals.** It
+//! Note the rule from DECISIONS §4: **this driver reaches into no globals.** It
 //! is constructed with a base address and knows nothing about the rest of the
 //! kernel. Whoever owns it decides where it lives. (Compare NetBSD's `bus_space`,
 //! notes/portability.md.)

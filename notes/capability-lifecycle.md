@@ -19,7 +19,7 @@ if !rights.is_subset_of(src.rights) { return Err(NoRights); }
 
 `Rights` are four bits <!--count:rights-bits-->: `READ`, `WRITE`, `GRANT`, and `ENUMERATE`.
 `is_subset_of` is the whole enforcement; there is no code path that widens rights, which is the
-point (DECISIONS.md §10): if delegation could widen authority, the model is theatre.
+point (DECISIONS §10): if delegation could widen authority, the model is theatre.
 
 `ENUMERATE` is the newest and the one that shows why the count is worth gating rather than
 retyping: it arrived on 2026-08-17 with milestone 126, this line still said three bits the next
@@ -76,7 +76,7 @@ The frame path shows every piece confining the next:
    maps the same physical page but **cannot write it, and cannot pass it on**.
 
 The test `a_frame_capability_shares_a_page_and_a_read_only_view_cannot_write_it` pins exactly this.
-This is DECISIONS.md §10's "shared memory carries data," composed by the processes at runtime rather
+This is DECISIONS §10's "shared memory carries data," composed by the processes at runtime rather
 than wired by the kernel at spawn. Read-only derivatives at send time: yes, and enforced all the way
 to the page-table bits.
 

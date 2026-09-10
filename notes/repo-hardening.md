@@ -3,7 +3,7 @@
 Milestone 44 splits cleanly in two. The files are in the tree (`SECURITY.md`, `deny.toml`,
 `script/supply-chain`, `script/vendor-verify`, the CI job); the rest is **repository settings**,
 which live in GitHub's web UI and cannot be committed. This note is the exact procedure for those,
-written to be followed rather than interpreted. The reasoning behind each is DECISIONS.md §36.
+written to be followed rather than interpreted. The reasoning behind each is DECISIONS §36.
 
 Everything below needs admin on `crickertech/nife`.
 

@@ -107,7 +107,7 @@ it is how the mechanism learns it has reached its limit.
 documentation findings are `fixed` in the lane, which is the difference between this kind and a
 security audit; a doc correction is usually one edit. Two cases are not:
 
-- **A finding in `design/decisions/` or `DECISIONS.md`.** Lanes do not edit those, so the finding is
+- **A finding in `design/decisions/`.** Lanes do not edit that, so the finding is
   handed to the integrator or grouped into a proposed milestone. Both `script/audits --worklist` and
   the environment-names gate exclude that directory for the same reason.
 - **A doc gap that reveals a system gap.** That is the 84-to-90 path and it is a mint, not a fix.

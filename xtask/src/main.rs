@@ -3,7 +3,7 @@
 //! A normal Rust binary that runs on the *host*. Building a kernel means a custom
 //! target, a linker script, and driving QEMU with the right flags, none of which fits
 //! neatly into `cargo build`. This beats a Makefile because it's Rust and it composes.
-//! See DECISIONS.md §7.
+//! See DECISIONS §7.
 //!
 //!     cargo xtask run      boot the kernel (the milestone tour), print to this terminal
 //!     cargo xtask shell    boot straight to the interactive shell (add --hvf for the real core)
@@ -3410,8 +3410,17 @@ fn riscv_initrd_path() -> String {
 /// [`initrd_aarch64`] beside it has the same shape.
 ///
 /// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
-/// on `x86_64` (`console`, `input`, `keyboard_driver` and `gpu_driver` all need a device a ring-3
-/// process cannot reach, DECISIONS §121). They are packed anyway: an archive entry costs a directory slot and some
+/// on `x86_64`: `console`, `input` and `keyboard_driver` all need a device a ring-3 process cannot
+/// reach (COM1 and the PS/2 ports are port I/O, DECISIONS §121).
+///
+/// **`gpu_driver` was in that list until 2026-09-09 and did not belong there**, which mattered
+/// because it made `x86_64`'s display look foreclosed by a ratified decision when it is not.
+/// virtio-gpu is PCIe, its BARs are memory, and the driver does not map registers at all: it holds
+/// a kernel-mediated `Virtio` capability (`user/src/gpu_driver.rs`). §121 explicitly grants MMIO
+/// devices the mapping-based capability on every architecture. The real reason it does not run
+/// there is that `scripts/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci` onto the bus, which
+/// `kernel/src/user/display_tests.rs` states correctly beside its own skip. A missing device in a
+/// runner script, not a capability that cannot exist. They are packed anyway: an archive entry costs a directory slot and some
 /// bytes, nothing spawns a program by accident, and the tests that would spawn them `skip!()` with
 /// the reason. A per-architecture filter here would put the same fact in two places and let them
 /// disagree.
@@ -5718,7 +5727,7 @@ impl ArchLegs {
 ///
 /// The host crates (`dtb`, `frames`) hold the pure logic and run in *milliseconds* with no
 /// emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
-/// seconds booting QEMU. See DECISIONS.md §7.
+/// seconds booting QEMU. See DECISIONS §7.
 ///
 /// Four flags narrow what runs, and all four default to today's behaviour:
 ///
@@ -8948,8 +8957,8 @@ fn tree_sections() -> Vec<Shelf> {
     let mut out = Vec::new();
 
     // The markdown, in the four places this project keeps it. The repository root is included
-    // because `README.md` and `DECISIONS.md` are where a stranger starts, and a search that could
-    // not return the front page would be odd about it.
+    // because `README.md` is where a stranger starts, and a search that could not return the front
+    // page would be odd about it.
     for (shard, dir, recurse) in [
         ("notes", "notes", false),
         ("decisions", "design/decisions", false),

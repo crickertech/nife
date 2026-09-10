@@ -210,7 +210,7 @@ it settles the "MappedWindow or a new RegisterBlock type" question this round's 
 migrating `console.rs`/`input.rs`/`jh7110_trng.rs` onto it would be a real reduction with a stronger
 property than either alternative -- but it is new scope this round did not take, for two reasons
 worth naming rather than a guess at effort: adding `tock-registers` to the `user` crate's dependency
-graph is a dependency decision (rule 6, `DECISIONS.md` §46) this round did not have standing to make
+graph is a dependency decision (rule 6, DECISIONS §46) this round did not have standing to make
 unilaterally, and the three files it would touch gate boot output and keyboard input, which is
 exactly the kind of blast radius this round's brief said to weigh before attempting a risky
 restructuring. Left as a named follow-on: migrate `console.rs`, `input.rs` and `jh7110_trng.rs` onto

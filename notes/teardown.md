@@ -71,7 +71,7 @@ already solved teardown a better way. A later reader (a code survey, then us) re
 live bug and nearly "fixed" an unused method into existence.
 
 **A TODO that outlives the decision that resolved it becomes misinformation.** The fix was to
-correct the comment, not to add code. See DECISIONS.md §4 on not building the abstraction before
+correct the comment, not to add code. See DECISIONS §4 on not building the abstraction before
 the requirement.
 
 ---

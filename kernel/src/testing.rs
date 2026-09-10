@@ -6,7 +6,7 @@
 //! a pass or a failure.
 //!
 //! Set up on day one on purpose. The alternative is debugging by `println!` for a
-//! year (DECISIONS.md §7).
+//! year (DECISIONS §7).
 
 use core::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
 

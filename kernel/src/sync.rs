@@ -44,7 +44,7 @@
 //! interrupts *inside an interrupt handler*, and the resulting fault is one you will not
 //! enjoy explaining. This is why Linux's is called `irqsave`/`irqrestore`.
 //!
-//! See notes/locking.md and DECISIONS.md §9.
+//! See notes/locking.md and DECISIONS §9.
 
 use core::mem::ManuallyDrop;
 use core::ops::{Deref, DerefMut};
@@ -52,7 +52,7 @@ use core::sync::atomic::Ordering;
 
 use crate::arch::interrupts;
 
-/// # Lock ranking: the rule from DECISIONS.md §9, enforced by the machine
+/// # Lock ranking: the rule from DECISIONS §9, enforced by the machine
 ///
 /// > Two locks? Define a global order and always take them in it. Otherwise **AB-BA
 /// > deadlock**, which is a *real* race and far nastier than the interrupt deadlock this
@@ -182,7 +182,7 @@ pub mod rank {
     /// that (two cores spawning threads both mutate the shared TTBR1 tables), so mapping is now
     /// serialized. **Below `IPC_TABLES`** (a `KernelStack`'s `Drop` unmaps from under `reap`, which
     /// holds `IPC_TABLES`) and **below `STACK_VA`** (a stack's `new` maps pages), and **above the allocators**
-    /// (mapping allocates intermediate page-table frames). See DECISIONS.md §11.
+    /// (mapping allocates intermediate page-table frames). See DECISIONS §11.
     pub const KERNEL_MMU: u32 = 45;
 
     pub const PAGE_FRAMES: u32 = 30;
@@ -195,7 +195,7 @@ pub mod rank {
     /// The interrupt controller, whichever one this architecture has: the GIC on aarch64, the PLIC
     /// on RISC-V.
     ///
-    /// Taken by the IRQ handler, which by our own rule (DECISIONS.md §9) holds nothing and
+    /// Taken by the IRQ handler, which by our own rule (DECISIONS §9) holds nothing and
     /// allocates nothing. So it can sit low, just above the console: the handler may still
     /// `println!` a diagnostic while holding it.
     ///
@@ -228,7 +228,7 @@ pub mod rank {
 /// It used to be a single `static`. That was correct on one core and a bug on two: a second
 /// core taking a lock would clobber the first core's held-rank, and the ranking would start
 /// reporting violations that never happened, which is worse than not checking. Moving it
-/// per-CPU (DECISIONS.md §11, step 1) fixes that. It is still only ever touched by its owning
+/// per-CPU (DECISIONS §11, step 1) fixes that. It is still only ever touched by its owning
 /// core with interrupts masked, so the atomic is for interior mutability, not synchronization.
 ///
 /// What is the lowest-ranked lock we currently hold? Test support.
@@ -269,7 +269,7 @@ pub unsafe fn force_reset_ranks() {
 /// A spinlock that masks interrupts while it is held, and enforces a global lock order.
 ///
 /// **Every lock in the kernel should be one of these.** See the discipline in
-/// DECISIONS.md §9, particularly: keep the critical section short, because interrupts are
+/// DECISIONS §9, particularly: keep the critical section short, because interrupts are
 /// off for the whole of it.
 pub struct IrqSafeMutex<T> {
     inner: spin::Mutex<T>,
@@ -481,7 +481,7 @@ mod tests {
         assert!(interrupts::enabled(), "the outer guard failed to restore");
     }
 
-    // --- lock ranking (DECISIONS.md §9) ---
+    // --- lock ranking (DECISIONS §9) ---
 
     /// Holding nothing means anything may be taken.
     #[test_case]

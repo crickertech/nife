@@ -1,6 +1,6 @@
 //! Capability tables. **A file descriptor table that can point at anything.**
 //!
-//! See notes/capabilities.md and DECISIONS.md §10. The one sentence:
+//! See notes/capabilities.md and DECISIONS §10. The one sentence:
 //!
 //! > A capability is a file descriptor that can point at *anything*, not just files.
 //!

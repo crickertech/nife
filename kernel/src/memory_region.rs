@@ -1,6 +1,6 @@
 //! Memory regions. **The kernel stops allocating.**
 //!
-//! Milestone 11, and DECISIONS.md §10's deliberately-deferred third axis. The idea, from seL4:
+//! Milestone 11, and DECISIONS §10's deliberately-deferred third axis. The idea, from seL4:
 //! the kernel does not own a pool it hands out from. Instead a process holds a capability to a
 //! chunk of raw memory (a `MemoryRegion`, `capability::Object::MemoryRegion`), and to get a page it
 //! **retypes** part of that memory into the thing it wants. The kernel is a bookkeeper: it advances a watermark and hands
@@ -95,7 +95,7 @@ pub fn create(pages: u64) -> Option<u64> {
 /// destroyed; the child is an ordinary region over that run. `None` if the parent is unknown,
 /// exhausted (`pages` beyond its remaining budget), asks for zero, or the region table is full.
 ///
-/// **Return-of-pages (DECISIONS.md §16):** a child destroyed at the top of the parent's watermark
+/// **Return-of-pages (DECISIONS §16):** a child destroyed at the top of the parent's watermark
 /// (the LIFO case, which a spawn-then-reap loop always is) gives its pages *back* to the parent's
 /// budget, so a split parent is not committed for its lifetime. A child freed out of order leaves a
 /// hole until the parent itself is destroyed. This is the LIFO half of seL4's return-to-parent,

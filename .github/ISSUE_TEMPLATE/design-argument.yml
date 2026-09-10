@@ -10,7 +10,7 @@ body:
         but not with an authority. So the outcome of this issue is a file in that directory with
         `**Status: PROPOSED.**`, and a pull request adding one directly is welcome and is faster.
 
-        Read [`DECISIONS.md`](https://github.com/crickertech/nife/blob/main/DECISIONS.md) and that
+        Read [`design/decisions/`](https://github.com/crickertech/nife/blob/main/design/decisions/README.md) and that
         directory's README before opening this. A decision that already exists usually carries the
         reason you are about to raise.
 

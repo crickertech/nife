@@ -4,7 +4,7 @@
 //! architecture keeps in a scratch register for exactly this purpose (`TPIDR_EL1` on aarch64;
 //! see [`crate::arch::set_percpu`]). This is the foundation the rest of SMP is built on: once a
 //! core can name "my own state" cheaply, the scheduler's run queue, its current thread, and its
-//! lock bookkeeping can each stop being a single machine-wide global. See DECISIONS.md §11.
+//! lock bookkeeping can each stop being a single machine-wide global. See DECISIONS §11.
 //!
 //! **Step 1 of §11.** For now the only thing that lives here is the lock-rank bookkeeping §9
 //! keeps, which used to be one global (`HELD_RANK`) and would be clobbered the instant a second
@@ -48,7 +48,7 @@ pub struct PerCpu {
     ///
     /// Only ever touched by this core with interrupts masked, so the atomic is for interior
     /// mutability through the shared static, not for cross-core synchronization: no other core
-    /// can reach *this* core's block on the lock path. See [`crate::sync`] and DECISIONS.md §9.
+    /// can reach *this* core's block on the lock path. See [`crate::sync`] and DECISIONS §9.
     pub held_rank: AtomicU32,
 
     /// The thread currently running on this core (`NO_TID` before the core schedules).
@@ -63,7 +63,7 @@ pub struct PerCpu {
     pub idle: AtomicU64,
 
     /// Set by this core's timer tick, read on this core's return from the IRQ. Per-CPU so one
-    /// core's tick cannot make another core reschedule. See DECISIONS.md §9's record-and-defer.
+    /// core's tick cannot make another core reschedule. See DECISIONS §9's record-and-defer.
     pub need_resched: AtomicBool,
 
     /// The thread this core just switched **away from**, to be finished up by the thread this
@@ -74,7 +74,7 @@ pub struct PerCpu {
     /// it is recorded by the thread's own core before the switch and done by its successor
     /// *after* the switch, when the thread is provably off its stack.
     ///
-    /// - **Reaping** (the original, DECISIONS.md §11): a `Finished` predecessor is freed by its
+    /// - **Reaping** (the original, DECISIONS §11): a `Finished` predecessor is freed by its
     ///   successor, never by a remote observer.
     /// - **Deferred wakes** (milestone 14 phase A.3): a `Blocked` predecessor that a waker
     ///   caught *mid-switch-out* (the handshake's `on_cpu` still set, its saved context still
@@ -96,7 +96,7 @@ pub struct PerCpu {
     /// are kept alive by the queue discipline: a queued thread is `Ready`, and only `Finished`
     /// threads are ever reaped.
     ///
-    /// **No cross-core lock, by design (DECISIONS.md §11).** Only this core ever touches its own
+    /// **No cross-core lock, by design (DECISIONS §11).** Only this core ever touches its own
     /// queue, and only with interrupts masked, which is exactly what makes the `UnsafeCell`
     /// sound. That a remote core cannot even *name* this queue is the point: it forces cross-core
     /// work movement onto the inbox/SGI path (step 3c) rather than letting one core reach into

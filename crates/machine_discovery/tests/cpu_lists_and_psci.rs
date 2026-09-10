@@ -16,7 +16,7 @@
 //!
 //! The parsing they exercise is [`machine_discovery::cpu_list`] and [`machine_discovery::aarch64::Psci`]; what happens on the
 //! machine (the refusals, the boot line, the bring-up itself) is in the kernel's own tests, which
-//! need an emulator. This is the split DECISIONS.md §7 asks for.
+//! need an emulator. This is the split DECISIONS §7 asks for.
 
 use machine_discovery::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
 use machine_discovery::cpu_list::{CpuList, EnableMethod, MAX_CPU_NODES};

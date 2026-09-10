@@ -25,7 +25,7 @@ observer by construction, because it is what started the thing and what noticed 
 The alternative was delegating a clock **to the child**, and it is rejected rather than deferred. It
 would make `time` a grant: `time wc report.txt` would run a differently endowed `wc` from the one
 `wc report.txt` runs, which breaks the property the whole command rests on, and it would put a
-readable clock in the hands of every program anybody thought to time. The `DECISIONS.md` section for
+readable clock in the hands of every program anybody thought to time. The `design/decisions/` section for
 this is the integrator's to mint at merge (CLAUDE.md: a lane does not claim a number global to the
 tree); until it exists the argument is here and in `design/roadmap/86-time-command.md`.
 

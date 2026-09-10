@@ -3,7 +3,7 @@
 //! A debug channel that lets the guest ask the *host* to do things it has no
 //! hardware for. We use exactly one call, `SYS_EXIT`, which asks QEMU to terminate
 //! with a given process exit status. That is how `cargo test` learns whether the
-//! kernel's tests passed (DECISIONS.md §7).
+//! kernel's tests passed (DECISIONS §7).
 //!
 //! It is worth seeing what this actually is: a trap instruction, an operation number
 //! in a register, arguments pointed to by another register, a result returned in a

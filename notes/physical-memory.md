@@ -26,7 +26,7 @@ throwing the free list away.
 **Testability.** A free list stores its metadata *inside the memory it manages*, so testing
 it means handing it real memory and doing unsafe pointer writes. A bitmap's logic is **pure**:
 given a bitmap and a request, which frame? We test it exhaustively on the host with no memory
-at all, in milliseconds, with no emulator (DECISIONS.md §7).
+at all, in milliseconds, with no emulator (DECISIONS §7).
 
 The cost is 1 bit per frame: **32 KiB of bitmap per GiB of RAM**. Or, for QEMU's 128 MiB:
 4 KiB. One frame of overhead to manage 32768 frames. Cheap.

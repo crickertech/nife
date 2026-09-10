@@ -108,7 +108,7 @@ _boot:
     b       enter_el1
 
 _boot_el1:
-    // Park every core but core 0 (DECISIONS.md §6).
+    // Park every core but core 0 (DECISIONS §6).
     mrs     x0, mpidr_el1
     and     x0, x0, #0xff
     cbnz    x0, park
@@ -338,7 +338,7 @@ park:
     wfi
     b       park
 
-// --- secondary core entry (SMP step 2, DECISIONS.md §11) ---
+// --- secondary core entry (SMP step 2, DECISIONS §11) ---
 //
 // PSCI CPU_ON starts a secondary HERE, at this PHYSICAL address, with the MMU off, at EL1,
 // exactly the way QEMU started core 0 at `_boot`. x0 holds the context word core 0 passed to

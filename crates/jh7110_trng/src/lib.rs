@@ -6,7 +6,7 @@
 //! generation attempt succeeded, failed, or is still running, with nothing an actual driver
 //! touches. The controller's register file is the future driver's (`kernel/src/user/`-side or
 //! `user/src/`-side, not yet written; see the roadmap doc's "What was deliberately not built"),
-//! the same split `pci` and `nvme` already use (DECISIONS.md rule 7): this crate is host-testable
+//! the same split `pci` and `nvme` already use (AGENTS.md rule 7): this crate is host-testable
 //! and Kani-reachable precisely because it never dereferences a pointer.
 //!
 //! # This has not run against real silicon

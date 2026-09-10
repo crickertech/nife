@@ -446,7 +446,7 @@ rather than trust the count.
 
 **What no method here covers.** This sweep read `notes/`, `script/`, `scripts/`, `xtask/`,
 `.github/`, the manifests, and the `#[cfg]` sites. It did **not** read `design/roadmap/` or
-`DECISIONS.md` for incomplete architecture lists, on the ground that a roadmap block is intent
+`design/decisions/` for incomplete architecture lists, on the ground that a roadmap block is intent
 rather than a gate and a decision records what was decided when it was decided. If a decision's
 list is load-bearing for a current gate, this sweep missed it. It also did not run any of the gates
 against x86_64 to see whether widening them would pass, which is deliberate: that is the proposed

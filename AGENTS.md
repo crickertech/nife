@@ -10,7 +10,7 @@ person, renamed 2026-08-15 at his request. The OS itself was renamed the same da
 ## What this project is
 
 A capability microkernel for aarch64, in Rust, built from the first instruction. **It is a
-demonstration OS** (DECISIONS.md §14): a verified-Rust capability microkernel that runs real
+demonstration OS** (DECISIONS §14): a verified-Rust capability microkernel that runs real
 workloads, built to stand next to Linux, macOS, and seL4 on the primitives that define an OS and
 win where a minimal kernel should. calef (Chris Alef) is an experienced software engineer and engineering
 leader; on this project he is the **architect and reviewer**, not the line-by-line builder.
@@ -319,13 +319,13 @@ are new.
   (`git ls-remote --heads`), because the pushed branch is the only lane ledger another session
   can see. Machine-global state keeps its existing owner: whoever merges relinks the toolchain
   from the main checkout and prunes what they merged. Briefs developers, gates and merges their
-  work, mints anything global to the tree (`DECISIONS.md` sections, milestone numbers, names calef
+  work, mints anything global to the tree (`design/decisions/` sections, milestone numbers, names calef
   has ratified), and keeps hygiene: prune the worktree, delete the branch, relink `nife-dev`,
   leave no QEMU. Holds merge authority when calef grants it. **Maintainer, not project manager**,
   because the name has to predict the authority: this role writes code, resolves conflicts and
   merges, and a coordinate-only reading of it would leave the tree unowned.
 - **Developer.** A subagent executing exactly one milestone. Reports; never merges, never mints,
-  never edits `DECISIONS.md`, `design/` or this file, **except its own milestone's roadmap block,
+  never edits `design/decisions/`, `design/` or this file, **except its own milestone's roadmap block,
   which `script/lint` 4b requires it to edit** (calef, 2026-08-23, reaffirmed 2026-09-01 after two
   lanes read the flat prohibition and reported the gate as impossible; the reason is beside the
   check). Names anything new provisionally and says so.
@@ -363,7 +363,7 @@ are new.
   is the merge problem this vocabulary exists to prevent.
 - **Steward.** Runs on an interval and holds a *lent* authority, which is what the name says: it
   merges what has earned it (green on every check, from a developer briefed this session, touching
-  no syscall surface, no `DECISIONS.md` section and no dependency addition), cleans up behind
+  no syscall surface, no `design/decisions/` section and no dependency addition), cleans up behind
   finished work (delete the branch, prune the worktree, relink `nife-dev`), reports queue depth
   against the target, and raises what has stalled or gone unanswered. It exists because the
   maintainer is structurally bad at noticing its own idleness: when it is busy, it is busy.
@@ -549,7 +549,7 @@ decided, a test that will not pass after real effort, a hardware or external dep
 machine contradicting the plan. Otherwise proceed and report what you did.
 
 **Keep the documentation current, because a demonstrator's docs are part of the deliverable.**
-Every design decision goes in `DECISIONS.md`; every concept and finding gets a note in `notes/`,
+Every design decision goes in `design/decisions/`; every concept and finding gets a note in `notes/`,
 indexed in `notes/README.md`. Record the *why* and the honest caveats.
 
 **The standard to aim at is FreeBSD's** (calef, 2026-07-30): the Handbook and the man pages, which
@@ -576,8 +576,8 @@ who has to *use* the thing, and honest enough that they trust it when it says so
 Concurrent lanes cannot see each other, so a lane that reaches for a shared resource is guessing.
 Two kinds bit us on 2026-07-30:
 
-- **`DECISIONS.md` section numbers**, three collisions in one day. Preferred: a lane **does not touch
-  `DECISIONS.md` at all**, puts the reasoning in `notes/` and in its report, and the integrator mints
+- **`design/decisions/` section numbers**, three collisions in one day. Preferred: a lane **does not
+  touch `design/decisions/` at all**, puts the reasoning in `notes/` and in its report, and the integrator mints
   the section at merge. (Milestone 51's calendar lane did exactly this, unprompted, and it was the
   only one of four that caused no conflict.) If a lane must write the section to make its own gates
   pass, the number is **provisional**: say so in the report, and expect renumbering.
@@ -714,7 +714,7 @@ place to put a question you are avoiding.
 
 ## The rules that hold the codebase together
 
-These come from `DECISIONS.md`. They are cheap to follow and expensive to retrofit.
+These come from `design/decisions/`. They are cheap to follow and expensive to retrofit.
 
 1. **All architecture-specific code lives under `kernel/src/arch/`.** Assembly, `asm!`,
    system registers, CPU-specific behaviour. If you're writing `asm!` outside `arch/`, that
@@ -777,7 +777,7 @@ shares a first name.
 
 **The name of a crate, a program, or a shared module is calef's call, not a lane's and not yours**
 (2026-08-01), and since 2026-08-23 that covers **public function and method names** too. Same rule
-as `DECISIONS.md` section numbers, one level up: it is global to the tree, so it is decided by the
+as `design/decisions/` section numbers, one level up: it is global to the tree, so it is decided by the
 person who can see the whole tree. The reason is his: names are what make this OS accessible to
 humans and to LLMs, and in a capability system the name is often the only thing that says what a
 program can *do*.
@@ -851,7 +851,7 @@ Milestone 7's process-model question is decided: capabilities, an `svc` + `x8` A
 explicit surface (DECISIONS §10, §16). The discipline that remains: the surface stays small and
 every method is deliberate. New methods are fine within the established capability model (object
 revocation added `Untyped::SPLIT` and `DESTROY` this way); **record each new method's semantics in
-`DECISIONS.md`, not just in code.** A method that does not fit the model, or a brand-new syscall
+`design/decisions/`, not just in code.** A method that does not fit the model, or a brand-new syscall
 number, is a design fork, raise it before building it.
 
 ## Testing
