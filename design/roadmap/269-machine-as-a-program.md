@@ -46,5 +46,9 @@ So this milestone is where that decision gets made, with a real consumer in hand
 
 ## Follow-on
 
-- **Decision.** Kernel introspection over IPC, which DECISIONS §149 separated out on purpose and
-  which this milestone is the first real consumer of.
+- **Proposed.** `design/roadmap/proposals/kernel-introspection-over-an-endpoint.md`. It has no
+  `DECISIONS` section yet, and that is deliberate rather than an omission:
+  `design/decisions/149-kernel-served-console-endpoint.md` separated it from the console case so the
+  general question would not be settled on the momentum of the narrow one, and said it should be
+  answered when a real consumer exists. This milestone is that consumer, so the section gets written
+  here rather than before.

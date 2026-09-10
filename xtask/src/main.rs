@@ -3414,7 +3414,7 @@ fn riscv_initrd_path() -> String {
 /// reach (COM1 and the PS/2 ports are port I/O, DECISIONS §121).
 ///
 /// **`gpu_driver` was in that list until 2026-09-09 and did not belong there**, which mattered
-/// because it made x86_64's display look foreclosed by a ratified decision when it is not.
+/// because it made `x86_64`'s display look foreclosed by a ratified decision when it is not.
 /// virtio-gpu is PCIe, its BARs are memory, and the driver does not map registers at all: it holds
 /// a kernel-mediated `Virtio` capability (`user/src/gpu_driver.rs`). §121 explicitly grants MMIO
 /// devices the mapping-based capability on every architecture. The real reason it does not run

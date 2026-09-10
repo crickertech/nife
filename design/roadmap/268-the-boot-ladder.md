@@ -3,10 +3,12 @@
 **Status: NOT-STARTED.** Minted 2026-09-09 by calef, from milestone 267's measurement and the parity
 review that followed it. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE for the work; DECISIONS §149 for the destination.** Nothing in this block is a design
-fork. The boot ladder is decided (calef, 2026-09-09, in conversation) and what remains is building
-it. Where the ladder *ends* on x86_64 is §149's question, and this milestone does not wait on it:
-every rung below the last one runs before userspace exists.
+**Gate: DECISION, MILESTONE 182.** The ladder itself is decided (calef, 2026-09-09, in
+conversation) and nothing in it is a design fork. What is gated is only its **last rung on
+x86_64**: that architecture cannot reach a prompt until DECISIONS §149 says how `swish` gets a
+console there, and until milestone 182 builds the entry point. **Every rung below the last one runs
+before userspace exists and waits on neither**, so the bulk of this milestone can land first and
+should.
 
 ## What calef decided, so a lane does not re-litigate it
 
@@ -129,8 +131,8 @@ prints, and not a marker that exists on one architecture, which is the defect be
 
 - **Milestone 182.** x86_64's boot has nowhere to land until it has a shell. This milestone's rungs
   all run before userspace, so it does not wait, but the top rung is unreachable there until 182.
-- **Decision.** DECISIONS §149, how `swish` reaches a console on x86_64 where §121 leaves no
-  userspace holder.
+- **Decision.** `design/decisions/149-kernel-served-console-endpoint.md`, how `swish` reaches a
+  console on x86_64 where §121 leaves no userspace holder.
 - **Milestone 269.** `machine` as a program that can be run from the prompt.
 - **Recorded.** The `attach_screen` asymmetry is named in BUGS above rather than left for a lane to
   rediscover, because the wrong move is the obvious one.
