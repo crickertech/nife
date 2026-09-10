@@ -134,7 +134,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // Per-CPU pointer FIRST, before anything takes a lock. The lock path reads this core's
     // held-rank out of its per-CPU block, so `TPIDR_EL1` must point at that block before
     // `console::init` (the first lock) runs. On one core this is pure setup with no visible
-    // effect; it is the foundation SMP is built on. See cpu.rs and DECISIONS.md §11.
+    // effect; it is the foundation SMP is built on. See cpu.rs and DECISIONS §11.
     cpu::init_this_cpu(arch::boot_cpu_id());
 
     // Console first, exceptions second, and the order is not arbitrary: the fault
@@ -1476,7 +1476,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // Bring the other cores online. They come up idle: step 2 proves the bring-up path works
     // (PSCI, per-core stacks, the MMU replay), and leaves real multi-core scheduling to step 3.
     // Core 0 has IRQs on by now, so it keeps ticking while it waits for the others to check in.
-    // See smp.rs and DECISIONS.md §11.
+    // See smp.rs and DECISIONS §11.
     smp::bring_up_secondaries();
 
     #[cfg(test)]
@@ -1800,7 +1800,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 ///
 /// This is the line the whole locking discipline was written for. From here, a timer interrupt
 /// can land between any two instructions in the kernel, and every `IrqSafeMutex` starts
-/// actually masking something. See DECISIONS.md §9 and notes/locking.md.
+/// actually masking something. See DECISIONS §9 and notes/locking.md.
 /// **Say what the TRNG's `STAT` says about its output width** (milestone 159), for the boot tour's
 /// `hw entropy` line.
 ///

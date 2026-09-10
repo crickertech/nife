@@ -1,6 +1,6 @@
 //! The syscall boundary. **Four calls <!--count:syscalls-->.**
 //!
-//! DECISIONS.md §4 rule 3 said the syscall surface stays narrow and explicit, *"a boundary, not a
+//! DECISIONS §4 rule 3 said the syscall surface stays narrow and explicit, *"a boundary, not a
 //! habit."* §8 said milestone 7 was a hard decision point and that hacking one in without the
 //! conversation meant the plan had failed. §10 had the conversation and chose capabilities.
 //!

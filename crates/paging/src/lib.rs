@@ -5,7 +5,7 @@
 //! matters and differ only in the bits: the *walk* (descend the levels, allocate tables, write a
 //! leaf) is written once in [`Mapper`], and each format supplies the handful of encode/decode
 //! operations the walk needs through the [`PageFormat`] trait. See notes/riscv-port.md (leak #2) for
-//! why this seam exists and DECISIONS.md §17.
+//! why this seam exists and DECISIONS §17.
 //!
 //! Both formats use 512-entry, 4 KiB tables and 4 KiB pages, because both were designed around the
 //! same arithmetic: 9 index bits selects one of 512 eight-byte entries, so **a table is exactly one
@@ -15,7 +15,7 @@
 //!
 //! It is pure logic: addresses in, descriptors out. The host tests build real page tables in real
 //! memory (using host allocations as pretend physical frames, which works because the pointer
-//! arithmetic is identical) and walk them back. Milliseconds, no emulator. DECISIONS.md §7.
+//! arithmetic is identical) and walk them back. Milliseconds, no emulator. DECISIONS §7.
 //!
 //! # Examples
 //!

@@ -3,7 +3,7 @@
 //! A normal Rust binary that runs on the *host*. Building a kernel means a custom
 //! target, a linker script, and driving QEMU with the right flags, none of which fits
 //! neatly into `cargo build`. This beats a Makefile because it's Rust and it composes.
-//! See DECISIONS.md §7.
+//! See DECISIONS §7.
 //!
 //!     cargo xtask run      boot the kernel (the milestone tour), print to this terminal
 //!     cargo xtask shell    boot straight to the interactive shell (add --hvf for the real core)
@@ -5727,7 +5727,7 @@ impl ArchLegs {
 ///
 /// The host crates (`dtb`, `frames`) hold the pure logic and run in *milliseconds* with no
 /// emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
-/// seconds booting QEMU. See DECISIONS.md §7.
+/// seconds booting QEMU. See DECISIONS §7.
 ///
 /// Four flags narrow what runs, and all four default to today's behaviour:
 ///
@@ -8957,8 +8957,8 @@ fn tree_sections() -> Vec<Shelf> {
     let mut out = Vec::new();
 
     // The markdown, in the four places this project keeps it. The repository root is included
-    // because `README.md` and `DECISIONS.md` are where a stranger starts, and a search that could
-    // not return the front page would be odd about it.
+    // because `README.md` is where a stranger starts, and a search that could not return the front
+    // page would be odd about it.
     for (shard, dir, recurse) in [
         ("notes", "notes", false),
         ("decisions", "design/decisions", false),

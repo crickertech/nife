@@ -44,7 +44,7 @@ Userspace never touches the raw rendezvous index. A process names a rendezvous t
 So the honest answer to "who does IPC name" is: **a capability the caller holds, which the
 kernel resolves to a rendezvous.** You can only name a channel you were *given*.
 
-## Why this is the point (DECISIONS.md §10)
+## Why this is the point (DECISIONS §10)
 
 This is no-ambient-authority made concrete. There is **no global namespace**: no PIDs to signal,
 no ports to connect to by number, no keys to look up. Compare Unix, which names IPC targets
@@ -138,7 +138,7 @@ a `Call` syscall).
 
 Following the advice that the reply path is *rendezvous semantics, not a separate feature*, it is
 designed here rather than left implicit. But building a kernel `Call`/`Reply` primitive now would
-violate DECISIONS.md §4 (the syscall surface stays narrow and explicit):
+violate DECISIONS §4 (the syscall surface stays narrow and explicit):
 every server we have has a static client topology and the two-rendezvous pattern serves it.
 
 **Two triggers to build it.** *Functional:* the first server that must answer clients it was not

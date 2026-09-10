@@ -141,7 +141,7 @@ scratch:
   to "the aspace cap may be bound without consuming it" (or a `SHARE`-shaped rights bit
   distinguishes the two calls). This is the syscall-surface line: every existing caller of
   `CONFIGURE` (init, every service spawn today) is written against the consuming contract, and
-  DECISIONS.md would owe a section under §10/§16's existing surface, not a new syscall number.
+  `design/decisions/` would owe a section under §10/§16's existing surface, not a new syscall number.
 - `kernel/src/thread.rs`: `Thread.space` stops being uniquely owned; needs the same
   liveness-tracking shape `Endpoint` already has (§16's "region... an endpoint in it has a
   blocked waiter" check), so `AddressSpace` teardown waits for the last referencing TCB, not the

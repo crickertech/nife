@@ -31,7 +31,7 @@ do need these, and each one will otherwise cost you a rewrite:
   and by Kani, and this project's whole method is pure logic in host-testable crates plus proofs.
 - **Names are the architect's call.** Ship a provisional one and say so in your pull request; do not
   wait, and do not rename anything on your own initiative.
-- **`DECISIONS.md` section numbers are assigned at merge**, never claimed by a branch. Put your
+- **`design/decisions/` section numbers are assigned at merge**, never claimed by a branch. Put your
   reasoning in `notes/` and in the pull request instead.
 - **The ladder.** When something must not go wrong, prefer making the wrong state unrepresentable
   over a gate that fails loudly, over a written record at the thing itself, over a note. "Somebody
@@ -85,11 +85,11 @@ about:
 
 | | |
 |---|---|
-| **The syscall surface** | A boundary, not a habit. A new method inside the existing capability model is fine and gets its semantics recorded in `DECISIONS.md`; a new syscall number is a design fork. |
+| **The syscall surface** | A boundary, not a habit. A new method inside the existing capability model is fine and gets its semantics recorded in `design/decisions/`; a new syscall number is a design fork. |
 | **A new dependency** | Taking one is a decision (DECISIONS §46). The tree is thin architectural primitives or whole subsystems nobody would write, with nothing in between. |
 | **Names** | Crates, programs, and shared modules are named by the architect. Ship provisional, say so. |
 | **Anything two programs agree on** | A wire format, an opcode number, a packed word. The code is a morning's work; the un-shipping is not. |
-| **`DECISIONS.md` section numbers** | Assigned at merge. |
+| **`design/decisions/` section numbers** | Assigned at merge. |
 
 Everything else you should simply decide and do. Most decisions here are reversible and deliberating
 them costs more than getting them wrong.

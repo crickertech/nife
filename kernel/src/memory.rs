@@ -5,8 +5,8 @@
 //! ask this for their memory, and there is nothing underneath it to ask.
 //!
 //! The allocator itself lives in the `frames` crate and the device tree parser in
-//! `dtb`, because both are pure logic and belong in host-testable crates (DECISIONS.md
-//! §7). What's left here is the part that can only happen on the real machine: the
+//! `dtb`, because both are pure logic and belong in host-testable crates (DECISIONS §7).
+//! What's left here is the part that can only happen on the real machine: the
 //! **bootstrap**.
 
 use dtb::Region;
@@ -20,7 +20,7 @@ use crate::sync::{IrqSafeMutex, rank};
 ///
 /// `IrqSafeMutex`, not a bare spinlock: an interrupt handler that tried to allocate while
 /// the interrupted code held this lock would spin forever waiting for code that cannot
-/// run. See sync.rs and DECISIONS.md §9.
+/// run. See sync.rs and DECISIONS §9.
 ///
 /// The discipline that goes with it: **interrupt handlers do not allocate.** They record
 /// what happened and defer the work. The lock being interrupt-safe is the belt; that rule
@@ -658,7 +658,7 @@ pub fn ram_regions() -> impl Iterator<Item = (u64, u64)> {
     //
     // The alternative (an iterator that holds the lock, or takes it per element) would keep a
     // kernel lock live across arbitrary caller code, with interrupts masked the whole time.
-    // That violates "keep critical sections short" (DECISIONS.md §9) for no benefit at all.
+    // That violates "keep critical sections short" (DECISIONS §9) for no benefit at all.
     let map = *RAM.lock();
     (0..map.count).map(move |i| map.regions[i])
 }

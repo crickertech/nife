@@ -97,7 +97,7 @@ recovery path must not depend on a registry, a git host, or a company still exis
 
 The same discipline applies to any future pin bump. Bumping `vendor/redoxfs` to a version with a
 different on-disk format silently strands every existing backup, so a bump is a migration, not an
-upgrade, and it belongs in `DECISIONS.md` with a plan for the images already written.
+upgrade, and it belongs in `design/decisions/` with a plan for the images already written.
 
 ## No filesystem-level encryption, so no key handling
 

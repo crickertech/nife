@@ -3,7 +3,7 @@
 //! The table itself is `crates/capability`, which is pure logic and knows nothing about this file.
 //! This is the kernel's half: **the set of nouns.**
 //!
-//! DECISIONS.md §10 and notes/capabilities.md.
+//! DECISIONS §10 and notes/capabilities.md.
 
 use core::num::NonZeroU64;
 

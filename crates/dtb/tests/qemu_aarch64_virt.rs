@@ -1,7 +1,7 @@
 //! Parse a real device tree, dumped from the machine we actually boot on.
 //!
 //! These run on the **host**, in milliseconds, with no emulator. That is the whole
-//! argument for keeping pure logic out of the kernel crate (DECISIONS.md §7).
+//! argument for keeping pure logic out of the kernel crate (DECISIONS §7).
 //!
 //! Regenerate the fixture with:
 //!

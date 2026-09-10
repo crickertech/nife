@@ -31,7 +31,7 @@ Both halves are load-bearing and the second is the one that cuts.
   that measurement has a **consumer**; the kernel's image size, which
   `notes/benchmarks.md` itself calls "the number that does not matter", has only a reader.
 - *It moves on its own.* A constant somebody chose is not a measure, it is a decision, and it
-  belongs in `DECISIONS.md`. The stack guard page is 4,096 bytes because a page is 4,096 bytes. The
+  belongs in `design/decisions/`. The stack guard page is 4,096 bytes because a page is 4,096 bytes. The
   deepest chain that can reach that guard is a measure, because the compiler moves it every week
   and nobody is asked.
 

@@ -16,7 +16,7 @@
 //! It is **pure logic**: bytes in, structs out. No hardware, no `unsafe` beyond one
 //! entry point, no kernel. So it compiles for the host and its tests run in
 //! milliseconds against a real device tree dumped from QEMU, instead of booting an
-//! emulator. See DECISIONS.md §7.
+//! emulator. See DECISIONS §7.
 //!
 //! Name: ratified 2026-08-01 (calef, the naming tenet in CLAUDE.md). Named in the group of standard
 //! terms that are already right and must not be touched, because a name a reader knows from outside

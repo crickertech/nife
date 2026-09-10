@@ -542,7 +542,7 @@ fn user_fault(frame: &TrapFrame, esr: u64) -> ! {
 /// Service one hardware interrupt.
 ///
 /// **This runs with interrupts masked** (the hardware masks IRQ on entry to the vector), and it
-/// runs on whatever stack the interrupted code was using. DECISIONS.md §9 is the law here:
+/// runs on whatever stack the interrupted code was using. DECISIONS §9 is the law here:
 /// **record and defer, do not do work.** Everything below is either an MMIO write or an atomic
 /// increment. Nothing allocates. Nothing takes a lock above rank GIC.
 fn handle_irq(_frame: &mut TrapFrame) {
@@ -561,7 +561,7 @@ fn handle_irq(_frame: &mut TrapFrame) {
         timer::TIMER_INTID => {
             timer::tick();
             // RECORD. Do not switch here: we still hold nothing, but we are mid-handler and
-            // the GIC has not been told we are done. DECISIONS.md §9: handlers record and
+            // the GIC has not been told we are done. DECISIONS §9: handlers record and
             // defer. The deferral happens at the bottom of this function.
             crate::sched::on_tick();
         }

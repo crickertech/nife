@@ -161,8 +161,8 @@ contributor has to get right.
 So one rule, no branch. A short name for a typed command is a *choice its author makes*, not a
 convention to apply; nobody needs a rule to know `wc` beats `word_count`.
 
-**calef names the crates, the programs, and the shared modules.** Same shape as `DECISIONS.md`
-section numbers: global to the tree, so decided by the person who can see the whole tree. A lane
+**calef names the crates, the programs, and the shared modules.** Same shape as
+`design/decisions/` section numbers: global to the tree, so decided by the person who can see the whole tree. A lane
 ships a **provisional** name, says so in its report, and expects it to change. Nobody renames on
 their own initiative either, because a rename is a naming decision with extra steps. The reason is
 that names are what make this OS legible to humans and to LLMs, and in a capability system a name is
@@ -694,7 +694,7 @@ Three places, and the distinction is what the document is *for*, not what it is 
 | | holds | shape |
 |---|---|---|
 | `design/` | the option space, before a decision | "here are four answers and three are bad" |
-| `DECISIONS.md` | the decision, and the argument that settled it | numbered `§N`, append-only |
+| `design/decisions/` | the decision, and the argument that settled it | numbered `§N`, append-only |
 | `notes/` | what exists, and what building it taught us | a running glossary, indexed in `notes/README.md` |
 
 `design/roadmap/` is the exception that proves the split: it lives in `design/` because a milestone
@@ -775,7 +775,7 @@ which is the ordinary way a hand-kept count drifts; take it from the script.)
    rename). Words that
    genuinely end in `d` go in `naming_allow` **with a reason**, the same shape as a per-item
    `#[allow]`; `asid` (Address Space IDentifier) is the one there today.
-2. **The word "daemon" appears nowhere**, outside `DECISIONS.md` and `design/`, which are where the
+2. **The word "daemon" appears nowhere**, outside `design/decisions/` and `design/`, which are where the
    argument about the word lives and therefore have to be able to name it.
 3. **Contract crates spelled `*_proto`.**
 4. **The current branch carries a recognised prefix.**

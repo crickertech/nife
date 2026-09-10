@@ -22,7 +22,7 @@
 
 A restart point, written so a fresh session resumes without re-deriving state. Delete or
 overwrite once its contents are stale; this is a working note, not a permanent record. The
-permanent records are DECISIONS.md, design/roadmap/, and the notes/ they point to.
+permanent records are design/decisions/, design/roadmap/, and the notes/ they point to.
 
 ## Why this exists
 

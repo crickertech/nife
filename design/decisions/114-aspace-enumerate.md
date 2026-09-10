@@ -51,7 +51,7 @@ decision; it changes what "built" requires to be true before the method goes liv
 
 The exact method name and wire shape (mirroring `SURVEY`'s shape is the expectation, not a
 requirement) is left to whoever builds `pmap`, who records the new method's semantics in
-`DECISIONS.md` per the standing rule for new methods within the established model.
+`design/decisions/` per the standing rule for new methods within the established model.
 
 ## What it unblocks
 

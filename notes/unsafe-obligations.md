@@ -217,7 +217,7 @@ passes.
 
 ### Writing the eleven comments, which was the point of doing the gate first
 
-`DECISIONS.md` §61 records why a generated pass is the wrong instrument here: the lint checks that a
+DECISIONS §61 records why a generated pass is the wrong instrument here: the lint checks that a
 comment exists, never that it is true, so a false comment passes the gate and misleads a reader who
 now believes somebody checked. The eleven are worth reading as an example of the alternative.
 

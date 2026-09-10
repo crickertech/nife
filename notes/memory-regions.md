@@ -7,7 +7,7 @@ own word for what has not yet been done to it. This file is rewritten throughout
 current name; the historical number in "The one number that proves it" is untouched because it is
 a measurement, not a name.*
 
-Milestone 11, and DECISIONS.md §10's deliberately-deferred third axis. It is the strangest idea in
+Milestone 11, and DECISIONS §10's deliberately-deferred third axis. It is the strangest idea in
 the whole project, and the one that makes seL4 verifiable: **a kernel that does not own a pool of
 memory to hand out.**
 

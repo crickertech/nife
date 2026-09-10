@@ -149,7 +149,7 @@ pub fn init() {
 
     // Remember the kernel's root so a secondary core can adopt the *same* fine map instead of
     // running forever on the coarse boot map (which covers only the first 2 GiB of the high half,
-    // not the 64-GiB-up thread-stack area). See `init_secondary` and DECISIONS.md §11.
+    // not the 64-GiB-up thread-stack area). See `init_secondary` and DECISIONS §11.
     KERNEL_ROOT.store(root, Ordering::Relaxed);
 
     // And give TTBR0 an empty table to walk, so a stray low address faults.

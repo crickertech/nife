@@ -1,8 +1,7 @@
 # nife
 
-*Formerly cricker-os; renamed 2026-08-15, milestone 120. Old links redirect. The name is
-lowercase everywhere, sentence starts included, and is said like* knife: *Ni + Fe, the Earth's
-nickel-iron core. The full story, refused spellings included, is
+*The name is lowercase everywhere, sentence starts included, and is said like* knife: *Ni + Fe,
+the Earth's nickel-iron core. The full story, refused spellings included, is
 [notes/naming.md](notes/naming.md).*
 
 <img src="art/cobble-realistic.jpg" alt="Cobble, the nife mascot: a stone golem with red eyes and mossy shoulders, holding a gear" width="300">
@@ -21,10 +20,6 @@ built to stand next to Linux, macOS, and seL4 on the primitives that define an O
 where a minimal kernel should. The capability core carries machine-checked proofs. The kernel
 allocates no memory of its own. Every driver and server is an EL0 process. The same portable
 core boots on three ISAs, and on real RISC-V silicon.
-
-This began as a learning project (build an OS to understand one) and pivoted to a demonstrator
-deliberately, on the record. The habits survived the pivot: every decision written down, every
-concept a note, every claim measured.
 
 ## Try it
 
@@ -52,11 +47,10 @@ Ctrl-C, or `pkill qemu-system-aarch64` from another terminal.
 
 ## Start here
 
-**A reading order, which is what this page used to leave you to guess at.** There are over
-500 markdown files <!--count-at-least:markdown-files--> here, and
-more than 150 of them are notes <!--count-at-least:notes-files-->; the problem a newcomer has is not missing documents, it is
-that nothing says which one is first. Read these in this order and stop when you have what you came
-for.
+There are over 500 markdown files <!--count-at-least:markdown-files--> here, and more than
+150 notes <!--count-at-least:notes-files-->; the problem a newcomer has is not missing documents,
+it is that nothing says which one is first. Read these in this order and stop when you have what
+you came for.
 
 1. **Run it.** The block above, in about the time it takes to read the next item. A system you have
    watched boot is a different thing to read about than one you have not.
@@ -70,28 +64,20 @@ for.
    of. If a design choice here looks strange, this is usually the reason.
 5. **[`design/roadmap/`](design/roadmap/README.md)**, the only status in the tree, with a fixed
    vocabulary and a checker. Anywhere else that claims status is stale by construction.
-6. **[`DECISIONS.md`](DECISIONS.md)**, which is two pages and teaches you to resolve the `§N`
-   citations the rest of the tree is full of. Then
-   [`design/decisions/`](design/decisions/README.md) when you want the argument behind a specific
-   choice, including the ones that were refused.
+6. **[`design/decisions/`](design/decisions/README.md)**, one file per decision, cited elsewhere in
+   the tree as `§N`, when you want the argument behind a specific choice, including the ones that
+   were refused.
 7. **[`notes/adding-a-program.md`](notes/adding-a-program.md)**, which is the first thing to do with
    your hands rather than your eyes. Doing it is how you find out whether you understood 4.
-8. **[`notes/`](notes/README.md)** from here on **by question, not in order**. It is a glossary
-   written while building, one file per question that turned out to be load-bearing, and reading it
-   front to back is a mistake it will happily let you make.
+8. **[`notes/`](notes/README.md)**, by question, not in order. It is a glossary written while
+   building, one file per question that turned out to be load-bearing.
 
 **If you read only two**, make them 3 and 4: the rules, and the idea. Everything else you can look up
 when it bites.
 
-**Provisional, and this list is a claim about what matters**, so expect it to be reordered by
-someone with the standing to make that claim. It came out of milestone 117 (the stranger test),
-whose first two runs both established that the entry point was missing without either one being
-able to say what it should be.
-
 ## What the badge means
 
-The CI badge above is green only when **every** gate passes, and the gates are the argument rather
-than a formality:
+The CI badge above is green only when **every** gate passes:
 
 | Gate | What it proves |
 |---|---|
@@ -249,21 +235,6 @@ What is in there and nowhere else: that all architecture-specific code lives und
 agree on is a crate rather than a `#[path]` module, and why (a shared module in a `no_std` binary is
 unreachable by host tests and by Kani); that names are calef's call; and the ladder that ranks
 "make the wrong state unrepresentable" above "a gate that fails loudly" above "a note nobody reads".
-
-## The decisions
-
-Written down in [`design/decisions/`](design/decisions/README.md) as they were made, so the reasons survive
-contact with month four. The short version:
-
-| | |
-|---|---|
-| **Architecture** | Three targets, all running: aarch64 (first: clean exception model, weak ordering as a discipline), riscv64 (at parity, and the first on real silicon), x86_64 (boots under PVH and under real UEFI firmware, runs ring-3 processes out of untyped memory, VT-d built). **Parity is a gate, not an aspiration** (DECISIONS §19): a capability ships on every supported ISA under the same suite, or the gap is on the record. |
-| **Target** | QEMU `virt` (TCG and HVF) for daily work; real hardware is milestone 16. |
-| **Kernel shape** | **Capability microkernel** (seL4-shaped, decided at milestone 7): no `open()`, no ambient authority, drivers are EL0 processes, and since milestone 14 the kernel allocates nothing. See DECISIONS §10 and §14. |
-| **Execution** | **Preemptive threads with real stacks.** Not async: async assumes "I compiled everything that runs", and an operating system's whole purpose is to run code it did not compile ([§5](design/decisions/05-preemptive-threads.md)). |
-| **SMP** | Four cores, per-CPU run queues, cross-core placement by inbox plus IPI. (the original plan said "one core, refactor when it hurts"; it hurt.) |
-| **Verification** | Machine-checked proofs (Kani) of the capability core: `capability`, IPC, the MMU isolation invariants. The frontier moves inward from the pure-logic crates. |
-| **Testing** | QEMU harness plus host-testable pure-logic crates from the first commit, plus benchmarks with committed baselines that fail on regression. |
 
 ## Milestones
 

@@ -6,7 +6,7 @@
 //!
 //! # The surface is four calls <!--count:syscalls-->, and that is deliberate
 //!
-//! DECISIONS.md §4 rule 3: *the syscall surface stays narrow and explicit. It is a boundary, not
+//! DECISIONS §4 rule 3: *the syscall surface stays narrow and explicit. It is a boundary, not
 //! a habit.* And §10 chose capabilities, which is what makes so few enough:
 //!
 //! ```text

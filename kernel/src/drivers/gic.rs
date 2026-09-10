@@ -164,7 +164,7 @@ pub unsafe fn init(gicd: u64, gicc: u64) {
 /// Bring up **this core's** GIC CPU interface. The distributor ([`init`]) is machine-wide and done
 /// once; the CPU interface is banked per core (same MMIO address, different hardware behind it), so
 /// each core must enable its own. Called by the boot core inside [`init`] and by every secondary as
-/// it comes online (DECISIONS.md §11).
+/// it comes online (DECISIONS §11).
 pub fn init_this_cpu() {
     let guard = GIC.lock();
     let gic = guard.as_ref().expect("gic::init_this_cpu before gic::init");

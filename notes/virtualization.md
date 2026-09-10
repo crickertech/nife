@@ -39,7 +39,7 @@ regardless: deterministic, and identical on any host.
 ## Two things HVF taught us the first time we booted
 
 This is exactly the "which of our assumptions were secretly QEMU-shaped" exercise that
-DECISIONS.md and notes/portability.md anticipate for a new target. HVF brought it forward, because
+design/decisions/ and notes/portability.md anticipate for a new target. HVF brought it forward, because
 running the real core surfaces CPU-level assumptions the way a new board would surface
 device-level ones.
 

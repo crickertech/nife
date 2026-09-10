@@ -1,4 +1,4 @@
-//! Bringing the other cores online (SMP steps 2 and 3b, DECISIONS.md §11).
+//! Bringing the other cores online (SMP steps 2 and 3b, DECISIONS §11).
 //!
 //! Core 0 starts each secondary with a PSCI `CPU_ON`, handing it a physical entry point
 //! (`secondary_boot` in boot.s) and its own stack. The secondary replays the MMU-enable and lands
@@ -49,7 +49,7 @@ const SECONDARY_STACK_SLOT: usize = SECONDARY_STACK_GUARD + SECONDARY_STACK_SIZE
 /// immutable `static` of plain arrays lands in **`.rodata`**, which the fine kernel map makes
 /// **read-only** (W^X), and a stack you cannot write is not a stack. That bug is invisible on the
 /// coarse boot map (where `.rodata` is writable) and fires the instant a secondary adopts the fine
-/// map. See DECISIONS.md §11.
+/// map. See DECISIONS §11.
 ///
 /// **The `link_section` is what makes the guard pages possible** (milestone 90). These used to be
 /// ordinary `.bss`, and `map_everything` maps `.data`..`__bss_end` as one range, so there was

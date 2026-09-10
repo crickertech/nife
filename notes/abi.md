@@ -2,7 +2,7 @@
 
 *(Milestone 19e, "Decision 2". The contract a nife program runs against: how it starts, how
 it makes syscalls, and how it meets its capabilities. `crates/abi` is the machine-readable half;
-this note is the prose half. See DECISIONS.md §10 for why the model is capability-based, and §14 for
+this note is the prose half. See DECISIONS §10 for why the model is capability-based, and §14 for
 why "native ABI" and not Linux-compat.)*
 
 The big fork was already settled at milestone 7 (§10): the process model is capability-based, not

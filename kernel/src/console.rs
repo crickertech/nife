@@ -8,7 +8,7 @@ use core::fmt::Write;
 
 // The early console UART, selected by architecture at compile time. Two concrete drivers, not a
 // trait: there are exactly two, they are chosen here and nowhere else, and a trait would be an
-// abstraction ahead of a third requirement (DECISIONS.md, rules 2/3). aarch64's `virt` has a PL011;
+// abstraction ahead of a third requirement (AGENTS.md, rules 2/3). aarch64's `virt` has a PL011;
 // RISC-V's has an NS16550. Both expose `new`/`init`/`impl Write`, so the console code below names
 // neither. See notes/riscv-port.md.
 #[cfg(target_arch = "riscv64")]
@@ -318,7 +318,7 @@ pub fn quiet_uart_interrupt() {
 /// So the panic path breaks the lock first. Output may be spliced. That is a fine price
 /// for getting the message out at all.
 ///
-/// See sync.rs, and DECISIONS.md §9.
+/// See sync.rs, and DECISIONS §9.
 pub unsafe fn force_unlock() {
     // SAFETY: this function's own `# Safety` contract is exactly the one this call needs; it forwards, it does not weaken.
     unsafe { CONSOLE.force_unlock() }

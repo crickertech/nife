@@ -3,7 +3,7 @@
 //! A driver never reaches into a kernel global. It is handed what it needs
 //! (a base address, later a DMA allocator, later an interrupt registration) and
 //! knows nothing about the rest of the kernel. That rule is cheap now and is what
-//! keeps the microkernel door open later. See DECISIONS.md §4.
+//! keeps the microkernel door open later. See DECISIONS §4.
 
 // The GIC interrupt-controller driver, aarch64's. Gated now (milestone 20): portable code names
 // `arch::irq`, not `drivers::gic`, so the only things that reach the GIC are aarch64 arch code

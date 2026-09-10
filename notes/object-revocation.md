@@ -178,7 +178,7 @@ is the honest witness that memory came back rather than leaked:
 
 New EL0 methods on the `Untyped` object (the syscall boundary stays the three calls; these are methods
 under `invoke`): `SPLIT` (subdivide) and `DESTROY` (reclaim). See `crates/abi` for the contract and
-DECISIONS.md for the record.
+`design/decisions/` for the record.
 
 The follow-ons this note once listed are all done: the EL0 spawn benchmark (`lat_proc`, notes/
 benchmarks.md), LIFO return-of-pages-to-parent, and error-return for a blocked waiter (both above).

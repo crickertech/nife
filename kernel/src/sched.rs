@@ -2,7 +2,7 @@
 //!
 //! # The whole point of the project, arriving
 //!
-//! DECISIONS.md §5, written before a line of kernel existed:
+//! DECISIONS §5, written before a line of kernel existed:
 //!
 //! > A userspace process is an arbitrary ELF binary. It has its own stack, it never yields, and
 //! > it will loop forever because we will write a bug. Under cooperative scheduling, one bad
@@ -392,7 +392,7 @@ struct IpcTables {
     /// design/kernel-objects-from-untyped.md D2 records the path, notes/tcb.md the storage.
     threads: Threads,
     /// Neither the run queue nor `current` live here any more: both moved to per-CPU storage
-    /// (`cpu::PerCpu`, DECISIONS.md §11 steps 3a and 3b), because a single shared queue and a
+    /// (`cpu::PerCpu`, DECISIONS §11 steps 3a and 3b), because a single shared queue and a
     /// single "running thread" are exactly what every core would otherwise contend on and
     /// overwrite. What stays is genuinely whole-machine: the thread table and the endpoints.
     ///
@@ -2065,7 +2065,7 @@ fn heal_self_pop(sched: &mut IpcTables, current: ThreadId) {
 /// Called from two places, because a thread can resume two ways: from `schedule()` (an existing
 /// thread returning from `switch_to`) and from `thread_entry` (a brand-new thread, which never
 /// passes through `schedule()`'s post-switch point). Both run on this core, so both see this core's
-/// `to_reap`. See DECISIONS.md §11 and thread.rs.
+/// `to_reap`. See DECISIONS §11 and thread.rs.
 pub(crate) fn finish_switch() {
     let prev = cpu::current()
         .switched_from
@@ -4294,7 +4294,7 @@ mod tests {
     //! Tests for threads, the context switch, and preemption.
     //!
     //! `a_thread_that_never_yields_is_preempted_anyway` is the one this whole project has been
-    //! arguing about since DECISIONS.md §5. Everything else here is scaffolding for it.
+    //! arguing about since DECISIONS §5. Everything else here is scaffolding for it.
 
     use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -5203,7 +5203,7 @@ mod tests {
 
     /// **THE TEST.**
     ///
-    /// From DECISIONS.md §5, written before a single line of this kernel existed:
+    /// From DECISIONS §5, written before a single line of this kernel existed:
     ///
     /// > A userspace process is an arbitrary ELF binary. It has its own stack, **it never
     /// > yields**, and it will loop forever because we will write a bug. Under cooperative
@@ -5278,7 +5278,7 @@ mod tests {
             within_ticks(200, || OTHER_RAN.load(Ordering::SeqCst)),
             "TWO HUNDRED TICKS AND THE POLITE THREAD NEVER RAN. The spinner still owns the CPU, \
              which means preemption is not working and a single bad program can hang this \
-             machine. This is precisely the failure DECISIONS.md §5 predicted for \
+             machine. This is precisely the failure DECISIONS §5 predicted for \
              cooperative scheduling."
         );
 

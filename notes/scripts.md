@@ -68,7 +68,7 @@ uses `cargo xtask` and that one uses `make` and the next uses `npm`.
 `fmt`, `lint`, `coverage`, `supply-chain`, `fuzz`, `miri`, and `mutants` are not part of the canonical
 set; they exist so the CI format, clippy, coverage, supply-chain, fuzz, miri, and weekly mutation
 jobs are one-liners. `coverage` measures only the pure-logic host crates(`abi`, `capability`, `nifefs`, `dtb`, `elf`, `frames`, `paging`, `pci`, ...): the kernel and user
-crates run under QEMU, out of reach of host instrumentation, which is the same reason DECISIONS.md
+crates run under QEMU, out of reach of host instrumentation, which is the same reason DECISIONS
 §7 keeps the testable logic in host crates in the first place. It installs its own tool rather than
 leaning on `bootstrap`, so the CI test job (which runs `bootstrap`) never compiles a coverage tool
 it does not use.
