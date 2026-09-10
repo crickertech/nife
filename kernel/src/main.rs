@@ -1200,6 +1200,27 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         }
         sched::note_boot_stage(9);
 
+        // **The clock the `hw entropy` step is measured with**
+        // (design/roadmap/proposals/time-the-hw-entropy-step.md, milestone 159's own follow-on).
+        //
+        // Read here, on the line after the `pcie` print, because the gap a bench session has been
+        // timing by eye is exactly `pcie` to `hw entropy`: those two lines are adjacent in the
+        // transcript, so the wall time between them is what a stopwatch at a serial console
+        // measures, and a person watching one resolves it to about a second. `design/fatal-risks.md`
+        // risk 6's third part is *at real speed*, and a bytes-per-second figure worth quoting needs
+        // the machine to time itself.
+        //
+        // **The span deliberately includes the `hw clock` step**, which prints between the two, so
+        // that the number printed below is the same quantity the stopwatch was measuring rather
+        // than a subset of it that happens to be tidier. The bring-up and draw costs are timed
+        // separately underneath it, and those are the two the rate question actually wants: a
+        // reseed plus a generation is a once-per-boot cost, and the round trips are the rate.
+        //
+        // `arch::timer::now()` is the mechanism the tour already uses (the timer step above spins
+        // on it), so nothing new is introduced here; on riscv64 it is the `time` CSR, whose rate
+        // came out of this machine's device tree at `init_frequency`.
+        let entropy_step_start = arch::timer::now();
+
         // **A real, non-virtio device, driven by a confined userspace process** (milestone 159,
         // design/roadmap/159-jh7110-trng-driver.md; fatal risk 6 in design/fatal-risks.md). The
         // JH7110's TRNG is a register block on the `SoC`'s own fabric: no transport to negotiate,
@@ -1231,21 +1252,98 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             );
         }
         match user::entropy_service::jh7110_trng_device() {
-            None => println!(
-                "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither)"
-            ),
+            // **The skip, and a reference measurement beside it when this machine can give one.**
+            //
+            // The skip itself is the honest answer on every machine but radon and it has not
+            // changed. What is new is the number after it, and the reason it is worth printing is
+            // that the TRNG figure this step exists to produce is **not interpretable on its own**.
+            // A draw through this service is one `entropy_proto` exchange per 8 bytes
+            // (`MAX_BYTES`), so 32 bytes is four round trips through a userspace process, and a
+            // measured microsecond count over 64 bytes mixes the device's cost with the IPC's
+            // without saying in what proportion. The proposal names that as the thing to state
+            // before the number leaves the machine: *does it count the IPC, the poll loop, the
+            // process spawn?*
+            //
+            // The virtio-rng backend answers it, because it is **the same path with a different
+            // device at the end**: the same `entropy_proto`, the same `Wiring::fill`, the same
+            // eight round trips, the same confined userspace process holding the same two
+            // rendezvous capabilities. Whatever it costs here is what the JH7110's number would
+            // cost with a free device, so the difference between the two is the driver's.
+            //
+            // **It is a reference, not a measurement of hardware**, and the line says so in those
+            // words: QEMU backs virtio-rng from the host's `/dev/urandom` and its cost is the
+            // emulator's, not silicon's. `notes/benchmarks.md`'s standard is to say where a
+            // comparison is not apples-to-apples, and this is where.
+            //
+            // Only when this machine actually has such a device, which on the default riscv64
+            // boot it does not: `NIFE_RNG` is what attaches one (DECISIONS §120's QEMU-only
+            // stopgap), and without it `ensure` returns `None` after the bus scan and the line
+            // reads exactly as it did before plus its own microsecond count.
+            None => {
+                let reference = user::program("entropy").and_then(|image| {
+                    let w = user::entropy_service::ensure(image, user::entropy_service::Bus::Mmio)?;
+                    let report = w.wait_for_ready().unwrap_or([0; 5]);
+                    let ready_at = arch::timer::now();
+                    let (mut a, mut b) = ([0u8; 32], [0u8; 32]);
+                    let (na, nb) = (w.fill(&mut a), w.fill(&mut b));
+                    let drawn_at = arch::timer::now();
+                    Some((report[0], na + nb, ready_at, drawn_at))
+                });
+                match reference {
+                    Some((verdict, bytes, ready_at, drawn_at))
+                        if verdict == entropy_proto::READY && bytes > 0 =>
+                    {
+                        println!(
+                            "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither); since the pcie line {} us. Reference, NOT a TRNG and NOT hardware: this emulator's virtio-rng over the same entropy_proto path, bring-up {} us, {} bytes in {} us ({} bytes/s over {} round trips)",
+                            micros_between(entropy_step_start, arch::timer::now()),
+                            micros_between(entropy_step_start, ready_at),
+                            bytes,
+                            micros_between(ready_at, drawn_at),
+                            bytes_per_second(bytes as u64, drawn_at.wrapping_sub(ready_at)),
+                            bytes as u64 / entropy_proto::MAX_BYTES,
+                        );
+                    }
+                    // A device was there and the service did not come up, or came up dry. Said
+                    // rather than swallowed, because a reference that silently degrades to the
+                    // plain skip would make a machine with a broken virtio-rng look like one with
+                    // no virtio-rng at all.
+                    Some((verdict, bytes, _, _)) => println!(
+                        "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither); since the pcie line {} us. The virtio-rng reference did not run: report {:#x}, {} bytes drawn",
+                        micros_between(entropy_step_start, arch::timer::now()),
+                        verdict,
+                        bytes,
+                    ),
+                    None => println!(
+                        "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither); since the pcie line {} us, which is the device-tree query and nothing else (no virtio-rng on this machine either, so there is no reference draw to time; pass NIFE_RNG to attach one)",
+                        micros_between(entropy_step_start, arch::timer::now()),
+                    ),
+                }
+            }
             Some(device) => match user::program("jh7110_trng") {
                 None => println!(
                     "  hw entropy  : JH7110 TRNG at {:#x}, but no 'jh7110_trng' in the initrd (run `cargo xtask initrd-riscv`)",
                     device.reg_base,
                 ),
                 Some(image) => {
+                    // **The wiring is timed, and the console output between the segments is not**
+                    // (the proposal above). `ensure` maps the register window and spawns the
+                    // driver; the readiness wait is the driver's own bring-up (a reseed, then a
+                    // first generation). The `hw clock` line prints between the two, and a
+                    // `println!` here is a polled UART: on radon at 115200 baud that line is
+                    // roughly 30 ms of the kernel doing nothing but shift bits out, which is the
+                    // same order as the bring-up it would otherwise be added to. So the bring-up
+                    // figure is the sum of two measured segments rather than one span across
+                    // them, and the whole-gap figure beside it (`since the pcie line`) is the one
+                    // that still includes the console, because that is the quantity a stopwatch
+                    // at the serial port was measuring.
+                    let wire_start = arch::timer::now();
                     match user::entropy_service::ensure(image, user::entropy_service::Bus::Jh7110) {
                         None => println!(
                             "  hw entropy  : JH7110 TRNG at {:#x}, but the service would not wire",
                             device.reg_base,
                         ),
                         Some(w) => {
+                            let wired_at = arch::timer::now();
                             // **The clock and reset controller's own answer, first** (milestone
                             // 220), because it decides how the line below should be read. On
                             // 2026-09-04 radon printed an all-zero TRNG register file, and the
@@ -1313,7 +1411,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // and since 2026-09-04 so does one that answered with zeros:
                             // `entropy_proto::readiness` decides that word from the bytes, which
                             // is what the boot below found it was not doing.
+                            let wait_start = arch::timer::now();
                             let report = w.wait_for_ready().unwrap_or([0; 5]);
+                            let ready_at = arch::timer::now();
                             // Then two draws through the request endpoint, as a client. Two,
                             // because one proves only that *something* was returned: a stuck
                             // register file, a driver serving its buffer twice, and a device that
@@ -1336,6 +1436,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // what the line below claims.
                             let (mut a, mut b) = ([0u8; 32], [0u8; 32]);
                             let (na, nb) = (w.fill(&mut a), w.fill(&mut b));
+                            let drawn_at = arch::timer::now();
+                            // The two segments the console does not sit inside: the wiring (window
+                            // mapped, driver spawned) and the readiness wait (the driver's reseed
+                            // and first generation).
+                            let bringup_ticks = wired_at.wrapping_sub(wire_start)
+                                + ready_at.wrapping_sub(wait_start);
+                            let draw_ticks = drawn_at.wrapping_sub(ready_at);
                             // The service refuses to report ready on an all-zero first bufferful
                             // now, so this is a client checking a claim rather than the only thing
                             // standing between a boot and zeros served as randomness. It stays
@@ -1349,7 +1456,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 && a != b
                             {
                                 println!(
-                                    "  hw entropy  : JH7110 TRNG at {:#x} served 32+32 bytes to a client through a capability that names no device; first draw {:02x}{:02x}{:02x}{:02x}.., second differs; STAT after init {:#010x} ({})",
+                                    "  hw entropy  : JH7110 TRNG at {:#x} served 32+32 bytes to a client through a capability that names no device; first draw {:02x}{:02x}{:02x}{:02x}.., second differs; STAT after init {:#010x} ({}); since the pcie line {} us, of which bring-up {} us (window mapped, driver spawned, reseed, first generation; the hw clock line's own console time excluded) and {} bytes in {} us ({} bytes/s over {} round trips)",
                                     device.reg_base,
                                     a[0],
                                     a[1],
@@ -1357,6 +1464,12 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                     a[3],
                                     (report[1] >> 32) as u32,
                                     mode_note((report[1] >> 32) as u32),
+                                    micros_between(entropy_step_start, arch::timer::now()),
+                                    micros(bringup_ticks),
+                                    na + nb,
+                                    micros(draw_ticks),
+                                    bytes_per_second((na + nb) as u64, draw_ticks),
+                                    (na + nb) as u64 / entropy_proto::MAX_BYTES,
                                 );
                             } else {
                                 // `report[2]` is the driver's bring-up diagnostic and it is the
@@ -1376,7 +1489,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 // ungate (milestone 220's territory), while the same zeros on a
                                 // node it calls `okay` are a different problem entirely.
                                 println!(
-                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x} (tree says {}, status {}): report {:#x}, bring-up diagnostic {:#018x}, STAT after init {:#010x} ({}), draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}",
+                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x} (tree says {}, status {}): report {:#x}, bring-up diagnostic {:#018x}, STAT after init {:#010x} ({}), draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}; since the pcie line {} us, of which bring-up {} us and draws {} us",
                                     device.reg_base,
                                     core::str::from_utf8(device.compatible).unwrap_or("?"),
                                     if device.status_okay {
@@ -1389,6 +1502,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                     (report[1] >> 32) as u32,
                                     mode_note((report[1] >> 32) as u32),
                                     a != b,
+                                    micros_between(entropy_step_start, arch::timer::now()),
+                                    micros(bringup_ticks),
+                                    micros(draw_ticks),
                                 );
                             }
                         }
@@ -1817,6 +1933,62 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 // riscv64-only because the JH7110 is; `allow(dead_code)` because the boot tour that calls it is
 // itself compiled out of the shell, initboot and bench builds, the same way `image_for_virtio`
 // below is.
+/// **Counter ticks as microseconds** (design/roadmap/proposals/time-the-hw-entropy-step.md), for
+/// the boot tour's `hw entropy` line.
+///
+/// Microseconds rather than milliseconds because the interesting half of the number is an IPC round
+/// trip, and rather than raw ticks because a tick is a different amount of time on every machine
+/// this runs on: QEMU's riscv64 `virt` counts at 10 MHz and the JH7110 at 4 MHz, so a transcript
+/// quoting ticks could not be compared against another board's without the rate beside it. The rate
+/// itself came out of this machine's own device tree (`arch::timer::init_frequency`), which is why
+/// there is no constant here to go stale.
+///
+/// Truncating division, deliberately: this is an instrument, and a figure that rounded up would
+/// report a nonzero duration for work that took no measurable time at all.
+///
+/// Provisional name (calef's call): `micros`, with `micros_between` and `bytes_per_second` beside
+/// it.
+#[cfg(target_arch = "riscv64")]
+#[allow(dead_code)]
+fn micros(ticks: u64) -> u64 {
+    // `frequency()` asserts the rate is nonzero rather than returning a poison value, and it has
+    // been read from the tree since the timer step near the top of this tour, so there is no
+    // pre-init case to guard here. `saturating_mul` bounds the scaling rather than the duration: a
+    // gap long enough to overflow is one nobody is timing.
+    ticks.saturating_mul(1_000_000) / arch::timer::frequency()
+}
+
+/// The two-timestamp form of [`micros`]. `wrapping_sub` because the `time` CSR is a free-running
+/// 64-bit counter and this is the arithmetic the rest of this file already uses on it (see the
+/// timer step above); at 10 MHz it wraps after about 58,000 years.
+#[cfg(target_arch = "riscv64")]
+#[allow(dead_code)]
+fn micros_between(start: u64, end: u64) -> u64 {
+    micros(end.wrapping_sub(start))
+}
+
+/// **Bytes per second over a measured span**, for the same line.
+///
+/// Computed from ticks rather than from the microsecond figure beside it, so the rate does not
+/// inherit that figure's truncation. Zero for a span too short to measure, which is the honest
+/// answer: a rate derived from a zero-length interval is not a large number, it is no number.
+///
+/// **What it counts, which has to be stated before it is quoted.** Everything between the readiness
+/// report and the last byte landing: the `entropy_proto` round trips (one per
+/// `entropy_proto::MAX_BYTES`, so four per 32-byte draw), the two context switches each one costs,
+/// the driver's own poll loop, and the device. It does **not** count the process spawn or the
+/// bring-up, which are the once-per-boot cost reported separately. It is therefore not comparable
+/// to a Linux `hwrng` throughput figure, which is a read from an already-running kernel driver with
+/// no IPC in it at all; `notes/benchmarks.md`'s rule is to say so where the number is printed.
+#[cfg(target_arch = "riscv64")]
+#[allow(dead_code)]
+fn bytes_per_second(bytes: u64, ticks: u64) -> u64 {
+    if ticks == 0 {
+        return 0;
+    }
+    bytes.saturating_mul(arch::timer::frequency()) / ticks
+}
+
 #[cfg(target_arch = "riscv64")]
 #[allow(dead_code)]
 fn mode_note(stat: u32) -> &'static str {

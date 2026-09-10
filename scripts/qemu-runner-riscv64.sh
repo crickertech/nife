@@ -107,7 +107,30 @@ if [ -n "$NIFE_DISK" ]; then
     if [ -f "$BLANK_DISK_IMG" ]; then
         BLANK_MMIO="-drive file=$BLANK_DISK_IMG,if=none,format=raw,id=hd5 -device virtio-blk-device,drive=hd5"
     fi
-    DISK="-global virtio-mmio.force-legacy=false $BLANK_MMIO $GPT_MMIO $CRASH_MMIO $REDOXFS_MMIO -drive file=$NIFE_DISK,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
+    DISK="$BLANK_MMIO $GPT_MMIO $CRASH_MMIO $REDOXFS_MMIO -drive file=$NIFE_DISK,if=none,format=raw,id=hd0 -device virtio-blk-device,drive=hd0 -drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
+fi
+
+# **Modern virtio-mmio is a property of the BUS, not of the disks, so the switch that selects it
+# has to outlive the disk block** (found 2026-09-10, timing the `hw entropy` step).
+#
+# `virtio-mmio.force-legacy` defaults to TRUE in QEMU, and a legacy slot reports VERSION 1 where
+# this kernel requires 2 (`virtio.rs`'s `find_by_device_id`). The `-global` that turns it off used
+# to live inside `$DISK`, so **every mmio device on this command line was modern only when a disk
+# happened to be attached**. That held for the whole test suite, which always builds disks, and it
+# is why nothing caught it: the two other mmio devices here (`virtio-rng-device` under `NIFE_RNG`,
+# `virtio-net-device` under `NIFE_NET`) are only ever attached by the same flow.
+#
+# `NIFE_RNG=1` with no `NIFE_DISK` is what found it: the riscv64 boot tour scanned the mmio bus,
+# met a legacy RNG, and the kernel panicked on the version assertion at a point in the boot where
+# nothing named virtio at all. Hoisting the global fixes that case and the identical latent one on
+# the NIC.
+#
+# Set only when an mmio device will actually be attached, because QEMU warns about a `-global`
+# that matches nothing instantiated, and a warning on every device-free boot is noise nobody would
+# read twice.
+MMIO_MODERN=""
+if [ -n "$NIFE_DISK" ] || [ -n "$NIFE_RNG" ] || [ -n "$NIFE_NET" ]; then
+    MMIO_MODERN="-global virtio-mmio.force-legacy=false"
 fi
 
 # A virtio-net NIC on QEMU user-mode (slirp) networking when NIFE_NET is set (milestone 30), the
@@ -240,6 +263,7 @@ exec qemu-system-riscv64 \
     -kernel "$ELF" \
     $IOMMU \
     $INITRD \
+    $MMIO_MODERN \
     $DISK \
     $NET \
     $GPU \
