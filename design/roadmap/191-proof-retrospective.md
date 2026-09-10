@@ -1,10 +1,25 @@
 # 191. Did the proofs catch the bugs? A retrospective of every real defect against the harness that should have found it
 
-**Status: NOT-STARTED.** Minted 2026-08-30 by calef, from the fatal-risk sweep
-(design/fatal-risks.md). *(Number provisional until the merge queue lands it.)*
+**Status: BUILT 2026-08-30.** Minted the same day by calef, from the fatal-risk sweep
+(design/fatal-risks.md), and run the same day: `notes/proof-retrospective.md`, PR #589.
+**Corrected 2026-09-10**: this block sat `NOT-STARTED` for eleven days after the work landed and
+merged, the exact status-in-two-places defect §76's own sweep found before. Caught by a maintainer
+review of `design/fatal-risks.md` against the tree, not by any gate. *(Number provisional until the
+merge queue lands it.)*
 
-**Gate: NONE.** Everything this needs is already in the tree: the harnesses, the notes, and the
-history. It reads, it does not build.
+## What it found, in brief
+
+**No Kani harness in this tree has ever caught a defect after the day it was written.** All eighteen
+defects in the corpus were found by something else (a flaky suite, a boot on real silicon, a fuzzer,
+the mutation sweep, loom, a code read, or a CI lint), because one line of `script/verify`'s own header
+meant `cargo kani` never compiled the kernel, the user programs, or `xtask`, so 64,818 lines of
+`kernel/src`, exactly where the concurrency and hardware-contract defects lived, were out of reach by
+construction. Two real defects were caught while harnesses were *being written* (`dtb::be32`'s
+unchecked `at + 4`; `pci::intx_irq`'s pin-0 underflow), which is survivorship showing up as evidence
+rather than as an excuse. The counted numbers were also wrong: 145 harnesses, not "112+"; `script/verify`
+runs 140; 19 vacuity guards exist across 4 harness crates. Full account, including the reverse pass
+that found real chaff (a proved tautology, twelve per-ISA restatements of six properties), is
+`design/fatal-risks.md` risk 2 and `notes/proof-retrospective.md`; this block does not repeat it.
 
 **In brief.** DECISIONS §14 (a verified-Rust capability microkernel) promises a verified core. There are 112+ Kani
 harnesses and `notes/verification.md` explains how they work. **Nothing in this tree asks whether
@@ -71,10 +86,20 @@ more than an expensive one that probably will not**, and this is the cheapest on
 
 ## BUGS
 
-- **A retrospective cannot prove a counterfactual.** "A proof would have caught this" is a judgement,
-  and the study should mark each one as such rather than presenting it as measurement.
-- **Survivorship runs both ways and the second pass only partly fixes it.** Bugs that proofs
-  prevented never entered the record, and bugs nobody has found yet are not in the corpus either.
-- **It has no gate and produces no artifact the build checks.** Its output is a note and, probably, a
-  worklist of harnesses worth writing; nothing stops that worklist from going the way milestone 94's
-  inventory went.
+- **A retrospective cannot prove a counterfactual, and the study said so rather than presenting
+  judgement as measurement.** Held.
+- **Survivorship runs both ways.** The two defects caught while harnesses were being written are the
+  measured half of this; bugs nobody has found yet are still not in the corpus, and nothing here
+  closes that.
+- **This block itself was the worklist-going-stale risk, realized.** It named milestone 94's inventory
+  as the precedent for what happens when a finding has no gate; its own status sat wrong for eleven
+  days as exactly that. The fix was a person reading `design/fatal-risks.md` against the tree, which
+  is rung zero and is not a mechanism.
+
+## Follow-on
+
+- **Milestone 193.** Put `kernel/src` within reach of the prover. Built the same day.
+- **Milestone 197.** `user/` and `xtask`, for the same reason. Built.
+- **Recorded.** `notes/proof-retrospective.md` carries the full study: the eighteen-defect corpus,
+  the four fixed questions asked of each one, and the reverse pass over the harnesses that found the
+  proved tautology and the per-ISA restatements.

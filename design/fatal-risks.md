@@ -148,18 +148,31 @@ what changed is that the reason is now a worklist rather than a wall.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, and it came back green.** `script/mutation` (milestone 85) ran 5,551 mutants over
-38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
-of viable mutants killed**, with every survivor triaged into a test, an exclusion with a reason, or a
-recorded gap. Five crates scored 100%.
+**Status: STALE, corrected 2026-09-10.** This entry read "MEASURED, and it came back green" on
+2026-08-03's number (5,551 mutants, 38 host crates, 92.4%) and said the weekly workflow would keep it
+current cheaply. **It has not.** Milestones 232 and 238 (both BUILT, 2026-09-03) found the workflow
+had never once succeeded: four scheduled runs, four failures, from two causes, one fixed and one not.
 
-**What that does not settle**, recorded because a green number is where inflation starts: the run is
-from 2026-08-03 and the tree has grown since; it covers **host** crates only, so the kernel and the
-arch trees, where risks 5 and 9 live, are not in it at all; and mutation testing measures the test
-suite, not the code.
+- **Fixed (238):** shard indices were off by one, so one job died in twenty seconds every run and a
+  shard went entirely untested.
+- **Not fixed, and this is why the number is stale rather than merely old:** a single runaway mutant
+  exhausts the runner's memory in about twenty seconds (1.4 GB to 15.8 GB, measured at a 10-second
+  sample interval) and takes the whole shard with it, inside the per-mutant timeout that therefore
+  cannot catch it. `design/roadmap/proposals/a-memory-bound-for-one-mutant.md` prices the repair
+  (a memory cgroup, `ulimit -v`, or a runner wrapper) and has not been built.
 
-**The remaining experiment is cheap:** re-run it and compare against `.cargo/mutants-baseline.txt`.
-No new milestone; milestone 85 already owns it and the weekly workflow already publishes the report.
+**The one number that has published since is worse and does not settle anything either way: 83.4%**,
+from the single round-robin shard that survived (a uniform one-eighth sample across all 60 crates,
+not the 38 host crates the 92.4% figure covers), against the 92.4% baseline. Two crates carry most of
+the fall and are unexplained: `uefi_loader` at 15% and `manual` at 52%
+(`design/roadmap/proposals/the-two-unexplained-mutation-scores.md`); a third, `system_initializer`,
+was measured and closed RECORDED by milestone 244 because its pure fraction is small.
+
+**What this risk needs is not a re-run, because a re-run dies the same way.** It needs the memory
+bound built first, then a full run, then a reading of whether 83.4% (or whatever a clean run
+produces) still supports "it came back green." That reading is calef's:
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal already waiting on
+it, and this entry should not be marked settled again until that one is.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
@@ -220,10 +233,13 @@ The risk names three things and they were never one claim. Measured on radon, tr
 - **Drives real hardware: yes**, 2026-09-04, reproducibly. `served 32+32 bytes`, two boots, first
   draws `3faa07e1` and `731191ba`, each boot's two draws differing from each other. Reseeded per
   boot rather than a constant in silicon or a stale register file.
-- **At real speed: unmeasured**, and nothing here should be read as answering it. The tour prints
-  nothing between `pcie` and `hw entropy` and nothing timestamps either line, so a stopwatch
-  resolves "under a second, by eye". `design/roadmap/proposals/time-the-hw-entropy-step.md` is the
-  instrument that would.
+- **At real speed: half-measured, 2026-09-10.** The tour now times itself
+  (`design/roadmap/proposals/time-the-hw-entropy-step.md`, built): since-pcie, bring-up, and draw
+  throughput, in place of a stopwatch resolving "under a second, by eye". **On QEMU's virtio-rng**
+  (not the JH7110; the reference this risk's real number gets read against), six boots gave a tight
+  draw rate (~250 µs/8-byte exchange, 11% spread) against a noisy bring-up (62% spread, dominated by
+  spawning a process on four TCG harts). **Nothing has run on radon.** The instrument is proven; the
+  number this risk is actually about is not yet taken.
 
 **What it took is worth recording, because none of it was the driver.** Milestone 239 found the
 device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's
@@ -270,10 +286,9 @@ That splits this risk into three, and two of them are now answered:
   register window. It is the *smallest* real device on the board, so it settles "a confined
   userspace process can reach non-virtio silicon at all" and it settles nothing about a device with
   a ring buffer.
-- **At real speed**: **unmeasured**, and this is now the whole of the open question for small
-  devices. Nothing in the boot tour timestamps the step, so the only available clock is a person
-  watching a serial console; `design/roadmap/proposals/time-the-hw-entropy-step.md` is what would
-  fix that.
+- **At real speed**: **half-measured, 2026-09-10.** Same correction as above: the instrument
+  exists and has a QEMU baseline, and this is now the whole of the open question for small devices,
+  narrowed from "no clock exists" to "the clock has not been pointed at radon yet."
 
 The decisive experiment above is unchanged, because throughput is what a TRNG cannot test.
 
@@ -365,10 +380,17 @@ exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a tenet) cla
 the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
 piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board (the
 Jetson TX1, milestone 127) is well documented. **x86_64 is where the risk actually lives**, and not
-because x86 is hard, but because it is newest: milestone 161 is `PARTIAL`, milestone 177's text says
-x86_64 has no real interactive boot entry point at all, milestone 164 says its userspace cannot build
-`aes` and therefore has no `fs_server`, and 165, 166 and 167 are each a piece of the same unfinished
-edge.
+because x86 is hard, but because it is newest: milestone 161 is `PARTIAL`, and 166 and 167 are each a
+piece of the same unfinished edge. **Two claims here went stale and are corrected, 2026-09-10.**
+Milestone 164 (x86_64 userspace can't build `aes` and therefore `fs_server`) is `BUILT` since
+2026-09-01, fixed by one build flag; that piece of the edge closed. And milestone 177's premise, that
+x86_64's *only* route to an interactive shell is the graphical stack because DECISIONS §121 makes its
+console permanently kernel-resident, does not follow: `swish` never talks to a UART on any
+architecture, it talks to a console server over an endpoint, and `DECISIONS §149` (PROPOSED) is
+whether a kernel thread may answer on that endpoint where §121 leaves no userspace holder. If it does,
+177 stops being a prerequisite and milestone 182 reaches a shell over serial instead, which is also
+what a bench session needs. This risk's own decisive experiment, below, is unaffected either way,
+because milestone 87 is about the boot entry, not the shell.
 
 **The decisive experiment is milestone 87 (the x86_64 bare-metal machine)**, which completes when the
 OptiPlex prints a byte over serial. The machine, the serial module and the RS-232 chain have been
@@ -403,7 +425,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads | milestone 121 | done |
-| 5 | 3, the tests | re-run the mutation sweep against the baseline | milestone 85 | a day, mostly waiting |
+| 5 | 3, the tests | **STALE 2026-09-10: the weekly re-run dies the same way every time (OOM, a runaway mutant).** Build the memory bound first, then re-run against the baseline | milestone 85, blocked on `proposals/a-memory-bound-for-one-mutant.md` | a day once the bound exists |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
@@ -412,12 +434,18 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 
 ## BUGS
 
-- **Nothing gates this file.** No check compares it against the roadmap, so an entry can go stale the
-  day a milestone lands, and a risk that was answered can sit here looking open. Risk 3 is already
-  the worked example: it was on the list as unrun until someone checked and found a green number from
-  three weeks earlier. Risk 9's cost line was the second, wrong on the day it was written: it priced
-  milestone 87 as bench time when `notes/x86-port.md` already recorded that no real firmware speaks
-  PVH. Both were caught by a person asking, which is rung zero, which is what this bullet is about.
+- **Nothing gates this file, and this bullet keeps needing new examples.** No check compares it
+  against the roadmap, so an entry can go stale the day a milestone lands, and a risk that was
+  answered can sit here looking open, or a risk that broke can sit here looking fine. Risk 3 was
+  first the worked example (a green number from three weeks earlier); it is now the worked example a
+  second time, the other direction, 2026-09-10: a full maintainer review found milestone 191 had
+  merged and sat `NOT-STARTED` for eleven days (risk 2), the weekly mutation workflow this entry
+  named as keeping risk 3 current had never once succeeded and nobody had told this file (risk 3
+  itself), an instrument risk 6 called unbuilt had shipped hours earlier, and two claims under risk 9
+  (164's build flag, 177's premise) had been overtaken by work done the same day this review ran.
+  Risk 9's cost line was a third instance, caught earlier: it priced milestone 87 as bench time when
+  `notes/x86-port.md` already recorded that no real firmware speaks PVH. **Every one of these was
+  caught by a person asking, which is rung zero, and rung zero is not a cadence.**
 - ~~**Two entries have no owner.**~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202,
   both scoped by calef, and both reframed in the process. Risk 5's experiment could not come back red
   as written and now can; risk 7's needed framing before a lane, and got §134's. **Neither can return
