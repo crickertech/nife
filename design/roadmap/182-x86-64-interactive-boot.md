@@ -8,6 +8,22 @@ substantially larger, separate undertaking than pieces 1-2's device attachment a
 **Gate: NONE.** Nothing here is a design fork; `kernel::user::spawn_init` (aarch64) and
 `riscv_shell_boot` (riscv64) are the worked examples to follow, not a new design.
 
+**Amended 2026-09-09: this block's central premise no longer holds, and the milestone is smaller
+than it reads.** It says the graphical stack is x86_64's *only possible* route to an interactive
+shell, because DECISIONS §121 makes the console permanently kernel-resident and there is therefore
+no userspace console server to talk to. §121 does make the driver kernel-resident, and that part
+stands. What was missed is that `swish` never talks to a UART on any architecture: it talks to a
+**console server over an endpoint**. So the question was never "can x86 have a userspace console
+driver" (it cannot) but "can something else answer on that endpoint", and a kernel thread can:
+`ipc::Rendezvous` is generic over `T: Node`, privilege-free, and kernel threads already exist.
+
+**Two consequences.** Milestone 177 is **no longer a prerequisite** for this milestone, which
+restores the agreed order of software parity before hardware parity. And the route is **serial**,
+which is what a bench session needs, since `board_console` reads a wire and cannot read a monitor.
+
+DECISIONS §149 carries that decision. This milestone waits on it, and on nothing else it did not
+already wait on.
+
 ## What is actually missing
 
 x86_64 has no third function beside `spawn_init`/`riscv_shell_boot`. What exists instead,
