@@ -595,6 +595,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 271 | NOT-STARTED | [Measure `CR4.PCIDE`, and settle the ASID-tagging skip it leaves on x86_64](271-pcide-measurement.md) | calef, 2026-09-10. Outstanding since milestone 161, checked 2026-09-03, never measured. | |
 | 272 | NOT-STARTED | [Give x86_64's core roster the independent re-read the other two architectures already have](272-acpi-core-roster-cross-check.md) | calef, 2026-09-10. No test has ever independently verified x86_64's core roster. | |
 | 273 | NOT-STARTED | [Port `ipc_thread_scaling` and `app_displacement` to x86_64, or record why not](273-x86-64-scaling-benchmarks.md) | calef, 2026-09-10. The one gap in the inventory with no stated reason, checked and confirmed absent. | |
+| 274 | NOT-STARTED | [What Apple Silicon's own core actually implements, measured rather than assumed](274-apple-silicon-isa-support.md) | calef, 2026-09-10. Measured: Apple Silicon has no FEAT_RNG under HVF, and this test has passed exactly once in the project's history, by hand. | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS
