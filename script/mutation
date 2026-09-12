@@ -172,6 +172,16 @@ fi
 runner_var="CARGO_TARGET_$(rustc -vV | awk '/^host:/ {print toupper($2)}' | tr - _)_RUNNER"
 export "$runner_var=$(pwd)/scripts/memory-bounded-runner.sh"
 
+# Say once per RUN what the runner would otherwise have to say once per test binary, which at
+# ~9,900 mutants is not a notice but a flood. The macOS default is no ceiling (the runner's BUGS
+# section has the reason: XNU enforces RLIMIT_AS, but nobody has measured what number is safe
+# there), and an unbounded run that looks identical to a bounded one is the thing this milestone
+# exists to stop being true.
+if [ "$(uname -s)" = "Darwin" ] && [ "${MUTATION_MEMORY_LIMIT_KB:-0}" = "0" ]; then
+    echo "==> no per-mutant memory ceiling on macOS (default); a runaway mutant can still take the" >&2
+    echo "    machine. Set MUTATION_MEMORY_LIMIT_KB to bound it; see scripts/memory-bounded-runner.sh" >&2
+fi
+
 rc=0
 cargo mutants --workspace -j 2 "$@" -- -- --test-threads=4 || rc=$?
 case "$rc" in
