@@ -115,6 +115,8 @@ verdict or a measurement, and who calls it.
 | `roadmap --check` | `script/lint` | yes | green |
 | `decisions --check` | `script/lint` | yes | green |
 | `citations --check` | `script/lint` | yes | green |
+| `fatal-risks --check` | `script/lint` | yes | green |
+| `fatal-risks --selftest` | `script/lint` | yes | green (10 fixtures; 7 must go red, 3 must stay quiet) |
 | `names --check` | `script/lint` | yes | green |
 | `audits --check` | `script/lint` | yes | green |
 | `stranger-test --check` | `script/lint` | yes | green |
@@ -134,8 +136,10 @@ verdict or a measurement, and who calls it.
 | `journeys` | **nothing** | no | report only, cannot fail |
 | `apropos`, `catch-up` | **nothing** | no | tools, no verdict |
 
-`script/lint` is one required check carrying **38 sub-checks** (nine clippy passes and 29 others,
-the list is its own `==>` lines). They all block, because it exits on the first failure. That
+`script/lint` is one required check carrying **42 sub-checks** (ten clippy passes and 32 others;
+the list is its own `==>` lines, and `grep -c '^echo "==>' script/lint` is the derivation, since the
+number written here has already been stale once). They all block, because it exits on the first
+failure. That
 concentration is worth knowing: a slow or wrong sub-check there stalls every lane at once, which is
 why three have been deleted rather than fixed.
 
