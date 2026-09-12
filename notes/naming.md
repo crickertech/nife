@@ -615,8 +615,11 @@ people learn to skip.
   into a schema that does not fit it. **Closed for directories on 2026-08-16 by §75**: a directory
   under `design/` or `notes/` now carries its provenance in its own `README.md`, applied that day
   to `design/decisions/`, `design/roadmap/` and `notes/`, with `design/audit-reports/`'s line owed
-  by the milestone-92 commit that creates it. The other surfaces in this list (types, `scripts/`
-  helpers, `kernel`, `xtask`, `redoxfs_server`, `tools/redoxfs_host`) are still uncovered.
+  by the milestone-92 commit that creates it. **Closed for Cargo packages on 2026-08-18**, when calef found
+  `script/names std_exerciser` answering "neither a name in the tree nor a recorded refusal" and the
+  `package` kind was added: `kernel`, `xtask`, `redoxfs_server` and `tools/redoxfs_host` now carry
+  blocks in their manifests, and milestone 276's weekly series shows the hole closing in 2026W34.
+  Types and `scripts/` helpers are still uncovered.
 
   **That blind spot has a live casualty, found while triaging.** `disk_partitioner`'s introducing
   commit (2026-08-03) named two provisional things: itself, and `fs_maker`. The first is on a
