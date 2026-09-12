@@ -746,6 +746,30 @@ fi
 echo "==> citations"
 "$(dirname "$0")/citations" --check
 
+# The fourth citation gate, and the only one that reads what a citation CLAIMS (milestone 275). The
+# three above prove a `milestone N` or `§N` resolves, and that its gloss names the right record;
+# none of them asks whether what `design/fatal-risks.md` SAYS about what it resolved to is still
+# true. That file is the falsification list, nine claims that would stop the project, and its own
+# BUGS section said from the day it was written that nothing gated it. On 2026-09-10 a maintainer
+# reading it against the tree found that warning firing four ways at once, including risk 2 carrying
+# `RUN, 2026-08-30. AMBER` for twelve days while milestone 191's own block read `NOT-STARTED`.
+#
+# It is here rather than on a cadence, which milestone 275's block left open, because drift in this
+# file is always CAUSED by an in-tree edit: a milestone's status moved, or the file was written
+# against a tree that has since changed. `script/cadence-check`'s header draws the line this sits on
+# the far side of ("a dead cadence is not a defect in the commit that happens to trip it"); here the
+# commit that trips it is the commit that caused it, and the lane holding it can fix it in the same
+# breath. About a second, most of it the two report subprocesses it reuses rather than reimplements.
+#
+# The selftest runs first and costs nothing (fixtures, no subprocesses). It is here because a green
+# `--check` on a clean tree looks identical whether the checks work or have quietly stopped firing,
+# which is exactly how `script/roadmap`'s merged-branch check "spent a day passing in CI while being
+# unable to fail". Eleven fixtures, eight that must come back red and three near-misses that must
+# stay quiet.
+echo "==> fatal risks"
+"$(dirname "$0")/fatal-risks" --selftest >/dev/null
+"$(dirname "$0")/fatal-risks" --check
+
 # The script/ front door is documented in exactly one comprehensive place, and the README's list is a
 # deliberate SUBSET of it. Two checks, because they fail in opposite directions: a script nobody
 # documented is invisible, and a README naming a script that no longer exists sends a new reader into
