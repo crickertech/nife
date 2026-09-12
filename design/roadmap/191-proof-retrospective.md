@@ -1,10 +1,14 @@
 # 191. Did the proofs catch the bugs? A retrospective of every real defect against the harness that should have found it
 
-**Status: NOT-STARTED.** Minted 2026-08-30 by calef, from the fatal-risk sweep
-(design/fatal-risks.md). *(Number provisional until the merge queue lands it.)*
+**Status: BUILT 2026-08-30.** Minted 2026-08-30 by calef, from the fatal-risk sweep
+(design/fatal-risks.md). Built the same day; `notes/proof-retrospective.md` is the study and pull
+request #589 is where it landed.
 
-**Gate: NONE.** Everything this needs is already in the tree: the harnesses, the notes, and the
-history. It reads, it does not build.
+**This block read `NOT-STARTED` for twelve days after that**, and it is milestone 275's first
+finding rather than a note somebody happened to make: `design/fatal-risks.md` recorded this
+experiment as `RUN, 2026-08-30. AMBER` in two separate places while the roadmap recorded it as never
+begun, and nothing in the tree compared the two. The §76 defect class, in the one place no gate was
+looking. Corrected 2026-09-11 by the lane that built the gate that found it.
 
 **In brief.** DECISIONS §14 (a verified-Rust capability microkernel) promises a verified core. There are 112+ Kani
 harnesses and `notes/verification.md` explains how they work. **Nothing in this tree asks whether
@@ -78,3 +82,15 @@ more than an expensive one that probably will not**, and this is the cheapest on
 - **It has no gate and produces no artifact the build checks.** Its output is a note and, probably, a
   worklist of harnesses worth writing; nothing stops that worklist from going the way milestone 94's
   inventory went.
+
+## Follow-on
+
+- **Done.** `notes/proof-retrospective.md`, pull request #589, merged 2026-08-30.
+- **Milestone 193.** Put `kernel/src` within reach of the prover. This study's red half is one line
+  of `script/verify`'s own header (`cargo kani -p <crate>` never compiles the kernel), so the
+  worklist's first item is the gate that closes it.
+- **Milestone 197.** `user/` and `xtask` are out of reach of the prover, which is the second half of
+  the same finding and which half-refuted its own premise when it ran.
+- **Recorded.** The study's own limits are in `notes/proof-retrospective.md`'s `BUGS`: ten of the
+  eighteen corpus entries are single-sourced, the reverse pass is a reading rather than a
+  measurement, and the counts were taken at base `f1f138a8` and will drift.

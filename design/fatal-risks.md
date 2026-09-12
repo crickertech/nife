@@ -159,7 +159,17 @@ arch trees, where risks 5 and 9 live, are not in it at all; and mutation testing
 suite, not the code.
 
 **The remaining experiment is cheap:** re-run it and compare against `.cargo/mutants-baseline.txt`.
-No new milestone; milestone 85 already owns it and the weekly workflow already publishes the report.
+No new milestone; milestone 85 already owns it.
+
+**Correction, 2026-09-11.** That paragraph used to close "and the weekly workflow already publishes
+the report", and the workflow had published nothing. `mutation.yml`'s own `BUGS` section records it:
+the workflow **had never once succeeded**, four scheduled runs red from 2026-08-10, found by
+milestone 232's audit on 2026-09-03. Milestone 238 repaired one of the two causes (shard indices
+counted from one, so a job died in twenty seconds every run and shard 0 was never tested); the other
+is live, a runaway mutant exhausting the runner's memory inside the timeout meant to catch it, and
+the 2026-09-07 scheduled run failed with it. So **this risk's green is from 2026-08-03 and nothing
+has refreshed it since**, which is a weaker position than the entry claimed rather than a different
+verdict. `script/cadence-check` now reports the dead cadence.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
@@ -220,10 +230,13 @@ The risk names three things and they were never one claim. Measured on radon, tr
 - **Drives real hardware: yes**, 2026-09-04, reproducibly. `served 32+32 bytes`, two boots, first
   draws `3faa07e1` and `731191ba`, each boot's two draws differing from each other. Reseeded per
   boot rather than a constant in silicon or a stale register file.
-- **At real speed: unmeasured**, and nothing here should be read as answering it. The tour prints
-  nothing between `pcie` and `hw entropy` and nothing timestamps either line, so a stopwatch
-  resolves "under a second, by eye". `design/roadmap/proposals/time-the-hw-entropy-step.md` is the
-  instrument that would.
+- **At real speed: unmeasured on silicon**, and nothing here should be read as answering it.
+  **The instrument now exists**, which it did not when this entry was written: as of 2026-09-10 the
+  tour reads the timebase around the step and the `hw entropy` line carries three figures (the whole
+  `pcie`-to-`hw entropy` gap, the bring-up alone, and the two draws with a rate).
+  `design/roadmap/proposals/time-the-hw-entropy-step.md` has the QEMU numbers that give radon's a
+  denominator, about 250 us per 8-byte exchange with an emulated device that costs nothing. What is
+  left is one boot of radon, which is why that proposal's gate is now `HARDWARE` rather than `NONE`.
 
 **What it took is worth recording, because none of it was the driver.** Milestone 239 found the
 device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's
@@ -270,10 +283,13 @@ That splits this risk into three, and two of them are now answered:
   register window. It is the *smallest* real device on the board, so it settles "a confined
   userspace process can reach non-virtio silicon at all" and it settles nothing about a device with
   a ring buffer.
-- **At real speed**: **unmeasured**, and this is now the whole of the open question for small
-  devices. Nothing in the boot tour timestamps the step, so the only available clock is a person
-  watching a serial console; `design/roadmap/proposals/time-the-hw-entropy-step.md` is what would
-  fix that.
+- **At real speed**: **unmeasured on silicon**, and this is now the whole of the open question for
+  small devices. **Corrected 2026-09-11:** this used to read "nothing in the boot tour timestamps
+  the step, so the only available clock is a person watching a serial console", and that stopped
+  being true on 2026-09-10 when the step began timing itself. The stopwatch is no longer the
+  instrument; one boot of radon is the whole of what remains, and
+  `design/roadmap/proposals/time-the-hw-entropy-step.md` carries the procedure and the QEMU
+  denominator.
 
 The decisive experiment above is unchanged, because throughput is what a TRNG cannot test.
 
@@ -366,9 +382,16 @@ the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the
 piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board (the
 Jetson TX1, milestone 127) is well documented. **x86_64 is where the risk actually lives**, and not
 because x86 is hard, but because it is newest: milestone 161 is `PARTIAL`, milestone 177's text says
-x86_64 has no real interactive boot entry point at all, milestone 164 says its userspace cannot build
-`aes` and therefore has no `fs_server`, and 165, 166 and 167 are each a piece of the same unfinished
-edge.
+x86_64 has no real interactive boot entry point at all, and 166 and 167 are each a piece of the same
+unfinished edge.
+
+**Two of those closed, 2026-09-01 and 2026-09-02, and this entry did not notice for ten days.** It
+used to cite milestone 164 as the reason x86_64 has no `fs_server`. That milestone is `BUILT`: the
+whole of it turned out to be one build flag (`--cfg aes_force_soft`, which selects `aes`'s portable
+software backend), and x86_64 userspace now builds `aes`, `redoxfs_server` and `mkfs`, with the last
+two in the x86_64 archive. Milestone 165 (x86_64 PCI enumeration) is `BUILT` too. **The risk is not
+weakened by that so much as re-sited**: what is left on this edge is the boot entry point and the
+orchestrator, not the toolchain, which is a shorter list and a different kind of work.
 
 **The decisive experiment is milestone 87 (the x86_64 bare-metal machine)**, which completes when the
 OptiPlex prints a byte over serial. The machine, the serial module and the RS-232 chain have been
@@ -412,12 +435,21 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 
 ## BUGS
 
-- **Nothing gates this file.** No check compares it against the roadmap, so an entry can go stale the
-  day a milestone lands, and a risk that was answered can sit here looking open. Risk 3 is already
-  the worked example: it was on the list as unrun until someone checked and found a green number from
-  three weeks earlier. Risk 9's cost line was the second, wrong on the day it was written: it priced
-  milestone 87 as bench time when `notes/x86-port.md` already recorded that no real firmware speaks
-  PVH. Both were caught by a person asking, which is rung zero, which is what this bullet is about.
+- ~~**Nothing gates this file.**~~ Closed 2026-09-11 for the mechanical half by milestone 275:
+  `script/fatal-risks --check` runs in `script/lint` and compares what this file says about a
+  milestone or a decision against what the roadmap and the decision index record. It found four
+  live disagreements on its first run, every one of them a case a person had already had to catch by
+  asking: milestone 191 recorded `NOT-STARTED` while risk 2 and the running order both called its
+  experiment run; risk 3 crediting a weekly report the workflow had never published; risk 6 calling
+  the hw-entropy step untimed after the tour began timing it; and risk 9 citing milestone 164 as the
+  reason x86_64 has no `fs_server` after 164 turned `BUILT`.
+
+  **What is not closed is the larger half, and it stays named here rather than implied.** A gate can
+  see a status word contradicting the record. It cannot see a premise being overtaken, which is what
+  happened to this entry's second example: risk 9's cost line priced milestone 87 as bench time when
+  `notes/x86-port.md` already recorded that no real firmware speaks PVH. Nothing mechanical would
+  have caught that, and nothing here claims to. **A green `script/fatal-risks` means no status word
+  in this file contradicts the record it names; it is not a warrant that the arguments still hold.**
 - ~~**Two entries have no owner.**~~ Closed 2026-08-31: risks 5 and 7 are milestones 201 and 202,
   both scoped by calef, and both reframed in the process. Risk 5's experiment could not come back red
   as written and now can; risk 7's needed framing before a lane, and got §134's. **Neither can return
