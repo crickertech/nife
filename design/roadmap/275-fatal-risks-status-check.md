@@ -63,7 +63,7 @@ is still true.
 `script/fatal-risks`, **name provisional**, with the provenance block every `script/` entry carries.
 Three modes: a report, `--check` (wired into `script/lint`), and `--selftest`.
 
-**Seven checks, each anchored on a marker the file already writes**, because the alternative is
+**Eight checks, each anchored on a marker the file already writes**, because the alternative is
 reading a status claim out of free prose and that is a false-positive generator. A risk whose
 `**Status: RUN**`/`MEASURED` names an experiment milestone that is `NOT-STARTED`; a risk whose
 experiment is explicitly *not* run naming one that is `BUILT` (the rule `script/roadmap` already
@@ -104,9 +104,12 @@ the failure message names it.
 
 ## How it is known to be able to fail
 
-**`script/fatal-risks --selftest`, ten fixtures, run by `script/lint` beside `--check`.** Seven
+**`script/fatal-risks --selftest`, eleven fixtures, run by `script/lint` beside `--check`.** Eight
 positive fixtures must each come back red on exactly their own check; three negative ones must stay
-quiet. The negatives are the more interesting half, since this gate's stated bias is that a false
+quiet. One of the eight is a check that *refuses* rather than answers: a shallow clone has no commit
+touching a tracked file, so the proposal check would pass vacuously in one and reports instead, which
+is `script/roadmap`'s own lesson from the day its merged-branch check "spent a day passing in CI
+while being unable to fail". The negatives are the more interesting half, since this gate's stated bias is that a false
 positive costs more than a false negative: a `RUN` verdict over a `PARTIAL` milestone, a *pending*
 running-order row over a `BUILT` owner (row 5 owns risk 3 to milestone 85, which is built, while its
 experiment is a re-run that has not happened), and a milestone built before the citing entry's own
