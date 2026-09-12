@@ -93,6 +93,17 @@ root, mode = sys.argv[1], sys.argv[2]
 d = os.path.join(root, "design", "roadmap")
 index_path = os.path.join(d, "README.md")
 
+# The proposal-file parse this script shares with `script/metrics`, which counts the pile per week
+# (milestone 276). Milestone 236's rule: a derivation two scripts each copy will drift while both
+# keep looking authoritative, and this pile's only defence against becoming a graveyard is that a
+# script can see it. The directory LISTING stays here, because this reads the working tree and that
+# reads blobs at revisions nobody has checked out. `dont_write_bytecode` because the import would
+# otherwise leave a `scripts/__pycache__/` behind on every run, which is an untracked directory a
+# gate has no business creating.
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.join(root, "scripts"))
+import roadmap_proposals                                                    # noqa: E402
+
 PROPOSED_DIR = "proposals"
 
 VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL", "RECORDED"]
@@ -375,50 +386,50 @@ for fname in sorted(os.listdir(d)):
 # was written, `--check` prints the count and the age of the oldest on every lint run, and
 # `--proposed` lists them oldest first. An unread number is still rung two; a paragraph in a
 # finished block was rung four.
-PROPOSED_STATUS = re.compile(r"\*\*Status: PROPOSED (\d{4}-\d{2}-\d{2})\.\*\*")
 proposals = []
 pdir = os.path.join(d, PROPOSED_DIR)
 for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
     rel = f"{PROPOSED_DIR}/{fname}"
-    if not fname.endswith(".md"):
+    named = roadmap_proposals.filename_problem(fname)
+    if named == roadmap_proposals.NOT_MARKDOWN:
         problems.append(f"{rel}: only proposal files live here (<slug>.md)")
         continue
-    if not re.fullmatch(r"[a-z][a-z0-9-]*\.md", fname):
+    if named == roadmap_proposals.NOT_A_SLUG:
         problems.append(f"{rel}: a proposal filename is a lowercase hyphenated slug and carries "
                         f"NO number. The number is assigned at promotion, which is what lets a "
                         f"lane add to the roadmap without coordinating with any other lane")
         continue
-    plines = open(os.path.join(pdir, fname)).read().split("\n")
-    if not plines or not re.match(r"# [^0-9]", plines[0]):
+    ptext = open(os.path.join(pdir, fname)).read()
+    when, title, problem = roadmap_proposals.classify(ptext)
+    plines = ptext.split("\n")
+    if problem == roadmap_proposals.NO_TITLE:
         problems.append(f"{rel}: line 1 must be '# <title>', with no milestone number: an "
                         f"unpromoted proposal has none (found {plines[0][:40]!r})")
         continue
-    first = next((l for l in plines[1:] if l.strip()), "")
-    ps = PROPOSED_STATUS.match(first)
-    if not ps:
+    if problem == roadmap_proposals.NO_STATUS:
+        first = next((l for l in plines[1:] if l.strip()), "")
         problems.append(f"{rel}: the line under the title must be "
                         f"'**Status: PROPOSED <YYYY-MM-DD>.**'. The date is what makes the pile "
                         f"measurable: a proposal nobody promotes is the same burial in a new "
                         f"place, and age is the only tell a script has (found {first[:40]!r})")
         continue
-    paras, cur = [], []
-    for l in plines:
-        if l.strip():
-            cur.append(l)
-        elif cur:
+    if problem == roadmap_proposals.NO_GATE:
+        paras, cur = [], []
+        for l in plines:
+            if l.strip():
+                cur.append(l)
+            elif cur:
+                paras.append(cur)
+                cur = []
+        if cur:
             paras.append(cur)
-            cur = []
-    if cur:
-        paras.append(cur)
-    gate_para = " ".join(paras[2]) if len(paras) > 2 else ""
-    if not re.match(r"\*\*Gate: ([A-Z0-9, ]+)\.\*\* (\S)", gate_para):
+        gate_para = " ".join(paras[2]) if len(paras) > 2 else ""
         problems.append(f"{rel}: the paragraph under the status must be "
                         f"'**Gate: <spec>.** <why>', the same as any unbuilt milestone: a proposal "
                         f"a lane cannot start is worth as little as a milestone a lane cannot "
                         f"start (found {gate_para[:48]!r})")
         continue
-    proposals.append((ps.group(1), rel, plines[0][2:]))
-
+    proposals.append((when, rel, title))
 
 # ---- the Follow-on section (milestone 247) ------------------------------------
 # A finished milestone is the last place anyone looks, and the work it named on the way out is what
