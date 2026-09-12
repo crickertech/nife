@@ -116,7 +116,7 @@ verdict or a measurement, and who calls it.
 | `decisions --check` | `script/lint` | yes | green |
 | `citations --check` | `script/lint` | yes | green |
 | `fatal-risks --check` | `script/lint` | yes | green |
-| `fatal-risks --selftest` | `script/lint` | yes | green (10 fixtures; 7 must go red, 3 must stay quiet) |
+| `fatal-risks --selftest` | `script/lint` | yes | green (11 fixtures; 8 must go red, 3 must stay quiet) |
 | `names --check` | `script/lint` | yes | green |
 | `audits --check` | `script/lint` | yes | green |
 | `stranger-test --check` | `script/lint` | yes | green |

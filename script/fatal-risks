@@ -112,6 +112,11 @@
 # check that has quietly died, which `--check` alone could never tell you, because on a clean tree a
 # dead check and a working one both print the same green line.
 #
+# **One fixture is for a check that refuses rather than answers.** A shallow clone has no commit
+# touching a tracked file, so the proposal check would pass vacuously in one; it reports instead.
+# That is script/roadmap's lesson taken whole, from the day its merged-branch check "spent a day
+# passing in CI while being unable to fail" for exactly this reason.
+#
 # **Three of the fixtures are negative**, and they are the more interesting half, because this
 # script's stated bias is that a false positive costs more than a false negative. They pin the three
 # near-misses the real file produces today: a PARTIAL milestone is evidence for either claim and must
@@ -312,7 +317,21 @@ def analyse(text, milestones, built_on, decisions, exists, last_touched):
             if not exists(rel):
                 continue
             touched = last_touched(rel)
-            if touched and touched > asof:
+            if not touched:
+                # **A history this cannot see makes this check pass vacuously**, and that is the
+                # exact failure script/roadmap records against its own merged-branch check: it
+                # "spent a day passing in CI while being unable to fail" inside an
+                # `actions/checkout` shallow clone, and a check that cannot fail is worse than one
+                # that is absent, because its green is read as an answer. A tracked file with no
+                # commit touching it is a shallow clone, not a file nobody has ever written.
+                report("no-history", start + body.index(rel),
+                       f"{RISKS}:{lineno(start + body.index(rel))}: `{rel}` is cited by risk {num} "
+                       f"and this git history has no commit touching it, so the check that asks "
+                       f"whether it moved after the entry did cannot answer.\n"
+                       f"      That is a shallow clone (actions/checkout defaults to depth 1), not "
+                       f"a file nobody has written. Give the job `fetch-depth: 0`.")
+                continue
+            if touched > asof:
                 report("proposal-moved", start + body.index(rel),
                        f"{RISKS}:{lineno(start + body.index(rel))}: risk {num} was last dated "
                        f"{asof} and cites `{rel}` as work that would answer it; that proposal was "
@@ -423,6 +442,8 @@ SELFTEST = [
     ("proposal-moved", "a cited proposal changed after the entry was last dated",
      "## 1. A risk\n\nAs of 2026-09-01, `design/roadmap/proposals/here.md` is what would fix it.\n"),
     # ---- the negatives, which are the more interesting half ------------------
+    ("no-history", "a git history too shallow to answer whether a cited proposal moved",
+     "## 1. A risk\n\nAs of 2026-09-01, `design/roadmap/proposals/mute.md` is what would fix it.\n"),
     (None, "a RUN verdict over a PARTIAL milestone is evidence for either claim",
      "## 1. A risk\n\n**The experiment:** milestone 9.\n\n**Status: RUN, 2026-09-10.**\n"),
     (None, "a pending running-order row over a BUILT owner is legitimate (the milestone-85 shape)",
@@ -437,8 +458,9 @@ def selftest():
     bad = []
     for want, why, fixture in SELFTEST:
         got = analyse(fixture, MILE, DATES, {},
-                      lambda rel: rel == "design/roadmap/proposals/here.md",
-                      lambda rel: "2026-09-09")
+                      lambda rel: rel in ("design/roadmap/proposals/here.md",
+                                          "design/roadmap/proposals/mute.md"),
+                      lambda rel: None if rel.endswith("mute.md") else "2026-09-09")
         codes = sorted({c for c, _, _ in got})
         ok = (codes == [want]) if want else (codes == [])
         print(f"  {'ok  ' if ok else 'FAIL'}  {want or '(quiet)':<20} {why}")

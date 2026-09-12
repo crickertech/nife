@@ -764,8 +764,8 @@ echo "==> citations"
 # The selftest runs first and costs nothing (fixtures, no subprocesses). It is here because a green
 # `--check` on a clean tree looks identical whether the checks work or have quietly stopped firing,
 # which is exactly how `script/roadmap`'s merged-branch check "spent a day passing in CI while being
-# unable to fail". Ten fixtures, seven that must come back red and three near-misses that must stay
-# quiet.
+# unable to fail". Eleven fixtures, eight that must come back red and three near-misses that must
+# stay quiet.
 echo "==> fatal risks"
 "$(dirname "$0")/fatal-risks" --selftest >/dev/null
 "$(dirname "$0")/fatal-risks" --check
