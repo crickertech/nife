@@ -20,6 +20,14 @@
 # on its face that these are restatements, and this comment is the same warning where the numbers
 # are actually produced.
 #
+# **The naming columns are the sharpest instance of that hazard in this file** (milestone 276). A
+# name's provenance lives in the header of the thing it names, and that convention was invented by
+# milestone 115 on 2026-08-04. Three weeks of the series predate it, so they restate as a tree full
+# of named things and no recorded ratifications, which is a convention's birth rather than a fact
+# about the names. `names_total` counts the named things and the four status columns count the ones
+# whose block parses, so those weeks show the gap instead of hiding it. notes/project-metrics.md
+# says the same thing where the bars are.
+#
 # What it does NOT build, and why:
 #
 #   - **Coverage is not recoverable and is left blank historically.** It is computed per-pull-request
@@ -83,6 +91,8 @@ from datetime import datetime, timezone
 # behind on every run, which is an untracked directory a gate has no business creating.
 sys.dont_write_bytecode = True
 sys.path.insert(0, 'scripts')
+import name_provenance                                                      # noqa: E402
+import roadmap_proposals                                                    # noqa: E402
 import rust_source                                                          # noqa: E402
 from rust_source import non_blank, strip_non_code                           # noqa: E402
 
@@ -93,6 +103,10 @@ CSV_PATH = DATA_DIR / 'weekly.csv'
 MILESTONE_STATUSES = ['BUILT', 'PARTIAL', 'IN-PROGRESS', 'REMOVED',
                       'NOT-STARTED', 'OPTIONAL', 'RECORDED']
 DECISION_STATUSES = ['DECIDED', 'AMENDED', 'SUPERSEDED', 'PROPOSED', 'UNRECORDED']
+# The naming vocabulary is `script/names`', taken from the shared module rather than retyped, so a
+# fifth word added there arrives here as a column instead of as a silent undercount. It is lower
+# case where the other two are upper, because these are the words a `Name:` block literally spells.
+NAME_STATUSES = name_provenance.STATUSES
 
 
 def _col(prefix, status):
@@ -102,6 +116,8 @@ def _col(prefix, status):
 FIELDS = (['week', 'commit', 'date']
           + [_col('milestones', s) for s in MILESTONE_STATUSES] + ['milestones_total']
           + [_col('decisions', s) for s in DECISION_STATUSES] + ['decisions_total']
+          + [_col('names', s) for s in NAME_STATUSES] + ['names_total']
+          + ['proposals_unnumbered']
           + ['kernel_code_lines', 'kernel_comment_lines',
              'other_code_lines', 'other_comment_lines',
              'bugs_markdown', 'bugs_rust',
@@ -125,8 +141,21 @@ def git(*args):
 # `git checkout <path>` exists because it destroyed uncommitted work three times, and a backfill
 # that walks history is exactly where that mistake would be made.
 
+# What a week's tree has to carry. `.rs` and `.md` are the line, comment, `BUGS`, harness and
+# `unsafe` counts. `Cargo.toml` and `script/` joined them for the naming columns (milestone 276):
+# a package's provenance block lives in its manifest, because a package here may have a `lib.rs`, a
+# `main.rs` or neither, and a `script/` entry point's lives in its shell comment header. Widening
+# the filter costs about sixty more blobs in the same single `cat-file --batch`, and changes nothing
+# else, because every other metric selects by suffix out of the same dictionary.
+def _wanted(path):
+    if path.startswith(('vendor/', 'target/')):
+        return False
+    return (path.endswith(('.rs', '.md', '/Cargo.toml'))
+            or (path.startswith('script/') and path.count('/') == 1))
+
+
 class Tree:
-    """Every `.rs` and `.md` blob in one commit, outside `vendor/` and `target/`."""
+    """Every blob a metric reads in one commit: Rust, markdown, manifests and `script/` entries."""
 
     def __init__(self, rev):
         self.rev = rev
@@ -136,9 +165,7 @@ class Tree:
                 continue
             meta, path = entry.split('\t', 1)
             _mode, kind, oid = meta.split()
-            if kind != 'blob' or not path.endswith(('.rs', '.md')):
-                continue
-            if path.startswith(('vendor/', 'target/')):
+            if kind != 'blob' or not _wanted(path):
                 continue
             paths.append(path)
             oids.append(oid)
@@ -218,6 +245,104 @@ def decisions(tree):
     if legacy:
         counts['UNRECORDED'] = len(set(re.findall(r'^## (\d+)\.', legacy, re.M)))
     return counts
+
+
+# The four kinds of named thing `script/names` knows about, enumerated out of a tree's paths
+# rather than off the disk. This is the half milestone 236's rule says stays at the caller: the
+# parse of a `Name:` block is shared (`scripts/name_provenance.py`), and the file sourcing is not,
+# because `script/names` is asked about the tree in front of it and this is asked about eight
+# revisions nobody has checked out.
+#
+# A package is every `Cargo.toml` outside `crates/` and outside the workspace root, discovered
+# rather than listed, which is the property `script/names` built the kind for: a package that
+# arrives tomorrow is counted without editing anything. Its name is the package's, not the
+# directory's, because that is the name a `use` statement and a dependency list carry.
+_PACKAGE_NAME = re.compile(r'^\s*name\s*=\s*"([^"]+)"', re.M)
+
+
+def name_surfaces(tree):
+    """(name, path of the file that must carry its block, comment prefix), one per named thing."""
+    crates, out = set(), []
+    for path in tree.text:
+        parts = path.split('/')
+        if any(part.startswith('.') or part == 'target' for part in parts[:-1]):
+            continue
+        if parts[0] == 'crates' and len(parts) > 2:
+            crates.add(parts[1])
+        elif len(parts) == 3 and parts[:2] == ['user', 'src'] and path.endswith('.rs'):
+            out.append((parts[2][:-3], path, '//!'))
+        elif len(parts) == 2 and parts[0] == 'script':
+            out.append((parts[1], path, '#'))
+        elif parts[-1] == 'Cargo.toml' and parts[0] != 'crates':
+            hit = _PACKAGE_NAME.search(tree.text[path])
+            if hit:
+                out.append((hit.group(1), path, '#'))
+    for crate in crates:
+        out.append((crate, 'crates/%s/src/lib.rs' % crate, '//!'))
+    return out
+
+
+def names(tree):
+    """Naming provenance by status, and the count of named things it is out of.
+
+    **`names_total` is every named thing, not the sum of the four columns**, which is the one place
+    this series deviates from `milestones()` and `decisions()` above, and the deviation is the
+    honest part. `ratified`, `recorded`, `provisional` and `unrecorded` are what a `Name:` block
+    SAYS. A crate with no block at all has said nothing, and counting that silence as `unrecorded`
+    would put a claim in the record that nobody made, which is the failure `script/names` refuses
+    one directory over and the same reason `decisions()` will not read a statusless decision as
+    DECIDED.
+
+    So before milestone 115 invented the convention on 2026-08-04, the four columns are zero and
+    `names_total` is the whole vocabulary of the tree, and the gap between them is the size of what
+    was not yet being recorded. `script/lint` runs `script/names --check`, so in any tree from
+    2026W32 onward the gap is zero and the sum is the total.
+
+    A block that fails `script/names`' own form checks (a `ratified` with no date, a `recorded` with
+    no citation) counts toward the total and toward no status, for the same reason: it has not said
+    which of the four it is.
+    """
+    counts = dict.fromkeys(NAME_STATUSES, 0)
+    surfaces = name_surfaces(tree)
+    for _name, path, prefix in surfaces:
+        text = tree.text.get(path)
+        if text is None:
+            continue
+        found = name_provenance.block(text, prefix)
+        if found is None:
+            continue
+        status, _date, _refused, problem = name_provenance.classify(found)
+        if problem is None:
+            counts[status] += 1
+    return counts, len(surfaces)
+
+
+def proposals(tree):
+    """Unnumbered roadmap proposals: identified work filed where a script can see it, awaiting a number.
+
+    **Nothing else on this dashboard can count these**, which is why the column exists.
+    `milestones()` above matches index rows in `design/roadmap/README.md` and keys on a milestone
+    NUMBER, and a proposal is defined by not having one, so it is invisible to that count by
+    construction rather than by oversight.
+
+    Counted the way `script/roadmap` counts them, out of the shared parse, so the two cannot
+    disagree about what is in the pile. A file that does not parse as a proposal is not counted;
+    `script/lint` runs `script/roadmap --check`, so in any tree since milestone 247 there are none.
+
+    The weeks before 2026-09-04 are zero because the directory did not exist, which is the same
+    restatement artifact as the naming columns above and is rendered rather than backfilled.
+    """
+    count = 0
+    for path, text in tree.markdown():
+        directory, _slash, filename = path.rpartition('/')
+        if directory != roadmap_proposals.DIRECTORY:
+            continue
+        if roadmap_proposals.filename_problem(filename):
+            continue
+        _when, _title, problem = roadmap_proposals.classify(text)
+        if problem is None:
+            count += 1
+    return {'proposals_unnumbered': count}
 
 
 def lines(tree):
@@ -319,7 +444,11 @@ def row_for(rev, week, coverage=''):
     for status in DECISION_STATUSES:
         row[_col('decisions', status)] = dec[status]
     row['decisions_total'] = sum(dec.values())
-    for part in (lines(tree), bugs(tree), harnesses(tree),
+    nm, named = names(tree)
+    for status in NAME_STATUSES:
+        row[_col('names', status)] = nm[status]
+    row['names_total'] = named
+    for part in (proposals(tree), lines(tree), bugs(tree), harnesses(tree),
                  unsafe_census(tree), fatal_risks(tree)):
         row.update(part)
     return row
@@ -511,13 +640,32 @@ def _number(value):
     return '%d' % value if value == int(value) else '%.1f' % value
 
 
+def _cell(row, field):
+    raw = row.get(field, '')
+    return float(raw) if raw not in ('', None) else 0.0
+
+
+# One band on this page is arithmetic over columns rather than a column of its own. The naming
+# chart's "no provenance block" is `names_total` minus the four statuses, and it is deliberately not
+# in the CSV: it is not a status a `Name:` block can carry, and a fifth column would put a fifth
+# word in a four-word vocabulary that `script/names` gates on. Drawn rather than stored, because the
+# three weeks before milestone 115 invented the convention would otherwise be three empty bars,
+# which this page's own rule reads as "the record did not exist" and would leave the reader with no
+# idea that the tree already had 119 named things in it.
+DERIVED = {
+    'names_no_block': lambda row: max(
+        0.0, _cell(row, 'names_total') - sum(_cell(row, _col('names', s)) for s in NAME_STATUSES)),
+}
+
+
 def series_of(rows, weeks, columns, scale=1.0):
     out = []
     for label, field in columns:
         values = []
         for week in weeks:
-            raw = rows[week].get(field, '')
-            values.append(float(raw) / scale if raw not in ('', None) else 0.0)
+            derive = DERIVED.get(field)
+            raw = derive(rows[week]) if derive else _cell(rows[week], field)
+            values.append(raw / scale)
         if any(values):
             out.append((label, values))
     return out
@@ -535,6 +683,11 @@ CHARTS = [
      [('Decided', 'decisions_decided'), ('Amended', 'decisions_amended'),
       ('Superseded', 'decisions_superseded'), ('Proposed', 'decisions_proposed'),
       ('No status recorded', 'decisions_unrecorded')], 1.0, None),
+    ('names.svg', 'Names by what the tree records about them',
+     'crates, programs, script/ entry points and Cargo packages; provenance lives in the header',
+     [('Ratified', 'names_ratified'), ('Recorded', 'names_recorded'),
+      ('Provisional', 'names_provisional'), ('Unrecorded', 'names_unrecorded'),
+      ('No provenance block', 'names_no_block')], 1.0, None),
     ('lines.svg', 'Rust in the tree, in thousands of lines',
      'kernel/src split out, because it is commented on purpose; vendor/ excluded',
      [('kernel/src code', 'kernel_code_lines'), ('kernel/src comments', 'kernel_comment_lines'),
@@ -613,6 +766,12 @@ def main(argv):
 
     weeks = week_commits()
     rows = read_csv()
+    # Coverage survives a rewrite, including a `--backfill` that drops every other cell. It cannot
+    # be re-derived from history (it needs an instrumented build at each checkout, and nothing here
+    # is allowed to build), so the cell a caller filled from an lcov file is the only copy of that
+    # measurement there will ever be. Milestone 276 found this the way it is usually found: running
+    # `--backfill` to add a column, and watching 2026W36's 94.4 disappear with it.
+    kept_coverage = {week: row.get('coverage_lines_pct', '') for week, row in rows.items()}
     if mode == '--backfill':
         rows = {}
         targets = weeks.items()
@@ -621,10 +780,7 @@ def main(argv):
         targets = [(current, weeks.get(current, head))]
 
     for week, rev in targets:
-        # Coverage is never recomputed for a week that already has one: it cannot be re-derived
-        # from history, so an old cell is the only copy of that measurement there will ever be.
-        previous = rows.get(week, {}).get('coverage_lines_pct', '')
-        rows[week] = row_for(rev, week, coverage or previous)
+        rows[week] = row_for(rev, week, coverage or kept_coverage.get(week, ''))
 
     text = write_csv(rows)
     if mode == '--check':
