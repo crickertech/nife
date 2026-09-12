@@ -596,6 +596,7 @@ besides, being built for dated release grouping; these are capability-shaped and
 | 272 | NOT-STARTED | [Give x86_64's core roster the independent re-read the other two architectures already have](272-acpi-core-roster-cross-check.md) | calef, 2026-09-10. No test has ever independently verified x86_64's core roster. | |
 | 273 | NOT-STARTED | [Port `ipc_thread_scaling` and `app_displacement` to x86_64, or record why not](273-x86-64-scaling-benchmarks.md) | calef, 2026-09-10. The one gap in the inventory with no stated reason, checked and confirmed absent. | |
 | 274 | NOT-STARTED | [Apple Silicon's own core is untested, and not for the reason first recorded](274-apple-silicon-isa-support.md) | calef, 2026-09-10. Corrected same day: HVF cannot boot this kernel at all yet (blocked on 227), so nothing about the core's ISA is measured; this test has still passed exactly once in the project's history, by hand. | |
+| 277 | NOT-STARTED | [Bound what one mutant may allocate, so a runaway kills the mutant and not the machine](277-mutant-memory-bound.md) | Promoted from the proposal queue 2026-09-11 by calef, the oldest thing in it. One mutant goes 1.4 GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside a per-mutant timeout that is on time and therefore never fires; the sweep that refreshes fatal risk 3 has failed every scheduled run since. | |
 
 The order §14 sets: **verify the core and make it verifiable first** (18 and 14, the thesis), then the
 road to running real workloads on real machines (15, 21, 16, 19; 25 extends 21 into cross-OS

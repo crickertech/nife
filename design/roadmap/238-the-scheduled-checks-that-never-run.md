@@ -264,8 +264,8 @@ ship under a feedback loop that slow.
   seconds; the other five are untouched and are now the whole remaining cost of
   `script/undefined-behavior-check`. The budget was raised to 240 minutes instead of tuned, so the
   true end-to-end cost has never been measured.
-- **Proposed.** `design/roadmap/proposals/a-memory-bound-for-one-mutant.md`, Bound what one mutant
-  may allocate, so a runaway allocation kills the mutant instead of the machine. Three shapes are
+- **Milestone 277.** Bound what one mutant may allocate, so a runaway allocation kills the mutant
+  instead of the machine. Promoted out of the proposal queue 2026-09-11. Three shapes are
   priced in this block (a memory cgroup via `systemd-run --scope`, `ulimit -v` ahead of
   `script/mutation`, or a `cargo` runner wrapper) and choosing between them is the work. Today one
   mutant goes 1.4 GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside the
