@@ -84,11 +84,23 @@ if [ "$limit_kb" = "0" ]; then
     exec "$@"
 fi
 
-# A shell that cannot set the limit must not go on to run the binary: the caller asked for a bound,
-# and running without one would produce the exact failure this exists to prevent, minus the notice.
-ulimit -v "$limit_kb" || {
-    echo "memory-bounded-runner: could not set a ${limit_kb} KiB address-space limit" >&2
+# **A shell that cannot set the limit must not go on to run the binary.** The caller asked for a
+# bound, and running without one would produce the exact failure this exists to prevent, minus the
+# notice, which is the "reads as protection" failure the BUGS section above refuses.
+#
+# `ulimit -v` is outside POSIX (ShellCheck SC3045) and the suppression below is scoped to the one
+# line, per DECISIONS §38. What makes it safe is the READ-BACK rather than the claim: both shells
+# this ever runs under implement it (dash is /bin/sh on the Ubuntu runners, bash in POSIX mode on
+# the dev Mac), and rather than trusting that, the next three lines ask the shell what the limit
+# actually is and refuse to run if it is not the number we asked for. A shell without the builtin
+# fails that comparison instead of silently running the binary unbounded.
+# shellcheck disable=SC3045
+ulimit -v "$limit_kb" 2>/dev/null || true
+# shellcheck disable=SC3045
+if [ "$(ulimit -v)" != "$limit_kb" ]; then
+    echo "memory-bounded-runner: asked for a ${limit_kb} KiB address-space limit, got" \
+         "'$(ulimit -v 2>/dev/null || echo unsupported)'; refusing to run unbounded" >&2
     exit 1
-}
+fi
 
 exec "$@"

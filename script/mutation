@@ -16,9 +16,9 @@
 #   script/mutation --save-baseline [DIR...]  rewrite .cargo/mutants-baseline.txt from run output
 #
 # Each mutant's test binary runs under a memory ceiling (milestone 277), because cargo-mutants
-# bounds a mutant on time and the failure that kills this sweep is an allocation. MUTATION_MEMORY_LIMIT_KB
-# raises, lowers or (at 0) removes it; scripts/memory-bounded-runner.sh is the mechanism and the
-# argument.
+# bounds a mutant on time and the failure that kills this sweep is an allocation.
+# MUTATION_MEMORY_LIMIT_KB raises, lowers or (at 0) removes it; scripts/memory-bounded-runner.sh is
+# the mechanism and the argument.
 #
 # **A report, not a gate**, deliberately (roadmap 85): the full run costs hours, and a survivor is a
 # worklist entry rather than a defect in the commit that happened to trigger the run. So survivors
