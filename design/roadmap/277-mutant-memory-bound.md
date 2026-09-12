@@ -1,6 +1,11 @@
-# Bound what one mutant may allocate, so a runaway kills the mutant and not the machine
+# 277. Bound what one mutant may allocate, so a runaway kills the mutant and not the machine
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 238's block.
+**Status: NOT-STARTED.** Written by the milestone 247 sweep as a proposal on 2026-09-03, from
+milestone 238's block. **Promoted out of the proposal queue on 2026-09-11 by calef**, who asked for the
+oldest thing in the proposal queue: it was in the founding batch of 46 written the day the proposals
+mechanism was ratified, and it had sat eight days while the workflow it repairs failed every
+scheduled run. *(Number provisional until the merge queue lands it; 275 and 276 are in flight ahead
+of it.)*
 
 **Gate: NONE.** Three shapes are already priced in milestone 238's block, and choosing between them
 is engineering rather than a decision owed to calef. It is reversible: all three are a wrapper
