@@ -45,8 +45,12 @@ so explicitly and names the method; everywhere else, it has been recorded twice 
 which is consistency and not validation.
 
 **A missing bar means the record did not exist, not that the number was zero.** The roadmap, the
-decision statuses, the falsification records and `design/fatal-risks.md` each arrived on a date, and
-before it there is nothing to restate.
+decision statuses, the falsification records, `design/fatal-risks.md`, the naming provenance blocks
+and `design/roadmap/proposals/` each arrived on a date, and before it there is nothing to restate.
+The two newest series are the sharpest instances: names have three empty weeks because the
+convention that records a ratification was invented on 2026-08-04, and proposals have seven because
+the directory was created on 2026-09-04. Neither is backfilled, and each section says so where its
+bars are.
 
 **Weeks are ISO weeks in UTC**, which is this tree's date convention. The first commits are stamped
 2026-07-12 in the architect's local time and fall on the Monday in UTC, so the series starts at
@@ -107,6 +111,130 @@ went back.
 
 `PROPOSED` is the queue waiting on calef and it stays small (10, 4, 8, 2, 3). It is a queue depth
 rather than a backlog, which is the shape it should have.
+
+## Names by what the tree records about them
+
+![Names by what the tree records about them](project-metrics/names.svg)
+
+From the provenance block in each named thing's own header, which is where milestone 115 (the names that
+were ratified, and the ones that were refused) put it: a crate's `src/lib.rs`, a program's, a `script/` entry
+point's comment, a Cargo package's manifest. `script/names` derives the same four counts by walking
+the working tree; this derives them from git history. They share the parse
+(`scripts/name_provenance.py`) and not the file walk, so the two agree by construction rather than by
+luck, and at 2026W36 they do: 204 names, 104 `ratified`, 37 `recorded`, 63 `provisional`, 0
+`unrecorded`.
+
+The four words are what a block *says*. **`Ratified`** is calef ruling, with a date and what was
+refused. **`Recorded`** is the tree arguing the name somewhere and nobody ever putting it to him.
+**`Provisional`** is whoever coined it saying out loud that they expect it to change. **`Unrecorded`**
+is nothing outside the block saying why the name is what it is.
+
+**The total is every named thing, and the four statuses do not have to add up to it.** The pale band
+is the difference: named things carrying no block at all. That is a different claim from
+`Unrecorded`, which is a block saying the history is silent, and the two are kept apart for the same
+reason the decisions chart above will not read a statusless decision as `DECIDED`.
+
+**The first three weeks are the sharpest restatement artifact on this page, and there the band is the
+whole bar.** There were 16 named things at 2026W29 and 119 at 2026W31, not one of them carrying
+provenance, because the convention that records it did not exist until 2026-08-04. So read those
+bars as "nobody was writing this down yet", and read the first blue bar as a convention arriving
+rather than as 72 names being ratified in a week. Backfilling them was considered and refused: a
+ratification invented to fill a cell would put a false claim in the one record whose entire job is
+saying who claimed what.
+
+**The band that survives into 2026W32 and 2026W33 is not an artifact, and it is the most useful thing
+this series found.** It is seven names, and all seven are Cargo packages: `kernel`, `user`, `xtask`,
+`redoxfs_server`, `redoxfs_host`, `std_exerciser` and the fuzz package. Milestone 115 covered three
+surfaces and a package was not one of them, so for two weeks `script/names std_exerciser` answered
+"neither a name in the tree nor a recorded refusal" while looking exactly as authoritative as a true
+answer. calef found it on 2026-08-18, the `package` kind closed it, and the band goes to zero in
+2026W34. **Nothing told this series about that hole**; it walks four kinds today and finds the fourth
+missing from the weeks before it existed. A registry with a hole answering confidently is the failure
+`script/names`' own header records, and this is what it looks like from outside.
+
+**2026W36 is one milestone doing one thing.** `Unrecorded` goes from 60 to zero, `Recorded` from 9 to
+37 and `Provisional` from 18 to 63. That is milestone 264 (sixty names the history cannot justify,
+and the research that would let calef rule on them), which converted every name nobody had written a
+reason for into one that says something: the reasoning where the history supplies it, an argued
+proposal where it does not. The bar is the same height it would have been without it. What changed is
+what the tree can say about the names in it.
+
+### A rising `Provisional` band is not debt
+
+This is the number here most likely to be misread, and the misreading would cost something real, so
+it is worth saying flatly.
+
+**Nothing in this tree fails because a name is unratified.** `AGENTS.md`:
+
+> `script/names --unratified` is a worklist rather than a wall precisely so that an unratified name
+> never blocks anyone's build.
+
+`script/names --check` gates on a block being *present*, never on it saying `ratified`, and that is
+deliberate: a gate that demanded the queue be drained would block every unrelated merge behind a
+review nobody can hurry.
+
+**A provisional name is the mechanism working, not the mechanism failing.** It is what `AGENTS.md`
+tells a lane to ship when it needs a name and the decision is calef's, and it exists to convert an
+expensive decision into a cheap one by refusing to pretend it is settled. A lane that coins a name,
+argues it, records what it refused and marks the result provisional has done the thing the convention
+asks for. A lane that quietly ships a name without saying it is unsigned has not, and it will not
+show up on this chart at all, which is the limit of what a count of signatures can see.
+
+So the green band going up means lanes are naming things and being honest that nobody ruled. It is a
+queue depth against one person's attention, and this project's scarcest resource is exactly that
+attention, so a growing queue says the tree is growing faster than one reviewer rules on it and says
+nothing at all about the names being wrong. **The band worth an alarm is `Unrecorded`**, because that
+is a name nobody anywhere argued for, and it is the one this chart has at zero.
+
+## Unnumbered proposals
+
+**74 at 2026W36, and zero in every week before it**, which is the `proposals_unnumbered` column in
+the CSV. There is no chart, because there is one bar: `design/roadmap/proposals/` was created on
+2026-09-04 by milestone 247 (follow-on work named by a finished
+milestone goes nowhere, and this is the third time), and a single measurement is a number rather
+than a series. The column exists so that the series accumulates from here.
+
+**Nothing else on this page could count these, and that is the reason for the column.** The
+milestones chart reads index rows out of `design/roadmap/README.md` and keys on a milestone number.
+A proposal is *defined* by not having one: a lane that finds work it is not doing writes
+`design/roadmap/proposals/<slug>.md`, because the thing concurrent lanes collide over is the number
+and not the authority, and an integrator assigns the number at promotion. So the pile was invisible
+to every column here by construction, not by oversight.
+
+### What a rising line means here, which is not what it means for names
+
+The naming section above says a rising `Provisional` band is not debt. **Do not carry that reading
+across.** A provisional name costs nothing while it sits, because nothing is waiting on it. An
+identified piece of work that nobody has scheduled is a different object: something in this tree was
+found to be wrong or missing, and the finding is parked. That is closer to debt, and it would be
+dishonest to file it under the same reassurance.
+
+But the count alone cannot tell you whether the pile is stalling, for two reasons that are worth
+stating rather than leaving to a reader's optimism.
+
+**It is a net count, and the flow is gross.** Five proposals have left the directory since it
+existed, so 86 have been written and 81 remain. They left in two different ways, which is the more
+interesting half: one was promoted to a number the ordinary way (milestone 256, x86_64 places PCI BARs in a
+hardcoded window, and on xenon that window is RAM), and the others were **done**, by a lane that picked the file up and fixed the
+thing, sometimes filing a narrower proposal in its place (`the-tcb-capability-that-outlives-start`
+became a fix plus `the-region-half-of-the-retention-declaration`). A flat line on this column would
+be consistent with a stalled pile and equally consistent with one draining exactly as fast as it
+fills, and nothing here distinguishes them.
+
+**Age is the tell, and age is not in this column.** `script/roadmap`'s own header says so: a gate on
+age ("no proposal older than N days") would be routed around by not writing proposals, which is
+worse, so what it does instead is print the count and the date of the oldest on every `script/lint`
+run. Today the oldest is 2026-09-03 and the directory is a week old, so nothing has had time to go
+stale and the count says nothing yet. **The number to watch is not this one going up; it is this one
+going up while the oldest date stops moving.** `script/roadmap --proposed` lists them oldest first
+and is the view that answers it.
+
+**And a rising line is still better than the alternative it replaced.** The work in this pile used
+to live in lane reports, which are read once, by one person, on the day they are written.
+`AGENTS.md` records what that cost: milestone 90 exists only because calef happened to be at his
+desk the day a report named it, and milestone 94 swept the tree for exactly this category and then
+left its own inventory in a pull request body for twelve days. 74 visible proposals is a worse
+number than 74 scheduled milestones and a far better one than 74 findings nobody can enumerate.
 
 ## Rust in the tree
 
@@ -277,6 +405,24 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
 - **`patches/` is outside the `unsafe` census**, inherited from `script/lint` along with its reason.
   That code does run on the machine, so it is a real hole rather than a boundary, and
   `notes/register-of-measures.md` records the blocks it leaves uncounted.
+- **`names_total` is not the sum of the naming columns**, which is the one place a column here
+  breaks the pattern the milestone and decision columns set. It is every named thing in that week's
+  tree; the four statuses count the ones whose header carries a block that parses. The gap is drawn
+  as a band and explained in that section, and it is kept rather than folded into `Unrecorded`
+  because silence is not a claim.
+- **The naming columns count signatures, not names.** A name can be ratified and bad, or provisional
+  and perfect. Nothing here reads a name, and `script/names`' own `BUGS` is the longer version: it
+  cannot check that a recorded reason is still true, that a date is right, or that a `recorded`
+  citation leads anywhere.
+- **Four kinds of named thing, and the tree names more than four kinds.** Crates, programs,
+  `script/` entry points and Cargo packages carry provenance blocks, so those are what this counts.
+  Public function and method names have been calef's call since 2026-08-23 and nothing counts them;
+  types, `scripts/` helpers and directory names are outside `script/names`' surfaces too, and
+  notes/naming.md's `BUGS` carries what that leaves uncovered.
+- **`proposals_unnumbered` is a net count and cannot see the flow.** Five proposals have left the
+  directory and 81 remain; a flat line would be consistent with a stalled pile and with one
+  draining as fast as it fills. The measurement that would tell them apart is the age of the oldest,
+  which `script/roadmap --check` prints on every lint run and this column does not carry.
 - **Nothing here is audited by anyone outside this project.** Stated once at the top and again here,
   because a dashboard is exactly the artifact that makes a reader stop asking.
 
