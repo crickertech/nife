@@ -45,6 +45,71 @@ is written down rather than remembered.
 **The result is from 2005, on ARMv5, on Pistachio.** Nothing about it transfers to this kernel by
 assumption. That is the whole reason this milestone exists rather than a rewrite.
 
+## What Warton ran AIM7 on, and why the 20% is not a target
+
+Checked on **2026-09-13**, by reading the whole paper rather than section 4.1 alone, from
+<https://trustworthy.systems/publications/nicta_full_text/8988.pdf> (629,888 bytes, 30 pages,
+extracted with `pypdf`). The question was AGENTS.md's fourth: *is the premise true?* Milestone 168
+built an instrument whose stated reason for existing is that the 20% lives where this project does
+not measure. Nobody had checked what the 20% was measured **on**.
+
+**The paper does not say what userland AIM7 ran under.** That is the finding, and it is not a
+failure to find the sentence: "AIM7" occurs exactly once in the 30 pages, in the passage this page
+already quotes above. The setup the paper gives is the whole of it, section 4.1, page 1:16:
+
+> Warton [2005] performed a thorough performance evaluation of the Pistachio process kernel vs an
+> event-based (single-stack) kernel with continuations on an ARMv5 processor.
+
+So the two arms are named (Pistachio's process kernel against a single-stack kernel with
+continuations), the ISA is named (ARMv5), and **the software above the kernel is not named at all**.
+"Wombat", NICTA's paravirtualised ARM Linux of the same year and group, appears in this paper only
+as a bibliography entry (Leslie, van Schaik and Heiser, *Wombat: A portable user-mode Linux for
+embedded systems*, 6th Linux.conf.au, April 2005) cited from section 5.1 (Virtualisation), with no
+connection drawn to Warton's measurement. **Reading it into section 4.1 would be a reconstruction,
+and this page does not make one.**
+
+**What follows anyway, and it does not need the paper's help.** AIM7's 53 jobs are POSIX: `fork`,
+`link`, `sync`, signal handlers, `sbrk`. Pistachio is a microkernel and has no POSIX personality, so
+the benchmark cannot have run against the microkernel API. Some Unix personality was hosted above
+both kernels. That is an inference from what AIM7 requires rather than a claim from the
+paper, and it is marked as one. It is not, however, in much doubt.
+
+**So the 20% is a delta between two microkernels measured through a hosted Unix's syscall path**,
+and the instrument on this page is a native workload on one kernel. Those are different experiments,
+and no amount of fidelity work closes the gap between them.
+
+### The deeper reason no number here is comparable, which is not about categories
+
+`crates/job_mix`'s `BUGS` records three missing AIM7 categories, which reads as a fidelity gap that
+adding categories would close. **It would not**, and this page's own *What this instrument cannot
+settle* section below already says why without connecting it to the citation: Warton's 20% is a
+**ratio between two kernel models** on one machine, one userland and one workload, and neither arm's
+absolute throughput means anything alone. This tree has one kernel model, so the mix produces one
+arm and there is no ratio to compare against 20%, whatever the mix contains. Adding disk jobs,
+process creation and page mapping would make a better likeness of AIM7 and would not produce the
+missing second arm. **That is the correction owed to the crate's `BUGS`**, which frames the gap as
+closable coverage.
+
+**What the instrument is actually good for survives that**, and it is milestone 134's framing rather
+than this page's original one: the mechanism Warton's number is attributed to is per-thread kernel
+stacks displacing cache, and a **knee** in jobs-per-minute against task count is evidence that the
+mechanism is live on this kernel. Evidence that the effect exists here is a real input to
+`design/decisions/96-process-kernel-or-event-kernel.md`. A reproduction of 20% was never available.
+
+### One gloss in §96 that the paper contradicts in the same sentence
+
+§96 twice discounts the memory argument with the clause *"Warton's result came from resource-starved
+embedded systems"*. The paper's own sentence, section 4.1, page 1:17, is:
+
+> While this decision was driven initially by the realities of resource-starved embedded systems and
+> later the needs of verification, the approach's benefits are not restricted to those contexts, and
+> we believe it is generally the best approach on modern hardware.
+
+The first half is where §96's clause comes from and it is fair: the **move** was driven by
+resource-starved embedded realities. The second half rejects the inference §96 draws from it, in the
+same sentence, and §96 does not record that it exists. The authors are not neutral on this and the
+tree should quote them rather than paraphrase them into agreement.
+
 ## What the workload is, and what it is not
 
 `crates/job_mix`'s header is canonical and this page does not repeat it. The short version:

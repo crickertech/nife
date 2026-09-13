@@ -14,6 +14,11 @@
 //! the kernel-side supervisor and the EL0 task read one description of what a job is rather than
 //! two copies that drift. AGENTS.md rule 7 is why it is a crate and not a `#[path]` module.
 //!
+//! **What that sentence does not license is a comparison against the 20% itself**, and the first
+//! entry in [`BUGS`](self#bugs) says why: the paper never names the userland AIM7 ran under, and
+//! the 20% is a ratio between two kernel models where this tree has one. This instrument is for
+//! finding out whether the *mechanism* behind that number is live here.
+//!
 //! # What AIM7 actually is, since the name is not self-explanatory
 //!
 //! Read rather than recalled, on 2026-09-04, from the benchmark's own README
@@ -61,6 +66,19 @@
 //!
 //! # BUGS
 //!
+//! - **No number from this instrument is comparable with Warton's 20%, and the missing categories
+//!   below are not what stops it.** Checked on 2026-09-13 by reading the whole retrospective from
+//!   <https://trustworthy.systems/publications/nicta_full_text/8988.pdf>: "AIM7" occurs exactly
+//!   once in its 30 pages, and the only setup it gives is "the Pistachio process kernel vs an
+//!   event-based (single-stack) kernel with continuations on an ARMv5 processor" (section 4.1,
+//!   page 1:16). **The paper never says what userland AIM7 ran under**, and AIM7's jobs are POSIX,
+//!   so it cannot have run on the microkernel API; some Unix personality was hosted above both
+//!   kernels. That makes the 20% a delta measured through a hosted Unix's syscall path, where this
+//!   is a native workload. Worse for comparability, the 20% is a **ratio between two kernel
+//!   models** and this tree has one, so the mix produces one arm and no ratio, whatever jobs it
+//!   contains. What the instrument can still do is show whether the *mechanism* the 20% is
+//!   attributed to (per-thread kernel stacks displacing cache) is live here, which is a knee in
+//!   jobs-per-minute against task count and is a real input to §96. See notes/job-mix.md.
 //! - **Three of AIM7's categories are absent: disk-file operations, process creation, and page
 //!   mapping.** Each was refused for a stated reason rather than overlooked. A filesystem job needs
 //!   a disk attached and would make the instrument's availability depend on the runner's storage,
@@ -70,7 +88,9 @@
 //!   allocator rather than the scheduler. A map job needs a per-task address-space capability that
 //!   the spawn path does not currently hand out. **All three are real gaps in fidelity**, and the
 //!   honest reading of a result from this mix is that it covers the compute, memory, trap,
-//!   scheduling and IPC categories and no others.
+//!   scheduling and IPC categories and no others. **Closing them would make a better likeness of
+//!   AIM7 and would not make a number from it comparable with AIM7's**, for the reason the bullet
+//!   above gives.
 //! - **The mix proportions are chosen, not derived.** AIM7 ships workfiles for four machine roles
 //!   (multiuser, compute server, large database, file server) and nobody here has one for a
 //!   capability microkernel. [`MIX`] is a flat-ish spread with the IPC job weighted up, on the
