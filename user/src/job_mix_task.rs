@@ -43,15 +43,7 @@
 //!   server shows up as a subrun that never completes rather than as an error. The supervisor's
 //!   own stall is what says so.
 //!
-//! Name: provisional, this lane's coinage (2026-09-04, milestone 168), and calef's call. An agent
-//! noun in the family this directory already has (`soaker`, `spinner`, `painter`,
-//! `os_primitives_benchmarker`): the thing that runs the job mix. `aim` and `aim7` were refused for
-//! naming somebody else's benchmark, which this is not: it keeps AIM7's four methodological
-//! properties and none of its 53 jobs, and a name claiming the original would be a claim about
-//! comparability that `crates/job_mix`'s `BUGS` explicitly denies. `worker` was refused because
-//! `user/src/worker.rs` already exists.
-//!
-//! **Name: ratified 2026-09-05 (calef, milestone 168).** Shipped provisionally as `job_mixer`, which
+//! Name: ratified 2026-09-05 (calef, milestone 168). Shipped provisionally as `job_mixer`, which
 //! was wrong rather than merely inconsistent: **this program does not mix anything.** It is one task
 //! *inside* the mix, and the `-er` suffix claimed an agent role it does not have, which is the
 //! failure `dwarden` is cited for in AGENTS.md's own evidence, a name for the wrong relationship so
@@ -64,6 +56,12 @@
 //!
 //! **`task` is this crate's own word**, not a new one: 26 of the tree's 70 uses of it are inside
 //! `crates/job_mix`, and `abi` never uses it, so it competes with no kernel concept.
+//!
+//! Also refused, carried here from the provisional block this ratification replaced: `aim` and
+//! `aim7`, for naming somebody else's benchmark. This keeps AIM7's four methodological properties
+//! and none of its 53 jobs, so a name claiming the original would be a claim about comparability
+//! that `crates/job_mix`'s `BUGS` explicitly denies. And `worker`, which was taken at the time by
+//! `user/src/worker.rs` (`least_authority_demo` since 2026-09-13) and is a generic word besides.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
