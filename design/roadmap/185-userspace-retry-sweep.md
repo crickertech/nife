@@ -1,7 +1,7 @@
 # 185. Sweep userspace's bounded retry loops onto a clock
 
 **Status: NOT-STARTED.** Minted 2026-08-27, calef, from a finding milestone 78's own lane left
-unowned. Fixing `user/src/login_test_client.rs`'s `destroy_with_retry` (a fixed 64-attempt loop
+unowned. Fixing `fixtures/src/login_test_client.rs`'s `destroy_with_retry` (a fixed 64-attempt loop
 that was giving up before the tick it was waiting for arrived, at roughly 2x host oversubscription)
 turned up four siblings, over the same refusal, none of them fixed there because doing so was not
 that lane's brief. See notes/load-sensitive-assertions.md, "The disposition, 2026-08-28".
@@ -37,10 +37,10 @@ happens when the count runs out:
 | site | function | constant | on exhaustion |
 |---|---|---|---|
 | `crates/system_initializer/src/lib.rs:1963` | `reclaim` | `RECLAIM_ATTEMPTS` (64) | returns; strands the region's pages until the machine stops |
-| `user/src/login.rs:1066` | `reclaim` | `RECLAIM_ATTEMPTS` (64) | returns; strands the region's pages |
-| `user/src/swish.rs:1956` | `await_screen` | `SCREEN_REAP_ATTEMPTS` (1024) | returns; leaks one job's worth of init's pool |
-| `user/src/job_undertaker.rs:99` | `collect` | `MAX_ATTEMPTS` (1024) | **`user_rt::trap()`**, taking the process down |
-| `user/src/timetable.rs:362` | `collect` | `REAP_ATTEMPTS` (1024) | **`user_rt::trap()`**, taking the process down |
+| `components/src/login.rs:1066` | `reclaim` | `RECLAIM_ATTEMPTS` (64) | returns; strands the region's pages |
+| `components/src/swish.rs:1956` | `await_screen` | `SCREEN_REAP_ATTEMPTS` (1024) | returns; leaks one job's worth of init's pool |
+| `components/src/job_undertaker.rs:99` | `collect` | `MAX_ATTEMPTS` (1024) | **`user_rt::trap()`**, taking the process down |
+| `components/src/timetable.rs:362` | `collect` | `REAP_ATTEMPTS` (1024) | **`user_rt::trap()`**, taking the process down |
 
 **The two that trap are why this is a milestone and not a tidy-up.** Under load, `job_undertaker`
 and `timetable` do not degrade, they kill the process reaping a corpse, which is a louder failure
@@ -111,7 +111,7 @@ something to fold into a retry-loop sweep.
 
 ## Prior art
 
-`user/src/login_test_client.rs`'s `destroy_with_retry` (PR #562's fix) is the direct precedent and
+`fixtures/src/login_test_client.rs`'s `destroy_with_retry` (PR #562's fix) is the direct precedent and
 the shape to copy, including its BUGS section's own honesty about the wall-clock unit. Milestone 78
 (the load-sensitive assertions) is the family this belongs to, extended into userspace for the
 first time; milestone 62 (tests that assert on time) is where "wait on the property, bound with a

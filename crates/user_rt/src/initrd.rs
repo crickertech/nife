@@ -6,7 +6,7 @@
 //! hand-written `// SAFETY:` comment per file asserting the identical invariant: the kernel maps
 //! `initrd_len` bytes of the initrd archive, read-only, at a fixed VA, before `_start` runs.
 //! `timetable.rs`'s own comment had already named the duplication out loud ("the same contract
-//! `user/src/builder.rs` is started under") without anyone lifting it out, the same shape
+//! `components/src/builder.rs` is started under") without anyone lifting it out, the same shape
 //! `ntp.rs`'s comment named for the [`mapped_window`](crate::mapped_window) cluster.
 //!
 //! [`initrd_bytes`] holds that one assertion instead of seven. This does not remove the `unsafe`

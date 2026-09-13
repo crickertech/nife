@@ -1,6 +1,6 @@
 # A shell at EL0
 
-**The shell's name is `swish`** (milestone 63): `user/src/swish.rs`, packed into the archive as
+**The shell's name is `swish`** (milestone 63): `components/src/swish.rs`, packed into the archive as
 `swish`, loaded by that name. This note calls it "the shell" throughout because that is what it is;
 where a path or an archive entry is meant, the spelling is `swish`. The argument for the name is in
 milestone 63's roadmap block, and the short version is that `bash`, `zsh` and `fish` are names while
@@ -112,7 +112,7 @@ typed command, running at EL0, reporting back, and exiting.
 
 ## The program and the crate (milestone 70)
 
-`swish` is now two things with one name: the program at `user/src/swish.rs` and the crate at
+`swish` is now two things with one name: the program at `components/src/swish.rs` and the crate at
 `crates/swish`. The crate holds what the shell **decides or renders**; the program holds everything
 that needs a capability. That is the same pair `coremark`, `line_editor` and `compositor` already
 are, and the reason for the shared name is in CLAUDE.md: splitting them would hide the relationship.
@@ -141,7 +141,7 @@ the same set.
 
 ### The finding that prompted this was wrong, and the correction is the useful part
 
-The milestone was raised as "the shell is untested": `user/src/swish.rs` had 2,625 lines and zero
+The milestone was raised as "the shell is untested": `components/src/swish.rs` had 2,625 lines and zero
 `#[cfg(test)]` blocks. It was covered twice over the whole time, by about 28 QEMU integration
 `test_case`s (`shell_navigation_tests`, `pipeline_tests`, `redirection_tests`, `glob_grant_tests`,
 `rm_program_tests`) and by 93 host tests in `crates/grant_plan`, which already held its parsing,

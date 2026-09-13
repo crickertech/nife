@@ -4,7 +4,7 @@
 //! grant, and confer no new authority, because the shell is reading and rebinding a capability it
 //! already holds. That is not a technicality, it retires a real worry: a listing **program** would
 //! have to be handed the power to read everything it lists. This module is the pure half of those
-//! builtins, host-tested in milliseconds; the requests they make live in `user/src/swish.rs`.
+//! builtins, host-tested in milliseconds; the requests they make live in `components/src/swish.rs`.
 //!
 //! # A working directory was never the problem
 //!

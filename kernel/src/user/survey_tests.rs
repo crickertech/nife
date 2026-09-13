@@ -79,7 +79,7 @@ fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 
 /// **The whole domain, walked by the real program's real loop.**
 ///
-/// `ps::collect` is what `user/src/ps.rs` runs; driving it here rather than reimplementing the
+/// `ps::collect` is what `components/src/ps.rs` runs; driving it here rather than reimplementing the
 /// cursor walk is the same discipline the `rm`, `date` and sink tests keep, and it is why a bug in
 /// the cursor protocol cannot hide between the two sides.
 /// Eight rows, not `ps::MAX_ROWS`. **These tests run on a kernel thread stack**, under a 4,096-byte

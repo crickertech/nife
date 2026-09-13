@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 license.workspace = true
 
-# The shell's logic, lifted out of `user/src/swish.rs` so it is host-testable and Kani-reachable
+# The shell's logic, lifted out of `components/src/swish.rs` so it is host-testable and Kani-reachable
 # while the program keeps the IO (milestone 70). The same pair `coremark`, `line_editor` and
 # `compositor` already are, and CLAUDE.md's reason for letting a crate and a program share a name:
 # the crate IS that program's logic, and splitting the names would hide the relationship.

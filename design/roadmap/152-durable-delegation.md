@@ -182,13 +182,13 @@ provisional number, this lane's own finding).
   document format (§125, this lane's own answer to "which identities"), and the render/parse
   functions for the manifest. It depends on nothing and reuses `timetable::parse` for the schedule
   document itself unchanged, exactly §122's recommendation.
-- **The write path**: `user/src/fs_test_client.rs`'s new `ROLE_SCHEDULE_SEED` (this lane's own
+- **The write path**: `fixtures/src/fs_test_client.rs`'s new `ROLE_SCHEDULE_SEED` (this lane's own
   demonstration writer, not a real registrar; #387 remains that) `MKDIR`s one identity's subtree,
   writes its `schedule` file through ordinary `filesystem_proto::fs::CREATE`/`WRITE`, and records
   that identity in the manifest at the store's own root. `ROLE_SCHEDULE_VERIFY` reads both back
   through a **fresh** descent, independent of the re-deriver's own read, and confirms the bytes match
   exactly (the `smb_seed`/`smb_verify` shape, one level over).
-- **`user/src/session_reviver.rs`** (provisional name; §123 itself floated this placeholder) is the
+- **`components/src/session_reviver.rs`** (provisional name; §123 itself floated this placeholder) is the
   boot-only re-deriver: granted a construction budget and the store-read capability, checked against
   the boot's measurement table before either is handed over
   (`kernel/src/user/session_reviver_service.rs`, §123's second hardening refinement), it reads the
@@ -234,7 +234,7 @@ carry.
   record.
 - ~~Boot-time re-derivation's own mechanism was asserted, not designed.~~ **Built 2026-08-24**; see
   "What was built" above, [DECISIONS §123](../decisions/123-boot-time-rederivation-privilege.md)
-  (ratified, option (a), plus its four hardening refinements), and `user/src/session_reviver.rs`'s
+  (ratified, option (a), plus its four hardening refinements), and `components/src/session_reviver.rs`'s
   own module doc and BUGS entry for the live version of this record, including the two hardening
   refinements this lane did not build (per-identity `FS_EP` narrowing, the liveness watchdog).
 - **#387 (milestone 129's `--mem` grant) is still not answerable.** This lane built what #387 was
@@ -254,15 +254,15 @@ carry.
   the adapter it applied to was deleted: the SMB implementation went on 2026-08-30, calef's call,
   after journey 2 was retired.
 - **Outstanding.** Reattachment on reconnect through a scoped identity lookup, the design's second
-  piece, is unbuilt: neither `user/src/login.rs` nor `user/src/credentialer.rs` holds an
+  piece, is unbuilt: neither `components/src/login.rs` nor `components/src/credentialer.rs` holds an
   identity-to-session table. Checked 2026-09-03.
-- **Outstanding.** `user/src/session_reviver.rs` still holds one unnarrowed filesystem endpoint for
+- **Outstanding.** `components/src/session_reviver.rs` still holds one unnarrowed filesystem endpoint for
   its whole pass, which is §123's first hardening refinement and is unbuilt. Its own `BUGS` says
   so. Checked 2026-09-03.
 - **Recorded.** No liveness watchdog exists for a re-deriver that hangs before its deletion pass
   runs. `design/decisions/123-boot-time-rederivation-privilege.md`'s hardening addendum names the
   gap and declines to design it, and this lane did not either.
-- **Outstanding.** `user/src/session_reviver.rs` is spawned only under the kernel test harness by
+- **Outstanding.** `components/src/session_reviver.rs` is spawned only under the kernel test harness by
   `kernel/src/user/session_reviver_service.rs`; `crates/system_initializer` never names it, so it
   is not in the real interactive boot. Checked 2026-09-03.
 - **Done.** The manifest question is settled: `design/decisions/125-durable-schedule-manifest.md`
@@ -270,5 +270,5 @@ carry.
   already built rather than merely proposed.
 - **Outstanding.** The §16 live-children proof this milestone owned went with the SMB code, and
   whether it is re-homed somewhere that still exists or recorded as lost is undecided. Six inline
-  comments in `user/src/session_reviver.rs` still cite the deleted type as the shape they mirror.
+  comments in `components/src/session_reviver.rs` still cite the deleted type as the shape they mirror.
   Checked 2026-09-03.

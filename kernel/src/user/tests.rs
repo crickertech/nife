@@ -40,11 +40,12 @@ fn outlaw_image() -> &'static [u8] {
     program("outlaw").expect("no outlaw program in the initrd archive")
 }
 
-/// The `spinner` program's ELF bytes: a `_start` that is nothing but a loop. It was built for the
-/// shell's forcible-interrupt tier (DECISIONS §24), and it is exactly the hostile binary
-/// DECISIONS §5 describes, so the preemption test uses it rather than a second copy of the same idea.
-fn spinner_image() -> &'static [u8] {
-    program("spinner").expect("no spinner program in the initrd archive")
+/// The `interrupt_ignorer` program's ELF bytes: a `_start` that is nothing but a loop. It was built
+/// for the shell's forcible-interrupt tier (DECISIONS §24), and it is exactly the hostile binary
+/// DECISIONS §5 describes, so the preemption test uses it rather than a second copy of the same
+/// idea.
+fn interrupt_ignorer_image() -> &'static [u8] {
+    program("interrupt_ignorer").expect("no interrupt_ignorer program in the initrd archive")
 }
 
 /// **An address in the kernel's own memory: mapped, readable by the kernel, forbidden to
@@ -96,11 +97,11 @@ fn reap_bare(tid: crate::thread::ThreadId) -> bool {
     wait_for(|| !sched::thread_present(tid))
 }
 
-/// The `worker` program's ELF bytes (milestone 19f.2), a distinct binary in the archive, not a
+/// The `least_authority_demo` program's ELF bytes (milestone 19f.2), a distinct binary in the archive, not a
 /// role of the init/hello binary. `_start(x0, x1, x2)` reads its input in `x1` and needs no
 /// role selector.
-fn worker_image() -> &'static [u8] {
-    program("worker").expect("no worker program in the initrd archive")
+fn least_authority_demo_image() -> &'static [u8] {
+    program("least_authority_demo").expect("no least_authority_demo program in the initrd archive")
 }
 
 /// The `net_stack` program's ELF bytes (milestone 30, piece 3): the smoltcp net server, a distinct
@@ -111,7 +112,7 @@ fn net_stack_image() -> &'static [u8] {
     program("net_stack").expect("no net_stack program in the initrd archive")
 }
 
-/// The net client's test selectors and its success word, matching `user/src/socket_test_client.rs`. The
+/// The net client's test selectors and its success word, matching `components/src/socket_test_client.rs`. The
 /// client is a nonzero entry role of the `net_stack` binary, so it needs no image of its own.
 #[cfg(target_arch = "aarch64")]
 const NET_TEST_UDP_DNS: u64 = 1;
@@ -257,16 +258,16 @@ fn a_user_program_cannot_read_a_kernel_address() {
 
 /// DECISIONS §5's arbitrary binary, at user mode, in the flesh.
 ///
-/// A program with no yield, no syscall, and not even a function call: `spinner`'s whole `_start`
-/// is a loop. The **only** thing in the universe that can take the CPU back from it is a timer
-/// interrupt landing between two of its instructions. Milestone 6 proved this for a kernel
+/// A program with no yield, no syscall, and not even a function call: `interrupt_ignorer`'s whole
+/// `_start` is a loop. The **only** thing in the universe that can take the CPU back from it is a
+/// timer interrupt landing between two of its instructions. Milestone 6 proved this for a kernel
 /// thread we compiled. This is the case that actually mattered.
 #[test_case]
 fn a_user_program_that_never_yields_is_preempted_anyway() {
     let preemptions = sched::preemptions();
     let faults = USER_FAULTS.load(Ordering::Relaxed);
 
-    let spinner = spawn_bare(spinner_image(), 0, 0).expect("spawn failed");
+    let interrupt_ignorer = spawn_bare(interrupt_ignorer_image(), 0, 0).expect("spawn failed");
 
     // Give it the CPU and then take it back, without asking.
     timer::spin_for(timer::frequency() / 10);
@@ -284,11 +285,11 @@ fn a_user_program_that_never_yields_is_preempted_anyway() {
     // And we are here, running, having taken the CPU back from a program that never
     // offered it.
 
-    // Now take it back for good. `spinner` never yields, never syscalls and never returns, so
-    // nothing but an armed kill ends it, and leaving it running would spend a core for the rest
-    // of the suite. The assertions above are already done, so the kill cannot weaken them.
+    // Now take it back for good. `interrupt_ignorer` never yields, never syscalls and never
+    // returns, so nothing but an armed kill ends it, and leaving it running would spend a core for
+    // the rest of the suite. The assertions above are already done, so the kill cannot weaken them.
     assert!(
-        reap_bare(spinner),
+        reap_bare(interrupt_ignorer),
         "the spinning user thread outlived its kill"
     );
 }
@@ -302,11 +303,11 @@ fn a_user_program_that_never_yields_is_preempted_anyway() {
 /// where `trap.s` builds an S-mode frame, so any interrupt in the window rewrote it. The symptom was
 /// a thread dispatched to U-mode with a zero entry point, intermittently, only ever on CI.
 ///
-/// So read that address and wait for this thread's U-mode PC to appear in it. `spinner` is the
-/// subject because it never syscalls and never returns: anything that lands in its frame got there
-/// by the timer preempting it at EL0, which is the agreement under test. A frame built somewhere
-/// else never shows up here and the wait times out, which is precisely what the old RISC-V placement
-/// would do.
+/// So read that address and wait for this thread's U-mode PC to appear in it. `interrupt_ignorer`
+/// is the subject because it never syscalls and never returns: anything that lands in its frame got
+/// there by the timer preempting it at EL0, which is the agreement under test. A frame built
+/// somewhere else never shows up here and the wait times out, which is precisely what the old
+/// RISC-V placement would do.
 ///
 /// **The window is checked, not just the value, and the test learned that the hard way.** Its first
 /// form waited for a nonzero word and then asserted it was a user address, and it failed on RISC-V
@@ -319,17 +320,17 @@ fn a_user_program_that_never_yields_is_preempted_anyway() {
 fn a_user_threads_trap_frame_sits_where_the_trap_path_rebuilds_it() {
     const USER_TEXT: core::ops::Range<u64> = 0x40_0000..USER_STACK_VA;
 
-    let spinner = spawn_bare(spinner_image(), 0, 0).expect("spawn failed");
+    let interrupt_ignorer = spawn_bare(interrupt_ignorer_image(), 0, 0).expect("spawn failed");
 
     assert!(
-        wait_for(|| sched::user_pc_of(spinner).is_some_and(|pc| USER_TEXT.contains(&pc))),
+        wait_for(|| sched::user_pc_of(interrupt_ignorer).is_some_and(|pc| USER_TEXT.contains(&pc))),
         "this thread's U-mode PC never appeared at stack_top - size_of::<TrapFrame>(), so the \
          user-entry path and the trap path do not agree on where the frame lives (read {:#x})",
-        sched::user_pc_of(spinner).unwrap_or(0),
+        sched::user_pc_of(interrupt_ignorer).unwrap_or(0),
     );
 
     assert!(
-        reap_bare(spinner),
+        reap_bare(interrupt_ignorer),
         "the spinning user thread outlived its kill"
     );
 }
@@ -880,7 +881,7 @@ fn the_hardware_says_el0_cannot_read_the_kernels_memory() {
 /// those held.
 #[test_case]
 fn a_user_client_moves_data_through_shared_memory() {
-    // What the client prints first. Must match user/src/hello.rs.
+    // What the client prints first. Must match fixtures/src/hello.rs.
     const FIRST_LINE: &[u8] = b"      hello from EL0, printed by a driver that also runs at EL0.\n";
     const SHARED_VA: u64 = 0x0000_0000_0060_0000;
 
@@ -927,7 +928,7 @@ fn a_user_client_moves_data_through_shared_memory() {
         run(
             image,
             Spawn {
-                arg0: 2, // printing-client role (matches user/src/hello.rs)
+                arg0: 2, // printing-client role (matches fixtures/src/hello.rs)
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -1885,20 +1886,20 @@ fn a_std_program_serves_a_granted_listening_port() {
 
 /// **The shell's `run` mechanism: spawn a process, get its answer.** Milestone 10's core.
 ///
-/// A worker process is started at EL0 with an argument, computes `n*n`, reports the result on
+/// A `least_authority_demo` process is started at EL0 with an argument, computes `n*n`, reports the result on
 /// an rendezvous it was handed, and exits. The whole lifecycle a shell drives when you type
 /// `run n`, minus the interactive loop, which is exercised by the piped demo instead.
 #[test_case]
-fn a_spawned_worker_process_computes_and_reports() {
+fn a_spawned_least_authority_demo_computes_and_reports() {
     let result = sched::create_rendezvous();
     let faults = USER_FAULTS.load(Ordering::Relaxed);
 
     sched::spawn(move || {
         run(
-            worker_image(), // its own binary now (19f.2), not a role of hello
+            least_authority_demo_image(), // its own binary now (19f.2), not a role of hello
             Spawn {
                 arg0: 0, // no role selector; the input is in x1
-                arg1: 9, // the worker computes 9*9
+                arg1: 9, // the least_authority_demo computes 9*9
                 arg2: 0,
                 grants: &[crate::cap::rendezvous_cap(
                     result,
@@ -1911,11 +1912,14 @@ fn a_spawned_worker_process_computes_and_reports() {
     .expect("spawn failed");
 
     let answer = sched::ipc_recv(result)[0];
-    assert_eq!(answer, 81, "the spawned worker computed the wrong answer");
+    assert_eq!(
+        answer, 81,
+        "the spawned least_authority_demo computed the wrong answer"
+    );
     assert_eq!(
         USER_FAULTS.load(Ordering::Relaxed),
         faults,
-        "the worker faulted instead of computing cleanly",
+        "the least_authority_demo faulted instead of computing cleanly",
     );
 }
 
@@ -2425,7 +2429,7 @@ fn userspace_init_brings_up_the_console_server() {
         crate::testing::skip!(crate::user::NO_UART_PAGE);
     }
     // The message length the init_console role prints and the server acks. Kept in sync with
-    // user/src/hello.rs init_console (the b"..." there); a mismatch fails loudly, not silently.
+    // fixtures/src/hello.rs init_console (the b"..." there); a mismatch fails loudly, not silently.
     const MSG_LEN: u64 = 66;
     const INIT_CONSOLE_ROLE: u64 = 24;
 
@@ -2497,25 +2501,29 @@ fn userspace_init_parses_an_elf_and_builds_a_running_child() {
     init.release_or_fail("an init test's building budget");
 }
 
-/// **Milestone 19e: init builds a worker, passes it an argument, and gets the answer back.**
-/// Every child before this took only its role in `x0`. A worker computes on an input, so 19e
-/// widened `START` to carry three initial registers. init builds a worker, starts it with the
-/// input in `x1`, and the worker squares it and reports. Receiving `n*n` (not `n`, not garbage)
+/// **Milestone 19e: init builds a `least_authority_demo`, passes it an argument, and gets the answer back.**
+/// Every child before this took only its role in `x0`. A `least_authority_demo` computes on an input, so 19e
+/// widened `START` to carry three initial registers. init builds a `least_authority_demo`, starts it with the
+/// input in `x1`, and the `least_authority_demo` squares it and reports. Receiving `n*n` (not `n`, not garbage)
 /// proves the argument crossed `START` into a fresh EL0 thread's registers intact. This is the
 /// mechanism a real spawn service runs on: a workload parameterized by data, not just identity.
 #[test_case]
-fn init_builds_a_worker_and_passes_it_an_argument() {
-    const INIT_WORKER_ROLE: u64 = 28;
+fn init_builds_the_demo_and_passes_it_an_argument() {
+    const INIT_LEAST_AUTHORITY_DEMO_ROLE: u64 = 28;
     const WORKER_INPUT: u64 = 7;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_WORKER_ROLE, report);
+    let init = spawn_progenitor(
+        initrd().expect("no initrd"),
+        INIT_LEAST_AUTHORITY_DEMO_ROLE,
+        report,
+    );
 
     let answer = crate::sched::ipc_recv(report)[0];
     assert_eq!(
         answer,
         WORKER_INPUT * WORKER_INPUT,
-        "the worker did not receive its START argument: expected n*n back",
+        "the least_authority_demo did not receive its START argument: expected n*n back",
     );
     init.release_or_fail("an init test's building budget");
 }
@@ -2598,7 +2606,7 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     );
 }
 
-/// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The worker's
+/// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The `least_authority_demo`'s
 /// `n*n` proved the mechanism; this proves a *substantial* program. init builds the `"coremark"`
 /// binary (a CoreMark-derived run: list sort, matrix multiply, state machine, folded into a CRC),
 /// starts it, and the workload SENDs the run's checksum home. Receiving `coremark::PINNED_CRC_64`
@@ -2986,7 +2994,7 @@ fn a_process_can_mint_an_rendezvous_and_ipc_flows_over_it() {
 /// capability minted for it by another process works when it invokes it), and the receiver
 /// *cannot pass it on* because it was handed the capability without `GRANT`. This is the
 /// operation that makes the capability model composable by processes instead of brokered by the
-/// kernel at spawn. See user/src/hello.rs and `user::delegation_service`.
+/// kernel at spawn. See fixtures/src/hello.rs and `user::delegation_service`.
 #[test_case]
 fn a_capability_can_be_delegated_over_ipc_and_grant_gates_re_delegation() {
     let image = init_image();
@@ -3059,7 +3067,7 @@ fn a_process_revokes_a_frame_and_loses_the_capability() {
 /// is genuinely shared, and the kernel copied nothing), and the consumer *cannot* map that page
 /// writable, because it was handed the frame with `READ` alone. This is §10's "shared memory
 /// carries data" done by the processes rather than wired by the kernel at spawn. See
-/// user/src/hello.rs and `user::page_frame_service`.
+/// fixtures/src/hello.rs and `user::page_frame_service`.
 #[test_case]
 fn a_frame_capability_shares_a_page_and_a_read_only_view_cannot_write_it() {
     let image = init_image();

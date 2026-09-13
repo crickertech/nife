@@ -1,7 +1,7 @@
 # `rm`, `rm -r`, and why removal needs a directory
 
 Milestone 47. Built 2026-07-31. The contract side is `filesystem_proto::fs::RMDIR`; the program is
-`user/src/rm.rs`; the grant is `grant_plan::DirSpec`.
+`components/src/rm.rs`; the grant is `grant_plan::DirSpec`.
 
 ## Removal is an operation on the directory, not on the file
 
@@ -77,7 +77,7 @@ nothing, and `filesystem_proto` has a host test asserting it is never staged.
 
 Milestone 47's globbing lane, [glob-grant.md](glob-grant.md). `rm old.txt` grants the directory
 holding one name; `rm *.txt` grants that directory **attenuated to the names the pattern matched**,
-served by `user/src/fs_nameset_caretaker.rs`. The over-grant this note used to declare (the
+served by `components/src/fs_nameset_caretaker.rs`. The over-grant this note used to declare (the
 capability could remove anything else in that directory) is closed for a pattern operand and remains
 for a literal one, which is the honest state: a single name still travels through
 `fs_subtree_caretaker`.

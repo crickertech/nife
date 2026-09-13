@@ -31,7 +31,7 @@ which is milestone 23's hot-swap claim in component form.
 - **The FS server** (`redoxfs_server/`, its own workspace because it links the vendored engine) runs the
   no_std RedoxFS core behind a `Disk` trait implemented over blk IPC, allocating everything from its
   own untyped budget through the milestone-27 `GlobalAlloc`. It serves **file IPC** to clients.
-- **The client** (`user/src/fs_test_client.rs`) is the program a milestone-31 shell will be: it holds only
+- **The client** (`fixtures/src/fs_test_client.rs`) is the program a milestone-31 shell will be: it holds only
   a directory capability and opens files by name under it.
 
 The kernel wires all three (`kernel/src/user/fs_service.rs`), handing each a `Spawn` literal that
@@ -411,7 +411,7 @@ write to the same block loops" is also not quite the shape of it. What is now pr
 the tree rather than by reasoning:
 
 - **A repeat write inside one run works, on both ISAs.** The FS client writes the same block three
-  times in one run (`user/src/fs_test_client.rs`), and it passes on aarch64 and riscv64 against a freshly
+  times in one run (`fixtures/src/fs_test_client.rs`), and it passes on aarch64 and riscv64 against a freshly
   generated image. The image afterwards carries the pass-3 payload, so the third write really reached
   the disk. This is the reproduction the old gate could not perform: it depends on nothing left over
   from a previous invocation, so it cannot hide behind `mkredoxfs` rewriting the target first.
@@ -588,7 +588,7 @@ note rather than in [xattr.md](xattr.md), because they are facts about *this* se
 ## A per-file grant: the caretaker between the directory and the program
 
 Milestone 31's `run wc report.txt` grants one file, and the unit of authority here is a *directory*.
-`user/src/fs_file_caretaker.rs` is the difference: a caretaker process that holds the directory
+`components/src/fs_file_caretaker.rs` is the difference: a caretaker process that holds the directory
 capability, opens the granted name once, and serves this same contract on its own endpoint with a
 namespace of exactly one name and a direction it cannot widen. The design, the three refusals, and
 the two attacker witnesses that prove it are written up in

@@ -52,7 +52,7 @@ form of the property milestone 56 built the service to have.
 token on the command line can designate. Init reads the declaration at spawn and places a `WRITE`
 view of the entropy service's request endpoint at `grant_plan::ENTROPY_SLOT` (nine, one past
 `DIAGNOSTICS_SLOT`, so the named slots stay one contiguous block); a program that did not declare it
-holds an empty slot there. `caps <program>` prints the row. `user/src/uuid.rs` is the consumer.
+holds an empty slot there. `caps <program>` prints the row. `components/src/uuid.rs` is the consumer.
 
 **`WRITE` alone, and the narrowing is the grant.** On a rendezvous that is the right to `CALL`: a
 declaring child may ask the service for bytes, may not `RECV` another client's request out from
@@ -165,7 +165,7 @@ row, and exactly one program in the whole manifest table declares the field.
   waiting, and what is missing is a disk capability the shell can attenuate. 
 - **Recorded.** The shell holding no entropy of its own is a decision, not an omission; the reason
   is in `Channels::entropy`'s own doc where a reader meets the wiring.
-- **Recorded.** `uuid` is a provisional name, flagged in `user/src/uuid.rs`'s provenance block with
+- **Recorded.** `uuid` is a provisional name, flagged in `components/src/uuid.rs`'s provenance block with
   the two refusals (`uuidgen`, `guid`) and their reasons. `Manifest::entropy` and `ENTROPY_SLOT`
   are provisional in the same sense. `script/names --unratified` is the worklist.
 - **Done.** Milestone 65 (a secrets service) and milestone 31 phase two are unaffected by this

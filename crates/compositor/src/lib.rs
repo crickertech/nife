@@ -4,8 +4,8 @@
 //! part of that which is arithmetic and can therefore be checked on the host in milliseconds: the
 //! scene (which windows exist, where, and in what order they stack), the clipping and
 //! damage-rectangle math, the composition itself, and the protocol the parties speak. The prose
-//! contract is notes/compositor.md; the processes are `user/src/compositor.rs` (the compositor) and
-//! `user/src/window.rs` (a client).
+//! contract is notes/compositor.md; the processes are `components/src/compositor.rs` (the compositor) and
+//! `fixtures/src/window.rs` (a client).
 //!
 //! The split is the one `graphics_proto` makes for the framebuffer and `line_editor::proto` for the
 //! terminal: one definition, shared by the compositor, its clients, the kernel-side test, and the

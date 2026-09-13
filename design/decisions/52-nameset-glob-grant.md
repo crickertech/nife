@@ -3,7 +3,7 @@
 **Status: DECIDED.**
 
 Milestone 47's globbing lane. `crates/fs_proto`'s `nameset` and `grant` modules,
-`user/src/fs_nameset_caretaker.rs`, `kernel::user::SetGrant`, `grant_plan`'s expander. See
+`components/src/fs_nameset_caretaker.rs`, `kernel::user::SetGrant`, `grant_plan`'s expander. See
 `notes/glob-grant.md`.
 
 `rm old.txt` grants the directory holding one name. **`rm *.txt` grants that directory attenuated to

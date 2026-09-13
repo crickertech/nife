@@ -3,7 +3,8 @@
 //! Milestone 40. This crate is the pure half of the documentation service. It holds three things
 //! and no others: a streaming markdown renderer ([`Renderer`]), the byte layout of a search index
 //! ([`index`]), and the query that reads one. There is no IO here, no syscall, no endpoint and no
-//! allocator on the path a confined program takes. `user/src/mdr.rs` is the program; this is what
+//! allocator on the path a confined program takes. `components/src/mdr.rs` is the program; this is
+//! what
 //! it computes.
 //!
 //! Name: ratified 2026-09-13 (calef, in conversation while working the unratified worklist).

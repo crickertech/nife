@@ -2,7 +2,7 @@
 
 **Status: DECIDED.**
 
-Milestone 50. `crates/sink_proto`, `user/src/sink.rs`, `kernel::user::start_file_sink`, and
+Milestone 50. `crates/sink_proto`, `fixtures/src/sink.rs`, `kernel::user::start_file_sink`, and
 `abi::Error::Gone`. See `notes/sink-protocol.md`.
 
 **A program's output is an endpoint, and the program cannot learn what is behind it.** One framing,

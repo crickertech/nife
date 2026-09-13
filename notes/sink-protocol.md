@@ -1,6 +1,6 @@
 # The sink protocol: one way to write bytes somewhere
 
-*Milestone 50, the protocol lane. `crates/byte_sink_proto`, `user/src/sink.rs`, the std PAL's
+*Milestone 50, the protocol lane. `crates/byte_sink_proto`, `fixtures/src/sink.rs`, the std PAL's
 `sys/stdio/nife.rs`, and `abi::Error::Gone`.*
 
 ## The problem, which was not the one anybody expected
@@ -142,7 +142,7 @@ already answered by who holds what.
 
 ## The sinks
 
-`user/src/sink.rs` is one binary with roles, and it is the `fs_file_caretaker` shape: a caretaker
+`fixtures/src/sink.rs` is one binary with roles, and it is the `fs_file_caretaker` shape: a caretaker
 that speaks the sink contract to its client and the underlying protocol to whatever is behind it.
 
 - **`ROLE_FILE`**: holds an `filesystem_proto` endpoint and a shared page, creates or opens one name, and
@@ -202,7 +202,7 @@ wire identical, `SEND` keeps the message count identical, and the kernel's only 
   one-directional by construction and a source contract is its own design.
   *(Answered by the operators lane the same day: a source is the sink contract received rather than
   sent. See notes/pipes.md.)*
-- **The terminal is a sink now** (`user/src/terminal_sink_caretaker.rs`, 2026-08-03), and it took one new
+- **The terminal is a sink now** (`components/src/terminal_sink_caretaker.rs`, 2026-08-03), and it took one new
   opcode and one process. The analysis this bullet used to carry was right about the shape and
   wrong about the cost; see "The terminal's sink adapter" below.
 - **The console server's page-plus-ack channel is untouched**, and after building the adapter that
@@ -280,7 +280,7 @@ transcript, a pipe and a file and now a terminal, and the program holds one capa
 - **`date` was already speaking the contract before it existed**, which is the `OP_BYTES == 0`
   decision paying out immediately: its hand-rolled framing is bit for bit a `BYTES` message. It
   announced no end of stream, because nothing yet read its output as a stream. `|` has since landed
-  and it does: every exit path in `user/src/date.rs` goes through an `end()` that sends
+  and it does: every exit path in `components/src/date.rs` goes through an `end()` that sends
   `byte_sink_proto::eof()` first, because a reader downstream of a `|` has no other way to learn the
   producer is finished. See notes/pipes.md.
 - **No buffering, and it is now measured rather than argued.** A pipe built from this contract is

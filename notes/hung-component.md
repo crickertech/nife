@@ -2,7 +2,7 @@
 
 *Milestone 23's third residual, and the one §32 named and declined: a component that stops answering
 **without dying**. The mechanism it interferes with is DECISIONS §41 and notes/live-replacement.md;
-read those first if you want the swap itself. `crates/swap_proto`, `user/src/swapper.rs`'s
+read those first if you want the swap itself. `crates/swap_proto`, `components/src/swapper.rs`'s
 `ROLE_HUNG`, and `a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor` in
 `kernel/src/user/live_swap_tests.rs`.*
 

@@ -2,7 +2,7 @@ use super::*;
 use crate::cap::{Rights, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where `printenv` expects the config page, read-only. Must match `user/src/printenv.rs`'s
+/// Where `printenv` expects the config page, read-only. Must match `components/src/printenv.rs`'s
 /// `CONFIG_VA`.
 const CONFIG_VA: u64 = 0x00e0_0000;
 

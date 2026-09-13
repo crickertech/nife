@@ -21,7 +21,7 @@ demonstrated." This entry takes §121's current recommendation as given and does
 
 Every RTC consumer in this tree assumes the *userspace* clock service reads its device directly.
 `kernel/src/user/clock_service.rs` maps the RTC's register page (`Flags::user_device()`) straight
-into the service process, and `user/src/clock.rs` (`read_rtc`, dispatching on
+into the service process, and `components/src/clock.rs` (`read_rtc`, dispatching on
 `clock_proto::rtc::{PL031, GOLDFISH}`) is the driver, running unprivileged, that pokes those
 registers itself. Under §121's current recommendation, that shape is not available for CMOS: no
 capability names ports 0x70/0x71 today, so the userspace clock service cannot be the CMOS driver
@@ -61,13 +61,13 @@ either way.
 3. **The kernel reads CMOS once** (a dozen or so `in8`/`out8` pairs, the same shape as
    `arch::x86_64::timer`'s PIT calibration, sub-microsecond, no measurement needed to know it is
    cheap) **and hands the wall-clock seed to the clock service the way `kind` already crosses that
-   boundary today**: as a plain `Spawn` argument, read by `user/src/clock.rs` as data instead of by
+   boundary today**: as a plain `Spawn` argument, read by `components/src/clock.rs` as data instead of by
    polling a mapped register. The cheapest shape found, and the one real operating systems use
    (Linux reads the RTC once at boot in the kernel and runs off a monotonic clock after). Still a
    real decision, for two reasons: it makes the *kernel* a writer of the clock's initial value
    where today only the userspace service ever is (the mapping site's own comment: `// read/WRITE:
    the service is a setter`, singular), and it needs a new `clock_proto::rtc` kind (or an
-   equivalent protocol addition) that `user/src/clock.rs` and `clock_service.rs`, two programs,
+   equivalent protocol addition) that `components/src/clock.rs` and `clock_service.rs`, two programs,
    have to agree on.
 4. **A kernel-mediated IPC broker, queried on demand** (§121's own "option 3" for the console,
    priced there in general terms: ~337 ns per IPC round trip against a ~27 ns null syscall). Cheap

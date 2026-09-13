@@ -84,7 +84,7 @@ fn wait_for_compositor(w: &Wiring) {
         tag,
         status::COMP_UP,
         "the compositor did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte names \
-         the step, see user/src/compositor.rs)",
+         the step, see components/src/compositor.rs)",
     );
     assert_eq!(windows, w.n as u64, "the compositor wired the wrong scene");
     assert_eq!(focus, 0, "focus should start on the bottom window");
@@ -96,7 +96,7 @@ fn take_call(ep: sched::RendezvousId, want: u64) -> (u64, u64, u64) {
     assert_eq!(
         m[0], want,
         "a client reported {:#x} where {want:#x} was expected (a 0xDEAD_.. word's low byte names \
-         the step, see user/src/window.rs)",
+         the step, see fixtures/src/window.rs)",
         m[0],
     );
     let crate::cap::Object::Reply(caller) = sched::current_cap(m[1])
@@ -122,7 +122,7 @@ fn expect_painted(w: &Wiring, i: usize) {
         tag,
         status::WIN_PAINTED,
         "window {i} reported {tag:#x} instead of painting (a 0xDEAD_.. word's low byte names the \
-         step, see user/src/window.rs)",
+         step, see fixtures/src/window.rs)",
     );
     assert_eq!(
         digest,
@@ -533,7 +533,7 @@ fn focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours() {
             tag,
             video_terminal::status::TERM_UP,
             "terminal {i} did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte \
-             names the step, see user/src/display_terminal.rs)",
+             names the step, see components/src/display_terminal.rs)",
         );
         assert_eq!(mode, video_terminal::status::MODE_WINDOW);
         let (cols, rows) = ((dims & 0xffff_ffff) as u32, (dims >> 32) as u32);

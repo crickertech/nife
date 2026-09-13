@@ -30,7 +30,7 @@
 //!
 //!    If `mem_pages > 0`, the shell `SEND_CAP`s exactly one capability there: an
 //!    untyped it split from *its own* budget, sized to `mem_pages`. This is the grant made real,
-//!    not parsed and dropped. Programs that grant no capability (worker) skip this step, and init
+//!    not parsed and dropped. Programs that grant no capability (`least_authority_demo`) skip this step, and init
 //!    knows to skip the matching `RECV_CAP` from `mem_pages == 0`.
 //! 4. **Outcome.** init builds the child, endows it (the shared result endpoint always; the
 //!    delegated untyped when present), and starts it. The child reports its own answer on the
@@ -50,8 +50,8 @@
 //!    see [`JOB_FAULTED`] for the two couplings this refused.
 
 /// The interruptible bit, packed into the high half of the page-count word so one `SEND` still
-/// carries the whole request. `mem_pages` is a small count (budgeter's ceiling is 64), so the low
-/// 32 bits hold it and this bit rides above.
+/// carries the whole request. `mem_pages` is a small count (`memory_grant_depleter`'s ceiling is
+/// 64), so the low 32 bits hold it and this bit rides above.
 const INTERRUPTIBLE_BIT: u64 = 1 << 32;
 
 /// **A capability for the child's output slot follows** (milestone 50). Set by `>` and by every
@@ -249,8 +249,8 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// It exists because a faulted job is the one outcome this protocol could not say. A child that
 /// exits non-zero has answered; a child init could not build gets [`SPAWN_FAILED`]; a child the
 /// kernel killed **sends nothing at all**, so the shell's single read had nothing to complete it
-/// and the prompt never came back (measured 2026-09-02: `worker` patched to trap, and
-/// `script/shell-check` reporting "the prompt never came back to take `worker 7`").
+/// and the prompt never came back (measured 2026-09-02: `least_authority_demo` patched to trap, and
+/// `script/shell-check` reporting "the prompt never came back to take `least_authority_demo 7`").
 ///
 /// **Provisional name**, like everything a lane mints: a word in a protocol is exactly the kind of
 /// name calef decides.

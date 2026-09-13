@@ -14,7 +14,7 @@ under a client that is talking to it, and the client's stream is unbroken.*
                                             │ WHICH of the two is parked in RECV_CAP
 ```
 
-Five programs, all in `user/src/`, sharing one module (`swap.rs`) the way the supervision tree
+Five programs, sharing one module (`swap.rs`) the way the supervision tree
 shares `supervision_proto`:
 
 | program | what it is | what it holds |
@@ -133,7 +133,7 @@ silently: the instance reports `RPT_PROBE_SURVIVED` and the test refuses the run
 capability to the stable endpoint, it tries to park itself in `RECV_CAP` and take the client's
 requests. `NotPermitted`.
 
-**And the replacement is written in C** (`user/c/c_swappable.c`, over the seam DECISIONS §31 built).
+**And the replacement is written in C** (`fixtures/c/c_swappable.c`, over the seam DECISIONS §31 built).
 That is the strongest form of the claim available: what held across the swap is the *contract*, not
 a recompile of the same source. The C holds no capability and makes no syscall, because the Rust
 shell around it holds every capability and makes every syscall; its entire interface to the system

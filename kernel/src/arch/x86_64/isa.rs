@@ -77,7 +77,7 @@ pub fn init(boot_info_pointer: usize) {
 /// specifically (DRNG Software Implementation Guide rev. 2.2, §5.3.1.2): an "asynchronous
 /// application" should give up after "somewhere between 1 and 100" retries. This is a one-shot
 /// boot-tour probe rather than a service under load, so the high end costs nothing; see
-/// `user/src/entropy.rs::instr` for the identical constant and reasoning on the userspace side,
+/// `components/src/entropy.rs::instr` for the identical constant and reasoning on the userspace side,
 /// which this kernel-side copy exists only because ring 3 does not exist yet (milestone 161).
 pub fn draw_rdseed() -> Option<u64> {
     if !get().rdseed {

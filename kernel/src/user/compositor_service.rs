@@ -13,19 +13,19 @@ use crate::sched::RendezvousId;
 /// down.
 const MAP_BUDGET_PAGES: u64 = 24;
 
-// The compositor's address space. Must match user/src/compositor.rs. `SCREEN_VA` is not here: the
+// The compositor's address space. Must match components/src/compositor.rs. `SCREEN_VA` is not here: the
 // screen is a `PageFrame` capability now (§102), and the compositor picks its own VA for it (like
 // `painter`/`display_terminal` already do for rung one's surface), so the kernel wiring has no
 // reason to know the address. `WLIST_VA`/`RING_VA`/`CLIENT_BASE` moved clear of the address range
 // the grown screen ([`SCREEN_PAGE_FRAMES`] page frames, up to 4 MiB from `SCREEN_VA`, sized for the
 // largest scanout this milestone has used rather than today's 924x344/311-frame one) now claims in
-// the compositor's own space; see `user/src/compositor.rs`'s matching comment for the arithmetic.
+// the compositor's own space; see `components/src/compositor.rs`'s matching comment for the arithmetic.
 const WLIST_VA: u64 = 0x0000_0000_0c00_0000;
 const RING_VA: u64 = 0x0000_0000_0c01_0000;
 const CLIENT_BASE: u64 = 0x0000_0000_0e00_0000;
 const CLIENT_STRIDE: u64 = 0x0000_0000_0010_0000;
 
-// A client's address space. Must match user/src/window.rs. The same in every client, on purpose.
+// A client's address space. Must match fixtures/src/window.rs. The same in every client, on purpose.
 // `C_SCREEN_VA` is likewise not here, for `SCREEN_VA`'s own reason above. `C_WLIST_VA` moved for
 // the same reason `compositor.rs`'s own `WLIST_VA` did: it used to sit just past the screen's old,
 // tiny span and is now well clear of the grown one (`window.rs`'s own comment has the arithmetic).
@@ -33,7 +33,7 @@ const CTL_VA: u64 = 0x0000_0000_0060_0000;
 const SURFACE_VA: u64 = 0x0000_0000_0061_0000;
 const C_WLIST_VA: u64 = 0x0000_0000_0c00_0000;
 
-// Client roles. Must match user/src/window.rs.
+// Client roles. Must match fixtures/src/window.rs.
 pub const ROLE_INPUT: u64 = 1 << 0;
 pub const ROLE_PROBE_INPUT: u64 = 1 << 1;
 pub const ROLE_PROBE_NEIGHBOUR: u64 = 1 << 2;
@@ -244,7 +244,7 @@ impl Wiring {
         }
         // The window-list mapping stays a `Spawn::maps` entry (one page, unaffected by the
         // scanout's size). The screen itself does not (milestone 142, DECISIONS §102): see this
-        // `impl`'s own note on `SCREEN_FRAME`/`BUDGET` below for why, and `user/src/window.rs`'s
+        // `impl`'s own note on `SCREEN_FRAME`/`BUDGET` below for why, and `fixtures/src/window.rs`'s
         // matching constants for the client side.
         if role & ROLE_CAPTURE != 0 {
             maps[m] = Mapping {
@@ -267,7 +267,7 @@ impl Wiring {
             2
         };
 
-        // `SCREEN_FRAME`/`BUDGET` (slots 3/4, matching `user/src/window.rs`): granted **only** for
+        // `SCREEN_FRAME`/`BUDGET` (slots 3/4, matching `fixtures/src/window.rs`): granted **only** for
         // `ROLE_CAPTURE`, at explicit slots via `grant_at` rather than through `Spawn.grants`'
         // sequential first-free fill, because slot 2 must stay genuinely empty for a non-focusable
         // client (the `ROLE_PROBE_INPUT` property above) and a sequential fill cannot skip it.
@@ -280,7 +280,7 @@ impl Wiring {
         //
         // The screenshot and enumeration grant is **read-only**: a thing that may look at the
         // screen may not draw on it. `Rights::READ` alone (no `WRITE`) is the difference between a
-        // screenshot tool and a second compositor; `user/src/window.rs`'s own `ROLE_CAPTURE` block
+        // screenshot tool and a second compositor; `fixtures/src/window.rs`'s own `ROLE_CAPTURE` block
         // proves the write half faults.
         let capture_budget = if role & ROLE_CAPTURE != 0 {
             Some(
@@ -385,7 +385,7 @@ impl Wiring {
         }
         // The bytes must be visible before the tail that advertises them.
         //
-        // PAIR: `drain_input` in user/src/compositor.rs, which reads `TAIL` and then the bytes. This
+        // PAIR: `drain_input` in components/src/compositor.rs, which reads `TAIL` and then the bytes. This
         // is the **fourth** writer into pages that reader consumes, and milestone 43's audit counted
         // three: it named `window.rs`, `display_terminal.rs` and `keyboard_driver.rs` and missed the kernel
         // playing the same input-driver role here. Its fix covers all four, because `drain_input` is
@@ -504,7 +504,7 @@ impl Wiring {
     }
 }
 
-// A display terminal's address space. Must match user/src/display_terminal.rs. Different numbers from a
+// A display terminal's address space. Must match components/src/display_terminal.rs. Different numbers from a
 // `window` client's, because they are different programs; the kernel picks each binary's.
 // `T_OUT_VA`/`T_CTL_VA` match `display_terminal.rs`'s own moved constants (milestone 142): that
 // binary uses the same three addresses in both `MODE_DISPLAY` and `MODE_WINDOW`, so moving them
@@ -534,13 +534,13 @@ impl TermClient {
 const MAX_COMP_MAPS: usize = 2 + compositor::MAX_WINDOWS * 4;
 /// The most a client can need: its control page, its surface, and (capture only) the window list.
 /// The screen is **not** here for the same reason as `MAX_COMP_MAPS`: a capture client maps it
-/// itself, out of the `SCREEN_FRAME`/`BUDGET` grants `user/src/window.rs` holds.
+/// itself, out of the `SCREEN_FRAME`/`BUDGET` grants `fixtures/src/window.rs` holds.
 const MAX_CLIENT_MAPS: usize = 4 + 1;
 /// Report, display, doorbell, the screen `PageFrame`, its map budget, then one input endpoint per
 /// focusable client starting at [`COMP_INPUT_BASE`].
 const MAX_COMP_GRANTS: usize = COMP_INPUT_BASE as usize + compositor::MAX_WINDOWS;
-/// The first of the compositor's per-client input-endpoint grant slots. Must match `user/src/
-/// compositor.rs`'s own `INPUT` constant.
+/// The first of the compositor's per-client input-endpoint grant slots. Must match
+/// `components/src/compositor.rs`'s own `INPUT` constant.
 const COMP_INPUT_BASE: u64 = 5;
 
 /// A fresh zeroed frame, for a page the kernel hands two processes to share.

@@ -1,7 +1,7 @@
 # `swish` the language: quoting, sequencing, and what an exit status can say
 
 *Milestone 67. `crates/grant_plan/src/word.rs`, `crates/grant_plan/src/line.rs`,
-`crates/swish/src/sequence.rs`, `crates/swish/src/lib.rs`, `user/src/swish.rs`,
+`crates/swish/src/sequence.rs`, `crates/swish/src/lib.rs`, `components/src/swish.rs`,
 `kernel/src/user/language_tests.rs`, `xtask`'s `SHELL_CHECK_SCRIPT`. Read notes/pipes.md first if
 you have not: this is the layer above its operators, and it reuses their vocabulary.*
 
@@ -178,14 +178,14 @@ that refuses constantly and by design should be able to say which one happened. 
 reproducible in a way a failure is not: the same line refuses again.
 
 ```text
-$ worker 3 && echo yes
+$ least_authority_demo 3 && echo yes
   a process at EL0 computed 3*3 = 9
 yes
-$ worker || echo no
-  worker: needs an integer argument
+$ least_authority_demo || echo no
+  least_authority_demo: needs an integer argument
 no
-$ worker
-  worker: needs an integer argument
+$ least_authority_demo
+  least_authority_demo: needs an integer argument
 $ echo $?
 2
 ```
@@ -197,7 +197,7 @@ has asked for; the distinction stays where a person can see it, in `$?`.
 ### What the status is *not*, stated because the gap is real
 
 **No program in this system reports an exit status**, and `$?` does not pretend one did. A spawned
-program answers with a *value* (`worker 7` answers 49), with bytes, or through a job frame, and none
+program answers with a *value* (`least_authority_demo 7` answers 49), with bytes, or through a job frame, and none
 of those is a status. So `$?` is the **shell's own reading of what happened to the line**, which
 today is all there is.
 
@@ -223,12 +223,12 @@ same constraint quoting met, met again from the other side.
 
 ### `$?` is the previous *command*, not the previous line
 
-The first draft of the boot gate put `echo $?` straight after `worker || echo no` and got `0`. That
+The first draft of the boot gate put `echo $?` straight after `least_authority_demo || echo no` and got `0`. That
 was the shell being right: the last thing that ran was the `echo`. A skipped segment leaves `$?`
 alone, because nothing happened, which is bash's rule and now this shell's.
 
-The mechanism is two cells rather than one (`CURRENT` and `LAST` in `user/src/swish.rs`), because a
-segment has to read the previous segment's answer *while* accumulating its own: `worker || echo $?`
+The mechanism is two cells rather than one (`CURRENT` and `LAST` in `components/src/swish.rs`), because a
+segment has to read the previous segment's answer *while* accumulating its own: `least_authority_demo || echo $?`
 is exactly the case one cell could not serve.
 
 `CURRENT` was an `AtomicBool` called `TROUBLE` until this milestone, set by whichever printer had bad
@@ -240,7 +240,7 @@ which kind. `xargs` now reads it the same way `&&` does.
 
 At a real prompt on the RedoxFS fixture. The transcript below is `NIFE_SHOW_TRANSCRIPT=1
 script/shell-check --arch aarch64`, which boots `--features shell` and types at the prompt through
-the real `user/src/progenitor.rs`.
+the real `components/src/progenitor.rs`.
 
 ```text
 $ echo hello world > "my notes.txt"
@@ -258,14 +258,14 @@ $ caps wc "my notes.txt"
              holds an endpoint, not a file)
     arg    (none)
   reading the command is reading its whole authority.
-$ worker 3 && echo yes
+$ least_authority_demo 3 && echo yes
   a process at EL0 computed 3*3 = 9
 yes
-$ worker || echo no
-  worker: needs an integer argument
+$ least_authority_demo || echo no
+  least_authority_demo: needs an integer argument
 no
-$ worker
-  worker: needs an integer argument
+$ least_authority_demo
+  least_authority_demo: needs an integer argument
 $ echo $?
 2
 ```
@@ -304,8 +304,8 @@ line proving "it printed something" would pass on a shell that ignored quoting e
 
 - `echo "*.txt"` against `echo *.txt`: the same four characters, quoted and not. The quoted one must
   print itself and the bare one must not, so a shell where quoting did nothing fails both halves.
-- `worker 3 && echo yes` against `worker && echo yes`: one connector against a left-hand side that
-  was refused. `worker 3` runs and `worker` alone is refused for the integer its manifest requires,
+- `least_authority_demo 3 && echo yes` against `least_authority_demo && echo yes`: one connector against a left-hand side that
+  was refused. `least_authority_demo 3` runs and `least_authority_demo` alone is refused for the integer its manifest requires,
   so the condition table is covered by two real commands rather than by a branch written for a test.
 - `wc "my notes.txt"` against `wc < "my notes.txt"`: the same designation said two ways, whose byte
   counts are derived from the `echo` that wrote the file rather than written down.
@@ -321,7 +321,7 @@ line proving "it printed something" would pass on a shell that ignored quoting e
   silently misread, and `"it's"` is the spelling that works.
 - **`"$?"` prints `$?`**, because both quote forms are literal today. When variables arrive the two
   forms have to stop being the same thing, and that decision belongs with them.
-- **`$?` is readable only in `echo`.** `worker $?` treats the two characters as an argument and is
+- **`$?` is readable only in `echo`.** `least_authority_demo $?` treats the two characters as an argument and is
   refused for not being an integer. Substituting a word anywhere else needs the machinery milestone
   47's variables need anyway, and building half of it here would be building it twice.
 - **There is no grouping.** `a && b || c` is left to right with no precedence between `&&` and `||`,

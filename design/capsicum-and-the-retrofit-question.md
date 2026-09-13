@@ -84,7 +84,7 @@ remove the ambience.
 ## What Capsicum does better than us, stated plainly
 
 It sandboxes real, useful programs on a production operating system that people run in anger. We
-confine `worker`, `budgeter`, `heeder`, `spinner`, a C component, and a filesystem we vendored.
+confine `worker`, `memory_grant_depleter`, `heeder`, `spinner`, a C component, and a filesystem we vendored.
 
 That gap is the honest one, and closing part of it is what milestones 53 to 55 are for: a Time Machine
 backup server is a real workload with a real user, and it is the first thing here that could be

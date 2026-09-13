@@ -13,7 +13,7 @@ viewer."* Struck below wherever it was named; the status moves to BUILT because 
 quoted direction, and everything a lane actually decided to build against it, is now complete.
 
 What exists: `crates/manual` (a streaming markdown renderer, the byte layout of a search index, and
-the query that reads one, all pure and host-tested in `tests/render.rs`), `user/src/doc.rs`, the
+the query that reads one, all pure and host-tested in `tests/render.rs`), `components/src/doc.rs`, the
 viewer program, which the shell can spawn as `Prog::Doc`, the store the image installs, `apropos` at
 the nife prompt, and `script/apropos` over the whole repository. The renderer was written against
 `line_editor`'s contract rather than `pulldown-cmark`, which the block's own text anticipated as the

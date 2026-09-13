@@ -67,7 +67,7 @@
 //! because a number means anything.
 //!
 //! The digit must be at a word boundary, exactly as it must in a Unix shell: `date 2> err` is the
-//! operator and `worker 2 > out` is the integer `2` and a `>`. A `2` inside a word (`wc2>f`) is part
+//! operator and `least_authority_demo 2 > out` is the integer `2` and a `>`. A `2` inside a word (`wc2>f`) is part
 //! of the word.
 //!
 //! # BUGS
@@ -281,7 +281,7 @@ fn is_op(b: u8) -> bool {
 /// single byte.
 ///
 /// `word_start` is where the current word began, and the digit only counts as an operator at a word
-/// boundary: `date 2> err` is a redirection, `worker 2 > out` is the integer `2` followed by a `>`,
+/// boundary: `date 2> err` is a redirection, `least_authority_demo 2 > out` is the integer `2` followed by a `>`,
 /// and `wc2>f` writes to a file from a program called `wc2`. Every shell draws the line in the same
 /// place, and drawing it anywhere else would make a program's own argument disappear.
 fn is_diag_op(line: &[u8], i: usize, word_start: usize) -> bool {
@@ -467,7 +467,12 @@ mod tests {
     /// handed on untouched.
     #[test]
     fn a_line_with_no_operator_is_one_stage() {
-        for line in [&b"worker 9"[..], b"echo hello  world", b"", b"   "] {
+        for line in [
+            &b"least_authority_demo 9"[..],
+            b"echo hello  world",
+            b"",
+            b"   ",
+        ] {
             let l = split(line).unwrap();
             assert_eq!(
                 l.stage_count(),
@@ -602,10 +607,10 @@ mod tests {
     /// integer argument from being eaten by a spelling.
     #[test]
     fn a_two_inside_a_word_is_part_of_the_word() {
-        // `worker 2 > out` is the integer 2 and an ordinary output redirection. If the digit were
+        // `least_authority_demo 2 > out` is the integer 2 and an ordinary output redirection. If the digit were
         // read as an operator wherever it appeared, this line would silently lose its argument.
-        let l = split(b"worker 2 > out.txt").unwrap();
-        assert_eq!(l.stages(), [&b"worker 2"[..]]);
+        let l = split(b"least_authority_demo 2 > out.txt").unwrap();
+        assert_eq!(l.stages(), [&b"least_authority_demo 2"[..]]);
         assert_eq!((l.output, l.diagnostics), (Some(&b"out.txt"[..]), None));
         // And a digit glued to the end of a word stays in the word.
         let l = split(b"wc2>out.txt").unwrap();

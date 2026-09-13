@@ -179,7 +179,7 @@ whatever they like.
 
 **A per-file grant is a separate process, and that is the decision.** Milestone 31's `run wc
 report.txt` must hand over one file; the unit of authority here is a directory. The narrowing is
-`user/src/fs_file_caretaker.rs`, a **caretaker** (Mark Miller's term): it holds the directory
+`components/src/fs_file_caretaker.rs`, a **caretaker** (Mark Miller's term): it holds the directory
 capability, opens the granted name once at startup, and serves the same `fs_proto::fs` contract on
 its own endpoint with a namespace of exactly one name. Three rules, each phrased as a fact about
 what the holder has rather than as a permission refusal, because there is no policy here to consult:

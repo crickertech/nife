@@ -222,7 +222,7 @@ one rests on:
    only cap-moving syscall, `SEND_CAP`, requires `GRANT`, which `reply_cap` deliberately never
    mints. This leg lives in the shape of the syscall surface (§4: narrow and explicit), so it is
    an inspection argument, backed end-to-end by the QEMU test in which the call server invokes its
-   Reply twice and the kernel refuses the second (`user/src/hello.rs`, `call_server`).
+   Reply twice and the kernel refuses the second (`fixtures/src/hello.rs`, `call_server`).
 
 No rewire because `capability::CapabilityTable` and `ipc::Endpoint` already *are* the kernel's capability table and endpoint
 state; the proofs landed on code the kernel was running all along.

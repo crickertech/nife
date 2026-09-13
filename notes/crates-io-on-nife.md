@@ -478,7 +478,7 @@ not change when it arrives.
   than twice. Nothing here routed around it.
 - **`remove_dir_all`** keeps the existing refusal rather than gaining a recursion. `readdir` shows a
   PAL *can* hold a capability per level, so the mechanism is not the obstacle; the recorded reasoning
-  (the loop belongs where each step can be checked against that level's capability, in `user/src/rm.rs`)
+  (the loop belongs where each step can be checked against that level's capability, in `components/src/rm.rs`)
   is a decision this lane had no evidence to overturn.
 
 ### The third pass, 2026-08-18: the gap list cannot see a `panic!`

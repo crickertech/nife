@@ -2,7 +2,7 @@
 
 **Status: DECIDED.**
 
-Milestone 50, finished 2026-08-01. `user/src/swish.rs`, `kernel::user::redirection_tests`. See
+Milestone 50, finished 2026-08-01. `components/src/swish.rs`, `kernel::user::redirection_tests`. See
 `notes/pipes.md`.
 
 **A redirected program's output goes to a file the shell writes, not to an adapter process holding

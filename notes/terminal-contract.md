@@ -88,7 +88,7 @@ terminal writes, it reads).
   every request. That is `filesystem_proto`'s one-page-two-clients problem (DECISIONS §55) arriving in a
   second contract.
 
-  Register-only sidesteps it: `user/src/terminal_sink_caretaker.rs` turns the sink contract into terminal
+  Register-only sidesteps it: `components/src/terminal_sink_caretaker.rs` turns the sink contract into terminal
   output with **no page at all**, which is what let the terminal become a destination a program's
   output slot can hold. Eight bytes rather than sixteen is this contract's request shape, not a
   choice: a served request arrives through `recv_cap` with the reply capability and two data words,
@@ -185,7 +185,7 @@ input arrives. Noted, not papered over; see [shell.md](shell.md).
 
 ## For milestones 29 and 31
 
-- **29 (display terminal): built, 2026-07-30**, and the prediction held. `user/src/display_terminal.rs`
+- **29 (display terminal): built, 2026-07-30**, and the prediction held. `components/src/display_terminal.rs`
   implements the *same IPC half* against a framebuffer and a VT engine instead of a serial line and
   this line discipline: `OP_WRITE` prints from the client's output page, `OP_BYTES` carries
   keystrokes in from a driver (or from the compositor, forwarding to the focused client), and the

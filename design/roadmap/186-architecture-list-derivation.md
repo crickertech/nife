@@ -69,8 +69,8 @@ gated before, so each is a commit and a green run with no follow-on work possibl
   `channel`. The gap is that nobody extended the parse by one field. About fifteen lines of POSIX
   sh, replacing four hand-written `case "$arch" in` blocks and four bare triple lists.
 - **Option B's `compile_error!` arm**, for the `#[cfg]` pairs with no fallback. Three lines at four
-  sites (`crates/virtio`, `user/src/gpu_driver.rs`, `user/src/keyboard_driver.rs`,
-  `user/src/net_transport.rs`),
+  sites (`crates/virtio`, `components/src/gpu_driver.rs`, `components/src/keyboard_driver.rs`,
+  `components/src/net_transport.rs`),
   with `entropy_backend`'s backend ladder as the in-tree precedent for ending in `compile_error!`
   rather than a fallback.
 - **Option C is refused**, and the refusal is the valuable half. A gate comparing each
@@ -146,7 +146,7 @@ CI matrix, and a package manifest, which is the general form of option A.
 
 ## What was already fixed rather than scheduled
 
-`user/src/pgrep.rs`'s panic handler is **not** in this milestone, because it was a live defect
+`components/src/pgrep.rs`'s panic handler is **not** in this milestone, because it was a live defect
 rather than a coverage gap and it landed with the sweep. Neither of its two `cfg` arms matched on
 x86_64, so control reached a spin loop and a panic burned a thread forever instead of trapping,
 which is the opposite of the signal its own comment promised. It was the last hand-rolled panic

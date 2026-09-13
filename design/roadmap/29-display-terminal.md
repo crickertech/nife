@@ -35,7 +35,7 @@ notes/framebuffer-contract.md.
 §37, notes/glyphs.md. An original 7x8 bitmap font drawn in the Kaypro II's style (`crates/bitfont`; the ROM is excluded on licence and the look is not protected,
 because a font is compiled into the image), a **sans-IO VT engine** (`crates/video_terminal`) checked against the
 *real* line discipline's echo stream rather than a written-down list of escape sequences, a display
-terminal (`user/src/display_terminal.rs`) that is a client at **both** display seams with exactly `painter`'s and
+terminal (`components/src/display_terminal.rs`) that is a client at **both** display seams with exactly `painter`'s and
 exactly `window`'s authority, and a confined virtio-input keyboard driver (`user/src/kbd.rs`).
 
 Three things are worth carrying forward from it. **The picture is a value three witnesses compute

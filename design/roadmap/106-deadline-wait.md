@@ -57,7 +57,7 @@ that only advances when `poll` is called; the old server loop blocked on the NIC
 polls, so a dropped segment left net_stack waiting for a peer that was waiting for a retransmit that
 only a `poll` could fire.
 
-**The fix, and the residual it leaves.** `wait_for_nic` (`user/src/net_stack.rs:331`) asks smoltcp
+**The fix, and the residual it leaves.** `wait_for_nic` (`components/src/net_stack.rs:331`) asks smoltcp
 when it next needs to run. With no timer pending it blocks on the interrupt, 0% CPU until a frame
 arrives. With a timer pending it does **not** block: it yields and re-polls, so the timer fires. The
 note is plain about the price: "yielding across a retransmit window spins a hart until the timer is

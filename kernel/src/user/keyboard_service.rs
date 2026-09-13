@@ -2,7 +2,7 @@ use super::*;
 use crate::cap::{Rights, irq_cap, rendezvous_cap, virtio_cap};
 use crate::sched::RendezvousId;
 
-/// Where the driver maps its DMA page and the input ring. Must match `user/src/keyboard_driver.rs`.
+/// Where the driver maps its DMA page and the input ring. Must match `components/src/keyboard_driver.rs`.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
 const RING_VA: u64 = 0x0000_0000_0082_0000;
 
@@ -90,7 +90,7 @@ pub fn start(image: &'static [u8]) -> Option<Wiring> {
     })
 }
 
-/// `arg0`'s direct-wiring value. Must match `user/src/keyboard_driver.rs` `MODE_DIRECT`.
+/// `arg0`'s direct-wiring value. Must match `components/src/keyboard_driver.rs` `MODE_DIRECT`.
 const MODE_DIRECT: u64 = 1;
 
 /// **Wire and spawn the keyboard driver in `MODE_DIRECT`** (milestone 177, option A): a fixed
@@ -102,7 +102,7 @@ const MODE_DIRECT: u64 = 1;
 /// `target` is the endpoint the driver will `CALL` with `line_editor::proto::OP_BYTES`, granted
 /// here with `WRITE` and nothing else, so this driver can name exactly one destination and no
 /// other. Ordinarily `line_editor`'s own served endpoint (its slot 0), the same endpoint
-/// `user/src/input.rs`'s UART driver already holds `WRITE` on for the plain-console boot: a
+/// `components/src/input.rs`'s UART driver already holds `WRITE` on for the plain-console boot: a
 /// keyboard and a serial line are both "one input source" to the line discipline.
 ///
 /// Returns the driver's report endpoint, or `None` if no virtio-input function is on the bus. No
@@ -168,8 +168,8 @@ impl Wiring {
         let tail = unsafe { core::ptr::read_volatile((base + ring::TAIL) as *const u32) };
         // The tail is published after the bytes it advertises; read it before them.
         //
-        // PAIR: `ring_publish`'s `fence(SeqCst)` in user/src/keyboard_driver.rs. Milestone 43's audit named this
-        // reader as the one that gets it right, against `user/src/compositor.rs`'s `drain_input`,
+        // PAIR: `ring_publish`'s `fence(SeqCst)` in components/src/keyboard_driver.rs. Milestone 43's audit named this
+        // reader as the one that gets it right, against `components/src/compositor.rs`'s `drain_input`,
         // which reads the same contract and had no fence at all.
         core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
         let mut n = 0;

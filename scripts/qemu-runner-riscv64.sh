@@ -143,7 +143,7 @@ GUESTFWD="guestfwd=tcp:10.0.2.9:7777-cmd:/bin/cat"
 
 # slirp's own TFTP server (10.0.2.2:69), which makes the gating UDP test deterministic and offline
 # instead of NAT'ing a DNS query to the host's resolver. The parity twin of the aarch64 runner's
-# block; the fixture must match user/src/socket_test_client.rs. See the aarch64 runner for the full reasoning.
+# block; the fixture must match components/src/socket_test_client.rs. See the aarch64 runner for the full reasoning.
 TFTPDIR="$(dirname "$0")/../target/tftp"
 mkdir -p "$TFTPDIR"
 printf 'nife-tftp!' > "$TFTPDIR/nife"

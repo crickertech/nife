@@ -6,7 +6,7 @@
 which is calef's. Everything else is a lane's work.
 
 **In brief.** Milestone 235 fixed a shell that hangs forever when a spawned command traps. The
-evidence it was fixed was a **scaffold**: milestone 233's lane patched `user/src/worker.rs` to trap,
+evidence it was fixed was a **scaffold**: milestone 233's lane patched `components/src/least_authority_demo.rs` to trap,
 watched the prompt hang, and the patch was removed afterwards. So the defect is fixed and the proof
 is gone. The work is a program whose job is to fault, wired into `script/shell-check` so a hung
 prompt fails a gate, plus teaching milestone 233's no-thread-killed assertion to except that one
@@ -36,5 +36,5 @@ would retire the check that found this defect in the first place.
 Milestone 235's `## Follow-on`: *"A regression gate for the fault path. It needs a program that
 faults on purpose, which is a new name and therefore calef's, and milestone 233's no-thread-killed
 assertion in `script/shell-check` has to learn to except it. The scaffold that proved this milestone
-was a patch to `user/src/worker.rs` and was removed afterwards, so nothing stops the lost prompt
+was a patch to `components/src/least_authority_demo.rs` and was removed afterwards, so nothing stops the lost prompt
 returning."*

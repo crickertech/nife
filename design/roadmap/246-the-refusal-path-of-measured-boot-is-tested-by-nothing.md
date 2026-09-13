@@ -86,10 +86,10 @@ Not a test that only takes the accept path, which `script/shell-check` already d
   `Default::default()`, `Verdict` had no `Default`, so the mutant did not compile and scored unviable
   rather than missed. `measured_boot` had nine such. See
   `design/roadmap/proposals/the-mutants-nobody-counts.md`.
-- **Recorded.** `user/src/login.rs` spells the same load-or-refuse decision itself and folds all three
+- **Recorded.** `components/src/login.rs` spells the same load-or-refuse decision itself and folds all three
   outcomes into `None`, so it cannot distinguish an absent program from a refused one. `verdict`'s
   signature already fits it; it was not switched because that is a boot path this milestone did not
-  gate. Beside the code, in `user/src/login.rs`.
+  gate. Beside the code, in `components/src/login.rs`.
 - **Recorded.** `system_initializer::measured` still exists and is still host-unreachable, and
   `cargo mutants` generates nothing for it. "No mutants generated" is a property of the tool rather
   than a proof. Beside the code, in `crates/system_initializer/src/lib.rs`.
@@ -108,7 +108,7 @@ Not a test that only takes the accept path, which `script/shell-check` already d
   delegation with no branch and no literal, so `cargo mutants` generates nothing for it, but "no
   mutants generated" is a property of the tool rather than a proof. What is proved is the decision it
   delegates to.
-- **The other refusal path in this tree was not touched.** `user/src/login.rs` runs the identical
+- **The other refusal path in this tree was not touched.** `components/src/login.rs` runs the identical
   `verify_in_manifest` over the caretaker blob it was handed and folds all three outcomes into
   `None`; it takes bytes rather than an archive, so `verdict`'s signature already fits it, and
   nothing here changed it. See the handoff in this lane's report.

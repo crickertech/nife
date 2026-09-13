@@ -227,7 +227,7 @@ let (kind, n) = srv.get_xattr(h, b"user.com.apple.metadata", &mut page)?;
 assert_eq!(kind, 0x4353_5452);
 ```
 
-The same thing on the wire, which is what `user/src/fs_test_client.rs` does:
+The same thing on the wire, which is what `fixtures/src/fs_test_client.rs` does:
 
 ```rust
 // SET: the name and the value go into the shared page back to back; the value's length and its
@@ -316,7 +316,7 @@ The workload's own sanity check does double duty here. An attribute operation ch
 observable unless the snapshot reads attributes, so a harness that quietly stopped looking fails at
 the fixture rather than passing everywhere below it.
 
-**On device, both ISAs** (DECISIONS §19). `user/src/fs_test_client.rs`'s proof role carries a witness that
+**On device, both ISAs** (DECISIONS §19). `fixtures/src/fs_test_client.rs`'s proof role carries a witness that
 reports a bitmap, and the kernel test asserts an **exact** set, so a client that could do nothing
 and one that could do everything both fail. Eight claims: set and read back *with the type code*,
 listed and nothing else, survived a rename, gone after a remove, gone after an unlink and remake,

@@ -1,8 +1,8 @@
 # Pipes and redirection: `>`, `<` and `|` are one substitution
 
 *Milestone 50, the operators lane and its closure. `crates/grant_plan/src/line.rs`,
-`user/src/wc.rs`, `user/src/swish.rs`, `user/src/date.rs`, `user/src/terminal_sink_caretaker.rs`,
-`user/src/progenitor.rs`, `user/src/hello.rs`, `crates/grant_plan/src/spawnproto.rs`,
+`components/src/wc.rs`, `components/src/swish.rs`, `components/src/date.rs`, `components/src/terminal_sink_caretaker.rs`,
+`components/src/progenitor.rs`, `fixtures/src/hello.rs`, `crates/grant_plan/src/spawnproto.rs`,
 `script/shell-check`. The protocol half is notes/sink-protocol.md and you should read that first.*
 
 **All five operators run at a real prompt on both ISAs.** `|` landed first; `>` and `<` needed a
@@ -83,14 +83,14 @@ redirected:
 
 | | what slot 0 carries | can it be `>` or `\|`? |
 |---|---|---|
-| `worker`, `budgeter` | a `u64` answer in a register | no |
-| `heeder`, `spinner` | nothing; they report through a shared frame | no |
+| `least_authority_demo`, `memory_grant_depleter` | a `u64` answer in a register | no |
+| `interrupt_heeder`, `interrupt_ignorer` | nothing; they report through a shared frame | no |
 | `date`, `wc`, `rm` | the sink contract's byte messages | yes |
 
 `date` went one further on 2026-08-03 and declares a **second** byte stream as well (DECISIONS §67),
 which is what `2>` binds to. `OutputSpec` is where that is written down too.
 
-`worker 9 > out.txt` would otherwise put a raw word into a file sink, producing a file with nothing
+`least_authority_demo 9 > out.txt` would otherwise put a raw word into a file sink, producing a file with nothing
 legible in it and no error anywhere. Declaring the convention makes it `Refusal::NotAByteStream` at
 the prompt. Unix has no equivalent because there every program's stdout is bytes by construction;
 here the register fastpath is real and older than the sink contract, and the manifest is where the
@@ -121,7 +121,7 @@ No new protocol, no new opcodes, no reply. Three consequences fall out and all t
    side of `|` are. A program that can be piped into can be redirected into, with no second code
    path.
 2. **A source's producer is an ordinary writer.** A file behind a `<` is a process that opens the
-   file and writes the sink contract at it, which is what `user/src/sink.rs`'s verify role already
+   file and writes the sink contract at it, which is what `fixtures/src/sink.rs`'s verify role already
    was. The shell itself is a producer when a builtin leads a pipeline.
 3. **`OP_EOF` becomes load-bearing rather than tidy.** A reader has to be told the producer is
    finished; inferring it from a death notification would be a fact about process supervision
@@ -223,7 +223,7 @@ process that can write the file without opening a second session.
 **This costs the milestone nothing, and that is the test of whether it is the right shape.** What a
 redirected program holds is unchanged: one endpoint, `WRITE`, no way to ask what is behind it. There
 is no new message, no change to `grant_plan::spawnproto`, and no change in init. `Sink::File` and
-`Source::File` still exist in the plan, because the manifest check needs them (`worker 9 > out.txt`
+`Source::File` still exist in the plan, because the manifest check needs them (`least_authority_demo 9 > out.txt`
 is still `NotAByteStream`), and the wiring simply does not need a capability for them.
 
 It is also the smaller claim, honestly stated. `> report.txt` still grants strictly less than Unix's
@@ -292,14 +292,14 @@ what exists.
 
   crates/grant_plan/line.rs    `2>` and `2>>`, at the tail, like `>` and `>>`
 
-  user/src/swish.rs            an endpoint the shell mints ONLY for a `2>`, because that is the
+  components/src/swish.rs            an endpoint the shell mints ONLY for a `2>`, because that is the
                                case where it has to back a file
 
-  user/src/terminal_sink_caretaker.rs    where the bytes go with no operator on the line: the terminal,
+  components/src/terminal_sink_caretaker.rs    where the bytes go with no operator on the line: the terminal,
                                served by an adapter, so nothing goes through the shell at all
 
-  user/src/hello.rs            receives whichever it is and inserts it at the slot the MANIFEST
-  user/src/system_initializer  names, not at the next free one. Yes, both: see below
+  fixtures/src/hello.rs            receives whichever it is and inserts it at the slot the MANIFEST
+  crates/system_initializer    names, not at the next free one. Yes, both: see below
 ```
 
 The two init lines are the ones to read twice. **The slot is high (eight) and placed explicitly**, and that
@@ -428,7 +428,7 @@ found it the hard way: the shell delegated a diagnostic endpoint, nobody receive
 hung on the first `date` with no fault and no message.
 
 `kernel/src/main.rs` hands off to `user::initrd()`, which loads the program named **`init`**, and on
-aarch64 that is `user/src/hello.rs`'s `init_boot` role. `user/src/progenitor.rs` is riscv64's.
+aarch64 that is `fixtures/src/hello.rs`'s `init_boot` role. `components/src/progenitor.rs` is riscv64's.
 Both serve `grant_plan::spawnproto`, and **the serving loop was written twice**, once in each file,
 about a hundred and forty near-identical lines: the same delegation order, the same slot ordering,
 the same clock rule, the same `build_child_at`.
@@ -453,7 +453,7 @@ and both still fail by printing nothing at all.
 ### Where the bytes go by default, and why it is not this shell
 
 **With no `2>` on the line, a declared second stream goes to the terminal's own sink**, which is a
-component (`user/src/terminal_sink_caretaker.rs`, notes/sink-protocol.md) and not the shell. init endows it
+component (`components/src/terminal_sink_caretaker.rs`, notes/sink-protocol.md) and not the shell. init endows it
 from the manifest, exactly as it endows the clock and for the same reason: the shell holds no
 terminal capability it could delegate, and a person does not designate a screen.
 
@@ -517,7 +517,7 @@ diagnostics travel on it, in-band with everything else:
 ```
 
 is `date` writing sink messages on the same endpoint it would have written a timestamp to
-(`user/src/date.rs`'s `line`). `rm`'s header says the same thing in its own words: "slot 1: a report
+(`components/src/date.rs`'s `line`). `rm`'s header says the same thing in its own words: "slot 1: a report
 endpoint, `WRITE`. Diagnostics and `-v` lines as framed text". One channel, two kinds of thing on it,
 and no way to tell them apart at the far end.
 
@@ -527,7 +527,7 @@ exactly the loss `2>` exists to prevent on Unix.
 #### But the half that hurts most on Unix is already separated here
 
 The thing a person usually reaches for `2>` to save is **the shell's own refusals**, and those never
-enter a redirection here. `wc < nosuch.txt` is `Say::Failed` printed by the prompt; `worker 9 >
+enter a redirection here. `wc < nosuch.txt` is `Say::Failed` printed by the prompt; `least_authority_demo 9 >
 out.txt` is `Refusal::NotAByteStream` printed by the prompt; a spawn that fails is
 `spawnproto::SPAWN_FAILED` printed by the prompt. All of it goes to the terminal, always, because
 the shell is a different process from the thing being redirected and its output was never in the
@@ -1061,8 +1061,8 @@ $ echo hello world | wc | wc
 $ wc
   wc: reads an input stream: name a file, redirect with '<', or pipe into it
 
-$ worker 9 | wc
-  worker: does not write a byte stream, so there is nothing for > or | to redirect
+$ least_authority_demo 9 | wc
+  least_authority_demo: does not write a byte stream, so there is nothing for > or | to redirect
 
 $ date | date
   date: reads no input; there is no slot for those bytes to go in
@@ -1162,7 +1162,7 @@ of the real RedoxFS image. Three claims, and none of them is "it printed somethi
   byte count has to be the length of what was printed.
 - **The refusals a directory does not rescue.** `wc < nosuch.txt` is the filesystem's own sentence
   (a `<` does not create, because a `wc` that truthfully reported zero for a file that is not there
-  is a number a person would believe), and `worker 9 > out.txt` is still `NotAByteStream`.
+  is a number a person would believe), and `least_authority_demo 9 > out.txt` is still `NotAByteStream`.
 
 The pair of witnesses is the capability argument made twice with one binary:
 `pipeline_tests::a_redirection_a_shell_cannot_back_is_refused_rather_than_dropped` refuses because
@@ -1173,7 +1173,7 @@ the shell.
 
 The guest tests above wire the shell **from the kernel**: it serves the terminal contract and, on a
 second thread, `grant_plan::spawnproto` in place of init. The shell cannot tell the difference, and
-that is the problem. `user/src/progenitor.rs` is not the same code, so a change that broke
+that is the problem. `components/src/progenitor.rs` is not the same code, so a change that broke
 the real spawn path failed nothing, and the `--features shell` boot is the only thing that runs it.
 
 That cost this milestone three manual bisects, and **all three presented as a boot that printed
@@ -1182,10 +1182,10 @@ capability table overflowing when the kernel handed it two more grants, and four
 call short of the redirection path.
 
 **And the gap runs the other way too, which milestone 86 found.** The kernel's stand-in init put a
-spawned program's argument in `arg0`; both real inits put it in `arg1`, and `user/src/worker.rs`
+spawned program's argument in `arg0`; both real inits put it in `arg1`, and `components/src/least_authority_demo.rs`
 reads `arg1`. Nothing failed for two milestones, because no line in either script ever spawned a
-program that *takes* an argument: `date`, `wc` and `echo` take none, and `worker 9 | wc` is refused
-at the prompt before anything is built. The first script to type `time worker 3` got `3*3 = 0` back.
+program that *takes* an argument: `date`, `wc` and `echo` take none, and `least_authority_demo 9 | wc` is refused
+at the prompt before anything is built. The first script to type `time least_authority_demo 3` got `3*3 = 0` back.
 So a harness that "the shell cannot tell apart" can still be wrong in a way no shell would notice,
 and the fix is the same one as above: the scripts have to exercise the shapes the boot exercises.
 
@@ -1292,9 +1292,9 @@ reader would look. The symptom is always a data abort one word below the lowest 
   (both of them) and nothing runs it automatically, which is a weaker version of the gap it closed.
   It has now caught two boots that printed nothing, which is two more than any automatic gate did.
   Wiring it into the CI test job is a one-line change and is deliberately still not taken here.
-- **`user/src/sink.rs`'s file and source roles are no longer on the shell's path.** They are still
+- **`fixtures/src/sink.rs`'s file and source roles are no longer on the shell's path.** They are still
   the right shape for an adapter whose client is not the shell, and `sink_tests` still proves them
-  against a real image, but nothing at the prompt builds one. (`user/src/terminal_sink_caretaker.rs` is that
+  against a real image, but nothing at the prompt builds one. (`components/src/terminal_sink_caretaker.rs` is that
   shape with a client the prompt does build, which is the closest this has come to being used.) The source role also still opens the
   one name in `byte_sink_proto::fixture` and cannot be told another; the shell would have had to hand it
   a name the way `fs_file_caretaker` is handed one, and it turned out not to need to.
@@ -1317,7 +1317,7 @@ reader would look. The symptom is always a data abort one word below the lowest 
   one.
 - **And slot 0 is the output except behind a directory grant** (milestone 31 phase 3, 2026-08-17),
   where the caretaker's narrowed endpoint takes it and the output moves to slot 1. That is not a
-  second convention invented at the spawn service: it is the contract `user/src/rm.rs` documents and
+  second convention invented at the spawn service: it is the contract `components/src/rm.rs` documents and
   the kernel's `start_granted_dir` already wired, so one program means one thing in a guest test and
   at the real prompt. It is still an *exception* to an ordered convention, which is one more reason
   the numbered one above is owed. `grant_plan::PROG_COUNT`'s manifests are what keep it safe today:

@@ -2,7 +2,7 @@ use super::*;
 use crate::cap::{Rights, irq_cap, rendezvous_cap, virtio_cap};
 use crate::sched::RendezvousId;
 
-/// Where the service maps its DMA page. Must match user/src/entropy.rs.
+/// Where the service maps its DMA page. Must match components/src/entropy.rs.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
 
 /// One page, and no more. The rings take 0x16e of it and the buffer 0x100; a device whose whole
@@ -10,7 +10,7 @@ const DMA_VA: u64 = 0x0000_0000_0090_0000;
 /// gets the grant it needs and no more" is the standing rule in both directions.
 const DMA_PAGE_FRAMES: u64 = 1;
 
-/// What `Spawn::arg0` means. Must match `user/src/entropy.rs`; the kernel's own spawn-argument
+/// What `Spawn::arg0` means. Must match `components/src/entropy.rs`; the kernel's own spawn-argument
 /// convention with the one program it spawns (not a wire contract between two user programs, so
 /// rule 7 does not apply), the same footing `DMA_VA` above is already on.
 const MODE_VIRTIO: u64 = 0;
@@ -282,7 +282,7 @@ fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
     })
 }
 
-/// Where the service maps the TRNG's register page. **Must match `user/src/jh7110_entropy_source.rs`'s
+/// Where the service maps the TRNG's register page. **Must match `components/src/jh7110_entropy_source.rs`'s
 /// `TRNG_VA`**, and deliberately distinct from [`DMA_VA`] so the two entropy backends could be
 /// mapped into different processes at once without either constant meaning two things.
 const TRNG_VA: u64 = 0x0000_0000_0094_0000;
@@ -317,7 +317,7 @@ pub fn jh7110_trng_device() -> Option<jh7110_entropy_source::Discovered> {
 /// driver is granted two rendezvous capabilities (a request endpoint it RECVs on, a readiness
 /// endpoint it SENDs once) and **one page of device memory**: the TRNG's register block, mapped
 /// user-device-typed at [`TRNG_VA`]. Not a DMA page, because the device writes nothing to memory;
-/// not an `Irq` capability, because the driver polls (`user/src/jh7110_entropy_source.rs` records why);
+/// not an `Irq` capability, because the driver polls (`components/src/jh7110_entropy_source.rs` records why);
 /// not a `Virtio` capability, because there is no transport. The binding's `reg` window is
 /// `0x4000` and this maps `0x1000` of it, since `jh7110_entropy_source::regs` reaches only `0x68`: a driver
 /// that cannot name a register cannot touch it.

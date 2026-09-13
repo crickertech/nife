@@ -1307,7 +1307,7 @@ pub enum Service {
 ///
 /// **One service type per call, because of the MTU rather than the RFC.** RFC 6762 permits every
 /// record in one message, and a responder on an ordinary ethernet can do that; this tree's virtio
-/// transport carries a 576-byte MTU (`user/src/net_transport.rs`, a single-page DMA region), so all
+/// transport carries a 576-byte MTU (`components/src/net_transport.rs`, a single-page DMA region), so all
 /// three types in one datagram would not fit and would be dropped rather than fragmented. Three
 /// calls and three datagrams is the same announcement, and a caller with a real MTU loses nothing
 /// by sending them separately.

@@ -3,7 +3,8 @@ resolver = "3"
 members = [
     "kernel",
     "xtask",
-    "user",
+    "components",
+    "fixtures",
     "uefi_loader",
     "crates/abi",
     "crates/asid",

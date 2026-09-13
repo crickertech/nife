@@ -2,7 +2,7 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where the service maps the provisioner's page. Must match user/src/credentialer.rs.
+/// Where the service maps the provisioner's page. Must match components/src/credentialer.rs.
 const PROV_VA: u64 = 0x0000_0000_00e0_0000;
 /// Where the service and a client map the verify page. Must match both programs.
 const VERIFY_VA: u64 = 0x0000_0000_00e1_0000;
@@ -32,7 +32,7 @@ const CRED_STACK_PAGES: u64 = 16;
 /// conclude it was overlooked.
 const _NO_CLIENT_BUDGET: () = ();
 
-/// The `credentialer_test_client` roles; must match `user/src/credentialer_test_client.rs`.
+/// The `credentialer_test_client` roles; must match `fixtures/src/credentialer_test_client.rs`.
 pub const ROLE_HONEST: u64 = 0;
 pub const ROLE_ATTACKER: u64 = 1;
 pub const ROLE_PROVISIONER: u64 = 2;
@@ -225,7 +225,7 @@ fn page_frame() -> u64 {
 // to assert what a program did *not* leave behind, and `git show 685900ec` has the ten lines.
 
 /// Unpack the `k`th reply code from a `credentialer_test_client` report's second word. One byte per code; see
-/// `user/src/credentialer_test_client.rs` `Codes`.
+/// `fixtures/src/credentialer_test_client.rs` `Codes`.
 pub const fn nth(packed: u64, k: u32) -> u64 {
     (packed >> (8 * k)) & 0xff
 }

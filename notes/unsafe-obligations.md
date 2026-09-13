@@ -55,7 +55,7 @@ author picked.
 
 ## The shape of the 33
 
-All 33 `unsafe fn`s are in `kernel/` and `crates/`. **`user/src/` has none**, which corrects the
+All 33 `unsafe fn`s are in `kernel/` and `crates/`. **the program packages have none**, which corrects the
 milestone spec's "across `kernel/`, `crates/`, and `user/`".
 
 Twenty-two have at least one explicit `unsafe {}` in the body. Every one of those blocks has a
@@ -311,7 +311,7 @@ Two counts in the survey above are also wrong, from the same cause on the other 
 
 - "**33 `unsafe fn`s**" is 33 in `kernel/` and `crates/`, not in the tree. The tree had **46** before
   this milestone and **51** after it: `redoxfs_server/` holds 9, `tools/redoxfs_host/` 2, `user/src/` 2.
-- "**`user/src/` has none**" is wrong. `user/src/c_shim.rs` has two, `malloc` and `free`, and a regex
+- "**`user/src/` has none**" is wrong. `fixtures/src/c_shim.rs` has two, `malloc` and `free`, and a regex
   that does not allow `extern "C"` between `unsafe` and `fn` misses both. They are the C ABI's
   contract and are correctly documented; only the count was wrong.
 
@@ -331,7 +331,7 @@ to resolve. That is why the defect was invisible from the syscall and only appea
 
 ### The worst SAFETY comment in the tree, and it passed every gate
 
-`user/src/net_transport.rs`'s `w16` carried this, over a `write_volatile` into the DMA page:
+`components/src/net_transport.rs`'s `w16` carried this, over a `write_volatile` into the DMA page:
 
 ```
 // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
@@ -398,13 +398,13 @@ reads rather than in a report:
 
 | Site | The comment's claim |
 |---|---|
-| `user/src/net_transport.rs` `r8` `r16` `r32` `w8` `w16` `write_desc` | "callers pass offsets inside it" (the DMA frame) |
-| `user/src/fs_test_client.rs:854` `fill_page` | "the caller keeps within it" |
-| `user/src/fs_file_caretaker.rs:77` `get` | "callers clamp `out` to the page" |
-| `user/src/fs_nameset_caretaker.rs:107` `get_at` | "every caller clamps `out` and `off` to the page" |
-| `user/src/sink.rs:133` `get` | "callers clamp `i` to the page" |
-| `user/src/swish.rs:616` `put_page` | "every caller is behind a `dir.is_some()` check" |
-| `user/src/line_editor.rs:217` `copy_in` | "offset+len is bounded by PAGE by every caller" |
+| `components/src/net_transport.rs` `r8` `r16` `r32` `w8` `w16` `write_desc` | "callers pass offsets inside it" (the DMA frame) |
+| `fixtures/src/fs_test_client.rs:854` `fill_page` | "the caller keeps within it" |
+| `components/src/fs_file_caretaker.rs:77` `get` | "callers clamp `out` to the page" |
+| `components/src/fs_nameset_caretaker.rs:107` `get_at` | "every caller clamps `out` and `off` to the page" |
+| `fixtures/src/sink.rs:133` `get` | "callers clamp `i` to the page" |
+| `components/src/swish.rs:616` `put_page` | "every caller is behind a `dir.is_some()` check" |
+| `components/src/line_editor.rs:217` `copy_in` | "offset+len is bounded by PAGE by every caller" |
 | `patches/std-nife/overlay/std/src/sys/fs/nife.rs:161` `put` | "callers clamp to it" |
 | `crates/user_heap/src/lib.rs:100` `effective_size` | "the caller provides the locking" (a data-race obligation, not an addressing one) |
 
@@ -570,7 +570,7 @@ pointer arithmetic" case `smb_server.rs` and `fs_subtree_caretaker.rs` were. The
 for real: `jf_load`/`jf_store` were two functions, each with its own `// SAFETY:` comment, called
 eight times combined across `spawn_interruptible` and `watch`; one `MappedWindow` constructed once,
 right after the frame is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in
-`user/src/swish.rs` alone.
+`components/src/swish.rs` alone.
 
 *`disk_surveyor.rs`'s `ROSTER_VA`.* A single shared `u64` flag at a fixed VA the program maps
 itself at runtime (`Frame::MAP`, not a boot-time wiring), read once in [`ROLE_HOLDER`], read again
@@ -580,7 +580,7 @@ read-only). The two deliberate-fault sites are the one honest exception recorded
 `MappedWindow`'s own bounds check cannot catch either fault (offset 0 is inside the declared
 window both times), so the real hardware fault happens inside `read`/`write` exactly where the
 hand-written version made it, and the test's behaviour is unchanged. **3 `unsafe {` blocks removed,
-2 added, net -1**, in `user/src/disk_surveyor.rs` alone.
+2 added, net -1**, in `components/src/disk_surveyor.rs` alone.
 
 *`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster.* The exact naming variant
 `user_rt::mapped_window`'s own doc comment already named as a shape round 1's search should have
@@ -600,7 +600,7 @@ took an absolute address. One further site collapsed for the same reason though 
 `a_w8`: `sock_recv`'s payload-write loop had its own hand-rolled `write_volatile`, identical in
 shape, folded into the same window. **5 `unsafe {` blocks removed (the four functions' bodies plus
 the one hand-rolled loop), 1 added (the window construction in `OP_ATTACH_FRAME`), net -4**, in
-`user/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
+`components/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
 connect/accept/listen, the mDNS responder) are the load-bearing evidence for this one: the
 restructuring touches per-socket lifecycle state, exactly the kind of change where a mistake shows
 up as a flaky network test rather than a compile error.

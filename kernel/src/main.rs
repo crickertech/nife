@@ -1014,7 +1014,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         if let Some(initrd) = user::initrd() {
             // A nifefs archive with a `progenitor` entry means the richer path: the kernel loads
             // only `builder` (milestone 20's minimal system builder), maps the whole archive into
-            // it, grants it a budget and a report endpoint, and the builder loads "worker" from the
+            // it, grants it a budget and a report endpoint, and the builder loads
+            // "least_authority_demo" from the
             // archive and builds it as a child. Anything else is treated as a single bare ELF and
             // run directly (the simpler path).
             //
@@ -1028,16 +1029,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 sched::note_boot_stage(4);
                 match user::riscv_initrd_demo(initrd) {
                     Ok(sq) => println!(
-                        "  init/build  : userspace init loaded 'worker' from a {}-byte archive and built it as a child; the child sent {sq} (expected 81)",
+                        "  init/build  : userspace init loaded 'least_authority_demo' from a {}-byte archive and built it as a child; the child sent {sq} (expected 81)",
                         initrd.len(),
                     ),
                     Err(e) => println!("  init/build  : init failed: {e:?}"),
                 }
             } else {
                 const N: u64 = 7;
-                match user::riscv_worker_demo(initrd, N) {
+                match user::riscv_least_authority_demo(initrd, N) {
                     Ok(sq) => println!(
-                        "  user ELF    : loaded a {}-byte riscv ELF, ran worker({N}) at U-mode, it sent {sq} (expected {})",
+                        "  user ELF    : loaded a {}-byte riscv ELF, ran least_authority_demo({N}) at U-mode, it sent {sq} (expected {})",
                         initrd.len(),
                         N * N,
                     ),
@@ -1481,7 +1482,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 // number 32 wearing a register's clothes. All zeros means the
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
-                                // a device that answered wrongly. See user/src/jh7110_entropy_source.rs.
+                                // a device that answered wrongly. See components/src/jh7110_entropy_source.rs.
                                 // The tree's own two words about this node come with the failure,
                                 // not in a separate line, because they are what a bench session
                                 // reads next: an all-zero diagnostic on a node the firmware calls
@@ -1620,7 +1621,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //
         // It was three things wearing one name: a machine description, a narrative, and a set of
         // demonstrations. The description is `print_machine_description` above and prints on every
-        // boot. The narrative is `user/src/narrator.rs` and runs at EL0. What remains here is the
+        // boot. The narrative is `components/src/narrator.rs` and runs at EL0. What remains here is the
         // third thing, and every entry is here because it needs a privilege a program does not
         // have. The list is short on purpose, and it is the whole list:
         //

@@ -234,7 +234,15 @@ fn build() -> bool {
 /// an **ELF**: the kernel's loader wants program headers, unlike the kernel itself, which QEMU
 /// wants as a flat image. See notes/elf.md.
 fn user() -> bool {
-    cargo_profiled(&["build", "-p", "user", "--target", TARGET]) && initrd_aarch64()
+    cargo_profiled(&[
+        "build",
+        "-p",
+        "components",
+        "-p",
+        "fixtures",
+        "--target",
+        TARGET,
+    ]) && initrd_aarch64()
 }
 
 // ===========================================================================================
@@ -2490,9 +2498,9 @@ const MDNS_LEGACY_ID: u16 = 0x4321;
 const MDNS_BROWSE: &str = "_adisk._tcp.local";
 
 /// **The guest's own configuration document**, so the gate's expectations and the responder's
-/// behaviour have one source. Editing `user/mdns_responder.conf` moves both; a value asserted here
+/// behaviour have one source. Editing `components/mdns_responder.conf` moves both; a value asserted here
 /// as a literal would be a second copy of a measurement.
-const RESPONDER_CONFIG: &str = include_str!("../../user/mdns_responder.conf");
+const RESPONDER_CONFIG: &str = include_str!("../../components/mdns_responder.conf");
 
 /// **The host side of the mDNS gate** (milestone 55): the peer on the frame-level hub the runner
 /// wires beside slirp when `NIFE_MCAST_PORT` is set.
@@ -2515,7 +2523,7 @@ const RESPONDER_CONFIG: &str = include_str!("../../user/mdns_responder.conf");
 ///    with the id echoed, the question repeated, everything in the answer section and every TTL
 ///    capped at 10 (RFC 6762 §6.7).
 ///
-/// And the record contents are checked against `user/mdns_responder.conf`, so what is asserted is
+/// And the record contents are checked against `components/mdns_responder.conf`, so what is asserted is
 /// that the machine advertises what it was configured to advertise.
 ///
 /// Same shape and lifecycle as [`InboundProber`]: constructed before the child so the runner
@@ -2560,7 +2568,7 @@ impl MulticastProber {
 
     /// Stop listening, and say whether the whole exchange happened: the guest's announcement seen
     /// raw on the wire, both injected queries answered, and both answers carrying the records
-    /// `user/mdns_responder.conf` describes. The guest's own verdict covers that it answered
+    /// `components/mdns_responder.conf` describes. The guest's own verdict covers that it answered
     /// something; this covers what it said.
     fn report(mut self) -> bool {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -2575,7 +2583,7 @@ impl MulticastProber {
                     "multicast check ({arch}): the guest announced itself on {}.{}.{}.{}, answered \
                      a multicast browse for {MDNS_BROWSE} to the group, and answered a legacy \
                      query unicast to the port it came from. Both carried the PTR, SRV, TXT and A \
-                     records user/mdns_responder.conf describes.",
+                     records components/mdns_responder.conf describes.",
                     MDNS_GROUP[0], MDNS_GROUP[1], MDNS_GROUP[2], MDNS_GROUP[3],
                 );
                 true
@@ -3024,7 +3032,7 @@ fn dns_find<'a>(rs: &[&'a [DnsRecord]], name: &str, rrtype: u16) -> Option<&'a D
 
 /// The records both answers must carry, whatever section they are in: the service PTR pointing at
 /// the instance, the instance's SRV and TXT, and the host's A. **Every value comes from
-/// `user/mdns_responder.conf`**, so this asserts that the machine advertises what it was
+/// `components/mdns_responder.conf`**, so this asserts that the machine advertises what it was
 /// configured to advertise rather than what somebody typed here twice.
 fn check_records(
     msg: &DnsMessage,
@@ -3080,7 +3088,7 @@ fn check_records(
     }
     if got != txt_entries {
         return Err(format!(
-            "the _adisk TXT record says {got:?}, and user/mdns_responder.conf says {txt_entries:?}"
+            "the _adisk TXT record says {got:?}, and components/mdns_responder.conf says {txt_entries:?}"
         ));
     }
 
@@ -3416,7 +3424,7 @@ fn riscv_initrd_path() -> String {
 /// **`gpu_driver` was in that list until 2026-09-09 and did not belong there**, which mattered
 /// because it made `x86_64`'s display look foreclosed by a ratified decision when it is not.
 /// virtio-gpu is PCIe, its BARs are memory, and the driver does not map registers at all: it holds
-/// a kernel-mediated `Virtio` capability (`user/src/gpu_driver.rs`). §121 explicitly grants MMIO
+/// a kernel-mediated `Virtio` capability (`components/src/gpu_driver.rs`). §121 explicitly grants MMIO
 /// devices the mapping-based capability on every architecture. The real reason it does not run
 /// there is that `scripts/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci` onto the bus, which
 /// `kernel/src/user/display_tests.rs` states correctly beside its own skip. A missing device in a
@@ -3436,7 +3444,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // **The first process** (milestone 266). Packed under this name on all three architectures,
         // and the kernel's `riscv_shell_boot` looks it up by it.
         ("progenitor", "progenitor"),
-        ("worker", "worker"),
+        ("least_authority_demo", "least_authority_demo"),
         ("serial_driver", "serial_driver"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
         ("coremark", "coremark"),
@@ -3458,13 +3466,13 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
         // Portable, so both archives carry it and both ISAs answer the same injected query.
         ("mdns_responder", "mdns_responder"),
-        ("budgeter", "budgeter"),
+        ("memory_grant_depleter", "memory_grant_depleter"),
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
         ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("heeder", "heeder"),
-        ("spinner", "spinner"),
+        ("interrupt_heeder", "interrupt_heeder"),
+        ("interrupt_ignorer", "interrupt_ignorer"),
         // The sustained multicore workload (milestone 219): the program `--features soak` builds a
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
@@ -3488,8 +3496,8 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // into the surface it serves. Portable, so both archives carry both.
         ("gpu_driver", "gpu_driver"),
         ("painter", "painter"),
-        // The C seam (milestone 36): the confiner and the Rust shell that links user/c/c_seam.c.
-        // The C is compiled for this ISA by user/build.rs, so the riscv shell carries riscv C.
+        // The C seam (milestone 36): the confiner and the Rust shell that links fixtures/c/c_seam.c.
+        // The C is compiled for this ISA by fixtures/build.rs, so the riscv shell carries riscv C.
         ("c_confiner", "c_confiner"),
         ("c_shim", "c_shim"),
         // The compositor and a window client (milestone 33, rung two). Portable, so both archives
@@ -3612,7 +3620,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
 /// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the
 /// portable programs the second architecture runs and packs them into a nifefs archive. The kernel
 /// enters `progenitor` for the interactive boot and `builder` (milestone 20's minimal system
-/// builder) for the tour; `builder` is the one that loads `worker` by name. Every entry is packed
+/// builder) for the tour; `builder` is the one that loads `least_authority_demo` by name. Every entry is packed
 /// under its own name since milestone 266. Point `NIFE_INITRD` at the result and boot the riscv
 /// kernel, e.g.:
 ///
@@ -3629,10 +3637,22 @@ fn initrd_riscv() -> bool {
     // `audit_sink` (milestone 49) landed in `Cargo.toml` and the packaging table but not here,
     // and CI caught it both times with "cannot read .../audit_sink: No such file or directory".
     // Verified 2026-08-27: `cargo build -p user --target riscv64imac-unknown-none-elf`, unfiltered,
+    // (`user` being the package milestone 175 split into `components` and `fixtures`),
     // compiles clean on current `main` (every program is already riscv64-portable), so the list
     // bought nothing but a place to forget an entry. Now a missing binary is structurally
     // impossible instead of a gate someone has to remember to update.
-    if !run("cargo", &["build", "-p", "user", "--target", RISCV_TARGET]) {
+    if !run(
+        "cargo",
+        &[
+            "build",
+            "-p",
+            "components",
+            "-p",
+            "fixtures",
+            "--target",
+            RISCV_TARGET,
+        ],
+    ) {
         return false;
     }
 
@@ -3709,7 +3729,7 @@ fn initrd_riscv() -> bool {
         return false;
     }
     eprintln!(
-        "wrote {} ({size} bytes): progenitor, builder, worker",
+        "wrote {} ({size} bytes): progenitor, builder, least_authority_demo",
         riscv_initrd_path()
     );
     true
@@ -3779,7 +3799,15 @@ fn x86_initrd_path() -> String {
 /// `initrd_x86_64`, would also rename two already-typed, already-documented subcommand names for a
 /// smaller win). Confirm or redirect.
 fn initrd_x86() -> bool {
-    if !cargo_profiled(&["build", "-p", "user", "--target", X86_TARGET]) {
+    if !cargo_profiled(&[
+        "build",
+        "-p",
+        "components",
+        "-p",
+        "fixtures",
+        "--target",
+        X86_TARGET,
+    ]) {
         return false;
     }
 
@@ -4293,7 +4321,7 @@ const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 /// The initrd is a **nifefs image**, the same format the virtio disk uses, so one parser serves
 /// both the RAM archive and the disk. It holds `progenitor` (the first process, milestone 266) and
 /// `hello` (the role catalogue the kernel re-enters for milestone 19d's tests), plus the distinct
-/// binaries lifted out of hello: `worker` (19f.2) and `console` (19f.3). The kernel reads the
+/// binaries lifted out of hello: `least_authority_demo` (19f.2) and `console` (19f.3). The kernel reads the
 /// `progenitor` entry to boot; the progenitor loads the rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
 /// in git is a blob nobody can review.
 ///
@@ -4330,7 +4358,7 @@ fn initrd_aarch64() -> bool {
         // **The milestone 7-19 role catalogue, under its own name.** `spawn_progenitor` enters it
         // directly for 19d's test roles, so it is in `boot_programs` and measured.
         ("hello", "hello"),
-        ("worker", "worker"),
+        ("least_authority_demo", "least_authority_demo"),
         ("console", "console"),
         ("input", "input"),
         ("swish", "swish"),
@@ -4349,12 +4377,12 @@ fn initrd_aarch64() -> bool {
         ("net_stack", "net_stack"),
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
         ("mdns_responder", "mdns_responder"),
-        ("budgeter", "budgeter"),
+        ("memory_grant_depleter", "memory_grant_depleter"),
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("heeder", "heeder"),
-        ("spinner", "spinner"),
+        ("interrupt_heeder", "interrupt_heeder"),
+        ("interrupt_ignorer", "interrupt_ignorer"),
         // The narrator (milestone 267, provisional name): the milestone narrative, which used to
         // be twenty `println!`s in `kernel_main`. The tour spawns it as the console server's
         // client, so the story is told by a program at EL0 through a driver at EL0. aarch64 only:
@@ -5640,7 +5668,7 @@ fn redoxfs_reads_back(name: &str, want: &[u8]) -> bool {
     }
 }
 
-/// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `worker`,
+/// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `least_authority_demo`,
 /// `console`, and so on. `initrd_aarch64` packs each into the archive, under that same name for every
 /// program but `hello`, which is packed as `init`.
 ///
@@ -5909,7 +5937,9 @@ fn test() -> bool {
             "--exclude",
             "kernel",
             "--exclude",
-            "user",
+            "components",
+            "--exclude",
+            "fixtures",
             "--exclude",
             "user_rt",
             "--exclude",
@@ -6516,7 +6546,9 @@ fn undefined_behavior_check() -> bool {
         "--exclude",
         "kernel",
         "--exclude",
-        "user",
+        "components",
+        "--exclude",
+        "fixtures",
         "--exclude",
         "user_rt",
         "--exclude",
@@ -6534,7 +6566,7 @@ fn undefined_behavior_check() -> bool {
 /// # Why this exists
 ///
 /// Everything else that exercises the shell wires it from **the kernel**, which serves the spawn
-/// protocol in place of `user/src/progenitor.rs`. The shell cannot tell the difference, and
+/// protocol in place of `components/src/progenitor.rs`. The shell cannot tell the difference, and
 /// that is the problem: a change to the progenitor that broke the spawn path fails nothing. The interactive
 /// boot is the only thing that runs the real progenitor, and until this verb existed nothing ran the
 /// interactive boot.
@@ -6667,7 +6699,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // **The named file reaches the viewer and comes back rendered**, which two of this gate's own
     // comments said it did not until 2026-08-18. Both halves of that were fixed elsewhere and the
     // record was never corrected: the input operand now comes off the plan rather than off the
-    // `Line` (`user/src/swish.rs`, the same fix `wc gate.txt | wc` above pins), and
+    // `Line` (`components/src/swish.rs`, the same fix `wc gate.txt | wc` above pins), and
     // `MAX_OUTPUT_CHUNKS` is 4096 rather than the 32 that would have truncated a page to 512 bytes.
     //
     // The numbers are the assertion and not decoration. `gate.txt` is 2 lines, 4 words, 24 bytes
@@ -6804,7 +6836,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // argument, since this program has no `^C` and bounds itself by a typed count instead).
     ("caps watch 3", &["cap 7  endpoint  domain"]),
     // **`uptime`, at the real prompt** (milestone 126). No domain, no clock: the manifest is
-    // `worker`'s, because `monotonic_nanos` is granted to every process unconditionally
+    // `least_authority_demo`'s, because `monotonic_nanos` is granted to every process unconditionally
     // (kernel/src/arch/*/timer.rs's exception to DECISIONS §10). A green line here proves the
     // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
     // elapsed time is not asserted because a real boot's timing is not this check's business.
@@ -6975,21 +7007,21 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // on the screen before anything moves, and a name with a space in it is now something that
     // sentence can be about.
     ("caps wc \"my notes.txt\"", &["input    my notes.txt"]),
-    // **Sequencing and the status** (milestone 67). `worker 3` runs and `worker` alone is refused at
+    // **Sequencing and the status** (milestone 67). `least_authority_demo 3` runs and `least_authority_demo` alone is refused at
     // the prompt for the integer its manifest requires, so these three lines cover both arms of the
     // condition table with real commands rather than with a branch written for a gate.
-    ("worker 3 && echo yes", &["yes"]),
-    ("worker || echo no", &["no"]),
-    // **The decision this milestone settled, read at a prompt.** `worker` alone is refused, and a
+    ("least_authority_demo 3 && echo yes", &["yes"]),
+    ("least_authority_demo || echo no", &["no"]),
+    // **The decision this milestone settled, read at a prompt.** `least_authority_demo` alone is refused, and a
     // refusal is not an error: nothing was spawned, nothing was opened, and the status says so with
     // its own number. Unix cannot draw this line, because there `127` and a program's own `exit(1)`
     // are the same kind of integer.
     //
-    // The bare `worker` is here because the *first* draft of this gate put `echo $?` straight after
-    // `worker || echo no` and got `0`, which was the shell being right: the last thing that ran was
+    // The bare `least_authority_demo` is here because the *first* draft of this gate put `echo $?` straight after
+    // `least_authority_demo || echo no` and got `0`, which was the shell being right: the last thing that ran was
     // the `echo`. `$?` is the previous **command**, not the previous line, and that is bash's rule
     // and this shell's.
-    ("worker", &["needs an integer argument"]),
+    ("least_authority_demo", &["needs an integer argument"]),
     ("echo $?", &["2"]),
     // **Init's job budget is bounded and comes back** (milestone 22, the interactive increment).
     // Init now holds a pool with room for six live jobs instead of the kernel's whole construction
@@ -7008,12 +7040,12 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // one lane.) Six distinct arguments rather than one repeated, because the
     // transcript is walked with a moving cursor and six identical answers would let a missed line
     // pass as its neighbour.
-    ("worker 3", &["3*3 = 9"]),
-    ("worker 4", &["4*4 = 16"]),
-    ("worker 5", &["5*5 = 25"]),
-    ("worker 6", &["6*6 = 36"]),
-    ("worker 7", &["7*7 = 49"]),
-    ("worker 8", &["8*8 = 64"]),
+    ("least_authority_demo 3", &["3*3 = 9"]),
+    ("least_authority_demo 4", &["4*4 = 16"]),
+    ("least_authority_demo 5", &["5*5 = 25"]),
+    ("least_authority_demo 6", &["6*6 = 36"]),
+    ("least_authority_demo 7", &["7*7 = 49"]),
+    ("least_authority_demo 8", &["8*8 = 64"]),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
@@ -7544,25 +7576,25 @@ fn shell_check_leg(riscv: bool) -> bool {
     //
     // **The whole transcript, not the boot**, because the typed script is where a death would be
     // most surprising. Nothing in `SHELL_CHECK_SCRIPT` traps on purpose: the three lines that fail
-    // (`wc` and `doc` with nothing named, `worker` with no argument) are all refusals, two at the
+    // (`wc` and `doc` with nothing named, `least_authority_demo` with no argument) are all refusals, two at the
     // prompt before anything is spawned and one an ordinary non-zero exit, and `rm gate.txt`'s
-    // refusal is an answer rather than a fault. `echo $?` reading `2` right after `worker` is this
+    // refusal is an answer rather than a fault. `echo $?` reading `2` right after `least_authority_demo` is this
     // gate's own proof of that distinction: a thread the kernel killed does not get to set a status.
     // A trap in any of them would be a real regression rather than a false positive here.
     //
     // **What a deliberate trap does was measured rather than assumed** (milestone 233), because
-    // milestone 230's lane named it as the thing it could not cheaply find out. `worker` was
-    // patched to `supervision_proto::fail()` on `worker 5` and this gate run against it. Two
+    // milestone 230's lane named it as the thing it could not cheaply find out. `least_authority_demo` was
+    // patched to `supervision_proto::fail()` on `least_authority_demo 5` and this gate run against it. Two
     // results, and the second is the more interesting one:
     //
     //   1. This check fires, naming the thread and the reason, so it is a check that can fail
     //      rather than one that only ever passes. That mattered: it was written against a tree
     //      where `login` had just stopped dying, so nothing else would have exercised it.
     //   2. **The prompt never comes back.** The run also failed with "the prompt never came back
-    //      to take `worker 6`", because the shell waits on the result endpoint of a job that
+    //      to take `least_authority_demo 6`", because the shell waits on the result endpoint of a job that
     //      faulted instead of sending, and nothing wakes that wait. A spawned command that traps
     //      hangs the shell rather than returning a status. That is a real limitation this gate now
-    //      makes visible, and it is `user/src/swish.rs`'s to carry rather than this file's.
+    //      makes visible, and it is `components/src/swish.rs`'s to carry rather than this file's.
     //
     // The first two of `KERNEL_FAULT_TOKENS` rather than one string, and that constant's own doc
     // carries why. The same pair is what `kernel_wrote_during_boot` reads, which is the other half
@@ -8988,7 +9020,8 @@ fn tree_sections() -> Vec<Shelf> {
     // with no conversion and no copy: the result names the source file, which is the thing to open.
     for (shard, dir, file) in [
         ("crates", "crates", "src/lib.rs"),
-        ("programs", "user/src", ""),
+        ("components", "components/src", ""),
+        ("fixtures", "fixtures/src", ""),
     ] {
         let mut docs = Vec::new();
         collect_module_docs(&root.join(dir), &root, file, &mut docs);

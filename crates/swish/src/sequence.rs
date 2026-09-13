@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn a_line_with_no_connector_is_one_segment() {
         for line in [
-            &b"worker 9"[..],
+            &b"least_authority_demo 9"[..],
             b"echo hello  world",
             b"date | wc",
             b"wc < a | wc > b",
@@ -252,12 +252,12 @@ mod tests {
 
     #[test]
     fn the_three_connectors_cut_the_line_and_keep_what_joined_it() {
-        let s = segs(b"date ; worker 3 && echo ok || echo no");
+        let s = segs(b"date ; least_authority_demo 3 && echo ok || echo no");
         assert_eq!(
             s.segments(),
             [
                 (Joint::First, &b"date"[..]),
-                (Joint::Always, &b"worker 3"[..]),
+                (Joint::Always, &b"least_authority_demo 3"[..]),
                 (Joint::OnSuccess, &b"echo ok"[..]),
                 (Joint::OnFailure, &b"echo no"[..]),
             ],

@@ -64,7 +64,7 @@ deletions.
 Left alone, matching `Endpoint`'s own scope call: bare short local variable and parameter names
 that are exactly `tid` or `tcb` with no further word attached (the same restraint the `Endpoint`
 rename used, keeping `ep` unchanged throughout `kernel/src/sched.rs`); informal lowercase "tcb"/"TCB" prose describing
-the concept in English rather than naming the identifier (`user/src/hello.rs`'s "(endpoint | aspace
+the concept in English rather than naming the identifier (`fixtures/src/hello.rs`'s "(endpoint | aspace
 | tcb)" list stayed lowercase, matching how "endpoint" stayed lowercase there after that rename);
 and one historical citation in `crates/abi/src/lib.rs`'s own crate-naming rationale, which names
 `Tcb`/`Aspace`/`Untyped` as the abbreviations a naming review "sank" -- renaming that citation to
@@ -94,11 +94,11 @@ of lowercase kernel functions (`aspace_cap` -> `address_space_cap`, `user_aspace
 `reap_aspaces_in_region` -> `reap_address_spaces_in_region`, `readopt_user_aspace` ->
 `readopt_user_address_space`, `aspace_list` -> `address_space_list`); a whole kernel test-infra module
 file (`kernel/src/user/aspace_service.rs` -> `kernel/src/user/address_space_service.rs`, with its
-`aspace_builder`/`ASPACE_BUILDER` sibling in `user/src/hello.rs` renamed to
+`aspace_builder`/`ASPACE_BUILDER` sibling in `fixtures/src/hello.rs` renamed to
 `address_space_builder`/`ADDRESS_SPACE_BUILDER` to match); a lock-rank constant
 (`kernel/src/sync.rs`'s `ASPACES` -> `ADDRESS_SPACES`); and per-program constants
-(`user/src/pmap.rs`'s `ASPACE_SLOT` -> `ADDRESS_SPACE_SLOT`,
-`user/src/os_primitives_benchmarker.rs`'s `MAP_ASPACE` -> `MAP_ADDRESS_SPACE`). The `FreeVas`
+(`components/src/pmap.rs`'s `ASPACE_SLOT` -> `ADDRESS_SPACE_SLOT`,
+`fixtures/src/os_primitives_benchmarker.rs`'s `MAP_ASPACE` -> `MAP_ADDRESS_SPACE`). The `FreeVas`
 companion (`kernel/src/thread.rs`'s stack-VA-range free list, an unrelated subsystem reached by the
 same abbreviation per DECISIONS §113) was 10 occurrences across 3 files (`thread.rs`, `stack.rs`,
 `sched.rs`); renamed `struct FreeVas` -> `struct FreeAddressSpace` and
@@ -227,7 +227,7 @@ several genuinely distinct in-tree senses that all had to be told apart before t
 
 - **`crates/compositor`'s own sense, a rendered screen update** (the collision §113 named). Left
   untouched throughout `crates/compositor/src/lib.rs`, `kernel/src/user/compositor_service.rs`,
-  `user/src/compositor.rs` (`serve_frame`, "Serve one frame. Read every client's control page,
+  `components/src/compositor.rs` (`serve_frame`, "Serve one frame. Read every client's control page,
   composite whatever changed"), and `crates/watch`/`kernel/src/user/watch_tests.rs`
   (`a_second_frame_erases_the_first_rather_than_leaving_it_on_screen`, a terminal redraw, the same
   sense). Two of these instances sit on lines immediately adjacent to genuine `PageFrame` renames in
@@ -239,7 +239,7 @@ several genuinely distinct in-tree senses that all had to be told apart before t
   `eret`/`sret` restores from), every architecture's `exceptions.rs`, and `notes/frames.md`'s own
   stack-overflow postmortem section all use "frame" for this unrelated concept and were left alone.
 - **A raw network frame (Ethernet/ARP/mDNS), also not anticipated by §113.** `crates/virtio::send_frame`
-  (a virtio-net transmit), `user/src/net_transport.rs`'s `VnetRxToken { frame: Vec<u8> }`, and
+  (a virtio-net transmit), `components/src/net_transport.rs`'s `VnetRxToken { frame: Vec<u8> }`, and
   `xtask/src/main.rs`'s `arp_request_frame`/`mdns_query_frame` packet builders. None renamed.
 - **Arbitrary example text, unrelated to any of the above.** `crates/manual/src/index.rs`'s search-
   index tokenizer test used the literal string `` `Frame` `` as stand-in content to exercise a

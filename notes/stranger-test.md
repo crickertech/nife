@@ -293,7 +293,7 @@ question the tree does not answer.
 | M2 | Why is there no ambient network, and what must a program hold to reach one? | names a held capability rather than a config flag or a permission bit |
 | M3 | Where does architecture-specific code live, and what breaks if it lives elsewhere? | `kernel/src/arch/`, and that the port becomes a diff across every file |
 | M4 | What does `BUILT` mean on a roadmap row, and `PARTIAL`? | that it is a claim about the tree, and that the index and the block must agree |
-| M5 | Why is there a `crates/` and a `user/src/`, and what decides which? | shared-by-two-binaries goes in `crates/`; host-testable and Kani-reachable is the reason |
+| M5 | Why is there a `crates/` and a `components/src/`, and what decides which? | shared-by-two-binaries goes in `crates/`; host-testable and Kani-reachable is the reason |
 | M6 | What is a `BUGS` section for? | a promise about known limits, not an apology, and next to the feature |
 | M7 | How would you add a program, and what must you declare about it? | the grant manifest, and that a provisional name is expected |
 | M8 | Who decides a name, and what provenance states can one be in? | calef; the states `script/names` accepts, which is four as of §89: `ratified`, `recorded`, `unrecorded`, `provisional` |
@@ -937,7 +937,7 @@ transcript on success, so a green run teaches nothing; and that this machine was
 | M2 | **absent**, for the third run in four, and it said so plainly | *"I did not find this, and I should be clear about how little I looked."* It never opened `notes/net.md`, saw it cited once in a failure line, and reasoned correctly from `crates/grant_plan`'s `Manifest` having no socket field that no shell-spawnable program can reach the network. It could not say what a networked program holds |
 | M3 | **partly answered** | `CONTRIBUTING.md` for `kernel/src/arch/`, verified by checking that the only `asm!` outside it is in comments. On the consequence it said it found no file stating it, and gave the parity gate instead of the diff-across-every-file; the file that states it is `AGENTS.md`, which it never opened |
 | M4 | **answered** | `design/roadmap/README.md`, with the rule that the column is wrong and the block is right when they disagree |
-| M5 | **answered** | `CONTRIBUTING.md` for both criteria, with host-testable and Kani-reachable named as the load-bearing one, and the `crates/swish` + `user/src/swish.rs` pairing read off the tree |
+| M5 | **answered** | `CONTRIBUTING.md` for both criteria, with host-testable and Kani-reachable named as the load-bearing one, and the `crates/swish` + `components/src/swish.rs` pairing read off the tree |
 | M6 | **answered, quoted rather than induced** | `CONTRIBUTING.md`, and then the observation that `notes/adding-a-program.md`'s `BUGS` section held the most useful things it learned and none of them are in that page's steps |
 | M7 | **answered by doing it**, and it found an eighth site | added `nth`, working on both ISAs, and listed the eight edits with the `Manifest` as what you declare, provisional name included |
 | M8 | **answered** | four states, `CONTRIBUTING.md` for who decides, `notes/adding-a-program.md` for the states, and it ran `script/names --provisional` and found its own hour-old name listed first |

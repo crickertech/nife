@@ -33,7 +33,7 @@ cd "$(dirname "$0")/.."
 # The "host pass excludes exactly the bare-metal crates" gate below derives this set rather than
 # trusting this line.
 echo "==> clippy: host crates + xtask"
-cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt \
+cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_rt \
     --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
     --all-targets -- -D warnings
 
@@ -112,13 +112,13 @@ rustc --edition 2024 --crate-type lib --crate-name kani \
 # kernel's harnesses. What still covers them: `script/verify` builds them for real and gates rustc
 # lints through `RUSTFLAGS`, and `script/lint`'s aarch64 pass below compiles the same file without
 # the cfg. Keep kernel harnesses free of `unsafe` while this holds.
-cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt \
+cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_rt \
     --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
     --all-targets -- \
     --cfg kani --extern "kani=$shim/libkani.rlib" -L "$shim" -D warnings
 
 echo "==> clippy: kernel + user + user_rt (aarch64)"
-cargo clippy -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloat --all-targets -- -D warnings
+cargo clippy -p kernel -p components -p fixtures -p user_rt --target aarch64-unknown-none-softfloat --all-targets -- -D warnings
 
 # The third architecture (milestone 161). **The kernel BINARY only, with dead code allowed**, and
 # every one of those narrowings is a scope gap rather than an oversight, so they are named here,
@@ -193,7 +193,7 @@ cargo clippy -p kernel --features cycle_counter_grant --target x86_64-unknown-no
 # it, a lane could add an aarch64/riscv64 pair to a user program and never learn that x86 fell
 # through to nothing until `cargo xtask test --arch x86_64` failed to pack an archive.
 echo "==> clippy: user + user_rt (x86_64)"
-cargo clippy -p user -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings
+cargo clippy -p components -p fixtures -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings
 
 # The kernel's build-mode features (shell, bench, initboot, soak, cycle_counter_grant) each compile
 # DIFFERENT code in and out:
@@ -1612,8 +1612,10 @@ echo "==> naming conventions"
 naming_allow=" asid uuid "
 named_for_a_daemon=""
 for name in \
-    $(ls "$(dirname "$0")/../user/src" | sed 's/\.rs$//') \
-    $(grep -A1 '^\[\[bin\]\]' "$(dirname "$0")/../user/Cargo.toml" | sed -n 's/^name = "\(.*\)"$/\1/p') \
+    $(ls "$(dirname "$0")/../components/src" | sed 's/\.rs$//') \
+    $(ls "$(dirname "$0")/../fixtures/src" | sed 's/\.rs$//') \
+    $(grep -A1 '^\[\[bin\]\]' "$(dirname "$0")/../components/Cargo.toml" | sed -n 's/^name = "\(.*\)"$/\1/p') \
+    $(grep -A1 '^\[\[bin\]\]' "$(dirname "$0")/../fixtures/Cargo.toml" | sed -n 's/^name = "\(.*\)"$/\1/p') \
     $(ls "$(dirname "$0")/../crates")
 do
     case "$name" in
@@ -1765,7 +1767,7 @@ esac
 #    Anything two binaries must agree on is a crate; a `#[path]` module is not one, and the cost is
 #    not tidiness. Such a module is unreachable by host tests AND by Kani, so the constants two
 #    programs share are checked by nothing. `cseam` was the proof: it stated the shared-memory
-#    layout twice, once in Rust and once in `user/c/c_seam.c`, with no test that they agreed, and a
+#    layout twice, once in Rust and once in `fixtures/c/c_seam.c`, with no test that they agreed, and a
 #    drift would have surfaced as a C component writing to the wrong offset.
 #
 #    A module with exactly ONE consumer is fine and stays fine: that is an ordinary submodule, and
@@ -1781,9 +1783,12 @@ esac
 #    already had one doing the same thing. An entry here needs that kind of reason.
 path_module_allow=" "
 shared_modules=""
-for target in $(grep -rhoE '#\[path = "[a-z_0-9]+\.rs"\]' "$(dirname "$0")/../user/src" 2>/dev/null |
+program_src="$(dirname "$0")/../components/src $(dirname "$0")/../fixtures/src"
+# shellcheck disable=SC2086
+for target in $(grep -rhoE '#\[path = "[a-z_0-9]+\.rs"\]' $program_src 2>/dev/null |
                 sed 's/.*"\(.*\)\.rs".*/\1/' | sort -u); do
-    consumers=$(grep -rlE "^mod $target;" "$(dirname "$0")/../user/src" 2>/dev/null | wc -l | tr -d ' ')
+    # shellcheck disable=SC2086
+    consumers=$(grep -rlE "^mod $target;" $program_src 2>/dev/null | wc -l | tr -d ' ')
     if [ "$consumers" -gt 1 ]; then
         case "$path_module_allow" in
             *" $target "*) ;;
@@ -2346,7 +2351,7 @@ if ! command -v cargo-machete >/dev/null 2>&1; then
     echo "lint: cargo-machete not found; run script/bootstrap (it installs it)." >&2
     exit 1
 fi
-cargo machete crates kernel user xtask redoxfs_server tools/redoxfs_host >/dev/null
+cargo machete crates kernel components fixtures xtask redoxfs_server tools/redoxfs_host >/dev/null
 echo "unused dependencies: none in our packages"
 
 # A `#[test]` inside a `#[cfg(kani)]` module never runs, and nothing says so. `cargo test` does not

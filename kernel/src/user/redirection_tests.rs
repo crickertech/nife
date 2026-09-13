@@ -3,7 +3,7 @@ use pipeline_service::{answer, counts};
 
 use super::*;
 
-/// The last line `user/src/swish.rs`'s redirection role prints. Must match `REDIRECT_DONE`.
+/// The last line `components/src/swish.rs`'s redirection role prints. Must match `REDIRECT_DONE`.
 const DONE: &[u8] = b"== redirections done\n";
 
 /// The script's transcript, run **once** and shared by every assertion below, for
@@ -281,7 +281,7 @@ fn append_keeps_what_truncate_throws_away() {
 /// spawned. The alternative, an empty stream, would have `wc` truthfully report zero for a file
 /// that does not exist, which is a number a person would believe.
 ///
-/// And the manifest still wins over the capability: `worker 9 > out.txt` is refused for having
+/// And the manifest still wins over the capability: `least_authority_demo 9 > out.txt` is refused for having
 /// no byte stream even in a shell that could open the file, because what a `>` needs is a
 /// program with bytes and not a shell with a directory.
 #[test_case]
@@ -301,12 +301,12 @@ fn a_redirection_that_cannot_be_backed_is_still_refused() {
         core::str::from_utf8(said).unwrap_or("<not utf-8>"),
     );
 
-    let said = answer(t, b"worker 9 > out.txt");
+    let said = answer(t, b"least_authority_demo 9 > out.txt");
     assert!(
         core::str::from_utf8(said)
             .unwrap_or("")
             .contains("byte stream"),
-        "`worker 9 > out.txt` should be refused for having no bytes: {:?}",
+        "`least_authority_demo 9 > out.txt` should be refused for having no bytes: {:?}",
         core::str::from_utf8(said).unwrap_or("<not utf-8>"),
     );
 

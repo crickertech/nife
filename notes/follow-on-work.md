@@ -130,7 +130,7 @@ told to write a proposal has to go and look at the tree, which nothing had made 
 
 - Milestone 54 asked for a roadmap status word meaning "built, then removed". **calef minted
   `REMOVED` on 2026-08-30**, the same day the code went, and the block's own status line reads it.
-- Milestone 57 wanted partitioning on the target. **`user/src/disk_partitioner.rs`**, commit
+- Milestone 57 wanted partitioning on the target. **`components/src/disk_partitioner.rs`**, commit
   `4db2fd74`, holds a disk endpoint and an entropy endpoint, draws four v4 GUIDs and writes both
   table copies.
 - Milestone 57 wanted `mkfs` on the target, and called the `vendor/redoxfs` divergence calef's to

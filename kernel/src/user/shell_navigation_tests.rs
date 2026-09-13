@@ -4,7 +4,7 @@ use filesystem_proto::fixture::{navscape as nb, tree};
 use super::*;
 use crate::sched;
 
-/// The `swish` binary's navigating role (`user/src/swish.rs`).
+/// The `swish` binary's navigating role (`components/src/swish.rs`).
 const ROLE_NAVIGATE: u64 = 1;
 
 /// The bits every navigating shell must report whatever it was rooted in: `pwd` at its root,

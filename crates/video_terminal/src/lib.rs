@@ -3,7 +3,7 @@
 //!
 //! Bytes in, a character grid out, plus the rectangle that changed. Sans-IO, exactly as the
 //! `line_editor` crate is: this crate holds no endpoint, makes no syscall, and has never heard of a
-//! framebuffer. `user/src/display_terminal.rs` feeds it and paints what it says.
+//! framebuffer. `components/src/display_terminal.rs` feeds it and paints what it says.
 //!
 //! # Why this shape
 //!
@@ -344,7 +344,7 @@ impl CellRect {
 
     /// The bounding box of two rectangles. Public because a client that must carry damage forward
     /// across a frame the compositor has not acknowledged yet does the same accumulation
-    /// (`user/src/display_terminal.rs`), and two spellings of a bounding box is one too many.
+    /// (`components/src/display_terminal.rs`), and two spellings of a bounding box is one too many.
     pub const fn union(self, o: CellRect) -> CellRect {
         let col = if self.col < o.col { self.col } else { o.col };
         let row = if self.row < o.row { self.row } else { o.row };
@@ -473,7 +473,7 @@ impl Vt {
     /// than using `Ord::clamp`, which is not `const`.
     ///
     /// A **runtime** geometry must not call this directly and bind the result (see the struct doc);
-    /// construct once with any geometry (typically `(1, 1)`, as `user/src/display_terminal.rs`'s
+    /// construct once with any geometry (typically `(1, 1)`, as `components/src/display_terminal.rs`'s
     /// `static` does) and call [`Vt::reset_to`] instead.
     pub const fn new(cols: u32, rows: u32) -> Vt {
         let cols = Self::clamp_cols(cols);
@@ -534,7 +534,7 @@ impl Vt {
     /// field, so a caller with a **runtime** geometry never needs a `Vt`-sized return value or
     /// local (see this struct's own doc for why that is now a real hazard rather than a style
     /// preference). Typical use: a `static mut` constructed once at `(1, 1)`, retargeted here the
-    /// moment the real geometry is known (`user/src/display_terminal.rs`'s own bring-up, a kernel
+    /// moment the real geometry is known (`components/src/display_terminal.rs`'s own bring-up, a kernel
     /// test that read a window's size off a control page).
     pub fn reset_to(&mut self, cols: u32, rows: u32) {
         let cols = Self::clamp_cols(cols);

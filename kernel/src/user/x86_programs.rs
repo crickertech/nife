@@ -2,7 +2,7 @@
 //!
 //! Milestone 161, roadmap item 4. Every other architecture in this tree runs real ELF binaries out
 //! of an initrd; `x86_64-unknown-none` has none, because `crates/user_rt` has no arms for this ISA
-//! and `user/build.rs` cannot compile its C components for it (notes/x86-port.md). So the programs
+//! and `fixtures/build.rs` cannot compile its C components for it (notes/x86-port.md). So the programs
 //! the kernel needs in order to *have* a userspace at all are written here as machine code, exactly
 //! as the other two ports' test fixtures still are (`user/supervision_tests.rs`,
 //! `user/force_kill_tests.rs`), and for the same reason: a four-instruction program that faults on

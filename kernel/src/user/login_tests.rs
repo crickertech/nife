@@ -3,7 +3,7 @@ use login_service as ls;
 use super::*;
 use crate::sched;
 
-/// The login service's construction budget (`user/src/login.rs`'s `CONSTRUCTION_UT`), sized for
+/// The login service's construction budget (`components/src/login.rs`'s `CONSTRUCTION_UT`), sized for
 /// this suite's exact needs rather than guessed generously: `crate::memory_region::create` reserves this
 /// many frames from the boot's free pool the moment `ls::start` runs, and this number is a direct,
 /// permanent charge against `kernel::testing::SUITE_PAGE_FRAME_BUDGET` **for the logins this suite never
@@ -145,7 +145,7 @@ fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_page_frame: u64, name: &[u
 ///
 /// Memoized on `credential_tests::provisioned`'s own terms and for the same reason: the login
 /// service's construction budget is spent and never reclaimed by design in this slice (see
-/// `user/src/login.rs`'s BUGS), so a re-wiring test-to-test would exhaust it for nothing.
+/// `components/src/login.rs`'s BUGS), so a re-wiring test-to-test would exhaust it for nothing.
 ///
 /// `None` when a dependency this depends on is not attached to this run: no virtio-rng
 /// (`credential_tests::provisioned`'s own condition) or no RedoxFS disk (`fs_service`'s). Both are
@@ -370,7 +370,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 }
 
 /// **Two clients reaching the front door together get independent channels, and neither observes
-/// the other's secret.** Milestone 49's channel-per-client update (`user/src/login.rs`'s own BUGS,
+/// the other's secret.** Milestone 49's channel-per-client update (`components/src/login.rs`'s own BUGS,
 /// "Resolved"): before it, `REQUEST`/`RESULT` and a single shared staging page carried every
 /// client's identity and secret for the service's whole life, so two callers reaching the front door
 /// close together could corrupt or observe each other's presented credential. `ls::spawn_client`
@@ -474,11 +474,11 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
 
 /// **Nothing else would have caught this**: `login`'s own capability table has sixteen slots
 /// (`kernel::cap::CAPABILITY_TABLE_SLOTS`), eight are spent at rest (`REQUEST`..`AUDIT` plus its own scratch
-/// untyped), and before `user/src/login.rs`'s `mint` learned to drop its own copy of the
+/// untyped), and before `components/src/login.rs`'s `mint` learned to drop its own copy of the
 /// caretaker's construction region, that region's capability was never freed on a successful
 /// login. That left room for exactly eight successful logins ever; a ninth, correctly
 /// authenticated, was silently answered [`login_proto::DENIED`], indistinguishable from a wrong
-/// password, at a far tighter ceiling than the memory bound `user/src/login.rs`'s BUGS documents.
+/// password, at a far tighter ceiling than the memory bound `components/src/login.rs`'s BUGS documents.
 ///
 /// This performs **six** successful logins against one service instance, on top of the three the
 /// headline test and the two-identity test above already performed against the same memoized
@@ -490,7 +490,7 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
 /// accident.
 ///
 /// Six rather than nine performed here directly: a real login's `CARETAKER_REGION_PAGES` and
-/// `CLIENT_BUDGET_PAGES` are permanently unreclaimable memory (see `user/src/login.rs`'s BUGS), so
+/// `CLIENT_BUDGET_PAGES` are permanently unreclaimable memory (see `components/src/login.rs`'s BUGS), so
 /// every attempt this test adds is a permanent charge against `kernel::testing::SUITE_PAGE_FRAME_BUDGET`
 /// and not merely against `CONSTRUCTION_PAGES`. Reusing the other two tests' three logins rather
 /// than repeating them here is what keeps that charge to what actually proves the fix.
@@ -660,7 +660,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
 /// `MKDIR` never reaching this file service's disk. `mint`'s caretaker construction reaches the
 /// same `OPENDIR`-against-a-missing-name refusal, and `login`'s existing fold answers it with
 /// [`login_proto::DENIED`], the same code [`login_denies_a_wrong_secret_and_sends_nothing_further`]
-/// above already proves a wrong password gets. See `user/src/login.rs`'s own BUGS for the reasoning
+/// above already proves a wrong password gets. See `components/src/login.rs`'s own BUGS for the reasoning
 /// (a caller must not be able to tell "your identity has no home" from "your password is wrong" by
 /// comparing outcomes across attempts).
 ///
@@ -689,7 +689,7 @@ fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
 /// reads [`measured_boot::PROGRAM_MEASUREMENTS`] out of the same archive it reads
 /// `fs_subtree_caretaker` from and calls [`measured_boot::verify_in_manifest`] before it will ever
 /// build a caretaker from those bytes, the identical check `crates/system_initializer::measured`
-/// performs for its own six boot components (see `user/src/login.rs`'s own BUGS, "Resolved,
+/// performs for its own six boot components (see `components/src/login.rs`'s own BUGS, "Resolved,
 /// 2026-08-24", for the full reasoning, including why this is a boot-time check rather than a
 /// per-login one, and why the fold into [`login_proto::DENIED`] it produces on refusal is not the
 /// same anti-oracle reasoning a wrong password or a missing subtree gets).
@@ -746,7 +746,7 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 }
 
 /// **Nothing else would have caught this**: the caretaker-teardown fix (this milestone; see
-/// `user/src/login.rs`'s own BUGS, "Resolved"), proven by needing more memory than could possibly
+/// `components/src/login.rs`'s own BUGS, "Resolved"), proven by needing more memory than could possibly
 /// fit if a session's pages did not actually come back. `wired()`'s shared instance holds
 /// `CONSTRUCTION_PAGES` in total, and all but a few hundred pages of that is already permanently
 /// spent by the tests above (this file's own accounting comment on that constant); what is left
@@ -765,7 +765,7 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// failed reproducibly on its *second* iteration, refusing a correct password. Ten cycles in a row
 /// is what made it visible at all, because the cause was a two-slot-per-connect leak of `login`'s
 /// own sixteen-slot capability table, and a service that never serves two logins in a row cannot
-/// show it. See `user/src/login.rs`'s BUGS ("Resolved, 2026-08-26") for the mechanism and for the
+/// show it. See `components/src/login.rs`'s BUGS ("Resolved, 2026-08-26") for the mechanism and for the
 /// four memory hypotheses that were measured and ruled out before it was found.
 #[test_case]
 fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
@@ -805,7 +805,7 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
              number near that ceiling means the caretaker never died, which is a kernel bug and \
              not this host being slow; a number far under it means the client stopped waiting \
              early, which is the defect that ceiling replaced. See \
-             user/src/login_test_client.rs's `destroy_with_retry`.",
+             fixtures/src/login_test_client.rs's `destroy_with_retry`.",
             r[2],
             ls::DESTROY_WAIT_MICROS,
         );
