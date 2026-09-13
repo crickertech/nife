@@ -137,8 +137,8 @@
 //! is `notes/jh7110-clock-and-reset.md`.
 //!
 //! Name: ratified 2026-09-13 (calef, working the unratified worklist), replacing the provisional
-//! `jh7110_clock_and_reset`. CRG expands to clock and reset generator and the expansion teaches, which the old
-//! block already conceded. Refused `jh7110_clock` (this controller also owns resets, so a name
+//! `jh7110_crg`. CRG expands to clock and reset generator and the expansion teaches, which the
+//! old block already conceded. Refused `jh7110_clock` (this controller also owns resets, so a name
 //! saying only clock makes the reset half read as a surprise), `jh7110_clkgen` (the vendor's label,
 //! naming one of two published spellings while this crate reads both), and
 //! `jh7110_clock_and_reset_generator` (the generator is the hardware; what this crate is, is the two
