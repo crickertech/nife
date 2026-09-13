@@ -1620,7 +1620,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //
         // It was three things wearing one name: a machine description, a narrative, and a set of
         // demonstrations. The description is `print_machine_description` above and prints on every
-        // boot. The narrative is `user/src/narrator.rs` and runs at EL0. What remains here is the
+        // boot. The narrative was `user/src/narrator.rs`, a program at EL0, and is deleted
+        // (milestone 267's block records what it said and why it went). What remains here is the
         // third thing, and every entry is here because it needs a privilege a program does not
         // have. The list is short on purpose, and it is the whole list:
         //
@@ -1643,8 +1644,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //     number is the kernel's own frame accounting and is not exposed to EL0 (see the
         //     preemption-counter note in design/roadmap/267-*.md: an ambient fact nobody needs yet).
         //
-        // The console server and the narrator are started at the top of this block rather than
-        // being on that list. They are not survivors; they are the move.
+        // The console server is started at the top of this block rather than being on that list.
+        // It is not a survivor either, and since the narrator was deleted it is not the move
+        // either: it comes up with nothing to print. See the block below.
         //
         // Compiled out by `cargo xtask shell` and `cargo xtask initboot`, which boot straight to
         // the system instead of scrolling all of this first. **Both features mean exactly this
@@ -1653,37 +1655,30 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // decided here.
         #[cfg(not(any(feature = "shell", feature = "initboot")))]
         {
-            // **The narrative is a program** (milestone 267). These nine lines were twenty
-            // `println!`s here until then, and nothing about them needed EL1: they are text, and
-            // text in the kernel costs bytes on every boot including the ones that compile it out.
+            // **The console server, with nothing to print through it.** Milestone 267 moved the
+            // nine-line milestone narrative out of `kernel_main` into `user/src/narrator.rs` and
+            // spawned it here as this server's client; calef ruled the narrator deleted on
+            // 2026-09-13 and the client went with it. What is left is the server: `user/src/
+            // console.rs`, a UART driver at EL0, spawned and then idle on its request endpoint
+            // because nothing else in this boot holds a capability to it.
             //
-            // So the console server comes up first now, and `narrator` is its client. The story is
-            // told by a program at EL0, through a driver at EL0 that holds the UART's registers,
-            // and the last thing the story claims is exactly that. It used to be the kernel
-            // claiming it on the program's behalf, which was the one line of the tour not
-            // demonstrated by the thing saying it.
+            // **That is a question, not a design**, and it is deliberately left open here rather
+            // than answered by deleting one more thing: whether a boot-time console server earns
+            // its bring-up once its only client is gone is calef's call, because deleting it
+            // removes infrastructure rather than a demonstration. Milestone 267's block states the
+            // case both ways. The interactive system does not reach this code at all; it builds
+            // its own console through `boot_via_progenitor` further down.
             //
             // The initrd is asked for first because both `expect`s inside
             // `console_service::start` are about the archive rather than the machine: a run with no
-            // `-initrd` has no console program to start and no narrator to run, and the initrd
-            // step further down is where that boot says so.
+            // `-initrd` has no console program to start, and the initrd step further down is where
+            // that boot says so.
             //
-            // Written as a `map` rather than the `is_some() && let` that reads more directly,
-            // because it measures 340 bytes smaller in the release kernel's `.text` (194,336
-            // against 193,996 by `script/fastpath-footprint`'s method). That is 0.17% and it is
-            // also, as milestone 267's block records, larger than anything the nine lines of prose
-            // this block used to hold ever weighed. Both facts are worth a reader knowing.
-            let console = user::initrd().map(|_| user::console_service::start());
-            if let Some(console) = console
-                && let Some(image) = user::program("narrator")
-            {
-                use crate::arch::timer;
-                user::console_service::spawn_client(image, console);
-                // Long enough for fifteen short lines, each of which is one rendezvous round trip
-                // through the server. The kernel's own `println!` resumes after it, so this window
-                // is also what keeps two writers off the same UART.
-                timer::spin_for(timer::frequency() / 10);
-            }
+            // The `map` form is milestone 267's and is kept rather than rewritten. It was chosen
+            // over `is_some() && let` on a measurement (340 bytes of `.text`), but that comparison
+            // was made against a two-condition `if let` that no longer exists here, so the number
+            // is history rather than a live claim about this line.
+            let _console = user::initrd().map(|_| user::console_service::start());
 
             // The whole argument, executable.
             {
