@@ -11,7 +11,7 @@
 //! [`Command`], and for a program invocation an [`Endowment`] (exactly what to grant the child) or a
 //! typed [`Refusal`] the shell prints at the prompt. That split is DECISIONS §7 applied, the same
 //! shape as `line_editor`: the parsing and the manifest checking are host-tested in milliseconds, and
-//! only the wiring (the shell and init that carry the caps) needs QEMU. See
+//! only the wiring (the shell and the progenitor that carry the caps) needs QEMU. See
 //! notes/grant-expression.md and notes/program-manifest.md.
 //!
 //! # The grammar, after milestone 47 took two words out of it
@@ -55,7 +55,7 @@
 //!
 //! # The wire half
 //!
-//! [`spawnproto`] is the word layout for the shell-to-init spawn protocol, the capability-shell
+//! [`spawnproto`] is the word layout for the shell-to-progenitor spawn protocol, the capability-shell
 //! analogue of `line_editor::proto`. It is a userspace protocol (DECISIONS §21's shape): the kernel
 //! routes the words and never reads them.
 //!
@@ -87,7 +87,7 @@ use line::{Sink, Source};
 /// static [`Manifest`] and a stable wire id for [`spawnproto`].
 ///
 /// This is deliberately an enum and not a string lookup at the grant boundary: the shell resolves
-/// a typed program once, and everything downstream (the manifest check, the wire id init decodes)
+/// a typed program once, and everything downstream (the manifest check, the wire id the progenitor decodes)
 /// speaks the type, not the name. A name that does not resolve is [`Refusal::NoSuchProgram`], the
 /// "there is nothing there to name" shape of no-ambient-authority applied to programs themselves.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -108,9 +108,9 @@ pub enum Prog {
     InterruptIgnorer,
     /// Print the wall-clock time (milestone 51, `components/src/date.rs`). It takes nothing from the
     /// command line: no argument, no memory, no file. **Its whole authority is a read-only mapping
-    /// of the clock page, which init endows and this shell cannot**, and that asymmetry is why
+    /// of the clock page, which the progenitor endows and this shell cannot**, and that asymmetry is why
     /// [`Manifest::clock`] exists: the grant is real, it is just not something a person designates.
-    /// The interactive boot starts a clock service and hands init the page, so `date` at the prompt
+    /// The interactive boot starts a clock service and hands the progenitor the page, so `date` at the prompt
     /// prints a time; on a machine whose RTC the service did not believe it prints "the time is
     /// unknown: the machine has no clock it believes", which is the other true sentence.
     Date,
@@ -158,7 +158,7 @@ pub enum Prog {
     /// The reason [`Manifest::domain`] exists, and the same asymmetry [`Prog::Date`] made for the
     /// clock: the grant is real and it is not something a person designates on the line. There is
     /// no `/proc` here to name and no pid space to scan, so what `ps` can see is decided entirely
-    /// by which supervision endpoint init put in its capability table, and `caps ps` prints that.
+    /// by which supervision endpoint the progenitor put in its capability table, and `caps ps` prints that.
     Ps,
     /// **Name the members of that same domain that match, and do nothing to them** (milestone 126,
     /// `components/src/pgrep.rs`, notes/process-view.md).
@@ -249,9 +249,9 @@ pub enum Prog {
     Uuid,
 }
 
-/// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
-/// it. Init's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
-/// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
+/// The number of programs [`Prog::id`] can name, which is the size of the table the progenitor indexes with
+/// it. The progenitor's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
+/// an out-of-bounds panic in the progenitor rather than a compile error; the constant is here so both inits
 /// can be written against one number.
 pub const PROG_COUNT: usize = 14;
 
@@ -283,7 +283,7 @@ impl Prog {
         }
     }
 
-    /// The name init loads it by in the initrd (nifefs), and the shell prints.
+    /// The name the progenitor loads it by in the initrd (nifefs), and the shell prints.
     pub fn name(self) -> &'static str {
         match self {
             Prog::LeastAuthorityDemo => "least_authority_demo",
@@ -303,7 +303,7 @@ impl Prog {
         }
     }
 
-    /// The stable wire id the shell sends and init decodes ([`spawnproto`]).
+    /// The stable wire id the shell sends and the progenitor decodes ([`spawnproto`]).
     pub fn id(self) -> u64 {
         match self {
             Prog::LeastAuthorityDemo => 0,
@@ -323,7 +323,7 @@ impl Prog {
         }
     }
 
-    /// The inverse of [`id`](Prog::id): init turns the wire id back into a program.
+    /// The inverse of [`id`](Prog::id): the progenitor turns the wire id back into a program.
     pub fn from_id(id: u64) -> Option<Prog> {
         match id {
             0 => Some(Prog::LeastAuthorityDemo),
@@ -461,7 +461,7 @@ impl Prog {
                 reports: true,
                 interruptible: false,
                 // **The one program in this table that declares a clock**, and the reason the field
-                // exists. Nothing on the command line designates it, so init reads this to decide
+                // exists. Nothing on the command line designates it, so the progenitor reads this to decide
                 // which children get the read-only mapping (milestone 51's wiring, notes/date.md).
                 clock: true,
                 domain: false,
@@ -550,7 +550,7 @@ impl Prog {
             //
             // Every designated grant is `Forbidden`, which is the row worth reading: there is no
             // file, no directory, no memory and no argument, so nothing a person could type widens
-            // what this program sees. Its whole authority is `domain`, which init endows and the
+            // what this program sees. Its whole authority is `domain`, which the progenitor endows and the
             // command line cannot name, exactly as `date`'s clock is.
             //
             // `OutputSpec::BytesAndDiagnostics` because a refusal and a listing must not travel on
@@ -612,7 +612,7 @@ impl Prog {
             // cspace at all, and this program needs the domain and the output sink for its whole
             // run; see `crates/watch`'s module docs). Everything else is `ps`'s own reasoning
             // verbatim: no file, no directory, no memory grant widens what this program can reach,
-            // and `domain` is the one real authority, endowed by init and not something the command
+            // and `domain` is the one real authority, endowed by the progenitor and not something the command
             // line names.
             Prog::Watch => Manifest {
                 arg: ArgSpec::Required,
@@ -633,7 +633,7 @@ impl Prog {
             },
             // **The one program in this table that declares the inert-configuration page.** Same
             // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
-            // init's to endow and this field is how init decides which children get it.
+            // The progenitor's to endow and this field is how the progenitor decides which children get it.
             Prog::Printenv => Manifest {
                 arg: ArgSpec::Forbidden,
                 mem: MemSpec::Forbidden,
@@ -673,7 +673,7 @@ impl Prog {
             // **The one program in this table that declares the entropy service** (milestone 111).
             // `printenv`'s block one authority over, and `ps`'s output shape: every designated
             // grant is `Forbidden`, so nothing a person could type widens what this program
-            // reaches, and its whole authority is `entropy`, which init endows and the command line
+            // reaches, and its whole authority is `entropy`, which the progenitor endows and the command line
             // cannot name.
             //
             // `OutputSpec::BytesAndDiagnostics` is load-bearing rather than copied. `uuid` has
@@ -729,7 +729,7 @@ pub enum OutputSpec {
     ///
     /// **The slot is high and out of the way on purpose**, which is `abi::fault::FAULT_EP_SLOT`'s
     /// reasoning applied a second time: a child's ordinary grants fill from zero upward and how many
-    /// there are depends on the wiring (`date` gets a clock from init and none from the guest test
+    /// there are depends on the wiring (`date` gets a clock from the progenitor and none from the guest test
     /// harness), so a low number would move under the program and it would probe the wrong slot. A
     /// number nothing else can reach is the same number in every wiring.
     BytesAndDiagnostics {
@@ -822,7 +822,7 @@ pub const DIAGNOSTICS_SLOT: u64 = 8;
 /// sits below [`DIAGNOSTICS_SLOT`] and above every ordinary grant, so the two named slots read as one
 /// small block a person can hold in their head.
 ///
-/// A number is not a right. What it means to hold this slot is decided by the capability init puts
+/// A number is not a right. What it means to hold this slot is decided by the capability the progenitor puts
 /// in it, and a program spawned without the declaration holds an empty slot here and is refused by
 /// the kernel rather than shown an empty domain.
 pub const DOMAIN_SLOT: u64 = 7;
@@ -836,12 +836,12 @@ pub const DOMAIN_SLOT: u64 = 7;
 /// a program that reads a fixed number needs that number not to move.
 ///
 /// **It clears the shell's own table as well as a child's**, which the other two named slots never
-/// had to: init hands the shell up to seven positional capabilities (slots 0 through 6), so a
+/// had to: the progenitor hands the shell up to seven positional capabilities (slots 0 through 6), so a
 /// number below seven would have collided with the shell's clock on a boot with a filesystem and a
 /// second directory grant. Nine is above every one of them and far below
 /// `abi::fault::FAULT_EP_SLOT`.
 ///
-/// A number is not a right. What it means to hold this slot is decided by the capability init puts
+/// A number is not a right. What it means to hold this slot is decided by the capability the progenitor puts
 /// in it, and a program spawned without the declaration holds an empty slot here: its first `CALL`
 /// answers `abi::Error::NoSuchSlot`, which `entropy_proto::delivered` reads as `None` rather than
 /// as a count.
@@ -980,7 +980,7 @@ pub struct Manifest {
     /// The odd one out in this struct, and deliberately: every other field is about something the
     /// command line can designate, and this is about something it cannot. A clock is not a name a
     /// person types, so there is no token to place and no refusal to write; what the manifest is for
-    /// here is telling **init** which children to endow, and telling a person reading `caps date`
+    /// here is telling **The progenitor** which children to endow, and telling a person reading `caps date`
     /// that the authority exists at all.
     ///
     /// It is a *read-only* mapping and nothing else, which is the whole of DECISIONS §43's split
@@ -992,7 +992,7 @@ pub struct Manifest {
     ///
     /// [`clock`](Manifest::clock)'s twin, and for the same reason: a process domain is not a name a
     /// person types, so there is no token to place and no refusal to write. What this field does is
-    /// tell **init** which children to endow, and tell a person reading `caps ps` that the authority
+    /// tell **The progenitor** which children to endow, and tell a person reading `caps ps` that the authority
     /// exists and how wide it is.
     ///
     /// It lands in [`DOMAIN_SLOT`] carrying `READ`, which is what `abi::rendezvous::SURVEY` takes. A
@@ -1005,7 +1005,7 @@ pub struct Manifest {
     ///
     /// [`clock`](Manifest::clock)'s twin again, for the identical reason: `TZ`/`LANG`/`TERM` are
     /// not something a command line designates, so there is no token to place and no refusal to
-    /// write. What this field does is tell **init** which children to endow, and tell a person
+    /// write. What this field does is tell **The progenitor** which children to endow, and tell a person
     /// reading `caps printenv` that the authority exists at all. Before this field existed, the
     /// page was granted **unconditionally** to a `std` program by a kernel test harness standing
     /// in for a real customer (`kernel/src/user/std_service.rs`); this is the manifest declaration
@@ -1022,7 +1022,7 @@ pub struct Manifest {
     /// The fourth member of [`clock`](Manifest::clock)'s family and the first one that is an
     /// *endpoint a service answers on* rather than a page: randomness is not a name a person types,
     /// so there is no token to place and no refusal to write, and what this field does is tell
-    /// **init** which children to endow and tell a person reading `caps uuid` that the program
+    /// **The progenitor** which children to endow and tell a person reading `caps uuid` that the program
     /// draws random numbers at all.
     ///
     /// It lands in [`ENTROPY_SLOT`] carrying `WRITE`, which on an endpoint is the right to `CALL`
@@ -4308,7 +4308,7 @@ mod tests {
 
     #[test]
     fn date_takes_nothing_from_the_command_line() {
-        // `date` is the first program whose authority is entirely init's to give (a read-only
+        // `date` is the first program whose authority is entirely the progenitor's to give (a read-only
         // mapping of the clock page), so its grant expression is empty and both halves matter:
         // typing nothing works, and typing anything is refused rather than passed along.
         let Command::Run(r) = parse(b"date") else {
@@ -4796,7 +4796,7 @@ mod tests {
         assert!(filesystem_proto::nameset::encode(&widest, &mut buf).is_some());
     }
 
-    /// **Every id init can index resolves, and round trips through both names.**
+    /// **Every id the progenitor can index resolves, and round trips through both names.**
     ///
     /// The loop is over `0..PROG_COUNT` rather than over a written-out list of variants, and that is
     /// the fix for a hazard this test had twice. The list said "every variant" in its own comment and
@@ -4823,7 +4823,7 @@ mod tests {
     fn prog_id_round_trips() {
         for id in 0..PROG_COUNT as u64 {
             let p = Prog::from_id(id)
-                .unwrap_or_else(|| panic!("init indexes slot {id} and no program claims it"));
+                .unwrap_or_else(|| panic!("progenitor indexes slot {id} and no program claims it"));
             assert_eq!(
                 p.id(),
                 id,
@@ -4833,7 +4833,7 @@ mod tests {
         }
         assert_eq!(Prog::from_id(PROG_COUNT as u64), None);
         assert_eq!(Prog::from_id(99), None);
-        // And no program is reachable by a name init cannot load it by, which is the other direction:
+        // And no program is reachable by a name the progenitor cannot load it by, which is the other direction:
         // a variant with an id and no `from_name` arm would be unspawnable and invisible above.
         assert_eq!(
             Prog::from_name(b"pgrep"),

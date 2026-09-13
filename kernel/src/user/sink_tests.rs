@@ -121,8 +121,8 @@ fn one_reader_two_sources_and_the_same_answer() {
     }
     let sink_image = program("sink").expect("no sink program in the initrd archive");
     // **The block server, whichever binary carries it here.** This named `"init"` outright, which
-    // is the aarch64 convention: there `init` *is* the hello binary and hello carries the role. On
-    // both other architectures `init` is the portable `builder` demo, which has no such role, so
+    // was the aarch64 convention: there `init` *was* the hello binary and hello carried the role. On
+    // both other architectures `init` was the portable `builder` demo, which has no such role, so
     // this asked for the wrong program on two of three. It never bit, because
     // `fs_service::start_file_sink` short-circuits on a machine with no disk and neither of those
     // architectures attaches one to a leg that reaches here; `fs_service::blk_server_image()` is
@@ -270,8 +270,8 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     // `fs_service::wait_for_caretaker` records: it stages a name in the page it shares with the
     // FS server, and a client that already existed could write over it.
     // **The block server, whichever binary carries it here.** This named `"init"` outright, which
-    // is the aarch64 convention: there `init` *is* the hello binary and hello carries the role. On
-    // both other architectures `init` is the portable `builder` demo, which has no such role, so
+    // was the aarch64 convention: there `init` *was* the hello binary and hello carried the role. On
+    // both other architectures `init` was the portable `builder` demo, which has no such role, so
     // this asked for the wrong program on two of three. It never bit, because
     // `fs_service::start_file_sink` short-circuits on a machine with no disk and neither of those
     // architectures attaches one to a leg that reaches here; `fs_service::blk_server_image()` is

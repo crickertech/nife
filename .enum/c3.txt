@@ -1,0 +1,592 @@
+README.md:109:- **Processes come and go.** A userspace init builds the whole system through granular
+README.md:187:user/                  EL0: init, the shell, the console/input/block drivers, servers
+SECURITY.md:86:- **The boot trust root.** Anything that lets an unmeasured or altered init run as though it were
+SECURITY.md:87:  measured (`crates/measured_boot`, notes/trusted-init.md). This one has been exercised on real
+SECURITY.md:90:  kernel halted rather than hand it to init. A way to get past that refusal is a report.
+SECURITY.md:106:- **Anything that requires already being init.** init is privileged and unverified, and DECISIONS
+SECURITY.md:107:  §14 says so in the thesis itself. The kernel confines it, and a compromised init cannot break the
+SECURITY.md:108:  kernel or escape confinement, but init's authority over the processes it builds is by design.
+components/Cargo.toml:9:# the services and drivers, the init and supervision spine, and the tools a person invokes at the
+components/Cargo.toml:20:# it under "console"; init loads it by name.
+components/Cargo.toml:136:# (src/suptree.rs): `root_supervisor` is an init that hands its construction authority to `spawner` and its
+components/Cargo.toml:159:# endpoint capability with READ and nothing else; init endows every job it builds with the same
+components/Cargo.toml:160:# endpoint, and the pages come back to init's budget when this collects the corpse.
+components/Cargo.toml:256:# configuration page init endows and prints TZ/LANG/TERM. `date`'s own shape, one manifest field
+components/Cargo.toml:416:# whole authority is one endpoint init endows and the command line cannot name; the listing itself
+components/Cargo.toml:477:# authority is `grant_plan::Manifest::entropy`, which init endows and no token on the command line
+components/src/builder.rs:1://! **A minimal init: the system builder** (milestone 20, the richer-initrd step).
+components/src/builder.rs:3://! This is the RISC-V counterpart of the init role in `hello` (which is aarch64-wired: PL011,
+components/src/builder.rs:8://! The kernel loads this program from the initrd's `init` entry, maps the whole nifefs archive
+components/src/builder.rs:21://! it, built its address space, and started it. That is the init-as-system-builder model, proven on
+components/src/builder.rs:27://! than it sounds. `builder.rs`'s own first line calls it "a minimal init: the system builder",
+components/src/builder.rs:30://! declined to give away is a name the tree has reasoned about. Its archive entry is `init`, the
+components/src/builder.rs:32://! string" (notes/naming.md), because `init` is the entry the kernel loads by name. calef has not
+components/src/console.rs:10://! Its whole authority is three things init hands it: the request endpoint (slot 0, RECV), the reply
+components/src/console.rs:72:/// the client (init, or the shell) maps and what init hands the server (`CON_SHARED_VA`).
+components/src/console.rs:77:/// The server's device mapping of the UART registers. Must match init's `CON_UART_VA`.
+components/src/console.rs:80:// address is the wiring's fact, agreed with init, and hiding it on one architecture would make the
+components/src/fs_subtree_caretaker.rs:268:    // of these per directory grant, the waiter is **init**, which serves every command the prompt
+components/src/input.rs:38:// address is the wiring's fact, agreed with init, and hiding it on one architecture would make the
+components/src/jh7110_entropy_source.rs:252:/// bring-up, mirroring the init sequence in `jh7110_entropy_source`'s module doc, and again whenever
+components/src/jh7110_entropy_source.rs:308:    // Put the block in a known state before asking it for anything, then seed it. `init` returns
+components/src/jh7110_entropy_source.rs:341:    // `init`. `STAT.R256` there is the answer to "is this device in 256-bit mode", which decides
+components/src/job_undertaker.rs:3://! The prompt's init builds a fresh process for every command a person runs. Before this program
+components/src/job_undertaker.rs:5://! so init's budget only ever went one way: a long session ran out of memory and the shell started
+components/src/job_undertaker.rs:7://! there is no non-blocking receive and init is parked in `RECV` on the shell's spawn channel for its
+components/src/job_undertaker.rs:10://! **Its authority is two endpoint capabilities and nothing else.** `READ` on init's supervision
+components/src/job_undertaker.rs:11://! endpoint, and `WRITE` on init's result endpoint so it can say one word to whoever is waiting
+components/src/job_undertaker.rs:15://! therefore go back to **init's** job budget, because init split the region and §13 says a region
+components/src/job_undertaker.rs:33://! dies loudly at the pc of the mistake. The visible symptom of this process dying is that init's
+components/src/job_undertaker.rs:40://! completes only when someone reads init's result endpoint. Every ordinary job leaves the shell
+components/src/job_undertaker.rs:63://! untyped rather than init's, so they never reach this program at all.
+components/src/job_undertaker.rs:81:/// The supervision endpoint init endows every job with, held `READ`: the right to receive deaths
+components/src/job_undertaker.rs:127:/// Tell whoever is waiting on init's result endpoint that the job they are waiting for is dead.
+components/src/job_undertaker.rs:134:/// The return value is dropped on purpose. The endpoint is init's and outlives this process, so the
+components/src/least_authority_demo.rs:4://! init loads it out of the initrd archive by the name `"least_authority_demo"` (nifefs), builds a
+components/src/least_authority_demo.rs:6://! It squares `n`, `SEND`s the answer on the one endpoint init granted it (slot 0), and exits.
+components/src/least_authority_demo.rs:39:/// The endpoint init grants the `least_authority_demo` as its only capability (slot 0). Its one `SEND` goes here,
+components/src/least_authority_demo.rs:40:/// straight to whoever is waiting (the kernel test, or the shell behind init's spawn service).
+components/src/line_editor.rs:95:/// wiring (init, or `kernel::user::boot_graphical_terminal` one level further up); one address
+components/src/line_editor.rs:267:                // here and no frame of its own; `OP_WRITE` above reads the *one* page init maps in,
+components/src/login.rs:204://!   `root_supervisor`'s: this process keeps serving logins for its whole life, so unlike an init
+components/src/login.rs:254://! frame allocator does not own and no capability names. So init started this process with
+components/src/login.rs:257://! anything, while the boot went on printing `init: login ready` with a generated password.
+components/src/login.rs:270://! `init: login ready` is now `progenitor: login credentials provisioned`, which is what the first
+components/src/login.rs:280://! read the same physical archive the kernel maps for init, so the check was independent of whoever
+components/src/login.rs:281://! spawned it. Under `crates/system_initializer` both the bytes and the table now arrive from init,
+components/src/login.rs:430://! it to init as three capabilities (`BootEndowment::virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`),
+components/src/login.rs:436://! ISAs; it said `init:` until milestone 266 renamed the program).
+components/src/login.rs:442://! tidy**: the virtio-rng trio is granted by the kernel, at spawn, so it inflates init's resting
+components/src/login.rs:449://! bisection: an isolated test granted init one single harmless extra capability, unused by any
+components/src/login.rs:489://! program whose bytes do not match the archive's measurement table). Investigating "how a non-init
+components/src/login.rs:493://! aarch64's init, `kernel::user::login_service`'s own `start` for this process, both taking the
+components/src/login.rs:495://! process's copy exactly as much as it vouches for init's. There is no new trust boundary to cross:
+components/src/login.rs:759:    // program read the initrd it was reading the same physical archive the kernel maps for init, so
+components/src/login.rs:761:    // `crates/system_initializer` both the bytes and the table arrive from init, which has already
+components/src/login.rs:981:            // grant to init, `kernel::user::boot_file_service` or equivalent), so a real boot
+components/src/pgrep.rs:100:/// `a1` is the state mask, in `grant_plan::spawnproto`'s integer-argument position: init starts every
+components/src/progenitor.rs:17://! purpose-built one, and the archive entry `init` meant a different binary depending on the board.
+components/src/progenitor.rs:29://! Name: ratified 2026-09-08 (calef, milestone 266). `progenitor` replaces `init` as the archive
+components/src/progenitor.rs:30://! entry and `system_initializer` as this program's name. `init` is a truncated verb where the rule
+components/src/rm.rs:43://! and holds nothing that names an init, a terminal, or the filesystem above its grant.
+components/src/root_supervisor.rs:1://! **The root supervisor: an init that gives its authority away** (milestone 22 phase B.2).
+components/src/root_supervisor.rs:3://! init is the unverified component that builds every other process, and phase B.1 closed the
+components/src/root_supervisor.rs:6://! The pre-B.2 init (`system_initializer`, `hello`'s init role) holds a large untyped budget for its entire life,
+components/src/root_supervisor.rs:8://! init away from being built wrong. This program instead holds full construction authority for
+components/src/root_supervisor.rs:29://! (DECISIONS §26). See notes/trusted-init.md and notes/supervision.md.
+components/src/spawner.rs:3://! Where init's process-construction authority went. It holds one untyped budget (WRITE only, so it
+components/src/spawner.rs:25://! requests in the order they arrive. See notes/trusted-init.md.
+components/src/sub_server_supervisor.rs:21://! init is not involved in any of this, and cannot be: by the time the first death arrives, `root_supervisor`
+components/src/sub_server_supervisor.rs:22://! has deleted the construction budget it would need. See notes/trusted-init.md.
+components/src/terminal_sink_caretaker.rs:31://! `OP_WRITE` reads from **the client's output page**, and there is exactly one of those: init maps
+components/src/uptime.rs:39://! resolution, and the counter's own zero predates this kernel's init by an unmeasured amount.
+components/src/watch.rs:35://! init's supervised-spawn path to endow capabilities too, which is a decision for whoever needs that
+crates/abi/src/lib.rs:128:/// a loader (init) retypes hundreds of frames through a 16-slot capability table and must recycle slots.
+crates/abi/src/lib.rs:148:/// as ever for the measurement and the account: init's boot peaks at 21 simultaneous slots, and
+crates/abi/src/lib.rs:570:    /// a **kernel object** (milestone 19a; design/init-and-granular-spawn.md): the object lives
+crates/board_console/src/progress.rs:230:    /// Whether userspace init built its child (`init/build  : ...`, `kernel/src/main.rs`).
+crates/board_console/src/progress.rs:331:        if line.contains("init/build") {
+crates/board_console/src/progress.rs:585:            "it halted rather than handing the archive to init"
+crates/board_console/src/progress.rs:595:    /// on the card, so `init` built a child and a userspace driver came up.
+crates/board_console/tests/fixtures/README.md:16:- **`vf2-2026-09-01-userspace.log`** is the **full success**: the measured-boot gate passes, `init`
+crates/board_console/tests/fixtures/README.md:20:  tour runs to its end and `init` never builds anything. Kept beside the one above because the pair
+crates/board_console/tests/fixtures/README.md:26:  MEASURED BOOT REFUSED: 'init' is not what this kernel image was built against
+crates/board_console/tests/fixtures/README.md:29:  halting rather than handing the archive to init.
+crates/board_console/tests/fixtures/README.md:80:tree's own source (`notes/trusted-init.md` for the measured-boot refusal), or filler in the shape
+crates/board_console/tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log:84:    init : measured, built, started; waiting for the child's word
+crates/board_console/tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log:85:  init/build  : userspace init loaded 'worker' from a 7689216-byte archive and built it as a child; the child sent 81 (expected 81)
+crates/board_console/tests/fixtures/captured/qemu-2026-09-03-riscv64-soak-census.log:84:    init : measured, built, started; waiting for the child's word
+crates/board_console/tests/fixtures/captured/qemu-2026-09-03-riscv64-soak-census.log:96:  init/build  : userspace init loaded 'worker' from a 8990720-byte archive and built it as a child; the child sent 81 (expected 81)
+crates/board_console/tests/fixtures/synthetic/qemu-soak-then-silence.log:84:    init : measured, built, started; waiting for the child's word
+crates/board_console/tests/fixtures/synthetic/qemu-soak-then-silence.log:85:  init/build  : userspace init loaded 'worker' from a 7689216-byte archive and built it as a child; the child sent 81 (expected 81)
+crates/clock_proto/src/lib.rs:707:            "init is honest, not 1970"
+crates/clock_proto/src/lib.rs:808:    /// algorithm that ships**: `read`, `publish` and `init` are not reimplemented here, only the
+crates/clock_proto/src/lib.rs:952:    /// `init` writes the magic last, with a release, precisely so a reader racing the first publish
+crates/cpu_set/src/lib.rs:9://! `init` into parked slot 0's inbox, which nothing will ever drain (three boots to diagnose; see
+crates/credential_proto/src/lib.rs:13://!   (init, or a test)│  (write the store)   │             then SEAL. Then this endpoint is
+crates/elf/src/lib.rs:113:/// kernel and in userspace init, both of which would only ever pass their own architecture anyway.
+crates/environment_proto/Cargo.toml:10:# no_std, dependency-free, so whoever assembles the page (init, or a kernel test harness standing in
+crates/environment_proto/src/lib.rs:3://! process, so whoever assembles it (init, or a kernel test harness standing in for init today)
+crates/environment_proto/src/lib.rs:232:/// refusal, not a runtime failure a process observes. Whoever assembles a page (init, or a test
+crates/environment_proto/src/lib.rs:501:    /// before `init` maps something over it) reads as "no configuration" for every key, never
+crates/filesystem_proto/src/lib.rs:2683:    /// watchdog and a legible failure. Under `system_initializer` the waiter is **init**, which is
+crates/filesystem_proto/src/lib.rs:2685:    /// there would park init in `RECV` forever and the machine would never take another command.
+crates/filesystem_proto/src/lib.rs:4412:        // lets init read one word and know whether it holds a capability or a refusal.
+crates/grant_plan/src/lib.rs:14://! only the wiring (the shell and init that carry the caps) needs QEMU. See
+crates/grant_plan/src/lib.rs:58://! [`spawnproto`] is the word layout for the shell-to-init spawn protocol, the capability-shell
+crates/grant_plan/src/lib.rs:90:/// a typed program once, and everything downstream (the manifest check, the wire id init decodes)
+crates/grant_plan/src/lib.rs:111:    /// of the clock page, which init endows and this shell cannot**, and that asymmetry is why
+crates/grant_plan/src/lib.rs:113:    /// The interactive boot starts a clock service and hands init the page, so `date` at the prompt
+crates/grant_plan/src/lib.rs:161:    /// by which supervision endpoint init put in its capability table, and `caps ps` prints that.
+crates/grant_plan/src/lib.rs:252:/// The number of programs [`Prog::id`] can name, which is the size of the table init indexes with
+crates/grant_plan/src/lib.rs:254:/// an out-of-bounds panic in init rather than a compile error; the constant is here so both inits
+crates/grant_plan/src/lib.rs:286:    /// The name init loads it by in the initrd (nifefs), and the shell prints.
+crates/grant_plan/src/lib.rs:306:    /// The stable wire id the shell sends and init decodes ([`spawnproto`]).
+crates/grant_plan/src/lib.rs:326:    /// The inverse of [`id`](Prog::id): init turns the wire id back into a program.
+crates/grant_plan/src/lib.rs:464:                // exists. Nothing on the command line designates it, so init reads this to decide
+crates/grant_plan/src/lib.rs:553:            // what this program sees. Its whole authority is `domain`, which init endows and the
+crates/grant_plan/src/lib.rs:615:            // and `domain` is the one real authority, endowed by init and not something the command
+crates/grant_plan/src/lib.rs:636:            // init's to endow and this field is how init decides which children get it.
+crates/grant_plan/src/lib.rs:676:            // reaches, and its whole authority is `entropy`, which init endows and the command line
+crates/grant_plan/src/lib.rs:732:    /// there are depends on the wiring (`date` gets a clock from init and none from the guest test
+crates/grant_plan/src/lib.rs:825:/// A number is not a right. What it means to hold this slot is decided by the capability init puts
+crates/grant_plan/src/lib.rs:839:/// had to: init hands the shell up to seven positional capabilities (slots 0 through 6), so a
+crates/grant_plan/src/lib.rs:844:/// A number is not a right. What it means to hold this slot is decided by the capability init puts
+crates/grant_plan/src/lib.rs:983:    /// here is telling **init** which children to endow, and telling a person reading `caps date`
+crates/grant_plan/src/lib.rs:995:    /// tell **init** which children to endow, and tell a person reading `caps ps` that the authority
+crates/grant_plan/src/lib.rs:1008:    /// write. What this field does is tell **init** which children to endow, and tell a person
+crates/grant_plan/src/lib.rs:1025:    /// **init** which children to endow and tell a person reading `caps uuid` that the program
+crates/grant_plan/src/lib.rs:4311:        // `date` is the first program whose authority is entirely init's to give (a read-only
+crates/grant_plan/src/lib.rs:4799:    /// **Every id init can index resolves, and round trips through both names.**
+crates/grant_plan/src/lib.rs:4826:                .unwrap_or_else(|| panic!("init indexes slot {id} and no program claims it"));
+crates/grant_plan/src/lib.rs:4836:        // And no program is reachable by a name init cannot load it by, which is the other direction:
+crates/grant_plan/src/spawnproto.rs:1://! **The spawn protocol: the wire half of the shell-to-init grant expression.**
+crates/grant_plan/src/spawnproto.rs:4://! child itself: init holds the initrd and is the ELF loader (the parser stays in one place, out of
+crates/grant_plan/src/spawnproto.rs:5://! the shell). So the shell tells init what to spawn and, crucially, *delegates the capabilities it
+crates/grant_plan/src/spawnproto.rs:15://! The shell owns the sequence; init serves it in a loop.
+crates/grant_plan/src/spawnproto.rs:33://!    not parsed and dropped. Programs that grant no capability (`least_authority_demo`) skip this step, and init
+crates/grant_plan/src/spawnproto.rs:35://! 4. **Outcome.** init builds the child, endows it (the shared result endpoint always; the
+crates/grant_plan/src/spawnproto.rs:37://!    result endpoint. If init cannot build it (its own budget is spent, or the program vanished),
+crates/grant_plan/src/spawnproto.rs:41://! The result endpoint carries both init's failure sentinel and the child's success answer, and
+crates/grant_plan/src/spawnproto.rs:47://!    already holds init's supervision endpoint and already collects the corpse, sends
+crates/grant_plan/src/spawnproto.rs:58:/// stage of a `|` but the last: the shell delegates an endpoint and init puts it where the result
+crates/grant_plan/src/spawnproto.rs:70:/// Unlike [`SINK_BIT`] this does **not** say which slot: init reads that from the manifest, because
+crates/grant_plan/src/spawnproto.rs:82:/// What follows is not a sink capability (init already knows to build that default from its own
+crates/grant_plan/src/spawnproto.rs:84:/// endpoint the shell minted and kept a copy of**, delegated so init can install it as this child's
+crates/grant_plan/src/spawnproto.rs:86:/// child's exit there instead of to init's reaper, and the shell `RECV`s it as its completion
+crates/grant_plan/src/spawnproto.rs:90:/// **A directory grant follows, and init is to build a caretaker for it** (milestone 31 phase 3).
+crates/grant_plan/src/spawnproto.rs:97:/// wanted to. What it can do is say what the grant *is*; init holds the endpoint and builds the rest.
+crates/grant_plan/src/spawnproto.rs:116:/// format and init's decode side, built ahead of an emitter the way [`DIR_BIT`] itself once
+crates/grant_plan/src/spawnproto.rs:122:/// 1. **the caretaker's `START` words**, which init passes to `fs_subtree_caretaker` verbatim: the
+crates/grant_plan/src/spawnproto.rs:124:/// 2. **the confined program's `START` words**, which init passes to the program verbatim: for `rm`,
+crates/grant_plan/src/spawnproto.rs:131:/// change in one crate rather than in the wire this one owns. The shell packs them; init forwards
+crates/grant_plan/src/spawnproto.rs:154:    /// **A directory grant follows as two data messages** ([`GRANT_WORDS`]), and init is to build a
+crates/grant_plan/src/spawnproto.rs:197:/// The whole wiring of a received request (word 2), so init reads it once rather than asking three
+crates/grant_plan/src/spawnproto.rs:228:/// with two caps: a job untyped (init builds the child from it; the shell keeps it to `DESTROY`) and
+crates/grant_plan/src/spawnproto.rs:235:/// (init identifies the cap by the protocol position, not the tag), but a fixed marker makes a
+crates/grant_plan/src/spawnproto.rs:239:/// The sentinel init sends on the result endpoint when it could not build the child, so the
+crates/grant_plan/src/spawnproto.rs:246:/// `job_undertaker`, which is the process already holding init's supervision endpoint, once it has
+crates/grant_plan/src/spawnproto.rs:250:/// exits non-zero has answered; a child init could not build gets [`SPAWN_FAILED`]; a child the
+crates/grant_plan/src/spawnproto.rs:273:/// shell for every job, and takes every job out of init's supervision domain, which is what
+crates/grant_plan/src/spawnproto.rs:286:/// The ack init sends on the result endpoint when a **supervised** (interruptible) child started
+crates/grant_plan/src/spawnproto.rs:288:/// not the result endpoint, so init sends this once as the go-ahead: the shell reads it, then begins
+crates/grant_plan/src/spawnproto.rs:331:    /// seventh). They share one word, and what init reads next off the endpoint depends on all of
+crates/grant_plan/src/spawnproto.rs:332:    /// them, so a bit that bled into another would make init take a capability for a data word
+crates/jh7110_entropy_source/src/lib.rs:252:    /// here during init, which defaults to 0, so upstream's default bring-up disables the alarm
+crates/jh7110_entropy_source/src/lib.rs:256:    /// alarm, and \[driver\] writes 0 there at init via its `autoage` parameter.
+crates/jh7110_entropy_source/src/lib.rs:270:/// `CTRL`: force a reseed from the ring oscillator. The driver issues this once at init and again
+crates/jh7110_entropy_source/src/lib.rs:365:/// the init clear is to discard whatever the block latched before this kernel existed: U-Boot, a
+crates/jh7110_entropy_source/src/lib.rs:770:        // but missing from the mask would be one the init clear silently leaves latched.
+crates/line_editor/src/lib.rs:180:    /// [`OP_WRITE`] reads from **the client's output page**, and there is one of those: init maps a
+crates/measured_boot/src/lib.rs:1://! **Measured boot: the hash the kernel checks init against** (milestone 22 phase B.1).
+crates/measured_boot/src/lib.rs:4://! init is the unverified component that builds every other process, and until this crate existed
+crates/measured_boot/src/lib.rs:9://! enter userspace on a mismatch. "This kernel runs exactly this init," enforced.
+crates/measured_boot/src/lib.rs:13://! uses to notice stale build inputs) would let someone craft a colliding init. Among the
+crates/measured_boot/src/lib.rs:28://! See notes/trusted-init.md and DECISIONS §22.
+crates/measured_boot/src/lib.rs:232:/// just packed, which is what makes the check mean "this kernel runs exactly this init" without any
+crates/measured_boot/src/lib.rs:289:/// **The archive entry that carries init's measurement table** (milestone 104).
+crates/measured_boot/src/lib.rs:292:/// in the archive it measures. init *is* in that archive, so its own table cannot be compiled into
+crates/measured_boot/src/lib.rs:295:/// vouches for init, and init's refusals are as trustworthy as init is. See notes/trusted-init.md.
+crates/measured_boot/src/lib.rs:302:/// (which turns it into [`Measurement`]s) and by init (which reads it out of the archive at boot and
+crates/measured_boot/src/lib.rs:343:/// The lookup happens **before** the hash, deliberately: init runs this over every program it is
+crates/measured_boot/src/lib.rs:561:    /// milestone rests on: an attacker who rewrites one byte of init's code cannot keep the
+crates/measured_boot/src/lib.rs:593:    /// text, and init decides what to load from it. So the same three verdicts have to hold when
+crates/nifefs/src/lib.rs:58://!   bytes become one entry, and `init` loads whichever program happened to be packed first. The
+crates/nifefs/src/lib.rs:548:        for name in ["\0", "a\0b", "init\0", "\0\0"] {
+crates/supervision_proto/src/lib.rs:19://! Three programs make up the tree that shrinks init's authority (`root_supervisor`, `spawner`, `sub_server_supervisor`,
+crates/supervision_proto/src/lib.rs:113:/// init dropped its construction authority. `w1` = 1 if using the dropped budget then failed,
+crates/swish/src/lib.rs:149:///   answered with an errno, init had no memory to spawn with, a job was interrupted.
+crates/swish/src/lib.rs:950:/// `budget_pages` is what init granted at boot rather than what is left, because there is no syscall
+crates/swish/src/lib.rs:965:    out(b"    cap 1  endpoint  spawn      direct init to start a program\n");
+crates/swish/src/lib.rs:1019:    // clock to a child: which processes can read the time is still decided by the manifests init
+crates/swish/src/lib.rs:1033:            out(b"    (no clock here: init endows 'date' a read-only clock page, this shell was\n");
+crates/swish/src/lib.rs:1209:    // **The clock, which no token on the line designates.** It is init's to endow rather than the
+crates/swish/src/lib.rs:1219:    // the line could designate it either, so it is init's to endow and this is where a reader
+crates/swish/src/lib.rs:1223:    // init's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
+crates/swish/src/lib.rs:1989:        // clock is init's to endow, no token could designate it, and it is still a capability the
+crates/swish/src/lib.rs:2002:        // init's to endow, no token on the line could designate it, and the preview says so before
+crates/system_initializer/Cargo.toml:15:# protocol init decodes on the other side of the spawn channel. This crate is that other side.
+crates/system_initializer/Cargo.toml:22:# The terminal contract's framing, for the one sentence init prints (`proto::OP_WRITE`).
+crates/system_initializer/Cargo.toml:24:# The hash and the manifest format the kernel measures init with (milestone 104). This crate is the
+crates/system_initializer/Cargo.toml:27:# The sink contract, for the end-of-stream init sends on a child's behalf when the child was never
+crates/system_initializer/src/lib.rs:290://! true: `builder.rs` called itself "a minimal init: the system builder" when this was recorded,
+crates/system_initializer/src/lib.rs:299://! calef: *"init is the issue not initializer."* The refusal is right for a reason that keeps being
+crates/system_initializer/src/lib.rs:300://! got wrong. `init` is a truncated **verb**, which is why it lost; `initializer` is an **agent
+crates/system_initializer/src/lib.rs:1833:    // **It used to say `init: login ready` and that was the false half of milestone 233.** The
+crates/timebase_proto/src/lib.rs:24://! reads as unknown" shape `kernel::user::boot_clock_page` already uses for init's clock page: a
+crates/uptime/src/lib.rs:24://! **every** EL0 program, unconditionally, by `kernel/src/arch/*/timer.rs`'s `init` (`CNTKCTL_EL1`'s
+crates/uptime/src/lib.rs:59://! - **The counter's zero predates the kernel's own init by an unmeasured amount.** `CNTVCT_EL0`
+crates/user_rt/src/heap.rs:25://!   `0x40_0000`, stacks, the shared pages, init's scratch at `0x1000_0000`, the initrd at
+crates/user_rt/src/heap.rs:32://! Allocating before `init` fails cleanly (null, then the OOM panic): there is nothing to grow
+crates/user_rt/src/heap.rs:60:    /// Which capability table slot holds the untyped that pays for pages. `u64::MAX` until `init`.
+crates/user_rt/src/lib.rs:21://! And a fourth, in the same round: [`initrd`], the `INITRD_VA` slice seven `init`-shaped programs
+crates/user_rt/src/lib.rs:665:/// only because the kernel sets `scounteren.TM` in its per-hart timer init, the same shape as
+crates/virtio/src/lib.rs:704:/// The virtio-net handshake and both-queue setup. Unlike the disk's `init`, this sets up receive AND
+crates/watch/src/lib.rs:18://! (`grant_plan::spawnproto`), granted by init to the shell and to nothing it spawns: an
+crates/watch/src/lib.rs:46://! **interruptible** (`^C`-stoppable, DECISIONS §24) child in this system is built *without*: init's
+fixtures/src/coremark.rs:6://! SENDs the run's CRC home on the one endpoint init granted it (slot 0). The CRC is the run's
+fixtures/src/coremark.rs:8://! init (and the kernel test) can check the computation came out right. A whole real program spawned
+fixtures/src/coremark.rs:32:/// The endpoint init grants us (slot 0): we SEND `[crc, ticks, freq]` here, then exit.
+fixtures/src/hello.rs:80:// 23-25 and 27-29 are init roles, declared below with their functions.
+fixtures/src/hello.rs:322:/// **Three `cfg` arms stood here until milestone 266**, because aarch64 packed hello as `init`
+fixtures/src/hello.rs:324:/// asymmetry cost a real bug before it was understood: a hardcoded `"init"` was right on aarch64
+fixtures/src/hello.rs:332:/// The init role that builds a device-driver child (milestone 19d.2); matches kernel test wiring.
+fixtures/src/hello.rs:334:/// The init role that brings up the real console server and prints through it (milestone 19d.2b).
+fixtures/src/hello.rs:336:/// The init role that builds an interrupt-driven child, to prove IRQ delegation (milestone 19d.2b).
+fixtures/src/hello.rs:338:/// The init role that builds a `least_authority_demo`, passes it an argument via START, and reports its answer
+fixtures/src/hello.rs:341:/// The argument init hands its `least_authority_demo` in the [`INIT_LEAST_AUTHORITY_DEMO`] role; the `least_authority_demo` returns its square.
+fixtures/src/hello.rs:343:/// The init role that builds the CoreMark compute workload and reports the CRC it computed
+fixtures/src/hello.rs:346:/// The word a milestone-19d child reports through the endpoint init granted it.
+fixtures/src/hello.rs:350:/// kernel's own test, not built by init: milestone 229 shipped the grant mechanism without a
+fixtures/src/hello.rs:362:/// **The init role, milestone 19d.** The role in which this binary is the parent: it parses an ELF
+fixtures/src/hello.rs:365:/// it (the constants below are unratified, and a rename of them is calef's). init holds a
+fixtures/src/hello.rs:370:/// second instance of this same program, entered at role [`CHILD`], built entirely by init out
+fixtures/src/hello.rs:373:/// a word home; receiving it proves init parsed a real ELF and built a running process, with the
+fixtures/src/hello.rs:379:/// **init delegates an interrupt to a driver it builds, milestone 19d.2b.** The third and last
+fixtures/src/hello.rs:380:/// delegatable device authority (after endpoints and device MMIO): an *interrupt capability*. init
+fixtures/src/hello.rs:383:/// interrupt fires, then reports. Receiving the report proves init can build an interrupt-driven
+fixtures/src/hello.rs:409:/// **init builds a `least_authority_demo` and hands it an argument, milestone 19e.** The first workload that needs
+fixtures/src/hello.rs:411:/// but a `least_authority_demo` computes on an input, and that input has to reach it. init builds a `least_authority_demo`
+fixtures/src/hello.rs:421:    // one. init parses it exactly as it parses any program it did not write.
+fixtures/src/hello.rs:441:/// **init builds the CoreMark compute workload, milestone 19e: the first real workload.** Same shape
+fixtures/src/hello.rs:443:/// (a CoreMark-derived run) rather than a toy square. init grants it the report endpoint (slot 0)
+fixtures/src/hello.rs:540:/// interrupt capability (slot 1), both handed to it by init. It waits for the interrupt as a
+fixtures/src/hello.rs:543:/// through the capability init delegated.
+fixtures/src/hello.rs:554:/// **init brings up the real console server, milestone 19d.2b.** The step past 19d.2a's ID-read
+fixtures/src/hello.rs:555:/// probe: init builds the *actual* print server (its own `"console"` binary since 19f.3) as a child
+fixtures/src/hello.rs:556:/// and drives it. The server needs four things, and init provides all of them out of its own budget
+fixtures/src/hello.rs:560:/// registers (device-typed, from 19d.2a). init then plays the client: it writes a line into the
+fixtures/src/hello.rs:561:/// shared page, sends the length, the server prints it to the real UART and acks, and init reports
+fixtures/src/hello.rs:562:/// the acked length home. The report proves the whole userspace-built console works: a driver init
+fixtures/src/hello.rs:563:/// constructed, wired to a channel init created, driving hardware init delegated.
+fixtures/src/hello.rs:571:    // The console server is its own binary now (19f.3): init loads "console" by name and builds it,
+fixtures/src/hello.rs:593:    // Map the shared page read/write in init's own space, so init (the client) can write into it.
+fixtures/src/hello.rs:610:    // Now init is the client. Write a line into the shared page, ask the server to print it.
+fixtures/src/hello.rs:611:    let msg = b"nife: the console server was built and started by userspace init.
+fixtures/src/hello.rs:613:    // SAFETY: init mapped the shared page read/write at SHARED_VA above.
+fixtures/src/hello.rs:630:/// A variant of init that builds the **device driver** child (19d.2): same loader, but it hands
+fixtures/src/hello.rs:669:/// **A device driver child, milestone 19d.2.** Built by init exactly like [`child`], but init
+fixtures/src/hello.rs:674:/// normal memory and not the wrong page: init delegated device authority and the driver used it.
+fixtures/src/hello.rs:676:    const REPORT: u64 = 0; // init inserted the report cap as slot 0
+fixtures/src/hello.rs:677:    const UART_VA: u64 = 0x0070_0000; // where init mapped the UART registers
+fixtures/src/hello.rs:680:    // SAFETY: init mapped the UART, device-typed, at UART_VA before starting us; these are
+fixtures/src/hello.rs:694:/// **A milestone-19d child.** Built by init from an ELF init parsed, entered here with role
+fixtures/src/hello.rs:695:/// [`CHILD`] in `x0`. Its whole authority is one capability init granted it in slot 0: a report
+fixtures/src/hello.rs:696:/// endpoint. It SENDs the agreed word and exits, which is the observable proof that init's
+fixtures/src/hello.rs:699:    const REPORT: u64 = 0; // init inserted the report cap as the child's first slot
+fixtures/src/hello.rs:705:/// at slots 0, 1, ... in order (each `(init_slot, rights)`: the capability init holds in
+fixtures/src/hello.rs:707:/// (each `(child_va, init_slot, mode)`: init's `PageFrame` or `DeviceFrame` cap, mapped at `child_va` with
+fixtures/src/hello.rs:708:/// a `MAP_*` mode), which is how init hands a driver its registers and a shared buffer (19d.2).
+fixtures/src/interrupt_heeder.rs:15://! - the shared job frame, mapped read/write at [`JOB_PAGE_FRAME_VA`] (init maps it; the shell
+fixtures/src/interrupt_heeder.rs:36:/// Where init maps the shared job frame in the child's address space. Must match the shell/init
+fixtures/src/interrupt_heeder.rs:40:// SAFETY: init mapped one page read/write at JOB_PAGE_FRAME_VA before this program runs (milestone 139
+fixtures/src/memory_grant_depleter.rs:6://! untyped to this program (init inserts it at slot 1); the program then maps pages out of it, one
+fixtures/src/memory_grant_depleter.rs:51:/// The result endpoint init grants every spawned program (slot 0).
+fixtures/src/outlaw.rs:12://! It is deliberately **not** a role of `hello`. hello is the system's init on aarch64 and carries
+fixtures/src/outlaw.rs:14://! process that reads a forbidden address on purpose has no business sharing an image with init.
+fixtures/src/outlaw.rs:35://! running system wants, and that are deliberately not roles of `hello` because init has no
+fixtures/src/soaker.rs:57://! It never exits. That is the whole point, and it is why the kernel spawns it rather than init:
+fuzz/Cargo.toml:34:# `cargo fuzz init` creates it), and `script/fuzz` invokes the tool with no `--fuzz-dir`. So the name
+kernel/Cargo.toml:235:# The init boot (milestone 19d.2c): userspace init is the boot path and brings up the system's
+kernel/build.rs:86:/// the kernel may enter as init, and writes `target/init-measure-<arch>.txt`. Here we turn that
+kernel/build.rs:88:/// what makes the check mean "this kernel image runs exactly this init" with no key management: the
+kernel/build.rs:108:        .join(format!("target/init-measure-{arch}.txt"));
+kernel/build.rs:111:    // changes. That relink is the honest cost of "this kernel runs exactly this init."
+kernel/build.rs:116:    // The format has one definition (`measured_boot::manifest_entries`), shared with init, which
+kernel/build.rs:118:    // unparseable line into a hard error where init treats it as a refusal, and the asymmetry is
+kernel/falsifications/arch.aarch64.iommu.proofs.no_stream_can_reach_another_streams_tables.patch:12:The patch is that edit, whole and self-consistent: `init` programs the larger
+kernel/src/arch/aarch64/iommu.rs:28://! `init` sets `GBPA.ABORT` (so traffic aborts even in the window before the SMMU is enabled),
+kernel/src/arch/aarch64/iommu.rs:325:    let s = g.as_mut().expect("SMMU attach before init");
+kernel/src/arch/aarch64/iommu.rs:401:///   nothing, so `init`, `cmd_push`, `attach` and `take_fault` are all unreachable to a harness.
+kernel/src/arch/aarch64/isa.rs:202:    /// **Discovery ran, and the part identified itself.** Reaching this test means `init` did not
+kernel/src/arch/aarch64/mmu.rs:171:    debug_assert!(root != 0, "init_secondary before init");
+kernel/src/arch/aarch64/mmu.rs:405:    let here = init as *const () as u64;
+kernel/src/arch/aarch64/mmu.rs:583:/// Allocate and install the empty TTBR0 root. Called at the end of `init`.
+kernel/src/arch/aarch64/mod.rs:41:// The exception vector table. VBAR_EL1 will point here once `init` runs.
+kernel/src/arch/aarch64/timer.rs:120:/// `PMUSERENR_EL0` exists only with `FEAT_PMUv3`, so `init` reads `ID_AA64DFR0_EL1.PMUVer` once per
+kernel/src/arch/aarch64/timer.rs:127:/// `init` writes zero, so `false` is the truth at boot on every core.
+kernel/src/arch/aarch64/timer.rs:135:/// Nothing else in this kernel writes `PMUSERENR_EL0` after `init`, so the cache cannot go stale
+kernel/src/arch/aarch64/timer.rs:177:/// `CY` bits this project's per-hart timer init now writes together. This is that same pair, split
+kernel/src/arch/aarch64/timer.rs:204:/// the per-core `init` rather than in a boot-core-only path.
+kernel/src/arch/aarch64/timer.rs:207:    // would take an undefined-instruction exception on the first line of every core's timer init.
+kernel/src/arch/aarch64/timer.rs:243:/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+kernel/src/arch/aarch64/timer.rs:286:/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+kernel/src/arch/aarch64/timer.rs:598:    /// zero, which is where `init` left it and where every other test expects it.
+kernel/src/arch/aarch64/vectors.s:193:    cbz     x2,  1f                 // 0: stay on this stack (from EL0, pre-init, or nesting)
+kernel/src/arch/riscv64/iommu.rs:17://! `init` installs an all-invalid device directory before enabling anything, so a device the
+kernel/src/arch/riscv64/iommu.rs:18://! kernel never attached faults (`DDT_ENTRY_INVALID`) instead of reaching memory. Before `init`
+kernel/src/arch/riscv64/iommu.rs:20://! IOMMU, so the pre-init window fails closed by architecture here; the SMMU needed an explicit
+kernel/src/arch/riscv64/iommu.rs:89:    /// format is 32 bytes; both are handled, decided once at init from the capabilities register.
+kernel/src/arch/riscv64/iommu.rs:244:    let s = g.as_mut().expect("IOMMU attach before init");
+kernel/src/arch/riscv64/isa.rs:239:    /// `init` would have panicked on, so reaching this test at all is half the assertion; the
+kernel/src/arch/riscv64/mmu.rs:363:/// not just on the QEMU width, so it needs the same number `init` gates on.
+kernel/src/arch/riscv64/mmu.rs:553:    let here = init as *const () as u64;
+kernel/src/arch/riscv64/mmu.rs:721:    // SAFETY: `reserved_root()` composes `KERNEL_ROOT`, the fine map `init` built and stored, which
+kernel/src/arch/riscv64/mmu.rs:844:    // SAFETY: `root` is the fine kernel table built by `init`; the direct map makes `phys_to_ptr`
+kernel/src/arch/riscv64/mod.rs:402:    // on first-silicon day (2026-08-14): init's freshly built child hung on the board and nowhere
+kernel/src/arch/riscv64/pmu.rs:595:    /// So the assertion is what the interface does promise: the stop was accepted, and `init` left
+kernel/src/arch/riscv64/pmu.rs:613:            "init left the module undecided, which it cannot do: every path stores an outcome"
+kernel/src/arch/riscv64/timer.rs:51:/// It is a separate call rather than part of `init` because `init` also runs on every secondary,
+kernel/src/arch/riscv64/timer.rs:173:    // Per-hart, so it belongs in this per-hart init: `scounteren` is not shared between harts, and a
+kernel/src/arch/riscv64/timer.rs:193:    // authority), which is `Gate: DECISION` and calef's, not this init's.
+kernel/src/arch/riscv64/timer.rs:210:/// Gated with its only reader (milestone 237): `init` above closes `CY` by writing `TM` alone, so
+kernel/src/arch/riscv64/timer.rs:230:/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+kernel/src/arch/riscv64/timer.rs:252:/// design (`init` above says why, and `crates/user_rt`'s `now()` depends on it), while `CY` is
+kernel/src/arch/riscv64/timer.rs:260:/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+kernel/src/arch/riscv64/timer.rs:540:    /// which is where `init` left it and where every other test expects it.
+kernel/src/arch/riscv64/trap.s:219:    beqz    a1, 5f                  # 0: stay on this stack (from U-mode, pre-init, or nesting)
+kernel/src/arch/x86_64/exceptions.rs:12://! other two: a [`TrapFrame`], counters it can assert on, the last user fault, and an `init` that
+kernel/src/arch/x86_64/iommu.rs:29://! `init` gives the SMMUv3 and the RISC-V IOMMU: a bus with no context table, or a context entry
+kernel/src/arch/x86_64/iommu.rs:43://! `init` zeroes the root table and points `RTADDR_REG` at it before setting `GCMD.TE`, so
+kernel/src/arch/x86_64/iommu.rs:47://! the other two drivers' `init` establishes for their own table shapes.
+kernel/src/arch/x86_64/iommu.rs:284:    let s = g.as_mut().expect("IOMMU attach before init");
+kernel/src/arch/x86_64/isa.rs:132:    // `__cpuid` is safe (see `init`'s own comment); leaf 0x15 carries no precondition beyond the
+kernel/src/arch/x86_64/isa.rs:144:    // SAFETY: written once by `init` during single-threaded boot and read-only thereafter.
+kernel/src/arch/x86_64/mmu.rs:390:        "a secondary CPU reached init_secondary before init"
+kernel/src/arch/x86_64/mmu.rs:400:    // SAFETY: `root` is the fine kernel table `init` built; the direct map makes `phys_to_ptr` valid
+kernel/src/arch/x86_64/mmu.rs:597:        // Before `init`, the boot map covers the low 4 GiB three ways over and nothing is a hole.
+kernel/src/arch/x86_64/mmu.rs:1347:    let here = init as *const () as u64;
+kernel/src/arch/x86_64/mmu.rs:1523:/// (`init`'s `verify` asserts it), so every user address faults, which is what a kernel thread
+kernel/src/arch/x86_64/mmu.rs:1667:    // SAFETY: `reserved_root()` composes `KERNEL_ROOT`, the fine map `init` built, verified and is
+kernel/src/arch/x86_64/mod.rs:315:            "  smp: init-sipi-sipi via the local apic, trampoline at {:#x}",
+kernel/src/arch/x86_64/mod.rs:320:            "  smp: the local apic is not up, so no core can be started here (init-sipi-sipi needs it)"
+kernel/src/arch/x86_64/mod.rs:476:/// init on first silicon). Here the guarantee is the hardware's.
+kernel/src/arch/x86_64/segments.rs:114:    0,                     // 0x28: TSS descriptor, low half, filled in by `init`
+kernel/src/arch/x86_64/segments.rs:172:    // its GDT; a different core's `init` writes a different slot.
+kernel/src/arch/x86_64/timer.rs:34://! - **`init` panics if the local APIC is not up.** The ordering (APIC, then timer) is a real
+kernel/src/arch/x86_64/timer.rs:326:/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+kernel/src/arch/x86_64/timer.rs:357:/// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
+kernel/src/arch/x86_64/trap.s:261:    jz 4f                           # 0: stay here (from ring 3, pre-init, or nesting)
+kernel/src/cap.rs:82:    /// knows device physical addresses) and hands it to init; init delegates it to the driver it
+kernel/src/cap.rs:84:    /// at spawn" into "device access is a capability", so a userspace init can bring up drivers.
+kernel/src/cap.rs:182:/// failure, because **`script/test` never boots the real init**: every suite that runs the shell
+kernel/src/cap.rs:183:/// has the kernel play init, and the only gate that runs `system_initializer` is
+kernel/src/cap.rs:186:/// with a virtio-rng attached, init fills all seventeen slots building `credentialer` and dies at
+kernel/src/cap.rs:193:/// **21** simultaneous slots is the boot's high-water mark, in init, while `build_child` lays down
+kernel/src/cap.rs:201:/// because init now holds the entropy service's request endpoint for the life of the boot instead
+kernel/src/cap.rs:211:/// Twenty-one, in init, during `build_child` for `credentialer`: twelve capabilities that process
+kernel/src/cap.rs:234:/// `WRITE` view of that same endpoint at spawn, and init is the only process that can make that
+kernel/src/cap.rs:242:/// holds a capability across init's login block should expect to spend one of them and should read
+kernel/src/cap.rs:263:/// interactive boot printed six lines (4, 5, 12, 14, 16, 21 of 24): init blocks on IPC several
+kernel/src/cap.rs:415:/// An interrupt capability with explicit rights (milestone 19d.2b): init holds one with `GRANT`
+kernel/src/cap.rs:443:/// root (`GRANT`) -> init's `SPLIT` (inherits `GRANT`) -> `CAP_INSERT` into a child (narrowed).
+kernel/src/cap.rs:451:/// The delegable root untyped the kernel hands init at boot (milestone 31). Full rights, `GRANT`
+kernel/src/cap.rs:452:/// included, because handing memory budgets to the children it builds is init's whole job: the root
+kernel/src/cap.rs:473:/// init holds one with `GRANT` so it can delegate the device to an entropy service it builds,
+kernel/src/console.rs:12:// RISC-V's has an NS16550. Both expose `new`/`init`/`impl Write`, so the console code below names
+kernel/src/console.rs:199:/// `init` and this call the console is misconfigured *for the board* and correct for QEMU; nothing
+kernel/src/console.rs:298:/// other consumer to disturb, and lowering it restores exactly the state `init` left.
+kernel/src/cpu.rs:373:    /// core init, and which no context switch saves or restores, so an `id()` of 1 means the test
+kernel/src/drivers/ns16550.rs:99:    /// transmitter is busy and latches a "busy" interrupt. When set, `init` drains the transmitter
+kernel/src/drivers/ns16550.rs:373:    /// real time. Bounded the same way `init`'s busy-quirk drain is: a spin this size only ever
+kernel/src/drivers/ns16550.rs:387:    /// (`init` writes the same value). Test builds only, for the same reason as its partner above.
+kernel/src/drivers/plic.rs:69:    // SAFETY: `off` names a PLIC register within the block `init` mapped and promised.
+kernel/src/interrupt_stack.rs:274:            // SAFETY: a slot of the region `init` mapped and painted, read one word at a time.
+kernel/src/iommu.rs:19://! `init` has already installed an all-invalid stream table / device directory, so an unattached
+kernel/src/iommu.rs:59:/// attaching before the driver's `init` panics.
+kernel/src/kmem.rs:1://! **The kernel's own object budget** (milestone 19c.1; design/init-and-granular-spawn.md).
+kernel/src/kmem.rs:22://! this carve because **the kernel is its creator**; an init-created TCB's memory comes from
+kernel/src/kmem.rs:23://! init's untyped because init is. One principle, two payers, no third regime.
+kernel/src/main.rs:26:// before the shared, still-aarch64-shaped full boot (userspace init as the boot process, the shell,
+kernel/src/main.rs:508:            // `init` polls GSTS.RTPS then GSTS.TES itself and panics rather than returning if
+kernel/src/main.rs:667:    // capability invocation, userspace init building a child out of the initrd, and a userspace
+kernel/src/main.rs:669:    // (userspace init as the boot process, the shell, the virtio service), which is still
+kernel/src/main.rs:771:        // timer tick landing mid-init would run the deferred `schedule()` before the idle thread is
+kernel/src/main.rs:806:        // A `shell` build hands the machine to userspace init here and parks, instead of the tour.
+kernel/src/main.rs:835:                            "  shell: userspace init is building the console, input, and shell."
+kernel/src/main.rs:1032:                        "  init/build  : userspace init loaded 'least_authority_demo' from a {}-byte archive and built it as a child; the child sent {sq} (expected 81)",
+kernel/src/main.rs:1035:                    Err(e) => println!("  init/build  : init failed: {e:?}"),
+kernel/src/main.rs:1113:        // RX FIFO during init, so a byte sent at t=0 is dropped).
+kernel/src/main.rs:1460:                                    "  hw entropy  : JH7110 TRNG at {:#x} served 32+32 bytes to a client through a capability that names no device; first draw {:02x}{:02x}{:02x}{:02x}.., second differs; STAT after init {:#010x} ({}); since the pcie line {} us, of which bring-up {} us (window mapped, driver spawned, reseed, first generation; the hw clock line's own console time excluded) and {} bytes in {} us ({} bytes/s over {} round trips)",
+kernel/src/main.rs:1493:                                    "  hw entropy  : FAILED: JH7110 TRNG at {:#x} (tree says {}, status {}): report {:#x}, bring-up diagnostic {:#018x}, STAT after init {:#010x} ({}), draws {na}/{nb} bytes, first-all-zero {zeros}, draws-differ {}; since the pcie line {} us, of which bring-up {} us and draws {} us",
+kernel/src/main.rs:1872:        // **Milestone 19d.2c, completed at 28: userspace init is the boot path.** The kernel stops
+kernel/src/main.rs:1873:        // wiring services itself. It hands off to init, which brings up the console server, the line
+kernel/src/main.rs:1883:        // the place of the init handoff rather than of the halt below it. A soak boot that also
+kernel/src/main.rs:1899:            println!("nife: handing the system to userspace init.");
+kernel/src/main.rs:1901:            // The boot thread's work is done; init and the services it builds run until halt.
+kernel/src/main.rs:1952:    // pre-init case to guard here. `saturating_mul` bounds the scaling rather than the duration: a
+kernel/src/memory.rs:497:/// (distributor, `cpu_interface`), both **physical**. Stashed at `init` because that is the only
+kernel/src/memory.rs:533:/// non-prefetchable memory window BARs are placed in. `None` before `init`, and on a machine
+kernel/src/memory.rs:543:/// them from. `x86_64`'s counterpart of `init`'s `pci-host-ecam-generic` node parse: ACPI's MCFG
+kernel/src/memory.rs:549:/// their device tree inside `init` instead.
+kernel/src/memory.rs:638:/// read it from. `x86_64`'s counterpart of `init`'s [`machine_discovery::interrupt_id::of_node`]
+kernel/src/memory.rs:645:/// their device tree inside `init` instead.
+kernel/src/memory.rs:734:/// node) and until `init` has run.
+kernel/src/memory.rs:738:/// published trees agree on (milestone 220). `None` until `init`, and on every machine that is
+kernel/src/memory.rs:746:/// `None` until `init`, and on a machine whose device tree has no such node (the JH7110).
+kernel/src/memory.rs:756:/// counterpart of `SMMU_REGION`: filled by `main.rs`'s boot tour rather than by `init`, for the
+kernel/src/memory.rs:766:/// The RTC's register block and binding kind (milestone 51). `None` until `init` has run, and on a
+kernel/src/memory.rs:770:/// The console UART's interrupt line, from the device tree. `None` until `init`, and on a tree
+kernel/src/pci.rs:727:/// arch driver's `init`. No such function on the bus (a plain `virt` boot, or aarch64), no-op.
+kernel/src/sched.rs:202:/// ("the pool upgrades to retype-backed storage behind the table when init lands"); this is it.
+kernel/src/sched.rs:401:    /// **The rendezvous registry** (milestone 19a; design/init-and-granular-spawn.md). An rendezvous
+kernel/src/sched.rs:525:/// copies from instead of a value assembled on the boot stack. `init`'s own comment carries the
+kernel/src/sched.rs:893:/// tour's serial lines after "init : measured, built, started" never showed at the bench, while
+kernel/src/sched.rs:1213:/// exactly as `init` does for the boot core. After this, the core's run queue is empty, so it runs
+kernel/src/sched.rs:1435:    // (first-silicon bench, 2026-08-14: {1,2,3} online, and modulo-count placed init into parked
+kernel/src/sched.rs:1868:                    // No idle thread yet (before init finished), or the idle thread itself is
+kernel/src/sched.rs:3333:    // console server out of init's budget and that server blocks in its serve loop, so init's
+kernel/src/sched.rs:4185:    // the VisionFive 2 placement hang (init modulo-counted into slot 0's inbox; that dead inbox in
+kernel/src/syscall.rs:515:            // full the day `ENUMERATE` was added, and the symptom was three steps away: init
+kernel/src/syscall.rs:526:        // design/init-and-granular-spawn.md).
+kernel/src/syscall.rs:575:    // narrow monotonically from the delegable root budget down; init holds that root with GRANT
+kernel/src/syscall.rs:616:    // MMIO, device-typed): the driver a userspace init builds gets its registers this
+kernel/src/syscall.rs:1279:        // Contrast: the delegable root (READ|WRITE|GRANT, what init holds) passes GRANT to its
+kernel/src/trust.rs:1://! **The trust root: what init is allowed to be** (milestone 22 phase B.1, DECISIONS §22).
+kernel/src/trust.rs:7://! parsed and entered. Since a compromised init can endow malicious children and deny the system it
+kernel/src/trust.rs:14://! kernel image runs exactly this init," which needs no keys, no certificate chain, and no
+kernel/src/trust.rs:15://! signature-verification code inside the trusted computing base. The signature variant (update init
+kernel/src/trust.rs:24://! See notes/trusted-init.md.
+kernel/src/trust.rs:26:// `TRUST_ROOT`, generated by `kernel/build.rs` from `target/init-measure-<arch>.txt`: the digests of
+kernel/src/trust.rs:47:/// kernel builds init's address space and drops to EL0/U-mode at its entry.
+kernel/src/trust.rs:50:/// init loads everything else against, through [`require_program_measurements`]. The wording of the
+kernel/src/trust.rs:54:/// A mismatch is not recoverable and must not be recovered from: there is no second init to fall
+kernel/src/trust.rs:74:            crate::println!("  halting rather than handing the archive to init.");
+kernel/src/trust.rs:86:            crate::println!("  halting rather than handing the archive to init.");
+kernel/src/trust.rs:92:/// **Vouch for the table init measures its own loads against** (milestone 104), which is the whole
+kernel/src/trust.rs:93:/// of the kernel's part in extending the chain past init.
+kernel/src/trust.rs:95:/// The kernel loads one program and measures it. Everything else in the archive is init's to load,
+kernel/src/trust.rs:96:/// and until this existed those bytes were unchecked, so the chain of trust stopped at init's entry.
+kernel/src/trust.rs:97:/// The fix belongs in userspace (init decides what to do about a mismatch, the same way §26's
+kernel/src/trust.rs:99:/// init can trust as much as the kernel trusts init.
+kernel/src/trust.rs:101:/// **Why the kernel measures a file it never reads.** init's own table cannot be compiled into init,
+kernel/src/trust.rs:102:/// because init is *in* the archive it would be measuring; generating it would mean building
+kernel/src/trust.rs:104:/// ordinary archive entry, [`measured_boot::PROGRAM_MEASUREMENTS`], and this hashes it beside init.
+kernel/src/trust.rs:106:/// policy at all, which is the line DECISIONS §26 draws and notes/trusted-init.md's rejected
+kernel/src/trust.rs:109:/// A **missing** table halts, for [`require`]'s reason one level down: an init that cannot vouch for
+kernel/src/trust.rs:120:                "    init could not vouch for anything it loads, so it is not started."
+kernel/src/trust.rs:122:            crate::println!("  halting rather than entering an init that measures nothing.");
+kernel/src/user.rs:801:/// One name, one binary, one program (milestone 266). This used to be `init`, and it meant
+kernel/src/user.rs:811:/// One name on all three architectures since milestone 266. aarch64 used to pack it as `init`,
+kernel/src/user.rs:893:    // made `init` mean one thing here and another on RISC-V.
+kernel/src/user.rs:1709:    // **Its own name since milestone 266.** This entry used to be called `init`, which made the
+kernel/src/user/authority_tests.rs:17:/// **Spawn the tree's root the way the kernel spawns init**, and return the report endpoint every
+kernel/src/user/authority_tests.rs:91:/// How many reports a healthy run of the tree makes: init's drop, the first instance running, its
+kernel/src/user/authority_tests.rs:105:/// The order of the five is not fixed (init's drop races the sub-server's first run), so callers
+kernel/src/user/authority_tests.rs:146:/// **init drops its construction authority, and the drop is real.**
+kernel/src/user/authority_tests.rs:153:/// init not to" and "init cannot."
+kernel/src/user/authority_tests.rs:162:        .expect("init never reported dropping its budget");
+kernel/src/user/authority_tests.rs:165:        "init still built a page or a kernel object after deleting its untyped: the authority \
+kernel/src/user/authority_tests.rs:176:/// **A dead sub-server is restarted by its own supervisor, in userspace, and init cannot have
+kernel/src/user/authority_tests.rs:186:/// **How "without init's involvement" is proven, and why it is not a timing argument.** init has
+kernel/src/user/c_seam_tests.rs:38:/// **Spawn the confiner the way the kernel spawns init**, and return the report endpoint every
+kernel/src/user/clock_service.rs:13:/// What the clock service was wired with, so a test (or a real init) can play its clients.
+kernel/src/user/date_tests.rs:59:/// is what the real init does through `abi::thread_control_block::CAP_INSERT`'s explicit target. That is the whole
+kernel/src/user/disk_service.rs:415:/// init failing to get its own budget several tests later.
+kernel/src/user/disk_service.rs:547:    // its own budget much later ("no building budget for init", 2026-08-03). The previous process
+kernel/src/user/entropy_service.rs:428:    /// - `[1]` `(STAT-after-init << 32) | bytes_in_hand`. The high half is what the device's
+kernel/src/user/fs_service.rs:354:    /// machine's 128 MiB (the first symptom was init failing to get its own budget, several
+kernel/src/user/fs_service.rs:933:/// spawned by the time init exists), and returns `(the file-service endpoint, the physical frame
+kernel/src/user/fs_service.rs:1401:/// That is the whole of what this milestone decides about the wire, deliberately: a shell-to-init
+kernel/src/user/input_service.rs:9://! # Why the kernel spawns it here rather than init
+kernel/src/user/input_service.rs:12://! endpoint, which the kernel creates before init exists
+kernel/src/user/input_service.rs:14://! init spawns can only be wired to capabilities init itself already holds). The virtio keyboard
+kernel/src/user/job_undertaker_tests.rs:66:/// **Start the real `job_undertaker` binary** the way the interactive init starts it: an ordinary user
+kernel/src/user/live_swap_tests.rs:94:/// each park an init holding an eight-megabyte region. An over-generous budget here fragments
+kernel/src/user/live_swap_tests.rs:95:/// the frame allocator enough that a *later, unrelated* test cannot get init's region, which is
+kernel/src/user/live_swap_tests.rs:107:/// **Spawn the operator the way the kernel spawns init**, and return the report rendezvous every
+kernel/src/user/live_swap_tests.rs:112:/// about: a device capability in slot 2, `WRITE|GRANT`, exactly as init gets one at boot. So
+kernel/src/user/live_swap_tests.rs:251:    // could not get init's own eight-megabyte region.
+kernel/src/user/live_swap_tests.rs:269:    // operator the way it builds init. They come home through the ordinary reaper, which with
+kernel/src/user/measured_boot_tests.rs:55:// The second link (milestone 104): init measures what init loads.
+kernel/src/user/measured_boot_tests.rs:58:// looks every program up in before loading it. These prove the link composes without booting init:
+kernel/src/user/measured_boot_tests.rs:60:// this image's own `.rodata`, and the names come from the same places init reads them from.
+kernel/src/user/measured_boot_tests.rs:63:/// **The six components init builds the interactive system out of**, mirroring
+kernel/src/user/measured_boot_tests.rs:78:/// one link down, and the reason init's refusals are worth anything: a table an attacker could
+kernel/src/user/measured_boot_tests.rs:86:        "the kernel image carries no measurement for '{name}': init would be handed a table this \
+kernel/src/user/measured_boot_tests.rs:96:/// **Every program init loads is named in the table, and the bytes agree.** The end-to-end proof of
+kernel/src/user/measured_boot_tests.rs:113:            "init would refuse the boot component '{name}'",
+kernel/src/user/measured_boot_tests.rs:117:    // The spawnable half, taken from the same enum init indexes (`grant_plan::Prog`), so a program
+kernel/src/user/measured_boot_tests.rs:127:            "init would refuse the spawnable program '{name}'",
+kernel/src/user/pipeline_service.rs:55:/// **Wire a scripted shell and the init service behind it.**
+kernel/src/user/pipeline_service.rs:75:/// `READ` and no `GRANT`, matching what the init hands the shell: a witness with wider rights than
+kernel/src/user/pipeline_service.rs:146:    // init first, so a shell that spawns before the service is listening merely blocks in a
+kernel/src/user/pipeline_service.rs:358:/// **init, as the shell sees it**: the spawn protocol, including milestone 50's two delegated
+kernel/src/user/pipeline_service.rs:370:/// this path today; both are exercised only against the real init, by `script/shell-check`.
+kernel/src/user/pipeline_service.rs:461:        // init owes it an ack. Unredirected, the child's own message is the shell's single read.
+kernel/src/user/pipeline_service.rs:482:/// away: what init needs is the *name* of the rendezvous, and holding the capability afterwards
+kernel/src/user/pipeline_tests.rs:8:/// Cached because running it is expensive (a shell, an init service, and several spawned
+kernel/src/user/sink_tests.rs:123:    // **The block server, whichever binary carries it here.** This named `"init"` outright, which
+kernel/src/user/sink_tests.rs:124:    // is the aarch64 convention: there `init` *is* the hello binary and hello carries the role. On
+kernel/src/user/sink_tests.rs:125:    // both other architectures `init` is the portable `builder` demo, which has no such role, so
+kernel/src/user/sink_tests.rs:272:    // **The block server, whichever binary carries it here.** This named `"init"` outright, which
+kernel/src/user/sink_tests.rs:273:    // is the aarch64 convention: there `init` *is* the hello binary and hello carries the role. On
+kernel/src/user/sink_tests.rs:274:    // both other architectures `init` is the portable `builder` demo, which has no such role, so
+kernel/src/user/tests.rs:18:/// untyped demo, the granter and receiver, the call server, the address space builder, the init roles.
+kernel/src/user/tests.rs:23:/// hello as `init`, because on that ISA hello also carried the boot role. Milestone 266 moved that
+kernel/src/user/tests.rs:101:/// role of the init/hello binary. `_start(x0, x1, x2)` reads its input in `x1` and needs no
+kernel/src/user/tests.rs:2378:/// **Milestone 19d.2b: init delegates an interrupt to a driver it builds.** The last
+kernel/src/user/tests.rs:2380:/// init holds one for a test SGI (the kernel routed it), builds a child, hands it the Irq
+kernel/src/user/tests.rs:2383:/// reports. A hang would mean the interrupt never reached the init-built child, so a passing
+kernel/src/user/tests.rs:2384:/// test is the proof. Completes the "init delegates every authority kind" story the
+kernel/src/user/tests.rs:2390:/// is the console UART's own, which `spawn_progenitor` is already routing for the input driver init
+kernel/src/user/tests.rs:2391:/// builds. A twin would have to share that one source between init's UART capability and the
+kernel/src/user/tests.rs:2405:    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_IRQ_ROLE, report);
+kernel/src/user/tests.rs:2414:        "the interrupt never reached the init-built child through the delegated Irq cap",
+kernel/src/user/tests.rs:2416:    init.release_or_fail("an init test's building budget");
+kernel/src/user/tests.rs:2419:/// **Milestone 19d.2b: userspace init brings up the real console server.** Past 19d.2a's
+kernel/src/user/tests.rs:2420:/// ID-read probe: init builds the *actual* print server as a child, wires it a request/reply
+kernel/src/user/tests.rs:2422:/// The server prints to the real UART (visible in the QEMU log) and acks the length; init
+kernel/src/user/tests.rs:2424:/// works end to end: a driver init constructed, on a channel init created, driving hardware
+kernel/src/user/tests.rs:2425:/// init delegated. This is the shape the real boot path (19d.2c) uses.
+kernel/src/user/tests.rs:2437:    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_CONSOLE_ROLE, report);
+kernel/src/user/tests.rs:2442:        "the init-built console server did not print-and-ack: {acked} bytes, expected {MSG_LEN}",
+kernel/src/user/tests.rs:2444:    init.release_or_fail("an init test's building budget");
+kernel/src/user/tests.rs:2447:/// **Milestone 19d.2: userspace init builds a device driver and hands it the hardware.**
+kernel/src/user/tests.rs:2448:/// The step beyond 19d.1: not just a child, but a child that touches a *device*. init holds a
+kernel/src/user/tests.rs:2453:/// kernel minted and init delegated, `MAP_INTO` mapped it device-typed (not cached normal
+kernel/src/user/tests.rs:2454:/// memory, which would corrupt MMIO), and a userspace-init-built driver drove real hardware.
+kernel/src/user/tests.rs:2470:    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_DEV_ROLE, report);
+kernel/src/user/tests.rs:2475:        "the init-built driver did not read the PL011's id: device delegation or the              device-typed mapping is broken",
+kernel/src/user/tests.rs:2477:    init.release_or_fail("an init test's building budget");
+kernel/src/user/tests.rs:2480:/// **Milestone 19d: userspace init parses a real ELF and builds a running process from it.**
+kernel/src/user/tests.rs:2481:/// The kernel loads exactly one program, init (a role of the same binary), and hands it the
+kernel/src/user/tests.rs:2482:/// initrd mapped read-only plus a building budget and a report rendezvous. init parses that
+kernel/src/user/tests.rs:2494:    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_ROLE, report);
+kernel/src/user/tests.rs:2499:        "init did not build a running child from the ELF it parsed in userspace",
+kernel/src/user/tests.rs:2501:    init.release_or_fail("an init test's building budget");
+kernel/src/user/tests.rs:2504:/// **Milestone 19e: init builds a `least_authority_demo`, passes it an argument, and gets the answer back.**
+kernel/src/user/tests.rs:2506:/// widened `START` to carry three initial registers. init builds a `least_authority_demo`, starts it with the
+kernel/src/user/tests.rs:2516:    let init = spawn_progenitor(
+kernel/src/user/tests.rs:2528:    init.release_or_fail("an init test's building budget");
+kernel/src/user/tests.rs:2609:/// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The `least_authority_demo`'s
+kernel/src/user/tests.rs:2610:/// `n*n` proved the mechanism; this proves a *substantial* program. init builds the `"coremark"`
+kernel/src/user/tests.rs:2621:    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_COREMARK_ROLE, report);
+kernel/src/user/tests.rs:2637:    init.release_or_fail("an init test's building budget");
+kernel/src/user/tests.rs:2641:/// The kernel drives the four verbs the way init eventually will: retype an address space and
+kernel/src/user/time_tests.rs:80:/// - **`least_authority_demo` holds no clock.** Its manifest declares none, so init endows none, and it is still
+kernel/src/user/timetable_tests.rs:19:/// Stack pages for the timetable, four times what `INIT_STACK_PAGES` gives a boot's init.
+script/board-image:192:# archive regenerates target/init-measure-riscv.txt, the manifest the kernel compiles in as its
+script/board-image:258:echo "built against and halts rather than hand init an archive that does not match, so a card that"
+script/ci-build:24:# architectures for five days and a fully green tree said nothing about it: init trapped before the
+script/ci-build:25:# console existed, and the only gate that boots the real init is this one.
+script/ci-build:30:# from two address spaces with nothing arbitrating, so a thread dying while init prints shuffles the
+script/citations:287:        # (`milestone 19 ("Decision 2" in design/init-and-granular-spawn.md)`) is prose, and reading
+script/gates:85:# **The interactive boot** (milestone 230). `script/test` has the KERNEL play init in every suite
+script/gates:88:# red for five days behind a fully green tree while init trapped before a console existed to say so.
+script/initboot:2:# script/initboot: boot nife-os with userspace init as the boot path (milestone 19d.2c).
+script/initboot:3:# init brings up the console (and, in the interactive build, input and the shell) out of its own
+script/initboot:5:# real Apple Silicon core. See design/init-and-granular-spawn.md.
+script/initboot:7:# Name: provisional, and this lane proposes a rename to `init-boot`. Introduced 2026-07-25 with
+script/initboot:8:# milestone 19d.2c to boot with userspace init as the boot path. The name is not wrong about what
+script/lint:203:# the init handoff and is the ONLY configuration in which the scheduler's event counters and
+script/names:11:# located: `components/src/builder.rs` calls itself "a minimal init: the system builder", so two programs
+scripts/qemu-runner-aarch64.sh:103:# nife kernel that reaches `halt()` never exits and neither would QEMU. Machine init still happens,
+scripts/qemu-runner-aarch64.sh:113:# nife kernel that reaches `halt()` never exits and neither would QEMU. Machine init still happens,
+std_exerciser/src/main.rs:98:    match std::fs::File::open("/init") {
+xtask/Cargo.toml:31:# The measured-boot hash (milestone 22 phase B.1): the build and the kernel measure init through the
+xtask/src/main.rs:1260:// the manifest) and notes/trusted-init.md.
+xtask/src/main.rs:1268:/// boards. Before that the entry was called `init` and meant a different binary depending on the
+xtask/src/main.rs:1290:    workspace_root().join(format!("target/init-measure-{arch}.txt"))
+xtask/src/main.rs:3371:/// inverted, starting from `init` (zero for an IPv4 header, the pseudo-header sum for UDP).
+xtask/src/main.rs:3372:fn internet_checksum(data: &[u8], init: u32) -> u16 {
+xtask/src/main.rs:3373:    let mut sum = init;
+xtask/src/main.rs:3415:/// archive entry `init` was the last place a name meant a different binary depending on the board,
+xtask/src/main.rs:3437:/// (init looks entries up by name) but the measurement table is computed over this sequence, so
+xtask/src/main.rs:3453:        // entry called `init` here, which is what made `init` mean two different binaries depending
+xtask/src/main.rs:3484:        // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
+xtask/src/main.rs:3580:        // all three architectures. aarch64 used to pack it as `init` because there it also carried
+xtask/src/main.rs:4355:        // **The first process** (milestone 266). Until then this row read `("init", "hello")` and
+xtask/src/main.rs:4394:        // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
+xtask/src/main.rs:5666:/// program but `hello`, which is packed as `init`.
+xtask/src/main.rs:5676:/// when `initrd_aarch64` stopped needing a special case for `init`; the warning belongs here, where

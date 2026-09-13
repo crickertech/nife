@@ -896,7 +896,7 @@ pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed befo
 /// Report what the spawned program did, in terms of the grant it was given.
 pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
     if answer == spawnproto::SPAWN_FAILED {
-        out(b"  could not spawn (init is out of memory)\n");
+        out(b"  could not spawn (the progenitor is out of memory)\n");
         return;
     }
     // **The job ran and the kernel killed it** (milestone 235). A different fact from the line

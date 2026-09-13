@@ -32,7 +32,7 @@
 //!
 //! An interruptible job gets the shared job frame and nothing else; this program needs a domain
 //! capability and a report sink for its whole run, so it cannot be spawned that way without teaching
-//! init's supervised-spawn path to endow capabilities too, which is a decision for whoever needs that
+//! The progenitor's supervised-spawn path to endow capabilities too, which is a decision for whoever needs that
 //! generally and not for one milestone's `watch`. So a bare `watch N` redraws `N` times (clamped to
 //! `[1, watch::MAX_ITERATIONS]`, see [`watch::clamp_iterations`]) and exits on its own; its manifest
 //! declares `interruptible: false`, the same as `ps`, `pgrep` and `date`, so no `^C` tier reaches it

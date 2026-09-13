@@ -1,9 +1,9 @@
 //! The least-authority demo: a whole program in one job.
 //!
 //! Milestone 19f.2, the first program that is its **own binary** rather than a role of `hello`.
-//! init loads it out of the initrd archive by the name `"least_authority_demo"` (nifefs), builds a
+//! The progenitor loads it out of the initrd archive by the name `"least_authority_demo"` (nifefs), builds a
 //! child address space and TCB at this ELF's own entry, and `START`s it with the input `n` in `x1`.
-//! It squares `n`, `SEND`s the answer on the one endpoint init granted it (slot 0), and exits.
+//! It squares `n`, `SEND`s the answer on the one endpoint the progenitor granted it (slot 0), and exits.
 //! That is the entire program: no role byte to dispatch on, no capabilities beyond the single one
 //! it needs. Least authority made real, because the program *is* its authority, and the squaring is
 //! arbitrary.
@@ -36,8 +36,8 @@
 
 use user_rt::{exit, send};
 
-/// The endpoint init grants the `least_authority_demo` as its only capability (slot 0). Its one `SEND` goes here,
-/// straight to whoever is waiting (the kernel test, or the shell behind init's spawn service).
+/// The endpoint the progenitor grants the `least_authority_demo` as its only capability (slot 0). Its one `SEND` goes here,
+/// straight to whoever is waiting (the kernel test, or the shell behind the progenitor's spawn service).
 const RESULT: u64 = 0;
 
 /// The `least_authority_demo`'s entry. `START` (milestone 19e) hands it three registers: `x0` is unused here (a

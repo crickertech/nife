@@ -6,12 +6,12 @@
 //! boot's `input` has always had; the only thing that changed is **who spawns it**, and that is
 //! the whole of this module's reason to exist.
 //!
-//! # Why the kernel spawns it here rather than init
+//! # Why the kernel spawns it here rather than the progenitor
 //!
 //! On a graphical boot the endpoint a keystroke source must reach is `line_editor`'s own served
-//! endpoint, which the kernel creates before init exists
+//! endpoint, which the kernel creates before the progenitor exists
 //! (`kernel::user::boot_graphical_terminal`, and the reason is recorded in full there: a driver
-//! init spawns can only be wired to capabilities init itself already holds). The virtio keyboard
+//! The progenitor spawns can only be wired to capabilities the progenitor itself already holds). The virtio keyboard
 //! is already spawned there for exactly that reason. A serial source needs the same treatment for
 //! the same reason, and doing it here means `crates/system_initializer` needs no line changed and
 //! cannot tell which source it got.

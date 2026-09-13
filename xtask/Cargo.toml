@@ -28,7 +28,7 @@ filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
 # tests run against tables `sgdisk` and macOS `diskutil` wrote. It also slices the data partition out
 # of the image so the host tool can open the filesystem inside it.
 gpt = { version = "0.1.0", path = "../crates/gpt" }
-# The measured-boot hash (milestone 22 phase B.1): the build and the kernel measure init through the
+# The measured-boot hash (milestone 22 phase B.1): the build and the kernel measure the progenitor through the
 # same implementation, so there is one definition of the digest.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
 # The framebuffer contract (milestone 29): the host-side scanout check compares QEMU's screendump

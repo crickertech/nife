@@ -28,7 +28,7 @@
 //!
 //! # And why it needed a new opcode
 //!
-//! `OP_WRITE` reads from **the client's output page**, and there is exactly one of those: init maps
+//! `OP_WRITE` reads from **the client's output page**, and there is exactly one of those: the progenitor maps
 //! a single frame into the terminal read-only and into the shell read/write. A second page-based
 //! client would need a second frame and a page index in the request, which is `filesystem_proto`'s
 //! one-page-two-clients problem (DECISIONS §55) arriving in a second contract. `OP_PRINT` carries

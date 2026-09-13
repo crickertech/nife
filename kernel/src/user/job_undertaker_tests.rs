@@ -63,7 +63,7 @@ fn pool_came_back(pool: u64) -> bool {
     spent(pool) == 0
 }
 
-/// **Start the real `job_undertaker` binary** the way the interactive init starts it: an ordinary user
+/// **Start the real `job_undertaker` binary** the way the interactive progenitor starts it: an ordinary user
 /// process whose entire capability table is one endpoint with `READ`.
 ///
 /// Deliberately the real program out of the initrd rather than a stub, because what is under test is
@@ -99,7 +99,7 @@ fn spawn_job_undertaker(deaths: sched::RendezvousId) -> u64 {
 /// finished running*, which is the whole point. A finished job's region is not free memory: its
 /// corpse persists (dead until reaped, DECISIONS §26) and the pool's watermark only moves forward.
 /// This is what the interactive prompt did before this increment, one command at a time, until the
-/// shell started answering "could not spawn (init is out of memory)".
+/// shell started answering "could not spawn (the progenitor is out of memory)".
 ///
 /// It is here because the renewal test below is unfalsifiable without it: a pool that could not run
 /// out would pass that test whether or not anything was ever collected.

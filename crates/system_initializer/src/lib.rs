@@ -31,14 +31,14 @@
 //! code is `script/shell-check`, which boots both ISAs and types at the prompt. So the example below
 //! is `no_run`: type-checked against the real signatures, and executed by that gate.
 //!
-//! An init's whole source, near enough. Everything a board contributes is the **table of slot numbers
+//! A progenitor's whole source, near enough. Everything a board contributes is the **table of slot numbers
 //! its own kernel granted**, which is a fact about that boot path and nothing else:
 //!
 //! ```no_run
 //! use system_initializer::{BootEndowment, boot};
 //!
-//! /// riscv64's init. The slot numbers come from `kernel::user::riscv_shell_boot` and are the only
-//! /// thing this file knows that the other board's init does not.
+//! /// riscv64's the progenitor. The slot numbers come from `kernel::user::riscv_shell_boot` and are the only
+//! /// thing this file knows that the other board's the progenitor does not.
 //! fn init(initrd_len: u64, fs_rights: u64) -> ! {
 //!     let endowment = BootEndowment {
 //!         untyped: 2,
@@ -62,7 +62,7 @@
 //!         disp_term_page: 13,
 //!         kbd_ep: 14,
 //!         // Empty here. On aarch64 this holds the kernel's report endpoint and a test SGI, because
-//!         // that boot path is shared with milestone 19d's test roles; init deletes them with the
+//!         // that boot path is shared with milestone 19d's test roles; the progenitor deletes them with the
 //!         // device authority once the drivers exist, rather than keeping delegable authority for
 //!         // nothing.
 //!         for_test_roles: &[],
@@ -111,15 +111,15 @@
 //!    comes back to the pool.
 //!
 //! They are wired together with endpoints and shared pages this code creates. The kernel wires none
-//! of it. Then init stays alive as the spawn service (milestone 31): the shell resolves a `run` into
-//! a grant expression and directs init to load the named program and endow it with exactly what the
+//! of it. Then the progenitor stays alive as the spawn service (milestone 31): the shell resolves a `run` into
+//! a grant expression and directs the progenitor to load the named program and endow it with exactly what the
 //! command named. Nothing here names an architecture: the console and input drivers hold the one
 //! device-specific fact (the UART register layout), and the kernel grants the right device.
 //!
 //! # What it gives away once the system is up (milestone 22, the interactive increment)
 //!
 //! It used to hold the kernel's whole construction budget for life, which made every process in the
-//! system one bug in init away from being built wrong. It no longer does. Once the boot servers
+//! system one bug in the progenitor away from being built wrong. It no longer does. Once the boot servers
 //! above are built it carves two bounded budgets off that root and **deletes the root**:
 //!
 //! - [`INIT_OWN_PAGES`] for its own scratch page tables, which is all it spends on itself; and
@@ -143,12 +143,12 @@
 //!
 //! The kernel measures the one program *it* loads, which is this one. Everything else in the
 //! archive is loaded here, and those bytes used to be unchecked, so the chain of trust stopped at
-//! init's entry. It does not now. The build packs a table of digests into the archive
+//! The progenitor's entry. It does not now. The build packs a table of digests into the archive
 //! ([`measured_boot::PROGRAM_MEASUREMENTS`]), the kernel's trust root vouches for that table exactly
 //! as it vouches for this program's own bytes, and [`boot`] looks every program up in it before
 //! loading it.
 //!
-//! **One rule: init runs nothing it cannot vouch for.** A digest that does not match is a refusal,
+//! **One rule: the progenitor runs nothing it cannot vouch for.** A digest that does not match is a refusal,
 //! and so is a name the table does not mention, for the reason the kernel's empty trust root is
 //! refused: a check that passes when there is nothing to check against is not a check.
 //!
@@ -157,7 +157,7 @@
 //! refused program is treated exactly as a missing one:
 //!
 //! - **console, input, `line_editor`, swish, `job_undertaker`.** The system is made of these, so not
-//!   running one and not having a system are the same outcome. init prints which one it refused and
+//!   running one and not having a system are the same outcome. The progenitor prints which one it refused and
 //!   traps, which is `kernel::trust::require`'s decision one link down.
 //! - **`terminal_sink_caretaker`.** Already optional: a boot without an adapter comes up and a
 //!   declared second stream finds an empty slot. A refused adapter costs that same feature.
@@ -178,7 +178,7 @@
 //! `.cargo/mutants.toml` all exclude it, and a gate in `script/lint` derives that set from cargo
 //! metadata so the four lists cannot drift apart again. `script/shell-check` is what proves this
 //! code, and it is a real gate: it boots both ISAs and types at the prompt, and it is the only
-//! thing in the tree that runs a real init.
+//! thing in the tree that runs a real progenitor.
 //!
 //! What it cannot do is say which of a mutation run's mutants it would have caught. So the question
 //! milestone 244 asked was the one behind that: how much of these 2,632 lines (the count on
@@ -218,9 +218,9 @@
 //! or a test comparing it against a separately written expectation. Milestone 244's block proposes
 //! the latter as a lane of its own.
 //!
-//! **A refused `console` or `line_editor` stops in silence.** Those two are what carry init's
-//! output, so a refusal of either has no route to a person: init traps and the operator sees the
-//! kernel's fault line for init and nothing else, indistinguishable from any other early init
+//! **A refused `console` or `line_editor` stops in silence.** Those two are what carry the progenitor's
+//! output, so a refusal of either has no route to a person: the progenitor traps and the operator sees the
+//! kernel's fault line for the progenitor and nothing else, indistinguishable from any other early progenitor
 //! failure. Everything refused after them is named on the console. There is no debug-print syscall
 //! (the kernel-served `Console` object went away at milestone 8) and driving the UART from here
 //! would be a second copy of the console driver, per ISA, inside the process the drivers exist to
@@ -231,7 +231,7 @@
 //! never had one.
 //!
 //! **The measurement is of the archive, not of memory over time.** It is checked once, when the
-//! program is loaded. Nothing re-measures a running process, and nothing measures the pages init
+//! program is loaded. Nothing re-measures a running process, and nothing measures the pages the progenitor
 //! wrote into a child after `build_child` copied them.
 //!
 //! The return of pages is **LIFO** (§16, `crates/regions`): a job region that is not at the top of
@@ -240,9 +240,9 @@
 //! fully; two jobs alive at once (a pipeline stage that outlives its producer) permanently costs one
 //! region. A long enough session of concurrent pipelines still ends at "could not spawn".
 //!
-//! The loader's scratch window is never unmapped, so init keeps a **writable mapping of every page
+//! The loader's scratch window is never unmapped, so the progenitor keeps a **writable mapping of every page
 //! it ever laid down for a child**. Reaping a job undoes that (region reclaim revokes every mapping
-//! of the pages first, §13), but the boot servers are never reclaimed, so init can still read and
+//! of the pages first, §13), but the boot servers are never reclaimed, so the progenitor can still read and
 //! write the console's, the line editor's, the input driver's, the shell's and the sink adapter's
 //! memory. Giving the construction budget away does not reach that, and nothing in the ABI unmaps a
 //! page.
@@ -250,7 +250,7 @@
 //! Printing the negative control costs one more of those: the shell's output frame stays mapped here
 //! for life, because there is no unmap and `PageFrame::REVOKE` would take it from the shell too.
 //!
-//! **Init's capability table is finite, and running out of it prints nothing at all.** Every
+//! **The progenitor's capability table is finite, and running out of it prints nothing at all.** Every
 //! capability held across a `build_child` is one the child's address space, frames and TCB cannot
 //! have, and `build_child` answering `Err(())` is a silent halt. Three of the four evenings this
 //! file has cost were that: once when the kernel grew two grants, once when a boot component was
@@ -287,12 +287,23 @@
 //!
 //! Name: ratified 2026-08-04 (calef, milestone 96), and it is the ratification that raised
 //! milestone 115. Refused `system_builder` (milestone 63 had already refused it, for a reason still
-//! true: `builder.rs` calls itself "a minimal init: the system builder", so two programs would
-//! claim one phrase) and `system_bootloader` (it claims a position in the boot sequence it does not
-//! occupy, and milestone 88 will need the real one). A lane proposed `system_builder` anyway and
-//! the maintainer endorsed it, because that refusal lived in one table cell inside one milestone
-//! block and neither of them found it. The type this crate exports as `BootEndowment` was ratified
-//! the same day, replacing `Grants`.
+//! true: `builder.rs` called itself "a minimal init: the system builder" when this was recorded,
+//! so two programs would claim one phrase) and `system_bootloader` (it claims a position in the
+//! boot sequence it does not occupy, and milestone 88 will need the real one). A lane proposed
+//! `system_builder` anyway and the maintainer endorsed it, because that refusal lived in one table
+//! cell inside one milestone block and neither of them found it. The type this crate exports as
+//! `BootEndowment` was ratified the same day, replacing `Grants`.
+//!
+//! **Asked again on 2026-09-13, and refused.** The program this crate is the logic of became
+//! `progenitor` (milestone 266), and the obvious next question was whether the crate should follow.
+//! calef: *"init is the issue not initializer."* The refusal is right for a reason that keeps being
+//! got wrong. `init` is a truncated **verb**, which is why it lost; `initializer` is an **agent
+//! noun**, the thing that initialises, which is exactly what *name things with nouns* asks for.
+//! Milestone 266's own house-style list cites `initializer` beside `builder`, `spawner`,
+//! `supervisor` and `provisioner` as evidence *for* the convention, and then a section later argued
+//! the opposite; that contradiction stood for five days. And the crate is not the process: it is
+//! the initialisation, as distinct from the thing that runs it, and it descends nothing, so
+//! `progenitor` would fit it worse than it fits the program.
 
 use grant_plan::{Prog, spawnproto};
 use line_editor::proto;
@@ -324,7 +335,7 @@ pub struct BootEndowment {
     /// else, granted ahead of the filesystem pair so its slot is the same on every boot, whether or
     /// not a disk was attached, and granted **unconditionally**: a boot with no clock service hands
     /// us a zeroed page, which reads as `clock_proto::state::UNKNOWN` and is the honest answer for a
-    /// machine that does not know the time. init hands it on only to a child whose manifest declares
+    /// machine that does not know the time. The progenitor hands it on only to a child whose manifest declares
     /// a clock, and hands on `READ`, so nothing spawned from this prompt can set the time
     /// (DECISIONS §43).
     ///
@@ -339,13 +350,13 @@ pub struct BootEndowment {
     /// a `PageFrame` capability with `READ` and nothing else, granted ahead of the filesystem pair
     /// for [`clock_page`](BootEndowment::clock_page)'s own reason (so its slot is the same whether
     /// or not a disk was attached), and granted **unconditionally** for the same reason too: this
-    /// boot's fixed defaults (`TZ=UTC`, `LANG=C`, `TERM=dumb`) are assembled once, before init
-    /// exists, so every boot hands init a real, validated page rather than making the slot's
+    /// boot's fixed defaults (`TZ=UTC`, `LANG=C`, `TERM=dumb`) are assembled once, before the progenitor
+    /// exists, so every boot hands the progenitor a real, validated page rather than making the slot's
     /// presence depend on some other component having started (`kernel::user::boot_config_page`,
     /// the same shape as `boot_clock_page`, minus the service: nothing here runs, so there is no
     /// readiness handshake to wait on, only a page to assemble and write once).
     ///
-    /// init hands it on only to a child whose manifest declares [`grant_plan::Manifest::config`],
+    /// The progenitor hands it on only to a child whose manifest declares [`grant_plan::Manifest::config`],
     /// and hands on `READ`, so nothing spawned from this prompt can change what a shell hands its
     /// own children.
     pub config_page: u64,
@@ -406,7 +417,7 @@ pub struct BootEndowment {
     ///
     /// Empty on riscv64. On aarch64 it is the kernel's report endpoint and the milestone-19d.2b test
     /// SGI, both of which exist because that boot path is shared with the test roles: nothing
-    /// receives on the report here, and no interactive component waits on that interrupt. An init
+    /// receives on the report here, and no interactive component waits on that interrupt. A progenitor
     /// that kept them would be keeping delegable authority for no reason, which is the same kind of
     /// thing the construction budget is.
     pub for_test_roles: &'static [u64],
@@ -440,7 +451,7 @@ pub struct SecondDirGrant {
 /// Where the kernel maps the initrd archive, read-only. Must match `kernel::user::INITRD_VA`.
 const INITRD_VA: u64 = 0x2000_0000;
 
-/// Stack pages every child init builds gets, mapped down from `supervision_proto::CHILD_STACK_VA`.
+/// Stack pages every child the progenitor builds gets, mapped down from `supervision_proto::CHILD_STACK_VA`.
 ///
 /// **Twelve since DECISIONS §67**, and every step of that number was measured rather than chosen.
 /// Four overflowed at the first `ls > out.txt`; eight held until `2>` put a **second** `FileOut` on
@@ -478,10 +489,10 @@ const CHILD_JOB_PAGE_FRAME_VA: u64 = 0x0030_0000;
 /// `SH_BUDGET_PAGES`.
 const SH_BUDGET_PAGES: u64 = 128;
 
-/// **What init keeps for itself after the boot servers are up** (milestone 22, the interactive
+/// **What the progenitor keeps for itself after the boot servers are up** (milestone 22, the interactive
 /// increment). It pays for one thing: the page tables reaching the loader's scratch window, which
-/// are init's own mappings and must never come out of a child's region (tearing that region down
-/// would free init's tables under a window it never unmaps). One L3 covers 512 scratch pages and a
+/// are the progenitor's own mappings and must never come out of a child's region (tearing that region down
+/// would free the progenitor's tables under a window it never unmaps). One L3 covers 512 scratch pages and a
 /// job maps at most a couple of dozen, so this is thousands of commands' worth.
 pub const INIT_OWN_PAGES: u64 = 128;
 
@@ -502,7 +513,7 @@ const JOB_REGION_PAGES: u64 = 40;
 /// `job_undertaker` already performs ends both. **The two endpoints are retyped from this region too,
 /// and that is load-bearing rather than tidy**: `sched::reap_region_objects` sweeps a region's
 /// endpoints before it looks at its threads, and that sweep is what wakes a caretaker parked in
-/// `RECV` so it can be collected. An endpoint carved from init's own budget would leave it blocked on
+/// `RECV` so it can be collected. An endpoint carved from the progenitor's own budget would leave it blocked on
 /// something the teardown never touches, and a blocked thread never reaches the `schedule()` that
 /// spends §16's kill.
 ///
@@ -543,12 +554,12 @@ const SECOND_DIR_CARETAKER_PAGES: u64 = JOB_REGION_PAGES;
 /// runs thirteen jobs through it, so widening this silently retires that gate.
 pub const JOBS_BUDGET_PAGES: u64 = JOB_REGION_PAGES * 6;
 
-/// Where init maps the shell's output frame in **its own** address space, to print the one line it
-/// ever prints (the dropped-authority negative control). Well clear of init's segments, its stack,
+/// Where the progenitor maps the shell's output frame in **its own** address space, to print the one line it
+/// ever prints (the dropped-authority negative control). Well clear of the progenitor's segments, its stack,
 /// and the loader's scratch window at `0x1000_0000`.
 const INIT_OUT_VA: u64 = 0x0f00_0000;
 
-/// Where init briefly maps the virtio-rng DMA page, in **its own** address space, to read
+/// Where the progenitor briefly maps the virtio-rng DMA page, in **its own** address space, to read
 /// [`RNG_DMA_PHYS_OFFSET`] back out before handing the same frame on to entropy. Distinct from
 /// [`INIT_OUT_VA`] and never unmapped (this file's own BUGS: there is no unmap in the ABI), the
 /// same permanent-scratch cost that address already carries.
@@ -558,7 +569,7 @@ const RNG_DMA_PEEK_VA: u64 = 0x0f10_0000;
 /// (`kernel::user::VIRTIO_RNG_DMA_PHYS_OFFSET`; the two constants must agree, and the kernel-side
 /// one carries the reasoning for exactly this offset). Named separately here because reading it
 /// happens in this crate and writing it happens in the kernel; there is no crate the two could
-/// share it through (rule 7's own carve-out: this is a kernel/init boot convention, one program's
+/// share it through (rule 7's own carve-out: this is a kernel/progenitor boot convention, one program's
 /// bytes handed to another it spawned, not a contract between two peer user programs).
 const RNG_DMA_PHYS_OFFSET: u64 = 4096 - 8;
 
@@ -728,7 +739,7 @@ pub fn boot(
         fail()
     };
 
-    // **The table init measures what it loads against** (milestone 104). The kernel vouched for this
+    // **The table the progenitor measures what it loads against** (milestone 104). The kernel vouched for this
     // entry before it started us, exactly as it vouched for our own bytes
     // (`kernel::trust::require_program_measurements`), so the table is worth what this process is
     // worth and the chain extends by induction rather than by widening the kernel.
@@ -750,7 +761,7 @@ pub fn boot(
     // initrd built without it still boots, and a program that declares a second stream then finds
     // an empty slot and says what it has to say in-band. A missing component should cost a feature,
     // not a prompt. An adapter the table refuses costs exactly the same feature, which is the whole
-    // policy in one line: init treats what it cannot vouch for as what is not there.
+    // policy in one line: the progenitor treats what it cannot vouch for as what is not there.
     let sink_elf = measured(&fs, table, "terminal_sink_caretaker").elf;
     // **The entropy service** (DECISIONS §120's 2026-08-26 amendment), optional in exactly the
     // adapter's own sense: a boot with no `entropy` program in its initrd, or a table that refuses
@@ -783,7 +794,7 @@ pub fn boot(
     // Optional in exactly `terminal_sink_caretaker`'s sense, and the missing-component rule decides
     // it rather than a second policy: without one, a directory grant cannot be delivered and the
     // prompt says so, which costs `rm` and nothing else. A refusal by the measurement table costs
-    // the same, because init treats what it cannot vouch for as what is not there.
+    // the same, because the progenitor treats what it cannot vouch for as what is not there.
     let care_elf = measured(&fs, table, "fs_subtree_caretaker").elf;
     // **And the same bytes again, unparsed, because `login` needs them too** (milestone 233).
     //
@@ -806,7 +817,7 @@ pub fn boot(
     };
 
     // **The programs the shell can spawn** (milestone 31), measured and parsed here rather than
-    // after the giveaway: the announcement further down is the only thing init ever says, so the
+    // after the giveaway: the announcement further down is the only thing the progenitor ever says, so the
     // verdicts have to exist before it. One `Option<elf::Elf>` is five words, so moving the whole
     // table up the frame costs a few hundred bytes and buys a person being told at boot instead of
     // at the prompt. (It said "seven of them" while `PROG_COUNT` was nine and then ten; a count
@@ -888,7 +899,7 @@ pub fn boot(
     // permanent slots to a baseline that peak already stresses pushed it over, and the boot
     // faulted building `term_in`, in total silence, with no route to a person (this file's own
     // BUGS on why a refusal this early has none). Found by bisection, not reasoning: an isolated
-    // test granted init one single harmless extra capability, at an arbitrary slot, with no code
+    // test granted the progenitor one single harmless extra capability, at an arbitrary slot, with no code
     // anywhere naming or using it, and the identical silent fault reproduced.
     //
     // Building here instead avoids the collision rather than widening anything: this is the
@@ -911,10 +922,10 @@ pub fn boot(
     //
     // **Used to prove only the device chain.** This block builds the service and confirms it drew
     // real bytes from the real device; `entropy_client`, below, is what changed: `request`'s
-    // init-side copy is now kept (not `cap_delete`d) exactly when a client will need it, so
+    // The progenitor-side copy is now kept (not `cap_delete`d) exactly when a client will need it, so
     // `credentialer` can be handed a working view of it further down.
     let mut entropy_ready = false;
-    // **`request`'s init-side copy, kept for the life of the boot** (milestone 49's boot-wiring
+    // **`request`'s the progenitor-side copy, kept for the life of the boot** (milestone 49's boot-wiring
     // update, widened by milestone 111). `None` on every path that `cap_delete`s it (device
     // absent, mapping failed, the handshake did not answer `READY`); `Some(request)` exactly once
     // entropy is proven up.
@@ -922,7 +933,7 @@ pub fn boot(
     // **It used to be dropped once `credentialer` held its own copy**, with the login stack as its
     // only consumer. Milestone 111 gave it a second one that outlives the boot: a child whose
     // manifest declares [`grant_plan::Manifest::entropy`] is endowed a `WRITE` view of this same
-    // endpoint at spawn, so init is the only process that can hand a program at the prompt a
+    // endpoint at spawn, so the progenitor is the only process that can hand a program at the prompt a
     // random source, exactly as it is the only one that can hand it a clock. That costs one
     // permanent capability slot in a table milestone 230 measured at 21 of 24 at peak; milestone
     // 231's `capability slots: N of M at peak` line is what says whether that is still true, and it
@@ -1008,7 +1019,7 @@ pub fn boot(
         }
     }
 
-    // **The two components that have to exist before init can say anything.** The console writes
+    // **The two components that have to exist before the progenitor can say anything.** The console writes
     // the UART and the line discipline is its only client, so a refusal of either has no route to a
     // person and this is the one case that stops in silence (see this module's BUGS). Everything
     // else is checked below, after they are running.
@@ -1127,13 +1138,13 @@ pub fn boot(
     }
 
     // **Refuse the system if a required component is not the one that was measured** (milestone
-    // 104), here, because this is the earliest point at which init can be read by a person and the
+    // 104), here, because this is the earliest point at which the progenitor can be read by a person and the
     // latest at which nothing unmeasured has been built. The console and the line discipline above
     // are running; nothing else is.
     //
-    // Halting is not a second policy. The policy is that init runs nothing it cannot vouch for, and
+    // Halting is not a second policy. The policy is that progenitor runs nothing it cannot vouch for, and
     // for a component the whole system is made of, not running it and not having a system are the
-    // same outcome. What it costs is decided by what the program was for, which is a question init
+    // same outcome. What it costs is decided by what the program was for, which is a question the progenitor
     // already had to answer for an archive entry that is simply missing.
     let unvouched: [&str; 3] = [
         if in_elf.unvouched { "input" } else { "" },
@@ -1205,7 +1216,7 @@ pub fn boot(
     //
     // **The device and the interrupt go with them** (milestone 22, the interactive increment). Both
     // drivers that need them exist and hold their own narrowed copies, and nothing below builds
-    // another driver, so an init that kept them would be keeping the authority to hand the UART to
+    // another driver, so a progenitor that kept them would be keeping the authority to hand the UART to
     // anything it later builds. Dropping them here is the same act as dropping the construction
     // budget further down, one boot stage earlier. `unused` is whatever else this board's kernel
     // granted that the interactive system never had a use for.
@@ -1235,7 +1246,7 @@ pub fn boot(
 
     // 4. The shell: prints and reads lines through the terminal, holds the spawn channel, and holds
     // its own untyped budget (slot 3) so `run --mem N` grants from memory that is genuinely the
-    // shell's. WRITE lets it SPLIT the budget; GRANT lets it delegate the split to init. We carve
+    // shell's. WRITE lets it SPLIT the budget; GRANT lets it delegate the split to the progenitor. We carve
     // that budget from our own untyped and hand it over the same way we hand any capability.
     //
     // Slot 4 is the filesystem when this boot has one, which is the whole of what `>` and `<` need
@@ -1244,7 +1255,7 @@ pub fn boot(
     // so the shell can hand it to nobody.
     //
     // **And a read-only clock last** (milestone 86), which is what `time <command>` measures with.
-    // It is [`BootEndowment::clock_page`], the same frame this init was granted and hands to a child
+    // It is [`BootEndowment::clock_page`], the same frame this progenitor was granted and hands to a child
     // whose manifest declares a clock; the shell is simply another holder of a narrowed view. `READ`
     // and no `GRANT`, deliberately: the shell can read the wall clock and can hand one to nothing it
     // spawns, so which processes can read the time is still decided by the manifests this crate
@@ -1271,11 +1282,11 @@ pub fn boot(
     //
     // **Unverified against a real boot.** `second_dir` is `None` at every shipped entry point
     // (DECISIONS §126: what the subtree should be is calef's call), so this branch has never run
-    // under `script/shell-check`, which is the only thing in the tree that runs a real init.
+    // under `script/shell-check`, which is the only thing in the tree that runs a real progenitor.
     // `build_caretaker` retypes two more objects into *this process's* capability table right
     // where the comment two screens up already documents this table as tight ("the shell's
     // `build_child` had no slot left ... and failed silently"). The failure mode if this pushes
-    // init over sixteen slots is exactly that one: a boot that reaches userspace and prints
+    // The progenitor over sixteen slots is exactly that one: a boot that reaches userspace and prints
     // nothing. Whoever first passes `Some` here should watch for it and run `script/shell-check`
     // before trusting this path.
     let second_dir_ep: Option<u64> = second_dir.filter(|_| with_fs).and_then(|sd| {
@@ -1312,7 +1323,7 @@ pub fn boot(
     // endpoints at once.
     //
     // **And a read-only clock last, always** (milestone 86), which is what `time <command>`
-    // measures with. It is [`BootEndowment::clock_page`], the same frame this init was granted and
+    // measures with. It is [`BootEndowment::clock_page`], the same frame this progenitor was granted and
     // hands to a child whose manifest declares a clock; the shell is simply another holder of a
     // narrowed view. `READ` and no `GRANT`, deliberately: the shell can read the wall clock and
     // can hand one to nothing it spawns, so which processes can read the time is still decided by
@@ -1377,7 +1388,7 @@ pub fn boot(
         cap_delete(ep);
     }
 
-    // Free every boot cap the spawn service does not need, so init's 16-slot capability table has room to
+    // Free every boot cap the spawn service does not need, so the progenitor's 16-slot capability table has room to
     // build a supervised child (which holds a job untyped and a job frame while the loader retypes
     // an address space, frames, and a TCB). The drivers and the shell hold the narrowed copies that matter.
     //
@@ -1387,14 +1398,14 @@ pub fn boot(
     // their last use is done, and after that this process holds no way to reach the terminal at all.
     cap_delete(term_in);
     // **The filesystem stays** (milestone 31 phase 3, 2026-08-17). It used to go here, with a
-    // comment saying "the day `rm` is reachable from the prompt, init keeps the endpoint instead,
+    // comment saying "the day `rm` is reachable from the prompt, the progenitor keeps the endpoint instead,
     // because building a `fs_subtree_caretaker` is its job and not the shell's". This is that day.
     //
     // Two slots held for the life of the boot, and it is worth being precise about what they buy and
     // what they cost. They buy the only delivery mechanism a directory grant has: the caretaker must
     // hold the file service to attenuate it, the shell's copy carries no `GRANT`, and a program
     // spawned without the capability its command line named would be the worst failure this model
-    // has. They cost two of init's sixteen capability table slots, permanently, which takes the spawn service's
+    // has. They cost two of the progenitor's sixteen capability table slots, permanently, which takes the spawn service's
     // resting endowment from seven capabilities to nine and its peak from thirteen to fifteen. That
     // peak is the number to watch: it is a directory-granted spawn, and it is one slot from the wall.
     // See `spawn_dir_grant`, which counts it.
@@ -1410,7 +1421,7 @@ pub fn boot(
     //
     // **After the shell and before the giveaway, and both halves of that are load-bearing.**
     //
-    // After the shell, because of this capability table's sixteen slots: building the adapter earlier put init
+    // After the shell, because of this capability table's sixteen slots: building the adapter earlier put the progenitor
     // one slot over while the loader was retyping the shell's address space, and the symptom was
     // the one this system has already seen, a boot that reaches userspace and then prints nothing at
     // all. That constraint is about the shell's build, not about being the last thing built, and
@@ -1681,7 +1692,7 @@ pub fn boot(
                             (g.fs_ep, abi::rights::WRITE | abi::rights::GRANT),
                             // **`WRITE` only, not `READ | WRITE`.** This process itself holds
                             // only `WRITE | GRANT` on the real file service's shared page (the
-                            // kernel's own grant to init), and `WRITE` is all a writable mapping
+                            // kernel's own grant to the progenitor), and `WRITE` is all a writable mapping
                             // ever checks (`kernel::syscall::page_frame_map`'s own comment: "a
                             // read/write mapping needs WRITE on the frame"). See
                             // `components/src/login.rs`'s own comment on its matching delegation to its
@@ -1732,7 +1743,7 @@ pub fn boot(
     }
 
     // **Give the construction budget away** (milestone 22, the interactive increment). Two bounded
-    // carves and then the root itself: after this line init can spend at most `INIT_OWN_PAGES` on
+    // carves and then the root itself: after this line the progenitor can spend at most `INIT_OWN_PAGES` on
     // itself and `JOBS_BUDGET_PAGES` on the prompt's jobs, and it can no longer reach the rest of the
     // memory the kernel handed it or delegate the root to anything it builds.
     //
@@ -1777,7 +1788,7 @@ pub fn boot(
         },
     );
     // **And what the measurement decided** (milestone 104), on the same terms as the line above: a
-    // claim about what init refuses is worth what the check behind it is worth, and only init can
+    // claim about what the progenitor refuses is worth what the check behind it is worth, and only the progenitor can
     // run that check. The affirmative line is the load-bearing one. A measured boot's natural bug is
     // for the check to evaporate when the build step does not run, and a boot that says nothing
     // looks exactly like a boot that measured everything, so `script/shell-check` reads this
@@ -1799,7 +1810,7 @@ pub fn boot(
     // **The entropy service's own outcome** (DECISIONS §120's 2026-08-26 amendment), said here
     // rather than where it was decided: `entropy_ready` was set long before this process had a
     // terminal at all (the whole reason the build happens first, at the top of this function; see
-    // that block's own comment), and [`INIT_OUT_VA`] is not mapped into init's own space until the
+    // that block's own comment), and [`INIT_OUT_VA`] is not mapped into the progenitor's own space until the
     // line above this one first used it, so nothing earlier in this function could `announce`
     // regardless. Silent when there was nothing to build (no device, or no `entropy` program in
     // the archive), the same posture the sink adapter and the subtree caretaker already take for a
@@ -1914,7 +1925,7 @@ pub fn boot(
 /// The archive entry a spawnable program is loaded from.
 ///
 /// It answered `None` for `rm` until 2026-08-17, because `rm` is endowed a **directory** capability
-/// and init had deleted the file service during the boot, so there was nothing to attenuate. Keeping
+/// and the progenitor had deleted the file service during the boot, so there was nothing to attenuate. Keeping
 /// the slot empty was the honest answer to that: spawning `rm` with nothing to remove from would be
 /// the worst failure this model has, a program told to destroy something, holding nothing, saying
 /// nothing. Milestone 31 phase 3 removed the cause rather than the symptom, so the exception is gone
@@ -1932,7 +1943,7 @@ fn opt_cap(slot: u64) -> Option<u64> {
     }
 }
 
-/// Everything the spawn service holds for its whole life, so the loop's signature says what init's
+/// Everything the spawn service holds for its whole life, so the loop's signature says what the progenitor's
 /// remaining authority *is*: two channels, one supervision endpoint it only ever delegates from, and
 /// two bounded budgets. The root construction budget is deliberately not in here; it is gone.
 struct Channels {
@@ -1959,11 +1970,11 @@ struct Channels {
     term_sink: Option<u64>,
     /// **The file service and the page its clients share with it** (milestone 31 phase 3), or `None`
     /// on a boot with no disk. `WRITE | GRANT` on the endpoint: this is the directory capability a
-    /// `fs_subtree_caretaker` attenuates, and the only reason init keeps it past the boot.
+    /// `fs_subtree_caretaker` attenuates, and the only reason the progenitor keeps it past the boot.
     ///
     /// It used to be dropped once the shell held its narrowed copy, with a comment saying why it
     /// would have to come back. This is that day. The shell's copy carries no `GRANT`, so the shell
-    /// holds nothing it could hand a caretaker; init is the only process here that can build one,
+    /// holds nothing it could hand a caretaker; the progenitor is the only process here that can build one,
     /// which is what made `rm` a refusal at the prompt for six weeks.
     fs: Option<Fs>,
     /// **A client view of the entropy service** (milestone 111), endowed to a child whose manifest
@@ -1973,8 +1984,8 @@ struct Channels {
     /// and says so on its second stream rather than drawing predictable bytes.
     ///
     /// [`deaths`](Channels::deaths)'s shape rather than [`clock_page`](Channels::clock_page)'s: an
-    /// endpoint init holds and places a narrowed copy of, not a frame it maps. `WRITE` is what a
-    /// child gets, which on an endpoint is the right to `CALL` and nothing more; init keeps the
+    /// endpoint the progenitor holds and places a narrowed copy of, not a frame it maps. `WRITE` is what a
+    /// child gets, which on an endpoint is the right to `CALL` and nothing more; the progenitor keeps the
     /// full-rights capability it retyped, and never receives on it.
     ///
     /// **The shell does not hold one.** The shell needs no randomness of its own (nothing it does
@@ -1984,7 +1995,7 @@ struct Channels {
     entropy: Option<u64>,
 }
 
-/// The file service, as init holds it for the life of the boot.
+/// The file service, as the progenitor holds it for the life of the boot.
 ///
 /// A struct rather than two `Option<u64>` fields because the two are one fact: a boot either has a
 /// filesystem or it does not, and `Some(ep)` with `None` page is not a state that can exist.
@@ -1996,7 +2007,7 @@ struct Fs {
     page: u64,
 }
 
-/// The spawn service loop: serve the shell's `run` requests forever. Init is the ELF loader the
+/// The spawn service loop: serve the shell's `run` requests forever. The progenitor is the ELF loader the
 /// shell directs; it inserts only what the shell endows, so a spawned program can reach nothing the
 /// command line did not name.
 ///
@@ -2008,7 +2019,7 @@ struct Fs {
 /// `DESTROY` it to tear it down, DECISIONS §24), map the job frame in, endow nothing else, start it,
 /// and send `SPAWN_OK` once as the shell's go-ahead. The `progs` array is indexed by [`Prog::id`], so
 /// it is [`grant_plan::PROG_COUNT`] long: a variant added to `grant_plan` without a slot here would
-/// be an out-of-bounds read in init.
+/// be an out-of-bounds read in the progenitor.
 ///
 /// **Only the normal shape is supervised**, and that is not an oversight. An interruptible job's
 /// region belongs to the shell, which tears it down itself on the second `^C` (§24's
@@ -2041,7 +2052,7 @@ fn spawn_service(
 
         // **The directory grant's two data messages, before any capability** (milestone 31 phase 3).
         // They are read here rather than inside the branch that uses them because the shell has
-        // already sent them: a request that announced them and an init that did not drain them would
+        // already sent them: a request that announced them and a progenitor that did not drain them would
         // leave the endpoint holding words the *next* command would read as its own.
         let grant = wiring.dir.then(|| (recv(spawn_ep), recv(spawn_ep)));
 
@@ -2071,7 +2082,7 @@ fn spawn_service(
         };
         // **The narrowed tail's completion endpoint** (DECISIONS §106), in the same delegation
         // order as everything else: a fresh capability the shell minted and kept a copy of, so
-        // init installs it as this child's fault target and the shell can `RECV` its exit instead
+        // The progenitor installs it as this child's fault target and the shell can `RECV` its exit instead
         // of draining bytes it will no longer see.
         let screen = if wiring.screen {
             opt_cap(recv_cap(spawn_ep).1)
@@ -2090,9 +2101,9 @@ fn spawn_service(
         let wants_clock = prog.is_some_and(|p| p.manifest().clock);
         // Same reasoning, one authority over (milestone 126): a **process domain** is not something
         // a person designates either. There is no /proc to name and no pid space to scan, so what a
-        // program may see is decided here, by which supervision endpoint init puts in its capability table.
+        // program may see is decided here, by which supervision endpoint the progenitor puts in its capability table.
         let wants_domain = prog.is_some_and(|p| p.manifest().domain);
-        // `clock`'s twin again: the inert-configuration page is init's to endow, not something a
+        // `clock`'s twin again: the inert-configuration page is the progenitor's to endow, not something a
         // command line can designate, so there is no bit on the wire for it either
         // (`Manifest::config`).
         let wants_config = prog.is_some_and(|p| p.manifest().config);
@@ -2217,7 +2228,7 @@ fn spawn_service(
             }
             // **The clock, which nothing on the command line asked for** (milestone 51's wiring).
             // It comes from the manifest rather than from the request, because a person does not
-            // designate a clock: `date` declares that it reads one, and init is the only process
+            // designate a clock: `date` declares that it reads one, and the progenitor is the only process
             // here holding a page it could hand over. Before the source and the budget, so `date`'s
             // clock is slot 1, which is unambiguous only because no manifest declares a clock *and*
             // an input. That is the same ordered-slot debt notes/pipes.md's BUGS already records.
@@ -2253,7 +2264,7 @@ fn spawn_service(
             let diag_slot = prog.and_then(|p| p.manifest().output.diagnostics_slot());
             // **Where the second stream goes when the line did not say.** The shell delegates an
             // endpoint only for a `2>`, because that is the case it has to back a file for. With no
-            // operator on the line the destination is the **terminal's own sink**, which is init's
+            // operator on the line the destination is the **terminal's own sink**, which is the progenitor's
             // to endow exactly as the clock is: the shell holds nothing it could hand over, and a
             // person does not designate a screen.
             //
@@ -2265,9 +2276,9 @@ fn spawn_service(
             //
             // **Two named slots now, and they are placed the same way for the same reason.** The
             // second is a view over the domain this child is *about to be born into*: `deaths` is
-            // the endpoint every job init spawns for this shell is supervised by, so a viewer handed
+            // the endpoint every job the progenitor spawns for this shell is supervised by, so a viewer handed
             // it sees exactly this shell's jobs, including itself, and nothing else on the machine.
-            // Init, the shell, the terminal and the filesystem server are all outside it, which is
+            // The progenitor, the shell, the terminal and the filesystem server are all outside it, which is
             // the confinement claim and is checked by `kernel::user::survey_tests`.
             //
             // **The right is `ENUMERATE`, and it used to be `READ`** (fixed 2026-08-17). `READ` on a
@@ -2352,7 +2363,7 @@ fn spawn_service(
                             maps,
                             // **A screen-narrowed child is supervised by the shell's own fresh
                             // endpoint instead of `deaths`** (DECISIONS §106), so the shell can
-                            // `RECV` its exit directly rather than racing init's reaper for the
+                            // `RECV` its exit directly rather than racing the progenitor's reaper for the
                             // same message. Its memory still comes from `region` (unchanged, still
                             // this job pool), and REAP still returns it to this pool regardless of
                             // who holds the supervision endpoint (DECISIONS §26: the reclaimed
@@ -2373,7 +2384,7 @@ fn spawn_service(
                 Some(child) => {
                     // **A program behind a directory grant is started with the grant's own three
                     // words** rather than with an integer, which is `rm`'s shape: a spec carrying
-                    // the options and two words of name (`filesystem_proto::grant`). init forwards what the
+                    // the options and two words of name (`filesystem_proto::grant`). The progenitor forwards what the
                     // shell packed and reads none of it; see `spawnproto::GRANT_WORDS`.
                     let (a0, a1, a2) = match grant {
                         Some((_, child)) => child,
@@ -2425,7 +2436,7 @@ fn spawn_service(
             }
             // **A child that was never built cannot end its own second stream**, and the shell
             // drains that stream to `OP_EOF` before it reads anything else, so nothing would ever
-            // come back. init closes it on the child's behalf. It is the same hole `SPAWN_OK`
+            // come back. The progenitor closes it on the child's behalf. It is the same hole `SPAWN_OK`
             // closed for the output side, one stream over.
             if !ok && let Some(ep) = diagnostics {
                 send(ep, byte_sink_proto::eof(), 0, 0);
@@ -2434,7 +2445,7 @@ fn spawn_service(
 
         // Drop our copies of every delegated cap: the child holds what it needs (the job frame is
         // mapped, the budget and the streams inserted), and the shell holds the originals it kept
-        // (the job untyped for teardown, the pipe it minted). This keeps init's 16-slot capability table from
+        // (the job untyped for teardown, the pipe it minted). This keeps the progenitor's 16-slot capability table from
         // filling across a long session.
         for s in [job_ut, job_fr, sink, source, diagnostics, screen, budget]
             .into_iter()
@@ -2465,19 +2476,19 @@ fn spawn_service(
 /// [`DIR_JOB_REGION_PAGES`] for why that is the lifetime rule rather than a convenience.
 /// `care_words` are the caretaker's three `START` words exactly as the shell packed them.
 ///
-/// # The handshake is what makes this safe to call from init
+/// # The handshake is what makes this safe to call from the progenitor
 ///
-/// init has no second thread: it is this loop, and a `RECV` that never completes is a machine that
+/// The progenitor has no second thread: it is this loop, and a `RECV` that never completes is a machine that
 /// never takes another command. So the readiness endpoint is not an optimization, it is the thing
 /// that bounds this call, and `fs_subtree_caretaker` answers `DESCENT_REFUSED` rather than trapping
 /// precisely so that `rm nosuchdir/x` costs a refusal instead of the prompt.
 ///
 /// # BUGS
 ///
-/// **A caretaker that dies before it answers still parks init.** The handshake covers the refusal a
+/// **A caretaker that dies before it answers still parks the progenitor.** The handshake covers the refusal a
 /// person can cause by typing a name that is not there; it does not cover an image whose caretaker
 /// faults on its own stack, because a corpse sends nothing. Nothing in the ABI offers a receive with
-/// a deadline, and giving init one would mean a second thread inside the process this system's whole
+/// a deadline, and giving the progenitor one would mean a second thread inside the process this system's whole
 /// design keeps small. The exposure is a build defect rather than an input, and it is the same one
 /// `kernel::user::fs_service::wait_for_caretaker` has carried since milestone 47.
 fn build_caretaker(
@@ -2589,7 +2600,7 @@ fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {
 /// the bytes in the shell's output page (mapped here at [`INIT_OUT_VA`]) and `CALL` `OP_WRITE`.
 ///
 /// The only thing this process ever prints, and it is called before the shell is started so nothing
-/// else is writing that page. It exists for the negative control: a claim about what init can no
+/// else is writing that page. It exists for the negative control: a claim about what the progenitor can no
 /// longer do is worth only as much as the check behind it, and only the holder can run that check.
 fn announce(term_ep: u64, text: &[u8]) {
     let out = INIT_OUT_VA as *mut u8;
@@ -2602,7 +2613,7 @@ fn announce(term_ep: u64, text: &[u8]) {
 }
 
 // -------------------------------------------------------------------------------------------
-// The measurement (milestone 104): init measures what init loads.
+// The measurement (milestone 104): the progenitor measures what the progenitor loads.
 // -------------------------------------------------------------------------------------------
 
 /// Read a program out of the archive and measure it against the table, or refuse it.

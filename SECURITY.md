@@ -83,11 +83,11 @@ reach past the boundaries the kernel enforces. Anything that breaks one of these
   syscalls; the vendored RedoxFS engine runs as a confined EL0 server. A way for either to reach
   authority it was not given is exactly the claim under test (DECISIONS §27, §31; notes/c-seam.md,
   notes/redoxfs-audit.md).
-- **The boot trust root.** Anything that lets an unmeasured or altered init run as though it were
+- **The boot trust root.** Anything that lets an unmeasured or altered progenitor run as though it were
   measured (`crates/measured_boot`, notes/trusted-init.md). This one has been exercised on real
   hardware in the failing direction, which is the useful direction: bench boot 12 was **refused at
   the trust boundary** because the image on the card vouched for the previous archive, and the
-  kernel halted rather than hand it to init. A way to get past that refusal is a report.
+  kernel halted rather than hand it to the progenitor. A way to get past that refusal is a report.
 - **The supply chain of this repository.** A dependency or vendored tree that is not what the
   manifest says it is. `script/supply-chain` is supposed to make that checkable; a way around it is
   a finding.
@@ -103,9 +103,9 @@ down, which makes them roadmap items rather than reports.
 - **A hardening feature that is on the roadmap.** design/roadmap/README.md is the list of what is missing
   and in what order. A missing feature that appears there is a roadmap item; a *defence that is
   claimed to exist and does not work* is a vulnerability, and that distinction is the whole test.
-- **Anything that requires already being init.** init is privileged and unverified, and DECISIONS
-  §14 says so in the thesis itself. The kernel confines it, and a compromised init cannot break the
-  kernel or escape confinement, but init's authority over the processes it builds is by design.
+- **Anything that requires already being the progenitor.** The progenitor is privileged and unverified, and DECISIONS
+  §14 says so in the thesis itself. The kernel confines it, and a compromised progenitor cannot break the
+  kernel or escape confinement, but the progenitor's authority over the processes it builds is by design.
 - **QEMU or HVF escapes.** Report those to QEMU or to Apple. A guest breaking out of the emulator is
   not this kernel's boundary.
 - **Board bring-up that has not happened yet.** The VisionFive 2 boots and runs the tour; it does
