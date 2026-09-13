@@ -922,6 +922,15 @@ reachable underneath.
 The exceptions worth keeping unsquashed: a commit that records a correction or a surprise, and a
 commit whose separateness is itself the argument (96's loader, above).
 
+## Every date in this tree is UTC
+
+calef, 2026-09-13, closing a gap that had been open since the first commit. Provenance blocks,
+roadmap rows, `design/decisions/` sections, notes and commit messages all carry dates, and
+`script/names` fails a ratification that lacks one, yet nothing said what zone any of them meant.
+The agents writing most of them run UTC; calef does not, so a ruling made in his evening was
+already being filed under the next day. **Write UTC.** Where a date is load-bearing and the hour
+is near midnight, put the time in the record too, because a reader cannot recover it later.
+
 ## Comments
 
 The kernel is commented far more heavily than production code would be, deliberately. A
