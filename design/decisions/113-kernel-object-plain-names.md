@@ -240,7 +240,7 @@ directory.
 | `gpt` | `guid_partition_table` | GUID Partition Table |
 | `asid` | `address_space_identifier` | Address Space Identifier |
 | `ipc` | `rendezvous` | follows this decision's own `Endpoint` -> `Rendezvous` |
-| `elf` | **spelling open** | Executable and Linkable Format |
+| `elf` | `executable_format` | Executable and Linkable Format, minus a half this crate refuses |
 
 **`ipc` is the one that closes a loop rather than opening one.** This decision renamed the kernel
 object `Endpoint` to `Rendezvous` and left the crate alone because of the exemption. With the
@@ -251,9 +251,17 @@ have.
 name reads as something else entirely to any reader arriving, which is milestone 265's complaint
 about `proto` and prototype in different clothes.
 
-**`elf`'s exact spelling is still calef's.** The full expansion runs to
-`executable_and_linkable_format`, which is 30 characters and the longest name in the tree; a shorter
-honest form may be better and this amendment does not pick one.
+**`elf` is the one that does not take its standard's full name, and the reason is in the crate's own
+first line.** It is *"an ELF64 loader's front half: parse, validate, and hand back the segments to
+map"*, and it does no linking at all: no dynamic linking, no relocations, no interpreter, no PIE,
+each refused deliberately because *"we would rather say no in eleven lines than maybe in a
+thousand."* So "Executable and Linkable Format" would name a capability this crate exists to decline,
+which is worse than an acronym. calef ruled **`executable_format`** on 2026-09-13.
+
+It also matters less here than elsewhere. `asid` is the vocabulary a reader uses to discuss the
+thing; `elf`'s spec identifiers live in the code (`Elf<'a>`, `e_machine`, `ET_EXEC`, `p_type`) and
+stay whatever the directory is called. The name carries less weight when the spec's own words are
+still on the page beneath it.
 
 **`paging` and `glob` are unaffected.** They were in the exempt list and are not acronyms, so no
 expansion test reaches them. The list conflated two kinds of name and only one kind is ruled here.
