@@ -47,7 +47,7 @@ says which mode ran.
   rather than a slow one burning them under load), and none of them was the timer perturbation this
   block expected.
 - **Recorded.** The leg was timed before adoption, which was this block's own condition, and the
-  `--full` fallback turned out not to be needed: 12 to 16 seconds added to `script/gates` against
+  `--full` fallback turned out not to be needed: 12 to 16 seconds added to the pre-push run against
   roughly 3x on the suite. `notes/hvf-leg.md` carries the measurement.
 - **Recorded.** One machine, one model, `-cpu host` mandatory, and no riscv64 equivalent, so the
   leg's honest name stays "the aarch64 suite on real silicon". `notes/hvf-leg.md`.
@@ -55,7 +55,7 @@ says which mode ran.
   loop on four cores and the host has to stop reading and kill the child. Anyone driving the runner
   by hand gets a QEMU that never stops. `notes/hvf-leg.md`.
 - **Recorded.** The leg is not a CI gate and cannot be one: nothing enforces that it ran, and
-  `script/gates` is a convention. `notes/hvf-leg.md`.
+  running `script/ci-build` with no arguments is a convention. `notes/hvf-leg.md`.
 - **Refused.** A self-hosted runner on the dev machine, which is the only way to put HVF in hosted
   CI, since GitHub's macOS arm64 runners are themselves virtual machines with no nested
   virtualization. It couples CI to a laptop that sleeps, and the loud skip was taken instead so a
