@@ -50,8 +50,8 @@
 //!    see [`JOB_FAULTED`] for the two couplings this refused.
 
 /// The interruptible bit, packed into the high half of the page-count word so one `SEND` still
-/// carries the whole request. `mem_pages` is a small count (budgeter's ceiling is 64), so the low
-/// 32 bits hold it and this bit rides above.
+/// carries the whole request. `mem_pages` is a small count (`memory_grant_depleter`'s ceiling is
+/// 64), so the low 32 bits hold it and this bit rides above.
 const INTERRUPTIBLE_BIT: u64 = 1 << 32;
 
 /// **A capability for the child's output slot follows** (milestone 50). Set by `>` and by every

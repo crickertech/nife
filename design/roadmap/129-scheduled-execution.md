@@ -101,7 +101,7 @@ timetable: the archive it holds carries 57 programs, 56 of them beyond its plan 
 
 `Held::mem_pages` was zero, so an entry naming a memory grant was refused although the process held
 a budget. `timetable::SHIPPED_HELD.mem_pages` is now 4, and `timetable.conf`'s
-`at-boot budgeter --mem 4` is planned, backed, and fires; `components/src/timetable.rs`'s `fire_with_grant`
+`at-boot memory_grant_depleter --mem 4` is planned, backed, and fires; `components/src/timetable.rs`'s `fire_with_grant`
 and `collect_grant` are the mechanism, and its `BUGS` records the cost.
 
 **This block's own sketch for backing it was wrong, and stayed corrected rather than reopened.** It
@@ -121,7 +121,7 @@ supervision endpoint unambiguous without needing a tid at all. The price is paid
 entry, not by `--mem` ones: nothing else can fire while that wait is blocked, so an interval entry
 due during it runs late rather than on schedule (never dropped: `next_after`'s ordinary
 skip-not-catch-up rule covers a wait that outlasts more than one period, the same as any other
-stall). The shipped document does not exercise that cost (`at-boot budgeter --mem 4` fires before
+stall). The shipped document does not exercise that cost (`at-boot memory_grant_depleter --mem 4` fires before
 the first `every 150ms` tick can even become due); a document whose `--mem` entry shared the clock
 with a fast interval would.
 

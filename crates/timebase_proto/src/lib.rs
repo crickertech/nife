@@ -109,7 +109,7 @@ pub const PAGE_BYTES: usize = OFF_HZ + 8;
 ///
 /// **Deliberately far above every other low-half address this tree hands out**, rather than
 /// beside the boot tour's own small demo addresses (`kernel::user::X86_DEMO_CODE_VA` = `0x40_0000`,
-/// `USER_STACK_VA` = `0x50_0000`). Every program's ELF loads at `0x40_0000` (`user/link.ld`) and
+/// `USER_STACK_VA` = `0x50_0000`). Every program's ELF loads at `0x40_0000` (`crates/user_rt/link.ld`) and
 /// individual test fixtures map their own extra windows in the low few megabytes above it (a
 /// first attempt at `0x60_0000` collided with `fixtures/src/window.rs`'s own `CTL_VA`, which a
 /// full-suite run under `script/test --arch x86_64` caught as `AlreadyMapped`). Because this page
