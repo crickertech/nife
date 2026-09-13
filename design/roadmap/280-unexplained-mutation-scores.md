@@ -9,6 +9,20 @@ it.)*
 **Gate: NONE.** The measurement runs with tooling already in the tree, milestone 244 is the worked
 example of doing it for one crate, and nothing external blocks it.
 
+**Half of this was already answered, and the promotion did not notice.** `uefi_loader` was
+diagnosed on **2026-09-04**, the day after this proposal was written, and the record is
+`notes/mutation-testing.md`'s dated section plus the exclusion and its derived gate in
+`.cargo/mutants.toml`. The 15% was arithmetic rather than a finding: `src/main.rs` carries
+`required-features = ["uefi"]`, so `cargo test` never puts it in the build graph, and all 154 of
+its mutants came back MISSED in *"0s build + 0s test"* because nothing rebuilt. The pure half the
+design had lifted out to be host-testable was at **94.1%** the whole time. Milestone 244's result
+one level down, at a target rather than a crate.
+
+**So what is left of this milestone is `documentation` at 52%**, and one residue that is already
+tracked elsewhere: excluding `src/main.rs` made the number honest, not the file proved, and whether
+its 790 firmware lines get lifted the way `handoff` and `image` were is
+`design/roadmap/proposals/the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
+
 **Where it sits on that path.** Milestone 277 built the memory bound so a sweep can survive a runaway
 mutant; the first green scheduled run is what proves it. This milestone is what stops the number that
 run produces from having two unexplained holes in it, and
