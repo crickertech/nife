@@ -136,14 +136,14 @@ unchecked, which is the ratchet working as designed. See [counted-claims.md](cou
 how to add one, and for the honest limits.
 
 **This section is prose and not a row in that table on purpose**, and the reason is worth knowing
-before you edit either. The longest line in the repository's markdown is 1927 bytes
-<!--count:longest-markdown-line-->, and `manual`'s renderer sizes `LINE_MAX` at 2048 against exactly
-that measurement. The rows in the table above are the second, third and fourth longest and sit
+before you edit either. The longest line in the repository's markdown is
+1927 bytes <!--count:longest-markdown-line-->, and `manual`'s renderer sizes `LINE_MAX` at 2048
+against exactly that measurement. The rows in the table above are the next three longest and sit
 within about a hundred bytes of it (this sentence named `script/lint`'s row as the longest, which
 stopped being true without anything noticing, because the marker vouches for the NUMBER and nothing
-vouches for which line carries it). Extending one of those rows by a sentence overflows the
-buffer, and the way you find out is a `manual` render test
-failing while pointing at text three hundred lines further down the file.
+vouches for which line carries it). Extending one of those rows by a sentence overflows the buffer,
+and the way you find out is a `manual` render test failing while pointing at text three hundred
+lines further down the file.
 
 ## CI leverages them
 

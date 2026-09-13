@@ -41,6 +41,14 @@
 # no-argument path to a developer: a formatting slip costs twenty seconds rather than ten minutes.
 # Do not reorder these rows for tidiness.
 #
+# **Bootstrapping is the no-argument path's job and nobody else's, and it runs FIRST rather than
+# lazily.** That is a real cost against the cheapest-first rule, priced and accepted rather than
+# hidden: a formatting slip now costs `script/bootstrap` plus twenty seconds. Lazy provisioning
+# would buy almost nothing, because `lint` is the second row and needs `shellcheck`, `cargo-machete`
+# and `typos`, all of which bootstrap installs; so the saving would be one row wide and the cost
+# would be a second column in the table saying which rows need it. **A machine whose bootstrap
+# FAILS now gets no checks at all**, where `script/gates` (which never provisioned) would still have
+# run `fmt`, `lint` and `image-permissions`. Recorded in milestone 286's BUGS.
 # **Bootstrapping is the no-argument path's job and nobody else's.** With no arguments this is the
 # one command a person runs before pushing, so it provisions first; `script/bootstrap` is idempotent
 # and does nothing on a warm machine. A named check runs exactly what it names, because the caller
@@ -160,7 +168,7 @@ hvf_leg() {
     # like one from this laptop, and the whole point of the leg is that those two are not the same
     # evidence. One line, naming what did not run and why, so nobody has to infer it from an absence.
     if [ -n "$hvf_missing" ]; then
-        echo "ci-build: SKIPPED the HVF leg ($hvf_missing). NO code in this run executed on a physical core; every test above ran under TCG emulation."
+        echo "ci-build: SKIPPED the HVF leg ($hvf_missing). NO code in this run executed on a physical core; everything else in this run was TCG emulation."
     else
         script/test --hvf
     fi
@@ -224,7 +232,11 @@ if [ $# -gt 0 ]; then
         run_one "$name"
     done
     echo
-    echo "ci-build: $* all pass"
+    if [ -n "$hvf_missing" ]; then
+        echo "ci-build: $* all pass (TCG only; the HVF leg was skipped)"
+    else
+        echo "ci-build: $* all pass"
+    fi
     exit 0
 fi
 

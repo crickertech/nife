@@ -107,7 +107,15 @@ now records that it asserted the opposite for a month.
 - **The no-argument path now runs `script/bootstrap` first**, which `script/gates` did not. On a warm
   machine it prints a few lines and exits; on a machine missing QEMU it will `brew install` or
   `apt-get install`, which is a surprise a developer did not previously get from the pre-push
-  command.
+  command. It also runs BEFORE `fmt`, so a formatting slip costs provisioning plus twenty seconds
+  rather than twenty seconds. Lazy provisioning was considered and is worth less than it looks:
+  `lint` is the second row and needs three tools bootstrap installs, so the saving is one row wide
+  and the cost is a second column saying which rows need it.
+- **A machine whose bootstrap fails now gets no checks at all.** Measured on the lane's own
+  container, whose packaged QEMU is 8.2.2 and lacks `riscv-iommu-pci`: `script/bootstrap` exits 1
+  and the run ends before `fmt`. `script/gates` never provisioned, so it would have run `fmt`,
+  `lint` and `image-permissions` there. Whether that is the right trade is the kind of thing the
+  proposal's decision can settle along with the default.
 - **Eighteen roadmap blocks and `design/roadmap/README.md` still say `script/gates`**, and that is
   correct rather than outstanding for most of them: a `BUILT` block is an account of what happened
   under the names it happened under. Fifteen were judged accounts and left alone. The two live ones
