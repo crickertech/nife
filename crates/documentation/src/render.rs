@@ -555,6 +555,12 @@ impl Renderer {
         self.table.rows = 0;
         self.table.used = 0;
         self.table.delimited = false;
+        // Alignment is reset on the same terms as `delimited`, and for the same reason: it is a
+        // property of the delimiter row that was read for THIS table. Leaving it set would hand a
+        // paragraph that happens to begin with a pipe the alignment of the table above it. The
+        // cost is the same one `delimited` already pays, recorded in this crate's `BUGS`: a table
+        // that spills past `TABLE_ROWS` flushes through here, so its second chunk loses both.
+        let align = core::mem::replace(&mut self.table.align, [Align::Left; TABLE_COLS]);
 
         let ncols = (0..rows)
             .map(|r| self.table.cols[r] as usize)
@@ -621,19 +627,42 @@ impl Renderer {
                 // borrows the table arena and `set` borrows all of `self`. A cell is written as one
                 // unit and never wrapped: a wrapped cell would not line up with its column, which
                 // is the only thing a table is for.
-                self.set(attr, out);
+                // How many characters of the cell will be emitted, counted before any of them
+                // goes out, because a right- or centre-aligned cell has to know how much space
+                // to put in FRONT of its text.
                 let (lo, hi) = (s as usize, (s + l) as usize);
                 let mut n = 0;
                 let mut k = lo;
                 while k < hi && n < width {
+                    k += char_len(&self.table.text[..hi], k);
+                    n += 1;
+                }
+                // **The delimiter row said where a column's text sits, and until milestone 280 it
+                // said it to nobody.** `read_align` filled `table.align` from `:---`, `---:` and
+                // `:---:`, and this loop padded every cell on the right whatever it held, so all
+                // three rendered identically to `---`. Nothing was wrong with the parse and
+                // nothing was wrong with the tests; the value simply had no consumer. The
+                // mutation sweep is what found it: sixteen mutants in `read_align` survived,
+                // including replacing the whole function with `()`, because a function whose
+                // result nothing reads cannot be wrong in a way anything notices.
+                let slack = width - n;
+                let (before, after) = match align[c] {
+                    Align::Left => (0, slack),
+                    Align::Right => (slack, 0),
+                    Align::Center => (slack / 2, slack - slack / 2),
+                };
+                self.set(attr, out);
+                pad(out, before);
+                let mut k = lo;
+                let mut done = 0;
+                while k < hi && done < width {
                     let step = char_len(&self.table.text[..hi], k);
                     out.put(&self.table.text[k..k + step]);
                     k += step;
-                    n += 1;
+                    done += 1;
                 }
-                self.col += n;
-                pad(out, width - n);
-                self.col += width - n;
+                pad(out, after);
+                self.col += width;
             }
             self.close_line(out);
             if r == 0 && delimited {
