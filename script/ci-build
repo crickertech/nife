@@ -42,13 +42,24 @@
 # Do not reorder these rows for tidiness.
 #
 # **Bootstrapping is the no-argument path's job and nobody else's, and it runs FIRST rather than
-# lazily.** That is a real cost against the cheapest-first rule, priced and accepted rather than
-# hidden: a formatting slip now costs `script/bootstrap` plus twenty seconds. Lazy provisioning
-# would buy almost nothing, because `lint` is the second row and needs `shellcheck`, `cargo-machete`
-# and `typos`, all of which bootstrap installs; so the saving would be one row wide and the cost
-# would be a second column in the table saying which rows need it. **A machine whose bootstrap
-# FAILS now gets no checks at all**, where `script/gates` (which never provisioned) would still have
-# run `fmt`, `lint` and `image-permissions`. Recorded in milestone 286's BUGS.
+# lazily.** calef ruled this on 2026-09-13 and it is the shipped behaviour: a machine that cannot
+# provision will fail the later rows anyway, and failing early is honest. It is a real cost against
+# the cheapest-first rule and it is priced rather than hidden, since a formatting slip now costs
+# `script/bootstrap` plus twenty seconds. Lazy provisioning would buy almost nothing, because `lint`
+# is the second row and needs `shellcheck`, `cargo-machete` and `typos`, all of which bootstrap
+# installs; so the saving would be one row wide and the cost would be a second column in the table
+# saying which rows need it.
+#
+# **What that ruling costs, and why the failure path below is loud.** `script/bootstrap` does two
+# jobs: it installs what is missing, and it verifies the environment is ADEQUATE. The second can
+# fail on a machine where most of this tier would have run perfectly; measured on milestone 286's
+# own container, where the packaged QEMU is 8.2.2 and lacks `riscv-iommu-pci`, so bootstrap exits 1
+# having installed nothing and broken nothing. The developer then gets **one error about QEMU** and
+# no checks at all, where the retired `script/gates` (which never provisioned) ran three. Read as
+# the QEMU error alone, that is a gate silently giving somebody nothing, which is the same failure
+# `a gate people skip is not a gate` names, arriving from the other side. So the exit says in plain
+# words that NO CHECKS RAN, lists the tier it skipped out of this table rather than out of a second
+# hand-written list, and names what is still runnable by hand.
 # **Bootstrapping is the no-argument path's job and nobody else's.** With no arguments this is the
 # one command a person runs before pushing, so it provisions first; `script/bootstrap` is idempotent
 # and does nothing on a warm machine. A named check runs exactly what it names, because the caller
@@ -241,8 +252,36 @@ if [ $# -gt 0 ]; then
 fi
 
 # The no-argument path: provision, then the `local` tier in this table's order.
+#
+# **A failed bootstrap ends the run, loudly, saying what it cost.** `set -e` would already exit here
+# and would leave the developer holding whatever sentence `script/bootstrap` printed last, which on
+# the machine this was measured on is a line about a QEMU device. The point of the block below is
+# that nobody should have to infer "and therefore nothing was checked" from the absence of output.
 echo "==> script/bootstrap"
-script/bootstrap
+if ! script/bootstrap; then
+    echo
+    echo "ci-build: NO CHECKS RAN. script/bootstrap failed above, and every check below it needs"
+    echo "  something it provisions: the toolchain components, the three emulators, or the lint tools."
+    echo "  Read its last line as the CAUSE, not as the whole cost. The cost is this:"
+    echo
+    echo "  Skipped, the entire local tier:"
+    names_in_tier local | sed 's/^/    /'
+    echo
+    echo "  Still runnable by name on a machine in this state:"
+    echo "    script/ci-build fmt      rustfmt only; needs nothing script/bootstrap installs"
+    echo
+    # **`fmt` is named by hand and the others are not, and that is deliberate.** Which rows survive a
+    # failed bootstrap depends on WHICH PART of it failed, and this table has no column for that: an
+    # adequacy failure (an old QEMU) leaves `lint` and `image-permissions` perfectly runnable, while a
+    # missing rustup leaves nothing. Guessing from the table would produce a list that is wrong half
+    # the time, which is worse than a short list that is always right. `fmt` is the one row that is
+    # safe under every failure mode, so it is the one named.
+    echo "  Other rows may also work, depending on what failed: an out-of-date emulator leaves"
+    echo "  script/ci-build lint and script/ci-build image-permissions runnable, where a missing"
+    echo "  rustup leaves nothing. This script does not guess which, because the table does not"
+    echo "  record why a row needs bootstrap and a wrong guess is worse than a short list."
+    exit 1
+fi
 
 ran=""
 for name in $(names_in_tier local); do

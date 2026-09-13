@@ -104,18 +104,35 @@ now records that it asserted the opposite for a month.
   `notes/check-inventory.md` is the whole surface.
 - **The tier tags are adjectives where the naming tenet wants nouns.** `local` and `ci` are
   provisional for that reason among others; the proposal carries the refusals.
-- **The no-argument path now runs `script/bootstrap` first**, which `script/gates` did not. On a warm
-  machine it prints a few lines and exits; on a machine missing QEMU it will `brew install` or
-  `apt-get install`, which is a surprise a developer did not previously get from the pre-push
-  command. It also runs BEFORE `fmt`, so a formatting slip costs provisioning plus twenty seconds
-  rather than twenty seconds. Lazy provisioning was considered and is worth less than it looks:
-  `lint` is the second row and needs three tools bootstrap installs, so the saving is one row wide
-  and the cost is a second column saying which rows need it.
-- **A machine whose bootstrap fails now gets no checks at all.** Measured on the lane's own
-  container, whose packaged QEMU is 8.2.2 and lacks `riscv-iommu-pci`: `script/bootstrap` exits 1
-  and the run ends before `fmt`. `script/gates` never provisioned, so it would have run `fmt`,
-  `lint` and `image-permissions` there. Whether that is the right trade is the kind of thing the
-  proposal's decision can settle along with the default.
+- **The no-argument path runs `script/bootstrap` first**, which `script/gates` did not. calef ruled
+  on 2026-09-13 that this is correct and it is the shipped behaviour: a machine that cannot
+  provision will fail the later rows anyway, and failing early is honest. The residue is real: on a
+  warm machine bootstrap prints a few lines and exits, but on a machine missing QEMU it will
+  `brew install` or `apt-get install`, which is a surprise the pre-push command did not previously
+  carry, and it runs BEFORE `fmt`, so a formatting slip costs provisioning plus twenty seconds.
+  Lazy provisioning was considered and is worth less than it looks: `lint` is the second row and
+  needs three tools bootstrap installs, so the saving is one row wide and the cost is a second
+  column saying which rows need it.
+- **A machine whose bootstrap fails still gets nothing automatic**, and that is accepted rather than
+  solved. What changed is that it is no longer silent. Measured on this lane's own container, whose
+  packaged QEMU is 8.2.2 and lacks `riscv-iommu-pci`: `script/bootstrap` exits 1 having installed
+  nothing and broken nothing, and before that fix the developer was left holding one error about a
+  QEMU device with no statement anywhere that the whole tier had been skipped. Read that way it is a
+  gate silently giving somebody nothing, which is what *a gate people skip is not a gate* names,
+  arriving from the other side. The exit now says **NO CHECKS RAN** in those words, lists the
+  skipped tier **out of the table** rather than out of a second hand-written list, and names
+  `script/ci-build fmt` as the one row safe under every failure mode.
+- **`fmt` is named by hand in that message and the rest are not.** Which rows survive depends on
+  *which part* of bootstrap failed, and the table has no column for that: an adequacy failure leaves
+  `lint` and `image-permissions` perfectly runnable where a missing rustup leaves nothing. The
+  message says so in prose rather than guessing, because a derived list that is wrong half the time
+  is worse than a short one that is always right.
+- **`script/bootstrap` conflates two jobs**, and that conflation is why the paragraph above exists.
+  It installs what is missing *and* it verifies the environment is adequate, and the second can fail
+  on a machine where the first had nothing to do and where most of the local tier would have run. A
+  `--no-verify`, or a split between provisioning and adequacy checking, would let the no-argument
+  path proceed on a machine that is merely out of date. That is independent of this milestone and is
+  proposed rather than built here.
 - **Eighteen roadmap blocks and `design/roadmap/README.md` still say `script/gates`**, and that is
   correct rather than outstanding for most of them: a `BUILT` block is an account of what happened
   under the names it happened under. Fifteen were judged accounts and left alone. The two live ones
@@ -137,6 +154,9 @@ now records that it asserted the opposite for a month.
   `design/roadmap/proposals/instruments-nothing-runs.md` (a `PROPOSED` proposal whose `Gate:` line
   asks which instrument joins the retired script). The other fifteen blocks and the four
   `design/roadmap/README.md` rows are accounts and keep the old name.
+- **Proposed.** `script/bootstrap` conflates installing what is missing with verifying the
+  environment is adequate, and the second failing is what costs a developer the whole local tier:
+  `design/roadmap/proposals/bootstrap-installs-and-also-judges.md`.
 - **Recorded.** `notes/scripts.md` claimed `script/lint`'s row was the longest markdown line in the
   repository; the counted-claim marker vouches for the number and nothing vouched for which line
   carried it, and it had moved to `design/roadmap/README.md`. Corrected in place.

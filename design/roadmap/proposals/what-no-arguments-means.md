@@ -48,9 +48,19 @@ physical core), and one such check is a recorded gap where fifteen would be a lo
 Shipped provisionally as **`local`** and **`ci`**. The refusals are the useful half:
 
 - **`local` / `ci`** (shipped). `local` says who waits: a person at a checkout. `ci` says the same
-  of a runner. Against it: `ci` is a deployment, not a property of the check, and if this repository
-  ever ran these somewhere other than GitHub Actions the word would be wrong while the check was
-  unchanged. `local` is also one of the vaguest words available in an operating system.
+  of a runner. **The strongest argument against the pair is that `ci` names a deployment rather than
+  a property of the check.** Nothing about `script/coverage` changes if this repository stops using
+  GitHub Actions, and the tag would be wrong the same day while the check was untouched. That is the
+  shape of mistake this tree has made before with a display name matched by branch protection, and
+  it is the reason to keep the pair provisional rather than ratify it in place. `local` is separately
+  one of the vaguest words available in an operating system.
+
+  **`runner` is not available**, which is worth recording because it is the obvious fix: it names
+  who waits, in a noun, and it is GitHub's own word. This tree already spends it in two senses, the
+  CI machine and a script that runs something, across **163 files** (`git grep -lw runner`, measured
+  2026-09-13), including four entry points named for it: `scripts/qemu-runner-aarch64.sh` and its two
+  siblings, `scripts/memory-bounded-runner.sh`, and `script/runner-container`. A third sense would
+  cost a reader the recognition, which is the ground `DECISIONS §31` already refused `witness` on.
 - **`before-push` / `ci-only`**. Says what a contributor does rather than where it happens, which is
   the question they are actually asking. Against it: two hyphenated compounds where a column wants a
   word, and `before-push` names a git hook that already exists (`.githooks/pre-push`) and runs a
@@ -62,10 +72,14 @@ Shipped provisionally as **`local`** and **`ci`**. The refusals are the useful h
   itself (a verb does something, a noun reports), and reusing the words one level down would make
   `coverage` a report in one sense and a gate in another on the same page.
 
-**The naming tenet that applies is the noun rule**, and neither shipped tag is a noun. A tier is a
-thing, so `local` and `ci` are adjectives standing where a noun belongs. That is the strongest
-argument against the shipped pair and the reason this is a proposal rather than a decision a lane
-took.
+**The noun rule does not reach this.** An earlier draft of this proposal argued that `local` and
+`ci` are adjectives where a tier, being a thing, wants a noun. That is a misreading and it is
+corrected here rather than deleted, because the misreading is easy: `AGENTS.md` governs **crates,
+programs and shared modules** ("a crate, a program or a module is a *thing*, so it takes the name of
+a thing"), and a value in a table column is none of the three. This tree's own enum variants already
+sit where verbs are right, `Direction::Serve` and `Direction::Use` among them, and nobody has ever
+proposed renaming them. So the case against the shipped pair rests on `ci` naming a deployment, not
+on its part of speech.
 
 ## What each option costs, measured
 
