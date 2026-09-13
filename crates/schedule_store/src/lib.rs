@@ -44,10 +44,35 @@
 //! small enough that pulling in a whole other crate to write eight lines of text would be the
 //! "more machinery" AGENTS.md's elegance tenet warns against.
 //!
-//! Name: provisional. `schedule_store` is the plain noun both §122 and §123 already use to describe
-//! the thing this crate is a piece of ("the on-disk, per-user schedule store"), extended here to
-//! cover the manifest as well as the location constant a reader of a schedule file needs
-//! ([`SCHEDULE_FILE_NAME`]). calef's call to ratify per AGENTS.md.
+//! Name: provisional, and ruled: calef ruled **`timetable_store`** on 2026-09-13, immediately after
+//! ratifying `timetable`. The block stays `provisional` because the ratified name is not this
+//! crate's until the rename is performed.
+//!
+//! **The question that decided it is the one a reader scanning `crates/` asks**, and calef asked it
+//! verbatim: *"What kind of schedule? Is this the thread scheduler?"* It is not. This crate is
+//! scheduled *execution*, one document per identity in `timetable::parse`'s format plus the
+//! manifest saying which identities have pending work. The thread scheduler is
+//! `kernel/src/sched.rs`, which uses the word 128 times and has nothing to do with this.
+//!
+//! **The tree had already ruled against this collision once and a later lane walked into it.**
+//! `crates/timetable` exists under that name precisely because it *"avoids `scheduler`, which in
+//! this tree already means `kernel/src/sched.rs` and would make two unrelated things share a
+//! word."* `schedule` and `scheduler` are not two words to someone reading a crate list, so
+//! stepping around one and taking the other buys nothing.
+//!
+//! **The provenance that looked strongest was the argument that lost.** `schedule_store` is the
+//! plain noun both §122 and §123 already use ("the on-disk, per-user schedule store"), and a name
+//! the architect wrote first in a decision, adopted rather than coined by a lane, is better
+//! provenance than anything else on that day's worklist. It still loses: those sections say it in
+//! running prose, where the surrounding sentences supply the sense. **A crate name has no
+//! surrounding sentences.**
+//!
+//! Refused `schedule_proto`, wrong by the line `crates/soak_page` draws: this is names and a file
+//! format, not a request/reply vocabulary. Refused `schedule_file`, which names one of the two
+//! documents when the manifest is the other. The maintainer also refused `timetable_store` an hour
+//! before calef ruled it, on the ground that the format belongs to `timetable` and the location to
+//! the principal tree; that was too clever, since a store of timetables is what the word is for and
+//! "store" claims no more authorship than a bookshelf does.
 
 #![no_std]
 
