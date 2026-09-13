@@ -21,21 +21,8 @@
 //! device-specific fact (the NS16550 register layout) is the driver's own knowledge, which is exactly
 //! what a driver is for.
 //!
-//! Name: provisional, and this lane proposes a rename. Introduced 2026-07-27 when the UART
-//! interrupt moved to userspace; nothing records the choice. The problem is not that the name
-//! lacks a signature, it is that the tree grew three siblings that make it wrong: `block_driver`,
-//! `gpu_driver` and `keyboard_driver` are all `<device>_driver`, and this is the fourth driver
-//! and the only unqualified one. A reader who has correctly inferred the scheme cannot tell which
-//! device this drives, which is the `dwarden` failure AGENTS.md cites as the evidence the naming
-//! rule was needed. `keyboard_driver` is the precedent that settles the form: it was `kbd` until
-//! 2026-08-27 and was spelled out. This program is the interrupt-driven console input driver for
-//! the NS16550, so the case is for `serial_driver`, with `uart_driver` the alternative and the
-//! acronym test the reason to prefer the first. `console_driver` is refused because `console` is
-//! already a program. Proposed, not performed: a rename is calef's.
-//!
-//! **Name: ratified 2026-09-08 (calef, milestone 264).** Shipped as `driver`, which was the fourth
-//! driver in `components/src/` and the only unqualified one, beside `block_driver`, `gpu_driver`
-//! and
+//! Name: ratified 2026-09-08 (calef, milestone 264). Shipped as `driver`, which was the fourth
+//! driver in `components/src/` and the only unqualified one, beside `block_driver`, `gpu_driver` and
 //! `keyboard_driver`. A reader scanning the directory met three programs that say what they drive
 //! and one that does not.
 //!
@@ -46,6 +33,13 @@
 //!
 //! **`console_driver` refused**: `console` already names a program here, and a driver named for
 //! another program invites a reader to think it drives that program rather than a device.
+//!
+//! Two facts carried here from the provisional block this ratification replaced, because the
+//! block itself is gone and they are the evidence rather than the conclusion. **The precedent
+//! that settled the form** is `keyboard_driver`, which was `kbd` until 2026-08-27 and was spelled
+//! out. And **`serial` is the right qualifier because there is more than one chip**: this drives
+//! the PL011 on aarch64 and the NS16550 on riscv64, so naming it for either would be wrong on the
+//! other, where `serial` is the plain word for the wire both speak.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

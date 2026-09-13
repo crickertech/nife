@@ -76,15 +76,30 @@
 //!   the table is being replaced wholesale. A future `mkpart` that adds an entry to a table it did
 //!   not write must check.
 //!
-//! Name: provisional (§89's state, adopted 2026-08-16; this block wrote the workaround that
-//! argued for it). The clearest ratification owed on this surface. The introducing commit (4db2fd7, 2026-08-03, milestone 57) says
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), completing the pair he
+//! half-ratified on 2026-08-03: `disk_surveyor` was approved by name that day and this, its
+//! destructive half, was not. Survey and partition, read and write. Splitting the scheme across
+//! the pair would hide a relationship worth seeing.
+//!
+//! **The complaint this block used to carry was about the record rather than the word**, and it
+//! was right. The introducing commit (4db2fd7, 2026-08-03, milestone 57) says
 //! "`disk_partitioner` (provisional name) writes the map `disk_surveyor` reads" and calls its
 //! sibling "`fs_maker` (provisional name)" in the same breath. So the record does not explain the
 //! word; it records that nobody decided it. That sibling is `redoxfs_server/src/bin/mkfs.rs` now, which
 //! is a second provisional name resolved by somebody mid-task on a surface this record does not
 //! cover (see notes/naming.md's BUGS). `disk_surveyor` calef approved by name the same day,
 //! and the pairing of the two (survey, partition) is visible in the tree without being written
-//! down anywhere.
+//! down anywhere. It is written down here now.
+//!
+//! Refused `parted`, and refusing it is the point rather than a formality: `parted /dev/sda` as
+//! root is one authority, obtained by typing a path, reaching every disk in the machine, with
+//! `/dev/urandom` always there for the asking. This program was handed one disk and there is no
+//! path to type. Borrowing the name would borrow the authority model this program exists to
+//! contrast with, which is the fault `flaky` was renamed for the same day. Refused `gpt_writer`,
+//! which names the format rather than the act, spends a stem `crates/gpt` already holds, and would
+//! go stale the first time a second table type was written. Refused `disk_formatter`: formatting
+//! makes a filesystem, which is `redoxfs_server`'s `mkfs`, and this writes a partition map and
+//! touches no filesystem.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
