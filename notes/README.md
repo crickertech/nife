@@ -392,7 +392,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   `NoSuchSlot`, so the only available behaviour was the wrong one for a pipeline. `abi::Error::Gone`
   is the fix, `SIGPIPE` arrives through std's own `is_ebadf` seam, and the indifference test runs one
   ELF against two destinations that share nothing but sixteen bytes of message. Since 2026-08-03 it
-  runs against a **third**: `user/src/terminal_sink_caretaker.rs` makes the terminal a sink, which is a
+  runs against a **third**: `components/src/terminal_sink_caretaker.rs` makes the terminal a sink, which is a
   separate process for a capability reason (its endpoint also carries `OP_READLINE`) and which
   needed a register-only `OP_PRINT`, because `OP_WRITE` reads from the one client page init maps.
 - [The documentation crate](documentation.md): milestone 40's documentation service. A streaming markdown renderer that
@@ -449,7 +449,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The command line as a grant expression](grant-expression.md): milestone 31: naming a resource
   in a command is how you grant it (Miller's "designation is authorization"), the inversion of
   Unix's ambient authority at the one interface a human touches. The shell's own budget, the
-  `SEND_CAP`-to-init spawn protocol, `--mem N` made real by the `budgeter` program, the "you
+  `SEND_CAP`-to-init spawn protocol, `--mem N` made real by the `memory_grant_depleter` program, the "you
   hold no such capability" refusal, and the `SPLIT`-grants-`GRANT` fix that let untyped be delegated.
   Phase 2 adds **per-file grants**: a caretaker process narrowing a directory capability to one file
   in one direction, proven by a read-only and a writable attacker, and why the second one is what

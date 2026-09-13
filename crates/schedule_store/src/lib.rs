@@ -33,8 +33,8 @@
 //!
 //! It performs no IO and makes no syscalls (CLAUDE.md rule 7: two programs that must agree on a
 //! format share a crate, not a wire convention re-derived twice). The write side
-//! (`user/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`, this lane's own demonstration writer) and
-//! the read side (`user/src/session_reviver.rs`, the boot-time re-deriver) both depend on it for
+//! (`fixtures/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`, this lane's own demonstration writer) and
+//! the read side (`components/src/session_reviver.rs`, the boot-time re-deriver) both depend on it for
 //! exactly the same reason `timetable` is shared by the process that writes the shipped
 //! `timetable.conf` file and the process that reads it: the parser and the render logic must be one
 //! function, not two that could drift.
@@ -175,7 +175,7 @@ fn strip_comment(line: &str) -> &str {
 
 /// **Render a manifest**, one identity name per line: the write-path half of this crate, used by
 /// whoever records that an identity now has a durable session with pending work (this lane's own
-/// demonstration writer, `user/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`; a real registrar,
+/// demonstration writer, `fixtures/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`; a real registrar,
 /// #387, would call this every time a schedule changes).
 ///
 /// A fixed buffer rather than a `String`, because this crate is `no_std` with no `alloc`
@@ -218,7 +218,7 @@ pub fn render_manifest(names: &[&[u8]], buf: &mut [u8]) -> Option<usize> {
 }
 
 /// Fixture data both this lane's own demonstration writer
-/// (`user/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`) and the kernel test wiring them together
+/// (`fixtures/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`) and the kernel test wiring them together
 /// use, so the identity and the schedule document a reader meets in either place are the one the
 /// other was written against, matching `filesystem_proto::fixture`'s own convention for
 /// `SMB_SEED`/`SMB_SEED_NAME`.
@@ -231,9 +231,10 @@ pub mod fixture {
     pub const DEMO_IDENTITY: &str = "durable_demo";
 
     /// One `at-boot` entry and one `every` entry, matching `timetable::parse`'s own document shape
-    /// (`user/timetable.conf`'s own reference document is the model): enough to prove the format
+    /// (`components/timetable.conf`'s own reference document is the model): enough to prove the format
     /// round-trips through a real read from the filesystem, not merely through `include_str!`.
-    pub const DEMO_SCHEDULE_DOC: &str = "at-boot worker 3\nevery 30s worker 7\n";
+    pub const DEMO_SCHEDULE_DOC: &str =
+        "at-boot least_authority_demo 3\nevery 30s least_authority_demo 7\n";
 }
 
 #[cfg(test)]

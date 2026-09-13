@@ -24,7 +24,7 @@ demonstrator with no community is a demonstrator nobody continues.**
 
 ## What is actually missing, checked against the code rather than assumed
 
-`user/src/c_shim.rs`'s `_start` does one thing and exits: `kernel/src/user::c_seam_tests` proves
+`fixtures/src/c_shim.rs`'s `_start` does one thing and exits: `kernel/src/user::c_seam_tests` proves
 this directly by running **three separate process instances** in sequence, one call each, rather
 than one process called three times. The C ABI itself (rule 2) was never the limiting factor; the
 *driving loop* was always one-shot, because nothing has needed more than one shot yet.

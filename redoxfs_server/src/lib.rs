@@ -31,7 +31,7 @@
 //! endpoint share these handles and a rights-carrying handle attenuates only its holder. The handle
 //! is the authority; the **endpoint** is the boundary. Confining a program to a subtree is
 //! therefore still a caretaker process holding the wider endpoint
-//! (`user/src/fs_subtree_caretaker.rs`), for exactly the reason `fs_file_caretaker` is one.
+//! (`components/src/fs_subtree_caretaker.rs`), for exactly the reason `fs_file_caretaker` is one.
 //!
 //! # The error boundary
 //!
@@ -505,7 +505,7 @@ impl<D: Disk> Server<D> {
     /// objection recorded there was that "a verb that removes whatever it finds is how one word
     /// takes a subtree away". That is right about a *recursive* verb and is not right about Unix's,
     /// which is the point: **no single call on this contract can take a subtree away.** The
-    /// recursion lives in userspace (`user/src/rm.rs`) as a loop of individually safe steps, each of
+    /// recursion lives in userspace (`components/src/rm.rs`) as a loop of individually safe steps, each of
     /// which needs the rights for it at its own level, so a walk stops exactly where the
     /// capabilities stop rather than where a check in here remembered to look.
     ///
@@ -2115,7 +2115,7 @@ mod tests {
     }
 
     /// **The whole of `rm -r`, driven against the core**: walk, unlink the files, remove the empty
-    /// directories bottom-up. It is here because that is the shape `user/src/rm.rs` implements over
+    /// directories bottom-up. It is here because that is the shape `components/src/rm.rs` implements over
     /// IPC, and proving the *order* is safe belongs next to the verbs rather than only in a guest
     /// test that takes an emulator to run.
     ///

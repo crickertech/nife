@@ -28,7 +28,7 @@ required and no other object type lacked. Notes: grant-expression.md, program-ma
 
 **Phase 2 built (both ISAs): per-file grants.** The FS service's unit of authority is a *directory*
 (DECISIONS §27), and `run wc file:report.txt` says less than that, so the narrowing is a
-**caretaker** in Mark Miller's sense: `user/src/fs_file_caretaker.rs` holds the directory
+**caretaker** in Mark Miller's sense: `components/src/fs_file_caretaker.rs` holds the directory
 capability, opens the granted name once, and serves the same contract on its own endpoint with a
 namespace of exactly one name. Any other name is `ENOENT` (in this scope there is no such name);
 `CREATE` is `ENOTDIR` (a file is not a directory); a write without the direction is `EROFS`. Each
@@ -59,8 +59,8 @@ starts the interactive shell wires no FS service and it holds no directory to na
 `xtask/src/main.rs:5368` runs `wc gate.txt` at the interactive shell and expects `2 4 24`, with
 `wc gate.txt | wc` beside it, `caps wc gate.txt` printing the endowment, and **bare `wc` refused as the
 negative control**, which is the claim stated as a pair rather than asserted. `holdings()` is flipped
-(`user/src/swish.rs:128`, `dir: nav.dir.is_some()`), the kernel's shell boot path grants an FS service
-on both ISAs (`kernel/src/user.rs:1351` for riscv64, `user/src/hello.rs:390` for aarch64), and the
+(`components/src/swish.rs:128`, `dir: nav.dir.is_some()`), the kernel's shell boot path grants an FS service
+on both ISAs (`kernel/src/user.rs:1351` for riscv64, `fixtures/src/hello.rs:390` for aarch64), and the
 interactive runner carries a RedoxFS disk (`xtask/src/main.rs:5646`). The harness that was said not to
 exist is `script/shell-check`, which is the gate for `user/src/system_initializer.rs` and runs both
 legs.
@@ -139,7 +139,7 @@ out to be `script/shell-check` and already built.
 
 - **Milestone 47.** A grant of more than one name. This block could only build one subtree caretaker
   per grant, so `caps rm globmany/m-*.txt` previewed an authority nothing could deliver. Milestone
-  47's globbing lane built `user/src/fs_nameset_caretaker.rs`, which takes its set in a frame rather
+  47's globbing lane built `components/src/fs_nameset_caretaker.rs`, which takes its set in a frame rather
   than in argument words; the reasoning is design/decisions/52-nameset-glob-grant.md.
 - **Recorded.** `notes/dir-capability.md` carries it beside the feature: a grant more than one level
   down is still not delivered, because init builds one caretaker per grant and that shape is a chain

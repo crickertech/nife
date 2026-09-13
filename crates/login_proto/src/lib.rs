@@ -4,7 +4,7 @@
 //! Unix login authenticates and then mutates a global identity field. This contract is the other
 //! shape: a client presents an identity and a secret, and on success the service delegates a fresh
 //! **capability set** back over the same channel rather than changing anything ambient. See
-//! `user/src/login.rs` for the service and notes/login.md for the design.
+//! `components/src/login.rs` for the service and notes/login.md for the design.
 //!
 //! # The exchange
 //!
@@ -62,7 +62,7 @@
 //!    calls `DESTROY` on it, alongside the fourth capability below, gives back everything a session
 //!    spent rather than only the caretaker's half;
 //! 4. the **logout ticket**: a `MemoryRegion`, `WRITE` only, the exact region the directory capability's
-//!    caretaker was built from (`user/src/login.rs`'s `mint`, see that program's module docs,
+//!    caretaker was built from (`components/src/login.rs`'s `mint`, see that program's module docs,
 //!    "Reclaiming a session"). It has nothing left to `SPLIT` or `RETYPE` (its whole budget went
 //!    into building the caretaker), so its only remaining use is `invoke(cap, abi::memory_region::DESTROY,
 //!    0, 0, 0)`, which reclaims the caretaker's TCB, address space and endpoint and returns the
@@ -82,7 +82,7 @@
 //!    could be**: `login`'s own `serve_login` refuses with [`NO_TERMINAL`] before authentication is
 //!    even attempted while another session already holds it, so every `OK` this contract answers
 //!    carries this fifth capability too. There is exactly one physical terminal and exactly one
-//!    holder at a time; see this contract's own BUGS and `user/src/login.rs`'s module docs for the
+//!    holder at a time; see this contract's own BUGS and `components/src/login.rs`'s module docs for the
 //!    single-session design this is deliberately not more than.
 //!
 //! **A full logout destroys capability 3 before capability 4, and the order is load-bearing.**
@@ -126,7 +126,7 @@
 //! session that is genuinely still in use. There is no liveness check on the holder (this tree's
 //! usual "no wait-any primitive" bound: `login` cannot watch its client and also keep serving new
 //! connections), so recovering from an abandoned session today means restarting `login` itself. See
-//! `user/src/login.rs`'s own BUGS for the same limitation stated at the component a reader meets
+//! `components/src/login.rs`'s own BUGS for the same limitation stated at the component a reader meets
 //! first.
 //!
 //! # The request page
@@ -213,7 +213,7 @@ pub const NO_TERMINAL: u64 = 5;
 pub const LOGGED_OUT: u64 = 6;
 
 /// **One attribution record**, sent once per successful login on the service's own audit endpoint
-/// (`user/src/login.rs`'s `AUDIT` slot), so the property DECISIONS §109 names ("a server ... logs
+/// (`components/src/login.rs`'s `AUDIT` slot), so the property DECISIONS §109 names ("a server ... logs
 /// which channel a request arrived on") is checkable rather than merely claimed. `w0` is
 /// [`ATTRIBUTED`], `w1` is the channel's sequence number (the order this service established
 /// channels in, starting at 0), `w2` is [`identity_hint`] of the identity that established it.
@@ -240,7 +240,7 @@ pub fn identity_hint(identity: &[u8]) -> u64 {
 // program itself rather than between the program and its clients (milestone 233).
 //
 // It is in this crate because rule 7 leaves nowhere else: three binaries have to agree on these
-// two addresses (`user/src/login.rs`, `crates/system_initializer`, and the kernel's own test
+// two addresses (`components/src/login.rs`, `crates/system_initializer`, and the kernel's own test
 // harness in `kernel/src/user/login_service.rs`), and what two binaries agree on is a crate. The
 // siting is the honest weak point: this crate's own first line calls itself "the wire contract
 // between a client and the login service", and a spawn contract is neither wire nor client. The

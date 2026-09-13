@@ -187,7 +187,7 @@ it.
   transcribed from `drivers/char/hw_random/jh7110-trng.c`, mainline as of 2026-08-24) and a DTB
   discovery query (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`, PLIC interrupt 30, from the
   device-tree binding's own worked example), both host-tested against fixtures, never against
-  silicon. `user/src/jh7110_entropy_source.rs` is a full `entropy_proto` backend built on that logic, over a
+  silicon. `components/src/jh7110_entropy_source.rs` is a full `entropy_proto` backend built on that logic, over a
   raw device mapping rather than a virtqueue (this device has no DMA and no queue, only registers).
   **Wired on 2026-09-01**: `entropy_service`'s `Bus` enum grew a `Jh7110` variant and the riscv64
   boot tour spawns the driver when the machine's device tree describes the device, which on every
@@ -200,7 +200,7 @@ it.
   whether radon's own shipped device tree carries the TRNG node the mainline one does (nobody has
   captured one from the board to check), whether the block's clocks and reset are left running by
   U-Boot (this tree drives neither, and Linux's driver takes two clocks and a reset line before it
-  touches a register; see `user/src/jh7110_entropy_source.rs`'s `BUGS`), and the whole question below.
+  touches a register; see `components/src/jh7110_entropy_source.rs`'s `BUGS`), and the whole question below.
 - **The health-test story got sharper, not answered.** The datasheet (§2.8.2) documents "Support
   LFSR based digital post process" and "Support self re-seeding" but claims no NIST SP 800-90B,
   FIPS 140, or AIS-31 compliance anywhere reachable. The Linux driver names exactly one hardware
@@ -239,7 +239,7 @@ it.
   wire. `grant_plan::Manifest::entropy` joined `clock`, `domain` and `config`; init reads the
   declaration and places a `WRITE` view of the entropy service's request endpoint at
   `grant_plan::ENTROPY_SLOT`; a program that did not declare it holds an empty slot there and
-  `entropy_proto::delivered` answers `None` rather than a short count. `user/src/uuid.rs` is the
+  `entropy_proto::delivered` answers `None` rather than a short count. `components/src/uuid.rs` is the
   first consumer a person can type, and `caps uuid` prints the row.
 
   **Ambient entropy would still be ambient authority**, and nothing here made randomness ambient:

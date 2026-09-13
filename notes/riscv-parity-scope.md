@@ -114,7 +114,7 @@ tests came along unchanged once three things moved.
 2. **The hand-assembled programs became real ELFs.** Five `global_asm!` blobs (three aarch64, two
    RISC-V) are gone, along with `exec`, the one-page raw-machine-code loader they needed. Their
    behaviours are ordinary, so they are the `outlaw` binary (two roles: read a forbidden address,
-   round-trip through user mode) and the `spinner` that §24's interrupt work already built. Every program the
+   round-trip through user mode) and the `interrupt_ignorer` that §24's interrupt work already built. Every program the
    kernel runs now arrives as an ELF. The privilege-boundary test hands the forbidden *address* to
    the program in a register rather than baking a constant into machine code, which is the trick that
    makes one program serve two ISAs with different kernel address spaces.
@@ -270,14 +270,14 @@ never-exiting spinners accumulated in it unnoticed until one of them starved
 [PROBE] leaked runnable = 2, table = 87     # riscv64
 ```
 
-Identical on both legs. The two are `untyped_demo` (pc deep inside `hello`) and `spinner` (pc at its
+Identical on both legs. The two are `untyped_demo` (pc deep inside `hello`) and `interrupt_ignorer` (pc at its
 entry, a tight loop), exactly the two named below. The other 85 threads in the table are **Blocked**,
 which is the healthy steady state: they are the long-lived userspace servers earlier tests started,
 waiting on endpoints. A thread dump full of Blocked user threads is not a leak, and reading it as one
 sends the investigation to the wrong place.
 
 Worth stating plainly, because the direction is counter-intuitive: **de-gating the module did not make
-this worse in aggregate.** aarch64 carried **four** of these before (`spinner`, `untyped_demo`,
+this worse in aggregate.** aarch64 carried **four** of these before (`interrupt_ignorer`, `untyped_demo`,
 `printing_client`, `self_check_client`); making the two one-shot roles `exit()` cut it to two. RISC-V
 went from zero to two, because the module did not run there at all. So RISC-V now sits in exactly the
 condition aarch64 has been in for many milestones, rather than a worse one, and aarch64 improved.
@@ -285,7 +285,7 @@ condition aarch64 has been in for many milestones, rather than a worse one, and 
 Two of the four were one-shot roles with nothing left to do and now `exit()`. The other two cannot,
 and that is the obstacle:
 
-- `a_user_program_that_never_yields_is_preempted_anyway` runs `spinner`, whose entire point is that
+- `a_user_program_that_never_yields_is_preempted_anyway` runs `interrupt_ignorer`, whose entire point is that
   it never yields, never syscalls, and never returns. A thread that exits would not test anything.
 - `a_process_spends_untyped_and_the_kernel_never_allocates` reads the kernel's free-frame count the
   instant its child reports. If the child exited there, the number read would be the teardown's

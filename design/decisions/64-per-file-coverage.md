@@ -2,7 +2,7 @@
 
 **Status: DECIDED.**
 
-`user/src/swish.rs` had **zero** `#[cfg(test)]` blocks, and that was first reported here as "the
+`components/src/swish.rs` had **zero** `#[cfg(test)]` blocks, and that was first reported here as "the
 shell is untested". It was not. The shell was covered by ~28 QEMU integration cases driving the real
 binary, and by 93 host tests in `crates/grant_plan`, which already held its parsing and navigation.
 

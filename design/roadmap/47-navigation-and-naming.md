@@ -112,7 +112,7 @@ third, remain exactly as this block already described them below: lowest priorit
 lane for want of time rather than for want of a plan.
 
 **`RMDIR` and `rm -r` were also already built**, found 2026-08-22 by the same kind of status check
-that caught the `IN-PROGRESS` token above: the code (`user/src/rm.rs`, `fs_proto::fs::RMDIR`), the
+that caught the `IN-PROGRESS` token above: the code (`components/src/rm.rs`, `fs_proto::fs::RMDIR`), the
 decision (`DECISIONS §49`) and the concept note (notes/rm.md) all say `Built 2026-07-31`, but this
 roadmap block never got the matching annotation, so the "rmdir and rm -r" section below read as
 still-undecided years after the design it describes shipped. Recorded here rather than left for the
@@ -576,7 +576,7 @@ and the round trip against a real command line (`TOUCH_MTIME_ADVANCED` /
 ### Built 2026-07-31: the matcher, then the grant. See notes/glob.md and notes/glob-grant.md.
 
 The decided answer is implemented rather than revisited: `rm *.txt` grants a directory capability
-attenuated to a **name set**, served by `user/src/fs_nameset_caretaker.rs`. Four things this section
+attenuated to a **name set**, served by `components/src/fs_nameset_caretaker.rs`. Four things this section
 did not predict, and one it did:
 
 - **It predicted the shape of the change to `grant_plan`**, and that is exactly what happened.
@@ -854,7 +854,7 @@ field over, and every mechanism it reaches for already existed.
   read straight off `prog.manifest().config` in `crates/system_initializer`'s spawn loop, the same
   line `wants_clock` already was.
 - **`Prog::Printenv`** (provisional name, Unix's own for exactly this, a term of art already right
-  per this tree's naming convention for standard terms), `user/src/printenv.rs`: reads the page at
+  per this tree's naming convention for standard terms), `components/src/printenv.rs`: reads the page at
   a fixed VA (`CHILD_CONFIG_VA`, `crates/system_initializer`), prints `KEY=value` for a declared
   key and `KEY (unset)` for one the page is valid but does not carry, using the same
   probe-before-touch shape `date` already uses for the clock (`granted(slot)` before building the
@@ -865,7 +865,7 @@ field over, and every mechanism it reaches for already existed.
   assembled once with the same `UTC`/`C`/`dumb` defaults and handed to init unconditionally, ahead
   of the filesystem pair, so its slot number is fixed on every boot whether or not a disk is
   attached). `BootEndowment::config_page` is a new field on both real entry points
-  (`user/src/hello.rs`, `user/src/system_initializer.rs`), which is why the filesystem pair's slot
+  (`fixtures/src/hello.rs`, `user/src/system_initializer.rs`), which is why the filesystem pair's slot
   numbers moved by one on each board (documented at each call site; nothing else's numbering
   changed, since config is granted unconditionally like the clock and cannot depend on whether a
   disk was attached). This is the wiring the 2026-08-23 lane named as missing: "there is no
@@ -1375,7 +1375,7 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
   behind it. `crates/swish` prints presence only, and its own comment there says the shell has no
   config set to preview a value from. Checked 2026-09-03.
 - **Milestone 154.** `bind` in a two-grant shell stays host-tested only. Both real entry points
-  still pass no second directory (`user/src/swish.rs`, `user/src/system_initializer.rs`), and
+  still pass no second directory (`components/src/swish.rs`, `user/src/system_initializer.rs`), and
   `crates/system_initializer` calls the path unverified against a real boot.
 - **Outstanding.** The delegation chain `xargs` needs: the shell still cannot ask init to mint a
   per-batch caretaker, so `xargs` stops after batch one. Milestone 109's block names this as this

@@ -2,7 +2,7 @@
 
 *Milestone 23's fourth residual, and the last one this milestone names: "if component B is a client
 of component A, swapping A means quiesce B, swap, resume." `crates/component_plan`'s `depends_on`,
-`LiveInstance` and `dependents`; `user/src/swapper.rs`'s `queued()`. Read notes/live-replacement.md
+`LiveInstance` and `dependents`; `components/src/swapper.rs`'s `queued()`. Read notes/live-replacement.md
 and notes/component-manifest.md first if you have not; this builds on both.*
 
 ## The defect, in the roadmap's own words

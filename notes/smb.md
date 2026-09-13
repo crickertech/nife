@@ -58,7 +58,7 @@ where the record of what it proved costs a file.
 
 **What was deliberately kept, and why**, because the boundary is the interesting part of a removal:
 
-- **`crates/mdns_proto` and `user/src/mdns_responder.rs`.** Service discovery is a standalone service
+- **`crates/mdns_proto` and `components/src/mdns_responder.rs`.** Service discovery is a standalone service
   and is useful without a share to advertise.
 - **`crates/credentialer`, `credentialer`, `session_reviver`**, and milestone 49's and 65's identity work,
   minus the NTLM half (see the section below). The credential service's headline property (a server

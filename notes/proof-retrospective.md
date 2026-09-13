@@ -226,7 +226,7 @@ later test with "out of rendezvous points: 512 live at once".
 
 Both are "every path through this function returns the resource to its entry occupancy". That is a
 provable property and nothing in this tree proves it for any function. It needs the slot bookkeeping
-lifted out of `user/src/login.rs` into a crate, which is a real extraction rather than a harness, and
+lifted out of `components/src/login.rs` into a crate, which is a real extraction rather than a harness, and
 it is the class most likely to recur: sixteen slots is a small ceiling and every service program has
 one. **Worklist, and the largest item on it.**
 

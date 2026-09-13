@@ -26,7 +26,8 @@ do need these, and each one will otherwise cost you a rewrite:
 
 - **Where architecture-specific code lives.** All of it is under `kernel/src/arch/`. `asm!` outside
   that directory is the bug, not the exception.
-- **What goes in `crates/` versus `user/src/`.** Anything two binaries must agree on is a crate, never
+- **What goes in `crates/` versus `components/src/` and `fixtures/src/`.** Anything two binaries must
+  agree on is a crate, never
   a `#[path]` module, because a shared module inside a `no_std` binary is unreachable by host tests
   and by Kani, and this project's whole method is pure logic in host-testable crates plus proofs.
 - **Names are the architect's call.** Ship a provisional one and say so in your pull request; do not

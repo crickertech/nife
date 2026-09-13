@@ -24,8 +24,8 @@ on the region a child was built from is the only thing in this system that can e
 way TCB retention was decided before §142: one call site at a time, by whether it happens to call
 `cap_delete(region)` afterwards.
 
-The sites disagree, and the disagreement is real rather than accidental. `user/src/spawner.rs`,
-`user/src/c_confiner.rs` and `user/src/timetable.rs` drop the region as soon as the child runs, so
+The sites disagree, and the disagreement is real rather than accidental. `components/src/spawner.rs`,
+`fixtures/src/c_confiner.rs` and `components/src/timetable.rs` drop the region as soon as the child runs, so
 they hold nothing that reaches a live instance's memory and say so in comments. `crates/system_initializer`'s
 job path keeps its region across the child's life and reclaims it on death. Both are correct for
 what they do. Neither is stated anywhere a reader of the endowment can see.

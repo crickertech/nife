@@ -471,7 +471,7 @@ experiment is about the wake protocol, and that is what this runs.
 **The spike, and its numbers.** Written, run, and thrown away on 2026-09-01. **53 lines added across
 three files**, no syscall change, no architecture-specific code, no change to any production path:
 a routed rendezvous plus a tick hook in `kernel/src/soak.rs`, three lines in `kernel/src/sched.rs`,
-and one role in `user/src/soaker.rs` that loops on `irq_wait`. Same command, same host, same day as
+and one role in `fixtures/src/soaker.rs` that loops on `irq_wait`. Same command, same host, same day as
 the baseline above:
 
 | Architecture | `crossings` at 25s, today | with the spike | round trips/s |

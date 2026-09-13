@@ -85,14 +85,14 @@ them through `Thread::start_args` into `x0`/`x1`/`x2` at first entry (milestone 
 from one argument to three; see notes/tcb.md). Their meaning is **the program's to define**, with one
 reserved case:
 
-- For most programs, `x0`/`x1`/`x2` are plain arguments. A worker takes its input `n` in `x1`. A
+- For most programs, `x0`/`x1`/`x2` are plain arguments. A least_authority_demo takes its input `n` in `x1`. A
   standalone binary that needs no argument ignores all three.
 - **init** is the exception the loader knows about: the kernel starts init with the initrd length in
   `x1`, because init must find the archive it loads everything else from (notes/progenitor-and-loading.md).
 - Historically `x0` was a *role selector* for the one multi-tool `hello` binary. After the 19f split
   every program is its own binary, so `x0` is a free argument again, not a dispatch key.
 
-A program never returns from `_start`. It runs until it calls `SYS_EXIT` (a worker, when its job is
+A program never returns from `_start`. It runs until it calls `SYS_EXIT` (a least_authority_demo, when its job is
 done) or loops forever serving requests (a driver). Returning would fall off the end of the world;
 there is no runtime to catch it.
 
@@ -108,7 +108,7 @@ capabilities the program needs into low capability table slots, and mapped any s
 virtual addresses. The program hardcodes which slot holds what and which VA is which. That agreement
 is the contract, and it is **per program**, published in that program's own source:
 
-- the **worker** is granted one endpoint at slot 0 (its result channel).
+- the **least_authority_demo** is granted one endpoint at slot 0 (its result channel).
 - the **console** server gets its request endpoint at slot 0, its reply endpoint at slot 1, the
   shared text page read-only at `0x60_0000`, and the UART device frame.
 - the **input** driver gets the line endpoint at slot 0 and its RX interrupt capability at slot 1.

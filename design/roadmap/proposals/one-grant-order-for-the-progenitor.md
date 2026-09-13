@@ -7,7 +7,7 @@ program and could not unify the one thing left under a `cfg` inside it.
 
 ## In brief
 
-`user/src/progenitor.rs` holds two `BootEndowment` tables. They differ because the two kernels grant
+`components/src/progenitor.rs` holds two `BootEndowment` tables. They differ because the two kernels grant
 the boot capabilities in a different order:
 
 | | aarch64 (`kernel::user::spawn_progenitor`) | riscv64 / x86_64 (`kernel::user::riscv_shell_boot`) |
@@ -27,7 +27,7 @@ Every row after the first is displaced by exactly the two capabilities aarch64 g
 interactive system never uses: a report endpoint nothing receives on, and a test interrupt no
 component waits for. They are there because **aarch64's boot path is shared with milestone 19d's
 test roles**, which enter `hello` through the same function with the same endowment, and whose slot
-numbering is written into `user/src/hello.rs`'s role catalogue and into six `spawn_progenitor` tests.
+numbering is written into `fixtures/src/hello.rs`'s role catalogue and into six `spawn_progenitor` tests.
 
 ## What it would take
 

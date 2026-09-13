@@ -13,7 +13,7 @@
 # 2026-08-01 and this one survived the sweep rather than being exempted by it. The same holds one
 # level along: `cargo xtask initboot` is likewise the only run-together subcommand beside
 # `shell-check`, `board-console`, `initrd-aarch64` and `std-src`, so the rename is two strings
-# rather than one. The Rust-side role it names is spelled `init_boot` in `user/src/hello.rs`,
+# rather than one. The Rust-side role it names is spelled `init_boot` in `fixtures/src/hello.rs`,
 # which is the same two words under the same table's other row. Proposed, not performed: a rename
 # is calef's.
 set -e

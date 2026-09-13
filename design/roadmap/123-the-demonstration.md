@@ -33,7 +33,7 @@ chose for the purpose is hard to fake, and it is checkable by someone who does n
 
 **`caps` already does most of this.** The shell has a `caps` builtin (`grant_plan`'s `Command::Caps`,
 routed by `swish`) that reports the capabilities a command line would be granted, and the boot gate
-already exercises it on `wc`, `date`, `rm *.txt` and `budgeter --mem 16`.
+already exercises it on `wc`, `date`, `rm *.txt` and `memory_grant_depleter --mem 16`.
 
 What is new is pointing it at software we did not write and putting the output next to the run. The
 demonstration is not the assertion that this is more secure. It is that **the question has an answer

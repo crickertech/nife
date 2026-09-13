@@ -26,7 +26,7 @@ fn partitioner_image() -> &'static [u8] {
     program("disk_partitioner").expect("no disk_partitioner program in the initrd archive")
 }
 
-// The report's flag words. Must match user/src/disk_surveyor.rs.
+// The report's flag words. Must match components/src/disk_surveyor.rs.
 const F_ROSTER: u64 = 1 << 0;
 const F_SIZE: u64 = 1 << 1;
 const F_MBR: u64 = 1 << 2;
@@ -221,7 +221,7 @@ fn the_roster_can_be_revoked_out_from_under_its_holder() {
 // Milestone 57's write half: partitioning and formatting on the target
 // =============================================================================================
 
-// The partitioner's roles and verdicts. Must match user/src/disk_partitioner.rs.
+// The partitioner's roles and verdicts. Must match components/src/disk_partitioner.rs.
 const ROLE_PARTITION: u64 = 0;
 const ROLE_VERIFY: u64 = 1;
 const R_PARTITIONED: u64 = 0x_50_41_52_54_44;

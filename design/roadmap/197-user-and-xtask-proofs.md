@@ -7,7 +7,7 @@ merge queue lands it.)*
 
 ## What was built, and where the block was wrong
 
-**One property, over code that lives in `user/src/printenv.rs` today, proved by two harnesses
+**One property, over code that lives in `components/src/printenv.rs` today, proved by two harnesses
 `script/verify` runs, and falsified before it was believed.** `push_never_writes_past_the_buffer_it_was_given`
 says that for every starting offset in the whole of `usize` and every content, the bounded append
 that renders a configuration page this program did not write stays inside its 96-byte line buffer,

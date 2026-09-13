@@ -1698,7 +1698,7 @@ transcript with all three red is a transcript to read as "this host was saturate
 
 ### The fix, and why its bound is the second-best unit
 
-`user/src/login_test_client.rs`'s `destroy_with_retry` now waits on the property (the region
+`fixtures/src/login_test_client.rs`'s `destroy_with_retry` now waits on the property (the region
 genuinely coming down) and bounds itself with a clock rather than with a count. The ceiling is
 `DESTROY_WAIT_SECS`, five seconds of counter time, and it is a watchdog rather than a rate: only a
 run that is going to fail ever pays it, because the loop returns the moment the region comes down.
@@ -1798,10 +1798,10 @@ refusal, and none has a clock in it:
 | site | on exhaustion |
 |---|---|
 | `crates/system_initializer::reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
-| `user/src/login.rs`'s `reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
-| `user/src/swish.rs`'s `await_screen` (`SCREEN_REAP_ATTEMPTS`) | returns; leaks one job's pool |
-| `user/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_rt::trap()`** |
-| `user/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_rt::trap()`** |
+| `components/src/login.rs`'s `reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
+| `components/src/swish.rs`'s `await_screen` (`SCREEN_REAP_ATTEMPTS`) | returns; leaks one job's pool |
+| `components/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_rt::trap()`** |
+| `components/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_rt::trap()`** |
 
 That is the reading order's fourth grep, and it is the first one that leaves this repository's
 kernel: **a bounded retry count in a user program, over a syscall that a timer tick has to clear.**

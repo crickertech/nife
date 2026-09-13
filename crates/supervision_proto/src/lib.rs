@@ -332,7 +332,7 @@ pub fn build_child(
 /// slot table (`kernel::cap::CAPABILITY_TABLE_SLOTS`) with no way for the caller to reach them. A
 /// caller that builds one child at boot does not care; a long-lived server that builds one per
 /// request, and whose builds can fail, runs its own table down and then cannot serve at all. That is
-/// not hypothetical in kind: `user/src/login.rs`'s BUGS records the same class of leak (two slots per
+/// not hypothetical in kind: `components/src/login.rs`'s BUGS records the same class of leak (two slots per
 /// request, from a different site) refusing correct passwords for two days.
 ///
 /// Fixing it properly means this function tracking what it has made and unwinding on the way out,

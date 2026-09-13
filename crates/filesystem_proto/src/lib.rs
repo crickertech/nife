@@ -505,7 +505,7 @@ pub mod fs {
     /// # Empty-only, and why that is not a limitation to be lifted
     ///
     /// A directory with anything in it is [`super::dir::ENOTEMPTY`], refused rather than emptied.
-    /// **The recursion in `rm -r` lives in userspace** (`user/src/rm.rs`), as a loop of individually
+    /// **The recursion in `rm -r` lives in userspace** (`components/src/rm.rs`), as a loop of individually
     /// safe single-step operations: enumerate, unlink the files, remove the empty directories from
     /// the bottom up. Each step is one request this server runs to completion, and each step needs
     /// the rights for it at *that* level, so a recursive removal stops exactly where the
@@ -709,7 +709,7 @@ pub mod fs {
     /// **Name-taking rather than handle-taking, on purpose.** Every other fact this contract
     /// answers about a file ([`FSTAT`], [`GETXATTR`]) needs an open handle first. This one does
     /// not, because [`SETMTIME`] and [`SETMTIME_AT`] do not either: `touch` never opens what it
-    /// acts on (`user/src/swish.rs`'s `touch` builtin resolves a name straight under the
+    /// acts on (`components/src/swish.rs`'s `touch` builtin resolves a name straight under the
     /// directory capability it already holds, the same shape [`CREATE`] and [`UNLINK`] use), and a
     /// getter that needed a handle when the setters do not would be an asymmetry nothing forces.
     ///
@@ -1142,7 +1142,7 @@ pub mod dir {
 /// **The verb table: what each request word means, declared once instead of three times**
 /// (milestone 61).
 ///
-/// Three caretakers (`user/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`,
+/// Three caretakers (`components/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`,
 /// `fs_nameset_caretaker.rs`) proxy this same contract over a narrowed namespace, and each one used
 /// to be a hand-written `match` over the opcode. Nothing made a `match` and the contract agree, so
 /// the way that failed is that **a new verb was simply absent from a caretaker and the capability
@@ -1499,7 +1499,7 @@ pub mod verb {
         }
     };
 
-    /// **What a per-file grant answers for each verb** (`user/src/fs_file_caretaker.rs`).
+    /// **What a per-file grant answers for each verb** (`components/src/fs_file_caretaker.rs`).
     ///
     /// This one caretaker needs a policy and the other two do not, and the asymmetry is the design
     /// rather than an accident. `fs_subtree_caretaker` and `fs_nameset_caretaker` serve the
@@ -1762,7 +1762,7 @@ pub mod statfs {
 ///
 /// A directory capability lets its holder name anything in the bound directory. `run wc report.txt`
 /// must hand over less than that: **one file, in one direction, and nothing else**. The narrowing
-/// is done by an attenuator, `user/src/fs_file_caretaker.rs`, which holds the directory capability,
+/// is done by an attenuator, `components/src/fs_file_caretaker.rs`, which holds the directory capability,
 /// opens exactly the granted name once at startup, and then serves the *same* [`fs`] protocol on
 /// its own endpoint with three rules:
 ///
@@ -1875,7 +1875,7 @@ pub mod grant {
 /// designate. `rm *.txt` designates more than one and fewer than all, and the roadmap's decided
 /// answer is a directory capability attenuated to **the names that matched**. `fs_file_caretaker`
 /// already serves a namespace of exactly one name; this is the same shape with a wider namespace,
-/// served by `user/src/fs_nameset_caretaker.rs`.
+/// served by `components/src/fs_nameset_caretaker.rs`.
 ///
 /// # Why the set rides in a frame and the single name does not
 ///
@@ -2546,7 +2546,7 @@ pub mod fixture {
     pub const THROUGHPUT_NAME: &str = "throughput";
 
     /// **The shape of milestone 38's throughput measurement**, shared by the client that performs
-    /// it (`user/src/fs_test_client.rs`, the throughput role) and the bench boot that names its
+    /// it (`fixtures/src/fs_test_client.rs`, the throughput role) and the bench boot that names its
     /// results (`kernel/src/bench.rs`). Two programs agree on these, so they are a crate and not a
     /// constant written twice (CLAUDE.md rule 7).
     pub mod throughput {
@@ -3286,7 +3286,7 @@ pub mod fixture {
     }
 
     /// **What the `rm` program reports, and how a diagnostic is told from the verdict**
-    /// (milestone 47's `rm -r`, `user/src/rm.rs`).
+    /// (milestone 47's `rm -r`, `components/src/rm.rs`).
     ///
     /// **Where these two words travel** (corrected 2026-08-17). `rm` declares the sink contract
     /// (`grant_plan::OutputSpec::Bytes`), so its report is framed text and then `byte_sink_proto`'s

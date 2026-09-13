@@ -170,7 +170,7 @@ needs a file of its own; what is listed here is where to read it and what happen
   AGENTS.md's naming section: *"a crate and a program may share a name, and it says something when
   they do: the crate is that program's logic, lifted out so it can be host-tested and Kani-reachable
   while the program keeps the IO."* This crate describes itself in exactly those terms and names
-  `user/src/credentialer.rs` as its service, so `credential` would have fixed the contraction while
+  `components/src/credentialer.rs` as its service, so `credential` would have fixed the contraction while
   creating a fourth shape the tree does not have: a crate named for the subject beside a program
   named for the actor, with nothing saying they are one thing lifted apart. `credential_proto` is
   untouched, because the wire is about credentials rather than about the servicer, the same shape as
@@ -213,7 +213,7 @@ needs a file of its own; what is listed here is where to read it and what happen
   saying "provisional" or "not yet put to calef" in prose while its token says `unrecorded` is
   mechanically detectable, and it is a false entry in the one record whose job is saying what is
   prepared.
-- **Recorded.** **`user/src/hello.rs` carries the `init_boot` role on aarch64 and the name does not
+- **Recorded.** **`fixtures/src/hello.rs` carries the `init_boot` role on aarch64 and the name does not
   say so**, in that program's own block. Not proposed as a rename: `hello` is right for what it was
   and the gap is that the thing grew, which is a fact to record rather than a naming error.
 - **Recorded.** **`script/gates` is DECISIONS §134's one clear exception**, a noun that acts where

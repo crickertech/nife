@@ -58,7 +58,7 @@ its home subtree together (minted alongside this decision, provisional), is wher
 The provisioning tool's own design (a program, its capability contract, whether it is interactive
 or scripted) is milestone 155's, not this entry's. Reclamation of a subtree when a principal is
 deprovisioned is not addressed here either; it is downstream of the reclamation bound
-`user/src/login.rs`'s own BUGS already names as open.
+`components/src/login.rs`'s own BUGS already names as open.
 
 ## What it unblocks
 

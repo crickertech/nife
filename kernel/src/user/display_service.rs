@@ -48,7 +48,7 @@ const SURFACE_RUN: NonZeroU64 = page_frame_run_len(graphics_proto::SURFACE_PAGE_
 const DMA_RUN: NonZeroU64 = page_frame_run_len(DMA_PAGE_FRAMES);
 const ONE_PAGE_RUN: NonZeroU64 = NonZeroU64::MIN;
 
-/// The driver binary's escape-attempt role; must match `user/src/gpu_driver.rs` `ROLE_BACKING_ESCAPE`.
+/// The driver binary's escape-attempt role; must match `components/src/gpu_driver.rs` `ROLE_BACKING_ESCAPE`.
 const ROLE_BACKING_ESCAPE: u64 = 1;
 
 /// **The budget every program on this path draws its page tables from** (milestone 108, widened for
@@ -64,7 +64,7 @@ const ROLE_BACKING_ESCAPE: u64 = 1;
 /// booted against.
 const MAP_BUDGET_PAGES: u64 = 24;
 
-// The driver's capability table. Must match user/src/gpu_driver.rs.
+// The driver's capability table. Must match components/src/gpu_driver.rs.
 const DRIVER_SLOT_REPORT: u64 = 0;
 const DRIVER_SLOT_IRQ: u64 = 1;
 const DRIVER_SLOT_VIRTIO: u64 = 2;
@@ -77,14 +77,14 @@ const DRIVER_SLOT_BUDGET: u64 = 4;
 /// against is retired. See notes/frames.md's BUGS.
 const DRIVER_SLOT_DMA: u64 = 5;
 
-// The painting client's capability table. Must match user/src/painter.rs.
+// The painting client's capability table. Must match fixtures/src/painter.rs.
 const CLIENT_SLOT_REPORT: u64 = 0;
 const CLIENT_SLOT_DISPLAY: u64 = 1;
 const CLIENT_SLOT_BUDGET: u64 = 2;
 /// The whole scanout, one capability (§102).
 const CLIENT_SLOT_SURFACE: u64 = 3;
 
-// The display terminal's capability table. Must match user/src/display_terminal.rs.
+// The display terminal's capability table. Must match components/src/display_terminal.rs.
 const TERM_SLOT_REPORT: u64 = 0;
 const TERM_SLOT_DISPLAY: u64 = 1;
 const TERM_SLOT_TERM: u64 = 2;
@@ -175,7 +175,7 @@ pub fn start(
     Some((driver_report, client_report))
 }
 
-/// **Spawn a driver that attacks its own confinement** (`user/src/gpu_driver.rs` `run_backing_escape`):
+/// **Spawn a driver that attacks its own confinement** (`components/src/gpu_driver.rs` `run_backing_escape`):
 /// it asks the device to read pixels out of a frame outside its grant. Returns
 /// `(report endpoint, the victim frame's physical address)`, or `None` if no GPU is on the bus.
 ///
@@ -323,7 +323,7 @@ pub fn start_terminal(
     // A scanout with no room for a character has nothing to show. It does **not** have to be a
     // whole number of them: 128 is not a multiple of the font's 7-pixel cell, so the ordinary case
     // leaves a two-pixel strip on the right that the terminal paints as background on its first
-    // frame (see `user/src/display_terminal.rs`) and that `Vt::pixel` answers for, which is what
+    // frame (see `components/src/display_terminal.rs`) and that `Vt::pixel` answers for, which is what
     // keeps the picture a total function of the state.
     const _: () = assert!(
         graphics_proto::WIDTH >= bitmap_font::GLYPH_W
@@ -402,7 +402,7 @@ impl TerminalWiring {
 
     /// **Play the input driver**: `OP_BYTES` these keystrokes, eight to a message.
     ///
-    /// Byte for byte the framing `user/src/input.rs` sends and the compositor forwards
+    /// Byte for byte the framing `components/src/input.rs` sends and the compositor forwards
     /// (DECISIONS §33), which is the point: the display terminal is fed by the same driver half
     /// as the serial one, so neither contract had to grow anything to carry a keystroke to a
     /// screen.

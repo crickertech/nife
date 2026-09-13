@@ -10,7 +10,7 @@
 //!
 //! `crates/job_mix` is the workload's definition, and its header carries what AIM7 actually is,
 //! which of its properties are kept and which of its 53 jobs are deliberately not.
-//! `user/src/job_mix_task.rs` is one task. This file is the supervisor: it builds the pool, releases a
+//! `fixtures/src/job_mix_task.rs` is one task. This file is the supervisor: it builds the pool, releases a
 //! subrun's worth of tasks, owns the wall clock, and prints.
 //!
 //! # The division of labour, and why it is the soak's and not the bench's

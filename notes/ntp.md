@@ -4,7 +4,7 @@ Two halves, built a day apart. **The wire format** is `crates/ntp_proto` (milest
 48 bytes of RFC 5905, the 1900-epoch fixed-point timestamp, the offset arithmetic, and the handful of
 checks that are the whole of unauthenticated NTP's spoofing resistance. Pure computation, no socket,
 no clock, no service, and its tests run in milliseconds on the host. **The client** is
-`user/src/ntp.rs` (milestone 51 lane D), the process that turns those bytes into a clock correction,
+`components/src/ntp.rs` (milestone 51 lane D), the process that turns those bytes into a clock correction,
 and it is the second half of this file.
 
 Milestone 51's other lanes own the RTC drivers and the clock service, and `date` plus the calendar
@@ -200,7 +200,7 @@ can just try all of them.
 
 # The client (milestone 51 lane D)
 
-`user/src/ntp.rs`. Five capability slots, and **the interesting one is the slot that is missing.**
+`components/src/ntp.rs`. Five capability slots, and **the interesting one is the slot that is missing.**
 
 ```text
   entropy ──an endpoint──►┌──────────────┐──an endpoint──► net_stack ──► the network

@@ -244,7 +244,7 @@ mod tests {
 
     /// The document the responder ships with, so the tests below and the program read literally the
     /// same bytes. If this file moves, both move together.
-    const REFERENCE: &str = include_str!("../../../user/mdns_responder.conf");
+    const REFERENCE: &str = include_str!("../../../components/mdns_responder.conf");
 
     /// **The shipped document parses, and says what the router said.** This is the test that makes
     /// the file a specification rather than a comment: the values were measured off calef's working

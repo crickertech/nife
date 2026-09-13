@@ -8,14 +8,14 @@ fn redoxfs_server_image() -> &'static [u8] {
     program("redoxfs_server").expect("no redoxfs_server program in the initrd archive")
 }
 
-/// `user/src/fs_test_client.rs`'s own `ROLE_SCHEDULE_SEED`, matched by number the way every other
+/// `fixtures/src/fs_test_client.rs`'s own `ROLE_SCHEDULE_SEED`, matched by number the way every other
 /// FS-service seed roles already were: the role
 /// numbers are bare integers both sides agree on by comment, not by a shared crate, following that
 /// same file's own convention.
 const ROLE_SCHEDULE_SEED: u64 = 11;
 
 /// The construction budget `session_reviver` spends re-deriving this suite's one identity:
-/// `SESSION_UT_PAGES + JOB_UT_PAGES` (`user/src/session_reviver.rs`, 4 + 1) with margin for the
+/// `SESSION_UT_PAGES + JOB_UT_PAGES` (`components/src/session_reviver.rs`, 4 + 1) with margin for the
 /// page-table cost `MemoryRegion::SPLIT` itself pays.
 const REVIVER_BUDGET_PAGES: u64 = 32;
 
@@ -23,7 +23,7 @@ const REVIVER_BUDGET_PAGES: u64 = 32;
 /// own one-page default (`fs_service::CLIENT_EXTRA_STACK`'s own reasoning): both
 /// `ROLE_SCHEDULE_SEED` and `ROLE_SCHEDULE_VERIFY` were found short by `script/test`'s own aarch64
 /// run (a data abort at the stack's guard page) even after their own page-sized scratch buffers
-/// moved to `.bss` (`PAGE_BUF_A`/`PAGE_BUF_B` in `user/src/fs_test_client.rs`); this margin covers
+/// moved to `.bss` (`PAGE_BUF_A`/`PAGE_BUF_B` in `fixtures/src/fs_test_client.rs`); this margin covers
 /// the ordinary call-frame depth the rest of each role's body carries.
 const SCHEDULE_ROLE_EXTRA_STACK: usize = 2;
 
@@ -71,7 +71,7 @@ fn wired() -> Option<[u64; 3]> {
                 filesystem_proto::fixture::SUCCESS,
                 "the schedule-store seed (ROLE_SCHEDULE_SEED) did not report success; word 1 \
                  carries the stage/errno `fail`'s own encoding packs (see \
-                 `user/src/fs_test_client.rs`'s `fail`): {seed:?}",
+                 `fixtures/src/fs_test_client.rs`'s `fail`): {seed:?}",
             );
 
             // The same store, read the other way: `session_reviver` gets its own grant of the
@@ -109,7 +109,7 @@ fn wired() -> Option<[u64; 3]> {
 /// in the durable-session shape milestone 152 first built for the SMB adapter, and then provably
 /// relinquishes.**
 ///
-/// Three properties, checked against `session_reviver`'s own report (`user/src/session_reviver.rs`'s
+/// Three properties, checked against `session_reviver`'s own report (`components/src/session_reviver.rs`'s
 /// `_start`, its final `send`), none of which the seed's own report or a passing build could fake:
 ///
 /// 1. **`RPT_OK`**, not `RPT_FAILED`: the manifest at the store's own root parsed, named this
@@ -136,7 +136,7 @@ fn the_schedule_store_write_path_and_the_boot_time_re_deriver_agree() {
         w[0],
         srs::RPT_OK,
         "session_reviver reported RPT_FAILED (word 1 is the stage; see `_start`'s own `done` \
-         call sites in user/src/session_reviver.rs): 0x10 no manifest at the store's root, 0x11 \
+         call sites in components/src/session_reviver.rs): 0x10 no manifest at the store's root, 0x11 \
          the manifest was not UTF-8, 0x12 the manifest itself did not parse \
          (schedule_store::parse_manifest), 0x2N re-deriving the Nth identity failed (its subtree \
          or schedule file could not be read, timetable::parse refused the document, or the §16 \
@@ -156,7 +156,7 @@ fn the_schedule_store_write_path_and_the_boot_time_re_deriver_agree() {
     );
 }
 
-/// `user/src/fs_test_client.rs`'s own `ROLE_SCHEDULE_VERIFY`: a **fresh** descent and fresh
+/// `fixtures/src/fs_test_client.rs`'s own `ROLE_SCHEDULE_VERIFY`: a **fresh** descent and fresh
 /// handles, independent of `session_reviver`'s own read, confirming the store holds exactly the
 /// bytes the seed wrote.
 const ROLE_SCHEDULE_VERIFY: u64 = 12;
@@ -205,7 +205,7 @@ fn a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote() {
          schedule_store::fixture::DEMO_SCHEDULE_DOC (word 1 is how many bytes were actually \
          read), 0xBAD50002 means the manifest's bytes did not match a freshly rendered \
          one-identity manifest (word 1 is how many bytes were actually read); see \
-         `user/src/fs_test_client.rs`'s `schedule_verify`",
+         `fixtures/src/fs_test_client.rs`'s `schedule_verify`",
         verify[0],
         verify[1],
     );

@@ -18,7 +18,7 @@
 //! be testing an artefact of the test. But a user program cannot assert about kernel internals and
 //! should not try, so the assertions stay here, where the trace counters are.
 //!
-//! `user/src/soaker.rs` is the workload and its header carries the argument for *what* it stresses.
+//! `fixtures/src/soaker.rs` is the workload and its header carries the argument for *what* it stresses.
 //! This file is the supervisor: it wires the pairs, samples them, and decides.
 //!
 //! # The tick route, and what it is for (milestone 221)
@@ -412,7 +412,7 @@ fn print_census(what: &str, groups: usize, cpus: &[u8]) {
     }
 }
 
-/// `arg0` for the half that answers, matching `user/src/soaker.rs`.
+/// `arg0` for the half that answers, matching `fixtures/src/soaker.rs`.
 const ROLE_RESPONDER: u64 = 0;
 /// `arg0` for the half that calls.
 const ROLE_CALLER: u64 = 1;

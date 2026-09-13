@@ -19,9 +19,9 @@ Four pieces, all built:
   (`socket_proto::udp_bind_grant`, the UDP twin of milestone 107's listen grant, riding the high
   half of the same spawn word); a UDP `RECV` reply carries the datagram's source endpoint in the
   frame's dst fields.
-- **`crates/mdns_config` and `user/mdns_responder.conf`**: what this machine advertises, as a
+- **`crates/mdns_config` and `components/mdns_responder.conf`**: what this machine advertises, as a
   document a person edits rather than constants in a program. See "The configuration" below.
-- **`user/src/mdns_responder.rs`**: the program. Binds 5353 through the grant, announces, then
+- **`components/src/mdns_responder.rs`**: the program. Binds 5353 through the grant, announces, then
   answers queries with `respond()` until it has served its rounds. **One authority and nothing
   else**: it holds no share, no file, no TCP port, so the process that tells a Mac a backup target
   exists cannot serve a byte of it, and the process that serves the bytes (`smb_server`) cannot be
@@ -103,7 +103,7 @@ What was *not* needed is any change to smoltcp itself.
 
 ## The configuration: what a person edits
 
-**`user/mdns_responder.conf`**, parsed by `crates/mdns_config`, host-tested, and the responder's
+**`components/mdns_responder.conf`**, parsed by `crates/mdns_config`, host-tested, and the responder's
 only source for what it says:
 
 ```
@@ -173,7 +173,7 @@ holding a granted port cannot demonstrate about itself: 4444 is outside the gran
    the group rather than to the guest, from a spoofed source nothing on the virtual network holds.
    The guest's answer must come back to the group with the PTR in the answer section, the instance's
    SRV, TXT and the host's A as **additionals** (RFC 6763 §12.1), cache-flush set on the three the
-   responder owns and clear on the shared PTR, and every value matching `user/mdns_responder.conf`.
+   responder owns and clear on the shared PTR, and every value matching `components/mdns_responder.conf`.
    That the injected datagram is accepted at all is the RX-acceptance proof the `multicast` feature
    exists for: without the join, the IPv4 input path drops it before UDP sees it.
 4. The prober then asks the **same question as a legacy one-shot**, from source port 5399 with
@@ -249,7 +249,7 @@ It prints the DHCP lease, the mount line for the SMB share, and then:
 ```
 smb-serve: the mDNS responder is advertising _smb._tcp, _adisk._tcp and _device-info._tcp on 5353.
 smb-serve:   on a Mac on the SAME SEGMENT: dns-sd -B _adisk._tcp
-smb-serve:   what it advertises is user/mdns_responder.conf, not compiled-in.
+smb-serve:   what it advertises is components/mdns_responder.conf, not compiled-in.
 ```
 
 **That `dns-sd` will find nothing under QEMU**, and the reason is the same one the gate exists for:
@@ -261,7 +261,7 @@ and the first place a Mac's Time Machine UI could list this share.
 **Changing what it advertises** is one file and a rebuild:
 
 ```sh
-$EDITOR user/mdns_responder.conf
+$EDITOR components/mdns_responder.conf
 cargo test -p mdns_config     # the shipped document must parse, and the disks must reach the TXT
 cargo xtask build
 ```

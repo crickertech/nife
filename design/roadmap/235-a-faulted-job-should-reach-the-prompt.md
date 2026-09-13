@@ -44,7 +44,7 @@ second message behind its answer, and every job would leave init's supervision d
 **Nothing here touches the syscall surface.** No new syscall, no new method, no new argument: one
 userspace constant, one capability in an endowment, and four call sites.
 
-**Proven the way the defect was found, on both architectures.** `user/src/worker.rs` was patched to
+**Proven the way the defect was found, on both architectures.** `components/src/least_authority_demo.rs` was patched to
 trap on argument 6 and `script/shell-check` run against it. Before: `worker 6` killed the thread and
 "the prompt never came back to take `worker 7`". After, on aarch64 and riscv64 alike, the transcript
 reads the kernel's own report of the killed thread, then `that command faulted and was killed before
@@ -81,7 +81,7 @@ legs.
   without faulting has the same symptom and no answer. A live thread blocked in a receive nobody
   will answer is not dead, so there is no death message to route and none of the three couplings had
   anything to say about it.
-- **Recorded.** `user/src/job_undertaker.rs` carries the mechanism in its own BUGS: a fault reported
+- **Recorded.** `components/src/job_undertaker.rs` carries the mechanism in its own BUGS: a fault reported
   while the shell is watching a screen-narrowed tail arrives one command late, because the report is
   an ordinary rendezvous send and nobody is reading the result endpoint. The collect happens before
   the report, so a parked report can never cost the reclamation the prompt's memory depends on.
@@ -93,7 +93,7 @@ legs.
 - **Proposed.** `design/roadmap/proposals/a-regression-gate-for-the-fault-path.md`, A regression gate
   for the fault path. It needs a program that faults on purpose, which is a new name and therefore
   calef's, and milestone 233's no-thread-killed assertion in `script/shell-check` has to learn to
-  except it. The scaffold that proved this milestone was a patch to `user/src/worker.rs` and was
+  except it. The scaffold that proved this milestone was a patch to `components/src/least_authority_demo.rs` and was
   removed afterwards, so nothing stops the lost prompt returning.
 - **Proposed.** `design/roadmap/proposals/how-many-programs-can-fault.md`, Count which of the tree's
   68 programs can fault under a shell, so the exposure of this defect class is a number rather than

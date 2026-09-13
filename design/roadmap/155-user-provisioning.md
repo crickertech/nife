@@ -1,7 +1,7 @@
 # 155. A provisioning tool: create an identity and its home subtree together
 
 **Status: BUILT.** `milestone/155-identity-provisioner`, 2026-08-23 (an agent lane; see that pull
-request's `**Lane:**` line for the record CLAUDE.md asks for). `user/src/identity_provisioner.rs`
+request's `**Lane:**` line for the record CLAUDE.md asks for). `components/src/identity_provisioner.rs`
 (provisional name, calef's to ratify) `PUT`s an identity and secret into the credential store and
 `MKDIR`s its home subtree, as one tool invocation, tested end to end against a real credential
 service and a real filesystem (`kernel/src/user/identity_provisioning_tests.rs`,
@@ -53,7 +53,7 @@ holds the principal tree.
 ## What it does not decide
 
 Deprovisioning (removing an identity and reclaiming its subtree) is not this milestone's scope;
-`user/src/login.rs`'s own BUGS already names reclamation as an open bound and this tool's removal
+`components/src/login.rs`'s own BUGS already names reclamation as an open bound and this tool's removal
 half, if it gets one, should be sequenced against that rather than invented independently here.
 
 ## Prior art
@@ -123,14 +123,14 @@ coverage behind it, not an untested change riding along.
 - **Recorded.** `design/roadmap/155-user-provisioning.md` BUGS: the directory capability this slice
   wires the tool against is the file service's whole root, unnarrowed. A real deployment scopes it
   to a dedicated principal-tree parent directory, and that directory does not exist yet.
-- **Recorded.** `user/src/login.rs` already names session reclamation as an open bound, and
+- **Recorded.** `components/src/login.rs` already names session reclamation as an open bound, and
   deprovisioning (removing an identity and reclaiming its subtree) should be sequenced against it
   rather than invented separately here. It is not in this milestone's scope.
-- **Recorded.** `user/src/identity_provisioner.rs` module docs carry the argument: there is no
+- **Recorded.** `components/src/identity_provisioner.rs` module docs carry the argument: there is no
   cross-server commit protocol between the credential service and the file service, so this is two
   acts rather than one. Subtree-first makes the failure mode an orphaned empty subtree rather than a
   live credential with nowhere to go, and it is exercised by two guest tests rather than proved over
   every interleaving a real deployment's retries could hit.
-- **Recorded.** `user/src/identity_provisioner.rs` carries a provisional name block: the program's
+- **Recorded.** `components/src/identity_provisioner.rs` carries a provisional name block: the program's
   name has not been put to calef, and what was refused and why is written where the next proposer
   would read it.

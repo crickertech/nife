@@ -183,7 +183,7 @@ overlap rather than a size, and 896 KiB is small for anything with a dependency 
 
 The address is **not** a private kernel detail, which is why this lane did not simply change it. It
 is written into `crates/supervision_proto` (`CHILD_STACK_VA`), `crates/timebase_proto`,
-`crates/c_seam`, `user/src/builder.rs`, `user/src/os_primitives_benchmarker.rs`, and half a dozen
+`crates/c_seam`, `components/src/builder.rs`, `fixtures/src/os_primitives_benchmarker.rs`, and half a dozen
 kernel tests. Moving `USER_STACK_VA` alone breaks `authority_tests` immediately (measured: the
 supervision tree fails to build at stage 10, because the programs building it map their children's
 stacks at the old address by hand). So it is an ABI-shaped change and belongs to calef.
