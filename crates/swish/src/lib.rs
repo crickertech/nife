@@ -273,7 +273,7 @@ pub enum Route<'a> {
 /// assert!(matches!(route(b"time date | wc"), Route::Time(b"date | wc")));
 /// // The third prefix word (milestone 109), which batches a whole line for the same reason.
 /// assert!(matches!(route(b"xargs rm *.txt"), Route::Xargs(b"rm *.txt")));
-/// assert!(matches!(route(b"`least_authority_demo` 7"), Route::One(b"`least_authority_demo` 7")));
+/// assert!(matches!(route(b"least_authority_demo 7"), Route::One(b"least_authority_demo 7")));
 /// match route(b"date | wc") {
 ///     Route::Pipeline(l) => assert_eq!(l.stages().len(), 2),
 ///     other => panic!("expected a pipeline, got {other:?}"),

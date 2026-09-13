@@ -38,8 +38,8 @@
 //!
 //! ```text
 //! # a comment
-//! every 200ms  `least_authority_demo` 7
-//! at-boot      `least_authority_demo` 3
+//! every 200ms  least_authority_demo 7
+//! at-boot      least_authority_demo 3
 //! ```
 //!
 //! Two schedule words, deliberately. `every <interval>` and `at-boot` are what milestone 129's
@@ -183,15 +183,15 @@ impl Error {
 /// # Examples
 ///
 /// ```
-/// let doc = timetable::parse("# housekeeping\nevery 30s  `least_authority_demo` 7\nat-boot  `least_authority_demo` 3\n")
+/// let doc = timetable::parse("# housekeeping\nevery 30s  least_authority_demo 7\nat-boot  least_authority_demo 3\n")
 ///     .expect("that document is well formed");
 /// assert_eq!(doc.entries().len(), 2);
 /// assert_eq!(doc.entries()[0].schedule, timetable::Schedule::Every(30 * timetable::NANOS_PER_SEC));
 /// assert_eq!(doc.entries()[1].schedule, timetable::Schedule::AtBoot);
-/// assert_eq!(doc.entries()[1].command, b"`least_authority_demo` 3");
+/// assert_eq!(doc.entries()[1].command, b"least_authority_demo 3");
 ///
 /// // A zero interval is refused rather than run, and the refusal names the line.
-/// let bad = timetable::parse("every 0s `least_authority_demo` 7\n").unwrap_err();
+/// let bad = timetable::parse("every 0s least_authority_demo 7\n").unwrap_err();
 /// assert_eq!(bad.line(), 1);
 /// assert_eq!(bad.message(), "a zero interval is a spin, not a schedule");
 /// ```
@@ -467,14 +467,14 @@ impl<'a> Registry<'a> {
     /// ```
     /// # use timetable::{Admission, Held, Registry, Unbacked};
     /// let doc = timetable::parse(
-    ///     "every 5s  `least_authority_demo` 7\n\
+    ///     "every 5s  least_authority_demo 7\n\
     ///      every 5s  memory_grant_depleter\n\
     ///      every 5s  date\n",
     /// ).unwrap();
     /// let reg = Registry::register(&doc, Held::default());
     ///
     /// // Planned, and the endowment is the whole of what the child will hold.
-    /// let e = reg.rows()[0].endowment().expect("`least_authority_demo` 7 is a legal line");
+    /// let e = reg.rows()[0].endowment().expect("least_authority_demo 7 is a legal line");
     /// assert_eq!(e.arg, 7);
     /// assert_eq!(e.mem_pages, 0);
     ///
@@ -733,7 +733,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 ///
 /// ```
 /// # use timetable::{Held, Registry};
-/// let doc = timetable::parse("every 30s `least_authority_demo` 7\nevery 30s date\n").unwrap();
+/// let doc = timetable::parse("every 30s least_authority_demo 7\nevery 30s date\n").unwrap();
 /// let reg = Registry::register(&doc, Held::default());
 ///
 /// // A fixed buffer rather than a `String`, because this crate is `no_std` and the program that
@@ -745,7 +745,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 ///     n += b.len();
 /// });
 /// let plan = core::str::from_utf8(&buf[..n]).unwrap();
-/// assert!(plan.contains("every 30s     `least_authority_demo` 7"));
+/// assert!(plan.contains("every 30s     least_authority_demo 7"));
 /// assert!(plan.contains("this timetable holds no clock, so it cannot grant one"));
 /// ```
 pub fn write_plan(reg: &Registry<'_>, out: &mut dyn FnMut(&[u8])) {
@@ -876,19 +876,19 @@ fn write_grant(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
 ///
 /// ```
 /// # use timetable::{Audit, Held, Registry};
-/// let doc = timetable::parse("every 30s `least_authority_demo` 7\nevery 30s date\n").unwrap();
+/// let doc = timetable::parse("every 30s least_authority_demo 7\nevery 30s date\n").unwrap();
 /// let reg = Registry::register(&doc, Held::default());
 ///
 /// // Handed an archive holding exactly what the plan builds.
 /// let mut narrow = Audit::of(&reg);
-/// narrow.saw("`least_authority_demo`");
+/// narrow.saw("least_authority_demo");
 /// assert!(narrow.is_exact());
 /// assert_eq!(narrow.planned(), 1);
 ///
 /// // Handed the whole initrd. `date` is refused, so the plan never names it, and holding an
 /// // image of it is authority nothing in the document asked for.
 /// let mut wide = Audit::of(&reg);
-/// for name in ["`least_authority_demo`", "date", "swish", "memory_grant_depleter"] {
+/// for name in ["least_authority_demo", "date", "swish", "memory_grant_depleter"] {
 ///     wide.saw(name);
 /// }
 /// assert!(!wide.is_exact());
