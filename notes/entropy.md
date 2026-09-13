@@ -182,25 +182,25 @@ it.
   conditions them.
 - **No hardware TRNG yet, but "needs verifying" is now precise rather than open-ended** (milestone
   159, 2026-08-24). The StarFive JH7110's TRNG is documented, from the chip's own datasheet and
-  Linux's mainline driver, but nothing about it has run: `crates/jh7110_trng` holds the register
+  Linux's mainline driver, but nothing about it has run: `crates/jh7110_entropy_source` holds the register
   layout (`CTRL`/`STAT`/`MODE`/`SMODE`/`IE`/`ISTAT`/`RAND0..RAND7`/`AUTO_RQSTS`/`AUTO_AGE`,
   transcribed from `drivers/char/hw_random/jh7110-trng.c`, mainline as of 2026-08-24) and a DTB
   discovery query (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`, PLIC interrupt 30, from the
   device-tree binding's own worked example), both host-tested against fixtures, never against
-  silicon. `user/src/jh7110_trng.rs` is a full `entropy_proto` backend built on that logic, over a
+  silicon. `user/src/jh7110_entropy_source.rs` is a full `entropy_proto` backend built on that logic, over a
   raw device mapping rather than a virtqueue (this device has no DMA and no queue, only registers).
   **Wired on 2026-09-01**: `entropy_service`'s `Bus` enum grew a `Jh7110` variant and the riscv64
   boot tour spawns the driver when the machine's device tree describes the device, which on every
   machine this repository boots it does not, so what CI exercises is the skip. Its authority is the
   smallest of any backend here: two rendezvous capabilities and one page of device memory, no DMA
   page, no `Irq` capability, no `Virtio` capability. The buffer that hands bytes to clients moved
-  into the crate the same day (`jh7110_trng::Pool`), so the one part of the driver that could serve
+  into the crate the same day (`jh7110_entropy_source::Pool`), so the one part of the driver that could serve
   a byte twice is host-tested rather than merely written; what is left in the program is the
   volatile accesses and two unmeasured polling bounds. What the datasheet still does not settle:
   whether radon's own shipped device tree carries the TRNG node the mainline one does (nobody has
   captured one from the board to check), whether the block's clocks and reset are left running by
   U-Boot (this tree drives neither, and Linux's driver takes two clocks and a reset line before it
-  touches a register; see `user/src/jh7110_trng.rs`'s `BUGS`), and the whole question below.
+  touches a register; see `user/src/jh7110_entropy_source.rs`'s `BUGS`), and the whole question below.
 - **The health-test story got sharper, not answered.** The datasheet (§2.8.2) documents "Support
   LFSR based digital post process" and "Support self re-seeding" but claims no NIST SP 800-90B,
   FIPS 140, or AIS-31 compliance anywhere reachable. The Linux driver names exactly one hardware
@@ -209,7 +209,7 @@ it.
   virtio-rng device: retry, bounded, then tell the caller the truth. Whether that hardware bit is
   *enough* before trusting these bytes for anything security-shaped, or whether this tree needs a
   software statistical test (repetition-count, adaptive-proportion) over and above it, is not
-  decided; see `crates/jh7110_trng/src/lib.rs`'s "Health testing" section and
+  decided; see `crates/jh7110_entropy_source/src/lib.rs`'s "Health testing" section and
   `design/roadmap/159-jh7110-trng-driver.md` for the argument, which a lane deliberately did not
   resolve on its own initiative.
 - **A second backend exists on aarch64 and x86_64, milestone 162.** `entropy` can now be spawned in

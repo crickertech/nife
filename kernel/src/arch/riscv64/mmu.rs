@@ -451,10 +451,10 @@ where
     }
 
     // 6b. The JH7110's STG clock and reset generator (milestone 220), device memory. Present
-    // only on a JH7110; `memory::jh7110_crg` is None everywhere else, including on every
+    // only on a JH7110; `memory::jh7110_clock_and_reset` is None everywhere else, including on every
     // machine CI boots. Without this the kernel cannot ungate the TRNG's clocks, which is why
     // that device's whole register file read back as zeros on radon on 2026-09-04.
-    if let Some(crg) = memory::jh7110_crg() {
+    if let Some(crg) = memory::jh7110_clock_and_reset() {
         direct_map(m, crg.base, crg.base + crg.size, Flags::device())?;
     }
 

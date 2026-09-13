@@ -59,13 +59,24 @@ name: mutation testing
 #     unbounded allocation is a hang the clock never gets to notice.
 #
 #     So `-j 2` is not the constraint and lowering it would not help: one runaway takes 14 GB by
-#     itself. **What is NOT yet built is a bound on what a single mutant may allocate**, which is
-#     the actual repair and is scoped as its own work rather than guessed at here; a memory cgroup
-#     around the run would turn a machine kill into an ordinary killed mutant and let the run
-#     continue.
+#     itself. **This is repaired as of milestone 277**: every mutant's test binary now runs under a
+#     4 GiB address-space ceiling, applied per test binary through a cargo runner
+#     (`scripts/memory-bounded-runner.sh`, wired up by `script/mutation`). A mutant that allocates
+#     without limit now fails its own allocation at 4 GiB and is recorded as an ordinary CAUGHT
+#     mutant, in under nine seconds and inside the auto timeout, and the sweep continues. The
+#     ceiling is 4.0x the largest honest test binary in the tree (`board_console`, 1,028 MiB
+#     measured across all 143 of them) and 2 x 4 GiB is survivable on a 16 GiB runner, which is what
+#     picks 4 rather than a rounder number. cargo-mutants itself offers no memory option at any
+#     version this tree has pinned; its whole set of limits is clocks.
 #
-#     **Until then the round-robin split is damage control, and the honest accounting is that it
-#     costs shards to buy a usable report.** Spreading the mutants spreads the runaways too, so more
+#     **This BUGS entry stays because the repair is not yet PROVEN here.** It has been demonstrated
+#     against a synthetic runaway and measured against the tree's honest suite, both on Linux, but
+#     the first green scheduled run of this workflow is the evidence that matters and it has not
+#     happened yet. Until one lands, "never once succeeded" is still the true sentence about this
+#     file.
+#
+#     **The round-robin split stays too, and stays damage control, because the honest accounting is
+#     that it costs shards to buy a usable report.** Spreading the mutants spreads the runaways too, so more
 #     shards meet one: the four-way `slice` run lost 3 of 4, the eight-way round-robin run lost 7 of
 #     8. That trade is still worth taking, because the one surviving round-robin shard is a uniform
 #     eighth of every crate and yields a rate for the tree (83.4%, against a 92.4% baseline), where

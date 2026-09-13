@@ -787,7 +787,7 @@ new crate, program or module ships a **provisional** name, says so in its report
 change; the integrator surfaces it. Never rename on your own initiative, because a rename is a naming
 decision with extra steps. A function name is more reversible than a crate's, typically fewer call
 sites and all inside one crate, so the "recommend on reversible forks" latitude applies more freely
-there than one level up. **Performing a ratified rename has its own three rules**, because the cheap
+there than one level up. **Performing a ratified rename has its own rules**, because the cheap
 edit is what destroys the expensive record: status decides what moves (a `BUILT` block is an account
 and keeps the old name, a `PROPOSED` one is live intent and moves), a quotation never moves, and you
 enumerate before sweeping. [notes/naming.md](notes/naming.md) has the worked example and what is not

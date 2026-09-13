@@ -64,7 +64,7 @@ pub struct Wiring {
     /// `cfg`-gated so that `Wiring` has one shape everywhere and a reader of this struct does not
     /// have to hold two of them in their head.
     #[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))]
-    pub clock: Option<jh7110_crg::Report>,
+    pub clock: Option<jh7110_clock_and_reset::Report>,
 }
 
 /// **One entropy service per device per boot**, for the same reason the FS service is wired
@@ -282,30 +282,30 @@ fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
     })
 }
 
-/// Where the service maps the TRNG's register page. **Must match `user/src/jh7110_trng.rs`'s
+/// Where the service maps the TRNG's register page. **Must match `user/src/jh7110_entropy_source.rs`'s
 /// `TRNG_VA`**, and deliberately distinct from [`DMA_VA`] so the two entropy backends could be
 /// mapped into different processes at once without either constant meaning two things.
 const TRNG_VA: u64 = 0x0000_0000_0094_0000;
 
 /// **Does this machine have a JH7110 TRNG?** The device tree's answer, decoded by
-/// `jh7110_trng::discover` (the crate that owns the `compatible` string and the `reg` decode, so
+/// `jh7110_entropy_source::discover` (the crate that owns the `compatible` string and the `reg` decode, so
 /// this file keeps no second copy of either).
 ///
 /// riscv64 only, and that is a statement rather than a shortcut: the JH7110 is a RISC-V `SoC`, so
 /// on the other two architectures the honest answer is "no" without reading anything. On riscv64
 /// it is "no" too under QEMU's `virt` board, which carries no such node; that is the skip path
-/// this tree's whole CI runs through, and `crates/jh7110_trng`'s own
+/// this tree's whole CI runs through, and `crates/jh7110_entropy_source`'s own
 /// `discover_finds_nothing_on_qemus_virt_board` test pins it against the same blob.
 #[cfg(target_arch = "riscv64")]
-pub fn jh7110_trng_device() -> Option<jh7110_trng::Discovered> {
-    jh7110_trng::discover(&crate::device_tree().ok()?)
+pub fn jh7110_trng_device() -> Option<jh7110_entropy_source::Discovered> {
+    jh7110_entropy_source::discover(&crate::device_tree().ok()?)
         .ok()
         .flatten()
 }
 
 /// See the riscv64 arm: no JH7110 anywhere but a JH7110.
 #[cfg(not(target_arch = "riscv64"))]
-pub fn jh7110_trng_device() -> Option<jh7110_trng::Discovered> {
+pub fn jh7110_trng_device() -> Option<jh7110_entropy_source::Discovered> {
     None
 }
 
@@ -317,9 +317,9 @@ pub fn jh7110_trng_device() -> Option<jh7110_trng::Discovered> {
 /// driver is granted two rendezvous capabilities (a request endpoint it RECVs on, a readiness
 /// endpoint it SENDs once) and **one page of device memory**: the TRNG's register block, mapped
 /// user-device-typed at [`TRNG_VA`]. Not a DMA page, because the device writes nothing to memory;
-/// not an `Irq` capability, because the driver polls (`user/src/jh7110_trng.rs` records why);
+/// not an `Irq` capability, because the driver polls (`user/src/jh7110_entropy_source.rs` records why);
 /// not a `Virtio` capability, because there is no transport. The binding's `reg` window is
-/// `0x4000` and this maps `0x1000` of it, since `jh7110_trng::regs` reaches only `0x68`: a driver
+/// `0x4000` and this maps `0x1000` of it, since `jh7110_entropy_source::regs` reaches only `0x68`: a driver
 /// that cannot name a register cannot touch it.
 ///
 /// **Fatal risk 6's experiment is exactly this shape** (`design/fatal-risks.md`): an unprivileged
@@ -329,7 +329,7 @@ fn start_jh7110(image: &'static [u8]) -> Option<Wiring> {
     let device = jh7110_trng_device()?;
 
     // **Ungate the device before anything is granted** (milestone 220). This is the admin plane
-    // and it stays in the kernel; see `kernel/src/drivers/jh7110_crg.rs`'s header for why, and
+    // and it stays in the kernel; see `kernel/src/drivers/jh7110_clock_and_reset.rs`'s header for why, and
     // DECISIONS §86 for the argument it reuses. It runs before the spawn rather than after,
     // because the driver's own bring-up reads `STAT` as its first act and a gated block answers
     // that read with zeros, which is exactly what radon printed on 2026-09-04.
@@ -387,23 +387,23 @@ fn start_jh7110(image: &'static [u8]) -> Option<Wiring> {
 /// records the window only when the tree names a JH7110 (a clock controller, or the TRNG itself),
 /// so `None` here means the mapping does not exist and nothing may be stored to.
 #[cfg(target_arch = "riscv64")]
-fn jh7110_clock_bring_up() -> Option<jh7110_crg::Report> {
-    let crg = crate::memory::jh7110_crg()?;
+fn jh7110_clock_bring_up() -> Option<jh7110_clock_and_reset::Report> {
+    let crg = crate::memory::jh7110_clock_and_reset()?;
     // SAFETY: `memory::init` recorded this region only for a machine whose tree names a JH7110,
     // and `mmu::map_everything` mapped exactly it, device-typed, in the direct map. The domain
     // and the plan are the same crate's, so every identifier in the plan is in range for it.
     Some(unsafe {
-        crate::drivers::jh7110_crg::bring_up(
+        crate::drivers::jh7110_clock_and_reset::bring_up(
             crate::arch::mmu::phys_to_virt(crg.base) as usize,
-            &jh7110_crg::STG,
-            jh7110_crg::TRNG_BRING_UP,
+            &jh7110_clock_and_reset::STG,
+            jh7110_clock_and_reset::TRNG_BRING_UP,
         )
     })
 }
 
 /// See the riscv64 arm: no JH7110 anywhere but a JH7110.
 #[cfg(not(target_arch = "riscv64"))]
-fn jh7110_clock_bring_up() -> Option<jh7110_crg::Report> {
+fn jh7110_clock_bring_up() -> Option<jh7110_clock_and_reset::Report> {
     None
 }
 
@@ -413,8 +413,8 @@ fn jh7110_clock_bring_up() -> Option<jh7110_crg::Report> {
 /// Exposed rather than inlined into the tour because [`Wiring::clock`] carries what the hardware
 /// answered and not where it was asked, and the second half is the one a bench transcript cannot
 /// re-derive: a base that came from a constant is a base nobody on that machine confirmed.
-pub fn jh7110_crg_window() -> Option<jh7110_crg::Found> {
-    crate::memory::jh7110_crg()
+pub fn jh7110_crg_window() -> Option<jh7110_clock_and_reset::Found> {
+    crate::memory::jh7110_clock_and_reset()
 }
 
 impl Wiring {
