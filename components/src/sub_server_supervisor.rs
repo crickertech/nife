@@ -18,7 +18,7 @@
 //! spawner used to issue is gone too: the kernel stamps a tid on the death message, and §32
 //! authorizes that tid relative to the endpoint it arrived on.
 //!
-//! init is not involved in any of this, and cannot be: by the time the first death arrives, `root_supervisor`
+//! The progenitor is not involved in any of this, and cannot be: by the time the first death arrives, `root_supervisor`
 //! has deleted the construction budget it would need. See notes/trusted-init.md.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `subsup`. Refused `subsup` and

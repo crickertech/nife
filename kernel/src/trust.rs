@@ -1,18 +1,18 @@
-//! **The trust root: what init is allowed to be** (milestone 22 phase B.1, DECISIONS §22).
+//! **The trust root: what the progenitor is allowed to be** (milestone 22 phase B.1, DECISIONS §22).
 //!
 //! The kernel loads exactly one program itself: the boot program, out of the initrd archive
 //! (`"progenitor"` on every architecture, and `"builder"` for riscv64's boot tour). Everything else
 //! is the progenitor's to load.
 //! That one load used to be pure trust: whatever bytes sat at `/chosen/linux,initrd-start` got
-//! parsed and entered. Since a compromised init can endow malicious children and deny the system it
+//! parsed and entered. Since a compromised progenitor can endow malicious children and deny the system it
 //! was meant to start, and since milestone 16b closed the DMA window a device could have used to
 //! rewrite the initrd *behind* a check, checking it is now both necessary and airtight.
 //!
 //! So: the build hashes the archive entry it packed and writes the digest into a manifest; the
 //! kernel's `build.rs` compiles that manifest into [`TRUST_ROOT`] (below, generated into `OUT_DIR`);
 //! and the boot path calls [`require`] before it enters userspace. The meaning is exactly "this
-//! kernel image runs exactly this init," which needs no keys, no certificate chain, and no
-//! signature-verification code inside the trusted computing base. The signature variant (update init
+//! kernel image runs exactly this progenitor," which needs no keys, no certificate chain, and no
+//! signature-verification code inside the trusted computing base. The signature variant (update the progenitor
 //! without rebuilding the kernel, at the cost of putting Ed25519 in the TCB) is recorded as a
 //! follow-up in DECISIONS §22, not built.
 //!
@@ -44,14 +44,14 @@ pub fn verify(name: &str, bytes: &[u8]) -> Result<(), measured_boot::VerifyError
 }
 
 /// **Measure an archive entry, or halt.** Called with the entry's bytes immediately before the
-/// kernel builds init's address space and drops to EL0/U-mode at its entry.
+/// kernel builds the progenitor's address space and drops to EL0/U-mode at its entry.
 ///
 /// Two entries reach it: the boot program itself, and (since milestone 104) the measurement table
-/// init loads everything else against, through [`require_program_measurements`]. The wording of the
+/// the progenitor loads everything else against, through [`require_program_measurements`]. The wording of the
 /// diagnostics is deliberately about *entries* rather than *programs*, because one of them is not a
 /// program.
 ///
-/// A mismatch is not recoverable and must not be recovered from: there is no second init to fall
+/// A mismatch is not recoverable and must not be recovered from: there is no second progenitor to fall
 /// back to, and running the wrong one is precisely the thing being prevented. So this prints what it
 /// expected, what it measured, and halts. Loudly, because a silent halt at boot is indistinguishable
 /// from a hardware problem, and whoever hits this needs to know it was a *refusal*.
@@ -71,7 +71,7 @@ pub fn require(name: &str, bytes: &[u8]) {
                 TRUST_ROOT.len()
             );
             crate::println!("    build's measurement step, so it can vouch for nothing.");
-            crate::println!("  halting rather than handing the archive to init.");
+            crate::println!("  halting rather than handing the archive to the progenitor.");
             crate::arch::halt();
         }
         Err(measured_boot::VerifyError::Mismatch) => {
@@ -83,30 +83,30 @@ pub fn require(name: &str, bytes: &[u8]) {
                 crate::println!("    expected sha256 {}", Hex(&want));
             }
             crate::println!("    measured sha256 {}", Hex(&measured));
-            crate::println!("  halting rather than handing the archive to init.");
+            crate::println!("  halting rather than handing the archive to the progenitor.");
             crate::arch::halt();
         }
     }
 }
 
-/// **Vouch for the table init measures its own loads against** (milestone 104), which is the whole
-/// of the kernel's part in extending the chain past init.
+/// **Vouch for the table the progenitor measures its own loads against** (milestone 104), which is the whole
+/// of the kernel's part in extending the chain past the progenitor.
 ///
-/// The kernel loads one program and measures it. Everything else in the archive is init's to load,
-/// and until this existed those bytes were unchecked, so the chain of trust stopped at init's entry.
-/// The fix belongs in userspace (init decides what to do about a mismatch, the same way §26's
+/// The kernel loads one program and measures it. Everything else in the archive is the progenitor's to load,
+/// and until this existed those bytes were unchecked, so the chain of trust stopped at the progenitor's entry.
+/// The fix belongs in userspace (the progenitor decides what to do about a mismatch, the same way §26's
 /// supervisor decides what to do about a fault), and it needs exactly one thing from here: a table
-/// init can trust as much as the kernel trusts init.
+/// the progenitor can trust as much as the kernel trusts the progenitor.
 ///
-/// **Why the kernel measures a file it never reads.** init's own table cannot be compiled into init,
-/// because init is *in* the archive it would be measuring; generating it would mean building
+/// **Why the kernel measures a file it never reads.** The progenitor's own table cannot be compiled into the progenitor,
+/// because the progenitor is *in* the archive it would be measuring; generating it would mean building
 /// userspace twice with an invariant holding the chain up. So the build packs the table as an
-/// ordinary archive entry, [`measured_boot::PROGRAM_MEASUREMENTS`], and this hashes it beside init.
+/// ordinary archive entry, [`measured_boot::PROGRAM_MEASUREMENTS`], and this hashes it beside the progenitor.
 /// Nothing here parses it or acts on it: the kernel gains one digest in its trust root and no
 /// policy at all, which is the line DECISIONS §26 draws and notes/trusted-init.md's rejected
 /// alternative (hashing the whole 14 MB archive in the kernel) crosses.
 ///
-/// A **missing** table halts, for [`require`]'s reason one level down: an init that cannot vouch for
+/// A **missing** table halts, for [`require`]'s reason one level down: a progenitor that cannot vouch for
 /// what it loads must not be handed the archive at all.
 #[cfg_attr(feature = "bench", allow(dead_code))]
 pub fn require_program_measurements(fs: &nifefs::Fs<'_>) {
@@ -117,9 +117,9 @@ pub fn require_program_measurements(fs: &nifefs::Fs<'_>) {
             crate::println!();
             crate::println!("  MEASURED BOOT REFUSED: the archive carries no '{name}' table");
             crate::println!(
-                "    init could not vouch for anything it loads, so it is not started."
+                "    the progenitor could not vouch for anything it loads, so it is not started."
             );
-            crate::println!("  halting rather than entering an init that measures nothing.");
+            crate::println!("  halting rather than entering a progenitor that measures nothing.");
             crate::arch::halt();
         }
     }

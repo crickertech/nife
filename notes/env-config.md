@@ -90,12 +90,12 @@ magic both reading as "no configuration," and the layout offsets not overlapping
 
 - **No wire announcement on the shell's spawn protocol.** The clock and config pages are both
   driven purely by what a program's manifest declares (`wants_clock`/would-be `wants_config`),
-  which init already knows without anything on the wire, so this is not a missing mechanism, only
+  which the progenitor already knows without anything on the wire, so this is not a missing mechanism, only
   a missing declaration: no `Manifest` field exists because no program needs one yet.
 - **The kernel-side default (`UTC`/`C`/`dumb`) is a placeholder rather than a real "shell holds a
   default config set" mechanism.** The roadmap's "inheritance with visibility" shape (a shell
   holds its own default, passes it explicitly, and `caps run prog` shows it) is not built; what
   exists today is one fixed default `std_service.rs` assembles for every std program it spawns,
-  which is closer to `date`'s "init endows unconditionally" shape than to a per-shell,
+  which is closer to `date`'s "the progenitor endows unconditionally" shape than to a per-shell,
   per-session default.
 - **The domains are curated, not exhaustive.** See `environment_proto`'s own `BUGS` section.

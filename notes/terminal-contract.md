@@ -83,7 +83,7 @@ terminal writes, it reads).
 - **`OP_PRINT`** (DECISIONS §67): print one to eight bytes carried **in the request's own words**.
   Same job as `OP_WRITE` and same manners (both go through `expand_output`), and it exists because
   of a limit `OP_WRITE` has that is easy to miss: it reads from **the client's output page**, and
-  there is exactly one of those. init maps a single frame into the terminal read-only and into the
+  there is exactly one of those. The progenitor maps a single frame into the terminal read-only and into the
   shell read/write, so a second page-based client would need a second frame and a page index in
   every request. That is `filesystem_proto`'s one-page-two-clients problem (DECISIONS §55) arriving in a
   second contract.

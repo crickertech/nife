@@ -83,18 +83,18 @@ wants to catch "alive but wedged" layers its own timeout with ordinary IPC and n
 
 **The policy half, built on top of this** (phase B.2, notes/trusted-init.md): a real userspace
 supervision tree where a supervisor holding *no memory at all* applies bounded-retry policy to a
-sub-server a construction server builds, and init has deleted the authority it would need to interfere.
+sub-server a construction server builds, and the progenitor has deleted the authority it would need to interfere.
 That is what this mechanism exists for, and it is proven on both ISAs in `authority_tests`.
 
 **And at the interactive prompt** (the milestone 22 increment that migrated the boot path): every job
 the shell spawns is born supervised, and `job_undertaker` collects the corpse. It is the smallest
 supervisor in the tree and the one that says most plainly what supervision costs a system: one
-endpoint capability, no memory, no policy, and the job's pages come home to init's pool rather than to
+endpoint capability, no memory, no policy, and the job's pages come home to the progenitor's pool rather than to
 the collector. The restart half is deliberately absent, because a command a person typed has no
 business being restarted when it ends. `kernel/src/user/job_undertaker_tests.rs` proves it with a control
 (three jobs exhaust a three-job pool when nothing collects) and a claim (twelve go through the same
 pool when `job_undertaker` runs); `script/shell-check` runs eleven through the real boot's six-job pool.
-See notes/trusted-init.md for what init gave up and what it still holds.
+See notes/trusted-init.md for what the progenitor gave up and what it still holds.
 
 Cross-ISA kernel tests (`kernel/src/user/supervision_tests.rs`): a child built holding a fault
 endpoint crashes on a null load, the supervisor receives `(FAULT, tid, pc, addr)` with the right tid
@@ -113,7 +113,7 @@ builds a process from it** (`RETYPE`, `RETYPE_OBJ`, `SPLIT`). So a supervisor th
 child is a supervisor that can build processes, unless it proxies the reap through something else.
 
 - The **proxy** exists today: phase B.2's `sub_server_supervisor` holds no memory and asks `spawner` to reap. Right
-  for a system's init, where the point is that init can no longer build.
+  for a system's progenitor, where the point is that the progenitor can no longer build.
 - Milestone 36's `c_confiner` takes the **direct route** and therefore holds a full untyped budget
   for its whole life, which is exactly the bundling the open fork is about.
 - **The requirement, in one sentence: a supervisor needs `DESTROY` on one region it did not create.**
@@ -173,9 +173,9 @@ reap" because it quantifies over rights combinations rather than sampling them.
 A death reaches **one** endpoint, and that single fact is what decided milestone 235
 (design/roadmap/235-a-faulted-job-should-reach-the-prompt.md). At the interactive prompt the holder
 of that endpoint is `job_undertaker`, whose whole job is collecting; the process that *needed* to
-know was `swish`, blocked in a `RECV` on init's result endpoint for an answer a killed thread can
+know was `swish`, blocked in a `RECV` on the progenitor's result endpoint for an answer a killed thread can
 never send. So the prompt hung, and only on a fault: an ordinary non-zero exit is a value the child
-sends before it exits, and a spawn init could not build already had `spawnproto::SPAWN_FAILED`.
+sends before it exits, and a spawn the progenitor could not build already had `spawnproto::SPAWN_FAILED`.
 
 Three couplings were available and two lose to properties recorded on this page.
 
@@ -187,8 +187,8 @@ Three couplings were available and two lose to properties recorded on this page.
   does not generalise: §26.3 flows clean **exits** down the same endpoint, so every ordinary job
   would leave a second message on the result endpoint behind its answer and the next command's read
   would take it. It also hands collection duty to the shell for every job, and takes every job out
-  of init's supervision domain, which is what `ps`/`pgrep` read.
-- **The supervisor tells**, which is what was built. `job_undertaker` gained `WRITE` on init's
+  of the progenitor's supervision domain, which is what `ps`/`pgrep` read.
+- **The supervisor tells**, which is what was built. `job_undertaker` gained `WRITE` on the progenitor's
   result endpoint and one constant, `spawnproto::JOB_FAULTED`, sent after the collect and only for
   `EVENT_FAULT`. Clean exits stay silent, so the ordinary path is byte-for-byte what it was.
 

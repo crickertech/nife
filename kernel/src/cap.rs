@@ -79,9 +79,9 @@ pub enum Object {
     /// **A device's MMIO page**, by physical address (milestone 19d.2): a delegatable authority
     /// to map a *specific* device's registers, **device-typed** (nGnRnE, uncacheable, unreordered
     ///: the only attributes MMIO tolerates). The kernel mints one per known device (it alone
-    /// knows device physical addresses) and hands it to init; init delegates it to the driver it
+    /// knows device physical addresses) and hands it to the progenitor; the progenitor delegates it to the driver it
     /// builds and maps it into that driver's space. This is what turns "the kernel maps the UART
-    /// at spawn" into "device access is a capability", so a userspace init can bring up drivers.
+    /// at spawn" into "device access is a capability", so a userspace progenitor can bring up drivers.
     /// Distinct from `PageFrame` precisely because a `PageFrame` maps *normal cacheable* memory, which for
     /// MMIO would let the CPU cache and reorder register accesses: catastrophic for a device.
     ///
@@ -179,18 +179,18 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// `crates/system_initializer` against it. A cleanup commit (`d1c81062`, 2026-08-27) put it back to
 /// 17, because the doc comment above says 17 and because a full `script/test` on all three
 /// architectures was green at 17. Both of those observations were true. Neither could see the
-/// failure, because **`script/test` never boots the real init**: every suite that runs the shell
-/// has the kernel play init, and the only gate that runs `system_initializer` is
+/// failure, because **`script/test` never boots the real progenitor**: every suite that runs the shell
+/// has the kernel play the progenitor, and the only gate that runs `system_initializer` is
 /// `script/shell-check`, which at that time ran in neither `script/test` nor CI. PR #556 landed on
 /// 2026-08-28 and `main` booted straight into the silent halt this file's BUGS section describes:
-/// with a virtio-rng attached, init fills all seventeen slots building `credentialer` and dies at
+/// with a virtio-rng attached, the progenitor fills all seventeen slots building `credentialer` and dies at
 /// `user_rt::trap` before a console exists to carry a word about it. It stayed that way for five
 /// days, through a fully green tree, because nobody asked the one question that would have shown
 /// it.
 ///
 /// So 28 was never wrong, only unexplained, and reverting it to a number the prose justified
 /// removed the thing holding the boot up. This raise replaces the guess with a measurement:
-/// **21** simultaneous slots is the boot's high-water mark, in init, while `build_child` lays down
+/// **21** simultaneous slots is the boot's high-water mark, in the progenitor, while `build_child` lays down
 /// `credentialer` (twelve capabilities this process never gives back, the login block's own six,
 /// and the address space and page the loader is working through). Twenty-four is twenty-one plus
 /// three. The two previous raises each took the number to exactly what that day's boot needed and
@@ -198,7 +198,7 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// 96 bytes a thread, 24 KiB across `MAX_THREADS`, which is the cheapest insurance in this file.
 ///
 /// **Two of those three are left** (2026-09-05, milestone 111): the measured peak is 22, not 21,
-/// because init now holds the entropy service's request endpoint for the life of the boot instead
+/// because the progenitor now holds the entropy service's request endpoint for the life of the boot instead
 /// of releasing it after the login block. The insurance is being spent as intended and the ceiling
 /// is unchanged; see [`CAPABILITY_TABLE_PEAK_MEASURED`] for what moved and why the answer was not
 /// to raise this.
@@ -208,7 +208,7 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// **What a real interactive boot actually reaches**, and the number the three slots of headroom
 /// above it were measured from (milestone 231).
 ///
-/// Twenty-one, in init, during `build_child` for `credentialer`: twelve capabilities that process
+/// Twenty-one, in the progenitor, during `build_child` for `credentialer`: twelve capabilities that process
 /// never gives back, the login block's own six, and the address space and page the loader is
 /// working through. Milestone 230 established it by instrumenting four boots; nothing in the tree
 /// could see it, which is why every raise of [`CAPABILITY_TABLE_SLOTS`] before that one was
@@ -228,10 +228,10 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// fact about the tree that stopped being true.
 ///
 /// **Twenty-two since 2026-09-05, milestone 111**, and this is the mechanism doing exactly what
-/// its own doc above describes rather than a surprise. Init used to release the entropy service's
+/// its own doc above describes rather than a surprise. The progenitor used to release the entropy service's
 /// request endpoint once `credentialer` held its own copy; it now keeps it for the life of the
 /// boot, because a child whose manifest declares `grant_plan::Manifest::entropy` is endowed a
-/// `WRITE` view of that same endpoint at spawn, and init is the only process that can make that
+/// `WRITE` view of that same endpoint at spawn, and the progenitor is the only process that can make that
 /// grant. One capability held across the peak is one slot on the peak.
 ///
 /// It was found by `script/shell-check` failing on this sentence, on the first run after the
@@ -239,7 +239,7 @@ pub type CapabilityTable = capability::CapabilityTable<Object, CAPABILITY_TABLE_
 /// [`CAPABILITY_TABLE_SLOTS`] before that one was reactive, after a silent halt that named
 /// something else. **The ceiling is not raised**, per this constant's own instruction: twenty-four
 /// minus twenty-two is two, and two is still headroom rather than a wall. The next addition that
-/// holds a capability across init's login block should expect to spend one of them and should read
+/// holds a capability across the progenitor's login block should expect to spend one of them and should read
 /// [`CAPABILITY_TABLE_SLOTS`]'s arithmetic before assuming there is a third.
 pub const CAPABILITY_TABLE_PEAK_MEASURED: usize = 22;
 
@@ -260,7 +260,7 @@ static PEAK_STABLE_PASSES: core::sync::atomic::AtomicUsize =
 /// How still the mark has to be before [`report_peak`] believes the climb is over.
 ///
 /// **Measured, and the measurement is the whole argument.** With this at one, an aarch64
-/// interactive boot printed six lines (4, 5, 12, 14, 16, 21 of 24): init blocks on IPC several
+/// interactive boot printed six lines (4, 5, 12, 14, 16, 21 of 24): the progenitor blocks on IPC several
 /// times while it is building the login stack, so the machine goes idle mid-climb and each pause
 /// looked like an ending. At sixteen it prints one, and the number it prints is the same 21.
 /// (Those figures are that day's boot, kept because the argument is about the *window*; the peak
@@ -280,7 +280,7 @@ const PEAK_STABLE_PASSES_NEEDED: usize = 16;
 /// once per grant into one printed line:
 ///
 /// - **It waits for the mark to go still**, [`PEAK_STABLE_PASSES_NEEDED`] idle passes with the same
-///   number. A peak that moved is still climbing, so this resets and looks again. Init blocks on
+///   number. A peak that moved is still climbing, so this resets and looks again. The progenitor blocks on
 ///   IPC several times while building the login stack, so a shorter window mistakes each of those
 ///   pauses for an ending; that constant's own doc carries the measurement.
 /// - **It never repeats a number.** `fetch_max` gives exactly one caller a previous value below
@@ -412,7 +412,7 @@ pub fn irq_cap(intid: u32) -> Cap {
     }
 }
 
-/// An interrupt capability with explicit rights (milestone 19d.2b): init holds one with `GRANT`
+/// An interrupt capability with explicit rights (milestone 19d.2b): the progenitor holds one with `GRANT`
 /// so it can delegate the interrupt to a driver it builds.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn irq_cap_rights(intid: u32, rights: Rights) -> Cap {
@@ -440,7 +440,7 @@ pub fn memory_region_cap(region: u64) -> Cap {
 /// pinned to the parent's by proved code rather than by passing `cap.rights` here.
 ///
 /// The rights an untyped carries are therefore set once at the root and only ever narrow downward:
-/// root (`GRANT`) -> init's `SPLIT` (inherits `GRANT`) -> `CAP_INSERT` into a child (narrowed).
+/// root (`GRANT`) -> the progenitor's `SPLIT` (inherits `GRANT`) -> `CAP_INSERT` into a child (narrowed).
 pub fn memory_region_cap_rights(region: u64, rights: Rights) -> Cap {
     Cap {
         object: Object::MemoryRegion(region),
@@ -448,8 +448,8 @@ pub fn memory_region_cap_rights(region: u64, rights: Rights) -> Cap {
     }
 }
 
-/// The delegable root untyped the kernel hands init at boot (milestone 31). Full rights, `GRANT`
-/// included, because handing memory budgets to the children it builds is init's whole job: the root
+/// The delegable root untyped the kernel hands the progenitor at boot (milestone 31). Full rights, `GRANT`
+/// included, because handing memory budgets to the children it builds is the progenitor's whole job: the root
 /// of the budget tree must carry the right to pass budgets on. Rights narrow monotonically from
 /// here (a `SPLIT` child inherits its parent's rights; `CAP_INSERT` narrows again), so `GRANT` never
 /// appears anywhere it was not present at the root. Contrast [`memory_region_cap`], the `WRITE`-only
@@ -470,7 +470,7 @@ pub fn virtio_cap(id: usize) -> Cap {
 }
 
 /// A virtio transport capability with explicit rights (DECISIONS §120's 2026-08-26 amendment):
-/// init holds one with `GRANT` so it can delegate the device to an entropy service it builds,
+/// The progenitor holds one with `GRANT` so it can delegate the device to an entropy service it builds,
 /// [`irq_cap_rights`]'s own reason one object type over.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn virtio_cap_rights(id: usize, rights: Rights) -> Cap {

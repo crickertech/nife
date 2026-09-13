@@ -82,10 +82,10 @@ echo
 echo "==> script/test"
 script/test
 
-# **The interactive boot** (milestone 230). `script/test` has the KERNEL play init in every suite
+# **The interactive boot** (milestone 230). `script/test` has the KERNEL play the progenitor in every suite
 # that runs a shell, so nothing in it exercises `crates/system_initializer`; this is the only gate
 # that boots the real one. Until this line it ran in neither `script/test` nor CI, and `main` sat
-# red for five days behind a fully green tree while init trapped before a console existed to say so.
+# red for five days behind a fully green tree while the progenitor trapped before a console existed to say so.
 #
 # Here rather than in CI alone because of the measurement: **30 seconds** for both architectures
 # against the target directory `script/test` has just warmed, which is a rounding error on this

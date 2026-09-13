@@ -12,7 +12,7 @@
 //! What the shell can grant, it grants from what it *holds*. The headline is `prog --mem N`, which
 //! endows a program N pages of untyped **split from the shell's own budget** (slot 3) and delegated
 //! to it. A bare name in a file position is the second, and whether it can be backed is a statement
-//! about this shell's capability table rather than about the calendar: a shell whose init granted it a
+//! about this shell's capability table rather than about the calendar: a shell whose the progenitor granted it a
 //! directory (slot [`DIR_TERMINAL`]) resolves the name, and one granted none says "you hold no such
 //! capability". Milestone 50 made the first case real at the interactive prompt; see [`holdings`],
 //! notes/pipes.md and notes/grant-expression.md. `caps` prints the shell's whole endowment, and
@@ -20,14 +20,14 @@
 //! one literal tells you a process's whole authority" interactively true.
 //!
 //! **The clock is the one authority in a preview that no token designates** (milestone 51's wiring).
-//! `date` declares it in its manifest and *init* endows it, read-only; `caps date` prints it anyway,
+//! `date` declares it in its manifest and *The progenitor* endows it, read-only; `caps date` prints it anyway,
 //! because a preview that showed only what the line designates would be off by exactly one
 //! capability.
 //!
-//! **Since milestone 86 this shell holds a clock of its own**, at the slot init names in `x2`, and it
+//! **Since milestone 86 this shell holds a clock of its own**, at the slot the progenitor names in `x2`, and it
 //! is `READ` **without** `GRANT`. That one bit is the whole design of `time <command>`: the shell can
 //! read the wall clock to measure a command, and it cannot hand a clock to anything it spawns, so the
-//! set of processes that can read the time is still decided by the manifests init reads (DECISIONS
+//! set of processes that can read the time is still decided by the manifests the progenitor reads (DECISIONS
 //! §43). Timing is something an observer does with its own authority; the thing being timed needs
 //! nothing and is not told. See notes/time-command.md.
 //!
@@ -41,10 +41,10 @@
 //!
 //! # The shell's world
 //!
-//! It holds, by convention (init granted them in this order):
+//! It holds, by convention (the progenitor granted them in this order):
 //!
 //! - slot 0: the terminal rendezvous (CALL: `OP_WRITE` / `OP_READLINE`).
-//! - slot 1: a spawn rendezvous (direct init to start a program; `grant_plan::spawnproto`).
+//! - slot 1: a spawn rendezvous (direct the progenitor to start a program; `grant_plan::spawnproto`).
 //! - slot 2: a result rendezvous (receive a spawned program's answer).
 //! - slot 3: an untyped budget, the memory it grants with `--mem`.
 //!
@@ -110,13 +110,13 @@ use user_rt::{
     send, split_region, yield_now,
 };
 
-// Pages shared with the terminal (must match the wiring in init).
+// Pages shared with the terminal (must match the wiring in the progenitor).
 //
 // `OUT_VA` used to be 0x0060_0000, which is also [`FS_VA`]. That was sound while a shell wired to a
 // terminal could not also hold a filesystem, and milestone 50's `>` is exactly the wiring where it
 // holds both, so the terminal page moved rather than the FS one: `FS_VA` is `fs_service`'s
 // `FILE_VA_CLIENT`, which six other programs map, and this is the one address only the shell and its
-// init know.
+// the progenitor know.
 const OUT_VA: u64 = 0x0000_0000_00c0_0000; // we write; the terminal reads
 const LINE_VA: u64 = 0x0000_0000_00b0_0000; // the terminal writes; we read
 
@@ -133,11 +133,11 @@ const LINE_WINDOW: MappedWindow =
 
 // Capability slots.
 const TERM: u64 = 0; // CALL requests on the terminal
-const SPAWN: u64 = 1; // SEND a spawn request to init
+const SPAWN: u64 = 1; // SEND a spawn request to the progenitor
 const RESULT: u64 = 2; // RECV a spawned program's answer
 const BUDGET: u64 = 3; // our own untyped; SPLIT a grant off it for `--mem`
 
-/// The budget init granted us at boot (must match `crates/system_initializer`'s `SH_BUDGET_PAGES`).
+/// The budget the progenitor granted us at boot (must match `crates/system_initializer`'s `SH_BUDGET_PAGES`).
 /// We cannot query how much remains (there is no such syscall), so `caps` prints the initial grant.
 const SH_BUDGET_PAGES: u64 = 128;
 
@@ -161,8 +161,8 @@ const NO_CLOCK: u64 = 0;
 ///
 /// A per-file grant is a directory capability narrowed to one name (milestone 31 phase 2,
 /// `components/src/fs_file_caretaker.rs`), and a redirection is a file opened through one. Both need a
-/// directory to narrow, so both answer to this: a shell whose init granted it a directory
-/// capability (slot [`DIR_TERMINAL`]) can back `>` and `<`, and a shell whose init granted it none
+/// directory to narrow, so both answer to this: a shell whose the progenitor granted it a directory
+/// capability (slot [`DIR_TERMINAL`]) can back `>` and `<`, and a shell whose the progenitor granted it none
 /// gets the milestone's headline refusal, which is **true** rather than a placeholder.
 ///
 /// The same binary is in both positions, which is the point: `date > report.txt` is refused in the
@@ -298,7 +298,7 @@ fn refused() {
     record(Status::Refused);
 }
 
-/// **Something was attempted and did not work**: a filesystem errno, a spawn init could not back,
+/// **Something was attempted and did not work**: a filesystem errno, a spawn the progenitor could not back,
 /// a job torn down. See [`Status`] for why this is a different number from [`refused`].
 fn failed() {
     record(Status::Failed);
@@ -1498,7 +1498,7 @@ const MAX_BATCHES: u64 = 256;
 /// `find | xargs rm` analogue would spawn an `rm` holding no authority at all; the pipe cannot carry
 /// the thing that has to be batched. What can mint a per-batch caretaker is whatever holds the
 /// directory capability with the right to delegate it, and in this system that is the shell asking
-/// init. So the batching goes where the authority already is.
+/// the progenitor. So the batching goes where the authority already is.
 ///
 /// This is **not** milestone 47's rejected "make `rm` a builtin", either. `rm` stays a program with
 /// an attenuated grant; what became a builtin is the *iteration*, which is a property of how the
@@ -1676,7 +1676,7 @@ fn refuse(spec: RunSpec, refusal: Refusal) {
     swish::write_refusal(&spec, refusal, &mut print);
 }
 
-/// One process's three `START` argument words, packed by this shell and forwarded by init without
+/// One process's three `START` argument words, packed by this shell and forwarded by the progenitor without
 /// being read. `filesystem_proto::grant`'s layout: two words of name, and a spec carrying the length plus
 /// either a rights mask (a caretaker's) or an option mask (a program's).
 type StartWords = (u64, u64, u64);
@@ -1694,7 +1694,7 @@ struct DirWords {
     child: StartWords,
 }
 
-/// **Turn a planned directory grant into the two triples init needs**, or into the sentence that
+/// **Turn a planned directory grant into the two triples the progenitor needs**, or into the sentence that
 /// says why this one cannot be delivered (milestone 31 phase 3).
 ///
 /// The `Ok` half is the whole of the delivery: `(the caretaker's START words, the program's)`. The
@@ -1724,12 +1724,12 @@ struct DirWords {
 /// here.
 ///
 /// **A set of more than one name.** That grant is a `fs_nameset_caretaker`, which is a different
-/// program taking its set in a frame; init builds the subtree one today. `rm *.txt` is planned,
+/// program taking its set in a frame; the progenitor builds the subtree one today. `rm *.txt` is planned,
 /// previewed by `caps`, and refused at the point of delivery.
 fn dir_grant(g: &GrantDir, flags: u64) -> Result<DirWords, &'static [u8]> {
     // The directory the caretaker descends into. One component, because that is one `OPENDIR`; a
     // deeper path is a *chain* of caretakers (DECISIONS §92 names it as the case supervision was
-    // chosen for) and init builds one.
+    // chosen for) and the progenitor builds one.
     let dir = match g.dir.depth() {
         0 => {
             return Err(
@@ -1739,13 +1739,13 @@ fn dir_grant(g: &GrantDir, flags: u64) -> Result<DirWords, &'static [u8]> {
         1 => g.dir.component(0),
         _ => {
             return Err(
-                b"  that directory is more than one level down, and init builds one caretaker \n  per grant; a deeper grant is a chain of them, which is not built\n",
+                b"  that directory is more than one level down, and the progenitor builds one caretaker \n  per grant; a deeper grant is a chain of them, which is not built\n",
             );
         }
     };
     let Some(name) = g.names.only() else {
         return Err(
-            b"  a set of names is delivered by a nameset caretaker, and init builds the subtree \n  one; name a single file\n",
+            b"  a set of names is delivered by a nameset caretaker, and the progenitor builds the subtree \n  one; name a single file\n",
         );
     };
     if !filesystem_proto::grant::fits(dir) || !filesystem_proto::grant::fits(name) {
@@ -1778,7 +1778,7 @@ fn dir_grant(g: &GrantDir, flags: u64) -> Result<DirWords, &'static [u8]> {
 }
 
 /// Grant and spawn. The one moment authority moves: split any memory grant off our own budget,
-/// direct init to load the program, delegate the grant, and read the one answer that comes back.
+/// direct the progenitor to load the program, delegate the grant, and read the one answer that comes back.
 fn spawn(e: Endowment) {
     // A grant this path cannot deliver must stop here, loudly. `plan` already refuses a `file:` when
     // `holdings().dir` is false, so today this is unreachable; it exists because the day that flips,
@@ -1788,13 +1788,13 @@ fn spawn(e: Endowment) {
     if e.file.is_some() {
         refused();
         print(
-            b"  a file grant needs init to build the caretaker; this shell cannot deliver one yet\n",
+            b"  a file grant needs the progenitor to build the caretaker; this shell cannot deliver one yet\n",
         );
         return;
     }
-    // **The directory grant, which init delivers** (milestone 31 phase 3). This shell's file-service
+    // **The directory grant, which the progenitor delivers** (milestone 31 phase 3). This shell's file-service
     // rendezvous carries no GRANT, so it holds nothing it could hand a caretaker; what it can do is
-    // say what the grant *is*, and init, which holds the service, builds a `fs_subtree_caretaker`
+    // say what the grant *is*, and the progenitor, which holds the service, builds a `fs_subtree_caretaker`
     // for it. [`dir_grant`] is where the shape of the grant meets the shape of what can be
     // delivered, and it returns the words rather than sending them so a refusal happens here, with
     // nothing spawned.
@@ -1810,7 +1810,7 @@ fn spawn(e: Endowment) {
         },
     };
     // A memory grant is carved from the shell's own untyped. If our budget is spent, say so plainly
-    // rather than sending init a promise we cannot keep.
+    // rather than sending the progenitor a promise we cannot keep.
     let mem_slot = if e.mem_pages > 0 {
         match memory_region_split(e.mem_pages) {
             Some(slot) => Some(slot),
@@ -1828,7 +1828,7 @@ fn spawn(e: Endowment) {
     //
     // **`diagnostics` is false here and always will be** (DECISIONS §67). This path runs a line with
     // no operators on it, so there is no `2>` and nothing for this shell to back; a program that
-    // declares a second stream gets the terminal's own sink, which init endows from the manifest the
+    // declares a second stream gets the terminal's own sink, which the progenitor endows from the manifest the
     // way it endows the clock. `2>` makes a line non-plain and goes down [`pipeline`].
     let (w0, w1, w2) = spawnproto::request(
         e.prog.id(),
@@ -1863,14 +1863,14 @@ fn spawn(e: Endowment) {
         send(SPAWN, child.0, child.1, child.2);
     }
 
-    // If a budget rode along, delegate it now, narrowed to WRITE|GRANT so init can re-insert it into
-    // the child (init narrows it again to WRITE there: the child spends it, it does not lend it).
+    // If a budget rode along, delegate it now, narrowed to WRITE|GRANT so the progenitor can re-insert it into
+    // the child (the progenitor narrows it again to WRITE there: the child spends it, it does not lend it).
     if let Some(slot) = mem_slot {
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
         cap_delete(slot); // our copy is delegated; free the slot
     }
 
-    // One reader, one word: a real program's answer, or init's spawn-failed sentinel. A program
+    // One reader, one word: a real program's answer, or the progenitor's spawn-failed sentinel. A program
     // whose manifest says it writes **bytes** is the exception: its answer is a stream, so it is
     // drained by a reader that knows the sink contract's framing.
     if e.prog.manifest().output.is_byte_stream() {
@@ -1895,11 +1895,11 @@ fn drain_text() {
     print(b"  ");
     for _ in 0..MAX_OUTPUT_CHUNKS {
         let (w0, w1, w2) = recv(RESULT);
-        // Checked before decoding: init's sentinel is `u64::MAX`, whose top byte is an opcode this
+        // Checked before decoding: the progenitor's sentinel is `u64::MAX`, whose top byte is an opcode this
         // contract does not define, so it would otherwise read as a malformed message rather than as
         // the one thing it is.
         if w0 == spawnproto::SPAWN_FAILED {
-            print(b"could not spawn (init is out of memory)\n");
+            print(b"could not spawn (the progenitor is out of memory)\n");
             return;
         }
         // **The stream stops here because its writer is dead** (milestone 235), and this is the
@@ -1993,10 +1993,10 @@ fn await_screen(ep: u64) {
         yield_now();
     }
     // Not fatal to this shell the way a stuck reap is to `job_undertaker`: worst case this leaks
-    // one job's worth of init's pool, and the next `could not spawn (init is out of memory)` is the
+    // one job's worth of the progenitor's pool, and the next `could not spawn (the progenitor is out of memory)` is the
     // visible symptom, exactly as it would be for job_undertaker's own exhaustion.
     failed();
-    print(b"  that page's process would not collect; init's job budget may be short one job\n");
+    print(b"  that page's process would not collect; the progenitor's job budget may be short one job\n");
 }
 
 /// `job_undertaker::MAX_ATTEMPTS`'s reasoning, held here rather than shared: this shell reaps at
@@ -2032,7 +2032,7 @@ fn drain_diagnostics(dest: &mut dyn ByteOut, writers: usize) {
         match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
             byte_sink_proto::Msg::Bytes(n) => dest.push(&buf[..n]),
             byte_sink_proto::Msg::Eof => done += 1,
-            // init's failure sentinel arrives here too, as an `OP_EOF` it sends on this rendezvous so
+            // The progenitor's failure sentinel arrives here too, as an `OP_EOF` it sends on this rendezvous so
             // this drain can end; anything else is a program that cannot spell the contract.
             byte_sink_proto::Msg::Malformed => done += 1,
         }
@@ -2571,7 +2571,7 @@ impl ByteOut for SinkWriter {
 // ---- the file behind a `>` and a `<`, which this shell serves itself (milestone 50) ----
 
 /// How many bytes of a file this shell stages in the page it shares with the FS server before it
-/// makes a request. Small on purpose: the shell runs on the four stack pages init maps it, and the
+/// makes a request. Small on purpose: the shell runs on the four stack pages the progenitor maps it, and the
 /// page itself is sixteen times this. A larger buffer would buy fewer FS round trips and cost the
 /// one resource this program is actually short of.
 const FILE_CHUNK: usize = 256;
@@ -2808,7 +2808,7 @@ fn drain_into(f: &mut FileOut) {
         let (w0, w1, w2) = recv(RESULT);
         if w0 == spawnproto::SPAWN_FAILED {
             failed();
-            print(b"  could not spawn (init is out of memory)\n");
+            print(b"  could not spawn (the progenitor is out of memory)\n");
             return;
         }
         // **The writer died mid-stream** (milestone 235). The file keeps what arrived before the
@@ -2838,10 +2838,10 @@ fn drain_into(f: &mut FileOut) {
     print(b"  (output truncated: that program never said it was finished)\n");
 }
 
-/// **Direct init to build one stage**, delegating whatever the operators put in its slots.
+/// **Direct the progenitor to build one stage**, delegating whatever the operators put in its slots.
 ///
 /// The two delegations are the entire difference between a piped stage and an ordinary spawn, and
-/// they are why `>` and `|` are one mechanism: init receives an rendezvous and puts it where the
+/// they are why `>` and `|` are one mechanism: the progenitor receives an rendezvous and puts it where the
 /// result rendezvous would have gone. Nothing here knows or can find out what is on the other end.
 ///
 /// Returns whether the stage started; a failure has already been printed.
@@ -2894,11 +2894,11 @@ fn spawn_stage(
         delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
     }
     if let Some(slot) = screen {
-        // READ (not WRITE): init installs this as the *child's* fault target, and what this shell
+        // READ (not WRITE): the progenitor installs this as the *child's* fault target, and what this shell
         // needs back from its own copy is the right to `RECV`/`REAP` on it, exactly
-        // `job_undertaker`'s DEATHS. init narrows its own copy no further than that when it inserts
+        // `job_undertaker`'s DEATHS. The progenitor narrows its own copy no further than that when it inserts
         // the child's (`abi::rights::READ`, `supervision_proto::build_child_space`), so delegating
-        // less than READ here would leave init unable to hand the child anything at all.
+        // less than READ here would leave the progenitor unable to hand the child anything at all.
         delegate(slot, abi::rights::READ | abi::rights::GRANT);
     }
     if let Some(slot) = mem_slot {
@@ -2906,7 +2906,7 @@ fn spawn_stage(
         cap_delete(slot);
     }
 
-    // A stage whose output was substituted owes this shell no answer, so init acks instead. Without
+    // A stage whose output was substituted owes this shell no answer, so the progenitor acks instead. Without
     // it a failed spawn would be invisible and the pipeline would wait on a producer that does not
     // exist. A screen-narrowed stage is the same shape: its completion signal is the fault rendezvous
     // above, not this one, so a build failure has to reach the shell here too (DECISIONS §106).
@@ -2924,7 +2924,7 @@ fn spawn_stage(
             }
             _ => {
                 failed();
-                print(b"  could not spawn (init is out of memory)\n");
+                print(b"  could not spawn (the progenitor is out of memory)\n");
                 return false;
             }
         }
@@ -2975,7 +2975,7 @@ static SH_JOBFRAME_NEXT: core::sync::atomic::AtomicU64 =
 /// finished job each advance the watermark, so neither leaks into the next job.
 static CONSUMED: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 
-/// Run a supervised foreground job: mint its resources from our own budget, direct init to build it
+/// Run a supervised foreground job: mint its resources from our own budget, direct the progenitor to build it
 /// from a region we hold, then watch it under the two-tier `^C` escalation until it stops or we tear
 /// it down. This is the whole of DECISIONS §24 on the shell's side.
 fn spawn_interruptible(e: Endowment) {
@@ -3014,8 +3014,8 @@ fn spawn_interruptible(e: Endowment) {
     jf.write(job_page_frame::STATUS as u64, 0u64);
     jf.write(job_page_frame::HEARTBEAT as u64, 0u64);
 
-    // Direct init: an interruptible request, then the job untyped and the job frame, both delegated
-    // WRITE|GRANT (init builds from the untyped and maps the frame). We keep our own copies: the
+    // Direct the progenitor: an interruptible request, then the job untyped and the job frame, both delegated
+    // WRITE|GRANT (the progenitor builds from the untyped and maps the frame). We keep our own copies: the
     // untyped to tear the job down, the frame to signal it and read it.
     let (w0, w1, w2) = spawnproto::request(
         e.prog.id(),
@@ -3030,7 +3030,7 @@ fn spawn_interruptible(e: Endowment) {
             // would be a contradiction the manifest can already refuse.
             diagnostics: false,
             // Neither demonstrator declares a directory either, and a supervised job is built out of
-            // *this shell's* untyped rather than init's pool, so there is no region a caretaker
+            // *this shell's* untyped rather than the progenitor's pool, so there is no region a caretaker
             // could share with it (DECISIONS §92).
             dir: false,
             dir2: false,
@@ -3043,10 +3043,10 @@ fn spawn_interruptible(e: Endowment) {
     send_cap(job_ut);
     send_cap(job_fr);
 
-    // init acks once the child is running: that is the shell's go-ahead to start watching.
+    // The progenitor acks once the child is running: that is the shell's go-ahead to start watching.
     if recv(RESULT).0 != spawnproto::SPAWN_OK {
         failed();
-        print(b"  could not spawn (init is out of memory)\n");
+        print(b"  could not spawn (the progenitor is out of memory)\n");
         cap_delete(job_fr);
         cap_delete(job_ut);
         return;
@@ -3165,13 +3165,13 @@ fn map_page_frame(slot: u64, va: u64) -> bool {
     user_rt::map_page_frame(slot, va, true, BUDGET)
 }
 
-/// Delegate the capability in `slot` to init over the spawn rendezvous, narrowed to WRITE|GRANT (init
+/// Delegate the capability in `slot` to the progenitor over the spawn rendezvous, narrowed to WRITE|GRANT (the progenitor
 /// builds from an untyped or maps a frame, and narrows further from there). We keep our own copy.
 fn send_cap(slot: u64) {
     delegate(slot, abi::rights::WRITE | abi::rights::GRANT);
 }
 
-/// **Delegate one capability to init, with exactly the rights it should travel with.**
+/// **Delegate one capability to the progenitor, with exactly the rights it should travel with.**
 ///
 /// `GRANT` has to be in `rights` for the send itself to be legal, so what varies is the other half,
 /// and that half is load-bearing for milestone 50: a pipe's write end goes over as `WRITE|GRANT` and
@@ -3338,7 +3338,7 @@ fn navigate(spec: u64) -> ! {
     //
     //    Sent through the contract rather than typed as a command line, because **`rm` is a program
     //    now** (milestone 47's rmdir lane) and this witness holds no spawn channel: it is confined
-    //    to a subtree by a `fs_subtree_caretaker` and nothing in its capability table names an init. So what
+    //    to a subtree by a `fs_subtree_caretaker` and nothing in its capability table names a progenitor. So what
     //    is under test here is the verb `rm` sends, at the far end of the same caretaker chain the
     //    program runs behind, and `components/src/rm.rs`'s own guest test is what covers the program.
     if removed(&nav, fs::UNLINK, name_of(&doomed)) {
