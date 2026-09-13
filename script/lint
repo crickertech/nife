@@ -937,6 +937,107 @@ half into a library the host compiles, and leave only the firmware calls behind 
 print(f"mutation: {len(gated)} feature-gated target(s), every one excluded")
 MUTEOF
 
+# The same failure a THIRD time, and this one hides inside a package rather than beside it.
+#
+# The two gates above ask whether a crate or a target reaches the host build at all. This one asks a
+# narrower question about a package that does: **when cargo-mutants runs this package's own tests,
+# is every line it just mutated actually compiled?** cargo-mutants tests one package at a time
+# (`--test-workspace` is off by default and turning it on would run the whole suite per mutant), so
+# the command behind every number in the report is `cargo test -p <pkg>` with that package's DEFAULT
+# features. Code behind a non-default feature is not in that build. The tool mutates it anyway,
+# nothing it compiled changed, the tests pass, and the mutant is recorded MISSED.
+#
+# `documentation` is where it was found (milestone 280) and the cost was not the feature-gated code
+# itself. `builder` gates the index WRITER, 92 mutants; it also gates six of the crate's twelve index
+# tests, because a test that reads an index needs `build` to make one. So a single-crate run
+# compiled away half the suite and then scored the READER against what was left. That is what put
+# `documentation` at 52% in the first published mutation report, beside `uefi_loader`'s 15%, as one of
+# two crates blamed for the tree's score falling from 92.4%.
+#
+# The fix a package makes is a dev-dependency on itself with the feature on: tests get it, consumers
+# do not, and `cargo build -p <pkg>` is unchanged. That is what this checks for.
+#
+# **What it cannot see, said plainly rather than implied.** It checks that a feature is ON during the
+# package's test build, not that anything tests the code behind it. And it reads `required-features`
+# as the one honest exemption: a feature whose only job is to gate targets that are already excluded
+# above (`uefi_loader`'s `uefi`) has no library code to compile. A feature that gated both a target
+# and a `#[cfg]` block in the library would pass here and should not; nothing in the tree does that
+# today.
+echo "==> mutation compiles every feature of the crates it scores"
+python3 - <<'FEATEOF' || exit 1
+import json, subprocess, sys
+
+meta = json.loads(subprocess.run(
+    ["cargo", "metadata", "--format-version", "1", "--locked", "--no-deps"],
+    capture_output=True, text=True, check=True).stdout)
+
+root = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                      capture_output=True, text=True, check=True).stdout.strip()
+mutants = open(".cargo/mutants.toml").read()
+
+
+def excluded(pkg):
+    """True if no line of this package is scored: its directory is in exclude_globs."""
+    path = pkg["manifest_path"]
+    if path.startswith(root + "/"):
+        path = path[len(root) + 1:]
+    return f'"{path[: -len("/Cargo.toml")]}/**"' in mutants
+
+
+missing = []
+checked = 0
+for pkg in meta["packages"]:
+    if excluded(pkg):
+        continue
+    # Which features this package turns on for its own test build, via a dev-dependency on itself.
+    on_for_tests = set()
+    for dep in pkg["dependencies"]:
+        if dep["name"] == pkg["name"] and dep["kind"] == "dev":
+            on_for_tests.update(dep["features"])
+    # Which features exist only to gate targets the gate above already excluded.
+    only_gates_excluded = set()
+    for feat in pkg["features"]:
+        users = [t for t in pkg["targets"] if feat in (t.get("required-features") or [])]
+        if not users:
+            continue
+        rels = []
+        for t in users:
+            rel = t["src_path"]
+            if rel.startswith(root + "/"):
+                rel = rel[len(root) + 1:]
+            rels.append(rel)
+        if all(f'"{rel}"' in mutants for rel in rels):
+            only_gates_excluded.add(feat)
+    for feat in sorted(pkg["features"]):
+        checked += 1
+        if feat in on_for_tests or feat in only_gates_excluded:
+            continue
+        missing.append((pkg["name"], feat))
+
+if missing:
+    sys.stderr.write("lint: features cargo-mutants scores but the package's own tests never compile:\n")
+    for name, feat in missing:
+        sys.stderr.write(f"  {name}  feature \"{feat}\"\n")
+    sys.stderr.write("""
+cargo-mutants runs `cargo test -p <pkg>` with that package's DEFAULT features, so code behind a
+non-default feature is mutated and never rebuilt: the tests pass, and every mutant there is recorded
+MISSED. Worse, any TEST behind the same feature is compiled away too, so the surviving suite scores
+the rest of the crate as well.
+
+Give the package a dev-dependency on itself with the feature on, which is what `documentation` does:
+
+    [dev-dependencies]
+    <pkg> = { version = "0.1.0", path = ".", features = ["<feat>"] }
+
+Tests get the feature, consumers do not, and `cargo build -p <pkg>` is unchanged. If instead the
+feature only gates a `[[bin]]` nothing host-builds, exclude that target's source path in
+.cargo/mutants.toml and this gate will read the exemption from `required-features`.
+""")
+    sys.exit(1)
+
+print(f"mutation: {checked} feature(s) on mutated crates, every one compiled by its own tests")
+FEATEOF
+
 echo "==> script docs"
 missing=""
 for f in "$(dirname "$0")"/*; do
