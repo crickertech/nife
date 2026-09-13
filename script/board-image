@@ -51,6 +51,10 @@
 set -eu
 cd "$(dirname "$0")/.."
 
+# This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
+# PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
+. scripts/qemu-path.sh
+
 # **The soak payload** (milestone 219): the same image, with the kernel feature that replaces the
 # halt at the end of the boot tour with a pool of user-mode IPC workers and a heartbeat. It is a
 # flag here rather than a second script because everything else about the payload is identical, and
