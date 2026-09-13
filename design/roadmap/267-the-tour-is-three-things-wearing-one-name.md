@@ -74,7 +74,7 @@ program became, not about the argument that created it.
 `kernel/src/main.rs`, and `kernel/src/user/console_service.rs`'s `spawn_client`, which had exactly
 one caller and was that block.
 
-**What deliberately did not go with it:** `console_service::start` and `user/src/console.rs`.
+**What deliberately did not go with it:** `console_service::start` and `components/src/console.rs`.
 Deleting those is a larger change than was authorised, because it removes infrastructure rather than
 a demonstration, and the question it raises is in the Follow-on section below with what the compiler
 says about it.

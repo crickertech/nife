@@ -826,7 +826,7 @@ what makes the distinction worth writing down rather than leaving in one block.
 **The test, in one question: does the name claim an end-of-stream that is a property of the design,
 or one that is an accident of what has not been built yet?**
 
-`user/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT` endpoint and
+`components/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT` endpoint and
 discards it. "Sink" was accurate about today and wrong about the program: the discard exists because
 printing the record would need a `WRITE` view of the terminal, and handing that to a third process
 was refused *for now*. The moment somebody grants it, the program keeps records and its name says it
