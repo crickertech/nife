@@ -476,7 +476,7 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
     send(READY, report, u64::from(first), pool.filled);
 
     // A device that wrote a page of zeros is condemned for the rest of the boot; a device that
-    // wrote nothing is not. See `jh7110_trng.rs`'s `_start`, which says why at length: the report
+    // wrote nothing is not. See `jh7110_entropy_source.rs`'s `_start`, which says why at length: the report
     // word reaches whoever wired the service, and a client only ever sees a reply.
     serve(
         pool,

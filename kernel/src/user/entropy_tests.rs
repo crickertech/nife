@@ -111,8 +111,10 @@ fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
              tour's hw entropy line is the test that matters here, not this one"
         );
     }
-    let Some(image) = program("jh7110_trng") else {
-        crate::testing::skip!("no jh7110_trng program in this archive (the aarch64 one has none)");
+    let Some(image) = program("jh7110_entropy_source") else {
+        crate::testing::skip!(
+            "no jh7110_entropy_source program in this archive (the aarch64 one has none)"
+        );
     };
     assert!(
         entropy_service::ensure(image, Bus::Jh7110).is_none(),
@@ -124,7 +126,7 @@ fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
 
 /// **No clock-and-reset window is mapped on a machine that is not a JH7110** (milestone 220).
 ///
-/// The guard on the one genuinely dangerous thing this milestone added: `jh7110_crg::discover`
+/// The guard on the one genuinely dangerous thing this milestone added: `jh7110_clock_and_reset::discover`
 /// deliberately never fails to produce an address, falling back to the constant both published
 /// device trees agree on, so a caller that took its answer unconditionally would store to
 /// `0x1023_0000` on every board this kernel boots. `memory::init` is what stops that, by

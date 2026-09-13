@@ -141,7 +141,7 @@ program has any business containing is the syscall itself and that lives in `use
 The `--bin` selection is the one piece of machinery worth arguing about, and the argument is in
 `script/verify`'s own comment: a hand-written list of binaries would be one name short the first
 time somebody adds a harness to a 69th program, and that failure is the **invisible** one this
-project has now recorded twice (`mdns_proto`, `jh7110_trng`) -- the suite goes green faster and
+project has now recorded twice (`mdns_proto`, `jh7110_entropy_source`) -- the suite goes green faster and
 nothing says a harness stopped running. `script/lint` already catches a whole package missing from
 the verify table; only the derivation catches a binary missing from inside one.
 
@@ -289,8 +289,8 @@ are worth their place rather than an assertion that they are.
   today.
 - **`user/` is a package with 68 binaries and no library**, so there is no `cargo kani -p user` that
   means "everything". Stub 5 above is the consequence.
-- **`components`'s 3 seconds in `script/verify`'s table is a dev-Mac number**, like `mdns_proto`'s,
-  `jh7110_trng`'s and `kernel`'s, and the wrong machine for that column. Replace it from the first
+- **`user`'s 3 seconds in `script/verify`'s table is a dev-Mac number**, like `mdns_proto`'s,
+  `jh7110_entropy_source`'s and `kernel`'s, and the wrong machine for that column. Replace it from the first
   CI log that carries it. Almost all of it is compile rather than solver time, so it will grow with
   the harnesses and not with the programs.
 - **This note does not price the rest of the work.** What was measured is which shapes open and

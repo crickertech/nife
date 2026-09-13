@@ -10,21 +10,21 @@
 //! previous draft of this paragraph was holding open (how a spawner locates this binary in an
 //! initrd) turned out to need no new answer: `entropy_service::ensure` already takes the program's
 //! bytes from its caller, exactly as it does for `entropy`, so the tour reads
-//! `user::program("jh7110_trng")` and hands them over. Nothing about the interactive boot changed;
+//! `user::program("jh7110_entropy_source")` and hands them over. Nothing about the interactive boot changed;
 //! DECISIONS §120's stopgap question is still open and still untouched by this.
 //!
 //! **Nothing below has run against a real TRNG**, and wiring it did not change that: QEMU has no
 //! JH7110, so on every machine this repository's CI boots the wiring resolves to a skip. The
 //! register sequence follows
-//! `jh7110_trng`'s citations (the Linux `jh7110-trng.c` driver); the polling bounds
+//! `jh7110_entropy_source`'s citations (the Linux `jh7110-trng.c` driver); the polling bounds
 //! ([`POLL_TRIES`], [`LOCKUP_RETRIES`]) are placeholders with no board measurement behind them, the
 //! same honest gap `entropy.rs`'s `WAIT_WAKEUPS` once was before QEMU could prove it. See the
 //! roadmap doc for what remains before this can be trusted.
 //!
 //! # What is proven, and where
 //!
-//! The register decode ([`jh7110_trng::interpret`]), the device-tree query
-//! ([`jh7110_trng::discover`]) and the byte buffer ([`jh7110_trng::Pool`]) are all in the crate,
+//! The register decode ([`jh7110_entropy_source::interpret`]), the device-tree query
+//! ([`jh7110_entropy_source::discover`]) and the byte buffer ([`jh7110_entropy_source::Pool`]) are all in the crate,
 //! host-tested and Kani-reachable, because none of them needs a device to be wrong in an
 //! interesting way. What is left in this file is exactly the part that cannot be tested without
 //! silicon: the volatile reads and writes, and the two polling bounds below.
@@ -40,7 +40,7 @@
 //! - mapped: **one page**, the TRNG's register block, device-typed at [`TRNG_VA`], placed there by
 //!   whoever spawns this (rule 2: a base address, passed in, nothing this driver looks up). The
 //!   binding's `reg` window is `0x4000` and the spawner maps `0x1000` of it, because
-//!   `jh7110_trng::regs` reaches only `0x68`;
+//!   `jh7110_entropy_source::regs` reaches only `0x68`;
 //! - and nothing else. **No third slot, no DMA page, no IRQ**, unlike `entropy.rs`'s virtio-rng
 //!   backend: this device has no virtqueue and no shared buffer to negotiate, only the eight
 //!   `RAND` registers, so its authority is smaller by construction, not by omission. An earlier
@@ -102,7 +102,7 @@
 //! [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
 //!
 //! Name: provisional. Introduced 2026-08-24 by milestone 159's lane, matching the crate it is the
-//! volatile shell over (`jh7110_trng`), which is the deliberate crate-and-program pair AGENTS.md
+//! volatile shell over (`jh7110_entropy_source`), which is the deliberate crate-and-program pair AGENTS.md
 //! describes: the crate is the logic, host-tested and reachable by the prover, and the program
 //! keeps the IO. Splitting the two names would hide that relationship. The chip qualifier is the
 //! same argument the crate makes and is not repeated here. calef has not ratified it; see the
@@ -117,7 +117,7 @@
 
 use abi::rendezvous;
 use entropy_proto as proto;
-use jh7110_trng::{
+use jh7110_entropy_source::{
     CTRL_EXEC_RANDRESEED, CTRL_GENE_RANDNUM, ISTAT_ALL, ISTAT_RAND_RDY, ISTAT_SEED_DONE, MODE_R256,
     Outcome, Pool, interpret,
 };
@@ -128,15 +128,15 @@ use user_rt::{recv_cap, reply, send};
 
 register_structs! {
     /// The JH7110 TRNG's register block, migrated onto `tock_registers` (milestone 139 round 5):
-    /// offsets transcribed from `jh7110_trng::regs` (itself transcribed from the Linux driver, see
-    /// `crates/jh7110_trng`'s module doc), now checked at compile time instead of asserted by a
+    /// offsets transcribed from `jh7110_entropy_source::regs` (itself transcribed from the Linux driver, see
+    /// `crates/jh7110_entropy_source`'s module doc), now checked at compile time instead of asserted by a
     /// hand-written comment. Unlike the NS16550 (`kernel/src/drivers/ns16550.rs`'s own module
     /// doc), this device's layout has no runtime-variable stride or width: [binding] gives one
     /// `reg` window (`reg = <0x1600C000 0x4000>`) with no `reg-shift`/`reg-io-width` knob, so there
     /// is nothing here `register_structs!`'s compile-time-fixed layout cannot express. Only the
     /// registers this driver touches are named (`CTRL`, `STAT`, `ISTAT`, `RAND0..RAND7`); `MODE`,
     /// `SMODE`, `IE`, `AUTO_RQSTS` and `AUTO_AGE` are reserved padding here, the same "not
-    /// otherwise used" status `jh7110_trng::regs`'s own doc gives several of them.
+    /// otherwise used" status `jh7110_entropy_source::regs`'s own doc gives several of them.
     ///
     /// [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
     #[allow(non_snake_case)]
@@ -144,12 +144,12 @@ register_structs! {
         (0x00 => CTRL: WriteOnly<u32>),
         // `STAT` is read on **every** poll now, not only for the bring-up diagnostic: it carries
         // `SEEDED`, which is what says a latched `RAND_RDY` is an answer rather than a leftover.
-        // See `jh7110_trng::Outcome::Unseeded`.
+        // See `jh7110_entropy_source::Outcome::Unseeded`.
         (0x04 => STAT: ReadOnly<u32>),
         (0x08 => MODE: ReadWrite<u32>),
         (0x0c => _reserved_smode),
         (0x10 => IE: ReadWrite<u32>),
-        // **Write-1-to-clear**, per the TRM's own register map (see `jh7110_trng::regs::ISTAT`).
+        // **Write-1-to-clear**, per the TRM's own register map (see `jh7110_entropy_source::regs::ISTAT`).
         // It was `ReadOnly` here while how to acknowledge a bit was unknown, and that is exactly
         // the bug: `RAND_RDY` latches, so a driver that never writes this register sees every
         // generation after the first complete instantly.
@@ -215,14 +215,14 @@ fn rand_words() -> [u32; 8] {
     ]
 }
 
-/// **Acknowledge `ISTAT` bits.** The register is write-1-to-clear (`jh7110_trng::regs::ISTAT`),
+/// **Acknowledge `ISTAT` bits.** The register is write-1-to-clear (`jh7110_entropy_source::regs::ISTAT`),
 /// so writing a mask back clears exactly the bits in it and leaves the rest standing.
 fn ack(bits: u32) {
     regs().ISTAT.set(bits);
 }
 
 /// **Put the block in a known state before asking it for anything** (milestone 159), the sequence
-/// all three drivers `jh7110_trng`'s module doc cites agree on. Each step is there because a
+/// all three drivers `jh7110_entropy_source`'s module doc cites agree on. Each step is there because a
 /// reset value nobody documented is not something to rely on:
 ///
 /// 1. `AUTO_AGE` and `AUTO_RQSTS` to zero, which is how the TRM says the two reseed-reminder
@@ -249,8 +249,8 @@ fn init() -> u32 {
 }
 
 /// Force a reseed and wait (bounded) for `ISTAT.SEED_DONE`, acknowledging it. Called once at
-/// bring-up, mirroring the init sequence in `jh7110_trng`'s module doc, and again whenever
-/// [`generate`] sees [`jh7110_trng::Outcome::Lockup`] or [`jh7110_trng::Outcome::Unseeded`].
+/// bring-up, mirroring the init sequence in `jh7110_entropy_source`'s module doc, and again whenever
+/// [`generate`] sees [`jh7110_entropy_source::Outcome::Lockup`] or [`jh7110_entropy_source::Outcome::Unseeded`].
 /// `false` on a bound-out: the caller decides what that means.
 ///
 /// **The acknowledgement is the part that was missing.** `SEED_DONE` is latched, so an unacked one
@@ -383,12 +383,12 @@ fn serve(mut pool: Pool, refuse: bool) -> ! {
     }
 }
 
-/// **The two 8s are the same 8.** `jh7110_trng::Pool::take` clamps to the width of the word it
+/// **The two 8s are the same 8.** `jh7110_entropy_source::Pool::take` clamps to the width of the word it
 /// answers with; `entropy_proto::want` clamps to the width of the word the wire carries. This file
 /// is the only one that depends on both, so it is where the agreement can be checked, and a
 /// compile-time assert is the rung this project reaches for when a fact can be made unrepresentable
 /// rather than remembered.
-const _: () = assert!(jh7110_trng::WORD_BYTES == proto::MAX_BYTES);
+const _: () = assert!(jh7110_entropy_source::WORD_BYTES == proto::MAX_BYTES);
 
 user_rt::panic_handler!();
 

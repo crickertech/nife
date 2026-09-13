@@ -338,8 +338,8 @@ bench = false
 # describes the device, which on every machine CI boots it does not. It ran on radon for the first
 # time on 2026-09-04. Name: PROVISIONAL, matching the crate it is the volatile shell over.
 [[bin]]
-name = "jh7110_trng"
-path = "src/jh7110_trng.rs"
+name = "jh7110_entropy_source"
+path = "src/jh7110_entropy_source.rs"
 test = false
 bench = false
 
@@ -539,8 +539,8 @@ uptime = { version = "0.1.0", path = "../crates/uptime" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # The JH7110 TRNG's register logic, DTB discovery and byte pool (milestone 159), host-tested in
-# the crate itself; jh7110_trng.rs is the volatile shell of register writes over it.
-jh7110_trng = { version = "0.1.0", path = "../crates/jh7110_trng" }
+# the crate itself; jh7110_entropy_source.rs is the volatile shell of register writes over it.
+jh7110_entropy_source = { version = "0.1.0", path = "../crates/jh7110_entropy_source" }
 # login's own measured-boot consultation before it will build a caretaker from an archive entry
 # (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
@@ -567,7 +567,7 @@ user_rt = { version = "0.1.0", path = "../crates/user_rt" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # The register-block idiom milestone 139 round 5 brought to `user` (calef, 2026-08-24, "take the
 # dependency for user"): compile-time-checked device register layouts for the fixed-layout blocks
-# console.rs's and input.rs's PL011 half and jh7110_trng.rs use, matching
+# console.rs's and input.rs's PL011 half and jh7110_entropy_source.rs use, matching
 # kernel/src/drivers/pl011.rs's own idiom for the identical hardware. Pinned to the same version as
 # kernel/Cargo.toml's own dependency so the two crates using this library never skew.
 tock-registers = "0.10"

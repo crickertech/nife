@@ -6,8 +6,8 @@ tree that turns a device *on* and deliberately did not add its inverse.
 **Gate: DECISION.** The mechanism is small; who is allowed to hold it is calef's, because the
 answer decides whether a capability variant appears on the syscall surface (§10, §16).
 
-**What the work is.** `crates/jh7110_crg` can enable a clock and release a reset. It cannot gate a
-clock or assert a reset, and `kernel/src/drivers/jh7110_crg.rs` offers no teardown at all. So a
+**What the work is.** `crates/jh7110_clock_and_reset` can enable a clock and release a reset. It cannot gate a
+clock or assert a reset, and `kernel/src/drivers/jh7110_clock_and_reset.rs` offers no teardown at all. So a
 driver process that exits, faults, or is revoked leaves its device clocked and running forever, and
 nothing in the system can reclaim that. On a board with one TRNG this costs nothing measurable. On
 the same `SoC`'s USB, PCIe and DMA blocks it is the whole of device power management.

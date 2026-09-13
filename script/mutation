@@ -15,6 +15,11 @@
 #   script/mutation --report [DIR...]      per-crate table from finished run output, vs the baseline
 #   script/mutation --save-baseline [DIR...]  rewrite .cargo/mutants-baseline.txt from run output
 #
+# Each mutant's test binary runs under a memory ceiling (milestone 277), because cargo-mutants
+# bounds a mutant on time and the failure that kills this sweep is an allocation.
+# MUTATION_MEMORY_LIMIT_KB raises, lowers or (at 0) removes it; scripts/memory-bounded-runner.sh is
+# the mechanism and the argument.
+#
 # **A report, not a gate**, deliberately (roadmap 85): the full run costs hours, and a survivor is a
 # worklist entry rather than a defect in the commit that happened to trigger the run. So survivors
 # and timeouts exit 0 here, loudly; only a broken run (unmutated tree failing its own tests, tool
@@ -149,12 +154,49 @@ fi
 # 2 x NCPUS bursts from what claims to be a two-job run. Four threads per job keeps the whole run
 # inside roughly the core budget -j 2 implies. It costs wall clock on the heavy suites and that is
 # the accepted trade; raise it only on a box this run has to itself.
+#
+# **A memory bound per mutant, because cargo-mutants only has a clock** (milestone 277). Its
+# complete set of limits in 27.1.0 is `--timeout`, `--build-timeout`, their two multipliers and
+# `--minimum-test-timeout`; there is no memory option to reach for, checked rather than assumed.
+# The weekly sweep has never produced a full report and the reason is not the clock: one mutant
+# went 1.4 GB to 15.8 GB in twenty seconds and took the runner agent with it, well inside the
+# 28-to-51-second auto timeout, which therefore never fired. A mutant that turns a bound into an
+# unbounded allocation is a hang no clock gets to notice.
+#
+# cargo runs each test binary through `target.<triple>.runner`, which is the only point in this
+# pipeline that sees exactly one test binary and neither rustc nor the other job's binary, so it is
+# the one place a PER-MUTANT bound can live. Setting it here rather than in .cargo/config.toml is
+# deliberate: that file would bound every host `cargo test` in the tree, and this is a property of a
+# mutation run rather than of the tree. MUTATION_MEMORY_LIMIT_KB tunes or disables it; the ceiling,
+# what it costs, and why macOS is opt-out are in the runner's own header.
+runner_var="CARGO_TARGET_$(rustc -vV | awk '/^host:/ {print toupper($2)}' | tr - _)_RUNNER"
+export "$runner_var=$(pwd)/scripts/memory-bounded-runner.sh"
+
+# Say once per RUN what the runner would otherwise have to say once per test binary, which at
+# ~9,900 mutants is not a notice but a flood. The macOS default is no ceiling (the runner's BUGS
+# section has the reason: XNU enforces RLIMIT_AS, but nobody has measured what number is safe
+# there), and an unbounded run that looks identical to a bounded one is the thing this milestone
+# exists to stop being true.
+if [ "$(uname -s)" = "Darwin" ] && [ "${MUTATION_MEMORY_LIMIT_KB:-0}" = "0" ]; then
+    echo "==> no per-mutant memory ceiling on macOS (default); a runaway mutant can still take the" >&2
+    echo "    machine. Set MUTATION_MEMORY_LIMIT_KB to bound it; see scripts/memory-bounded-runner.sh" >&2
+fi
+
 rc=0
 cargo mutants --workspace -j 2 "$@" -- -- --test-threads=4 || rc=$?
 case "$rc" in
     0) echo "==> mutants: every mutant caught" ;;
     2|3) echo "==> mutants: survivors found (exit $rc); a report, not a gate. Triage per the note:" ;;
     *) echo "==> mutants: run FAILED (exit $rc): this is a broken run, not a survivor count" >&2
+       # Exit 4 is the unmutated tree failing its own tests, and since milestone 277 this script
+       # imposes a memory ceiling that could be the cause: an honest test binary that needs more
+       # address space than the ceiling allows fails exactly like a broken baseline. Name the
+       # suspect here rather than leaving the next reader to find the runner on their own.
+       if [ "$rc" = "4" ]; then
+           echo "==> the ceiling is a suspect: an honest test binary needing more address space than" >&2
+           echo "    MUTATION_MEMORY_LIMIT_KB allows fails exactly like a broken baseline. Raise it," >&2
+           echo "    or set it to 0 to run unbounded (scripts/memory-bounded-runner.sh)." >&2
+       fi
        exit "$rc" ;;
 esac
 

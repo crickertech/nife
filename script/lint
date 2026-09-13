@@ -2416,7 +2416,7 @@ PY
 # **A crate can carry proof harnesses and be proved by nothing, and the suite gets FASTER when it
 # happens.** `script/verify`'s own table comment records the first instance: `mdns_proto` landed
 # with milestone 55 carrying three harnesses, was never added to the crate list, and nothing said
-# so for three months. Milestone 193 found the second, `jh7110_trng`, the same way: by counting.
+# so for three months. Milestone 193 found the second, `jh7110_entropy_source`, the same way: by counting.
 #
 # Nothing in the tree could see either one. The `harness-crates` counted claim below is a
 # `count-at-least` floor measured against prose, and the shard packer's own partition assertion in

@@ -44,16 +44,17 @@ Whoever builds this should check whether milestone 39's two-way split still fits
 a third directory (`tools/`, or similar, not decided here) is honest about what's actually there,
 rather than forcing a fit.
 
-## Two names calef ruled on 2026-09-13, which this milestone performs
+## Three names calef ruled on 2026-09-13, which this milestone performs
 
 Working the unratified worklist, calef ruled the §24 interrupt pair. The rulings were recorded here
-before the rename was performed, because this milestone moves both files anyway and doing it twice is
+before the renames were performed, because this milestone moves both files anyway and doing it twice is
 the cost of doing it early.
 
 | Today | Becomes |
 |---|---|
 | `heeder` | `interrupt_heeder` |
 | `spinner` | `interrupt_ignorer` |
+| `worker` | `least_authority_demo` |
 
 **What was wrong with the old pair.** `heeder` never said what it heeds, and the answer, §24's
 cooperative interrupt flag, was not in the name. `spinner` did carry its meaning, being the field's
@@ -62,8 +63,22 @@ and one not. `interrupt_heeder`/`interrupt_spinner` was refused because the pref
 object for the first and not the second, since the spinner does not spin the interrupt, it spins
 despite it. `interrupt_ignorer` costs the borrowed word and buys a pair that parses the same way.
 
-**Both renames were performed on 2026-09-13** and both provenance blocks now read `ratified`. The
-measured sweep below is what the performing lane actually did.
+**`worker` was added to this list on the same day, and it settles a classification this milestone
+would otherwise have had to guess.** Its own provenance left the name open because the answer
+depended on whether the file is a fixture or the canonical minimal program, and three records
+(`notes/naming.md`, milestones 39 and 175) had it in a fixture list by repetition rather than by
+ruling. **calef ruled it the canonical minimal program**, so it goes to `components/` rather than
+`fixtures/`, and the name says what it demonstrates. `demo_square` was considered and refused: the
+file's own header says *"the squaring is arbitrary and the authority is the point"*, so naming it
+after the arithmetic drops the point, and `demo` is a generic word with no precedent in this tree.
+
+**`worker` has the same sweep hazard as `spinner`**, in a different place: 99 files match, and
+`crates/board_console`'s soak-census uses the English word ("where the kernel placed each worker at
+spawn"). Read those rather than sweeping them. `README.md`'s `worker 7` at the prompt is the command
+and does move.
+
+**All three renames were performed on 2026-09-13** and all three provenance blocks now read
+`ratified`. The measured sweeps below are what the performing lane actually did.
 
 **The sweep is the reason this waits, and it is measured.** `spinner` occurs **116 times and only
 about 41 are the program**. The rest are the English word, used throughout `kernel/src/sched.rs`'s

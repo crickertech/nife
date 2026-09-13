@@ -867,6 +867,38 @@ The match count is not the rename. Renaming `crates/manual`:
 List the true positives, read them, then edit. `git grep -l` over a narrowed pattern is the whole
 technique, and the cleverness is the hazard.
 
+### Renaming a crate is compiler-checked; renaming a program is not
+
+**This is the clause the other three do not cover, and it is a different error.** "Enumerate before
+sweeping" guards false *positives*: most matches are not the name. This guards false *negatives*, and
+the two want opposite habits. One says do not trust the match count; the other says the match count
+is not the whole set and nothing will tell you.
+
+Change `crates/manual` and `cargo check` finds every site missed. Change the program `doc` and the
+compiler is silent, because a program's name reaches the running system as a **string literal** in
+tables nothing type-checks.
+
+Where it hides, from the two renames that found it:
+
+| Site | Example |
+|---|---|
+| The shell's command table | `b"doc" => Some(Prog::Doc)` in `crates/grant_plan` |
+| ...and its reverse map | `Prog::Doc => "doc"` |
+| Archive tuples in `xtask` | `("doc", "doc")`, **once per architecture** |
+| A gate's expectation row | `("doc", &["name a file"])` |
+| `program(...)` lookups | `user::program("jh7110_trng")` in `kernel/src/main.rs` and the entropy tests |
+| `[[bin]]` name and path | `user/Cargo.toml` |
+| Shell command strings inside tests | `parse(b"heeder report.txt")` |
+| Fixture strings in other crates | `crates/timetable`'s `"every 5s heeder"` |
+
+**The evidence is one failure and one success, a commit apart.** Renaming `doc` to `mdr` left
+`grant_plan` still saying `doc`, so the shell could not spawn the binary and the archive did not hold
+what the gate looked for; `cargo check` passed and three CI jobs failed for that one cause. The
+`jh7110` rename the same day enumerated strings first, found all four sites, and pushed green.
+
+So: for a program, grep the **quoted** name as well as the identifier, and treat `cargo check`
+passing as no evidence at all.
+
 ### What is checked, and what is not
 
 `script/names --check` catches one member of this family: a name recorded as refused that is also

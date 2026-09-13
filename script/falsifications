@@ -77,7 +77,7 @@
 # both then grew harnesses and falsification records this script could not see. The package list now
 # comes from `cargo metadata`, which is where `script/lint`'s verify-table check already gets the
 # same fact, because a hand-maintained list is the same defect one iteration later: `script/verify`
-# has recorded that failure twice (`mdns_proto`, then `jh7110_trng`), and it is the invisible
+# has recorded that failure twice (`mdns_proto`, then `jh7110_entropy_source`), and it is the invisible
 # direction, since a suite whose scope is too small goes green FASTER.
 #
 # **The gate is presence, never `replayable`.** Nothing here fails a build because a harness has no
@@ -178,7 +178,7 @@ def metadata(no_deps):
     `xtask` are out of reach of the prover), and both carry harnesses the old walk could not see.
 
     Derived rather than listed, for the reason `script/verify`'s own table comment gives twice over:
-    `mdns_proto` and then `jh7110_trng` each carried harnesses nothing ran, and that failure is the
+    `mdns_proto` and then `jh7110_entropy_source` each carried harnesses nothing ran, and that failure is the
     invisible one, because the suite goes green FASTER when a scope is too small.
     """
     key = bool(no_deps)

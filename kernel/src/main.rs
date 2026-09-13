@@ -1319,9 +1319,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                     ),
                 }
             }
-            Some(device) => match user::program("jh7110_trng") {
+            Some(device) => match user::program("jh7110_entropy_source") {
                 None => println!(
-                    "  hw entropy  : JH7110 TRNG at {:#x}, but no 'jh7110_trng' in the initrd (run `cargo xtask initrd-riscv`)",
+                    "  hw entropy  : JH7110 TRNG at {:#x}, but no 'jh7110_entropy_source' in the initrd (run `cargo xtask initrd-riscv`)",
                     device.reg_base,
                 ),
                 Some(image) => {
@@ -1379,7 +1379,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                         } else {
                                             "NOT running: the enable bit did not read back, so nothing is behind this window"
                                         },
-                                        jh7110_crg::STGRST_SEC_AHB,
+                                        jh7110_clock_and_reset::STGRST_SEC_AHB,
                                         report.reset_assert_before,
                                         report.reset_assert_after,
                                         report.reset_status_after,
@@ -1481,7 +1481,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 // number 32 wearing a register's clothes. All zeros means the
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
-                                // a device that answered wrongly. See components/src/jh7110_trng.rs.
+                                // a device that answered wrongly. See user/src/jh7110_entropy_source.rs.
                                 // The tree's own two words about this node come with the failure,
                                 // not in a separate line, because they are what a bench session
                                 // reads next: an all-zero diagnostic on a node the firmware calls
@@ -1994,7 +1994,7 @@ fn bytes_per_second(bytes: u64, ticks: u64) -> u64 {
 fn mode_note(stat: u32) -> &'static str {
     if stat == 0 {
         "the whole status register read zero, so this says nothing about the mode"
-    } else if stat & jh7110_trng::STAT_R256 != 0 {
+    } else if stat & jh7110_entropy_source::STAT_R256 != 0 {
         "256-bit: all eight RAND words are the answer"
     } else {
         "128-BIT: only RAND0..3 are the answer, so 16 of every 32 bytes are not device output"

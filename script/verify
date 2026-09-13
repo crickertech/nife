@@ -231,7 +231,7 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 # underestimate; replace it from the first CI run that includes it.
 #
 # **It happened a second time, and the fix is a gate rather than another paragraph** (milestone 193,
-# 2026-08-30). `jh7110_trng` had carried three harnesses since the board work and appeared nowhere in
+# 2026-08-30). `jh7110_entropy_source` had carried three harnesses since the board work and appeared nowhere in
 # this file; the three pass, and now they run. Nothing in the tree could have found either it or
 # `mdns_proto`, because the packer's partition assertion below checks that the shards cover this
 # TABLE and never that this table covers the TREE. `script/lint`'s "every crate with proof harnesses
@@ -274,7 +274,7 @@ credential_proto	4	no request word reads outside the page; nothing but MATCH aut
 mdns_proto	21	the name decoder terminates and stays in bounds on every byte string
 component_plan	10	no wiring grants a right its declaration did not ask for
 timetable	5	the scheduler's fire arithmetic: strictly forward, minimal, and a stall costs one fire
-jh7110_trng	6	the board TRNG's status decode, and that a lockup bit is never overridden
+jh7110_entropy_source	6	the board TRNG's status decode, and that a lockup bit is never overridden
 kernel	5	the run arithmetic in the kernel's own syscall dispatch, and the SMMU entries that say which frames a device may reach
 components	3	the EL0 components: a bounded append that a configuration page this system did not write feeds
 TABLE
@@ -361,7 +361,7 @@ for c in $crates; do
         # So the binaries are SELECTED, and the selection is **derived from the tree** rather than
         # written here. A list would be one name short the first time somebody adds a harness to a
         # 69th program, and that failure is the invisible one this file has now recorded twice
-        # (`mdns_proto`, `jh7110_trng`): the suite goes green faster and nothing says a harness
+        # (`mdns_proto`, `jh7110_entropy_source`): the suite goes green faster and nothing says a harness
         # stopped running. `script/lint` catches a whole crate missing from the table above; only
         # this can catch a binary missing from within one.
         #

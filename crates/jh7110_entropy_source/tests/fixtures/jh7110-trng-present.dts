@@ -18,14 +18,14 @@
  * One address cell and one size cell, matching the binding's own example literally (`reg` is two
  * raw numbers, not four): this is a peripheral-bus-scoped fragment, not a dump of the whole SoC
  * tree (compare crates/machine_discovery/tests/fixtures/jh7110.dts, which is two address cells at
- * the root for the full memory map). The clock and reset phandles are dropped: jh7110_trng's
+ * the root for the full memory map). The clock and reset phandles are dropped: jh7110_entropy_source's
  * `discover` reads `reg` and `interrupts` only, and a phandle to a `clk`/`reset` node this fixture
  * does not define would not parse.
  *
  * Regenerate with:
  *
- *     dtc -I dts -O dtb -o crates/jh7110_trng/tests/fixtures/jh7110-trng-present.dtb \
- *                          crates/jh7110_trng/tests/fixtures/jh7110-trng-present.dts
+ *     dtc -I dts -O dtb -o crates/jh7110_entropy_source/tests/fixtures/jh7110-trng-present.dtb \
+ *                          crates/jh7110_entropy_source/tests/fixtures/jh7110-trng-present.dts
  */
 
 / {
