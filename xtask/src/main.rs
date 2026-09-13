@@ -4674,7 +4674,7 @@ fn mkfs_elf(triple: &str) -> String {
 /// So a bundle names paths that already exist, and the store is a build artifact. A page that has
 /// moved fails the build rather than shipping stale.
 const DOC_BUNDLES: &[(&str, &[&str])] = &[
-    ("manual", &["notes/manual.md"]),
+    ("manual", &["notes/documentation.md"]),
     ("swish", &["notes/pipes.md", "notes/line-discipline.md"]),
     // **`notes/capabilities.md` is here because of milestone 117 rather than because of symmetry.**
     // Three stranger runs found it unreachable by following the tree, and it is the page that
@@ -4695,16 +4695,16 @@ const DOC_BUNDLES: &[(&str, &[&str])] = &[
 
 /// Where the store is staged on the host before it is imported into the filesystem image.
 ///
-/// The last component is [`manual::index::STORE_DIR`] rather than the literal `doc`, because the
+/// The last component is [`documentation::index::STORE_DIR`] rather than the literal `doc`, because the
 /// guest opens that name and this writes it: it is a thing two programs agree on, so it is a
 /// constant in the crate they share.
 fn doc_store_path() -> std::path::PathBuf {
     workspace_root()
         .join("target/redoxfs-tree")
-        .join(manual::index::STORE_DIR)
+        .join(documentation::index::STORE_DIR)
 }
 
-/// What one bundle cost, so the numbers in notes/manual.md are measured rather than estimated.
+/// What one bundle cost, so the numbers in notes/documentation.md are measured rather than estimated.
 struct Shard {
     bundle: &'static str,
     pages: usize,
@@ -4755,22 +4755,22 @@ fn doc_store() -> Option<Vec<Shard>> {
                 eprintln!("doc-store: cannot write {base}");
                 return None;
             }
-            let title = manual::index::title_of(&bytes).unwrap_or(base).to_string();
+            let title = documentation::index::title_of(&bytes).unwrap_or(base).to_string();
             loaded.push(((*page).to_string(), title, bytes));
         }
 
-        let sources: Vec<manual::index::Source<'_>> = loaded
+        let sources: Vec<documentation::index::Source<'_>> = loaded
             .iter()
-            .map(|(path, title, bytes)| manual::index::Source {
+            .map(|(path, title, bytes)| documentation::index::Source {
                 path,
                 title,
                 text: bytes,
             })
             .collect();
-        let index = manual::index::build(&sources);
-        let header = manual::index::Header::parse(&index[..manual::index::PAGE]).ok()?;
-        if std::fs::write(dir.join(manual::index::SHARD), &index).is_err() {
-            eprintln!("doc-store: cannot write {bundle}/{}", manual::index::SHARD);
+        let index = documentation::index::build(&sources);
+        let header = documentation::index::Header::parse(&index[..documentation::index::PAGE]).ok()?;
+        if std::fs::write(dir.join(documentation::index::SHARD), &index).is_err() {
+            eprintln!("doc-store: cannot write {bundle}/{}", documentation::index::SHARD);
             return None;
         }
         shards.push(Shard {
@@ -4788,8 +4788,8 @@ fn doc_store() -> Option<Vec<Shard>> {
     // The manifest a reader (and, when it exists, a guest-side `apropos`) uses to find the shards.
     // A file rather than a directory listing, because **there is no directory iteration in this
     // system** and adding one would be adding authority: a program that can list a directory can
-    // discover what it was not given. See notes/manual.md.
-    if std::fs::write(root.join(manual::index::MANIFEST), names).is_err() {
+    // discover what it was not given. See notes/documentation.md.
+    if std::fs::write(root.join(documentation::index::MANIFEST), names).is_err() {
         eprintln!("doc-store: cannot write the bundle manifest");
         return None;
     }
@@ -4800,7 +4800,7 @@ fn doc_store() -> Option<Vec<Shard>> {
 ///
 /// The query at the end is not a demo. It is the only thing that proves the reader and the writer
 /// agree, and it runs the **same** `no_std` lookup the guest runs, over the same bytes, through the
-/// same one-page-at-a-time [`manual::index::Pages`] interface. Only the IO differs.
+/// same one-page-at-a-time [`documentation::index::Pages`] interface. Only the IO differs.
 fn manual_store(term: Option<String>) -> bool {
     let Some(shards) = doc_store() else {
         return false;
@@ -4816,7 +4816,7 @@ fn manual_store(term: Option<String>) -> bool {
         // A lookup is a binary search over index PAGES, so its cost is the log of how many pages the
         // term table occupies, plus the one read that finishes inside a page. This is the number the
         // layout exists to keep small, so it is the number the build prints.
-        let per = manual::index::PAGE / manual::index::TERM_REC;
+        let per = documentation::index::PAGE / documentation::index::TERM_REC;
         let term_pages = s.terms.div_ceil(per).max(1) as u64;
         let probes = 64 - (term_pages - 1).leading_zeros().min(63) + 1;
         println!(
@@ -4839,23 +4839,23 @@ fn manual_store(term: Option<String>) -> bool {
     // that is what the guest reads and the whole value of this query is that it takes the guest's
     // path. A store whose manifest disagreed with the table would answer differently at the prompt
     // than it does here, and this is where that would show.
-    let Ok(manifest) = std::fs::read(doc_store_path().join(manual::index::MANIFEST)) else {
+    let Ok(manifest) = std::fs::read(doc_store_path().join(documentation::index::MANIFEST)) else {
         eprintln!("doc-store: the bundle manifest is not there");
         return false;
     };
-    let mut ranked = manual::index::Ranked::new();
+    let mut ranked = documentation::index::Ranked::new();
     let mut bad = Vec::new();
-    manual::index::bundles(&manifest, |bundle| {
+    documentation::index::bundles(&manifest, |bundle| {
         let name = String::from_utf8_lossy(bundle).to_string();
-        let Ok(bytes) = std::fs::read(doc_store_path().join(&name).join(manual::index::SHARD))
+        let Ok(bytes) = std::fs::read(doc_store_path().join(&name).join(documentation::index::SHARD))
         else {
             bad.push(format!("{name}: no shard"));
             return;
         };
-        if let Err(e) = manual::index::search(
+        if let Err(e) = documentation::index::search(
             bundle,
             term.as_bytes(),
-            &mut manual::index::Slice(&bytes),
+            &mut documentation::index::Slice(&bytes),
             &mut ranked,
         ) {
             bad.push(format!("{name}: {e:?}"));
@@ -5659,7 +5659,7 @@ fn workspace_root() -> std::path::PathBuf {
     // cached xtask built before the checkout moved (the 2026-08-15 cricker-os -> nife rename)
     // then aims every path it computes, the farm, the initrds, the images, at a directory that
     // no longer exists. Cargo sets the variable at run time for every cargo-invoked binary, and
-    // that one is always the live path. The render test in crates/manual had the same bug the
+    // that one is always the live path. The render test in crates/documentation had the same bug the
     // same day; if a third place grows this pattern, it is worth a lint.
     let manifest =
         std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR for xtask");
@@ -6670,7 +6670,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // **And the line a person actually wants now renders**, which is milestone 40's whole
     // remaining phase (DECISIONS §106, 2026-08-22). `doc gate.txt` alone used to make this shell
     // both the writer and the reader of one line, refused rather than hung, because it has one
-    // wait point; see `grant_plan::check_chain` and notes/manual.md for the refusal this replaced.
+    // wait point; see `grant_plan::check_chain` and notes/documentation.md for the refusal this replaced.
     // Now the render defaults to `terminal_sink_caretaker` instead of this shell's own result
     // endpoint, so there is no second reader for the shell to wait behind and the page appears at
     // the prompt with no `| wc` in front of it. The text is the same paragraph `doc gate.txt | wc`
@@ -6703,7 +6703,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
         &["doc/swish/pipes.md", "doc/kernel/ipc-naming.md"],
     ),
     // The negative control, and the word is chosen to appear in **no bundled page**. See
-    // notes/manual.md's BUGS for why this one cannot be written into the note that documents it:
+    // notes/documentation.md's BUGS for why this one cannot be written into the note that documents it:
     // that note is itself in the store, so a word written there is a word the store then says.
     (
         "apropos photosynthesis",
@@ -8842,14 +8842,14 @@ fn run(program: &str, args: &[&str]) -> bool {
 /// is six pages, because that is where a *guest* can search. A person with a checkout is not a
 /// guest and has no such limit, so this points the same code at all of it.
 ///
-/// **It is deliberately not a second implementation.** `manual::index::build` writes these shards
-/// and `manual::index::search` reads them, exactly as `cargo xtask manual` and the guest's
+/// **It is deliberately not a second implementation.** `documentation::index::build` writes these shards
+/// and `documentation::index::search` reads them, exactly as `cargo xtask manual` and the guest's
 /// `apropos` builtin do, so a defect in the layout shows up in both places and a fix lands in both.
 /// What differs is the corpus and what a result names: a guest result names a page in the store it
 /// can open, and a result here names a **path in this repository**, because that is what a person
 /// with a checkout opens.
 ///
-/// See notes/manual.md.
+/// See notes/documentation.md.
 fn tree_apropos(term: Option<String>) -> bool {
     let Some(term) = term else {
         eprintln!("usage: script/apropos <word>");
@@ -8864,7 +8864,7 @@ fn tree_apropos(term: Option<String>) -> bool {
         return false;
     }
 
-    let mut ranked = manual::index::Ranked::new();
+    let mut ranked = documentation::index::Ranked::new();
     let mut pages = 0usize;
     let mut bytes = 0usize;
     let mut long = Vec::new();
@@ -8874,24 +8874,24 @@ fn tree_apropos(term: Option<String>) -> bool {
         // A path the record cannot hold is reported rather than silently shortened, because the
         // path is the whole answer here: a result a reader cannot open is worse than no result.
         for d in &shelf.docs {
-            if d.path.len() > manual::index::PATH_MAX {
+            if d.path.len() > documentation::index::PATH_MAX {
                 long.push(d.path.clone());
             }
         }
-        let sources: Vec<manual::index::Source<'_>> = shelf
+        let sources: Vec<documentation::index::Source<'_>> = shelf
             .docs
             .iter()
-            .map(|d| manual::index::Source {
+            .map(|d| documentation::index::Source {
                 path: &d.path,
                 title: &d.title,
                 text: &d.text,
             })
             .collect();
-        let shard = manual::index::build(&sources);
-        if let Err(e) = manual::index::search(
+        let shard = documentation::index::build(&sources);
+        if let Err(e) = documentation::index::search(
             shelf.name.as_bytes(),
             term.as_bytes(),
-            &mut manual::index::Slice(&shard),
+            &mut documentation::index::Slice(&shard),
             &mut ranked,
         ) {
             eprintln!("apropos: {}: {e:?}", shelf.name);
@@ -8928,7 +8928,7 @@ fn tree_apropos(term: Option<String>) -> bool {
         eprintln!(
             "apropos: {p} is longer than the {} bytes a page record holds, so its result would be \
              truncated",
-            manual::index::PATH_MAX
+            documentation::index::PATH_MAX
         );
     }
     long.is_empty()
@@ -9022,7 +9022,7 @@ fn collect_markdown(
             continue;
         };
         let rel = rel.display().to_string();
-        let title = manual::index::title_of(&bytes)
+        let title = documentation::index::title_of(&bytes)
             .unwrap_or(&rel)
             .trim()
             .to_string();

@@ -892,18 +892,18 @@ struct Shard {
     handle: u64,
 }
 
-impl manual::index::Pages for Shard {
-    fn page(&mut self, index: u64, out: &mut [u8; manual::index::PAGE]) -> bool {
+impl documentation::index::Pages for Shard {
+    fn page(&mut self, index: u64, out: &mut [u8; documentation::index::PAGE]) -> bool {
         let got = call(
             self.dir,
-            fs::req(fs::READ, self.handle, manual::index::PAGE as u64),
-            index * manual::index::PAGE as u64,
+            fs::req(fs::READ, self.handle, documentation::index::PAGE as u64),
+            index * documentation::index::PAGE as u64,
         )
         .0 as i64;
         if got <= 0 {
             return false;
         }
-        let got = (got as usize).min(manual::index::PAGE);
+        let got = (got as usize).min(documentation::index::PAGE);
         get_page(got, &mut out[..]);
         // A short read is a page at the end of the file. The layout guarantees a record never
         // straddles a page, so the tail is padding and zeroing it is the truth rather than a
@@ -920,12 +920,12 @@ const MANIFEST_MAX: usize = 256;
 
 /// **The merge across shards**, in `.bss` rather than on the stack: it is about 2.4 KiB and this
 /// program's stack is twelve pages that several deeper paths already spend.
-static mut RANKED: manual::index::Ranked = manual::index::Ranked::new();
+static mut RANKED: documentation::index::Ranked = documentation::index::Ranked::new();
 
 /// **`apropos <word>`: name the installed pages that mention it.**
 ///
 /// A builtin, and `grant_plan::Command::Apropos` carries the argument for why. What is here is only
-/// the IO: open the store, read the manifest, and hand each shard to `manual::index::search`, which
+/// the IO: open the store, read the manifest, and hand each shard to `documentation::index::search`, which
 /// is the same function `cargo xtask manual <word>` runs on the host over the same bytes.
 ///
 /// **The store is opened from the root, not from the cwd**, because it is installed at the root of
@@ -935,7 +935,7 @@ static mut RANKED: manual::index::Ranked = manual::index::Ranked::new();
 /// **It grants nothing and spawns nothing.** What comes back is a list of names; opening one is a
 /// separate line the reader types, and *that* is where a capability moves.
 fn apropos(nav: &mut Nav, term: &[u8]) -> Say {
-    use manual::index;
+    use documentation::index;
 
     if nav.dir.is_none() {
         return Say::NoDirectory;

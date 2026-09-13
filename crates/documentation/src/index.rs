@@ -88,7 +88,7 @@ pub const MAGIC: [u8; 8] = *b"CRKRMAN1";
 /// that costs.
 ///
 /// **2 (2026-08-22): a page record grew a `tokens` field**, the page's total token count, spent
-/// out of the six bytes [`PAGE_REC`] already held spare (`notes/manual.md`'s "where this goes
+/// out of the six bytes [`PAGE_REC`] already held spare (`notes/documentation.md`'s "where this goes
 /// next" priced this at exactly one division and no format growth; it is four of the six). It is
 /// what lets ranking divide by document length instead of counting raw occurrences. A version-1
 /// shard has no such field, so the bump is real rather than ceremonial: every shard in the tree
@@ -499,7 +499,7 @@ pub const RESULTS_MAX: usize = 16;
 /// `count <= tokens` in the honest case and the ratio never exceeds [`SCORE_SCALE`] itself.
 const SCORE_SCALE: u64 = 1_000_000;
 
-/// **Term frequency over document length, the one division `notes/manual.md` priced this at.**
+/// **Term frequency over document length, the one division `notes/documentation.md` priced this at.**
 ///
 /// `page_tokens` is clamped to at least one so a term cannot score as infinitely dense on a page
 /// the builder recorded as empty (which should not happen, since a page contributing zero tokens
@@ -793,7 +793,7 @@ mod builder {
     /// # EXAMPLES
     ///
     /// ```
-    /// use manual::index;
+    /// use documentation::index;
     ///
     /// let bytes = index::build(&[
     ///     index::Source { path: "notes/glob.md", title: "Globbing", text: b"a pattern and a name" },
@@ -1170,7 +1170,7 @@ mod tests {
     #[cfg(feature = "builder")]
     #[test]
     fn ranking_divides_by_page_length() {
-        // The property `notes/manual.md`'s "where this goes next" named and priced: a short page
+        // The property `notes/documentation.md`'s "where this goes next" named and priced: a short page
         // where a term is dense outranks a long page where the same term is only mentioned in
         // passing, even though the long page's raw occurrence count is higher.
         let short = build(&[Source {

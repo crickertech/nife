@@ -19,15 +19,15 @@
 # This is the thing to type. It is also why the crate and program headers are indexed: the document
 # a reader wants about `abi` *is* that file's header, and no markdown page was ever going to fix it.
 #
-# It is the same index and the same reader as the guest's, on purpose (`manual::index::build` and
-# `manual::index::search`), so a defect in the layout shows up in both places and a fix lands in
+# It is the same index and the same reader as the guest's, on purpose (`documentation::index::build` and
+# `documentation::index::search`), so a defect in the layout shows up in both places and a fix lands in
 # both. What differs is what a result names: at the nife prompt a result names a page in the store
 # you can open there, and here it names a path in this repository.
 #
 # BUGS
 #
 # - **Whole words only, and no stemming.** `syscall` and `syscalls` are two terms, so a search for
-#   one does not find the other. `manual::index::normalize` is what decides that and it is the
+#   one does not find the other. `documentation::index::normalize` is what decides that and it is the
 #   guest's tokeniser, which has to run with no allocator.
 # - **Underscores join and hyphens do not.** `apropos line_editor` works, because the builder writes
 #   the joined term as well as the halves; `apropos line-discipline` does not, because joining
@@ -35,9 +35,9 @@
 #   not searchable either: `notes/glob.md` folds to `notesglobmd`, which no page says.
 # - **One word per search.** There is no phrase query and no intersection of two terms.
 # - **Ranking is occurrence count and nothing else**, so a long page mentioning a word in passing
-#   can outrank a short page about it. See `crates/manual/src/index.rs`'s BUGS.
+#   can outrank a short page about it. See `crates/documentation/src/index.rs`'s BUGS.
 # - **Sixteen results, always**, because that is the guest reader's fixed table
-#   (`manual::index::RESULTS_MAX`) and this uses the guest reader. The line under the results says
+#   (`documentation::index::RESULTS_MAX`) and this uses the guest reader. The line under the results says
 #   how many pages matched in total.
 # - **It rebuilds the whole index on every run** (about a second). There is no cache, because a
 #   cache that can be stale is worse here than a second of work.

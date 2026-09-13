@@ -1149,15 +1149,15 @@ def _loom_hits():
 def _longest_markdown_line():
     """The longest line, in bytes, in this repository's own markdown.
 
-    Tracked .md files, vendor excluded, because that is the corpus `manual`'s renderer is sized
-    against. **This one has a consumer rather than only a reader**: `manual::render::LINE_MAX` is
+    Tracked .md files, vendor excluded, because that is the corpus `documentation`'s renderer is sized
+    against. **This one has a consumer rather than only a reader**: `documentation::render::LINE_MAX` is
     2048, chosen as the next power of two above this measurement, and a document that exceeds
     LINE_MAX is truncated. So the number is a safety margin, and letting it drift silently spends
     the margin.
 
     It is here because this gate's own author spent it. Documenting the counted-claims check in
     notes/scripts.md's `script/lint` row, which IS the longest line, took it to 2108 and broke a
-    `manual` render test whose message pointed three hundred lines away at unrelated text. Bytes
+    `documentation` render test whose message pointed three hundred lines away at unrelated text. Bytes
     rather than characters, matching what LINE_MAX bounds.
     """
     files = subprocess.run(['git', 'ls-files', '*.md', ':!vendor'],
@@ -1268,7 +1268,7 @@ def _notes_files():
 REGISTRY = {
     'longest-markdown-line': (
         "how long the repository's longest markdown line is, in bytes, which is what "
-        'manual::render::LINE_MAX is sized against',
+        'documentation::render::LINE_MAX is sized against',
         _longest_markdown_line,
     ),
     'kani-harnesses': (

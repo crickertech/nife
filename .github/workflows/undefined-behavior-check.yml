@@ -15,7 +15,7 @@
 # on the pinned toolchain.
 #
 # **Red from 2026-08-10 to 2026-09-03, and never once for undefined behaviour.**
-# `crates/manual/tests/render.rs` reads `CARGO_MANIFEST_DIR` at run time, deliberately (the
+# `crates/documentation/tests/render.rs` reads `CARGO_MANIFEST_DIR` at run time, deliberately (the
 # compile-time form bakes a stale absolute path), and Miri does not forward the environment by
 # default, so `every_character_survives` panicked with `cargo sets this for tests: NotPresent` and
 # the job exited 1. The same test passed under `cargo test` throughout. Found by milestone 232's
@@ -32,7 +32,7 @@
 # interpreter, still unfinished when it was killed**.
 #
 # So the test gates itself out under `cfg(miri)` instead, with the reasoning at the test rather than
-# here: `crates/manual` has no dependencies and no `unsafe`, the nineteen other tests in that file
+# here: `crates/documentation` has no dependencies and no `unsafe`, the nineteen other tests in that file
 # exercise the same renderer on in-memory input and do run under Miri, and what the corpus test adds
 # is breadth rather than any path Miri could judge. That is the same `cfg(miri)` sampling convention
 # `gpt`, `glob`, `calendar`, `credentialer` and `ntp_proto` already use, and "Miri-clean means the sampled

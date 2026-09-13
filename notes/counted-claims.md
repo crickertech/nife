@@ -60,7 +60,7 @@ answers, in the prose's own words**, and a derivation.
 | `kani-harnesses` | how many Kani proof harnesses the tree carries, which is what `script/verify` proves | `#[kani::proof…]` alone on its line, in any workspace package |
 | `harness-crates` | how many workspace packages carry at least one Kani proof harness | distinct packages among those files |
 | `sh-scripts` | how many `#!/bin/sh` scripts there are under `script/` and `scripts/`, which is the set shellcheck gates | files whose first line is exactly `#!/bin/sh` |
-| `longest-markdown-line` | how long the repository's longest markdown line is, in bytes, which is what `manual::render::LINE_MAX` is sized against | tracked `*.md`, vendor excluded |
+| `longest-markdown-line` | how long the repository's longest markdown line is, in bytes, which is what `documentation::render::LINE_MAX` is sized against | tracked `*.md`, vendor excluded |
 | `syscalls` | how many syscall numbers the ABI defines, which is the whole width of the trap | `pub const SYS_*: u64` in `crates/abi/src/lib.rs` |
 | `rights-bits` | how many named single-bit rights a capability can carry | `pub const NAME: Rights = Rights(1 << N)` in `crates/capability` |
 | `loom-harnesses` | how many loom harnesses the tree carries, which is what `script/interleaving-check` runs | `loom::model(` calls in `crates/**/*.rs` |
@@ -76,7 +76,7 @@ this note asked for by name: it cited `notes/interleaving.md` as the claim a mar
 reach, and measuring it in order to mark it found it wrong in both halves.
 
 **The `longest-markdown-line` entry is the one with a consumer rather than a reader**, and it is
-worth understanding before you add another. `manual::render::LINE_MAX` is 2048 because the longest markdown line is 1927 <!--count:longest-markdown-line-->,
+worth understanding before you add another. `documentation::render::LINE_MAX` is 2048 because the longest markdown line is 1927 <!--count:longest-markdown-line-->,
 and a document over `LINE_MAX` is truncated. So that number is a **margin**, and a lane that spends
 it silently makes the renderer wrong about a file nobody has written yet. Every other entry here
 describes the tree; this one guards it. If you can find another number in that class, it is worth
@@ -166,7 +166,7 @@ built. The row was added; the omission is recorded in `script/verify`'s comment 
 to edit that table will read it.
 
 Then, documenting this very check in `notes/scripts.md`'s `script/lint` table row, the addition took
-that row from 1835 bytes to 2108 and **overflowed `manual::render::LINE_MAX`**, which is 2048 because
+that row from 1835 bytes to 2108 and **overflowed `documentation::render::LINE_MAX`**, which is 2048 because
 1835 was the measurement it was sized against. The renderer truncated, and the failure arrived as a
 `manual` render test asserting that no character is dropped, quoting text three hundred lines further
 down the file. Nothing connected the two. `longest-markdown-line` is in the registry because of that

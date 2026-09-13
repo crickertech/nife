@@ -142,7 +142,7 @@ pub enum Prog {
     /// out, resolved by [`plan_against_with`] into a [`line::Source::File`]. See that function for
     /// why what the child holds is narrower than a per-file capability rather than the same thing.
     Wc,
-    /// **Render markdown for a terminal** (milestone 40, `user/src/doc.rs`, notes/manual.md).
+    /// **Render markdown for a terminal** (milestone 40, `user/src/mdr.rs`, notes/documentation.md).
     ///
     /// The same manifest as [`Prog::Wc`]: a stream in, a stream out, and nothing else. `doc
     /// notes/glob.md` reads like Unix's `man` and is not: the name is a designation the *shell*
@@ -525,7 +525,7 @@ impl Prog {
             // 50 added: `wc` absorbs the whole stream before it emits (`writes_while_reading:
             // false`), while `doc` renders as it reads and so writes while it is still reading. That
             // difference is not decoration. It is exactly why `doc` can deadlock a rendezvous
-            // pipeline where `wc` never does (notes/manual.md's BUGS section), and the planner can
+            // pipeline where `wc` never does (notes/documentation.md's BUGS section), and the planner can
             // only account for it if the manifest declares it. No memory grant, because the renderer
             // never allocates.
             Prog::Doc => Manifest {
