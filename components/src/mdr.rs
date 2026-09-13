@@ -23,13 +23,13 @@
 //! # It cannot name a page, and that is the demonstration
 //!
 //! A Unix `man` opens the file it prints, which means it can open any file its caller can. This one
-//! is handed bytes. `doc notes/glob.md` is the *shell* resolving that name against the directory
+//! is handed bytes. `mdr notes/glob.md` is the *shell* resolving that name against the directory
 //! capability it holds and streaming what it finds; nothing in this program's capability table names a file, a
 //! directory or the filesystem, and there is no message it can send to find out what it is reading.
 //!
 //! That is the same claim `wc` makes (notes/pipes.md) and it lands harder here, because a
 //! documentation viewer is exactly the program a reader would expect to go and fetch things. It
-//! does not. `doc < notes/glob.md`, `doc notes/glob.md` and `something | doc` are one behaviour
+//! does not. `mdr < notes/glob.md`, `mdr notes/glob.md` and `something | mdr` are one behaviour
 //! with three sources.
 //!
 //! # Capability contract
@@ -49,7 +49,7 @@
 //! negotiation. So it does not sniff the way `isatty` sniffs. It emits **plain text**, and the
 //! terminal-bound case is the shell's to arrange.
 //!
-//! **This is the honest half of a limitation, not a design win**: it means `doc notes/glob.md` at
+//! **This is the honest half of a limitation, not a design win**: it means `mdr notes/glob.md` at
 //! the prompt is currently monochrome even though the renderer can colour it, because the shell has
 //! no way to say "this stage ends at the terminal" in the spawn protocol. `BUGS` records it.
 //!
@@ -69,12 +69,12 @@
 //! And what a reader then types, with the one limitation `BUGS` explains under it:
 //!
 //! ```text
-//! $ doc gate.txt | wc
+//! $ mdr gate.txt | wc
 //!   1 4 26
-//! $ doc gate.txt
+//! $ mdr gate.txt
 //!   hello world hello world
-//! $ doc
-//!   doc: reads an input stream: name a file, redirect with '<', or pipe into it
+//! $ mdr
+//!   mdr: reads an input stream: name a file, redirect with '<', or pipe into it
 //! ```
 //!
 //! `gate.txt` is two lines, four words, twenty-four bytes; what comes back is one line, four words,
@@ -83,21 +83,21 @@
 //!
 //! # BUGS
 //!
-//! - **`doc <page>` on its own used to be refused at the prompt; DECISIONS §106 (2026-08-22)
+//! - **`mdr <page>` on its own used to be refused at the prompt; DECISIONS §106 (2026-08-22)
 //!   closed it and it now renders.** This entry described the refusal, and before that a
 //!   deadlock, for weeks after each stopped being true, which is the exact failure this section
 //!   exists to avoid: name the limitation where the reader meets the feature, not somewhere they
 //!   have to already know to look. The mechanism is `terminal_sink_caretaker`, the same sink
 //!   adapter a declared second stream already reached by default under DECISIONS §67, now the
-//!   default primary-output target for an unredirected tail stage too. `doc <page> > out.txt`
+//!   default primary-output target for an unredirected tail stage too. `mdr <page> > out.txt`
 //!   (the redirected shape, with nowhere for the shell to wait but itself) is still refused, and
 //!   still names the fix ('| wc' or similar). See notes/documentation.md's "Render a page at the prompt"
 //!   section and notes/pipes.md for the full mechanism and the fault-endpoint-reuse race it
 //!   accepts.
-//! - **`doc <page> | wc` and `doc <page> > out.txt` do deliver the named file.** They answered
+//! - **`mdr <page> | wc` and `mdr <page> > out.txt` do deliver the named file.** They answered
 //!   `0 0 0` when this program shipped, because a pipeline's head was wired off the `Line`, which
 //!   carries no `<`; the planner's input operand is what the shell reads now. `script/shell-check`
-//!   types `doc gate.txt | wc` on both architectures and asserts `1 4 26` against `gate.txt`'s
+//!   types `mdr gate.txt | wc` on both architectures and asserts `1 4 26` against `gate.txt`'s
 //!   `2 4 24`: two source lines re-flowed into one, plus two bytes of body indent, which is what
 //!   separates a rendered page from silence.
 //! - **No pager, and the reason is authority rather than effort.** Paging needs a keypress, a
