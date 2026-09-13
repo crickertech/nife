@@ -180,7 +180,7 @@ verdict. `script/cadence-check` now reports the dead cadence.
 survived, a uniform one-eighth sample across all 60 crates rather than the 38 host crates the 92.4%
 figure covers, so it is not a like-for-like reading and settles nothing on its own. Two crates carry
 most of the fall and neither is explained: `uefi_loader` at 15% and `manual` at 52%
-(`design/roadmap/proposals/the-two-unexplained-mutation-scores.md`). A third, `system_initializer`,
+(milestone 280, promoted out of the proposal queue 2026-09-13). A third, `system_initializer`,
 was measured and closed `RECORDED` by milestone 244 because its pure fraction is small.
 
 **So the repair is now tracked and the reading is not.** The runaway mutant is milestone 277, which
