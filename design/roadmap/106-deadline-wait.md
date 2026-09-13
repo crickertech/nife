@@ -84,6 +84,51 @@ elegance: **three problems, one addition**. This milestone adds a fourth, an `Ir
 deadline, and milestone 103 (the shell's interrupt watch) is the consumer that turns the third
 column's "the shell's `^C` poll" from a footnote into an owner.
 
+## The consumers, counted 2026-09-13, and one of them is not userspace
+
+This block was written against four consumers and the count is what every cost above was weighed
+against. It has grown while the block sat, and nobody was counting, so the list is written out here
+rather than left to the next person to re-derive.
+
+| consumer | what it does instead | where it says so |
+|---|---|---|
+| `net_stack`'s `wait_for_nic` | yields and re-polls across a retransmit window | `user/src/net_stack.rs:331`, and the section above |
+| `timetable` | "a process that wants to act at a time can only yield and re-read the counter" | `user/src/timetable.rs:73` |
+| `ntp` | one shot only, and a yield-spin between attempts | `user/src/ntp.rs:44`, `:188` |
+| `swish`'s interrupt watch | the `^C` poll, milestone 103's owner | milestone 103 |
+| **`soak.rs`'s supervisor** | **a kernel thread yielding in a loop** | `kernel/src/soak.rs:94` |
+| `watch` (retired) | burned a core for two seconds per refresh | cut 2026-09-13, its own `BUGS` |
+
+**`watch` earns a row although it no longer exists.** It was cut rather than fixed, and the busy-wait
+was part of why: a program deleted to avoid a workaround is evidence about the gap, not an absence of
+one.
+
+### The last row may be the trigger this block names, and that is calef's to rule
+
+This block's own words: *"§101's carve-out for a kernel timed wait names kernel needs (a watchdog, a
+scheduling deadline, an in-kernel retransmit) of which the tree has no instance... **So this block
+stays owed against a kernel-side consumer appearing**, and that trigger is the whole of what would
+reopen it."*
+
+`kernel/src/soak.rs`'s supervisor is a **kernel thread**, and its own `BUGS` says why it spins:
+*"It yields in a loop rather than blocking on a timer, because this kernel has no sleep-until
+primitive a kernel thread can use."* It is a watchdog in everything but name: it wakes on a cadence,
+reads the workers' counters, and fails the run when one stops moving.
+
+**A userspace timer service cannot serve it.** That is the whole point of the 2026-09-05 ruling's
+shape, and a kernel thread is on the wrong side of it.
+
+**Two things argue it is not the trigger, and both are honest rather than convenient.** It exists
+only in a `--features soak` build, so it is a test harness rather than a shipped kernel need. And its
+spin is priced and accepted in its own `BUGS` as load on the machine under test, which is *"not
+entirely a cost (it is one more thread contending)"*.
+
+**Recorded rather than decided.** Whether a soak-build watchdog counts as the kernel-side consumer
+that reopens the fork is exactly the kind of question this block says is calef's, and the block would
+be worth less if a maintainer answered it in passing. What changes today is that the question is
+written where the trigger is written, instead of living in one file's `BUGS` section that nothing
+connects to this one.
+
 ## What it costs, measured
 
 **The sentence this block used to carry was hand-waving, and it was wrong in three places.** It said:
