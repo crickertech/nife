@@ -40,7 +40,7 @@
 //! registration rather than run, and why the refusal names the timetable rather than the line.
 //! `timetable::SHIPPED_HELD` is the one fact that has widened since milestone 129's first stratum:
 //! this process now holds enough budget to back a `--mem` grant up to `SHIPPED_HELD.mem_pages`
-//! pages for a single entry, and `timetable.conf`'s `at-boot budgeter --mem 4` line is the proof.
+//! pages for a single entry, and `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` line is the proof.
 //!
 //! # The archive is narrowed to the plan, and this process says so
 //!
@@ -127,7 +127,7 @@
 //!   interval entry due during that window is not skipped, it simply runs late once the loop
 //!   resumes; several periods elapsing during a slow instance still produce one fire on resumption
 //!   (`next_after`'s ordinary skip-not-catch-up rule, not a special case for this path).
-//!   `timetable.conf`'s `at-boot budgeter --mem 4` fires before the first `every 150ms` tick can
+//!   `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` fires before the first `every 150ms` tick can
 //!   even become due, so this cost is not exercised by the cross-ISA test; a document whose
 //!   `--mem` entry shares the clock with a fast interval would pay it.
 //!

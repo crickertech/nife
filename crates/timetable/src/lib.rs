@@ -22,7 +22,7 @@
 //! | answer | what it means | example entry |
 //! |---|---|---|
 //! | [`Admission::Fires`] | planned, backed, and armed | `every 5s least_authority_demo 7` |
-//! | [`Admission::Refused`] | the program's own manifest refuses the line, exactly as at the prompt | `every 5s budgeter` (it exists to spend a budget and none was named) |
+//! | [`Admission::Refused`] | the program's own manifest refuses the line, exactly as at the prompt | `every 5s memory_grant_depleter` (it exists to spend a budget and none was named) |
 //! | [`Admission::Unbacked`] | the line is legal and **this scheduler holds nothing to back it** | `every 5s date` (a clock is a capability, and the scheduler has none) |
 //! | [`Error`] | the document itself does not parse, with the line number | `every fortnight least_authority_demo 7` |
 //!
@@ -38,8 +38,8 @@
 //!
 //! ```text
 //! # a comment
-//! every 200ms  `least_authority_demo` 7
-//! at-boot      `least_authority_demo` 3
+//! every 200ms  least_authority_demo 7
+//! at-boot      least_authority_demo 3
 //! ```
 //!
 //! Two schedule words, deliberately. `every <interval>` and `at-boot` are what milestone 129's
@@ -183,15 +183,15 @@ impl Error {
 /// # Examples
 ///
 /// ```
-/// let doc = timetable::parse("# housekeeping\nevery 30s  `least_authority_demo` 7\nat-boot  `least_authority_demo` 3\n")
+/// let doc = timetable::parse("# housekeeping\nevery 30s  least_authority_demo 7\nat-boot  least_authority_demo 3\n")
 ///     .expect("that document is well formed");
 /// assert_eq!(doc.entries().len(), 2);
 /// assert_eq!(doc.entries()[0].schedule, timetable::Schedule::Every(30 * timetable::NANOS_PER_SEC));
 /// assert_eq!(doc.entries()[1].schedule, timetable::Schedule::AtBoot);
-/// assert_eq!(doc.entries()[1].command, b"`least_authority_demo` 3");
+/// assert_eq!(doc.entries()[1].command, b"least_authority_demo 3");
 ///
 /// // A zero interval is refused rather than run, and the refusal names the line.
-/// let bad = timetable::parse("every 0s `least_authority_demo` 7\n").unwrap_err();
+/// let bad = timetable::parse("every 0s least_authority_demo 7\n").unwrap_err();
 /// assert_eq!(bad.line(), 1);
 /// assert_eq!(bad.message(), "a zero interval is a spin, not a schedule");
 /// ```
@@ -328,7 +328,7 @@ pub struct Held {
 /// `kernel/src/user/timetable_tests.rs` is the same idea applied to the archive; this is it applied
 /// to what the scheduler holds.
 ///
-/// Four pages: enough to admit one `at-boot budgeter --mem 4` line as this milestone's proof that a
+/// Four pages: enough to admit one `at-boot memory_grant_depleter --mem 4` line as this milestone's proof that a
 /// grant can be backed at all, and small on purpose. Nothing about the mechanism needs a bigger
 /// number; picking one only because it looks more impressive would be gold-plating a demonstration
 /// that already makes its point at four.
@@ -343,7 +343,7 @@ pub const SHIPPED_HELD: Held = Held {
 /// **An authority the entry's plan needs and this scheduler does not hold.**
 ///
 /// The distinction from [`Refusal`] is the whole point and it is not a shade of the same thing.
-/// A `Refusal` is a fact about **the line**: `budgeter` with no `--mem` is wrong wherever it is
+/// A `Refusal` is a fact about **the line**: `memory_grant_depleter` with no `--mem` is wrong wherever it is
 /// typed, and the fix is to edit the entry. An `Unbacked` is a fact about **the scheduler**: the
 /// line is exactly right and would run at a prompt, and the fix is to grant the scheduler something
 /// it was not granted. Collapsing the two would tell a person to edit a line that has nothing wrong
@@ -467,14 +467,14 @@ impl<'a> Registry<'a> {
     /// ```
     /// # use timetable::{Admission, Held, Registry, Unbacked};
     /// let doc = timetable::parse(
-    ///     "every 5s  `least_authority_demo` 7\n\
-    ///      every 5s  budgeter\n\
+    ///     "every 5s  least_authority_demo 7\n\
+    ///      every 5s  memory_grant_depleter\n\
     ///      every 5s  date\n",
     /// ).unwrap();
     /// let reg = Registry::register(&doc, Held::default());
     ///
     /// // Planned, and the endowment is the whole of what the child will hold.
-    /// let e = reg.rows()[0].endowment().expect("`least_authority_demo` 7 is a legal line");
+    /// let e = reg.rows()[0].endowment().expect("least_authority_demo 7 is a legal line");
     /// assert_eq!(e.arg, 7);
     /// assert_eq!(e.mem_pages, 0);
     ///
@@ -733,7 +733,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 ///
 /// ```
 /// # use timetable::{Held, Registry};
-/// let doc = timetable::parse("every 30s `least_authority_demo` 7\nevery 30s date\n").unwrap();
+/// let doc = timetable::parse("every 30s least_authority_demo 7\nevery 30s date\n").unwrap();
 /// let reg = Registry::register(&doc, Held::default());
 ///
 /// // A fixed buffer rather than a `String`, because this crate is `no_std` and the program that
@@ -745,7 +745,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 ///     n += b.len();
 /// });
 /// let plan = core::str::from_utf8(&buf[..n]).unwrap();
-/// assert!(plan.contains("every 30s     `least_authority_demo` 7"));
+/// assert!(plan.contains("every 30s     least_authority_demo 7"));
 /// assert!(plan.contains("this timetable holds no clock, so it cannot grant one"));
 /// ```
 pub fn write_plan(reg: &Registry<'_>, out: &mut dyn FnMut(&[u8])) {
@@ -876,19 +876,19 @@ fn write_grant(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
 ///
 /// ```
 /// # use timetable::{Audit, Held, Registry};
-/// let doc = timetable::parse("every 30s `least_authority_demo` 7\nevery 30s date\n").unwrap();
+/// let doc = timetable::parse("every 30s least_authority_demo 7\nevery 30s date\n").unwrap();
 /// let reg = Registry::register(&doc, Held::default());
 ///
 /// // Handed an archive holding exactly what the plan builds.
 /// let mut narrow = Audit::of(&reg);
-/// narrow.saw("`least_authority_demo`");
+/// narrow.saw("least_authority_demo");
 /// assert!(narrow.is_exact());
 /// assert_eq!(narrow.planned(), 1);
 ///
 /// // Handed the whole initrd. `date` is refused, so the plan never names it, and holding an
 /// // image of it is authority nothing in the document asked for.
 /// let mut wide = Audit::of(&reg);
-/// for name in ["`least_authority_demo`", "date", "swish", "budgeter"] {
+/// for name in ["least_authority_demo", "date", "swish", "memory_grant_depleter"] {
 ///     wide.saw(name);
 /// }
 /// assert!(!wide.is_exact());
@@ -1104,7 +1104,7 @@ mod tests {
     fn registration_gives_four_distinguishable_answers() {
         let doc = parse(
             "every 5s least_authority_demo 7\n\
-             every 5s budgeter\n\
+             every 5s memory_grant_depleter\n\
              every 5s date\n\
              every 5s wc\n\
              every 5s ps\n\
@@ -1156,7 +1156,7 @@ mod tests {
     /// different thing from `Refusal` rather than a shade of it.
     #[test]
     fn what_the_scheduler_holds_decides_what_it_can_schedule() {
-        let doc = parse("every 5s date\nevery 5s budgeter --mem 4\n").unwrap();
+        let doc = parse("every 5s date\nevery 5s memory_grant_depleter --mem 4\n").unwrap();
 
         let bare = Registry::register(&doc, Held::default());
         assert_eq!(
@@ -1178,12 +1178,12 @@ mod tests {
         );
         assert!(matches!(endowed.rows()[0].admission, Admission::Fires(_)));
         let e = endowed.rows()[1].endowment().unwrap();
-        assert_eq!(e.prog, Prog::Budgeter);
+        assert_eq!(e.prog, Prog::MemoryGrantDepleter);
         assert_eq!(e.mem_pages, 4);
 
-        // And the ceiling is the scheduler's, not the manifest's: `budgeter` declares 1..=64 pages,
+        // And the ceiling is the scheduler's, not the manifest's: `memory_grant_depleter` declares 1..=64 pages,
         // so 8 is a legal line and still more than a scheduler holding 4 can back.
-        let doc = parse("every 5s budgeter --mem 8\n").unwrap();
+        let doc = parse("every 5s memory_grant_depleter --mem 8\n").unwrap();
         let tight = Registry::register(
             &doc,
             Held {
@@ -1221,7 +1221,7 @@ mod tests {
 
     #[test]
     fn a_refused_entry_is_never_due_however_long_you_wait() {
-        let doc = parse("every 1ms date\nevery 1ms budgeter\n").unwrap();
+        let doc = parse("every 1ms date\nevery 1ms memory_grant_depleter\n").unwrap();
         let mut reg = Registry::register(&doc, Held::default());
         reg.arm(0);
         for t in 0..1_000 {
@@ -1289,7 +1289,7 @@ mod tests {
     fn the_plan_is_printable_before_anything_fires() {
         let doc = parse(
             "every 30s least_authority_demo 7\n\
-             at-boot budgeter --mem 4\n\
+             at-boot memory_grant_depleter --mem 4\n\
              every 1m date\n",
         )
         .unwrap();
@@ -1364,7 +1364,7 @@ mod tests {
     /// reaches nothing beyond the plan, one for the whole initrd.
     ///
     /// **This test is also the mechanism behind a written list in another file**, which is why the
-    /// first assertion names `least_authority_demo` and `budgeter` rather than counting to two.
+    /// first assertion names `least_authority_demo` and `memory_grant_depleter` rather than counting to two.
     /// `kernel/src/user/timetable_tests.rs` builds the narrowed archive from a `PLANNED_PROGRAMS`
     /// list it does not compute, because computing it there means a `Registry` on a kernel stack and
     /// a `Registry` is 21632 bytes against a 4096-byte guard page (`script/stack-frame-check`). So
@@ -1377,23 +1377,23 @@ mod tests {
         let doc = parse(REFERENCE).expect("the shipped document parses");
         let reg = Registry::register(&doc, SHIPPED_HELD);
 
-        // The shipped document admits `least_authority_demo` twice and `budgeter` once (the `--mem 4` line,
+        // The shipped document admits `least_authority_demo` twice and `memory_grant_depleter` once (the `--mem 4` line,
         // backed by `SHIPPED_HELD`) and refuses everything else, so its plan is two programs
         // however many entries name either. Asserted **by name**, because a spawn site in another
         // crate carries this same set as a written list and this is what keeps it true.
         assert_eq!(
             reg.programs(),
-            1 << Prog::LeastAuthorityDemo.id() | 1 << Prog::Budgeter.id(),
+            1 << Prog::LeastAuthorityDemo.id() | 1 << Prog::MemoryGrantDepleter.id(),
             "the shipped document's plan changed; \
              kernel/src/user/timetable_tests.rs's PLANNED_PROGRAMS must change with it",
         );
         assert_eq!(Audit::of(&reg).planned(), 2);
 
         // Narrowed to the plan: what the spawn site hands over after milestone 129's second
-        // stratum. `least_authority_demo`, `budgeter`, and nothing else.
+        // stratum. `least_authority_demo`, `memory_grant_depleter`, and nothing else.
         let mut narrow = Audit::of(&reg);
         narrow.saw("least_authority_demo");
-        narrow.saw("budgeter");
+        narrow.saw("memory_grant_depleter");
         assert!(narrow.is_exact());
         assert_eq!(narrow.held(), 2);
         assert_eq!(narrow.beyond(), 0);
@@ -1410,7 +1410,7 @@ mod tests {
             "least_authority_demo",
             "date",
             "ps",
-            "budgeter",
+            "memory_grant_depleter",
             "wc",
             "swish",
         ] {

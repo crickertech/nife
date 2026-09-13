@@ -467,7 +467,9 @@ down. What is left over is what nobody objected to at the time.
 first precisely because a wrong name there is read by everyone who uses the system, is the one with
 no argued reasoning anywhere in the tree: not in a header, not in a milestone block, not in an
 introducing commit. `budgeter` and `heeder` are cited *as* an established agent-noun family when
-milestone 63 argues for `benchmarker`, and neither was ever argued for itself. `sink` is used
+milestone 63 argues for `benchmarker`, and neither was ever argued for itself. (`budgeter` was
+argued and ruled on 2026-09-13, and is `memory_grant_depleter`; the word stays in this sentence
+because the sentence is about what 63's text says, and 63 is BUILT and keeps it.) `sink` is used
 throughout DECISIONS §51 and defended nowhere in it. The one program whose record says anything
 useful is `disk_partitioner`, whose introducing commit calls the name provisional in as many words.
 
@@ -525,7 +527,6 @@ $ script/names --unratified
 UNRATIFIED (54 of 126), in the order worth working through
 ...
   programs, unrecorded
-    budgeter                     fixtures/src/budgeter.rs
     builder                      components/src/builder.rs
     ...
   crates, unrecorded
@@ -892,6 +893,19 @@ Where it hides, from the two renames that found it:
 | `[[bin]]` name and path | `user/Cargo.toml` |
 | Shell command strings inside tests | `parse(b"heeder report.txt")` |
 | Fixture strings in other crates | `crates/timetable`'s `"every 5s heeder"` |
+| A configuration file the tree ships | `components/timetable.conf`'s `at-boot budgeter --mem 4` |
+| Identifiers derived from the program's name | `saw_budgeter_grant`, `budgeter_reports`, four test function names |
+
+**The last two rows were added by the `budgeter` rename on 2026-09-13, and both hide in a way the
+others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
+narrowed with `--include=*.rs --include=*.md --include=*.toml` is how most of these sweeps are
+scoped, and it misses a shipped configuration file entirely, while `crates/timetable` compiles that
+one in with `include_str!` and the kernel asserts on it firing. Derived identifiers hide for the
+opposite reason, which is that they are *not* string literals and the compiler does find them:
+`saw_budgeter_grant` and `budgeter_reports` would have compiled fine under the old spelling and left
+the tree naming a program that no longer exists, in the one place a sweep's own grep still finds
+them. Neither is exotic; both were hit by the `worker` rename earlier the same day and recorded only
+in its commit message, which is rung four.
 
 **The evidence is one failure and one success, a commit apart.** Renaming `doc` to `mdr` left
 `grant_plan` still saying `doc`, so the shell could not spawn the binary and the archive did not hold
@@ -924,6 +938,15 @@ by mistake.
   else under `design/`, and never `AGENTS.md`. Every *other* occurrence of the old names in
   `design/` is a dated narrative and correctly keeps them. Neither is load-bearing; both are one
   line for whoever next has the standing to make the edit.
+
+  **Half of the first one closed on 2026-09-13**, and the way it closed is the point rather than the
+  tidiness. The `memory_grant_depleter` rename lane was already editing that sentence's `budgeter`,
+  because a present-tense claim moves whatever directory it sits in, so the word it was there to
+  correct went with the sweep that had to touch the line anyway. `worker` is still there, and this
+  entry is still open for it: performing *that* ruling was a different lane's, and a rename is not a
+  thing to do on the way past. The general shape, worth more than either word: **a stale record gets
+  fixed when something else brings a writer to the line**, not when somebody schedules a pass over
+  it, which is why the entry names the line rather than filing a task.
 
 - **The boot mode is still called `shell`, and the program is `swish`.** `cargo xtask shell` and the
   kernel's `--features shell` name a *configuration* (boot straight to a prompt, milestone tour

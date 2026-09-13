@@ -18,8 +18,8 @@ named program's manifest **at spawn**, before a child exists, so a mismatch is a
 the line you typed:
 
 ```text
-$ budgeter
-  budgeter: needs a memory grant; add --mem <pages>
+$ memory_grant_depleter
+  memory_grant_depleter: needs a memory grant; add --mem <pages>
 ```
 
 Nothing was built, nothing hung. The contract was checked where you could still read it.
@@ -87,7 +87,7 @@ declare nothing but `interruptible`):
 | program    | arg        | mem                  | file      | reports |
 |------------|------------|----------------------|-----------|---------|
 | `least_authority_demo`   | Required   | Forbidden            | Forbidden | yes     |
-| `budgeter` | Forbidden  | Required 1..=64 pages | Forbidden | yes     |
+| `memory_grant_depleter` | Forbidden  | Required 1..=64 pages | Forbidden | yes     |
 | `date`     | Forbidden  | Forbidden            | Forbidden | yes     |
 
 **`date`'s row is all `Forbidden`, and that is the interesting one.** Its authority is a read-only
@@ -103,8 +103,8 @@ rather than reading the static table, so the host tests check a manifest shape n
 That split was worth making anyway, because milestone 23 needs exactly it: a manifest that travels
 with a component, checked by a composer that did not write the program.
 
-`least_authority_demo` needs its `n` and no memory; granting `--mem` to it is a refusal. `budgeter` exists to
-spend a budget, so it *requires* `--mem` (the lower bound of 1 makes "budgeter with no grant" a
+`least_authority_demo` needs its `n` and no memory; granting `--mem` to it is a refusal. `memory_grant_depleter` exists to
+spend a budget, so it *requires* `--mem` (the lower bound of 1 makes "memory_grant_depleter with no grant" a
 refusal), with an upper bound the shell's own budget can actually back.
 
 ## The check, and its order
