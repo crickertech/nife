@@ -150,7 +150,7 @@ pub enum Prog {
     /// that opened the page it renders would be a viewer that could open any page.
     ///
     /// **Provisional name.**
-    Doc,
+    Mdr,
     /// **List the processes in the supervision domain it was spawned into** (milestone 126,
     /// `user/src/ps.rs`, notes/process-view.md).
     ///
@@ -271,7 +271,7 @@ impl Prog {
             // first.
             b"rm" => Some(Prog::Rm),
             b"wc" => Some(Prog::Wc),
-            b"doc" => Some(Prog::Doc),
+            b"mdr" => Some(Prog::Mdr),
             b"ps" => Some(Prog::Ps),
             b"pgrep" => Some(Prog::Pgrep),
             b"watch" => Some(Prog::Watch),
@@ -292,7 +292,7 @@ impl Prog {
             Prog::Date => "date",
             Prog::Rm => "rm",
             Prog::Wc => "wc",
-            Prog::Doc => "doc",
+            Prog::Mdr => "mdr",
             Prog::Ps => "ps",
             Prog::Pgrep => "pgrep",
             Prog::Watch => "watch",
@@ -312,7 +312,7 @@ impl Prog {
             Prog::Date => 4,
             Prog::Rm => 5,
             Prog::Wc => 6,
-            Prog::Doc => 7,
+            Prog::Mdr => 7,
             Prog::Ps => 8,
             Prog::Pgrep => 9,
             Prog::Watch => 10,
@@ -332,7 +332,7 @@ impl Prog {
             4 => Some(Prog::Date),
             5 => Some(Prog::Rm),
             6 => Some(Prog::Wc),
-            7 => Some(Prog::Doc),
+            7 => Some(Prog::Mdr),
             8 => Some(Prog::Ps),
             9 => Some(Prog::Pgrep),
             10 => Some(Prog::Watch),
@@ -528,7 +528,7 @@ impl Prog {
             // pipeline where `wc` never does (notes/documentation.md's BUGS section), and the planner can
             // only account for it if the manifest declares it. No memory grant, because the renderer
             // never allocates.
-            Prog::Doc => Manifest {
+            Prog::Mdr => Manifest {
                 arg: ArgSpec::Forbidden,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
