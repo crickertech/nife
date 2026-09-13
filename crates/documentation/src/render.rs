@@ -301,7 +301,15 @@ impl Renderer {
 
         // A block quote's `>` markers are stripped here and turned into a rule at line start, so
         // every classifier below sees the quoted line exactly as it would see an unquoted one.
-        let (mut i, _) = indent_of(&self.line[..end]);
+        // **`cols` rather than `i`, and the difference is a tab.** `indent_of` returns a byte
+        // offset and a column count, and until milestone 280 every caller took the offset and
+        // dropped the count, so a tab indented by one column instead of four and the second half
+        // of this function's return value was computed for nobody. The mutation sweep found it the
+        // way it found the table alignment beside it: mutants that changed the count survived,
+        // including replacing the whole return with `(0, 1)`. Nothing in this repository's markdown
+        // indents with a tab outside a fence, where this does not run, so the fix is invisible on
+        // the corpus and correct for a page from elsewhere.
+        let (mut i, cols) = indent_of(&self.line[..end]);
         let mut quote = 0;
         while i < end && self.line[i] == b'>' {
             quote += 1;
@@ -312,7 +320,7 @@ impl Renderer {
             let (j, _) = indent_of(&self.line[i..end]);
             i += j;
         }
-        let ind = if quote > 0 { 0 } else { i };
+        let ind = if quote > 0 { 0 } else { cols };
         let body = i..end;
 
         if body.is_empty() {
