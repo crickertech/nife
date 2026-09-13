@@ -15,15 +15,39 @@
 //! Keeping it separate also keeps it tiny, which the frame-accounting test cares about: it spawns
 //! this program five times and asserts every frame comes back exactly.
 //!
-//! Name: provisional. Introduced 2026-07-31 as the fixture that does what it is not permitted to
-//! do, so the kernel's refusal has a witness: it reads a kernel address from EL0 and round-trips
-//! through user mode, and both used to be hand-assembled inside the kernel until a second
-//! instruction set made that untenable. Nothing records the choice. The case. It is a noun, it
-//! names the program by its relation to the rule rather than by the instruction it executes, and
-//! that generalises correctly: the file already holds two roles and would hold a third without
-//! the name going stale, where `kernel_address_reader` would have to be renamed the first time a
-//! second violation was added. The metaphor is doing real work rather than decorating, since what
-//! the privilege tests need is a program defined by being outside the permission set.
+//! Name: provisional, and ruled: calef ruled **`kernel_test_subject`** on 2026-09-13, working the
+//! unratified worklist. The block stays `provisional` because the ratified name is not this file's
+//! until the rename is performed, which waits on milestone 175 moving this file and travels with
+//! `flaky`'s and `chatty`'s sweep. Introduced 2026-07-31 as the fixture that does what it is not
+//! permitted to do, so the kernel's refusal has a witness.
+//!
+//! **This block used to defend `outlaw` with an argument its own code refutes**, and the refutation
+//! is why the name went. It claimed the metaphor "generalises correctly: the file already holds two
+//! roles and would hold a third without the name going stale." It does not generalise over the two
+//! roles it already has. `READ_KERNEL` reads a kernel address from EL0, faults, and is killed: an
+//! outlaw. `ROUND_TRIP` yields twice and exits cleanly, breaking no rule at all, and exists so the
+//! frame-accounting test can spawn it five times and assert every frame comes back, and so
+//! `no_leaked_threads` has something to watch. The header says it three lines up without noticing:
+//! these two exist "only to be killed or to be counted". Killed is the outlaw; counted is not.
+//!
+//! `kernel_test_subject` names what both roles share: a subject is what a test is performed *on*,
+//! and these are minimal disposable processes `kernel::user::tests` spawns directly, that no
+//! running system wants, and that are deliberately not roles of `hello` because init has no
+//! business sharing an image with a program that faults on purpose.
+//!
+//! Refused `kernel_user_tests` (calef's, withdrawn): it collides with `kernel/src/user/tests.rs`,
+//! the module that drives this program, so it names the caller rather than the subject; that
+//! module also drives `hello`, `flaky` and `worker`, so the name would be equally true of four
+//! programs and distinguish none; and it is plural where every other program here is one thing.
+//! Refused `kernel_test_target` (calef's, withdrawn): this program **is** a Cargo target, a
+//! `[[bin]]` in the fixtures manifest, and `target` is the most overloaded word in this tree
+//! (1,823 occurrences; AGENTS.md alone uses it for architectures, Cargo targets and `#[path]`
+//! targets), so a Rust reader reaches for the build-target meaning first. Refused
+//! `privilege_boundary_subject` for the same fault as `outlaw`, since `ROUND_TRIP` serves frame
+//! accounting rather than the privilege boundary. Refused `kernel_test_fixture`: once 175 lands
+//! this file is in `fixtures/`, so the directory already says fixture. Refused
+//! `kernel_address_reader`, this block's own straw man, and it was right that this one goes stale
+//! the moment a second violation is added.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
