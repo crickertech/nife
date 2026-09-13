@@ -79,7 +79,7 @@ separate the two candidate failures. It cost a diagnostic word and it saved a be
 
 ## What was built on 2026-09-04, and what it proves
 
-- **`crates/jh7110_crg`**, pure logic, 20 host tests. The STG domain's register arithmetic (one
+- **`crates/jh7110_clock_and_reset`**, pure logic, 20 host tests. The STG domain's register arithmetic (one
   32-bit word per clock at `base + 4*index`, enable bit 31; 32 resets to a word at `0x74`, watched
   at `0x78`), the TRNG's three-step bring-up plan, and the device-tree query that finds the
   controller. No pointer is dereferenced anywhere in it.
@@ -91,7 +91,7 @@ separate the two candidate failures. It cost a diagnostic word and it saved a be
   16 and 3. **Both name the same window at `0x1023_0000`.** The rebase is a host test, not a
   paragraph, so an upstream renumbering fails the build instead of surprising somebody at the
   bench. Every URL and fetch date is in the crate header.
-- **`kernel/src/drivers/jh7110_crg.rs`**, the twenty lines that store to a register, and the
+- **`kernel/src/drivers/jh7110_clock_and_reset.rs`**, the twenty lines that store to a register, and the
   argument for why they are in the kernel (below).
 - **A `hw clock` line in the riscv64 boot tour**, printed before `hw entropy` because it decides
   how that line should be read, and reporting the *before* words as well as the after ones. That

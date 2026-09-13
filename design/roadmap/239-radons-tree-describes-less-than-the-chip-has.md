@@ -49,7 +49,7 @@ Read at commit `bfbdce9b86a2` (2023-01-06), the last change to that file before 
 firmware's build date, and unchanged at that branch's head:
 <https://github.com/starfive-tech/u-boot/blob/bfbdce9b86a2/arch/riscv/dts/jh7110.dtsi>. Mainline
 Linux spells the same device `rng@1600c000`, `compatible = "starfive,jh7110-trng"`, and that is what
-`crates/jh7110_trng` was written against.
+`crates/jh7110_entropy_source` was written against.
 
 **Every observation from the bench holds, and none of them meant what it was read to mean.**
 
@@ -88,7 +88,7 @@ identical node from `jh7110-common.dtsi` (`&trng { status = "okay"; };`), along 
 
 ## What was built, and the one decision inside it
 
-`crates/jh7110_trng::discover` now tries mainline's `starfive,jh7110-trng` first and the vendor's
+`crates/jh7110_entropy_source::discover` now tries mainline's `starfive,jh7110-trng` first and the vendor's
 `starfive,trng` second, reads every property against the string that matched, and carries two new
 facts out: which spelling it was, and what the node's `status` says.
 
@@ -113,7 +113,7 @@ hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh711
 ```
 
 **The fixture is transcribed, not captured**:
-`crates/jh7110_trng/tests/fixtures/jh7110-trng-vendor-uboot.dts`, from the firmware's own source at
+`crates/jh7110_entropy_source/tests/fixtures/jh7110-trng-vendor-uboot.dts`, from the firmware's own source at
 the commit above, wrapped in the `/soc` node with the two-cell `#address-cells`/`#size-cells` that
 were measured off the board and are already committed in
 `crates/machine_discovery/tests/fixtures/visionfive2-uboot-control.dts`. `dtc` warns
@@ -151,7 +151,7 @@ there was no bench session. Two commands and one boot settle all of it.
 
 ## Follow-on
 
-- **Done.** `crates/jh7110_trng::discover` accepts both spellings, carries which one matched and the
+- **Done.** `crates/jh7110_entropy_source::discover` accepts both spellings, carries which one matched and the
   node's `status`, and is host-tested against a fixture transcribed from the firmware's own source.
 - **Done.** notes/visionfive2.md's "The TRNG is not in the tree" section carries the correction
   beside the original reading, rather than replacing it, and its "To measure at the bench" item 9

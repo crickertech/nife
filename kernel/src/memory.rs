@@ -90,16 +90,16 @@ pub fn init() {
 
     // The JH7110's STG clock and reset generator (milestone 220), which nothing else on any
     // machine this kernel boots has an analog of: every other device it drives came up already
-    // running. Recorded **only when this machine is a JH7110**, because `jh7110_crg::discover`
+    // running. Recorded **only when this machine is a JH7110**, because `jh7110_clock_and_reset::discover`
     // deliberately never fails to produce an address (it falls back to the corroborated constant
     // when a tree names no controller), and mapping that constant on a board that has nothing
     // there would be a device mapping of an address nobody named. The two ways to be a JH7110
     // that matter here: the tree names a clock controller, or it names the TRNG whose clocks this
-    // exists to ungate. QEMU's `virt` board names neither, so `jh7110_crg` stays None
-    // there and `drivers::jh7110_crg` is never reached.
+    // exists to ungate. QEMU's `virt` board names neither, so `jh7110_clock_and_reset` stays None
+    // there and `drivers::jh7110_clock_and_reset` is never reached.
     {
-        let crg = jh7110_crg::discover(&dtb).ok();
-        let has_trng = matches!(jh7110_trng::discover(&dtb), Ok(Some(_)));
+        let crg = jh7110_clock_and_reset::discover(&dtb).ok();
+        let has_trng = matches!(jh7110_entropy_source::discover(&dtb), Ok(Some(_)));
         if let Some(found) = crg
             && (found.from_tree || has_trng)
         {
@@ -524,7 +524,7 @@ pub fn plic_region() -> Option<(u64, u64)> {
 /// and an address the firmware named are different claims, and by the time anyone reads the log
 /// they cannot be told apart from the number alone.
 #[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))] // no JH7110 anywhere but a JH7110
-pub fn jh7110_crg() -> Option<jh7110_crg::Found> {
+pub fn jh7110_clock_and_reset() -> Option<jh7110_clock_and_reset::Found> {
     *JH7110_CRG.lock()
 }
 
@@ -737,7 +737,8 @@ static PLIC_REGION: IrqSafeMutex<Option<(u64, u64)>> = IrqSafeMutex::new(rank::R
 /// The JH7110's STG clock-and-reset window, from the device tree or from the constant both
 /// published trees agree on (milestone 220). `None` until `init`, and on every machine that is
 /// not a JH7110.
-static JH7110_CRG: IrqSafeMutex<Option<jh7110_crg::Found>> = IrqSafeMutex::new(rank::RAM, None);
+static JH7110_CRG: IrqSafeMutex<Option<jh7110_clock_and_reset::Found>> =
+    IrqSafeMutex::new(rank::RAM, None);
 
 /// The generic-ECAM PCIe host bridge's windows: (ecam, mem32), each (base, size). Physical.
 type PciWindows = ((u64, u64), (u64, u64));

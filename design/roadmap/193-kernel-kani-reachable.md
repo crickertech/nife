@@ -42,7 +42,7 @@ milestone branch lands its status flip in the same merge as the work, precisely 
 claims something is built while its code is still on a branch. For about an hour, `main` did. The
 ordering was the integrator's mistake rather than the lane's.
 
-**A second hole closed on the way.** `crates/jh7110_trng` carried three harnesses and appeared
+**A second hole closed on the way.** `crates/jh7110_entropy_source` carried three harnesses and appeared
 nowhere in `script/verify`. They were run first (all pass), then the row was added, and `script/lint`
 grew the check that makes it the last time: every crate with proof harnesses is in the verify table,
 derived from `cargo metadata`. The packer already asserted table to shards; this is the missing tree

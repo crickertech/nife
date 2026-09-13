@@ -823,7 +823,7 @@ already moved to `starfive,jh7110-trng` in December 2022, two months before that
 built. **U-Boot's control DTB is a stale fork of the vendor's own hardware description**, and
 nobody on their side noticed because Linux on this board reads its own DTB and never sees U-Boot's.
 
-Milestone 239 taught `crates/jh7110_trng`'s `discover` both spellings and made it carry the
+Milestone 239 taught `crates/jh7110_entropy_source`'s `discover` both spellings and made it carry the
 `status` it found, so the next boot answers this rather than inferring it. **None of that has run
 on the board**; the two commands that settle it are in that milestone's block.
 

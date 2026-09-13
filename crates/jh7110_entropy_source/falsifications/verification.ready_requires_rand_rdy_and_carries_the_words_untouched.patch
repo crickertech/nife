@@ -1,4 +1,4 @@
-Falsifies `jh7110_trng::verification::ready_requires_rand_rdy_and_carries_the_words_untouched`.
+Falsifies `jh7110_entropy_source::verification::ready_requires_rand_rdy_and_carries_the_words_untouched`.
 
 The defect: `assemble` lays each `RAND` word out big-endian instead of little-endian, so
 every four bytes of entropy handed to the caller are byte-reversed. On a JH7110 the
@@ -15,10 +15,10 @@ harness verifying. Confirmed by applying the diff against the old phrasing and w
 it stay green. The rewrite states the little-endian layout the doc comment claims,
 indexed out of the words by hand, which the implementation does not get to choose.
 
-diff --git a/crates/jh7110_trng/src/lib.rs b/crates/jh7110_trng/src/lib.rs
+diff --git a/crates/jh7110_entropy_source/src/lib.rs b/crates/jh7110_entropy_source/src/lib.rs
 index 9905f92e..5aa771cf 100644
---- a/crates/jh7110_trng/src/lib.rs
-+++ b/crates/jh7110_trng/src/lib.rs
+--- a/crates/jh7110_entropy_source/src/lib.rs
++++ b/crates/jh7110_entropy_source/src/lib.rs
 @@ -291,7 +291,7 @@ pub fn interpret(istat: u32, rand: [u32; 8]) -> Outcome {
  pub fn assemble(rand: [u32; 8]) -> [u8; 32] {
      let mut out = [0u8; 32];

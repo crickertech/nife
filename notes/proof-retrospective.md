@@ -365,7 +365,7 @@ set and a vacuous harness reports `SUCCESSFUL`; `kani::cover!` is the one check 
 are **19 `cover!` sites, in four crates** (calendar 7, paging 5, dma_validator 5, glob 2). The other
 twenty harness crates have none. Every harness that constrains its inputs with `kani::assume` and
 carries no `cover!` is a harness whose input set nobody has confirmed is non-empty, and there are many
-of them: `jh7110_trng`'s three all assume, `timetable`'s five all assume, `ntp_proto` and
+of them: `jh7110_entropy_source`'s three all assume, `timetable`'s five all assume, `ntp_proto` and
 `credential_proto` assume throughout.
 
 Not a claim that any of them is vacuous. A claim that **nothing in this tree would say so if one
@@ -378,8 +378,8 @@ landed with three harnesses and never been added to it, so the suite had never r
 it showed up was the suite going green *faster*. The file's own comment now says a missing row *"is
 the one way this table can make the proofs wrong"*.
 
-**It has happened again.** `crates/jh7110_trng` is a workspace member (`Cargo.toml` line 35) carrying
-three harnesses, and the string `jh7110_trng` appears nowhere in `script/verify`. The shard table
+**It has happened again.** `crates/jh7110_entropy_source` is a workspace member (`Cargo.toml` line 35) carrying
+three harnesses, and the string `jh7110_entropy_source` appears nowhere in `script/verify`. The shard table
 holds 23 crates summing to 140 harnesses; `crates/` holds 143 across 24. Nothing runs
 `a_lockup_bit_is_never_overridden`, `ready_requires_rand_rdy_and_carries_the_words_untouched`, or
 `neither_bit_set_is_always_not_ready`, and they guard the entropy source on the board this project's
@@ -392,12 +392,12 @@ claim happened to be one crate off, which is luck rather than a mechanism.
 
 `vendor/redoxfs`'s two harnesses are also unrun, and that one is **fine**: `script/lint`'s
 `_harness_hits` docstring says so on purpose, *"counting them would make the number describe a suite
-nobody executes"*. That is a decision. `jh7110_trng` is an omission, and the difference is that nobody
+nobody executes"*. That is a decision. `jh7110_entropy_source` is an omission, and the difference is that nobody
 wrote anything down.
 
 **Not fixed here, and the reason is not tidiness.** These three harnesses have never been run, so
 nobody knows whether they pass. Adding the row from a lane that cannot run the prover risks turning
-`main` red on a check that takes forty minutes. It wants a lane that runs `cargo kani -p jh7110_trng`
+`main` red on a check that takes forty minutes. It wants a lane that runs `cargo kani -p jh7110_entropy_source`
 first, adds the row with a measured cost column, and then closes the gap properly: a gate comparing
 `_harness_hits()`'s crate set against `script/verify`'s table, which is rung two and turns this from a
 recurring accident into an impossible state. **Worklist.**
@@ -409,7 +409,7 @@ next lane on.
 
 | # | Harness or gate | The defect it answers | Shape | Cost |
 |---|---|---|---|---|
-| 1 | A gate comparing the harness-crate set against `script/verify`'s shard table | `mdns_proto` 2026-08-16, `jh7110_trng` today | a check in `script/lint`, plus the missing row once it is known to pass | small, and it is rung two |
+| 1 | A gate comparing the harness-crate set against `script/verify`'s shard table | `mdns_proto` 2026-08-16, `jh7110_entropy_source` today | a check in `script/lint`, plus the missing row once it is known to pass | small, and it is rung two |
 | 2 | Extract the timer re-arm law and point both ISAs' `rearm` at it | timer drift, milestone 6: 100 Hz became 70 Hz | Phase-2 extraction; `crates/timetable`'s three harnesses already state the law | small, and the proof is written |
 | 3 | `every_accepted_name_reads_back_as_itself` in `nifefs` | `write_image` accepted a NUL name, 2026-08-02 | one harness over the writer, which is the half currently unproved | small |
 | 4 | `no_accepted_table_puts_a_usable_block_in_an_entry_array` in `gpt` | `Gpt::parse`'s backup-boundary wrong-accept | state the property absolutely, not relative to `create` | small |
@@ -451,7 +451,7 @@ $ grep -rln "^\s*#\[kani::proof\]" --include="*.rs" crates/ vendor/ \
     | sed -E 's|^(crates\|vendor)/([^/]*)/.*|\2|' | sort -u | while read c; do
         grep -q "^$c	" script/verify || echo "in no shard: $c"
       done
-in no shard: jh7110_trng
+in no shard: jh7110_entropy_source
 in no shard: redoxfs
 ```
 

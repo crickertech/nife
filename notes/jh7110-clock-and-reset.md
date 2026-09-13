@@ -1,7 +1,7 @@
 # Programming a clock and a reset line, for the first time
 
-Milestone 220. `crates/jh7110_crg` (the offsets, the plan, the device-tree query),
-`kernel/src/drivers/jh7110_crg.rs` (the stores), `kernel/src/user/entropy_service.rs` (the caller).
+Milestone 220. `crates/jh7110_clock_and_reset` (the offsets, the plan, the device-tree query),
+`kernel/src/drivers/jh7110_clock_and_reset.rs` (the stores), `kernel/src/user/entropy_service.rs` (the caller).
 
 **This has never run against silicon.** QEMU's riscv64 `virt` machine has no clock or reset
 controller of any kind, so an emulator cannot validate the sequence end to end: what CI exercises
@@ -68,7 +68,7 @@ converge:
 
 The rebase arithmetic is a host test (`the_two_trees_agree_on_the_identifiers`) rather than a
 paragraph, so a renumbering upstream fails the build instead of surprising somebody at the bench.
-Every URL and fetch date is in `crates/jh7110_crg/src/lib.rs`'s header.
+Every URL and fetch date is in `crates/jh7110_clock_and_reset/src/lib.rs`'s header.
 
 **Two mechanics worth knowing**, both transcribed rather than inferred:
 
@@ -78,7 +78,7 @@ Every URL and fetch date is in `crates/jh7110_crg/src/lib.rs`'s header.
   out of reset. Linux's `jh71x0_reset_update` computes `done = mask` for a deassert (the JH7110
   passes `asserted = NULL`) and polls until `(value & mask) == done`. Getting this backwards
   produces a driver that waits forever on a device that came up correctly, which is why
-  `jh7110_crg::deasserted` exists as one function with one test rather than as an expression at two
+  `jh7110_clock_and_reset::deasserted` exists as one function with one test rather than as an expression at two
   call sites.
 
 ## Where it lives, and who may drive it
@@ -110,7 +110,7 @@ Three things make the clock controller a stronger case for that split than NVMe 
 
 ### The one genuinely dangerous thing here, and what stops it
 
-`jh7110_crg::discover` **never fails to produce an address**. A tree that names no controller gets
+`jh7110_clock_and_reset::discover` **never fails to produce an address**. A tree that names no controller gets
 `STG_BASE` (`0x1023_0000`) with `from_tree: false`. That is deliberate: radon's firmware tree is
 already known to omit and misdescribe things, and a bench session that comes back with "no
 controller node, nothing attempted" has spent a trip to the machine and learned nothing. Two
@@ -123,7 +123,7 @@ from a comment:
 
 - `memory::init` records the window **only when the tree names a JH7110** (a clock controller, or
   the TRNG whose clocks this exists to ungate). QEMU's `virt` names neither.
-- `mmu::map_everything` maps only what `memory::jh7110_crg()` returned, so on any other machine
+- `mmu::map_everything` maps only what `memory::jh7110_clock_and_reset()` returned, so on any other machine
   there is no mapping to store through.
 - `no_clock_window_is_mapped_where_there_is_no_jh7110` (`kernel/src/user/entropy_tests.rs`) pins
   it, because the failure is silent in the direction that matters: a load or store fault during
@@ -182,7 +182,7 @@ Read the **clock** line first: it decides how the entropy line should be read.
 | The `hw clock` line says | What it means | What to do |
 |---|---|---|
 | `skipped` / `no JH7110 clock-and-reset window was mapped` | Neither a clock controller nor a TRNG in this tree. On radon this is a regression in discovery, not a fact about the board | Dump the tree at the U-Boot prompt (`fdt addr $fdtcontroladdr; fdt list /soc`) and check what the controller node is actually called. Milestone 239 is the precedent: the node name was `trng@1600C000` with an upper-case C |
-| `NOT named by this machine's tree: the constant...` | The TRNG node was found but no clock controller was, so the address came from the constant | The bring-up still ran and the rest of the line is real. Capture `fdt list /soc` and add the node's real compatible to `jh7110_crg`'s discovery list, so the next boot reads it rather than assuming it |
+| `NOT named by this machine's tree: the constant...` | The TRNG node was found but no clock controller was, so the address came from the constant | The bring-up still ran and the rest of the line is real. Capture `fdt list /soc` and add the node's real compatible to `jh7110_clock_and_reset`'s discovery list, so the next boot reads it rather than assuming it |
 | clocks `-> 0x80000000,0x80000000 (running)`, reset `released` | **The sequence worked.** Bit 31 read back on both clocks and the status bit came up | Read the `hw entropy` line, below |
 | clocks `(NOT running: the enable bit did not read back...)` | The enable bit did not stick. The window is device-mapped and accepting stores, and nothing is behind it | The base address is wrong, or the STG domain itself is gated by a parent this milestone does not program. See BUGS: the SYSCRG `stg_axiahb` parent is the first suspect |
 | reset `STILL HELD` after `1000000` polls | The clocks came up and the reset did not release. Linux's own comment says a gated clock is the usual cause of exactly this hang, so a `running` verdict beside it is contradictory and interesting | Capture the whole line. This is the outcome that most wants a register dump before anyone changes code |
