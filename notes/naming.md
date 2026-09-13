@@ -147,7 +147,7 @@ already knows from outside this project is the best name available**, so `cd`, `
 
 ### The one rule, and who applies it (2026-08-01)
 
-**`snake_case`, everywhere, with no second tier.** Crates already did this (`fs_proto`, `user_rt`);
+**`snake_case`, everywhere, with no second tier.** Crates already did this (`fs_proto`, `user_mode_runtime`);
 programs did not, and **0 of 57** carried an underscore, so multiword names were squished. The three
 worst were `fsclient`, `sysinit` and `credcli`; they are `fs_test_client`, `system_initializer` and
 `credentialer_test_client` now (milestone 63).
@@ -280,13 +280,13 @@ settled name by seven bytes, which is a budget rather than the three bytes that 
 is a known gap rather than a decision.
 
 - **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `frames`, `regions`,
-  `slots`, `asid`, `intrusive`, `ipc`, `dma_validator`, `measured_boot`, `user_heap`.
+  `slots`, `asid`, `intrusive`, `ipc`, `dma_validator`, `measured_boot`, `user_mode_heap`.
 - **Wire contracts**, spelled `*_proto` and checked for it by `script/lint`: `fs_proto`,
   `socket_proto`, `sink_proto`, `cred_proto`, `clock_proto`, `entropy_proto`, `graphics_proto`,
   `ntp_proto`, `supervision_proto`, `swap_proto`. Plus `abi`, which is the syscall boundary and
   predates the suffix.
 - **Format and hardware parsers**: `elf`, `dtb`, `pci`, `gpt`, `nifefs`.
-- **Userspace libraries**: `user_rt`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
+- **Userspace libraries**: `user_mode_runtime`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
   `bitmap_font`, `glob`, `calendar`, `credentialer`, `compositor`, `coremark`, `c_seam`.
 
 **`compositor` and `line_editor` are the two that look like contracts and are not**, and an earlier
@@ -302,8 +302,8 @@ What the names actually do, over the 39 directories under `crates/`:
   `elf`, `frames`, `ipc`, `paging`, `regions`, `slots`, `virtio`.
 - **Underscore when the two halves are separate concepts** and the name reads as a qualifier applied
   to a thing, which is the other 18: `fs_proto` is the proto *for* fs, `graphics_proto` the proto *for*
-  graphics, `dma_validator` the validation *of* DMA, `user_rt` the runtime *for* userspace, `user_heap`
-  the heap *for* userspace, `measured_boot` the measurement *of* boot.
+  graphics, `dma_validator` the validation *of* DMA, `user_mode_runtime` the runtime *for* user mode,
+  `user_mode_heap` the heap *for* user mode, `measured_boot` the measurement *of* boot.
 
 **Milestone 63 deleted the third bullet, which used to read "run together when the result is one
 word".** It was a real observation (`capsh`, `lineedit`, `uheap`, `crickerfs`, `bitfont`), and it was
@@ -312,7 +312,7 @@ one**, and this sentence said otherwise until milestone 115 checked the history:
 with a reason, because `procfs` is the shape of a filesystem name outside this project and nobody
 writes `proc_fs`, and **`bitfont` stayed with none**, having never been renamed at all, until the
 kernel-dependency crate naming review ratified it as `bitmap_font` on 2026-08-23. Three moved,
-to `grant_plan`, `line_editor` and `user_heap`. The boundary that
+to `grant_plan`, `line_editor` and `user_mode_heap`. The boundary that
 remains, between one word and two, is judgement, and the guard rail is that a **standard term keeps
 its standard spelling** (see above).
 
@@ -485,8 +485,8 @@ for crate names, and the rule that yields `<service>_proto` does not pick which 
 of the underscore. `gfx_proto` was ratified 2026-08-23 (a kernel-dependency crate naming review) as
 `graphics_proto`, spelling the abbreviation out in full. `cred` was the sharper case, and was renamed to `credentialer` on 2026-09-08: milestone 63
 expanded `credcli` and argued `credentialer` in full, then left two crates spelled `cred` without
-saying why. `user_rt` fails the same way twice over, since the only thing establishing `user_` as a
-prefix is `user_rt` itself.
+saying why. `user_mode_runtime` fails the same way twice over, since the only thing establishing `user_` as a
+prefix is `user_mode_runtime` itself.
 
 ### EXAMPLES
 
@@ -975,6 +975,35 @@ what the gate looked for; `cargo check` passed and three CI jobs failed for that
 
 So: for a program, grep the **quoted** name as well as the identifier, and treat `cargo check`
 passing as no evidence at all.
+
+### A crate is compiler-checked only where a compiler is looking
+
+**The clause above says renaming a crate is the easy case, and milestone 285 found the sentence too
+generous.** `cargo check` finds every `use` and every `[dependencies]` key, which is most of the
+work and all of the reassurance. It finds nothing where the crate's name has left Rust and become a
+**path on disk** or an **argument to a build tool**, and those sites fail at link time, at gate time,
+or not at all.
+
+The tree already had the scar and had not generalised it. When milestone 175 moved `user/link.ld` to
+`crates/user_rt/link.ld`, two `build.rs` files were missed because they live in **separate Cargo
+workspaces**; nothing errored until a cross-compiling link, and CI's QEMU leg went red with nothing
+before it saying a word. That is the same shape as everything below.
+
+| Site | Example | Why the compiler is blind to it |
+|---|---|---|
+| A linker script referenced by path from a `build.rs` | `../crates/user_mode_runtime/link.ld`, in **four** build scripts, two of them in separate workspaces | it is a string handed to `rust-lld`, and the main workspace never builds the other two |
+| `--exclude <crate>` in a gate | `script/lint`, `script/coverage`, and two lists in `xtask/src/main.rs` | cargo takes an unknown `--exclude` name silently, so the gate keeps passing while covering less |
+| A mutation-testing exclusion glob | `.cargo/mutants.toml`'s `"crates/user_mode_runtime/**"` | a glob that matches nothing is not an error |
+| A crate-keyed row in a measurement baseline | `.cargo/mutants-baseline.txt`'s `user_mode_heap 20 3 5 7` | a plain data file, keyed by crate name, that no build reads |
+| An identifier derived from the crate name inside a gate's embedded script | `reaches_user_mode_runtime()` in `script/lint`'s python | it compiles and runs either way; only the reader is misled |
+| A shell script that derives an artifact from the crate's directory | `scripts/build-ripgrep.sh` seds `crates/user_mode_runtime/link.ld` into a high-load variant | shell, and it runs only when somebody builds ripgrep |
+| A generated module in the patched-`std` overlay | `sys/alloc/nife/user_mode_heap.rs`, written by `xtask` from the crate and declared `mod user_mode_heap;` in the overlay | it compiles only when the `std` farm is rebuilt, in a source tree outside every workspace |
+| `Cargo.lock` in each separate workspace | `redoxfs_server/Cargo.lock`, `tools/redoxfs_host/Cargo.lock` | regenerated on their own next build, not on the main workspace's |
+
+**The habit that catches all of them is the same one the program clause asks for**, applied a
+directory wider: grep the **path** (`crates/<name>`) as well as the identifier, and then build every
+workspace, not the one `cargo build` means by default. `find . -name Cargo.toml -maxdepth 3 | xargs
+grep -l '\[workspace\]'` is the enumeration; there are five.
 
 ### What is checked, and what is not
 
