@@ -153,15 +153,18 @@
 //!   for more known answers; this crate answers it immediately. Harmless (an extra response), and
 //!   recorded so nobody mistakes the omission for a decision.
 //!
-//! Name: provisional. Minted by milestone 55's mDNS lane on 2026-08-15. The `_proto` suffix is
-//! the tree's rule for a wire contract (notes/naming.md), and that half is settled; the stem is
-//! the protocol's own name from RFC 6762, the same derivation that produced `ntp_proto`, which
-//! calef ratified on 2026-08-23. The 2026-09-05 acronym test reaches the stem and does not
-//! resolve here: mDNS expands to multicast DNS, whose second word is itself an acronym, so a full
-//! spelling runs to `multicast_domain_name_system_proto` and has stopped teaching well before it
-//! ends. That question belongs to the acronym sweep notes/naming.md puts in a milestone of its
-//! own, since `ipc` and the other four have to move together or not at all. calef has not
-//! ratified it.
+//! Name: provisional, and the stem is ruled: calef ruled **`multicast_dns`** on 2026-09-13,
+//! working the unratified worklist, and reaffirmed it when shown the argument below.
+//!
+//! **The case this block used to make, which lost**: mDNS expands to multicast DNS, whose second
+//! word is itself an acronym, so a full spelling runs to `multicast_domain_name_system_proto` and
+//! has stopped teaching well before it ends. calef's answer is that DNS stops because it is the
+//! `pci` case one level down, domain name system teaching a reader nothing they did not have,
+//! while multicast DNS says what the protocol does to someone who has not met the acronym.
+//!
+//! **Still provisional because the rename has not happened.** Milestone 265 turns `_proto` into
+//! `_protocol` across 14 crates and 349 files; performing the stem now would rename these files
+//! twice. The name this becomes is `multicast_dns_protocol`.
 
 use core::cmp::Ordering;
 
