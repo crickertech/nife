@@ -301,7 +301,15 @@ impl Renderer {
 
         // A block quote's `>` markers are stripped here and turned into a rule at line start, so
         // every classifier below sees the quoted line exactly as it would see an unquoted one.
-        let (mut i, _) = indent_of(&self.line[..end]);
+        // **`cols` rather than `i`, and the difference is a tab.** `indent_of` returns a byte
+        // offset and a column count, and until milestone 280 every caller took the offset and
+        // dropped the count, so a tab indented by one column instead of four and the second half
+        // of this function's return value was computed for nobody. The mutation sweep found it the
+        // way it found the table alignment beside it: mutants that changed the count survived,
+        // including replacing the whole return with `(0, 1)`. Nothing in this repository's markdown
+        // indents with a tab outside a fence, where this does not run, so the fix is invisible on
+        // the corpus and correct for a page from elsewhere.
+        let (mut i, cols) = indent_of(&self.line[..end]);
         let mut quote = 0;
         while i < end && self.line[i] == b'>' {
             quote += 1;
@@ -312,7 +320,7 @@ impl Renderer {
             let (j, _) = indent_of(&self.line[i..end]);
             i += j;
         }
-        let ind = if quote > 0 { 0 } else { i };
+        let ind = if quote > 0 { 0 } else { cols };
         let body = i..end;
 
         if body.is_empty() {
@@ -555,6 +563,12 @@ impl Renderer {
         self.table.rows = 0;
         self.table.used = 0;
         self.table.delimited = false;
+        // Alignment is reset on the same terms as `delimited`, and for the same reason: it is a
+        // property of the delimiter row that was read for THIS table. Leaving it set would hand a
+        // paragraph that happens to begin with a pipe the alignment of the table above it. The
+        // cost is the same one `delimited` already pays, recorded in this crate's `BUGS`: a table
+        // that spills past `TABLE_ROWS` flushes through here, so its second chunk loses both.
+        let align = core::mem::replace(&mut self.table.align, [Align::Left; TABLE_COLS]);
 
         let ncols = (0..rows)
             .map(|r| self.table.cols[r] as usize)
@@ -621,19 +635,42 @@ impl Renderer {
                 // borrows the table arena and `set` borrows all of `self`. A cell is written as one
                 // unit and never wrapped: a wrapped cell would not line up with its column, which
                 // is the only thing a table is for.
-                self.set(attr, out);
+                // How many characters of the cell will be emitted, counted before any of them
+                // goes out, because a right- or centre-aligned cell has to know how much space
+                // to put in FRONT of its text.
                 let (lo, hi) = (s as usize, (s + l) as usize);
                 let mut n = 0;
                 let mut k = lo;
                 while k < hi && n < width {
+                    k += char_len(&self.table.text[..hi], k);
+                    n += 1;
+                }
+                // **The delimiter row said where a column's text sits, and until milestone 280 it
+                // said it to nobody.** `read_align` filled `table.align` from `:---`, `---:` and
+                // `:---:`, and this loop padded every cell on the right whatever it held, so all
+                // three rendered identically to `---`. Nothing was wrong with the parse and
+                // nothing was wrong with the tests; the value simply had no consumer. The
+                // mutation sweep is what found it: sixteen mutants in `read_align` survived,
+                // including replacing the whole function with `()`, because a function whose
+                // result nothing reads cannot be wrong in a way anything notices.
+                let slack = width - n;
+                let (before, after) = match align[c] {
+                    Align::Left => (0, slack),
+                    Align::Right => (slack, 0),
+                    Align::Center => (slack / 2, slack - slack / 2),
+                };
+                self.set(attr, out);
+                pad(out, before);
+                let mut k = lo;
+                let mut done = 0;
+                while k < hi && done < width {
                     let step = char_len(&self.table.text[..hi], k);
                     out.put(&self.table.text[k..k + step]);
                     k += step;
-                    n += 1;
+                    done += 1;
                 }
-                self.col += n;
-                pad(out, width - n);
-                self.col += width - n;
+                pad(out, after);
+                self.col += width;
             }
             self.close_line(out);
             if r == 0 && delimited {

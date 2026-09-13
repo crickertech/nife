@@ -413,7 +413,7 @@ fires when the tree exceeds it and stays silent when the tree falls below. `scri
 `agents-md-lines` registry entry (the file's own `wc -l`-equivalent line count) and the claim lives
 here, since a developer lane may not edit `AGENTS.md` to carry its own marker:
 
-**`AGENTS.md` carries at most 992 lines** <!--count-at-most:agents-md-lines-->, written at the
+**`AGENTS.md` carries at most 1001 lines** <!--count-at-most:agents-md-lines-->, written at the
 tree's exact value with **zero headroom**, deliberately: the point, per this section's own words
 above, is that every line added should replace one removed, or be a considered act that says why the
 growth was worth it. That is the same choice `unsafe-thread-safety-claims` made for a different
@@ -422,6 +422,8 @@ reason is this milestone's own diagnosis, that the file grows in whole deliberat
 by diffuse creep, so a lane adding one of those steps is exactly the lane that should also write the
 sentence justifying it. See notes/counted-claims.md for the mechanism and notes/rule-violations.md's
 neighbor for the same pattern applied to a different number.
+
+**Raised 992 to 1001 on 2026-09-13**, and the nine lines are a new section saying every date in this tree is UTC. The considered act: provenance blocks, roadmap rows, `design/decisions/` sections, notes and commit messages all carry dates, `script/names` *fails* a ratification that lacks one, and nothing anywhere said what zone a date meant. The agents writing most of them run UTC and calef does not, so a name he ruled in his evening was already being filed under the next day, silently and in a record nobody can correct later. This is the *facts that leave the machine* category of the **move fast on what can be undone** tenet, which is why it earned lines rather than a note. Nothing was removed to pay for it; that is the cost, stated. Deliberately **not gated**: `script/names` could compare a ratification date against the commit's author date, but a record honestly written the morning after a ruling would fail it, so the check would be wrong about the tree in the way §77 already is. Rung three, at the thing itself.
 
 **Raised 988 to 992 on 2026-09-13**, and the four lines are the rename procedure in the naming section. The considered act this budget asks for: the rule came out of a rename performed the same day that missed three live proposals and nearly rewrote a quotation, the detail lives in `notes/naming.md`, and what is here is the four-line rule itself, because `AGENTS.md` is the rule and the note is the argument. Nothing was removed to pay for it; that is the cost, stated.
 

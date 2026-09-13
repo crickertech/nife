@@ -8,16 +8,29 @@
 //! §26) against a real supervisor: a crash that must be restarted, and a clean exit that must not be.
 //! A program that only crashed would prove the restart but not the policy.
 //!
-//! Name: provisional, and the second of the two adjectives on this surface (`chatty` is the
-//! other, from the day before). Introduced 2026-07-29 as a supervision fixture: attempt 0 crashes
-//! on purpose and any later attempt exits cleanly, which exercises both halves of the fault
-//! endpoint (DECISIONS §26) against a real supervisor. Nothing records the choice. The case, and
-//! it is weaker than `chatty`'s. "Flaky" is the field's established word for a test that fails
+//! Name: provisional, and ruled: calef ruled **`first_attempt_crasher`** on 2026-09-13, working
+//! the unratified worklist. The block stays `provisional` because the ratified name is not this
+//! file's yet: the rename waits for milestone 175 to move this file, and until it lands `flaky`
+//! belongs on the worklist rather than off it. Introduced 2026-07-29 as a
+//! supervision fixture: attempt 0 crashes on purpose and any later attempt exits cleanly, which
+//! exercises both halves of the fault endpoint (DECISIONS §26) against a real supervisor.
+//!
+//! The reason the old name failed is the reason a blind sweep would be dangerous, and they are
+//! the same reason. "Flaky" is the field's established word for a test that fails
 //! intermittently, and this program does not fail intermittently: it fails deterministically,
-//! once, by attempt number. So the name borrows recognition it then contradicts, which is the
-//! opposite of what the protected class is for. A reader who knows the word arrives with the
-//! wrong model. `dies_once`, which is what the header calls it, is the shape a replacement would
-//! take.
+//! once, by attempt number. So the name borrowed recognition it then contradicted, and a reader
+//! who knew the word arrived with the wrong model. That borrowing also means the word appears
+//! across this tree in its ordinary sense, in prose that must not move: `script/lint`,
+//! `.github/workflows/verify.yml`, `design/fatal-risks.md`, and a quotation in
+//! `notes/proof-retrospective.md` that is protected twice over. Enumerate before sweeping.
+//!
+//! Refused `dies_once`, which this header used to propose and which is the clearest description
+//! in the file, because it is a verb phrase where the noun rule wants a thing. Refused `crasher`
+//! as generic and wrong by half, since the later attempts do not crash and that is the half
+//! proving a clean exit must *not* be restarted. Refused `restart_fixture`: once 175 lands this
+//! file is in `fixtures/`, so the directory already says fixture. `first_attempt_crasher` is an
+//! agent noun in the qualifier-plus-agent-noun shape ratified the same day for
+//! `interrupt_heeder` and `interrupt_ignorer`, and it states the determinism the old name denied.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
