@@ -205,11 +205,19 @@ The boot leg is CI's.
   which is the exact failure `mdns_proto` and `jh7110_trng` each cost this tree once. Recorded where
   a reader adding a harness meets it rather than fixed, because fixing it means either a row that
   cannot pass or machinery for a case that does not exist yet.
-- **Recorded.** `notes/naming.md`'s BUGS: one present-tense claim in `design/` still names
+- **Recorded.** `notes/naming.md`'s BUGS: one present-tense claim in `design/` still names `worker`,
   `heeder` and `spinner` as programs this system confines, and `AGENTS.md`'s rule 7 section still
-  describes the old program directory as a live one. Both were left because a developer lane edits its own
-  roadmap block and nothing else under `design/`, and never `AGENTS.md`. Neither is load-bearing;
-  both are one-line edits for whoever next has the standing to make them.
+  describes the old program directory as a live one. Both were left because a developer lane edits
+  its own milestone's roadmap block and nothing else under `design/`, and never `AGENTS.md`. Every
+  other occurrence of the retired names in `design/` is a dated narrative and correctly keeps them.
+  Neither is load-bearing; both are one line for whoever next has the standing to make the edit.
+- **Recorded.** This lane made two edits under `design/` outside its own block, both of them
+  citations that would otherwise resolve to nothing: the old program paths in every block that
+  cites one (which `script/roadmap --check` enforces, and which is what made it notice), and
+  one table cell in `design/roadmap/266-init-is-an-action-and-the-thing-is-a-process.md` naming
+  `hello`'s `init_worker` role, whose constant this milestone renamed. Repointing a citation is
+  neither minting nor deciding, but it is worth saying out loud that it happened rather than leaving
+  a reader to find it in a diff.
 - **Refused.** Lifting `net_transport` and `socket_test_client` out of `components/src/` into crates
   in this change. This block's own "What this does not decide" leaves that open, and rule 7 permits
   a single-consumer `#[path]` module; folding it in would have put a judgment call inside the one
