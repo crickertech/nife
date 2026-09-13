@@ -2,7 +2,7 @@
 
 The shell's second prefix word (milestone 86), after [`caps`](grant-expression.md). `time wc
 report.txt` runs the command exactly as typed and says how long it took. The program is
-`user/src/swish.rs`, the arithmetic and every sentence are `crates/swish`, and the guest tests are
+`components/src/swish.rs`, the arithmetic and every sentence are `crates/swish`, and the guest tests are
 `kernel::user::time_tests`.
 
 ```text
@@ -150,8 +150,8 @@ spaces may agree on an address; one may not.
 
 **Guest** (`kernel::user::time_tests`), one script run three times against three capability tables:
 
-- with a **published** clock page: `worker 3` and `time worker 3` answer the same thing, and the
-  duration parses back to a positive number under ten seconds. `worker`'s manifest declares no
+- with a **published** clock page: `least_authority_demo 3` and `time least_authority_demo 3` answer the same thing, and the
+  duration parses back to a positive number under ten seconds. `least_authority_demo`'s manifest declares no
   clock, so it holds none, and it is timed anyway. `time echo hello` spawns no process at all and
   still reports a duration.
 - with a **blank** page (granted, never published to): "the machine has no clock it believes", and

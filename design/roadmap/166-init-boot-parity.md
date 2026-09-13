@@ -15,7 +15,7 @@ needs no board, no bring-up, nothing calef has to do by hand first.
 There is exactly **one** real boot orchestrator, `crates/system_initializer::boot()`, and it is
 already correctly shared. Its own module doc says so plainly: *"There are two inits, because the two
 boards' kernels hand off differently: `user::initrd()` loads the archive entry `init`, which is
-`user/src/hello.rs`'s `init_boot` role on aarch64 and `user/src/system_initializer.rs` on riscv64.
+`fixtures/src/hello.rs`'s `init_boot` role on aarch64 and `user/src/system_initializer.rs` on riscv64.
 There is **one** system they build, and this crate is it."* The same doc also names why this crate
 exists at all: before it, the construction and the spawn service were written twice, and *"a fix
 that lands in one init and not the other is **a boot that reaches userspace and prints nothing at
@@ -81,14 +81,14 @@ nothing at all, or something else) without one archive slot quietly carrying two
 
 - `kernel/src/user.rs`: `spawn_init`, `boot_via_init`, `riscv_shell_boot`, `INIT_ROLES_ENTRY`,
   `INIT_BOOT_ROLE`, and whichever `x86_64` boot path PR #476 lands.
-- `user/src/hello.rs`'s `init_boot` role (27) and its other, independently-tested roles
+- `fixtures/src/hello.rs`'s `init_boot` role (27) and its other, independently-tested roles
   (`SELF_CHECK`, `UNTYPED_DEMO`, the `VIRTIO_*` probes, `GRANTER`/`RECEIVER`,
   `FRAME_PRODUCER`/`CONSUMER`, `CALL_SERVER`/`CLIENT`, `REVOKE_DEMO`, `ASPACE_BUILDER`,
   `EP_MAKER`/`EP_USER`): these have solid, live coverage today through direct-by-name lookup
   (`HELLO_ENTRY`, ~28 call sites in `kernel/src/user/tests.rs`) and are unrelated to which program
   plays `init`; whoever builds this should confirm that coverage stays intact regardless of how the
   `init` question resolves.
-- `user/src/builder.rs`, whose own role in the `init` slot (on riscv64 today, x86_64 pending #476)
+- `components/src/builder.rs`, whose own role in the `init` slot (on riscv64 today, x86_64 pending #476)
   is exactly what this milestone reconsiders.
 - `crates/system_initializer`, unchanged in logic: this milestone is about the paths that reach it,
   not the orchestrator itself.

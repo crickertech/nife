@@ -6,7 +6,7 @@ framing, and finding no milestone owns the gap this surfaced. **Pieces 1-4 built
 2026-08-27** (`milestone/177-boot-wiring-build`): the kernel-side graphical stack, the direct
 `kbd` -> `line_editor` grant (option A, decided), `line_editor`'s `display_terminal` output
 adapter, and device attachment, all wired and code-reviewed correct. **Not yet reaching a working
-prompt**: a real, pre-existing driver bug (a second `FLUSH` through `user/src/gpu_driver.rs`'s real
+prompt**: a real, pre-existing driver bug (a second `FLUSH` through `components/src/gpu_driver.rs`'s real
 boot path hangs) blocks the graphical boot from completing; recorded in
 `notes/framebuffer-contract.md`'s own BUGS section rather than held on. **Piece 5 (x86_64's entry
 point) split off as its own milestone**, [182](182-x86-64-interactive-boot.md), once the lane
@@ -61,7 +61,7 @@ this).
 
 **Finding 1: `BootEndowment` has no room for GPU/keyboard grants as piece 1 describes them
 (mechanical, not a fork).** Counted the actual slots rather than assumed them: aarch64's
-`spawn_init` (`user/src/hello.rs`'s `init_boot`) fills capability-table slots 0-11 of 16 already
+`spawn_init` (`fixtures/src/hello.rs`'s `init_boot`) fills capability-table slots 0-11 of 16 already
 (`untyped`, the report endpoint, `uart_dev`, the test IRQ, `uart_irq`, `clock_page`, `config_page`,
 `fs_ep`, `fs_page`, the virtio-rng trio); 3 free. riscv64's `riscv_shell_boot` fills 0-9; 5 free. A
 virtio-gpu device needs 11 (`display_service.rs`'s own shape: transport, irq, and a nine-page DMA
@@ -164,7 +164,7 @@ fixed by freeing `uart_dev`/`uart_irq` at the top of `boot()` on a graphical boo
 dead weight there). `script/shell-check --graphical` (a new leg, verifying via decoded screendump
 since there is no UART to pipe a transcript from) does not yet reach a working prompt: a second
 `FLUSH` through the real boot's own driver instance hangs, diagnosed as likely a pre-existing
-characteristic of `user/src/gpu_driver.rs`'s completion-IRQ handling rather than something this
+characteristic of `components/src/gpu_driver.rs`'s completion-IRQ handling rather than something this
 milestone's wiring introduced, and recorded in `notes/framebuffer-contract.md`'s own BUGS section
 rather than held on. The existing plain-console boot is unaffected and re-verified working on both
 architectures throughout.
@@ -194,7 +194,7 @@ permanently kernel-resident), so its only possible route is through the graphica
 milestone builds.
 ## Follow-on
 
-- **Outstanding.** The second flush through `user/src/gpu_driver.rs`'s real boot path still does
+- **Outstanding.** The second flush through `components/src/gpu_driver.rs`'s real boot path still does
   not return. `notes/framebuffer-contract.md`'s `BUGS` carries it, it is not root-caused, and no
   roadmap block owns it. Checked 2026-09-03: nothing has touched that file since the rename commit.
 - **Outstanding.** `script/shell-check --graphical` therefore still does not reach a working
@@ -205,7 +205,7 @@ milestone builds.
   the kernel's graphical boot returns nothing when the bus has no GPU, so both paths coexist and
   device presence picks.
 - **Done.** Whether `line_editor` needs a change to run as a display client rather than a console
-  client is answered yes and built: `user/src/line_editor.rs` carries a second output arm chosen at
+  client is answered yes and built: `components/src/line_editor.rs` carries a second output arm chosen at
   spawn and nowhere else.
 - **Done.** The sequencing question against milestone 55's storage and milestone 49's login is
   moot. 55 is REMOVED as of 2026-08-30 and 49 is BUILT and already wired into the real interactive

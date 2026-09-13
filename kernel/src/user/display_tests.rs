@@ -71,7 +71,7 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
         tag,
         gfx::status::UP,
         "the GPU driver did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte \
-         is the bring-up step that failed, see user/src/gpu_driver.rs)",
+         is the bring-up step that failed, see components/src/gpu_driver.rs)",
     );
     assert_eq!(
         geometry,
@@ -111,7 +111,7 @@ fn a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer() {
         tag,
         gfx::status::PAINTED,
         "the painting client did not report a verdict (it reported {tag:#x}; a 0xDEAD_.. word's \
-         low byte names the step, see user/src/painter.rs)",
+         low byte names the step, see fixtures/src/painter.rs)",
     );
     assert_eq!(
         mismatch,
@@ -209,7 +209,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
         tag,
         gfx::status::BACKING,
         "the escape driver did not reach its attach (it reported {tag:#x}; a 0xDEAD_.. word's \
-         low byte names the bring-up step, see user/src/gpu_driver.rs)",
+         low byte names the bring-up step, see components/src/gpu_driver.rs)",
     );
 
     // The evidence. QEMU records the fault as it processes the command under TCG, so a bounded
@@ -243,7 +243,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
     // Leave the fault queue as we found it. Not tidiness: the RISC-V IOMMU's queue holds 128
     // records and the driver does not clear its overflow bit, so records left behind here cost a
     // later test its own fault assertion. The escape above is sized to produce one fault for the
-    // same reason (user/src/gpu_driver.rs).
+    // same reason (components/src/gpu_driver.rs).
     while crate::iommu::take_fault().is_some() {}
 }
 
@@ -275,7 +275,7 @@ fn a_backing_outside_the_grant_is_refused_by_the_iommu() {
 /// that ignored SGR would draw every glyph correctly and still fail), a `\r\n` pair (what
 /// `line_editor::expand_output` puts on the wire for a Unix `\n`), descenders and an underscore (the
 /// glyph rows a font table truncated to seven would lose), and then **keystrokes**, delivered as
-/// `OP_BYTES`: the terminal contract's driver half, byte for byte what `user/src/input.rs` sends
+/// `OP_BYTES`: the terminal contract's driver half, byte for byte what `components/src/input.rs` sends
 /// and what the compositor forwards to a focused client.
 ///
 /// # And the picture the driver reports is the *blank* terminal, on purpose
@@ -314,7 +314,7 @@ fn a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout() {
         tag,
         video_terminal::status::TERM_UP,
         "the display terminal did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low \
-         byte names the step, see user/src/display_terminal.rs)",
+         byte names the step, see components/src/display_terminal.rs)",
     );
     assert_eq!(
         dims,
@@ -454,7 +454,7 @@ fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
         tag,
         video_terminal::status::KEYBOARD_UP,
         "the keyboard driver did not come up (it reported {tag:#x}; a 0xDEAD_.. word's low byte \
-         names the step, see user/src/keyboard_driver.rs)",
+         names the step, see components/src/keyboard_driver.rs)",
     );
     assert!(
         buffers > 0,

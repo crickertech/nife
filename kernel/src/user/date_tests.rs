@@ -2,10 +2,10 @@ use super::*;
 use crate::cap::{Rights, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where `date` expects the clock page, read-only. Must match user/src/date.rs's `CLOCK_VA`.
+/// Where `date` expects the clock page, read-only. Must match components/src/date.rs's `CLOCK_VA`.
 const CLOCK_VA: u64 = 0x00c0_0000;
 
-// The `a0` format selector, and the `a1`/`a2` conventions. Must match user/src/date.rs.
+// The `a0` format selector, and the `a1`/`a2` conventions. Must match components/src/date.rs.
 const FMT_HUMAN: u64 = 0;
 const FMT_RFC3339: u64 = 1;
 const FMT_UNIX: u64 = 4;

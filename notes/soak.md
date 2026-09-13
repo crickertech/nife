@@ -1,6 +1,6 @@
 # The workload that does not stop, and what a clean run of it is worth
 
-*(Milestones 219 and 221. `kernel/src/soak.rs`, `user/src/soaker.rs`, `crates/soak_page`,
+*(Milestones 219 and 221. `kernel/src/soak.rs`, `fixtures/src/soaker.rs`, `crates/soak_page`,
 `script/soak`, and the `Stage::Soak` half of `crates/board_console`.)*
 
 `design/fatal-risks.md`'s fifth entry, *it cannot be made reliable on multicore, and the bugs appear
@@ -17,7 +17,7 @@ measured to be unable to do**.
 One kernel feature (`--features soak`) replaces the halt at the end of the boot tour with a pool of
 user-mode workers and a supervisor that watches them forever.
 
-- **The workload is a user program** (`user/src/soaker.rs`), so the pressure goes through the real
+- **The workload is a user program** (`fixtures/src/soaker.rs`), so the pressure goes through the real
   syscall boundary. Groups of one responder, three callers, one pure-compute grinder and one tick
   waiter, one group per online core.
 - **The detection is in the kernel** (`kernel/src/soak.rs`), because a user program cannot assert

@@ -49,7 +49,7 @@ whose safety came from the language.
                                   every capability and every syscall stops here
 ```
 
-`user/src/c_shim.rs` is the whole design, and what it does *not* do is the point:
+`fixtures/src/c_shim.rs` is the whole design, and what it does *not* do is the point:
 
 - **The C makes no syscalls.** Not because we asked nicely, but because a syscall needs a capability
   slot number and the C has never seen one. There is no `svc`, no `ecall`, and no inline asm anywhere
@@ -81,7 +81,7 @@ Scalars and buffers. Not crossing, and each of these is a seam decision this spi
 make: structs by value, callbacks from C into Rust, ownership transfer, an error type, varargs, C++
 (name mangling, exceptions, static initializers), bitfields, enum widths.
 
-The layout of the shared page is agreed by a **comment in both languages** (`user/c/c_seam.c`'s
+The layout of the shared page is agreed by a **comment in both languages** (`fixtures/c/c_seam.c`'s
 `C_SEAM_*` defines and `crates/c_seam`'s constants) rather than by generated bindings. For one page
 of bytes that is the right trade; for a real API it would not be, and the honest reason to say so here
 is that "we will generate bindings when there is an API worth generating" is a plan and "we forgot"
@@ -174,7 +174,7 @@ this; it is worth knowing it is a property of `free`'s signature rather than a s
 
 ## The toolchain: bare-metal clang, one compiler for two ISAs
 
-`user/build.rs` compiles `user/c/c_seam.c` and hands the object to the linker for the `c_shim`
+`fixtures/build.rs` compiles `fixtures/c/c_seam.c` and hands the object to the linker for the `c_shim`
 binary only (`cargo::rustc-link-arg-bin=c_shim=...`). No archive and no `ar`: one translation unit,
 one object, straight onto the linker's command line. Every other program in the `user` package links
 exactly as before, which keeps the foreign component from becoming everyone's problem.
@@ -207,7 +207,7 @@ surface halfway through a build instead of at the front door.
 
 Cost to a fresh clone: one dependency. `script/bootstrap` installs it (`brew install llvm` on macOS,
 `apt-get install clang` on Debian), and from this milestone on `cargo build -p user` needs a
-cross-capable clang. Without one, `user/build.rs` panics with installation instructions rather than
+cross-capable clang. Without one, `fixtures/build.rs` panics with installation instructions rather than
 leaving the link to fail with a bare "undefined symbol: c_seam_transform".
 
 ### The flags, and the one that is load-bearing

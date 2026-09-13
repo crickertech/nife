@@ -137,7 +137,7 @@ disjoint, individually-labeled trees with one position at a time.
   narrowed to `SecondDirGrant::name`, and delivers its endpoint into the shell's capability table
   at the slot after the filesystem pair, pushing the clock (already told to the shell numerically
   rather than assumed, per its own existing convention) one slot further out. This is the real init
-  both boards run (`user/src/system_initializer.rs`, `user/src/hello.rs`'s `init_boot` role), not a
+  both boards run (`user/src/system_initializer.rs`, `fixtures/src/hello.rs`'s `init_boot` role), not a
   kernel-side test harness.
 
   **Both real entry points pass `None`.** What the second subtree should *be* remains calef's
@@ -149,7 +149,7 @@ disjoint, individually-labeled trees with one position at a time.
   userspace and prints nothing" first). Second, and this is the sharper gap: **nothing tells the
   shell process it has a second grant at all.** `_start`'s three `START` words (role, argument,
   clock slot) are already fully spoken for, so a shell built with a second grant today would hold
-  a capability its own `Nav` has no way to learn the label or slot of. `user/src/swish.rs`'s
+  a capability its own `Nav` has no way to learn the label or slot of. `components/src/swish.rs`'s
   `holdings()` therefore still always reports `second: None`. Closing that gap is a real
   shell-to-init wire question of its own (a fourth `START` word, or packing the clock slot and a
   second-dir slot into the same word) and deserves its own decision rather than a quick encoding
@@ -167,7 +167,7 @@ disjoint, individually-labeled trees with one position at a time.
 ## Follow-on
 
 - **Outstanding.** No live two-grant shell exists: `crates/system_initializer`'s boot takes a
-  second directory and every real entry point passes none, and `user/src/swish.rs` still hard-codes
+  second directory and every real entry point passes none, and `components/src/swish.rs` still hard-codes
   the second holding as absent. Checked 2026-09-03.
 - **Outstanding.** Per-command grants are still one-tree: the file and directory grants in
   `crates/grant_plan` carry a bare current directory and no root selector, so designation, staging
@@ -185,7 +185,7 @@ disjoint, individually-labeled trees with one position at a time.
   only in `crates/grant_plan`, and nothing in `crates/system_initializer` reads them. Checked
   2026-09-03.
 - **Done.** `bind` is no longer unbuilt, and this block's dependency has flipped since it was
-  written. Milestone 47 built it on 2026-08-26 (`user/src/swish.rs`, the bindings in
+  written. Milestone 47 built it on 2026-08-26 (`components/src/swish.rs`, the bindings in
   `crates/grant_plan`), and it already carries a root selector, pinned to the first root only
   because no second grant reaches a real shell. Whoever picks this up rewrites the direction rather
   than the tense.

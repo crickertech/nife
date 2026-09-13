@@ -30,7 +30,7 @@ below were read in the tree on 2026-09-03 rather than recalled.
   it last wrote rather than reading back for the same reason.
 - **The EL0 read is proven, including the negative half.**
   `kernel::user::tests::a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` passes
-  on aarch64, riscv64 and `x86_64`, and `user/src/hello.rs`'s `cycle_counter_child` is the EL0 side:
+  on aarch64, riscv64 and `x86_64`, and `fixtures/src/hello.rs`'s `cycle_counter_child` is the EL0 side:
   one `mrs` from `PMCCNTR_EL0`, with an ungranted thread faulting rather than reading.
 
 So milestone 75's mechanism is not what stands in the way, and a plan that assumed it was would be
@@ -40,7 +40,7 @@ sizing the wrong work.
 
 **The counter is not running.** `PMCR_EL0` and `PMCNTENSET_EL0` appear nowhere in this kernel except
 in comments explaining that they are not written. Two of those comments already say what the
-consequence is: `kernel/src/user/tests.rs:2519` and `user/src/hello.rs:358` both record that QEMU
+consequence is: `kernel/src/user/tests.rs:2519` and `fixtures/src/hello.rs:358` both record that QEMU
 leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however many times you read it, and both
 tests deliberately carry the values without checking them.
 
@@ -62,7 +62,7 @@ firmware call to blame: the kernel is the thing that failed to start the counter
   decision, and it is calef's**, because it is a fact that leaves the machine.
 - Verify it is counting, and record why not when it is not, in the shape
   `arch::riscv64::pmu::CycleCounter` established.
-- The portable read. `user/src/hello.rs`'s `read_cycle_counter` is deliberately *not* in
+- The portable read. `fixtures/src/hello.rs`'s `read_cycle_counter` is deliberately *not* in
   `crates/user_rt`, and its own comment says why: *"A portable userspace cycle-counter API is
   milestone 74's deliverable, and it will want to say what the number means."* That is the naming
   and semantics question, and it is the second thing calef owes here.

@@ -2,18 +2,24 @@
 //! design/roadmap/126-who-else-is-running.md).
 //!
 //! This is the program's whole logic, lifted out so it runs on the host in milliseconds;
-//! `user/src/uptime.rs` is the syscall and nothing else. The crate and the program share a name,
+//! `components/src/uptime.rs` is the syscall and nothing else. The crate and the program share a name,
 //! the same split `ps`, `line_editor` and `compositor` already are.
 //!
-//! Name: provisional. `uptime` is upstream `procps`'s own name for the program this replaces
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), for this crate and the
+//! program together. `uptime` is upstream `procps`'s own name for the program this replaces
 //! (`dpkg -L procps` lists `/usr/bin/uptime`), which the naming tenet calls the best name
-//! available for a standard term a reader already knows. Flagged provisional anyway because this
-//! program prints only elapsed time, none of upstream's load average or logged-in-user count (see
-//! `BUGS`), and calef may want that difference visible in the name.
+//! available for a standard term a reader already knows.
+//!
+//! **The narrowing was put to calef and did not change the answer.** This prints only elapsed
+//! time, none of upstream's load average or logged-in-user count (see `BUGS`). That is a
+//! narrowing rather than a contradiction: what `uptime` names is how long the machine has been up,
+//! and this reports exactly that. Contrast `watch`, cut the same day, whose borrowed name promised
+//! an arbitrary command line the capability model will not grant. A borrowed word is the best name
+//! available when it is true and the worst when it is not.
 //!
 //! # Where the number comes from, and why it needed no new capability
 //!
-//! `user/src/uptime.rs` reads `user_rt::monotonic_nanos`, the same ambient counter `date` reads
+//! `components/src/uptime.rs` reads `user_rt::monotonic_nanos`, the same ambient counter `date` reads
 //! to compute the wall clock and `os_primitives_benchmarker` reads to time itself. It is granted to
 //! **every** EL0 program, unconditionally, by `kernel/src/arch/*/timer.rs`'s `init` (`CNTKCTL_EL1`'s
 //! `EL0VCTEN` bit on aarch64, the RISC-V and `x86_64` equivalents), which documents the grant as **a
@@ -21,7 +27,8 @@
 //! counter grants no authority to *affect* anything, only to observe the passage of time, and every
 //! OS that offers userspace self-timing accepts the same side channel. Since that exception already
 //! exists and already covers every process, `uptime` needed no manifest field, no new capability,
-//! and no wiring beyond what `worker` already has: the program that answers with nothing but a
+//! and no wiring beyond what `least_authority_demo` already has: the program that answers with
+//! nothing but a
 //! number turned out to need nothing but the counter.
 //!
 //! This is the one member of milestone 126's "machine-wide statistics" row (`free`, `uptime`,

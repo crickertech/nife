@@ -56,8 +56,8 @@ that tool.
 
 ## Components
 
-A **component** is the shippable unit: one binary in `user/src/`, one `[[bin]]` in `user/Cargo.toml`,
-one entry in the initrd archive. A **service** is what a component offers. A **contract** is the wire
+A **component** is the shippable unit: one binary in `components/src/`, one `[[bin]]` in
+`components/Cargo.toml`, one entry in the initrd archive. A **service** is what a component offers. A **contract** is the wire
 protocol it offers it over. "Server" is a fine role word inside a component (`redoxfs_server` serves
 the FS service). "Daemon" appears nowhere.
 
@@ -97,10 +97,12 @@ the FS service). "Daemon" appears nowhere.
   meant one string named two binaries. The role is now a program of its own, `progenitor`, and the
   three names agree in every row.
 
-Fixtures and benchmarks (`heeder`, `spinner`, `flaky`, `allocator_exerciser`, `worker`, `coremark`,
-`os_primitives_benchmarker`) live in `user/` next to the real components and are not components.
-Milestone 39's directory-layout work is where that gets separated; the naming rule is the same either
-way.
+Fixtures and benchmarks (`interrupt_heeder`, `interrupt_ignorer`, `flaky`, `allocator_exerciser`,
+`coremark`, `os_primitives_benchmarker`) live in `fixtures/`, which is where milestone 175 separated
+them from the real components on 2026-09-13. The naming rule is the same either way: a fixture is a
+program and takes a program's name. **`worker` was on that list by repetition and is not a
+fixture**: calef ruled it the canonical minimal program on 2026-09-13, so it is
+`components/src/least_authority_demo.rs`.
 
 **Two suffixes carry a category, and the distinction between them is real** (milestone 63).
 An **`_exerciser`** puts a capability of the system under load and sees whether it holds, with no
@@ -177,15 +179,17 @@ expansion anywhere: not in §41, not in [live-replacement.md](live-replacement.m
 that introduced it. `cseam.rs` sat among 48 programs and was not one; it was a shared module.
 
 **Crates came into scope on 2026-08-01**, and they are the most reader-facing names in the tree: a
-newcomer greps `crates/` before they ever open `user/src/`, and a crate name appears in every
+newcomer greps `crates/` before they ever open `components/src/`, and a crate name appears in every
 `Cargo.toml` that depends on it, in every `use` statement, and in the dependency graph an outsider
 reads to understand the shape of the system.
 
-**Shared modules came in for a reason of their own.** `user/src/` used to hold 48 `[[bin]]` programs
+**Shared modules came in for a reason of their own.** `user/src/`, the directory milestone 175
+split into `components/src/` and `fixtures/src/`, used to hold 48 `[[bin]]` programs
 and a handful of modules compiled into them with `#[path = "..."] mod ...`, with **nothing in the
 naming distinguishing them**, so a reader who tried to run `cseam` was misled by the directory.
 `AGENTS.md` rule 7 retired that category the same day: what two binaries share is a crate, and what
-remains in `user/src/` beside the programs is single-consumer submodules (`vnet`, `netcli`), which
+remains beside the programs is single-consumer submodules (`net_transport`,
+`socket_test_client`), which
 are ordinary Rust. `script/lint` counts consumers per `#[path]` target and fails at two. A shared
 module's name still has to answer a question a program's name never raises, which is *"where does
 this get compiled into?"*, and that makes it a naming problem of its own rather than a smaller
@@ -355,7 +359,7 @@ most needs it is the person about to propose it again.
 That is not hypothetical. A lane proposed `system_builder` for the crate milestone 96 extracted, the
 maintainer endorsed it, and calef overruled it to `system_initializer`. Only afterwards did anyone
 find that **milestone 63 had already refused `system_builder`**, for a reason still true:
-`user/src/builder.rs` calls itself "a minimal init: the system builder", so two programs would claim
+`components/src/builder.rs` calls itself "a minimal init: the system builder", so two programs would claim
 one phrase. The refusal existed, in one table cell inside one milestone block, invisible at the
 moment it was needed. A blind rename then swept the old name out of that very row, and the record of
 the refusal was nearly destroyed by the rename it should have prevented.
@@ -463,7 +467,9 @@ down. What is left over is what nobody objected to at the time.
 first precisely because a wrong name there is read by everyone who uses the system, is the one with
 no argued reasoning anywhere in the tree: not in a header, not in a milestone block, not in an
 introducing commit. `budgeter` and `heeder` are cited *as* an established agent-noun family when
-milestone 63 argues for `benchmarker`, and neither was ever argued for itself. `sink` is used
+milestone 63 argues for `benchmarker`, and neither was ever argued for itself. (`budgeter` was
+argued and ruled on 2026-09-13, and is `memory_grant_depleter`; the word stays in this sentence
+because the sentence is about what 63's text says, and 63 is BUILT and keeps it.) `sink` is used
 throughout DECISIONS §51 and defended nowhere in it. The one program whose record says anything
 useful is `disk_partitioner`, whose introducing commit calls the name provisional in as many words.
 
@@ -521,8 +527,7 @@ $ script/names --unratified
 UNRATIFIED (54 of 126), in the order worth working through
 ...
   programs, unrecorded
-    budgeter                     user/src/budgeter.rs
-    builder                      user/src/builder.rs
+    builder                      components/src/builder.rs
     ...
   crates, unrecorded
     abi                          crates/abi/src/lib.rs
@@ -539,8 +544,9 @@ UNRATIFIED (54 of 126), in the order worth working through
 
 **The tier is the kind, and not "programs a person actually types".** That second split is the
 two-tier rule calef rejected on 2026-08-01, keyed on a property that is not stable: `wc` went from
-internal plumbing to a prompt-typed pipeline stage inside a day. Every program in `user/src/` is in
-the initrd and can be typed, so the kind is the honest tier and needs no classification anybody
+internal plumbing to a prompt-typed pipeline stage inside a day. Every program in `components/src/`
+and `fixtures/src/` is in the initrd and can be typed, so the kind is the honest tier and needs no
+classification anybody
 could get wrong. This is a sort order rather than a naming convention, so the cost of being wrong
 about one entry is that it is read in the wrong minute.
 
@@ -772,8 +778,8 @@ the immutable half.
 because lint runs constantly. (An earlier version of this sentence said four and then listed five,
 which is the ordinary way a hand-kept count drifts; take it from the script.)
 
-1. **No name ending in `-d`**, over `user/src/*.rs`, `user/Cargo.toml`'s `[[bin]]` names, and
-   `crates/*`. Four characters or more, so a three-letter name ending in `d` is read as an
+1. **No name ending in `-d`**, over `components/src/*.rs` and `fixtures/src/*.rs`, both
+   `Cargo.toml`s' `[[bin]]` names, and `crates/*`. Four characters or more, so a three-letter name ending in `d` is read as an
    abbreviation rather than a daemon (`kbd` was this rule's worked example until its 2026-08-28
    rename). Words that
    genuinely end in `d` go in `naming_allow` **with a reason**, the same shape as a per-item
@@ -810,6 +816,46 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 (the same blind spot the conflict-marker check has), and check 1 sees the *names* of things rather
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
+
+## A terminus that is structural, or one that is merely current
+
+calef, 2026-09-13, asking after ruling `audit_sink` -> `login_audit_receiver`: *"Are there other
+sinks that should be named receivers?"* The sweep found three and renamed none of them, which is
+what makes the distinction worth writing down rather than leaving in one block.
+
+**The test, in one question: does the name claim an end-of-stream that is a property of the design,
+or one that is an accident of what has not been built yet?**
+
+`user/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT` endpoint and
+discards it. "Sink" was accurate about today and wrong about the program: the discard exists because
+printing the record would need a `WRITE` view of the terminal, and handing that to a third process
+was refused *for now*. The moment somebody grants it, the program keeps records and its name says it
+does not. A name that has to change when a capability is granted is naming the gap rather than the
+thing.
+
+The three that survived the same question, and each for its own reason:
+
+| Name | Why the terminus is structural |
+|---|---|
+| `byte_sink_proto` | A wire contract named for what it carries. It makes no disposal claim at all |
+| `terminal_sink_caretaker` | It holds the terminal endpoint, which also carries `OP_READLINE`, and hands out a sink that **cannot read**. `sink` names what it hands out, `caretaker` names what it is. calef already caught this class once here, ratifying the longer form over `terminal_sink` on 2026-08-03 |
+| `sink` (the program) | Not a terminus at all. Three roles, and `ROLE_FILE` is a real file behind a sink: the process can open, read, write at offsets, truncate and stat, while its client can only say *here are sixteen bytes, append them*. Renaming it `receiver` would name one end of a three-role program |
+
+**The second half of the ruling is the part that is easy to lose.** `audit_sink` failed on two
+counts and only one of them is about "sink". The `audit` half promised a record that does not exist,
+which is `flaky`'s fault (borrowed recognition the program contradicts) applied to a payload rather
+than to a behaviour. A reader meeting `audit_sink` in a process listing concludes the system records
+logins. Nothing does.
+
+So `receiver` won because it is true in both states: it receives today and it will receive when it
+records, and **`login_audit_recorder` is then an honest successor rather than a correction**. That
+successor is written into the program's own block as a condition rather than left to whoever
+notices, which is §71's shape borrowed for a name: say what would change the answer, beside the
+thing it would change.
+
+**What this does not license.** It is not an argument against `sink`, which is this tree's word for
+the end of a stream nobody reads further and is right three times out of four. It is an argument
+against naming a program after a state that a single capability grant would end.
 
 ## Performing a ratified rename
 
@@ -887,6 +933,19 @@ Where it hides, from the two renames that found it:
 | `[[bin]]` name and path | `user/Cargo.toml` |
 | Shell command strings inside tests | `parse(b"heeder report.txt")` |
 | Fixture strings in other crates | `crates/timetable`'s `"every 5s heeder"` |
+| A configuration file the tree ships | `components/timetable.conf`'s `at-boot budgeter --mem 4` |
+| Identifiers derived from the program's name | `saw_budgeter_grant`, `budgeter_reports`, four test function names |
+
+**The last two rows were added by the `budgeter` rename on 2026-09-13, and both hide in a way the
+others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
+narrowed with `--include=*.rs --include=*.md --include=*.toml` is how most of these sweeps are
+scoped, and it misses a shipped configuration file entirely, while `crates/timetable` compiles that
+one in with `include_str!` and the kernel asserts on it firing. Derived identifiers hide for the
+opposite reason, which is that they are *not* string literals and the compiler does find them:
+`saw_budgeter_grant` and `budgeter_reports` would have compiled fine under the old spelling and left
+the tree naming a program that no longer exists, in the one place a sweep's own grep still finds
+them. Neither is exotic; both were hit by the `worker` rename earlier the same day and recorded only
+in its commit message, which is rung four.
 
 **The evidence is one failure and one success, a commit apart.** Renaming `doc` to `mdr` left
 `grant_plan` still saying `doc`, so the shell could not spawn the binary and the archive did not hold
@@ -910,6 +969,24 @@ the reason `AGENTS.md` gives for not gating identified work either.
 
 What milestone 63 did **not** rename, each on purpose, so the next reader does not "fix" one of them
 by mistake.
+
+- **Two records under `design/` still spell names milestone 175 retired, and one of them is a
+  present-tense claim.** `design/capsicum-and-the-retrofit-question.md`'s honest comparison says the
+  system confines "`worker`, `budgeter`, `heeder`, `spinner`, a C component, and a filesystem we
+  vendored", and `AGENTS.md`'s rule 7 section describes `user/src/` as a live directory. Both were
+  left where they are because a developer lane edits its own milestone's roadmap block and nothing
+  else under `design/`, and never `AGENTS.md`. Every *other* occurrence of the old names in
+  `design/` is a dated narrative and correctly keeps them. Neither is load-bearing; both are one
+  line for whoever next has the standing to make the edit.
+
+  **Half of the first one closed on 2026-09-13**, and the way it closed is the point rather than the
+  tidiness. The `memory_grant_depleter` rename lane was already editing that sentence's `budgeter`,
+  because a present-tense claim moves whatever directory it sits in, so the word it was there to
+  correct went with the sweep that had to touch the line anyway. `worker` is still there, and this
+  entry is still open for it: performing *that* ruling was a different lane's, and a rename is not a
+  thing to do on the way past. The general shape, worth more than either word: **a stale record gets
+  fixed when something else brings a writer to the line**, not when somebody schedules a pass over
+  it, which is why the entry names the line rather than filing a task.
 
 - **The boot mode is still called `shell`, and the program is `swish`.** `cargo xtask shell` and the
   kernel's `--features shell` name a *configuration* (boot straight to a prompt, milestone tour

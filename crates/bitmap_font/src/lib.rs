@@ -119,7 +119,7 @@ pub mod glyphs;
 ///
 /// The narrower cell is also what makes the terminal usable: 128 / 7 is **18 columns** where 128 / 8
 /// was 16. The scanout is not a whole multiple of 7, so the two rightmost pixels of a full-width
-/// surface are outside the grid and stay background; see `user/src/display_terminal.rs`.
+/// surface are outside the grid and stay background; see `components/src/display_terminal.rs`.
 pub const GLYPH_W: u32 = 7;
 
 /// A glyph cell's height in pixels. Eight rows, of which the last carries only the descenders

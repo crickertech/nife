@@ -1,6 +1,6 @@
 use super::*;
 
-/// The last line `user/src/swish.rs`'s pipeline role prints. Must match `PIPELINE_DONE` there.
+/// The last line `components/src/swish.rs`'s pipeline role prints. Must match `PIPELINE_DONE` there.
 const DONE: &[u8] = b"== pipelines done\n";
 
 /// The script's transcript, run **once** and shared by every assertion below.
@@ -134,12 +134,12 @@ fn the_line_is_refused_before_anything_is_spawned() {
     );
 
     // A program whose answer is a register, on the left of a pipe.
-    let said = answer(t, b"worker 9 | wc");
+    let said = answer(t, b"least_authority_demo 9 | wc");
     assert!(
         core::str::from_utf8(said)
             .unwrap_or("")
             .contains("byte stream"),
-        "`worker 9 | wc` should be refused for having no bytes: {:?}",
+        "`least_authority_demo 9 | wc` should be refused for having no bytes: {:?}",
         core::str::from_utf8(said).unwrap_or("<not utf-8>"),
     );
 

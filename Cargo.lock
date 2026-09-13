@@ -149,6 +149,55 @@ dependencies = [
 ]
 
 [[package]]
+name = "components"
+version = "0.1.0"
+dependencies = [
+ "abi",
+ "bitmap_font",
+ "block_roster",
+ "byte_sink_proto",
+ "calendar",
+ "clock_proto",
+ "component_plan",
+ "compositor",
+ "credential_proto",
+ "credentialer",
+ "documentation",
+ "elf",
+ "entropy_proto",
+ "environment_proto",
+ "filesystem_proto",
+ "gpt",
+ "grant_plan",
+ "graphics_proto",
+ "jh7110_entropy_source",
+ "line_editor",
+ "login_proto",
+ "mdns_config",
+ "mdns_proto",
+ "measured_boot",
+ "nifefs",
+ "ntp_proto",
+ "pgrep",
+ "pmap",
+ "ps",
+ "schedule_store",
+ "smoltcp",
+ "socket_proto",
+ "supervision_proto",
+ "swap_proto",
+ "swish",
+ "system_initializer",
+ "timetable",
+ "tock-registers",
+ "uptime",
+ "user_rt",
+ "video_terminal",
+ "virtio",
+ "watch",
+]
+
+[[package]]
 name = "compositor"
 version = "0.1.0"
 dependencies = [
@@ -283,6 +332,34 @@ name = "find-msvc-tools"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5baebc0774151f905a1a2cc41989300b1e6fbb29aff0ceffa1064fdd3088d582"
+
+[[package]]
+name = "fixtures"
+version = "0.1.0"
+dependencies = [
+ "abi",
+ "byte_sink_proto",
+ "c_seam",
+ "component_plan",
+ "compositor",
+ "coremark",
+ "credential_proto",
+ "elf",
+ "filesystem_proto",
+ "grant_plan",
+ "graphics_proto",
+ "job_mix",
+ "line_editor",
+ "login_proto",
+ "nifefs",
+ "schedule_store",
+ "soak_page",
+ "supervision_proto",
+ "swap_proto",
+ "system_initializer",
+ "user_rt",
+ "virtio",
+]
 
 [[package]]
 name = "generational_table"
@@ -928,6 +1005,7 @@ name = "uptime"
 version = "0.1.0"
 
 [[package]]
+<<<<<<< HEAD
 name = "user"
 version = "0.1.0"
 dependencies = [
@@ -980,6 +1058,8 @@ dependencies = [
 ]
 
 [[package]]
+=======
+>>>>>>> origin/main
 name = "user_heap"
 version = "0.1.0"
 

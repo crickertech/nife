@@ -18,8 +18,8 @@ named program's manifest **at spawn**, before a child exists, so a mismatch is a
 the line you typed:
 
 ```text
-$ budgeter
-  budgeter: needs a memory grant; add --mem <pages>
+$ memory_grant_depleter
+  memory_grant_depleter: needs a memory grant; add --mem <pages>
 ```
 
 Nothing was built, nothing hung. The contract was checked where you could still read it.
@@ -81,13 +81,13 @@ read it: `caps run wc file:report.txt` prints "read-only, and nothing else on th
 One file, not a list. A program that needs two needs a manifest that says so, and that is a later
 widening rather than something to leave ambiguous now.
 
-The programs a `Manifest` is written for (the two interrupt demonstrators, `heeder` and `spinner`,
+The programs a `Manifest` is written for (the two interrupt demonstrators, `interrupt_heeder` and `interrupt_ignorer`,
 declare nothing but `interruptible`):
 
 | program    | arg        | mem                  | file      | reports |
 |------------|------------|----------------------|-----------|---------|
-| `worker`   | Required   | Forbidden            | Forbidden | yes     |
-| `budgeter` | Forbidden  | Required 1..=64 pages | Forbidden | yes     |
+| `least_authority_demo`   | Required   | Forbidden            | Forbidden | yes     |
+| `memory_grant_depleter` | Forbidden  | Required 1..=64 pages | Forbidden | yes     |
 | `date`     | Forbidden  | Forbidden            | Forbidden | yes     |
 
 **`date`'s row is all `Forbidden`, and that is the interesting one.** Its authority is a read-only
@@ -103,8 +103,8 @@ rather than reading the static table, so the host tests check a manifest shape n
 That split was worth making anyway, because milestone 23 needs exactly it: a manifest that travels
 with a component, checked by a composer that did not write the program.
 
-`worker` needs its `n` and no memory; granting `--mem` to it is a refusal. `budgeter` exists to
-spend a budget, so it *requires* `--mem` (the lower bound of 1 makes "budgeter with no grant" a
+`least_authority_demo` needs its `n` and no memory; granting `--mem` to it is a refusal. `memory_grant_depleter` exists to
+spend a budget, so it *requires* `--mem` (the lower bound of 1 makes "memory_grant_depleter with no grant" a
 refusal), with an upper bound the shell's own budget can actually back.
 
 ## The check, and its order
@@ -119,7 +119,7 @@ Placing the tokens is what milestone 47 moved out of the parser. The parser know
 only the manifest knows what a token *is*, which is why `wc 2026` designates a file named `2026`
 rather than an argument nobody declared. Two refusals fall out of the same rule:
 
-- a token past the last declared slot cannot be placed, so `worker 5 extra` is refused. That is the
+- a token past the last declared slot cannot be placed, so `least_authority_demo 5 extra` is refused. That is the
   safety property the `file:` prefix used to be credited with, and it was always the manifest's.
 - inside a file slot, what the *shell holds* decides whether the designation can be backed at all:
   "you hold no such capability" beats "and that name is too long", because it is the bigger fact.

@@ -55,6 +55,15 @@ out: a package directory is a Rust name, and everything else is a path.
 These are folded in here rather than given their own milestone because a crate rename is a
 directory rename, which is what this milestone already is.
 
+**One member of the agent-noun family cited above has since left it** (2026-09-13). The
+`os_primitives_benchmarker` row argues the form by listing `broker`, `spawner`, `painter`,
+`budgeter`, `compositor` and `credentialer`, and `budgeter` is now `memory_grant_depleter`: calef
+ratified the rename because the old stem read as a program that *manages* a budget where it exists
+to exhaust one. The row keeps the word it was written with, because this block is an account of
+what was settled on 2026-08-01 and the argument it makes is about the **form** rather than about
+that stem. The form is untouched: `depleter` is an agent noun too. The line is here so that a
+reader meeting the list does not go looking for a `budgeter` that `script/names` no longer knows.
+
 ## `swish`: the shell has a name now (calef, 2026-08-01)
 
 `shell` is a category, not a name. `bash`, `zsh`, `fish` and `rc` are names; this project's most

@@ -15,8 +15,8 @@ terminal.
                                    the surface ────── shared frames ──────────────┘
 ```
 
-Three parties. The **device**, on the PCIe bus. The **display driver** (`user/src/gpu_driver.rs`), which
-owns the device and serves the contract. The **client** (`user/src/painter.rs`), which owns the
+Three parties. The **device**, on the PCIe bus. The **display driver** (`components/src/gpu_driver.rs`), which
+owns the device and serves the contract. The **client** (`fixtures/src/painter.rs`), which owns the
 pixels and has never heard of virtio-gpu.
 
 What each holds is the whole design:
@@ -261,8 +261,8 @@ That is a silicon question (notes/target-hardware.md), not a QEMU one.
 
 - **RESOLVED 2026-08-26, in the same lane, a few hours after it was first written below.** The
   paragraph that follows was written mid-investigation and its conclusion was wrong: there is no
-  QEMU-side resize bug. Root cause was the guest driver, not the host: `user/src/gpu_driver.rs`,
-  `user/src/painter.rs` and `user/src/display_terminal.rs` still looped over per-page capability
+  QEMU-side resize bug. Root cause was the guest driver, not the host: `components/src/gpu_driver.rs`,
+  `fixtures/src/painter.rs` and `components/src/display_terminal.rs` still looped over per-page capability
   slots (`SLOT + k` for `k` in `0..N`) that increment one's move to a single run capability
   (DECISIONS §102) had already removed. The second iteration always failed with `NoSuchSlot`, and
   the driver called `die()` and exited *before* sending the "UP" report anything downstream was
@@ -316,8 +316,8 @@ That is a silicon question (notes/target-hardware.md), not a QEMU one.
 Written back here on 2026-07-29, because a contract's real test is what happened when the next thing
 implemented against it, and the answer is worth recording: **nothing in this rung changed.**
 
-`crates/graphics_proto` and `user/src/gpu_driver.rs` are byte-for-byte the same. The compositor
-(`user/src/compositor.rs`) took `painter`'s place at this seam, holding the display endpoint and the scanout
+`crates/graphics_proto` and `components/src/gpu_driver.rs` are byte-for-byte the same. The compositor
+(`components/src/compositor.rs`) took `painter`'s place at this seam, holding the display endpoint and the scanout
 frames with exactly `painter`'s authority, and the driver cannot tell the difference. The only addition
 on this side of the seam is a kernel wiring entry point that starts the driver **with no client**
 (`display_service::start_driver`), because rung two's client is spawned separately with a scene behind
@@ -350,8 +350,8 @@ composed screen first and this rung's pattern second, both on both ISAs.
 Written back here on 2026-07-30, for the same reason rung two's section exists: a contract's real test
 is what happened when the next thing implemented against it. **Nothing in this rung changed.**
 
-`crates/graphics_proto` and `user/src/gpu_driver.rs` are byte-for-byte the same again. The display terminal
-(`user/src/display_terminal.rs`) takes `painter`'s place at this seam with **exactly `painter`'s authority**: a
+`crates/graphics_proto` and `components/src/gpu_driver.rs` are byte-for-byte the same again. The display terminal
+(`components/src/display_terminal.rs`) takes `painter`'s place at this seam with **exactly `painter`'s authority**: a
 report endpoint, the display endpoint, and the surface frames. It draws glyphs instead of a
 coordinate pattern and calls `FLUSH` with the rectangle of cells that changed, which is what this
 note said a client does. The only addition on this side is a kernel wiring entry point
@@ -375,7 +375,7 @@ Deliberately not in rung one, each with the seam it will use:
   change here. The VT engine is Rust (`crates/video_terminal`); libghostty-vt is still an open choice and
   notes/glyphs.md prices it now that there is a built engine to compare against.
 - **Input.** **Done, 2026-07-30.** A keyboard is a second device with its own driver and its own
-  capability (`user/src/keyboard_driver.rs`, virtio-input over this same PCIe transport and behind the same IOMMU
+  capability (`components/src/keyboard_driver.rs`, virtio-input over this same PCIe transport and behind the same IOMMU
   domain), and the routing question turned out to be the compositor's exactly as predicted. What this
   note did not predict is where the *typing* authority lives: it is the input ring's mapping, not the
   driver's device, and the doorbell it rings carries nothing at all. See notes/glyphs.md.
@@ -410,8 +410,8 @@ recorded there.
 | piece | file |
 |---|---|
 | the contract, host-tested | `crates/graphics_proto/src/lib.rs` |
-| the display driver | `user/src/gpu_driver.rs` |
-| the client that draws | `user/src/painter.rs` |
+| the display driver | `components/src/gpu_driver.rs` |
+| the client that draws | `fixtures/src/painter.rs` |
 | enumeration | `kernel/src/pci.rs` (`find_gpu_device`) |
 | the spawn wiring | `kernel/src/user/display_service.rs` |
 | the tests | `kernel/src/user/display_tests.rs` |

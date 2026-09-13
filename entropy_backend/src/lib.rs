@@ -36,7 +36,8 @@
 //! # BUGS
 //!
 //! - **`script/names` cannot see this crate, and could not see it under `patches/` either.** That
-//!   tool derives its table from three locations: `crates/<name>/src/lib.rs`, `user/src/<name>.rs`
+//!   tool derives its table from four locations: `crates/<name>/src/lib.rs`,
+//!   `components/src/<name>.rs`, `fixtures/src/<name>.rs`
 //!   and `script/<name>`. A root-level workspace is none of them, so `script/names entropy_backend`
 //!   answers "neither a name in the tree nor a recorded refusal", and it says the same of
 //!   `std_exerciser`, which has sat there far longer. So the provenance block above is the whole

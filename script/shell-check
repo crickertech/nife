@@ -22,7 +22,7 @@
 # by. It is NOT a substitute for a bench run: QEMU has neither board's framebuffer handoff
 # (milestone 157) nor its real UART timing.
 #
-# This is the gate for `user/src/progenitor.rs`. Every other test that runs the shell has
+# This is the gate for `components/src/progenitor.rs`. Every other test that runs the shell has
 # the KERNEL play the first process, so a broken progenitor fails nothing; the interactive boot is the only thing that
 # runs the real one, and until this existed nothing ran the interactive boot. Milestone 50 hit three
 # bugs that way and all three printed nothing at all. See notes/pipes.md.
@@ -66,7 +66,7 @@
 # its budget prints the failing sentence on every boot of both legs on every push.
 #
 # **A killed user thread is not itself a failure here**, which is how `login` dying at `_start` on
-# every boot went unnoticed through passing runs (`user/src/login.rs`'s own BUGS). That assertion is
+# every boot went unnoticed through passing runs (`components/src/login.rs`'s own BUGS). That assertion is
 # the obvious next ratchet and belongs with the fix for it.
 #
 # **The two graphical legs are red** behind milestone 177's display driver bug, and neither

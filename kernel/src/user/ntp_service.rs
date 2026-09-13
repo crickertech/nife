@@ -2,12 +2,12 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// The roles of the `ntp` binary. Must match user/src/ntp.rs.
+/// The roles of the `ntp` binary. Must match components/src/ntp.rs.
 pub const ROLE_CLIENT: u64 = 0;
 pub const ROLE_SERVER: u64 = 1;
 pub const ROLE_PROBE_CLOCK: u64 = 2;
 
-/// The words the `ntp` binary reports. Must match user/src/ntp.rs.
+/// The words the `ntp` binary reports. Must match components/src/ntp.rs.
 ///
 /// The whole vocabulary is here even though the tests assert on five of the eight: the point of
 /// a mirror is that it is complete, and a failing test that prints `3` is only readable if `3`
@@ -24,7 +24,7 @@ pub mod rpt {
     pub const BAD_LOCAL_TIME: u64 = 8;
 }
 
-/// Which reply the test server sends. Must match `user/src/ntp.rs`'s `srv`.
+/// Which reply the test server sends. Must match `components/src/ntp.rs`'s `srv`.
 pub mod srv {
     pub const GOOD: u64 = 0;
     pub const BAD_ORIGIN: u64 = 1;
@@ -33,7 +33,7 @@ pub mod srv {
 }
 
 /// The small integers the client reports a `ntp_proto::Reject` as. Must match
-/// `user/src/ntp.rs`'s `reject_code`; kept as distinct values rather than a bool because which
+/// `components/src/ntp.rs`'s `reject_code`; kept as distinct values rather than a bool because which
 /// check refused a packet is the difference between a broken server and an attack.
 pub mod reject {
     pub const LENGTH: u64 = 1;
@@ -41,7 +41,7 @@ pub mod reject {
     pub const ORIGIN_MISMATCH: u64 = 7;
 }
 
-/// How many requests the client makes before giving up. Must match `ATTEMPTS` in user/src/ntp.rs.
+/// How many requests the client makes before giving up. Must match `ATTEMPTS` in components/src/ntp.rs.
 pub const ATTEMPTS: u64 = 3;
 
 /// Each role mints or maps exactly one shared frame and pays for its page tables. Small and

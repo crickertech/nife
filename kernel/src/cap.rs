@@ -155,7 +155,7 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// type and creating a capability table cannot allocate. Growing it is a one-number change here,
 /// paid in TCB size.
 ///
-/// **Raised 16 -> 17, milestone 49's terminal update.** `user/src/login.rs` gaining an eighth
+/// **Raised 16 -> 17, milestone 49's terminal update.** `components/src/login.rs` gaining an eighth
 /// permanent grant (`TERM_EP`) pushed its own peak past the old fifteen usable slots (sixteen
 /// minus the reserved fault slot, `abi::fault::FAULT_EP_SLOT`) by exactly one: the first login
 /// against a freshly built service answered `login_proto::DENIED` instead of `OK`, on a correct
@@ -351,7 +351,8 @@ pub use capability::{Error, Rights};
 //
 // `abi::rights` is what userspace *names* a right with: it is the word that travels in a syscall
 // register at 79 call sites outside `crates/abi` as this lands, from `system_initializer`'s grant
-// tables to every `SEND_CAP`/`CAP_INSERT` in `user/src/`. `capability::Rights` is what the kernel
+// tables to every `SEND_CAP`/`CAP_INSERT` in `components/src/` and `fixtures/src/`.
+// `capability::Rights` is what the kernel
 // *means* by one.
 // Until this block existed nothing compared them, and the two are not one definition with two
 // spellings: they are two arrays of magic numbers in two dependency-free crates that cannot see

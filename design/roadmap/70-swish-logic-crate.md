@@ -3,7 +3,7 @@
 **Status: BUILT.** Raised 2026-08-02, and **the finding that prompted it was wrong**, which is
 worth recording because the corrected version is a smaller and more honest milestone.
 
-`crates/swish` holds the shell's logic and `user/src/swish.rs` keeps the IO, which took 354 lines out
+`crates/swish` holds the shell's logic and `components/src/swish.rs` keeps the IO, which took 354 lines out
 of the program and bought 36 host tests (33 unit, 3 doctests) where there had been none. What lifted:
 the routing of a typed line, the pattern-versus-text question, the expansion order, `echo`, and every
 sentence the prompt prints (the refusals, the outcome, the endowment preview, the shell's own `caps`
@@ -13,7 +13,7 @@ would have needed the shell's IO restructured, which this milestone was scoped n
 
 ## The correction
 
-`user/src/swish.rs` is 2,625 lines with **zero `#[cfg(test)]` blocks**, and that was first reported
+`components/src/swish.rs` is 2,625 lines with **zero `#[cfg(test)]` blocks**, and that was first reported
 as "the shell is untested". It is not. The shell is covered twice over:
 
 - **~28 QEMU integration `test_case`s** across five kernel test modules (`shell_navigation_tests`,
@@ -63,7 +63,7 @@ person to touch these scripts finds them.
 ## Follow-on
 
 - **Recorded.** `crates/swish/src/lib.rs`'s own `BUGS` section and `notes/shell.md`: `builtin`,
-  `dispatch_one`, `run`, `spawn` and `pipeline` stay in `user/src/swish.rs` and are still reachable
+  `dispatch_one`, `run`, `spawn` and `pipeline` stay in `components/src/swish.rs` and are still reachable
   only by booting QEMU. They are capability movement, and lifting them would need the shell's IO
   restructured, which this milestone was scoped not to do.
 - **Milestone 76.** The gate blind spot this block found: a table row saying `NOT-STARTED` while the

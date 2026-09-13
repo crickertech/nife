@@ -262,7 +262,7 @@ macOS, our `svc` null-invoke). So the OS-revealing benchmark is a **matched harn
 metric definition, three native implementations), which is exactly what lmbench is and how the
 L4/seL4 papers compare to Linux. Our own microbenchmarks above are the nife side of it.
 
-### The CoreMark workload (`crates/coremark`, `user/src/coremark.rs`)
+### The CoreMark workload (`crates/coremark`, `fixtures/src/coremark.rs`)
 
 19e's real workload is CoreMark, the three work items of a CoreMark iteration (a linked-list sort, a
 small-matrix multiply, a state machine over a byte buffer), each folded into a CRC so the compiler
@@ -301,7 +301,7 @@ number worth having.
 
 ### The first EL0 numbers (nife, M-series host, HVF, debug build)
 
-The `os_primitives_benchmarker` program (`user/src/os_primitives_benchmarker.rs`), spawned by the bench boot, self-times each primitive
+The `os_primitives_benchmarker` program (`fixtures/src/os_primitives_benchmarker.rs`), spawned by the bench boot, self-times each primitive
 from EL0 and reports it as a normal bench line. So far:
 
 | primitive | HVF ns/iter | what one iteration is |

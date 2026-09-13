@@ -5,7 +5,7 @@ is what a schedule is *refused*, and the one kernel primitive whose absence shap
 program.
 
 The pieces: `crates/timetable` (the decision, host-tested and Kani-reached),
-`user/src/timetable.rs` (the budget, the counter, the loader), `user/timetable.conf` (the
+`components/src/timetable.rs` (the budget, the counter, the loader), `components/timetable.conf` (the
 document), `kernel/src/user/timetable_tests.rs` (both ISAs). Every name in that list is
 **provisional**; milestone 129's block declines to propose one and AGENTS.md says the eventual one
 is calef's.
@@ -31,8 +31,8 @@ observation that a capability system can do something else.
 person would type at the prompt:
 
 ```text
-every 150ms  worker 7
-at-boot      worker 3
+every 150ms  least_authority_demo 7
+at-boot      least_authority_demo 3
 every 1s     date
 ```
 
@@ -47,8 +47,8 @@ So `timetable` prints its whole plan and *then* arms:
 
 ```text
 timetable: the plan, before anything fires
-  every 150ms   worker 7
-    grants worker exactly:
+  every 150ms   least_authority_demo 7
+    grants least_authority_demo exactly:
       cap 0  endpoint  report its answer to this timetable
       arg      7
       and nothing else: no clock, no disk, no console, no network
@@ -57,7 +57,7 @@ timetable: the plan, before anything fires
 timetable: armed
 ```
 
-The line `caps worker 7` prints at the prompt and the line this prints are the same decision, made
+The line `caps least_authority_demo 7` prints at the prompt and the line this prints are the same decision, made
 by the same code, one of them for a job that has not been scheduled yet.
 
 ## The four answers, and why three of them are the point
@@ -73,7 +73,7 @@ outcomes where `/proc` has one. Registration here has four where a crontab has o
 | `timetable::Error` | the document does not parse, with the line number | editing the document |
 
 **The `Refused`/`Unbacked` split is the one worth keeping.** Collapsing them would tell a person to
-edit a line that has nothing wrong with it. `budgeter` with no `--mem` is wrong wherever it is typed;
+edit a line that has nothing wrong with it. `memory_grant_depleter` with no `--mem` is wrong wherever it is typed;
 `date` is a perfectly good line that this particular scheduler cannot back, and the fix is a decision
 somebody makes on purpose at the spawn site.
 
@@ -102,7 +102,7 @@ four running jobs in one granted a clock, a directory and a terminal, and neithe
 the program manifests can tell those two apart.
 
 Every field on the shipped scheduler's `Held` is `false` or zero, and that is checkable against the
-slot list in `user/src/timetable.rs`'s header:
+slot list in `components/src/timetable.rs`'s header:
 
 - slot 0: its output endpoint (WRITE)
 - slot 1: an untyped budget (WRITE)
@@ -132,7 +132,7 @@ result. **The kernel cannot do that, and the reason is worth knowing before anyo
 
 `timetable::Registry` is a `[Row; MAX_ENTRIES]` and a `Row` carries an `Admission`, which carries a
 kilobyte of `grant_plan::Endowment`. So `Registry::register` compiles to a **21632-byte stack
-frame**, and the `grant_plan::plan` underneath it to a further 12048. In `user/src/timetable.rs`
+frame**, and the `grant_plan::plan` underneath it to a further 12048. In `components/src/timetable.rs`
 those numbers are fine and stated: it is a process with a 32-page stack, and
 `kernel/src/user/timetable_tests.rs` says why it maps 32 pages. In the **kernel** they are exactly
 what `script/stack-frame-check` refuses, because a frame larger than the 4096-byte guard page can
@@ -149,7 +149,7 @@ program, and never in the kernel.
 So the spawn site carries the program set as a written list, `PLANNED_PROGRAMS`, and the thing that
 keeps it equal to the plan is a **host test** rather than a comment:
 `the_archive_a_timetable_holds_is_measured_against_what_it_will_build` registers the same
-`user/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is exactly that
+`components/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is exactly that
 set, by name. Editing the document without editing the list fails in milliseconds with no emulator,
 and the program's own audit line then fails the cross-ISA test as well, so a wrong list goes red
 twice.
@@ -174,7 +174,7 @@ initrd fails a test rather than passing one it no longer earns.
 
 What this does not do is narrow per *entry*: the residual is the union of the plan's programs, so a
 document admitting three programs leaves each instance's loader able to name the other two's images.
-`user/src/spawner.rs` has the narrower shape (one image, and "build me program X" cannot be asked),
+`components/src/spawner.rs` has the narrower shape (one image, and "build me program X" cannot be asked),
 and reaching it here needs a capability per entry rather than one per timetable. Recorded in `BUGS`.
 
 ## Registration is the security boundary
@@ -186,7 +186,7 @@ touch a disk, cannot open a socket, and cannot give any of those to a child, bec
 ambient authority anywhere for a child to fall back on.
 
 **Who may register is answered by where the document lives**, and for the first deliverable that is
-`include_str!`: the document is compiled into the binary, exactly as `user/mdns_responder.conf` is
+`include_str!`: the document is compiled into the binary, exactly as `components/mdns_responder.conf` is
 compiled into the responder and for the same recorded reason (reading a file needs a file capability
 wired through the spawn; see notes/mdns.md and milestone 131). So today the authority to register is
 the authority to rebuild the image, which is the strongest possible answer and also the least useful
@@ -263,17 +263,17 @@ and it is the same fork.
 
 `kernel/src/user/timetable_tests.rs`, one module for both ISAs (nothing in it is
 architecture-specific, so the parity gate is met by literally the same test running twice). It spawns
-the real program on the real `user/timetable.conf`, reads the plan it prints, then watches what
+the real program on the real `components/timetable.conf`, reads the plan it prints, then watches what
 fires:
 
-- the plan names what an admitted `worker` and an admitted `budgeter --mem 4` will each hold, and
+- the plan names what an admitted `least_authority_demo` and an admitted `memory_grant_depleter --mem 4` will each hold, and
   says "and nothing else";
 - `date` and `ps` are refused for want of a clock and a process view, in the plan, before anything
   runs;
-- `budgeter` with no `--mem` and `wc` carry the **prompt's own refusal sentences**, unchanged, which
+- `memory_grant_depleter` with no `--mem` and `wc` carry the **prompt's own refusal sentences**, unchanged, which
   is the check being the same check;
 - the admitted entries fire, under supervision, and their answers arrive on the endpoint the plan
-  said they would hold, `budgeter`'s included: its grant is nested inside its own instance's region
+  said they would hold, `memory_grant_depleter`'s included: its grant is nested inside its own instance's region
   (below) and reclaimed before the loop fires anything else;
 - and the summary accounts for every child: `4 fires, 4 clean exits, 0 faults`, which is the reap
   working. A scheduler that leaked a region per fire would print the same fire count and then run out
@@ -288,7 +288,7 @@ tree and this is not the lane to take it out again).
 
 Built 2026-08-22. `Held::mem_pages` was zero on the shipped scheduler, so an entry naming a memory
 grant was `Unbacked::Memory` even though the process held a budget; `timetable::SHIPPED_HELD.mem_pages`
-is now 4 and `timetable.conf`'s `at-boot budgeter --mem 4` is planned, backed, and fires.
+is now 4 and `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` is planned, backed, and fires.
 
 Milestone 129's block said to split the grant out of the *instance's own region*, "so that a
 single `Untyped::DESTROY` still reclaims both and a restart loop is not a leak". **The kernel
@@ -302,7 +302,7 @@ The nesting is still the right shape, for a reason the block did not state. **A 
 be the only thing in this system that pairs a death with a grant**, because a supervisor learns a
 tid and nothing else: `supervision_proto::build_child` hands back a TCB capability, `abi::tcb` has
 no method that reads a tid out of one, and `abi::fault`'s five-word message carries no
-builder-chosen tag. `user/src/timetable.rs` does not lean on that ambiguous signal, though: it
+builder-chosen tag. `components/src/timetable.rs` does not lean on that ambiguous signal, though: it
 sidesteps the need to interpret a refusal at all by making the pairing structural. `fire_with_grant`
 and `collect_grant` are called back to back, with nothing else fired in between and everything
 already outstanding drained first, so the very next death on the supervision endpoint cannot be
@@ -315,7 +315,7 @@ schedules exactly one such entry. The cost lands on every *other* entry, not on 
 `_start` is fully blocked in one syscall for as long as the grant-bearing instance takes to die, so
 an interval entry due during that window runs late rather than on schedule when the loop resumes
 (never dropped: `next_after`'s ordinary skip-not-catch-up rule covers a wait outlasting more than
-one period, same as any other stall). `timetable.conf`'s `at-boot budgeter --mem 4` fires before the
+one period, same as any other stall). `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` fires before the
 first `every 150ms` tick can even become due, so the cross-ISA test does not exercise that cost; a
 document whose `--mem` entry shared the clock with a fast interval would.
 
@@ -324,7 +324,7 @@ document whose `--mem` entry shared the clock with a fast interval would.
 - **The narrowing is to the plan, not to one image per entry.** The archive the scheduler holds now
   carries exactly the programs its document will build, and no more; what it does not do is give each
   entry its own image. So a compromise of the timetable reaches the *union* of the plan's programs
-  rather than one of them. `user/src/spawner.rs` is the narrower shape and needs a capability per
+  rather than one of them. `components/src/spawner.rs` is the narrower shape and needs a capability per
   entry to reach here, which this tree does not have.
 
 - **A `--mem` entry blocks everything else in the document while it runs.** See "A backable `--mem`

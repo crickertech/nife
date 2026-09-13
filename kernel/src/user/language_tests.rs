@@ -102,7 +102,7 @@ fn the_same_word_is_a_name_quoted_and_a_set_unquoted() {
 
 /// **The condition table, with real commands on both sides.**
 ///
-/// `worker 3` runs and `worker` is refused at the prompt (its manifest requires an integer), so the
+/// `least_authority_demo 3` runs and `least_authority_demo` is refused at the prompt (its manifest requires an integer), so the
 /// four lines cover every arm without a branch anybody wrote for the test. The pairs are each
 /// other's control: a `&&` that always ran and a `&&` that never ran would each satisfy half of
 /// this and fail the other half.
@@ -115,25 +115,25 @@ fn a_connector_runs_the_second_command_only_when_it_should() {
     let t = &buf[..n];
 
     assert!(
-        said(t, b"worker 3 && echo yes").contains("yes"),
+        said(t, b"least_authority_demo 3 && echo yes").contains("yes"),
         "&& did not run the second command after one that succeeded",
     );
     assert!(
-        !said(t, b"worker && echo yes").contains("yes"),
+        !said(t, b"least_authority_demo && echo yes").contains("yes"),
         "&& ran the second command after one this shell refused",
     );
     assert!(
-        !said(t, b"worker 3 || echo no").contains("no"),
+        !said(t, b"least_authority_demo 3 || echo no").contains("no"),
         "|| ran the second command after one that succeeded",
     );
     assert!(
-        said(t, b"worker || echo no").contains("no"),
+        said(t, b"least_authority_demo || echo no").contains("no"),
         "|| did not run the second command after one this shell refused",
     );
 
     // `;` runs whatever happened, which is the arm the four lines above cannot show: here the `&&`
     // is skipped and the `;` still runs.
-    let mixed = said(t, b"worker && echo yes ; echo always");
+    let mixed = said(t, b"least_authority_demo && echo yes ; echo always");
     assert!(mixed.contains("always"), "; did not run after a skipped &&");
     assert!(
         !mixed.contains("yes"),
@@ -144,7 +144,7 @@ fn a_connector_runs_the_second_command_only_when_it_should() {
 /// **The decision this milestone had to make, read off a transcript**: a refusal is not an error,
 /// and it gets its own number.
 ///
-/// `worker` is refused at the prompt with nothing spawned, so `$?` is **2**. `worker 3` runs, so it
+/// `least_authority_demo` is refused at the prompt with nothing spawned, so `$?` is **2**. `least_authority_demo 3` runs, so it
 /// is 0. Unix cannot draw this line, because there `127` and a program's own `exit(1)` are the same
 /// kind of integer; here they are different events and the shell knows which.
 #[test_case]
@@ -157,7 +157,7 @@ fn a_refusal_and_a_success_report_different_numbers() {
 
     // The script types `echo $?` twice, so both searches are anchored at their own prompt rather
     // than run over the whole transcript. `answer` slices from the *first* match of a needle, and
-    // the two needles differ only in what precedes them, which is why the two `worker` lines are in
+    // the two needles differ only in what precedes them, which is why the two `least_authority_demo` lines are in
     // the script at all.
     let mut statuses = [""; 2];
     let mut found = 0usize;

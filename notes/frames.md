@@ -147,7 +147,7 @@ crate::sched::grant_at(SURVEY_SLOT_ROSTER, page_frame_cap(roster_phys, Rights::R
 run(surveyor_image, Spawn { arg0: ROLE_SURVEY, grants: &[], maps: &stack, .. })
 ```
 
-The program side, from `user/src/disk_surveyor.rs`. It picks its own address, because it owns the
+The program side, from `components/src/disk_surveyor.rs`. It picks its own address, because it owns the
 page now and the kernel has no opinion:
 
 ```rust
@@ -326,7 +326,7 @@ went), and the difference is accounted rather than shrugged at:
   `crate::untyped::create` reserves the whole 640-page-frame construction budget the instant the
   service is spawned; splitting pieces of it into a caretaker or a client budget afterwards costs the
   ledger nothing further; only the initial reservation does. See notes/login.md and
-  `user/src/login.rs`'s own BUGS on why nothing gives it back: the service serves logins for the life
+  `components/src/login.rs`'s own BUGS on why nothing gives it back: the service serves logins for the life
   of the boot and this slice builds no teardown path.
 - **A second credential service instance, ~1659 (2026-08-23, milestone 155).** The provisioning
   suite (`kernel/src/user/identity_provisioning_tests.rs`) needs a store *before* anyone has sealed

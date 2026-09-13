@@ -17,7 +17,7 @@ fn start(bus: Bus) -> Option<entropy_service::Wiring> {
             report[0],
             entropy_proto::READY,
             "the entropy service did not come up on {bus:?} (it reported {:#x}; a 0xDEAD_.. \
-             word's low byte names the step, see user/src/entropy.rs)",
+             word's low byte names the step, see components/src/entropy.rs)",
             report[0],
         );
         assert_eq!(

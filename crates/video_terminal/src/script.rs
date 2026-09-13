@@ -14,7 +14,7 @@
 ///
 /// Spelled as a literal here rather than computed, because this crate deliberately does not depend
 /// on the framebuffer contract (a VT engine that knew about a scanout would be the wrong shape).
-/// `user/src/display_terminal.rs` and the kernel wiring both assert the two agree at **compile time**, so a
+/// `components/src/display_terminal.rs` and the kernel wiring both assert the two agree at **compile time**, so a
 /// screen that changed size is a build error rather than a terminal quietly missing its last column.
 ///
 /// **132, no remainder**: 924 / 7 is exactly 132, unlike 1280 / 7's six leftover pixels (and 128 /

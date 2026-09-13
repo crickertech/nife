@@ -13,7 +13,8 @@ exclude_globs = [
     # QEMU-only, no_std, bare-metal. The same three every host gate excludes (script/drift,
     # script/lint, xtask's host-test pass): they do not compile for the host at all.
     "kernel/**",
-    "user/**",
+    "components/**",
+    "fixtures/**",
     "crates/user_rt/**",     # EL0 syscall runtime, aarch64/riscv64 inline asm
 
     # Reach `user_rt` through the dependency graph, so they do not build for the host at all: thin

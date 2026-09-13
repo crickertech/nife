@@ -51,17 +51,17 @@ fi
 # `debug = 1`, which produces a 25 MB ELF the initrd would carry into RAM. Overriding a profile from
 # the command line is a build setting, not a change to the program.
 # **The link base has to move, and that is a finding rather than a workaround.**
-# `user/link.ld` puts every program at `0x40_0000`, and `kernel/src/user.rs` puts every program's
+# `crates/user_rt/link.ld` puts every program at `0x40_0000`, and `kernel/src/user.rs` puts every program's
 # stack at `0x50_0000` with a deeper std stack below that, so an image has under 896 KiB of address
 # space before it collides with its own stack. ripgrep's `.text` alone is 1.37 MiB, and the loader
 # refuses it with `Unmappable(AlreadyMapped)`. Relinking at 16 MiB is a link setting and touches no
 # ripgrep source, but it is not something a stranger's program would know to do: see
 # notes/ripgrep-on-nife.md, which argues this address map is the thing to change.
 #
-# Derived from `user/link.ld` by substitution rather than copied, so the two cannot drift.
+# Derived from `crates/user_rt/link.ld` by substitution rather than copied, so the two cannot drift.
 mkdir -p "$OUT"
-sed 's/^    \. = 0x400000;$/    . = 0x1000000;/' "$ROOT/user/link.ld" > "$OUT/link-high.ld"
-grep -q '0x1000000' "$OUT/link-high.ld" || { echo "build-ripgrep: user/link.ld no longer sets 0x400000 where this script expects it"; exit 1; }
+sed 's/^    \. = 0x400000;$/    . = 0x1000000;/' "$ROOT/crates/user_rt/link.ld" > "$OUT/link-high.ld"
+grep -q '0x1000000' "$OUT/link-high.ld" || { echo "build-ripgrep: crates/user_rt/link.ld no longer sets 0x400000 where this script expects it"; exit 1; }
 
 for TRIPLE in aarch64-unknown-nife riscv64-unknown-nife; do
   cd "$SRC"

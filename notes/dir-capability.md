@@ -8,7 +8,7 @@ program being confined.
 
 The contract lives with its code in `crates/filesystem_proto` (the `dir` and `dirent` modules, and the
 `OPENDIR`/`READDIR`/`MKDIR`/`RENAME` verbs in `fs`). The engine-side implementation is
-`redoxfs_server/src/lib.rs`; the caretaker is `user/src/fs_subtree_caretaker.rs`; the wiring and the
+`redoxfs_server/src/lib.rs`; the caretaker is `components/src/fs_subtree_caretaker.rs`; the wiring and the
 attacks are `kernel/src/user/fs_service.rs`'s `start_granted_dir` and
 `kernel/src/user/dir_capability_tests.rs`. This note is the argument around them. Read
 [fs-server.md](fs-server.md) first for the contract this extends.
@@ -389,7 +389,7 @@ Known limitations, next to the feature rather than only in a tracker.
   attacker or any `cd`/`ls` sequence needs.
 - **A single-name grant is still the directory the name is in**, which is wider than the name. The
   globbing lane closed that for a *pattern* operand (a nameset caretaker,
-  `user/src/fs_nameset_caretaker.rs`, serves only the names that matched: see
+  `components/src/fs_nameset_caretaker.rs`, serves only the names that matched: see
   [glob-grant.md](glob-grant.md)) and it is still open for a literal one, because a set of exactly
   one has no wiring behind it today.
 - **A grant on the root of a shell's namespace cannot be narrowed at all** (milestone 31 phase 3,

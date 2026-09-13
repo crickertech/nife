@@ -2,12 +2,12 @@ use super::*;
 use crate::cap::{Rights, memory_region_root_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
 
-/// Where the service maps its own request to the credential service. Must match `user/src/login.rs`.
+/// Where the service maps its own request to the credential service. Must match `components/src/login.rs`.
 const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 
 /// How many pages a spawned `login_test_client` role's own `memory_region_cap` (slot 3) holds:
 /// enough for `page_frame::MAP`'s own page-table cost when it self-maps the frame `login`'s
-/// `CONNECT` step delegates (milestone 49's channel-per-client update; `user/src/login_test_client.rs`
+/// `CONNECT` step delegates (milestone 49's channel-per-client update; `fixtures/src/login_test_client.rs`
 /// mirrors this program's own post-auth `map_page_frame(fs_page_frame, FS_VA, true, budget)`, but a
 /// role holds no budget yet at the point it must map its own connect channel). Margin over the one
 /// page a fresh mapping ever strictly needs, on this file's own existing style for every other
@@ -34,7 +34,7 @@ const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 /// Argon2id inner loop needed 16 pages where one was not close) rather than guessed from nothing.
 const LOGIN_STACK_PAGES: u64 = 16;
 
-/// The `login_test_client` roles; must match `user/src/login_test_client.rs`.
+/// The `login_test_client` roles; must match `fixtures/src/login_test_client.rs`.
 pub const ROLE_CHRIS: u64 = 0;
 pub const ROLE_CORINNE: u64 = 1;
 pub const ROLE_WRONG_SECRET: u64 = 2;
@@ -87,7 +87,7 @@ pub const F_TERM_WORKS: u64 = 1 << 8;
 /// role's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
 /// Every other role that fills the third word puts a [`login_proto::identity_hint`] there; this one
 /// has no identity to report and a number a red run needs. Must match
-/// `user/src/login_test_client.rs`'s `waited_micros`.
+/// `fixtures/src/login_test_client.rs`'s `waited_micros`.
 ///
 /// This is that client's own ceiling in the same units, so a failure message can say how close to
 /// it the wait came, which is the difference between "the host was slow" and "the caretaker never
@@ -140,7 +140,7 @@ fn map_blob(space: &mut AddressSpace, base: u64, bytes: &[u8]) {
 /// from). `fs_ep`/`fs_page_frame` are the file service's root directory capability and the page its
 /// clients share with it (`fs_service::root_directory`). `construction_pages` bounds how many
 /// logins this instance can serve before every further one is answered [`login_proto::DENIED`] (see
-/// `user/src/login.rs`'s BUGS: nothing reclaims a caretaker's region in this slice).
+/// `components/src/login.rs`'s BUGS: nothing reclaims a caretaker's region in this slice).
 ///
 /// **`verify_page_frame` is a parameter and not a lookup**, on purpose (milestone 155): a caller that
 /// wired more than one credential service in the same boot (as that milestone's own suite does, for
@@ -230,7 +230,7 @@ pub fn start(
     let tid =
         sched::create_thread_control_block(thread_control_block_region).expect("no tcb for login");
 
-    // In `user/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_PAGE_FRAME,
+    // In `components/src/login.rs`'s own slot order: REQUEST, RESULT, VERIFY, FS_EP, FS_PAGE_FRAME,
     // CONSTRUCTION_UT, AUDIT, TERM_EP. Each `assert_eq!` inside `grant_in_order` is that file's
     // own doc read from the other side, the same discipline `authority_tests::spawn_tree` uses for
     // `root_supervisor`.
@@ -264,7 +264,7 @@ pub fn start(
     );
     grant_in_order(
         "fs_page_frame",
-        // GRANT as well as READ|WRITE: `user/src/login.rs` both maps this frame into every
+        // GRANT as well as READ|WRITE: `components/src/login.rs` both maps this frame into every
         // caretaker it builds (`MAP_INTO`, which only checks WRITE) and delegates it directly
         // to every authenticated client (`SEND_CAP`, which needs GRANT on the capability being
         // sent). The second use is why this differs from `credential_service.rs`'s own frames,

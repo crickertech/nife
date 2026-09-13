@@ -141,7 +141,7 @@ pub type CapSlot = u64;
 /// exactly the drift this crate exists to prevent.
 ///
 /// **Raised 16 -> 17, milestone 49's terminal update**; see `kernel::cap::CAPABILITY_TABLE_SLOTS`'s
-/// own comment for the measured reason (`user/src/login.rs`'s eighth permanent grant).
+/// own comment for the measured reason (`components/src/login.rs`'s eighth permanent grant).
 ///
 /// **Raised 17 -> 24, milestone 230** (2026-09-02), after milestone 49's login stack turned out to
 /// have been built against a temporary value of 28 that a later cleanup reverted to 17. Same place

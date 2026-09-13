@@ -2,7 +2,7 @@
 
 **Status: BUILT**, 2026-08-27, as `rmle` rather than a literal `kilo.c` port. The raw-keystroke
 primitive (`OP_RAWMODE`/`OP_READRAW`, `crates/line_editor`) is built and proven; the editor itself
-is a Rust reimplementation of `kilo`'s spirit and scope (`user/src/rmle.rs`), not a port, because
+is a Rust reimplementation of `kilo`'s spirit and scope (`components/src/rmle.rs`), not a port, because
 DECISIONS §31's foreign-language seam as actually built is a one-shot call and cannot support
 `kilo`'s own blocking event loop without new seam infrastructure (that infrastructure is
 [milestone 181](181-persistent-foreign-component.md), raised separately). **Named `rmle`, not
@@ -88,6 +88,6 @@ for whoever picks this up, informed by how the raw-input primitive actually gets
 - **Milestone 181.** A real `kilo.c` port. DECISIONS §31's foreign-language seam as built is a
   one-shot call and cannot carry `kilo`'s own blocking event loop, which is why this milestone
   shipped a Rust reimplementation named `rmle` instead, deliberately leaving the name `kilo` free.
-- **Recorded.** `user/src/rmle.rs`, in the module doc a reader meets first: no `SIGWINCH`-equivalent
+- **Recorded.** `components/src/rmle.rs`, in the module doc a reader meets first: no `SIGWINCH`-equivalent
   resize notification, no syntax highlighting and no incremental search, so a resized terminal is
   not noticed until something else forces a redraw.

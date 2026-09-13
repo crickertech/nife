@@ -2,7 +2,7 @@ use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where the service expects its two mappings. Must match user/src/clock.rs.
+/// Where the service expects its two mappings. Must match components/src/clock.rs.
 ///
 /// `CLOCK_VA` is public because it is the address the **set** authority lives at, and milestone
 /// 51's NTP tests aim a write there from a process that holds no such mapping. An attack on an
@@ -68,7 +68,7 @@ pub fn start(image: &'static [u8]) -> Wiring {
     let rtc = crate::memory::rtc_region();
 
     // `kind`/`seed`: which RTC (if any) the machine has, and, on x86_64 only, the wall clock the
-    // kernel already read from it. Everywhere else the driver in `user/src/clock.rs` maps and
+    // kernel already read from it. Everywhere else the driver in `components/src/clock.rs` maps and
     // polls its own register, so `seed` there is unused and stays 0. On x86_64 there is no
     // register to map (`rtc_region()` is always `None`: DECISIONS §121 keeps CMOS's ports
     // kernel-resident, never a capability), so the *kernel* reads it here, once, and hands the

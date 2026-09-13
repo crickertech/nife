@@ -1,12 +1,13 @@
 //! The FS-server EL0 binary is an ordinary nife ELF, so it links against the SAME linker
-//! script the `user` crate and `std_exerciser` use (linked at 0x40_0000, explicit W^X PHDRS). The
+//! script `components`, `fixtures` and `std_exerciser` use, `crates/user_rt/link.ld` (linked at
+//! 0x40_0000, explicit W^X PHDRS). The
 //! link args are scoped to the `redoxfs_server` bin (`rustc-link-arg-bin`), never the lib or the host
 //! test binary, which are plain host artifacts and must link the host way.
 
 fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    println!("cargo::rerun-if-changed=../user/link.ld");
-    println!("cargo::rustc-link-arg-bin=redoxfs_server=-T{dir}/../user/link.ld");
+    println!("cargo::rerun-if-changed=../crates/user_rt/link.ld");
+    println!("cargo::rustc-link-arg-bin=redoxfs_server=-T{dir}/../crates/user_rt/link.ld");
     // `_start` lives in this bin, but forcing it undefined is the same belt-and-braces std_exerciser
     // uses so the entry survives whatever the linker's ENTRY timing.
     println!("cargo::rustc-link-arg-bin=redoxfs_server=-u_start");

@@ -10,7 +10,7 @@ notes/pipes.md carries the numbers and the honest caveats); the terminal sink ad
 (The Gate paragraph that stood here described the three residuals; all three closed 2026-08-03,
 and a BUILT milestone gates nothing, so it is gone rather than stale.)
 
-**The protocol lane built 2026-07-31** (`crates/sink_proto`, `user/src/sink.rs`, the std PAL's
+**The protocol lane built 2026-07-31** (`crates/sink_proto`, `fixtures/src/sink.rs`, the std PAL's
 `sys/stdio`, and `abi::Error::Gone`; concept note: notes/sink-protocol.md). One framing for "write
 these bytes there", proven on both ISAs by running one `std_exerciser` ELF against two destinations that
 share nothing but sixteen bytes of message and comparing the bytes.
@@ -28,11 +28,11 @@ Three things came out of it that were not in the plan below.
   `line_editor` from simply serving the contract on the endpoint it already has: that endpoint also
   carries `OP_READLINE`, so handing it to a child as its output slot would grant the child the
   terminal's *input*. The terminal's sink is therefore a separate endpoint served by an adapter,
-  which is the shape `user/src/sink.rs`'s file role proves against a real backend. Converting
+  which is the shape `fixtures/src/sink.rs`'s file role proves against a real backend. Converting
   `line_editor` and the console server is left with the shell work, because their clients are the
   shell and `system_initializer`.
 
-**The operators lane built 2026-07-31** (`crates/grant_plan/src/line.rs`, `user/src/wc.rs`, the shell,
+**The operators lane built 2026-07-31** (`crates/grant_plan/src/line.rs`, `components/src/wc.rs`, the shell,
 `system_initializer`, and two bits on `grant_plan::spawnproto`; concept note: notes/pipes.md). `date | wc` runs at a
 real prompt on both ISAs, with the shell minting the endpoint out of its own budget and init putting
 it in the child's output slot. The kernel did not change.

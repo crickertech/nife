@@ -146,7 +146,7 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
         ready[0],
         cs::RPT_READY,
         "the credential service did not reach phase two (it reported {:#x}; a 0xDEAD_.. word's \
-         low byte names the step, see user/src/credentialer.rs)",
+         low byte names the step, see components/src/credentialer.rs)",
         ready[0],
     );
     assert_eq!(

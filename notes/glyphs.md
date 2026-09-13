@@ -6,7 +6,7 @@ two multiplexed the screen among mutually distrusting clients ([compositor.md](c
 Neither could show a letter.
 
 The code halves are `crates/bitmap_font` (the font), `crates/video_terminal` (the grid engine, the keymap, and the
-test script), `user/src/display_terminal.rs` (the terminal component), and `user/src/keyboard_driver.rs` (the keyboard
+test script), `components/src/display_terminal.rs` (the terminal component), and `components/src/keyboard_driver.rs` (the keyboard
 driver). This is the prose half.
 
 ## The shape
@@ -448,7 +448,7 @@ test that found it feeds a title-setting sequence on purpose.
 
 ## The terminal: a client at both seams, and the same binary
 
-`user/src/display_terminal.rs` serves the terminal contract's IPC half
+`components/src/display_terminal.rs` serves the terminal contract's IPC half
 ([terminal-contract.md](terminal-contract.md)) against a grid and a font instead of a serial line.
 One binary, two wirings, chosen by `arg0`:
 
@@ -499,7 +499,7 @@ to stall the compositor.
 
 ## Input: the ring is the authority, the doorbell is not
 
-`user/src/keyboard_driver.rs` is a confined userspace virtio-input driver. It holds the device, its interrupt,
+`components/src/keyboard_driver.rs` is a confined userspace virtio-input driver. It holds the device, its interrupt,
 its own DMA page, the doorbell, and **the input ring's mapping**. It holds no client's endpoint and
 cannot name a client.
 
@@ -720,8 +720,8 @@ property this increment was asked to keep and did.
 | the VT engine | `crates/video_terminal/src/lib.rs` |
 | the keymap | `crates/video_terminal/src/keymap.rs` |
 | the test script, shared by three witnesses | `crates/video_terminal/src/script.rs` |
-| the terminal component | `user/src/display_terminal.rs` |
-| the keyboard driver | `user/src/keyboard_driver.rs` |
+| the terminal component | `components/src/display_terminal.rs` |
+| the keyboard driver | `components/src/keyboard_driver.rs` |
 | enumeration | `kernel/src/pci.rs` (`find_input_device`) |
 | the wiring | `kernel/src/user/display_service.rs` (`start_terminal`), `kernel/src/user/compositor_service.rs` (`spawn_terminal`), `kernel/src/user/keyboard_service.rs` |
 | the tests | `kernel/src/user/display_tests.rs`, `kernel/src/user/compositor_tests.rs` |

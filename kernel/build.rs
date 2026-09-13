@@ -61,8 +61,8 @@ fn main() {
 /// and would be wrong the day x86 gets user programs, in thirty places nobody would think to look.
 ///
 /// **That day came, and it was one arm** (milestone 161, item 4's hand-off, 2026-08-24). `user_rt`
-/// grew its `x86_64` arms, `user/build.rs` learned to compile the C components for the target, and
-/// `xtask`'s `initrd-x86` packs the archive; every one of those thirty modules came back at once,
+/// grew its `x86_64` arms, `fixtures/build.rs` learned to compile the C components for the target,
+/// and `xtask`'s `initrd-x86` packs the archive; every one of those thirty modules came back at once,
 /// with nothing else edited. That is the prediction the cfg was written to make and it held, which
 /// is worth recording here rather than only in the roadmap: the alternative spelling would have
 /// needed thirty edits and would have been found by whoever hit the thirty-first.
