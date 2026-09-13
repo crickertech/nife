@@ -806,6 +806,27 @@ which is the ordinary way a hand-kept count drifts; take it from the script.)
    carries a citation, and it **never checks that the state is `ratified`**, so a name waiting on
    calef does not fail anybody's build. `script/names --unratified` is how that queue gets worked.
 
+   **And exactly one such block per file, in the spelling the parse reads** (milestone 283). That
+   was a convention 205 files happened to follow until two did not, and the two ways of breaking it
+   compound into silence: the parse stops at the **first** `Name:` line, so a stale proposal block
+   above a ratified one is what gets read, and the parse matches `^<prefix> ?Name:`, so a header
+   wearing markdown (`//! **Name: ratified ...**`) is invisible even when it is the only one. Both
+   at once is how two of calef's ratifications sat on the worklist for a week while the gate
+   reported `provisional`, which is a legitimate answer nothing disputes.
+
+   So the check asks the question a person asks by looking at the file: does anything here read as a
+   provenance header without being the one that was read. A comment line whose content, after the
+   marker and any leading markdown, begins `Name:` counts, at `///` and `//` as well as the
+   surface's own prefix, and the failure names the file, the line, and which of four things is wrong
+   with it (markup, indentation, a different comment marker, or a second block nothing reads past).
+   **Two things are deliberately not headers**: `` `Name:` `` in backticks is a *mention* of the
+   convention, which the scripts implementing it write constantly, and a line carrying an
+   angle-bracket placeholder (`Name: ratified <YYYY-MM-DD>`) is showing the *form*, which is how
+   `script/names`' own header documents the three spellings.
+
+   **The parse was not widened to admit bold**, deliberately: 205 files use the plain form, so
+   admitting a second spelling would make both legal, which is the opposite of the fix.
+
 Everything else here is prose because it needs judgement and no checker can supply it. In particular
 **a checker cannot catch the jargon half of §39**: `linedisc` would have passed all four rules above.
 It ends in `c`, contains no daemon, is not a proto crate, and had a perfectly good branch. What
