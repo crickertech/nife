@@ -148,7 +148,12 @@ what changed is that the reason is now a worklist rather than a wall.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, and it came back green.** `script/mutation` (milestone 85) ran 5,551 mutants over
+**Status: STALE, 2026-09-13.** Ruled by calef: the headline this entry carried, *"MEASURED, and it
+came back green"*, was true of a run from 2026-08-03 and nothing has refreshed it since, so it read
+as a verdict where the evidence underneath had become a history. The measurement itself is not in
+doubt and is kept below; what changed is that this entry no longer presents it as current.
+
+`script/mutation` (milestone 85) ran 5,551 mutants over
 38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
 of viable mutants killed**, with every survivor triaged into a test, an exclusion with a reason, or a
 recorded gap. Five crates scored 100%.
@@ -170,6 +175,19 @@ is live, a runaway mutant exhausting the runner's memory inside the timeout mean
 the 2026-09-07 scheduled run failed with it. So **this risk's green is from 2026-08-03 and nothing
 has refreshed it since**, which is a weaker position than the entry claimed rather than a different
 verdict. `script/cadence-check` now reports the dead cadence.
+
+**One number has published since, and it is worse: 83.4%.** It comes from the single shard that
+survived, a uniform one-eighth sample across all 60 crates rather than the 38 host crates the 92.4%
+figure covers, so it is not a like-for-like reading and settles nothing on its own. Two crates carry
+most of the fall and neither is explained: `uefi_loader` at 15% and `manual` at 52%
+(milestone 280, promoted out of the proposal queue 2026-09-13). A third, `system_initializer`,
+was measured and closed `RECORDED` by milestone 244 because its pure fraction is small.
+
+**So the repair is now tracked and the reading is not.** The runaway mutant is milestone 277, which
+makes a clean full run possible for the first time since 2026-08-03. What that run then means for
+this entry's verdict is a separate question and calef's:
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal already waiting on
+it, and this entry should not be marked settled again until that one is.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
@@ -393,6 +411,17 @@ two in the x86_64 archive. Milestone 165 (x86_64 PCI enumeration) is `BUILT` too
 weakened by that so much as re-sited**: what is left on this edge is the boot entry point and the
 orchestrator, not the toolchain, which is a shorter list and a different kind of work.
 
+**The third claim above is a premise rather than a status, so no gate will ever catch it.** This
+entry still says milestone 177's text has x86_64 with no real interactive boot entry point at all,
+and reads that as meaning the graphical stack is the only route to a shell. That does not follow.
+`swish` never talks to a UART on any architecture; it talks to a console server over an endpoint, and
+what actually blocks x86_64 is that §121 leaves no userspace holder for that endpoint. Whether a
+kernel thread may answer there instead is `design/decisions/149-kernel-served-console-endpoint.md`,
+`PROPOSED` since 2026-09-09. **If §149 is decided yes, 177 stops being a prerequisite** and milestone
+182 reaches a shell over serial, which is also what a bench session needs. If it is decided no, the
+sentence above stands as written. Either way this risk's decisive experiment below is unaffected,
+because milestone 87 is about the boot entry and not about the shell.
+
 **The decisive experiment is milestone 87 (the x86_64 bare-metal machine)**, which completes when the
 OptiPlex prints a byte over serial. The machine, the serial module and the RS-232 chain have been
 installed since 2026-08-23 and nothing has ever been booted on it. Then boot the tour. If it needs
@@ -426,7 +455,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads | milestone 121 | done |
-| 5 | 3, the tests | re-run the mutation sweep against the baseline | milestone 85 | a day, mostly waiting |
+| 5 | 3, the tests | **the re-run dies the same way every time (a runaway mutant, out of memory).** Build the bound first, then re-run against the baseline | milestone 277, then milestone 85 | a day once the bound exists |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
