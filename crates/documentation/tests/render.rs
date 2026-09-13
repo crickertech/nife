@@ -566,3 +566,153 @@ fn a_quoted_code_line_keeps_its_own_indentation() {
     // which is right for a quoted paragraph and would be wrong here.
     assert_eq!(plain("> ```text\n>     indented\n> ```\n", 40), "    |     indented\n");
 }
+
+// ---- milestone 280, second pass ------------------------------------------------------------
+//
+// The first pass closed the block constructs. These are the inline scanner and the four helpers
+// under it, which is where the survivors concentrated once the tables and the rules had tests:
+// three inline forms with no test at all, and a set of bounds that only an input at the edge tells
+// apart from the bound next to it.
+
+#[test]
+fn strikethrough_is_rendered_and_needs_both_of_its_tildes() {
+    // `~~` had no test of any kind, so the whole arm was unasserted: nine mutants lived in it,
+    // including one that made every character *not* a tilde open a strike run.
+    let out = render("a ~~gone~~ b\n", Style { width: 40, color: true });
+    assert!(out.contains("\x1b[9mgone"), "{out:?}");
+    assert_eq!(plain("a ~~gone~~ b\n", 40), "  a gone b\n");
+    // One tilde is a tilde. The corpus writes `~~` struck-through prose and `~` in paths and
+    // regular expressions, and the difference has to be the count.
+    assert_eq!(plain("a ~gone~ b\n", 40), "  a ~gone~ b\n");
+}
+
+#[test]
+fn an_image_shows_what_it_is_and_where_it_points() {
+    // A terminal cannot draw a picture, so the destination is the only thing a reader can act on:
+    // it is the file they would open on the host. This was found in 2026-09-02 by the corpus
+    // subsequence check, on the first page under `notes/` to carry an image, and then had no test
+    // of its own; twelve mutants sat in the arm.
+    assert_eq!(
+        plain("![a picture](notes/x.png) after\n", 60),
+        "  [image: a picture] notes/x.png after\n"
+    );
+    // The `!` only means an image when a `[` follows it immediately, and a `]` only opens a
+    // destination when a `(` follows it immediately. Neither is an image, and both are ordinary
+    // enough in prose that reading them as one would misrender.
+    assert_eq!(plain("!x[a](y.png)\n", 40), "  !xa y.png\n");
+    assert_eq!(plain("![a] (x.png)\n", 40), "  ![a] (x.png)\n");
+}
+
+#[test]
+fn inline_markup_stops_descending_at_the_depth_bound() {
+    // `MAX_DEPTH` is a bound rather than a guess: this renders in a process with one 4 KiB stack
+    // page, so unbounded recursion on adversarial input is a fault and not a slow render. Past the
+    // bound the markup is emitted literally, which is the visible half of that promise and had no
+    // test. Four levels here: strong, emphasis, strike, and one more that is not taken.
+    assert_eq!(
+        plain("**a *b ~~c *d* e~~ f* g**\n", 60),
+        "  a b ~~c *d e~~ f* g\n"
+    );
+}
+
+#[test]
+fn a_closer_preceded_by_a_space_is_not_one() {
+    // The rule that stops a stray `*` mid-sentence swallowing the rest of a paragraph, tested on
+    // both delimiter lengths because they are separate code paths, and on the case where a run
+    // begins with its own delimiter and has no closer at all.
+    assert_eq!(plain("*a * b*\n", 40), "  a * b\n");
+    assert_eq!(plain("a **b ** c**\n", 40), "  a b ** c\n");
+    assert_eq!(plain("a ****b\n", 40), "  a ****b\n");
+}
+
+#[test]
+fn a_line_of_marks_alone_is_not_a_heading_or_a_list() {
+    // Three classifiers index one byte past a run they have just counted, and each is guarded by a
+    // length test that only a line consisting of nothing but that run can tell from the test beside
+    // it. All three are ordinary lines in this repository's fenced blocks.
+    assert_eq!(plain("###\n", 40), "  ###\n");
+    assert_eq!(plain("#\n", 40), "  #\n");
+    assert_eq!(plain("123\n", 40), "  123\n");
+}
+
+#[test]
+fn an_ordered_marker_is_digits_then_a_dot_or_a_bracket_then_a_space() {
+    // Each clause on its own: no digits at all, digits followed by something else, and the marker
+    // length, which only shows where a wrapped item's continuation lines align.
+    assert_eq!(plain(". text\n", 40), "  . text\n");
+    assert_eq!(plain("1a text\n", 40), "  1a text\n");
+    assert_eq!(
+        plain("1. a very long ordered item that wraps around\n", 24),
+        "  1. a very long ordered\n     item that wraps\n     around\n"
+    );
+}
+
+#[test]
+fn an_indent_is_kept_outside_a_block_quote_and_dropped_inside_one() {
+    // Two facts in one `if`, and the earlier tab test could not separate them because it compared
+    // two indented renderings against each other: both sides move together when the indent is lost
+    // altogether. These are absolute.
+    assert_eq!(plain("para\n\n    more text\n", 40), "  para\n\n      more text\n");
+    // A quoted paragraph's own indentation means nothing: the rule is its structure, and indenting
+    // past it would claim a nesting the author did not write.
+    assert_eq!(plain(">     quoted indented\n", 40), "  | quoted indented\n");
+}
+
+#[test]
+fn a_quoted_fence_takes_the_markers_it_was_opened_with_and_no_more() {
+    // `past_quote` steps over at most the depth the fence opened at. A line inside the fence with
+    // FEWER markers is a lazy continuation and is taken as it stands, marker and all, which is this
+    // crate's recorded limitation rather than a guess at which reading the author meant.
+    assert_eq!(plain(">> ```text\n>>   deep\n>> ```\n", 40), "    | |   deep\n");
+    assert_eq!(plain(">> ```text\n> one\n>> ```\n", 40), "    | | one\n");
+    assert_eq!(plain("> ```text\n>   two\nlazy\n> ```\n", 40), "    |   two\n    | lazy\n");
+}
+
+#[test]
+fn a_wide_character_is_one_column_of_the_table_it_sits_in() {
+    // Width is counted in characters and not bytes, so a two-byte character occupies one column and
+    // a column sized in bytes would be one too wide. The BUGS section is honest that a CJK
+    // character then occupies two columns and is counted as one; this is the Latin case, which is
+    // the one the corpus has.
+    assert_eq!(plain("| é | bb |\n|---|---|\n| x | y |\n", 80), "  é | bb\n  --+---\n  x | y \n");
+}
+
+#[test]
+fn a_backslash_that_is_not_escaping_a_pipe_is_ordinary_cell_text() {
+    // The escape scan reads the byte after the backslash, and the byte before nothing: a cell that
+    // opens with a backslash and a cell that ends with one are the two edges of it. Both are real,
+    // because this repository's tables carry paths and regular expressions.
+    assert_eq!(plain("| \\x | b |\n|---|---|\n| p | q |\n", 40), "  \\x | b\n  ---+--\n  p  | q\n");
+    assert_eq!(plain("| a\\ | b |\n|---|---|\n| x | y |\n", 40), "  a\\ | b\n  ---+--\n  x  | y\n");
+}
+
+#[test]
+fn a_table_inside_a_block_quote_fits_inside_the_rule() {
+    // The room a table has is the terminal less the margin AND less the quote rules drawn down the
+    // left of every row, which is two columns per level. A table sized against the bare terminal
+    // would overrun by exactly that, and only a quoted table wide enough to be shrunk shows it.
+    let quoted = plain("> | aaaaaaaaaa | bb |\n> |---|---|\n> | cccccccccccccccccccc | d |\n", 24);
+    let bare = plain("| aaaaaaaaaa | bb |\n|---|---|\n| cccccccccccccccccccc | d |\n", 24);
+    for line in quoted.lines() {
+        assert!(line.chars().count() <= 24, "a quoted row overran: {line:?}");
+    }
+    assert!(
+        quoted.contains("ccccccccccccccc |") && !quoted.contains("cccccccccccccccc |"),
+        "{quoted:?}"
+    );
+    // And the bare table gets the two columns back, which is the other side of the same sum.
+    assert!(bare.contains("ccccccccccccccccc |"), "{bare:?}");
+}
+
+#[test]
+fn a_table_is_one_chunk_until_its_text_will_not_fit() {
+    // The spill test above fills the ROW counter; this fills the TEXT arena, which is the other
+    // half of the same `if` and the half that decides widths. Two rows, well inside `TABLE_ROWS`,
+    // whose cells are long: they are one chunk, so the short row is padded to the long one's width
+    // and every output line is the same length. A flush between them would align each to itself.
+    let src = format!("| {} | b |\n|---|---|\n| {} | c |\n", "w".repeat(100), "W".repeat(150));
+    let out = plain(&src, 4000);
+    let widths: Vec<usize> = out.lines().map(str::len).collect();
+    assert_eq!(widths.len(), 3);
+    assert!(widths.iter().all(|&w| w == widths[0]), "not one chunk: {widths:?}");
+}

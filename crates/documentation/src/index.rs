@@ -1417,6 +1417,87 @@ mod tests {
         assert_eq!(full.results()[0].count as usize, RESULTS_MAX + 4);
     }
 
+    #[test]
+    fn a_location_exactly_as_long_as_the_field_is_not_truncated() {
+        // The truncation flag is a single comparison over a sum of five terms, and a location far
+        // over the limit says the same thing as one a byte over: every mutant of that sum still
+        // lands above it. The two sides of the boundary are what tell them apart, so they are what
+        // this asserts. `offer` takes the fields rather than a record, which is why no shard is
+        // needed to build a path of an exact length.
+        // `doc/` and `/` are the two separators, so a location is 3 + 1 + bundle + 1 + base.
+        let base = "a".repeat(40);
+        let exact = "b".repeat(LOCATION_MAX - STORE_DIR.len() - 2 - base.len());
+        let mut r = Ranked::new();
+        r.offer(exact.as_bytes(), base.as_bytes(), b"T", 1, 10);
+        let f = &r.results()[0];
+        assert_eq!(f.location().len(), LOCATION_MAX);
+        assert!(!f.truncated(), "a location that exactly fills the field lost nothing");
+
+        // One byte more, and it is the one byte that has to flip the answer.
+        let mut over = Ranked::new();
+        over.offer(
+            alloc::format!("{exact}b").as_bytes(),
+            base.as_bytes(),
+            b"T",
+            1,
+            10,
+        );
+        let g = &over.results()[0];
+        assert_eq!(g.location().len(), LOCATION_MAX);
+        assert!(g.truncated(), "a location one byte over the field lost its tail");
+    }
+
+    #[test]
+    fn a_word_preceded_by_underscores_is_still_offered_once() {
+        // The part counter again, on the case the first test could not reach: a separator that is
+        // an underscore does NOT reset the compound, so two of them in a row leave the counter
+        // where a mutant that counts empty runs would have moved it. `__rust_alloc` is how this
+        // repository writes the symbol, so a leading pair is ordinary prose here.
+        let mut n = 0;
+        tokens(b"see __alloc", |t| {
+            if t == b"alloc" {
+                n += 1;
+            }
+        });
+        assert_eq!(n, 1);
+    }
+
+    #[cfg(feature = "builder")]
+    #[test]
+    fn a_term_on_the_last_page_of_a_table_that_just_spilled_is_still_found() {
+        // The narrowest arity in the layout: one record more than a page holds, so the last page
+        // carries exactly one term and the count of records to search there is exactly one. Every
+        // other size in these tests leaves that count comfortably large, which is what let an
+        // arithmetic mutant that drives it to zero survive; here a term that is really there is
+        // simply not found.
+        let per = PAGE / TERM_REC;
+        let mut text = alloc::string::String::new();
+        for i in 0..per + 1 {
+            text.push_str(&alloc::format!("term{i:04} "));
+        }
+        let bytes = build(&[Source { path: "x.md", title: "X", text: text.as_bytes() }]);
+        let h = Header::parse(&bytes[..PAGE]).unwrap();
+        assert_eq!(h.terms as usize, per + 1, "one record past a full page");
+        let last = alloc::format!("term{:04}", per);
+        assert!(
+            lookup(&h, last.as_bytes(), &mut Slice(&bytes)).is_some(),
+            "the only term on the last page was not found"
+        );
+    }
+
+    #[cfg(feature = "builder")]
+    #[test]
+    fn a_small_bundle_is_the_four_page_floor_and_not_a_megabyte() {
+        // `notes/documentation.md` prices page alignment at a four-page floor (16 KiB) under every
+        // bundle however small: the header, the page records, the terms and the postings, one page
+        // each. It is the cost that decided bundle granularity, and nothing asserted it, so a
+        // mutant that multiplied the section offsets instead of adding them produced a
+        // sixteen-megabyte shard that every other test read back perfectly, because the reader
+        // takes its offsets from the same header the builder wrote.
+        let bytes = build(&[Source { path: "a.md", title: "A", text: b"one two three" }]);
+        assert_eq!(bytes.len(), 4 * PAGE);
+    }
+
     #[cfg(feature = "builder")]
     #[test]
     fn a_title_is_the_first_level_one_heading() {
