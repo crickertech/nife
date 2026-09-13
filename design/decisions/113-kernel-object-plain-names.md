@@ -1,6 +1,8 @@
 # 113. Eleven kernel object and identifier names move from contraction or borrowed jargon to the plain, standard term
 
-**Status: DECIDED.** calef, 2026-08-23, after repeatedly having to ask what `Aspace`, `Endpoint`,
+**Status: AMENDED.** (the 2026-09-13 amendment below ends the crate-name exemption.)
+
+**Decided 2026-08-23 (calef), after repeatedly having to ask what `Aspace`, `Endpoint`,
 `Untyped`, and `Tcb` meant in the course of ordinary conversation about this tree: *"I have
 repeatedly had to ask what these terms mean because they're often used without context. Thus
 they're clearly not working."*
@@ -206,3 +208,61 @@ rules, so that one file is a maintainer follow-up, not part of the lane's own di
 separate lane carries it out, touching `crates/capability`, `kernel/src/cap.rs`'s alias, and
 prose throughout the tree. The rest of the `crates/` sweep remains separate, ongoing, and
 unstarted by this amendment.
+
+
+## Amended 2026-09-13: the crate-name exemption is ended, and this decision already contained the argument
+
+calef, working the unratified worklist, ruled that all six exempt acronym crates expand. The
+exemption this decision codified at "Unlike `elf`, `pci`, `dtb`, `gpt`, `ipc`, `paging`, `glob` and
+`asid`" no longer holds for the acronyms in it.
+
+**This decision stated the winning argument and then applied it to only half its list.** `Tcb` was
+expanded here because *"a reader who already knows the acronym loses nothing recognizing the
+spelled-out form, and a reader who doesn't gets three ordinary English words with real content
+instead of three letters with none."* That is precisely the asymmetry calef named on 2026-09-05 as
+the general acronym test, and nothing in it is special to `Tcb`. Every name in the exempt list
+satisfies it too.
+
+**What held the exemption up was a claim that turns out to be false.** The sentence justifying it
+says these are *"names this tree cannot rename without becoming incompatible with what the rest of
+the world calls them."* A crate name is a directory and a Cargo package, not a wire format. Renaming
+`crates/pci` does not change one byte this tree exchanges with anything: the spec's own identifiers
+live in the code, in constants and register names, where they are untouched and must stay. Checked
+rather than assumed. The interoperability the exemption protects was never at risk from the
+directory.
+
+### The six, as ruled
+
+| Today | Becomes | Expansion |
+|---|---|---|
+| `pci` | `peripheral_component_interconnect` | Peripheral Component Interconnect |
+| `dtb` | `device_tree` | the blob is the encoding, not the subject |
+| `gpt` | `guid_partition_table` | GUID Partition Table |
+| `asid` | `address_space_identifier` | Address Space Identifier |
+| `ipc` | `rendezvous` | follows this decision's own `Endpoint` -> `Rendezvous` |
+| `elf` | **spelling open** | Executable and Linkable Format |
+
+**`ipc` is the one that closes a loop rather than opening one.** This decision renamed the kernel
+object `Endpoint` to `Rendezvous` and left the crate alone because of the exemption. With the
+exemption gone the crate follows the type, which is what the original rename wanted and could not
+have.
+
+**`gpt` carries a second argument that does not depend on the acronym test at all.** In 2026 the
+name reads as something else entirely to any reader arriving, which is milestone 265's complaint
+about `proto` and prototype in different clothes.
+
+**`elf`'s exact spelling is still calef's.** The full expansion runs to
+`executable_and_linkable_format`, which is 30 characters and the longest name in the tree; a shorter
+honest form may be better and this amendment does not pick one.
+
+**`paging` and `glob` are unaffected.** They were in the exempt list and are not acronyms, so no
+expansion test reaches them. The list conflated two kinds of name and only one kind is ruled here.
+
+### Not performed here, and that is deliberate
+
+**611 file-references across the six**, and `ipc` is load-bearing. `notes/naming.md` already says the
+acronym sweep is its own milestone for that reason, and
+`design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md` exists because answering one
+name at a time is the failure mode. This amendment answers the *question* for all six at once, which
+is what that proposal asked for; the sweep performs them. Doing it here would also collide with
+milestone 265, which is already renaming 349 files.
