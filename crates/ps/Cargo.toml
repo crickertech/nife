@@ -9,3 +9,9 @@ workspace = true
 
 [dependencies]
 abi = { version = "0.1.0", path = "../abi" }
+
+# `video_terminal` drives the redraw test through the real terminal engine rather than through this
+# crate's own byte buffer: `CSI 2J` actually erasing a previous frame is the claim, and only the
+# engine that parses it can answer. Folded in with `crates/watch` (milestone 281).
+[dev-dependencies]
+video_terminal = { version = "0.1.0", path = "../video_terminal" }

@@ -178,11 +178,11 @@ pub enum Prog {
     /// `BUGS`.
     Pgrep,
     /// **Redraw [`Prog::Ps`]'s own domain walk a bounded number of times instead of printing it
-    /// once** (milestone 126, `user/src/watch.rs`, `crates/watch`).
+    /// once** (milestone 126, `user/src/watch.rs`, `crates/ps`).
     ///
     /// [`Prog::Ps`]'s manifest with one field changed: [`ArgSpec::Required`] rather than
     /// `Forbidden`, because this program needs a typed count to bound its loop (there is no `^C` for
-    /// it; see `crates/watch`'s module docs for why an interruptible spawn cannot also hold a
+    /// it; see `user/src/watch.rs`'s module docs for why an interruptible spawn cannot also hold a
     /// domain). It is not upstream `watch`'s "re-run an arbitrary command", which would need a
     /// program to hold spawn authority this system grants to the shell alone; it redraws the one
     /// thing it can already reach without that, which is also the most common real-world invocation
@@ -608,7 +608,7 @@ impl Prog {
             // whole difference: this program needs a typed redraw count, because it cannot be spun up
             // as an interruptible (`^C`-stoppable) job the way `heeder` and `spinner` are (an
             // interruptible child is built with no capabilities in its cspace at all, and this
-            // program needs the domain and the output sink for its whole run; see `crates/watch`'s
+            // program needs the domain and the output sink for its whole run; see `user/src/watch.rs`'s
             // module docs). Everything else is `ps`'s own reasoning verbatim: no file, no directory,
             // no memory grant widens what this program can reach, and `domain` is the one real
             // authority, endowed by init and not something the command line names.
