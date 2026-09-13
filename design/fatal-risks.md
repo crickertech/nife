@@ -148,7 +148,12 @@ what changed is that the reason is now a worklist rather than a wall.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, and it came back green.** `script/mutation` (milestone 85) ran 5,551 mutants over
+**Status: STALE, 2026-09-13.** Ruled by calef: the headline this entry carried, *"MEASURED, and it
+came back green"*, was true of a run from 2026-08-03 and nothing has refreshed it since, so it read
+as a verdict where the evidence underneath had become a history. The measurement itself is not in
+doubt and is kept below; what changed is that this entry no longer presents it as current.
+
+`script/mutation` (milestone 85) ran 5,551 mutants over
 38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
 of viable mutants killed**, with every survivor triaged into a test, an exclusion with a reason, or a
 recorded gap. Five crates scored 100%.
