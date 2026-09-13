@@ -1231,16 +1231,26 @@ mod tests {
         let mut seen = [[0u8; TERM_MAX]; 8];
         let mut lens = [0usize; 8];
         let mut i = 0;
-        tokens(b"averyveryverylongidentifiername and_a_compound_far_past_the_limit", |t| {
-            assert!(t.len() <= TERM_MAX, "a term longer than its record: {}", t.len());
-            if i < 8 {
-                seen[i][..t.len()].copy_from_slice(t);
-                lens[i] = t.len();
-                i += 1;
-            }
-        });
+        tokens(
+            b"averyveryverylongidentifiername and_a_compound_far_past_the_limit",
+            |t| {
+                assert!(
+                    t.len() <= TERM_MAX,
+                    "a term longer than its record: {}",
+                    t.len()
+                );
+                if i < 8 {
+                    seen[i][..t.len()].copy_from_slice(t);
+                    lens[i] = t.len();
+                    i += 1;
+                }
+            },
+        );
         let has = |want: &[u8]| (0..i).any(|k| &seen[k][..lens[k]] == want);
-        assert!(has(b"averyveryverylongidentif"), "the long word folds to its prefix");
+        assert!(
+            has(b"averyveryverylongidentif"),
+            "the long word folds to its prefix"
+        );
     }
 
     #[test]
@@ -1259,7 +1269,10 @@ mod tests {
             }
         });
         let has = |want: &[u8]| (0..i).any(|k| &seen[k][..lens[k]] == want);
-        assert!(has(b"grantplan"), "the compound is not emitted at end of text");
+        assert!(
+            has(b"grantplan"),
+            "the compound is not emitted at end of text"
+        );
         assert!(has(b"grant") && has(b"plan"));
     }
 
@@ -1289,11 +1302,22 @@ mod tests {
         // alive: a query that folds to no term at all, and a well-formed query against a shard with
         // no terms in it. Both are `None`, and neither may reach the binary search, which would be
         // comparing against a key of no bytes or probing a table that is not there.
-        let bytes = build(&[Source { path: "a.md", title: "A", text: b"one two" }]);
+        let bytes = build(&[Source {
+            path: "a.md",
+            title: "A",
+            text: b"one two",
+        }]);
         let h = Header::parse(&bytes[..PAGE]).unwrap();
-        assert!(lookup(&h, b"!!!", &mut Slice(&bytes)).is_none(), "punctuation is not a term");
+        assert!(
+            lookup(&h, b"!!!", &mut Slice(&bytes)).is_none(),
+            "punctuation is not a term"
+        );
 
-        let empty = build(&[Source { path: "b.md", title: "B", text: b"" }]);
+        let empty = build(&[Source {
+            path: "b.md",
+            title: "B",
+            text: b"",
+        }]);
         let eh = Header::parse(&empty[..PAGE]).unwrap();
         assert_eq!(eh.terms, 0);
         assert!(lookup(&eh, b"one", &mut Slice(&empty)).is_none());
@@ -1315,12 +1339,22 @@ mod tests {
             text.push(' ');
             want.push(t);
         }
-        let bytes = build(&[Source { path: "x.md", title: "X", text: text.as_bytes() }]);
+        let bytes = build(&[Source {
+            path: "x.md",
+            title: "X",
+            text: text.as_bytes(),
+        }]);
         let h = Header::parse(&bytes[..PAGE]).unwrap();
-        assert_eq!(h.terms as usize, per, "the table has to be exactly one page");
+        assert_eq!(
+            h.terms as usize, per,
+            "the table has to be exactly one page"
+        );
         let mut src = Slice(&bytes);
         for t in &want {
-            assert!(lookup(&h, t.as_bytes(), &mut src).is_some(), "{t} is in the table and was not found");
+            assert!(
+                lookup(&h, t.as_bytes(), &mut src).is_some(),
+                "{t} is in the table and was not found"
+            );
         }
     }
 
@@ -1337,11 +1371,18 @@ mod tests {
         let paths: Vec<String> = (0..n).map(|i| alloc::format!("p{i:05}.md")).collect();
         let sources: Vec<Source<'_>> = paths
             .iter()
-            .map(|p| Source { path: p, title: "page", text: b"capability" })
+            .map(|p| Source {
+                path: p,
+                title: "page",
+                text: b"capability",
+            })
             .collect();
         let bytes = build(&sources);
         let h = Header::parse(&bytes[..PAGE]).unwrap();
-        assert!(h.pages as usize > PAGE / PAGE_REC, "the fixture must span page-record pages");
+        assert!(
+            h.pages as usize > PAGE / PAGE_REC,
+            "the fixture must span page-record pages"
+        );
 
         let hit = lookup(&h, b"capability", &mut Slice(&bytes)).expect("every page says it");
         assert_eq!(hit.count as usize, n, "a posting per page");
@@ -1352,7 +1393,10 @@ mod tests {
         let mut done = 0usize;
         let mut seen = alloc::vec![false; n];
         while done < n {
-            let rest = Hit { first: hit.first + done as u32, count: (n - done) as u16 };
+            let rest = Hit {
+                first: hit.first + done as u32,
+                count: (n - done) as u16,
+            };
             let got = postings(&h, &rest, &mut src, &mut batch);
             assert!(got > 0, "the postings ran out at {done} of {n}");
             for p in &batch[..got] {
@@ -1375,13 +1419,21 @@ mod tests {
         // allowed, losing it silently is not.
         let long_name = "a".repeat(60);
         let path = alloc::format!("notes/{long_name}.md");
-        let bytes = build(&[Source { path: &path, title: "T", text: b"capability page" }]);
+        let bytes = build(&[Source {
+            path: &path,
+            title: "T",
+            text: b"capability page",
+        }]);
 
         let bundle = "b".repeat(40);
         let mut r = Ranked::new();
         search(bundle.as_bytes(), b"capability", &mut Slice(&bytes), &mut r).unwrap();
         let f = &r.results()[0];
-        assert_eq!(f.location().len(), LOCATION_MAX, "a truncated location fills the field");
+        assert_eq!(
+            f.location().len(),
+            LOCATION_MAX,
+            "a truncated location fills the field"
+        );
         assert!(f.truncated(), "a location that lost its tail must say so");
 
         // And the other side, which is every real store: `doc/<bundle>/<page>` fits.
@@ -1403,7 +1455,11 @@ mod tests {
         r.offer(b"b", b"strong.md", b"Strong", 10, 100);
         assert_eq!(r.results().len(), 2);
         assert_eq!(r.results()[0].title(), b"Strong");
-        assert_eq!(r.results()[1].title(), b"Weak", "the displaced result was not shifted down");
+        assert_eq!(
+            r.results()[1].title(),
+            b"Weak",
+            "the displaced result was not shifted down"
+        );
 
         // Descending strength past the table's end, which walks `at` to the last slot held every
         // time and is what a bound that is off by one falls off.
@@ -1431,7 +1487,10 @@ mod tests {
         r.offer(exact.as_bytes(), base.as_bytes(), b"T", 1, 10);
         let f = &r.results()[0];
         assert_eq!(f.location().len(), LOCATION_MAX);
-        assert!(!f.truncated(), "a location that exactly fills the field lost nothing");
+        assert!(
+            !f.truncated(),
+            "a location that exactly fills the field lost nothing"
+        );
 
         // One byte more, and it is the one byte that has to flip the answer.
         let mut over = Ranked::new();
@@ -1444,7 +1503,10 @@ mod tests {
         );
         let g = &over.results()[0];
         assert_eq!(g.location().len(), LOCATION_MAX);
-        assert!(g.truncated(), "a location one byte over the field lost its tail");
+        assert!(
+            g.truncated(),
+            "a location one byte over the field lost its tail"
+        );
     }
 
     #[test]
@@ -1475,7 +1537,11 @@ mod tests {
         for i in 0..per + 1 {
             text.push_str(&alloc::format!("term{i:04} "));
         }
-        let bytes = build(&[Source { path: "x.md", title: "X", text: text.as_bytes() }]);
+        let bytes = build(&[Source {
+            path: "x.md",
+            title: "X",
+            text: text.as_bytes(),
+        }]);
         let h = Header::parse(&bytes[..PAGE]).unwrap();
         assert_eq!(h.terms as usize, per + 1, "one record past a full page");
         let last = alloc::format!("term{:04}", per);
@@ -1494,7 +1560,11 @@ mod tests {
         // mutant that multiplied the section offsets instead of adding them produced a
         // sixteen-megabyte shard that every other test read back perfectly, because the reader
         // takes its offsets from the same header the builder wrote.
-        let bytes = build(&[Source { path: "a.md", title: "A", text: b"one two three" }]);
+        let bytes = build(&[Source {
+            path: "a.md",
+            title: "A",
+            text: b"one two three",
+        }]);
         assert_eq!(bytes.len(), 4 * PAGE);
     }
 

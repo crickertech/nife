@@ -408,7 +408,10 @@ fn table_columns_align_the_way_the_delimiter_row_says() {
     // `read_align` survived the sweep for that reason, including replacing the whole function with
     // `()`: a value nothing reads cannot be computed wrongly in a way anything notices.
     let out = plain("| aaa | bbb | ccc |\n|:---|---:|:-:|\n| x | y | z |\n", 80);
-    assert_eq!(out, "  aaa | bbb | ccc\n  ----+-----+----\n  x   |   y |  z \n", "{out:?}");
+    assert_eq!(
+        out, "  aaa | bbb | ccc\n  ----+-----+----\n  x   |   y |  z \n",
+        "{out:?}"
+    );
 }
 
 #[test]
@@ -416,7 +419,10 @@ fn alignment_does_not_outlive_its_table() {
     // Alignment is a property of one delimiter row, so it is reset with `delimited` rather than
     // carried. A paragraph that happens to begin with a pipe follows a right-aligned table here,
     // and takes the default: if the array were not reset its cells would sit on the right.
-    let out = plain("| a | b |\n|---:|---|\n| x | y |\n\n| pp | q |\n| r | s |\n", 80);
+    let out = plain(
+        "| a | b |\n|---:|---|\n| x | y |\n\n| pp | q |\n| r | s |\n",
+        80,
+    );
     assert!(out.ends_with("  pp | q\n  r  | s\n"), "{out:?}");
 }
 
@@ -426,7 +432,10 @@ fn an_escaped_pipe_is_cell_text_and_not_a_column_boundary() {
     // that table a third column nobody wrote and squeezed the other two to pay for it. The
     // backslash is the escape and not the text, so it does not reach the output either.
     let out = plain("| cmd | note |\n|---|---|\n| a \\| b | two |\n", 80);
-    assert_eq!(out, "  cmd   | note\n  ------+-----\n  a | b | two \n", "{out:?}");
+    assert_eq!(
+        out, "  cmd   | note\n  ------+-----\n  a | b | two \n",
+        "{out:?}"
+    );
 }
 
 #[test]
@@ -469,9 +478,15 @@ fn a_table_longer_than_the_buffer_spills_rather_than_losing_rows() {
     }
     let out = plain(&src, 80);
     for i in 0..rows {
-        assert!(out.contains(&format!("r{i} ")) || out.contains(&format!("r{i}\n")), "row {i} lost");
+        assert!(
+            out.contains(&format!("r{i} ")) || out.contains(&format!("r{i}\n")),
+            "row {i} lost"
+        );
     }
-    assert!(!out.contains("\n\n"), "a spilled chunk is not a new block: {out:?}");
+    assert!(
+        !out.contains("\n\n"),
+        "a spilled chunk is not a new block: {out:?}"
+    );
 }
 
 #[test]
@@ -479,9 +494,21 @@ fn a_header_row_is_emphasised_only_when_a_delimiter_row_says_it_is_one() {
     // The delimiter row is what promotes a run of pipe-led lines to a table; without one the first
     // row is ordinary text that happens to contain pipes, and emphasising it would claim a
     // structure the author did not write.
-    let table = render("| h |\n|---|\n| c |\n", Style { width: 40, color: true });
+    let table = render(
+        "| h |\n|---|\n| c |\n",
+        Style {
+            width: 40,
+            color: true,
+        },
+    );
     assert!(table.contains("\x1b[1mh"), "{table:?}");
-    let not_a_table = render("| h |\n| c |\n", Style { width: 40, color: true });
+    let not_a_table = render(
+        "| h |\n| c |\n",
+        Style {
+            width: 40,
+            color: true,
+        },
+    );
     assert!(!not_a_table.contains("\x1b[1m"), "{not_a_table:?}");
 }
 
@@ -493,7 +520,11 @@ fn thematic_breaks_are_three_or_more_of_one_mark() {
     let rule = "  ------------------\n";
     for src in ["---", "***", "___", "- - -", "----------"] {
         let out = plain(&format!("a\n\n{src}\n\nb\n"), 20);
-        assert_eq!(out, format!("  a\n\n{rule}\n  b\n"), "{src} is a thematic break");
+        assert_eq!(
+            out,
+            format!("  a\n\n{rule}\n  b\n"),
+            "{src} is a thematic break"
+        );
     }
     // Two marks is not three, a different mark is not a rule at all, and a mark with text beside it
     // is a paragraph. Each of these renders as its own source text.
@@ -510,7 +541,10 @@ fn a_document_that_lost_nothing_says_so() {
     // true would warn about every page in the store. Asserting only the positive left a mutant that
     // hard-codes it alive.
     let mut out = Buf(Vec::new());
-    let mut r = Renderer::new(Style { width: 80, color: false });
+    let mut r = Renderer::new(Style {
+        width: 80,
+        color: false,
+    });
     r.feed(b"# Title\n\nA line well inside the limit.\n", &mut out);
     r.finish(&mut out);
     assert!(!r.truncated());
@@ -521,7 +555,10 @@ fn a_page_that_never_closes_its_fence_says_so() {
     // `every_character_survives` asserts this is false for all 547 pages, which a renderer that
     // always answered false would pass. The guard is only worth having if it can answer true.
     let mut out = Buf(Vec::new());
-    let mut r = Renderer::new(Style { width: 80, color: false });
+    let mut r = Renderer::new(Style {
+        width: 80,
+        color: false,
+    });
     r.feed(b"```text\nstill inside\n", &mut out);
     r.finish(&mut out);
     assert!(r.unclosed_fence());
@@ -541,7 +578,10 @@ fn a_tab_indents_as_four_columns() {
     // caller took its byte offset instead, so a tab indented by one. Nothing in this repository
     // indents with a tab outside a fence, where this does not run, so the sweep was the only thing
     // that could have found it.
-    assert_eq!(plain("para\n\n\tmore text\n", 40), plain("para\n\n    more text\n", 40));
+    assert_eq!(
+        plain("para\n\n\tmore text\n", 40),
+        plain("para\n\n    more text\n", 40)
+    );
 }
 
 #[test]
@@ -555,8 +595,14 @@ fn an_ordered_marker_may_be_a_parenthesis_or_two_digits() {
 fn a_destination_too_long_for_the_line_is_broken_rather_than_overrun() {
     // A word is never broken and a URL has to be: it is one unbreakable run that no terminal is
     // wide enough for, and the alternative to breaking it is a line that runs off the screen.
-    let out = plain("see [x](aaaaaaaaaabbbbbbbbbbccccccccccdddddddddd) end\n", 20);
-    assert_eq!(out, "  see x\n  aaaaaaaaaabbb\n  bbbbbbbccccccccccd\n  ddddddddd end\n", "{out:?}");
+    let out = plain(
+        "see [x](aaaaaaaaaabbbbbbbbbbccccccccccdddddddddd) end\n",
+        20,
+    );
+    assert_eq!(
+        out, "  see x\n  aaaaaaaaaabbb\n  bbbbbbbccccccccccd\n  ddddddddd end\n",
+        "{out:?}"
+    );
 }
 
 #[test]
@@ -564,7 +610,10 @@ fn a_quoted_code_line_keeps_its_own_indentation() {
     // Inside a fence the quote markers come off and nothing else does: a code line's own leading
     // spaces are its meaning. The classifier's stripping loop eats indentation after a marker,
     // which is right for a quoted paragraph and would be wrong here.
-    assert_eq!(plain("> ```text\n>     indented\n> ```\n", 40), "    |     indented\n");
+    assert_eq!(
+        plain("> ```text\n>     indented\n> ```\n", 40),
+        "    |     indented\n"
+    );
 }
 
 // ---- milestone 280, second pass ------------------------------------------------------------
@@ -578,7 +627,13 @@ fn a_quoted_code_line_keeps_its_own_indentation() {
 fn strikethrough_is_rendered_and_needs_both_of_its_tildes() {
     // `~~` had no test of any kind, so the whole arm was unasserted: nine mutants lived in it,
     // including one that made every character *not* a tilde open a strike run.
-    let out = render("a ~~gone~~ b\n", Style { width: 40, color: true });
+    let out = render(
+        "a ~~gone~~ b\n",
+        Style {
+            width: 40,
+            color: true,
+        },
+    );
     assert!(out.contains("\x1b[9mgone"), "{out:?}");
     assert_eq!(plain("a ~~gone~~ b\n", 40), "  a gone b\n");
     // One tilde is a tilde. The corpus writes `~~` struck-through prose and `~` in paths and
@@ -652,10 +707,16 @@ fn an_indent_is_kept_outside_a_block_quote_and_dropped_inside_one() {
     // Two facts in one `if`, and the earlier tab test could not separate them because it compared
     // two indented renderings against each other: both sides move together when the indent is lost
     // altogether. These are absolute.
-    assert_eq!(plain("para\n\n    more text\n", 40), "  para\n\n      more text\n");
+    assert_eq!(
+        plain("para\n\n    more text\n", 40),
+        "  para\n\n      more text\n"
+    );
     // A quoted paragraph's own indentation means nothing: the rule is its structure, and indenting
     // past it would claim a nesting the author did not write.
-    assert_eq!(plain(">     quoted indented\n", 40), "  | quoted indented\n");
+    assert_eq!(
+        plain(">     quoted indented\n", 40),
+        "  | quoted indented\n"
+    );
 }
 
 #[test]
@@ -663,9 +724,15 @@ fn a_quoted_fence_takes_the_markers_it_was_opened_with_and_no_more() {
     // `past_quote` steps over at most the depth the fence opened at. A line inside the fence with
     // FEWER markers is a lazy continuation and is taken as it stands, marker and all, which is this
     // crate's recorded limitation rather than a guess at which reading the author meant.
-    assert_eq!(plain(">> ```text\n>>   deep\n>> ```\n", 40), "    | |   deep\n");
+    assert_eq!(
+        plain(">> ```text\n>>   deep\n>> ```\n", 40),
+        "    | |   deep\n"
+    );
     assert_eq!(plain(">> ```text\n> one\n>> ```\n", 40), "    | | one\n");
-    assert_eq!(plain("> ```text\n>   two\nlazy\n> ```\n", 40), "    |   two\n    | lazy\n");
+    assert_eq!(
+        plain("> ```text\n>   two\nlazy\n> ```\n", 40),
+        "    |   two\n    | lazy\n"
+    );
 }
 
 #[test]
@@ -674,7 +741,10 @@ fn a_wide_character_is_one_column_of_the_table_it_sits_in() {
     // a column sized in bytes would be one too wide. The BUGS section is honest that a CJK
     // character then occupies two columns and is counted as one; this is the Latin case, which is
     // the one the corpus has.
-    assert_eq!(plain("| é | bb |\n|---|---|\n| x | y |\n", 80), "  é | bb\n  --+---\n  x | y \n");
+    assert_eq!(
+        plain("| é | bb |\n|---|---|\n| x | y |\n", 80),
+        "  é | bb\n  --+---\n  x | y \n"
+    );
 }
 
 #[test]
@@ -682,8 +752,14 @@ fn a_backslash_that_is_not_escaping_a_pipe_is_ordinary_cell_text() {
     // The escape scan reads the byte after the backslash, and the byte before nothing: a cell that
     // opens with a backslash and a cell that ends with one are the two edges of it. Both are real,
     // because this repository's tables carry paths and regular expressions.
-    assert_eq!(plain("| \\x | b |\n|---|---|\n| p | q |\n", 40), "  \\x | b\n  ---+--\n  p  | q\n");
-    assert_eq!(plain("| a\\ | b |\n|---|---|\n| x | y |\n", 40), "  a\\ | b\n  ---+--\n  x  | y\n");
+    assert_eq!(
+        plain("| \\x | b |\n|---|---|\n| p | q |\n", 40),
+        "  \\x | b\n  ---+--\n  p  | q\n"
+    );
+    assert_eq!(
+        plain("| a\\ | b |\n|---|---|\n| x | y |\n", 40),
+        "  a\\ | b\n  ---+--\n  x  | y\n"
+    );
 }
 
 #[test]
@@ -691,8 +767,14 @@ fn a_table_inside_a_block_quote_fits_inside_the_rule() {
     // The room a table has is the terminal less the margin AND less the quote rules drawn down the
     // left of every row, which is two columns per level. A table sized against the bare terminal
     // would overrun by exactly that, and only a quoted table wide enough to be shrunk shows it.
-    let quoted = plain("> | aaaaaaaaaa | bb |\n> |---|---|\n> | cccccccccccccccccccc | d |\n", 24);
-    let bare = plain("| aaaaaaaaaa | bb |\n|---|---|\n| cccccccccccccccccccc | d |\n", 24);
+    let quoted = plain(
+        "> | aaaaaaaaaa | bb |\n> |---|---|\n> | cccccccccccccccccccc | d |\n",
+        24,
+    );
+    let bare = plain(
+        "| aaaaaaaaaa | bb |\n|---|---|\n| cccccccccccccccccccc | d |\n",
+        24,
+    );
     for line in quoted.lines() {
         assert!(line.chars().count() <= 24, "a quoted row overran: {line:?}");
     }
@@ -710,11 +792,18 @@ fn a_table_is_one_chunk_until_its_text_will_not_fit() {
     // half of the same `if` and the half that decides widths. Two rows, well inside `TABLE_ROWS`,
     // whose cells are long: they are one chunk, so the short row is padded to the long one's width
     // and every output line is the same length. A flush between them would align each to itself.
-    let src = format!("| {} | b |\n|---|---|\n| {} | c |\n", "w".repeat(100), "W".repeat(150));
+    let src = format!(
+        "| {} | b |\n|---|---|\n| {} | c |\n",
+        "w".repeat(100),
+        "W".repeat(150)
+    );
     let out = plain(&src, 4000);
     let widths: Vec<usize> = out.lines().map(str::len).collect();
     assert_eq!(widths.len(), 3);
-    assert!(widths.iter().all(|&w| w == widths[0]), "not one chunk: {widths:?}");
+    assert!(
+        widths.iter().all(|&w| w == widths[0]),
+        "not one chunk: {widths:?}"
+    );
 }
 
 // ---- milestone 280, third pass: the output cursor ------------------------------------------
@@ -730,7 +819,10 @@ fn a_blank_line_inside_a_fence_is_a_blank_line() {
     // The one code line whose visible width is zero, which is what separates "add nothing to the
     // cursor" from "multiply the cursor by nothing": the second closes the line without a newline
     // and joins the code to whatever follows. Most fenced blocks in this repository have one.
-    assert_eq!(plain("```text\none\n\ntwo\n```\n", 40), "    one\n    \n    two\n");
+    assert_eq!(
+        plain("```text\none\n\ntwo\n```\n", 40),
+        "    one\n    \n    two\n"
+    );
 }
 
 #[test]
@@ -774,7 +866,10 @@ fn an_indented_block_quote_indents_by_its_rule_and_not_by_its_spaces() {
     // A quoted line's own indentation is not structure, so the rule replaces it. The earlier
     // indent tests both start at column zero, where the indent being dropped and the indent being
     // zero look the same.
-    assert_eq!(plain("  >   quoted indented\n", 40), "  | quoted indented\n");
+    assert_eq!(
+        plain("  >   quoted indented\n", 40),
+        "  | quoted indented\n"
+    );
 }
 
 #[test]
@@ -785,7 +880,10 @@ fn a_table_wider_than_the_column_bound_loses_its_right_hand_columns() {
                |---|---|---|---|---|---|---|---|---|---|\n\
                | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 |\n";
     let out = plain(src, 80);
-    assert_eq!(out, "  a | b | c | d | e | f | g | h\n  --+---+---+---+---+---+---+--\n  1 | 2 | 3 | 4 | 5 | 6 | 7 | 8\n");
+    assert_eq!(
+        out,
+        "  a | b | c | d | e | f | g | h\n  --+---+---+---+---+---+---+--\n  1 | 2 | 3 | 4 | 5 | 6 | 7 | 8\n"
+    );
 }
 
 #[test]
@@ -825,8 +923,14 @@ fn a_blank_line_inside_a_quoted_fence_is_not_read_past_its_marker() {
     // three length tests and each one indexes the byte after what it just consumed, so this is the
     // line that separates them from the line buffer behind them. Both depths, because one level
     // cannot tell a bound from the loop that stops at it.
-    assert_eq!(plain("> ```text\n>\n> after\n> ```\n", 40), "    | \n    | after\n");
-    assert_eq!(plain(">> ```text\n>>\n>> after\n>> ```\n", 40), "    | | \n    | | after\n");
+    assert_eq!(
+        plain("> ```text\n>\n> after\n> ```\n", 40),
+        "    | \n    | after\n"
+    );
+    assert_eq!(
+        plain(">> ```text\n>>\n>> after\n>> ```\n", 40),
+        "    | | \n    | | after\n"
+    );
 }
 
 #[test]
