@@ -838,6 +838,46 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
 
+## An abbreviation we receive rather than author
+
+calef, 2026-09-13, asking what it would take to rename `initrd` to `initial_ramdisk`. The answer is
+that it cannot complete, and the reason generalises past this one word.
+
+**The acronym rule points at it, correctly.** *An acronym is spelled out unless its expansion teaches
+nothing* (2026-09-05). *Initial ramdisk* teaches a great deal: it says the thing is RAM-resident and
+readable before storage exists, which is the entire point and is not recoverable from the five
+letters. By that test `initrd` should go, the same way `dma` went.
+
+**It cannot, because about ninety of its 1,302 occurrences are somebody else's spelling:**
+
+| what | count | whose |
+|---|---|---|
+| `"linux,initrd-start"` | 19 | the Devicetree spec's property name, in a blob QEMU generates |
+| `"linux,initrd-end"` | 8 | the same |
+| `-initrd` | 64 | QEMU's command-line flag |
+
+The kernel finds the region by parsing that property; every run passes that flag. Rename our 840
+identifiers and the tree says `initial_ramdisk` in the code and `initrd` at the two points where a
+reader most needs the words connected: where we read the property, and where we launch the machine.
+**A rename that cannot reach the boundary makes a newcomer learn two words instead of one**, which is
+the opposite of what the acronym rule is for.
+
+**This is the `Guid` case one level out.** `crates/gpt` keeps `Guid` rather than following
+`user/src/uuid.rs`'s ratification because the name is load-bearing at an interface boundary: a GUID
+is mixed-endian on disk where RFC 9562's UUID is big-endian, so the two words name different things
+and collapsing them would assert a byte order the code does not produce. `initrd` is the same shape
+with the authority reversed: not a distinction we are preserving, but a name we do not own.
+
+**So the rule this adds, stated so it can be disagreed with: the acronym test applies to names this
+tree authors.** Where a name arrives across an interface somebody else defines, the tree keeps their
+spelling and pays the cost at the reader's expense once, in an expansion written where the reader
+meets it. `crates/user_rt/src/initrd.rs` carries that expansion as of 2026-09-13.
+
+**And the defect the pricing found was not the name.** `initrd` appeared about 1,300 times and was
+expanded in full **exactly once**, in `crates/dtb`, a crate about device trees rather than the one
+named for the thing. The abbreviation was never the problem; an unexplained abbreviation was, and
+that is rung three rather than a sweep.
+
 ## A terminus that is structural, or one that is merely current
 
 calef, 2026-09-13, asking after ruling `audit_sink` -> `login_audit_receiver`: *"Are there other
