@@ -25,11 +25,26 @@ license.workspace = true
 # pulls in `alloc` needs `__rust_alloc` and an OOM handler, and `doc` has neither and wants neither.
 # The *reader* is always compiled, because that is what runs confined.
 #
-# `cargo test -p documentation` therefore skips the builder's tests, and `cargo test --workspace` runs them:
-# `xtask` depends on this crate with the feature on, and cargo unifies features across one build. So
-# the gate covers them and a single-crate run does not, which is worth knowing before concluding
-# from a green `-p documentation` that the index is proven.
+# **`cargo test -p documentation` used to skip the builder's tests, and that was a hole rather than a
+# caveat** (milestone 280). The paragraph here said so plainly, as a thing worth knowing, and left
+# it at rung four: only `cargo test --workspace` reached them, because `xtask` depends on this crate
+# with the feature on and cargo unifies features across one build. What nobody noticed is that the
+# reader's tests are gated too, because every one of them needs `build` to make an index to read. So
+# a single-crate run compiled away half of this crate's suite and every survivor of it counted as a
+# gap: `cargo mutants` tests one package at a time, and that is what scored this crate 52% in the
+# first published mutation report. See notes/mutation-testing.md.
 builder = []
+
+# **A dev-dependency on ourselves, which is the mechanism that closes the hole above.** Cargo allows
+# a package to depend on itself for tests only, and resolver 2 unifies the feature across the test
+# build, so `cargo test -p documentation` now compiles the builder and runs all twelve index tests
+# while `cargo build -p documentation` still does not. Nothing a consumer sees changes: a dev
+# dependency is not transitive, so `user` and `swish` link no allocator and did not have to say so.
+#
+# This is AGENTS.md's rung one rather than a note asking the next person to remember `--workspace`:
+# the configuration that skips a third of the crate is no longer reachable by running its tests.
+[dev-dependencies]
+documentation = { version = "0.1.0", path = ".", features = ["builder"] }
 
 [lints]
 workspace = true

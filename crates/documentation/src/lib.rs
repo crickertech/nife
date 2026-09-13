@@ -37,7 +37,8 @@
 //! # What it renders
 //!
 //! ATX headings, paragraphs with word wrapping, fenced code blocks, block quotes, bullet and
-//! ordered lists with nesting by indent, tables with computed column widths, thematic breaks, and
+//! ordered lists with nesting by indent, tables with computed column widths and the alignment their
+//! delimiter row asks for, thematic breaks, and
 //! the inline set: `**strong**`, `*emphasis*`, `` `code` ``, `~~strike~~`, `[text](dest)` and
 //! `![alt](dest)`. That set was chosen by counting: it is every construct that appears in this
 //! repository's own 328 markdown files, which is the corpus the viewer exists to serve.
@@ -111,6 +112,21 @@
 //!   its SGR handler implements only 0, 1, 7, 22, 27 and the colour ranges. On the serial console,
 //!   where the far end is the host's terminal, it shows. So emphasis is visible on one of the two
 //!   terminals this system has, and the choice was between that and spending a colour on it.
+//! - **A table that spills past [`TABLE_ROWS`] loses its header emphasis and its column alignment
+//!   in the second chunk.** Both are read off the delimiter row, which arrived in the first chunk
+//!   and is not carried across the flush that makes room. The rows themselves are never lost, which
+//!   is the failure mode that matters, and this repository's largest table (117 rows in
+//!   `design/roadmap/README.md`) hits it. Carrying them means keeping two more fields across a
+//!   flush that exists to reset state, and nobody has asked for it.
+//! - **Column alignment reached nothing at all until 2026-09-13**, which is worth recording rather
+//!   than quietly fixing: [`Renderer`] parsed `:---`, `---:` and `:---:` off the delimiter row from
+//!   the first day and then padded every cell on the right. No test could have found it, because
+//!   the value had no consumer; the mutation sweep did, by leaving sixteen mutants alive in a
+//!   function whose result nothing read. See notes/mutation-testing.md.
+//! - **This crate's mutation score is not 100% and the residue is listed rather than implied.**
+//!   `notes/mutation-testing.md` carries the per-function ledger: what was killed, what is proved
+//!   equivalent, and what is an honest deferral. A reader who finds a number for `documentation` in
+//!   a published report can go there for what it is made of.
 //! - **Width is counted in characters, not columns.** A UTF-8 continuation byte counts as zero, so
 //!   ASCII and Latin text wrap correctly and a wide CJK character is counted as one column when it
 //!   occupies two. There is no CJK in the corpus and no font that could draw it.
