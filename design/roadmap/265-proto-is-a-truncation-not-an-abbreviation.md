@@ -17,6 +17,58 @@ filesystem_proto  graphics_proto   login_proto       mdns_proto       ntp_proto
 socket_proto      supervision_proto swap_proto       timebase_proto
 ```
 
+## Four stems calef ruled on 2026-09-13, which this milestone now carries
+
+Working the unratified worklist, calef ruled the `mdns` family and `ntp_proto`'s stem. **The rulings
+are recorded and the rename is not performed**, deliberately: doing it now means renaming the same
+files twice, once here for the stem and again for the suffix. So this milestone grew by four names
+and the tree grew by none.
+
+| Today | After this milestone | Ruled |
+|---|---|---|
+| `mdns_proto` | `multicast_dns_protocol` | stem 2026-09-13, suffix by this block |
+| `ntp_proto` | `network_time_protocol` | stem 2026-09-13, suffix by this block |
+| `mdns_config` | `multicast_dns_config` | 2026-09-13 |
+| `mdns_responder` | `multicast_dns_responder` | 2026-09-13 |
+
+The last two carry no `_proto` suffix and are here because they carry the same **stem**: renaming the
+protocol crate and leaving its config and its responder spelled the short way would split one
+protocol across two spellings, which is the state this milestone exists to end.
+
+**`network_time_protocol` is also the answer to a stutter.** Expanding the stem alone gives
+`network_time_protocol_proto`, which says protocol twice. The suffix change removes the duplication
+rather than adding to it, which is an argument for this milestone that its own block did not have.
+
+**The external-standard exemption is narrowed by this ruling, and that has to be said out loud.**
+Both crates' own provenance argued against expanding, and the argument was not weak.
+`ntp_proto`'s said NTP is RFC 5905's own name for the protocol, *"the same external-standard
+exemption `elf`/`pci`/`dtb`/`gpt` already carry"*. `mdns_proto`'s said the expansion does not stop
+cleanly, since DNS is itself an acronym and a consistent spelling runs to
+`multicast_domain_name_system_proto`. calef ruled against both on 2026-09-13, twice, having been
+shown them.
+
+So the exemption now reads: **a standard's own name stays whole where it names a format or a piece
+of hardware (`elf`, `pci`, `dtb`, `gpt`), and expands where it names a network protocol.** That is a
+line drawn rather than derived, and a reader is owed the reason: `elf` and `pci` are what the thing
+*is* and have no useful longer form in a reader's head, where a protocol's expansion says what it
+*does* (network time, multicast DNS) to someone who has not met the acronym. **DNS stops because it
+is the `pci` case one level down**: domain name system teaches nothing a reader did not already
+have.
+
+**The cost is honest and is this block's to carry**: the exemption used to be one rule and is now a
+rule with a boundary, and nothing mechanical can tell a format from a protocol. The next name that
+tests it comes to calef.
+
+**The `ntp` program stays `ntp`, and that is an exception that must say so.**
+`design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md` names this exact pair as a
+reason not to work one name at a time: *"Spelling out the program alone leaves the pair disagreeing;
+spelling out the crate alone overturns a ratification as a side effect of tidying a program."* Here
+the crate is expanded and the program is not, so the pair does disagree. It is deliberate rather
+than a side effect: `AGENTS.md` leaves the length of a typed command to its author, which is the
+same latitude that produced `mdr` on the same day, and `ntp` is what a person types. The cost is
+that a reader meets `network_time_protocol` and `ntp` and must be told they are one thing. This
+block is where they are told.
+
 ## Why, and the rule it fails is the tree's own
 
 **`proto` is not an abbreviation, it is a truncation.** `notes/naming.md` already refuses the shape:

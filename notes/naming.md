@@ -811,6 +811,69 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
 
+## Performing a ratified rename
+
+`AGENTS.md` carries the three rules. This is the argument, the worked example and what is not
+gateable.
+
+**The asymmetry that makes this worth writing down.** A rename is trivial mechanically and expensive
+in every other way, which the *move fast on what can be undone* tenet already says. What it does not
+say, and what this adds, is that the expensive half is not only the name in a reader's head. It is
+the **records**, and a sweep edits those at the same cost as it edits code while destroying
+something a revert cannot restore.
+
+### Status decides what moves, not directory
+
+| Kind | Moves? | Why |
+|---|---|---|
+| `BUILT` roadmap block | No | An account of what happened, under the names it happened under |
+| Dated audit report | No | Same, and the date is on the file |
+| Closed decision | No | What was decided, in the words used then |
+| `PROPOSED` proposal | **Yes** | Live intent; a reader picks it up and goes looking |
+| `PARTIAL` roadmap block | **Yes** | Its outstanding scope is work somebody will do |
+| Any quotation | **Never** | See below |
+
+Same rule the nife rename follows (`AGENTS.md`'s header: older records keep the old name where they
+describe the past), at the granularity a person performing a rename needs.
+
+**It was got wrong on the first pass of the `manual` rename**, 2026-09-13, which is why it is here.
+Twelve `design/` files were correctly left alone and three were not: `the-two-unexplained-mutation-scores`
+carried `manual` at 52% **in its title**, `colour-and-the-pager` was about `doc` being unable to
+page, and `fatal-risk-3-against-the-new-number` cited the crate in a score table. All three
+`PROPOSED`. The directory looked like history; the status said otherwise.
+
+### A quotation never moves
+
+Put a note beside it saying the thing was named differently when it was measured, so a number stays
+traceable to the run that produced it.
+
+**This is the tree's oldest naming scar.** A blind `sed` swept a rename across the tree and rewrote
+the very row recording that a name had been *refused*, and the refusal it destroyed was the one that
+would have prevented the rename. Milestone 115 and `script/names` exist because of it.
+
+### Enumerate before sweeping
+
+The match count is not the rename. Renaming `crates/manual`:
+
+- **89 files** matched the word
+- **37** were the crate, its note or its program
+- The rest were the English word ("manual resume", "not intended for manual editing"), a captured
+  boot log (`vf2-2026-09-01-manual-boot.log`), and **`manual_let_else`**, a clippy lint in the root
+  `Cargo.toml` a sweep would have silently broken
+
+List the true positives, read them, then edit. `git grep -l` over a narrowed pattern is the whole
+technique, and the cleverness is the hazard.
+
+### What is checked, and what is not
+
+`script/names --check` catches one member of this family: a name recorded as refused that is also
+live. Nothing catches a rewritten quotation, a stale `PROPOSED` proposal, or a lint that shared a
+substring, and a check that tried would be guessing at intent.
+
+**So this is rung three**, a written record at the thing a person is about to do, and it says so.
+The higher rung is not available: no gate can tell an account from an intention in prose, which is
+the reason `AGENTS.md` gives for not gating identified work either.
+
 ## BUGS
 
 What milestone 63 did **not** rename, each on purpose, so the next reader does not "fix" one of them

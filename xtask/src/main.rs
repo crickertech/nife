@@ -3582,7 +3582,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The viewer (milestone 40). Both archives for the sink's reason: `doc page.md | wc` is a
         // claim about how the streams compose, and a claim that holds on one instruction set is not
         // one.
-        ("doc", "doc"),
+        ("mdr", "mdr"),
         // The process listing (milestone 126). Both archives: "a program cannot enumerate the
         // machine" is a claim about this system, not about an instruction set.
         ("ps", "ps"),
@@ -4445,8 +4445,8 @@ fn initrd_aarch64() -> bool {
         // `wc` (milestone 50): the right-hand side of a pipe, and the first program that reads a
         // stream.
         ("wc", "wc"),
-        // `doc` (milestone 40): the documentation viewer, a filter from markdown to styled text.
-        ("doc", "doc"),
+        // `mdr` (milestone 40): the markdown renderer, a filter from markdown to styled text.
+        ("mdr", "mdr"),
         // `ps` (milestone 126): the process listing over a supervision domain.
         ("ps", "ps"),
         // `pgrep` (milestone 126): that listing, filtered to the members a selector names.
@@ -4755,7 +4755,9 @@ fn doc_store() -> Option<Vec<Shard>> {
                 eprintln!("doc-store: cannot write {base}");
                 return None;
             }
-            let title = documentation::index::title_of(&bytes).unwrap_or(base).to_string();
+            let title = documentation::index::title_of(&bytes)
+                .unwrap_or(base)
+                .to_string();
             loaded.push(((*page).to_string(), title, bytes));
         }
 
@@ -4768,9 +4770,13 @@ fn doc_store() -> Option<Vec<Shard>> {
             })
             .collect();
         let index = documentation::index::build(&sources);
-        let header = documentation::index::Header::parse(&index[..documentation::index::PAGE]).ok()?;
+        let header =
+            documentation::index::Header::parse(&index[..documentation::index::PAGE]).ok()?;
         if std::fs::write(dir.join(documentation::index::SHARD), &index).is_err() {
-            eprintln!("doc-store: cannot write {bundle}/{}", documentation::index::SHARD);
+            eprintln!(
+                "doc-store: cannot write {bundle}/{}",
+                documentation::index::SHARD
+            );
             return None;
         }
         shards.push(Shard {
@@ -4847,8 +4853,11 @@ fn manual_store(term: Option<String>) -> bool {
     let mut bad = Vec::new();
     documentation::index::bundles(&manifest, |bundle| {
         let name = String::from_utf8_lossy(bundle).to_string();
-        let Ok(bytes) = std::fs::read(doc_store_path().join(&name).join(documentation::index::SHARD))
-        else {
+        let Ok(bytes) = std::fs::read(
+            doc_store_path()
+                .join(&name)
+                .join(documentation::index::SHARD),
+        ) else {
             bad.push(format!("{name}: no shard"));
             return;
         };
@@ -6654,7 +6663,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // it reads a stream, so bare `doc` is refused at the prompt before anything is spawned, exactly
     // as `wc` is and for the same reason: a viewer that could open the page it renders could open
     // any page.
-    ("doc", &["name a file"]),
+    ("mdr", &["name a file"]),
     // **The named file reaches the viewer and comes back rendered**, which two of this gate's own
     // comments said it did not until 2026-08-18. Both halves of that were fixed elsewhere and the
     // record was never corrected: the input operand now comes off the plan rather than off the
