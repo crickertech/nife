@@ -684,12 +684,12 @@ bench = false
 [lints]
 workspace = true
 
-# `doc` (milestone 40): the documentation viewer. Markdown on its input, rendered text on its
-# output, and nothing else in its cspace; the rendering itself is `crates/manual`, which is
-# host-tested. **Provisional name.**
+# `mdr` (milestone 40): the markdown renderer. Markdown on its input, rendered text on its
+# output, and nothing else in its cspace; the rendering itself is `crates/documentation`, which
+# is host-tested. Name ratified 2026-09-13 by calef.
 [[bin]]
-name = "doc"
-path = "src/doc.rs"
+name = "mdr"
+path = "src/mdr.rs"
 test = false
 bench = false
 
@@ -745,7 +745,7 @@ filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
 graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
 ntp_proto = { version = "0.1.0", path = "../crates/ntp_proto" }
-manual = { version = "0.1.0", path = "../crates/manual" }
+documentation = { version = "0.1.0", path = "../crates/documentation" }
 byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
 # The shell's own logic (milestone 70): the routing of a typed line, the pattern-versus-text
 # question, and every sentence the prompt prints. `user/src/swish.rs` is the same program it was and

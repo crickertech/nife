@@ -135,7 +135,7 @@ struct Table {
 /// The renderer.
 ///
 /// It is about eight kilobytes, which is twice a user process's whole stack, so a program keeps one
-/// in `.bss` rather than on the stack. `user/src/doc.rs` shows the shape.
+/// in `.bss` rather than on the stack. `user/src/mdr.rs` shows the shape.
 pub struct Renderer {
     style: Style,
 
@@ -223,7 +223,7 @@ impl Renderer {
     /// false for all of them.
     ///
     /// **It is a partial guard and not the one that holds the bug it was written for**, which was
-    /// measured rather than assumed: reverting that fix ruins notes/manual.md from its own worked
+    /// measured rather than assumed: reverting that fix ruins notes/documentation.md from its own worked
     /// example onward and this still answers false, because a bare closing fence three sections
     /// later matches the stuck one. What it does catch is the case where the stuck fence is the
     /// last one in the page. See this crate's `BUGS`.

@@ -56,7 +56,7 @@ members = [
     "crates/virtio",
     "crates/intrusive_fifo",
     "crates/line_editor",
-    "crates/manual",
+    "crates/documentation",
     "crates/measured_boot",
     "crates/mdns_config",
     "crates/mdns_proto",

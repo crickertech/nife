@@ -565,7 +565,7 @@ const APROPOS_COUNT: usize = 4;
 /// Two spaces of indent, the count, two spaces, then the widest location the shipped store
 /// produces (`doc/swish/line-discipline.md`, twenty-eight bytes) and two more. A longer location
 /// pushes its title right rather than being truncated: losing the name a reader is meant to type
-/// would defeat the whole line. See `BUGS` in notes/manual.md for what that costs at eighty
+/// would defeat the whole line. See `BUGS` in notes/documentation.md for what that costs at eighty
 /// columns.
 const APROPOS_TITLE: usize = 2 + APROPOS_COUNT + 2 + 28 + 2;
 
@@ -574,10 +574,10 @@ const APROPOS_TITLE: usize = 2 + APROPOS_COUNT + 2 + 28 + 2;
 ///
 /// The columns are the answer's argument. A person reads this to decide what to open, so the
 /// **typeable name** is what has to be unmissable, and the count is what orders the list. The
-/// origin ([`manual::index::Found::origin`]) is deliberately not printed: it is provenance, it is
+/// origin ([`documentation::index::Found::origin`]) is deliberately not printed: it is provenance, it is
 /// nearly the location again, and a second path on the line would compete with the one the reader
 /// is meant to type.
-pub fn write_found(f: &manual::index::Found, out: &mut dyn FnMut(&[u8])) {
+pub fn write_found(f: &documentation::index::Found, out: &mut dyn FnMut(&[u8])) {
     let mut digits = 1;
     let mut v = f.count as u64 / 10;
     while v > 0 {
@@ -601,9 +601,9 @@ pub fn write_found(f: &manual::index::Found, out: &mut dyn FnMut(&[u8])) {
 ///
 /// Three things a reader needs and one of them is a refusal to overclaim: the results, the fact
 /// that a store said nothing at all, and the fact that more pages matched than the table can hold.
-/// [`manual::index::Ranked`] counts what it dropped precisely so this can say so; printing the
+/// [`documentation::index::Ranked`] counts what it dropped precisely so this can say so; printing the
 /// results alone would imply the answer was complete.
-pub fn write_apropos(term: &[u8], r: &manual::index::Ranked, out: &mut dyn FnMut(&[u8])) {
+pub fn write_apropos(term: &[u8], r: &documentation::index::Ranked, out: &mut dyn FnMut(&[u8])) {
     if r.offered() == 0 {
         out(b"  no page in the store says ");
         out(term);
@@ -812,7 +812,7 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
     out(b"  uuid                    a version-4 UUID, from the entropy service it is granted\n");
     out(b"  wc                      count lines, words and bytes on its INPUT\n");
-    out(b"  doc <page>              render markdown from its INPUT (apropos names the pages)\n");
+    out(b"  mdr <page>              render markdown from its INPUT (apropos names the pages)\n");
     out(b"  <prog> <name>           grant a process one file, and only that file\n");
     out(b"\n  operators (milestone 50). > and | are the same mechanism: a different\n");
     out(b"  capability in a program's output slot, which it cannot look behind.\n");
@@ -929,7 +929,7 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         | Prog::Date
         | Prog::Rm
         | Prog::Wc
-        | Prog::Doc
+        | Prog::Mdr
         | Prog::Ps
         | Prog::Pgrep
         | Prog::Watch
@@ -1395,7 +1395,7 @@ mod tests {
 
     #[test]
     fn a_search_answer_names_pages_a_reader_can_type() {
-        let mut r = manual::index::Ranked::new();
+        let mut r = documentation::index::Ranked::new();
         // Same page length for both, so the ranking this test is not about (density) does not
         // move the order the formatting assertions below depend on.
         r.offer(
@@ -1436,7 +1436,7 @@ mod tests {
 
     #[test]
     fn a_search_that_found_nothing_says_so_in_the_words_of_the_question() {
-        let r = manual::index::Ranked::new();
+        let r = documentation::index::Ranked::new();
         let s = shown(|o| write_apropos(b"quantum", &r, o));
         assert_eq!(s, "  no page in the store says quantum\n");
     }
@@ -1445,8 +1445,8 @@ mod tests {
     fn a_truncated_answer_says_how_much_it_dropped() {
         // The half that keeps the answer honest: printing sixteen results out of forty without
         // saying so implies the store holds sixteen.
-        let mut r = manual::index::Ranked::new();
-        for i in 0..manual::index::RESULTS_MAX + 4 {
+        let mut r = documentation::index::Ranked::new();
+        for i in 0..documentation::index::RESULTS_MAX + 4 {
             // Same page length for every offering, so the count this test is truncating stays the
             // thing that decides rank, and this is a test about the truncation count, not density.
             r.offer(b"kernel", b"notes/x.md", b"X", i as u16, 100);

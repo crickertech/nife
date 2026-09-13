@@ -49,7 +49,7 @@ fi
 # failure this gate actually hit (2026-08-30, PR #590, milestone 87).
 #
 # What the flag was for: a feature-gated test is still a test and the floor does not know that.
-# `crates/manual`'s index reader is exercised by a round trip against the builder, and the builder
+# `crates/documentation`'s index reader is exercised by a round trip against the builder, and the builder
 # sits behind `builder` because it allocates and the guest cannot. Without it, llvm-cov compiled the
 # reader, ran none of the three tests that reach it, and reported 33.3% on a file that is
 # round-tripped against its own writer.
@@ -65,7 +65,7 @@ fi
 # So: add a package-qualified feature here when a crate grows one whose tests this floor should see.
 # That is a line of maintenance per featured crate, and it buys back the limitation `--all-features`
 # had anyway, which is that a union-of-all-features run can carry an undertested default build.
-cargo llvm-cov --workspace --features manual/builder \
+cargo llvm-cov --workspace --features documentation/builder \
     --exclude kernel --exclude user --exclude xtask --exclude user_rt \
     --exclude supervision_proto --exclude swap_proto --exclude system_initializer --no-report
 cargo llvm-cov report --summary-only

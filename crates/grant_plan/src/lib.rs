@@ -142,7 +142,7 @@ pub enum Prog {
     /// out, resolved by [`plan_against_with`] into a [`line::Source::File`]. See that function for
     /// why what the child holds is narrower than a per-file capability rather than the same thing.
     Wc,
-    /// **Render markdown for a terminal** (milestone 40, `user/src/doc.rs`, notes/manual.md).
+    /// **Render markdown for a terminal** (milestone 40, `user/src/mdr.rs`, notes/documentation.md).
     ///
     /// The same manifest as [`Prog::Wc`]: a stream in, a stream out, and nothing else. `doc
     /// notes/glob.md` reads like Unix's `man` and is not: the name is a designation the *shell*
@@ -150,7 +150,7 @@ pub enum Prog {
     /// that opened the page it renders would be a viewer that could open any page.
     ///
     /// **Provisional name.**
-    Doc,
+    Mdr,
     /// **List the processes in the supervision domain it was spawned into** (milestone 126,
     /// `user/src/ps.rs`, notes/process-view.md).
     ///
@@ -271,7 +271,7 @@ impl Prog {
             // first.
             b"rm" => Some(Prog::Rm),
             b"wc" => Some(Prog::Wc),
-            b"doc" => Some(Prog::Doc),
+            b"mdr" => Some(Prog::Mdr),
             b"ps" => Some(Prog::Ps),
             b"pgrep" => Some(Prog::Pgrep),
             b"watch" => Some(Prog::Watch),
@@ -292,7 +292,7 @@ impl Prog {
             Prog::Date => "date",
             Prog::Rm => "rm",
             Prog::Wc => "wc",
-            Prog::Doc => "doc",
+            Prog::Mdr => "mdr",
             Prog::Ps => "ps",
             Prog::Pgrep => "pgrep",
             Prog::Watch => "watch",
@@ -312,7 +312,7 @@ impl Prog {
             Prog::Date => 4,
             Prog::Rm => 5,
             Prog::Wc => 6,
-            Prog::Doc => 7,
+            Prog::Mdr => 7,
             Prog::Ps => 8,
             Prog::Pgrep => 9,
             Prog::Watch => 10,
@@ -332,7 +332,7 @@ impl Prog {
             4 => Some(Prog::Date),
             5 => Some(Prog::Rm),
             6 => Some(Prog::Wc),
-            7 => Some(Prog::Doc),
+            7 => Some(Prog::Mdr),
             8 => Some(Prog::Ps),
             9 => Some(Prog::Pgrep),
             10 => Some(Prog::Watch),
@@ -523,12 +523,12 @@ impl Prog {
             // **The viewer**, whose manifest is "a stream in, a stream out" like `wc`'s, and handed
             // bytes like every other stage. The one place it parts from `wc` is the field milestone
             // 50 added: `wc` absorbs the whole stream before it emits (`writes_while_reading:
-            // false`), while `doc` renders as it reads and so writes while it is still reading. That
-            // difference is not decoration. It is exactly why `doc` can deadlock a rendezvous
-            // pipeline where `wc` never does (notes/manual.md's BUGS section), and the planner can
+            // false`), while `mdr` renders as it reads and so writes while it is still reading. That
+            // difference is not decoration. It is exactly why `mdr` can deadlock a rendezvous
+            // pipeline where `wc` never does (notes/documentation.md's BUGS section), and the planner can
             // only account for it if the manifest declares it. No memory grant, because the renderer
             // never allocates.
-            Prog::Doc => Manifest {
+            Prog::Mdr => Manifest {
                 arg: ArgSpec::Forbidden,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
@@ -787,7 +787,7 @@ pub enum InputSpec {
         ///
         /// A program that declares `false` is a **barrier**: it absorbs the whole stream before it
         /// answers, which lets the shell finish feeding before anything comes back. One barrier
-        /// anywhere in a chain is enough, which is why `doc page.md | wc` runs and `doc page.md`
+        /// anywhere in a chain is enough, which is why `mdr page.md | wc` runs and `mdr page.md`
         /// does not. See [`check_chain`] and notes/pipes.md.
         writes_while_reading: bool,
     },
@@ -1141,9 +1141,9 @@ pub enum Command<'a> {
     /// that moves no authority at all.
     ///
     /// **What it produces is names, never capabilities.** A result is a store location a person can
-    /// then type at `doc`, and *that* line is where the grant happens, resolved against the
+    /// then type at `mdr`, and *that* line is where the grant happens, resolved against the
     /// directory the shell holds exactly as any other designation is. So search cannot widen what
-    /// its caller could already reach, which is the property `doc notes/ipc-naming.md` rests on.
+    /// its caller could already reach, which is the property `mdr notes/ipc-naming.md` rests on.
     Apropos(&'a [u8]),
     /// A program invocation: `<prog> [--mem N] [token ...]`. Named `Run` for the act of running a
     /// program, not for a verb on the line; milestone 47 deleted the verb. A first word that is not
@@ -2416,7 +2416,7 @@ fn check_streams(m: Manifest, streams: Streams) -> Result<line::Diagnostics, Ref
 /// A stage that declares [`InputSpec::Required::writes_while_reading`] `false` absorbs the whole
 /// stream before it answers. One of those anywhere in the chain is enough: everything upstream of it
 /// can stream freely, the shell's feed completes, and only then does anything travel back. So
-/// `doc page.md | wc` runs and `doc page.md` is refused, with `| wc` being the fix the message names.
+/// `mdr page.md | wc` runs and `mdr page.md` is refused, with `| wc` being the fix the message names.
 ///
 /// A line whose head is a builtin and which spawns nothing at all (`ls > out.txt`) is not a chain
 /// and is always `Ok`: there is no second process to deadlock against.
@@ -4126,11 +4126,11 @@ mod tests {
         let counter = plan_as(Prog::Wc.manifest(), b"wc", src);
         let renderer_piped = plan_as(RENDERS_AS_IT_READS, b"wc", piped);
 
-        // `doc page.md`: this shell writes the file in, and DECISIONS §106 gives the render
+        // `mdr page.md`: this shell writes the file in, and DECISIONS §106 gives the render
         // somewhere to go that is not this shell (`terminal_sink_caretaker`), so there is no second
         // reader for the shell to wait behind.
         assert_eq!(check_chain(true, &[Some(renderer)]), Ok(()));
-        // `doc page.md | wc`: the `wc` absorbs the whole stream, so the feed finishes first.
+        // `mdr page.md | wc`: the `wc` absorbs the whole stream, so the feed finishes first.
         assert_eq!(
             check_chain(true, &[Some(renderer_piped), Some(counter)]),
             Ok(()),
@@ -4143,7 +4143,7 @@ mod tests {
         // `ls > out.txt`: the shell is the producer and no stage was spawned at all, so there is no
         // second process for it to deadlock against.
         assert_eq!(check_chain(true, &[None, None]), Ok(()));
-        // `doc page.md > out.txt`: DECISIONS §106 only narrows the unredirected case
+        // `mdr page.md > out.txt`: DECISIONS §106 only narrows the unredirected case
         // (`Sink::Report`). A `>` still comes back through this shell (DECISIONS §55: the file
         // behind a `>` is the shell itself), so this shape is refused exactly as it always was.
         let to_file = Streams {
