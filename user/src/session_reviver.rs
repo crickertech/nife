@@ -80,11 +80,29 @@
 //!   `filesystem_proto::PAGE` bytes, unlike `fs_test_client.rs`'s own channel, which maps the whole
 //!   `fs::TRANSFER_MAX` width for its throughput role.
 //!
-//! Name: provisional, `session_reviver`, minted by this lane 2026-08-24. A noun for what it does
-//! (revive, in the sense DECISIONS §123's own roadmap doc used first: "boot-time bring-up is
-//! re-derivation, not restoration") to the thing it acts on (a durable session). §123's own text
-//! floated this exact placeholder ("something like `session_reviver`"); this lane used it rather
-//! than inventing a second one. calef's call to ratify per AGENTS.md.
+//! Name: provisional, and ruled: calef ruled **`session_rederiver`** on 2026-09-13, working the
+//! unratified worklist. The block stays `provisional` because the ratified name is not this file's
+//! until the rename is performed, and until then `session_reviver` belongs on the worklist rather
+//! than off it. Minted by milestone 152's lane 2026-08-24.
+//!
+//! **The old name asserted the thing §123 exists to deny, and the block that defended it quoted
+//! the denial.** It read: a noun for what it does, *"revive, in the sense DECISIONS §123's own
+//! roadmap doc used first: `boot-time bring-up is re-derivation, not restoration`"*. To revive is
+//! to bring back to life, which is restoration; `re-derivation` is §122's and §123's established
+//! word, and this program's own first line already calls it **the boot-time re-deriver**. So the
+//! name contradicted the header above it and the decision beneath it at once.
+//!
+//! What the program does supports the distinction rather than softening it: it reads the manifest,
+//! reads each identity's schedule file, and **mints a fresh synthetic session** with the identical
+//! §16 lifecycle a live login's `DurableSession` has. Nothing is brought back. Something
+//! equivalent is derived again, from durable inputs, with nobody present to hand over a credential.
+//!
+//! Refused `session_reviver`, above. It was never argued for: §123's own text floated *"something
+//! like `session_reviver`"* as a placeholder and this lane took it rather than inventing a second
+//! one, which is the right instinct and is why nobody noticed the contradiction for three weeks.
+//! Refused `durable_session_rederiver` as more precise about which sessions than it needs to be,
+//! since these are the only ones. Refused `boot_session_deriver`, which drops the `re-`, the half
+//! carrying the meaning: this happens *again*, from inputs that outlived the last time.
 //!
 //! # BUGS
 //!
