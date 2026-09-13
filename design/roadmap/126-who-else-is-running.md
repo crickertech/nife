@@ -338,8 +338,11 @@ tool -- and the same shape `notes/net.md` already built favorably (`announce 80`
 
 ## Fork: `top`'s per-thread CPU accounting
 
-**Status: PROPOSED, 2026-08-26 (this lane).** Investigated rather than built, because the
-mechanism it needs crosses the syscall surface, which AGENTS.md reserves for calef.
+**Status: DECIDED, 2026-09-13 by calef: option 2, scheduled on-CPU time.** Recorded as
+`design/decisions/150-per-thread-cpu-accounting.md`, built as milestone 282. Raised 2026-08-26 by
+this lane and investigated rather than built, because the mechanism it needs crosses the syscall
+surface, which AGENTS.md reserves for calef. The investigation below stands as written; it is the
+argument the decision was made on.
 
 **The premise this milestone's own BUGS section stated turned out to be false, and the correction
 matters before the design question does.** The entry read: *"`top` needs per-thread CPU

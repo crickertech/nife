@@ -208,6 +208,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 147 | DECIDED | [A timer a userspace service cannot hold: how the timed wait gets served instead](147-a-timer-a-userspace-service-cannot-hold.md) |
 | 148 | DECIDED | [Milestone 105's two forks: a supervisor restarts by asking, and resolves by asking the kernel](148-reap-and-thread-identity.md) |
 | 149 | PROPOSED | [May the kernel answer on an endpoint, where §121 leaves no userspace holder?](149-kernel-served-console-endpoint.md) |
+| 150 | DECIDED | [How does a thread's CPU time reach userspace?](150-per-thread-cpu-accounting.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
