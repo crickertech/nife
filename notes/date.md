@@ -2,7 +2,7 @@
 
 The command that makes the wall clock visible to a person. Milestone 51's last small piece, and the
 first thing in the tree that puts [the clock service](clock.md) and [the calendar
-crate](calendar.md) in the same process. The program is `user/src/date.rs`; the guest tests are
+crate](calendar.md) in the same process. The program is `components/src/date.rs`; the guest tests are
 `kernel::user::date_tests`.
 
 It is a hundred lines and most of them are comments, which is the point: the design decided

@@ -324,7 +324,7 @@ GUESTFWD="guestfwd=tcp:10.0.2.9:7777-cmd:/bin/cat"
 # depended on the developer's DNS working at that instant and flaked whenever a query was dropped
 # (measured ~2.5% per query against a real resolver). TFTP is served inside libslirp, so the request
 # and its reply never leave the emulator. This is the UDP twin of the guestfwd echo peer above.
-# The fixture's name and contents are fixed and must match user/src/socket_test_client.rs (TFTP_NAME/TFTP_BODY);
+# The fixture's name and contents are fixed and must match components/src/socket_test_client.rs (TFTP_NAME/TFTP_BODY);
 # `printf` writes it with no trailing newline so the client can assert the bytes exactly.
 TFTPDIR="$(dirname "$0")/../target/tftp"
 mkdir -p "$TFTPDIR"

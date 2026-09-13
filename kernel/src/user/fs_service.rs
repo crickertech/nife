@@ -2,7 +2,8 @@ use super::*;
 use crate::cap::{Rights, irq_cap, memory_region_cap, rendezvous_cap, virtio_cap};
 use crate::sched::RendezvousId;
 
-/// The block server's role in the driver binary (must match user/src/{hello,blk}.rs and virtio.rs).
+/// The block server's role in the driver binary (must match `fixtures/src/hello.rs`,
+/// `components/src/block_driver.rs` and `crates/virtio`).
 const ROLE_BLK_SERVER: u64 = 32;
 
 /// The heap budget the FS server draws RedoxFS's allocations from. RedoxFS keeps a 128 KiB
@@ -634,7 +635,7 @@ pub(super) fn spawn_fs_client(
 }
 
 /// Wire the service (or reuse this boot's) and spawn the hand-written client
-/// (`user/src/fs_test_client.rs`): the file-service endpoint, which IS its directory capability, the
+/// (`fixtures/src/fs_test_client.rs`): the file-service endpoint, which IS its directory capability, the
 /// report endpoint, and its view of the shared file page. It names nothing else in the system.
 ///
 /// Returns `(readiness, report)`: the two readiness endpoints if this call wired the service,
@@ -1040,7 +1041,7 @@ pub fn start_granted_dir(
 }
 
 /// Where the nameset caretaker expects its read-only name-set page
-/// (`user/src/fs_nameset_caretaker.rs`'s `SET_VA`).
+/// (`components/src/fs_nameset_caretaker.rs`'s `SET_VA`).
 const SET_VA_CARETAKER: u64 = 0x0000_0000_0070_0000;
 
 /// **Wire a set grant and the program confined to it** (milestone 47's globbing lane,
@@ -1170,7 +1171,7 @@ pub fn start_granted_set(
 
 /// **Put a file behind a byte sink** (milestone 50, notes/sink-protocol.md).
 ///
-/// Wires the FS service (or reuses this boot's) and spawns `user/src/sink.rs` in its file role:
+/// Wires the FS service (or reuses this boot's) and spawns `fixtures/src/sink.rs` in its file role:
 /// it holds the FS-service endpoint, a report endpoint, and the page it shares with the FS
 /// server, and it serves one endpoint whose only expressible request is "append these bytes".
 ///
@@ -1265,7 +1266,7 @@ pub fn start_sink_verify(
     Some((out, report))
 }
 
-/// `user/src/sink.rs`'s roles. Kept in sync with that file by name and by this comment; a
+/// `fixtures/src/sink.rs`'s roles. Kept in sync with that file by name and by this comment; a
 /// mismatch spawns the wrong role and hangs, which is why they are named here rather than
 /// spelled as bare integers at the two call sites.
 const SINK_ROLE_FILE: u64 = 1;

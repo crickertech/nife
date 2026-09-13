@@ -326,7 +326,7 @@ has found a refusal that outlived its own reason; see notes/crates-io-on-nife.md
 
 **A per-file grant needs no std API at all**, which is the payoff of having bound the PAL to a
 capability contract rather than to a namespace. A program handed a narrowed file capability (§27's
-caretaker, `user/src/fs_file_caretaker.rs`) is an ordinary `std::fs` client: the one granted name
+caretaker, `components/src/fs_file_caretaker.rs`) is an ordinary `std::fs` client: the one granted name
 opens, every other name is an ordinary `NotFound`, and a write through a read-only grant surfaces as
 `ErrorKind::ReadOnlyFilesystem`. Nothing in the PAL knows whether slot 4 leads to a directory or to
 one file, and it does not need to.
@@ -500,7 +500,7 @@ meaning "this node again".
 
 It had been refused with a note saying the recursion has to descend, a nested path is refused, and
 the loop therefore belongs where it can hold a directory capability per level, which is
-`user/src/rm.rs`. The second half of that was right and is now this module's business, because the
+`components/src/rm.rs`. The second half of that was right and is now this module's business, because the
 walk holds one per level. std's own generic implementation is written entirely in terms of
 `read_dir`, `remove_file` and `remove_dir` on paths it composes with `DirEntry::path`, so switching
 one re-export was the whole change.

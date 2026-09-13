@@ -3,7 +3,7 @@ use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
 use crate::user::holding::Holding;
 
-/// The VAs `user/src/line_editor.rs` hardcodes for its console and application pages. Must match
+/// The VAs `components/src/line_editor.rs` hardcodes for its console and application pages. Must match
 /// that file's `CONOUT_VA`, `APP_OUT_VA`, `APP_IN_VA`.
 const CONOUT_VA: u64 = 0x0060_0000;
 const APP_OUT_VA: u64 = 0x0080_0000;
@@ -20,7 +20,7 @@ pub struct Wiring {
     /// `OP_WRITE`.
     pub term: RendezvousId,
     /// The console's shared page, physical. This is what `line_editor` echoes into
-    /// (`user/src/line_editor.rs`'s `Con`). A test sentinel-fills it before an exchange and checks
+    /// (`components/src/line_editor.rs`'s `Con`). A test sentinel-fills it before an exchange and checks
     /// it after: that is how "no echo happened" gets proven rather than assumed, the same
     /// byte-for-byte witness-page discipline `c_seam`'s confiner tests use for a different claim.
     pub console_phys: u64,
@@ -35,7 +35,7 @@ pub struct Wiring {
 /// except that the input driver and the application are both played by the caller.
 ///
 /// The fake console speaks only the one protocol `line_editor`'s `Con::flush` needs: `SEND` a
-/// count, `RECV` an ack (not a `CALL`; `user/src/line_editor.rs`'s own module doc explains why
+/// count, `RECV` an ack (not a `CALL`; `components/src/line_editor.rs`'s own module doc explains why
 /// that hop is safe with exactly one client). It never inspects the shared page; a test checks
 /// that directly through [`Wiring::console_phys`], which is the point: a fake that graded its own
 /// homework would prove nothing about echo suppression.

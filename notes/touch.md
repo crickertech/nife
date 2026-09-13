@@ -3,7 +3,7 @@
 Milestone 47. The create half built 2026-08-22; the mtime half built 2026-08-24 (DECISIONS §112).
 The contract side is `filesystem_proto::fs::CREATE` (milestone 31 phase 2), `GETMTIME`, `SETMTIME`
 and `SETMTIME_AT` (milestone 47's mtime lane, all four names provisional except `CREATE`); the
-builtin is `Nav::touch` in `user/src/swish.rs`, parsed by `grant_plan::Command::Touch` into a
+builtin is `Nav::touch` in `components/src/swish.rs`, parsed by `grant_plan::Command::Touch` into a
 `TouchArgs`.
 
 ## What this does
@@ -90,7 +90,7 @@ lies are plausible.
 
 `grant_plan`'s parser does not interpret the `-t` operand's text at all; it only recognizes the `-t`
 flag and hands the following token, unparsed, to `TouchArgs::at`. Converting it to Unix seconds
-happens where the grant is made (`Nav::touch` in `user/src/swish.rs`), using
+happens where the grant is made (`Nav::touch` in `components/src/swish.rs`), using
 `calendar::DateTime::parse_rfc3339_bytes`, the same crate and the same layering `date` itself uses
 for the read side. `date`'s own `FMT_RFC3339` output is therefore a valid `-t` operand:
 `touch -t "$(date ...)" name` round-trips through this shell without either side inventing a

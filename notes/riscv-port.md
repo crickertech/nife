@@ -380,7 +380,7 @@ is the thread's or the hart's.** `tp` is the hart's.
    during init), and the demo driver runs in the kernel for now.
 
    **The driver moved to userspace, and the last leak closed.** First the demo driver became an
-   unprivileged U-mode process (`user/src/serial_driver.rs`): the kernel maps the NS16550 into it
+   unprivileged U-mode process (`components/src/serial_driver.rs`): the kernel maps the NS16550 into it
    device-typed and grants it an `Irq` capability and a report endpoint, and it runs the seL4
    IRQHandler loop, `WAIT` on the cap (block for the interrupt as a message), read the byte through
    its own device mapping, `SEND` it, `ACK`. "an unprivileged userspace driver serviced the UART via

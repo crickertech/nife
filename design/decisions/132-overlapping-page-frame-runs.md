@@ -181,8 +181,8 @@ asserted, traced. There are four, and the earlier count of three missed one:
 
 | Site | Object | Path |
 |---|---|---|
-| `user/src/hello.rs`'s `revoke_demo` | `PageFrame(phys, 1)` from `MemoryRegion::RETYPE`, `Rights::ALL` | the only production `PageFrame::REVOKE` in the tree, driven end to end by `a_process_revokes_a_frame_and_loses_the_capability` |
-| `user/src/swapper.rs`'s device hand-back | `DeviceFrame(phys)` | `revoke_device_from_others`, §41, untouched by this work |
+| `fixtures/src/hello.rs`'s `revoke_demo` | `PageFrame(phys, 1)` from `MemoryRegion::RETYPE`, `Rights::ALL` | the only production `PageFrame::REVOKE` in the tree, driven end to end by `a_process_revokes_a_frame_and_loses_the_capability` |
+| `components/src/swapper.rs`'s device hand-back | `DeviceFrame(phys)` | `revoke_device_from_others`, §41, untouched by this work |
 | `kernel/src/user/disk_tests.rs` | `PageFrame(roster_phys, 1)` from `page_frame_cap` | `revoke::revoke_page_frame` directly |
 | `kernel/src/user/tests.rs` | one page, mapped with no capability at all | `revoke::revoke_page_frame` directly |
 

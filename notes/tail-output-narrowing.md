@@ -130,7 +130,7 @@ output stream? **Yes, mostly unused today.** DECISIONS §26 built a kernel-deliv
 endpoint in milestone 22: "when a thread faults or exits, the kernel delivers a message to the
 supervision endpoint its spawner designated," with a reserved capability table slot
 (`abi::fault::FAULT_EP_SLOT`) and a kernel-stamped `(event code, tid, ...)` message, already proved
-and already in the tree. Today `user/src/swish.rs` wires this **only for supervised (interruptible)
+and already in the tree. Today `components/src/swish.rs` wires this **only for supervised (interruptible)
 foreground jobs** (`spawn_interruptible`, watching a cooperative job-frame `DONE` flag, which is a
 *different*, userspace-cooperative mechanism, not §26's kernel path). Ordinary sink-declaring
 children (`date`, `wc`, `doc`) are spawned with no fault endpoint at all; the shell's only
@@ -177,7 +177,7 @@ about *which* pending message the terminal shows first when more than one is in 
 this falls on the expensive side for two independent reasons:
 
 - **It is a spawn-protocol decision**, which `crates/grant_plan/src/spawnproto.rs` calls out as
-  "anything two binaries must agree on": both inits (`user/src/hello.rs` for aarch64,
+  "anything two binaries must agree on": both inits (`fixtures/src/hello.rs` for aarch64,
   `crates/system_initializer` for riscv64, unified since milestone 96) and every program's manifest
   would carry the new convention. §67 set the precedent for how cheaply this class of change lands
   when it follows the existing shape (a bit, a manifest declaration, no new syscall), but it is still

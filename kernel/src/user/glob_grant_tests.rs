@@ -5,7 +5,7 @@ use filesystem_proto::fixture::{VERDICT, globscape as gb, rm as rr, tree};
 use super::*;
 use crate::sched;
 
-/// The `swish` binary's globbing role (`user/src/swish.rs`).
+/// The `swish` binary's globbing role (`components/src/swish.rs`).
 const ROLE_GLOB: u64 = 2;
 
 /// The most messages one `rm` run may send before the harness stops reading, as

@@ -1,7 +1,7 @@
 //! **`ps`: what a process listing is when there is no `/proc`** (milestone 126,
 //! notes/process-view.md).
 //!
-//! This is the program's logic, lifted out so it runs on the host in milliseconds; `user/src/ps.rs`
+//! This is the program's logic, lifted out so it runs on the host in milliseconds; `components/src/ps.rs`
 //! is the syscall and the two output streams and nothing else. The crate and the program share a
 //! name because they are one thing split at the IO boundary, which is the convention `coremark`,
 //! `line_editor` and `compositor` already follow.
@@ -121,7 +121,7 @@
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). `ps` is the name
 //! every reader already knows from outside this project, which the naming tenet calls the best
-//! name available and not one to spend a rename on. Sharing it with `user/src/ps.rs` is the
+//! name available and not one to spend a rename on. Sharing it with `components/src/ps.rs` is the
 //! crate-and-program pair the same tenet describes: splitting them would hide the relationship, so
 //! `coremark`, `line_editor` and `compositor` all keep one name across the two.
 

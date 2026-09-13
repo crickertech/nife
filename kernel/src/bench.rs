@@ -533,7 +533,7 @@ fn rfence_self() {
     });
 }
 
-// Roles for the `os_primitives_benchmarker` EL0 program (must match user/src/os_primitives_benchmarker.rs). One binary, one micro-
+// Roles for the `os_primitives_benchmarker` EL0 program (must match fixtures/src/os_primitives_benchmarker.rs). One binary, one micro-
 // measurement per role, chosen through `START`'s `arg0`.
 const EL_NULL_SYSCALL: u64 = 0;
 const EL_YIELDER: u64 = 1;
@@ -590,7 +590,7 @@ fn spawn_os_primitives_benchmarker(role: u64, report: sched::RendezvousId) -> bo
 /// kernel-internal, no trap. This one is what lmbench measures: the bench boot spawns the `os_primitives_benchmarker`
 /// EL0 program, which self-times a loop of the cheapest `svc` and reports `[ticks, iters]`; we print
 /// it in the same format. The gap between this and a hypothetical kernel-side null syscall is roughly
-/// the EL0<->EL1 boundary cost, which is the whole point of measuring here. See `user/src/os_primitives_benchmarker.rs`.
+/// the EL0<->EL1 boundary cost, which is the whole point of measuring here. See `fixtures/src/os_primitives_benchmarker.rs`.
 fn null_syscall_el0() {
     let report = sched::create_rendezvous();
     if !spawn_os_primitives_benchmarker(EL_NULL_SYSCALL, report) {
@@ -605,7 +605,7 @@ fn null_syscall_el0() {
 /// bench boot spawns a *yielder* peer and a *timer*, two separate EL0 processes; the timer self-times
 /// a loop of `SYS_YIELD`, each handing the CPU to the peer and back, two switches per iteration, each
 /// an address-space change. With the boot thread blocked here on the report and only those two ready,
-/// the alternation is clean. See `user/src/os_primitives_benchmarker.rs`.
+/// the alternation is clean. See `fixtures/src/os_primitives_benchmarker.rs`.
 fn ctx_switch_el0() {
     let report = sched::create_rendezvous();
     // The peer first, so the timer always has something to switch to. It shares the report endpoint
@@ -1102,7 +1102,7 @@ fn sink_throughput() {
 /// then times a loop of `invoke(address space, MAP_INTO, va_i, frame, MAP_RO)`, aliasing the one frame at a
 /// fresh VA each iteration. The target is a separate space, not `os_primitives_benchmarker`'s own (a run()-adopted space
 /// is not in the registry `MAP_INTO` resolves), which is immaterial: the map path's cost is the same
-/// whoever owns the space. See `user/src/os_primitives_benchmarker.rs`.
+/// whoever owns the space. See `fixtures/src/os_primitives_benchmarker.rs`.
 fn map_el0() {
     let Some(image) = crate::user::program("os_primitives_benchmarker") else {
         println!("bench: map_el0 skipped (no os_primitives_benchmarker in the initrd)");
@@ -1160,7 +1160,7 @@ fn map_el0() {
 /// and, crucially, `DESTROY`s the child's region afterward, so the loop repeats. The bench boot hands
 /// the spawner three things: a big untyped budget (slot 1), a report endpoint to answer on (slot 0),
 /// and a child-done endpoint (slot 2, READ|WRITE|GRANT) it delegates a WRITE view of to each child.
-/// See `user/src/os_primitives_benchmarker.rs`.
+/// See `fixtures/src/os_primitives_benchmarker.rs`.
 fn spawn_el0() {
     let Some(image) = crate::user::program("os_primitives_benchmarker") else {
         println!("bench: spawn_el0 skipped (no os_primitives_benchmarker in the initrd)");
@@ -1216,7 +1216,7 @@ fn coremark_compute() {
 /// through a granted *directory capability* and reads a block, over the real confined stack, a block
 /// server driving the RedoxFS disk by DMA and an FS server (the vendored RedoxFS engine, `no_std`, on
 /// its own heap) mounting it over blk IPC. `kernel/src/user/fs_service.rs` wires all three; the
-/// client (`user/src/fs_test_client.rs`, `ROLE_BENCH`) times a warm read loop and reports `[ticks, iters]`.
+/// client (`fixtures/src/fs_test_client.rs`, `ROLE_BENCH`) times a warm read loop and reports `[ticks, iters]`.
 ///
 /// **Why it is `--real`-only and never gates, unlike the primitives.** The FS server's mount is
 /// device-driven: hundreds of block reads gated on the disk's completion interrupt, plus the engine's

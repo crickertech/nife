@@ -16,14 +16,14 @@ be restartable gets a spawner, and the root asks it, which is what tier two alre
 
 The fork was put as *"are reclamation and construction separable rights"*, and the answer is that the
 tree does not need them to be, because **it already restarts a child without construction
-authority**. `user/src/sub_server_supervisor.rs`:
+authority**. `components/src/sub_server_supervisor.rs`:
 
 > **restart policy, in userspace, holding nothing**... cannot make an endpoint, cannot allocate a
 > page. **Its entire power is to ask the spawner for a rebuild of the one program the spawner can
 > build.** A compromised supervisor is a restart loop, not a foothold.
 
 **And the pattern generalises**, which was checked rather than assumed, because it was the one
-objection that would have sunk it. `user/src/spawner.rs` holds one untyped budget (`WRITE` only, so
+objection that would have sunk it. `components/src/spawner.rs` holds one untyped budget (`WRITE` only, so
 it may spend but never lend), a request channel, and **one program image copied in by
 `root_supervisor`**: *"the only program it can name is the one it was handed."* The image is handed
 in by the root, so the root already has the machinery to do this for a tier-one server. The memory
@@ -87,7 +87,7 @@ deferred, and not left to a userspace protocol between builder and supervisor.
 
 ### Why not deferred, which was the live alternative
 
-**The multi-child supervisor already exists.** `user/src/root_supervisor.rs` builds **two** children
+**The multi-child supervisor already exists.** `components/src/root_supervisor.rs` builds **two** children
 with `fault: Some(rootfault)` on the same endpoint and then sits in `recv(rootfault)` receiving
 `(event, tid, _pc)`. Milestone 105 says the problem *"does not generalize"* to a supervisor with
 several children; it does not generalise to the supervisor the tree already ships.

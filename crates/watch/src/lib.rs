@@ -1,6 +1,6 @@
 //! **`watch`: redraw instead of scroll** (milestone 126, design/roadmap/126-who-else-is-running.md).
 //!
-//! This is the program's logic, lifted out so it runs on the host in milliseconds; `user/src/watch.rs`
+//! This is the program's logic, lifted out so it runs on the host in milliseconds; `components/src/watch.rs`
 //! is the syscall, the interval loop, and nothing else. The crate and the program share a name
 //! deliberately, the same split `ps`, `line_editor` and `compositor` already are.
 //!
@@ -51,12 +51,12 @@
 //! milestone's `watch`.
 //!
 //! So this `watch` is **bounded**: it redraws a fixed number of times, typed at the prompt
-//! (`ArgSpec::Required`), and exits on its own. See `user/src/watch.rs`'s `BUGS` for what that costs
+//! (`ArgSpec::Required`), and exits on its own. See `components/src/watch.rs`'s `BUGS` for what that costs
 //! a person watching something that will not resolve inside the count they typed.
 //!
 //! # There is no sleep in this kernel, and this program is another consumer of that gap
 //!
-//! `user/src/timetable.rs` already says it: "There is no sleep, no timeout and no deadline anywhere
+//! `components/src/timetable.rs` already says it: "There is no sleep, no timeout and no deadline anywhere
 //! in this kernel, so a process that wants to act at a time can only yield and re-read the counter."
 //! `watch`'s interval is [`INTERVAL_NANOS`], held against `user_rt::monotonic_nanos()` in a
 //! yield-spin loop, exactly `timetable`'s shape. It is milestone 106's sixth named consumer (the
@@ -108,7 +108,7 @@ pub const INTERVAL_NANOS: u64 = 500_000_000;
 /// **How many redraws a bare `watch N` may ask for.** A ceiling exists because every frame this
 /// program writes travels through the shell's `drain_text` loop, which gives up after
 /// `MAX_OUTPUT_CHUNKS` (4,096) sixteen-byte messages and calls the stream truncated
-/// (`user/src/swish.rs`); this bound keeps a plausible `watch` run (a domain of a few dozen threads)
+/// (`components/src/swish.rs`); this bound keeps a plausible `watch` run (a domain of a few dozen threads)
 /// well under that regardless of how the shell's own limit moves later. It is generous rather than
 /// tight: a person who wants more than this many redraws of a static demo domain is better served by
 /// milestone 106's timed wait than by a bigger ceiling here.
@@ -119,7 +119,7 @@ pub const MAX_ITERATIONS: u64 = 200;
 /// still `watch` rather than a silent no-op, so a zero count is *not* a refusal (the count register
 /// cannot express one; see `crates/grant_plan`'s `ArgSpec`, which only distinguishes "an argument was
 /// typed" from "it was not") and is instead clamped up, the same "a caller that got the selector
-/// wrong wants the default" reasoning `user/src/date.rs`'s `format_of` already uses for an
+/// wrong wants the default" reasoning `components/src/date.rs`'s `format_of` already uses for an
 /// unrecognised format.
 pub fn clamp_iterations(requested: u64) -> u64 {
     requested.clamp(1, MAX_ITERATIONS)
@@ -246,7 +246,7 @@ mod tests {
         );
     }
 
-    /// A refusal is never fed to [`frame`] by the real program (`user/src/watch.rs` checks
+    /// A refusal is never fed to [`frame`] by the real program (`components/src/watch.rs` checks
     /// `refused()` once, before it ever loops), but [`Survey::complaint`] still answers correctly for
     /// one, and this pins that a refused survey's complaint is never the empty-domain sentence a
     /// caller might otherwise confuse it with.

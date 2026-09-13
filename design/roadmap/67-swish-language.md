@@ -16,7 +16,7 @@ was right, the work is done, and a BUILT milestone gates nothing, so it is gone 
 |---|---|
 | **Quoting**: `"..."`, `'...'` | `grant_plan::word`: `Cursor` (is this byte bare) and `read` (take the quotes off one token) |
 | **Sequencing**: `;`, `&&`, `\|\|` | `swish::sequence::{split, Joint, Sequence}`, split **outermost**, above `line::split` |
-| **Exit status**: `$?`, which `&&` needs | `swish::Status`, three values, and two cells in `user/src/swish.rs` |
+| **Exit status**: `$?`, which `&&` needs | `swish::Status`, three values, and two cells in `components/src/swish.rs` |
 | `>>` and `2>` | already built with milestone 50's later work, 2026-08-03. See notes/pipes.md |
 
 The backslash escape named in the original block is **not** built and is not planned: every token in

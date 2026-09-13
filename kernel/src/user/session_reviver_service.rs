@@ -2,7 +2,7 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where `session_reviver` expects its FS channel; must match `user/src/session_reviver.rs`'s own
+/// Where `session_reviver` expects its FS channel; must match `components/src/session_reviver.rs`'s own
 /// `FS_VA`.
 const FS_VA: u64 = 0x0000_0000_00e6_0000;
 

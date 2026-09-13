@@ -12,7 +12,7 @@ that program's logic, lifted out so it can be host-tested and Kani-reachable whi
 the IO."* `coremark`, `line_editor` and `compositor` are all that pair.
 
 `system_initializer` was that pair too, until milestone 266 renamed the program to `progenitor`. The
-crate is still exactly what the pair describes: `user/src/progenitor.rs` is eighty lines of endowment
+crate is still exactly what the pair describes: `components/src/progenitor.rs` is eighty lines of endowment
 table and one call into `system_initializer::boot`, which is the whole interactive system. The
 relationship did not change; only the evidence for it in the names did.
 
@@ -43,4 +43,4 @@ generic.
 
 ## What is blocked
 
-Nothing. The mismatch is cosmetic and is recorded in `user/src/progenitor.rs`'s own name block.
+Nothing. The mismatch is cosmetic and is recorded in `components/src/progenitor.rs`'s own name block.

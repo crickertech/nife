@@ -23,7 +23,7 @@ already declares, and no kernel change. It reads `user_rt::monotonic_nanos`, the
 counter `date` already reads to compute the wall clock, and formats the elapsed time as
 `up [D day[s], ]HH:MM:SS\n`. The formatting is `crates/uptime`, host-tested (five tests: the zero
 case, second/minute/hour rendering, the day rollover with its singular/plural, and the
-sub-second-truncates-rather-than-rounds case); `user/src/uptime.rs` is the syscall and nothing
+sub-second-truncates-rather-than-rounds case); `components/src/uptime.rs` is the syscall and nothing
 else, `wc`'s shape (a sink write, no input).
 
 **Why this one member of "machine-wide statistics" turned out to be pure wiring.** The BUGS entry
@@ -41,7 +41,7 @@ here to design: `uptime` is `worker`'s manifest with the arithmetic swapped out.
 (`kernel/src/memory.rs::stats`) with no path to userspace today, which is a different body of work
 and a real fork; see below.
 
-**BUGS**, in full in `crates/uptime`'s and `user/src/uptime.rs`'s own module docs: no load average
+**BUGS**, in full in `crates/uptime`'s and `components/src/uptime.rs`'s own module docs: no load average
 (no decaying figure this scheduler maintains) and no logged-in-user count (no login registry
 exists); the counter's own zero predates this kernel's init by an unmeasured amount, the same
 caveat `date` already carries for the same counter; one-second resolution, for the same reason
@@ -73,7 +73,7 @@ oversight**: since an interruptible spawn gets no capabilities, `watch` cannot b
 and hold the domain it needs for its whole run, so a bare `watch N` redraws `N` times (clamped to
 `[1, watch::MAX_ITERATIONS]`) and exits on its own. The interval is fixed (`watch::INTERVAL_NANOS`,
 half a second) and is a **yield-spin, not a sleep**: this kernel has neither, and `watch` is the
-fifth named consumer of milestone 106's timed-wait fork (`user/src/timetable.rs`'s module docs name
+fifth named consumer of milestone 106's timed-wait fork (`components/src/timetable.rs`'s module docs name
 the first four). Proven with a real terminal-output test, `kernel::user::watch_tests`, on both ISAs:
 a domain member dies and is reaped through a capability `watch` itself is never granted (`READ`,
 not `ENUMERATE` alone), and the test asserts the dead member's tid is gone from the **whole**
@@ -121,8 +121,8 @@ vocabulary invented) via `arch::mmu::translate_at`, present on both architecture
 previously reachable only from revocation's own tests.
 
 **The delegation audit §114 required, done rather than deferred.** Every site that mints an
-`Object::Aspace` capability was checked (`user/src/builder.rs`, `crates/supervision_proto`,
-`user/src/hello.rs`, `user/src/os_primitives_benchmarker.rs`, plus `kernel/src/bench.rs`'s
+`Object::Aspace` capability was checked (`components/src/builder.rs`, `crates/supervision_proto`,
+`fixtures/src/hello.rs`, `fixtures/src/os_primitives_benchmarker.rs`, plus `kernel/src/bench.rs`'s
 benchmark harness): **none delegates one to a program other than its own builder.** Every path is
 retype -> map -> `Tcb::CONFIGURE` (which consumes the capability), all inside one thread. So there
 was nothing to narrow: the audit's answer is that the caveat's feared case (a delegated holder
@@ -306,7 +306,7 @@ claim, and the write-up has to make the trade explicit rather than quietly dropp
 comparison. Killing stays with the shell that spawned the thing, which already holds the region.
 
 **Done, 2026-08-17.** `pgrep` is built and the trade is stated in three places a reader might arrive
-at: `crates/pgrep`'s module docs, `user/src/pgrep.rs`'s, and notes/process-view.md's own section. The
+at: `crates/pgrep`'s module docs, `components/src/pgrep.rs`'s, and notes/process-view.md's own section. The
 claim is also asserted rather than argued: the kernel test filters a domain down to its corpse and
 then shows that the same capability which named the tid is refused the reap.
 
@@ -632,14 +632,14 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
   authority this system grants to the shell alone, and nothing here delegates that authority onward
   to a spawned program (the same gap `top`, `pwdx` and `w` are blocked on). A reader who expects
   `watch <any command>` will not find one; `watch <count>` is what exists. See `crates/watch`'s and
-  `user/src/watch.rs`'s own module docs for the full argument.
+  `components/src/watch.rs`'s own module docs for the full argument.
 - **`watch` cannot be interrupted with `^C` mid-run.** It is not spawned as an interruptible job (an
   interruptible child in this system is built with no capabilities in its cspace at all, and this
   program needs the domain and the output sink for its whole run), so a bare `watch N` runs its full
   count before the prompt returns. It always terminates on its own, so this is a wait rather than a
   hang, but there is no way to cut one short today.
 - **`watch`'s interval is fixed and is a yield-spin, not a sleep**, because this kernel has neither.
-  It is milestone 106's fifth named consumer (`user/src/timetable.rs`'s module docs name the first
+  It is milestone 106's fifth named consumer (`components/src/timetable.rs`'s module docs name the first
   four); a five-frame `watch` burns a core for roughly two seconds to do what a real timer would do
   for nothing. The interval is also not settable from the command line: `ArgSpec` carries one
   integer and it is spent on the redraw count.
@@ -659,12 +659,12 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
   rather than accounting, so the fork is unchanged. Checked 2026-09-03.
 - **Outstanding.** `pwdx` and `w` still have no mechanism for a display name: spawn's `arg0` is one
   `u64`, `crates/grant_plan`'s program name is a build-time label, and no supervisor keeps a
-  tid-to-name map (checked `crates/grant_plan`, `user/src/root_supervisor.rs`,
-  `user/src/sub_server_supervisor.rs`). Checked 2026-09-03.
+  tid-to-name map (checked `crates/grant_plan`, `components/src/root_supervisor.rs`,
+  `components/src/sub_server_supervisor.rs`). Checked 2026-09-03.
 - **Outstanding.** `free` and `vmstat` are unbuilt and the fork stands: the page-frame statistics
   in `kernel/src/memory.rs` are still read only by the boot-time summary, with no path to userspace
   and no crate under `crates/` for either program. Checked 2026-09-03.
-- **Outstanding.** `pmap` is still unreachable from the prompt. `user/src/pmap.rs` exists,
+- **Outstanding.** `pmap` is still unreachable from the prompt. `components/src/pmap.rs` exists,
   `crates/grant_plan` has no program variant for it and `crates/system_initializer` never names it,
   so nothing can spawn it and there is no live address space to point it at. Checked 2026-09-03.
 - **Outstanding.** `pidwait`, found by the 2026-08-24 `dpkg -L procps` check, is still undesigned:

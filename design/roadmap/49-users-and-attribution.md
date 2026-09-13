@@ -10,7 +10,7 @@ boot itself generates from that entropy service, printed once before the prompt
 (`"init: login ready -- generated credentials: identity 'operator' password '...' (shown once; use
 it now)"`, the shape a cloud image's generated first-boot password already takes); and hands `login`
 a `WRITE | GRANT` view of the interactive terminal so a successful login receives it, single-session,
-deny-cleanly (see `user/src/login.rs`'s "The terminal: single-session, deny cleanly"). `login` now
+deny-cleanly (see `components/src/login.rs`'s "The terminal: single-session, deny cleanly"). `login` now
 hands back all three capabilities the milestone's own text names: a directory, a budget, and a
 terminal. Proven by `script/shell-check` on both ISAs (the generated-credential line above, printed
 by a real boot) and by `kernel::user::login_tests` (all ten tests, including the new
@@ -29,7 +29,7 @@ file's BUGS named. It now accepts exactly one word there, [`login_proto::CONNECT
 fresh, private request/result pair and staging page per caller before any identity or secret is ever
 staged, `filesystem_proto`'s own "a fresh object per client" answer copied here. Two callers reaching
 the front door together can now only contend for service order, never for each other's secret; see
-`user/src/login.rs`'s own BUGS for the full design and
+`components/src/login.rs`'s own BUGS for the full design and
 `kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
 for the proof. What remains open (interactive boot wiring, the terminal) is exactly what it was
 before and is blocked on the same thing (DECISIONS §120: no interactive login needs to work before
@@ -127,7 +127,7 @@ this milestone builds, a fact decided at run time instead (see "What is built" b
 
 ## What is built
 
-**`login` (provisional name), `user/src/login.rs`, and its wire contract `crates/login_proto`
+**`login` (provisional name), `components/src/login.rs`, and its wire contract `crates/login_proto`
 (provisional).** It holds the credential service's verify endpoint (milestone 56, unmodified: neither
 `cred_proto` nor `credentialer.rs` changed), the file service's root directory capability, and a
 construction budget. A client presents an identity and a secret over `login_proto`; on a match, `login`
@@ -160,13 +160,13 @@ fixture subtree's own file is absent from it (proof, not assertion, that neither
 which is the isolation property stated positively. A companion test,
 `login_denies_an_authenticated_identity_with_no_provisioned_subtree`, checks the considered fold for
 a real credential with no provisioned subtree: refused, indistinguishably from a wrong password (see
-`user/src/login.rs`'s own BUGS for the reasoning). A third bound surfaced by this work and now
+`components/src/login.rs`'s own BUGS for the reasoning). A third bound surfaced by this work and now
 recorded rather than left implicit: an identity longer than sixteen bytes cannot get a per-identity
 subtree in this slice at all, because the grant name travels in two argument words to the caretaker
 (`fs_proto::grant::MAX_NAME`), narrower than `login_proto::MAX_IDENTITY`'s sixty-four; `login`
 refuses rather than silently truncating.
 
-See `user/src/login.rs`'s own BUGS for the itemised remainder (the terminal and boot integration,
+See `components/src/login.rs`'s own BUGS for the itemised remainder (the terminal and boot integration,
 plus the two bounds above; measured-boot consultation and reclamation are both resolved), summarised
 in this milestone's BUGS below.
 
@@ -203,7 +203,7 @@ this milestone reaching BUILT**, which it now has; that gate is clear.
 
 Named here rather than only at the component, because a reader of the milestone should meet the scope
 in the same place they meet the status line. Each item is also recorded where the reader meets the
-feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
+feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
 
 - **Resolved.** Every principal used to be attenuated to the same subtree,
   `fs_proto::fixture::tree::SUB`, with the same rights. `login` now attenuates each identity to a
@@ -212,7 +212,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   Two bounds this brought with it, named rather than left implicit: an identity longer than sixteen
   bytes (`fs_proto::grant::MAX_NAME`) cannot get a per-identity subtree in this slice at all, and an
   authenticated identity with no provisioned subtree is refused indistinguishably from a wrong
-  password (a considered fold, not an oversight; see `user/src/login.rs`'s own BUGS for both).
+  password (a considered fold, not an oversight; see `components/src/login.rs`'s own BUGS for both).
 - ~~No terminal.~~ **Resolved, 2026-08-27.** The roadmap's own recorded recommendation (the deny-
   cleanly shape, quoted in full in this entry's own prior text) is what got built, executing rather
   than re-deciding it. `login` now holds a `WRITE | GRANT` view of the real interactive terminal
@@ -220,7 +220,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   on) and hands `WRITE` on to the first successful caller; every login after that is refused
   [`login_proto::NO_TERMINAL`] (a dedicated code, not folded into `DENIED`) before its identity or
   secret is even relayed to the credential service, until [`login_proto::LOGOUT`] (a bare word on
-  the front door, since it carries no secret) frees it. See `user/src/login.rs`'s own "The terminal:
+  the front door, since it carries no secret) frees it. See `components/src/login.rs`'s own "The terminal:
   single-session, deny cleanly" for the full design and its own BUGS for what this slice does not
   build (an unauthenticated `LOGOUT`, no liveness check on an abandoned holder -- both named
   limitations, not oversights, and both scoped to what today's single-tenant boot actually needs).
@@ -232,7 +232,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
 
 - ~~Not wired into the interactive boot.~~ **Resolved, 2026-08-27.** `credentialer`,
   `identity_provisioner`, `login` and a new `audit_sink` (provisional name; drains `login`'s own
-  `AUDIT` endpoint so its blocking send never parks the service, `user/src/audit_sink.rs`'s own doc)
+  `AUDIT` endpoint so its blocking send never parks the service, `components/src/audit_sink.rs`'s own doc)
   are now built by `crates/system_initializer::boot` on both ISAs, from the real virtio-rng-backed
   entropy service DECISIONS §120's amendment already unblocked (see this entry's own prior text for
   that half's account, unchanged). Executing this entry's own three-item plan, in order:
@@ -265,7 +265,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   `READ | WRITE`, which `crates/system_initializer::boot` itself cannot hold (the kernel's own grant
   to init is `WRITE | GRANT` only) and which a writable mapping never needed anyway
   (`kernel::syscall::page_frame_map`'s own comment: a read/write mapping checks only `WRITE`); see
-  `user/src/login.rs`'s own comment on that delegation for the full account. Both were found by
+  `components/src/login.rs`'s own comment on that delegation for the full account. Both were found by
   `script/shell-check`, not reasoned to in advance.
 
   **`kernel::user::spawn_init`'s and `riscv_shell_boot`'s own construction budget was raised**,
@@ -290,7 +290,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   the same `measured_boot::verify_in_manifest` `system_initializer::measured` already calls, once, at
   startup, before any client exists. A refusal does not crash the service (mirroring
   `system_initializer`'s own "an unvouched `fs_subtree_caretaker` costs a feature, not a boot"): every
-  login is answered `login_proto::DENIED` instead, and `user/src/login.rs`'s own BUGS explains why
+  login is answered `login_proto::DENIED` instead, and `components/src/login.rs`'s own BUGS explains why
   that fold is not the same anti-oracle reasoning the wrong-password and no-subtree folds get (this
   check varies with nothing a caller controls, so there is nothing to probe). See
   `kernel::user::login_tests::logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_be_refused`.
@@ -310,7 +310,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   still tears the caretaker down correctly but strands the region's pages. Caught empirically, not
   reasoned about: an earlier version of this fix's own test destroyed them in the wrong order, every
   assertion in it passed, and it silently starved a later, unrelated test in the same suite of real
-  login attempts. See `user/src/login.rs`'s own BUGS ("Resolved, 2026-08-23") for the full
+  login attempts. See `components/src/login.rs`'s own BUGS ("Resolved, 2026-08-23") for the full
   design, including why this needed neither a new supervision endpoint nor overlap with milestone
   152's durable-session scope: the two candidate shapes this milestone's earlier text named (a
   principal's supervision endpoint reaching `login`, or a caretaker `DESTROY`ed by name) turned out
@@ -330,7 +330,7 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   its own verify page. The front door now accepts exactly one word, `login_proto::CONNECT`, and mints
   a fresh, private request/result pair and staging page per caller before any identity or secret is
   staged: `filesystem_proto`'s "a fresh object per client" answer, copied here. See
-  `user/src/login.rs`'s own BUGS for the full design and its cost (a channel, answered or not, is
+  `components/src/login.rs`'s own BUGS for the full design and its cost (a channel, answered or not, is
   never reclaimed in this slice), and
   `kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`
   for the proof that two callers reaching the front door together can no longer observe or corrupt
@@ -357,10 +357,10 @@ feature (`user/src/login.rs`'s own BUGS, more precisely worded per item).
   grant name travels in two argument words (`fs_proto::grant::MAX_NAME`) and `login_proto` allows
   sixty-four; `login` refuses rather than truncating. An authenticated identity with no provisioned
   subtree is refused indistinguishably from a wrong password, a considered fold. Both are in
-  `user/src/login.rs`.
+  `components/src/login.rs`.
 - **Recorded.** A per-client channel, answered or not, is never reclaimed in this slice; `LOGOUT` is
   unauthenticated; and nothing checks the liveness of a terminal holder that walked away.
-  `user/src/login.rs` has each of the three beside the code that causes it.
+  `components/src/login.rs` has each of the three beside the code that causes it.
 - **Recorded.** The credential service still shares one verify page across every client, the
   structural limit `login`'s front door just escaped by minting a page per caller. It is written up
   in `notes/credentials.md`, along with the sealed store's inability to revoke one secret.

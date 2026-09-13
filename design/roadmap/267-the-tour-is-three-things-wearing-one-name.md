@@ -154,7 +154,7 @@ signature keeps `#[cfg(not(any(test, feature = "bench")))]` and the check delibe
 at it: a `bench` boot diverges into `bench::run` before this point and a `test` boot exits through
 semihosting, and neither is a boot anybody reads to bring up a board.
 
-**2. The narrative was `user/src/narrator.rs`,** a program at EL0, spawned as the console server's
+**2. The narrative was `the narrator program`,** a program at EL0, spawned as the console server's
 client, and it is **deleted** (2026-09-13, the section above). The console server was moved to the
 top of the tour to feed it, which kept the transcript in the order it always read, and the `hello`
 printing client it used to feed went at the same time: running two programs to demonstrate one thing

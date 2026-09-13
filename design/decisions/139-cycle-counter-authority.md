@@ -29,7 +29,7 @@ aspire to.
 
 The deciding cost is not the one this document first named. smoltcp would not notice a coarse clock:
 `net_stack.rs`'s `instant()` divides to `Instant::from_millis` and discards the resolution. **The
-wall clock would notice.** `user/src/ntp.rs` advances `local.now()` between syncs by
+wall clock would notice.** `components/src/ntp.rs` advances `local.now()` between syncs by
 `monotonic_nanos().saturating_sub(self.mono0)`, and `monotonic_nanos` reads the cycle counter, so on
 `x86_64` a tick-resolution page would make every timestamp between NTP syncs step in tick-sized
 jumps, with NTP computing corrections against a clock coarser than the corrections. aarch64 and
@@ -466,15 +466,15 @@ merged tree on 2026-09-02: **42 direct call sites** of `user_rt::now`, plus **18
 Most of them are `let start = now(); ...; now().wrapping_sub(start)` in benchmark and test code and
 would not care. **Four shapes would.**
 
-1. **`user/src/net_stack.rs:97`**, smoltcp's clock. `service_until` at `:437` calls `instant()`
+1. **`components/src/net_stack.rs:97`**, smoltcp's clock. `service_until` at `:437` calls `instant()`
    twice per iteration of its poll loop, once to poll and once to check its own 15 second bound, and
    there are eight `iface.poll(instant(), ...)` sites in that file. Every packet the network stack
    services costs at least two counter reads, and at 1.7 microseconds each that is a per-packet tax
    on the one server in this tree with a throughput number.
-2. **`user/src/watch.rs:171`**, `while monotonic_nanos() < deadline { yield_now(); }`. A spin-yield
+2. **`components/src/watch.rs:171`**, `while monotonic_nanos() < deadline { yield_now(); }`. A spin-yield
    standing in for the timed wait this kernel does not have, one counter read per iteration.
-3. **`user/src/ntp.rs:382`**, the retry gap, the identical shape.
-4. **`user/src/login_test_client.rs:573` to `:580`**, a polling loop reading the counter up to three
+3. **`components/src/ntp.rs:382`**, the retry gap, the identical shape.
+4. **`fixtures/src/login_test_client.rs:573` to `:580`**, a polling loop reading the counter up to three
    times per iteration.
 
 The spin loops are the least alarming of the four despite looking the worst, because a loop whose

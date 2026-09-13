@@ -92,13 +92,13 @@ Each of these now carries a `PAIR:` comment at the site naming where its other h
 | `kernel/src/arch/aarch64/exceptions.rs` `last_user_fault` | acquire | `USER_FAULTS.fetch_add(1, Release)` in `user_fault` | **Sound, and the model for the tree.** Both halves present, both load-bearing, both explained at the site before this milestone |
 | `kernel/src/arch/riscv64/exceptions.rs` `last_user_fault` | acquire | the same pair on the other ISA | **Sound.** Parity holds |
 | `kernel/src/user.rs` `term_print` | release | none; the `ipc_call` below it is the edge | **Sound, redundant.** The terminal is blocked in `recv_cap` |
-| `kernel/src/user/keyboard_service.rs` `take_typed` | acquire | `ring_publish`'s fence in `user/src/keyboard_driver.rs` | **Sound.** The reader milestone 43 named as getting it right |
-| `kernel/src/user/compositor_service.rs` `type_bytes` | release | `drain_input` in `user/src/compositor.rs` | **Sound, redundant** (the doorbell `CALL` follows). **A fourth writer the audit's count of three missed**; see below |
-| `user/src/keyboard_driver.rs` `ring_publish` | release | two readers, one fenced and one not | **Sound, redundant.** `call(DOORBELL, ...)` follows immediately |
-| `user/src/window.rs` `commit` | release | `serve_frame` in `user/src/compositor.rs` | **The one that is load-bearing.** See below |
-| `user/src/display_terminal.rs` `present`, first | release | the display driver's `barrier()`, or `serve_frame` | **Sound, redundant** on the display path |
-| `user/src/display_terminal.rs` `present`, second | release | `serve_frame` | **Sound**, by the reply this process is about to send |
-| `user/src/compositor.rs` `flush` | release | `barrier()` in `user/src/gpu_driver.rs` | **Sound.** The `CALL` orders the driver's read; the fence covers the driver-to-device leg |
+| `kernel/src/user/keyboard_service.rs` `take_typed` | acquire | `ring_publish`'s fence in `components/src/keyboard_driver.rs` | **Sound.** The reader milestone 43 named as getting it right |
+| `kernel/src/user/compositor_service.rs` `type_bytes` | release | `drain_input` in `components/src/compositor.rs` | **Sound, redundant** (the doorbell `CALL` follows). **A fourth writer the audit's count of three missed**; see below |
+| `components/src/keyboard_driver.rs` `ring_publish` | release | two readers, one fenced and one not | **Sound, redundant.** `call(DOORBELL, ...)` follows immediately |
+| `fixtures/src/window.rs` `commit` | release | `serve_frame` in `components/src/compositor.rs` | **The one that is load-bearing.** See below |
+| `components/src/display_terminal.rs` `present`, first | release | the display driver's `barrier()`, or `serve_frame` | **Sound, redundant** on the display path |
+| `components/src/display_terminal.rs` `present`, second | release | `serve_frame` | **Sound**, by the reply this process is about to send |
+| `components/src/compositor.rs` `flush` | release | `barrier()` in `components/src/gpu_driver.rs` | **Sound.** The `CALL` orders the driver's read; the fence covers the driver-to-device leg |
 
 ### The one publish the rendezvous does not cover
 
@@ -122,7 +122,7 @@ doorbell rather than the fence asymmetry that led to them.
 
 ### And the audit's count was three, where the tree has four
 
-`user/src/window.rs`, `user/src/display_terminal.rs` and `user/src/keyboard_driver.rs` are the three the audit
+`fixtures/src/window.rs`, `components/src/display_terminal.rs` and `components/src/keyboard_driver.rs` are the three the audit
 named. The fourth is `kernel/src/user/compositor_service.rs`'s `type_bytes`, the kernel playing the
 input driver, which publishes into the same ring with the same fence and the same comment. The audit
 looked at that file and named its *reader* (`keyboard_service`'s `take_typed`) as the one that gets
@@ -157,7 +157,7 @@ file already disagrees with itself about whether that ordering means anything. *
 because this milestone changes no ordering that is not shown wrong, and an unnecessary `Acquire`
 removed is still an ordering change with no argument behind it.
 
-**`user/src/compositor.rs`'s `publish` had a comment that was wrong**, and this is the one place the
+**`components/src/compositor.rs`'s `publish` had a comment that was wrong**, and this is the one place the
 inventory corrected the record rather than the code. It writes six control-page fields with plain
 `write_volatile` and then writes `MAGIC` last, under a comment saying "the store order is what makes
 the check mean anything". It is not. `write_volatile` guarantees that the access happens and
@@ -172,7 +172,7 @@ to change if `publish` were ever called again while clients run.
 
 `publish` writes `wlist::COUNT`, then `FOCUSED`, then the per-window `RECORDS`. If `COUNT` were ever
 used as the publication flag for the records it counts, that order is backwards. **It is not used
-that way today, because nothing in the tree reads `RECORDS` at all**: `user/src/window.rs` reads
+that way today, because nothing in the tree reads `RECORDS` at all**: `fixtures/src/window.rs` reads
 `COUNT` and `FOCUSED` and reports them, and the kernel reads `FOCUSED`. Recorded here rather than
 fixed, because the first reader of `RECORDS` is the change that makes it matter and that reader
 should meet this paragraph.
@@ -210,7 +210,7 @@ That is the measurement. The reason underneath it is structural and does not imp
   blocking IPC rendezvous whose happens-before edge lives in `spin::Mutex`, in a dependency. No AST
   in this repository contains it.
 - **The two halves are in different programs**, often different crates, sometimes different languages
-  (`user/c/c_seam.c`). Cross-binary dataflow.
+  (`fixtures/c/c_seam.c`). Cross-binary dataflow.
 - **The defect is an absence.** Finding 7 was a reader with no fence anywhere. There is no token to
   match on, which is why a grep-shaped tool cannot find the exact bug this milestone is named for.
 
@@ -227,7 +227,7 @@ where `SAFETY:` already lives. Twelve sites today.
 the forcing function. An author made to write down where the partner lives has to go and look for it,
 and looking is precisely the step neither of the two authors on 2026-08-04 took: both wrote a fence,
 both wrote a true comment about what their own side does, and neither opened the other file. Writing
-`PAIR: serve_frame in user/src/compositor.rs` requires opening `serve_frame`, at which point the
+`PAIR: serve_frame in components/src/compositor.rs` requires opening `serve_frame`, at which point the
 absence is visible. Four of the twelve markers in this tree changed what their author believed while
 being written.
 
@@ -245,9 +245,9 @@ order, with the reason each earns a harness:
 1. **The compositor's control page.** The one protocol above with a real reader that is not covered
    by a rendezvous, and the one where a reachable bug was found by reading. It needs the reader and
    two concurrent writers, which is the shape loom is good at. Blocked on nothing except that the
-   logic lives in `user/src/compositor.rs`, a `no_std` binary, so `serve_frame`'s page reads have to
+   logic lives in `components/src/compositor.rs`, a `no_std` binary, so `serve_frame`'s page reads have to
    come out into `crates/compositor` first. That is rule 7 pushing in the direction it always pushes.
-2. **The input ring**, `crates/compositor`'s `ring`. Two producers (`user/src/keyboard_driver.rs` and the kernel)
+2. **The input ring**, `crates/compositor`'s `ring`. Two producers (`components/src/keyboard_driver.rs` and the kernel)
    and two consumers (`drain_input` and `take_typed`) over one head/tail contract, with only one of
    the four consumers' sides fenced before milestone 43. A four-party contract with an asymmetry in
    it is worth a model even when the answer is "sound".

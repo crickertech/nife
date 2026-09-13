@@ -884,7 +884,7 @@ fn an_announcement_without_an_address_omits_the_a_record() {
 }
 
 /// **Every announcement fits the transport this tree has.** The virtio device's MTU is 576 bytes
-/// (a single-page DMA region, `user/src/net_transport.rs`), so a datagram over ~548 bytes is not
+/// (a single-page DMA region, `components/src/net_transport.rs`), so a datagram over ~548 bytes is not
 /// fragmented, it is not sent. The `_adisk` announcement is the big one, and it is the one whose
 /// TXT record grows with each disk a household adds.
 #[test]

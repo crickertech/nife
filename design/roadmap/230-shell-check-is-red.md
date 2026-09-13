@@ -193,7 +193,7 @@ endows it with no mapping of the archive, so it gets a zero-length slice.
 
 The boot still prints `init: login ready` with a generated password, because init measured the
 identity provisioning rather than this process's survival. **So a green `script/shell-check` does
-not currently mean the login service runs**, and that is recorded in `user/src/login.rs`'s own
+not currently mean the login service runs**, and that is recorded in `components/src/login.rs`'s own
 `BUGS` where a reader meets the program.
 
 Not fixed here. Handing `login` the archive costs `crates/system_initializer` capability slots at

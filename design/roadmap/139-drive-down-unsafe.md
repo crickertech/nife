@@ -129,7 +129,7 @@ parametrized by a runtime `va`, "actually a *better* `MappedWindow` fit than the
 `fs_subtree_caretaker.rs` were in rounds 1 and 2. The job frame collapses for real: `jf_load`/
 `jf_store` were two functions with their own `// SAFETY:` comments, called eight times combined
 across `spawn_interruptible` and `watch`; one `MappedWindow`, constructed once right after the frame
-is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in `user/src/swish.rs`
+is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in `components/src/swish.rs`
 alone.
 
 **`disk_surveyor.rs`'s `ROSTER_VA`.** A single shared `u64` flag at a fixed VA the program maps
@@ -140,7 +140,7 @@ The two deliberate-fault sites are the one honest exception recorded where a rea
 `MappedWindow`'s bounds check cannot catch either fault, because offset 0 is inside the declared
 window both times, so the real hardware fault happens inside `read`/`write` at exactly the access the
 hand-written version made, and the test's behaviour is unchanged by the migration. **3 `unsafe {`
-blocks removed, 2 added, net -1**, in `user/src/disk_surveyor.rs` alone.
+blocks removed, 2 added, net -1**, in `components/src/disk_surveyor.rs` alone.
 
 **`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster**, the exact naming variant
 `user_rt::mapped_window`'s own doc comment already named as a shape round 1's search should have
@@ -160,7 +160,7 @@ restructuring reaches the caller side. One further site collapsed for the same r
 never named `a_w8`: `sock_recv`'s payload-write loop had its own hand-rolled `write_volatile`,
 identical in shape, folded into the same window. **5 `unsafe {` blocks removed (the four functions'
 bodies plus the hand-rolled loop), 1 added (the window construction in `OP_ATTACH_FRAME`), net -4**,
-in `user/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
+in `components/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
 connect/accept/listen, the mDNS responder) passed clean, which is the load-bearing evidence here: the
 restructuring touches per-socket lifecycle state, exactly the kind of change where a mistake shows up
 as a flaky network test rather than a compile error.
@@ -471,7 +471,7 @@ the density is.
 | `read_volatile`/`write_volatile` | 36 | device registers and shared-frame fields with no further collapse available (see below) |
 | `core::arch::asm!` | 16 | entry stubs, the trap, and a handful of driver-specific instructions (`wfi`, `fence`) |
 | `core::slice::from_raw_parts[_mut]` | 12 | whole-page slice construction; down from ~30 before this round's own migration |
-| everything else | 97 | `MappedWindow`/`RegisterBlock`-family constructors (new, mostly this round: see below), the C ABI shim (`c_shim.rs`, `malloc`/`free`, already documented per milestone 82's survey), deliberate-fault test programs (`flaky.rs`, `outlaw.rs`, `hello.rs`'s `.bss`/`.data` probes), and single one-off writes (`budgeter.rs`, `swapper.rs`) |
+| everything else | 97 | `MappedWindow`/`RegisterBlock`-family constructors (new, mostly this round: see below), the C ABI shim (`c_shim.rs`, `malloc`/`free`, already documented per milestone 82's survey), deliberate-fault test programs (`flaky.rs`, `outlaw.rs`, `hello.rs`'s `.bss`/`.data` probes), and single one-off writes (`memory_grant_depleter.rs`, `swapper.rs`) |
 
 **Two clusters migrated this round, on `MappedWindow`, the same primitive round 1 built.**
 
@@ -481,7 +481,7 @@ INITRD_VA: u64 = 0x2000_0000` and their own `unsafe { core::slice::from_raw_part
 initrd_len) }`, one hand-written `// SAFETY:` comment per file asserting the identical invariant
 ("the kernel maps `initrd_len` bytes of the initrd, read-only, at this VA, before `_start` runs").
 `timetable.rs`'s own comment had already named the duplication out loud ("the same contract
-`user/src/builder.rs` is started under") without anyone lifting it out, the same shape `ntp.rs`'s
+`components/src/builder.rs` is started under") without anyone lifting it out, the same shape `ntp.rs`'s
 comment named for round 1's cluster. One `unsafe fn` in `crates/user_rt/src/initrd.rs` now holds
 that assertion once. **Measured from the diff: 7 `unsafe {` blocks removed at the seven call sites,
 7 added at the same sites (calling the shared function) plus 1 added inside it, net +1.** Flat at
@@ -593,7 +593,7 @@ registers this milestone investigated and deliberately left unmigrated (the NS16
 `console.rs`/`input.rs`, whose register stride is a runtime fact no compile-time layout can
 express; `clock.rs` and `driver.rs`, each already collapsed to one function apiece); the remaining
 `from_raw_parts` sites are deliberate-fault test programs (`flaky.rs`, `outlaw.rs`) and one-off
-writes (`budgeter.rs`, `swapper.rs`) this milestone's own text already names as not having a §94
+writes (`memory_grant_depleter.rs`, `swapper.rs`) this milestone's own text already names as not having a §94
 shape to collapse; and `crates/ipc`'s three call sites are DECIDED as genuinely distinct (round 2).
 So: **no single number, but a bounded one** -- somewhere between roughly 160 (if the `invoke`
 cluster turns out to need no wrapper at all) and roughly 260 (if it turns out nearly all of it is
@@ -936,7 +936,7 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
 - **Deliberately not migration candidates, named so nobody re-derives them and wastes a look**:
   `hello.rs` (tests `.bss` zeroing and `.data` writability on purpose; the raw access *is* the test),
   `flaky.rs` and `outlaw.rs` (deliberately touch a bad/unauthorized address to provoke a fault; a
-  bounds-checked wrapper would defeat the point), `budgeter.rs` and `swapper.rs` (single one-off
+  bounds-checked wrapper would defeat the point), `memory_grant_depleter.rs` and `swapper.rs` (single one-off
   writes, not a repeated hand-written invariant -- nothing to collapse).
 - **`login_test_client.rs`'s `PAGE_VA` is done** (round 6), along with five more files in the
   identical `core::slice::from_raw_parts[_mut]`-over-a-whole-page shape that reading this one
@@ -1116,7 +1116,7 @@ proofs and the type system are standing aside and a person's comment is the whol
 - **Recorded.** The NS16550 halves of the console and input programs stay hand-written, because the
   register stride is a runtime fact no register-layout macro can express, the same reason
   `kernel/src/drivers/ns16550.rs` gives in its own module doc.
-- **Recorded.** `hello.rs`, `flaky.rs`, `outlaw.rs`, `budgeter.rs` and `swapper.rs` are
+- **Recorded.** `hello.rs`, `flaky.rs`, `outlaw.rs`, `memory_grant_depleter.rs` and `swapper.rs` are
   deliberately not candidates: for three of them the raw access is the test, and the other two are
   one-off writes with nothing repeated to collapse.
 - **Recorded.** No target number, by design. The ceiling stands at 88 in

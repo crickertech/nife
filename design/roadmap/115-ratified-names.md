@@ -26,7 +26,7 @@ calef's, on his own clock, and was explicitly out of this milestone's scope.
 **The incident.** A lane proposed `system_builder` for the crate milestone 96 extracted; the
 maintainer endorsed it; calef overruled it to `system_initializer`. Only afterwards did the
 maintainer find that **milestone 63 had already refused `system_builder`**, for a reason neither had
-located: `user/src/builder.rs`'s own header calls itself "a minimal init: the system builder", so two
+located: `components/src/builder.rs`'s own header calls itself "a minimal init: the system builder", so two
 programs would claim one phrase. The refusal was recorded in one table cell inside one milestone
 block, invisible at the moment it was needed. A blind rename then swept the old name out of that very
 row, and the record of the refusal was nearly destroyed by the rename it should have prevented.

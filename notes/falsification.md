@@ -143,7 +143,7 @@ harnesses nothing ran, each invisible because a suite whose scope is too small g
 Three things fell out of following packages rather than a directory.
 
 **The module path now comes from the Cargo target rather than from counting path components.** The
-old derivation read `crates/<crate>/src/<...>` and would have called `user/src/printenv.rs`'s
+old derivation read `crates/<crate>/src/<...>` and would have called `components/src/printenv.rs`'s
 harness `printenv::proofs::push_never_writes_past_the_buffer_it_was_given`. It is a `[[bin]]` root,
 so it contributes no module segment at all, and the qualified name Kani answers to is
 `proofs::push_never_writes_past_the_buffer_it_was_given`. The path and the sweep's `--exact` filter
@@ -296,7 +296,7 @@ was written as a description of one harness. Milestone 202 then found the same s
 every harness in the tree was asked the question.
 
 **146 harnesses swept.** That is the 141 `script/falsifications` walks in `crates/`, plus the
-two in `kernel/src/syscall.rs`, the two in `user/src/printenv.rs` and the one in
+two in `kernel/src/syscall.rs`, the two in `components/src/printenv.rs` and the one in
 `vendor/redoxfs/src/node.rs`, which the walk does not reach (milestone 212 is fixing that).
 
 **11 were blind, and blind is a measurement here rather than a reading.** For each one there is
@@ -547,7 +547,8 @@ independent implementation of `str_eq` standing on the expectation side on purpo
   the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely, the
   same scope gap §134 names.
 - **A file's module path comes from the Cargo target it belongs to, and one shape defeats that.**
-  `user/src` holds 68 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7 permits.
+  `components/src` holds 49 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7
+  permits; `fixtures/src` holds 23.
   A root contributes no module segment; a `#[path]` module contributes whatever the including file
   calls it, which need not be its filename. Neither carries a harness today, and one that arrived in
   a `#[path]` module would get a patch path naming the file, which `--check` reports as a mismatch

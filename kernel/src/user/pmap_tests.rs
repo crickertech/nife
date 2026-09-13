@@ -85,7 +85,7 @@ fn list(slot: u64, cursor: u64) -> (i64, u64, u64) {
 }
 
 /// **The whole address space, walked by the real program's real loop.** `pmap::collect` is what
-/// `user/src/pmap.rs` runs; driving it here rather than reimplementing the cursor walk is
+/// `components/src/pmap.rs` runs; driving it here rather than reimplementing the cursor walk is
 /// `survey_tests::walk`'s discipline verbatim.
 const TEST_ROWS: usize = 8;
 

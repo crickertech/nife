@@ -20,7 +20,7 @@ fn net_stack_image() -> &'static [u8] {
     program("net_stack").expect("no net_stack program in the initrd archive")
 }
 
-/// The net client's test selectors and success word, matching `user/src/socket_test_client.rs`. The client is
+/// The net client's test selectors and success word, matching `components/src/socket_test_client.rs`. The client is
 /// a nonzero entry role of the `net_stack` binary, so it needs no image of its own.
 const NET_TEST_UDP_DNS: u64 = 1;
 const NET_TEST_TCP_ECHO: u64 = 2;

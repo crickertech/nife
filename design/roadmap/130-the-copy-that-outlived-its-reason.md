@@ -42,7 +42,7 @@ saying a SAFETY comment is an assertion and not a formality. And the same file's
 falsify.
 
 **The drift is real, and one instance is semantically different.**
-`user/src/terminal_sink_caretaker.rs:101` calls `exit()` and never traps. That is a different
+`components/src/terminal_sink_caretaker.rs:101` calls `exit()` and never traps. That is a different
 outcome, not a different spelling: `sched::exit` reports `EVENT_EXIT` where `sched::fault` reports
 `EVENT_FAULT` (`kernel/src/sched.rs:1185-1196`), so a panic there would tell a supervisor the
 program finished cleanly. **It is latent, not a live bug**, and the block says so rather than

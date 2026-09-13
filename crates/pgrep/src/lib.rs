@@ -2,13 +2,13 @@
 //! notes/process-view.md).
 //!
 //! This is the filter, lifted out of the program so it runs on the host in milliseconds;
-//! `user/src/pgrep.rs` is the syscall and the two output streams. The crate and the program share a
+//! `components/src/pgrep.rs` is the syscall and the two output streams. The crate and the program share a
 //! name for the reason the naming tenet gives: they are one thing split at the IO boundary, as
 //! `ps`, `coremark`, `line_editor` and `compositor` all are.
 //!
 //! # It filters; it does not walk
 //!
-//! The domain is walked by [`ps::collect`], which is the loop `user/src/ps.rs` runs, and this crate
+//! The domain is walked by [`ps::collect`], which is the loop `components/src/ps.rs` runs, and this crate
 //! takes the finished [`ps::Survey`]. That is deliberate rather than tidy: a second cursor walk
 //! would be a second implementation of `abi::rendezvous::SURVEY`'s resume protocol, and the one thing
 //! worse than one walk that can be wrong is two that can disagree.
@@ -138,7 +138,7 @@
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming milestone
 //! 126's own reasoning). `pgrep` is upstream's, in the group of standard terms the tenet says are
-//! already right and must not be respelled; sharing it with `user/src/pgrep.rs` is the
+//! already right and must not be respelled; sharing it with `components/src/pgrep.rs` is the
 //! crate-and-program pair the same tenet describes, as `ps` and `crates/ps` already are.
 //! `Selector` is a type inside a crate rather than a
 //! crate, a program or a shared module, so it is outside the tenet's scope; it is **provisional** all

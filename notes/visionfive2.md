@@ -336,7 +336,7 @@ UART-driver step, which had already run. The census this paragraph rests on was 
 park point and wrong about which moment the dump was showing.)* The dump
 showed init (tid 0x400000004) `Blocked` as a *Receiver* on ep 0x1 with its saved user pc in the
 builder's memset loop, and a gen-2 kernel thread in slot 6 `Blocked` as a Receiver on ep 0x2. Both
-read as legitimate parked waiters, and neither survives the code. `user/src/builder.rs`, the
+read as legitimate parked waiters, and neither survives the code. `components/src/builder.rs`, the
 program init runs on this boot, **issues no receive of any kind**: its only verbs are `invoke`
 (retype/map/configure/start), `send`, and `exit`. And at the point this boot parks, exactly one
 endpoint exists: the report endpoint, created at `user.rs`'s `riscv_initrd_demo`, which the
@@ -364,7 +364,7 @@ a stack-top-looking pc, svc frozen at 20.
 The re-audit of the fourth stop's endpoint census confirmed its two positive claims and
 overturned its conclusion. At the park point on this path the report endpoint really is the only
 endpoint (`0x0`: the tour's release build creates no other, `boot_via_progenitor` and the service
-modules being aarch64- or test-gated), and `user/src/builder.rs` really issues no receive (its
+modules being aarch64- or test-gated), and `components/src/builder.rs` really issues no receive (its
 verbs are `invoke`, `send`, `cap_delete`, `exit`, and its retypes are ASPACE, FRAME and TCB,
 never ENDPOINT). What the census never asked is what the machine looks like *after* the recv
 returns, and the answer is: exactly like those dumps. Five independent identifications, each
@@ -968,7 +968,7 @@ been closed; its entry carries the record):
   the `uart irq    : source 32 (device tree)` line in its transcript is the first thing to read.
 
 - **The shell path's userspace input driver still speaks QEMU's UART layout.**
-  `user/src/input.rs` reads the NS16550 at byte-stride offsets (LSR at 0x05), so on the board the
+  `components/src/input.rs` reads the NS16550 at byte-stride offsets (LSR at 0x05), so on the board the
   kernel console will print but the interactive shell's input path reads garbage until that driver
   learns the same shape the kernel driver did. Not on the first-boot path (the tour and test
   builds take no input); bites at the shell milestone.

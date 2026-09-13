@@ -3,7 +3,7 @@ use crate::cap::{Rights, memory_region_root_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// The timetable's budget. Every scheduled instance is 48 pages of it (`INSTANCE_PAGES` in
-/// `user/src/timetable.rs`) plus the loader's own scratch page tables, and the pages come home when
+/// `components/src/timetable.rs`) plus the loader's own scratch page tables, and the pages come home when
 /// a corpse is reaped, so this covers a handful of live instances rather than one per fire.
 const TIMETABLE_BUDGET_PAGES: u64 = 768;
 
@@ -27,7 +27,7 @@ const FIRES: u64 = 4;
 /// is worth recognising: it reads like a wild pointer and is not one.
 const TIMETABLE_STACK_PAGES: u64 = 32;
 
-/// The line `user/src/timetable.rs` prints when the plan is complete and it is about to arm. The
+/// The line `components/src/timetable.rs` prints when the plan is complete and it is about to arm. The
 /// test reads the plan up to it, which is what lets one endpoint carry the plan, the summary and
 /// the end of the stream without the reader having to guess where each stops.
 const ARMED: &str = "timetable: armed";
@@ -45,22 +45,22 @@ const ARMED: &str = "timetable: armed";
 /// `Row` holds a kilobyte of `Endowment`. That is exactly the shape `script/stack-frame-check`
 /// exists to refuse, because a frame larger than the 4096-byte guard page can step `sp` past the
 /// guard without touching it and land in the neighbouring thread's stack. The sizes are fine in
-/// `user/src/timetable.rs`, which is a process with a 32-page stack and says so; they are not fine
+/// `components/src/timetable.rs`, which is a process with a 32-page stack and says so; they are not fine
 /// in this binary, and no threshold should be widened to make them fine.
 ///
 /// **What keeps the list honest is a host test rather than a comment.**
 /// `timetable::tests::the_archive_a_timetable_holds_is_measured_against_what_it_will_build` registers
-/// the same `user/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is
+/// the same `components/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is
 /// exactly this set, by name. Editing the document without editing this list fails that test in
 /// milliseconds, on the host, with no emulator. The program itself then audits what it was handed
 /// and prints the answer, and the assertions below read it, so a wrong list fails twice.
 ///
-/// `budgeter` joined `worker` on 2026-08-22, when milestone 129's `--mem` grant was backed:
-/// `timetable.conf`'s `at-boot budgeter --mem 4` is admitted because `SHIPPED_HELD.mem_pages` (4,
+/// `memory_grant_depleter` joined `least_authority_demo` on 2026-08-22, when milestone 129's `--mem` grant was backed:
+/// `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` is admitted because `SHIPPED_HELD.mem_pages` (4,
 /// mirrored below as [`MEM_GRANT_PAGES`]) covers it.
-const PLANNED_PROGRAMS: [&str; 2] = ["worker", "budgeter"];
+const PLANNED_PROGRAMS: [&str; 2] = ["least_authority_demo", "memory_grant_depleter"];
 
-/// **What `at-boot budgeter --mem 4` grants, mirrored from `user/timetable.conf` and
+/// **What `at-boot memory_grant_depleter --mem 4` grants, mirrored from `components/timetable.conf` and
 /// `timetable::SHIPPED_HELD.mem_pages`.** A written constant rather than a computed one for the
 /// same reason [`PLANNED_PROGRAMS`] is: this test does not depend on the `timetable` crate at all
 /// (`script/stack-frame-check` is why, see that constant's own doc), so nothing here can read the
@@ -68,7 +68,7 @@ const PLANNED_PROGRAMS: [&str; 2] = ["worker", "budgeter"];
 /// honest: it parses the same document against the same `SHIPPED_HELD` and would go red first if
 /// the two drifted apart.
 ///
-/// Used as a range rather than an exact literal below: how many of the 4 pages `budgeter` actually
+/// Used as a range rather than an exact literal below: how many of the 4 pages `memory_grant_depleter` actually
 /// manages to map is page-table overhead, which is page-table-implementation detail this milestone
 /// makes no claim about and which is free to differ between aarch64 and riscv64.
 const MEM_GRANT_PAGES: u64 = 4;
@@ -112,7 +112,7 @@ fn narrowed_archive() -> &'static [u8] {
 /// Deliberately the same endowment shape `spawn_init` and `c_seam_tests::spawn_confiner` use (the
 /// archive read-only at `INITRD_VA`, capabilities in numbered slots, nothing privileged), so what is
 /// under test is the scheduler rather than a shortcut. Its complete authority is the four slots
-/// below, which is the same list `user/src/timetable.rs`'s header states and the reason a scheduled
+/// below, which is the same list `components/src/timetable.rs`'s header states and the reason a scheduled
 /// `date` in the shipped document is refused.
 fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     // **Not the initrd.** The archive this process is handed holds exactly the programs its own
@@ -240,8 +240,8 @@ fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
 /// disagrees with it; and a refusal proves nothing unless something else in the same document did
 /// fire, since a scheduler that fired *nothing* would satisfy it trivially.
 ///
-/// What it walks is the real program on the real document. `user/timetable.conf` is `include_str!`d
-/// by `user/src/timetable.rs` and read again by `crates/timetable`'s host tests, so there is one
+/// What it walks is the real program on the real document. `components/timetable.conf` is `include_str!`d
+/// by `components/src/timetable.rs` and read again by `crates/timetable`'s host tests, so there is one
 /// source for what this machine schedules and editing it moves the program, the host tests and this
 /// assertion together.
 ///
@@ -249,11 +249,11 @@ fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
 ///
 /// Upstream cron has one answer to a crontab line: it runs. The shipped document exercises four:
 ///
-/// - `worker 7`, `worker 3`, and `budgeter --mem 4` are **planned, backed and fired**, and their
+/// - `least_authority_demo 7`, `least_authority_demo 3`, and `memory_grant_depleter --mem 4` are **planned, backed and fired**, and their
 ///   answers come back on the endpoint the plan said they would hold. The last of the three is
 ///   milestone 129's `--mem` grant made real: this timetable holds `timetable::SHIPPED_HELD.mem_pages`
-///   pages it may split off, and `budgeter` maps some of them and reports how many.
-/// - `budgeter` with no `--mem` and `wc` are refused by **the prompt's own check**, unchanged: the
+///   pages it may split off, and `memory_grant_depleter` maps some of them and reports how many.
+/// - `memory_grant_depleter` with no `--mem` and `wc` are refused by **the prompt's own check**, unchanged: the
 ///   same lines typed at a shell get the same sentences, because it is literally the same function.
 /// - `date` and `ps` are refused because **this timetable holds nothing to back them**. Those two
 ///   are the ones Unix cannot refuse: there a clock and a process listing are ambient, so the lines
@@ -275,8 +275,8 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     // Read it to the arming line, keeping the facts the assertions below need. Reading it at all is
     // half the claim: the timetable is blocked on these sends until this loop takes them, so
     // nothing can have fired before the plan was complete.
-    let mut saw_worker_grant = false;
-    let mut saw_budgeter_grant = false;
+    let mut saw_demo_grant = false;
+    let mut saw_depleter_grant = false;
     let mut saw_nothing_else = false;
     let mut saw_exact_archive = false;
     let mut saw_wide_archive = false;
@@ -294,11 +294,11 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
             armed = true;
             break;
         }
-        saw_worker_grant |= s.contains("grants worker exactly:");
+        saw_demo_grant |= s.contains("grants least_authority_demo exactly:");
         // The backed `--mem` grant, printed the same way: the plan names the program and, on the
         // next line, the page count split from this timetable's own budget (`write_grant`).
-        saw_budgeter_grant |= s.contains("grants budgeter exactly:");
-        // **The endowment, audited by the process that holds it.** `worker` and `budgeter` are the
+        saw_depleter_grant |= s.contains("grants memory_grant_depleter exactly:");
+        // **The endowment, audited by the process that holds it.** `least_authority_demo` and `memory_grant_depleter` are the
         // only programs the shipped document admits, so a correctly narrowed archive carries
         // exactly two.
         saw_exact_archive |=
@@ -309,7 +309,7 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
             s.contains("and nothing else: no clock, no disk, no console, no network");
         saw_clock_refusal |= s.contains("this timetable holds no clock, so it cannot grant one");
         saw_domain_refusal |= s.contains("this timetable holds no process view to grant");
-        // The prompt's own refusals, arriving unchanged. `budgeter` with no `--mem` and `wc` with
+        // The prompt's own refusals, arriving unchanged. `memory_grant_depleter` with no `--mem` and `wc` with
         // nothing feeding it are wrong wherever they are typed.
         saw_mem_refusal |= s.contains(grant_plan::Refusal::MemRequired.message());
         saw_input_refusal |= s.contains(grant_plan::Refusal::InputRequired.message());
@@ -319,11 +319,11 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
         "the timetable printed more than a plan's worth of lines"
     );
     assert!(
-        saw_worker_grant && saw_nothing_else,
-        "the plan did not say what a scheduled worker would hold",
+        saw_demo_grant && saw_nothing_else,
+        "the plan did not say what a scheduled least_authority_demo would hold",
     );
     assert!(
-        saw_budgeter_grant,
+        saw_depleter_grant,
         "the plan did not say what the backed `--mem` grant would hold",
     );
     assert!(
@@ -360,8 +360,8 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
 
     // ---- what actually fired ----
     //
-    // `worker` squares its argument, so the shipped document's interval and at-boot entries answer
-    // 49 (`worker 7`) and 9 (`worker 3`); `budgeter --mem 4` answers however many of its four pages
+    // `least_authority_demo` squares its argument, so the shipped document's interval and at-boot entries answer
+    // 49 (`least_authority_demo 7`) and 9 (`least_authority_demo 3`); `memory_grant_depleter --mem 4` answers however many of its four pages
     // it actually managed to map, which is at least one and at most four (page-table overhead is
     // free to differ between aarch64 and riscv64, so the exact count is not this milestone's claim;
     // `MEM_GRANT_PAGES` bounds it rather than pinning it). **This is the negative control**: every
@@ -370,30 +370,33 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     // the value rather than on a count.
     let mut nines = 0;
     let mut forty_nines = 0;
-    let mut budgeter_reports = 0;
+    let mut depleter_reports = 0;
     for _ in 0..FIRES {
         let answer = crate::sched::ipc_recv(reports)[0];
         match answer {
             9 => nines += 1,
             49 => forty_nines += 1,
-            n if (1..=MEM_GRANT_PAGES).contains(&n) => budgeter_reports += 1,
+            n if (1..=MEM_GRANT_PAGES).contains(&n) => depleter_reports += 1,
             other => panic!(
-                "a scheduled child reported {other}; only `worker 3`, `worker 7` and \
-                 `budgeter --mem 4` were admitted, so this is an entry that fired after being \
+                "a scheduled child reported {other}; only `least_authority_demo 3`, `least_authority_demo 7` and \
+                 `memory_grant_depleter --mem 4` were admitted, so this is an entry that fired after being \
                  refused",
             ),
         }
     }
-    assert_eq!(nines, 1, "`at-boot worker 3` must fire exactly once");
     assert_eq!(
-        budgeter_reports, 1,
-        "`at-boot budgeter --mem 4` must fire exactly once, backed by the grant this timetable \
+        nines, 1,
+        "`at-boot least_authority_demo 3` must fire exactly once"
+    );
+    assert_eq!(
+        depleter_reports, 1,
+        "`at-boot memory_grant_depleter --mem 4` must fire exactly once, backed by the grant this timetable \
          holds",
     );
     assert_eq!(
         forty_nines,
         FIRES - 2,
-        "the rest must be the repeating `worker 7` heartbeat",
+        "the rest must be the repeating `least_authority_demo 7` heartbeat",
     );
 
     // ---- the summary, after every corpse has been collected ----

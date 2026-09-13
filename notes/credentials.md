@@ -12,7 +12,7 @@ read it. Milestone 56's second half; the first half is [entropy](entropy.md), an
 it for every salt it uses.
 
 The contract is `crates/credential_proto`, the logic is `crates/credentialer`, the service is
-`user/src/credentialer.rs`, and its clients are `user/src/credentialer_test_client.rs`.
+`components/src/credentialer.rs`, and its clients are `fixtures/src/credentialer_test_client.rs`.
 
 **Milestone 65 generalised this into a secrets service, in place.** The same process now holds two
 kinds of secret and serves an operation for each: a password verifier, described here, and an NTLM
@@ -73,7 +73,7 @@ Two endpoints. Two phases. The second phase never ends and the first one never c
 ### Why two phases and not two operations
 
 Because **this kernel has one wait point.** There is no wait-any primitive and no threads inside
-one address space, so a process can block on exactly one endpoint. `user/src/clock.rs` records the
+one address space, so a process can block on exactly one endpoint. `components/src/clock.rs` records the
 same constraint and answers it differently: the clock's wide authority (set) is a page write rather
 than a message, so the service only ever serves the narrow one.
 

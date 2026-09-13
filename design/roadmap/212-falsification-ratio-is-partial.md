@@ -8,7 +8,7 @@ block expected and worth reporting as measured rather than as feared: **141 harn
 became 145 in 26 packages, and 25 replayable (18%) became 27 (19%)**. `crates/` held 97% of the
 harnesses. The number was still a claim about a scope nobody had stated, which is the defect, and
 three things follow from fixing it. A file's module path now comes from the Cargo target it belongs
-to rather than from counting path components, because `user/src/printenv.rs` is a `[[bin]]` root and
+to rather than from counting path components, because `components/src/printenv.rs` is a `[[bin]]` root and
 contributes no module segment where `crates/paging/src/sv39.rs` contributes `sv39`. `--sweep` derives
 two package-shaped flags rather than listing them: `--bin` for a package of many binaries, and
 `--ignore-global-asm` for a package containing `global_asm!`. And a falsification record can exist
@@ -90,5 +90,6 @@ quietly excludes them.
 - **Recorded.** `design/roadmap/212-falsification-ratio-is-partial.md` names the residual in the
   module-path derivation: a harness inside a `#[path]` module of a binary would get a wrong patch
   path, because the path comes from the Cargo target and a `#[path]` module contributes whatever the
-  including file calls it. `user/src` holds two such files and neither carries a harness today, and
+  including file calls it. `components/src` holds two such files and neither carries a harness
+  today, and
   `--check` reports the mismatch rather than accepting it silently.

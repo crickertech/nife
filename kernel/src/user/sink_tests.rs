@@ -4,7 +4,7 @@ use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// `user/src/sink.rs`'s writer role. Its `arg1` is how many times to write the transcript, with
+/// `fixtures/src/sink.rs`'s writer role. Its `arg1` is how many times to write the transcript, with
 /// 0 meaning "until the sink stops taking it".
 const ROLE_WRITER: u64 = 0;
 
