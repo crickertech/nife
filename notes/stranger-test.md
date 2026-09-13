@@ -462,8 +462,36 @@ Ubuntu release ships a QEMU with `riscv-iommu-pci`, so `script/qemu-check` hard-
 `script/bootstrap` is `set -e`, so it ended there, before the clang step; and the remedy the error
 named, `script/ci-qemu`, described itself in its own first line as **"CI only"**. The reader was told
 to run a script that told them not to. Every contributor's machine was already warm, so nobody had
-met it. Fixed: bootstrap now prints the whole sequence on Linux, and `ci-qemu` no longer claims to be
-for CI alone.
+met it.
+
+> **Correction, 2026-09-13 (milestone 287): the fix recorded here was half a fix, and the sentence
+> that claimed it worked was false about the tree for twenty-eight days.** What this paragraph used
+> to end with was: *"Fixed: bootstrap now prints the whole sequence on Linux, and `ci-qemu` no longer
+> claims to be for CI alone."* The `ci-qemu` half was true. The bootstrap half was not, three times
+> over.
+>
+> **It never printed.** The new branch was guarded by `[ "$os" = linux ]` and `uname -s` says
+> `Linux`, so no reader ever saw the message. Nothing caught that, because nothing on Linux ran
+> bootstrap from cold again.
+>
+> **Printing would have been rung four anyway.** A script that knows the next two commands and asks
+> a human to type them is describing a mechanism rather than being one, which is the ladder's floor.
+>
+> **And the two printed commands looped.** `script/ci-qemu` installs into
+> `$HOME/.cache/nife-qemu`, and the only thing in the entire tree that ever put that prefix on PATH
+> was `.github/workflows/ci.yml`. Nothing in `script/`, nothing in `scripts/`, nothing in `xtask`. So
+> a Linux developer following the instructions verbatim spent twelve minutes building the right QEMU,
+> re-ran `script/setup` as told, and `qemu-check`'s `command -v qemu-system-aarch64` found
+> `/usr/bin`'s 8.2.2 again: same failure, same message, same remedy, forever.
+>
+> **Why nobody met any of it, which is the same reason as the first time.** Every contributor's
+> machine was already warm, and CI sets the PATH itself in `ci.yml`, so the only configuration that
+> exercises this path is the one nobody has: a cold Linux clone. Run 2's whole value was being that
+> configuration, and the fix it prompted was never run against it.
+>
+> Milestone 287 is the actual fix: bootstrap runs `script/ci-qemu` instead of printing how to,
+> `scripts/qemu-path.sh` is the PATH half, and `script/lint` gates that every entry point resolves
+> it. Reproduced and verified on a stock Ubuntu box with apt's 8.2.2 on `/usr/bin`.
 
 **The four corrections to `notes/adding-a-program.md`** are the second half, and they are the page's
 own BUGS entry coming true: it asked the first person to add a program against it to correct whatever
