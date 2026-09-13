@@ -128,12 +128,21 @@
 //!                                       └── Reject: the response is not an answer to our question
 //! ```
 //!
-//! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming
-//! milestone 46's own reasoning). The wire contract was spelled four ways (`filesystem_proto`,
-//! `graphics_proto`, `netproto`, `line_editor::proto`) for one concept; `*_proto` won on
-//! 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. Unlike its siblings,
-//! the `ntp` stem itself is not this tree's word to spell out: NTP is RFC 5905's own name for the
-//! protocol, the same external-standard exemption `elf`/`pci`/`dtb`/`gpt` already carry.
+//! Name: provisional, and this **deratifies the name calef ratified on 2026-08-23**, the way the
+//! 2026-09-05 acronym test deratified `dma_validator`. He ruled the stem **`network_time`** on
+//! 2026-09-13 and reaffirmed it when shown the argument below.
+//!
+//! **The case this block used to make, which lost**: NTP is RFC 5905's own name for the protocol,
+//! the same external-standard exemption `elf`, `pci`, `dtb` and `gpt` carry. calef narrowed that
+//! exemption rather than overruling it: a standard's name stays whole where it names a format or a
+//! piece of hardware and expands where it names a network protocol, because the first is what the
+//! thing is and the second is what it does. The boundary is drawn rather than derived and
+//! milestone 265's block carries the reasoning.
+//!
+//! Expanding the stem alone would give `network_time_protocol_proto`, which says protocol twice;
+//! 265's suffix change removes the duplication instead, so the name this becomes is
+//! `network_time_protocol`. The **program** `ntp` deliberately stays short, which is the
+//! typed-command latitude that produced `mdr` the same day, recorded as an exception in 265.
 
 #![no_std]
 
