@@ -20,8 +20,10 @@ widened wire contract, and then a program that reads it.
 2. **A fourth word on `abi::rendezvous::SURVEY`'s return**, beside `next_cursor`, `tid` and `state`,
    gated by the `ENUMERATE` right `SURVEY` already requires. This widens an existing method rather
    than adding a syscall number, the shape §114 used for `pmap`.
-3. **The consumers.** `crates/ps` gains the column and `ps` prints it. Milestone 281 is folding
-   `watch` into `ps` as a flag, so the live view arrives for free rather than as a fourth program.
+3. **The consumers.** `crates/ps` gains the column and `ps` prints it. The live-refresh view
+   `watch` used to give was **cut** on 2026-09-13 rather than folded into a flag, on the grounds
+   that a table of `TID` and `STATE` has nothing worth re-reading; this milestone is what makes one
+   worth building again, and whether it returns as `top` or as a `ps` flag is decided then.
 4. **`top` itself**, once there is something to be top *of*. See the naming note below.
 
 ## The name is not available until step 1 lands, and that is the point
