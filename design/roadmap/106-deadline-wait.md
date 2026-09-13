@@ -92,9 +92,9 @@ rather than left to the next person to re-derive.
 
 | consumer | what it does instead | where it says so |
 |---|---|---|
-| `net_stack`'s `wait_for_nic` | yields and re-polls across a retransmit window | `user/src/net_stack.rs:331`, and the section above |
-| `timetable` | "a process that wants to act at a time can only yield and re-read the counter" | `user/src/timetable.rs:73` |
-| `ntp` | one shot only, and a yield-spin between attempts | `user/src/ntp.rs:44`, `:188` |
+| `net_stack`'s `wait_for_nic` | yields and re-polls across a retransmit window | `components/src/net_stack.rs:331`, and the section above |
+| `timetable` | "a process that wants to act at a time can only yield and re-read the counter" | `components/src/timetable.rs:73` |
+| `ntp` | one shot only, and a yield-spin between attempts | `components/src/ntp.rs:44`, `:188` |
 | `swish`'s interrupt watch | the `^C` poll, milestone 103's owner | milestone 103 |
 | **`soak.rs`'s supervisor** | **a kernel thread yielding in a loop** | `kernel/src/soak.rs:94` |
 | `watch` (retired) | burned a core for two seconds per refresh | cut 2026-09-13, its own `BUGS` |

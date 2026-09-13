@@ -294,7 +294,12 @@ pub fn hex(digest: &Digest) -> [u8; DIGEST_LEN * 2] {
 /// entry and the kernel's trust root names it, so the kernel vouches for the table exactly as it
 /// vouches for the progenitor, and the progenitor's refusals are as trustworthy as the progenitor is. See notes/trusted-init.md.
 ///
-/// Name: **provisional**. Under `nifefs`'s `NAME_LEN = 32` with room to spare.
+/// The entry name is **provisional**, and fits under `nifefs`'s `NAME_LEN = 32` with room to
+/// spare. It is a string two programs agree on rather than a crate, a program, a `script/`
+/// entry point or a Cargo package, so it sits outside the four surfaces `script/names`
+/// enumerates and this sentence is the whole record. It deliberately does not wear the
+/// `Name:` header spelling: milestone 283 made that spelling mean *this file's* one
+/// provenance block, which belongs to the crate, and a second one would be unreachable.
 pub const PROGRAM_MEASUREMENTS: &str = "program_measurements";
 
 /// **The measurement manifest format**, one entry per line: a name, one space, 64 hex characters.

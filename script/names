@@ -214,18 +214,57 @@ def items():
 
 
 def block(path, prefix):
-    """This file's provenance block, or why there isn't one.
+    """This file's text and its provenance block, or why there isn't one.
 
     The parse is `name_provenance.block`, shared with `script/metrics`; what is here is the reading
     of the file, which is the half the two callers genuinely cannot share. A missing file is a
     problem rather than an empty answer: a crate directory with no `src/lib.rs` is a surface this
     script was asked about and could not find.
+
+    The file's text comes back with the block because `strays` needs it: what the parse read is only
+    half the question, and the other half is what else in the file reads as a header.
     """
     try:
         text = open(path, errors="replace").read()
     except FileNotFoundError:
-        return None, f"{os.path.relpath(path, root)} does not exist"
-    return name_provenance.block(text, prefix), None
+        return None, None, f"{os.path.relpath(path, root)} does not exist"
+    return text, name_provenance.block(text, prefix), None
+
+
+# Why a header-shaped line is not the block, phrased for whoever has to fix it. The tokens are
+# `scripts/name_provenance.py`'s, for the reason that module's own header gives: the judgement is
+# shared with `script/metrics`, the wording is this gate's.
+STRAY_WHY = {
+    name_provenance.STRAY_MARKUP:
+        "markdown sits between the comment marker and `Name:`, which the parse does not skip",
+    name_provenance.STRAY_INDENT:
+        "it is indented past the single space the parse allows after the comment marker",
+    name_provenance.STRAY_MARKER:
+        "it uses a different comment marker from the one this surface's block is read at",
+    name_provenance.STRAY_SECOND:
+        "it is a second block below the one that was read, and nothing reads past the first",
+}
+
+
+def stray_problems(kind, name, path, prefix, text):
+    """One problem per header-shaped line that is not the block, naming the line and showing it.
+
+    **One provenance block per file, in the spelling the parse reads** (milestone 283). This was a
+    convention 205 files happened to follow until two did not, and the two failures compounded into
+    silence: a stale `Name: provisional` block sat above a bolded `**Name: ratified ...**`, the parse
+    could not see the bolded one and stopped at the first, and the gate reported `provisional` for a
+    name calef had already ruled. He was one message from being asked to rule it twice.
+
+    Neither half was visible on its own, which is why the check is neither "no bold" nor "no second
+    block" but the general question underneath both: does anything in this file read as a provenance
+    header without being the one that was read.
+    """
+    out = []
+    where = os.path.relpath(path, root)
+    for number, line, why in name_provenance.strays(text, prefix):
+        out.append(f"{kind} {name}: {where}:{number} reads as a provenance header and is not the "
+                   f"block that was read, because {STRAY_WHY[why]}\n      {line.strip()}")
+    return out
 
 
 # `refused_in`, `parse`, the `recorded` citation check and the three-word status vocabulary all
@@ -236,10 +275,14 @@ def block(path, prefix):
 
 records = []
 for kind, name, path, prefix in items():
-    text, err = block(path, prefix)
+    source, text, err = block(path, prefix)
     if err:
         problems.append(err)
         continue
+    # Reported whether or not the block parsed, and deliberately before the `None` case: a file with
+    # no readable block is exactly the file whose unreadable one is worth pointing at, and "no
+    # `Name:` block" on its own would send the reader looking for something that is already there.
+    problems.extend(stray_problems(kind, name, path, prefix, source))
     if text is None:
         problems.append(f"{kind} {name}: no `Name:` block in {os.path.relpath(path, root)}")
         continue
@@ -316,6 +359,10 @@ if mode == "--check":
         print("  Name: recorded (milestone 46). <what the tree already argues, and where>",
               file=sys.stderr)
         print("  Name: unrecorded. <what the history does and does not say>", file=sys.stderr)
+        print("Exactly one such block per file, spelled that way. A second block is unreachable "
+              "(the parse stops at the first) and a", file=sys.stderr)
+        print("bolded, indented or `///` one is invisible, which is how two of calef's "
+              "ratifications sat on the worklist for a week.", file=sys.stderr)
         print("See notes/naming.md. Presence is the gate, never `ratified`: a name waiting on calef "
               "never fails a build.", file=sys.stderr)
         print("`unrecorded` is a real answer; a ratification you cannot cite is not.",

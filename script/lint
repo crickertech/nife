@@ -1968,11 +1968,19 @@ fi
 #    keyed on ratification would hold every unrelated merge behind a review queue nobody can hurry,
 #    which is a wall this milestone was written specifically not to build. `script/names
 #    --unratified` is how the queue gets worked; the lint only insists a name say which it is.
+#
+#    **And exactly one block per file, in the spelling the parse reads** (milestone 283). The parse
+#    stops at the first `Name:` line and matches `^<prefix> ?Name:`, so a stale proposal block above
+#    a ratified one hides it AND a header wearing markdown is invisible on its own. Both at once is
+#    how two of calef's ratifications sat on the worklist for a week with the gate reporting
+#    `provisional`, which is a legitimate answer nothing disputes. The check asks the general
+#    question underneath both: does anything in this file read as a provenance header without being
+#    the one that was read. It names the line and which of four things is wrong with it.
 "$(dirname "$0")/names" --check
 
 echo "naming: no -d names, no daemons, contract crates spelled one way, branch prefix recognised,"
 echo "        no #[path] module shared by two binaries, docs lowercase and hyphenated,"
-echo "        every name carries its provenance"
+echo "        every name carries its provenance, and exactly one block per file"
 
 # 8. **The audit index holds together** (milestone 92). Structure only: the index's two tables
 #    describe the same audits in the same order, every report link resolves, every kind has a
