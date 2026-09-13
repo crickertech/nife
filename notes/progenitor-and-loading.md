@@ -64,7 +64,7 @@ bytes.
 ## The argument to START (milestone 19e)
 
 Through 19d, `START` handed the child exactly one word, its role in `x0`, and that was enough:
-every child was pure code selected by identity. A *worker* breaks that. It computes `n*n`, and `n`
+every child was pure code selected by identity. A *least_authority_demo* breaks that. It computes `n*n`, and `n`
 has to reach it before it runs. So 19e widened `START` to carry `x0`, `x1`, `x2`, the way a
 function call carries arguments, and the loader passes the role in `x0` and the input in `x1`.
 
@@ -75,10 +75,10 @@ the faked switch frame as `x21/x22/x23`; the EL0 trampoline (`context.s`
 The child sees them as the arguments to its `_start(x0, x1, x2)`.
 
 init's spawn service (the shell's `run <n>`) is the payoff: the shell SENDs `n`, init builds a
-worker endowed with a result endpoint and `START`s it with `n` in `x1`, the worker squares it and
+least_authority_demo endowed with a result endpoint and `START`s it with `n` in `x1`, the least_authority_demo squares it and
 SENDs the answer straight to the endpoint the shell is waiting on. init only builds the pipe; it
-never sees the number. The kernel test `init_builds_a_worker_and_passes_it_an_argument` proves the
-argument survives the crossing: the worker reports `n*n`, not `n` and not garbage.
+never sees the number. The kernel test `init_builds_the_demo_and_passes_it_an_argument` proves the
+argument survives the crossing: the least_authority_demo reports `n*n`, not `n` and not garbage.
 
 ## Two hardware details a userspace loader must respect
 
@@ -147,28 +147,28 @@ failure** rather than a quiet fallback to unstripped bytes, because the measured
 depending on which tools were installed would be a build whose trust root meant something different
 on each machine.
 
-## The first distinct binary: the worker (milestone 19f.2)
+## The first distinct binary: the least_authority_demo (milestone 19f.2)
 
-The worker is the first program that is **its own binary**, not a role of `hello`. It lives in
-`fixtures/src/worker.rs`: its own `_start`, its own panic handler, ~30 lines, and not one line of hello's
+The least_authority_demo is the first program that is **its own binary**, not a role of `hello`. It lives in
+`components/src/least_authority_demo.rs`: its own `_start`, its own panic handler, ~30 lines, and not one line of hello's
 code. It shares the `user` package's `link.ld` (so it links at `0x40_0000` like hello), which is not
 a conflict because each program runs in its own address space. `initrd_aarch64` packs it as a second
-archive entry, `"worker"`, beside the boot program's.
+archive entry, `"least_authority_demo"`, beside the boot program's.
 
-Every consumer that used to spawn "a role-6 worker of hello" now loads `"worker"` by name and starts
+Every consumer that used to spawn "a role-6 least_authority_demo of hello" now loads `"least_authority_demo"` by name and starts
 it with `x0 = 0` (a standalone binary needs no role selector) and the input in `x1`:
 
-- init's `init_worker` and the initboot spawn service (`hello.rs`), for `run <n>`.
+- init's `init_least_authority_demo` and the initboot spawn service (`hello.rs`), for `run <n>`.
 - the kernel-side `shell_service` (the pre-initboot interactive shell), same `run <n>`. (Retired as
   a boot path by DECISIONS §28 and deleted by milestone 41; it is described here as it was.)
 
-Removing the worker from `hello` is what proved the split was real: it broke every one of those call
+Removing the least_authority_demo from `hello` is what proved the split was real: it broke every one of those call
 sites (a role-6 spawn fell through to hello's default arm and *faulted*), and fixing each to load
-`"worker"` is the migration. The hello binary no longer contains a worker at all. Two headless tests
-pin it: `a_spawned_worker_process_computes_and_reports` (kernel spawns the worker binary, gets 81)
-and `init_builds_a_worker_and_passes_it_an_argument` (init loads it by name, gets 49).
+`"least_authority_demo"` is the migration. The hello binary no longer contains a least_authority_demo at all. Two headless tests
+pin it: `a_spawned_least_authority_demo_computes_and_reports` (kernel spawns the least_authority_demo binary, gets 81)
+and `init_builds_the_demo_and_passes_it_an_argument` (init loads it by name, gets 49).
 
-The tiny syscall runtime in `worker.rs` (`invoke`/`send`/`exit`) is duplicated from hello on purpose.
+The tiny syscall runtime in `least_authority_demo.rs` (`invoke`/`send`/`exit`) is duplicated from hello on purpose.
 When 19f.3 splits the next binary, that second copy is the signal to lift a shared user-runtime
 crate, with the requirements known rather than guessed (DECISIONS: don't build the abstraction before
 the requirements are).
@@ -178,7 +178,7 @@ the requirements are).
 "Console server as its own binary" was the headline 19f was aiming at, and here it is:
 `components/src/console.rs`, a distinct ELF init loads by the name `"console"`. It owns the UART and one
 request/reply channel, loops (receive a length, copy that many bytes from the shared page to the
-UART, ack), and holds nothing else. Same shape as the worker split: every consumer that entered
+UART, ack), and holds nothing else. Same shape as the least_authority_demo split: every consumer that entered
 hello at the console role now loads `"console"` and starts it with `x0 = 0`. There were three, in
 two domains:
 
@@ -203,9 +203,9 @@ same until milestone 41 deleted it with the rest of the retired kernel-wired she
 
 With this, the whole interactive stack runs on distinct binaries. Verified end to end by piping real
 keystrokes into QEMU's serial: typing `run 6` at the prompt, the **input** binary read and echoed the
-line, the shell (still a hello role) parsed it, init built the **worker** binary with the argument 6,
-the worker computed 36 and reported, and the **console** binary printed `6*6 = 36` back. Input,
-worker, and console, three separate programs, plus init and the shell, cooperating through
+line, the shell (still a hello role) parsed it, init built the **least_authority_demo** binary with the argument 6,
+the least_authority_demo computed 36 and reported, and the **console** binary printed `6*6 = 36` back. Input,
+least_authority_demo, and console, three separate programs, plus init and the shell, cooperating through
 capabilities and shared pages.
 
 ## The shell, its own binary (milestone 19f.5): the split is complete
@@ -216,14 +216,14 @@ shared pages, reads a line, and prints. Its consumer is init's `init_boot`, whic
 name and starts it with `x0 = 0`.
 
 With the shell out, **hello contains none of the system's programs**. Every service is its own binary
-in the archive: `worker`, `console`, `input`, `swish`. hello keeps only init and the milestone-tour
+in the archive: `least_authority_demo`, `console`, `input`, `swish`. hello keeps only init and the milestone-tour
 demo roles (the printing client, the virtio driver, the capability demos). On the `initboot` path
 init loads nothing of hello into a child at all; it builds the whole system from the four distinct
 binaries.
 
 Proven end to end by piping keystrokes into QEMU's serial on both interactive paths (kernel-side
 `shell` feature and `initboot`): typing `run 9` at the prompt, the input binary read and echoed it,
-the shell parsed it, init built the worker binary with 9, the worker computed 81, and the console
+the shell parsed it, init built the least_authority_demo binary with 9, the least_authority_demo computed 81, and the console
 binary printed `9*9 = 81`. Four separate programs plus init, cooperating through capabilities.
 
 One honest wrinkle surfaced: a line **burst-piped before the prompt appears** loses its first

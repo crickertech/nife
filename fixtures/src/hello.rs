@@ -58,7 +58,7 @@ const PRINTING: u64 = 2;
 const VIRTIO_BLK: u64 = 3;
 // Role 4 was the input driver; it is its own binary now (`components/src/input.rs`, 19f.4).
 // Role 5 was the shell; it is its own binary now (`components/src/swish.rs`, 19f.5).
-// Role 6 was the worker; it is its own binary now (`fixtures/src/worker.rs`, 19f.2). init loads each of
+// Role 6 was the least_authority_demo; it is its own binary now (`components/src/least_authority_demo.rs`, 19f.2). init loads each of
 // these from the archive by name; hello keeps only the milestone-tour demo roles below.
 const UNTYPED_DEMO: u64 = 7;
 const VIRTIO_ATTACK: u64 = 8;
@@ -142,7 +142,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
         INIT_CONSOLE => init_console(dma_phys),
         INIT_IRQ => init_irq(dma_phys),
         IRQ_CHILD => irq_child(),
-        INIT_WORKER => init_worker(dma_phys),
+        INIT_LEAST_AUTHORITY_DEMO => init_least_authority_demo(dma_phys),
         INIT_COREMARK => init_coremark(dma_phys),
         CYCLE_COUNTER_CHILD => cycle_counter_child(),
         CHILD => child(),
@@ -306,7 +306,7 @@ fn revoke_demo() -> ! {
 ///
 /// Through 19f.1 every program is still a role of *this* binary, so callers look up `"init"` (the
 /// binary the kernel loaded) and enter it at a different role; 19f.2 adds distinct entries a caller
-/// can name directly (`"worker"` and so on).
+/// can name directly (`"least_authority_demo"` and so on).
 fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
     // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
     let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
@@ -335,10 +335,10 @@ const INIT_DEV: u64 = 23;
 const INIT_CONSOLE: u64 = 24;
 /// The init role that builds an interrupt-driven child, to prove IRQ delegation (milestone 19d.2b).
 const INIT_IRQ: u64 = 25;
-/// The init role that builds a worker, passes it an argument via START, and reports its answer
+/// The init role that builds a `least_authority_demo`, passes it an argument via START, and reports its answer
 /// (milestone 19e: the first workload that needs START to carry data, not just a role).
-const INIT_WORKER: u64 = 28;
-/// The argument init hands its worker in the [`INIT_WORKER`] role; the worker returns its square.
+const INIT_LEAST_AUTHORITY_DEMO: u64 = 28;
+/// The argument init hands its `least_authority_demo` in the [`INIT_LEAST_AUTHORITY_DEMO`] role; the `least_authority_demo` returns its square.
 const WORKER_INPUT: u64 = 7;
 /// The init role that builds the CoreMark compute workload and reports the CRC it computed
 /// (milestone 19e: the first *real* workload, not a toy).
@@ -404,27 +404,27 @@ fn init_irq(initrd_len: u64) -> ! {
     exit();
 }
 
-/// **init builds a worker and hands it an argument, milestone 19e.** The first workload that needs
+/// **init builds a `least_authority_demo` and hands it an argument, milestone 19e.** The first workload that needs
 /// `START` to carry *data*, not just a role: every child before this took only its role in `x0`,
-/// but a worker computes on an input, and that input has to reach it. init builds a `worker`
+/// but a `least_authority_demo` computes on an input, and that input has to reach it. init builds a `least_authority_demo`
 /// child endowed with the report endpoint (slot 0) and starts it with [`WORKER_INPUT`] in `x1`
-/// (the second `START` argument, new in 19e). The worker squares it and reports home. Receiving
+/// (the second `START` argument, new in 19e). The `least_authority_demo` squares it and reports home. Receiving
 /// `WORKER_INPUT * WORKER_INPUT` proves the argument crossed the `START` boundary intact: the
 /// mechanism the interactive `run <n>` command and, later, real spawned services stand on.
-fn init_worker(initrd_len: u64) -> ! {
+fn init_least_authority_demo(initrd_len: u64) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
 
-    // The worker is its own binary now (19f.2), loaded from the archive by name, not a role of this
+    // The least_authority_demo is its own binary now (19f.2), loaded from the archive by name, not a role of this
     // one. init parses it exactly as it parses any program it did not write.
-    let Some(worker_bytes) = program(initrd_len, "worker") else {
+    let Some(demo_bytes) = program(initrd_len, "least_authority_demo") else {
         fail_report(REPORT)
     };
-    let Ok(elf) = elf::Elf::parse(worker_bytes) else {
+    let Ok(elf) = elf::Elf::parse(demo_bytes) else {
         fail_report(REPORT)
     };
 
-    // The worker's whole authority: the report endpoint as its slot 0, so its one SEND lands where
+    // The least_authority_demo's whole authority: the report endpoint as its slot 0, so its one SEND lands where
     // the test (or, in the boot system, the shell) is waiting.
     let caps: &[(u64, u64)] = &[(REPORT, abi::rights::WRITE)];
     let Ok(child) = build_child(MEMORY_REGION, &elf, caps, &[]) else {
@@ -437,7 +437,7 @@ fn init_worker(initrd_len: u64) -> ! {
 }
 
 /// **init builds the CoreMark compute workload, milestone 19e: the first real workload.** Same shape
-/// as `init_worker`, but the child is the `"coremark"` binary and it computes something substantial
+/// as `init_least_authority_demo`, but the child is the `"coremark"` binary and it computes something substantial
 /// (a CoreMark-derived run) rather than a toy square. init grants it the report endpoint (slot 0)
 /// and starts it; the workload runs a fixed iteration count and SENDs the run's CRC home. Receiving
 /// `coremark::PINNED_CRC_64` proves a real compute program ran correctly against the native ABI.

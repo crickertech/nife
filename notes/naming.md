@@ -98,9 +98,11 @@ the FS service). "Daemon" appears nowhere.
   three names agree in every row.
 
 Fixtures and benchmarks (`interrupt_heeder`, `interrupt_ignorer`, `flaky`, `allocator_exerciser`,
-`worker`, `coremark`, `os_primitives_benchmarker`) live in `fixtures/`, which is where milestone 175
-separated them from the real components on 2026-09-13. The naming rule is the same either way: a
-fixture is a program and takes a program's name.
+`coremark`, `os_primitives_benchmarker`) live in `fixtures/`, which is where milestone 175 separated
+them from the real components on 2026-09-13. The naming rule is the same either way: a fixture is a
+program and takes a program's name. **`worker` was on that list by repetition and is not a
+fixture**: calef ruled it the canonical minimal program on 2026-09-13, so it is
+`components/src/least_authority_demo.rs`.
 
 **Two suffixes carry a category, and the distinction between them is real** (milestone 63).
 An **`_exerciser`** puts a capability of the system under load and sees whether it holds, with no
@@ -913,6 +915,15 @@ the reason `AGENTS.md` gives for not gating identified work either.
 
 What milestone 63 did **not** rename, each on purpose, so the next reader does not "fix" one of them
 by mistake.
+
+- **Two records under `design/` still spell names milestone 175 retired, and one of them is a
+  present-tense claim.** `design/capsicum-and-the-retrofit-question.md`'s honest comparison says the
+  system confines "`worker`, `budgeter`, `heeder`, `spinner`, a C component, and a filesystem we
+  vendored", and `AGENTS.md`'s rule 7 section describes `user/src/` as a live directory. Both were
+  left where they are because a developer lane edits its own milestone's roadmap block and nothing
+  else under `design/`, and never `AGENTS.md`. Every *other* occurrence of the old names in
+  `design/` is a dated narrative and correctly keeps them. Neither is load-bearing; both are one
+  line for whoever next has the standing to make the edit.
 
 - **The boot mode is still called `shell`, and the program is `swish`.** `cargo xtask shell` and the
   kernel's `--features shell` name a *configuration* (boot straight to a prompt, milestone tour

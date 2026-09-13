@@ -150,8 +150,8 @@ spaces may agree on an address; one may not.
 
 **Guest** (`kernel::user::time_tests`), one script run three times against three capability tables:
 
-- with a **published** clock page: `worker 3` and `time worker 3` answer the same thing, and the
-  duration parses back to a positive number under ten seconds. `worker`'s manifest declares no
+- with a **published** clock page: `least_authority_demo 3` and `time least_authority_demo 3` answer the same thing, and the
+  duration parses back to a positive number under ten seconds. `least_authority_demo`'s manifest declares no
   clock, so it holds none, and it is timed anyway. `time echo hello` spawns no process at all and
   still reports a duration.
 - with a **blank** page (granted, never published to): "the machine has no clock it believes", and

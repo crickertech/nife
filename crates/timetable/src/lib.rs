@@ -21,10 +21,10 @@
 //!
 //! | answer | what it means | example entry |
 //! |---|---|---|
-//! | [`Admission::Fires`] | planned, backed, and armed | `every 5s worker 7` |
+//! | [`Admission::Fires`] | planned, backed, and armed | `every 5s least_authority_demo 7` |
 //! | [`Admission::Refused`] | the program's own manifest refuses the line, exactly as at the prompt | `every 5s budgeter` (it exists to spend a budget and none was named) |
 //! | [`Admission::Unbacked`] | the line is legal and **this scheduler holds nothing to back it** | `every 5s date` (a clock is a capability, and the scheduler has none) |
-//! | [`Error`] | the document itself does not parse, with the line number | `every fortnight worker 7` |
+//! | [`Error`] | the document itself does not parse, with the line number | `every fortnight least_authority_demo 7` |
 //!
 //! **[`Admission::Unbacked`] is the one worth reading twice.** `date` at a Unix cron line always
 //! works, because reading the clock there is ambient. Here the wall clock is a capability
@@ -38,8 +38,8 @@
 //!
 //! ```text
 //! # a comment
-//! every 200ms  worker 7
-//! at-boot      worker 3
+//! every 200ms  `least_authority_demo` 7
+//! at-boot      `least_authority_demo` 3
 //! ```
 //!
 //! Two schedule words, deliberately. `every <interval>` and `at-boot` are what milestone 129's
@@ -183,15 +183,15 @@ impl Error {
 /// # Examples
 ///
 /// ```
-/// let doc = timetable::parse("# housekeeping\nevery 30s  worker 7\nat-boot  worker 3\n")
+/// let doc = timetable::parse("# housekeeping\nevery 30s  `least_authority_demo` 7\nat-boot  `least_authority_demo` 3\n")
 ///     .expect("that document is well formed");
 /// assert_eq!(doc.entries().len(), 2);
 /// assert_eq!(doc.entries()[0].schedule, timetable::Schedule::Every(30 * timetable::NANOS_PER_SEC));
 /// assert_eq!(doc.entries()[1].schedule, timetable::Schedule::AtBoot);
-/// assert_eq!(doc.entries()[1].command, b"worker 3");
+/// assert_eq!(doc.entries()[1].command, b"`least_authority_demo` 3");
 ///
 /// // A zero interval is refused rather than run, and the refusal names the line.
-/// let bad = timetable::parse("every 0s worker 7\n").unwrap_err();
+/// let bad = timetable::parse("every 0s `least_authority_demo` 7\n").unwrap_err();
 /// assert_eq!(bad.line(), 1);
 /// assert_eq!(bad.message(), "a zero interval is a spin, not a schedule");
 /// ```
@@ -467,14 +467,14 @@ impl<'a> Registry<'a> {
     /// ```
     /// # use timetable::{Admission, Held, Registry, Unbacked};
     /// let doc = timetable::parse(
-    ///     "every 5s  worker 7\n\
+    ///     "every 5s  `least_authority_demo` 7\n\
     ///      every 5s  budgeter\n\
     ///      every 5s  date\n",
     /// ).unwrap();
     /// let reg = Registry::register(&doc, Held::default());
     ///
     /// // Planned, and the endowment is the whole of what the child will hold.
-    /// let e = reg.rows()[0].endowment().expect("worker 7 is a legal line");
+    /// let e = reg.rows()[0].endowment().expect("`least_authority_demo` 7 is a legal line");
     /// assert_eq!(e.arg, 7);
     /// assert_eq!(e.mem_pages, 0);
     ///
@@ -718,7 +718,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 /// authority its child will hold, or why it will not fire at all.
 ///
 /// This is the milestone's claim in the form a person meets it. Milestone 31 made the shell able to
-/// print a command's endowment **before** spawning anything (`caps worker 7`); this prints the same
+/// print a command's endowment **before** spawning anything (`caps least_authority_demo 7`); this prints the same
 /// decision for every entry in a schedule, at registration, before the first tick. On Unix there is
 /// nothing to print: a crontab line's authority is its user's, which no tool can enumerate and no
 /// line chose.
@@ -733,7 +733,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 ///
 /// ```
 /// # use timetable::{Held, Registry};
-/// let doc = timetable::parse("every 30s worker 7\nevery 30s date\n").unwrap();
+/// let doc = timetable::parse("every 30s `least_authority_demo` 7\nevery 30s date\n").unwrap();
 /// let reg = Registry::register(&doc, Held::default());
 ///
 /// // A fixed buffer rather than a `String`, because this crate is `no_std` and the program that
@@ -745,7 +745,7 @@ pub const fn next_after(prev: u64, period: u64, now: u64) -> u64 {
 ///     n += b.len();
 /// });
 /// let plan = core::str::from_utf8(&buf[..n]).unwrap();
-/// assert!(plan.contains("every 30s     worker 7"));
+/// assert!(plan.contains("every 30s     `least_authority_demo` 7"));
 /// assert!(plan.contains("this timetable holds no clock, so it cannot grant one"));
 /// ```
 pub fn write_plan(reg: &Registry<'_>, out: &mut dyn FnMut(&[u8])) {
@@ -876,19 +876,19 @@ fn write_grant(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
 ///
 /// ```
 /// # use timetable::{Audit, Held, Registry};
-/// let doc = timetable::parse("every 30s worker 7\nevery 30s date\n").unwrap();
+/// let doc = timetable::parse("every 30s `least_authority_demo` 7\nevery 30s date\n").unwrap();
 /// let reg = Registry::register(&doc, Held::default());
 ///
 /// // Handed an archive holding exactly what the plan builds.
 /// let mut narrow = Audit::of(&reg);
-/// narrow.saw("worker");
+/// narrow.saw("`least_authority_demo`");
 /// assert!(narrow.is_exact());
 /// assert_eq!(narrow.planned(), 1);
 ///
 /// // Handed the whole initrd. `date` is refused, so the plan never names it, and holding an
 /// // image of it is authority nothing in the document asked for.
 /// let mut wide = Audit::of(&reg);
-/// for name in ["worker", "date", "swish", "budgeter"] {
+/// for name in ["`least_authority_demo`", "date", "swish", "budgeter"] {
 ///     wide.saw(name);
 /// }
 /// assert!(!wide.is_exact());
@@ -1030,15 +1030,15 @@ mod tests {
         let doc = parse(
             "# a heading\n\
              \n\
-             every   30s     worker 7   # trailing\n\
+             every   30s     least_authority_demo 7   # trailing\n\
              \n\
-             at-boot worker 3\n",
+             at-boot least_authority_demo 3\n",
         )
         .unwrap();
         assert_eq!(doc.entries().len(), 2);
-        assert_eq!(doc.entries()[0].command, b"worker 7");
+        assert_eq!(doc.entries()[0].command, b"least_authority_demo 7");
         assert_eq!(doc.entries()[0].line, 3);
-        assert_eq!(doc.entries()[1].command, b"worker 3");
+        assert_eq!(doc.entries()[1].command, b"least_authority_demo 3");
         assert_eq!(doc.entries()[1].line, 5);
     }
 
@@ -1067,15 +1067,18 @@ mod tests {
 
     #[test]
     fn each_error_points_at_the_line_that_is_wrong() {
-        let head = "# heading\nat-boot worker 3\n";
+        let head = "# heading\nat-boot least_authority_demo 3\n";
         for (bad, want) in [
-            ("weekly worker 7\n", Error::UnknownSchedule(3)),
+            ("weekly least_authority_demo 7\n", Error::UnknownSchedule(3)),
             ("every\n", Error::MissingInterval(3)),
-            ("every fortnight worker 7\n", Error::BadInterval(3)),
-            ("every 30 worker 7\n", Error::BadInterval(3)),
-            ("every 30d worker 7\n", Error::BadInterval(3)),
-            ("every 0s worker 7\n", Error::ZeroInterval(3)),
-            ("every 0ms worker 7\n", Error::ZeroInterval(3)),
+            (
+                "every fortnight least_authority_demo 7\n",
+                Error::BadInterval(3),
+            ),
+            ("every 30 least_authority_demo 7\n", Error::BadInterval(3)),
+            ("every 30d least_authority_demo 7\n", Error::BadInterval(3)),
+            ("every 0s least_authority_demo 7\n", Error::ZeroInterval(3)),
+            ("every 0ms least_authority_demo 7\n", Error::ZeroInterval(3)),
             ("every 30s\n", Error::MissingCommand(3)),
             ("at-boot\n", Error::MissingCommand(3)),
         ] {
@@ -1089,7 +1092,7 @@ mod tests {
     fn more_entries_than_the_table_holds_is_refused_rather_than_dropped() {
         let mut doc = String::new();
         for _ in 0..MAX_ENTRIES + 1 {
-            doc.push_str("every 30s worker 7\n");
+            doc.push_str("every 30s least_authority_demo 7\n");
         }
         assert_eq!(parse(&doc), Err(Error::TooManyEntries(MAX_ENTRIES + 1)));
     }
@@ -1100,7 +1103,7 @@ mod tests {
     #[test]
     fn registration_gives_four_distinguishable_answers() {
         let doc = parse(
-            "every 5s worker 7\n\
+            "every 5s least_authority_demo 7\n\
              every 5s budgeter\n\
              every 5s date\n\
              every 5s wc\n\
@@ -1114,7 +1117,7 @@ mod tests {
 
         // Fires, with the argument the line named and no memory it did not.
         let e = rows[0].endowment().unwrap();
-        assert_eq!(e.prog, Prog::Worker);
+        assert_eq!(e.prog, Prog::LeastAuthorityDemo);
         assert_eq!(e.arg, 7);
         assert_eq!(e.mem_pages, 0);
 
@@ -1143,7 +1146,7 @@ mod tests {
         );
 
         assert_eq!(reg.admitted(), 1);
-        assert_eq!(reg.programs(), 1 << Prog::Worker.id());
+        assert_eq!(reg.programs(), 1 << Prog::LeastAuthorityDemo.id());
     }
 
     /// **Widening the scheduler changes the answer, and that is the point of [`Held`].**
@@ -1196,7 +1199,8 @@ mod tests {
 
     #[test]
     fn arming_puts_at_boot_first_and_an_interval_one_interval_out() {
-        let doc = parse("every 30s worker 7\nat-boot worker 3\n").unwrap();
+        let doc =
+            parse("every 30s least_authority_demo 7\nat-boot least_authority_demo 3\n").unwrap();
         let mut reg = Registry::register(&doc, Held::default());
         reg.arm(1_000);
         assert_eq!(reg.rows()[0].next_fire(), Some(1_000 + 30 * NANOS_PER_SEC));
@@ -1206,7 +1210,7 @@ mod tests {
 
     #[test]
     fn an_at_boot_entry_fires_once_and_never_again() {
-        let doc = parse("at-boot worker 3\n").unwrap();
+        let doc = parse("at-boot least_authority_demo 3\n").unwrap();
         let mut reg = Registry::register(&doc, Held::default());
         reg.arm(0);
         assert_eq!(reg.due(0), Some(0));
@@ -1228,7 +1232,7 @@ mod tests {
 
     #[test]
     fn several_entries_can_come_due_in_one_pass() {
-        let doc = parse("every 10ms worker 1\nevery 10ms worker 2\nat-boot worker 3\n").unwrap();
+        let doc = parse("every 10ms least_authority_demo 1\nevery 10ms least_authority_demo 2\nat-boot least_authority_demo 3\n").unwrap();
         let mut reg = Registry::register(&doc, Held::default());
         reg.arm(0);
         let now = 50 * NANOS_PER_SEC;
@@ -1244,7 +1248,7 @@ mod tests {
     /// should have fired 360,000 times fires once.
     #[test]
     fn a_long_stall_produces_one_fire_and_not_a_backlog() {
-        let doc = parse("every 10ms worker 7\n").unwrap();
+        let doc = parse("every 10ms least_authority_demo 7\n").unwrap();
         let mut reg = Registry::register(&doc, Held::default());
         reg.arm(0);
         let hour = 3_600 * NANOS_PER_SEC;
@@ -1284,7 +1288,7 @@ mod tests {
     #[test]
     fn the_plan_is_printable_before_anything_fires() {
         let doc = parse(
-            "every 30s worker 7\n\
+            "every 30s least_authority_demo 7\n\
              at-boot budgeter --mem 4\n\
              every 1m date\n",
         )
@@ -1303,7 +1307,7 @@ mod tests {
         assert!(s.contains("at-boot"), "{s}");
         assert!(s.contains("every 1m"), "{s}");
         // The grant, in full, for the ones that will fire.
-        assert!(s.contains("grants worker exactly:"), "{s}");
+        assert!(s.contains("grants least_authority_demo exactly:"), "{s}");
         assert!(
             s.contains("4 pages  split from this timetable's budget"),
             "{s}"
@@ -1360,7 +1364,7 @@ mod tests {
     /// reaches nothing beyond the plan, one for the whole initrd.
     ///
     /// **This test is also the mechanism behind a written list in another file**, which is why the
-    /// first assertion names `worker` and `budgeter` rather than counting to two.
+    /// first assertion names `least_authority_demo` and `budgeter` rather than counting to two.
     /// `kernel/src/user/timetable_tests.rs` builds the narrowed archive from a `PLANNED_PROGRAMS`
     /// list it does not compute, because computing it there means a `Registry` on a kernel stack and
     /// a `Registry` is 21632 bytes against a 4096-byte guard page (`script/stack-frame-check`). So
@@ -1373,22 +1377,22 @@ mod tests {
         let doc = parse(REFERENCE).expect("the shipped document parses");
         let reg = Registry::register(&doc, SHIPPED_HELD);
 
-        // The shipped document admits `worker` twice and `budgeter` once (the `--mem 4` line,
+        // The shipped document admits `least_authority_demo` twice and `budgeter` once (the `--mem 4` line,
         // backed by `SHIPPED_HELD`) and refuses everything else, so its plan is two programs
         // however many entries name either. Asserted **by name**, because a spawn site in another
         // crate carries this same set as a written list and this is what keeps it true.
         assert_eq!(
             reg.programs(),
-            1 << Prog::Worker.id() | 1 << Prog::Budgeter.id(),
+            1 << Prog::LeastAuthorityDemo.id() | 1 << Prog::Budgeter.id(),
             "the shipped document's plan changed; \
              kernel/src/user/timetable_tests.rs's PLANNED_PROGRAMS must change with it",
         );
         assert_eq!(Audit::of(&reg).planned(), 2);
 
         // Narrowed to the plan: what the spawn site hands over after milestone 129's second
-        // stratum. `worker`, `budgeter`, and nothing else.
+        // stratum. `least_authority_demo`, `budgeter`, and nothing else.
         let mut narrow = Audit::of(&reg);
-        narrow.saw("worker");
+        narrow.saw("least_authority_demo");
         narrow.saw("budgeter");
         assert!(narrow.is_exact());
         assert_eq!(narrow.held(), 2);
@@ -1402,7 +1406,14 @@ mod tests {
         // image this process could load, which is authority no line in the document asked for.
         // `date` is the sharpest case, because the document names it and registration refused it.
         let mut wide = Audit::of(&reg);
-        for name in ["worker", "date", "ps", "budgeter", "wc", "swish"] {
+        for name in [
+            "least_authority_demo",
+            "date",
+            "ps",
+            "budgeter",
+            "wc",
+            "swish",
+        ] {
             wide.saw(name);
         }
         assert!(!wide.is_exact());
@@ -1425,11 +1436,11 @@ mod tests {
     /// particular scheduler, not a constant.
     #[test]
     fn a_wider_scheduler_plans_more_programs_and_the_audit_agrees() {
-        let doc = parse("every 1s worker 7\nevery 1s date\n").expect("well formed");
+        let doc = parse("every 1s least_authority_demo 7\nevery 1s date\n").expect("well formed");
 
         let bare = Registry::register(&doc, Held::default());
         let mut a = Audit::of(&bare);
-        a.saw("worker");
+        a.saw("least_authority_demo");
         a.saw("date");
         assert_eq!(
             a.beyond(),
@@ -1445,7 +1456,7 @@ mod tests {
             },
         );
         let mut b = Audit::of(&with_clock);
-        b.saw("worker");
+        b.saw("least_authority_demo");
         b.saw("date");
         assert!(
             b.is_exact(),

@@ -86,7 +86,7 @@ declare nothing but `interruptible`):
 
 | program    | arg        | mem                  | file      | reports |
 |------------|------------|----------------------|-----------|---------|
-| `worker`   | Required   | Forbidden            | Forbidden | yes     |
+| `least_authority_demo`   | Required   | Forbidden            | Forbidden | yes     |
 | `budgeter` | Forbidden  | Required 1..=64 pages | Forbidden | yes     |
 | `date`     | Forbidden  | Forbidden            | Forbidden | yes     |
 
@@ -103,7 +103,7 @@ rather than reading the static table, so the host tests check a manifest shape n
 That split was worth making anyway, because milestone 23 needs exactly it: a manifest that travels
 with a component, checked by a composer that did not write the program.
 
-`worker` needs its `n` and no memory; granting `--mem` to it is a refusal. `budgeter` exists to
+`least_authority_demo` needs its `n` and no memory; granting `--mem` to it is a refusal. `budgeter` exists to
 spend a budget, so it *requires* `--mem` (the lower bound of 1 makes "budgeter with no grant" a
 refusal), with an upper bound the shell's own budget can actually back.
 
@@ -119,7 +119,7 @@ Placing the tokens is what milestone 47 moved out of the parser. The parser know
 only the manifest knows what a token *is*, which is why `wc 2026` designates a file named `2026`
 rather than an argument nobody declared. Two refusals fall out of the same rule:
 
-- a token past the last declared slot cannot be placed, so `worker 5 extra` is refused. That is the
+- a token past the last declared slot cannot be placed, so `least_authority_demo 5 extra` is refused. That is the
   safety property the `file:` prefix used to be credited with, and it was always the manifest's.
 - inside a file slot, what the *shell holds* decides whether the designation can be backed at all:
   "you hold no such capability" beats "and that name is too long", because it is the bigger fact.

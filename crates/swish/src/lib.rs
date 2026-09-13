@@ -156,7 +156,7 @@ pub enum Say {
 /// # What it is *not*, stated because the gap is real
 ///
 /// **No program in this system reports an exit status**, and this value does not pretend one did. A
-/// spawned program answers with a *value* (`worker 7` answers 49), with bytes, or through a job
+/// spawned program answers with a *value* (`least_authority_demo 7` answers 49), with bytes, or through a job
 /// frame, and none of those is a status. So `$?` is the shell's own reading of what happened to the
 /// line, which today is all there is; inventing a per-program status would mean a `spawnproto`
 /// change and an edit to every program, which is a milestone and not a field.
@@ -273,7 +273,7 @@ pub enum Route<'a> {
 /// assert!(matches!(route(b"time date | wc"), Route::Time(b"date | wc")));
 /// // The third prefix word (milestone 109), which batches a whole line for the same reason.
 /// assert!(matches!(route(b"xargs rm *.txt"), Route::Xargs(b"rm *.txt")));
-/// assert!(matches!(route(b"worker 7"), Route::One(b"worker 7")));
+/// assert!(matches!(route(b"`least_authority_demo` 7"), Route::One(b"`least_authority_demo` 7")));
 /// match route(b"date | wc") {
 ///     Route::Pipeline(l) => assert_eq!(l.stages().len(), 2),
 ///     other => panic!("expected a pipeline, got {other:?}"),
@@ -806,7 +806,11 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
     );
     out(b"  rm [-rfv] <path>        a PROGRAM, granted the directory holding what you name\n");
-    out(b"  worker <n>              spawn a process that returns n*n\n");
+    // Two spaces rather than the column the rest of this block keeps: the name is 24 characters
+    // and the description column is 26, so aligning it would leave no separator at all. Milestone
+    // 175 ratified the name; a table that reflows every other line to suit one entry costs more
+    // than two columns of ragged edge.
+    out(b"  least_authority_demo <n>  spawn a process that returns n*n\n");
     out(b"  budgeter --mem N        grant a process N pages from this shell's budget\n");
     out(b"  date                    print the wall-clock time\n");
     out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
@@ -903,7 +907,7 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         return;
     }
     match e.prog {
-        Prog::Worker => {
+        Prog::LeastAuthorityDemo => {
             out(b"  a process at EL0 computed ");
             write_num(e.arg, out);
             out(b"*");
@@ -1340,7 +1344,7 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
     }
     out(b"    arg    ");
     // **Read the manifest, do not keep a second list of which programs take an argument.** This
-    // was `matches!(e.prog, Prog::Worker)` until 2026-08-16, so every other argument-taking program
+    // was `matches!(e.prog, Prog::LeastAuthorityDemo)` until 2026-08-16, so every other argument-taking program
     // previewed `arg (none)` while the shell went on to hand it the argument anyway. That is the
     // worst possible direction for this particular line to be wrong in: the next thing it prints is
     // that reading the command is reading its whole authority, and a preview that under-reports
@@ -1470,8 +1474,8 @@ mod tests {
 
     #[test]
     fn a_line_with_no_operators_is_one_command() {
-        match route(b"  worker 7  ") {
-            Route::One(stage) => assert_eq!(grant_plan::trim(stage), b"worker 7"),
+        match route(b"  least_authority_demo 7  ") {
+            Route::One(stage) => assert_eq!(grant_plan::trim(stage), b"least_authority_demo 7"),
             other => panic!("expected one command, got {other:?}"),
         }
     }
@@ -1837,8 +1841,9 @@ mod tests {
     #[test]
     fn a_refusal_about_a_real_program_uses_the_canonical_name() {
         // The name the manifest carries, not the bytes typed, because the manifest is what refused.
-        let s = shown(|o| write_refusal(&spec_of(b"worker"), Refusal::ArgRequired, o));
-        assert!(s.starts_with("  worker: "), "{s}");
+        let s =
+            shown(|o| write_refusal(&spec_of(b"least_authority_demo"), Refusal::ArgRequired, o));
+        assert!(s.starts_with("  least_authority_demo: "), "{s}");
         // Nothing to prefix when the program did not resolve, whatever the refusal.
         let s = shown(|o| write_refusal(&spec_of(b"nope x"), Refusal::FileForbidden, o));
         assert!(!s.contains("nope"), "{s}");
@@ -1868,9 +1873,9 @@ mod tests {
 
     #[test]
     fn a_spawn_that_failed_says_so_whatever_the_program_was() {
-        // The sentinel is checked before the program is looked at, which matters: `worker`'s arm
+        // The sentinel is checked before the program is looked at, which matters: `least_authority_demo`'s arm
         // would otherwise report that a process computed `u64::MAX`.
-        for prog in [Prog::Worker, Prog::Budgeter, Prog::Date] {
+        for prog in [Prog::LeastAuthorityDemo, Prog::Budgeter, Prog::Date] {
             let s = shown(|o| write_outcome(&endowment(prog), spawnproto::SPAWN_FAILED, o));
             assert!(s.contains("could not spawn"), "{prog:?}: {s}");
         }
@@ -1878,7 +1883,7 @@ mod tests {
 
     #[test]
     fn the_two_programs_that_answer_with_a_number_report_it_in_their_own_terms() {
-        let mut e = endowment(Prog::Worker);
+        let mut e = endowment(Prog::LeastAuthorityDemo);
         e.arg = 7;
         assert_eq!(
             shown(|o| write_outcome(&e, 49, o)),
@@ -2258,9 +2263,9 @@ mod tests {
     /// one that happens to take an argument today.
     ///
     /// This is written as a sweep over the whole enum on purpose. The line used to read
-    /// `matches!(e.prog, Prog::Worker)`, which is correct for the tree as it stands (`Worker` is the
+    /// `matches!(e.prog, Prog::LeastAuthorityDemo)`, which is correct for the tree as it stands (`LeastAuthorityDemo` is the
     /// only `ArgSpec::Required` program) and silently wrong for the next one added: the shell would
-    /// print `arg (none)` and then hand the argument over anyway. A test naming `Worker` would have
+    /// print `arg (none)` and then hand the argument over anyway. A test naming `LeastAuthorityDemo` would have
     /// passed against the bug. A test that asks the manifest cannot.
     #[test]
     fn the_arg_line_follows_the_manifest_for_every_program() {
@@ -2300,12 +2305,12 @@ mod tests {
 
     #[test]
     fn caps_refuses_a_pipeline_whose_stage_has_no_bytes_to_pipe() {
-        // `worker` answers with a number, not a stream, so there is nothing for `|` to carry. The
+        // `least_authority_demo` answers with a number, not a stream, so there is nothing for `|` to carry. The
         // preview refuses the same line the prompt would, which is the property that makes `caps`
         // worth typing before a command rather than after it.
         let s = shown(|o| {
             write_caps(
-                b"worker 7 | wc",
+                b"least_authority_demo 7 | wc",
                 128,
                 Holdings::default(),
                 None,
@@ -2313,7 +2318,7 @@ mod tests {
                 o,
             );
         });
-        assert!(s.starts_with("  worker: "), "{s}");
+        assert!(s.starts_with("  least_authority_demo: "), "{s}");
         assert!(!s.contains("would grant"), "{s}");
     }
 
@@ -2500,7 +2505,7 @@ mod tests {
     fn caps_refuses_a_second_stream_the_program_never_declared() {
         let s = shown(|o| {
             write_caps(
-                b"worker 7 2> err.txt",
+                b"least_authority_demo 7 2> err.txt",
                 128,
                 Holdings {
                     dir: true,
@@ -2513,7 +2518,7 @@ mod tests {
                 o,
             );
         });
-        assert!(s.starts_with("  worker: "), "{s}");
+        assert!(s.starts_with("  least_authority_demo: "), "{s}");
         assert!(s.contains("declares no second output"), "{s}");
         assert!(!s.contains("would grant"), "{s}");
     }

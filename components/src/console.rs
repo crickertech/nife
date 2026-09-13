@@ -1,6 +1,6 @@
 //! The console server: a whole program in one job.
 //!
-//! Milestone 19f.3, the second program lifted out of `hello` into its own binary (after the worker).
+//! Milestone 19f.3, the second program lifted out of `hello` into its own binary (after the `least_authority_demo`).
 //! It owns a device mapping of the PL011 UART and one request/reply channel. A client writes text
 //! into a page it shares with the server, SENDs the length on the request endpoint, and the server
 //! copies that many bytes to the UART one at a time and ACKs on the reply endpoint. The kernel never

@@ -329,7 +329,7 @@ pub const IE_LFSR_LOCKUP_EN: u32 = 1 << 4;
 /// interrupt disabled, measured rather than inferred.
 ///
 /// A driver that wants the completion interrupt instead needs this bit plus the contribution bits,
-/// routed at PLIC line 30 per \[binding\]'s `interrupts = <30>`. `user/src/jh7110_entropy_source.rs` says
+/// routed at PLIC line 30 per \[binding\]'s `interrupts = <30>`. `components/src/jh7110_entropy_source.rs` says
 /// why it does not.
 pub const IE_GLBL_EN: u32 = 1 << 31;
 
@@ -610,7 +610,7 @@ pub fn assemble(rand: [u32; 8]) -> [u8; 32] {
 pub const WORD_BYTES: u64 = 8;
 
 /// **The 32 bytes in hand, and how many are still ours to give** (milestone 159), lifted out of
-/// `user/src/jh7110_entropy_source.rs` so it can be tested somewhere a register does not have to exist.
+/// `components/src/jh7110_entropy_source.rs` so it can be tested somewhere a register does not have to exist.
 ///
 /// This is the one piece of the driver that can serve a byte twice, hand back a byte it already
 /// zeroed, or lose the seam between two generations, and none of that is visible in the register

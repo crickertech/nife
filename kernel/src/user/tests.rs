@@ -97,11 +97,11 @@ fn reap_bare(tid: crate::thread::ThreadId) -> bool {
     wait_for(|| !sched::thread_present(tid))
 }
 
-/// The `worker` program's ELF bytes (milestone 19f.2), a distinct binary in the archive, not a
+/// The `least_authority_demo` program's ELF bytes (milestone 19f.2), a distinct binary in the archive, not a
 /// role of the init/hello binary. `_start(x0, x1, x2)` reads its input in `x1` and needs no
 /// role selector.
-fn worker_image() -> &'static [u8] {
-    program("worker").expect("no worker program in the initrd archive")
+fn least_authority_demo_image() -> &'static [u8] {
+    program("least_authority_demo").expect("no least_authority_demo program in the initrd archive")
 }
 
 /// The `net_stack` program's ELF bytes (milestone 30, piece 3): the smoltcp net server, a distinct
@@ -1886,20 +1886,20 @@ fn a_std_program_serves_a_granted_listening_port() {
 
 /// **The shell's `run` mechanism: spawn a process, get its answer.** Milestone 10's core.
 ///
-/// A worker process is started at EL0 with an argument, computes `n*n`, reports the result on
+/// A `least_authority_demo` process is started at EL0 with an argument, computes `n*n`, reports the result on
 /// an rendezvous it was handed, and exits. The whole lifecycle a shell drives when you type
 /// `run n`, minus the interactive loop, which is exercised by the piped demo instead.
 #[test_case]
-fn a_spawned_worker_process_computes_and_reports() {
+fn a_spawned_least_authority_demo_computes_and_reports() {
     let result = sched::create_rendezvous();
     let faults = USER_FAULTS.load(Ordering::Relaxed);
 
     sched::spawn(move || {
         run(
-            worker_image(), // its own binary now (19f.2), not a role of hello
+            least_authority_demo_image(), // its own binary now (19f.2), not a role of hello
             Spawn {
                 arg0: 0, // no role selector; the input is in x1
-                arg1: 9, // the worker computes 9*9
+                arg1: 9, // the least_authority_demo computes 9*9
                 arg2: 0,
                 grants: &[crate::cap::rendezvous_cap(
                     result,
@@ -1912,11 +1912,14 @@ fn a_spawned_worker_process_computes_and_reports() {
     .expect("spawn failed");
 
     let answer = sched::ipc_recv(result)[0];
-    assert_eq!(answer, 81, "the spawned worker computed the wrong answer");
+    assert_eq!(
+        answer, 81,
+        "the spawned least_authority_demo computed the wrong answer"
+    );
     assert_eq!(
         USER_FAULTS.load(Ordering::Relaxed),
         faults,
-        "the worker faulted instead of computing cleanly",
+        "the least_authority_demo faulted instead of computing cleanly",
     );
 }
 
@@ -2498,25 +2501,29 @@ fn userspace_init_parses_an_elf_and_builds_a_running_child() {
     init.release_or_fail("an init test's building budget");
 }
 
-/// **Milestone 19e: init builds a worker, passes it an argument, and gets the answer back.**
-/// Every child before this took only its role in `x0`. A worker computes on an input, so 19e
-/// widened `START` to carry three initial registers. init builds a worker, starts it with the
-/// input in `x1`, and the worker squares it and reports. Receiving `n*n` (not `n`, not garbage)
+/// **Milestone 19e: init builds a `least_authority_demo`, passes it an argument, and gets the answer back.**
+/// Every child before this took only its role in `x0`. A `least_authority_demo` computes on an input, so 19e
+/// widened `START` to carry three initial registers. init builds a `least_authority_demo`, starts it with the
+/// input in `x1`, and the `least_authority_demo` squares it and reports. Receiving `n*n` (not `n`, not garbage)
 /// proves the argument crossed `START` into a fresh EL0 thread's registers intact. This is the
 /// mechanism a real spawn service runs on: a workload parameterized by data, not just identity.
 #[test_case]
-fn init_builds_a_worker_and_passes_it_an_argument() {
-    const INIT_WORKER_ROLE: u64 = 28;
+fn init_builds_the_demo_and_passes_it_an_argument() {
+    const INIT_LEAST_AUTHORITY_DEMO_ROLE: u64 = 28;
     const WORKER_INPUT: u64 = 7;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_WORKER_ROLE, report);
+    let init = spawn_progenitor(
+        initrd().expect("no initrd"),
+        INIT_LEAST_AUTHORITY_DEMO_ROLE,
+        report,
+    );
 
     let answer = crate::sched::ipc_recv(report)[0];
     assert_eq!(
         answer,
         WORKER_INPUT * WORKER_INPUT,
-        "the worker did not receive its START argument: expected n*n back",
+        "the least_authority_demo did not receive its START argument: expected n*n back",
     );
     init.release_or_fail("an init test's building budget");
 }
@@ -2599,7 +2606,7 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     );
 }
 
-/// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The worker's
+/// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The `least_authority_demo`'s
 /// `n*n` proved the mechanism; this proves a *substantial* program. init builds the `"coremark"`
 /// binary (a CoreMark-derived run: list sort, matrix multiply, state machine, folded into a CRC),
 /// starts it, and the workload SENDs the run's checksum home. Receiving `coremark::PINNED_CRC_64`

@@ -583,7 +583,7 @@ nife: handing the system to userspace init.
 The chain now reaches everything **the interactive init** loads. Three other userspace loaders still
 load unmeasured bytes, all of them test or demo programs rather than the shipped system:
 
-- **`builder`** (riscv's `riscv_initrd_demo`), which loads `worker` out of the archive.
+- **`builder`** (riscv's `riscv_initrd_demo`), which loads `least_authority_demo` out of the archive.
 - **`root_supervisor`/`spawner`** (the supervision tree), where the program image travels as a blob
   copied into the spawner's address space rather than as an archive read. Measuring it means
   measuring the blob at the point `root_supervisor` reads it.

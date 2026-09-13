@@ -1379,7 +1379,7 @@ fn enter_frame(entry: u64, user_sp: u64, arg0: u64, arg1: u64, arg2: u64) -> ! {
 //   - aarch64 `hello`, riscv `USER_HELLO` (yield, yield)  -> `outlaw`, role `OUTLAW_ROUND_TRIP`
 //   - aarch64 `outlaw`  (read a kernel address)           -> `outlaw`, role `OUTLAW_READ_KERNEL`
 //   - aarch64 `spin`    (loop, no syscall, no stack)      -> the `interrupt_ignorer` binary (DECISIONS §24)
-//   - riscv `USER_REPORTER` (invoke a cap, SEND a word)   -> `riscv_worker_demo`, which builds a
+//   - riscv `USER_REPORTER` (invoke a cap, SEND a word)   -> `riscv_least_authority_demo`, which builds a
 //     process from the same parts and runs a real ELF through them
 //
 // This also removed `exec`, the one-page raw-machine-code loader they needed. Every program the
@@ -1402,11 +1402,11 @@ pub const OUTLAW_READ_KERNEL: u64 = 1;
 
 /// **Load and run a real compiled ELF at U-mode on RISC-V** (milestone 20, the user-ELF step).
 ///
-/// This takes the bytes of the `worker` program (a Rust binary compiled to a riscv64 ELF, delivered
+/// This takes the bytes of the `least_authority_demo` program (a Rust binary compiled to a riscv64 ELF, delivered
 /// as the initrd)
 /// and runs them through the kernel's *real* ELF loader. [`load`] parses the file, builds an address
 /// space with each `PT_LOAD` segment mapped W^X at the VA it names, and maps a stack; nothing here is
-/// riscv-specific except that the loader was just taught to accept `EM_RISCV`. The worker is granted
+/// riscv-specific except that the loader was just taught to accept `EM_RISCV`. The `least_authority_demo` is granted
 /// WRITE on one endpoint as its slot 0, started with the input `n` in its second argument register
 /// (`a1`), squares it, and SENDs the answer home.
 ///
@@ -1659,13 +1659,13 @@ fn x86_userspace_round() -> Result<X86UserspaceReport, &'static str> {
 }
 
 #[cfg(target_arch = "riscv64")]
-pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
+pub fn riscv_least_authority_demo(least_authority_demo: &[u8], n: u64) -> Result<u64, LoadError> {
     // The kernel's real loader: parse, build the address space, map the W^X segments and a stack.
-    let (space, entry) = load(worker)?;
+    let (space, entry) = load(least_authority_demo)?;
     // `load` returns an owned AddressSpace; the TCB path binds one by registry name, so register it.
     let aspace_name = readopt_user_address_space(space).expect("register the loaded address space");
 
-    // The worker's one authority: WRITE on a report endpoint, which it will hold as slot 0.
+    // The least_authority_demo's one authority: WRITE on a report endpoint, which it will hold as slot 0.
     let result = crate::sched::create_rendezvous();
     let result_cap = crate::cap::rendezvous_cap(result, crate::cap::Rights::WRITE);
 
@@ -1675,10 +1675,13 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
     let slot =
         crate::sched::thread_control_block_insert_cap(tid, result_cap, None).expect("cap insert");
-    assert_eq!(slot, 0, "the worker's report cap must land in slot 0");
+    assert_eq!(
+        slot, 0,
+        "the least_authority_demo's report cap must land in slot 0"
+    );
     crate::sched::configure_thread_control_block(tid, entry, USER_STACK_TOP, aspace_name)
         .expect("configure");
-    // The worker reads its input from a1 (the second argument); a0 and a2 are unused.
+    // The least_authority_demo reads its input from a1 (the second argument); a0 and a2 are unused.
     crate::sched::start_thread_control_block(tid, [0, n, 0]).expect("start");
 
     Ok(crate::sched::ipc_recv(result)[0])
@@ -1689,13 +1692,13 @@ pub fn riscv_worker_demo(worker: &[u8], n: u64) -> Result<u64, LoadError> {
 /// proves the composition model, not the aarch64 interactive system).
 ///
 /// The initrd is a nifefs archive holding `builder` (milestone 20's minimal system builder) plus
-/// `worker`. The kernel loads only `builder`, maps the whole archive read-only into its address
+/// `least_authority_demo`. The kernel loads only `builder`, maps the whole archive read-only into its address
 /// space, and grants it exactly two capabilities: a large untyped budget (slot 0) and a report
-/// endpoint with WRITE|GRANT (slot 1). From those, `builder` reads `worker` out of the archive by
+/// endpoint with WRITE|GRANT (slot 1). From those, `builder` reads `least_authority_demo` out of the archive by
 /// name, builds it as a child entirely from its own budget (a userspace ELF loader), hands the child a WRITE view of the
 /// report endpoint as its slot 0, and starts it with an input. The child squares the input and SENDs
 /// the answer straight to the report endpoint, which this function is waiting on. The kernel never
-/// parsed or mapped the worker: init did. That is the whole point (DECISIONS §17, and the aarch64
+/// parsed or mapped the `least_authority_demo`: init did. That is the whole point (DECISIONS §17, and the aarch64
 /// init lineage in notes/progenitor-and-loading.md), now on RISC-V.
 #[cfg(target_arch = "riscv64")]
 pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
@@ -1716,7 +1719,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // for exactly that.
     crate::trust::require("builder", init_bytes);
     // The measurement table too (milestone 104). `builder` does not read it (it loads exactly one
-    // worker and is milestone 20's demo, not the interactive system), but the whole archive is
+    // least_authority_demo and is milestone 20's demo, not the interactive system), but the whole archive is
     // mapped into it either way and the parity gate (§19) asks for the same check in the same place
     // on both boards, not for the same check on the boot path that happens to use it.
     crate::trust::require_program_measurements(&fs);
@@ -1783,7 +1786,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     assert_eq!(s1, 1, "init's report endpoint must land in slot 1");
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
-    // init reads the archive length from its second argument (a1), as the worker reads its input.
+    // init reads the archive length from its second argument (a1), as the least_authority_demo reads its input.
     crate::sched::start_thread_control_block(tid, [0, initrd_len, 0]).expect("start");
 
     // Bench diagnostics (2026-08-14, first-silicon session): the tour hung inside this demo on the
@@ -1822,7 +1825,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // The corruption canary, armed for exactly the window the bench stops happened in: parked
     // here waiting for the child. Every byte that changes in the thread table or the endpoint
     // registry prints with its address and before/after, so boot 11 can tell a legal delta (the
-    // worker's TCB appearing, the UART demo's endpoints) from a stray write. Disarmed on return.
+    // least_authority_demo's TCB appearing, the UART demo's endpoints) from a stray write. Disarmed on return.
     crate::sched::canary_arm_registries();
     // The word the child SENDs home (init built the pipe; the child sent through it).
     let word = crate::sched::ipc_recv(report)[0];
@@ -3504,9 +3507,10 @@ mod time_tests;
 /// where bytes go, and these are about what a word *is* and what a status means.
 ///
 /// The assertions are pairs, which is [`redirection_tests`]'s shape and for the same reason. `echo
-/// "*.txt"` against `echo *.txt` is one line quoted and one not; `worker 3 && echo yes` against
-/// `worker && echo yes` is one connector against a refused left-hand side. A single line proving
-/// "it printed something" would pass on a shell that ignored quoting entirely.
+/// "*.txt"` against `echo *.txt` is one line quoted and one not; `least_authority_demo 3 && echo
+/// yes` against `least_authority_demo && echo yes` is one connector against a refused left-hand
+/// side. A single line proving "it printed something" would pass on a shell that ignored quoting
+/// entirely.
 ///
 /// One module for both ISAs, for [`shell_navigation_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.

@@ -9,18 +9,18 @@
 //! read-only, and grants it two capabilities: a large untyped budget (slot 0) and a report endpoint
 //! (slot 1). From those, and nothing else, this program:
 //!
-//! 1. parses the archive (nifefs) and reads the `worker` program out of it by name,
+//! 1. parses the archive (nifefs) and reads the `least_authority_demo` program out of it by name,
 //! 2. parses that ELF (the `elf` crate, linked into userspace),
 //! 3. builds a child process out of its own budget through the granular capability verbs (retype an
 //!    address space, copy each segment into retyped frames and map them, retype a TCB, endow it,
 //!    configure, start), wiring the child's one endpoint to the report line, and
 //! 4. starts the child with an input.
 //!
-//! The child (the worker) squares the input and SENDs the answer straight to the report endpoint,
-//! which the kernel is waiting on. The kernel never touches the worker's bytes: this program loaded
+//! The child (the `least_authority_demo`) squares the input and SENDs the answer straight to the report endpoint,
+//! which the kernel is waiting on. The kernel never touches the `least_authority_demo`'s bytes: this program loaded
 //! it, built its address space, and started it. That is the init-as-system-builder model, proven on
 //! RISC-V. It shares the `user` crate's `link.ld` and the `user_rt` syscall runtime; every syscall
-//! it makes (retype, map, configure, start) crosses the same `ecall` ABI the worker uses.
+//! it makes (retype, map, configure, start) crosses the same `ecall` ABI the `least_authority_demo` uses.
 //!
 //! Name: recorded (crate `system_initializer`, ratified 2026-08-04 by calef, and milestone 63's
 //! name table before it). Never argued for directly and argued around twice, which is stronger
@@ -47,12 +47,12 @@ use user_rt::{
 const MEMORY_REGION: u64 = 0; // a budget to retype the child's address space, frames, and TCB from
 const REPORT: u64 = 1; // the report endpoint; we hand the child a narrowed WRITE view of it
 
-/// The input we hand the worker. It returns `n * n` on the report endpoint.
+/// The input we hand the `least_authority_demo`. It returns `n * n` on the report endpoint.
 const INPUT: u64 = 9;
 
 /// The child's layout, in its own address space (it links at `0x40_0000`, like every user program).
 const PAGE: u64 = 4096;
-const CHILD_STACK_TOP: u64 = 0x0050_0000; // one page of stack is plenty for the worker
+const CHILD_STACK_TOP: u64 = 0x0050_0000; // one page of stack is plenty for the least_authority_demo
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_x0: u64, initrd_len: u64, _x2: u64) -> ! {
@@ -63,20 +63,20 @@ pub extern "C" fn _start(_x0: u64, initrd_len: u64, _x2: u64) -> ! {
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         fail(0xE1);
     };
-    let Some(worker_bytes) = fs.read("worker") else {
+    let Some(demo_bytes) = fs.read("least_authority_demo") else {
         fail(0xE2);
     };
-    let Ok(elf) = elf::Elf::parse(worker_bytes) else {
+    let Ok(elf) = elf::Elf::parse(demo_bytes) else {
         fail(0xE3);
     };
 
-    // Build the worker and start it with INPUT. It SENDs its answer straight to REPORT (which we
+    // Build the least_authority_demo and start it with INPUT. It SENDs its answer straight to REPORT (which we
     // grant it, narrowed to WRITE, as its slot 0), and the kernel receives it. We built the pipe.
     if build_and_start(&elf, INPUT).is_err() {
         fail(0xE4);
     }
 
-    // Our job is done: the worker runs on its own. Leave, and the kernel reaps us.
+    // Our job is done: the least_authority_demo runs on its own. Leave, and the kernel reaps us.
     exit();
 }
 
@@ -155,11 +155,11 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
     if tcb_configure(tcb, elf.entry(), CHILD_STACK_TOP, aspace) != 0 {
         return Err(());
     }
-    // START's arguments become the child's a0/a1/a2; the worker reads its input from a1.
+    // START's arguments become the child's a0/a1/a2; the least_authority_demo reads its input from a1.
     if tcb_start(tcb, 0, n, 0) != 0 {
         return Err(());
     }
-    cap_delete(tcb); // our TCB cap; the worker keeps running until it exits
+    cap_delete(tcb); // our TCB cap; the least_authority_demo keeps running until it exits
     Ok(())
 }
 
@@ -175,8 +175,8 @@ fn retype_page_frame() -> Result<u64, ()> {
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
-/// Report a build failure to the kernel (a nonzero code the worker's real answer can never be, since
-/// the worker only ever sends a perfect square) and exit. The kernel's `recv` sees it and says so.
+/// Report a build failure to the kernel (a nonzero code the `least_authority_demo`'s real answer can never be, since
+/// the `least_authority_demo` only ever sends a perfect square) and exit. The kernel's `recv` sees it and says so.
 fn fail(code: u64) -> ! {
     let _ = send(REPORT, code, 0, 0);
     exit();

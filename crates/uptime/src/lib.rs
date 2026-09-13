@@ -21,7 +21,8 @@
 //! counter grants no authority to *affect* anything, only to observe the passage of time, and every
 //! OS that offers userspace self-timing accepts the same side channel. Since that exception already
 //! exists and already covers every process, `uptime` needed no manifest field, no new capability,
-//! and no wiring beyond what `worker` already has: the program that answers with nothing but a
+//! and no wiring beyond what `least_authority_demo` already has: the program that answers with
+//! nothing but a
 //! number turned out to need nothing but the counter.
 //!
 //! This is the one member of milestone 126's "machine-wide statistics" row (`free`, `uptime`,

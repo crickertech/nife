@@ -72,8 +72,8 @@
 //! `grant_plan::spawnproto::JOB_FAULTED` existed the wait had nothing to wake it. `job_undertaker`
 //! now sends that word after collecting the corpse, this shell prints
 //! [`swish::FAULTED_SENTENCE`] and `$?` reads 1. Measured rather than reasoned about, both before
-//! and after: `fixtures/src/worker.rs` was patched to trap on one argument and `script/shell-check` run
-//! against it, which failed with "the prompt never came back to take `worker 7`" and then passed
+//! and after: `components/src/least_authority_demo.rs` was patched to trap on one argument and `script/shell-check` run
+//! against it, which failed with "the prompt never came back to take `least_authority_demo 7`" and then passed
 //! through the same line.
 //!
 //! **A job that hangs without faulting still hangs the prompt**, which is the same symptom and a
@@ -1134,7 +1134,7 @@ fn piping() -> ! {
         b"date | wc",
         // And the refusals, at the prompt, with nothing spawned.
         b"wc",
-        b"worker 9 | wc",
+        b"least_authority_demo 9 | wc",
         b"date | date",
         b"date > report.txt",
     ] {
@@ -1203,7 +1203,7 @@ fn redirecting(rights: u64) -> ! {
         b"wc < fresh.txt",
         // And the refusals a directory does not rescue.
         b"wc < nosuch.txt",
-        b"worker 9 > out.txt",
+        b"least_authority_demo 9 > out.txt",
         // **`2>` binds to a declaration** (DECISIONS §67). `wc` writes one stream and its
         // diagnostics ride it, so the operator names nothing and the line does not run. The
         // sentence is the assertion; what it is *not* is a permission.
@@ -1228,19 +1228,19 @@ fn redirecting(rights: u64) -> ! {
         b"echo *.txt",
         // A quoted operator is text, so this line has no redirection on it and writes no file.
         b"echo 'a > b'",
-        // Sequencing. `worker 3` succeeds and `worker` alone is refused at the prompt, so these
+        // Sequencing. `least_authority_demo 3` succeeds and `least_authority_demo` alone is refused at the prompt, so these
         // lines cover every arm of the condition table with real commands.
-        b"worker 3 && echo yes",
-        b"worker && echo yes",
-        b"worker 3 || echo no",
-        b"worker || echo no",
+        b"least_authority_demo 3 && echo yes",
+        b"least_authority_demo && echo yes",
+        b"least_authority_demo 3 || echo no",
+        b"least_authority_demo || echo no",
         // `;` runs the second whatever the first did, which is the arm the four above cannot show.
-        b"worker && echo yes ; echo always",
+        b"least_authority_demo && echo yes ; echo always",
         // The status, after a command that ran and after one this shell refused. The second is the
         // decision this milestone settled: a refusal is 2 rather than 1, because nothing ran.
-        b"worker 3",
+        b"least_authority_demo 3",
         b"echo $?",
-        b"worker",
+        b"least_authority_demo",
         b"echo $?",
         // And the refusals the grammar itself makes, which run nothing at all.
         b"echo 'unclosed",
@@ -1267,7 +1267,7 @@ const REDIRECT_DONE: &[u8] = b"== redirections done\n";
 ///
 /// The lines check each other rather than constants, which is [`redirecting`]'s shape:
 ///
-/// - `worker 3` and `time worker 3` are the same command run twice, so the answer has to be the same
+/// - `least_authority_demo 3` and `time least_authority_demo 3` are the same command run twice, so the answer has to be the same
 ///   both times. That is the "what you time is what you run" claim, made where it can fail.
 /// - `time echo hello` times a **builtin**, which spawns nothing: the duration is real and there is
 ///   no process anywhere in it.
@@ -1276,10 +1276,10 @@ fn timing() -> ! {
     let mut nav = Nav::empty();
     for line in [
         // The control: the untimed command, so the timed one below has something to agree with.
-        &b"worker 3"[..],
-        // A timed spawn. `worker` declares no clock and is handed none, which is the whole point of
+        &b"least_authority_demo 3"[..],
+        // A timed spawn. `least_authority_demo` declares no clock and is handed none, which is the whole point of
         // the milestone: the thing being timed needs no authority to be timed.
-        b"time worker 3",
+        b"time least_authority_demo 3",
         // A timed builtin. No process, no spawn, no grant, and still a duration.
         b"time echo hello",
         // And the prefix with nothing after it.

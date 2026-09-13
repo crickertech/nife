@@ -12,7 +12,7 @@
 //! accounting nothing exposes today. `uptime` turned out not to: [`user_rt::monotonic_nanos`] is
 //! the same counter `date` already reads, granted to **every** process unconditionally
 //! (`kernel/src/arch/*/timer.rs`'s documented, deliberate exception to DECISIONS §10's
-//! no-ambient-authority rule). So this program's manifest is `worker`'s, not `date`'s: no memory,
+//! no-ambient-authority rule). So this program's manifest is `least_authority_demo`'s, not `date`'s: no memory,
 //! no file, no clock capability, no domain, nothing but the report channel every spawn carries.
 //! `free` and `vmstat` are a different body of work; see the roadmap doc's fork write-up for why.
 //!

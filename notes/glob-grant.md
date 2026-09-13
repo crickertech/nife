@@ -427,7 +427,7 @@ Known limitations, next to the feature rather than only in a tracker.
   (`xargs caps rm`). The loop above it is the same loop either way.
 - **The sweep's stop rule can only see failures the shell prints.** A refusal, a spawn failure and a
   filesystem error stop it; a child that ran and did the wrong thing does not, because there is no
-  exit status on this path for any program but `worker` and `budgeter` (`swish::write_outcome`). So
+  exit status on this path for any program but `least_authority_demo` and `budgeter` (`swish::write_outcome`). So
   "batch three did not run" is honest and "every batch before it did what it was asked" is not a
   claim this makes. Exit statuses would fix it and are their own piece of work.
 - **A sweep re-enumerates the directory once per batch**, so it costs batches × the directory rather

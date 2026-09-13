@@ -115,7 +115,7 @@ Taken 2026-09-08.
 | `initboot` | 29 |
 | `init_boot` and `INIT_BOOT` | 14 |
 | `INIT_ROLES_ENTRY` | 8 |
-| `init_worker` | 3 |
+| `init_least_authority_demo` | 3 |
 | **the word `init` in `notes/` and `design/` prose** | **1,011** |
 | files and directories named for it | 6, including three notes and `design/init-and-granular-spawn.md` |
 

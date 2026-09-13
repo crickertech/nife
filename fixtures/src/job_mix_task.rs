@@ -48,8 +48,8 @@
 //! `os_primitives_benchmarker`): the thing that runs the job mix. `aim` and `aim7` were refused for
 //! naming somebody else's benchmark, which this is not: it keeps AIM7's four methodological
 //! properties and none of its 53 jobs, and a name claiming the original would be a claim about
-//! comparability that `crates/job_mix`'s `BUGS` explicitly denies. `worker` was refused because
-//! `fixtures/src/worker.rs` already exists.
+//! comparability that `crates/job_mix`'s `BUGS` explicitly denies. `least_authority_demo` was refused because
+//! `components/src/least_authority_demo.rs` already exists.
 //!
 //! **Name: ratified 2026-09-05 (calef, milestone 168).** Shipped provisionally as `job_mixer`, which
 //! was wrong rather than merely inconsistent: **this program does not mix anything.** It is one task

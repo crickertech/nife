@@ -55,10 +55,10 @@ const ARMED: &str = "timetable: armed";
 /// milliseconds, on the host, with no emulator. The program itself then audits what it was handed
 /// and prints the answer, and the assertions below read it, so a wrong list fails twice.
 ///
-/// `budgeter` joined `worker` on 2026-08-22, when milestone 129's `--mem` grant was backed:
+/// `budgeter` joined `least_authority_demo` on 2026-08-22, when milestone 129's `--mem` grant was backed:
 /// `timetable.conf`'s `at-boot budgeter --mem 4` is admitted because `SHIPPED_HELD.mem_pages` (4,
 /// mirrored below as [`MEM_GRANT_PAGES`]) covers it.
-const PLANNED_PROGRAMS: [&str; 2] = ["worker", "budgeter"];
+const PLANNED_PROGRAMS: [&str; 2] = ["least_authority_demo", "budgeter"];
 
 /// **What `at-boot budgeter --mem 4` grants, mirrored from `components/timetable.conf` and
 /// `timetable::SHIPPED_HELD.mem_pages`.** A written constant rather than a computed one for the
@@ -249,7 +249,7 @@ fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
 ///
 /// Upstream cron has one answer to a crontab line: it runs. The shipped document exercises four:
 ///
-/// - `worker 7`, `worker 3`, and `budgeter --mem 4` are **planned, backed and fired**, and their
+/// - `least_authority_demo 7`, `least_authority_demo 3`, and `budgeter --mem 4` are **planned, backed and fired**, and their
 ///   answers come back on the endpoint the plan said they would hold. The last of the three is
 ///   milestone 129's `--mem` grant made real: this timetable holds `timetable::SHIPPED_HELD.mem_pages`
 ///   pages it may split off, and `budgeter` maps some of them and reports how many.
@@ -275,7 +275,7 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     // Read it to the arming line, keeping the facts the assertions below need. Reading it at all is
     // half the claim: the timetable is blocked on these sends until this loop takes them, so
     // nothing can have fired before the plan was complete.
-    let mut saw_worker_grant = false;
+    let mut saw_demo_grant = false;
     let mut saw_budgeter_grant = false;
     let mut saw_nothing_else = false;
     let mut saw_exact_archive = false;
@@ -294,11 +294,11 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
             armed = true;
             break;
         }
-        saw_worker_grant |= s.contains("grants worker exactly:");
+        saw_demo_grant |= s.contains("grants least_authority_demo exactly:");
         // The backed `--mem` grant, printed the same way: the plan names the program and, on the
         // next line, the page count split from this timetable's own budget (`write_grant`).
         saw_budgeter_grant |= s.contains("grants budgeter exactly:");
-        // **The endowment, audited by the process that holds it.** `worker` and `budgeter` are the
+        // **The endowment, audited by the process that holds it.** `least_authority_demo` and `budgeter` are the
         // only programs the shipped document admits, so a correctly narrowed archive carries
         // exactly two.
         saw_exact_archive |=
@@ -319,8 +319,8 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
         "the timetable printed more than a plan's worth of lines"
     );
     assert!(
-        saw_worker_grant && saw_nothing_else,
-        "the plan did not say what a scheduled worker would hold",
+        saw_demo_grant && saw_nothing_else,
+        "the plan did not say what a scheduled least_authority_demo would hold",
     );
     assert!(
         saw_budgeter_grant,
@@ -360,8 +360,8 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
 
     // ---- what actually fired ----
     //
-    // `worker` squares its argument, so the shipped document's interval and at-boot entries answer
-    // 49 (`worker 7`) and 9 (`worker 3`); `budgeter --mem 4` answers however many of its four pages
+    // `least_authority_demo` squares its argument, so the shipped document's interval and at-boot entries answer
+    // 49 (`least_authority_demo 7`) and 9 (`least_authority_demo 3`); `budgeter --mem 4` answers however many of its four pages
     // it actually managed to map, which is at least one and at most four (page-table overhead is
     // free to differ between aarch64 and riscv64, so the exact count is not this milestone's claim;
     // `MEM_GRANT_PAGES` bounds it rather than pinning it). **This is the negative control**: every
@@ -378,13 +378,16 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
             49 => forty_nines += 1,
             n if (1..=MEM_GRANT_PAGES).contains(&n) => budgeter_reports += 1,
             other => panic!(
-                "a scheduled child reported {other}; only `worker 3`, `worker 7` and \
+                "a scheduled child reported {other}; only `least_authority_demo 3`, `least_authority_demo 7` and \
                  `budgeter --mem 4` were admitted, so this is an entry that fired after being \
                  refused",
             ),
         }
     }
-    assert_eq!(nines, 1, "`at-boot worker 3` must fire exactly once");
+    assert_eq!(
+        nines, 1,
+        "`at-boot least_authority_demo 3` must fire exactly once"
+    );
     assert_eq!(
         budgeter_reports, 1,
         "`at-boot budgeter --mem 4` must fire exactly once, backed by the grant this timetable \
@@ -393,7 +396,7 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     assert_eq!(
         forty_nines,
         FIRES - 2,
-        "the rest must be the repeating `worker 7` heartbeat",
+        "the rest must be the repeating `least_authority_demo 7` heartbeat",
     );
 
     // ---- the summary, after every corpse has been collected ----

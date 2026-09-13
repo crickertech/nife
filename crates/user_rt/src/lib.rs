@@ -2,7 +2,8 @@
 //!
 //! One syscall wrapper (`invoke`) and the three things every program builds on it: `send`, `recv`,
 //! and `exit`. That is the whole crate. It exists because milestones 19f.2-5 split the userspace
-//! into distinct binaries (`worker`, `console`, `input`, `shell`, plus `hello`), each of which had
+//! into distinct binaries (`least_authority_demo`, `console`, `input`, `shell`, plus `hello`), each
+//! of which had
 //! copied these functions verbatim. The extraction waited on purpose until the split was done: only
 //! then was the shared surface known rather than guessed, which is the DECISIONS rule about not
 //! building an abstraction before its requirements exist.
@@ -799,7 +800,8 @@ pub fn now() -> u64 {
 ///   early in the boot tour, well before the first process is loaded.
 /// - **A process was built by `supervision_proto::build_child_space`** (the tree's one userspace
 ///   ELF loader, used by `root_supervisor`, `spawner`, `system_initializer`, and every role
-///   `hello` builds, `coremark` and `timetable`'s own `worker` included), which maps a *freshly
+///   `hello` builds, `coremark` and `timetable`'s own `least_authority_demo` included), which maps
+///   a *freshly
 ///   retyped, zeroed* placeholder rather than the kernel's real page: nothing in that crate holds
 ///   a capability naming the kernel's specific physical frame, so it cannot forward the real
 ///   number, only a page shaped enough not to fault. See that crate's own comment at the map site

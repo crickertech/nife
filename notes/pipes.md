@@ -83,14 +83,14 @@ redirected:
 
 | | what slot 0 carries | can it be `>` or `\|`? |
 |---|---|---|
-| `worker`, `budgeter` | a `u64` answer in a register | no |
+| `least_authority_demo`, `budgeter` | a `u64` answer in a register | no |
 | `interrupt_heeder`, `interrupt_ignorer` | nothing; they report through a shared frame | no |
 | `date`, `wc`, `rm` | the sink contract's byte messages | yes |
 
 `date` went one further on 2026-08-03 and declares a **second** byte stream as well (DECISIONS §67),
 which is what `2>` binds to. `OutputSpec` is where that is written down too.
 
-`worker 9 > out.txt` would otherwise put a raw word into a file sink, producing a file with nothing
+`least_authority_demo 9 > out.txt` would otherwise put a raw word into a file sink, producing a file with nothing
 legible in it and no error anywhere. Declaring the convention makes it `Refusal::NotAByteStream` at
 the prompt. Unix has no equivalent because there every program's stdout is bytes by construction;
 here the register fastpath is real and older than the sink contract, and the manifest is where the
@@ -223,7 +223,7 @@ process that can write the file without opening a second session.
 **This costs the milestone nothing, and that is the test of whether it is the right shape.** What a
 redirected program holds is unchanged: one endpoint, `WRITE`, no way to ask what is behind it. There
 is no new message, no change to `grant_plan::spawnproto`, and no change in init. `Sink::File` and
-`Source::File` still exist in the plan, because the manifest check needs them (`worker 9 > out.txt`
+`Source::File` still exist in the plan, because the manifest check needs them (`least_authority_demo 9 > out.txt`
 is still `NotAByteStream`), and the wiring simply does not need a capability for them.
 
 It is also the smaller claim, honestly stated. `> report.txt` still grants strictly less than Unix's
@@ -527,7 +527,7 @@ exactly the loss `2>` exists to prevent on Unix.
 #### But the half that hurts most on Unix is already separated here
 
 The thing a person usually reaches for `2>` to save is **the shell's own refusals**, and those never
-enter a redirection here. `wc < nosuch.txt` is `Say::Failed` printed by the prompt; `worker 9 >
+enter a redirection here. `wc < nosuch.txt` is `Say::Failed` printed by the prompt; `least_authority_demo 9 >
 out.txt` is `Refusal::NotAByteStream` printed by the prompt; a spawn that fails is
 `spawnproto::SPAWN_FAILED` printed by the prompt. All of it goes to the terminal, always, because
 the shell is a different process from the thing being redirected and its output was never in the
@@ -1061,8 +1061,8 @@ $ echo hello world | wc | wc
 $ wc
   wc: reads an input stream: name a file, redirect with '<', or pipe into it
 
-$ worker 9 | wc
-  worker: does not write a byte stream, so there is nothing for > or | to redirect
+$ least_authority_demo 9 | wc
+  least_authority_demo: does not write a byte stream, so there is nothing for > or | to redirect
 
 $ date | date
   date: reads no input; there is no slot for those bytes to go in
@@ -1162,7 +1162,7 @@ of the real RedoxFS image. Three claims, and none of them is "it printed somethi
   byte count has to be the length of what was printed.
 - **The refusals a directory does not rescue.** `wc < nosuch.txt` is the filesystem's own sentence
   (a `<` does not create, because a `wc` that truthfully reported zero for a file that is not there
-  is a number a person would believe), and `worker 9 > out.txt` is still `NotAByteStream`.
+  is a number a person would believe), and `least_authority_demo 9 > out.txt` is still `NotAByteStream`.
 
 The pair of witnesses is the capability argument made twice with one binary:
 `pipeline_tests::a_redirection_a_shell_cannot_back_is_refused_rather_than_dropped` refuses because
@@ -1182,10 +1182,10 @@ capability table overflowing when the kernel handed it two more grants, and four
 call short of the redirection path.
 
 **And the gap runs the other way too, which milestone 86 found.** The kernel's stand-in init put a
-spawned program's argument in `arg0`; both real inits put it in `arg1`, and `fixtures/src/worker.rs`
+spawned program's argument in `arg0`; both real inits put it in `arg1`, and `components/src/least_authority_demo.rs`
 reads `arg1`. Nothing failed for two milestones, because no line in either script ever spawned a
-program that *takes* an argument: `date`, `wc` and `echo` take none, and `worker 9 | wc` is refused
-at the prompt before anything is built. The first script to type `time worker 3` got `3*3 = 0` back.
+program that *takes* an argument: `date`, `wc` and `echo` take none, and `least_authority_demo 9 | wc` is refused
+at the prompt before anything is built. The first script to type `time least_authority_demo 3` got `3*3 = 0` back.
 So a harness that "the shell cannot tell apart" can still be wrong in a way no shell would notice,
 and the fix is the same one as above: the scripts have to exercise the shapes the boot exercises.
 

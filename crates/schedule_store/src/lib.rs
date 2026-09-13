@@ -233,7 +233,8 @@ pub mod fixture {
     /// One `at-boot` entry and one `every` entry, matching `timetable::parse`'s own document shape
     /// (`components/timetable.conf`'s own reference document is the model): enough to prove the format
     /// round-trips through a real read from the filesystem, not merely through `include_str!`.
-    pub const DEMO_SCHEDULE_DOC: &str = "at-boot worker 3\nevery 30s worker 7\n";
+    pub const DEMO_SCHEDULE_DOC: &str =
+        "at-boot least_authority_demo 3\nevery 30s least_authority_demo 7\n";
 }
 
 #[cfg(test)]

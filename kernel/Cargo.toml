@@ -91,7 +91,7 @@ entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # The JH7110 TRNG's register logic and DTB discovery (milestone 159), the same
 # pure-logic/volatile-shell split `pci` and `nvme` below already use. The kernel takes it for one
 # thing only: `discover`, the device-tree query that says whether this machine has a TRNG at all,
-# so `entropy_service` can wire the userspace driver for it (`user/src/jh7110_entropy_source.rs`) instead of
+# so `entropy_service` can wire the userspace driver for it (`components/src/jh7110_entropy_source.rs`) instead of
 # keeping a second copy of the `compatible` string and the `reg` decode.
 jh7110_entropy_source = { version = "0.1.0", path = "../crates/jh7110_entropy_source" }
 

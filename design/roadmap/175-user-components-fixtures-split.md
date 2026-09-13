@@ -10,9 +10,6 @@ binary is first distributed to someone who cannot rebuild it"), which has not ha
 milestone is 39's own **"cheap first move, which commits to none of the four options"**, re-scoped
 against how much bigger the strain has gotten since 39 last measured it.
 
-**Gate: NONE.** A directory restructure and an `xtask`/initrd-packing update, no design decision
-and no kernel change.
-
 ## The strain, measured fresh rather than trusted from 39's own numbers
 
 Milestone 39 measured `user/` on 2026-07-30 (28 `[[bin]]` targets, 9,324 lines) and
@@ -119,8 +116,8 @@ eighteen days old when the lane read it, and the directory had grown by nine pro
 (`net_transport`, `socket_test_client`), which travel with it.
 
 **The rule is one question, and it is not the obvious one.** *Would a distribution ship this because
-somebody wants its function?* Yes is `components/` (49 programs); no, it exists to exercise or
-measure the system, is `fixtures/` (23).
+somebody wants its function?* Yes is `components/` (50 programs); no, it exists to exercise or
+measure the system, is `fixtures/` (22).
 
 **"Who calls it" is emphatically not the rule**, and getting that wrong would have produced a very
 different and much worse split. Nearly everything in this tree is reached only from a kernel test,
@@ -128,7 +125,14 @@ because the system has one user: `disk_partitioner`, `timetable`, `mdns_responde
 `identity_provisioner` are each spawned by exactly one test and are obviously components anyway.
 What separates the two is what the program IS.
 
-The three that were genuinely arguable, and how each went:
+**`least_authority_demo` is the case where the ruling did the classifying**, and it is the reason
+this section is worth reading rather than skimming. It was `worker`, and three records had it in a
+fixture list (`notes/naming.md`, milestone 39's illustrative list, and this block's own) by
+repetition rather than by ruling. calef ruled it the canonical minimal program on 2026-09-13, so it
+is a component. Nothing in the tree would have caught that: the lists agreed with each other, and
+they were all copies of one guess.
+
+The three the lane had to decide for itself, and how each went:
 
 - **`builder`.** Milestone 39's own illustrative list called it a fixture, on a tree where it was
   new. It is not one: `kernel/src/trust.rs` names it a measured boot root beside `progenitor`, for
@@ -142,10 +146,10 @@ The three that were genuinely arguable, and how each went:
   the client that does not notice (`chatty`) are fixtures. `components/`, and milestone 23's demo is
   therefore split across the two directories on purpose.
 
-**The split is real dependency isolation, not just directories.** `components` keeps 43
+**The split is real dependency isolation, not just directories.** `components` keeps 42
 dependencies and `fixtures` 22, derived by pruning against `cargo`'s own unused-dependency lint on
 all three targets and then against `cargo machete`, which `script/lint` gates on. `smoltcp`, `gpt`,
-`calendar`, `swish`, `timetable` and fourteen more no longer reach a fixture; `coremark`, `job_mix`
+`calendar`, `swish`, `timetable` and sixteen more no longer reach a fixture; `coremark`, `job_mix`
 and `soak_page` no longer reach a component.
 
 **The provisional package name `user` is gone rather than renamed**, which was the cheapest possible
@@ -162,7 +166,17 @@ agree about `0x40_0000`, with nothing comparing them, would have been the low ru
 **The C half went to `fixtures/`** with `c_shim` and `c_swappable`, so `components/build.rs` is four
 lines of link argument and `fixtures/build.rs` keeps milestone 36's clang resolution.
 
-**847 path citations were repointed** across `design/`, `notes/`, `kernel/` and `crates/`. Fifteen
+**All three of calef's 2026-09-13 rulings were performed here**, and none of the three could be
+swept. `heeder` was the only mechanical one (59 occurrences, every one the program). `spinner` is
+177 occurrences of which about forty are the program, and `worker` is 696 across 110 files, of which
+the English word holds `kernel/src/soak.rs`, `crates/soak_page`, `kernel/src/smp.rs`,
+`kernel/src/bench.rs`, `crates/board_console`'s soak census, `kernel/src/testing.rs` and half a dozen
+notes. Every occurrence of both was read. Records that narrate the past keep the old name (milestone
+39's 2026-07-30 measurement, 264's worklist, the dated findings in 47 and 51, the board sessions in
+`notes/visionfive2.md`, the milestone-10 note in `notes/shell.md`); documentation describing the
+tree as it is now takes the new one.
+
+**860 path citations were repointed** across `design/`, `notes/`, `kernel/` and `crates/`. Fifteen
 that name files deleted before this milestone (`user/src/virtio.rs`, `user/src/smb_server.rs` and
 thirteen more) were left dangling exactly as they already were: repointing a citation to a file that
 never moved because it no longer exists would invent a fact. `design/` prose keeps `user/` wherever

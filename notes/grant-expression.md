@@ -22,7 +22,7 @@ makes the confused deputy constructible.
 
 The inversion: a nife command grants **exactly what it names, and nothing else**. A program
 that names no resource gets none. There is no ambient pool to draw from, so the question "may I?"
-is never asked; there is simply nothing in the program's hands it was not given. `worker 9` grants a
+is never asked; there is simply nothing in the program's hands it was not given. `least_authority_demo 9` grants a
 report channel and an argument. `budgeter --mem 16` grants a report channel and a 16-page memory
 budget. `budgeter` alone grants a report channel and is refused, because budgeter's manifest says it
 needs memory and the command named none.
@@ -38,7 +38,7 @@ echo <text>
 
 **The command line itself is the grant expression.** Its parts are designators:
 
-- `<prog>` names the program to spawn (a closed set today: `worker`, `budgeter`, `interrupt_heeder`,
+- `<prog>` names the program to spawn (a closed set today: `least_authority_demo`, `budgeter`, `interrupt_heeder`,
   `interrupt_ignorer`, `date`).
 - `--mem N` designates **N pages of untyped**, carved from the shell's own budget.
 - a bare token designates whatever the program's manifest declares in that position: the integer
@@ -67,8 +67,8 @@ report.txt` writes: identical syntax, opposite authority, because the direction 
 by design. The prefix decorated *which file*, which was already on the screen, and was silent about
 read-versus-write, which is the part that decides what the child can do.
 
-Its safety argument failed on inspection too. `worker 5 extra` is refused as unplaceable because
-worker's manifest says `FileSpec::Forbidden`, not because of any prefix: **the manifest was doing all
+Its safety argument failed on inspection too. `least_authority_demo 5 extra` is refused as unplaceable because
+least_authority_demo's manifest says `FileSpec::Forbidden`, not because of any prefix: **the manifest was doing all
 the work and the prefix was taking credit.** The one thing the prefix genuinely bought is kept, in
 the place where it applies: a token shaped like a flag (`--secret`) never falls into the file
 position, because that is the one way a typo could become a capability transfer.
@@ -96,8 +96,8 @@ instead of an edit.
 designated (it reads as a flag), which is Unix's problem too and Unix's answer (`--`) is available
 when something needs it. And with the prefix gone, the "you hold no such capability" refusal is only
 reachable through a manifest that declares a file, so no *shipped* program can produce it at the
-prompt today: `worker report.txt` now answers "worker: takes no file; drop the name", which is the
-durable fact about worker rather than an accident of this shell's endowment. That reordering is
+prompt today: `least_authority_demo report.txt` now answers "least_authority_demo: takes no file; drop the name", which is the
+durable fact about least_authority_demo rather than an accident of this shell's endowment. That reordering is
 deliberate; see the refusal catalog below.
 
 ## Where the authority actually comes from, and how it moves
@@ -160,12 +160,12 @@ A refusal is a fact about what the shell holds, phrased in the capability model'
   name. A mistyped builtin lands here too, now that the first word is either a builtin or a program,
   which is why the line points at both halves of what the prompt understands.
 - `budgeter` → "budgeter: needs a memory grant; add --mem <pages>." The manifest caught it.
-- `worker 3 --mem 8` → "worker: takes no memory grant; drop the --mem."
-- `worker 5 extra` → "worker: takes no file; drop the name." The token could only have been a file,
-  and worker declares none, so it is refused rather than granted-and-dropped. **The answer is the
+- `least_authority_demo 3 --mem 8` → "least_authority_demo: takes no memory grant; drop the --mem."
+- `least_authority_demo 5 extra` → "least_authority_demo: takes no file; drop the name." The token could only have been a file,
+  and least_authority_demo declares none, so it is refused rather than granted-and-dropped. **The answer is the
   same in a shell that holds a directory**, which is the point: the manifest decides, not the
   endowment.
-- `worker eight` → "worker: needs an integer argument." Not a file, because worker has no file slot
+- `least_authority_demo eight` → "least_authority_demo: needs an integer argument." Not a file, because least_authority_demo has no file slot
   for the word to fall into.
 - `wc report.txt`, at a program that *does* declare a file, in a shell that was granted no directory
   → "wc: **you hold no such capability**: this shell was granted no directory to narrow." Since
@@ -181,10 +181,10 @@ The `no such capability` line is the headline refusal, and it is a statement abo
 capability table: "there is nothing I hold that could grant this," never a Unix-flavored EPERM.
 
 **One ordering changed with the designator, deliberately.** Phase 1 reported "you hold no such
-capability" before any manifest quibble, so `worker file:x` produced it even though worker takes no
+capability" before any manifest quibble, so `least_authority_demo file:x` produced it even though least_authority_demo takes no
 file. That was the prefix taking credit again: with the designator gone, a program's declaration is
 checked first, and the holdings decide only whether a file the program *does* declare can be backed.
-The reason is that "worker takes no file" stays true whatever this shell holds, while "no directory
+The reason is that "least_authority_demo takes no file" stays true whatever this shell holds, while "no directory
 to narrow" is an accident of this boot; the durable fact is the more useful one to print. The visible
 consequence is that no shipped program can reach the headline refusal from the prompt today, because
 none declares `FileSpec::Required`; it is exercised by the host tests through `plan_against`, the

@@ -3444,7 +3444,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // **The first process** (milestone 266). Packed under this name on all three architectures,
         // and the kernel's `riscv_shell_boot` looks it up by it.
         ("progenitor", "progenitor"),
-        ("worker", "worker"),
+        ("least_authority_demo", "least_authority_demo"),
         ("serial_driver", "serial_driver"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
         ("coremark", "coremark"),
@@ -3620,7 +3620,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
 /// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the
 /// portable programs the second architecture runs and packs them into a nifefs archive. The kernel
 /// enters `progenitor` for the interactive boot and `builder` (milestone 20's minimal system
-/// builder) for the tour; `builder` is the one that loads `worker` by name. Every entry is packed
+/// builder) for the tour; `builder` is the one that loads `least_authority_demo` by name. Every entry is packed
 /// under its own name since milestone 266. Point `NIFE_INITRD` at the result and boot the riscv
 /// kernel, e.g.:
 ///
@@ -3729,7 +3729,7 @@ fn initrd_riscv() -> bool {
         return false;
     }
     eprintln!(
-        "wrote {} ({size} bytes): progenitor, builder, worker",
+        "wrote {} ({size} bytes): progenitor, builder, least_authority_demo",
         riscv_initrd_path()
     );
     true
@@ -4321,7 +4321,7 @@ const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 /// The initrd is a **nifefs image**, the same format the virtio disk uses, so one parser serves
 /// both the RAM archive and the disk. It holds `progenitor` (the first process, milestone 266) and
 /// `hello` (the role catalogue the kernel re-enters for milestone 19d's tests), plus the distinct
-/// binaries lifted out of hello: `worker` (19f.2) and `console` (19f.3). The kernel reads the
+/// binaries lifted out of hello: `least_authority_demo` (19f.2) and `console` (19f.3). The kernel reads the
 /// `progenitor` entry to boot; the progenitor loads the rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
 /// in git is a blob nobody can review.
 ///
@@ -4358,7 +4358,7 @@ fn initrd_aarch64() -> bool {
         // **The milestone 7-19 role catalogue, under its own name.** `spawn_progenitor` enters it
         // directly for 19d's test roles, so it is in `boot_programs` and measured.
         ("hello", "hello"),
-        ("worker", "worker"),
+        ("least_authority_demo", "least_authority_demo"),
         ("console", "console"),
         ("input", "input"),
         ("swish", "swish"),
@@ -5659,7 +5659,7 @@ fn redoxfs_reads_back(name: &str, want: &[u8]) -> bool {
     }
 }
 
-/// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `worker`,
+/// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `least_authority_demo`,
 /// `console`, and so on. `initrd_aarch64` packs each into the archive, under that same name for every
 /// program but `hello`, which is packed as `init`.
 ///
@@ -6827,7 +6827,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // argument, since this program has no `^C` and bounds itself by a typed count instead).
     ("caps watch 3", &["cap 7  endpoint  domain"]),
     // **`uptime`, at the real prompt** (milestone 126). No domain, no clock: the manifest is
-    // `worker`'s, because `monotonic_nanos` is granted to every process unconditionally
+    // `least_authority_demo`'s, because `monotonic_nanos` is granted to every process unconditionally
     // (kernel/src/arch/*/timer.rs's exception to DECISIONS §10). A green line here proves the
     // program was loaded, measured, granted its report endpoint and actually ran at EL0; the exact
     // elapsed time is not asserted because a real boot's timing is not this check's business.
@@ -6998,21 +6998,21 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // on the screen before anything moves, and a name with a space in it is now something that
     // sentence can be about.
     ("caps wc \"my notes.txt\"", &["input    my notes.txt"]),
-    // **Sequencing and the status** (milestone 67). `worker 3` runs and `worker` alone is refused at
+    // **Sequencing and the status** (milestone 67). `least_authority_demo 3` runs and `least_authority_demo` alone is refused at
     // the prompt for the integer its manifest requires, so these three lines cover both arms of the
     // condition table with real commands rather than with a branch written for a gate.
-    ("worker 3 && echo yes", &["yes"]),
-    ("worker || echo no", &["no"]),
-    // **The decision this milestone settled, read at a prompt.** `worker` alone is refused, and a
+    ("least_authority_demo 3 && echo yes", &["yes"]),
+    ("least_authority_demo || echo no", &["no"]),
+    // **The decision this milestone settled, read at a prompt.** `least_authority_demo` alone is refused, and a
     // refusal is not an error: nothing was spawned, nothing was opened, and the status says so with
     // its own number. Unix cannot draw this line, because there `127` and a program's own `exit(1)`
     // are the same kind of integer.
     //
-    // The bare `worker` is here because the *first* draft of this gate put `echo $?` straight after
-    // `worker || echo no` and got `0`, which was the shell being right: the last thing that ran was
+    // The bare `least_authority_demo` is here because the *first* draft of this gate put `echo $?` straight after
+    // `least_authority_demo || echo no` and got `0`, which was the shell being right: the last thing that ran was
     // the `echo`. `$?` is the previous **command**, not the previous line, and that is bash's rule
     // and this shell's.
-    ("worker", &["needs an integer argument"]),
+    ("least_authority_demo", &["needs an integer argument"]),
     ("echo $?", &["2"]),
     // **Init's job budget is bounded and comes back** (milestone 22, the interactive increment).
     // Init now holds a pool with room for six live jobs instead of the kernel's whole construction
@@ -7031,12 +7031,12 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // one lane.) Six distinct arguments rather than one repeated, because the
     // transcript is walked with a moving cursor and six identical answers would let a missed line
     // pass as its neighbour.
-    ("worker 3", &["3*3 = 9"]),
-    ("worker 4", &["4*4 = 16"]),
-    ("worker 5", &["5*5 = 25"]),
-    ("worker 6", &["6*6 = 36"]),
-    ("worker 7", &["7*7 = 49"]),
-    ("worker 8", &["8*8 = 64"]),
+    ("least_authority_demo 3", &["3*3 = 9"]),
+    ("least_authority_demo 4", &["4*4 = 16"]),
+    ("least_authority_demo 5", &["5*5 = 25"]),
+    ("least_authority_demo 6", &["6*6 = 36"]),
+    ("least_authority_demo 7", &["7*7 = 49"]),
+    ("least_authority_demo 8", &["8*8 = 64"]),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
@@ -7567,22 +7567,22 @@ fn shell_check_leg(riscv: bool) -> bool {
     //
     // **The whole transcript, not the boot**, because the typed script is where a death would be
     // most surprising. Nothing in `SHELL_CHECK_SCRIPT` traps on purpose: the three lines that fail
-    // (`wc` and `doc` with nothing named, `worker` with no argument) are all refusals, two at the
+    // (`wc` and `doc` with nothing named, `least_authority_demo` with no argument) are all refusals, two at the
     // prompt before anything is spawned and one an ordinary non-zero exit, and `rm gate.txt`'s
-    // refusal is an answer rather than a fault. `echo $?` reading `2` right after `worker` is this
+    // refusal is an answer rather than a fault. `echo $?` reading `2` right after `least_authority_demo` is this
     // gate's own proof of that distinction: a thread the kernel killed does not get to set a status.
     // A trap in any of them would be a real regression rather than a false positive here.
     //
     // **What a deliberate trap does was measured rather than assumed** (milestone 233), because
-    // milestone 230's lane named it as the thing it could not cheaply find out. `worker` was
-    // patched to `supervision_proto::fail()` on `worker 5` and this gate run against it. Two
+    // milestone 230's lane named it as the thing it could not cheaply find out. `least_authority_demo` was
+    // patched to `supervision_proto::fail()` on `least_authority_demo 5` and this gate run against it. Two
     // results, and the second is the more interesting one:
     //
     //   1. This check fires, naming the thread and the reason, so it is a check that can fail
     //      rather than one that only ever passes. That mattered: it was written against a tree
     //      where `login` had just stopped dying, so nothing else would have exercised it.
     //   2. **The prompt never comes back.** The run also failed with "the prompt never came back
-    //      to take `worker 6`", because the shell waits on the result endpoint of a job that
+    //      to take `least_authority_demo 6`", because the shell waits on the result endpoint of a job that
     //      faulted instead of sending, and nothing wakes that wait. A spawned command that traps
     //      hangs the shell rather than returning a status. That is a real limitation this gate now
     //      makes visible, and it is `components/src/swish.rs`'s to carry rather than this file's.

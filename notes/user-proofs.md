@@ -273,6 +273,16 @@ are worth their place rather than an assertion that they are.
 
 ## BUGS
 
+- **`fixtures` is not a row in `script/verify`'s crate table, so a harness added to a fixture runs
+  nowhere and nothing says so** (milestone 175). It carries no harness today, and a row with none
+  fails the way that file's own comment describes: Kani refuses every `#![no_std]` crate root that
+  does not mention it, so the run dies on the first binary without one. The failure mode is the
+  invisible one this note already records twice, `mdns_proto` and then `jh7110_entropy_source`, where
+  the suite goes green *faster* because a scope got smaller. **If you add a `#[kani::proof]` under
+  `fixtures/src`, add the row in the same change**, and copy the `--bin` derivation `components` has
+  a few lines above it. The honest reason this is recorded rather than fixed is that fixing it means
+  either a row that cannot pass or machinery for a case that does not exist.
+
 - **`script/falsifications` walks `crates/` only, so this milestone's record is outside its census
   and its sweep**, and so are `kernel`'s two harnesses from milestone 193, which carry no
   `Falsification:` record at all. The count that script prints is therefore a ratio over `crates/`

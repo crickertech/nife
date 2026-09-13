@@ -93,7 +93,7 @@ use line::{Sink, Source};
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Prog {
     /// Squares its integer argument and reports the answer. Needs no memory grant.
-    Worker,
+    LeastAuthorityDemo,
     /// Spends a granted untyped budget: maps pages until the budget is exhausted and reports how
     /// many it got. The program that makes `--mem` *real* rather than parsed-and-ignored: the
     /// number it reports is the authority the command line handed it.
@@ -191,7 +191,7 @@ pub enum Prog {
     /// **Print how long the ambient monotonic counter has been running** (milestone 126,
     /// `components/src/uptime.rs`, `crates/uptime`).
     ///
-    /// [`Prog::Worker`]'s manifest, not [`Prog::Date`]'s: `user_rt::monotonic_nanos` is granted to
+    /// [`Prog::LeastAuthorityDemo`]'s manifest, not [`Prog::Date`]'s: `user_rt::monotonic_nanos` is granted to
     /// **every** process unconditionally (`kernel/src/arch/*/timer.rs`'s documented, deliberate
     /// exception to DECISIONS §10's no-ambient-authority rule), so this program needed no clock
     /// capability, no domain, no memory, no file, nothing beyond the report channel every spawn
@@ -261,7 +261,7 @@ impl Prog {
     /// would be unreachable. The program namespace must not contain any of those names.
     pub fn from_name(name: &[u8]) -> Option<Prog> {
         match name {
-            b"worker" => Some(Prog::Worker),
+            b"least_authority_demo" => Some(Prog::LeastAuthorityDemo),
             b"budgeter" => Some(Prog::Budgeter),
             b"interrupt_heeder" => Some(Prog::InterruptHeeder),
             b"interrupt_ignorer" => Some(Prog::InterruptIgnorer),
@@ -285,7 +285,7 @@ impl Prog {
     /// The name init loads it by in the initrd (nifefs), and the shell prints.
     pub fn name(self) -> &'static str {
         match self {
-            Prog::Worker => "worker",
+            Prog::LeastAuthorityDemo => "least_authority_demo",
             Prog::Budgeter => "budgeter",
             Prog::InterruptHeeder => "interrupt_heeder",
             Prog::InterruptIgnorer => "interrupt_ignorer",
@@ -305,7 +305,7 @@ impl Prog {
     /// The stable wire id the shell sends and init decodes ([`spawnproto`]).
     pub fn id(self) -> u64 {
         match self {
-            Prog::Worker => 0,
+            Prog::LeastAuthorityDemo => 0,
             Prog::Budgeter => 1,
             Prog::InterruptHeeder => 2,
             Prog::InterruptIgnorer => 3,
@@ -325,7 +325,7 @@ impl Prog {
     /// The inverse of [`id`](Prog::id): init turns the wire id back into a program.
     pub fn from_id(id: u64) -> Option<Prog> {
         match id {
-            0 => Some(Prog::Worker),
+            0 => Some(Prog::LeastAuthorityDemo),
             1 => Some(Prog::Budgeter),
             2 => Some(Prog::InterruptHeeder),
             3 => Some(Prog::InterruptIgnorer),
@@ -346,19 +346,19 @@ impl Prog {
     /// The program's declared endowment: what the shell must (and must not) grant it.
     pub fn manifest(self) -> Manifest {
         match self {
-            Prog::Worker => Manifest {
+            Prog::LeastAuthorityDemo => Manifest {
                 arg: ArgSpec::Required,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
                 dir: DirSpec::Forbidden,
                 flags: NO_FLAGS,
-                // A worker answers with a number in a register, which is older than the sink
-                // contract and still the right shape for one integer. It is also why `worker 9 >
+                // A least_authority_demo answers with a number in a register, which is older than the sink
+                // contract and still the right shape for one integer. It is also why `least_authority_demo 9 >
                 // out.txt` is refused: there are no bytes to put in the file.
                 output: OutputSpec::Words,
                 input: InputSpec::Forbidden,
                 reports: true,
-                // A worker finishes in one step; there is no long computation to interrupt, so it
+                // A least_authority_demo finishes in one step; there is no long computation to interrupt, so it
                 // is granted no interrupt channel. The shell waits for its result and no ^C tier
                 // applies (DECISIONS §24).
                 interruptible: false,
@@ -376,7 +376,7 @@ impl Prog {
                 file: FileSpec::Forbidden,
                 dir: DirSpec::Forbidden,
                 flags: NO_FLAGS,
-                // The page count it managed to map, in a register. Same reason as worker's.
+                // The page count it managed to map, in a register. Same reason as least_authority_demo's.
                 output: OutputSpec::Words,
                 input: InputSpec::Forbidden,
                 reports: true,
@@ -648,7 +648,7 @@ impl Prog {
                 config: true,
                 entropy: false,
             },
-            // **`worker`'s manifest, not `date`'s.** `uptime` reads `user_rt::monotonic_nanos`,
+            // **`least_authority_demo`'s manifest, not `date`'s.** `uptime` reads `user_rt::monotonic_nanos`,
             // which is granted to every process unconditionally, so there is no capability here to
             // declare: no clock, no domain, no memory, no file. `OutputSpec::Bytes` rather than
             // `BytesAndDiagnostics` because the program cannot fail (the counter is always there to
@@ -846,7 +846,7 @@ pub const DOMAIN_SLOT: u64 = 7;
 /// as a count.
 pub const ENTROPY_SLOT: u64 = 9;
 
-/// A program's expectation about the integer argument (`worker 9`'s `9`).
+/// A program's expectation about the integer argument (`least_authority_demo 9`'s `9`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ArgSpec {
     /// The program consumes an argument; omitting it is [`Refusal::ArgRequired`].
@@ -875,7 +875,7 @@ pub enum MemSpec {
 ///
 /// This enum is also what decides that a bare token *is* a file at all. Milestone 47 removed the
 /// `file:` prefix on the finding that it announced the visible half of the grant and was silent on
-/// the half that matters: `worker 5 extra` is refused because worker's manifest says `Forbidden`,
+/// the half that matters: `least_authority_demo 5 extra` is refused because `least_authority_demo`'s manifest says `Forbidden`,
 /// not because of any prefix. The manifest was doing all the work.
 ///
 /// One file, not a list. A program that needs two files needs a manifest that says so, and that is a
@@ -957,7 +957,7 @@ pub struct Manifest {
     /// that answers with a number in a register cannot have a file put behind it, because a file
     /// sink would receive a word it has no way to read as bytes.
     ///
-    /// Declaring it is what lets `worker 5 > out.txt` be [`Refusal::NotAByteStream`] at the prompt
+    /// Declaring it is what lets `least_authority_demo 5 > out.txt` be [`Refusal::NotAByteStream`] at the prompt
     /// instead of a file full of nothing. Unix has no equivalent because on Unix every program's
     /// stdout is bytes by construction; here the register fastpath is real and older than the sink
     /// contract, so the two conventions coexist and the manifest is where they are told apart.
@@ -971,7 +971,7 @@ pub struct Manifest {
     pub reports: bool,
     /// Granted a per-job interrupt channel so `^C` can reach it (DECISIONS §24). A
     /// long-running or interactive program declares this and the shell wires the two-tier interrupt
-    /// path for it; a program that finishes in one step (worker) declares `false` and is simply
+    /// path for it; a program that finishes in one step (`least_authority_demo`) declares `false` and is simply
     /// waited on. "Granted by default to interactive programs" is expressed here, per program.
     pub interruptible: bool,
     /// **Endowed a read-only mapping of the wall clock** (milestone 51's wiring).
@@ -1548,7 +1548,7 @@ pub enum Refusal {
     /// The program takes no file, but a token was left over that nothing else could be. The
     /// milestone's inversion cuts both ways: a name the program has no use for is authority the user
     /// did not mean to move, so it is refused rather than granted-and-ignored. **This is the refusal
-    /// the `file:` prefix was wrongly credited with**: `worker 5 extra` stops here because worker's
+    /// the `file:` prefix was wrongly credited with**: `least_authority_demo 5 extra` stops here because `least_authority_demo`'s
     /// manifest says `FileSpec::Forbidden`, which is what refused it before the prefix went away.
     FileForbidden,
     /// The program is endowed a file and the command named none. Naming it on the line is the only
@@ -1636,7 +1636,7 @@ pub enum Refusal {
     /// the line writes to depend on what is in the directory.
     PatternInRedirect,
     /// **This program's output is not a byte stream**, so there is nothing for `>` or `|` to
-    /// substitute. See [`OutputSpec`]: `worker 9` answers with a number in a register, and a file
+    /// substitute. See [`OutputSpec`]: `least_authority_demo 9` answers with a number in a register, and a file
     /// sink handed that word would write nothing legible into the file.
     NotAByteStream,
     /// **This program declares no second output stream**, and the line put a `2>` on it (DECISIONS
@@ -2058,7 +2058,7 @@ pub struct Streams {
 /// [`plan`], with the operators' answer folded in.
 ///
 /// The stream check comes **after** the grant check and not before, deliberately. A line can be
-/// wrong about both (`worker > out.txt` names no integer *and* has no bytes to write), and the
+/// wrong about both (`least_authority_demo > out.txt` names no integer *and* has no bytes to write), and the
 /// grant refusal is the one that reads truer: what a program is endowed is a bigger fact about the
 /// line than where its output was going to go.
 pub fn plan_stage(
@@ -2153,12 +2153,12 @@ pub fn plan_against_with(
     let pos = run.positionals();
     let mut next = 0usize;
 
-    // The argument takes the first positional, and it must be an integer: `worker eight` is a
-    // missing argument, not a file named "eight", because worker's manifest declares no file.
+    // The argument takes the first positional, and it must be an integer: `least_authority_demo eight` is a
+    // missing argument, not a file named "eight", because least_authority_demo's manifest declares no file.
     //
     // A pattern can never land here by accident: every magic byte (`*`, `?`, `[`, `\`) is a
     // non-digit, so `parse_u64` refuses a pattern before the expansion is ever consulted, and
-    // `worker *` is "needs an integer argument" rather than a grant of anything.
+    // `least_authority_demo *` is "needs an integer argument" rather than a grant of anything.
     let arg = match m.arg {
         ArgSpec::Required => {
             let first = pos.get(next).ok_or(Refusal::ArgRequired)?;
@@ -2970,44 +2970,47 @@ mod tests {
 
     #[test]
     fn a_bare_program_name_spawns_it() {
-        // What `run worker 9` used to say. The name is the command; the manifest places the 9.
-        let Command::Run(r) = parse(b"worker 9") else {
+        // What `run least_authority_demo 9` used to say. The name is the command; the manifest places the 9.
+        let Command::Run(r) = parse(b"least_authority_demo 9") else {
             panic!("not an invocation")
         };
-        assert_eq!(r.prog, b"worker");
+        assert_eq!(r.prog, b"least_authority_demo");
         assert_eq!(r.positionals(), [&b"9"[..]]);
         assert_eq!(r.mem, None);
         let e = plan(&r, Holdings::default()).unwrap();
-        assert_eq!(e.prog, Prog::Worker);
+        assert_eq!(e.prog, Prog::LeastAuthorityDemo);
         assert_eq!(e.arg, 9);
         assert_eq!(e.mem_pages, 0);
         assert!(e.reports);
     }
 
     #[test]
-    fn worker_needs_an_integer_argument() {
-        let Command::Run(r) = parse(b"worker") else {
+    fn least_authority_demo_needs_an_integer_argument() {
+        let Command::Run(r) = parse(b"least_authority_demo") else {
             panic!()
         };
         assert_eq!(plan(&r, Holdings::default()), Err(Refusal::ArgRequired));
-        // And a token that cannot be an integer is a missing argument, not a file: worker's
+        // And a token that cannot be an integer is a missing argument, not a file: least_authority_demo's
         // manifest declares no file, so there is no other slot the word could have meant.
-        let Command::Run(r) = parse(b"worker eight") else {
+        let Command::Run(r) = parse(b"least_authority_demo eight") else {
             panic!()
         };
         assert_eq!(plan(&r, Holdings::default()), Err(Refusal::ArgRequired));
     }
 
     #[test]
-    fn worker_refuses_a_memory_grant_whichever_side_the_flag_is_typed() {
+    fn least_authority_demo_refuses_a_memory_grant_whichever_side_the_flag_is_typed() {
         // `--mem` survives the grammar change as an ordinary flag, and with the verb gone it reads
         // where a Unix user would type it: after the command name. Both spellings are the same
         // grant, so both must reach the same refusal.
-        for line in [&b"worker 3 --mem 8"[..], b"--mem 8 worker 3"] {
+        for line in [
+            &b"least_authority_demo 3 --mem 8"[..],
+            b"--mem 8 least_authority_demo 3",
+        ] {
             let Command::Run(r) = parse(line) else {
                 panic!()
             };
-            assert_eq!(r.prog, b"worker");
+            assert_eq!(r.prog, b"least_authority_demo");
             assert_eq!(
                 plan(&r, Holdings::default()),
                 Err(Refusal::MemForbidden),
@@ -3099,9 +3102,9 @@ mod tests {
     fn a_bare_unplaceable_token_is_still_refused() {
         // **The safety property the `file:` prefix was credited with, proven without it.** The old
         // note argued the prefix stopped a stray word from becoming a capability transfer. It did
-        // not: the manifest did. `worker 5 extra` has no slot for `extra` because worker declares
+        // not: the manifest did. `least_authority_demo 5 extra` has no slot for `extra` because least_authority_demo declares
         // `FileSpec::Forbidden`, so nothing is granted and the prompt says why.
-        let Command::Run(r) = parse(b"worker 5 extra") else {
+        let Command::Run(r) = parse(b"least_authority_demo 5 extra") else {
             panic!()
         };
         assert_eq!(r.positionals(), [&b"5"[..], &b"extra"[..]]);
@@ -3145,7 +3148,7 @@ mod tests {
         };
         assert_eq!(r.unexpected, Some(&b"--secret"[..]));
         assert_eq!(
-            plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR),
+            plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR),
             Err(Refusal::Unexpected),
         );
     }
@@ -3359,7 +3362,7 @@ mod tests {
             panic!()
         };
         assert_eq!(r.positionals(), [&b"report.txt"[..]]);
-        let e = plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR).unwrap();
+        let e = plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR).unwrap();
         let g = e.file.expect("the name did not become a grant");
         assert_eq!(g.name.as_bytes(), b"report.txt");
         assert!(
@@ -3367,7 +3370,7 @@ mod tests {
             "the manifest declared a read, so the grant reads"
         );
 
-        let e = plan_against(&r, Prog::Worker, WRITES_A_FILE, WITH_DIR).unwrap();
+        let e = plan_against(&r, Prog::LeastAuthorityDemo, WRITES_A_FILE, WITH_DIR).unwrap();
         assert!(
             e.file.unwrap().writable,
             "the same command line against a writing program grants a writable file",
@@ -3383,7 +3386,7 @@ mod tests {
         let Command::Run(r) = parse(b"wc 2026") else {
             panic!()
         };
-        let e = plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR).unwrap();
+        let e = plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR).unwrap();
         assert_eq!(e.file.unwrap().name.as_bytes(), b"2026");
     }
 
@@ -3395,7 +3398,7 @@ mod tests {
         let Command::Run(r) = parse(b"stamp 7 report.txt") else {
             panic!()
         };
-        let e = plan_against(&r, Prog::Worker, STAMPS_A_FILE, WITH_DIR).unwrap();
+        let e = plan_against(&r, Prog::LeastAuthorityDemo, STAMPS_A_FILE, WITH_DIR).unwrap();
         assert_eq!(e.arg, 7);
         assert_eq!(e.file.unwrap().name.as_bytes(), b"report.txt");
         assert!(e.file.unwrap().writable);
@@ -3404,7 +3407,7 @@ mod tests {
             panic!()
         };
         assert_eq!(
-            plan_against(&swapped, Prog::Worker, STAMPS_A_FILE, WITH_DIR),
+            plan_against(&swapped, Prog::LeastAuthorityDemo, STAMPS_A_FILE, WITH_DIR),
             Err(Refusal::ArgRequired),
         );
     }
@@ -3427,7 +3430,7 @@ mod tests {
         let Command::Run(r) = parse(b"nth 21 report.txt") else {
             panic!()
         };
-        let e = plan_against(&r, Prog::Worker, TAKES_ARG_AND_READS, WITH_DIR).unwrap();
+        let e = plan_against(&r, Prog::LeastAuthorityDemo, TAKES_ARG_AND_READS, WITH_DIR).unwrap();
         assert_eq!(e.arg, 21);
         assert_eq!(
             e.source,
@@ -3446,7 +3449,12 @@ mod tests {
             panic!()
         };
         assert_eq!(
-            plan_against(&missing_input, Prog::Worker, TAKES_ARG_AND_READS, WITH_DIR),
+            plan_against(
+                &missing_input,
+                Prog::LeastAuthorityDemo,
+                TAKES_ARG_AND_READS,
+                WITH_DIR
+            ),
             Err(Refusal::InputRequired),
         );
     }
@@ -3459,7 +3467,7 @@ mod tests {
             panic!()
         };
         assert_eq!(
-            plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR),
+            plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR),
             Err(Refusal::FileRequired)
         );
         assert_eq!(
@@ -3479,7 +3487,7 @@ mod tests {
                 panic!()
             };
             assert_eq!(
-                plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR),
+                plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR),
                 Err(Refusal::FileNotNameable),
                 "{}",
                 core::str::from_utf8(line).unwrap(),
@@ -3495,7 +3503,7 @@ mod tests {
         let Command::Run(r) = parse(b"wc /etc/passwd") else {
             panic!()
         };
-        let g = plan_against(&r, Prog::Worker, READS_A_FILE, deep)
+        let g = plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, deep)
             .unwrap()
             .file
             .unwrap();
@@ -3509,7 +3517,7 @@ mod tests {
         let Command::Run(r) = parse(b"wc /../passwd") else {
             panic!()
         };
-        let refused = plan_against(&r, Prog::Worker, READS_A_FILE, deep);
+        let refused = plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, deep);
         assert_eq!(refused, Err(Refusal::FileNotNameable));
         assert!(!refused.unwrap_err().message().contains("denied"));
     }
@@ -3526,7 +3534,7 @@ mod tests {
         let Command::Run(r) = parse(b"wc report.txt") else {
             panic!()
         };
-        let here = plan_against(&r, Prog::Worker, READS_A_FILE, holds)
+        let here = plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, holds)
             .unwrap()
             .file
             .unwrap();
@@ -3538,7 +3546,7 @@ mod tests {
         let Command::Run(r) = parse(b"wc 2026/report.txt") else {
             panic!()
         };
-        let deeper = plan_against(&r, Prog::Worker, READS_A_FILE, holds)
+        let deeper = plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, holds)
             .unwrap()
             .file
             .unwrap();
@@ -3559,7 +3567,7 @@ mod tests {
             panic!()
         };
         assert_eq!(
-            plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR),
+            plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR),
             Err(Refusal::FileNotNameable),
             "a grant cannot name its way out of the shell's root",
         );
@@ -3574,13 +3582,18 @@ mod tests {
             panic!()
         };
         assert_eq!(
-            plan_against(&r, Prog::Worker, READS_A_FILE, WITH_DIR)
+            plan_against(&r, Prog::LeastAuthorityDemo, READS_A_FILE, WITH_DIR)
                 .map(|e| e.file.map(|g| g.name.as_bytes().to_vec()))
                 .unwrap(),
             Some(b"report.txt".to_vec()),
             "with a directory in hand, the same line is a grant",
         );
-        let refused = plan_against(&r, Prog::Worker, READS_A_FILE, Holdings::default());
+        let refused = plan_against(
+            &r,
+            Prog::LeastAuthorityDemo,
+            READS_A_FILE,
+            Holdings::default(),
+        );
         assert_eq!(
             refused,
             Err(Refusal::NoSuchCapability(CapKind::File)),
@@ -3807,16 +3820,16 @@ mod tests {
     }
 
     /// **A program whose answer is a register cannot be redirected**, and the manifest is what says
-    /// so. `worker 9 > out.txt` would otherwise write a `u64` into a byte sink, which is a file
+    /// so. `least_authority_demo 9 > out.txt` would otherwise write a `u64` into a byte sink, which is a file
     /// with nothing legible in it and no error anywhere.
     #[test]
     fn only_a_byte_stream_can_be_redirected() {
         assert_eq!(
-            plan_line(b"worker 9 > out.txt", WITH_DIR),
+            plan_line(b"least_authority_demo 9 > out.txt", WITH_DIR),
             Err((0, Refusal::NotAByteStream)),
         );
         assert_eq!(
-            plan_line(b"worker 9 | wc", WITH_DIR),
+            plan_line(b"least_authority_demo 9 | wc", WITH_DIR),
             Err((0, Refusal::NotAByteStream)),
         );
         // The interrupt demonstrators hold no output capability at all, which is the third case and
@@ -3859,7 +3872,7 @@ mod tests {
         assert!(msg.contains("declares no second output"), "{msg}");
         // A program with no byte stream at all reaches it too, from the other side.
         assert_eq!(
-            plan_line(b"worker 9 2> err.txt", WITH_DIR),
+            plan_line(b"least_authority_demo 9 2> err.txt", WITH_DIR),
             Err((0, Refusal::NoDiagnosticStream)),
         );
     }
@@ -3885,7 +3898,11 @@ mod tests {
         );
 
         // And a program that declares none has none to place, on any line.
-        for text in [&b"wc gate.txt"[..], b"wc gate.txt > out.txt", b"worker 9"] {
+        for text in [
+            &b"wc gate.txt"[..],
+            b"wc gate.txt > out.txt",
+            b"least_authority_demo 9",
+        ] {
             let e = plan_line(text, WITH_DIR).unwrap().0[0].unwrap();
             assert_eq!(
                 e.diagnostics,
@@ -3936,7 +3953,7 @@ mod tests {
         assert!(slot > 4 && slot < 15, "slot {slot} is not out of the way");
         // And every other program declares none, so nothing else needs the slot at all.
         for p in [
-            Prog::Worker,
+            Prog::LeastAuthorityDemo,
             Prog::Budgeter,
             Prog::InterruptHeeder,
             Prog::InterruptIgnorer,
@@ -3966,9 +3983,9 @@ mod tests {
     /// a program is endowed is a bigger fact about the line than where its bytes were going.
     #[test]
     fn a_missing_argument_is_reported_before_a_missing_byte_stream() {
-        // `worker` needs an integer AND has no bytes to redirect. Both are true; one is printed.
+        // `least_authority_demo` needs an integer AND has no bytes to redirect. Both are true; one is printed.
         assert_eq!(
-            plan_line(b"worker > out.txt", WITH_DIR),
+            plan_line(b"least_authority_demo > out.txt", WITH_DIR),
             Err((0, Refusal::ArgRequired)),
         );
     }
@@ -4205,7 +4222,7 @@ mod tests {
 
     #[test]
     fn a_second_integer_is_unexpected_not_ignored() {
-        let Command::Run(r) = parse(b"worker 3 5") else {
+        let Command::Run(r) = parse(b"least_authority_demo 3 5") else {
             panic!()
         };
         assert_eq!(r.positionals(), [&b"3"[..], &b"5"[..]]);
@@ -4451,7 +4468,7 @@ mod tests {
         };
         assert_eq!(plan(&r, WITH_DIR), Err(Refusal::NoSuchOption));
         // And a program that declares no options at all refuses every one.
-        let Command::Run(r) = parse(b"worker -r 9") else {
+        let Command::Run(r) = parse(b"least_authority_demo -r 9") else {
             panic!()
         };
         assert_eq!(plan(&r, WITH_DIR), Err(Refusal::NoSuchOption));
@@ -4713,7 +4730,7 @@ mod tests {
         assert_eq!(
             super::plan_against(
                 &r,
-                Prog::Worker,
+                Prog::LeastAuthorityDemo,
                 READS_A_FILE,
                 WITH_DIR,
                 Expansion::at(0, expanded(b"*.txt").unwrap()),
@@ -4726,7 +4743,7 @@ mod tests {
         };
         let g = super::plan_against(
             &r,
-            Prog::Worker,
+            Prog::LeastAuthorityDemo,
             READS_A_FILE,
             WITH_DIR,
             Expansion::at(0, expanded(b"*.log").unwrap()),
@@ -4826,11 +4843,11 @@ mod tests {
     }
 
     #[test]
-    fn worker_and_budgeter_are_not_interruptible() {
+    fn least_authority_demo_and_budgeter_are_not_interruptible() {
         // Fast jobs finish in one step; the shell just waits for them, no ^C tier.
-        assert!(!Prog::Worker.manifest().interruptible);
+        assert!(!Prog::LeastAuthorityDemo.manifest().interruptible);
         assert!(!Prog::Budgeter.manifest().interruptible);
-        let Command::Run(r) = parse(b"worker 9") else {
+        let Command::Run(r) = parse(b"least_authority_demo 9") else {
             panic!()
         };
         assert!(!plan(&r, Holdings::default()).unwrap().interruptible);

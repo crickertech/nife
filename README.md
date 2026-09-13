@@ -42,7 +42,7 @@ entry there and that nothing named here has since been renamed away. Two documen
 and one curated, is fine; two documents both claiming to be complete is not, which is the mistake the
 Status section above made twice.
 
-At the `$` prompt: `help`, `echo hello`, `worker 7` (spawns a process that returns 49). Quit with
+At the `$` prompt: `help`, `echo hello`, `least_authority_demo 7` (spawns a process that returns 49). Quit with
 Ctrl-C, or `pkill qemu-system-aarch64` from another terminal.
 
 ## Start here

@@ -24,15 +24,6 @@ path = "src/hello.rs"
 test = false
 bench = false
 
-# The worker (milestone 19f.2): the first program that is its own binary, not a role of `hello`.
-# It shares this package's `build.rs` link.ld (linked at 0x40_0000) but no code. Same test/bench
-# reasoning as above. `initrd_aarch64` packs it into the archive under the name "worker".
-[[bin]]
-name = "worker"
-path = "src/worker.rs"
-test = false
-bench = false
-
 # The budgeter (milestone 31): spends exactly the untyped budget `run --mem N` grants it and reports
 # how many pages it could map. The program that makes the memory grant real, not parsed-and-ignored.
 [[bin]]

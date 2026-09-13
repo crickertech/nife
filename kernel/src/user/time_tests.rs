@@ -68,7 +68,7 @@ fn nanos_of(said: &[u8]) -> u64 {
 /// This is the milestone's whole claim, and the three assertions are what make it one rather than a
 /// slogan:
 ///
-/// - **The same command, timed and untimed, answers the same thing.** `worker 3` is run twice in the
+/// - **The same command, timed and untimed, answers the same thing.** `least_authority_demo 3` is run twice in the
 ///   script, once bare and once behind `time`, and both must report `3*3 = 9`. A prefix word that
 ///   re-tokenized its tail, dropped an option or spawned something else would fail here, and nothing
 ///   about the printed duration would have told anybody.
@@ -77,7 +77,7 @@ fn nanos_of(said: &[u8]) -> u64 {
 ///   the same instant, which is what a `time` that read its clock once would print. The upper bound
 ///   is loose on purpose: TCG under load is slow and a tight bound would be a flake, while a
 ///   nanoseconds-for-microseconds error misses a ten-second ceiling by four orders of magnitude.
-/// - **`worker` holds no clock.** Its manifest declares none, so init endows none, and it is still
+/// - **`least_authority_demo` holds no clock.** Its manifest declares none, so init endows none, and it is still
 ///   timed. That is the sentence the milestone exists for: measuring a thing needs the observer's
 ///   authority, not the subject's.
 ///
@@ -94,8 +94,8 @@ fn a_command_is_timed_by_the_shells_clock_and_holds_none_itself() {
     let n = transcript(Some(w.page_phys), &mut buf);
     let t = &buf[..n];
 
-    let bare = answer(t, b"worker 3");
-    let timed = answer(t, b"time worker 3");
+    let bare = answer(t, b"least_authority_demo 3");
+    let timed = answer(t, b"time least_authority_demo 3");
     assert!(
         core::str::from_utf8(bare).unwrap().contains("3*3 = 9"),
         "the untimed control did not run: {:?}",
@@ -182,9 +182,9 @@ fn a_shell_with_no_usable_clock_times_the_command_anyway() {
     for clock in [Some(blank), None] {
         let n = transcript(clock, &mut buf);
         let t = &buf[..n];
-        let timed = core::str::from_utf8(answer(t, b"time worker 3")).unwrap();
+        let timed = core::str::from_utf8(answer(t, b"time least_authority_demo 3")).unwrap();
         assert!(timed.contains("3*3 = 9"), "the command must run: {timed:?}",);
-        let nanos = nanos_of(answer(t, b"time worker 3"));
+        let nanos = nanos_of(answer(t, b"time least_authority_demo 3"));
         assert!(nanos > 0 && nanos < SANE, "duration out of range: {nanos}");
         // The two sentences §72 retired must be gone from the whole transcript, not merely from
         // this line: a shell that printed them anywhere would still be claiming the old boundary.

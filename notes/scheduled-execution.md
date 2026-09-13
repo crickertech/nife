@@ -31,8 +31,8 @@ observation that a capability system can do something else.
 person would type at the prompt:
 
 ```text
-every 150ms  worker 7
-at-boot      worker 3
+every 150ms  least_authority_demo 7
+at-boot      least_authority_demo 3
 every 1s     date
 ```
 
@@ -47,8 +47,8 @@ So `timetable` prints its whole plan and *then* arms:
 
 ```text
 timetable: the plan, before anything fires
-  every 150ms   worker 7
-    grants worker exactly:
+  every 150ms   least_authority_demo 7
+    grants least_authority_demo exactly:
       cap 0  endpoint  report its answer to this timetable
       arg      7
       and nothing else: no clock, no disk, no console, no network
@@ -57,7 +57,7 @@ timetable: the plan, before anything fires
 timetable: armed
 ```
 
-The line `caps worker 7` prints at the prompt and the line this prints are the same decision, made
+The line `caps least_authority_demo 7` prints at the prompt and the line this prints are the same decision, made
 by the same code, one of them for a job that has not been scheduled yet.
 
 ## The four answers, and why three of them are the point
@@ -266,7 +266,7 @@ architecture-specific, so the parity gate is met by literally the same test runn
 the real program on the real `components/timetable.conf`, reads the plan it prints, then watches what
 fires:
 
-- the plan names what an admitted `worker` and an admitted `budgeter --mem 4` will each hold, and
+- the plan names what an admitted `least_authority_demo` and an admitted `budgeter --mem 4` will each hold, and
   says "and nothing else";
 - `date` and `ps` are refused for want of a clock and a process view, in the plan, before anything
   runs;

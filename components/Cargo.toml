@@ -70,7 +70,7 @@ path = "src/narrator.rs"
 test = false
 bench = false
 
-# The minimal system builder (milestone 20): a fully portable program that loads the worker from a
+# The minimal system builder (milestone 20): a fully portable program that loads the least_authority_demo from a
 # multi-entry initrd archive and builds it as a child through the capability verbs. It is the
 # RISC-V richer-initrd demonstration, and its claim is that **userspace, not the kernel, composes
 # the system**, proven on a second ISA in the smallest form that can prove it. It is not a boot
@@ -471,7 +471,7 @@ bench = false
 # `uptime` (milestone 126): how long the ambient monotonic counter has been running. Needed no
 # new capability at all: `monotonic_nanos` is granted to every process unconditionally
 # (kernel/src/arch/*/timer.rs's documented exception to DECISIONS §10), so this program's manifest
-# is `worker`'s, not `date`'s. The formatting is crates/uptime, host-tested. Portable, so both
+# is `least_authority_demo`'s, not `date`'s. The formatting is crates/uptime, host-tested. Portable, so both
 # ISAs' archives carry it. **Provisional name**: the same word upstream `procps` uses; see the
 # crate's module docs for why it is flagged anyway.
 [[bin]]
@@ -498,6 +498,16 @@ bench = false
 [[bin]]
 name = "doc"
 path = "src/doc.rs"
+test = false
+bench = false
+
+# The least-authority demo (milestone 19f.2): the first program that is its own binary rather than
+# a role of `hello`. It shares this package's `build.rs` link.ld (linked at 0x40_0000) but no code.
+# Same test/bench reasoning as `hello`'s block. `initrd_aarch64` packs it into the archive under
+# the name "least_authority_demo".
+[[bin]]
+name = "least_authority_demo"
+path = "src/least_authority_demo.rs"
 test = false
 bench = false
 

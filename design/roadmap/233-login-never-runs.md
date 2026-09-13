@@ -7,7 +7,7 @@ it the moment that check could see straight. *(Number provisional until the merg
 It was minted with no gate, on the grounds that the cause was measured and the fix understood, and
 that held. What it leaves behind is a check: `script/shell-check` now fails if the kernel reported
 killing any user thread during the run, on both architectures. Proven able to fail rather than
-assumed, `fixtures/src/worker.rs` was temporarily patched to trap on one argument and the gate went red
+assumed, `components/src/least_authority_demo.rs` was temporarily patched to trap on one argument and the gate went red
 naming the thread.
 
 **In brief.** The `login` thread died on **every** boot, on **both** architectures, and had been
