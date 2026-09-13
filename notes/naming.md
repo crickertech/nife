@@ -811,6 +811,46 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
 
+## A terminus that is structural, or one that is merely current
+
+calef, 2026-09-13, asking after ruling `audit_sink` -> `login_audit_receiver`: *"Are there other
+sinks that should be named receivers?"* The sweep found three and renamed none of them, which is
+what makes the distinction worth writing down rather than leaving in one block.
+
+**The test, in one question: does the name claim an end-of-stream that is a property of the design,
+or one that is an accident of what has not been built yet?**
+
+`user/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT` endpoint and
+discards it. "Sink" was accurate about today and wrong about the program: the discard exists because
+printing the record would need a `WRITE` view of the terminal, and handing that to a third process
+was refused *for now*. The moment somebody grants it, the program keeps records and its name says it
+does not. A name that has to change when a capability is granted is naming the gap rather than the
+thing.
+
+The three that survived the same question, and each for its own reason:
+
+| Name | Why the terminus is structural |
+|---|---|
+| `byte_sink_proto` | A wire contract named for what it carries. It makes no disposal claim at all |
+| `terminal_sink_caretaker` | It holds the terminal endpoint, which also carries `OP_READLINE`, and hands out a sink that **cannot read**. `sink` names what it hands out, `caretaker` names what it is. calef already caught this class once here, ratifying the longer form over `terminal_sink` on 2026-08-03 |
+| `sink` (the program) | Not a terminus at all. Three roles, and `ROLE_FILE` is a real file behind a sink: the process can open, read, write at offsets, truncate and stat, while its client can only say *here are sixteen bytes, append them*. Renaming it `receiver` would name one end of a three-role program |
+
+**The second half of the ruling is the part that is easy to lose.** `audit_sink` failed on two
+counts and only one of them is about "sink". The `audit` half promised a record that does not exist,
+which is `flaky`'s fault (borrowed recognition the program contradicts) applied to a payload rather
+than to a behaviour. A reader meeting `audit_sink` in a process listing concludes the system records
+logins. Nothing does.
+
+So `receiver` won because it is true in both states: it receives today and it will receive when it
+records, and **`login_audit_recorder` is then an honest successor rather than a correction**. That
+successor is written into the program's own block as a condition rather than left to whoever
+notices, which is §71's shape borrowed for a name: say what would change the answer, beside the
+thing it would change.
+
+**What this does not license.** It is not an argument against `sink`, which is this tree's word for
+the end of a stream nobody reads further and is right three times out of four. It is an argument
+against naming a program after a state that a single capability grant would end.
+
 ## Performing a ratified rename
 
 `AGENTS.md` carries the three rules. This is the argument, the worked example and what is not

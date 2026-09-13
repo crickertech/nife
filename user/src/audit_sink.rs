@@ -33,10 +33,30 @@
 //! to the console, anywhere) needs a different, real consumer in this program's place, which is
 //! follow-on work and not attempted here.
 //!
-//! Name: provisional, minted 2026-08-27 for milestone 49's boot-wiring update and not yet put to
-//! calef. `audit_sink`, a noun, on `byte_sink_proto`/`terminal_sink_caretaker`'s own use of "sink"
-//! as this tree's term for "the end of a stream nobody reads further", which is exactly this
-//! program's role for `login`'s own audit stream.
+//! Name: provisional, and ruled: calef ruled **`login_audit_receiver`** on 2026-09-13, working the
+//! unratified worklist. The block stays `provisional` because the ratified name is not this file's
+//! until the rename is performed, and until then `audit_sink` belongs on the worklist rather than
+//! off it. Minted 2026-08-27 for milestone 49's boot-wiring update.
+//!
+//! **And it carries the name it becomes.** calef, ruling it: *"We would probably rename to
+//! `login_audit_recorder` when it does record the login audit."* That is the condition written
+//! down rather than left to whoever notices, the same shape §71 asks of a `BUGS` entry that names
+//! what would promote it. Whoever gives this program a `WRITE` view and makes it keep records
+//! performs that rename in the same change.
+//!
+//! **Why `audit_sink` went.** Half the name was honest and half was not. "Sink" is already this
+//! tree's word for the end of a stream nobody reads further (`byte_sink_proto`,
+//! `terminal_sink_caretaker`), and that is exactly this program's role. But an audit trail that is
+//! discarded is not an audit trail, and a reader meeting `audit_sink` in a process listing would
+//! reasonably conclude the system records logins somewhere. Nothing does. That is the fault
+//! `flaky` was renamed for the same day: borrowed recognition the program contradicts.
+//!
+//! Refused `login_audit_discarder`, which is what the program does today and was the first
+//! recommendation, because it names the disposal rather than the role and would itself need
+//! renaming the moment the records are kept; `login_audit_receiver` survives that day and
+//! `login_audit_recorder` is the honest successor. Refused `login_audit_sink`, which fixes whose
+//! audit it is and keeps the promise that something is audited. Refused `audit_drain`, the same
+//! defect again, and "drain" is spent in this tree on `scripts/merge-drain.sh`.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
