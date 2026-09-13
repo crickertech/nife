@@ -38,7 +38,9 @@
 //! See `crates/uptime`'s module docs: no load average, no logged-in-user count, one-second
 //! resolution, and the counter's own zero predates this kernel's init by an unmeasured amount.
 //!
-//! Name: provisional. See `crates/uptime`'s module docs for the argument.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), with `crates/uptime` in
+//! one ruling, which is what the crate-and-program pair means. See that crate's module docs
+//! for the argument and the refusals.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

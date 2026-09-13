@@ -75,13 +75,28 @@
 //!   trip and this program needs sixteen, so it makes two calls and refuses if either answers with
 //!   fewer than eight. It does not retry. `disk_partitioner::random16` makes exactly the same call.
 //!
-//! Name: provisional, introduced 2026-09-05 alongside `grant_plan::Manifest::entropy`. RFC 9562's
-//! own term for the object, and a term of art already right per this tree's own naming convention
-//! for standard terms. Refused `uuidgen` (Unix's name for the *tool*, but that name carries an
-//! argument surface this ABI cannot deliver, so it would promise a program this is not) and `guid`
-//! (`crates/gpt` calls the same sixteen bytes a `Guid` because GPT's spec does, but the spec is
-//! Microsoft's spelling of the same object and the wider word is the one a reader arrives with).
-//! Unrated by calef.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Introduced 2026-09-05
+//! alongside `grant_plan::Manifest::entropy`. RFC 9562's own term for the object, and a term of art
+//! already right per this tree's naming convention for standard terms.
+//!
+//! Refused `uuidgen`, Unix's name for the *tool*: that name carries an argument surface this ABI
+//! cannot deliver, so it would promise a program this is not.
+//!
+//! Refused `guid`, **and the reason recorded here until 2026-09-13 was wrong in a way worth
+//! correcting rather than quietly replacing.** It said `crates/gpt` calls the same sixteen bytes a
+//! `Guid` "because GPT's spec does, but the spec is Microsoft's spelling of the same object". They
+//! are not the same object in the same layout. A GUID is **mixed-endian**: the first three groups
+//! go on disk little-endian and the last two in the order written, where RFC 9562's UUID is
+//! big-endian throughout. `crates/gpt/src/guid.rs` is built around exactly that trap ("a GUID that
+//! looks plausible, matches nothing, and is byte-reversed in three places out of five") and proves
+//! the round trip for all 2^128 with `a_guid_survives_printing_and_parsing`.
+//!
+//! So the refusal stands and is stronger than its old reason: `guid` here would not be a
+//! stylistic borrowing from another vendor, it would assert a byte order this program does not
+//! produce. For the same reason **`crates/gpt` keeps `Guid`** (calef, 2026-09-13, asked directly
+//! whether it should follow this ratification): that name distinguishes two encodings a reader
+//! will otherwise conflate, which is the load-bearing version of the argument §113's amendment
+//! found false for `crates/pci`.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

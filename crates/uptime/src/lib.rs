@@ -5,11 +5,17 @@
 //! `components/src/uptime.rs` is the syscall and nothing else. The crate and the program share a name,
 //! the same split `ps`, `line_editor` and `compositor` already are.
 //!
-//! Name: provisional. `uptime` is upstream `procps`'s own name for the program this replaces
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), for this crate and the
+//! program together. `uptime` is upstream `procps`'s own name for the program this replaces
 //! (`dpkg -L procps` lists `/usr/bin/uptime`), which the naming tenet calls the best name
-//! available for a standard term a reader already knows. Flagged provisional anyway because this
-//! program prints only elapsed time, none of upstream's load average or logged-in-user count (see
-//! `BUGS`), and calef may want that difference visible in the name.
+//! available for a standard term a reader already knows.
+//!
+//! **The narrowing was put to calef and did not change the answer.** This prints only elapsed
+//! time, none of upstream's load average or logged-in-user count (see `BUGS`). That is a
+//! narrowing rather than a contradiction: what `uptime` names is how long the machine has been up,
+//! and this reports exactly that. Contrast `watch`, cut the same day, whose borrowed name promised
+//! an arbitrary command line the capability model will not grant. A borrowed word is the best name
+//! available when it is true and the worst when it is not.
 //!
 //! # Where the number comes from, and why it needed no new capability
 //!

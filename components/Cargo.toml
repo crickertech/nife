@@ -60,16 +60,6 @@ path = "src/swish.rs"
 test = false
 bench = false
 
-# The narrator (milestone 267): the milestone narrative, lifted out of `kernel_main` and printed by
-# a program at EL0 through the console server, which is another program at EL0. The last claim it
-# makes is about itself, which is why it is worth being a program rather than a `println!`.
-# Provisional name. `initrd_aarch64` packs it into the archive as "narrator".
-[[bin]]
-name = "narrator"
-path = "src/narrator.rs"
-test = false
-bench = false
-
 # The minimal system builder (milestone 20): a fully portable program that loads the least_authority_demo from a
 # multi-entry initrd archive and builds it as a child through the capability verbs. It is the
 # RISC-V richer-initrd demonstration, and its claim is that **userspace, not the kernel, composes
