@@ -412,7 +412,7 @@ const MAKER_STACK_PAGES: u64 = 48;
 /// (DECISIONS §27), and creation touches less than a mount. It is deliberately far below
 /// `fs_service::FS_BUDGET_PAGES`, because an untyped is a **reservation**: three 8 MiB ones do not
 /// fit beside everything else a test boot builds in 128 MiB, and the first symptom of trying is
-/// The progenitor failing to get its own budget several tests later.
+/// the progenitor failing to get its own budget several tests later.
 const MAKER_BUDGET_PAGES: u64 = 384;
 
 /// The blank disk's block server, wired once per boot. A second server on the same device would

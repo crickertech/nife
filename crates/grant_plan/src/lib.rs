@@ -633,7 +633,7 @@ impl Prog {
             },
             // **The one program in this table that declares the inert-configuration page.** Same
             // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
-            // The progenitor's to endow and this field is how the progenitor decides which children get it.
+            // the progenitor's to endow and this field is how the progenitor decides which children get it.
             Prog::Printenv => Manifest {
                 arg: ArgSpec::Forbidden,
                 mem: MemSpec::Forbidden,
@@ -4822,8 +4822,9 @@ mod tests {
     #[test]
     fn prog_id_round_trips() {
         for id in 0..PROG_COUNT as u64 {
-            let p = Prog::from_id(id)
-                .unwrap_or_else(|| panic!("progenitor indexes slot {id} and no program claims it"));
+            let p = Prog::from_id(id).unwrap_or_else(|| {
+                panic!("the progenitor indexes slot {id} and no program claims it")
+            });
             assert_eq!(
                 p.id(),
                 id,

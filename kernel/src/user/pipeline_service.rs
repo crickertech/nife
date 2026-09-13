@@ -458,7 +458,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
         };
 
         // A redirected child's answer goes somewhere else, so the shell has nothing to read and
-        // The progenitor owes it an ack. Unredirected, the child's own message is the shell's single read.
+        // the progenitor owes it an ack. Unredirected, the child's own message is the shell's single read.
         if wiring.sink {
             crate::sched::ipc_send(
                 result,

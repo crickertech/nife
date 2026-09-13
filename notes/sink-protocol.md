@@ -231,9 +231,9 @@ process holding both contracts and handing out only one.
 
 ### And it needed a new opcode, which was not known
 
-The plan said the adapter would be `ROLE_FILE`'s shape and that the work was rewiring init. Building
+The plan said the adapter would be `ROLE_FILE`'s shape and that the work was rewiring the progenitor. Building
 it found something else: **`OP_WRITE` reads from the client's output page, and there is exactly one
-of those.** init maps a single frame into `line_editor` read-only and into the shell read/write. A
+of those.** The progenitor maps a single frame into `line_editor` read-only and into the shell read/write. A
 second page-based client needs a second frame and a page index in every request, which is `filesystem_proto`'s
 one-page-two-clients problem (DECISIONS §55, the reason the file behind a `>` is the shell itself)
 arriving in a second contract.
@@ -251,7 +251,7 @@ there to copy.
 ### What it is for
 
 DECISIONS §67's declared second stream. A program that declares diagnostics gets this endpoint in
-its declared slot by default, endowed by init from the manifest exactly as the clock is, and `2>`
+its declared slot by default, endowed by the progenitor from the manifest exactly as the clock is, and `2>`
 replaces it with a file the shell backs. So a `date` complaining about a missing clock reaches the
 screen **without passing through the shell at all**, which is stronger than the shell printing it:
 nothing the shell does to the output can touch those bytes, and `caps` says so in its `diags` row.
@@ -269,13 +269,13 @@ transcript, a pipe and a file and now a terminal, and the program holds one capa
 - **The bytes bypass the shell entirely, which is the feature and also the limitation.** A shell
   cannot capture, indent, count or truncate them. `2>` is the only way to put them anywhere else, and
   it works by handing the child a *different* endpoint rather than by intercepting this one.
-- **Building it found init's sixteen-slot capability table for the third time.** One more endpoint held across
+- **Building it found the progenitor's sixteen-slot capability table for the third time.** One more endpoint held across
   the shell's `build_child` made the boot print nothing at all, so the adapter is built **after the
   shell**; see notes/pipes.md. It was written down as "built last", and merging milestone 22 proved
-  that half wrong: init now builds a `job_undertaker` after it and the capability table has room either way. The
+  that half wrong: the progenitor now builds a `job_undertaker` after it and the capability table has room either way. The
   real constraint was never the ordinal, it was the shell's build. Where the adapter does have to sit
-  is **before init gives the construction budget away**, because it is a system component and that
-  budget is what the system is built from; building it afterwards would spend init's scratch pool on
+  is **before the progenitor gives the construction budget away**, because it is a system component and that
+  budget is what the system is built from; building it afterwards would spend the progenitor's scratch pool on
   a whole program. See notes/trusted-init.md.
 - **`date` was already speaking the contract before it existed**, which is the `OP_BYTES == 0`
   decision paying out immediately: its hand-rolled framing is bit for bit a `BYTES` message. It

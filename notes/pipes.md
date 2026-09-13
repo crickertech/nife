@@ -132,7 +132,7 @@ grew two of them before the sink contract existed, and input has one because **n
 stream at all until this milestone**. There was never a chance for a second convention to establish
 itself.
 
-## The wire, and the one thing init had to learn
+## The wire, and the one thing the progenitor had to learn
 
 `grant_plan::spawnproto` grew two bits in the request word and two positions in the delegation order:
 
@@ -151,13 +151,13 @@ itself.
 this one does not, because the slot is the program's declaration rather than the shell's choice. What
 the wire says is only "expect one more capability". It is also the only one the shell sets from an
 **operator** rather than from the wiring: with no `2>` on the line a declaring child still gets a
-second stream, endowed by init from the manifest the way the clock is.
+second stream, endowed by the progenitor from the manifest the way the clock is.
 
 Order rather than tags, because both sides read the same word: a `SEND_CAP` nobody expects and a
 `RECV_CAP` nobody answers each deadlock both parties.
 
 **The rights are narrowed per direction and that is load-bearing.** A pipe's write end travels as
-`WRITE|GRANT` and its read end as `READ|GRANT`, and init inserts them as `WRITE` and `READ`. So the
+`WRITE|GRANT` and its read end as `READ|GRANT`, and the progenitor inserts them as `WRITE` and `READ`. So the
 program on the right of a `|` **cannot write back up its own input**. Nothing in either program
 enforces that; the capability it holds simply cannot express it.
 
@@ -184,7 +184,7 @@ the interactive boot grants one.
 
 The plan was the obvious one: `sink.rs`'s file role is an adapter that holds an FS session and
 serves the sink contract, `sink_tests` proves it against a real RedoxFS image, so the shell asks
-init to build one per redirection and hands the child the endpoint. **That does not work, and the
+the progenitor to build one per redirection and hands the child the endpoint. **That does not work, and the
 reason is worth more than the feature.**
 
 `filesystem_proto` shares **one page** between the FS server and its clients (`fs_service`'s
@@ -222,7 +222,7 @@ process that can write the file without opening a second session.
 
 **This costs the milestone nothing, and that is the test of whether it is the right shape.** What a
 redirected program holds is unchanged: one endpoint, `WRITE`, no way to ask what is behind it. There
-is no new message, no change to `grant_plan::spawnproto`, and no change in init. `Sink::File` and
+is no new message, no change to `grant_plan::spawnproto`, and no change in the progenitor. `Sink::File` and
 `Source::File` still exist in the plan, because the manifest check needs them (`least_authority_demo 9 > out.txt`
 is still `NotAByteStream`), and the wiring simply does not need a capability for them.
 
@@ -302,9 +302,9 @@ what exists.
   crates/system_initializer    names, not at the next free one. Yes, both: see below
 ```
 
-The two init lines are the ones to read twice. **The slot is high (eight) and placed explicitly**, and that
+The two progenitor lines are the ones to read twice. **The slot is high (eight) and placed explicitly**, and that
 is not a style choice: how many low slots a child gets depends on what the command line granted it
-(`date` gets a clock from init and none from the guest-test harness), so a diagnostic stream that
+(`date` gets a clock from the progenitor and none from the guest-test harness), so a diagnostic stream that
 landed "next" would sit at slot 2 in one wiring and slot 1 in another, and a program that probes one
 number would read the wrong slot. `abi::tcb::CAP_INSERT` already had an explicit target, added for
 `abi::fault::FAULT_EP_SLOT` for exactly this reason; §67 is its second user.
@@ -389,8 +389,8 @@ asked for.
 ### A third bug of the same shape, and the pattern is now three deep
 
 Building the terminal's sink adapter made the boot print **nothing at all** on aarch64, and it was
-init's sixteen-slot capability table for the third time. The adapter was built between the input driver and the
-shell, which looked like the natural place; at that moment init still holds the terminal endpoint,
+the progenitor's sixteen-slot capability table for the third time. The adapter was built between the input driver and the
+shell, which looked like the natural place; at that moment the progenitor still holds the terminal endpoint,
 two shared frames, the file service and its page, so one more endpoint put `build_child` one slot
 short while it was retyping the *shell's* address space. The shell was never built, so nothing ever
 printed.
@@ -404,20 +404,25 @@ built after the adapter and a construction-budget giveaway between them, so the 
 fifth of six boot components, and the boot is fine. The constraint was never the ordinal; it was that
 the adapter must not be holding a slot while `build_child` retypes the shell's address space.
 
-What the merge did pin down is the other end. The adapter has to be built **before init gives the
+What the merge did pin down is the other end. The adapter has to be built **before the progenitor gives the
 construction budget away**, because it is a system component and the root untyped is what the system
-is built from. Afterwards the only budget left is init's own scratch pool, sized for page tables, and
+is built from. Afterwards the only budget left is the progenitor's own scratch pool, sized for page tables, and
 spending a whole program out of it would surface much later as some child failing to map a scratch
-page. So `term_ep` no longer goes back "immediately after" the adapter: it stays until init has
-printed its dropped-authority sentence through it, which is the last thing either init does with the
+page. So `term_ep` no longer goes back "immediately after" the adapter: it stays until the progenitor has
+printed its dropped-authority sentence through it, which is the last thing either the progenitor does with the
 terminal.
 
 The pattern worth keeping is that all three instances of this presented identically, as a boot that
 reaches userspace and then says nothing, and all three were a capability slot rather than memory.
 **A capability table that is sized in a constant and consumed in an order is a resource with no error message.**
-`build_child` returns `Err(())` and init halts, which is correct and silent.
+`build_child` returns `Err(())` and the progenitor halts, which is correct and silent.
 
 ### A correction: there are two inits, and this note said there was one
+
+*(This section records milestone 96's state. Milestone 266 made it one program on all three
+architectures, `components/src/progenitor.rs`, so "two inits" and the archive entry `init`
+below are both history now. The section is left as it was written, because what it records is
+the correction and not the arrangement.)*
 
 *Written 2026-08-03; the duplication it describes was removed by milestone 96 the next day. The
 finding is kept because it is the reason the crate exists.*
@@ -453,7 +458,7 @@ and both still fail by printing nothing at all.
 ### Where the bytes go by default, and why it is not this shell
 
 **With no `2>` on the line, a declared second stream goes to the terminal's own sink**, which is a
-component (`components/src/terminal_sink_caretaker.rs`, notes/sink-protocol.md) and not the shell. init endows it
+component (`components/src/terminal_sink_caretaker.rs`, notes/sink-protocol.md) and not the shell. The progenitor endows it
 from the manifest, exactly as it endows the clock and for the same reason: the shell holds no
 terminal capability it could delegate, and a person does not designate a screen.
 
@@ -543,15 +548,15 @@ What remains is a program's own diagnostics, which today are indistinguishable f
 
 Unix needs a *numbered convention* because a process cannot ask its parent for a channel. Every
 process gets three descriptors by inheritance, so what fd 2 is has to be agreed in advance by
-everybody, forever. **Nothing here is ambient.** A program holds an endpoint because init put one in
-a slot, and init put it there because the shell's plan said to, and the plan came from a manifest
+everybody, forever. **Nothing here is ambient.** A program holds an endpoint because the progenitor put one in
+a slot, and the progenitor put it there because the shell's plan said to, and the plan came from a manifest
 that already declares what kind of output the program has (`OutputSpec`). The mechanism for "this
 program has a second thing to say" is therefore a **declaration**, not a number.
 
 #### The two shapes it could take, and what each costs
 
 **A second endpoint in a second slot.** The direct translation. It costs a `spawnproto` bit (there
-are 29 free in that word), a delegation position, an init branch, a slot in every child, a manifest
+are 29 free in that word), a delegation position, a progenitor branch, a slot in every child, a manifest
 declaration, and an edit to every program that has anything to say. It also doubles §51's claim: a
 writer holding two endpoints must be able to tell them apart, which it does by slot number rather
 than by asking, so indifference survives *technically*. What does not survive is the sentence "a
@@ -566,7 +571,7 @@ landed). A third stream makes an ordered slot convention untenable and forces a 
 **An opcode on the one endpoint.** `byte_sink_proto` puts the operation in the top byte of the request
 word, so `OP_BYTES = 0` and `OP_EOF = 1` leave 254 spellings free. A third, "these bytes are a
 diagnostic", would carry the distinction on the wire the writer already holds: no second capability,
-no second slot, no spawnproto change, no init change, and §51 intact word for word. The **reader**
+no second slot, no spawnproto change, no progenitor change, and §51 intact word for word. The **reader**
 then decides, so `2> name` would name where the shell sends the diag messages it is already
 receiving, and `date > out.txt` would print its complaint to the terminal and write nothing to the
 file.
@@ -729,7 +734,7 @@ is now the reachable proof; see the transcript below (`$ doc motd`, updated by t
 This lane's gates run without a streaming filter, because there is not one on `main`. So it was
 also run against milestone 40's branch merged in, with `doc`'s manifest declaring
 `writes_while_reading: true` and nothing else changed. **Both ISAs, at a real prompt, through the
-real init.** The `motd` file on the fixture image is 70 bytes of markdown:
+real progenitor.** The `motd` file on the fixture image is 70 bytes of markdown:
 
 ```text
 $ wc motd
@@ -784,7 +789,7 @@ measured"](#buffering-measured-and-the-answer-is-to-build-nothing) said a buffer
 it earned its place, and this is the case that earns it. The measurement there says a buffer costs
 roughly double and buys **decoupling, not bandwidth**, and decoupling is exactly what is wanted:
 that section's own caveat is that the benchmark did not measure the case buffering is for. It needs
-a program, a name, an init entry and a `Prog` id, and a document larger than the grant deadlocks
+a program, a name, a progenitor entry and a `Prog` id, and a document larger than the grant deadlocks
 again, so the bound has to be an honest part of it.
 
 **What is not a way out is an adapter process at the file end.** The obvious move for
@@ -910,13 +915,13 @@ For a reader arriving at this file cold, the shape of the system `2>` completed:
 The fifth is new (DECISIONS §67, notes/sink-protocol.md), and it is the only one a person never
 interacts with directly. It exists so "the terminal" can be a **destination a capability designates**
 rather than a thing only the shell can reach, and its whole job is turning sink messages into terminal
-prints. init keeps the endpoint it serves and hands it to any child whose manifest declares a second
+prints. The progenitor keeps the endpoint it serves and hands it to any child whose manifest declares a second
 stream, the way it hands out the clock.
 
 ## The boot that has a filesystem, which is what `>` was actually waiting for
 
-The kernel brings the block server and the FS server up **before init exists** and hands init the
-file-service endpoint plus the frame its clients map. init narrows both into the shell: slot 4, and
+The kernel brings the block server and the FS server up **before the progenitor exists** and hands the progenitor the
+file-service endpoint plus the frame its clients map. The progenitor narrows both into the shell: slot 4, and
 the page at `FS_VA`. Nothing else in the system changed shape; the shell simply holds one more
 capability.
 
@@ -947,14 +952,14 @@ Three things had to move to make room, and each is a fact worth keeping:
 
 - **The shell's terminal page moved from `0x60_0000` to `0xc0_0000`.** `0x60_0000` is
   `FILE_VA_CLIENT`, which six programs map; the terminal page is the one address only the shell and
-  its init know, so it is the one that moved.
-- **init's capability table is sixteen slots and two more kernel grants overflowed it.** The console's
+  its progenitor know, so it is the one that moved.
+- **The progenitor's capability table is sixteen slots and two more kernel grants overflowed it.** The console's
   `build_child` had no slot left to retype an address space into and returned an error, which
-  presented as a boot that brought the console up and then printed nothing at all. init now retypes
+  presented as a boot that brought the console up and then printed nothing at all. The progenitor now retypes
   the spawn and result endpoints **after** the drivers are built, and gives the console's three
   capabilities back before the shell, which is the same discipline the file already had one step
   later.
-- **Every child init builds gets eight stack pages, not four.** The redirection path carries a
+- **Every child the progenitor builds gets eight stack pages, not four.** The redirection path carries a
   parsed line, an array of planned endowments, a listing buffer and a file buffer by value, and four
   pages overflowed at the first `ls > out.txt` (a data abort one word below the lowest stack page).
   The kernel's own scripted wiring had already found the same floor and maps seven.
@@ -1119,7 +1124,7 @@ $ wc motd | wc | wc
 `kernel::user::pipeline_tests` wires the **real shell binary** in a role that reads a script instead
 of a keyboard, with the interactive endowment slot for slot. The kernel plays the two parties on the
 other ends: it serves the terminal contract and collects every byte the shell prints, and a second
-thread serves `grant_plan::spawnproto` as init.
+thread serves `grant_plan::spawnproto` as the progenitor.
 
 So the assertions are made against **what a person would see**, and the headline one is not a
 constant:
@@ -1169,19 +1174,19 @@ The pair of witnesses is the capability argument made twice with one binary:
 slot 4 is empty, and this writes the file because slot 4 holds a directory. Neither is a branch in
 the shell.
 
-## The gate for the boot itself, which is what runs the real init
+## The gate for the boot itself, which is what runs the real progenitor
 
 The guest tests above wire the shell **from the kernel**: it serves the terminal contract and, on a
-second thread, `grant_plan::spawnproto` in place of init. The shell cannot tell the difference, and
+second thread, `grant_plan::spawnproto` in place of the progenitor. The shell cannot tell the difference, and
 that is the problem. `components/src/progenitor.rs` is not the same code, so a change that broke
 the real spawn path failed nothing, and the `--features shell` boot is the only thing that runs it.
 
 That cost this milestone three manual bisects, and **all three presented as a boot that printed
-nothing at all**: the shell's terminal page colliding with `FILE_VA_CLIENT`, init's sixteen-slot
+nothing at all**: the shell's terminal page colliding with `FILE_VA_CLIENT`, the progenitor's sixteen-slot
 capability table overflowing when the kernel handed it two more grants, and four stack pages being one deep
 call short of the redirection path.
 
-**And the gap runs the other way too, which milestone 86 found.** The kernel's stand-in init put a
+**And the gap runs the other way too, which milestone 86 found.** The kernel's stand-in progenitor put a
 spawned program's argument in `arg0`; both real inits put it in `arg1`, and `components/src/least_authority_demo.rs`
 reads `arg1`. Nothing failed for two milestones, because no line in either script ever spawned a
 program that *takes* an argument: `date`, `wc` and `echo` take none, and `least_authority_demo 9 | wc` is refused
@@ -1206,7 +1211,7 @@ caps date                  -> cap 1    ... and the visibility surface names it
 ```
 
 One line would have caught all three bugs. Five is still seconds, and it walks the whole endowment:
-a spawn through the real init, the FS service the real init narrowed into the shell, and both
+a spawn through the real progenitor, the FS service the real progenitor narrowed into the shell, and both
 redirection operators.
 
 The `wc gate` trio is milestone 31's headline checked at the one interface a human touches. Its
@@ -1219,7 +1224,7 @@ before anything is spawned.
 The last two arrived with milestone 51's wiring lane and check a different half of the same boot.
 `date`'s answer cannot be a constant, so the assertion is `UTC`: `Format::Human` ends in the offset's
 name and **neither** unknown-clock sentence contains those three letters, so one word fails the gate
-if the clock service did not run, if the kernel granted init no page, if init did not endow `date`,
+if the clock service did not run, if the kernel granted the progenitor no page, if the progenitor did not endow `date`,
 or if `date` was handed a page nobody published to. `caps date` then requires that the shell's own
 visibility surface names the capability, because `caps` claims to print a process's whole authority
 and a clock endowed but not printed would make that claim false.
@@ -1288,7 +1293,7 @@ reader would look. The symptom is always a data abort one word below the lowest 
 - **`OP_PRINT` carries eight bytes, so a sixteen-byte sink message is two calls to the terminal.**
   That is the terminal contract's request shape rather than a choice (see notes/sink-protocol.md),
   and it doubles the round trips on a path that is a person reading text.
-- **`script/shell-check` is not in `script/test` or in CI.** It is the only gate on the real init
+- **`script/shell-check` is not in `script/test` or in CI.** It is the only gate on the real progenitor
   (both of them) and nothing runs it automatically, which is a weaker version of the gap it closed.
   It has now caught two boots that printed nothing, which is two more than any automatic gate did.
   Wiring it into the CI test job is a one-line change and is deliberately still not taken here.
@@ -1304,13 +1309,13 @@ reader would look. The symptom is always a data abort one word below the lowest 
   than an oversight, but it is a default and not a decision anybody made on the record.
 - **`rm` is still not reachable from the prompt, and neither is a per-file capability.** The shell
   holds a directory, so the refusal is no longer "you hold no such capability"; what is missing is
-  the caretaker init would have to build per invocation, and `spawn` says so rather than spawning
-  `rm` with nothing. init deletes its copy of the FS endpoint after building the shell, so that is
+  the caretaker the progenitor would have to build per invocation, and `spawn` says so rather than spawning
+  `rm` with nothing. The progenitor deletes its copy of the FS endpoint after building the shell, so that is
   the line that changes first. The same gap is why `FileSpec::Required` has no consumer: `wc
   gate.txt` grants a *stream* of one file (the shell opens it), which is narrower than the per-file
   capability `fs_file_caretaker` serves and is not the same claim. See notes/grant-expression.md.
 - **Slot 1 is the clock, the input source, or the `--mem` untyped, whichever applies.** Three things
-  in one ordered position now (milestone 51's wiring added the clock, which init endows from the
+  in one ordered position now (milestone 51's wiring added the clock, which the progenitor endows from the
   program's manifest rather than from the request). It is unambiguous only because no manifest
   declares two of them, and `grant_plan` is where that stops being true. A program endowed a budget
   *and* an input, or a clock *and* an input, needs a numbered slot convention rather than an ordered

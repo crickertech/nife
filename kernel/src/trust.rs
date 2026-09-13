@@ -47,7 +47,7 @@ pub fn verify(name: &str, bytes: &[u8]) -> Result<(), measured_boot::VerifyError
 /// kernel builds the progenitor's address space and drops to EL0/U-mode at its entry.
 ///
 /// Two entries reach it: the boot program itself, and (since milestone 104) the measurement table
-/// The progenitor loads everything else against, through [`require_program_measurements`]. The wording of the
+/// the progenitor loads everything else against, through [`require_program_measurements`]. The wording of the
 /// diagnostics is deliberately about *entries* rather than *programs*, because one of them is not a
 /// program.
 ///
@@ -96,7 +96,7 @@ pub fn require(name: &str, bytes: &[u8]) {
 /// and until this existed those bytes were unchecked, so the chain of trust stopped at the progenitor's entry.
 /// The fix belongs in userspace (the progenitor decides what to do about a mismatch, the same way §26's
 /// supervisor decides what to do about a fault), and it needs exactly one thing from here: a table
-/// The progenitor can trust as much as the kernel trusts the progenitor.
+/// the progenitor can trust as much as the kernel trusts the progenitor.
 ///
 /// **Why the kernel measures a file it never reads.** The progenitor's own table cannot be compiled into the progenitor,
 /// because the progenitor is *in* the archive it would be measuring; generating it would mean building

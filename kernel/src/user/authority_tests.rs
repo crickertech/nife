@@ -150,7 +150,7 @@ fn of_kind(msgs: &[[u64; 5]; EXPECTED_REPORTS], kind: u64) -> impl Iterator<Item
 /// kernel object. Both must fail, and they must fail with `NoSuchSlot` (there is nothing there)
 /// rather than `NotPermitted` (there is something there and you may not use it), because the
 /// capability is *gone*, not narrowed. That distinction is the whole difference between "we asked
-/// The progenitor not to" and "progenitor cannot."
+/// the progenitor not to" and "progenitor cannot."
 ///
 /// It is reported from inside the process on purpose: what matters is what the *holder* can do,
 /// and only the holder can ask.

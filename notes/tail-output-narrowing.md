@@ -145,7 +145,7 @@ spawn time and `RECV` on it instead of on the child's output), not a new kernel 
 | Option | Kernel change | Wire/protocol change | What it costs | What it's already proven to cost (measured) |
 |---|---|---|---|---|
 | (a) Pull-based source | None | Collapses input+output onto one endpoint; touches `spawnproto`, every sink-contract reader/writer in the tree | Destroys the separate-rights property (§51's indifference, the pipe's read/write asymmetry) | Not benchmarked; rejected on the property loss before it reached measurement, twice |
-| (b) Buffering stage | None | New program, `Prog` id, init entry | A second rendezvous per message | Measured: ~2x per-message latency (`relay_rtt` 1187ns vs `ipc_rtt` 2313ns is the userspace-hop cost this pays); does not raise the 16-byte-per-message ceiling that is the actual bottleneck (13.3 MiB/s vs Unix's 44 MiB/s at the same granularity) |
+| (b) Buffering stage | None | New program, `Prog` id, the progenitor entry | A second rendezvous per message | Measured: ~2x per-message latency (`relay_rtt` 1187ns vs `ipc_rtt` 2313ns is the userspace-hop cost this pays); does not raise the 16-byte-per-message ceiling that is the actual bottleneck (13.3 MiB/s vs Unix's 44 MiB/s at the same granularity) |
 | (c) Do nothing | None | None | Milestone 40 stays PARTIAL; no line renders a page at a prompt, ever, on this branch of the design | N/A |
 | (d) `terminal_sink_caretaker` takes primary output | None | One `spawnproto` bit (or a repurposed `DIAG_BIT`-shaped convention) for "this stage's output goes to the terminal by default"; the shell must additionally wire §26's fault endpoint for the spawn, where today it wires none | Narrows what the shell can observe about that child (it no longer reads its bytes); a completion-race caveat, below | §26's fault delivery is already built and proved (milestone 22); the incremental piece is shell wiring, comparable in size to `spawn_interruptible`'s existing job-watching path, not a new kernel primitive |
 
@@ -220,12 +220,12 @@ milestone 33's compositor) regardless of how this fork resolves.
 two-programs-must-agree wire decision on the expensive side of *move fast on what can be undone*.
 **That framing was checked against the code during the decision discussion and did not hold.**
 `SINK_BIT`'s own contract (`crates/grant_plan/src/spawnproto.rs`) already makes the child's output
-slot opaque to the program: "the shell delegates an endpoint and init puts it where the result
+slot opaque to the program: "the shell delegates an endpoint and the progenitor puts it where the result
 endpoint would have gone, so the child writes to a pipe or a file sink without knowing which."
 Nothing about what a program declares changes; no manifest is touched, because the primary output
-slot isn't something a program opts into. The actual work is shell-and-init default-routing logic
+slot isn't something a program opts into. The actual work is shell-and-progenitor default-routing logic
 (when `sink == false`, delegate a `terminal_sink_caretaker` capability instead of the shell's own
-read endpoint), the same shape init already uses for a `DIR_BIT` grant. That is cheaper than §67
+read endpoint), the same shape the progenitor already uses for a `DIR_BIT` grant. That is cheaper than §67
 itself, which had a real manifest-declaration axis this fork does not.
 
 **Decided 2026-08-22 (DECISIONS §106): take it.** See that decision for the full record. This note's

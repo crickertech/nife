@@ -359,8 +359,8 @@ most needs it is the person about to propose it again.
 That is not hypothetical. A lane proposed `system_builder` for the crate milestone 96 extracted, the
 maintainer endorsed it, and calef overruled it to `system_initializer`. Only afterwards did anyone
 find that **milestone 63 had already refused `system_builder`**, for a reason still true:
-`components/src/builder.rs` calls itself "a minimal init: the system builder", so two programs would claim
-one phrase. The refusal existed, in one table cell inside one milestone block, invisible at the
+`components/src/builder.rs` called itself "a minimal init: the system builder" then, so two
+programs would claim one phrase. The refusal existed, in one table cell inside one milestone block, invisible at the
 moment it was needed. A blind rename then swept the old name out of that very row, and the record of
 the refusal was nearly destroyed by the rename it should have prevented.
 

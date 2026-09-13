@@ -102,13 +102,13 @@ deliberate; see the refusal catalog below.
 
 ## Where the authority actually comes from, and how it moves
 
-The shell holds four capabilities (init grants them at boot, in this order): the terminal endpoint
-(slot 0), a spawn endpoint to init (slot 1), a result endpoint (slot 2), and **its own untyped
-budget** (slot 3). The budget is the piece milestone 31 added: init splits it off its own untyped
+The shell holds four capabilities (the progenitor grants them at boot, in this order): the terminal endpoint
+(slot 0), a spawn endpoint to the progenitor (slot 1), a result endpoint (slot 2), and **its own untyped
+budget** (slot 3). The budget is the piece milestone 31 added: the progenitor splits it off its own untyped
 and `CAP_INSERT`s it into the shell, so the shell has memory that is genuinely its to give.
 
-The shell does not build children itself; init holds the initrd and stays the ELF loader (the
-parser lives in one place, out of the shell). So the shell **directs** init and **delegates** the
+The shell does not build children itself; the progenitor holds the initrd and stays the ELF loader (the
+parser lives in one place, out of the shell). So the shell **directs** The progenitor and **delegates** the
 capabilities it grants, over the spawn endpoint. The protocol (`grant_plan::spawnproto`, a userspace
 protocol like the terminal contract, DECISIONS §21):
 
@@ -116,12 +116,12 @@ protocol like the terminal contract, DECISIONS §21):
    against the program's manifest first. A mismatch is refused at the prompt; nothing is sent.
 2. The shell `SEND`s the request (program id, argument, page count).
 3. If a memory grant was named, the shell `SPLIT`s N pages off its slot-3 budget and `SEND_CAP`s
-   the resulting untyped to init, narrowed to `WRITE|GRANT`.
-4. init loads the named ELF, endows the child with the result endpoint (slot 0) and, when one was
+   the resulting untyped to the progenitor, narrowed to `WRITE|GRANT`.
+4. The progenitor loads the named ELF, endows the child with the result endpoint (slot 0) and, when one was
    delegated, the untyped (slot 1) narrowed to `WRITE`, and starts it with the argument.
 5. The child runs and reports its answer on the result endpoint; the shell reads the one word.
 
-Nothing the command did not name reaches the child. init inserts only the report channel every
+Nothing the command did not name reaches the child. The progenitor inserts only the report channel every
 spawn carries and whatever the shell delegated. The child's authority is the command line, read
 literally.
 
@@ -136,8 +136,8 @@ The fix is rights **inheritance**, not a blanket upgrade, and the distinction ma
 `SPLIT` child full rights unconditionally would be an escalation, since `SPLIT` gates only on
 `WRITE`, so a process holding a spend-only untyped could split itself a `GRANT`-bearing child and
 manufacture the right it was denied. Instead, a `SPLIT` child inherits the invoking capability's
-rights and no more, and the **root** untyped init holds at boot is the delegable one
-(`READ|WRITE|GRANT`). Rights narrow monotonically from that root down: root -> init split (inherits
+rights and no more, and the **root** untyped the progenitor holds at boot is the delegable one
+(`READ|WRITE|GRANT`). Rights narrow monotonically from that root down: root -> the progenitor split (inherits
 `GRANT`) -> shell (narrowed to `WRITE|GRANT` at `CAP_INSERT`) -> shell split (inherits) -> spawned
 child (narrowed to `WRITE`, spend-only). `GRANT` never appears where it was not present above.
 
@@ -314,13 +314,13 @@ authority is still exactly what the line says, because the program's half is fix
 The refusal this section used to describe is gone, and the reason it went is the point of the way it
 was written. It said "you hold no such capability: this shell was granted no directory to narrow",
 which was a **fact about the shell's capability table** rather than a release date; milestone 50 gave the
-interactive boot a RedoxFS disk and had init narrow the file service into the shell, and the same
+interactive boot a RedoxFS disk and had the progenitor narrow the file service into the shell, and the same
 sentence stopped being printed with no edit to the condition that prints it. Phase 1's first draft
 hardcoded "arrives with milestone 32", which was true when written and would have become a lie the
 moment the mechanism landed.
 
 So at the prompt today the shell holds the image root, `holdings().dir` is true, a name on the line
-resolves, and since 2026-08-17 **init builds a `fs_subtree_caretaker` per directory grant**, so `rm`
+resolves, and since 2026-08-17 **The progenitor builds a `fs_subtree_caretaker` per directory grant**, so `rm`
 runs. `script/shell-check` types four lines on both ISAs: the preview (`caps rm rmtree/rm-solo`
 names the directory and says what `-r` would have added), the removal (`rm -v rmtree/rm-solo` prints
 the name it was given), the check (`ls rmtree | wc` counts two entries where there were three, so the
@@ -342,7 +342,7 @@ more than deleting it, because three landed as written and the fourth was worse 
 **The wire.** As predicted: a request is three words and what follows it is *capabilities*, so a
 directory grant travels as its own messages. It is two, not one, and the shape is better than the
 "five words of names" this note guessed: each message is a **process's three `START` words**, the
-caretaker's and then the program's, forwarded by init without being decoded. That is what lets
+caretaker's and then the program's, forwarded by the progenitor without being decoded. That is what lets
 `grant_plan` carry a filesystem grant while keeping its deliberate non-dependency on `filesystem_proto`.
 
 **The depth.** As predicted, and it is the one thing still open. Every caretaker wiring in this tree
@@ -372,7 +372,7 @@ like: nothing at all.
 reasoning: two shipped programs disagreed with their own declarations and nothing noticed, because
 nothing had ever run them for real. `rm` declared the sink contract and never sent its end-of-stream,
 so it could not have been piped. `fs_subtree_caretaker` panicked on a refused descent, which was a
-watchdog in a test and would have been the whole machine with init as the waiter.
+watchdog in a test and would have been the whole machine with the progenitor as the waiter.
 
 ### `wc report.txt`: the input operand, and what it does and does not prove
 
@@ -424,10 +424,10 @@ set and propose are three different objects there, and the reason `date -s` cann
 read authority is a page permission rather than a check the program could skip. None of that is
 expressible on a command line, so there is nothing to type and nothing to get wrong.
 
-**The interactive boot now starts a clock service and hands the page to init**, on both ISAs, so
+**The interactive boot now starts a clock service and hands the page to the progenitor**, on both ISAs, so
 `date` at the prompt prints a time. The shell is not on that path and holds no clock: `Manifest`
 grew a `clock: bool` the way it has `reports: bool` (a fixed fact about the program, not a
-designation), and *init* reads it and endows the child. `caps date` prints the row anyway, because a
+designation), and *The progenitor* reads it and endows the child. `caps date` prints the row anyway, because a
 preview that showed only what the line designates would be off by exactly one capability:
 
 ```text
@@ -447,12 +447,12 @@ $ date
 The assessment above listed four, in different subsystems, and three of them were right:
 
 1. **The interactive boot started no clock service.** Correct, and it was the bulk of the work: the
-   kernel starts it before init exists on both boot paths.
+   kernel starts it before the progenitor exists on both boot paths.
 2. **Init had no way to receive the page.** Correct: it is a read-only frame capability now, granted
    ahead of the filesystem pair so its slot number does not depend on whether a disk was attached.
 3. **"The spawn protocol carries no clock. A clock is a third position and a new flag word, in both
    inits."** **Wrong, and the reason is the interesting part.** A clock is not designated on the
-   command line, so there is nothing for the shell to *send*: init already decodes the program id, so
+   command line, so there is nothing for the shell to *send*: the progenitor already decodes the program id, so
    it can read that program's manifest itself and decide. The wire did not change at all. The general
    rule that falls out: a flag word carries what the **sender chose**, and an authority the sender
    could not choose does not belong on it.
@@ -466,9 +466,9 @@ which is the gate this landed against.
 ### What a delegable clock would still need
 
 Nothing here lets the *shell* hand a clock to anything. That is a real difference and not a
-formality: a shell holding the page could grant it to any child, and init granting it per manifest
+formality: a shell holding the page could grant it to any child, and the progenitor granting it per manifest
 means the set of processes that can read the time is decided by declarations rather than by a prompt.
-Making it delegable would mean init keeping a copy for the shell, a `Holdings` field, and a clock
+Making it delegable would mean the progenitor keeping a copy for the shell, a `Holdings` field, and a clock
 position on the wire after all. There is no program asking for it, so it is recorded and not built.
 
 **Recorded-accepted by milestone 94's sweep** (2026-08-04). "No program is asking" is the whole
@@ -497,7 +497,7 @@ what the two-tier interrupt (DECISIONS §24) needs, and nothing more.
   cooperative program reads it between work units and exits cleanly. Shared memory, not an endpoint,
   because a running computation cannot poll an endpoint (no non-blocking receive); this is the one
   place control rides in memory rather than a message, and the note says why.
-- **A job untyped** the shell splits from its own budget and delegates for init to build the *whole*
+- **A job untyped** the shell splits from its own budget and delegates for the progenitor to build the *whole*
   child from, so the child's region is one the shell holds. That is what makes the forcible tier a
   capability the shell already has: a second `^C` tears the job down with `Untyped::DESTROY` on that
   region (which force-kills the resident thread, §16 amendment), and even a runaway that ignores the

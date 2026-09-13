@@ -20,7 +20,7 @@
 //!
 //! Creator-paid, resolved (the 19c conversation): a kernel-created thread's stack comes from
 //! this carve because **the kernel is its creator**; a progenitor-created TCB's memory comes from
-//! The progenitor's untyped because the progenitor is. One principle, two payers, no third regime.
+//! the progenitor's untyped because the progenitor is. One principle, two payers, no third regime.
 
 use page_frames::FRAME_SIZE;
 

@@ -116,7 +116,7 @@ use user_rt::{
 // terminal could not also hold a filesystem, and milestone 50's `>` is exactly the wiring where it
 // holds both, so the terminal page moved rather than the FS one: `FS_VA` is `fs_service`'s
 // `FILE_VA_CLIENT`, which six other programs map, and this is the one address only the shell and its
-// The progenitor know.
+// the progenitor know.
 const OUT_VA: u64 = 0x0000_0000_00c0_0000; // we write; the terminal reads
 const LINE_VA: u64 = 0x0000_0000_00b0_0000; // the terminal writes; we read
 
@@ -1498,7 +1498,7 @@ const MAX_BATCHES: u64 = 256;
 /// `find | xargs rm` analogue would spawn an `rm` holding no authority at all; the pipe cannot carry
 /// the thing that has to be batched. What can mint a per-batch caretaker is whatever holds the
 /// directory capability with the right to delegate it, and in this system that is the shell asking
-/// The progenitor. So the batching goes where the authority already is.
+/// the progenitor. So the batching goes where the authority already is.
 ///
 /// This is **not** milestone 47's rejected "make `rm` a builtin", either. `rm` stays a program with
 /// an attenuated grant; what became a builtin is the *iteration*, which is a property of how the

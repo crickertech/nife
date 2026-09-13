@@ -143,7 +143,7 @@
 //!
 //! The kernel measures the one program *it* loads, which is this one. Everything else in the
 //! archive is loaded here, and those bytes used to be unchecked, so the chain of trust stopped at
-//! The progenitor's entry. It does not now. The build packs a table of digests into the archive
+//! the progenitor's entry. It does not now. The build packs a table of digests into the archive
 //! ([`measured_boot::PROGRAM_MEASUREMENTS`]), the kernel's trust root vouches for that table exactly
 //! as it vouches for this program's own bytes, and [`boot`] looks every program up in it before
 //! loading it.
@@ -922,7 +922,7 @@ pub fn boot(
     //
     // **Used to prove only the device chain.** This block builds the service and confirms it drew
     // real bytes from the real device; `entropy_client`, below, is what changed: `request`'s
-    // The progenitor-side copy is now kept (not `cap_delete`d) exactly when a client will need it, so
+    // the progenitor-side copy is now kept (not `cap_delete`d) exactly when a client will need it, so
     // `credentialer` can be handed a working view of it further down.
     let mut entropy_ready = false;
     // **`request`'s the progenitor-side copy, kept for the life of the boot** (milestone 49's boot-wiring
@@ -1286,7 +1286,7 @@ pub fn boot(
     // `build_caretaker` retypes two more objects into *this process's* capability table right
     // where the comment two screens up already documents this table as tight ("the shell's
     // `build_child` had no slot left ... and failed silently"). The failure mode if this pushes
-    // The progenitor over sixteen slots is exactly that one: a boot that reaches userspace and prints
+    // the progenitor over sixteen slots is exactly that one: a boot that reaches userspace and prints
     // nothing. Whoever first passes `Some` here should watch for it and run `script/shell-check`
     // before trusting this path.
     let second_dir_ep: Option<u64> = second_dir.filter(|_| with_fs).and_then(|sd| {
@@ -2082,7 +2082,7 @@ fn spawn_service(
         };
         // **The narrowed tail's completion endpoint** (DECISIONS §106), in the same delegation
         // order as everything else: a fresh capability the shell minted and kept a copy of, so
-        // The progenitor installs it as this child's fault target and the shell can `RECV` its exit instead
+        // the progenitor installs it as this child's fault target and the shell can `RECV` its exit instead
         // of draining bytes it will no longer see.
         let screen = if wiring.screen {
             opt_cap(recv_cap(spawn_ep).1)

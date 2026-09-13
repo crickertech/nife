@@ -858,7 +858,8 @@ pub fn spawn_progenitor(
     role: u64,
     report: crate::sched::RendezvousId,
 ) -> holding::Holding {
-    let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd to hand the progenitor");
+    let (initrd_start, initrd_len) =
+        memory::initrd_region().expect("no initrd to hand the progenitor");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
 
     // Route the test interrupt (19d.2b) BEFORE spawning the progenitor: the test raises the SGI as soon as
@@ -974,7 +975,7 @@ pub fn spawn_progenitor(
     // 177, option A; milestone 192 dropped the keyboard from the condition). `None` on a boot with
     // no GPU (a run with `NIFE_GPU` unset): the whole chain past this point treats it exactly as
     // "this boot has no filesystem" is already treated, as an absence rather than a failure, and
-    // The progenitor builds the plain console/input pair instead. A keyboard is no longer required, because
+    // the progenitor builds the plain console/input pair instead. A keyboard is no longer required, because
     // the board's own UART is a keystroke source too; see [`boot_graphical_terminal`] for what
     // wiring it costs, why it is built here rather than by the progenitor, and which source it picks.
     let graphical = if role == PROGENITOR_ROLE {
@@ -987,7 +988,8 @@ pub fn spawn_progenitor(
     // sized for a full copy of the initrd program plus its tables and the progenitor's scratch. Carving it out
     // here changes nothing about what the progenitor gets; it changes who can name it afterwards, which is the
     // whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
-    let build_region = crate::memory_region::create(12288).expect("no building budget for the progenitor");
+    let build_region =
+        crate::memory_region::create(12288).expect("no building budget for the progenitor");
 
     let tid = crate::sched::spawn(move || {
         let elf = match Elf::parse(init_bytes) {
@@ -1699,7 +1701,7 @@ pub fn riscv_least_authority_demo(least_authority_demo: &[u8], n: u64) -> Result
 /// report endpoint as its slot 0, and starts it with an input. The child squares the input and SENDs
 /// the answer straight to the report endpoint, which this function is waiting on. The kernel never
 /// parsed or mapped the `least_authority_demo`: builder did. That is the whole point (DECISIONS §17, and the aarch64
-/// The progenitor lineage in notes/progenitor-and-loading.md), now on RISC-V.
+/// the progenitor lineage in notes/progenitor-and-loading.md), now on RISC-V.
 #[cfg(target_arch = "riscv64")]
 pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
@@ -2611,7 +2613,7 @@ pub enum KeystrokeSource {
 /// a virtio-gpu device alone needs eleven capability-table slots (a `PageFrame` per DMA page, and
 /// the ABI's `MAP_INTO`/`CAP_INSERT` are strictly one-capability-per-physical-page), which does not
 /// fit either board's remaining budget. So the driver and the terminal are spawned here, before
-/// The progenitor exists, and the caller receives only the two capabilities it actually needs to hand a
+/// the progenitor exists, and the caller receives only the two capabilities it actually needs to hand a
 /// client (`disp_term_ep`/`disp_term_page`), the same shape `fs_ep`/`fs_page` already are.
 ///
 /// **The keyboard driver is spawned here too, for a different reason than the GPU's.** Its own raw

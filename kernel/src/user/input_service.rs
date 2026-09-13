@@ -11,7 +11,7 @@
 //! On a graphical boot the endpoint a keystroke source must reach is `line_editor`'s own served
 //! endpoint, which the kernel creates before the progenitor exists
 //! (`kernel::user::boot_graphical_terminal`, and the reason is recorded in full there: a driver
-//! The progenitor spawns can only be wired to capabilities the progenitor itself already holds). The virtio keyboard
+//! the progenitor spawns can only be wired to capabilities the progenitor itself already holds). The virtio keyboard
 //! is already spawned there for exactly that reason. A serial source needs the same treatment for
 //! the same reason, and doing it here means `crates/system_initializer` needs no line changed and
 //! cannot tell which source it got.

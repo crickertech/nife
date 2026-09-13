@@ -4530,7 +4530,7 @@ fn initrd_aarch64() -> bool {
     // **The measurement table, last, so it measures everything above it** (milestone 104). The progenitor
     // reads this entry out of the archive it already holds and refuses to load a program whose
     // bytes it does not match. See [`measurement_table`] for why it lives here rather than inside
-    // The progenitor's own image.
+    // the progenitor's own image.
     let table = measurement_table(&files);
     files.push((measured_boot::PROGRAM_MEASUREMENTS, table.as_bytes()));
 
