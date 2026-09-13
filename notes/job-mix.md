@@ -42,59 +42,119 @@ figure appears in the 2016 retrospective. Both are real citations; they are not 
 claim, and this tree has already carried a fabricated block quote for twelve days, so the provenance
 is written down rather than remembered.
 
+**Since 2026-09-13 the thesis body has been read too, and it is harder on the number than the
+abstract is**: Warton expected the opposite result, called his own 20% something to treat "with
+scepticism until it can be satisfactorily explained", and never ran the cache simulation that would
+have explained it. The next section has the quotations.
+
 **The result is from 2005, on ARMv5, on Pistachio.** Nothing about it transfers to this kernel by
 assumption. That is the whole reason this milestone exists rather than a rewrite.
 
 ## What Warton ran AIM7 on, and why the 20% is not a target
 
-Checked on **2026-09-13**, by reading the whole paper rather than section 4.1 alone, from
-<https://trustworthy.systems/publications/nicta_full_text/8988.pdf> (629,888 bytes, 30 pages,
-extracted with `pypdf`). The question was AGENTS.md's fourth: *is the premise true?* Milestone 168
-built an instrument whose stated reason for existing is that the 20% lives where this project does
-not measure. Nobody had checked what the 20% was measured **on**.
+Checked on **2026-09-13**, because AGENTS.md's fourth question is *is the premise true?* and nobody
+had asked what the 20% was measured **on**. It took two documents, and the second one settles it.
 
-**The paper does not say what userland AIM7 ran under.** That is the finding, and it is not a
-failure to find the sentence: "AIM7" occurs exactly once in the 30 pages, in the passage this page
-already quotes above. The setup the paper gives is the whole of it, section 4.1, page 1:16:
+### The retrospective does not say, and that is worth knowing before quoting it
 
-> Warton [2005] performed a thorough performance evaluation of the Pistachio process kernel vs an
-> event-based (single-stack) kernel with continuations on an ARMv5 processor.
+Read from <https://trustworthy.systems/publications/nicta_full_text/8988.pdf> (629,888 bytes, 30
+pages). "AIM7" occurs **exactly once** in the paper, in the sentence this page quotes above. The
+whole setup it gives is section 4.1, page 1:16: *"the Pistachio process kernel vs an event-based
+(single-stack) kernel with continuations on an ARMv5 processor."* Two arms and an ISA. **The
+software above the kernel is not named**, and "Wombat" appears in the paper only as a bibliography
+entry cited from section 5.1 (Virtualisation), unconnected to Warton's measurement.
 
-So the two arms are named (Pistachio's process kernel against a single-stack kernel with
-continuations), the ISA is named (ARMv5), and **the software above the kernel is not named at all**.
-"Wombat", NICTA's paravirtualised ARM Linux of the same year and group, appears in this paper only
-as a bibliography entry (Leslie, van Schaik and Heiser, *Wombat: A portable user-mode Linux for
-embedded systems*, 6th Linux.conf.au, April 2005) cited from section 5.1 (Virtualisation), with no
-connection drawn to Warton's measurement. **Reading it into section 4.1 would be a reconstruction,
-and this page does not make one.**
+### Warton's own thesis says, and the answer is Wombat
 
-**What follows anyway, and it does not need the paper's help.** AIM7's 53 jobs are POSIX: `fork`,
-`link`, `sync`, signal handlers, `sbrk`. Pistachio is a microkernel and has no POSIX personality, so
-the benchmark cannot have run against the microkernel API. Some Unix personality was hosted above
-both kernels. That is an inference from what AIM7 requires rather than a claim from the
-paper, and it is marked as one. It is not, however, in much doubt.
+<https://trustworthy.systems/publications/theses_public/05/Warton%3Abe.pdf>, read the same day
+(361,145 bytes, 43 pages). Matthew Warton, *Single Kernel Stack L4*, BE thesis, UNSW, submitted
+2 November 2005, supervisor Gernot Heiser. Section 5.4:
 
-**So the 20% is a delta between two microkernels measured through a hosted Unix's syscall path**,
-and the instrument on this page is a native workload on one kernel. Those are different experiments,
-and no amount of fidelity work closes the gap between them.
+> The AIM7 benchmark is a measures system performance by simulating workload on a multiuser system.
+> The AIM7 benchmark was modified slightly so that it could run on Wombat. The modifications included
+> disabling the network operation simulations because Wombat does not support the GetHost function,
+> and disabling the file system operation simulations, because Wombat runs from a ram disk, and the
+> ram disk is not large enough to support the benchmarks.
 
-### The deeper reason no number here is comparable, which is not about categories
+(`pypdf` drops this PDF's `fi` ligature, so "modified", "file", "benefits" and "conflict" arrive
+from the extractor with the `fi` missing. They are restored in every quotation on this page, since
+the ligature is an artifact of reading the document rather than of writing it. Nothing else in any
+quotation here is altered.)
 
-`crates/job_mix`'s `BUGS` records three missing AIM7 categories, which reads as a fidelity gap that
-adding categories would close. **It would not**, and this page's own *What this instrument cannot
-settle* section below already says why without connecting it to the citation: Warton's 20% is a
-**ratio between two kernel models** on one machine, one userland and one workload, and neither arm's
-absolute throughput means anything alone. This tree has one kernel model, so the mix produces one
-arm and there is no ratio to compare against 20%, whatever the mix contains. Adding disk jobs,
-process creation and page mapping would make a better likeness of AIM7 and would not produce the
-missing second arm. **That is the correction owed to the crate's `BUGS`**, which frames the gap as
-closable coverage.
+**Wombat is the paravirtualised ARM Linux**, the same one the retrospective cites at Leslie, van
+Schaik and Heiser 2005. So the 20% is a delta between two microkernels **measured through a hosted
+Linux's syscall path**. Four things follow, and each one costs this instrument something different.
 
-**What the instrument is actually good for survives that**, and it is milestone 134's framing rather
-than this page's original one: the mechanism Warton's number is attributed to is per-thread kernel
-stacks displacing cache, and a **knee** in jobs-per-minute against task count is evidence that the
-mechanism is live on this kernel. Evidence that the effect exists here is a real input to
-`design/decisions/96-process-kernel-or-event-kernel.md`. A reproduction of 20% was never available.
+**1. The premise fails.** `crates/job_mix` runs native tasks on nife's own primitives. Warton
+measured Linux processes whose every system call became an exception IPC to a user-level Linux
+server. Those are different experiments, and no fidelity work on the mix turns one into the other.
+
+**2. The 20% is a ratio, and this tree has one kernel.** Section 6's table, five runs:
+
+| | single stack | multi stack | variable stack |
+|---|---|---|---|
+| average time | 157.69 | 197.22 | 157.78 |
+| standard deviation | 0.015 | 0.344 | 0.019 |
+
+(197.22 − 157.69) / 197.22 is 20.0%, which is where the retrospective's figure comes from. It is a
+**paired** measurement: neither column means anything alone. nife has no event kernel to be the
+other column, so the mix produces one arm and no ratio, whatever jobs it contains.
+
+**3. Warton's AIM7 run had already disabled two of the three categories `crates/job_mix`'s `BUGS`
+apologises for.** Section 5.4 turned off the filesystem jobs (the ramdisk was too small) and the
+network jobs (Wombat had no `GetHost`). The crate records a missing disk-file category as a fidelity
+gap against AIM7; **the AIM7 run being cited did not have one either.**
+
+**4. It was two tasks, and there was no sweep.** Section 5.4: *"The precise benchmark used was 2
+clients with the normal workload file, with the disk and network tests removed"*, and section 6:
+*"This workload was run in two user tasks."* This page lists a task-count sweep as one of AIM7's
+four methodological properties and keeps it out to 32 tasks. **The run the 20% comes from swept
+nothing.** The sweep is a good idea on its own merits and it is not a reproduction of Warton.
+
+### What Warton thought of his own number
+
+This is the part the retrospective compresses away entirely, and it is the reason the figure should
+never be quoted flat. He expected the opposite result (section 5.2: *"the single stack kernel is
+expected to perform similarly to or worse than the multi stack kernel"*), and the micro-benchmarks
+delivered it. Section 7.3, on the AIM7 result:
+
+> As with any experimental result, this needs to be treated with scepticism until it can be
+> satisfactorily explained. Because the benchmark is not very stable and crashes on some runs, I
+> initially doubted the results.
+
+He ruled out the timer by re-running against a wall clock. Then:
+
+> If the result is accurate, it must be due to reductions in the cache and TLB footprint of the
+> single stack kernel. I did not expect that this reduction would make such a massive difference in
+> performance [...] To determine the validity of this result a simulation of the cache impact of
+> the kernels must be performed. There was not enough time to complete this simulation in the
+> course of this thesis, due to external events.
+
+**The validating simulation was never run**, and section 7.4 asks for another macro-benchmark for
+the same reason. So the chain this project has been reasoning from is: a BE thesis reports an
+unexplained 20% its author flagged as needing scepticism, on a modified AIM7, on two tasks, on a
+hosted Linux; a retrospective eleven years later summarises it as a flat *"20% performance
+advantage of the event kernel on a multitasking workload (AIM7)"*; and this tree built an instrument
+to chase it. Every step is a real citation. The compression happened at the second one.
+
+### The hardware, for completeness
+
+Section 5.2: a littlechips LN2410SBC single-board computer with *"a Samsung S3C2410 arm processor
+clocked at 200 MHz, a 32 kilobyte, 64 way associative cache, and 64 megabytes of ram."* The thesis
+never says "ARMv5"; that is the retrospective's own gloss on the SoC. Note the cache: Warton
+expected *"not many caching benefits [...] due to the single kernel stacks reduction of conflict
+misses"* precisely because 64-way associativity makes conflict misses rare, which is what made the
+result surprising to him.
+
+### What survives, and it is the reason to keep the instrument
+
+**The mechanism, not the number.** The only explanation Warton offered for his 20% is kernel cache
+and TLB footprint, which is exactly the quantity `kernel/src/bench.rs`'s `app_displacement` and
+milestone 134's E1 measure. Whether per-thread kernel stacks displace enough cache to cost
+throughput **on this kernel** is a real, open, local question, and a knee in jobs-per-minute against
+task count answers it. That is a genuine input to
+`design/decisions/96-process-kernel-or-event-kernel.md`. A reproduction of 20% was never available
+and is not what this instrument was ever going to deliver.
 
 ### One gloss in §96 that the paper contradicts in the same sentence
 
