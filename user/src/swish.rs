@@ -2957,7 +2957,8 @@ fn retype_rendezvous(region: u64) -> Option<u64> {
 
 const PAGE: u64 = 4096;
 /// Pages the construction untyped for a supervised child holds: its address space, code, stack, and TCB.
-/// The heeder and spinner are tiny; this is generous. DESTROY returns these pages to our budget.
+/// `interrupt_heeder` and `interrupt_ignorer` are tiny; this is generous. DESTROY returns these
+/// pages to our budget.
 const JOB_UNTYPED_PAGES: u64 = 32;
 /// Where we map a supervised job's shared frame in our own space. It advances per job, because there
 /// is no unmap syscall: each job gets a fresh window and the old mapping is simply left behind (one
@@ -2966,8 +2967,9 @@ static SH_JOBFRAME_NEXT: core::sync::atomic::AtomicU64 =
     core::sync::atomic::AtomicU64::new(0x0000_0000_00c0_0000);
 
 /// The terminal's `^C` count we have already accounted for. A watermark, not a per-job baseline, and
-/// that distinction is load-bearing: a `^C` typed the instant after `run heeder` is counted by the
-/// terminal *before* the shell finishes spawning and starts watching (the input driver runs first).
+/// that distinction is load-bearing: a `^C` typed the instant after `run interrupt_heeder` is
+/// counted by the terminal *before* the shell finishes spawning and starts watching (the input
+/// driver runs first).
 /// Diffing against a watermark carried across the session catches it anyway; a fresh baseline read at
 /// watch-start would already include it and miss the interrupt. A prompt `^C` (a failed read) and a
 /// finished job each advance the watermark, so neither leaks into the next job.

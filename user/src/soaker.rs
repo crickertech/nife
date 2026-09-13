@@ -79,11 +79,12 @@
 //!   report cannot say which half of the pair wedged; the thread dump can.
 //!
 //! Name: provisional, this lane's coinage (2026-09-01, milestone 219), and calef's call. An agent
-//! noun in the family this directory already has (`spinner`, `heeder`, `builder`, `swapper`,
-//! `painter`): the thing that soaks. `stressor` was considered and refused, because "stress" in
-//! this tree already names `script/repeat-under-load`'s *induced host load*, which is a different
-//! thing pointed the other way. `churner` was refused for naming the motion rather than the
-//! purpose.
+//! noun in the family this directory already has (`interrupt_ignorer`, `interrupt_heeder`,
+//! `builder`, `swapper`, `painter`): the thing that soaks. `stressor` was considered and refused,
+//! because "stress" in this tree already names `script/repeat-under-load`'s *induced host load*,
+//! which is a different thing pointed the other way. `churner` was refused for naming the motion
+//! rather than the purpose.
+
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

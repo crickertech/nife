@@ -40,11 +40,12 @@ fn outlaw_image() -> &'static [u8] {
     program("outlaw").expect("no outlaw program in the initrd archive")
 }
 
-/// The `spinner` program's ELF bytes: a `_start` that is nothing but a loop. It was built for the
-/// shell's forcible-interrupt tier (DECISIONS §24), and it is exactly the hostile binary
-/// DECISIONS §5 describes, so the preemption test uses it rather than a second copy of the same idea.
-fn spinner_image() -> &'static [u8] {
-    program("spinner").expect("no spinner program in the initrd archive")
+/// The `interrupt_ignorer` program's ELF bytes: a `_start` that is nothing but a loop. It was built
+/// for the shell's forcible-interrupt tier (DECISIONS §24), and it is exactly the hostile binary
+/// DECISIONS §5 describes, so the preemption test uses it rather than a second copy of the same
+/// idea.
+fn interrupt_ignorer_image() -> &'static [u8] {
+    program("interrupt_ignorer").expect("no interrupt_ignorer program in the initrd archive")
 }
 
 /// **An address in the kernel's own memory: mapped, readable by the kernel, forbidden to
@@ -257,16 +258,16 @@ fn a_user_program_cannot_read_a_kernel_address() {
 
 /// DECISIONS §5's arbitrary binary, at user mode, in the flesh.
 ///
-/// A program with no yield, no syscall, and not even a function call: `spinner`'s whole `_start`
-/// is a loop. The **only** thing in the universe that can take the CPU back from it is a timer
-/// interrupt landing between two of its instructions. Milestone 6 proved this for a kernel
+/// A program with no yield, no syscall, and not even a function call: `interrupt_ignorer`'s whole
+/// `_start` is a loop. The **only** thing in the universe that can take the CPU back from it is a
+/// timer interrupt landing between two of its instructions. Milestone 6 proved this for a kernel
 /// thread we compiled. This is the case that actually mattered.
 #[test_case]
 fn a_user_program_that_never_yields_is_preempted_anyway() {
     let preemptions = sched::preemptions();
     let faults = USER_FAULTS.load(Ordering::Relaxed);
 
-    let spinner = spawn_bare(spinner_image(), 0, 0).expect("spawn failed");
+    let interrupt_ignorer = spawn_bare(interrupt_ignorer_image(), 0, 0).expect("spawn failed");
 
     // Give it the CPU and then take it back, without asking.
     timer::spin_for(timer::frequency() / 10);
@@ -284,11 +285,11 @@ fn a_user_program_that_never_yields_is_preempted_anyway() {
     // And we are here, running, having taken the CPU back from a program that never
     // offered it.
 
-    // Now take it back for good. `spinner` never yields, never syscalls and never returns, so
-    // nothing but an armed kill ends it, and leaving it running would spend a core for the rest
-    // of the suite. The assertions above are already done, so the kill cannot weaken them.
+    // Now take it back for good. `interrupt_ignorer` never yields, never syscalls and never
+    // returns, so nothing but an armed kill ends it, and leaving it running would spend a core for
+    // the rest of the suite. The assertions above are already done, so the kill cannot weaken them.
     assert!(
-        reap_bare(spinner),
+        reap_bare(interrupt_ignorer),
         "the spinning user thread outlived its kill"
     );
 }
@@ -302,11 +303,11 @@ fn a_user_program_that_never_yields_is_preempted_anyway() {
 /// where `trap.s` builds an S-mode frame, so any interrupt in the window rewrote it. The symptom was
 /// a thread dispatched to U-mode with a zero entry point, intermittently, only ever on CI.
 ///
-/// So read that address and wait for this thread's U-mode PC to appear in it. `spinner` is the
-/// subject because it never syscalls and never returns: anything that lands in its frame got there
-/// by the timer preempting it at EL0, which is the agreement under test. A frame built somewhere
-/// else never shows up here and the wait times out, which is precisely what the old RISC-V placement
-/// would do.
+/// So read that address and wait for this thread's U-mode PC to appear in it. `interrupt_ignorer`
+/// is the subject because it never syscalls and never returns: anything that lands in its frame got
+/// there by the timer preempting it at EL0, which is the agreement under test. A frame built
+/// somewhere else never shows up here and the wait times out, which is precisely what the old
+/// RISC-V placement would do.
 ///
 /// **The window is checked, not just the value, and the test learned that the hard way.** Its first
 /// form waited for a nonzero word and then asserted it was a user address, and it failed on RISC-V
@@ -319,17 +320,17 @@ fn a_user_program_that_never_yields_is_preempted_anyway() {
 fn a_user_threads_trap_frame_sits_where_the_trap_path_rebuilds_it() {
     const USER_TEXT: core::ops::Range<u64> = 0x40_0000..USER_STACK_VA;
 
-    let spinner = spawn_bare(spinner_image(), 0, 0).expect("spawn failed");
+    let interrupt_ignorer = spawn_bare(interrupt_ignorer_image(), 0, 0).expect("spawn failed");
 
     assert!(
-        wait_for(|| sched::user_pc_of(spinner).is_some_and(|pc| USER_TEXT.contains(&pc))),
+        wait_for(|| sched::user_pc_of(interrupt_ignorer).is_some_and(|pc| USER_TEXT.contains(&pc))),
         "this thread's U-mode PC never appeared at stack_top - size_of::<TrapFrame>(), so the \
          user-entry path and the trap path do not agree on where the frame lives (read {:#x})",
-        sched::user_pc_of(spinner).unwrap_or(0),
+        sched::user_pc_of(interrupt_ignorer).unwrap_or(0),
     );
 
     assert!(
-        reap_bare(spinner),
+        reap_bare(interrupt_ignorer),
         "the spinning user thread outlived its kill"
     );
 }

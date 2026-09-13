@@ -194,8 +194,8 @@ fn printing_client() -> ! {
     check(print(b"      the kernel never saw these bytes.\n").is_ok());
 
     // Done, so exit. This used to spin ("so the timer can prove it still preempts us"), which the
-    // dedicated `spinner` binary proves better and without leaving a CPU-bound thread behind for
-    // the rest of the run. See `self_check_client`.
+    // dedicated `interrupt_ignorer` binary proves better and without leaving a CPU-bound thread
+    // behind for the rest of the run. See `self_check_client`.
     exit();
 }
 

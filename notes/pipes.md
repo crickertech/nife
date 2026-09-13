@@ -84,7 +84,7 @@ redirected:
 | | what slot 0 carries | can it be `>` or `\|`? |
 |---|---|---|
 | `worker`, `budgeter` | a `u64` answer in a register | no |
-| `heeder`, `spinner` | nothing; they report through a shared frame | no |
+| `interrupt_heeder`, `interrupt_ignorer` | nothing; they report through a shared frame | no |
 | `date`, `wc`, `rm` | the sink contract's byte messages | yes |
 
 `date` went one further on 2026-08-03 and declares a **second** byte stream as well (DECISIONS §67),

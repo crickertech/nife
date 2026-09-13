@@ -466,8 +466,9 @@ const CHILD_CLOCK_VA: u64 = 0x00c0_0000;
 /// numbers that happen not to need to agree.
 const CHILD_CONFIG_VA: u64 = 0x00e0_0000;
 
-/// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the ELF
-/// load address (`0x40_0000`) and the stack; must match heeder.rs / spinner.rs's `JOB_PAGE_FRAME_VA`.
+/// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the
+/// ELF load address (`0x40_0000`) and the stack; must match interrupt_heeder.rs /
+/// interrupt_ignorer.rs's `JOB_PAGE_FRAME_VA`.
 const CHILD_JOB_PAGE_FRAME_VA: u64 = 0x0030_0000;
 
 /// Pages of untyped split off our own budget and handed the shell (milestone 31), so the shell can

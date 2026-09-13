@@ -38,8 +38,8 @@ echo <text>
 
 **The command line itself is the grant expression.** Its parts are designators:
 
-- `<prog>` names the program to spawn (a closed set today: `worker`, `budgeter`, `heeder`,
-  `spinner`, `date`).
+- `<prog>` names the program to spawn (a closed set today: `worker`, `budgeter`, `interrupt_heeder`,
+  `interrupt_ignorer`, `date`).
 - `--mem N` designates **N pages of untyped**, carved from the shell's own budget.
 - a bare token designates whatever the program's manifest declares in that position: the integer
   argument, then a **file** (one name, at most 16 bytes, no path). See the per-file grant section
@@ -506,6 +506,6 @@ what the two-tier interrupt (DECISIONS §24) needs, and nothing more.
 A program the command did not run as a supervised job holds no job frame and no reclaimable region,
 so it cannot be signaled or torn down through this path; the authority is exactly the endowment, as
 everywhere else. The escalation policy (how many `^C`, the grace timeout) is the shell's, host-tested
-in `grant_plan::Escalation`. The two demonstrators are `heeder` (heeds the cooperative `^C`) and `spinner`
+in `grant_plan::Escalation`. The two demonstrators are `interrupt_heeder` (heeds the cooperative `^C`) and `interrupt_ignorer`
 (a bare loop only the forcible tier ends). See DECISIONS §24's implementation amendment and
 notes/terminal-contract.md's `OP_INTRCOUNT`.

@@ -1378,7 +1378,7 @@ fn enter_frame(entry: u64, user_sp: u64, arg0: u64, arg1: u64, arg2: u64) -> ! {
 //
 //   - aarch64 `hello`, riscv `USER_HELLO` (yield, yield)  -> `outlaw`, role `OUTLAW_ROUND_TRIP`
 //   - aarch64 `outlaw`  (read a kernel address)           -> `outlaw`, role `OUTLAW_READ_KERNEL`
-//   - aarch64 `spin`    (loop, no syscall, no stack)      -> the `spinner` binary (DECISIONS §24)
+//   - aarch64 `spin`    (loop, no syscall, no stack)      -> the `interrupt_ignorer` binary (DECISIONS §24)
 //   - riscv `USER_REPORTER` (invoke a cap, SEND a word)   -> `riscv_worker_demo`, which builds a
 //     process from the same parts and runs a real ELF through them
 //
@@ -3063,13 +3063,12 @@ pub mod revoke_service;
 /// their *scaffolding* was aarch64. Three things moved and the tests came along unchanged:
 ///
 /// 1. The hand-assembled programs became real ELFs the toolchain builds for both targets (the
-///    `outlaw` binary and the `spinner` that already existed). See the note above `OUTLAW_ROUND_TRIP`.
-/// 2. `ESR`/`FAR` became `arch::UserFault`, the same fact in words RISC-V can say, which is what
-///    keeps "a PERMISSION fault at exactly this address" assertable rather than softened to "a fault
-///    happened".
-/// 3. `hello`, which carries the milestone 7-19 role catalogue, was found to build for RISC-V once
-///    six syscalls it had hand-rolled in aarch64 `asm!` were routed through `user_rt`, which already
-///    had portable versions of all six.
+/// `outlaw` binary and the `interrupt_ignorer` that already existed). See the note above
+/// `OUTLAW_ROUND_TRIP`. 2. `ESR`/`FAR` became `arch::UserFault`, the same fact in words RISC-V can
+/// say, which is what keeps "a PERMISSION fault at exactly this address" assertable rather than
+/// softened to "a fault happened". 3. `hello`, which carries the milestone 7-19 role catalogue, was
+/// found to build for RISC-V once six syscalls it had hand-rolled in aarch64 `asm!` were routed
+/// through `user_rt`, which already had portable versions of all six.
 ///
 /// **What is still gated, and why, is written at each test rather than here**, because a blanket
 /// module comment is how the old claim survived past the point of being true. Two kinds of gate

@@ -97,7 +97,7 @@ the FS service). "Daemon" appears nowhere.
   meant one string named two binaries. The role is now a program of its own, `progenitor`, and the
   three names agree in every row.
 
-Fixtures and benchmarks (`heeder`, `spinner`, `flaky`, `allocator_exerciser`, `worker`, `coremark`,
+Fixtures and benchmarks (`interrupt_heeder`, `interrupt_ignorer`, `flaky`, `allocator_exerciser`, `worker`, `coremark`,
 `os_primitives_benchmarker`) live in `user/` next to the real components and are not components.
 Milestone 39's directory-layout work is where that gets separated; the naming rule is the same either
 way.

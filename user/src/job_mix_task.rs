@@ -44,7 +44,7 @@
 //!   own stall is what says so.
 //!
 //! Name: provisional, this lane's coinage (2026-09-04, milestone 168), and calef's call. An agent
-//! noun in the family this directory already has (`soaker`, `spinner`, `painter`,
+//! noun in the family this directory already has (`soaker`, `interrupt_ignorer`, `painter`,
 //! `os_primitives_benchmarker`): the thing that runs the job mix. `aim` and `aim7` were refused for
 //! naming somebody else's benchmark, which this is not: it keeps AIM7's four methodological
 //! properties and none of its 53 jobs, and a name claiming the original would be a claim about

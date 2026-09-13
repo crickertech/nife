@@ -101,11 +101,11 @@ pub enum Prog {
     /// A long-running job that *heeds* the cooperative interrupt: it works forever, polling its
     /// interrupt flag between work units, and on `^C` cleans up and exits (DECISIONS §24). The
     /// cooperative tier made visible: the first `^C` stops it gracefully.
-    Heeder,
+    InterruptHeeder,
     /// A runaway that ignores the interrupt entirely: a tight loop that never checks its flag. Only
     /// the forcible tier (the shell tearing its region down) ends it. The case the cooperative tier
     /// cannot reach, and the reason the second `^C` exists.
-    Spinner,
+    InterruptIgnorer,
     /// Print the wall-clock time (milestone 51, `user/src/date.rs`). It takes nothing from the
     /// command line: no argument, no memory, no file. **Its whole authority is a read-only mapping
     /// of the clock page, which init endows and this shell cannot**, and that asymmetry is why
@@ -263,8 +263,8 @@ impl Prog {
         match name {
             b"worker" => Some(Prog::Worker),
             b"budgeter" => Some(Prog::Budgeter),
-            b"heeder" => Some(Prog::Heeder),
-            b"spinner" => Some(Prog::Spinner),
+            b"interrupt_heeder" => Some(Prog::InterruptHeeder),
+            b"interrupt_ignorer" => Some(Prog::InterruptIgnorer),
             b"date" => Some(Prog::Date),
             // `rm` stopped being a builtin in milestone 47's rmdir lane, which is what makes this
             // line reachable: a builtin would have shadowed it, because `parse` matches those
@@ -287,8 +287,8 @@ impl Prog {
         match self {
             Prog::Worker => "worker",
             Prog::Budgeter => "budgeter",
-            Prog::Heeder => "heeder",
-            Prog::Spinner => "spinner",
+            Prog::InterruptHeeder => "interrupt_heeder",
+            Prog::InterruptIgnorer => "interrupt_ignorer",
             Prog::Date => "date",
             Prog::Rm => "rm",
             Prog::Wc => "wc",
@@ -307,8 +307,8 @@ impl Prog {
         match self {
             Prog::Worker => 0,
             Prog::Budgeter => 1,
-            Prog::Heeder => 2,
-            Prog::Spinner => 3,
+            Prog::InterruptHeeder => 2,
+            Prog::InterruptIgnorer => 3,
             Prog::Date => 4,
             Prog::Rm => 5,
             Prog::Wc => 6,
@@ -327,8 +327,8 @@ impl Prog {
         match id {
             0 => Some(Prog::Worker),
             1 => Some(Prog::Budgeter),
-            2 => Some(Prog::Heeder),
-            3 => Some(Prog::Spinner),
+            2 => Some(Prog::InterruptHeeder),
+            3 => Some(Prog::InterruptIgnorer),
             4 => Some(Prog::Date),
             5 => Some(Prog::Rm),
             6 => Some(Prog::Wc),
@@ -390,7 +390,7 @@ impl Prog {
             // memory grant, and report through the shared job frame rather than the result endpoint
             // (so `reports` is false: they hold no result cap). `interruptible` is what makes the
             // shell wire the two-tier ^C path and hold the region for a forcible teardown.
-            Prog::Heeder => Manifest {
+            Prog::InterruptHeeder => Manifest {
                 arg: ArgSpec::Forbidden,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
@@ -408,7 +408,7 @@ impl Prog {
                 config: false,
                 entropy: false,
             },
-            Prog::Spinner => Manifest {
+            Prog::InterruptIgnorer => Manifest {
                 arg: ArgSpec::Forbidden,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
@@ -605,13 +605,14 @@ impl Prog {
                 entropy: false,
             },
             // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
-            // whole difference: this program needs a typed redraw count, because it cannot be spun up
-            // as an interruptible (`^C`-stoppable) job the way `heeder` and `spinner` are (an
-            // interruptible child is built with no capabilities in its cspace at all, and this
-            // program needs the domain and the output sink for its whole run; see `crates/watch`'s
-            // module docs). Everything else is `ps`'s own reasoning verbatim: no file, no directory,
-            // no memory grant widens what this program can reach, and `domain` is the one real
-            // authority, endowed by init and not something the command line names.
+            // whole difference: this program needs a typed redraw count, because it cannot be spun
+            // up as an interruptible (`^C`-stoppable) job the way `interrupt_heeder` and
+            // `interrupt_ignorer` are (an interruptible child is built with no capabilities in its
+            // cspace at all, and this program needs the domain and the output sink for its whole
+            // run; see `crates/watch`'s module docs). Everything else is `ps`'s own reasoning
+            // verbatim: no file, no directory, no memory grant widens what this program can reach,
+            // and `domain` is the one real authority, endowed by init and not something the command
+            // line names.
             Prog::Watch => Manifest {
                 arg: ArgSpec::Required,
                 mem: MemSpec::Forbidden,
@@ -3115,11 +3116,11 @@ mod tests {
         // The same rule from the other side: a name at a program with no file slot, in a shell that
         // could back one. Refused rather than granted-and-ignored, because a name the program has
         // no use for is authority the user thought they were moving.
-        let Command::Run(r) = parse(b"heeder report.txt") else {
+        let Command::Run(r) = parse(b"interrupt_heeder report.txt") else {
             panic!()
         };
         assert_eq!(
-            plan_against(&r, Prog::Heeder, Prog::Heeder.manifest(), WITH_DIR),
+            plan_against(&r, Prog::InterruptHeeder, Prog::InterruptHeeder.manifest(), WITH_DIR),
             Err(Refusal::FileForbidden),
         );
         assert_eq!(
@@ -3816,7 +3817,7 @@ mod tests {
         // The interrupt demonstrators hold no output capability at all, which is the third case and
         // reaches the same refusal from the other side.
         assert_eq!(
-            plan_line(b"heeder | wc", WITH_DIR),
+            plan_line(b"interrupt_heeder | wc", WITH_DIR),
             Err((0, Refusal::NotAByteStream)),
         );
         // A `Bytes` program in the same position is fine, so the refusal is about the declaration
@@ -3932,8 +3933,8 @@ mod tests {
         for p in [
             Prog::Worker,
             Prog::Budgeter,
-            Prog::Heeder,
-            Prog::Spinner,
+            Prog::InterruptHeeder,
+            Prog::InterruptIgnorer,
             Prog::Rm,
             Prog::Wc,
         ] {

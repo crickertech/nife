@@ -3463,8 +3463,8 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("fs_file_caretaker", "fs_file_caretaker"),
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
         ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("heeder", "heeder"),
-        ("spinner", "spinner"),
+        ("interrupt_heeder", "interrupt_heeder"),
+        ("interrupt_ignorer", "interrupt_ignorer"),
         // The sustained multicore workload (milestone 219): the program `--features soak` builds a
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
@@ -4353,8 +4353,8 @@ fn initrd_aarch64() -> bool {
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("heeder", "heeder"),
-        ("spinner", "spinner"),
+        ("interrupt_heeder", "interrupt_heeder"),
+        ("interrupt_ignorer", "interrupt_ignorer"),
         // The narrator (milestone 267, provisional name): the milestone narrative, which used to
         // be twenty `println!`s in `kernel_main`. The tour spawns it as the console server's
         // client, so the story is told by a program at EL0 through a driver at EL0. aarch64 only:

@@ -24,15 +24,15 @@
 //! No device, no memory budget, no way to name a second console. The kernel hands it exactly this
 //! and nothing else (`kernel/src/user/console_service.rs`, `spawn_client`).
 //!
-//! Name: provisional (milestone 267's lane, 2026-09-09). Every name in this tree is calef's;
-//! this one is shipped so the program can exist and is expected to change. The case for it: it is
-//! an agent noun, which is milestone 63's family and what `spinner`, `heeder` and `budgeter`
-//! already are, and it names what the program does rather than what it holds, which is the scheme
-//! `console` and `input` follow and the one `dwarden` is on record as breaking. The case against:
-//! "narrator" says nothing about *what* is narrated, and a reader meeting it in `ls` learns less
-//! than they would from `tour`. `tour` was refused because this tree spends the word on the boot
-//! path itself (`board_console`'s `Stage::Tour`, `script/board-console`'s reports), and reusing it
-//! for one program inside that boot would make the existing term ambiguous.
+//! Name: provisional (milestone 267's lane, 2026-09-09). Every name in this tree is calef's; this
+//! one is shipped so the program can exist and is expected to change. The case for it: it is an
+//! agent noun, which is milestone 63's family and what `interrupt_ignorer`, `interrupt_heeder` and
+//! `budgeter` already are, and it names what the program does rather than what it holds, which is
+//! the scheme `console` and `input` follow and the one `dwarden` is on record as breaking. The case
+//! against: "narrator" says nothing about *what* is narrated, and a reader meeting it in `ls`
+//! learns less than they would from `tour`. `tour` was refused because this tree spends the word on
+//! the boot path itself (`board_console`'s `Stage::Tour`, `script/board-console`'s reports), and
+//! reusing it for one program inside that boot would make the existing term ambiguous.
 //!
 //! BUGS
 //!

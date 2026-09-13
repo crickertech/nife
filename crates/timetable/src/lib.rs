@@ -1105,7 +1105,7 @@ mod tests {
              every 5s date\n\
              every 5s wc\n\
              every 5s ps\n\
-             every 5s heeder\n\
+             every 5s interrupt_heeder\n\
              every 5s nosuchprogram\n",
         )
         .unwrap();

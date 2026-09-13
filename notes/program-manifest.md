@@ -81,7 +81,7 @@ read it: `caps run wc file:report.txt` prints "read-only, and nothing else on th
 One file, not a list. A program that needs two needs a manifest that says so, and that is a later
 widening rather than something to leave ambiguous now.
 
-The programs a `Manifest` is written for (the two interrupt demonstrators, `heeder` and `spinner`,
+The programs a `Manifest` is written for (the two interrupt demonstrators, `interrupt_heeder` and `interrupt_ignorer`,
 declare nothing but `interruptible`):
 
 | program    | arg        | mem                  | file      | reports |

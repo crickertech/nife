@@ -924,8 +924,8 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         // unreachable from the interactive prompt at all (a directory grant needs a caretaker that
         // shell cannot build, and it says so), and when it is reachable it will report the way
         // `date` does: diagnostics as text, then an exit status.
-        Prog::Heeder
-        | Prog::Spinner
+        Prog::InterruptHeeder
+        | Prog::InterruptIgnorer
         | Prog::Date
         | Prog::Rm
         | Prog::Wc
@@ -1898,7 +1898,7 @@ mod tests {
     fn a_program_that_reports_elsewhere_prints_nothing_here() {
         // Text-answering and supervised programs are drained by other readers. A line printed here
         // would be a second, empty report for the same run.
-        for prog in [Prog::Date, Prog::Wc, Prog::Rm, Prog::Heeder, Prog::Spinner] {
+        for prog in [Prog::Date, Prog::Wc, Prog::Rm, Prog::InterruptHeeder, Prog::InterruptIgnorer] {
             assert_eq!(shown(|o| write_outcome(&endowment(prog), 0, o)), "");
         }
     }
