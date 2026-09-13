@@ -518,7 +518,7 @@ builder to hand a narrowed, still-registered view of a space it is constructing 
 ## `watch`, redrawn over the same domain
 
 **`watch` works on both ISAs, and it is granted exactly what `ps` and `pgrep` are, plus a required
-argument.** It re-walks the domain a bounded number of times (`crates/watch`'s `clamp_iterations`)
+argument.** It re-walks the domain a bounded number of times (`crates/ps`'s `clamp_iterations`)
 and prefixes each table with `CSI 2J`/`CSI H` (erase, then home the cursor) so the terminal shows
 the latest snapshot in place, proven against a real `video_terminal::Vt` in
 `kernel::user::watch_tests`: a domain member is spawned, surveyed, reaped through a capability

@@ -1,6 +1,6 @@
-//! `watch_tests`: `crates/watch`'s `frame`, driven by the real `endpoint::SURVEY` dispatcher against
+//! `watch_tests`: `crates/ps`'s `frame`, driven by the real `endpoint::SURVEY` dispatcher against
 //! a real, changing domain, and fed into a real `video_terminal::Vt`. `survey_tests`'s discipline,
-//! one program over: every survey here is `ps::collect` (the same walk `crates/watch`'s `frame`
+//! one program over: every survey here is `ps::collect` (the same walk `crates/ps`'s `frame`
 //! wraps), never a description of one, and the terminal it renders into is the same engine
 //! `display_terminal.rs` puts a real screen behind.
 
@@ -89,7 +89,7 @@ fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 }
 
 /// The whole domain, walked by `watch`'s own logic: `ps::collect` driving real syscalls, exactly what
-/// `crates/watch`'s `frame` is handed in `user/src/watch.rs`.
+/// `crates/ps`'s `frame` is handed in `user/src/watch.rs`.
 fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
     let s = ps::collect(rows, &mut |cursor| survey(slot, cursor));
     assert!(
@@ -180,7 +180,7 @@ fn tidy(budget: u64, rendezvous_region: u64, slots: &[u64]) {
 /// [`FAULT_STUB`]) dies on its own and is still counted (as `DEAD`) until reaped, exactly
 /// `survey_tests::a_dead_child_is_still_in_the_domain_until_it_is_reaped`'s finding. The first frame
 /// is drawn while both are members; a **separate** capability with `READ` (which `watch` itself is
-/// never granted; see `crates/watch`'s module docs on why a domain names and does not act) then reaps
+/// never granted; see notes/process-view.md on why a domain names and does not act) then reaps
 /// `a`, and the second frame is drawn with only `b` left. A `watch` that only overwrote instead of
 /// erasing would leave `a`'s tid sitting in the grid forever, since the second frame never writes over
 /// that cell at all: nothing in a one-row-shorter table touches it.
@@ -229,7 +229,7 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
     // declare a same-named function-local static begins (the harness runs test cases
     // sequentially); nothing else in this process can reach `VT`.
     let vt: &mut video_terminal::Vt = unsafe { &mut *vt_ptr };
-    watch::frame(&survey1, &mut |bytes| vt.feed(bytes));
+    ps::frame(&survey1, &mut |bytes| vt.feed(bytes));
 
     let mut grid1 = [0u8; GRID_BYTES];
     grid_text(vt, &mut grid1);
@@ -264,7 +264,7 @@ fn a_second_frame_erases_the_first_rather_than_leaving_it_on_screen() {
         "only b should remain in the second frame"
     );
 
-    watch::frame(&survey2, &mut |bytes| vt.feed(bytes));
+    ps::frame(&survey2, &mut |bytes| vt.feed(bytes));
 
     let mut grid2 = [0u8; GRID_BYTES];
     grid_text(vt, &mut grid2);

@@ -2,17 +2,16 @@
 //! design/roadmap/126-who-else-is-running.md, notes/process-view.md).
 //!
 //! The whole program is `ps`'s own loop (`abi::rendezvous::SURVEY`, `crates/ps`'s `collect`), run a
-//! bounded number of times, with `crates/watch`'s `REDRAW` prefix ahead of each table so the terminal
+//! bounded number of times, with `crates/ps`'s `REDRAW` prefix ahead of each table so the terminal
 //! shows the latest snapshot in place rather than the whole history scrolling past. What lives here
-//! is the syscall, the interval, and the two sinks; the redraw itself and the table are `crates/ps`
-//! and `crates/watch`, both of which run on the host in milliseconds.
+//! is the syscall, the interval, and the two sinks; the redraw itself and the table are both `crates/ps`,
+//! which runs on the host in milliseconds.
 //!
-//! Name: provisional, along with `crates/watch`. `watch` is the name upstream `procps` already ships
+//! Name: provisional. `watch` is the name upstream `procps` already ships
 //! (`dpkg -L procps` lists `/usr/bin/watch`), which the naming tenet calls the best name available
 //! for a standard term a reader already knows; flagged provisional anyway because this program is a
 //! narrower thing than upstream's (one fixed built-in view, not an arbitrary command line) and calef
-//! may want that difference visible in the name. See `crates/watch`'s module docs for what was
-//! narrowed and why.
+//! may want that difference visible in the name. See `crates/ps`'s `frame` for the redraw itself.
 //!
 //! # It is `ps`, redrawn, and nothing wider
 //!
@@ -24,8 +23,8 @@
 //! running" to "that program can start a second one". Building that route is new spawn-protocol
 //! machinery, the same category of gap `top`, `pwdx` and `w` are blocked on, and it is not this
 //! program's to close. So this `watch` redraws the one thing it can already reach without any of
-//! that: the supervision domain it was spawned into, exactly what `ps` lists. See `crates/watch`'s
-//! module docs for the full argument, including why "watch ps" is real Unix's own most common
+//! that: the supervision domain it was spawned into, exactly what `ps` lists. See this module's
+//! own argument below, including why "watch ps" is real Unix's own most common
 //! invocation of the tool and not a consolation prize.
 //!
 //! # Bounded rather than interruptible
@@ -34,7 +33,7 @@
 //! capability and a report sink for its whole run, so it cannot be spawned that way without teaching
 //! init's supervised-spawn path to endow capabilities too, which is a decision for whoever needs that
 //! generally and not for one milestone's `watch`. So a bare `watch N` redraws `N` times (clamped to
-//! `[1, watch::MAX_ITERATIONS]`, see [`watch::clamp_iterations`]) and exits on its own; its manifest
+//! `[1, ps::MAX_ITERATIONS]`, see [`ps::clamp_iterations`]) and exits on its own; its manifest
 //! declares `interruptible: false`, the same as `ps`, `pgrep` and `date`, so no `^C` tier reaches it
 //! at all (DECISIONS §24) and a bare shell simply waits for it to finish its own count. See `BUGS`.
 //!
@@ -72,7 +71,7 @@
 //!   person who typed too large a count waits it out; there is no way to cut a `watch` short today
 //!   short of the shell's own forcible teardown of a *stuck* command, which this program is not
 //!   (it always terminates on its own after `clamp_iterations(count)` frames).
-//! - **The interval is fixed** (`watch::INTERVAL_NANOS`, half a second) and not settable from the
+//! - **The interval is fixed** (`ps::INTERVAL_NANOS`, half a second) and not settable from the
 //!   command line. `ArgSpec` carries one integer and it is spent on the count; a second selector
 //!   needs the positional arity milestone 47 defers, the same limitation `crates/pgrep`'s `BUGS`
 //!   already names for its own missing pattern argument.
@@ -142,8 +141,8 @@ pub extern "C" fn _start(_x0: u64, count: u64, _x2: u64) -> ! {
         exit();
     }
 
-    let n = watch::clamp_iterations(count);
-    watch::frame(&first, &mut |bytes| write_on(REPORT, bytes));
+    let n = ps::clamp_iterations(count);
+    ps::frame(&first, &mut |bytes| write_on(REPORT, bytes));
 
     let mut i = 1u64;
     while i < n {
@@ -155,7 +154,7 @@ pub extern "C" fn _start(_x0: u64, count: u64, _x2: u64) -> ! {
         if s.refused() {
             break;
         }
-        watch::frame(&s, &mut |bytes| write_on(REPORT, bytes));
+        ps::frame(&s, &mut |bytes| write_on(REPORT, bytes));
         i += 1;
     }
 
@@ -163,11 +162,11 @@ pub extern "C" fn _start(_x0: u64, count: u64, _x2: u64) -> ! {
     exit();
 }
 
-/// Spin-yield until [`watch::INTERVAL_NANOS`] has passed. There is no timed wait in this kernel
+/// Spin-yield until [`ps::INTERVAL_NANOS`] has passed. There is no timed wait in this kernel
 /// (`user/src/timetable.rs`'s module docs name the gap and its other consumers); this is the same
 /// shape, one line at a time.
 fn wait_interval() {
-    let deadline = monotonic_nanos().saturating_add(watch::INTERVAL_NANOS);
+    let deadline = monotonic_nanos().saturating_add(ps::INTERVAL_NANOS);
     while monotonic_nanos() < deadline {
         yield_now();
     }

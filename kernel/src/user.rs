@@ -3321,7 +3321,7 @@ mod pmap_tests;
 /// **`watch`: `ps`'s own walk, redrawn** (milestone 126, design/roadmap/126-who-else-is-running.md).
 ///
 /// `survey_tests`'s discipline again: every survey here goes through the real dispatcher, driven by
-/// `ps::collect` (the same loop `crates/watch`'s `frame` wraps), never a description of one. What
+/// `ps::collect` (the same loop `crates/ps`'s `frame` wraps), never a description of one. What
 /// this module adds beyond `survey_tests` is the one claim that is `watch`'s alone rather than
 /// `ps`'s: that two frames of a real, changing domain, fed through a real `video_terminal::Vt`
 /// (the same engine `display_terminal.rs` renders a screen with), leave only the second frame on
