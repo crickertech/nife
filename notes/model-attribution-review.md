@@ -161,8 +161,8 @@ unusually concentrated in exactly those.
 | Roadmap and decision records | 90 | 47 files |
 | `AGENTS.md` | 3 | |
 | Renames | 52 | including `untyped.rs` to `memory_region.rs`, `Tcb` to `ThreadControlBlock`, `CSpace` to `CapabilityTable` |
-| New crates | 7 | `jh7110_trng`, `login_proto`, `schedule_store`, `timebase_proto`, `uptime`, `user_rt` additions, `watch` |
-| New user programs | 7 | `login`, `printenv`, `uptime`, `watch`, `session_reviver`, `jh7110_trng`, `login_test_client` |
+| New crates | 7 | `jh7110_entropy_source`, `login_proto`, `schedule_store`, `timebase_proto`, `uptime`, `user_rt` additions, `watch` |
+| New user programs | 7 | `login`, `printenv`, `uptime`, `watch`, `session_reviver`, `jh7110_entropy_source`, `login_test_client` |
 
 Milestone 158 (build the eleven kernel object and identifier renames) is most of that, and it landed
 in this window. So the week's largest single act was a tree-wide rename of the capability vocabulary,
@@ -173,7 +173,7 @@ rather than in a file.
 that looks most alarming. `script/names` already tracks it, calef already ratified the big ones in
 the window (`memory_regions`, `page_frames` and `login_proto` all carry 2026-08-23), and the rest sit
 on the existing worklist as `provisional` or `unrecorded` (`uptime`, `watch`, `printenv`,
-`session_reviver`, `schedule_store`, `timebase_proto`, `jh7110_trng`, `login`, `login_test_client`).
+`session_reviver`, `schedule_store`, `timebase_proto`, `jh7110_entropy_source`, `login`, `login_test_client`).
 That is the mechanism working exactly as designed. `script/names --unratified` is the queue; it does
 not want a study.
 

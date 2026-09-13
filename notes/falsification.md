@@ -137,7 +137,7 @@ created `kernel/falsifications/` and nothing swept it.
 
 **The scope now comes from `cargo metadata`**, which is where `script/lint`'s verify-table check
 already gets the same fact. A hand-kept list is the same defect one iteration later, and
-`script/verify` has recorded that failure twice: `mdns_proto` and then `jh7110_trng`, each carrying
+`script/verify` has recorded that failure twice: `mdns_proto` and then `jh7110_entropy_source`, each carrying
 harnesses nothing ran, each invisible because a suite whose scope is too small goes green *faster*.
 
 Three things fell out of following packages rather than a directory.
@@ -313,7 +313,7 @@ harness goes **red**. Both directions were checked for every one, because the wh
 | `component_plan::dependents_finds_exactly_the_non_target_instances_that_declared_it` | `str_eq`, which `dependents` decides membership with | `str_eq` true for strings of different lengths |
 | `credential_proto::no_request_word_makes_the_parse_read_outside_the_page` | `id_len`, which `read` slices with | the identity length read from the wrong four bits of the request word |
 | `dma_validator::an_accepted_descriptor_is_confined` | `Desc::is_indirect`, which `check_descriptor` guards on | the indirect flag tested against the wrong bit, so an indirect table reaches the device |
-| `jh7110_trng::ready_requires_rand_rdy_and_carries_the_words_untouched` | `assemble`, which `interpret` calls | entropy laid out big-endian |
+| `jh7110_entropy_source::ready_requires_rand_rdy_and_carries_the_words_untouched` | `assemble`, which `interpret` calls | entropy laid out big-endian |
 | `ntp_proto::accepting_is_total_and_a_sample_is_coherent` | `Interval::is_negative`, which `accept` guards on | the predicate never true, so a negative delay is accepted |
 | `paging::sv39::the_leaf_keeps_address_and_permissions_apart` | `entry_pa`, the decoder for the encoder under test | `PPN_SHIFT` moved, so both agree on the wrong bits |
 | `paging::aarch64::the_leaf_keeps_address_and_permissions_apart` | the same round trip | the descriptor-type field dropped, so every leaf faults |

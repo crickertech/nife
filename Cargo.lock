@@ -356,14 +356,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "jh7110_crg"
+name = "jh7110_clock_and_reset"
 version = "0.1.0"
 dependencies = [
  "dtb",
 ]
 
 [[package]]
-name = "jh7110_trng"
+name = "jh7110_entropy_source"
 version = "0.1.0"
 dependencies = [
  "dtb",
@@ -401,8 +401,8 @@ dependencies = [
  "graphics_proto",
  "intrusive_fifo",
  "ipc",
- "jh7110_crg",
- "jh7110_trng",
+ "jh7110_clock_and_reset",
+ "jh7110_entropy_source",
  "job_mix",
  "line_editor",
  "login_proto",
@@ -948,7 +948,7 @@ dependencies = [
  "gpt",
  "grant_plan",
  "graphics_proto",
- "jh7110_trng",
+ "jh7110_entropy_source",
  "job_mix",
  "line_editor",
  "login_proto",
