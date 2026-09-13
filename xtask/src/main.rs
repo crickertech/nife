@@ -6675,24 +6675,24 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // lines are one paragraph re-flowed to one output line, and the two bytes are the body indent.
     // A viewer handed an empty stream would answer `0 0 0`, which is what this line answered when
     // the operand was being dropped, so the count is what separates rendering from silence.
-    ("doc gate.txt | wc", &["1 4 26"]),
+    ("mdr gate.txt | wc", &["1 4 26"]),
     // **And the line a person actually wants now renders**, which is milestone 40's whole
-    // remaining phase (DECISIONS §106, 2026-08-22). `doc gate.txt` alone used to make this shell
+    // remaining phase (DECISIONS §106, 2026-08-22). `mdr gate.txt` alone used to make this shell
     // both the writer and the reader of one line, refused rather than hung, because it has one
     // wait point; see `grant_plan::check_chain` and notes/documentation.md for the refusal this replaced.
     // Now the render defaults to `terminal_sink_caretaker` instead of this shell's own result
     // endpoint, so there is no second reader for the shell to wait behind and the page appears at
-    // the prompt with no `| wc` in front of it. The text is the same paragraph `doc gate.txt | wc`
+    // the prompt with no `| wc` in front of it. The text is the same paragraph `mdr gate.txt | wc`
     // counted three lines up, reflowed and indented by the renderer: `gate.txt`'s two source lines
     // become the one line, four words, twenty-six bytes that count asserted, and this line checks
     // the words themselves arrived rather than merely being countable.
-    ("doc gate.txt", &["hello world hello world"]),
+    ("mdr gate.txt", &["hello world hello world"]),
     // **The negative control on the viewer itself**, and it is the whole milestone in one screen: a
     // documentation viewer is exactly the program a reader expects to go and fetch things, and this
     // one is handed a stream. `caps` prints what would be granted before anything is spawned, and
     // there is no file capability, no directory and no filesystem endpoint in it. The manifest is
     // byte-identical to `wc`'s, which is why the assertion is the same string.
-    ("caps doc gate.txt", &["input    gate.txt"]),
+    ("caps mdr gate.txt", &["input    gate.txt"]),
     // **Milestone 40 phase 2, at the same interface**: the documentation store is installed, and a
     // search of it answers with pages a person can then open.
     //
@@ -7000,7 +7000,7 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // more spawning lines above, milestone 86's `time` added two more, milestone 67's quoting added
     // three, milestone 40 phase 2's `wc doc/bundles` added one, milestone 31 phase 3 added two: an
     // `rm` that really runs, and the `wc` that counts what is left, and DECISIONS §106 added one:
-    // `doc gate.txt` used to be refused at the prompt with nothing spawned and now actually runs.
+    // `mdr gate.txt` used to be refused at the prompt with nothing spawned and now actually runs.
     // The `rm` is the one worth noticing, because it is the first job whose region holds **two**
     // processes, the program and the `fs_subtree_caretaker` carrying its grant, and it is therefore
     // the first thing in this script that would fail if `job_undertaker`'s retry did not collect

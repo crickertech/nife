@@ -1302,7 +1302,7 @@ const TIMING_DONE: &[u8] = b"== timings done\n";
 fn interactive(rights: u64) -> ! {
     print(b"\nnife capability shell. naming a resource in a command IS granting it.\n");
     print(b"commands: help, echo <text>, caps [command], time <command>, xargs <command>,\n");
-    print(b"          cd, pwd, ls, mkdir, touch, apropos <word>, rm, wc, doc, <prog> [--mem N] [arg]\n");
+    print(b"          cd, pwd, ls, mkdir, touch, apropos <word>, rm, wc, mdr, <prog> [--mem N] [arg]\n");
     print(b"          and the operators  >  >>  <  |\n");
     print(b"          'quote a whole word'   and   ;  &&  ||   with  echo $?  for the status\n");
 
