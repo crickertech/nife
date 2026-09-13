@@ -122,7 +122,7 @@
 //! **The pairing is the reason, and it is the one AGENTS.md says means something.** A crate and a
 //! program share a name when the crate is that program's logic lifted out to be host-tested and
 //! reachable by the prover, while the program keeps the IO. That is exactly this: no syscalls, no
-//! allocation, no `alloc`, tests in milliseconds, and `user/src/credentialer.rs` doing the talking.
+//! allocation, no `alloc`, tests in milliseconds, and `components/src/credentialer.rs` doing the talking.
 //! `coremark`, `line_editor` and `compositor` are the same shape. Three of this family's four names
 //! were already ratified and agreed (`credentialer` the program, `credential_proto` the wire
 //! contract, `credentialer_test_client`); this was the loose end.

@@ -51,6 +51,51 @@ PAREN = re.compile(r"\([^()]*\)")
 # Anything with a dot, a `::` or a bracket in it is a citation, not a candidate.
 NAMEISH = re.compile(r"[A-Za-z][A-Za-z0-9_/-]*$")
 
+# ---- what a READER takes for a header, which is wider than what `block()` can parse -------------
+#
+# The gap between those two is where two of calef's ratifications went missing (milestone 283). A
+# file carried `//! **Name: ratified 2026-09-08 ...**` under a stale `//! Name: provisional` block;
+# the bold prefix does not match `head` below, so the parse read the proposal and reported
+# `provisional`, which is a legitimate answer nothing disputes. Neither defect was visible alone.
+# `strays` closes it by asking the other question: what in this file LOOKS like a header and is not
+# the one that was read.
+
+# A surface's block prefix says which language's comments to read, not which marker the block must
+# wear: a header written `///` in a `//!` file is exactly the mistake this is looking for, so the
+# wider set is scanned and the marker is then part of the answer.
+COMMENT_MARKERS = {"//!": ("//!", "///", "//"), "#": ("#",)}
+
+# Markdown a header can wear while still reading as one: bold and italic (`**Name:`), a heading
+# (`# Name:`), a block quote. **Backticks are deliberately absent.** `` `Name:` `` at the start of a
+# comment line is a MENTION of the convention, which the scripts that implement it write constantly,
+# and reading a mention as a claim would make this module's own callers fail their own gate.
+_MARKUP = re.compile(r"^[\s*_#>]+")
+
+# A line showing the FORM rather than making a claim: `Name: ratified <YYYY-MM-DD> (<who>, <where>)`.
+# `script/names`' own header documents the three spellings that way. An angle-bracket placeholder is
+# the tree's existing mark for "substitute something here" and no real block has ever carried one, so
+# it is the discriminator, and it leaves the next person writing an example an escape they can see.
+# It is applied only to STRAYS: the line `block()` actually read is never dropped by it, so a block
+# that somehow did contain a placeholder still reports rather than vanishing.
+_TEMPLATE = re.compile(r"<[^<>]+>")
+
+# Why a stray header could not be read, as a token rather than a sentence, for the same reason
+# `NO_STATUS` and friends are tokens: `script/names` phrases it for a contributor, and the judgement
+# is here.
+STRAY_MARKUP = 'markup'   # markdown between the comment marker and `Name:`
+STRAY_INDENT = 'indent'   # more whitespace than the single space the parse allows
+STRAY_MARKER = 'marker'   # a comment marker other than this surface's block prefix
+STRAY_SECOND = 'second'   # it parses; it is simply not the first, so nothing reads it
+
+
+def _head(prefix):
+    """The one header spelling this module reads: the prefix, at most one space, then `Name:`.
+
+    One definition, used by `block` to find the header and by `strays` to say why a line is not it.
+    Two copies of this pattern is how a gate and the thing it gates stop agreeing.
+    """
+    return re.compile(rf"^{re.escape(prefix)} ?Name:\s*(.*)$")
+
 
 def block(text, prefix):
     """The provenance block inside one file's text: the `Name:` line and its continuations, joined.
@@ -64,7 +109,7 @@ def block(text, prefix):
     as `unrecorded` would invent the one claim this record exists to make explicit.
     """
     lines = text.split("\n")
-    head = re.compile(rf"^{re.escape(prefix)} ?Name:\s*(.*)$")
+    head = _head(prefix)
     cont = re.compile(rf"^{re.escape(prefix)} (\S.*)$")
     empty = re.compile(rf"^{re.escape(prefix)}\s*$")
 
@@ -82,6 +127,56 @@ def block(text, prefix):
             parts.append(c.group(1).strip())
         return " ".join(p for p in parts if p)
     return None
+
+
+def headers(text, prefix):
+    """Every `(line number, line)` a reader would take as this file's provenance header. 1-based.
+
+    Wider than `block` on purpose, and the width is the whole point: a comment line whose content,
+    after the marker and any leading markdown, begins `Name:`. That is the question a person answers
+    by looking at the file, and it is the question the gate had never asked.
+    """
+    out = []
+    markers = COMMENT_MARKERS[prefix]
+    for number, line in enumerate(text.split("\n"), 1):
+        bare = line.lstrip()
+        marker = next((m for m in markers if bare.startswith(m)), None)
+        if marker is None:
+            continue
+        if _MARKUP.sub("", bare[len(marker):]).startswith("Name:"):
+            out.append((number, line))
+    return out
+
+
+def stray_reason(line, prefix):
+    """Why `block` could not have read this header-shaped line, as one of the `STRAY_*` tokens."""
+    if not line.startswith(prefix):
+        return STRAY_INDENT if line.lstrip().startswith(prefix) else STRAY_MARKER
+    rest = line[len(prefix):]
+    if _head(prefix).match(line):
+        return STRAY_SECOND
+    return STRAY_INDENT if rest.lstrip().startswith("Name:") else STRAY_MARKUP
+
+
+def strays(text, prefix):
+    """Header-shaped lines that are not the one `block` read: `(line number, line, why)`.
+
+    **Empty is the only healthy answer**, and that is the rule this makes a gate rather than a
+    convention 205 files happen to follow: one provenance block per file, in the spelling the parse
+    reads. A second one is unreachable by construction, since `block` stops at the first, and a
+    first one the parse cannot see hands its file's whole record to whatever is below it.
+
+    Template lines are dropped (`_TEMPLATE`); the line `block` read is never a stray against itself.
+    """
+    lines = text.split("\n")
+    head = _head(prefix)
+    read = next((i for i, line in enumerate(lines, 1) if head.match(line)), None)
+    out = []
+    for number, line in headers(text, prefix):
+        if number == read or _TEMPLATE.search(line):
+            continue
+        out.append((number, line, stray_reason(line, prefix)))
+    return out
 
 
 def refused_in(text):

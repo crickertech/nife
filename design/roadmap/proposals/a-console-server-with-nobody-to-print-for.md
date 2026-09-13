@@ -8,7 +8,7 @@ infrastructure rather than a demonstration, and the lane that found it was told 
 than decide. Nothing is blocked meanwhile; the boot is correct either way.
 
 **In brief.** On a tour boot (no `shell`, no `initboot`), `kernel/src/main.rs:1676` still runs
-`user::initrd().map(|_| user::console_service::start())`. That spawns `user/src/console.rs`, a real
+`user::initrd().map(|_| user::console_service::start())`. That spawns `components/src/console.rs`, a real
 UART driver at EL0 holding the PL011's registers, which blocks on `recv(REQUEST)` forever because
 nothing in the boot holds a capability naming its endpoint. Its only client was the narrator.
 
@@ -40,8 +40,8 @@ worth very little: nothing checks the server did anything, which is the same cri
 the narrator.
 
 **Stop starting it on the tour boot.** Delete the `map` line and let `console_service::start` and
-its module go with it. `user/src/console.rs` **stays**, because it has consumers that have nothing
-to do with this path: `crates/system_initializer` loads it (`lib.rs:744`), `user/src/hello.rs:571`
+its module go with it. `components/src/console.rs` **stays**, because it has consumers that have nothing
+to do with this path: `crates/system_initializer` loads it (`lib.rs:744`), `fixtures/src/hello.rs:571`
 builds it as init's print server, `measured_boot_tests.rs` measures it, and `swapper.rs` names it in
 a dependency check. The interactive boot reaches it through `boot_via_progenitor`
 (`kernel/src/main.rs:1904`), never through `console_service`. So this option deletes a kernel module
@@ -55,7 +55,7 @@ true rather than letting the answer be decided by which is less work.
 ## Why the lane did not pick one
 
 Two reasons, and the first is the binding one. **It was not authorised**: calef ruled the narrator
-deleted, and `console_service::start` plus `user/src/console.rs` are not the narrator. Deleting
+deleted, and `console_service::start` plus `components/src/console.rs` are not the narrator. Deleting
 infrastructure on the momentum of a demonstration's deletion is exactly the sweep AGENTS.md's blind-
 `sed` scar is about.
 
