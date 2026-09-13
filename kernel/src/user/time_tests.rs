@@ -2,7 +2,7 @@ use pipeline_service::answer;
 
 use super::*;
 
-/// The last line `user/src/swish.rs`'s timing role prints. Must match `TIMING_DONE`.
+/// The last line `components/src/swish.rs`'s timing role prints. Must match `TIMING_DONE`.
 const DONE: &[u8] = b"== timings done\n";
 
 /// Run the timing script under one clock state and hand back what the shell printed.

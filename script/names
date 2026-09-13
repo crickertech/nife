@@ -8,7 +8,7 @@
 # Why this exists. A lane proposed `system_builder` for the crate milestone 96 extracted, the
 # maintainer endorsed it, and calef overruled it to `system_initializer`. Only afterwards did anyone
 # find that milestone 63 had **already refused `system_builder`**, and for a reason nobody had
-# located: `user/src/builder.rs` calls itself "a minimal init: the system builder", so two programs
+# located: `components/src/builder.rs` calls itself "a minimal init: the system builder", so two programs
 # would claim one phrase. The refusal existed, in one table cell inside one milestone block,
 # invisible at the moment it was needed. A blind rename then swept the old name out of that very
 # row, and the record of the refusal was nearly destroyed by the rename it should have prevented.
@@ -29,7 +29,8 @@
 # What carries a provenance block, and where:
 #
 #   crates/<name>/src/lib.rs   the crate's module doc  (`//! Name: ...`)
-#   user/src/<name>.rs         the program's module doc (`//! Name: ...`)
+#   components/src/<name>.rs   the program's module doc (`//! Name: ...`)
+#   fixtures/src/<name>.rs     the same, for a test or benchmark program
 #   script/<name>              the entry point's comment block (`# Name: ...`)
 #
 # The form, which is all that is checked:
@@ -123,8 +124,13 @@ import name_provenance                                                      # no
 SURFACES = [
     ("crate", os.path.join(root, "crates"),
      lambda name: os.path.join(root, "crates", name, "src", "lib.rs"), "//!"),
-    ("program", os.path.join(root, "user", "src"),
-     lambda name: os.path.join(root, "user", "src", name + ".rs"), "//!"),
+    # **Two directories, one kind** (milestone 175). A program is a program whether it ships or
+    # exercises what ships, and splitting the kind would key the worklist's exposure order on a
+    # classification rather than on who reads the name, which is the two-tier rule calef rejected.
+    ("program", os.path.join(root, "components", "src"),
+     lambda name: os.path.join(root, "components", "src", name + ".rs"), "//!"),
+    ("program", os.path.join(root, "fixtures", "src"),
+     lambda name: os.path.join(root, "fixtures", "src", name + ".rs"), "//!"),
     ("script", os.path.join(root, "script"),
      lambda name: os.path.join(root, "script", name), "#"),
 ]
@@ -134,7 +140,8 @@ SURFACES = [
 # word, which is the argument for it, and it is imprecise against Cargo's strict taxonomy, where a
 # package contains crates and everything in `crates/` is one too. What the tree means by it is
 # narrower and positional, the way the other three kinds are: `crate` is a thing in `crates/`,
-# `program` a thing in `user/src/`, `script` a thing in `script/`, and `package` a Cargo package that
+# `program` a thing in `components/src/` or `fixtures/src/`, `script` a thing in `script/`, and
+# `package` a Cargo package that
 # is none of those.
 #
 # **Why this kind had to exist** (calef, 2026-08-18). `script/names std_exerciser` answered "neither
@@ -277,7 +284,8 @@ refusals = [(bad, r) for r in records for bad in r["refused"]]
 # The tier is the KIND, deliberately, and not "programs a person actually types". That second split
 # is the two-tier rule calef rejected on 2026-08-01, keyed on a property that is not stable: `wc`
 # went from internal plumbing to a prompt-typed pipeline stage inside a day. Every program in
-# `user/src/` is in the initrd and can be typed, so the kind is the honest tier and needs no
+# `components/src/` and `fixtures/src/` is in the initrd and can be typed, so the kind is the
+# honest tier and needs no
 # classification anybody could get wrong.
 EXPOSURE = {"program": 0, "crate": 1, "package": 2, "script": 3}
 # `package` sits between `crate` and `script`: a package name is read in a `[dependencies]`

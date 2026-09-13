@@ -5,7 +5,7 @@ written: *"Yes."* The number held: nothing else claimed 125 in the merged index 
 decision being raised and ratified, so it needed no renumbering.
 
 **The recommended shape is already built, not merely proposed.** `crates/schedule_store`,
-`user/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`, and `user/src/session_reviver.rs` already
+`fixtures/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`, and `components/src/session_reviver.rs` already
 implement exactly the manifest format below, landed in the same pull request that raised this
 decision (milestone 152's own PR, already merged). Ratifying this closes the gap between a decision
 and the code, rather than authorizing new work.
@@ -35,7 +35,7 @@ provisioning time, but a provisioned subtree and a subtree with a *pending sched
 facts: every identity gets a subtree whether or not it ever registers a job. So "walk the identities
 `identity_provisioner` created" answers a different, wider question than "which identities have
 pending scheduled work right now," and would re-derive sessions for principals who never asked for
-one. Confirmed by reading `user/src/identity_provisioner.rs` in full: it performs one `MKDIR` and one
+one. Confirmed by reading `components/src/identity_provisioner.rs` in full: it performs one `MKDIR` and one
 credential `PUT`, and produces no durable list of what it has provisioned anywhere a later process
 could read. There is no existing manifest, registry, or enumeration mechanism for "who has a
 schedule" anywhere in this tree today.
@@ -145,7 +145,7 @@ own already-proven shape (a table of names, consulted by name) applied one layer
 ## How reversible is this, and who has already acted on it
 
 **This lane has acted on it**: `crates/schedule_store` implements the format this decision proposes,
-`user/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` writes it, and `user/src/session_reviver.rs`
+`fixtures/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` writes it, and `components/src/session_reviver.rs`
 reads it, all landing in the same pull request as this decision document, per this lane's own brief
 ("investigate... and if it's a real fork, write it up... rather than guessing"). That is the same
 shape §122's own lane took (build the recommended shape while the decision is still `PROPOSED`), and

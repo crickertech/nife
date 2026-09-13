@@ -50,7 +50,7 @@
 //!
 //! It performs no IO and makes no syscalls, which is CLAUDE.md rule 7 and the reason the four
 //! answers above are host-tested in milliseconds rather than under QEMU. The program that holds the
-//! budget, reads the counter and builds the children is `user/src/timetable.rs`; everything here is
+//! budget, reads the counter and builds the children is `components/src/timetable.rs`; everything here is
 //! the decision it makes, lifted out so it can be tested and Kani-reached.
 //!
 //! Name: provisional. `timetable` is a noun naming the thing this crate holds (a table of scheduled
@@ -270,7 +270,7 @@ fn split_word(s: &str) -> Option<(&str, &str)> {
 /// `<digits><unit>` in nanoseconds, where the unit is `ms`, `s` or `m`.
 ///
 /// Three units and no more. Anything shorter than a millisecond is below the resolution a
-/// yield-polled scheduler can honour (see `user/src/timetable.rs`'s `BUGS`), and anything longer
+/// yield-polled scheduler can honour (see `components/src/timetable.rs`'s `BUGS`), and anything longer
 /// than a minute wants the calendar syntax this deliberately does not have: `every 86400s` is a
 /// daily job written in a way that is wrong across a leap second and silent about it.
 fn interval_nanos(s: &str) -> Option<u64> {
@@ -300,7 +300,7 @@ fn interval_nanos(s: &str) -> Option<u64> {
 /// nothing but a budget and four running jobs in one granted a clock, a directory and a terminal,
 /// and neither the document nor the program manifests can tell them apart.
 ///
-/// Every field but `mem_pages` is `false` today, because the scheduler `user/src/timetable.rs`
+/// Every field but `mem_pages` is `false` today, because the scheduler `components/src/timetable.rs`
 /// really does hold nothing but memory and its own children's channels. Adding a capability to it
 /// is then a visible edit here and a visible change in what the printed plan says, which is the
 /// property worth having: **widening a scheduler is a decision somebody makes on purpose**, not
@@ -322,7 +322,7 @@ pub struct Held {
     pub interrupt: bool,
 }
 
-/// **What the shipped `user/src/timetable.rs` actually holds**, and the one `Held` value it and
+/// **What the shipped `components/src/timetable.rs` actually holds**, and the one `Held` value it and
 /// this crate's own host test both use, so the two cannot drift the way [`Registry::register`]'s
 /// module doc already warns a document and a spawn site can. `PLANNED_PROGRAMS` in
 /// `kernel/src/user/timetable_tests.rs` is the same idea applied to the archive; this is it applied
@@ -527,7 +527,7 @@ impl<'a> Registry<'a> {
     /// The point of it being computable at registration: reading the printed plan tells you the
     /// complete set of programs this process will ever start, and a Kani-free host test can hold
     /// that against the document. It is what makes the honest caveat in
-    /// `user/src/timetable.rs`'s `BUGS` (the program is handed the whole initrd archive, which is
+    /// `components/src/timetable.rs`'s `BUGS` (the program is handed the whole initrd archive, which is
     /// wider than its plan) a *stated* residual rather than an unbounded one.
     pub fn programs(&self) -> u64 {
         let mut set = 0u64;
@@ -587,7 +587,7 @@ impl<'a> Registry<'a> {
     /// The earliest reading at which anything fires, or `None` if nothing ever will.
     ///
     /// What a timed wait would block until, if this kernel had one. It does not (milestone 106 is
-    /// `NOT-STARTED` and gated on a decision), so `user/src/timetable.rs` yield-polls instead and
+    /// `NOT-STARTED` and gated on a decision), so `components/src/timetable.rs` yield-polls instead and
     /// this is the number that says how long it will spin. Computing it anyway is deliberate: when
     /// the timed wait lands, the scheduler's loop changes by one line and this function is already
     /// the argument to it.
@@ -988,7 +988,7 @@ mod tests {
     /// **The shipped document is a specification, not a comment.** `mdns_config` reached this shape
     /// first and the reason is the same: a configuration file nothing parses in CI is a file that
     /// rots, and the first person to notice is the one whose machine will not boot.
-    const REFERENCE: &str = include_str!("../../../user/timetable.conf");
+    const REFERENCE: &str = include_str!("../../../components/timetable.conf");
 
     fn shown(f: impl FnOnce(&mut dyn FnMut(&[u8]))) -> String {
         let mut s = String::new();

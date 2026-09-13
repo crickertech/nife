@@ -281,7 +281,7 @@ pub const fn classify(ret: i64) -> Sent {
 pub mod fixture {
     use super::Sent;
 
-    /// What `user/src/sink.rs`'s writer role writes. Long enough to span several messages and to
+    /// What `fixtures/src/sink.rs`'s writer role writes. Long enough to span several messages and to
     /// end mid-message, so a decoder that only ever sees full 16-byte chunks is not being flattered
     /// by the fixture.
     pub const TRANSCRIPT: &[u8] =

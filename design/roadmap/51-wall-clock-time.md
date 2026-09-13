@@ -80,7 +80,7 @@ to 2038, and it holds no authority over anything but the network socket it was g
 
 ## `date`, the deliverable
 
-**Built 2026-07-31** (notes/date.md; `user/src/date.rs`, `kernel::user::date_tests`).
+**Built 2026-07-31** (notes/date.md; `components/src/date.rs`, `kernel::user::date_tests`).
 
 **Reachable from a test, not from the prompt, and that is why this milestone is `PARTIAL` and not
 `BUILT`** (found by calef, 2026-07-31, by typing `date` at `script/server` and getting "unknown
@@ -144,7 +144,7 @@ check over all 2^384 packets). Problem 1 above is **recorded, not solved**: the 
 unauthenticated NTPv4 and says so in its own documentation, NTS stays a separate decision, and the
 crate does not implement half of it.
 
-**The client is built** (2026-07-31, `user/src/ntp.rs`, notes/ntp.md). It holds **five capability
+**The client is built** (2026-07-31, `components/src/ntp.rs`, notes/ntp.md). It holds **five capability
 slots and none of them is the clock page**, so the block's claim above is now a fact the machine
 enforces rather than a design intention: `an_ntp_client_holds_no_writable_clock_page` gives the same
 binary the same five slots plus the exact address a *setter* maps the page at, and it faults. Four

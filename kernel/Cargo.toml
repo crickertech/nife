@@ -91,7 +91,7 @@ entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # The JH7110 TRNG's register logic and DTB discovery (milestone 159), the same
 # pure-logic/volatile-shell split `pci` and `nvme` below already use. The kernel takes it for one
 # thing only: `discover`, the device-tree query that says whether this machine has a TRNG at all,
-# so `entropy_service` can wire the userspace driver for it (`user/src/jh7110_trng.rs`) instead of
+# so `entropy_service` can wire the userspace driver for it (`components/src/jh7110_trng.rs`) instead of
 # keeping a second copy of the `compatible` string and the `reg` decode.
 jh7110_trng = { version = "0.1.0", path = "../crates/jh7110_trng" }
 
@@ -139,11 +139,11 @@ ps = { version = "0.1.0", path = "../crates/ps" }
 # the tree that hands the filter a real selector over a real domain.
 pgrep = { version = "0.1.0", path = "../crates/pgrep" }
 # The address-space listing (milestone 126, DECISIONS §114). `pmap_tests` drives `pmap::collect`,
-# `user/src/pmap.rs`'s real loop, against the real `aspace::LIST`, `ps`'s reasoning one object type
+# `components/src/pmap.rs`'s real loop, against the real `aspace::LIST`, `ps`'s reasoning one object type
 # over: no party has its own copy of the cursor walk.
 pmap = { version = "0.1.0", path = "../crates/pmap" }
 # The redraw over `ps`'s own walk (milestone 126). `watch_tests` drives `watch::frame`, the same
-# prefix-then-table `user/src/watch.rs` writes, against a real, changing domain, then feeds the
+# prefix-then-table `components/src/watch.rs` writes, against a real, changing domain, then feeds the
 # bytes through a real `video_terminal::Vt` to prove the redraw claim on the actual terminal engine
 # rather than on a description of one.
 watch = { version = "0.1.0", path = "../crates/watch" }

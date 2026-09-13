@@ -28,7 +28,7 @@ RNDR are neither: both are **unprivileged CPU instructions**, executable directl
 level with no MMIO, no capability, no device discovery. That is a materially different shape of work,
 smaller than either the JH7110 driver or the original virtio-rng backend.
 
-**It is also why this needs care rather than less of it.** `notes/entropy.md` and `user/src/entropy.rs`
+**It is also why this needs care rather than less of it.** `notes/entropy.md` and `components/src/entropy.rs`
 both state the principle plainly: entropy access here is a *capability*, not ambient authority ("a
 program's dependence on randomness is visible in what it holds"), and that is the whole reason
 `entropy` is its own minimal process holding nothing else, rather than a library any program links.
@@ -44,12 +44,12 @@ around the service.
 - **Confirm the instructions actually execute under this project's QEMU invocation** (both runner
   scripts use `-cpu max`), not just that a feature flag is reported. A one-instruction probe that
   either returns bytes or is provably not `UD`/`SIGILL` settles this before anything else is built.
-- **A new backend inside `entropy` (`user/src/entropy.rs`), replacing what "reach the device" means**,
+- **A new backend inside `entropy` (`components/src/entropy.rs`), replacing what "reach the device" means**,
   for each architecture, gated the way this tree already gates architecture-specific code (rule 1)
   wherever userspace's existing arch-specific `asm!` already lives; check the convention before
   inventing one, and do not put raw `asm!` directly in an architecture-neutral file.
 - **Pass the bytes through unmodified, matching the existing backend's own discipline**: "No pool,
-  no whitening, no mixing, no DRBG... these are the device's bytes" (`user/src/entropy.rs`). Whether
+  no whitening, no mixing, no DRBG... these are the device's bytes" (`components/src/entropy.rs`). Whether
   RDRAND/RNDR need this at all is worth checking against the architecture manuals directly: both
   Intel's and Arm's specifications for these instructions describe on-die conditioning as part of the
   instruction's own contract (unlike a raw TRNG register), which may mean the JH7110 driver's software
@@ -99,7 +99,7 @@ now decodes `ID_AA64ISAR0_EL1.RNDR` (host-tested: a real part without `FEAT_RNG`
 `Bus` variant, `Instruction` (not really a bus; named alongside `Mmio`/`Pci` anyway because everything
 the type already does, picking which source to wire, applies equally), spawning `entropy` in a new
 mode that needs no `Virtio` capability, no DMA page, no `Irq`: two capability slots instead of four.
-`user/src/entropy.rs` gained the `RNDRRS` backend itself (`MRS` on `S3_3_C2_C4_1`, checking
+`components/src/entropy.rs` gained the `RNDRRS` backend itself (`MRS` on `S3_3_C2_C4_1`, checking
 `PSTATE.NZCV` for the architected success/failure signal, the same idiom Linux's own
 `arch/arm64/include/asm/archrandom.h` uses) and a real serve loop for it.
 
@@ -121,7 +121,7 @@ in the boot tour (a kernel-side probe, ring 0, retrying per Intel's own DRNG gui
 161 item 3) landed on `main` 2026-08-24, and with it
 `kernel/src/user/entropy_service.rs::instruction_backend_available`'s x86_64 arm now reads
 `arch::isa::get().rdseed`, exactly mirroring the aarch64 arm's shape, in place of the unconditional
-`false` this section used to describe. The userspace `RDSEED` backend (`user/src/entropy.rs`) needed
+`false` this section used to describe. The userspace `RDSEED` backend (`components/src/entropy.rs`) needed
 no change at all: it was already written and correct, only unreachable.
 
 **What still blocks the end-to-end proof is a second, separate prerequisite**: milestone 161 item 4's

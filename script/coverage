@@ -43,7 +43,7 @@ fi
 # the crate as written cannot run on the host, which is the same claim made about the other three.
 #
 # `c_seam` is NOT excluded, because it is pure: constants, offsets, and small functions. It now
-# carries the test the seam never had, asserting that `user/c/c_seam.c` states the same values
+# carries the test the seam never had, asserting that `fixtures/c/c_seam.c` states the same values
 # this crate does. That test is the reason rule 7 is worth its churn.
 # Features are named ONE AT A TIME rather than swept with `--all-features`, and the reason is a
 # failure this gate actually hit (2026-08-30, PR #590, milestone 87).
@@ -66,7 +66,7 @@ fi
 # That is a line of maintenance per featured crate, and it buys back the limitation `--all-features`
 # had anyway, which is that a union-of-all-features run can carry an undertested default build.
 cargo llvm-cov --workspace --features manual/builder \
-    --exclude kernel --exclude user --exclude xtask --exclude user_rt \
+    --exclude kernel --exclude components --exclude fixtures --exclude xtask --exclude user_rt \
     --exclude supervision_proto --exclude swap_proto --exclude system_initializer --no-report
 cargo llvm-cov report --summary-only
 mkdir -p target/llvm-cov # the lcov --output-path parent must exist; --html creates its own
@@ -109,7 +109,7 @@ awk -F: -v floor="$floor" '
         # rule 7 turned them into crates, having been #[path] modules nothing could measure.
         #
         # **c_seam is deliberately NOT here.** It is pure, and it now carries the test asserting
-        # that user/c/c_seam.c states the same constants it does. Keep this list to things that
+        # that fixtures/c/c_seam.c states the same constants it does. Keep this list to things that
         # physically cannot run, never to things that are merely untested.
         if (index(file, "/supervision_proto/src/") || index(file, "/swap_proto/src/") ||
             index(file, "/system_initializer/src/") ||

@@ -3,8 +3,8 @@
 Authentication that produces capabilities instead of mutating an identity. Milestone 49's login
 half; the attribution half is [DECISIONS §109](../design/decisions/109-attribution-is-a-channel-property.md).
 
-The contract is `crates/login_proto`, the service is `user/src/login.rs`, and its test client is
-`user/src/login_test_client.rs`. All three names are **provisional**, minted for this milestone and
+The contract is `crates/login_proto`, the service is `components/src/login.rs`, and its test client is
+`fixtures/src/login_test_client.rs`. All three names are **provisional**, minted for this milestone and
 not yet ratified by calef.
 
 ## The problem this exists to solve
@@ -57,7 +57,7 @@ Every login is attenuated to `filesystem_proto::fixture::tree::SUB` with the sam
 identity to a specific subtree needs a lookup this milestone does not build (a table, a naming
 convention, a directory layout), and guessing at its shape would be scope invented rather than found.
 Milestone 47's per-shell root is already the isolation mechanism; what is missing is only the wiring
-between an authenticated identity and which subtree it should see, named as follow-on in `user/src/login.rs`'s
+between an authenticated identity and which subtree it should see, named as follow-on in `components/src/login.rs`'s
 BUGS.
 
 ### The delegation protocol, and why it is not `CALL`
@@ -135,7 +135,7 @@ Guest tests (`kernel::user::login_tests`, both aarch64 and riscv64):
 
 ## BUGS
 
-See `user/src/login.rs`'s own BUGS for the itemised list (per-principal subtree scoping, no terminal,
+See `components/src/login.rs`'s own BUGS for the itemised list (per-principal subtree scoping, no terminal,
 not wired into the interactive boot, no measured-boot consultation before loading a caretaker, no
 reclamation, one client at a time, and the scope of what the audit trail proves). Summarised in
 [design/roadmap/49-users-and-attribution.md](../design/roadmap/49-users-and-attribution.md)'s own BUGS.

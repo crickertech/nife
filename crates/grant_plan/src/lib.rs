@@ -106,7 +106,7 @@ pub enum Prog {
     /// the forcible tier (the shell tearing its region down) ends it. The case the cooperative tier
     /// cannot reach, and the reason the second `^C` exists.
     InterruptIgnorer,
-    /// Print the wall-clock time (milestone 51, `user/src/date.rs`). It takes nothing from the
+    /// Print the wall-clock time (milestone 51, `components/src/date.rs`). It takes nothing from the
     /// command line: no argument, no memory, no file. **Its whole authority is a read-only mapping
     /// of the clock page, which init endows and this shell cannot**, and that asymmetry is why
     /// [`Manifest::clock`] exists: the grant is real, it is just not something a person designates.
@@ -114,7 +114,7 @@ pub enum Prog {
     /// prints a time; on a machine whose RTC the service did not believe it prints "the time is
     /// unknown: the machine has no clock it believes", which is the other true sentence.
     Date,
-    /// **Remove a name, and with `-r` the tree under it** (milestone 47, `user/src/rm.rs`).
+    /// **Remove a name, and with `-r` the tree under it** (milestone 47, `components/src/rm.rs`).
     ///
     /// A **program, not a builtin**, and that is Unix's shape rather than a divergence from it.
     /// `cd`, `pwd` and `ls` are builtins here because the shell is rebinding what it already holds;
@@ -123,7 +123,7 @@ pub enum Prog {
     /// the subtree at risk before anything happens and a bug in the recursion can only reach what it
     /// was handed. See [`DirSpec`].
     Rm,
-    /// **Count what arrives on its input** (milestone 50, `user/src/wc.rs`): lines, words and
+    /// **Count what arrives on its input** (milestone 50, `components/src/wc.rs`): lines, words and
     /// bytes, printed as one line of text.
     ///
     /// The first program that declares [`InputSpec::Required`], and the reason that spec exists.
@@ -142,7 +142,7 @@ pub enum Prog {
     /// out, resolved by [`plan_against_with`] into a [`line::Source::File`]. See that function for
     /// why what the child holds is narrower than a per-file capability rather than the same thing.
     Wc,
-    /// **Render markdown for a terminal** (milestone 40, `user/src/doc.rs`, notes/manual.md).
+    /// **Render markdown for a terminal** (milestone 40, `components/src/doc.rs`, notes/manual.md).
     ///
     /// The same manifest as [`Prog::Wc`]: a stream in, a stream out, and nothing else. `doc
     /// notes/glob.md` reads like Unix's `man` and is not: the name is a designation the *shell*
@@ -152,7 +152,7 @@ pub enum Prog {
     /// **Provisional name.**
     Doc,
     /// **List the processes in the supervision domain it was spawned into** (milestone 126,
-    /// `user/src/ps.rs`, notes/process-view.md).
+    /// `components/src/ps.rs`, notes/process-view.md).
     ///
     /// The reason [`Manifest::domain`] exists, and the same asymmetry [`Prog::Date`] made for the
     /// clock: the grant is real and it is not something a person designates on the line. There is
@@ -160,7 +160,7 @@ pub enum Prog {
     /// by which supervision endpoint init put in its capability table, and `caps ps` prints that.
     Ps,
     /// **Name the members of that same domain that match, and do nothing to them** (milestone 126,
-    /// `user/src/pgrep.rs`, notes/process-view.md).
+    /// `components/src/pgrep.rs`, notes/process-view.md).
     ///
     /// [`Prog::Ps`]'s manifest exactly, down to the field, and that is the declaration doing the
     /// work rather than a coincidence. On Unix `pgrep` and `pkill` are one lookup with two endings,
@@ -178,7 +178,7 @@ pub enum Prog {
     /// `BUGS`.
     Pgrep,
     /// **Redraw [`Prog::Ps`]'s own domain walk a bounded number of times instead of printing it
-    /// once** (milestone 126, `user/src/watch.rs`, `crates/watch`).
+    /// once** (milestone 126, `components/src/watch.rs`, `crates/watch`).
     ///
     /// [`Prog::Ps`]'s manifest with one field changed: [`ArgSpec::Required`] rather than
     /// `Forbidden`, because this program needs a typed count to bound its loop (there is no `^C` for
@@ -189,7 +189,7 @@ pub enum Prog {
     /// of the tool it is named for.
     Watch,
     /// **Print how long the ambient monotonic counter has been running** (milestone 126,
-    /// `user/src/uptime.rs`, `crates/uptime`).
+    /// `components/src/uptime.rs`, `crates/uptime`).
     ///
     /// [`Prog::Worker`]'s manifest, not [`Prog::Date`]'s: `user_rt::monotonic_nanos` is granted to
     /// **every** process unconditionally (`kernel/src/arch/*/timer.rs`'s documented, deliberate
@@ -199,7 +199,7 @@ pub enum Prog {
     /// be pure wiring rather than a design fork; see design/roadmap/126-who-else-is-running.md.
     Uptime,
     /// **Print the inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
-    /// §111; `user/src/printenv.rs`).
+    /// §111; `components/src/printenv.rs`).
     ///
     /// The reason [`Manifest::config`] exists, and the same asymmetry [`Prog::Date`] made for the
     /// clock: the grant is real and it is not something a person designates on the line. Before
@@ -219,7 +219,7 @@ pub enum Prog {
     /// arguments): a term of art already right, per this tree's own naming convention for
     /// standard terms.
     Printenv,
-    /// **Print a version-4 UUID drawn from the entropy service** (milestone 111, `user/src/uuid.rs`).
+    /// **Print a version-4 UUID drawn from the entropy service** (milestone 111, `components/src/uuid.rs`).
     ///
     /// The reason [`Manifest::entropy`] exists, and [`Prog::Date`]'s asymmetry a fourth time: the
     /// grant is real and no token on the line designates it. Before this program the entropy
@@ -1113,7 +1113,7 @@ pub enum Command<'a> {
     /// exactly as typed; `date`'s own `FMT_RFC3339` output is a valid input to it, so
     /// `touch -t "$(date)" name` (RFC 3339 mode) round-trips through this shell without either
     /// side inventing a format. Converting it to a Unix-seconds value is `calendar`'s job and
-    /// happens where the grant is made (`user/src/swish.rs`'s `touch`), the same layering `date`
+    /// happens where the grant is made (`components/src/swish.rs`'s `touch`), the same layering `date`
     /// itself uses: this crate classifies tokens, it does not do calendar arithmetic.
     ///
     /// See notes/touch.md for what is still not built (Unix's compact `[[CC]YY]MMDDhhmm[.ss]`
@@ -1259,13 +1259,13 @@ pub struct Endowment {
     /// Pages of untyped to split from the shell's own budget and grant (0 = none).
     pub mem_pages: u64,
     /// The one file to narrow a directory capability down to, and the direction, or `None`.
-    /// Delivered as an endpoint served by a file caretaker (`user/src/fs_file_caretaker.rs`), so
+    /// Delivered as an endpoint served by a file caretaker (`components/src/fs_file_caretaker.rs`), so
     /// what the child ends up holding designates this name and nothing else.
     pub file: Option<FileGrant>,
     /// The one directory to narrow down to, and the **names** in it the program is to act on, or
     /// `None`. Delivered as an endpoint served by a caretaker, so what the child ends up holding
-    /// reaches that directory and nothing above or beside it: `user/src/fs_subtree_caretaker.rs`
-    /// for a set of one, `user/src/fs_nameset_caretaker.rs` for the set a pattern matched.
+    /// reaches that directory and nothing above or beside it: `components/src/fs_subtree_caretaker.rs`
+    /// for a set of one, `components/src/fs_nameset_caretaker.rs` for the set a pattern matched.
     pub dir: Option<DirGrant>,
     /// **The short options that were on the line**, as a bitmask: bit `i` is set when the manifest's
     /// `flags[i]` was typed. Numbered by position in the manifest rather than by letter, so nothing
@@ -1350,7 +1350,7 @@ pub struct FileGrant {
 ///
 /// So [`names`](DirGrant::names) is a set, a literal operand is the set of one, and the
 /// generalization is smaller than it looks: `fs_file_caretaker` already serves a namespace of
-/// exactly one name, and `user/src/fs_nameset_caretaker.rs` serves the same protocol over a wider
+/// exactly one name, and `components/src/fs_nameset_caretaker.rs` serves the same protocol over a wider
 /// one. **Nothing new in the kernel.**
 ///
 /// **These three together are the whole authority**, which is what makes `caps rm -r logs` worth
@@ -3120,7 +3120,12 @@ mod tests {
             panic!()
         };
         assert_eq!(
-            plan_against(&r, Prog::InterruptHeeder, Prog::InterruptHeeder.manifest(), WITH_DIR),
+            plan_against(
+                &r,
+                Prog::InterruptHeeder,
+                Prog::InterruptHeeder.manifest(),
+                WITH_DIR
+            ),
             Err(Refusal::FileForbidden),
         );
         assert_eq!(

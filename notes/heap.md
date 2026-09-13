@@ -252,7 +252,7 @@ problem, and the `alloc` OOM handler turns it into a fault the kernel reports). 
 the lock is a spinlock, fine while processes are single-threaded (std `thread::spawn` is phase
 two-or-later), wasteful under real contention; and first-fit is O(n) over free blocks, the same
 price the kernel heap paid, acceptable until a workload proves otherwise. Proven by `allocator_exerciser`
-(`user/src/allocator_exerciser.rs`), the first program in the tree linking `extern crate alloc`, spawned by
+(`fixtures/src/allocator_exerciser.rs`), the first program in the tree linking `extern crate alloc`, spawned by
 the test suite on both ISAs with a 96-page budget: Vec/String/BTreeMap churn, frees in arbitrary
 order, then a 128 KiB allocation that must fit in already-committed pages, proving freed memory
 is reused rather than leaked. One real bug found by the machine on the way: `load` maps a single

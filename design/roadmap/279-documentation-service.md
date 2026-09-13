@@ -22,7 +22,7 @@ Three pieces, and only one of them is portable.
 | Piece | Where | Portable? |
 |---|---|---|
 | The ranking query | `manual::index::search` | **Yes.** Any consumer can call it |
-| The store walk | `user/src/swish.rs:937 fn apropos` | No. Opens `index::STORE_DIR` from the root through the shell's own directory capability and rights, copies the manifest, hands each shard to `search` |
+| The store walk | `components/src/swish.rs:937 fn apropos` | No. Opens `index::STORE_DIR` from the root through the shell's own directory capability and rights, copies the manifest, hands each shard to `search` |
 | The presentation | `crates/swish/src/lib.rs:606 write_apropos` | No |
 
 So a second shell reuses the ranking and rewrites the other two, and must itself hold a directory

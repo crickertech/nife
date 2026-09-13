@@ -167,7 +167,7 @@ pub const DEAD: u64 = 0xDEAD_0000_0000_0000;
 /// **The service asked and got nothing at all**: the device never answered inside the driver's own
 /// bound. A dry source, an absent one, or a register window that reads as nothing.
 ///
-/// Steps `0x01..=0x0f` are each backend's own (`user/src/entropy.rs` numbers its virtio sequence
+/// Steps `0x01..=0x0f` are each backend's own (`components/src/entropy.rs` numbers its virtio sequence
 /// there), so the two steps every backend shares start at `0x10` and cannot collide with them.
 pub const STEP_NO_FIRST_BYTES: u64 = 0x10;
 

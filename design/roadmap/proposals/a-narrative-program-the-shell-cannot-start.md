@@ -1,7 +1,7 @@
 # The narrator prints on every boot and cannot be typed at the prompt
 
 **Status: PROPOSED 2026-09-09.** Left behind by milestone 267's lane, which moved the milestone
-narrative out of `kernel_main` into `user/src/narrator.rs` and got half of what that milestone asked
+narrative out of `kernel_main` into `components/src/narrator.rs` and got half of what that milestone asked
 for.
 
 **Gate: NONE.** Nothing is owed and nothing is blocked. It wants a lane because it is a second
@@ -14,7 +14,7 @@ You cannot run it.
 
 `narrator` speaks the console server's raw protocol: two rendezvous endpoints in capability slots 0
 and 1, and one page at `0x60_0000` that it writes bytes into while the server reads them. That is
-the shape `user/src/hello.rs`'s `printing_client` has had since 19f.3 and it is what
+the shape `fixtures/src/hello.rs`'s `printing_client` has had since 19f.3 and it is what
 `kernel/src/user/console_service.rs`'s `spawn_client` hands out, so the kernel's tour can start it.
 
 `swish` starts a program with an output **sink** (`crates/byte_sink_proto`), which is a different
@@ -52,6 +52,6 @@ stranger runs first. Any of the three options above has to keep that true.
 
 ## What it costs to leave alone
 
-A `BUGS` entry in `user/src/narrator.rs` and one in milestone 267's block, both written. The
+A `BUGS` entry in `components/src/narrator.rs` and one in milestone 267's block, both written. The
 demonstration still reaches everyone who boots the system, which is the audience that matters most,
 and the missing half is the ability to see it again without rebooting.

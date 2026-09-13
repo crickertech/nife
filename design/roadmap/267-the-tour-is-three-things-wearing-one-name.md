@@ -83,7 +83,7 @@ signature keeps `#[cfg(not(any(test, feature = "bench")))]` and the check delibe
 at it: a `bench` boot diverges into `bench::run` before this point and a `test` boot exits through
 semihosting, and neither is a boot anybody reads to bring up a board.
 
-**2. The narrative is `user/src/narrator.rs`,** a program at EL0, spawned as the console server's
+**2. The narrative is `components/src/narrator.rs`,** a program at EL0, spawned as the console server's
 client. The console server now comes up at the top of the tour instead of the middle, which keeps
 the transcript in the order it always read, and the `hello` printing client it used to feed is gone:
 running two programs to demonstrate one thing is one program too many.
@@ -147,7 +147,7 @@ prompt.
   know it was read, weighed, and refused, rather than missed.
 - **You cannot type `narrator` at the prompt, which is the other half of "a program you can run".**
   It speaks the console server's raw protocol (two rendezvous endpoints and a shared page, the shape
-  `user/src/hello.rs`'s `printing_client` has), and `swish` starts a program with an output sink
+  `fixtures/src/hello.rs`'s `printing_client` has), and `swish` starts a program with an output sink
   (`crates/byte_sink_proto`) instead. Three ways to fix it, all of them more than a line, in
   `design/roadmap/proposals/a-narrative-program-the-shell-cannot-start.md`.
 - **`narrator` is a provisional name.** Every name in this tree is calef's. `tour` was refused

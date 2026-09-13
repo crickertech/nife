@@ -112,7 +112,7 @@ fn net_stack_image() -> &'static [u8] {
     program("net_stack").expect("no net_stack program in the initrd archive")
 }
 
-/// The net client's test selectors and its success word, matching `user/src/socket_test_client.rs`. The
+/// The net client's test selectors and its success word, matching `components/src/socket_test_client.rs`. The
 /// client is a nonzero entry role of the `net_stack` binary, so it needs no image of its own.
 #[cfg(target_arch = "aarch64")]
 const NET_TEST_UDP_DNS: u64 = 1;
@@ -881,7 +881,7 @@ fn the_hardware_says_el0_cannot_read_the_kernels_memory() {
 /// those held.
 #[test_case]
 fn a_user_client_moves_data_through_shared_memory() {
-    // What the client prints first. Must match user/src/hello.rs.
+    // What the client prints first. Must match fixtures/src/hello.rs.
     const FIRST_LINE: &[u8] = b"      hello from EL0, printed by a driver that also runs at EL0.\n";
     const SHARED_VA: u64 = 0x0000_0000_0060_0000;
 
@@ -928,7 +928,7 @@ fn a_user_client_moves_data_through_shared_memory() {
         run(
             image,
             Spawn {
-                arg0: 2, // printing-client role (matches user/src/hello.rs)
+                arg0: 2, // printing-client role (matches fixtures/src/hello.rs)
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -2426,7 +2426,7 @@ fn userspace_init_brings_up_the_console_server() {
         crate::testing::skip!(crate::user::NO_UART_PAGE);
     }
     // The message length the init_console role prints and the server acks. Kept in sync with
-    // user/src/hello.rs init_console (the b"..." there); a mismatch fails loudly, not silently.
+    // fixtures/src/hello.rs init_console (the b"..." there); a mismatch fails loudly, not silently.
     const MSG_LEN: u64 = 66;
     const INIT_CONSOLE_ROLE: u64 = 24;
 
@@ -2987,7 +2987,7 @@ fn a_process_can_mint_an_rendezvous_and_ipc_flows_over_it() {
 /// capability minted for it by another process works when it invokes it), and the receiver
 /// *cannot pass it on* because it was handed the capability without `GRANT`. This is the
 /// operation that makes the capability model composable by processes instead of brokered by the
-/// kernel at spawn. See user/src/hello.rs and `user::delegation_service`.
+/// kernel at spawn. See fixtures/src/hello.rs and `user::delegation_service`.
 #[test_case]
 fn a_capability_can_be_delegated_over_ipc_and_grant_gates_re_delegation() {
     let image = init_image();
@@ -3060,7 +3060,7 @@ fn a_process_revokes_a_frame_and_loses_the_capability() {
 /// is genuinely shared, and the kernel copied nothing), and the consumer *cannot* map that page
 /// writable, because it was handed the frame with `READ` alone. This is §10's "shared memory
 /// carries data" done by the processes rather than wired by the kernel at spawn. See
-/// user/src/hello.rs and `user::page_frame_service`.
+/// fixtures/src/hello.rs and `user::page_frame_service`.
 #[test_case]
 fn a_frame_capability_shares_a_page_and_a_read_only_view_cannot_write_it() {
     let image = init_image();

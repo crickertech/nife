@@ -2,7 +2,7 @@
 
 *(Milestone 40. Markdown authored, rendered for display rather than shown raw, searchable, and
 installed by the package that owns it. The pure logic is `crates/manual`; the program is
-`user/src/doc.rs`; the store is built by `cargo xtask manual`. Names are provisional.)*
+`components/src/doc.rs`; the store is built by `cargo xtask manual`. Names are provisional.)*
 
 The project's own argument is written in markdown: 328 files, three megabytes, `design/decisions/`
 and a hundred notes. A nife that serves them, on itself, through a viewer that can name
@@ -217,7 +217,7 @@ The split follows the tree's usual one. The **reading** is `manual::index::searc
 single point at which the writer and the reader are proved to agree: `cargo xtask manual capability`
 on the host and `apropos capability` at the prompt call that same function, over the same bytes,
 through the same one-page-at-a-time `Pages`. The **rendering** is `swish::write_apropos`, host-tested
-with the rest of what the prompt says. What is left in `user/src/swish.rs` is four filesystem
+with the rest of what the prompt says. What is left in `components/src/swish.rs` is four filesystem
 requests and a 4 KiB page buffer.
 
 ### And the same index, pointed at the repository
@@ -432,7 +432,7 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
 - **`doc <page> | wc` and `doc <page> > out.txt` deliver the file now.** Both
   answered `0 0 0` when phase 1 measured them, because a pipeline's head was wired off the `Line`,
   which carries no `<`, so the planned input operand was dropped and the stage counted an empty
-  stream. That was fixed in `user/src/swish.rs` (the head's input comes off the plan now) and the
+  stream. That was fixed in `components/src/swish.rs` (the head's input comes off the plan now) and the
   fix is pinned at the real prompt on both architectures:
 
   ```text

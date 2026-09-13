@@ -34,7 +34,7 @@ A dedicated boot-only process holds exactly the authority needed to re-derive du
 the on-disk schedule store, uses it once during bring-up, and then deletes every capability that
 authority is made of, including its own copy of whatever names the store. After that its cspace holds
 nothing that can re-derive a session, the same way `root_supervisor` proves at the end of its own run
-that it holds nothing that can `RETYPE` or `RETYPE_OBJ` (`user/src/root_supervisor.rs` lines 168-182).
+that it holds nothing that can `RETYPE` or `RETYPE_OBJ` (`components/src/root_supervisor.rs` lines 168-182).
 This is the recommended option below.
 
 **(b) A persistent "master" capability retained by the kernel or an init process for the whole boot's

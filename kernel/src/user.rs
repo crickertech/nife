@@ -799,7 +799,7 @@ pub const NO_UART_PAGE: &str = "this machine's console UART is in the I/O port s
 /// **The archive entry the kernel enters as the first process**, on every architecture.
 ///
 /// One name, one binary, one program (milestone 266). This used to be `init`, and it meant
-/// `user/src/hello.rs`'s `init_boot` role on aarch64 and `system_initializer` on riscv64: an alias
+/// `fixtures/src/hello.rs`'s `init_boot` role on aarch64 and `system_initializer` on riscv64: an alias
 /// standing over two implementations of one job, which is DECISIONS §19's own failure mode and had
 /// already been paid for once as a boot that reached userspace and printed nothing at all.
 #[cfg_attr(not(test), allow(dead_code))]
@@ -851,7 +851,7 @@ pub const PROGENITOR_ROLE: u64 = 27;
 /// the holding, correctly: on that path the progenitor is the system.
 // RISC-V and x86_64 boot the same program through `riscv_shell_boot`, which grants the same
 // capabilities in a different order. That order is the one thing the boards genuinely disagree
-// about, and `user/src/progenitor.rs` carries both tables under the single `cfg` it costs.
+// about, and `components/src/progenitor.rs` carries both tables under the single `cfg` it costs.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn spawn_progenitor(
     image: &'static [u8],
@@ -1385,7 +1385,7 @@ fn enter_frame(entry: u64, user_sp: u64, arg0: u64, arg1: u64, arg2: u64) -> ! {
 // This also removed `exec`, the one-page raw-machine-code loader they needed. Every program the
 // kernel runs now arrives as an ELF.
 
-/// The `outlaw` program's roles (user/src/outlaw.rs), passed in the first argument register.
+/// The `outlaw` program's roles (fixtures/src/outlaw.rs), passed in the first argument register.
 ///
 /// `ROUND_TRIP` yields twice and exits: two syscalls from user mode, where the second can only
 /// happen if the return from the first genuinely put the thread back at EL0/U-mode.
@@ -1705,7 +1705,7 @@ pub fn riscv_initrd_demo(archive: &'static [u8]) -> Result<u64, LoadError> {
     // Read only the one entry the kernel must: `builder`. The rest is the builder's to parse.
     // **Its own name since milestone 266.** This entry used to be called `init`, which made the
     // word mean this demo here and the interactive first process on aarch64; one progenitor took
-    // the name and this demo kept the one it always had in `user/src/builder.rs`.
+    // the name and this demo kept the one it always had in `components/src/builder.rs`.
     let fs = nifefs::Fs::parse(archive).expect("initrd is not a nifefs archive");
     let init_bytes = fs
         .read("builder")
@@ -1849,7 +1849,7 @@ pub fn riscv_uart_driver_demo(
     archive: &'static [u8],
     uart_irq: u32,
 ) -> Result<crate::sched::RendezvousId, LoadError> {
-    const DRIVER_UART_VA: u64 = 0x0070_0000; // must match user/src/serial_driver.rs UART_VA
+    const DRIVER_UART_VA: u64 = 0x0070_0000; // must match components/src/serial_driver.rs UART_VA
     const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt
 
     let fs = nifefs::Fs::parse(archive).expect("initrd is not a nifefs archive");
@@ -2355,7 +2355,7 @@ pub mod compositor_service;
 pub mod keyboard_service;
 
 /// **The serial keystroke source** (milestone 192, option A): the plain UART receive driver,
-/// `user/src/input.rs`, spawned kernel-side and wired to a fixed endpoint instead of by init.
+/// `components/src/input.rs`, spawned kernel-side and wired to a fixed endpoint instead of by init.
 ///
 /// [`keyboard_service::start_direct`]'s twin, one device over, and it exists so that
 /// [`boot_graphical_terminal`] can put a terminal on a real framebuffer without also requiring a
@@ -2442,8 +2442,8 @@ struct VirtioRngGrant {
 }
 
 /// Where [`boot_virtio_rng_device`] writes the DMA region's own physical base, inside that same
-/// region. Entropy's ring (`user/src/entropy.rs`'s `Q_DESC`/`Q_AVAIL`/`Q_USED`) and its one pool
-/// buffer (`user/src/entropy.rs`'s own `POOL_OFF` 0x400, `POOL_LEN` 256 bytes) together reach no
+/// region. Entropy's ring (`components/src/entropy.rs`'s `Q_DESC`/`Q_AVAIL`/`Q_USED`) and its one pool
+/// buffer (`components/src/entropy.rs`'s own `POOL_OFF` 0x400, `POOL_LEN` 256 bytes) together reach no
 /// further than byte 0x500 of the page; this sits in the 2816 bytes past that, as far from both as
 /// the page allows, so a future widening of either has room to move without colliding.
 const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
@@ -2458,7 +2458,7 @@ const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
 /// **Only the MMIO transport**, unlike `entropy_service::start`'s own test-harness wiring, which
 /// also offers PCIe: a first cut scoped to what an interactive boot actually needs, on the same
 /// "a minimal device surface for the boot a person actually meets" posture already named for the
-/// GPU/keyboard/NVMe flags (`user/src/login.rs`'s own BUGS, before this amendment). Widening to
+/// GPU/keyboard/NVMe flags (`components/src/login.rs`'s own BUGS, before this amendment). Widening to
 /// PCIe (behind the IOMMU) is real follow-on, not invented here.
 ///
 /// Mirrors `kernel::user::entropy_service::start`'s own kernel-side setup (device discovery, a
@@ -2585,10 +2585,10 @@ pub struct GraphicalTerminal {
 /// Name: **provisional** (milestone 192's lane).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum KeystrokeSource {
-    /// A virtio-input device, driven by `user/src/keyboard_driver.rs` in `MODE_DIRECT`. What
+    /// A virtio-input device, driven by `components/src/keyboard_driver.rs` in `MODE_DIRECT`. What
     /// milestone 177 built, and what QEMU has.
     Keyboard,
-    /// The board's own UART receive line, driven by `user/src/input.rs`. Milestone 192's option A:
+    /// The board's own UART receive line, driven by `components/src/input.rs`. Milestone 192's option A:
     /// the source every one of the three target machines actually has, and the reason a graphical
     /// boot on real silicon is reachable at all before a USB HID stack exists.
     Serial,
@@ -2721,7 +2721,7 @@ mod date_tests;
 #[cfg(all(test, initrd))]
 mod printenv_tests;
 
-/// **`uuid`** (milestone 111, `user/src/uuid.rs`, notes/entropy.md).
+/// **`uuid`** (milestone 111, `components/src/uuid.rs`, notes/entropy.md).
 ///
 /// `printenv`'s proof one manifest field over, and the field is
 /// [`grant_plan::Manifest::entropy`]: the first spawnable, shell-facing program that needs random
@@ -2825,7 +2825,7 @@ mod credential_tests;
 /// **The login service: authentication produces capabilities, not a mutated identity** (milestone
 /// 49, DECISIONS §109). The kernel spawns it exactly as it spawns `credentialer`: the archive
 /// mapped read-only, a construction budget, and the endpoints it needs, so what is under test is
-/// `user/src/login.rs`'s own choices rather than a privileged shortcut.
+/// `components/src/login.rs`'s own choices rather than a privileged shortcut.
 ///
 /// Not arch-gated, for `credential_service`'s own reason: `nifefs`, `elf`, and
 /// `supervision_proto::build_child` are portable, and a login service that mints capabilities on
@@ -2840,7 +2840,7 @@ pub mod login_service;
 /// page retyped from a freshly split budget), that a wrong secret is refused and nothing follows
 /// the refusal, and that two different identities' channels are independently working and
 /// correctly attributed in the service's own audit trail (DECISIONS §109's property, made
-/// checkable). See `user/src/login.rs`'s BUGS for what this slice does not attempt: a terminal,
+/// checkable). See `components/src/login.rs`'s BUGS for what this slice does not attempt: a terminal,
 /// per-principal subtree scoping, and wiring into the interactive boot are all named there as
 /// follow-on rather than guessed at here.
 #[cfg(all(test, initrd))]
@@ -2862,7 +2862,7 @@ pub mod identity_provisioner_service;
 /// subsequent `OPENDIR` can descend into), that a duplicate identity's credential half is refused
 /// without disturbing an existing subtree, and that re-running the tool against a subtree that
 /// already exists (`EEXIST`) is recovery rather than a second failure. See
-/// `user/src/identity_provisioner.rs`'s own module docs for the ordering argument these tests hold
+/// `components/src/identity_provisioner.rs`'s own module docs for the ordering argument these tests hold
 /// it to.
 #[cfg(all(test, initrd))]
 mod identity_provisioning_tests;
@@ -2870,7 +2870,7 @@ mod identity_provisioning_tests;
 /// **The boot-time re-deriver** (milestone 152's third piece, provisional name `session_reviver`;
 /// DECISIONS §123). Spawned once, holding exactly a construction budget and the store-read
 /// capability, checked against the boot's measurement table before it is granted either
-/// (DECISIONS §123's second hardening refinement). See `user/src/session_reviver.rs`'s own module
+/// (DECISIONS §123's second hardening refinement). See `components/src/session_reviver.rs`'s own module
 /// docs for what it does with them and why it is a new process rather than a phase of an existing
 /// boot component.
 #[cfg_attr(not(test), allow(dead_code))] // the milestone-152 durable-schedule tests are its callers
@@ -2899,7 +2899,7 @@ mod session_reviver_tests;
 ///
 /// The test server is a role of the same binary holding `READ` on the endpoint the client holds
 /// `WRITE` on. Substituting the peer at a capability boundary is how a capability system tests a
-/// client: the client's code does not change and cannot tell. See user/src/ntp.rs for what that
+/// client: the client's code does not change and cannot tell. See components/src/ntp.rs for what that
 /// proves and what it leaves to milestone 30's socket-contract tests.
 ///
 /// Arch-neutral: one portable binary, both ISAs (DECISIONS §19).
@@ -2998,14 +2998,14 @@ mod ripgrep_tests;
 /// pass authority it holds to another process, narrowing it on the way, and only if it was trusted
 /// to (`GRANT`). This wires the smallest scenario that exercises all three: a *granter* delegates a
 /// resource capability to a *receiver* over a channel, narrowed to `WRITE` (no `GRANT`); the
-/// receiver uses it and then cannot pass it on. See user/src/hello.rs `granter()/receiver()`.
+/// receiver uses it and then cannot pass it on. See fixtures/src/hello.rs `granter()/receiver()`.
 /// **`PageFrame` capabilities: shared memory a process holds, maps, and delegates.**
 ///
 /// The payoff of delegation applied to memory. A *producer* retypes a page out of its own untyped
 /// into a `PageFrame` capability, maps it, writes into it, and delegates a READ-only view to a
 /// *consumer*, which maps the same physical page and reads what the producer wrote. The kernel
 /// copies nothing and pre-arranges nothing: the two processes compose the sharing themselves, and
-/// the read-only narrowing means the consumer can look but not write. See user/src/hello.rs
+/// the read-only narrowing means the consumer can look but not write. See fixtures/src/hello.rs
 /// `page_frame_producer()/page_frame_consumer()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
@@ -3022,7 +3022,7 @@ pub mod delegation_service;
 /// **Milestone 19a: a process mints an endpoint from its own memory, at EL0.** The maker holds
 /// an untyped budget and a channel; the peer holds the channel and a report line. Everything
 /// else, the endpoint itself included, is created at runtime by the maker out of its own pages
-/// and delegated. See user/src/hello.rs `ep_maker()/ep_user()`.
+/// and delegated. See fixtures/src/hello.rs `ep_maker()/ep_user()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
 // only because its consumer was.
@@ -3030,7 +3030,7 @@ pub mod delegation_service;
 pub mod retype_ep_service;
 
 /// **Milestone 19b: a process builds an address space, at EL0.** One role: an untyped budget
-/// and a report line; everything else it constructs. See user/src/hello.rs `address_space_builder()`.
+/// and a report line; everything else it constructs. See fixtures/src/hello.rs `address_space_builder()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
 // only because its consumer was.
@@ -3039,7 +3039,7 @@ pub mod address_space_service;
 
 /// **Milestone 12: Call/Reply, at EL0.** One request endpoint, a server that answers a caller it was
 /// never wired to, and the one-shot reply capability proven across the boundary. See
-/// user/src/hello.rs `call_server()/call_client()`.
+/// fixtures/src/hello.rs `call_server()/call_client()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
 // only because its consumer was.
@@ -3048,7 +3048,7 @@ pub mod call_service;
 
 /// **Milestone 13: revoke a frame, at EL0.** One process with an untyped budget retypes a frame,
 /// maps it, revokes it, and reports whether the revoke deleted its own capability. See
-/// user/src/hello.rs `revoke_demo()`.
+/// fixtures/src/hello.rs `revoke_demo()`.
 // Test scaffolding: the `tests` module below is the only caller, and it runs on both ISAs now
 // (milestone 19's user-test port). This wiring was already portable; it was compiled out on riscv64
 // only because its consumer was.
@@ -3063,12 +3063,14 @@ pub mod revoke_service;
 /// their *scaffolding* was aarch64. Three things moved and the tests came along unchanged:
 ///
 /// 1. The hand-assembled programs became real ELFs the toolchain builds for both targets (the
-/// `outlaw` binary and the `interrupt_ignorer` that already existed). See the note above
-/// `OUTLAW_ROUND_TRIP`. 2. `ESR`/`FAR` became `arch::UserFault`, the same fact in words RISC-V can
-/// say, which is what keeps "a PERMISSION fault at exactly this address" assertable rather than
-/// softened to "a fault happened". 3. `hello`, which carries the milestone 7-19 role catalogue, was
-/// found to build for RISC-V once six syscalls it had hand-rolled in aarch64 `asm!` were routed
-/// through `user_rt`, which already had portable versions of all six.
+///    `outlaw` binary and the `interrupt_ignorer` that already existed). See the note above
+///    `OUTLAW_ROUND_TRIP`.
+/// 2. `ESR`/`FAR` became `arch::UserFault`, the same fact in words RISC-V can say, which is what
+///    keeps "a PERMISSION fault at exactly this address" assertable rather than softened to "a fault
+///    happened".
+/// 3. `hello`, which carries the milestone 7-19 role catalogue, was found to build for RISC-V once
+///    six syscalls it had hand-rolled in aarch64 `asm!` were routed through `user_rt`, which already
+///    had portable versions of all six.
 ///
 /// **What is still gated, and why, is written at each test rather than here**, because a blanket
 /// module comment is how the old claim survived past the point of being true. Two kinds of gate
@@ -3158,7 +3160,7 @@ mod job_undertaker_tests;
 /// bug is a kernel memory corruption; here it is a page fault in an unprivileged process, and its
 /// supervisor restarts it.
 ///
-/// **What is under test is the seam, not the C.** `user/c/c_seam.c` is deliberately throwaway: 150
+/// **What is under test is the seam, not the C.** `fixtures/c/c_seam.c` is deliberately throwaway: 150
 /// lines, one honest function and two one-line bugs. What the milestone de-risks is everything around
 /// it, before a real foreign component (libghostty-vt, milestone 29's later rung) depends on it: a
 /// bare-metal clang in the build for both ISAs, a Rust `user_rt` shell that holds every capability so
@@ -3225,7 +3227,7 @@ mod c_seam_tests;
 ///    and not `READ`, so endpoint-only naming does not mean "whoever holds the endpoint is the
 ///    server".
 ///
-/// **The replacement is written in C** (`user/c/c_swappable.c`, over the seam DECISIONS §31 built),
+/// **The replacement is written in C** (`fixtures/c/c_swappable.c`, over the seam DECISIONS §31 built),
 /// and that is the strongest form of the claim: what held across the swap was the contract, not a
 /// recompile of the same source.
 ///
@@ -3287,7 +3289,7 @@ mod reap_tests;
 /// here would mean something is wrong under `arch/` rather than in this feature.
 ///
 /// **The shape, and why it is this shape.** Every survey goes through the real syscall dispatcher
-/// (`syscall::invoke`), and the walk is driven by `ps::collect`, which is the loop `user/src/ps.rs`
+/// (`syscall::invoke`), and the walk is driven by `ps::collect`, which is the loop `components/src/ps.rs`
 /// really runs: a bug in the cursor protocol therefore cannot hide in the gap between the kernel's
 /// half and the program's. The tests build real supervised children out of a real region, so the
 /// domain under test is one the kernel built rather than one a helper described.
@@ -3310,7 +3312,7 @@ mod survey_tests;
 /// `arch::mmu::translate_at`, so a divergence here means something is wrong under `arch/`.
 ///
 /// Every listing goes through the real syscall dispatcher, driven by `pmap::collect`, the loop
-/// `user/src/pmap.rs` really runs, `survey_tests`'s discipline verbatim. The negative control is
+/// `components/src/pmap.rs` really runs, `survey_tests`'s discipline verbatim. The negative control is
 /// the one that matters: a capability holding `ENUMERATE` alone can list every mapping and is
 /// refused `MAP_INTO`, and a capability holding `WRITE` alone can map and is refused `LIST`, so
 /// the split is proved in both directions rather than asserted in prose.
@@ -3339,7 +3341,7 @@ mod watch_tests;
 /// can do, and there is nothing to print and nothing to check; here an entry is a grant expression
 /// checked at registration by the same `grant_plan::plan` the prompt uses, so what a scheduled child
 /// will hold is printable before the first tick. The test reads that plan off the real program
-/// running the real `user/timetable.conf`, then watches what fires.
+/// running the real `components/timetable.conf`, then watches what fires.
 ///
 /// The negative control is what makes it worth having: the shipped document contains entries a Unix
 /// cron would simply have run (`date` wants a clock, `ps` wants a process view), and the timetable
@@ -3389,7 +3391,7 @@ mod shell_navigation_tests;
 /// One module for both ISAs, for [`dir_capability_tests`]'s reason: nothing here is
 /// architecture-specific, so the parity gate (DECISIONS §19) is met by the same test running twice.
 ///
-/// What is wired is the **real `rm` binary** (`user/src/rm.rs`) behind a real
+/// What is wired is the **real `rm` binary** (`components/src/rm.rs`) behind a real
 /// `fs_subtree_caretaker`, started the way the shell would start it: the name in a grant's two
 /// argument words and the options in the spec word, in `grant_plan::rmopt`'s bit order, so the numbers
 /// here come from the manifest the prompt checks against rather than from a second copy of an
@@ -3421,7 +3423,7 @@ mod glob_grant_tests;
 /// because that module leans on aarch64-only scaffolding (the hand-written 7a user programs and
 /// the PL011-wired `hello` roles), while these need only the ELF loader and the initrd archive.
 /// The driver is the SAME `virtio` module the aarch64 roles compile, packed as the dedicated
-/// `block_driver` binary (`user/src/block_driver.rs`); the kernel-side wiring (`virtio_service`) is
+/// `block_driver` binary (`components/src/block_driver.rs`); the kernel-side wiring (`virtio_service`) is
 /// the same code,
 /// unconditionally. What these prove that aarch64's runs do not: userspace device drivers with
 /// DMA, and the kernel's DMA confinement, on the second ISA.

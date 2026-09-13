@@ -10,7 +10,7 @@ therefore the whole "every architecture boots to swish" half of the parity targe
 ## The question, in one sentence
 
 On aarch64 and riscv64, `swish` does not talk to a UART. It talks to a **console server over an
-endpoint**, and that server is `user/src/console.rs`, an unprivileged process holding the UART's
+endpoint**, and that server is `components/src/console.rs`, an unprivileged process holding the UART's
 page as a capability. **On x86_64 there is no such server and there cannot be one**, so the question
 is whether a **kernel thread** may park on the same rendezvous and answer the same protocol.
 

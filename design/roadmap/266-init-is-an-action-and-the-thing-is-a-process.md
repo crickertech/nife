@@ -67,7 +67,7 @@ Today three programs stand behind one archive entry:
 | `system_initializer` | the full one: console, input driver, line discipline, shell, sink adapter and job undertaker, then resident as the spawn service |
 
 **The alias layer is what makes them look like one thing, and it is already wrong.**
-`crates/system_initializer` says the entry `init` *"is `user/src/hello.rs`'s `init_boot` role on
+`crates/system_initializer` says the entry `init` *"is `fixtures/src/hello.rs`'s `init_boot` role on
 aarch64 and this program on riscv64"*, while `xtask`'s `portable_archive_entries()` maps
 `("init", "builder")` and lists `system_initializer` separately. One of those is stale, **and the
 contradiction exists because there is an alias to be stale about.** Collapse the alias and the class
@@ -76,7 +76,7 @@ goes with it: the kernel looks up `progenitor`, and `progenitor` is the program.
 ### The parity violation, stated as the tree states it
 
 `hello` is **not** a one-platform program: it is in the riscv64 and x86_64 archives under its own
-name. What is aarch64-only is its **init role**, and `user/src/hello.rs` records what that cost in
+name. What is aarch64-only is its **init role**, and `fixtures/src/hello.rs` records what that cost in
 its own comment:
 
 > aarch64 packs `hello` as `init`, because there hello *is* [init]... This was a hardcoded `"init"`,
@@ -141,7 +141,7 @@ rewrote the row recording that a name had been *refused*.
 
 ## A contradiction to resolve on the way
 
-`crates/system_initializer`'s header says the archive entry `init` *"is `user/src/hello.rs`'s
+`crates/system_initializer`'s header says the archive entry `init` *"is `fixtures/src/hello.rs`'s
 `init_boot` role on aarch64 and this program on riscv64"*, while `xtask`'s
 `portable_archive_entries()` maps `("init", "builder")` and lists `system_initializer` as a separate
 entry. **One of those is stale and this block does not know which.** Settle it and say so; a rename
@@ -162,7 +162,7 @@ that carries a wrong claim forward has spent the opportunity to find it.
 
 ## What was built
 
-**One program, three architectures, one name.** `user/src/progenitor.rs` is the first process on
+**One program, three architectures, one name.** `components/src/progenitor.rs` is the first process on
 aarch64, riscv64 and x86_64. The kernel looks up the archive entry `progenitor` and enters it; there
 is no alias and no class of thing for an alias to be stale about.
 
@@ -174,7 +174,7 @@ them, which is the only way that separation is worth anything.
 ### The contradiction, settled
 
 **`crates/system_initializer`'s header was the stale one.** It said the entry `init` *"is
-`user/src/hello.rs`'s `init_boot` role on aarch64 and this program on riscv64"*, and the second half
+`fixtures/src/hello.rs`'s `init_boot` role on aarch64 and this program on riscv64"*, and the second half
 was wrong: `xtask`'s `portable_archive_entries()` mapped `("init", "builder")` and listed
 `system_initializer` as its own entry, which is what the archive actually contained. On riscv64 the
 entry `init` was **milestone 20's `builder` demo**, and `system_initializer` was reached by its own
@@ -267,7 +267,7 @@ applied, stated so it can be disagreed with:
 - **Proposed.** `design/roadmap/proposals/one-grant-order-for-the-progenitor.md`. The `cfg` above is honest and it is
   still two orders for one endowment; unifying them means renumbering aarch64's 19d test roles,
   which is its own milestone with its own gate. Until then the tables sit beside each other in
-  `user/src/progenitor.rs`, which is the cheapest place to notice they disagree.
+  `components/src/progenitor.rs`, which is the cheapest place to notice they disagree.
 - **Proposed.** `design/roadmap/proposals/what-the-boot-path-is-called.md`. Held out of this milestone deliberately (`script/initboot` to
   `init-boot` was staged and backed out pending it), and it is three strings in two naming domains:
 

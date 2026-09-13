@@ -1,14 +1,14 @@
 # The progenitor, and loading a program from userspace
 
 *(Milestone 19d. `kernel/src/user.rs` `spawn_progenitor`, and the `init`/`child` roles in
-`user/src/hello.rs`. The loader described here lived in that file until milestone 96 gave the tree
+`fixtures/src/hello.rs`. The loader described here lived in that file until milestone 96 gave the tree
 one of them; it is `crates/supervision_proto`'s `build_child` now, and every caller reaches it there.
 What the loader does is unchanged, and the steps below are still the steps.)*
 
 *This note said, until milestone 266, that the archive entry named `init` meant a different program
 on each architecture and pointed at [milestone 166](../design/roadmap/166-init-boot-parity.md) as the
 open question. That is settled: the entry is `progenitor` on all three boards and it is one program,
-`user/src/progenitor.rs`. Where the text below says init it is describing milestone 19d, when the
+`components/src/progenitor.rs`. Where the text below says init it is describing milestone 19d, when the
 role and the demo catalogue were the same binary.*
 
 ## The one thing 19d moves, and why it matters
@@ -150,7 +150,7 @@ on each machine.
 ## The first distinct binary: the worker (milestone 19f.2)
 
 The worker is the first program that is **its own binary**, not a role of `hello`. It lives in
-`user/src/worker.rs`: its own `_start`, its own panic handler, ~30 lines, and not one line of hello's
+`fixtures/src/worker.rs`: its own `_start`, its own panic handler, ~30 lines, and not one line of hello's
 code. It shares the `user` package's `link.ld` (so it links at `0x40_0000` like hello), which is not
 a conflict because each program runs in its own address space. `initrd_aarch64` packs it as a second
 archive entry, `"worker"`, beside the boot program's.
@@ -176,7 +176,7 @@ the requirements are).
 ## The console server, its own binary (milestone 19f.3)
 
 "Console server as its own binary" was the headline 19f was aiming at, and here it is:
-`user/src/console.rs`, a distinct ELF init loads by the name `"console"`. It owns the UART and one
+`components/src/console.rs`, a distinct ELF init loads by the name `"console"`. It owns the UART and one
 request/reply channel, loops (receive a length, copy that many bytes from the shared page to the
 UART, ack), and holds nothing else. Same shape as the worker split: every consumer that entered
 hello at the console role now loads `"console"` and starts it with `x0 = 0`. There were three, in
@@ -194,7 +194,7 @@ end to end: init builds it, wires a channel, delegates the UART, and the line co
 
 ## The input driver, its own binary (milestone 19f.4)
 
-The receive half of the terminal, `user/src/input.rs`, lifted out of hello the same way. It owns the
+The receive half of the terminal, `components/src/input.rs`, lifted out of hello the same way. It owns the
 PL011 receive side and its RX interrupt, assembles a line character by character (echoing as it
 goes), and hands each completed line to the shell over IPC. Its consumer is init's `init_boot` child, which loads
 `"input"` by name and starts it with `x0 = 0` (a kernel-side `input_service::spawn_wired` did the
@@ -210,7 +210,7 @@ capabilities and shared pages.
 
 ## The shell, its own binary (milestone 19f.5): the split is complete
 
-The last and most-wired program, `user/src/swish.rs`, lifted out of hello. It holds five capability
+The last and most-wired program, `components/src/swish.rs`, lifted out of hello. It holds five capability
 slots (console request/reply, the input line endpoint, and the spawn/result endpoints) and two
 shared pages, reads a line, and prints. Its consumer is init's `init_boot`, which loads `"swish"` by
 name and starts it with `x0 = 0`.

@@ -28,7 +28,7 @@ service that lets an SMB server authenticate a Mac without ever holding the thin
 authenticates it.
 
 The arithmetic is `crates/ntlm`, the store is `crates/credentialer`, the wire contract is
-`crates/credential_proto`, and the service is `user/src/credentialer.rs`. The password half of the same
+`crates/credential_proto`, and the service is `components/src/credentialer.rs`. The password half of the same
 store is [credentials](credentials.md), and every salt in it comes from [entropy](entropy.md).
 
 ## The observation that made this a milestone

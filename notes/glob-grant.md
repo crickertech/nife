@@ -5,8 +5,8 @@ on two byte strings with no filesystem in it; this note is the layer that turns 
 **authority**, and the demonstration that hangs on it.
 
 The code is `crates/grant_plan/src/expand.rs` (the expander and the name set, host-tested),
-`crates/filesystem_proto`'s `nameset` module (the wire encoding), `user/src/fs_nameset_caretaker.rs` (the
-caretaker), `user/src/swish.rs` (`echo`, and the grant path), `user/src/rm.rs` (the namespace mode),
+`crates/filesystem_proto`'s `nameset` module (the wire encoding), `components/src/fs_nameset_caretaker.rs` (the
+caretaker), `components/src/swish.rs` (`echo`, and the grant path), `components/src/rm.rs` (the namespace mode),
 and `kernel/src/user/fs_service.rs`'s `start_granted_set`, and `kernel/src/user/glob_grant_tests.rs`.
 
 Read [dir-capability.md](dir-capability.md) first for the rights ladder and `fs_subtree_caretaker`,
@@ -485,7 +485,7 @@ $ echo gl-*.rs
 Expand once and grant what was shown, from the shell's side:
 
 ```rust
-// user/src/swish.rs: one expander, two callers
+// components/src/swish.rs: one expander, two callers
 let shown = nav.expand(b"gl-*.txt")?;              // what `echo` prints
 let e = grant_plan::plan(&spec, holdings(&nav), Expansion::at(0, shown))?;
 assert_eq!(e.dir.unwrap().names, shown);           // and what `rm` would hold

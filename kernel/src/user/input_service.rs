@@ -1,6 +1,6 @@
 //! **The serial keystroke source, spawned kernel-side** (milestone 192, option A).
 //!
-//! `keyboard_service::start_direct`'s twin, one device over: it spawns `user/src/input.rs`, the
+//! `keyboard_service::start_direct`'s twin, one device over: it spawns `components/src/input.rs`, the
 //! plain UART receive driver, wired to a fixed endpoint it will `CALL` with
 //! `line_editor::proto::OP_BYTES`. Same program, same authority and same framing the interactive
 //! boot's `input` has always had; the only thing that changed is **who spawns it**, and that is
@@ -18,7 +18,7 @@
 //!
 //! # What it holds, and what it does not
 //!
-//! Two capabilities and one mapping, which is `user/src/input.rs`'s own documented authority
+//! Two capabilities and one mapping, which is `components/src/input.rs`'s own documented authority
 //! unchanged:
 //!
 //! - slot 0, the **terminal endpoint**, `WRITE` only: it may `CALL` exactly one destination,
@@ -37,7 +37,7 @@ use super::*;
 use crate::cap::{Rights, irq_cap_rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where the driver maps the UART's registers. **Must match `user/src/input.rs`'s `UART_VA`**, and
+/// Where the driver maps the UART's registers. **Must match `components/src/input.rs`'s `UART_VA`**, and
 /// it is the same address `crates/system_initializer`'s `IN_UART_VA` maps it at on a plain boot,
 /// for the same reason: it is the wiring's fact, agreed between the two sides.
 const IN_UART_VA: u64 = 0x0000_0000_00a0_0000;

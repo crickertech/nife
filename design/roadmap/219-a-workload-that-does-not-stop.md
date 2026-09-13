@@ -25,7 +25,7 @@ That was the whole milestone: **something that runs on every core, for hours, th
 
 `--features soak` replaces the halt at the end of the boot tour with a pool of user-mode workers and
 a supervisor that watches them forever. `notes/soak.md` is the account; the pieces are
-`kernel/src/soak.rs`, `user/src/soaker.rs`, `crates/soak_page`, `script/soak`, `script/board-image
+`kernel/src/soak.rs`, `fixtures/src/soaker.rs`, `crates/soak_page`, `script/soak`, `script/board-image
 --soak`, and `Stage::Soak` in `crates/board_console`.
 
 It runs on all three architectures under QEMU and is the same workload that would run on radon,

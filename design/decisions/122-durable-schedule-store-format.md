@@ -25,13 +25,13 @@ Checked directly rather than assumed, in two directions.
 
 **Confirmed: no write path or read-at-boot path exists anywhere.** A repo-wide grep for anything that
 opens a file and writes a schedule-shaped record finds nothing: `crates/timetable::parse` takes a
-`&str` that every caller (`user/src/timetable.rs`, its own host tests) gets from `include_str!` or a
+`&str` that every caller (`components/src/timetable.rs`, its own host tests) gets from `include_str!` or a
 literal, never from a live read. There is no `timetable`-side `fs_proto` client at all today.
 
 **Corrected: milestone 152's own doc misdescribes its nearest precedent, and this matters for what
 "already does this" means below.** 152's design section calls "the credential store's own existing
 persistence (milestone 56's sealed store)" one of the two things boot-time trust rests on. Reading
-`crates/credentialer/src/lib.rs`, `user/src/credentialer.rs` and `notes/credentials.md` directly finds the
+`crates/credentialer/src/lib.rs`, `components/src/credentialer.rs` and `notes/credentials.md` directly finds the
 opposite: `credentialer::Store<N>` is an in-memory, `no_std`, no-`alloc` structure built during a **Provision**
 phase and never written to any block device, and `notes/credentials.md`'s own BUGS section says so in
 so many words: **"Nothing survives a reboot. The store is memory only, provisioned at boot... Secrets

@@ -93,7 +93,7 @@ pub use unsupported_fs::{FileTimes, canonicalize, link, readlink, symlink};
 /// **`remove_dir_all` needed no code** (milestone 122), and that is the whole finding.
 ///
 /// It used to come from `unsupported.rs` with a note saying the recursion has to descend and a
-/// nested path is refused, so the loop belonged in `user/src/rm.rs` where a program can hold a
+/// nested path is refused, so the loop belonged in `components/src/rm.rs` where a program can hold a
 /// directory capability per level. The second half of that was right and is now this module's
 /// business: [`walk`] holds one per level. std's own generic implementation is written entirely in
 /// terms of `read_dir`, `remove_file` and `remove_dir` on paths it composes with `DirEntry::path`,

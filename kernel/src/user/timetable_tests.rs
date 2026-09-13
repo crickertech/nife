@@ -3,7 +3,7 @@ use crate::cap::{Rights, memory_region_root_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// The timetable's budget. Every scheduled instance is 48 pages of it (`INSTANCE_PAGES` in
-/// `user/src/timetable.rs`) plus the loader's own scratch page tables, and the pages come home when
+/// `components/src/timetable.rs`) plus the loader's own scratch page tables, and the pages come home when
 /// a corpse is reaped, so this covers a handful of live instances rather than one per fire.
 const TIMETABLE_BUDGET_PAGES: u64 = 768;
 
@@ -27,7 +27,7 @@ const FIRES: u64 = 4;
 /// is worth recognising: it reads like a wild pointer and is not one.
 const TIMETABLE_STACK_PAGES: u64 = 32;
 
-/// The line `user/src/timetable.rs` prints when the plan is complete and it is about to arm. The
+/// The line `components/src/timetable.rs` prints when the plan is complete and it is about to arm. The
 /// test reads the plan up to it, which is what lets one endpoint carry the plan, the summary and
 /// the end of the stream without the reader having to guess where each stops.
 const ARMED: &str = "timetable: armed";
@@ -45,12 +45,12 @@ const ARMED: &str = "timetable: armed";
 /// `Row` holds a kilobyte of `Endowment`. That is exactly the shape `script/stack-frame-check`
 /// exists to refuse, because a frame larger than the 4096-byte guard page can step `sp` past the
 /// guard without touching it and land in the neighbouring thread's stack. The sizes are fine in
-/// `user/src/timetable.rs`, which is a process with a 32-page stack and says so; they are not fine
+/// `components/src/timetable.rs`, which is a process with a 32-page stack and says so; they are not fine
 /// in this binary, and no threshold should be widened to make them fine.
 ///
 /// **What keeps the list honest is a host test rather than a comment.**
 /// `timetable::tests::the_archive_a_timetable_holds_is_measured_against_what_it_will_build` registers
-/// the same `user/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is
+/// the same `components/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is
 /// exactly this set, by name. Editing the document without editing this list fails that test in
 /// milliseconds, on the host, with no emulator. The program itself then audits what it was handed
 /// and prints the answer, and the assertions below read it, so a wrong list fails twice.
@@ -60,7 +60,7 @@ const ARMED: &str = "timetable: armed";
 /// mirrored below as [`MEM_GRANT_PAGES`]) covers it.
 const PLANNED_PROGRAMS: [&str; 2] = ["worker", "budgeter"];
 
-/// **What `at-boot budgeter --mem 4` grants, mirrored from `user/timetable.conf` and
+/// **What `at-boot budgeter --mem 4` grants, mirrored from `components/timetable.conf` and
 /// `timetable::SHIPPED_HELD.mem_pages`.** A written constant rather than a computed one for the
 /// same reason [`PLANNED_PROGRAMS`] is: this test does not depend on the `timetable` crate at all
 /// (`script/stack-frame-check` is why, see that constant's own doc), so nothing here can read the
@@ -112,7 +112,7 @@ fn narrowed_archive() -> &'static [u8] {
 /// Deliberately the same endowment shape `spawn_init` and `c_seam_tests::spawn_confiner` use (the
 /// archive read-only at `INITRD_VA`, capabilities in numbered slots, nothing privileged), so what is
 /// under test is the scheduler rather than a shortcut. Its complete authority is the four slots
-/// below, which is the same list `user/src/timetable.rs`'s header states and the reason a scheduled
+/// below, which is the same list `components/src/timetable.rs`'s header states and the reason a scheduled
 /// `date` in the shipped document is refused.
 fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     // **Not the initrd.** The archive this process is handed holds exactly the programs its own
@@ -240,8 +240,8 @@ fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
 /// disagrees with it; and a refusal proves nothing unless something else in the same document did
 /// fire, since a scheduler that fired *nothing* would satisfy it trivially.
 ///
-/// What it walks is the real program on the real document. `user/timetable.conf` is `include_str!`d
-/// by `user/src/timetable.rs` and read again by `crates/timetable`'s host tests, so there is one
+/// What it walks is the real program on the real document. `components/timetable.conf` is `include_str!`d
+/// by `components/src/timetable.rs` and read again by `crates/timetable`'s host tests, so there is one
 /// source for what this machine schedules and editing it moves the program, the host tests and this
 /// assertion together.
 ///

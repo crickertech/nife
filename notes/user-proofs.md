@@ -25,7 +25,8 @@ crate) and the host-testability discipline have already lifted it out: the initr
 `nifefs`, the ELF front half is `elf`, the partition table is `gpt`, the mDNS decoder is
 `mdns_proto`, the directory entries are `filesystem_proto`, the terminal escapes are
 `video_terminal`, the shell's routing is `swish`, the pattern matcher is `glob`. Every one of those
-is in `script/verify`'s table already. What is left in `user/src/*.rs` is overwhelmingly **IO glue**:
+is in `script/verify`'s table already. What is left in `components/src/*.rs` and `fixtures/src/*.rs`
+is overwhelmingly **IO glue**:
 programs that call a crate to decode, call `user_rt` to move the result, and render. That is the
 tree working as designed, and it means the prize this milestone was reaching for had largely been
 collected by other milestones under other names.
@@ -34,7 +35,7 @@ What is left is still worth proving, and one attempt at proving it found a live 
 
 ## The defect this found, which is the point
 
-`user/src/rmle.rs` (the editor) holds a document as `MAX_ROWS` rows of at most `MAX_COLS` bytes, and
+`components/src/rmle.rs` (the editor) holds a document as `MAX_ROWS` rows of at most `MAX_COLS` bytes, and
 saves it by joining the rows with `\n` into one scratch buffer before writing that buffer to the
 filesystem. The buffer was `MAX_ROWS * MAX_COLS`.
 
@@ -95,7 +96,7 @@ comparisons, no sums, no division, no symbolic indices into large objects.
 
 ## What is proved today
 
-Two harnesses, both in `user/src/printenv.rs`, both about `push`, which appends what fits of a byte
+Two harnesses, both in `components/src/printenv.rs`, both about `push`, which appends what fits of a byte
 string into a fixed 96-byte line buffer and drops the rest.
 
 `printenv` prints `TZ`, `LANG` and `TERM` out of a configuration page `system_initializer` filled,
@@ -115,7 +116,7 @@ write past the end of a fixed array is a single `*n < buf.len()`.
   proof becomes decoration.
 
 **Cost: 2.4 seconds**, against `script/verify`'s ~650. Both were **falsified before they were
-believed** (`user/falsifications/`, and the section below on why no script replays it).
+believed** (`components/falsifications/`, and the section below on why no script replays it).
 
 **The unwind bound is `bytes.len() == 4`, and it is stated at the harness.** The loop body is one
 comparison and one store per byte and the starting offset is symbolic over all of `usize`, so four
@@ -147,7 +148,7 @@ the verify table; only the derivation catches a binary missing from inside one.
 ## The stub boundary, enumerated
 
 **A proof with an unexamined stub is worse than no proof, because it reads as coverage.** This is the
-exhaustive list of what a harness in `user/src` cannot see. The same list is at the top of each
+exhaustive list of what a harness in a program package cannot see. The same list is at the top of each
 `mod proofs`, where somebody writing the next harness will actually meet it.
 
 1. **Every capability is unreachable, and the boundary is hard rather than soft.** `user_rt`'s
@@ -162,18 +163,19 @@ exhaustive list of what a harness in `user/src` cannot see. The same list is at 
 3. **The panic handler is absent** under `cfg(kani)`, so nothing proved here says anything about what
    a program does after a panic. Note the asymmetry with the kernel: an EL0 program dying is one
    process, and `user_rt::trap()` is what the supervisor sees.
-4. **`script/lint`'s harness-clippy pass excludes `user`**, exactly as it excludes `kernel`, and for
+4. **`script/lint`'s harness-clippy pass excludes `components` and `fixtures`**, exactly as it
+   excludes `kernel`, and for
    the same two tooling reasons that pass's own comment carries. Practical consequence: **keep these
    harnesses free of `unsafe`**, because `undocumented_unsafe_blocks` does not fire inside them.
 5. **Only the binaries carrying harnesses are compiled at all.** `cargo kani -p user` is never run
    bare, so a construct that would stop Kani in some *other* program is not discovered until somebody
    adds a harness there. That is a cost of the `--bin` selection and is the honest half of the
    argument for it.
-6. **The C component is not linked.** `user/build.rs` compiles `c/c_seam.c` into `c_shim` and
+6. **The C component is not linked.** `fixtures/build.rs` compiles `c/c_seam.c` into `c_shim` and
    `c/c_swappable.c` into `c_swappable`; on a host target it warns and emits nothing. Those two
    programs are not provable and `-Z c-ffi` is not enabled.
 
-## Adding a harness to `user/src`
+## Adding a harness to `components/src`
 
 1. Put it beside the code it proves, in a `#[cfg(kani)] mod proofs`, not in a separate file. The
    stub list above is the reason: a reader has to meet the caveats where they meet the harness.
@@ -186,7 +188,9 @@ exhaustive list of what a harness in `user/src` cannot see. The same list is at 
    the numbers.
 5. Falsify it. Break the code under it, watch the harness go red, and record the patch (DECISIONS
    §134). Then put the code back.
-6. Nothing needs adding to `script/verify`: the `user` row is there and the `--bin` list is derived.
+6. Nothing needs adding to `script/verify`: the `components` row is there and the `--bin` list is
+   derived. **A harness in `fixtures/src` is the exception**, and it is this page's newest `BUGS`
+   entry: that package has no row, so nothing would run it.
    If you add a harness to a package that is *not* in that table, `script/lint`'s "every crate with
    proof harnesses is in the verify table" check fails, which is the gate that exists because two
    crates spent months carrying harnesses nothing ran.
@@ -245,7 +249,7 @@ $ cargo kani -p user --bin printenv \
       --harness push_never_writes_past_the_buffer_it_was_given
 ```
 
-The whole suite, `user` included, the way CI runs it:
+The whole suite, `components` included, the way CI runs it:
 
 ```console
 $ script/verify
@@ -256,12 +260,12 @@ $ script/verify
 replays this one (see BUGS), so it is done by hand:
 
 ```console
-$ git apply user/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
+$ git apply components/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
 $ cargo kani -p user --bin printenv --output-format=terse
 Failed Checks: index out of bounds: the length is less than or equal to the given index
- File: "user/src/printenv.rs", line 126, in push
+ File: "components/src/printenv.rs", line 126, in push
 Complete - 0 successfully verified harnesses, 2 failures, 2 total.
-$ git apply -R user/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
+$ git apply -R components/falsifications/proofs.push_never_writes_past_the_buffer_it_was_given.patch
 ```
 
 Both go red on one relaxed comparison. That was run on 2026-08-31 and is the reason these harnesses
@@ -274,7 +278,7 @@ are worth their place rather than an assertion that they are.
   `Falsification:` record at all. The count that script prints is therefore a ratio over `crates/`
   rather than over the tree, and it does not know it. Two things are needed and neither is one line:
   the walk has to be derived from `cargo metadata` the way `script/lint`'s verify-table check
-  already is, and `--sweep` shells `cargo kani -p <crate>`, which for the `user` package selects 68
+  already is, and `--sweep` shells `cargo kani -p <crate>`, which for the `components` package selects 49
   binaries rather than one. Proposed as a milestone in this lane's report.
 - **Two harnesses is not coverage of 68 programs**, and the number to watch is not the count but
   whether the properties are ones a defect would violate. This one is: the same guard, one character
@@ -285,7 +289,7 @@ are worth their place rather than an assertion that they are.
   today.
 - **`user/` is a package with 68 binaries and no library**, so there is no `cargo kani -p user` that
   means "everything". Stub 5 above is the consequence.
-- **`user`'s 3 seconds in `script/verify`'s table is a dev-Mac number**, like `mdns_proto`'s,
+- **`components`'s 3 seconds in `script/verify`'s table is a dev-Mac number**, like `mdns_proto`'s,
   `jh7110_trng`'s and `kernel`'s, and the wrong machine for that column. Replace it from the first
   CI log that carries it. Almost all of it is compile rather than solver time, so it will grow with
   the harnesses and not with the programs.

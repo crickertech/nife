@@ -65,7 +65,7 @@ this tree already depends on rather than a second copy of that arithmetic.
 `PL031`/`GOLDFISH`, which name a register layout the service polls itself, `CMOS`'s reading has
 already been taken by the kernel and arrives as data on the wall clock's second `Spawn` argument
 (`arg1`), which `clock_service::start` fills only on `x86_64` (`rtc_region()` stays `None` there
-forever; §121 forecloses the alternative). `user/src/clock.rs`'s `read_rtc` takes the new kind as
+forever; §121 forecloses the alternative). `components/src/clock.rs`'s `read_rtc` takes the new kind as
 `Some(seed)`, no register, no base address.
 
 `date_tests.rs`, `time_tests.rs`, `clock_tests.rs` and `ntp_tests.rs` all run on `x86_64` now

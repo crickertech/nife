@@ -5,13 +5,13 @@
 #![allow(clippy::result_unit_err)]
 //! **The interactive system, built once** (milestone 96).
 //!
-//! There is **one** first process, `user/src/progenitor.rs`, on all three architectures
+//! There is **one** first process, `components/src/progenitor.rs`, on all three architectures
 //! (milestone 266), and **one** system it builds, which is this crate. What that program still
 //! holds is the table of slot numbers its own kernel granted, which is a fact about a boot path and
 //! nothing else; everything from parsing the archive to serving the shell's last `run` is here.
 //!
 //! **There used to be two.** `user::initrd()` loaded an archive entry called `init`, which was
-//! `user/src/hello.rs`'s `init_boot` role on aarch64 and a separate program on riscv64: an alias
+//! `fixtures/src/hello.rs`'s `init_boot` role on aarch64 and a separate program on riscv64: an alias
 //! standing over two implementations of one job. This crate ended the duplicated *code* at
 //! milestone 96 and 266 ended the duplicated *program*.
 //!
@@ -101,7 +101,7 @@
 //!    going through this process at all (option A's whole point: no compositor in this path).
 //! 3. the **line discipline** (`line_editor`, milestone 28): editing, echo, history, between
 //!    whichever pair of the above this boot has. The same server either way; only its output-side
-//!    wire shape changes (`mode`, `user/src/line_editor.rs`'s own `MODE_CONSOLE`/`MODE_DISPLAY`).
+//!    wire shape changes (`mode`, `components/src/line_editor.rs`'s own `MODE_CONSOLE`/`MODE_DISPLAY`).
 //! 4. the **shell**: prints and reads lines through the terminal endpoint, runs commands, and since
 //!    milestone 86 holds a `READ` view of the wall clock so `time <command>` can measure one;
 //! 5. the **terminal's sink adapter** (`terminal_sink_caretaker`, milestone 50), when the archive
@@ -420,7 +420,7 @@ pub struct BootEndowment {
 /// kernel already granted.
 ///
 /// **`None` at every real entry point today.** The mechanism here is real and reachable through
-/// the one function the real progenitor calls (`user/src/progenitor.rs`), not a synthetic
+/// the one function the real progenitor calls (`components/src/progenitor.rs`), not a synthetic
 /// kernel-side test harness. What it does
 /// not decide is *what* the second subtree should be: [DECISIONS
 /// §126](../../../design/decisions/126-two-directory-cwd.md) named that a boot-time policy
@@ -455,20 +455,20 @@ const INITRD_VA: u64 = 0x2000_0000;
 /// one is still a number in two places, and this is the one it follows.
 pub const CHILD_STACK_PAGES: u64 = 12;
 
-/// Where a child that declares a clock maps it, read-only. Must match `user/src/date.rs`'s
+/// Where a child that declares a clock maps it, read-only. Must match `components/src/date.rs`'s
 /// `CLOCK_VA` and `kernel/src/user/clock_service.rs`.
 const CHILD_CLOCK_VA: u64 = 0x00c0_0000;
 
 /// Where a child that declares the inert-configuration page maps it, read-only (DECISIONS §111).
-/// Must match `user/src/printenv.rs`'s `CONFIG_VA`. A different address from `std_service.rs`'s
+/// Must match `components/src/printenv.rs`'s `CONFIG_VA`. A different address from `std_service.rs`'s
 /// `CONFIG_PAGE_STD`: that std program is spawned by a different wiring entirely (the `-Zbuild-std`
 /// farm's own harness), in its own address space, so there is no collision to avoid, only two
 /// numbers that happen not to need to agree.
 const CHILD_CONFIG_VA: u64 = 0x00e0_0000;
 
 /// Where a supervised (interruptible) child maps its shared job frame (DECISIONS §24). Below the
-/// ELF load address (`0x40_0000`) and the stack; must match interrupt_heeder.rs /
-/// interrupt_ignorer.rs's `JOB_PAGE_FRAME_VA`.
+/// ELF load address (`0x40_0000`) and the stack; must match `interrupt_heeder.rs` and
+/// `interrupt_ignorer.rs`'s `JOB_PAGE_FRAME_VA`.
 const CHILD_JOB_PAGE_FRAME_VA: u64 = 0x0030_0000;
 
 /// Pages of untyped split off our own budget and handed the shell (milestone 31), so the shell can
@@ -521,7 +521,7 @@ const DIR_JOB_REGION_PAGES: u64 = 96;
 const CARETAKER_STACK_PAGES: u64 = 4;
 
 /// Where a `fs_subtree_caretaker` and the program it serves both map the FS contract's shared page.
-/// Must match `user/src/fs_subtree_caretaker.rs`'s `PAGE_VA` and `user/src/rm.rs`'s.
+/// Must match `components/src/fs_subtree_caretaker.rs`'s `PAGE_VA` and `components/src/rm.rs`'s.
 ///
 /// One address for both because they are two ends of one contract and neither is the other's parent:
 /// a request travels caretaker-to-server and program-to-caretaker through the same frame, so a
@@ -562,15 +562,15 @@ const RNG_DMA_PEEK_VA: u64 = 0x0f10_0000;
 /// bytes handed to another it spawned, not a contract between two peer user programs).
 const RNG_DMA_PHYS_OFFSET: u64 = 4096 - 8;
 
-/// Where entropy maps its own DMA page. Must match `user/src/entropy.rs`'s `DMA_VA`.
+/// Where entropy maps its own DMA page. Must match `components/src/entropy.rs`'s `DMA_VA`.
 const RNG_DMA_VA: u64 = 0x0000_0000_0090_0000;
 
-/// `entropy.rs`'s own spawn-argument convention (`user/src/entropy.rs`'s `MODE_VIRTIO`): the
+/// `entropy.rs`'s own spawn-argument convention (`components/src/entropy.rs`'s `MODE_VIRTIO`): the
 /// kernel's (and now this crate's) shared understanding with the one program it spawns, not a wire
 /// contract between two user programs, so rule 7 does not apply the way it does to `RNG_DMA_VA`.
 const RNG_MODE_VIRTIO: u64 = 0;
 
-/// `line_editor.rs`'s own spawn-argument convention (`user/src/line_editor.rs`'s `MODE_CONSOLE`):
+/// `line_editor.rs`'s own spawn-argument convention (`components/src/line_editor.rs`'s `MODE_CONSOLE`):
 /// [`RNG_MODE_VIRTIO`]'s own reasoning, one program over. The pre-milestone-177 wiring: prints
 /// through the console's bespoke two-endpoint protocol.
 const LINE_EDITOR_MODE_CONSOLE: u64 = 0;
@@ -598,17 +598,17 @@ const SH_CLOCK_VA: u64 = 0x00d0_0000;
 // Milestone 49's login stack: credentialer, identity_provisioner, login, audit_sink.
 // -------------------------------------------------------------------------------------------
 
-/// Where `credentialer` maps its own provision page. Must match `user/src/credentialer.rs`'s own
+/// Where `credentialer` maps its own provision page. Must match `components/src/credentialer.rs`'s own
 /// `PROV_VA`.
 const CRED_SVC_PROV_VA: u64 = 0x0000_0000_00e0_0000;
 /// Where `credentialer` maps its own verify page. Must match the same file's `VERIFY_VA`.
 const CRED_SVC_VERIFY_VA: u64 = 0x0000_0000_00e1_0000;
 /// Where `login` maps its relay of the verify page (the same physical frame as
-/// [`CRED_SVC_VERIFY_VA`], mapped into a different address space). Must match `user/src/login.rs`'s
+/// [`CRED_SVC_VERIFY_VA`], mapped into a different address space). Must match `components/src/login.rs`'s
 /// own `CRED_VA`.
 const LOGIN_CRED_VA: u64 = 0x0000_0000_00e3_0000;
 /// Where `identity_provisioner` maps the identity/secret this boot stages for it. Must match
-/// `user/src/identity_provisioner.rs`'s own `REQ_VA`.
+/// `components/src/identity_provisioner.rs`'s own `REQ_VA`.
 const IDP_REQ_VA: u64 = 0x0000_0000_00e4_0000;
 /// Where `identity_provisioner` maps `credentialer`'s provision page (the same physical frame as
 /// [`CRED_SVC_PROV_VA`]). Must match the same file's own `PROV_VA`.
@@ -632,7 +632,7 @@ const CRED_BUDGET_PAGES: u64 = 1536;
 const CRED_STACK_PAGES: u64 = 16;
 /// `login`'s own construction budget under a real boot, in pages. Sized for a handful of real
 /// sessions across the boot's whole life (`OWN_UT_PAGES` 128 + `CHANNEL_UT_PAGES` 32, both
-/// `user/src/login.rs`'s own one-time costs, plus `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES`
+/// `components/src/login.rs`'s own one-time costs, plus `CARETAKER_REGION_PAGES` 64 + `CLIENT_BUDGET_PAGES`
 /// 64 per session that never logs out), not the much larger figure
 /// `kernel::user::login_tests::CONSTRUCTION_PAGES` carries for a whole guest-test suite's worth of
 /// logins against one shared instance.
@@ -645,11 +645,11 @@ const LOGIN_STACK_PAGES: u64 = 16;
 /// `credentialer.rs`'s own readiness sentinel, duplicated here the same way its `PROV_VA`/`VERIFY_VA`
 /// already are: a binary crate cannot be imported, so every wiring site that needs to recognise this
 /// word states it again (`kernel::user::credential_service`'s own `RPT_READY` is the same
-/// duplication one level over). Must match `user/src/credentialer.rs`'s own `RPT_READY`.
+/// duplication one level over). Must match `components/src/credentialer.rs`'s own `RPT_READY`.
 const CRED_RPT_READY: u64 = 0x_c2ed_0000_0000_0001;
 /// `identity_provisioner.rs`'s own success report code, duplicated for the same reason
 /// (`kernel::user::identity_provisioner_service`'s own `RPT_OK` is the identical duplication).
-/// Must match `user/src/identity_provisioner.rs`'s own `RPT_OK`.
+/// Must match `components/src/identity_provisioner.rs`'s own `RPT_OK`.
 const IDP_RPT_OK: u64 = 1;
 
 /// **The demo identity this boot provisions**, once per boot, with a freshly generated password
@@ -666,7 +666,7 @@ const PASSWORD_BYTES: usize = 12;
 const PASSWORD_HEX_LEN: usize = PASSWORD_BYTES * 2;
 
 /// Draw `out.len()` bytes from the entropy service through `request`
-/// ([`entropy_proto::MAX_BYTES`] at a time), the identical loop `user/src/credentialer.rs`'s own
+/// ([`entropy_proto::MAX_BYTES`] at a time), the identical loop `components/src/credentialer.rs`'s own
 /// `fill` performs as a *client* of that same service (this process is, briefly, one too: it draws
 /// the generated password's own raw bytes before `credentialer` ever exists). `false` when the
 /// service could not supply them, which the caller treats as fatal to generating a password at all
@@ -984,7 +984,7 @@ pub fn boot(
                 cap_delete(g.virtio_rng_dma);
                 // Block for the service's own proof of life: it fetches a first bufferful from the
                 // real device before answering, so this means "a client that asks will be
-                // answered", not merely "the handshake completed" (`user/src/entropy.rs`'s own
+                // answered", not merely "the handshake completed" (`components/src/entropy.rs`'s own
                 // doc).
                 let (verdict, _, _) = recv(ready);
                 cap_delete(ready);
@@ -1646,11 +1646,11 @@ pub fn boot(
                 // budget) plus a client view of `credentialer`'s own verify endpoint just built,
                 // and (this update) a `WRITE | GRANT` view of the terminal so it can hand the
                 // single-session terminal to its first successful caller
-                // (`user/src/login.rs`'s "The terminal: single-session, deny cleanly").
+                // (`components/src/login.rs`'s "The terminal: single-session, deny cleanly").
                 //
                 // `audit_sink` is built *first* and started before `login` ever runs, so the
                 // receiver for `login`'s blocking `AUDIT` send exists before there is any way to
-                // reach it (`user/src/audit_sink.rs`'s own doc on why this ordering matters).
+                // reach it (`components/src/audit_sink.rs`'s own doc on why this ordering matters).
                 let audit = must(retype_obj(ut, abi::objtype::RENDEZVOUS));
                 let audit_program = audit_elf.as_ref().expect("have_login_stack checked this");
                 let audit_child = must(build_child(
@@ -1684,7 +1684,7 @@ pub fn boot(
                             // kernel's own grant to init), and `WRITE` is all a writable mapping
                             // ever checks (`kernel::syscall::page_frame_map`'s own comment: "a
                             // read/write mapping needs WRITE on the frame"). See
-                            // `user/src/login.rs`'s own comment on its matching delegation to its
+                            // `components/src/login.rs`'s own comment on its matching delegation to its
                             // clients for the fuller account. Found here first: `must(build_child(...))`
                             // for `login` refused this exact `SEND_CAP` when it asked for `READ`
                             // too, in total silence, the same way every other capacity mismatch in
@@ -2182,7 +2182,7 @@ fn spawn_service(
             //
             // **Except behind a directory grant**, where the narrowed endpoint takes slot 0 and the
             // output moves to slot 1. That is not a second convention invented here: it is the
-            // contract `user/src/rm.rs` already documents and the kernel's `start_granted_dir`
+            // contract `components/src/rm.rs` already documents and the kernel's `start_granted_dir`
             // already wires, so one program means one thing in a guest test and at the real prompt.
             // The grant goes first because it is the authority the command line named, and the
             // output is what every program gets whether it named anything or not.

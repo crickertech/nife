@@ -571,12 +571,12 @@ pub mod rtc {
     /// seconds and looks like a 4-second jump.
     pub const GOLDFISH: u64 = 2;
     /// **The `x86_64` CMOS RTC, and a categorically different kind from the two above** (milestone
-    /// 176; DECISIONS §121, §130). `PL031` and `GOLDFISH` name a register layout `user/src/clock.rs`
+    /// 176; DECISIONS §121, §130). `PL031` and `GOLDFISH` name a register layout `components/src/clock.rs`
     /// polls itself, through a mapping the service holds; CMOS is two fixed I/O ports with no page,
     /// so no such mapping can ever exist under §121's current recommendation. The kernel reads the
     /// device once (`arch::x86_64::rtc::read_unix_nanos`) and hands the already-converted result
     /// straight through as the wall clock's second `Spawn` argument, **nanoseconds since the Unix
-    /// epoch, ready to publish**. `user/src/clock.rs` takes it as data for this kind: `Some(a1)`,
+    /// epoch, ready to publish**. `components/src/clock.rs` takes it as data for this kind: `Some(a1)`,
     /// no register read, no base address, nothing to poll.
     ///
     /// Name and value provisional (milestone 176's lane; calef names public items, AGENTS.md).

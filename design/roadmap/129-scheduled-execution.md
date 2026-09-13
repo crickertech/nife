@@ -25,7 +25,7 @@ children on both ISAs, with the plan printed before anything fires.
 - **`crates/timetable`** holds the decision and no IO, so the four answers registration can give are
   host-tested in milliseconds and the fire arithmetic is Kani-reached (five harnesses; the sixth law,
   phase preservation, is host-tested and notes/scheduled-execution.md says why).
-- **`user/src/timetable.rs`** holds a budget, the monotonic counter and the loader. Its complete
+- **`components/src/timetable.rs`** holds a budget, the monotonic counter and the loader. Its complete
   authority is four capabilities: an output endpoint, an untyped budget, a child report endpoint and
   a supervision endpoint. No clock, no directory, no console, no network.
 - **`user/timetable.conf`** is the document, in `mdns_config`'s shape and carrying its recorded
@@ -101,7 +101,7 @@ timetable: the archive it holds carries 57 programs, 56 of them beyond its plan 
 
 `Held::mem_pages` was zero, so an entry naming a memory grant was refused although the process held
 a budget. `timetable::SHIPPED_HELD.mem_pages` is now 4, and `timetable.conf`'s
-`at-boot budgeter --mem 4` is planned, backed, and fires; `user/src/timetable.rs`'s `fire_with_grant`
+`at-boot budgeter --mem 4` is planned, backed, and fires; `components/src/timetable.rs`'s `fire_with_grant`
 and `collect_grant` are the mechanism, and its `BUGS` records the cost.
 
 **This block's own sketch for backing it was wrong, and stayed corrected rather than reopened.** It
@@ -140,7 +140,7 @@ and is the one taken.
   bytes are filed. Splitting one combined archive into N per-entry archives doesn't shrink that: they
   would all still sit in `timetable`'s own address space simultaneously. Actually narrowing this
   means moving the "which image to build" decision out of `timetable`'s own code, into a
-  `user/src/spawner.rs`-shaped helper endowed with exactly one image, replicated per entry, talking
+  `components/src/spawner.rs`-shaped helper endowed with exactly one image, replicated per entry, talking
   to `timetable` over its own request/reply endpoint. That is new spawn-time machinery this tree does
   not have (nothing today spawns N sub-builders sized to a document computed at registration), and it
   is a design fork rather than a lane's increment. Not scoped as its own milestone yet.
@@ -162,7 +162,7 @@ and is the one taken.
   [§125](../decisions/125-durable-schedule-manifest.md) are all `DECIDED`, and three of 152's four
   design pieces are built and gated on both ISAs (`smb_server`'s `DurableSession`, kept alive past a
   disconnect by §16's live-children rule; `crates/schedule_store`, the on-disk per-identity schedule
-  and its manifest; `user/src/session_reviver.rs`, boot-time re-derivation of both).
+  and its manifest; `components/src/session_reviver.rs`, boot-time re-derivation of both).
 
   **So the question this bullet was held on is answered**: the registrar is a user's own durable
   login session, handed a `Held` narrower than the scheduler's own, which `Registry::register(doc,
@@ -232,19 +232,19 @@ entries, and persistence of the entry table across reboot are each their own lat
   whatever milestone gives services durable configuration at all, which does not exist yet.
 
 - **The document is compiled in, not read from disk**, which is the limitation
-  `user/src/mdns_responder.rs` records and has the same fix (a `FileSpec` grant plus an `fs_proto`
+  `components/src/mdns_responder.rs` records and has the same fix (a `FileSpec` grant plus an `fs_proto`
   open-and-read at startup, milestone 131). It is load-bearing here in a way it is not there, because
   where the document lives is also what answers "who may register".
 
 - **At most one `--mem` instance may be outstanding at a time**, recorded in full in
-  `user/src/timetable.rs`'s own `BUGS`. The scheduler is fully blocked, unable to fire anything else
+  `components/src/timetable.rs`'s own `BUGS`. The scheduler is fully blocked, unable to fire anything else
   in the document, for as long as that one instance takes to die and its grant to be reclaimed. A
   document whose `--mem` entry competes with a fast interval for the clock pays that cost as a late
   fire rather than a dropped one; the shipped document does not exercise it.
 ## Follow-on
 
-- **Outstanding.** One image per entry still needs machinery nothing has: `user/src/spawner.rs` is
-  the right shape, one budget and one image behind a request channel, but `user/src/root_supervisor.rs`
+- **Outstanding.** One image per entry still needs machinery nothing has: `components/src/spawner.rs` is
+  the right shape, one budget and one image behind a request channel, but `components/src/root_supervisor.rs`
   builds exactly one of it, so nothing spawns sub-builders sized to a document. Checked 2026-09-03.
 - **Outstanding.** The registration wire format is unbuilt and undecided: `crates/timetable` has no
   opcode and no register constant, and no record under `design/decisions/` covers a session
@@ -253,13 +253,13 @@ entries, and persistence of the entry table across reboot are each their own lat
   `crates/schedule_store` carries no removal verb, and §108's credential-revocation cascade is the
   only removal in the tree. Checked 2026-09-03.
 - **Done.** The private-session-type obstacle went with its file: the SMB server was removed on
-  2026-08-30 and only historical mentions survive in `user/src/session_reviver.rs`, so nothing has
+  2026-08-30 and only historical mentions survive in `components/src/session_reviver.rs`, so nothing has
   to be lifted into a crate any more.
 - **Done.** Persistence is no longer unaddressed: milestone 152 built `crates/schedule_store`, the
   per-identity on-disk schedule in the timetable's own document format, plus its manifest (§122,
-  §125) and boot-time re-derivation in `user/src/session_reviver.rs` (§123).
+  §125) and boot-time re-derivation in `components/src/session_reviver.rs` (§123).
 - **Outstanding.** Wiring that store into a running scheduler has not happened: nothing in
-  `crates/timetable` or `user/src/timetable.rs` mentions the store, so entries still die with the
+  `crates/timetable` or `components/src/timetable.rs` mentions the store, so entries still die with the
   boot in the scheduler itself. Checked 2026-09-03.
 - **Outstanding.** Calendar syntax has not started. `crates/calendar` is milestone 51's civil-date
   arithmetic and supplies the vocabulary, and the timetable's grammar is still every-N-seconds and
@@ -267,13 +267,13 @@ entries, and persistence of the entry table across reboot are each their own lat
 - **Outstanding.** Wall-clock entries have not started, and the reason this block found by building
   still holds: the scheduler holds no clock capability at all, so it has none to give an entry.
   Checked 2026-09-03.
-- **Recorded.** The document is still compiled in (`user/src/timetable.rs`), and where it lives is
+- **Recorded.** The document is still compiled in (`components/src/timetable.rs`), and where it lives is
   also what answers who may register. The pointer this block gives to milestone 131 for the fix is
   dead: that block is NOT-STARTED and its subject was removed on 2026-08-30.
 - **Milestone 106.** The absence of a timed wait still costs a core's worth of yields and lazy
   reaping. The registry already computes the instant a timed wait would block until.
 - **Recorded.** At most one memory-budgeted instance may be outstanding, with the cost paid by
-  every other entry as a late fire, recorded in full in `user/src/timetable.rs`'s own `BUGS`.
+  every other entry as a late fire, recorded in full in `components/src/timetable.rs`'s own `BUGS`.
 - **Recorded.** `timetable` is a provisional name for the crate, the program and the document, said
   so in every module header, with `cron`, `almanac`, `metronome` and `scheduler` recorded as
   refused.

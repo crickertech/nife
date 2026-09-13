@@ -4,7 +4,7 @@
 //! Two fixed I/O ports, `0x70` (index) and `0x71` (data), is all there is: no page, so no device
 //! capability could ever map it, and §121's current recommendation keeps every x86 legacy port
 //! kernel-side rather than paying a port-range capability's measured ~1.5-2.7 us per-context-switch
-//! cost for a device a boot reads exactly once. So unlike `user/src/clock.rs`'s PL031 and Goldfish
+//! cost for a device a boot reads exactly once. So unlike `components/src/clock.rs`'s PL031 and Goldfish
 //! drivers, which map their device and poll it themselves, nothing in userspace ever touches this
 //! one: the kernel reads it here, once per clock-service spawn, and
 //! `kernel::user::clock_service::start` hands the already-converted reading across as a plain
@@ -136,7 +136,7 @@ fn bcd_to_binary(v: u8) -> u8 {
 /// `None` when the reading does not describe a real calendar date: every field zero, which is what
 /// a CMOS with a dead battery and no host to seed it reads as, is the case this actually exists to
 /// catch (`calendar::Civil::new` refuses month 0 and day 0). A machine this kernel can otherwise run
-/// on has no way to make CMOS report a well-formed but implausible date; `user/src/clock.rs` still
+/// on has no way to make CMOS report a well-formed but implausible date; `components/src/clock.rs` still
 /// runs whatever it is handed through `clock_proto::policy::plausible` before publishing it, the
 /// same as every other RTC binding.
 pub fn read_unix_nanos() -> Option<u64> {

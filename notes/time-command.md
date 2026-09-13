@@ -2,7 +2,7 @@
 
 The shell's second prefix word (milestone 86), after [`caps`](grant-expression.md). `time wc
 report.txt` runs the command exactly as typed and says how long it took. The program is
-`user/src/swish.rs`, the arithmetic and every sentence are `crates/swish`, and the guest tests are
+`components/src/swish.rs`, the arithmetic and every sentence are `crates/swish`, and the guest tests are
 `kernel::user::time_tests`.
 
 ```text

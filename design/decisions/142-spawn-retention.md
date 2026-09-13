@@ -83,7 +83,7 @@ Thirty `START` sites in shipping and test code (`crates/system_initializer`, `us
 | | sites | where |
 |---|---|---|
 | `cap_delete` on the TCB slot immediately after `START` | **25** | all fifteen in `crates/system_initializer`, `root_supervisor` (2), `swapper` (3), `timetable` (2), `spawner`, `c_confiner`, `login` |
-| the capability is kept | **5** | `user/src/hello.rs` only, at 468, 500, 523, 671, 723 |
+| the capability is kept | **5** | `fixtures/src/hello.rs` only, at 468, 500, 523, 671, 723 |
 
 **So the tree already has an unwritten answer, and it is "retain nothing".** The five exceptions are
 in one file, the kernel's own test program, whose parents `exit()` a few lines later; none of them
@@ -521,7 +521,7 @@ hides the question**, which is rung one of AGENTS.md's ladder for the specific f
 path forgets to decide.
 
 **What it declares today is R0**, which is what 25 of the 30 `START` sites already do. The five in
-`user/src/hello.rs` that keep their capability with no recorded reason become visible rather than
+`fixtures/src/hello.rs` that keep their capability with no recorded reason become visible rather than
 inferable, and each has to say why or stop.
 
 ### Why this releases milestone 133 instead of deferring it

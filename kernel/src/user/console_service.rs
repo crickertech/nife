@@ -8,7 +8,7 @@ use crate::sched::RendezvousId;
 /// and the kernel's is now used only for panics and boot, not for anyone's `print`.
 const PL011_PHYS: u64 = 0x0900_0000;
 
-/// Printing-client role (`x0`), matching user/src/hello.rs. (The server is its own binary now,
+/// Printing-client role (`x0`), matching fixtures/src/hello.rs. (The server is its own binary now,
 /// 19f.3, so it has no role; only the demo client is still a role of hello.)
 const ROLE_CLIENT: u64 = 2;
 
@@ -98,6 +98,6 @@ pub fn spawn_client(image: &'static [u8], console: Console) {
 }
 
 /// The user VAs the client and server agree on. Kept here so the kernel and the binary have
-/// one source of truth; they must match user/src/hello.rs.
+/// one source of truth; they must match fixtures/src/hello.rs.
 const SHARED_VA: u64 = 0x0000_0000_0060_0000;
 const UART_VA: u64 = 0x0000_0000_0070_0000;

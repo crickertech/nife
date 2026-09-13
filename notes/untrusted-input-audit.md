@@ -32,7 +32,7 @@ Two things make it the right lens for today's tree rather than a re-run of
   read the tree, and both take input from a party the threat model (DECISIONS §20, §23, §30, and
   SECURITY.md) declares untrusted.
 - **The secret-material crates were explicitly out of the previous scope.** The shared-page audit
-  recorded that `crates/credential_proto` and `user/src/credentialer.rs` were "being substantially
+  recorded that `crates/credential_proto` and `components/src/credentialer.rs` were "being substantially
   rewritten with an NTLM path" and that "the clearance recorded below is of the version on `main` and
   does not transfer." That rewrite has landed (`crates/ntlm`, `crates/credentialer`), so §79's secret-material
   rules want a fresh read.
@@ -128,7 +128,7 @@ a firmware bug or a hostile controller reaches it with a single malformed comple
 surfaces as a kernel crash that reads like a kernel bug rather than a device one.
 
 This is the exact reciprocal of shared-page-audit.md's finding 6, one layer down. That finding read
-`user/src/net_transport.rs` and `kbd.rs` trusting a `u32` the device wrote into a used ring, and its
+`components/src/net_transport.rs` and `kbd.rs` trusting a `u32` the device wrote into a used ring, and its
 disposition was to **fail closed**: consume the bad completion and drop it, costing one buffer per
 lie. The NVMe driver, newer and in the kernel, made the opposite choice for the same class of value,
 and the pattern shared-page-audit.md named for finding 6 applies verbatim: **a guarantee assumed

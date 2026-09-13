@@ -56,8 +56,8 @@ that tool.
 
 ## Components
 
-A **component** is the shippable unit: one binary in `user/src/`, one `[[bin]]` in `user/Cargo.toml`,
-one entry in the initrd archive. A **service** is what a component offers. A **contract** is the wire
+A **component** is the shippable unit: one binary in `components/src/`, one `[[bin]]` in
+`components/Cargo.toml`, one entry in the initrd archive. A **service** is what a component offers. A **contract** is the wire
 protocol it offers it over. "Server" is a fine role word inside a component (`redoxfs_server` serves
 the FS service). "Daemon" appears nowhere.
 
@@ -97,10 +97,10 @@ the FS service). "Daemon" appears nowhere.
   meant one string named two binaries. The role is now a program of its own, `progenitor`, and the
   three names agree in every row.
 
-Fixtures and benchmarks (`interrupt_heeder`, `interrupt_ignorer`, `flaky`, `allocator_exerciser`, `worker`, `coremark`,
-`os_primitives_benchmarker`) live in `user/` next to the real components and are not components.
-Milestone 39's directory-layout work is where that gets separated; the naming rule is the same either
-way.
+Fixtures and benchmarks (`interrupt_heeder`, `interrupt_ignorer`, `flaky`, `allocator_exerciser`,
+`worker`, `coremark`, `os_primitives_benchmarker`) live in `fixtures/`, which is where milestone 175
+separated them from the real components on 2026-09-13. The naming rule is the same either way: a
+fixture is a program and takes a program's name.
 
 **Two suffixes carry a category, and the distinction between them is real** (milestone 63).
 An **`_exerciser`** puts a capability of the system under load and sees whether it holds, with no
@@ -177,15 +177,17 @@ expansion anywhere: not in §41, not in [live-replacement.md](live-replacement.m
 that introduced it. `cseam.rs` sat among 48 programs and was not one; it was a shared module.
 
 **Crates came into scope on 2026-08-01**, and they are the most reader-facing names in the tree: a
-newcomer greps `crates/` before they ever open `user/src/`, and a crate name appears in every
+newcomer greps `crates/` before they ever open `components/src/`, and a crate name appears in every
 `Cargo.toml` that depends on it, in every `use` statement, and in the dependency graph an outsider
 reads to understand the shape of the system.
 
-**Shared modules came in for a reason of their own.** `user/src/` used to hold 48 `[[bin]]` programs
+**Shared modules came in for a reason of their own.** `user/src/`, the directory milestone 175
+split into `components/src/` and `fixtures/src/`, used to hold 48 `[[bin]]` programs
 and a handful of modules compiled into them with `#[path = "..."] mod ...`, with **nothing in the
 naming distinguishing them**, so a reader who tried to run `cseam` was misled by the directory.
 `AGENTS.md` rule 7 retired that category the same day: what two binaries share is a crate, and what
-remains in `user/src/` beside the programs is single-consumer submodules (`vnet`, `netcli`), which
+remains beside the programs is single-consumer submodules (`net_transport`,
+`socket_test_client`), which
 are ordinary Rust. `script/lint` counts consumers per `#[path]` target and fails at two. A shared
 module's name still has to answer a question a program's name never raises, which is *"where does
 this get compiled into?"*, and that makes it a naming problem of its own rather than a smaller
@@ -355,7 +357,7 @@ most needs it is the person about to propose it again.
 That is not hypothetical. A lane proposed `system_builder` for the crate milestone 96 extracted, the
 maintainer endorsed it, and calef overruled it to `system_initializer`. Only afterwards did anyone
 find that **milestone 63 had already refused `system_builder`**, for a reason still true:
-`user/src/builder.rs` calls itself "a minimal init: the system builder", so two programs would claim
+`components/src/builder.rs` calls itself "a minimal init: the system builder", so two programs would claim
 one phrase. The refusal existed, in one table cell inside one milestone block, invisible at the
 moment it was needed. A blind rename then swept the old name out of that very row, and the record of
 the refusal was nearly destroyed by the rename it should have prevented.
@@ -521,8 +523,8 @@ $ script/names --unratified
 UNRATIFIED (54 of 126), in the order worth working through
 ...
   programs, unrecorded
-    budgeter                     user/src/budgeter.rs
-    builder                      user/src/builder.rs
+    budgeter                     fixtures/src/budgeter.rs
+    builder                      components/src/builder.rs
     ...
   crates, unrecorded
     abi                          crates/abi/src/lib.rs
@@ -539,8 +541,9 @@ UNRATIFIED (54 of 126), in the order worth working through
 
 **The tier is the kind, and not "programs a person actually types".** That second split is the
 two-tier rule calef rejected on 2026-08-01, keyed on a property that is not stable: `wc` went from
-internal plumbing to a prompt-typed pipeline stage inside a day. Every program in `user/src/` is in
-the initrd and can be typed, so the kind is the honest tier and needs no classification anybody
+internal plumbing to a prompt-typed pipeline stage inside a day. Every program in `components/src/`
+and `fixtures/src/` is in the initrd and can be typed, so the kind is the honest tier and needs no
+classification anybody
 could get wrong. This is a sort order rather than a naming convention, so the cost of being wrong
 about one entry is that it is read in the wrong minute.
 
@@ -772,8 +775,8 @@ the immutable half.
 because lint runs constantly. (An earlier version of this sentence said four and then listed five,
 which is the ordinary way a hand-kept count drifts; take it from the script.)
 
-1. **No name ending in `-d`**, over `user/src/*.rs`, `user/Cargo.toml`'s `[[bin]]` names, and
-   `crates/*`. Four characters or more, so a three-letter name ending in `d` is read as an
+1. **No name ending in `-d`**, over `components/src/*.rs` and `fixtures/src/*.rs`, both
+   `Cargo.toml`s' `[[bin]]` names, and `crates/*`. Four characters or more, so a three-letter name ending in `d` is read as an
    abbreviation rather than a daemon (`kbd` was this rule's worked example until its 2026-08-28
    rename). Words that
    genuinely end in `d` go in `naming_allow` **with a reason**, the same shape as a per-item

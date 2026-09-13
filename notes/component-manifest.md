@@ -178,7 +178,7 @@ cannot provide for it. The test asserts the refusal is the *typed* one (a role w
 that it arrives **ahead of every build step and every instance that started**, which is what makes a
 manifest a request the supervisor may refuse rather than an instruction it carries out half way.
 
-**A greppable claim.** `user/src/swapper.rs` contains no `abi::rights::*` and no
+**A greppable claim.** `components/src/swapper.rs` contains no `abi::rights::*` and no
 `abi::aspace::MAP_R*`. There is nothing left in the operator to type wrong.
 
 Plus thirteen host tests and three Kani harnesses on the pure logic, which is where `component_plan`

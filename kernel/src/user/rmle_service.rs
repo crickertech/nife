@@ -3,7 +3,7 @@ use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::{self, RendezvousId};
 use crate::user::holding::Holding;
 
-/// The VAs `user/src/rmle.rs` hardcodes. Must match that file.
+/// The VAs `components/src/rmle.rs` hardcodes. Must match that file.
 const TERM_OUT_VA: u64 = 0x0000_0000_0080_0000;
 const FS_VA: u64 = 0x0000_0000_0060_0000;
 

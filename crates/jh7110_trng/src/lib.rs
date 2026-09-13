@@ -5,7 +5,8 @@
 //! The register layout, the DTB query that finds the device, and the decision of whether a
 //! generation attempt succeeded, failed, or is still running, with nothing an actual driver
 //! touches. The controller's register file is the future driver's (`kernel/src/user/`-side or
-//! `user/src/`-side, not yet written; see the roadmap doc's "What was deliberately not built"),
+//! `components/src/`-side, not yet written; see the roadmap doc's "What was deliberately not
+//! built"),
 //! the same split `pci` and `nvme` already use (AGENTS.md rule 7): this crate is host-testable
 //! and Kani-reachable precisely because it never dereferences a pointer.
 //!
@@ -325,7 +326,7 @@ pub const IE_LFSR_LOCKUP_EN: u32 = 1 << 4;
 /// interrupt disabled, measured rather than inferred.
 ///
 /// A driver that wants the completion interrupt instead needs this bit plus the contribution bits,
-/// routed at PLIC line 30 per \[binding\]'s `interrupts = <30>`. `user/src/jh7110_trng.rs` says
+/// routed at PLIC line 30 per \[binding\]'s `interrupts = <30>`. `components/src/jh7110_trng.rs` says
 /// why it does not.
 pub const IE_GLBL_EN: u32 = 1 << 31;
 
@@ -606,7 +607,7 @@ pub fn assemble(rand: [u32; 8]) -> [u8; 32] {
 pub const WORD_BYTES: u64 = 8;
 
 /// **The 32 bytes in hand, and how many are still ours to give** (milestone 159), lifted out of
-/// `user/src/jh7110_trng.rs` so it can be tested somewhere a register does not have to exist.
+/// `components/src/jh7110_trng.rs` so it can be tested somewhere a register does not have to exist.
 ///
 /// This is the one piece of the driver that can serve a byte twice, hand back a byte it already
 /// zeroed, or lose the seam between two generations, and none of that is visible in the register
@@ -616,7 +617,7 @@ pub const WORD_BYTES: u64 = 8;
 /// **Not a pool in the "reservoir" sense.** `cursor` only ever moves forward, so no byte is served
 /// twice, and each byte is zeroed as it leaves: a byte a client now holds is not also still
 /// sitting in a buffer a long-lived process keeps for the rest of the boot. The same shape
-/// `user/src/entropy.rs`'s virtio-rng `Pool` has, at a quarter the size, because there is no
+/// `components/src/entropy.rs`'s virtio-rng `Pool` has, at a quarter the size, because there is no
 /// device round trip here to amortize over.
 ///
 /// # Examples

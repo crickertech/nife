@@ -59,10 +59,10 @@ being allowed to close it.
 **What existed already, checked rather than assumed.** Input has an owner and milestone 177 already
 built the graphical boot around it:
 
-- `user/src/input.rs` is the UART receive driver, raw since milestone 28. It holds `WRITE` on one
+- `components/src/input.rs` is the UART receive driver, raw since milestone 28. It holds `WRITE` on one
   terminal endpoint, `READ` on the UART receive `Irq`, and one device-typed page of registers. It
   forwards bytes as `line_editor::proto::OP_BYTES`, up to eight per `CALL`.
-- `user/src/keyboard_driver.rs` gained `MODE_DIRECT` in milestone 177: a virtio-input driver
+- `components/src/keyboard_driver.rs` gained `MODE_DIRECT` in milestone 177: a virtio-input driver
   holding `WRITE` on one fixed endpoint, sending **byte for byte the same `OP_BYTES` framing**.
 - So the two sources were already interchangeable at DECISIONS §21's line-discipline contract.
   Nothing had ever put them behind one choice, and the graphical boot's condition was "a GPU
@@ -94,7 +94,7 @@ rendezvous capabilities, no DMA page and no `Irq` cap).
 
 It holds **no** DMA page, **no** `Virtio` transport, **no** budget, **no** report endpoint, and no
 capability naming any other process. It cannot print, cannot spawn, and cannot read what anyone
-else typed. This is `user/src/input.rs`'s documented authority unchanged; the only thing this lane
+else typed. This is `components/src/input.rs`'s documented authority unchanged; the only thing this lane
 altered is who spawns it.
 
 **The honest comparison with option B**, since risk 6 is what this is evidence for: a UART is a
@@ -119,7 +119,7 @@ question of a userspace serial console on that architecture permanently.
 
 **Not proven anywhere, and blocked by somebody else's bug**: a keystroke actually reaching the
 screen on a graphical boot. Milestone 177's own recorded display-driver blocker (a second `FLUSH`
-through `user/src/gpu_driver.rs`'s real boot path does not return, `notes/framebuffer-contract.md`'s
+through `components/src/gpu_driver.rs`'s real boot path does not return, `notes/framebuffer-contract.md`'s
 BUGS) stops the boot before a prompt is drawn. **Reproduced identically for both keystroke
 sources**, with and without a virtio-rng attached, on both architectures: `--graphical` and
 `--graphical-serial` hang at the same instruction, which is what says this is 177's blocker and not

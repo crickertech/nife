@@ -150,7 +150,7 @@ chain worth making explicit because nothing in this block currently names it.
 1. **The scoping decision itself**, calef, 2026-08-15: the SMB3 subset Time Machine needs, not a
    general server. **Gate: NONE**, above.
 2. **Discovery**, pull request #246, 2026-08-16: `crates/mdns_proto`, `crates/mdns_config`, and
-   `user/src/mdns_responder.rs` answer `_smb._tcp`, `_adisk._tcp` and `_device-info._tcp` against the
+   `components/src/mdns_responder.rs` answer `_smb._tcp`, `_adisk._tcp` and `_device-info._tcp` against the
    measured reference, both ISAs. Written, not vendored: it is a from-scratch parser and responder over
    an existing `smoltcp` feature flag, not a new dependency, which is §46's "write it, it's on the
    verification path" read correctly the first time. See notes/mdns.md.

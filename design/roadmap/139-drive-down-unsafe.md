@@ -129,7 +129,7 @@ parametrized by a runtime `va`, "actually a *better* `MappedWindow` fit than the
 `fs_subtree_caretaker.rs` were in rounds 1 and 2. The job frame collapses for real: `jf_load`/
 `jf_store` were two functions with their own `// SAFETY:` comments, called eight times combined
 across `spawn_interruptible` and `watch`; one `MappedWindow`, constructed once right after the frame
-is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in `user/src/swish.rs`
+is mapped, replaced both. **4 `unsafe {` blocks removed, 3 added, net -1**, in `components/src/swish.rs`
 alone.
 
 **`disk_surveyor.rs`'s `ROSTER_VA`.** A single shared `u64` flag at a fixed VA the program maps
@@ -140,7 +140,7 @@ The two deliberate-fault sites are the one honest exception recorded where a rea
 `MappedWindow`'s bounds check cannot catch either fault, because offset 0 is inside the declared
 window both times, so the real hardware fault happens inside `read`/`write` at exactly the access the
 hand-written version made, and the test's behaviour is unchanged by the migration. **3 `unsafe {`
-blocks removed, 2 added, net -1**, in `user/src/disk_surveyor.rs` alone.
+blocks removed, 2 added, net -1**, in `components/src/disk_surveyor.rs` alone.
 
 **`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster**, the exact naming variant
 `user_rt::mapped_window`'s own doc comment already named as a shape round 1's search should have
@@ -160,7 +160,7 @@ restructuring reaches the caller side. One further site collapsed for the same r
 never named `a_w8`: `sock_recv`'s payload-write loop had its own hand-rolled `write_volatile`,
 identical in shape, folded into the same window. **5 `unsafe {` blocks removed (the four functions'
 bodies plus the hand-rolled loop), 1 added (the window construction in `OP_ATTACH_FRAME`), net -4**,
-in `user/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
+in `components/src/net_stack.rs` alone. `script/test`'s aarch64 and riscv64 net suites (DHCP, UDP, TCP
 connect/accept/listen, the mDNS responder) passed clean, which is the load-bearing evidence here: the
 restructuring touches per-socket lifecycle state, exactly the kind of change where a mistake shows up
 as a flaky network test rather than a compile error.
@@ -481,7 +481,7 @@ INITRD_VA: u64 = 0x2000_0000` and their own `unsafe { core::slice::from_raw_part
 initrd_len) }`, one hand-written `// SAFETY:` comment per file asserting the identical invariant
 ("the kernel maps `initrd_len` bytes of the initrd, read-only, at this VA, before `_start` runs").
 `timetable.rs`'s own comment had already named the duplication out loud ("the same contract
-`user/src/builder.rs` is started under") without anyone lifting it out, the same shape `ntp.rs`'s
+`components/src/builder.rs` is started under") without anyone lifting it out, the same shape `ntp.rs`'s
 comment named for round 1's cluster. One `unsafe fn` in `crates/user_rt/src/initrd.rs` now holds
 that assertion once. **Measured from the diff: 7 `unsafe {` blocks removed at the seven call sites,
 7 added at the same sites (calling the shared function) plus 1 added inside it, net +1.** Flat at

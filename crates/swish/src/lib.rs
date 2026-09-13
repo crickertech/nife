@@ -1,6 +1,6 @@
 //! **The capability shell's logic, with the IO taken out** (milestone 70).
 //!
-//! `user/src/swish.rs` is the program: it holds a terminal endpoint, a spawn channel, a result
+//! `components/src/swish.rs` is the program: it holds a terminal endpoint, a spawn channel, a result
 //! channel, a budget, and (in the wiring that has one) a directory capability. This crate is
 //! everything that shell decides or renders with **no capability in hand**, so it compiles for the
 //! host and its tests run in milliseconds instead of under QEMU.
@@ -1898,7 +1898,13 @@ mod tests {
     fn a_program_that_reports_elsewhere_prints_nothing_here() {
         // Text-answering and supervised programs are drained by other readers. A line printed here
         // would be a second, empty report for the same run.
-        for prog in [Prog::Date, Prog::Wc, Prog::Rm, Prog::InterruptHeeder, Prog::InterruptIgnorer] {
+        for prog in [
+            Prog::Date,
+            Prog::Wc,
+            Prog::Rm,
+            Prog::InterruptHeeder,
+            Prog::InterruptIgnorer,
+        ] {
             assert_eq!(shown(|o| write_outcome(&endowment(prog), 0, o)), "");
         }
     }

@@ -6,7 +6,7 @@ principle, "designation is authorization," applied at the one interface a human 
 logic lives in the `grant_plan` crate (host-tested); the wiring is `swish.rs` and, on the
 progenitor's side of the channel, `crates/system_initializer`'s spawn service. There were two first
 processes when this note was written (`hello.rs`'s `init_boot` role on aarch64,
-`user/src/progenitor.rs` on riscv); milestone 96 reduced each to a table of the slot numbers its
+`components/src/progenitor.rs` on riscv); milestone 96 reduced each to a table of the slot numbers its
 kernel granted, and milestone 266 reduced them to one program, so the service that decodes a grant
 expression is written once and entered once. The manifest half is written up separately in
 [program-manifest.md](program-manifest.md).
@@ -201,7 +201,7 @@ capability, and every name in an `OPEN` resolves under it (DECISIONS §27). `wc 
 less than that. It names one file, so it must grant one file.
 
 The narrowing is a **caretaker**, Mark Miller's pattern: a process that holds the wider capability,
-exports a narrower one, and is the only path between them. `user/src/fs_file_caretaker.rs` opens the
+exports a narrower one, and is the only path between them. `components/src/fs_file_caretaker.rs` opens the
 granted name once at startup and then serves the *same* `filesystem_proto::fs` contract on its own endpoint:
 
 ```text

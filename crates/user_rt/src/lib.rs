@@ -823,7 +823,7 @@ pub fn cntfrq() -> u64 {
 ///
 /// Here rather than in each program because two of them need it and the naive form is wrong:
 /// `ticks * 1_000_000_000` overflows a `u64` about five minutes into a boot at 62.5 MHz, so the
-/// conversion splits into whole seconds and a remainder. `user/src/clock.rs` found that the hard
+/// conversion splits into whole seconds and a remainder. `components/src/clock.rs` found that the hard
 /// way; `date` and the shell's `time` then wanted the same five lines, which is CLAUDE.md rule 7 at
 /// the smallest size it comes in.
 ///

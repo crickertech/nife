@@ -167,7 +167,7 @@ of the §14 soft spot. Recorded here with the rest of milestone 22 for the same 
 
 1. **Init's authority becomes short-lived, not merely careful.** The pre-B.2 init holds a large untyped
    budget for its whole life because it stays the system's process builder, so every process is one bug
-   in init away from being built wrong. The new root (`user/src/root_supervisor.rs`) holds full construction
+   in init away from being built wrong. The new root (`components/src/root_supervisor.rs`) holds full construction
    authority only long enough to build two servers, then **deletes** it (the wiring capabilities, the
    spawner's budget copy, and the root untyped). After that it cannot make a page, an address space, a
    thread, or an endpoint. The alternative (keep the budget, be careful with it) was rejected on the

@@ -135,7 +135,7 @@ struct Table {
 /// The renderer.
 ///
 /// It is about eight kilobytes, which is twice a user process's whole stack, so a program keeps one
-/// in `.bss` rather than on the stack. `user/src/doc.rs` shows the shape.
+/// in `.bss` rather than on the stack. `components/src/doc.rs` shows the shape.
 pub struct Renderer {
     style: Style,
 

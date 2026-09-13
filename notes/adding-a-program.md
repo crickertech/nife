@@ -1,17 +1,34 @@
 # Adding a user program
 
 Task-oriented, because milestone 117's first stranger run found that **no file described this**. It
-reconstructed the steps from `xtask`, `user/Cargo.toml` and `grant_plan`, said it expected to have
-got one wrong, and was right to expect that: the two initrd lists are easy to half-do.
+reconstructed the steps from `xtask`, the program package's `Cargo.toml` and `grant_plan`, said it
+expected to have got one wrong, and was right to expect that: the two initrd lists are easy to
+half-do.
 
-A program is a `[[bin]]` in `user/`, running at EL0, linked against `user_rt`.
+A program is a `[[bin]]` in one of two packages, running at EL0, linked against `user_rt`.
+
+## Which package: `components/` or `fixtures/`?
+
+**Decide this first**, because it picks the directory and the `Cargo.toml` every later step edits.
+Milestone 175 split `user/` on 2026-09-13, and the question it answers is *would a distribution ship
+this because somebody wants its function?*
+
+- **`components/`** if yes: a service, a driver, the init and supervision spine, or a tool a person
+  invokes at the prompt. `net_stack`, `gpu_driver`, `progenitor`, `wc`, `rm`, `date`.
+- **`fixtures/`** if no: the program exists to exercise or measure the system. Test clients,
+  attackers that share the honest path, stand-in servers, workloads, benchmarks. `chatty`,
+  `outlaw`, `coremark`, `soaker`, `interrupt_ignorer`.
+
+**"Who calls it" is not the test**, and getting that wrong is the easy mistake: nearly everything
+here is reached only from a kernel test, `disk_partitioner` and `timetable` included, because this
+system has one user. What separates them is what the program *is*.
 
 ## The steps
 
 ### 1. The source
 
-`user/src/<name>.rs`, `snake_case` (DECISIONS §39, and the convention table in
-[naming.md](naming.md)). `no_std`, against `user_rt`.
+`components/src/<name>.rs` or `fixtures/src/<name>.rs`, `snake_case` (DECISIONS §39, and the
+convention table in [naming.md](naming.md)). `no_std`, against `user_rt`.
 
 ### 2. A provenance block in its module doc
 
@@ -46,7 +63,7 @@ own author called wrong is the shortest conversation calef can have. This page t
 opposite until §89: run 2 of the stranger test wrote the word AGENTS.md asked for and got a red
 gate, which is what raised the decision.
 
-### 3. A `[[bin]]` block in `user/Cargo.toml`
+### 3. A `[[bin]]` block in that package's `Cargo.toml`
 
 ```toml
 [[bin]]
@@ -62,8 +79,9 @@ bench = false
 ### 4. Pack it into all three initrds, in `xtask/src/main.rs`
 
 **Two hand-maintained lists as of 2026-08-27** (this page's fourth correction to this section; see
-`BUGS`), down from three. All three architectures now build the whole `user` package unfiltered, so
-there is no per-program `--bin` list on any of them any more:
+`BUGS`), down from three. All three architectures now build both program packages unfiltered, so
+there is no per-program `--bin` list on any of them any more (milestone 175 made that build
+`-p components -p fixtures` rather than `-p user`, which changed nothing about this step):
 
 - `initrd_aarch64()` (renamed from `mkinitrd()`, 2026-08-27) for aarch64: **one
   `("your_program", "your_program")` row in its `entries` table.** The pair is `(archive_name,
@@ -75,7 +93,7 @@ there is no per-program `--bin` list on any of them any more:
   and that was the trap this section warned about through 2026-08-27: the table read an ELF that
   only the `--bin` list caused cargo to build, so half the edit failed the build with `mkinitrd:
   cannot read .../your_program: No such file or directory` (or, after the rename, the same failure
-  under `initrd-riscv:`). That list predated riscv64 parity and every program in `user/` compiling
+  under `initrd-riscv:`). That list predated riscv64 parity and every program compiling
   for the riscv64 target; it bought nothing once that was true, and it fell out of step twice in one
   night (`audit_sink`, milestone 49) before it was deleted. **The trap described in the paragraph
   below is gone**, not just documented differently.
@@ -309,7 +327,8 @@ $ triple 21
   taught to supply an input operand for a program whose manifest asks for one, since that sweep's
   gap is what turns red today, not the planner.
 - **The program's name is written in six places as of 2026-08-27** (seven before that date; see
-  below) and nothing joins them: the `[[bin]]` block in `user/Cargo.toml`, `initrd_aarch64()`'s
+  below) and nothing joins them: the `[[bin]]` block in the package's `Cargo.toml`,
+  `initrd_aarch64()`'s
   table, `initrd_riscv()`'s table, `initrd_x86()`'s table (the last two share
   [`portable_archive_entries`]), the seven-part `Prog` table in `grant_plan`, the exhaustive match
   in `swish`, and `SHELL_CHECK_SCRIPT`. This page is a seventh. Steps 4 and 6 are long because the

@@ -257,14 +257,14 @@ board this project owns, it is the only option in this list that confines anythi
 ### What this tree already does, item by item
 
 Question 2 turned out to decide most of the cost. Every material an EL0 `nvme_server` needs already
-exists, and the closest analogue is `user/src/gpu_driver.rs`, which is a confined EL0 driver holding
+exists, and the closest analogue is `components/src/gpu_driver.rs`, which is a confined EL0 driver holding
 a multi-page DMA region.
 
 | What an EL0 NVMe driver needs | What supplies it today | New surface |
 |---|---|---|
 | BAR0's doorbell page mapped | `Object::DeviceFrame` plus `abi::page_frame::MAP` | none |
 | The DMA region's frames | one `PageFrame` naming the whole run, per §102 (a Frame names a run of pages); `gpu_driver` slot 5 | none |
-| The region's **physical** base, because PRP fields carry physical addresses | a spawn argument in `x1`. `user/src/entropy.rs` says it plainly: "Descriptors speak physical addresses; a process knows virtual ones, so the spawner passes this in" | none |
+| The region's **physical** base, because PRP fields carry physical addresses | a spawn argument in `x1`. `components/src/entropy.rs` says it plainly: "Descriptors speak physical addresses; a process knows virtual ones, so the spawner passes this in" | none |
 | The controller confined to that run | `crate::iommu::confine`, already called from `kernel/src/nvme.rs::bring_up` before the controller is enabled | none |
 | Completions | `Object::Irq`'s `WAIT` and `ACK` | none |
 | The admin plane | stays in `Nvme::new` and `bring_up` | none |
@@ -293,7 +293,7 @@ before `mod tests`.
 | `crates/nvme`, pure arithmetic, already host-tested | **716** | linked by the kernel | linked by the EL0 program |
 
 So roughly **157 lines leave the kernel and about 100 stay.** The EL0 program's template is
-`user/src/block_driver.rs`, which is **65 lines**: it is a thin shell around a driver's logic
+`components/src/block_driver.rs`, which is **65 lines**: it is a thin shell around a driver's logic
 serving `filesystem_proto::blk`, which is the shape an `nvme_server` takes.
 
 **Option 4's validator is smaller than the thing it is modelled on.** `crates/dma_validator` is 1082
@@ -451,7 +451,7 @@ notes/x86-uefi-boot.md's bench procedure.
 
 **The irreversible part of this decision is not in 2a.** It costs **zero new syscall surface**: the
 doorbell page is a `DeviceFrame`, the DMA run a `PageFrame` (§102), the physical base a spawn
-argument the way `user/src/entropy.rs` already passes one. A capability variant belongs only to 2b
+argument the way `components/src/entropy.rs` already passes one. A capability variant belongs only to 2b
 and 4. So building 2a produces what fatal risk 6 (a capability-confined userspace driver cannot
 drive real hardware at real speed) needs while **deferring the expensive choice**, and the *move fast
 on what can be undone* test, "who else has already acted on this", answers nobody.

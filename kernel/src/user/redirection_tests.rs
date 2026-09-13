@@ -3,7 +3,7 @@ use pipeline_service::{answer, counts};
 
 use super::*;
 
-/// The last line `user/src/swish.rs`'s redirection role prints. Must match `REDIRECT_DONE`.
+/// The last line `components/src/swish.rs`'s redirection role prints. Must match `REDIRECT_DONE`.
 const DONE: &[u8] = b"== redirections done\n";
 
 /// The script's transcript, run **once** and shared by every assertion below, for

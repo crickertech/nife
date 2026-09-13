@@ -21,7 +21,7 @@ Each site's own comment already states the cause correctly and calls it "an hone
 rather than a bug" (milestone 164's shape: a scope gap named where the reader meets the feature).
 **It is not a capability gap.** virtio-gpu and virtio-input are PCIe, their BARs are memory, and
 neither driver maps device registers directly; both hold a kernel-mediated `Virtio` capability
-(`user/src/gpu_driver.rs`, `user/src/keyboard_driver.rs`). DECISIONS §121 does not touch them. The
+(`components/src/gpu_driver.rs`, `components/src/keyboard_driver.rs`). DECISIONS §121 does not touch them. The
 `xtask` comment that once lumped `gpu_driver` in with the port-I/O programs it cannot run was
 corrected 2026-09-09 (PR #785) for exactly this reason.
 

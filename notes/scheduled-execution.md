@@ -5,7 +5,7 @@ is what a schedule is *refused*, and the one kernel primitive whose absence shap
 program.
 
 The pieces: `crates/timetable` (the decision, host-tested and Kani-reached),
-`user/src/timetable.rs` (the budget, the counter, the loader), `user/timetable.conf` (the
+`components/src/timetable.rs` (the budget, the counter, the loader), `components/timetable.conf` (the
 document), `kernel/src/user/timetable_tests.rs` (both ISAs). Every name in that list is
 **provisional**; milestone 129's block declines to propose one and AGENTS.md says the eventual one
 is calef's.
@@ -102,7 +102,7 @@ four running jobs in one granted a clock, a directory and a terminal, and neithe
 the program manifests can tell those two apart.
 
 Every field on the shipped scheduler's `Held` is `false` or zero, and that is checkable against the
-slot list in `user/src/timetable.rs`'s header:
+slot list in `components/src/timetable.rs`'s header:
 
 - slot 0: its output endpoint (WRITE)
 - slot 1: an untyped budget (WRITE)
@@ -132,7 +132,7 @@ result. **The kernel cannot do that, and the reason is worth knowing before anyo
 
 `timetable::Registry` is a `[Row; MAX_ENTRIES]` and a `Row` carries an `Admission`, which carries a
 kilobyte of `grant_plan::Endowment`. So `Registry::register` compiles to a **21632-byte stack
-frame**, and the `grant_plan::plan` underneath it to a further 12048. In `user/src/timetable.rs`
+frame**, and the `grant_plan::plan` underneath it to a further 12048. In `components/src/timetable.rs`
 those numbers are fine and stated: it is a process with a 32-page stack, and
 `kernel/src/user/timetable_tests.rs` says why it maps 32 pages. In the **kernel** they are exactly
 what `script/stack-frame-check` refuses, because a frame larger than the 4096-byte guard page can
@@ -149,7 +149,7 @@ program, and never in the kernel.
 So the spawn site carries the program set as a written list, `PLANNED_PROGRAMS`, and the thing that
 keeps it equal to the plan is a **host test** rather than a comment:
 `the_archive_a_timetable_holds_is_measured_against_what_it_will_build` registers the same
-`user/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is exactly that
+`components/timetable.conf` against the same `timetable::SHIPPED_HELD` and asserts the plan is exactly that
 set, by name. Editing the document without editing the list fails in milliseconds with no emulator,
 and the program's own audit line then fails the cross-ISA test as well, so a wrong list goes red
 twice.
@@ -174,7 +174,7 @@ initrd fails a test rather than passing one it no longer earns.
 
 What this does not do is narrow per *entry*: the residual is the union of the plan's programs, so a
 document admitting three programs leaves each instance's loader able to name the other two's images.
-`user/src/spawner.rs` has the narrower shape (one image, and "build me program X" cannot be asked),
+`components/src/spawner.rs` has the narrower shape (one image, and "build me program X" cannot be asked),
 and reaching it here needs a capability per entry rather than one per timetable. Recorded in `BUGS`.
 
 ## Registration is the security boundary
@@ -186,7 +186,7 @@ touch a disk, cannot open a socket, and cannot give any of those to a child, bec
 ambient authority anywhere for a child to fall back on.
 
 **Who may register is answered by where the document lives**, and for the first deliverable that is
-`include_str!`: the document is compiled into the binary, exactly as `user/mdns_responder.conf` is
+`include_str!`: the document is compiled into the binary, exactly as `components/mdns_responder.conf` is
 compiled into the responder and for the same recorded reason (reading a file needs a file capability
 wired through the spawn; see notes/mdns.md and milestone 131). So today the authority to register is
 the authority to rebuild the image, which is the strongest possible answer and also the least useful
@@ -263,7 +263,7 @@ and it is the same fork.
 
 `kernel/src/user/timetable_tests.rs`, one module for both ISAs (nothing in it is
 architecture-specific, so the parity gate is met by literally the same test running twice). It spawns
-the real program on the real `user/timetable.conf`, reads the plan it prints, then watches what
+the real program on the real `components/timetable.conf`, reads the plan it prints, then watches what
 fires:
 
 - the plan names what an admitted `worker` and an admitted `budgeter --mem 4` will each hold, and
@@ -302,7 +302,7 @@ The nesting is still the right shape, for a reason the block did not state. **A 
 be the only thing in this system that pairs a death with a grant**, because a supervisor learns a
 tid and nothing else: `supervision_proto::build_child` hands back a TCB capability, `abi::tcb` has
 no method that reads a tid out of one, and `abi::fault`'s five-word message carries no
-builder-chosen tag. `user/src/timetable.rs` does not lean on that ambiguous signal, though: it
+builder-chosen tag. `components/src/timetable.rs` does not lean on that ambiguous signal, though: it
 sidesteps the need to interpret a refusal at all by making the pairing structural. `fire_with_grant`
 and `collect_grant` are called back to back, with nothing else fired in between and everything
 already outstanding drained first, so the very next death on the supervision endpoint cannot be
@@ -324,7 +324,7 @@ document whose `--mem` entry shared the clock with a fast interval would.
 - **The narrowing is to the plan, not to one image per entry.** The archive the scheduler holds now
   carries exactly the programs its document will build, and no more; what it does not do is give each
   entry its own image. So a compromise of the timetable reaches the *union* of the plan's programs
-  rather than one of them. `user/src/spawner.rs` is the narrower shape and needs a capability per
+  rather than one of them. `components/src/spawner.rs` is the narrower shape and needs a capability per
   entry to reach here, which this tree does not have.
 
 - **A `--mem` entry blocks everything else in the document while it runs.** See "A backable `--mem`

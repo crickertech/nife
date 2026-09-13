@@ -16,7 +16,7 @@ hitting it would learn what was wrong. Milestone 121's lane worked around it by 
 
 ## Why it is not a one-line change
 
-`USER_STACK_VA` appears in `supervision_proto`, `timebase_proto`, `c_seam`, `user/src/builder.rs` and
+`USER_STACK_VA` appears in `supervision_proto`, `timebase_proto`, `c_seam`, `components/src/builder.rs` and
 several tests. **Measured by that lane: moving it alone breaks `authority_tests` at stage 10.** It is
 a layout two programs agree on rather than a private kernel detail.
 

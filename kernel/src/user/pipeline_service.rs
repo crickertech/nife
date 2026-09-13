@@ -4,10 +4,10 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, page_frame_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// The `swish` binary's pipeline role (`user/src/swish.rs`).
+/// The `swish` binary's pipeline role (`components/src/swish.rs`).
 const ROLE_PIPELINE: u64 = 3;
 
-/// The VAs the shell hardcodes for its terminal pages. Must match user/src/swish.rs.
+/// The VAs the shell hardcodes for its terminal pages. Must match components/src/swish.rs.
 const OUT_VA: u64 = 0x0000_0000_00c0_0000;
 const LINE_VA: u64 = 0x0000_0000_00b0_0000;
 
@@ -78,10 +78,10 @@ pub fn start_timing(clock: Option<u64>) -> Option<Wiring> {
     start_with(ROLE_TIMING, 0, None, clock)
 }
 
-/// The shell's timing role (`user/src/swish.rs`).
+/// The shell's timing role (`components/src/swish.rs`).
 const ROLE_TIMING: u64 = 5;
 
-/// Where the shell maps its own clock page, read-only. Must match `user/src/swish.rs`'s
+/// Where the shell maps its own clock page, read-only. Must match `components/src/swish.rs`'s
 /// `SH_CLOCK_VA` and `crates/system_initializer`'s. **Not** `date`'s `CLOCK_VA`: that is where a
 /// *child* maps one, and the shell already has the terminal's output frame at that address.
 const SH_CLOCK_VA: u64 = 0x0000_0000_00d0_0000;
@@ -100,11 +100,11 @@ pub fn start_redirecting(dir: (RendezvousId, u64), rights: u64) -> Option<Wiring
     start_with(ROLE_REDIRECT, rights, Some(dir), None)
 }
 
-/// The shell's redirection role (`user/src/swish.rs`).
+/// The shell's redirection role (`components/src/swish.rs`).
 const ROLE_REDIRECT: u64 = 4;
 
 /// Where an FS client maps the page it shares with the FS server (`fs_service`'s
-/// `FILE_VA_CLIENT`, and `user/src/swish.rs`'s `FS_VA`).
+/// `FILE_VA_CLIENT`, and `components/src/swish.rs`'s `FS_VA`).
 const FS_VA: u64 = 0x0000_0000_0060_0000;
 
 fn start_with(
@@ -422,7 +422,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
                 // Slot 1 is the input source when there is one. That is the whole difference.
                 let out = sink.unwrap_or(result);
                 // **The argument goes in `arg1`, not `arg0`**, which is where both real inits put
-                // it (`thread_control_block_start(tcb, 0, arg, 0)`) and where `user/src/worker.rs` reads it. This
+                // it (`thread_control_block_start(tcb, 0, arg, 0)`) and where `fixtures/src/worker.rs` reads it. This
                 // said `arg0` until milestone 86, and nothing failed, because no line in the
                 // pipeline or redirection scripts ever spawned a program that takes one: `date`,
                 // `wc` and `echo` all take none, and `worker 9 | wc` is refused at the prompt. The

@@ -131,7 +131,7 @@ Two halves at the IO boundary, which is the crate-and-program pair convention.
 - **`crates/ps`** is the listing: the cursor walk, the buffer, the columns, the refusal catalogue.
   Host-tested in milliseconds, nine tests, and total for *every* reader including one that never
   advances its cursor.
-- **`user/src/ps.rs`** is the syscall and two sinks, about sixty lines.
+- **`components/src/ps.rs`** is the syscall and two sinks, about sixty lines.
 
 The kernel's survey tests drive `ps::collect` against the real `endpoint::SURVEY`, so the cursor
 protocol is proved end to end rather than by a second copy of the walk written in a test.
@@ -254,7 +254,7 @@ the only thing standing between a `ps` and a reap was the program's own source c
 - **`crates/pgrep`** is the filter: a selector, the match, the four answers, the output format. It
   **does not walk**, because `ps::collect` already does and a second implementation of `SURVEY`'s
   resume protocol is a second thing that can be wrong. Twelve host tests, no emulator.
-- **`user/src/pgrep.rs`** is the syscall and two sinks, and its capability contract is `ps`'s three
+- **`components/src/pgrep.rs`** is the syscall and two sinks, and its capability contract is `ps`'s three
   **exactly**: the output sink, the domain with `ENUMERATE`, the diagnostics sink. The two manifests
   in `grant_plan` are identical field for field, and that sameness is the readable form of the ruling
   rather than a coincidence worth deduplicating.
@@ -479,9 +479,9 @@ vocabulary invented for what is, read back, the same fact about the same page.
 
 ### The delegation audit DECISIONS §114 required
 
-Every site that mints an `Object::AddressSpace` capability was found and checked: `user/src/builder.rs`,
-`crates/supervision_proto::build_child_space`, `user/src/hello.rs`'s `aspace_builder`,
-`user/src/os_primitives_benchmarker.rs`'s `spawn_one`, and `kernel/src/bench.rs`'s `map_el0`
+Every site that mints an `Object::AddressSpace` capability was found and checked: `components/src/builder.rs`,
+`crates/supervision_proto::build_child_space`, `fixtures/src/hello.rs`'s `aspace_builder`,
+`fixtures/src/os_primitives_benchmarker.rs`'s `spawn_one`, and `kernel/src/bench.rs`'s `map_el0`
 harness. **Every one retypes, maps, and (except `hello.rs`'s deliberately-unconfigured demo)
 consumes the capability at `Tcb::CONFIGURE`, all inside the one thread that started it. None
 delegates an `Object::AddressSpace` capability to a different program.** So the caveat's feared case --
@@ -540,7 +540,7 @@ interruptible (`^C`-stoppable) spawn is endowed no capabilities at all, and this
 domain and the output sink for its whole run, it cannot be both. A typed count
 (`watch N`, clamped to `[1, watch::MAX_ITERATIONS]`) bounds it instead, and it always terminates on
 its own. The interval between frames is fixed and is a yield-spin against `monotonic_nanos`, not a
-sleep, because this kernel has neither (`user/src/timetable.rs`'s module docs name the first four
+sleep, because this kernel has neither (`components/src/timetable.rs`'s module docs name the first four
 consumers of milestone 106's timed-wait fork; `watch` is the fifth).
 
 ## What this does not build

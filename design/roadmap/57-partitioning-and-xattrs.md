@@ -326,7 +326,7 @@ scale, and so did the block-device lane.
   GUID that is not random is not unique, the crate has no randomness, and inventing one from a
   counter would be worse than refusing. The same note carries the two fixture findings: macOS writes
   no GPT partition names, and the two tools disagree about the protective MBR's CHS fields.
-- **Done.** Partitioning on the target is built: `user/src/disk_partitioner.rs`, landed in commit
+- **Done.** Partitioning on the target is built: `components/src/disk_partitioner.rs`, landed in commit
   `4db2fd74` ("disk: partition and format a disk on the target, with the two capabilities that takes",
   2026-08-03). It holds exactly a block-service endpoint for one disk and an entropy endpoint, draws
   four version-4 GUIDs, lays out three partitions through `Gpt::create` and writes both copies of the

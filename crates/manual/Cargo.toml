@@ -6,7 +6,7 @@ license.workspace = true
 
 # Milestone 40's pure logic, and only the logic: markdown bytes in, styled terminal bytes out, plus
 # the search index both the host builder and the guest reader must agree on. No syscalls, no
-# endpoints, no filesystem, no allocator. The program that does the IO is `user/src/doc.rs`; this is
+# endpoints, no filesystem, no allocator. The program that does the IO is `components/src/doc.rs`; this is
 # the half that runs on the host in milliseconds and is reachable by Kani.
 #
 # **Zero dependencies, and no `alloc` on the guest path.** DECISIONS §46 rule 1: this is on the

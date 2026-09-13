@@ -2,7 +2,7 @@
 //! design/roadmap/126-who-else-is-running.md).
 //!
 //! This is the program's whole logic, lifted out so it runs on the host in milliseconds;
-//! `user/src/uptime.rs` is the syscall and nothing else. The crate and the program share a name,
+//! `components/src/uptime.rs` is the syscall and nothing else. The crate and the program share a name,
 //! the same split `ps`, `line_editor` and `compositor` already are.
 //!
 //! Name: provisional. `uptime` is upstream `procps`'s own name for the program this replaces
@@ -13,7 +13,7 @@
 //!
 //! # Where the number comes from, and why it needed no new capability
 //!
-//! `user/src/uptime.rs` reads `user_rt::monotonic_nanos`, the same ambient counter `date` reads
+//! `components/src/uptime.rs` reads `user_rt::monotonic_nanos`, the same ambient counter `date` reads
 //! to compute the wall clock and `os_primitives_benchmarker` reads to time itself. It is granted to
 //! **every** EL0 program, unconditionally, by `kernel/src/arch/*/timer.rs`'s `init` (`CNTKCTL_EL1`'s
 //! `EL0VCTEN` bit on aarch64, the RISC-V and `x86_64` equivalents), which documents the grant as **a

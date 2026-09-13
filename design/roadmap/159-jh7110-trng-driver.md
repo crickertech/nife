@@ -15,7 +15,7 @@ nothing else in this file must at least say so.
 
 The first lane (2026-08-24) confirmed the TRNG from documentation, wrote and host-tested its
 register and DTB-discovery logic (`crates/jh7110_trng`), and wrote an unwired driver program
-(`user/src/jh7110_trng.rs`). The second lane (2026-09-01) wired that program to a spawner, gave it
+(`components/src/jh7110_trng.rs`). The second lane (2026-09-01) wired that program to a spawner, gave it
 a boot-tour step that says something falsifiable, and moved the one remaining piece of untested
 logic into the host-tested crate. **Neither clears this tree's bar.** Milestone 53's `PARTIAL`
 names a phase that runs end to end, proven in QEMU; the phase here is "read real bits off a real
@@ -171,7 +171,7 @@ because nothing here has a driver for the JH7110's TRNG.
 - **A driver, not a new protocol.** `entropy_service`'s own contract with its clients does not
   change; this is a new backend behind the existing service, the same relationship milestone 157's
   framebuffer driver has to rung one's existing `gfx_proto` contract. Rule 2 applies: it takes a
-  base address and knows nothing else. `user/src/jh7110_trng.rs` is that backend, speaking
+  base address and knows nothing else. `components/src/jh7110_trng.rs` is that backend, speaking
   `entropy_proto` unchanged. **Wired as of 2026-09-01**: `entropy_service`'s `Bus` enum has a
   `Jh7110` variant and the riscv64 boot tour spawns it when the machine's device tree describes the
   device. Still never run against one.
@@ -319,7 +319,7 @@ credential stack on a gated TRNG instead of building one on zeros.
 **The judgement, stated where it can be argued with.** An all-zero bufferful is legitimate output
 with probability 2^-2048 (virtio), 2^-256 (JH7110) or 2^-64 (the instruction backend), so refusing
 one is a correctness claim about a random variable, and it is recorded as a `BUGS` entry in
-`entropy_proto`, in `user/src/entropy.rs` and in `user/src/jh7110_trng.rs` rather than left implicit.
+`entropy_proto`, in `components/src/entropy.rs` and in `components/src/jh7110_trng.rs` rather than left implicit.
 A false "the device is dead" costs one boot's entropy; a false "the device is alive" costs every
 secret derived from it.
 
@@ -442,7 +442,7 @@ Three sources settle them, all cited in the crate with URLs and fetch dates: mai
 
 - **Done.** The tour's unreachable success condition, the ambiguous diagnostic word, and the missing
   bring-up steps: this branch (`milestone/159-trng-sequence`), pull request #729.
-- **Recorded.** The 128-bit-mode question stays a `BUGS` entry in `user/src/jh7110_trng.rs` until a
+- **Recorded.** The 128-bit-mode question stays a `BUGS` entry in `components/src/jh7110_trng.rs` until a
   bench session reads `STAT.R256` off the board. It cannot be resolved from documentation, because
   the reset width is a build-time parameter of the silicon.
 - **Recorded.** `POLL_TRIES` and `LOCKUP_RETRIES` bound loop iterations, not time, so what they

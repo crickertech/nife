@@ -1481,7 +1481,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                 // number 32 wearing a register's clothes. All zeros means the
                                 // register window read as nothing at all (a gated clock, an
                                 // undeasserted reset, or a base that is not the TRNG) rather than
-                                // a device that answered wrongly. See user/src/jh7110_trng.rs.
+                                // a device that answered wrongly. See components/src/jh7110_trng.rs.
                                 // The tree's own two words about this node come with the failure,
                                 // not in a separate line, because they are what a bench session
                                 // reads next: an all-zero diagnostic on a node the firmware calls
@@ -1620,7 +1620,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //
         // It was three things wearing one name: a machine description, a narrative, and a set of
         // demonstrations. The description is `print_machine_description` above and prints on every
-        // boot. The narrative is `user/src/narrator.rs` and runs at EL0. What remains here is the
+        // boot. The narrative is `components/src/narrator.rs` and runs at EL0. What remains here is the
         // third thing, and every entry is here because it needs a privilege a program does not
         // have. The list is short on purpose, and it is the whole list:
         //

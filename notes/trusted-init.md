@@ -186,7 +186,7 @@ init away from being built wrong. The answer is not to make init more careful; i
 
 ### The tree
 
-Four small portable programs (`user/src/root_supervisor.rs`, `spawner.rs`, `sub_server_supervisor.rs`, `flaky.rs`, sharing
+Four small portable programs (`components/src/root_supervisor.rs`, `spawner.rs`, `sub_server_supervisor.rs`, `flaky.rs`, sharing
 `crates/supervision_proto`):
 
 ```text
@@ -378,7 +378,7 @@ the program ids `spawnproto` already sends in word 0.
 This increment left two duplications behind on purpose, and both are gone now.
 
 The larger one was **the system itself**. `user::initrd()` loaded an archive entry called `init`,
-which was `user/src/hello.rs`'s `init_boot` role on aarch64 and a separate program on riscv64
+which was `fixtures/src/hello.rs`'s `init_boot` role on aarch64 and a separate program on riscv64
 (milestone 266 later collapsed both the alias and the two programs into one `progenitor`), and
 everything above (the six boot components, the giveaway, the negative control, the spawn service) was
 was written once in each. About three hundred near-identical lines, and the failure mode is the reason it

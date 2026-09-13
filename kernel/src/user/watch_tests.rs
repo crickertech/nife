@@ -89,7 +89,7 @@ fn survey(slot: u64, cursor: u64) -> (i64, u64, u64) {
 }
 
 /// The whole domain, walked by `watch`'s own logic: `ps::collect` driving real syscalls, exactly what
-/// `crates/watch`'s `frame` is handed in `user/src/watch.rs`.
+/// `crates/watch`'s `frame` is handed in `components/src/watch.rs`.
 fn walk(slot: u64, rows: &mut [ps::Row; TEST_ROWS]) -> ps::Survey<'_> {
     let s = ps::collect(rows, &mut |cursor| survey(slot, cursor));
     assert!(

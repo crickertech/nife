@@ -241,11 +241,11 @@ that heap were ever unavailable.
 
 ## Piece 3 phase A: smoltcp doing DHCP over the confined NIC (built, both ISAs)
 
-The net server, `net_stack` (user/src/net_stack.rs), is the networking form of the userspace-reuse thesis: a
+The net server, `net_stack` (components/src/net_stack.rs), is the networking form of the userspace-reuse thesis: a
 real, reused TCP/IP stack (smoltcp 0.13.1, not hand-built) running entirely at EL0 over a NIC the
 kernel confines by DMA. The kernel knows nothing about DHCP.
 
-- `user/src/net_transport.rs` presents smoltcp's `phy::Device` over the receive/transmit virtqueues: it brings
+- `components/src/net_transport.rs` presents smoltcp's `phy::Device` over the receive/transmit virtqueues: it brings
   the NIC up through the `Virtio` capability, posts receive buffers, copies received frames out (RX
   tokens own their bytes so they never borrow the device), and transmits via the DMA ring (TX tokens
   carry a raw pointer to the device, sound because net_stack is single-threaded and the device outlives
@@ -270,8 +270,8 @@ not yet built is the client-facing socket contract that lets *other* processes u
 
 The §25 contract, so a process other than net_stack can open sockets. net_stack, after DHCP, serves requests
 on a `Stack` endpoint; a client holds `WRITE` on it plus its own untyped budget. Files:
-`crates/socket_proto/src/lib.rs` (the wire format), the serve loop in `user/src/net_stack.rs`, and the client in
-`user/src/socket_test_client.rs` (a module of the net_stack binary, dispatched by the entry role, see the archive
+`crates/socket_proto/src/lib.rs` (the wire format), the serve loop in `components/src/net_stack.rs`, and the client in
+`components/src/socket_test_client.rs` (a module of the net_stack binary, dispatched by the entry role, see the archive
 note below).
 
 - **A socket is a socket id.** Open returns a small integer, carried in the request word of every
@@ -344,7 +344,7 @@ and net_stack stalled in its bounded connect poll forever. Bisection confirmed i
 reused id hangs.
 
 The fix is what any real stack does: net_stack allocates ephemeral local ports from a private range with a
-**rotating allocator** independent of the socket id (`user/src/net_stack.rs`, `PortAllocator`). Each open
+**rotating allocator** independent of the socket id (`components/src/net_stack.rs`, `PortAllocator`). Each open
 advances the cursor, so a just-closed connection's port is not handed out again until the whole range
 has cycled, and a port a live socket still holds is skipped outright. Socket-id reuse is then safe:
 the reopened socket gets a new local port, a new 4-tuple, and a new slirp flow.
@@ -372,7 +372,7 @@ retransmit path; the riscv SMP scatter, which moves the driver and its wakes acr
 enough to drop one and expose the hole. It was not the IRQ affinity: forcing every source back to the
 boot hart's PLIC context still hung, which ruled the PLIC out.
 
-The fix (`wait_for_nic`, `user/src/net_stack.rs`) asks smoltcp when it next needs to run. With **no** timer
+The fix (`wait_for_nic`, `components/src/net_stack.rs`) asks smoltcp when it next needs to run. With **no** timer
 pending (`poll_delay` is `None`), it blocks on the interrupt, the common case, 0% CPU until a frame
 arrives, and correct because with nothing of our own outstanding we are purely waiting on the peer,
 whose retransmit will wake us. With a timer **pending**, it does not block: it yields and lets the
@@ -442,7 +442,7 @@ UDP gate sends a request, DHCP is a client protocol. nife could reach the networ
 be reached, and the contract had no listen verb to fix that with.
 
 Milestone 107 adds `LISTEN` and `ACCEPT` (`crates/socket_proto`, opcodes 9 and 10, **names
-provisional**), the smoltcp side in `user/src/net_stack.rs`, and a gate in which a **host process
+provisional**), the smoltcp side in `components/src/net_stack.rs`, and a gate in which a **host process
 connects into the guest** and gets an answer the guest composed. Two design questions came with the
 verbs, and neither was copied from POSIX.
 
@@ -474,7 +474,7 @@ refused**: the contract will not let a listener become a connection in place. Th
 id, its port, and its authority.
 
 The client-side proof costs nothing and is worth having: `TEST_TCP_LISTEN_GRANT` in
-`user/src/socket_test_client.rs` attaches no frame anywhere and still listens, binds and collides.
+`components/src/socket_test_client.rs` attaches no frame anywhere and still listens, binds and collides.
 
 ### Who binds the port: the spawn service grants a range, the client does not ask
 
@@ -574,7 +574,7 @@ loop {
 }
 ```
 
-`user/src/socket_test_client.rs::tcp_accept_inbound` is that sequence with the assertions in it.
+`components/src/socket_test_client.rs::tcp_accept_inbound` is that sequence with the assertions in it.
 
 **Running the gate.** It is part of the ordinary suite and needs no host setup; xtask picks a free
 loopback port, hands it to the runner as `NIFE_HOSTFWD_PORT`, and runs the prober thread itself:

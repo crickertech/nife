@@ -77,12 +77,12 @@ pub const ROSTER_VA: u64 = 0x5001_0000;
 /// machine when reservations accumulate.
 const MAP_BUDGET_PAGES: u64 = 8;
 
-// The roles, in `a0`. Must match user/src/disk_surveyor.rs.
+// The roles, in `a0`. Must match components/src/disk_surveyor.rs.
 const ROLE_SURVEY: u64 = 0;
 const ROLE_PROBE: u64 = 1;
 const ROLE_HOLDER: u64 = 2;
 
-// The surveyor's capability table, **one layout for both roles**. Must match user/src/disk_surveyor.rs.
+// The surveyor's capability table, **one layout for both roles**. Must match components/src/disk_surveyor.rs.
 //
 // The probe holds neither a disk nor the page that goes with one, and those are holes rather than a
 // shorter list: `grant_at` places each capability at its own number, so the roster is slot 4 in both
@@ -372,7 +372,7 @@ impl HolderWiring {
 /// scratch on top of that.
 const PARTITION_EXTRA_STACK: usize = 4;
 
-// The partitioner's capability table. Must match user/src/disk_partitioner.rs. Slot 2 is the hole the
+// The partitioner's capability table. Must match components/src/disk_partitioner.rs. Slot 2 is the hole the
 // entropy experiment turns on; see [`start_partitioner`].
 const PARTITION_SLOT_REPORT: u64 = 0;
 const PARTITION_SLOT_BLK: u64 = 1;

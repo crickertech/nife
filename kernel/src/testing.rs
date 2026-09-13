@@ -246,12 +246,12 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// aarch64 total: 15624 kept. notes/frames.md's held-frames list carries the itemised account.
 ///
 /// **Raised again, same day, same milestone, a capability table bug rather than a new feature.** `mint()` in
-/// `user/src/login.rs` used to leak one of `login`'s own sixteen capability table slots per successful login
+/// `components/src/login.rs` used to leak one of `login`'s own sixteen capability table slots per successful login
 /// (the caretaker's construction region capability was never freed), which bounded the service to
 /// exactly eight logins ever regardless of `CONSTRUCTION_UT`'s size. The fix needed a regression
 /// test that actually crosses that old ceiling, so `login_tests.rs`'s `CONSTRUCTION_PAGES` grew from
 /// 640 to 1408 (nine real logins' worth instead of three) to cover it. Every one of those extra 768
-/// pages is permanent for the same reason the 640 above are: `user/src/login.rs`'s BUGS still names
+/// pages is permanent for the same reason the 640 above are: `components/src/login.rs`'s BUGS still names
 /// the caretaker's construction *memory* (as opposed to the capability table slot this lane fixed) as never
 /// reclaimed. 16200 + 768 = 16968.
 ///
@@ -312,7 +312,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// one frame above CI's own clean 18626. And the one CI run that actually exercises this PR
 /// (`toolchain/nightly-bump`, after the bump to `nightly-2026-08-25` plus two markdown-only
 /// commits, otherwise identical code to `a176da29`) measured **18628**, one frame above that
-/// again. Ruled out directly: a `clippy`-only fix in `user/src/swish.rs` (an indexed loop
+/// again. Ruled out directly: a `clippy`-only fix in `components/src/swish.rs` (an indexed loop
 /// rewritten to an iterator, landing alongside this budget change) made no difference when tried
 /// with and without it, and the QEMU version is identical between environments. Not ruled out:
 /// genuine cross-environment or run-to-run nondeterminism in a suite that runs real SMP guest
@@ -336,7 +336,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 ///   carries the page-by-page account; the short version is that this milestone adds a test
 ///   (`two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret`)
 ///   which leaves **two more sessions logged in**, at the 128 pages a live session costs, and
-///   `user/src/login.rs` gains a 32-page `CHANNEL_UT_PAGES` split once at startup. 1664 + 256 + 32
+///   `components/src/login.rs` gains a 32-page `CHANNEL_UT_PAGES` split once at startup. 1664 + 256 + 32
 ///   = 1952 permanently resident, and 2176 is that with the same ~10% margin 1856 carried over
 ///   1664.
 /// - **+104, `login_service.rs`'s `CLIENT_SCRATCH_UT_PAGES`.** Every spawned `login_test_client`

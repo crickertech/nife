@@ -1,0 +1,244 @@
+# Name: recorded (design/roadmap/39-repository-structure.md's "Not everything in `user/` is a
+# service", performed by milestone 175). The programs that exist to exercise or measure the system
+# rather than to be shipped: test clients, attackers that share the honest path, stand-in servers,
+# workloads and benchmarks. 39 named eight of them by hand on a tree less than half this size and
+# called mixing them with the real components "much of why the directory reads as shapeless"; this
+# is that separation. `tests/` was not available and would have been wrong anyway, since Cargo owns
+# that directory name and these are `[[bin]]` targets rather than test harnesses. Nobody has put
+# the name to calef.
+
+[package]
+name = "fixtures"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[[bin]]
+name = "hello"
+path = "src/hello.rs"
+# This is a bare-metal `no_std` binary with no unit tests, and the default test/bench targets link
+# libtest (`extern crate test`), which does not exist for the aarch64-unknown-none target. Turning
+# them off is what lets `cargo clippy --all-targets` (and any --all-targets build) work here instead
+# of failing to find crate `test`. The kernel keeps its test target because it supplies its own
+# harness via `custom_test_frameworks`.
+test = false
+bench = false
+
+# The worker (milestone 19f.2): the first program that is its own binary, not a role of `hello`.
+# It shares this package's `build.rs` link.ld (linked at 0x40_0000) but no code. Same test/bench
+# reasoning as above. `initrd_aarch64` packs it into the archive under the name "worker".
+[[bin]]
+name = "worker"
+path = "src/worker.rs"
+test = false
+bench = false
+
+# The budgeter (milestone 31): spends exactly the untyped budget `run --mem N` grants it and reports
+# how many pages it could map. The program that makes the memory grant real, not parsed-and-ignored.
+[[bin]]
+name = "budgeter"
+path = "src/budgeter.rs"
+test = false
+bench = false
+
+# The interrupt_heeder (DECISIONS §24): a long-running job that heeds the cooperative ^C,
+# polling a shared flag between work units and exiting cleanly when the shell sets it. The
+# cooperative interrupt tier.
+[[bin]]
+name = "interrupt_heeder"
+path = "src/interrupt_heeder.rs"
+test = false
+bench = false
+
+# The interrupt_ignorer (DECISIONS §24): a runaway that ignores the interrupt; only the forcible
+# tier (the shell tearing its region down) ends it. The case the second ^C exists for.
+# The soaker (milestone 219): the workload that does not stop, so that `design/fatal-risks.md`'s
+# multicore entry has something to run its decisive experiment against. Cross-core IPC round trips
+# forever, publishing its progress in a page the kernel reads.
+[[bin]]
+name = "soaker"
+path = "src/soaker.rs"
+test = false
+bench = false
+
+# The multi-tasking workload's task (milestone 168): one EL0 process running the job mix
+# `--features jobmix` sweeps. In every archive, because the instrument develops under QEMU and the
+# number is taken on a board, and both have to run the same workload.
+[[bin]]
+name = "job_mix_task"
+path = "src/job_mix_task.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "interrupt_ignorer"
+path = "src/interrupt_ignorer.rs"
+test = false
+bench = false
+
+# The outlaw (milestone 19, the user-test port): reads an address it is not allowed to touch, and
+# round-trips through user mode. The two programs kernel::user::tests used to hand-assemble as
+# aarch64 machine code; a real ELF here is what lets those tests run on both ISAs.
+[[bin]]
+name = "outlaw"
+path = "src/outlaw.rs"
+test = false
+bench = false
+
+# The CoreMark workload (milestone 19e): the first real compute workload, run against the native ABI.
+[[bin]]
+name = "coremark"
+path = "src/coremark.rs"
+test = false
+bench = false
+
+# The allocator workload (milestone 27): the first program that links `extern crate alloc`, over
+# the untyped-backed heap in user_rt. Proves Vec/String/BTreeMap churn, free-in-any-order, and
+# reuse-without-growth against a real budget, on both ISAs.
+[[bin]]
+name = "allocator_exerciser"
+path = "src/allocator_exerciser.rs"
+test = false
+bench = false
+
+# The FS-service client (milestone 32 phase 2): opens a file through a granted directory capability,
+# reads it, writes and reads back a pattern, and reports. initrd_aarch64 packs it as "fs_test_client".
+[[bin]]
+name = "fs_test_client"
+path = "src/fs_test_client.rs"
+test = false
+bench = false
+
+# The EL0 microbenchmark program (primitive suite): self-times syscall/IPC primitives from EL0, the
+# lmbench way, so the numbers include the trap the kernel-side benchmarks skip. Run by the bench boot.
+[[bin]]
+name = "os_primitives_benchmarker"
+path = "src/os_primitives_benchmarker.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "flaky"
+path = "src/flaky.rs"
+test = false
+bench = false
+
+# The C seam (milestone 36). Three files, two binaries: `c_shim` is the Rust user_rt shell that
+# links fixtures/c/c_seam.c (compiled by build.rs with a bare-metal clang) and holds every capability
+# the foreign component is not allowed to see; `c_confiner` builds it, supervises it, and holds the
+# witness pages that prove what the C could not reach. Both portable; both archives carry both.
+[[bin]]
+name = "c_shim"
+path = "src/c_shim.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "c_confiner"
+path = "src/c_confiner.rs"
+test = false
+bench = false
+
+# The client that draws (milestone 29): paints a coordinate-derived pattern into a shared surface and
+# asks the driver to show it. Holds an endpoint and the pixels; no device, no DMA authority. The
+# separation is the increment's point, so it is its own binary rather than a role of display.
+[[bin]]
+name = "painter"
+path = "src/painter.rs"
+test = false
+bench = false
+
+# A window: a client of the compositor (milestone 33). One binary, several roles, because an attacker
+# that shares the honest path is a fair test of the boundary rather than a different program failing
+# for its own reasons. Packed as "window".
+[[bin]]
+name = "window"
+path = "src/window.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "rust_swappable"
+path = "src/rust_swappable.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "c_swappable"
+path = "src/c_swappable.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "chatty"
+path = "src/chatty.rs"
+test = false
+bench = false
+
+# The credential service's clients (milestone 56): the provisioner that fills the store, the honest
+# client that asks questions, and the attacker that holds the identical endowment and tries to write
+# it. One binary, three roles, because an attacker on the honest path is a fairer test of a boundary
+# than a different program failing for its own reasons. `initrd_aarch64` packs it as "credentialer_test_client".
+[[bin]]
+name = "credentialer_test_client"
+path = "src/credentialer_test_client.rs"
+test = false
+bench = false
+
+# The login service's test client (milestone 49, provisional name): presents an identity and a
+# secret, and on `login_proto::OK` receives the caretaker's endpoint, the file service's shared
+# frame, and a budget, then uses all three to prove they work rather than merely that they arrived.
+# `initrd_aarch64` packs it as "login_test_client" for both ISAs.
+[[bin]]
+name = "login_test_client"
+path = "src/login_test_client.rs"
+test = false
+bench = false
+
+# The sink contract's ends (milestone 50): a program that writes to whatever is in its output slot,
+# a caretaker that puts a file behind that slot, and the read-back that proves the bytes went
+# through a real filesystem. One binary, three roles. `initrd_aarch64` packs it as "sink" for both ISAs.
+[[bin]]
+name = "sink"
+path = "src/sink.rs"
+test = false
+bench = false
+
+[lints]
+workspace = true
+
+[dependencies]
+abi = { version = "0.1.0", path = "../crates/abi" }
+c_seam = { version = "0.1.0", path = "../crates/c_seam" }
+supervision_proto = { version = "0.1.0", path = "../crates/supervision_proto" }
+# The interactive system, built once (milestone 96). Both inits are a table of the slot numbers
+# their own kernel granted plus a call into this.
+system_initializer = { version = "0.1.0", path = "../crates/system_initializer" }
+# The supervisor half of milestone 23's component manifest: the operator wires a component from
+# its declaration rather than from literals, and `chatty` and `broker` derive their own slot
+# numbers from the declarations they are built against.
+component_plan = { version = "0.1.0", path = "../crates/component_plan" }
+swap_proto = { version = "0.1.0", path = "../crates/swap_proto" }
+virtio = { version = "0.1.0", path = "../crates/virtio" }
+grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
+# The soak workload's shared page (milestone 219). The kernel reads what the soaker writes, so the
+# layout and the reply transform live in one crate rather than in two copies.
+soak_page = { version = "0.1.0", path = "../crates/soak_page" }
+# The multi-tasking workload's definition (milestone 168). The task runs what the kernel-side
+# supervisor times, from one description of the mix rather than two copies.
+job_mix = { version = "0.1.0", path = "../crates/job_mix" }
+credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
+login_proto = { version = "0.1.0", path = "../crates/login_proto" }
+compositor = { version = "0.1.0", path = "../crates/compositor" }
+coremark = { version = "0.1.0", path = "../crates/coremark" }
+nifefs = { version = "0.1.0", path = "../crates/nifefs" }
+elf = { version = "0.1.0", path = "../crates/elf" }
+filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
+graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
+line_editor = { version = "0.1.0", path = "../crates/line_editor" }
+byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
+# The durable schedule store's shared names (milestone 152, DECISIONS §122/§125): the fixed file
+# names `session_reviver.rs` and `fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` both depend on, and the
+# manifest format neither `timetable` nor `filesystem_proto` already owns.
+schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
+user_rt = { version = "0.1.0", path = "../crates/user_rt" }

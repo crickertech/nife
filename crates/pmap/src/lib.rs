@@ -1,10 +1,10 @@
 //! **`pmap`: what a process's mappings are when there is no `/proc/pid/maps`** (milestone 126,
 //! notes/process-view.md, DECISIONS §114).
 //!
-//! This is the program's logic, lifted out so it runs on the host in milliseconds; `user/src/pmap.rs`
+//! This is the program's logic, lifted out so it runs on the host in milliseconds; `components/src/pmap.rs`
 //! is the syscall and the two output streams and nothing else. The crate and the program share a
 //! name because they are one thing split at the IO boundary, the same convention `crates/ps` and
-//! `user/src/ps.rs` follow.
+//! `components/src/ps.rs` follow.
 //!
 //! # What it does not do, which is the whole point
 //!
@@ -92,7 +92,7 @@
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming milestone
 //! 126's own reasoning). `pmap` is the name every reader already knows from outside this project.
-//! Sharing it with `user/src/pmap.rs` is the crate-and-program pair the naming tenet describes:
+//! Sharing it with `components/src/pmap.rs` is the crate-and-program pair the naming tenet describes:
 //! `ps`, `coremark`, `line_editor` and `compositor` all keep one name across the two.
 
 #![cfg_attr(not(test), no_std)]

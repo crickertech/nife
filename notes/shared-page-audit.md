@@ -42,21 +42,21 @@ against one.
 
 | Contract | Server | Client(s) | Files |
 |---|---|---|---|
-| blk IPC | block server | FS server | `crates/filesystem_proto` (`blk`), `user/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
+| blk IPC | block server | FS server | `crates/filesystem_proto` (`blk`), `components/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC | FS server | every FS client | `crates/filesystem_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
-| file IPC, narrowed | the three caretakers | one confined program each | `user/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
-| the sink | `user/src/sink.rs` | a redirected program | `crates/byte_sink_proto` |
-| the serial terminal | `user/src/line_editor.rs` | the shell | `crates/line_editor` |
-| the console | `user/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
-| the display | `user/src/gpu_driver.rs` | painter, terminal, compositor | `crates/graphics_proto` |
-| the compositor | `user/src/compositor.rs` | window clients, the input source | `crates/compositor` |
-| the display terminal | `user/src/display_terminal.rs` | an application | `crates/video_terminal` |
-| credentials | `user/src/credentialer.rs` | provisioner, verifier | `crates/credential_proto` |
+| file IPC, narrowed | the three caretakers | one confined program each | `components/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
+| the sink | `fixtures/src/sink.rs` | a redirected program | `crates/byte_sink_proto` |
+| the serial terminal | `components/src/line_editor.rs` | the shell | `crates/line_editor` |
+| the console | `components/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
+| the display | `components/src/gpu_driver.rs` | painter, terminal, compositor | `crates/graphics_proto` |
+| the compositor | `components/src/compositor.rs` | window clients, the input source | `crates/compositor` |
+| the display terminal | `components/src/display_terminal.rs` | an application | `crates/video_terminal` |
+| credentials | `components/src/credentialer.rs` | provisioner, verifier | `crates/credential_proto` |
 | the wall clock | `kernel/src/user/clock_service.rs` | init, the shell, `date` | `crates/clock_proto` |
-| the C seam | `user/src/c_shim.rs` (C) | `user/src/c_confiner.rs` | `crates/c_seam`, `user/c/c_seam.c` |
+| the C seam | `fixtures/src/c_shim.rs` (C) | `fixtures/src/c_confiner.rs` | `crates/c_seam`, `fixtures/c/c_seam.c` |
 | the input ring | the compositor | the keyboard driver | `crates/compositor` (`proto::ring`) |
-| sockets | `user/src/net_stack.rs` | a client, `std::net`, `ntp` | `crates/socket_proto` |
-| the virtio DMA regions | four userspace drivers | the **device** | `user/src/net_transport.rs`, `kbd.rs`, `entropy.rs`, `display.rs` |
+| sockets | `components/src/net_stack.rs` | a client, `std::net`, `ntp` | `crates/socket_proto` |
+| the virtio DMA regions | four userspace drivers | the **device** | `components/src/net_transport.rs`, `kbd.rs`, `entropy.rs`, `display.rs` |
 
 The last row is not a process pair and is in the table on purpose: a DMA region is a page one party
 writes and another reads, the other party is a device rather than a program, and the question this
@@ -89,7 +89,7 @@ in flight; each is named so the clearance above is not read as covering work it 
   `crates/socket_proto` there stops at `OP_CLOSE` and `net_stack.rs` has no listener. What is
   audited here is the outbound contract only. The `net_transport.rs` finding below applies to both,
   the file being identical across them.
-- **`crates/credential_proto` and `user/src/credentialer.rs`** are being substantially rewritten with an
+- **`crates/credential_proto` and `components/src/credentialer.rs`** are being substantially rewritten with an
   NTLM path. The clearance recorded below is of the version on `main` and does not transfer.
 - **The clock page's seqlock** has a live finding of its own from another lane (see finding 7's last
   paragraph). This audit did not re-derive it and does not claim `clock_proto` is clear; it uses that
@@ -195,7 +195,7 @@ large for an audit lane and too specific to leave as prose.
 
 ### 2. `fs_nameset_caretaker` checks a name and forwards it without re-staging it
 
-**(a) The window.** `user/src/fs_nameset_caretaker.rs`'s serve loop:
+**(a) The window.** `components/src/fs_nameset_caretaker.rs`'s serve loop:
 
 ```rust
 if filtered && v.takes_name() && v.operand == verb::Operand::Name {
@@ -245,7 +245,7 @@ a name at all. `fs_subtree_caretaker` cannot have it either, for the reason in t
 
 ### 3. The console server takes an unbounded byte count from its client
 
-**(a) The window.** `user/src/console.rs`:
+**(a) The window.** `components/src/console.rs`:
 
 ```rust
 let (len, _, _) = recv(REQUEST);
@@ -285,7 +285,7 @@ the comment now says who supplies the length and what the clamp is for.
 
 ### 4. Two unchecked arithmetic sites in the compositor's window client
 
-**(a) The windows.** `user/src/window.rs` reads its geometry out of the control page the compositor
+**(a) The windows.** `fixtures/src/window.rs` reads its geometry out of the control page the compositor
 publishes:
 
 ```rust
@@ -317,7 +317,7 @@ on any path the tests exercise.
 
 ### 5. The compositor composites surfaces whose owners are not blocked
 
-**(a) The window.** `user/src/compositor.rs`'s `serve_frame` iterates every committed window, and
+**(a) The window.** `components/src/compositor.rs`'s `serve_frame` iterates every committed window, and
 `source(i)` builds a `&'static [u32]` over client `i`'s surface. The invariant claimed next to it is:
 
 > The caller is blocked in `CALL` throughout, which is what makes reading a client's pixels safe
@@ -355,7 +355,7 @@ Not a double fetch. It is what the enumeration the lens required turned up: to a
 checked twice" you must first list every value read from a page a hostile party writes, and two of
 those values are not checked at all.
 
-**(a) The window.** `user/src/net_transport.rs`'s `rx_take` and `user/src/keyboard_driver.rs`'s drain loop both
+**(a) The window.** `components/src/net_transport.rs`'s `rx_take` and `components/src/keyboard_driver.rs`'s drain loop both
 take a used-ring element and use its 32-bit `id` as a buffer index:
 
 ```rust
@@ -410,14 +410,14 @@ below.
 **(a) The window.** Three writers in this subsystem publish data and then publish an index that
 advertises it, each with a fence between and a comment explaining the fence:
 
-- `user/src/window.rs`: writes the damage rectangle, `fence(SeqCst)`, writes `SEQ`. "The sequence
+- `fixtures/src/window.rs`: writes the damage rectangle, `fence(SeqCst)`, writes `SEQ`. "The sequence
   bump must be visible after the pixels and the rectangle it describes, or the compositor could
   composite a frame we have not finished writing."
-- `user/src/display_terminal.rs`: the same, with the same comment.
-- `user/src/keyboard_driver.rs`'s `ring_publish`: `fence(SeqCst)`, then writes `TAIL`. "The bytes must be visible
+- `components/src/display_terminal.rs`: the same, with the same comment.
+- `components/src/keyboard_driver.rs`'s `ring_publish`: `fence(SeqCst)`, then writes `TAIL`. "The bytes must be visible
   before the tail that advertises them."
 
-`user/src/compositor.rs` is the reader of all three, and it read with `rd32`, a plain
+`components/src/compositor.rs` is the reader of all three, and it read with `rd32`, a plain
 `read_volatile`, with no fence anywhere: `serve_frame` loads `SEQ` and then loads the four damage
 fields and (via `paint`) the pixels; `drain_input` loads `TAIL` and then loads the bytes.
 
@@ -497,7 +497,7 @@ confiner writes the input and the frame is zeroed at wiring. The Rust side reads
 fields and compares against a constant.
 
 The seam also turned out to be **better than its reputation**. `crates/c_seam` now parses the
-`#define`s out of `user/c/c_seam.c` and asserts they equal the Rust constants, so the "written twice
+`#define`s out of `fixtures/c/c_seam.c` and asserts they equal the Rust constants, so the "written twice
 with nothing checking that the two agree" warning in `CLAUDE.md` is stale. Correcting that file is
 the maintainer's; it is reported rather than edited here.
 

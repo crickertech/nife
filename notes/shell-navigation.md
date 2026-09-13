@@ -12,7 +12,7 @@ every user forever. So the bar is not "is this more capability-pure", it is **"d
 actually force this"**, and three divergences clear it. The rest of Unix's surface survives.
 
 The pure half is `crates/grant_plan/src/nav.rs` (host-tested in milliseconds); the requests are
-`user/src/swish.rs`; the wire verb `rm` needed is `filesystem_proto::fs::UNLINK` with `Server::unlink` behind
+`components/src/swish.rs`; the wire verb `rm` needed is `filesystem_proto::fs::UNLINK` with `Server::unlink` behind
 it; the guest proof is `kernel/src/user/shell_navigation_tests.rs` and the host half is
 `xtask::shell_navigation_landed`.
 
@@ -146,7 +146,7 @@ subtree away**.
 
 ## Two shells, two roots, and neither can name the other's files
 
-The headline, and it is proven with the **real shell binary**: `user/src/swish.rs` grew a role that
+The headline, and it is proven with the **real shell binary**: `components/src/swish.rs` grew a role that
 reads a script instead of a keyboard, holding a `fs_subtree_caretaker`'s narrowed endpoint where the
 interactive one holds a terminal. So what the guest test exercises is what the prompt exercises, not
 a reimplementation of it, and the thing being confined is a shell.

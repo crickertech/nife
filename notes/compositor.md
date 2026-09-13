@@ -2,7 +2,7 @@
 
 Milestone 33, rung two of the display ladder. One screen, several mutually distrusting clients, each
 holding a capability to its own surface. The code halves are `crates/compositor` (the contract and the
-pixel arithmetic), `user/src/compositor.rs` (the compositor), and `user/src/window.rs` (a client); this is
+pixel arithmetic), `components/src/compositor.rs` (the compositor), and `fixtures/src/window.rs` (a client); this is
 the prose half, the same split [framebuffer-contract.md](framebuffer-contract.md) makes for rung one
 and [terminal-contract.md](terminal-contract.md) for the terminal.
 
@@ -139,7 +139,7 @@ compares every pixel of the composed screen against the two VT engines it ran it
 delivered to the wrong client is a wrong picture. Two things came out of it that this note had not
 foreseen:
 
-- **The producing side of "who may deliver input" got a real driver.** `user/src/keyboard_driver.rs` is a confined
+- **The producing side of "who may deliver input" got a real driver.** `components/src/keyboard_driver.rs` is a confined
   virtio-input driver holding the ring's mapping and the doorbell, and nothing else. It holds no
   client endpoint and cannot name a client, so it cannot influence focus; and the doorbell it rings
   carries nothing, so the ring's mapping really is the whole of its power to type.
@@ -375,9 +375,9 @@ Stated plainly, because a demonstrator's honest limits are part of the deliverab
 | piece | file |
 |---|---|
 | the contract and the pixel arithmetic, host-tested | `crates/compositor/src/lib.rs` |
-| the compositor | `user/src/compositor.rs` |
-| a client, with its roles and its attacks | `user/src/window.rs` |
+| the compositor | `components/src/compositor.rs` |
+| a client, with its roles and its attacks | `fixtures/src/window.rs` |
 | the wiring (frames, endpoints, grants) | `kernel/src/user/compositor_service.rs` |
 | the tests | `kernel/src/user/compositor_tests.rs` |
 | the host-side scanout check and its negative control | `xtask/src/main.rs` |
-| the display driver it flushes to, unchanged | `user/src/gpu_driver.rs` |
+| the display driver it flushes to, unchanged | `components/src/gpu_driver.rs` |

@@ -7,7 +7,7 @@ it the moment that check could see straight. *(Number provisional until the merg
 It was minted with no gate, on the grounds that the cause was measured and the fix understood, and
 that held. What it leaves behind is a check: `script/shell-check` now fails if the kernel reported
 killing any user thread during the run, on both architectures. Proven able to fail rather than
-assumed, `user/src/worker.rs` was temporarily patched to trap on one argument and the gate went red
+assumed, `fixtures/src/worker.rs` was temporarily patched to trap on one argument and the gate went red
 naming the thread.
 
 **In brief.** The `login` thread died on **every** boot, on **both** architectures, and had been
@@ -86,7 +86,7 @@ Proving the new assertion could fail meant making something trap on purpose. `wo
 fault on one argument and `script/shell-check` run against it. The assertion fired, and so did
 something else: **the prompt never came back.** `swish` waits on a job's result endpoint, and a
 thread the kernel killed never sends, so a spawned command that faults hangs the shell rather than
-returning a status. Recorded in `user/src/swish.rs`'s `BUGS`; an ordinary non-zero exit is fine and
+returning a status. Recorded in `components/src/swish.rs`'s `BUGS`; an ordinary non-zero exit is fine and
 is not this case.
 
 ## BUGS
@@ -105,7 +105,7 @@ is not this case.
   passes every check in the tree, which is milestone 232's (audit every check against two questions)
   territory rather than this one's.
 - **A spawned command that traps hangs the prompt**, found by the experiment above and recorded in
-  `user/src/swish.rs`'s `BUGS`. Not fixed here: the pieces exist (init supervises every child) and
+  `components/src/swish.rs`'s `BUGS`. Not fixed here: the pieces exist (init supervises every child) and
   what a faulted job should look like at the prompt is a design question `grant_plan::spawnproto`
   has no word for.
 

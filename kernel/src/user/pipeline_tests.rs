@@ -1,6 +1,6 @@
 use super::*;
 
-/// The last line `user/src/swish.rs`'s pipeline role prints. Must match `PIPELINE_DONE` there.
+/// The last line `components/src/swish.rs`'s pipeline role prints. Must match `PIPELINE_DONE` there.
 const DONE: &[u8] = b"== pipelines done\n";
 
 /// The script's transcript, run **once** and shared by every assertion below.
