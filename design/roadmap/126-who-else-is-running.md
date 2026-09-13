@@ -684,8 +684,12 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
 - **Recorded.** `pmap` prints one row per page with no coalescing and cannot tell a device mapping
   from ordinary memory, both stated in `crates/pmap`'s module docs, because the listing reads the
   revocation log.
-- **Recorded.** `uptime` prints no load average and no logged-in-user count, and `watch` cannot be
-  cut short with `^C`; the reasons are in `crates/uptime` and `crates/watch`'s own module docs.
+- **Recorded.** `uptime` prints no load average and no logged-in-user count; the reason is in
+  `crates/uptime`'s own module docs. (This bullet also recorded that `watch` could not be cut short
+  with `^C`, citing a crate beside it. Milestone 281 deleted that program and its crate, so both the
+  limitation and the file it cited are gone. The edit here is confined to dropping a citation that
+  now resolves to nothing; the rest of this block's account of `watch` is untouched and is the
+  integrator's.)
 - **Outstanding.** The "where the process view comes from" fork was never written down. The tree
   took the subtree option by construction, with `ps` reading the rendezvous survey, but no file
   under `design/decisions/` records it, so a non-subtree view is neither built nor refused. Checked

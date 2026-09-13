@@ -109,10 +109,11 @@
 //!   only once there is something to sort by, which means the accounting `top` needs.
 //! - **The state is a snapshot per row, not per table.** See the `BUGS` section of
 //!   notes/process-view.md: a row read early in the walk may be stale by the time the table prints.
-//! - **No automated run spawns `ps`, `watch` or `pgrep`.** This crate's own logic has host tests
-//!   and `kernel::user::survey_tests` covers the syscall underneath, but the three shipped
+//! - **No automated run spawns `ps` or `pgrep`.** This crate's own logic has host tests
+//!   and `kernel::user::survey_tests` covers the syscall underneath, but both shipped
 //!   programs are reachable only from an interactive prompt (`script/shell`): neither
-//!   `script/test` nor `script/shell-check` types them. Found 2026-08-27 while raising
+//!   `script/test` nor `script/shell-check` types them. (It said "three" and named `watch` until
+//!   milestone 281 deleted that program.) Found 2026-08-27 while raising
 //!   [`MAX_ROWS`] with the kernel's thread ceiling, which left a static measurement
 //!   (`-Z emit-stack-sizes` against `system_initializer::CHILD_STACK_PAGES`; the numbers are on
 //!   [`MAX_ROWS`]) as the only check that the bigger stack-resident buffer still fits. That is a
@@ -139,12 +140,16 @@
 /// **128 from milestone 126 until 2026-08-27**, when the kernel's ceiling doubled on a measured
 /// peak (`sched::MAX_THREADS` carries the numbers) and this followed it, which is that assertion
 /// working as designed. The raise is not free here, because a `[Row; MAX_ROWS]` is a stack
-/// allocation in three shipped programs, so it was measured rather than waved through:
-/// `-Z emit-stack-sizes` puts `_start` at 4,240 bytes in `ps`, 4,320 in `pgrep` and 8,464 in
-/// `watch` (which holds two of these buffers, one across the whole run and one per redraw),
-/// against the 12 pages (49,152 bytes) `system_initializer::CHILD_STACK_PAGES` maps under every
-/// child. The worst of the three spends 17% of its stack on this, and nothing else in these
-/// programs is deep: `collect` is 368 bytes and the next frame down is smaller still.
+/// allocation in both shipped programs, so it was measured rather than waved through:
+/// `-Z emit-stack-sizes` puts `_start` at 4,240 bytes in `ps` and 4,320 in `pgrep`, against the 12
+/// pages (49,152 bytes) `system_initializer::CHILD_STACK_PAGES` maps under every child. Under 9% of
+/// the stack each, and nothing else in these programs is deep: `collect` is 368 bytes and the next
+/// frame down is smaller still.
+///
+/// **It was three programs and a worse number until milestone 281.** `watch` held *two* of these
+/// buffers, one across its whole run and one declared inside its redraw loop, and measured 8,464
+/// bytes: 17% of the stack, the worst of the three. It was deleted rather than fixed, and the
+/// figures above are what is left.
 pub const MAX_ROWS: usize = 256;
 
 /// One line of the listing: a thread and what it is doing.

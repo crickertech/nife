@@ -3589,10 +3589,6 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The filter over that listing (milestone 126). Same reason, and one more: "naming a member
         // confers nothing over it" is a property of the rights model and holds on both.
         ("pgrep", "pgrep"),
-        // `ps`'s domain walk, redrawn (milestone 126). Same reason as `ps`: the redraw claim (a
-        // capability model plus a terminal contract, neither instruction-set-specific) has to hold
-        // on both archives or it is not a claim about the system.
-        ("watch", "watch"),
         // The scheduler (milestone 129). Both archives: "a scheduled entry can do exactly what it
         // was granted" is a claim about the capability model, and one that held on one instruction
         // set would not be one.
@@ -4452,9 +4448,6 @@ fn initrd_aarch64() -> bool {
         // `pgrep` (milestone 126): that listing, filtered to the members a selector names.
         // It must ship with `ps` because the two together are the claim.
         ("pgrep", "pgrep"),
-        // `watch` (milestone 126): `ps`'s own domain walk, redrawn a bounded number of times
-        // instead of printed once.
-        ("watch", "watch"),
         // `timetable` (milestone 129): scheduled execution whose every entry is a grant.
         ("timetable", "timetable"),
         // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
@@ -6628,7 +6621,7 @@ fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 63] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -6792,17 +6785,6 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
         "caps pgrep",
         &["cap 7  endpoint  domain   ENUMERATE", "do nothing to them"],
     ),
-    // **`watch`, at the real prompt** (milestone 126). Same domain, same header, redrawn a bounded
-    // number of times rather than printed once. The substring check is agnostic to how many times
-    // `TID  STATE` actually appears (each redraw writes it again, prefixed by the `CSI 2J`/`CSI H`
-    // erase-and-home bytes this check does not need to parse), so a green line here proves the
-    // domain grant reached this program and at least one frame rendered; the redraw-not-scroll claim
-    // itself is `kernel::user::watch_tests`', driven by the real `SURVEY` syscall on both ISAs.
-    ("watch 3", &["TID  STATE"]),
-    // And the same visibility check `caps ps`/`caps pgrep` get: the domain capability previews
-    // before anything is spawned, on the one manifest field that differs from `ps`'s own (a required
-    // argument, since this program has no `^C` and bounds itself by a typed count instead).
-    ("caps watch 3", &["cap 7  endpoint  domain"]),
     // **`uptime`, at the real prompt** (milestone 126). No domain, no clock: the manifest is
     // `worker`'s, because `monotonic_nanos` is granted to every process unconditionally
     // (kernel/src/arch/*/timer.rs's exception to DECISIONS §10). A green line here proves the

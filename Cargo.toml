@@ -72,7 +72,6 @@ members = [
     "crates/swish",
     "crates/timetable",
     "crates/uptime",
-    "crates/watch",
 ]
 
 # The vendored RedoxFS engine (vendor/redoxfs) and the host tool that wraps it (tools/redoxfs_host)
