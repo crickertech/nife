@@ -50,9 +50,21 @@
 //!   so this is a property of the contract rather than an oversight, but a reader expecting a
 //!   generic env dump should know the shape is closed.
 //!
-//! Name: provisional, introduced 2026-08-26 alongside `grant_plan::Manifest::config`. Unix's
-//! own name for exactly this (`printenv(1)`), a term of art already right per this tree's own
-//! naming convention for standard terms; unrated by calef.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Introduced 2026-08-26
+//! alongside `grant_plan::Manifest::config`. Unix's own name for exactly this (`printenv(1)`), a
+//! term of art already right per this tree's naming convention for standard terms.
+//!
+//! **It passes the test `watch` failed the same day**, which is the reason to keep a borrowed word
+//! rather than merely the reason to like it. A borrowed name is the best available when it is true
+//! and the worst when it is not: upstream `watch` re-runs an arbitrary command and this tree's
+//! `watch` never could, so the recognition was false. Upstream `printenv` with no arguments prints
+//! the whole environment, which is exactly this program, and the section above records that
+//! checked rather than assumed.
+//!
+//! Refused `env`, which names `env(1)`, a program that also *sets* variables and *runs* a command;
+//! neither is possible here and the name would promise both. Refused `config` and `environment` as
+//! generic words that could name almost anything in an operating system, and `environment_proto`
+//! already spends the stem on the wire format.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
