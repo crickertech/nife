@@ -850,7 +850,7 @@ test at all in the configuration being measured.
 |---|---|---|---|---|---|---|
 | as the sweep measures it, before | 1,043 | 499 | 455 | 48 | 41 | **54.6%** |
 | with `builder` compiled, before any new test | 1,043 | 733 | 211 | 58 | 41 | **78.9%** |
-| **after milestone 280** | MUT4 | CAU4 | MIS4 | TIM4 | 41 | **KILL4** |
+| **after milestone 280** | 1,056 | 908 | 47 | 60 | 41 | **95.4%** |
 
 "Killed" is caught plus timeout over viable, the same arithmetic as the baseline table above. The
 published 52% was a one-eighth sample; the whole-crate figure in that same configuration is 54.6%,
@@ -904,16 +904,16 @@ including the mutant that replaces the whole function with `()`.
 
 ### The ledger for this crate
 
-Thirty-four tests were added across three passes, each written against a named survivor rather than
-against a feature list. The dispositions of what the final run still reports, using this note's own
+Forty-nine tests were added across four passes (the crate had 32 and has 81), each written against a
+named survivor rather than against a feature list. The dispositions of what the final run still reports, using this note's own
 vocabulary:
 
 | | count | what they are |
 |---|---|---|
-| killed | KILLED_N | tests written and verified by re-running the suite under the mutation |
-| equivalent | EQUIV_N | proved unable to differ; the groups are below |
-| hang | TIM4 | every timeout is a loop counter or a loop bound, listed below |
-| deferred | DEFER_N | real gaps whose test needs a fixture sitting on an exact byte boundary |
+| killed | 164 | the fall in missed mutants from 211, each kill verified by the sweep itself |
+| equivalent | 17 | proved unable to differ; the groups are below |
+| hang | 60 | every timeout is a loop counter or a loop bound, listed below |
+| deferred | 30 | real gaps whose test needs a fixture sitting on an exact byte boundary |
 
 **The equivalence groups, because a verdict reached by reading is wrong about ten percent of the
 time and these are the ones to re-check first.**
@@ -926,34 +926,54 @@ time and these are the ones to re-check first.**
   them: Rust's left-associativity turns `terms - lo * per` into `(terms - lo) + per`, not the
   underflow the mutant looks like.
 - **The output cursor where nothing reads it (5).** `Renderer::col` has two consumers: a wrap
-  decision, and `close_line`'s "is a line open" test. Inside `rule`, `code_line` and `flush_table`'s
-  row loops the next thing to touch it is `close_line`, and every row ends with `col += width` for a
-  width of at least one, so a wrong value cannot reach zero and cannot reach a wrap. The mutants
+  decision, and `close_line`'s "is a line open" test. Inside `rule` and `flush_table`'s row loops
+  the next thing to touch it is `close_line`, and every row ends with `col += width` for a width of
+  at least one, so a wrong value cannot reach zero and cannot reach a wrap. The mutants
   that **can** are killed: a blank line inside a fence (the one code line of zero visible width), an
   image followed by text that wraps, and a quoted paragraph at two levels.
-- **Absorbed by the code after them (6).** `line_done`'s explicit space-skip after a block quote
-  marker is redundant with the `indent_of` call on the next line; `heading_at` guarantees a space at
-  the index `heading` slices from, and `inline` skips leading spaces, so an off-by-one there emits
-  the same words; `read_align` starting at the `|` instead of past it produces an empty first spec,
-  which it already skips; `flush_table`'s `vis > width` assigns the same value under `>=`; the
-  column-selection `c < cols[r]` under `<=` reads a `(0, 0)` cell that is the same as its own else
-  branch; and `search`'s `done < count` under `<=` runs one more iteration that asks for zero
-  postings and breaks.
+- **Absorbed by the code after them (8).** `line_done`'s explicit space-skip after a block quote
+  marker is redundant with the `indent_of` call on the next line, twice; `heading_at` guarantees a
+  space at the index `heading` slices from, and `inline` skips leading spaces, so an off-by-one
+  there emits the same words; `read_align` starting at the `|` instead of past it produces an empty
+  first spec, which it already skips; `flush_table`'s `vis > width` assigns the same value under
+  `>=`; the column-selection `c < cols[r]` under `<=` reads a `(0, 0)` cell that is the same as its
+  own else branch; `search`'s `done < count` under `<=` runs one more iteration that asks for zero
+  postings and breaks; and `finish`'s `used > 0` under `>=` ends the document by classifying a line
+  of no bytes, which emits nothing.
 - **`title_of`'s line walk (1).** `while start < text.len()` under `<=` runs one extra iteration on
   an empty slice, which is never a heading.
 
-**The deferrals, and what each one's test would cost.** Every one needs a fixture sitting on an
-exact byte boundary of a fixed-size arena, which is a test that pins an implementation constant
-rather than a property: the table text arena's 8,192-byte fill point (`take_table_row`, 4), the
-one-past-the-end reads into the line buffer's stale bytes (4), and the inline scanner's
-`i + 1` forms at the exact last byte of a line (the rest). They are gaps rather than equivalents and
-are recorded as gaps. A mutation of any of them changes behaviour only for an input this
-repository's markdown does not contain, which is why the deferral is honest rather than tidy: the
-renderer's corpus argument is that the input set *is* this repository.
+**The deferrals, and what each one's test would cost.** Thirty, and they are gaps rather than
+equivalents, recorded as gaps:
 
-**The timeouts are hangs, and the evidence is that every one of them is loop control.** All TIM4 are
-`+=` or `-=` on a loop counter, or the bound of a `while`, in `inline`, `unit`, `unit_wrapped`,
-`pad`, `trim`, `char_len`, `closer`, `take_table_row`, `read_align`, `lookup`, `postings`, `offer`,
-`search` and `title_of`. A mutant that makes a loop stop advancing hangs rather than lying, which is
+- **The inline scanner's `i + 1` forms at the exact last byte of a line (19).** Every one is a
+  lookahead guarded by `i + 1 < end`, and the mutants either drop the guard or read one byte past
+  the classified span. A test needs a line whose final byte is the opening half of a two-byte
+  marker: `~`, `!` or `*` as the last character, with the construct it would open truncated by the
+  line ending. Fifteen of the nineteen also need the depth counter at its bound at the same time.
+- **The table arenas at their exact fill points (5).** `take_table_row`'s row buffer flushes when
+  the cell text would pass 8,192 bytes, and the mutants move that threshold by one or change which
+  sum is compared. A test has to construct a table whose cumulative cell text lands on 8,192
+  exactly, which pins an implementation constant rather than a property, and `read_align`'s cell
+  walk wants the same.
+- **The output cursor where it feeds a wrap (4).** `unit`, `unit_bytes`, `unit_wrapped` and
+  `before_unit`, the four places `col` is read again before `line_start` resets it. The three passes
+  above killed the ones that reach zero or move a visible wrap; what is left needs the cursor wrong
+  by an amount that lands on a wrap boundary.
+- **`past_quote`'s loop bound (2).** Its three length tests are separated by the blank-quoted-line
+  test above; the two on the loop condition itself want a fence opened at a depth greater than the
+  markers any line inside it carries, at the exact byte where the line ends.
+
+A mutation of any of these changes behaviour only for an input this repository's markdown does not
+contain. That is why the deferral is honest rather than tidy, and it is also the limit of the
+renderer's own argument: it was written instead of taking `pulldown-cmark` on the grounds that the
+input set *is* this repository, so a gap outside that set is exactly the cost that bargain has.
+
+**The timeouts are hangs, and the evidence is that every one of them is loop control.** Fifty-seven
+of the 60 are `+=` or `-=` on a loop counter or the bound of a `while`, spread over `inline` (12),
+`unit_wrapped` (6), `lookup` (5), `line_done` (5), `closer` (4), `read_align` (3), `pad` (3), and
+eleven others. The remaining three replace a whole function whose return value is the loop's step:
+`char_len -> 0` and `closer -> Some(0)`/`Some(1)`, each of which leaves the caller advancing by
+nothing. A mutant that makes a loop stop advancing hangs rather than lying, which is
 the tests noticing; the note's scope section is explicit that a timeout on a mutant that could not
 hang would be triaged as a survivor instead, and none of these is that.

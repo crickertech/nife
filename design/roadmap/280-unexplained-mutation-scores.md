@@ -30,7 +30,7 @@ Whole-crate runs, all three at the pinned tool version on the same machine:
 |---|---|---|---|---|---|---|
 | as the sweep measures it, before | 1,043 | 499 | 455 | 48 | 41 | **54.6%** |
 | with `builder` compiled, before any new test | 1,043 | 733 | 211 | 58 | 41 | **78.9%** |
-| **after this milestone** | MUT4 | CAU4 | MIS4 | TIM4 | 41 | **KILL4** |
+| **after this milestone** | 1,056 | 908 | 47 | 60 | 41 | **95.4%** |
 
 The published 52% came from a one-eighth round-robin sample (56 caught, 60 missed); the whole-crate
 number in that same configuration is 54.6%, so the sample was honest about a crate being measured
