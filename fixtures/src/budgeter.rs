@@ -1,6 +1,7 @@
-//! The budgeter: a program that spends exactly the memory it was granted, and reports how much.
+//! `memory_grant_depleter`: a program that spends exactly the memory it was granted, and reports
+//! how much.
 //!
-//! Milestone 31 phase 1. This is what makes `run --mem N budgeter` *real* rather than
+//! Milestone 31 phase 1. This is what makes `memory_grant_depleter --mem N` *real* rather than
 //! parsed-and-ignored. The shell splits `N` pages off its own untyped budget and delegates that
 //! untyped to this program (init inserts it at slot 1); the program then maps pages out of it, one
 //! at a time, until the budget is exhausted, and reports the count on its result endpoint (slot 0).
@@ -16,22 +17,27 @@
 //! reported count is `N` minus the handful of pages the tables cost. That the count tracks `N`, and
 //! collapses to zero with no grant, is the proof the budget is real.
 //!
-//! # The budgeter's world
+//! # What this program holds
 //!
 //! - slot 0: the result endpoint (SEND: report the page count).
 //! - slot 1: an untyped budget (the delegated `--mem` grant). Absent when `--mem` was 0.
 //!
-//! Name: provisional. Introduced 2026-07-28 with the grant expression, and never argued for
-//! itself. The case, made here so calef has one to rule on. It is an agent noun in the family
-//! milestone 63 argues for while settling `os_primitives_benchmarker`, where the reasoning is
-//! that "the agent noun names the producer, distinct from the product" and the family is listed
-//! as `broker`, `spawner`, `painter`, `budgeter`, `compositor` and `credentialer`. That citation
-//! is the form rather than this stem, which is the whole gap: 63 uses `budgeter` as evidence that
-//! the family exists and never asks whether this member earned its place. It did. The program
-//! spends exactly the memory it was granted and reports the count, so the stem is the verb of
-//! what it does to the thing it was handed, and the plain resource noun `budget` would name the
-//! grant instead of the program that exhausts it, which is the same mistake 63 refused for the
-//! credential service in the other direction.
+//! Name: ratified 2026-09-13 (calef, a naming-ratification session), replacing a provisional name
+//! that had stood since 2026-07-28. Refused `budgeter` (the incumbent: it reads as a program that
+//! *manages* a budget, where this one exists to exhaust one, and the bare stem names neither which
+//! budget nor that depletion is the point), `budget_spender` and `grant_spender` (both name the
+//! object, but spending is what any program does with a grant; depletion is the specific claim,
+//! that this one runs the grant to zero on purpose as the proof the budget is enforced rather than
+//! advisory), `memory_grant_depleater` (calef's own spelling in the ratifying session, corrected
+//! in it: "depleater" is not a word, and the agent noun from "deplete" is `depleter`).
+//! The correction is recorded rather than quietly applied because the transcript survives the
+//! session: a reader who later meets his `depleater` should be able to see why the tree spells it
+//! otherwise, which is what AGENTS.md means by correcting yourself loudly.
+//! **What the rename costs, stated because a reader should meet it.** Milestone 63 cites `budgeter`
+//! as a member of the agent-noun family it settles (`broker`, `spawner`, `painter`, `budgeter`,
+//! `compositor`, `credentialer`), using this stem as evidence the family exists. The block is BUILT
+//! and keeps the word it was written with; `memory_grant_depleter` is still an agent noun, so the
+//! family survives, but this member leaves that list and 63 carries a line saying so.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
