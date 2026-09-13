@@ -25,17 +25,15 @@ one of four consumers; and a timer object with a blocking `WAIT` has **one** wak
 not meet milestone 106's own title, which is a wait ending on *either* the interrupt or the deadline.
 Option 1 is that shape with the blocking removed, which is what makes it work.
 
-**The cost accepted.** This is two builds rather than one. Milestone 151 (notification objects)built) must land first, because without the TCB binding this buys a thread a timer and no way to
-wait on a timer and a message at once. Option 1 is 151 plus one object and was priced that way.
+**The cost accepted.** This is two builds rather than one. Milestone 151 (notification objects)
+must land first, and is `NOT-STARTED`: without the TCB binding this buys a thread a timer and no
+way to wait on a timer and a message at once. Option 1 is 151 plus one object and was priced
+that way.
 
-*(Was PROPOSED from 2026-09-05, written by milestone 263's lane, which named no winner deliberately.)*
-invalidates the premise of a decision calef made the same day. *(Section number provisional until the
-merge queue lands it.)*
-
-**No recommendation.** This is a syscall-surface question, which is calef's under
-[§10](10-capability-microkernel.md) and [§16](16-object-revocation.md), and AGENTS.md's
-own rule is that an irreversible fork arrives with options rather than a winner. What this file owes
-is the options with their costs, which is the six questions answered rather than argued.
+*(Was `PROPOSED` from 2026-09-05, written by milestone 263's lane, which named no winner
+deliberately: it was raised because that spike's answer invalidated the premise of a decision calef
+had made the same day, and AGENTS.md's rule is that an irreversible fork arrives with options rather
+than a recommendation. He ruled it the same day it was written.)*
 
 ## What is being decided
 
@@ -138,9 +136,12 @@ service, and that reason is gone.
 
 ## What this file does not do
 
-**It does not recommend, and that is on purpose.** AGENTS.md: *"Recommend on reversible forks; give
+**It did not recommend, and that was on purpose.** AGENTS.md: *"Recommend on reversible forks; give
 options only on irreversible ones"*, and a syscall-surface addition is the named example on the
-irreversible side. Milestone 263's lane priced the options and stops here.
+irreversible side. Milestone 263's lane priced the options and stopped there; calef ruled from the
+prices. Kept in the past tense rather than deleted, because how a decision was reached is part of
+the record, and a reader who finds a file that names a winner should be able to see that the winner
+was not this file's to name.
 
 **It also does not amend [§139](139-cycle-counter-authority.md)**, which says *"There is no precedent
 in this tree for a per-thread system-register bit maintained across a context switch."* Milestones 229
