@@ -205,18 +205,17 @@ own "this stays owed against a kernel-side consumer appearing". This block only 
 - **Milestone 151.** Unblocked in the sense that it is now on the critical path rather than beside it:
   every surviving option above composes with a notification object, so 151 is a prerequisite of the
   answer rather than an enhancement to it.
-- **Recorded.** **§147's text was damaged by its own `PROPOSED` -> `DECIDED` edit**, and a lane may
-  not repair a decision section (AGENTS.md), so it is recorded here for whoever owns it next. Three
-  things, all in the first thirty lines: a mangled clause, *"Milestone 151 (notification
-  objects)built) must land first"*, which should presumably read *(notification objects, unbuilt)*;
-  an orphaned sentence fragment, *"invalidates the premise of a decision calef made the same day."*,
-  stranded between the `*(Was PROPOSED ...)*` note and the `*(Section number provisional ...)*` one,
-  left behind when the PROPOSED preamble was replaced; and, the substantive one, a
-  **`**No recommendation.**` paragraph and a whole `## What this file does not do` section arguing
-  that the file deliberately names no winner**, still standing underneath a header that names one.
-  A reader meeting §147 today is told both that option 1 was chosen and that choosing was not this
-  file's job. That is the cheap-edit-destroys-the-expensive-record shape AGENTS.md's *move fast on
-  what can be undone* names, one file over from where it names it.
+- **Done.** **§147's text was damaged by its own `PROPOSED` -> `DECIDED` edit, and the maintainer
+  repaired it the same day this lane reported it (#830).** Kept here because what was found is worth more
+  than that it is fixed. Three things, all in the first thirty lines: a mangled clause, *"Milestone
+  151 (notification objects)built) must land first"*; an orphaned sentence fragment, *"invalidates
+  the premise of a decision calef made the same day."*, left behind when the `PROPOSED` preamble
+  above it was replaced; and, the substantive one, a `**No recommendation.**` paragraph and a whole
+  `## What this file does not do` section arguing that the file deliberately names no winner, still
+  standing underneath a header that names one, so a reader was told both that option 1 was chosen
+  and that choosing was not this file's job. That is the cheap-edit-destroys-the-expensive-record
+  shape AGENTS.md's *move fast on what can be undone* names, one file over from where it names it.
+  A lane may not repair a decision section, and this one correctly did not.
 - **Recorded.** **Adding a field to `IpcTables` costs riscv64 roughly the struct again**, and
   nothing in this tree says so. Measured while pricing the registry above: growing `IpcTables` from
   15,432 to 25,696 bytes made that ISA materialize a 25,680-byte anonymous `.rodata` template of
