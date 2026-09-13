@@ -34,8 +34,8 @@
  *
  * Regenerate with:
  *
- *     dtc -I dts -O dtb -o crates/jh7110_trng/tests/fixtures/jh7110-trng-vendor-uboot.dtb \
- *                          crates/jh7110_trng/tests/fixtures/jh7110-trng-vendor-uboot.dts
+ *     dtc -I dts -O dtb -o crates/jh7110_entropy_source/tests/fixtures/jh7110-trng-vendor-uboot.dtb \
+ *                          crates/jh7110_entropy_source/tests/fixtures/jh7110-trng-vendor-uboot.dts
  */
 
 / {

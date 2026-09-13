@@ -16,15 +16,13 @@
 //!   other view). The heeder reads [`job_page_frame::INTERRUPT`] and writes the rest. No capabilities: it
 //!   touches only this page and exits. Its whole authority is one shared page.
 //!
-//! Name: provisional. Introduced 2026-07-28 with the cooperative interrupt tier (DECISIONS §24),
-//! and cited as an established family member by milestone 63 without ever being argued for
-//! itself. The case. §24 splits interrupt handling into a cooperative tier and a forcible one,
-//! and this program is the whole of the cooperative one: it reads the interrupt flag between
-//! units of work and stops when the flag is set. So the name says the exact property the tier
-//! turns on, which is that the job *heeds* rather than that it can be stopped. The agent noun
-//! follows 63's family rule. Its counterpart is `spinner`, and the pair is legible together in a
-//! way `cooperative_job` and `runaway_job` would not be, because the distinction is behaviour
-//! under one signal rather than a kind of job.
+//! Name: provisional, and ruled: calef ruled **`interrupt_heeder`** on 2026-09-13, working the
+//! unratified worklist. The defect was that `heeder` never said what it heeds, and the answer,
+//! §24's cooperative interrupt flag, was not in the name. Its counterpart `spinner` becomes
+//! `interrupt_ignorer` in the same ruling, so the pair still reads as a pair and both names now
+//! parse the same way; `interrupt_spinner` was refused because the prefix is an object for one
+//! member and not the other. **Still provisional because the rename has not happened**: milestone
+//! 175 moves this file into `fixtures/` and performs it there, rather than moving it twice.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

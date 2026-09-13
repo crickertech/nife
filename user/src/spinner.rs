@@ -13,14 +13,15 @@
 //!
 //! It holds nothing: no capabilities, and it does not even map the shared job frame it was granted.
 //!
-//! Name: provisional. Introduced 2026-07-28 as the fixture the cooperative interrupt tier cannot
-//! reach: a tight loop that touches nothing and checks nothing, so only the forcible tier of
-//! DECISIONS §24 ends it. Nothing records the choice. The case. It is an agent noun in milestone
-//! 63's family, it is the field's ordinary word for a thread that burns cycles rather than
-//! blocking, and it is `heeder`'s counterpart, which is why the two want names of the same shape.
-//! What the name does not say is that it holds no memory the shell granted it, which is the
-//! property that makes it the honest worst case; that is in the header rather than the name, and
-//! no one-word name would carry it.
+//! Name: provisional, and ruled: calef ruled **`interrupt_ignorer`** on 2026-09-13. This name was
+//! the better of the two on its own, being the field's ordinary word for a thread that burns cycles
+//! rather than blocking, which is recognition borrowed from outside. It loses that anyway so the
+//! §24 pair parses the same way: `interrupt_heeder` takes the interrupt as its object and
+//! `interrupt_spinner` would not, since this program does not spin the interrupt, it spins despite
+//! it. **Still provisional because the rename has not happened**, and the sweep is why it waits:
+//! `spinner` occurs 116 times in this tree and only about 41 are this program, the rest being the
+//! English word in `kernel/src/sched.rs`'s assertions, `crates/virtio` and a dozen notes. Milestone
+//! 175 moves this file into `fixtures/` and performs the rename there, reading every occurrence.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

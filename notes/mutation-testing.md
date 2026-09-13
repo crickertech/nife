@@ -818,6 +818,107 @@ entry**, so a wrapper that returned an empty `Elf` fails on the host rather than
 into a kernel with no segments. The mutant stays unviable and is now a recorded hole with a test
 standing where it would have stood, which is the honest disposition rather than a repair.
 
+## 2026-09-12: bounding what one mutant may allocate
+
+Milestone 277. Every scheduled run of the `mutation testing` workflow had died, and after milestone
+238 fixed the off-by-one in the shard indices exactly one cause was left: **one mutant went 1.4 GB to
+15.8 GB in twenty seconds and took the runner agent down with the machine.** The workflow's own BUGS
+header has the ten-second samples that caught it, and the reason a sixty-second sampler had reported
+innocence an hour earlier.
+
+**A clock cannot catch an allocation, and a clock was the only bound there was.** cargo-mutants
+27.1.0 offers `--timeout`, `--build-timeout`, a multiplier for each, and `--minimum-test-timeout`.
+That is the complete list, checked against `cargo mutants --help` rather than assumed, because the
+cheapest possible outcome here was that the tool already had the feature and the milestone was moot.
+It does not. On this tree the auto timeout derives to 28-51 seconds, and 16 GB is gone well inside
+that, so the bound that existed could never have fired.
+
+### The mechanism: a cargo runner
+
+cargo runs a test binary through `target.<triple>.runner` when one is set. That is the only point in
+the pipeline that sees **exactly one test binary** and neither rustc, nor cargo, nor the other `-j 2`
+job's binary, so it is the one place a genuinely per-mutant bound can live.
+`scripts/memory-bounded-runner.sh` (**name provisional**; names are calef's) sets `RLIMIT_AS` with
+`ulimit -v` and execs the binary. `script/mutation` points `CARGO_TARGET_<HOST>_RUNNER` at it for the
+length of a mutation run and nothing else in the tree does, so an ordinary `cargo test` is untouched.
+
+Putting it in `.cargo/config.toml` instead was refused for that last reason: that file would bound
+every host `cargo test` in the tree, and a memory ceiling is a property of a mutation run rather than
+of the tree.
+
+### The number, from both directions
+
+**4 GiB, and it is measured twice rather than picked.** Reading each child's own `VmPeak` across all
+**143** host test binaries (`cargo test --workspace` minus the bare-metal crates, at
+`--test-threads=4`):
+
+| | peak address space |
+|---|---|
+| largest (`board_console`) | 1,028 MiB |
+| next (`graphics_proto`) | 481 MiB |
+| mean across 143 binaries | 169 MiB |
+
+So 4 GiB is **4.0x the largest honest test binary in the tree**. The other half of the choice is the
+machine rather than the tree: `-j 2` means two test binaries can be resident at once, so a runaway in
+each costs twice the ceiling, and 8 GiB is survivable on the 16 GiB boxes this runs on where twice a
+larger ceiling would not be. Four is the largest value that keeps both true.
+
+Corroborated by lowering it until it bites, which is the half that proves the bound is enforced and
+not decorative. The honest suite is unaffected at 4 GiB and still unaffected at 1 GiB; at 256 MiB
+`board_console` fails, exactly where its measured peak says it should.
+
+### That it fires, demonstrated
+
+A bound nobody has watched kill something is decoration (DECISIONS §134 is the same argument about
+proofs). A synthetic crate whose `i += 1` cargo-mutants rewrites to `i *= 1` leaves the loop counter
+at zero forever and pushes without limit, which is the exact shape the workflow measured. Run at four
+ceilings, it dies at **whatever ceiling it is given** and nowhere else:
+
+| ceiling | died after | allocation that failed |
+|---|---|---|
+| 512 MiB | 0.4 s | 536,870,912 bytes |
+| 1 GiB | 1.7 s | 1,073,741,824 bytes |
+| 2 GiB | 3.9 s | 2,147,483,648 bytes |
+| 4 GiB | 8.6 s | 4,294,967,296 bytes |
+
+Being bounded only by the ceiling is what "unbounded" means, and it is why no clock was ever going to
+help. Under `cargo mutants` with the bound in place, that crate's full set of 8 mutants came back **8
+caught** with the runaway among them and the run exiting 0.
+
+**The accounting is the point, not the kill.** `script/mutation` treats 0 as all-caught, 2 as
+survivors and 3 as timeouts, and **everything else as a broken run that exits fatal**, so a bound that
+killed a mutant but turned the run red would be the same outcome with a new cause. It does not: at
+8.6 s the allocation failure lands well inside the 20 s minimum auto timeout, Rust's allocation error
+handler aborts the process, cargo sees a failed test, and cargo-mutants records an ordinary **caught**
+mutant. The sweep continues.
+
+The failure path is covered too. `MUTATION_MEMORY_LIMIT_KB=1024 script/mutation -p bitmap_font` fails
+the unmutated baseline and exits **4**, unchanged, with a new line naming the ceiling as the suspect,
+because an honest test binary that cannot fit under the ceiling fails in exactly the shape a broken
+baseline does and the next reader should not have to find the runner on their own.
+
+### What is not bounded, and where this is not enforced
+
+- **The build is not bounded.** This wraps the test binary, so a mutant whose damage lands in rustc is
+  still unbounded. None has been observed (the measured runaway is test-side), and a linker
+  legitimately wants a great deal of address space, so it would need a different number.
+- **It is off by default on macOS**, and that is a gap rather than a verdict. XNU **does** enforce
+  `RLIMIT_AS`, contrary to the folklore and contrary to what this lane first wrote down before
+  reading the source: `bsd/kern/kern_resource.c` hands the limit to `vm_map_set_size_limit()`,
+  `vm_map_enter()` fails with `KERN_NO_SPACE` once `map->size` passes it, and
+  `vm_map_inherit_limits()` carries it across exec, all of which has been true since at least
+  xnu-8792 (macOS 13). What is **not** known is what number is safe there, because this lane had only
+  Linux to measure on and macOS reserves address space far more freely than glibc does. Defaulting it
+  on with an unmeasured number would fail every Mac sweep at its baseline; defaulting it off and
+  saying so leaves the dev Mac exactly as exposed as it was before. Turning it on is one environment
+  variable, and whoever measures it first should write the number into the runner's header.
+- **The ceiling is address space, not resident memory**, so it over-counts reservations nothing
+  touches: `RUST_MIN_STACK` is 16 MiB here and `--test-threads=4` makes that 64 MiB of untouched stack
+  before a byte of heap. That over-count is priced into the 4x headroom rather than argued away.
+- **The weekly workflow has still never succeeded.** This was demonstrated against a synthetic
+  runaway and measured against the honest suite, both on Linux. The first green scheduled run is the
+  evidence that matters and it has not happened yet.
+
 ## 2026-09-13: `documentation`'s 52% was a crate scored with a third of its tests compiled away
 
 Milestone 280. The section above named `manual` (ratified `documentation` on 2026-09-13) as the
@@ -977,3 +1078,4 @@ eleven others. The remaining three replace a whole function whose return value i
 nothing. A mutant that makes a loop stop advancing hangs rather than lying, which is
 the tests noticing; the note's scope section is explicit that a timeout on a mutant that could not
 hang would be triaged as a survivor instead, and none of these is that.
+

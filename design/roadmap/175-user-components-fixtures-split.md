@@ -44,6 +44,53 @@ Whoever builds this should check whether milestone 39's two-way split still fits
 a third directory (`tools/`, or similar, not decided here) is honest about what's actually there,
 rather than forcing a fit.
 
+## Two names calef ruled on 2026-09-13, which this milestone performs
+
+Working the unratified worklist, calef ruled the §24 interrupt pair. **The rulings are recorded and
+the rename is not performed**, because this milestone moves both files anyway and doing it twice is
+the cost of doing it early.
+
+| Today | Becomes |
+|---|---|
+| `heeder` | `interrupt_heeder` |
+| `spinner` | `interrupt_ignorer` |
+| `worker` | `least_authority_demo` |
+
+**What was wrong with the old pair.** `heeder` never said what it heeds, and the answer, §24's
+cooperative interrupt flag, was not in the name. `spinner` did carry its meaning, being the field's
+ordinary word for a thread that burns cycles, so the pair was asymmetric: one member self-describing
+and one not. `interrupt_heeder`/`interrupt_spinner` was refused because the prefix parses as an
+object for the first and not the second, since the spinner does not spin the interrupt, it spins
+despite it. `interrupt_ignorer` costs the borrowed word and buys a pair that parses the same way.
+
+**`worker` was added to this list on the same day, and it settles a classification this milestone
+would otherwise have had to guess.** Its own provenance left the name open because the answer
+depended on whether the file is a fixture or the canonical minimal program, and three records
+(`notes/naming.md`, milestones 39 and 175) had it in a fixture list by repetition rather than by
+ruling. **calef ruled it the canonical minimal program**, so it goes to `components/` rather than
+`fixtures/`, and the name says what it demonstrates. `demo_square` was considered and refused: the
+file's own header says *"the squaring is arbitrary and the authority is the point"*, so naming it
+after the arithmetic drops the point, and `demo` is a generic word with no precedent in this tree.
+
+**`worker` has the same sweep hazard as `spinner`**, in a different place: 99 files match, and
+`crates/board_console`'s soak-census uses the English word ("where the kernel placed each worker at
+spawn"). Read those rather than sweeping them. `README.md`'s `worker 7` at the prompt is the command
+and does move.
+
+**The sweep is the reason this waits, and it is measured.** `spinner` occurs **116 times and only
+about 41 are the program**. The rest are the English word, used throughout `kernel/src/sched.rs`'s
+scheduler assertions ("the spinner never ran at all", "a leaked spinner starves later tests"), five
+times in `crates/virtio`, and across a dozen notes. A pattern sweep would rewrite assertion messages
+and test rationale into nonsense. `heeder` is the opposite: 38 occurrences, essentially all the
+program, because nobody uses the word otherwise. **So `heeder` sweeps mechanically and `spinner` is
+read by hand, every occurrence, before anything is edited.**
+
+Three further traps, all learned the hard way this week and recorded in `AGENTS.md`'s naming section
+and `notes/naming.md`: the program's name is a **string literal** in `crates/grant_plan`'s command
+table, `xtask`'s archive tuples and `kernel/src/user/tests.rs`'s `program("spinner")`, where no
+compiler reads it; a **path citation** must resolve whatever the citing record's status; and a
+`Name:` provenance block ends at the next **empty comment line**.
+
 ## What it needs
 
 - An audit of all 65 current `[[bin]]` targets, classified by what they actually are (checked

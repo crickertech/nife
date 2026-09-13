@@ -403,7 +403,7 @@ that at least invite a reader to ask "is this the right stride." Left unmigrated
 matching `ns16550.rs`'s own precedent rather than round 3's "identical hardware" premise.
 
 **`jh7110_trng.rs`: migrated.** Checked against the crate's own sourced register file
-(`crates/jh7110_trng::regs`, transcribed from `jh7110-trng.c`) and the device-tree binding
+(`crates/jh7110_entropy_source::regs`, transcribed from `jh7110-trng.c`) and the device-tree binding
 (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`) before assuming this was the file round 3's
 brief warned it might be ("the one most likely to have this problem," being real-hardware-specific
 code for a board this tree has not yet run against, milestone 159, `NOT-STARTED`, gate HARDWARE):

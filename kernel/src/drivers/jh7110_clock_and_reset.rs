@@ -1,6 +1,6 @@
 //! **The JH7110's clock and reset generator, the volatile half** (milestone 220).
 //!
-//! `crates/jh7110_crg` owns the offsets, the bit positions, the bring-up plan and the device-tree
+//! `crates/jh7110_clock_and_reset` owns the offsets, the bit positions, the bring-up plan and the device-tree
 //! query, all of it host-tested and pointer-free. This file is the twenty lines that actually
 //! store to a register, and it does nothing else: it walks a plan it is handed, against a base it
 //! is handed, and reports what the hardware said.
@@ -39,12 +39,12 @@
 //! [`bring_up`] stores to whatever address it is given. `STG_BASE`'s fallback in the pure crate
 //! means a `Found` can name `0x1023_0000` on a machine that has nothing there, and a store to
 //! unmapped MMIO on RISC-V is a fault or a hang. **So the caller must have established that this
-//! machine is a JH7110 before calling**, and `memory::jh7110_crg` is where that is
+//! machine is a JH7110 before calling**, and `memory::jh7110_clock_and_reset` is where that is
 //! established: it records a region only when the tree names either a CRG or a JH7110 TRNG, so
 //! QEMU's `virt` board (which names neither) never produces one and this driver is never reached
 //! there.
 
-use jh7110_crg::{CLOCK_ENABLE, Domain, MAX_RECORDED_CLOCKS, Report, Step, deasserted};
+use jh7110_clock_and_reset::{CLOCK_ENABLE, Domain, MAX_RECORDED_CLOCKS, Report, Step, deasserted};
 
 /// How many times [`bring_up`] reads the status word before giving up on a deassert.
 ///

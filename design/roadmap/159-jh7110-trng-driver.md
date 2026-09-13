@@ -14,8 +14,8 @@ both lanes' report of why**, per `design/roadmap/README.md`'s own rule that a br
 nothing else in this file must at least say so.
 
 The first lane (2026-08-24) confirmed the TRNG from documentation, wrote and host-tested its
-register and DTB-discovery logic (`crates/jh7110_trng`), and wrote an unwired driver program
-(`user/src/jh7110_trng.rs`). The second lane (2026-09-01) wired that program to a spawner, gave it
+register and DTB-discovery logic (`crates/jh7110_entropy_source`), and wrote an unwired driver program
+(`user/src/jh7110_entropy_source.rs`). The second lane (2026-09-01) wired that program to a spawner, gave it
 a boot-tour step that says something falsifiable, and moved the one remaining piece of untested
 logic into the host-tested crate. **Neither clears this tree's bar.** Milestone 53's `PARTIAL`
 names a phase that runs end to end, proven in QEMU; the phase here is "read real bits off a real
@@ -121,8 +121,8 @@ facts this leans on and its failure-triage ladder for everything that goes wrong
    | `hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; ...)` | The board's own device tree has no TRNG node where mainline's binding says it should be. **Capture the tree** (see step 6) rather than guessing; this is the one fact the first lane flagged as unconfirmed. |
    | `hw entropy  : JH7110 TRNG at 0x..., but no 'jh7110_trng' in the initrd` | The card has a stale archive. Redo step 2 with a matched pair. |
    | `hw entropy  : FAILED: ... bring-up diagnostic 0x0000000000000000 ...` | The register window read as nothing. Most likely the block's clocks are gated or its reset is not deasserted (see the driver's `BUGS`), and next most likely the base address is not the TRNG. |
-   | `hw entropy  : FAILED: ... bring-up diagnostic 0x<nonzero> ...` | The device answered and the sequence is wrong. The high 32 bits are `STAT` and the low 32 `ISTAT`. `STAT`: bit 3 `R256`, bit 8 `MISSION_MODE`, bit 9 `SEEDED`, bits 16-18 `LAST_RESEED` (`0x7` means unseeded/zeroized), bit 27 `SRVC_RQST`, bits 30/31 generate/seed in flight. `ISTAT`: bit 0 `RAND_RDY`, bit 1 `SEED_DONE`, bit 2 `AGE_ALARM`, bit 3 `RQST_ALARM`, bit 4 `LFSR_LOCKUP`. Record the raw word. **Every bit above is decoded in `crates/jh7110_trng`**; a bit outside them is undocumented in all three drivers and the TRM, and is a finding rather than a lookup. |
-   | any line whose numbers all look like a success | **Read them against `crates/jh7110_trng` before theorising.** The 2026-09-04 session lost an hour to a diagnostic of `0x20` read as an `ISTAT` bit that does not exist, when it was the number 32 in a word whose meaning changed with the report beside it. That word is unconditionally `(STAT << 32) \| ISTAT` now, so the ambiguity is gone, but the habit is the lesson. |
+   | `hw entropy  : FAILED: ... bring-up diagnostic 0x<nonzero> ...` | The device answered and the sequence is wrong. The high 32 bits are `STAT` and the low 32 `ISTAT`. `STAT`: bit 3 `R256`, bit 8 `MISSION_MODE`, bit 9 `SEEDED`, bits 16-18 `LAST_RESEED` (`0x7` means unseeded/zeroized), bit 27 `SRVC_RQST`, bits 30/31 generate/seed in flight. `ISTAT`: bit 0 `RAND_RDY`, bit 1 `SEED_DONE`, bit 2 `AGE_ALARM`, bit 3 `RQST_ALARM`, bit 4 `LFSR_LOCKUP`. Record the raw word. **Every bit above is decoded in `crates/jh7110_entropy_source`**; a bit outside them is undocumented in all three drivers and the TRM, and is a finding rather than a lookup. |
+   | any line whose numbers all look like a success | **Read them against `crates/jh7110_entropy_source` before theorising.** The 2026-09-04 session lost an hour to a diagnostic of `0x20` read as an `ISTAT` bit that does not exist, when it was the number 32 in a word whose meaning changed with the report beside it. That word is unconditionally `(STAT << 32) \| ISTAT` now, so the ambiguity is gone, but the habit is the lesson. |
 
 5. If the success line appears, do the three things that make it a measurement rather than an
    anecdote. **Boot twice** and confirm the two first-draw prefixes differ across boots (a device
@@ -144,7 +144,7 @@ facts this leans on and its failure-triage ladder for everything that goes wrong
 6. Whatever happened, **capture the board's device tree** while you have it: at the `StarFive #`
    prompt, `fdt addr ${fdtcontroladdr}` then `fdt print /soc/rng@1600c000` (and `fdt list /soc` if
    that finds nothing). That answers the first lane's one unconfirmed fact, and a blob dumped off
-   the board is a drop-in fixture for `crates/jh7110_trng`'s existing discovery test rather than a
+   the board is a drop-in fixture for `crates/jh7110_entropy_source`'s existing discovery test rather than a
    new code path.
 
 ## Why this is the same shape of gap as 53 and 157
@@ -163,7 +163,7 @@ because nothing here has a driver for the JH7110's TRNG.
   256-bit random number generation") and Linux carries a shipped, mainline driver
   (`drivers/char/hw_random/jh7110-trng.c`) and device-tree binding
   (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`, `interrupts = <30>`, clocks `hclk`/`ahb`,
-  one reset line) for it. `crates/jh7110_trng` transcribes the register layout from the Linux driver
+  one reset line) for it. `crates/jh7110_entropy_source` transcribes the register layout from the Linux driver
   and proves, on the host, that its DTB-discovery query finds a tree shaped like the binding's own
   example and correctly finds nothing on QEMU's riscv64 `virt` board (which has no such node). What
   remains unconfirmed is whether the VisionFive 2's own shipped device tree actually carries this
@@ -171,7 +171,7 @@ because nothing here has a driver for the JH7110's TRNG.
 - **A driver, not a new protocol.** `entropy_service`'s own contract with its clients does not
   change; this is a new backend behind the existing service, the same relationship milestone 157's
   framebuffer driver has to rung one's existing `gfx_proto` contract. Rule 2 applies: it takes a
-  base address and knows nothing else. `user/src/jh7110_trng.rs` is that backend, speaking
+  base address and knows nothing else. `user/src/jh7110_entropy_source.rs` is that backend, speaking
   `entropy_proto` unchanged. **Wired as of 2026-09-01**: `entropy_service`'s `Bus` enum has a
   `Jh7110` variant and the riscv64 boot tour spawns it when the machine's device tree describes the
   device. Still never run against one.
@@ -182,7 +182,7 @@ because nothing here has a driver for the JH7110's TRNG.
   SP 800-90B health test or a compliance claim (no FIPS, no AIS-31) over the raw bitstream.**
   Whether this tree needs one before trusting these bytes for anything security-shaped is a real
   design question the documentation does not resolve. It is **not decided by this lane** (a
-  developer does not edit `design/decisions/`); see `crates/jh7110_trng/src/lib.rs`'s "Health
+  developer does not edit `design/decisions/`); see `crates/jh7110_entropy_source/src/lib.rs`'s "Health
   testing" section for the full argument, and treat this as a candidate for a PROPOSED entry in
   `design/decisions/` if calef wants the question tracked formally rather than left in this
   paragraph and the crate's own doc.
@@ -319,7 +319,7 @@ credential stack on a gated TRNG instead of building one on zeros.
 **The judgement, stated where it can be argued with.** An all-zero bufferful is legitimate output
 with probability 2^-2048 (virtio), 2^-256 (JH7110) or 2^-64 (the instruction backend), so refusing
 one is a correctness claim about a random variable, and it is recorded as a `BUGS` entry in
-`entropy_proto`, in `user/src/entropy.rs` and in `user/src/jh7110_trng.rs` rather than left implicit.
+`entropy_proto`, in `user/src/entropy.rs` and in `user/src/jh7110_entropy_source.rs` rather than left implicit.
 A false "the device is dead" costs one boot's entropy; a false "the device is alive" costs every
 secret derived from it.
 
@@ -402,7 +402,7 @@ printed was a FAILED line whose numbers, read correctly, describe a working devi
 **Read this as "matches upstream's order, host-tested, unverified on hardware."** radon was powered
 down for all of it and no part of a JH7110 exists in QEMU, so nothing below has met the device.
 
-The prior art was **fetched rather than recalled**, which mattered: `crates/jh7110_trng` was
+The prior art was **fetched rather than recalled**, which mattered: `crates/jh7110_entropy_source` was
 transcribed from a *summary* of Linux's driver and recorded three of its own facts as unconfirmed.
 Three sources settle them, all cited in the crate with URLs and fetch dates: mainline
 `jh7110-trng.c`, the JH7110 TRM's TRNG register page (new to this tree), and `NetBSD`'s
@@ -442,7 +442,7 @@ Three sources settle them, all cited in the crate with URLs and fetch dates: mai
 
 - **Done.** The tour's unreachable success condition, the ambiguous diagnostic word, and the missing
   bring-up steps: this branch (`milestone/159-trng-sequence`), pull request #729.
-- **Recorded.** The 128-bit-mode question stays a `BUGS` entry in `user/src/jh7110_trng.rs` until a
+- **Recorded.** The 128-bit-mode question stays a `BUGS` entry in `user/src/jh7110_entropy_source.rs` until a
   bench session reads `STAT.R256` off the board. It cannot be resolved from documentation, because
   the reset width is a build-time parameter of the silicon.
 - **Recorded.** `POLL_TRIES` and `LOCKUP_RETRIES` bound loop iterations, not time, so what they

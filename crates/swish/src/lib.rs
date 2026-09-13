@@ -812,7 +812,7 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
     out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
     out(b"  uuid                    a version-4 UUID, from the entropy service it is granted\n");
     out(b"  wc                      count lines, words and bytes on its INPUT\n");
-    out(b"  doc <page>              render markdown from its INPUT (apropos names the pages)\n");
+    out(b"  mdr <page>              render markdown from its INPUT (apropos names the pages)\n");
     out(b"  <prog> <name>           grant a process one file, and only that file\n");
     out(b"\n  operators (milestone 50). > and | are the same mechanism: a different\n");
     out(b"  capability in a program's output slot, which it cannot look behind.\n");

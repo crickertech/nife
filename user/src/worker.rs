@@ -12,17 +12,25 @@
 //! own `_start` and panic handler. The syscall runtime (`send`/`exit`) comes from the shared
 //! `user_rt` crate, lifted out at 19f.6 once all the split binaries existed.
 //!
-//! Name: provisional. Introduced 2026-07-25 when the worker became its own binary rather than a
-//! role of `hello`, and nothing records the choice. The case, with its own weakness stated first.
-//! `worker` is a **generic word** of exactly the kind AGENTS.md flags for crates (`compose`,
-//! `measure`, `regions`), and in a kernel tree it could name a thread-pool member, a scheduler
-//! entity or a job. What it names here is narrower and is the demonstration rather than the
-//! computation: a whole program in one job, holding one endpoint and nothing else, so that least
-//! authority is a program rather than a claim. The squaring is arbitrary and the authority is the
-//! point. That argues the name is under-specific rather than wrong, and a replacement would have
-//! to say which of those two things it is naming. Left as a question rather than a proposal,
-//! because the good answer depends on whether calef reads this file as a fixture or as the
-//! canonical minimal program.
+//! Name: provisional, and ruled: calef ruled **`least_authority_demo`** on 2026-09-13, working the
+//! unratified worklist. This block used to leave the name open because the answer depended on
+//! whether this file is a fixture or the canonical minimal program; **calef ruled it the canonical
+//! minimal program**, which also settles a classification three records had made by repetition
+//! rather than by ruling (`notes/naming.md`, milestones 39 and 175 all list it as a fixture).
+//!
+//! `worker` was a **generic word** of the kind AGENTS.md flags beside `compose` and `measure`: in a
+//! kernel tree it could name a thread-pool member, a scheduler entity or a job. Refused
+//! `demo_square` (the header below says the squaring is arbitrary and the authority is the point, so
+//! naming it after the arithmetic drops the point; `demo` is also a generic word with no precedent
+//! in this tree, and `square` is a verb where the noun rule wants a thing), `squarer` (a noun and
+//! honest, but it is the fixture reading this ruling rejected) and `least_authority` (the same name
+//! one word shorter; calef took the longer form, which says it is a demonstration rather than a
+//! claim about the program's own authority).
+//!
+//! **Still provisional because the rename has not happened.** Milestone 175 moves this file, and
+//! into `components/` rather than `fixtures/` now that the classification is ruled. The sweep is
+//! the other reason it waits: 99 files match `worker`, and `crates/board_console`'s soak-census uses
+//! the English word. `README.md`'s `worker 7` is the command and does move.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
