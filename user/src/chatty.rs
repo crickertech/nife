@@ -1,7 +1,10 @@
 //! **The client that does not notice, and the attacker that cannot** (milestone 23, DECISIONS §41).
 //!
-//! One binary, two roles, because an attacker that holds the honest client's own capabilities is a
-//! fair test of the boundary rather than a different program failing for its own reasons.
+//! One binary, three roles, because an attacker that holds the honest client's own capabilities is
+//! a fair test of the boundary rather than a different program failing for its own reasons. The
+//! third is `ROLE_PRODUCER`, the same conversation one rung up the latency ladder on the queued
+//! channel. (This line said "two roles" until 2026-09-13; the producer arrived with the queue
+//! broker and nothing updated the count.)
 //!
 //! # The client (`ROLE_CLIENT`)
 //!
@@ -29,17 +32,32 @@
 //! capability carries `WRITE` and not `READ`, and the same object handed out with different rights
 //! is a one-way pipe in whichever direction each holder was trusted with. It reports the refusal.
 //!
-//! Name: provisional, and the one on this surface that fails a rule rather than merely lacking a
-//! signature. Introduced 2026-07-30 with milestone 23's live replacement, as a fixture rather
-//! than a component. **It is an adjective**, where AGENTS.md says a program is a thing and takes
-//! the name of a thing, and it is one of exactly two adjectives among the seventy-odd programs in
-//! `user/src/` (`flaky` is the other, from the following day). The case for keeping it anyway,
-//! which calef should weigh rather than assume: the program's defining property really is a
-//! manner rather than a role, since it calls a stable endpoint sixty-four times in a loop with no
-//! reconnect and no retry, and the point of the fixture is that the volume and the obliviousness
-//! are what make the boundary test fair. A noun for that is `caller` or `client`, and both are so
-//! generic they would name half the tree. If the adjective goes, the honest replacement names the
-//! demonstration rather than the manner.
+//! Name: provisional, and ruled: calef ruled **`swap_boundary_witness`** on 2026-09-13, working
+//! the unratified worklist. The block stays `provisional` for the reason `flaky`'s does: the
+//! ratified name is not this file's until the rename is performed, and this one travels with
+//! `flaky`'s, whose file set it sits inside. Introduced 2026-07-30 with milestone 23's live replacement, as a fixture rather
+//! than a component.
+//!
+//! `chatty` was an adjective, one of exactly two among the seventy-odd programs in `user/src/`
+//! (`flaky` was the other, from the following day), where AGENTS.md says a program is a thing
+//! and takes the name of a thing. But the decisive fault was not the part of speech. This
+//! program is **one binary on purpose**: an attacker holding the honest client's own
+//! capabilities is a fair test of the boundary, where a separate program would fail for its own
+//! reasons. So a name picking one role denies the property that makes the fixture valid, and
+//! there are three roles to pick wrongly from, not the two this header claimed until today.
+//!
+//! Refused `swap_client` and `swap_attacker` (calef's own proposal) for that reason, each naming
+//! one of the two roles. `swap_attacker` also names the derived role rather than the base one:
+//! `swapper` spawns `ROLE_CLIENT` twice and `ROLE_USURPER` once, and `swap_proto` defines the
+//! attacker as "the same code and capabilities as `ROLE_CLIENT`". Refused `caller` and `client`,
+//! this header's own earlier candidates, as so generic they would name half the tree. Refused
+//! the shorter `swap_witness` in favour of naming what is witnessed. All three roles witness one
+//! boundary: the client by its stream being unbroken across the swap, the producer by the same
+//! continuity on the queued channel, the attacker by its failure to take over. `witness` is
+//! already this tree's word for the job, here and in `outlaw`.
+//!
+//! The stem is the family's. `swapper` is the operator, `rust_swappable` and `c_swappable` are
+//! the two instances, and this was the only member off that stem.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
