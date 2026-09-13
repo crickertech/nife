@@ -1,9 +1,20 @@
-# `uefi_loader` at 15% and `documentation` at 52% are unexplained holes in the published score
+# 280. `uefi_loader` at 15% and `documentation` at 52% are unexplained holes in the published score
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 238's block.
+**Status: NOT-STARTED.** Written by the milestone 247 sweep as a proposal on 2026-09-03, from
+milestone 238's block. **Promoted out of the proposal queue on 2026-09-13 by calef**, who asked what
+would progress fatal risk 3: this is step three of four, and the only one that can be worked before a
+clean sweep exists. *(Number provisional until the merge queue lands it; 278 is in flight ahead of
+it.)*
 
 **Gate: NONE.** The measurement runs with tooling already in the tree, milestone 244 is the worked
 example of doing it for one crate, and nothing external blocks it.
+
+**Where it sits on that path.** Milestone 277 built the memory bound so a sweep can survive a runaway
+mutant; the first green scheduled run is what proves it. This milestone is what stops the number that
+run produces from having two unexplained holes in it, and
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the reading calef then does. It
+can start now: both crates can be measured against the existing 83.4% shard without waiting for a
+full run.
 
 **In brief.** The first mutation report the sweep ever published put the tree at 83.4%, down from
 92.4%. Three crates carry nearly all of that fall. Milestone 244 took `system_initializer`, measured

@@ -275,7 +275,7 @@ ship under a feedback loop that slow.
   green on 92.4% from 2026-08-03, while the first published mutation report says 83.4% on a uniform
   one-eighth sample across all 60 crates. Until somebody decides whether the verdict holds, that
   file carries a stale figure and tells a reader the refresh arrives on its own.
-- **Proposed.** `design/roadmap/proposals/the-two-unexplained-mutation-scores.md`, Measure and answer
+- **Milestone 280.** Promoted 2026-09-13. Measure and answer
   for `uefi_loader` at 15% and `manual` at 52%, the two crates this block names beside
   `system_initializer` as carrying nearly all of the fall from 92.4% to 83.4%. Milestone 244 took
   `system_initializer` alone. Nothing tracks these two, and no `BUGS` entry anywhere accepts their
