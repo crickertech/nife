@@ -78,12 +78,33 @@
 //!   forever, and its own counter stops moving, which is what the kernel's stall check sees. The
 //!   report cannot say which half of the pair wedged; the thread dump can.
 //!
-//! Name: provisional, this lane's coinage (2026-09-01, milestone 219), and calef's call. An agent
-//! noun in the family this directory already has (`spinner`, `heeder`, `builder`, `swapper`,
-//! `painter`): the thing that soaks. `stressor` was considered and refused, because "stress" in
-//! this tree already names `script/repeat-under-load`'s *induced host load*, which is a different
-//! thing pointed the other way. `churner` was refused for naming the motion rather than the
-//! purpose.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Coined by milestone 219's
+//! lane on 2026-09-01 and kept unchanged, which on that day's evidence is unusual: six bare agent
+//! nouns were expanded with a qualifier in the same session (`budgeter`, `worker`, `heeder`,
+//! `spinner`, `flaky`, `chatty`), because none of them said what it acted on. This one does.
+//!
+//! **"Soak" is a term of art used correctly**, which is the protected class AGENTS.md calls the
+//! best name available: a soak test runs a system under sustained load long enough to surface what
+//! does not appear quickly, and that is this program. Contrast `flaky`, ruled the same day, which
+//! borrowed the field's word for intermittent failure while failing deterministically; a borrowed
+//! word is the best name when it is true and the worst when it is not.
+//!
+//! It is also **this tree's own vocabulary already**, at 947 occurrences of the stem:
+//! `crates/soak_page`, `kernel/src/soak.rs`, `--features soak`, `board_console`'s soak census and
+//! the captured board logs. Renaming the program would leave it the odd member of a family it
+//! anchors.
+//!
+//! **And the umbrella is honest across all four roles**, which is the test `chatty` and `outlaw`
+//! failed the same day. `ROLE_RESPONDER`, `ROLE_CALLER`, `ROLE_GRINDER` and `ROLE_WAITER` are all
+//! soakers, and this file's own comments say so ("this soaker calls", "this soaker computes",
+//! "this soaker blocks"), where `outlaw`'s round-trip role broke no rule and `chatty`'s attacker
+//! was not chatty.
+//!
+//! Refused `ipc_soaker`, the qualifier-plus-agent-noun shape ratified six times that day, for
+//! being false: the grinder computes and never blocks and the waiter blocks on a tick route, so
+//! neither is IPC. Refused `stressor`, because "stress" in this tree already names
+//! `script/repeat-under-load`'s *induced host load*, which is a different thing pointed the other
+//! way. Refused `churner` for naming the motion rather than the purpose.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
