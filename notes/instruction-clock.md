@@ -377,7 +377,9 @@ there.
   parked in `wfi` jumps that clock forward to the next event, so a multi-hart timer measurement is
   measuring the other harts' idle jumps. This is the same constraint the bench instrument carries and
   the reason the placement probe stays on the wall clock (`notes/load-sensitive-assertions.md`).
-- **The instrument is a boot mode, so it does not run under `script/test` or `script/gates`.** It is
+- **The instrument is a boot mode, so it does not run under `script/test`.** It does run in
+  `script/ci-build`'s `local` tier, and this line said otherwise until milestone 286; the
+  `-icount` argument below is about a boot mode rather than about a command. It is
   wired into CI beside the bench tripwire, which shares its QEMU cache and its path filter. A
   developer who never runs `script/icount` locally will find out in CI rather than before pushing,
   which is the cost of not putting `-icount` on the test path.

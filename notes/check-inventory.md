@@ -92,14 +92,17 @@ Fifty files. Not all of them are checks: `apropos`, `bootstrap`, `setup`, `updat
 `runner-container` are tools or provisioning. What follows is every entry point that renders a
 verdict or a measurement, and who calls it.
 
+*The "called by" column was re-spelled 2026-09-13 by milestone 286, which retired `script/gates`
+into `script/ci-build`'s table; the measurements are still 2026-09-03's, taken under the old name.*
+
 | script | called by | blocks a merge | result 2026-09-03 |
 |---|---|---|---|
-| `fmt --check` | `script/gates`, ci `rustfmt`, the `pre-push` hook | yes | green |
-| `lint` | `script/gates`, ci `clippy` | yes | green |
-| `test` | `script/gates`, ci via `ci-build`, `toolchain-drift` | yes | green |
-| `shell-check` | `script/gates`, ci via `ci-build` (as `cargo xtask shell-check`) | yes, inside `build + test` | green |
-| `icount` | `script/gates`, ci `bench` | yes | green |
-| `image-permissions` | `script/gates`, ci `image permissions` | **no** | green |
+| `fmt --check` | `ci-build` (`local`), ci `rustfmt`, the `pre-push` hook | yes | green |
+| `lint` | `ci-build` (`local`), ci `clippy` | yes | green |
+| `test` | `ci-build` (`local`), ci `build + test`, `toolchain-drift` | yes | green |
+| `shell-check` | `ci-build` (`local`), ci `build + test` (same job) | yes, inside `build + test` | green |
+| `icount` | `ci-build` (`local`), ci `bench` | yes | green |
+| `image-permissions` | `ci-build` (`local`), ci `image permissions` | **no** | green |
 | `bench --check` | ci `bench` | yes | green |
 | `coverage` | ci `coverage`, `script/metrics` | yes | green |
 | `cpu-matrix` | ci `cpu matrix` | yes | green |
@@ -246,7 +249,7 @@ the commit.
 - **`script/interleaving-check`** (milestone 80, loom over the hand-rolled atomic protocols) is in no
   workflow and in no gate. It is the only thing in this tree that can falsify a violation of
   AGENTS.md's fourth rule, assume weak memory ordering. Its header says it is out of `script/test`
-  and `script/gates` "for the same reason as `script/undefined-behavior-check`", and that analogy is
+  and the set a developer runs "for the same reason as `script/undefined-behavior-check`", and that analogy is
   broken: the sibling it names has a weekly workflow and this has nothing. **Measured today: 12.4
   seconds wall clock, 30 crates compiled, all 26 harnesses green**, including the falsification
   witness that passes only when loom finds the pre-fix double free.

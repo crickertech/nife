@@ -1,6 +1,8 @@
 # The HVF leg: the aarch64 suite on the physical core
 
-*(Milestone 81. `script/gates`, `cargo xtask test --hvf`, `scripts/qemu-runner-aarch64.sh`.)*
+*(Milestone 81. `script/ci-build`, `cargo xtask test --hvf`, `scripts/qemu-runner-aarch64.sh`.
+The leg rode `script/gates` from 2026-08-04 until milestone 286 retired that script into
+`script/ci-build`'s table on 2026-09-13; every measurement below was taken under the old name.)*
 
 Every test this project had ever run ran under TCG, where QEMU translates each aarch64 instruction
 into host code. That is the right default (deterministic, identical on any host), but it is not a
@@ -25,7 +27,7 @@ QEMU and this kernel both accept, and the leg has no machine to run on.
 
 **What happens now** (milestone 222):
 
-- `script/gates` **skips the leg and says so**, in the same line it already used for a host with no
+- `script/ci-build` **skips the leg and says so**, in the same line it already used for a host with no
   Hypervisor.framework, naming QEMU's own refusal. Its closing line says the run was TCG only.
 - `script/test --hvf` **still fails**, because you asked for it by name, but it fails with a
   paragraph saying the breakage is not yours and pointing here.
@@ -42,8 +44,9 @@ See [interrupts.md](interrupts.md) for the measurement and what it found.
 ## How to run it
 
 ```sh
-script/gates            # fmt, lint, test (TCG, both ISAs), then this leg
-script/test --hvf       # just this leg
+script/ci-build         # every local check, cheapest first, with this leg last
+script/ci-build hvf     # just this leg, through the table
+script/test --hvf       # just this leg, with no probe and no loud skip
 ```
 
 `--hvf` is aarch64 only and says so if you ask for anything else: Hypervisor.framework runs the
@@ -75,18 +78,19 @@ against about 14 s for the same fixtures, the same 234 tests, and the same post-
 roughly a **3x** win on the leg, and more than that on the booted suite alone, since a fixed few
 seconds of both numbers is cargo and image building.
 
-So the leg adds 12 to 16 seconds to `script/gates`. Timing it before adopting it was the condition
+So the leg adds 12 to 16 seconds to the local run. Timing it before adopting it was the condition
 milestone 81 set; the `--full` flag the block named as the fallback is not needed, because native
 execution beat TCG by the margin the block hoped for.
 
-## Why `script/gates` and not a workflow
+## Why the local tier and not a workflow
 
 GitHub's hosted macOS arm64 runners are themselves virtual machines and do not expose nested
 virtualization, so HVF does not exist there. A self-hosted runner on the dev machine would close
 that gap and is deliberately not part of this: it couples CI to a laptop that sleeps.
 
-`script/gates` is the one command a person or an agent runs before pushing, which makes it the
-place where every lane on this machine picks the leg up for free. When the host cannot supply HVF
+`script/ci-build` with no arguments is the one command a person or an agent runs before pushing,
+which makes it the place where every lane on this machine picks the leg up for free. The leg is a
+`local` row in its table, and there is no CI job for it at all. When the host cannot supply HVF
 the leg **skips loudly**, naming the reason (not macOS, not Apple Silicon, `kern.hv_support` off,
 or a QEMU built without the accelerator) and saying in plain words that nothing in the run executed
 on a physical core. A silent omission would let a Linux CI transcript read exactly like one from
@@ -215,7 +219,7 @@ deschedule of a host thread running a vCPU produces the same missed tick either 
 ***Half of that is history as of 2026-08-18.*** Milestone 62 deleted the handler-latency pair on
 both ISAs rather than fixing the taxonomy, and made `ticks_arrive_at_the_configured_rate`'s retry
 budget report `UNMEASURED` instead of failing, so the only wall-clock timer exposure this leg still
-inherits is that report. `script/gates` runs `script/icount` before `script/test`, which means this
+inherits is that report. The local tier runs `script/icount` before `script/test`, which means this
 leg is now preceded by an instrument the accelerator cannot influence at all.
 
 ### The settle windows the leg makes weaker, not flakier
@@ -233,7 +237,7 @@ silence for a clean bill.
 
 - **The leg does not run at all on QEMU 11.1.1**, for the GIC reason at the top of this page, and
   everything measured below was measured on 11.0.2. Until a GICv3 driver exists there is **no
-  accelerated coverage on this machine**: every gate a contributor can run is TCG. `script/gates`
+  accelerated coverage on this machine**: every gate a contributor can run is TCG. `script/ci-build`
   says so out loud rather than passing quietly, which is milestone 222's whole content, but a loud
   skip is a record of a gap and not a substitute for one.
 - **A failing run leaves an exception storm behind it.** The kernel has no way to know its
@@ -244,8 +248,8 @@ silence for a clean bill.
   that never stops. Use `scripts/qemu-bounded.sh` for that. A guest-side fix (recognising the
   semihosting trap in the Unknown-reason handler and parking in `wfi` instead of panicking) is not
   built here; it would touch the exception path for a test-only benefit.
-- **The leg is not a CI gate and cannot be one.** Nothing enforces that it ran. `script/gates` is
-  the enforcement, and `script/gates` is a convention.
+- **The leg is not a CI gate and cannot be one.** Nothing enforces that it ran. `script/ci-build`'s
+  no-argument path is the enforcement, and running that is a convention.
 - **One machine, one model, no variation.** `-cpu host` is mandatory under HVF, so this leg says
   nothing about other aarch64 implementations; that job stays with `script/cpu-matrix` (which is
   riscv64's) and with the second board.
@@ -261,7 +265,7 @@ silence for a clean bill.
 
 - design/roadmap/81-hvf-leg.md (the block)
 - design/roadmap/222-hvf-leg-fails-silently.md (milestone 222, why the leg skips rather than fails)
-- notes/scripts.md (`script/gates` and `script/test`, and where the leg sits in them)
+- notes/scripts.md (`script/ci-build` and `script/test`, and where the leg sits in them)
 - notes/load-sensitive-assertions.md (milestone 78: the family both failures belong to)
 - notes/benchmarks.md (`--real`, the other HVF caller, and the exit trick this leg reuses)
 - notes/semihosting.md (the mechanism that is not answered here)

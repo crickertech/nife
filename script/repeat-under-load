@@ -83,7 +83,7 @@ qemu_count() {
 # `$SUITE` rather than a literal `script/test`, and that is not style. shellcheck matches the
 # command word by its LAST path element, so it reads `script/test` as the `test` builtin and warns
 # that the redirection is not a comparison (SC2065). `./script/test` warns identically; only
-# indirection through a variable does not. script/gates never hits this because it does not
+# indirection through a variable does not. script/ci-build never hits this because it does not
 # redirect the call. Verified against shellcheck on 2026-08-17.
 SUITE="script/test"
 suite_run() {

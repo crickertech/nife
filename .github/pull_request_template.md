@@ -13,15 +13,16 @@ wrote it or not, and a reader cannot otherwise tell the architect's voice from a
 ## Gates
 
 <!--
-`script/gates` runs all five, cheapest first. Paste the result, or name what you ran and what you
-skipped and why. "Not run" is an answer; a missing answer is not.
+`script/ci-build` with no arguments runs every check a pull request must pass, cheapest first, so a
+formatting slip costs twenty seconds rather than the whole run. Paste the result, or name what you
+ran and what you skipped and why. "Not run" is an answer; a missing answer is not.
+
+The checks are NOT listed here on purpose. `script/ci-build --list` prints them, and this template
+carried a list that said "five" while the script ran six, because a set written down twice rots in
+one of the two copies. That is the defect milestone 286 removed; do not put it back.
 -->
 
-- [ ] `script/fmt --check`
-- [ ] `script/lint`
-- [ ] `script/icount`
-- [ ] `script/test`
-- [ ] `script/test --hvf`
+- [ ] `script/ci-build`
 
 ## Identified work
 

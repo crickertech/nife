@@ -713,6 +713,8 @@ toolchain, and the kernel under QEMU on both ISAs. About 25 minutes wall clock, 
 emulated legs.
 
 **It then ran the rest of `script/gates` unprompted, on its own reading of the tree's vocabulary**,
+(that command was retired into `script/ci-build`'s table by milestone 286 on 2026-09-13; this run
+and the quotation below are from 2026-09-06 and keep the name they happened under)
 which is the run's best unforced result and belongs to `CONTRIBUTING.md`: *"'tests passing' in this
 project's own vocabulary is `script/gates`, not `script/test`. I ran one of the three."*
 `script/fmt --check` and `script/lint` both exit 0. It then named what it had not run rather than
