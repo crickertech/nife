@@ -162,6 +162,7 @@ dependencies = [
  "compositor",
  "credential_proto",
  "credentialer",
+ "documentation",
  "elf",
  "entropy_proto",
  "environment_proto",
@@ -172,7 +173,6 @@ dependencies = [
  "jh7110_entropy_source",
  "line_editor",
  "login_proto",
- "manual",
  "mdns_config",
  "mdns_proto",
  "measured_boot",
@@ -295,6 +295,10 @@ dependencies = [
 
 [[package]]
 name = "dma_validator"
+version = "0.1.0"
+
+[[package]]
+name = "documentation"
 version = "0.1.0"
 
 [[package]]
@@ -564,10 +568,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ca88d725a0a943b096803bd34e73a4437208b6077654cc4ecb2947a5f91618d"
 
 [[package]]
-name = "manual"
-version = "0.1.0"
-
-[[package]]
 name = "matchers"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -829,10 +829,10 @@ dependencies = [
 name = "swish"
 version = "0.1.0"
 dependencies = [
+ "documentation",
  "filesystem_proto",
  "glob",
  "grant_plan",
- "manual",
 ]
 
 [[package]]
@@ -1086,10 +1086,10 @@ dependencies = [
  "bitmap_font",
  "board_console",
  "compositor",
+ "documentation",
  "filesystem_proto",
  "gpt",
  "graphics_proto",
- "manual",
  "mdns_config",
  "measured_boot",
  "nifefs",

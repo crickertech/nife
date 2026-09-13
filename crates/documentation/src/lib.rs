@@ -1,19 +1,25 @@
-//! **The manual**: markdown in, styled terminal bytes out, and the index that says what exists.
+//! **The documentation crate**: markdown in, styled terminal bytes out, and the index that says what exists.
 //!
 //! Milestone 40. This crate is the pure half of the documentation service. It holds three things
 //! and no others: a streaming markdown renderer ([`Renderer`]), the byte layout of a search index
 //! ([`index`]), and the query that reads one. There is no IO here, no syscall, no endpoint and no
-//! allocator on the path a confined program takes. `components/src/doc.rs` is the program; this is what
+//! allocator on the path a confined program takes. `components/src/mdr.rs` is the program; this is
+//! what
 //! it computes.
 //!
-//! Name: provisional. Minted by milestone 40's lane on 2026-08-04. Named for what a reader is
-//! looking for rather than for what the code does, in the family of `elf` and `pci`, terms a
-//! reader already knows from outside this project. The lane split this name from its program's on
-//! purpose, which is the one place it departs from the crate-and-program pairing AGENTS.md
-//! describes: `crates/doc` would be ungreppable against rustdoc's own vocabulary and collides
-//! with `cargo doc` in conversation, so the pair is `manual` and `doc` rather than one word
-//! twice. That departure is the part worth ruling on, because it is the tree's only deliberate
-//! break of the pairing and nobody has signed it. See notes/naming.md.
+//! Name: ratified 2026-09-13 (calef, in conversation while working the unratified worklist).
+//! Refused `manual` (names what a reader is looking for rather than what the code is, and it was
+//! the name that hid the real reason the pair split), `doc` (ungreppable against rustdoc's own
+//! vocabulary, and it collides with `cargo doc` in conversation), `documentation_system` (this
+//! crate is the pure half: no IO, no syscall, no endpoint, so `system` claims the running service
+//! rather than the computation), `markdown` (names a third of the crate; the index layout and its
+//! query are the other two thirds and `apropos` is their consumer).
+//!
+//! **Why the crate and the program do not share a name**, which is the tree's one deliberate break
+//! of the pairing AGENTS.md describes: this crate is a superset rather than a collision workaround.
+//! It holds the renderer, the byte layout of the search index and the query that reads one; the
+//! program is only the renderer's two ends. The block that minted `manual` gave the `cargo doc`
+//! collision as the reason, and that was never the real one.
 //!
 //! # The renderer is a stream, not a parser
 //!
@@ -42,7 +48,7 @@
 //! Render a document to plain text at eighty columns:
 //!
 //! ```
-//! use manual::{Renderer, Sink, Style};
+//! use documentation::{Renderer, Sink, Style};
 //!
 //! struct Buf(String);
 //! impl Sink for Buf {
@@ -61,7 +67,7 @@
 //! The same document with colour on, which is what `doc` emits when it is writing to a terminal:
 //!
 //! ```
-//! # use manual::{Renderer, Sink, Style};
+//! # use documentation::{Renderer, Sink, Style};
 //! # struct Buf(String);
 //! # impl Sink for Buf {
 //! #     fn put(&mut self, bytes: &[u8]) { self.0.push_str(core::str::from_utf8(bytes).unwrap()); }

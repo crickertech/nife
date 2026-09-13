@@ -6,7 +6,7 @@
 //! `pulldown-cmark`, and the justification for that is that the input set is *this repository*, so
 //! the conformance claim is checkable directly against it rather than against a spec suite.
 
-use manual::{Renderer, Sink, Style};
+use documentation::{Renderer, Sink, Style};
 
 struct Buf(Vec<u8>);
 
@@ -233,7 +233,7 @@ fn a_document_with_no_trailing_newline_still_ends() {
 
 #[test]
 fn an_overlong_line_is_reported_rather_than_hidden() {
-    let long = "x".repeat(manual::LINE_MAX + 10);
+    let long = "x".repeat(documentation::LINE_MAX + 10);
     let mut out = Buf(Vec::new());
     let mut r = Renderer::new(Style {
         width: 80,
@@ -279,7 +279,7 @@ fn is_fence(line: &str) -> bool {
 /// for this one test. The measurement that settled it: **0.74 seconds natively, and still running
 /// after 12 minutes under Miri when it was killed** (2026-09-03).
 ///
-/// What that would buy is nothing. `crates/manual` has **no dependencies and no `unsafe`**, so the
+/// What that would buy is nothing. `crates/documentation` has **no dependencies and no `unsafe`**, so the
 /// rules Miri enforces (aliasing, provenance, uninitialized reads) cannot be broken by any line in
 /// its call graph. The nineteen tests above it in this file exercise the same renderer on in-memory
 /// input, cover every construct it parses, and do run under Miri; what this one adds is corpus
@@ -332,7 +332,7 @@ fn every_character_survives() {
             // rendered fine for; the entry that recorded that refused to widen the filter until
             // somebody answered whether the renderer keeps its quote state across a nested fence.
             // It did not: the fence never closed, and the rest of the page rendered as quoted code
-            // (2026-08-18, `crates/manual`'s BUGS). Widening the filter first would have hidden
+            // (2026-08-18, `crates/documentation`'s BUGS). Widening the filter first would have hidden
             // that, which is exactly what the refusal was protecting.
             let want: Vec<char> = src
                 .lines()
@@ -349,7 +349,7 @@ fn every_character_survives() {
             // rather than assumed. A renderer stuck in code mode still emits every character
             // verbatim, so the subsequence check below cannot see it at all; this one sees it only
             // if nothing later in the page happens to close the stuck fence. Reverting the
-            // quoted-fence fix leaves notes/manual.md ruined from its own worked example onward and
+            // quoted-fence fix leaves notes/documentation.md ruined from its own worked example onward and
             // **this assertion still passes**, because a bare closing fence three sections later
             // matches. `a_fence_inside_a_block_quote_closes` is the guard; this is a cheap
             // invariant that catches the case where the stuck fence is the last one.

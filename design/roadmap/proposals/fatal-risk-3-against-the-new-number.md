@@ -36,7 +36,7 @@ or a fall concentrated in a few crates is the reading. Milestone 244 already ans
 - Milestone 244's measurement of `system_initializer`, the crate carrying most of the fall, which
   closed `RECORDED` because the pure fraction a mutation can reach in it is small.
 - `.cargo/mutants-baseline.txt`, which is what a score is supposed to be compared against.
-- Two crates still unexplained, `uefi_loader` at 15% and `manual` at 52%, which have their own
+- Two crates still unexplained, `uefi_loader` at 15% and `documentation` at 52%, which have their own
   proposal.
 
 The honest option list is three: the verdict holds and the entry gets the new number, the verdict is

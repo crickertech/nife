@@ -2,7 +2,7 @@
 
 *Written 2026-08-22, by the lane milestone 40's roadmap block handed this to
 (`design/roadmap/40-documentation-service.md`). The question itself is not new: notes/pipes.md has
-carried it open since milestone 50 (2026-08-04), notes/manual.md restated it as milestone 40's
+carried it open since milestone 50 (2026-08-04), notes/documentation.md restated it as milestone 40's
 remaining fork on 2026-08-18, and DECISIONS §101 (notification objects), decided 2026-08-20,
 ratified the *direction* without taking milestone 40's specific fork. This note is the six-questions writeup CLAUDE.md's "A fork
 reaches calef with its questions already answered" asks for, so the remaining decision can be made
@@ -60,7 +60,7 @@ than its grant, which would deadlock again. §101 restates the refusal rather th
 **(c) Do nothing.** The refusal above is honest, non-deadlocking, and costs nothing further. This
 is the status quo. It loses only in the sense that it is not an answer: `doc page.md` still cannot
 render at a prompt, which is the one thing phase 1 and 2 of this milestone were building toward
-(notes/manual.md's own "In brief": rendered for display, not shown raw).
+(notes/documentation.md's own "In brief": rendered for display, not shown raw).
 
 **(d) `terminal_sink_caretaker` takes the tail stage's primary output** (the option the roadmap
 block names). Not previously refused; DECISIONS §101 explicitly calls it "the right short-term
@@ -90,7 +90,7 @@ The precedent buys three things for free if extended to the primary slot:
 - **It is the same decision the pager and the colour bit need**, not three unrelated asks. Paging
   needs the terminal's `OP_READLINE`, colour needs to know a stage ends at a real screen rather than
   a file, and both are the same "does this child's output/input touch the terminal component
-  directly" question notes/manual.md's "Where this goes next" already unifies.
+  directly" question notes/documentation.md's "Where this goes next" already unifies.
 
 ## 3. What is the prior art outside the tree?
 
@@ -121,7 +121,7 @@ either, for the same fd-inheritance reason above.
 ## 4. Is the premise true?
 
 Answered above, first section: yes, verified against `grant_plan::check_chain` and the real-prompt
-transcripts in notes/pipes.md and notes/manual.md, on both architectures. Nothing here rests on the
+transcripts in notes/pipes.md and notes/documentation.md, on both architectures. Nothing here rests on the
 roadmap block's own framing without independent confirmation.
 
 **A second premise is worth checking too, because it changes the cost estimate below**: does the
@@ -149,9 +149,9 @@ spawn time and `RECV` on it instead of on the child's output), not a new kernel 
 | (c) Do nothing | None | None | Milestone 40 stays PARTIAL; no line renders a page at a prompt, ever, on this branch of the design | N/A |
 | (d) `terminal_sink_caretaker` takes primary output | None | One `spawnproto` bit (or a repurposed `DIAG_BIT`-shaped convention) for "this stage's output goes to the terminal by default"; the shell must additionally wire §26's fault endpoint for the spawn, where today it wires none | Narrows what the shell can observe about that child (it no longer reads its bytes); a completion-race caveat, below | §26's fault delivery is already built and proved (milestone 22); the incremental piece is shell wiring, comparable in size to `spawn_interruptible`'s existing job-watching path, not a new kernel primitive |
 
-**The caveat option (d) owes, named exactly where notes/manual.md already named it and not
+**The caveat option (d) owes, named exactly where notes/documentation.md already named it and not
 resolved there:** using kernel exit-delivery (§26) as the shell's "child is done, print the next
-prompt" signal is *stronger* than the vaguer "wait for the child to exit" notes/manual.md worried
+prompt" signal is *stronger* than the vaguer "wait for the child to exit" notes/documentation.md worried
 about, because §26's message is only sent after the thread is dead-until-reaped (DECISIONS §26.4):
 a dead thread cannot enqueue any further `SEND`. So there is no race in which the *child itself*
 paints the screen after the shell has moved on. **The race that remains is one hop further out**:
@@ -161,7 +161,7 @@ the bytes into its own address space, not that it has finished its own `CALL` to
 delivering them to the screen. If the shell prints its next prompt (a second, concurrent `CALL` to
 `line_editor`) before the caretaker's trailing `CALL` lands, the two interleave at the terminal
 server, which serializes them but not in a guaranteed order. This is a real, previously-unnamed
-finding of this note (notes/manual.md flagged the shape of the question but not this specific
+finding of this note (notes/documentation.md flagged the shape of the question but not this specific
 mechanism): the fix, if wanted, is not part of this decision and is deferred to the same list
 DECISIONS §101 already carries (a bound notification the shell could `WAIT` on for "the caretaker's
 queue for this client has drained," which needs the notification object §101 already decided to
@@ -194,7 +194,7 @@ decide:
   permanent shape for a tail stage whose output goes to the screen," sequences it as step 1 ahead of
   the notification object, and explicitly declines to take it: "That is milestone 40's fork, and
   this decision does not take it."
-- notes/manual.md (2026-08-18) already proposes the narrowing rule (apply only when the line has no
+- notes/documentation.md (2026-08-18) already proposes the narrowing rule (apply only when the line has no
   `>` and no `|`, decidable from the plan before anything spawns, so nothing loses its ability to be
   redirected) and calls it "a proposal and not a decision."
 - notes/pipes.md (2026-08-04) has carried the underlying trade as an open BUGS entry since milestone
@@ -235,10 +235,10 @@ objects) is minted to track the race's fix, per §106's condition for taking thi
 
 ## BUGS
 
-- **This note is itself a "where this goes next" for notes/manual.md's own section of the same
+- **This note is itself a "where this goes next" for notes/documentation.md's own section of the same
   name**, and the two will drift if only one is updated after the decision lands. Whichever lane
   builds the decided option should fold this note's finding (the fault-endpoint reuse, the
-  caretaker-hop race) back into notes/manual.md and notes/pipes.md rather than leaving three files
+  caretaker-hop race) back into notes/documentation.md and notes/pipes.md rather than leaving three files
   telling three overlapping stories.
 - **The caretaker-hop race (question 5) is named, not measured.** No benchmark exists for how often
   a child's exit races its own trailing `terminal_sink_caretaker` delivery under real scheduling;

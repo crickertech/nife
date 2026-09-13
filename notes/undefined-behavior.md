@@ -105,7 +105,7 @@ smaller version of the same claim. The `manual` row is not that. That test does 
 isolation refuses `open` and `opendir` outright; there is no smaller version, only a decision about
 `-Zmiri-disable-isolation`.
 
-**It was refused, on measurement rather than principle** (milestone 238). `crates/manual` has no
+**It was refused, on measurement rather than principle** (milestone 238). `crates/documentation` has no
 dependencies and no `unsafe`, so the rules Miri enforces cannot be broken by any line it would
 interpret there. Against that, `every_character_survives` costs 0.74 seconds natively and had not
 finished after **12 minutes** under Miri with isolation off, and the flag is not per-test: it would

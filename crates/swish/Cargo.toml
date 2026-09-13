@@ -38,4 +38,4 @@ glob = { version = "0.1.0", path = "../glob" }
 # the user reads (milestone 40 phase 2). The *reading* of a shard is `manual`'s and needs a
 # capability, so it stays in the program; what a person is told about the result does not, and a
 # sentence the shell invents is exactly what this crate exists to stop.
-manual = { version = "0.1.0", path = "../manual" }
+documentation = { version = "0.1.0", path = "../documentation" }

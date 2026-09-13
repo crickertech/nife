@@ -714,7 +714,7 @@ chain's feeder and its reader has to refuse, or hang), but the analysis had an u
 that the tail's reader, if there is one, is always this shell. §106 gives an unredirected tail
 somewhere else to be read (`terminal_sink_caretaker`), so `doc page.md` renders now; only the
 redirected shape (`doc page.md > out.txt`) still meets this refusal, because a `>` still comes back
-through this shell (DECISIONS §55). See notes/manual.md's `BUGS` for the current transcript.
+through this shell (DECISIONS §55). See notes/documentation.md's `BUGS` for the current transcript.
 
 It is the same kind of sentence as `InputRequired`'s, one level up: the manifest knows something
 about the program, so the prompt knows something about the line. And it is the same trade, because
@@ -748,7 +748,7 @@ $ doc motd > page.txt
 `doc motd`'s output somewhere to go that is not this shell, so it renders now instead of refusing;
 `doc motd > page.txt` still refuses, because `>` still routes through this shell (DECISIONS §55).
 The transcript above is kept as the record of what milestone 40's own lane found before that
-decision; see notes/manual.md's `BUGS` for the current one.
+decision; see notes/documentation.md's `BUGS` for the current one.
 
 The second line is the whole claim, and the two numbers are the assertion rather than the fact that
 it ran: the same 70 bytes went in and 72 came out, because the renderer wrapped a paragraph and put
@@ -804,7 +804,7 @@ costs neither of the two properties above (the pull-based source's separate-righ
 buffering stage's extra rendezvous): the child's output slot stays exactly as opaque to it as a
 `>` or `|` destination always was, so nothing about what a program declares changes, and the shell
 that used to drain the tail's bytes now waits on DECISIONS §26's kernel exit-delivery instead. See
-notes/manual.md's `BUGS` for the mechanism and its one carried cost, the caretaker-hop display race.
+notes/documentation.md's `BUGS` for the mechanism and its one carried cost, the caretaker-hop display race.
 
 ## Buffering: measured, and the answer is to build nothing
 
@@ -1283,7 +1283,7 @@ reader would look. The symptom is always a data abort one word below the lowest 
   decision answers it: the shell hands the terminal's sink over **only** when the line named
   neither `>` nor `|` for that stage, decided from the plan before anything spawns, so a stage never
   loses the ability to be redirected, it only loses the shell as a reader when nothing asked for one.
-  See notes/manual.md's `BUGS` for the worked case (`doc gate.txt`) and the cost that trade carries
+  See notes/documentation.md's `BUGS` for the worked case (`doc gate.txt`) and the cost that trade carries
   (the caretaker-hop display race, tracked at milestone 151).
 - **`OP_PRINT` carries eight bytes, so a sixteen-byte sink message is two calls to the terminal.**
   That is the terminal contract's request shape rather than a choice (see notes/sink-protocol.md),
@@ -1339,7 +1339,7 @@ reader would look. The symptom is always a data abort one word below the lowest 
   §55), so that shape still needs a barrier or nothing to wait on.
 - **`doc` is `writes_while_reading`'s first declarer, reachable from the prompt** (DECISIONS §106).
   This entry used to record the declaration as ahead of its first user, provable only by host tests;
-  `doc <page>` at a real prompt is that proof now. See notes/manual.md's `BUGS`.
+  `doc <page>` at a real prompt is that proof now. See notes/documentation.md's `BUGS`.
 - **The refusal is named after a program and is a fact about the line, and it still fires for the
   redirected shape.** `doc page.md > out.txt` prints `doc: writes while it reads...`, which reads as
   a complaint about `doc`. Nothing is wrong with `doc`, and the same program renders straight to the

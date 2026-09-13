@@ -1,19 +1,24 @@
-//! **`doc`: the viewer** (milestone 40, notes/manual.md).
+//! **`mdr`: the markdown renderer** (milestone 40, notes/documentation.md).
 //!
 //! It reads markdown on its input and writes it rendered on its output. That is the whole program.
-//! The rendering is `crates/manual`, host-tested in milliseconds; what lives here is the two ends of
+//! The rendering is `crates/documentation`, host-tested in milliseconds; what lives here is the two ends of
 //! the sink contract and eight kilobytes of `.bss`.
 //!
-//! Name: provisional. Minted by milestone 40's lane on 2026-08-04. It is the roadmap's own word
-//! for this program. `man` is the live alternative and carries the stronger half of the argument,
-//! that a reader already knows it from outside this project, which AGENTS.md calls the best name
-//! available; the counter is that `man` names a *format* elsewhere and this program renders plain
-//! markdown, so the recognition it borrows is partly false. One consequence is recorded in
-//! notes/naming.md and is a constraint rather than a preference: `doc` is a program and the shell
-//! matches builtins before program names, so a builtin whose first word is `doc` would shadow
-//! this viewer for every line beginning with it. Deliberately not the same name as
-//! `crates/manual`, though the two are the usual crate-and-program pair; see that crate's header.
-//! calef has not ratified it.
+//! Name: ratified 2026-09-13 (calef, in conversation while working the unratified worklist).
+//! Refused `doc` (promises a lookup this program cannot perform, since finding a page is
+//! `apropos`'s job and lives in the shell; and the shell matches builtins first, so any builtin
+//! beginning `doc` would shadow it), `man` (names a format this does not render and the same
+//! lookup it cannot do), `manual` (the crate's, and a superset of this), `markdown` and
+//! `markdown_renderer` (both correct and both longer than a typed command needs; AGENTS.md leaves
+//! the length of a typed command to its author, which is why `wc`, `ps` and `rm` are already
+//! here), `md` (shorter still, and the extension is more widely known than `mdr`, but it names the
+//! format rather than what this does to it).
+//!
+//! **`mdr` is not universal the way `ps` is**, and that is the honest cost: a reader learns it
+//! here rather than arriving with it. Against that, at least four independent projects outside
+//! this tree already ship an `mdr` that is a terminal markdown renderer, in three languages and
+//! none of them canonical, which is evidence the abbreviation is the natural one rather than one
+//! this project coined.
 //!
 //! # It cannot name a page, and that is the demonstration
 //!
@@ -86,7 +91,7 @@
 //!   adapter a declared second stream already reached by default under DECISIONS §67, now the
 //!   default primary-output target for an unredirected tail stage too. `doc <page> > out.txt`
 //!   (the redirected shape, with nowhere for the shell to wait but itself) is still refused, and
-//!   still names the fix ('| wc' or similar). See notes/manual.md's "Render a page at the prompt"
+//!   still names the fix ('| wc' or similar). See notes/documentation.md's "Render a page at the prompt"
 //!   section and notes/pipes.md for the full mechanism and the fault-endpoint-reuse race it
 //!   accepts.
 //! - **`doc <page> | wc` and `doc <page> > out.txt` do deliver the named file.** They answered
@@ -105,8 +110,8 @@
 //!   because there is nobody to ask: the terminal contract has no "how wide are you" verb, and the
 //!   graphical terminal is 32 columns while the serial one is whatever the host window is.
 //! - **Plain text only**, per the section above.
-//! - **A source line longer than `manual::LINE_MAX` loses its tail**, and this program does not say
-//!   so even though `manual::Renderer::truncated` would tell it, because its only output channel is
+//! - **A source line longer than `documentation::LINE_MAX` loses its tail**, and this program does not say
+//!   so even though `documentation::Renderer::truncated` would tell it, because its only output channel is
 //!   the rendered document and a diagnostic in the middle of one is worse than the loss.
 
 #![no_std]
@@ -116,7 +121,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use manual::{Renderer, Sink, Style};
+use documentation::{Renderer, Sink, Style};
 use user_rt::{exit, recv, send};
 
 /// The output sink: where the rendered bytes go, in the sink contract's framing.

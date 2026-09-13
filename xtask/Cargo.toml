@@ -21,7 +21,7 @@ nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 # constraints, because the guest has neither: there is no directory iteration in this system, so
 # "what pages exist" cannot be discovered at runtime and has to be computed at image time. Only the
 # writer is behind the `builder` feature; the reader that runs confined allocates nothing.
-manual = { version = "0.1.0", path = "../crates/manual", features = ["builder"] }
+documentation = { version = "0.1.0", path = "../crates/documentation", features = ["builder"] }
 filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
 # The partition table (milestone 57's write half): the post-run check reads the table the GUEST
 # wrote, from outside the guest, with the same parser the guest used and the same one whose host

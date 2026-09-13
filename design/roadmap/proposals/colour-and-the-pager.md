@@ -24,7 +24,7 @@ before anybody decides it is one.
 
 The second half blocks the pager outright. A pager needs one line of input at a time and must not
 hold the keyboard, because holding the keyboard is exactly the authority a confined viewer should
-not have. There is no way to express that today, so `doc` renders and cannot page. Milestone 40's
+not have. There is no way to express that today, so `mdr` renders and cannot page. Milestone 40's
 own refusal of `ratatui` said the tree needs its terminal contract first; this is a piece of that
 contract.
 
@@ -38,7 +38,7 @@ tail stage it ends at a real screen (colour, the honest `isatty` replacement), a
 one line of input without granting the keyboard (the pager). Both widen a protocol two programs
 agree on, so both are calef's call."*
 
-`notes/manual.md`'s "Where this goes next" is the only other record, and it heads its list with
+`notes/documentation.md`'s "Where this goes next" is the only other record, and it heads its list with
 these two: *"DECISIONS §106 took the narrowing for a tail stage's primary output; it did not extend
 the same bit to 'tell this stage it ends at a real screen' ... or to granting one line of input
 without granting the keyboard. Both still want the wiring bit this entry originally scoped for all

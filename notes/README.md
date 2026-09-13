@@ -395,7 +395,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   runs against a **third**: `components/src/terminal_sink_caretaker.rs` makes the terminal a sink, which is a
   separate process for a capability reason (its endpoint also carries `OP_READLINE`) and which
   needed a register-only `OP_PRINT`, because `OP_WRITE` reads from the one client page init maps.
-- [The manual](manual.md): milestone 40's documentation service. A streaming markdown renderer that
+- [The documentation crate](documentation.md): milestone 40's documentation service. A streaming markdown renderer that
   allocates nothing, because `doc` reads its input as sixteen-byte sink messages and a renderer that
   held a document would need a memory grant to do it. Why the roadmap's `pulldown-cmark` was
   reversed (it is not `no_std`, and a std program on this system has no stdin and no argv, so it
@@ -432,7 +432,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   that were not in the tree before this note: the shell can reuse DECISIONS §26's already-built
   fault endpoint as its completion signal instead of reading the child's bytes, which is cheaper
   than it looks; and moving output off the shell's own read loop opens a narrower race than the one
-  notes/manual.md named, between a child's exit and its own trailing delivery through
+  notes/documentation.md named, between a child's exit and its own trailing delivery through
   `terminal_sink_caretaker`. DECISIONS §101 (notification objects) already ratified the *direction*
   and left the specifics to this fork.
 - [`swish` the language](swish-language.md): milestone 67: quoting, sequencing, and the one design

@@ -113,18 +113,23 @@
 //! rate limit, no attempt counting; the service that owns the store is the only thing that could
 //! enforce those and it does not.
 //!
-//! Name: provisional, and this lane proposes a rename to `credential`. Introduced 2026-07-31 with
-//! milestone 56. The history says only that, and the one entry that carries a reason is
-//! `script/lint`'s `-d` allow-list, written by the lane that needed the exemption. Everything
-//! else in the tree has moved the other way, twice, by calef's own hand: milestone 63 spelled the
-//! service `credentialer` in full on 2026-08-01, and on 2026-08-23 he renamed `cred_proto` to
-//! `credential_proto` with the reason recorded as "spell out the contraction fully". This crate
-//! is that same contraction, left behind by both sweeps rather than exempted from either, so the
-//! tree now spells one word two ways across three things that are the same thing. `kbd` to
-//! `keyboard_driver` on 2026-08-27 is the same shape. The seventh question, asked plainly: if
-//! renaming and keeping cost the same, nothing would keep this name, so the only argument for it
-//! is effort, and it is stated here as effort rather than dressed as judgment. Proposed, not
-//! performed.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). The lane that wrote this
+//! block proposed renaming to `credential`; that is the name calef **refused for the program on
+//! 2026-08-01** (milestone 63), on the ground that the plain resource noun follows `clock` and
+//! `entropy` and this is not that. Refusing it for the crate is the same ruling reaching the other
+//! half of one pair.
+//!
+//! **The pairing is the reason, and it is the one AGENTS.md says means something.** A crate and a
+//! program share a name when the crate is that program's logic lifted out to be host-tested and
+//! reachable by the prover, while the program keeps the IO. That is exactly this: no syscalls, no
+//! allocation, no `alloc`, tests in milliseconds, and `user/src/credentialer.rs` doing the talking.
+//! `coremark`, `line_editor` and `compositor` are the same shape. Three of this family's four names
+//! were already ratified and agreed (`credentialer` the program, `credential_proto` the wire
+//! contract, `credentialer_test_client`); this was the loose end.
+//!
+//! The argument against, recorded because it is real: `credentialer` is an agent noun for a thing
+//! that is logic rather than an agent. It loses to the pair, and to the fact that the agent noun was
+//! already ruled for the service this belongs to.
 
 #![cfg_attr(not(test), no_std)]
 

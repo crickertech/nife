@@ -1,8 +1,8 @@
 # The manual: documentation as a system service
 
 *(Milestone 40. Markdown authored, rendered for display rather than shown raw, searchable, and
-installed by the package that owns it. The pure logic is `crates/manual`; the program is
-`components/src/doc.rs`; the store is built by `cargo xtask manual`. Names are provisional.)*
+installed by the package that owns it. The pure logic is `crates/documentation`; the program is
+`components/src/mdr.rs`; the store is built by `cargo xtask manual`.)*
 
 The project's own argument is written in markdown: 328 files, three megabytes, `design/decisions/`
 and a hundred notes. A nife that serves them, on itself, through a viewer that can name
@@ -14,7 +14,7 @@ feature question.
 
 ## Rendered
 
-`crates/manual` is a **streaming** renderer: bytes in, styled terminal bytes out, no allocator, no
+`crates/documentation` is a **streaming** renderer: bytes in, styled terminal bytes out, no allocator, no
 document held anywhere. That shape is not an optimisation, it is what the program's capabilities
 already are. `doc` receives its input as `byte_sink_proto` messages of sixteen bytes each and writes its
 output the same way, so a renderer that needed the whole document would need somewhere to put it,
@@ -145,8 +145,8 @@ reason (scanning was slow).
 
 ### The writer and the reader must agree on what a word is, and did not
 
-`manual::index::normalize` folds a query by dropping every byte that is not a letter or a digit, so
-a reader who types `line_editor` looks up `lineeditor`. `manual::index::tokens` split the *text* on
+`documentation::index::normalize` folds a query by dropping every byte that is not a letter or a digit, so
+a reader who types `line_editor` looks up `lineeditor`. `documentation::index::tokens` split the *text* on
 that same byte, so the builder only ever wrote `line` and `editor`. **The term the query asks for
 was one no page could ever have.** In a repository whose prose is full of `snake_case` identifiers,
 that is most of what anybody would search for: `apropos fs_proto` and `apropos grant_plan` both
@@ -213,7 +213,7 @@ cannot widen what its caller could already reach, and `doc notes/ipc-naming.md` 
 readable file survives having a search in front of it. A search *program* would have moved the
 authority one line earlier and silently.
 
-The split follows the tree's usual one. The **reading** is `manual::index::search`, and it is the
+The split follows the tree's usual one. The **reading** is `documentation::index::search`, and it is the
 single point at which the writer and the reader are proved to agree: `cargo xtask manual capability`
 on the host and `apropos capability` at the prompt call that same function, over the same bytes,
 through the same one-page-at-a-time `Pages`. The **rendering** is `swish::write_apropos`, host-tested
@@ -250,7 +250,7 @@ not move is which page came first.
 
 Three things about it are deliberate.
 
-**It is the same code**, `manual::index::build` and `manual::index::search`, one shard per part of
+**It is the same code**, `documentation::index::build` and `documentation::index::search`, one shard per part of
 the tree and the same merge across shards the shell does with one 4 KiB page. Not a second
 implementation, so a defect in the layout shows up in both places and a fix lands in both. What
 differs is what a result *names*: a guest result names `doc/<bundle>/<page>`, because that is what a
@@ -271,7 +271,7 @@ derived views: a maintained one rots and nothing says so.
 ### The store's own layout is a thing two programs agree on
 
 `doc/bundles` lists what is installed, one name per line; `doc/<bundle>/index` is a shard;
-`doc/<bundle>/<page>.md` are the pages. Those three names are `manual::index::STORE_DIR`,
+`doc/<bundle>/<page>.md` are the pages. Those three names are `documentation::index::STORE_DIR`,
 `MANIFEST` and `SHARD`, in the crate both sides depend on, because the host writes them and the
 guest opens them (AGENTS.md rule 7). The manifest is a **file rather than a directory listing**,
 which is this whole milestone in one constant.
@@ -325,7 +325,7 @@ documentation store: target/redoxfs-tree/doc
 search: capability
     46  doc/kernel/capabilities.md    Capabilities, and why the kernel has no `open()`  notes/capabilities.md
     11  doc/kernel/ipc-naming.md      Who does IPC name?                              notes/ipc-naming.md
-    18  doc/manual/manual.md          The manual: documentation as a system service   notes/manual.md
+    18  doc/manual/manual.md          The manual: documentation as a system service   notes/documentation.md
      3  doc/swish/line-discipline.md  The line discipline as a userspace component    notes/line-discipline.md
      8  doc/glob/glob.md              The glob matcher                                notes/glob.md
     32  doc/swish/pipes.md            Pipes and redirection: `>`, `<` and `|` are one   notes/pipes.md
@@ -467,7 +467,7 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
   says. A search is for words, and the location a result prints is what you hand to `doc`.
 - ~~**Ranking is occurrence count and nothing else.**~~ **It divides by document length now**
   (2026-08-22): the page record grew a `tokens` field, spent out of the six bytes it already held
-  spare, and `manual::index::Ranked::offer` ranks by `count / tokens` (fixed-point, one division)
+  spare, and `documentation::index::Ranked::offer` ranks by `count / tokens` (fixed-point, one division)
   rather than by raw `count`. A short page where a term is dense now outranks a long page where it
   is only mentioned in passing, even with a smaller raw count. `Found::count` still reports the
   raw occurrence count in the printed answer; only the order changed, and `apropos capability`'s
@@ -497,7 +497,7 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
 - **The index is 1.18x the markdown it indexes**, per the table above, and it was 1.56x when
   phase 1 measured it. The floor is what moves it: page alignment costs every bundle 16 KiB
   however small, so the ratio improves as the bundles grow rather than because anything got better.
-- **A source line longer than `manual::LINE_MAX` (2048) loses its tail.** The longest line in this
+- **A source line longer than `documentation::LINE_MAX` (2048) loses its tail.** The longest line in this
   repository is 1927 bytes <!--count:longest-markdown-line-->, so the corpus fits; a document from
   elsewhere may not, and `Renderer::truncated` reports it while `doc` does not print it. The number
   carries a marker because it drifted: these three places said 1835 for as long as the two gated
