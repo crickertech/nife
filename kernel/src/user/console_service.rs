@@ -8,11 +8,16 @@ use crate::sched::RendezvousId;
 /// and the kernel's is now used only for panics and boot, not for anyone's `print`.
 const PL011_PHYS: u64 = 0x0900_0000;
 
-/// Printing-client role (`x0`), matching user/src/hello.rs. (The server is its own binary now,
-/// 19f.3, so it has no role; only the demo client is still a role of hello.)
-const ROLE_CLIENT: u64 = 2;
-
 /// What a client needs to talk to the console server: two endpoints and the shared page.
+///
+/// **Nothing reads these fields today, and that is the honest state of this module rather than an
+/// oversight.** `spawn_client` was the only reader and went with the narrator on 2026-09-13
+/// (milestone 267). [`start`] still fills the handle in because the wiring it describes is real:
+/// the server is listening on `request` and will ack on `reply`. What is missing is a client, and
+/// whether this boot should still have one, or should stop starting the server at all, is the
+/// question milestone 267's block leaves open for calef. The `allow` is that question made
+/// visible; delete it, not the fields, when the question is answered.
+#[expect(dead_code, reason = "no client since the narrator went; see milestone 267's block")]
 #[derive(Clone, Copy)]
 pub struct Console {
     pub request: RendezvousId,
@@ -70,31 +75,6 @@ pub fn start() -> Console {
         reply,
         shared_phys,
     }
-}
-
-/// Spawn a client wired to `console`: `SEND` on request (slot 0), `RECV` on reply (slot 1),
-/// and the shared page mapped **read/write** (it writes the text it wants printed).
-pub fn spawn_client(image: &'static [u8], console: Console) {
-    crate::sched::spawn(move || {
-        run(
-            image,
-            Spawn {
-                arg0: ROLE_CLIENT,
-                arg1: 0,
-                arg2: 0,
-                grants: &[
-                    rendezvous_cap(console.request, Rights::WRITE), // slot 0: SEND
-                    rendezvous_cap(console.reply, Rights::READ),    // slot 1: RECV ack
-                ],
-                maps: &[Mapping {
-                    va: SHARED_VA,
-                    phys: console.shared_phys,
-                    flags: Flags::user_data(),
-                }],
-            },
-        )
-    })
-    .expect("could not spawn a console client");
 }
 
 /// The user VAs the client and server agree on. Kept here so the kernel and the binary have
