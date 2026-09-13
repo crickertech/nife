@@ -716,3 +716,84 @@ fn a_table_is_one_chunk_until_its_text_will_not_fit() {
     assert_eq!(widths.len(), 3);
     assert!(widths.iter().all(|&w| w == widths[0]), "not one chunk: {widths:?}");
 }
+
+// ---- milestone 280, third pass: the output cursor ------------------------------------------
+//
+// `col` is the renderer's only piece of arithmetic with two consumers, and almost every survivor
+// left in it is a mutant of one accumulator. Where the cursor feeds nothing but `close_line`'s
+// "is a line open" test, a wrong value is genuinely invisible and the mutant is equivalent; where
+// it feeds a wrap decision, or where it can reach zero, the output moves. These are the inputs that
+// tell those two cases apart, and each one is an ordinary page rather than a contrivance.
+
+#[test]
+fn a_blank_line_inside_a_fence_is_a_blank_line() {
+    // The one code line whose visible width is zero, which is what separates "add nothing to the
+    // cursor" from "multiply the cursor by nothing": the second closes the line without a newline
+    // and joins the code to whatever follows. Most fenced blocks in this repository have one.
+    assert_eq!(plain("```text\none\n\ntwo\n```\n", 40), "    one\n    \n    two\n");
+}
+
+#[test]
+fn an_image_leaves_the_cursor_where_its_text_ended() {
+    // `[image:` and `]` are the only runs this renderer emits that are not in the line buffer, and
+    // the cursor has to move by their width like any other word, or the wrap that follows lands in
+    // the wrong place. Nothing after an image had ever wrapped in a test.
+    assert_eq!(
+        plain("![pic](d.png) then some more words here\n", 24),
+        "  [image: pic] d.png\n  then some more words\n  here\n"
+    );
+}
+
+#[test]
+fn a_quoted_paragraph_wraps_inside_its_rule() {
+    // Each level of block quote costs two columns of every line, and the cursor has to start past
+    // them: a paragraph wrapped against the bare margin overruns by exactly two per level. Two
+    // levels, because one level cannot tell an addition from the constant it adds.
+    assert_eq!(
+        plain("> one two three four five six seven\n", 20),
+        "  | one two three\n  | four five six\n  | seven\n"
+    );
+    assert_eq!(
+        plain(">> one two three four five six seven\n", 20),
+        "  | | one two three\n  | | four five six\n  | | seven\n"
+    );
+}
+
+#[test]
+fn a_carriage_return_at_end_of_line_is_not_content() {
+    // A markdown file that has been through an editor on another system arrives with CRLF, and the
+    // `\r` is framing rather than text. Nothing in this repository has one, so only an explicit
+    // test can hold it: a renderer that kept it would print a stray control character, and one that
+    // trimmed the wrong byte would eat the last character of every line.
+    assert_eq!(plain("a\r\nb\r\n", 40), "  a b\n");
+    assert_eq!(plain("# Title\r\n", 40), "TITLE\n");
+}
+
+#[test]
+fn an_indented_block_quote_indents_by_its_rule_and_not_by_its_spaces() {
+    // A quoted line's own indentation is not structure, so the rule replaces it. The earlier
+    // indent tests both start at column zero, where the indent being dropped and the indent being
+    // zero look the same.
+    assert_eq!(plain("  >   quoted indented\n", 40), "  | quoted indented\n");
+}
+
+#[test]
+fn a_table_wider_than_the_column_bound_loses_its_right_hand_columns() {
+    // `TABLE_COLS` is a recorded limitation and it had no test, so the bound that enforces it could
+    // have been off by one into a fixed array. Ten columns in, eight out.
+    let src = "| a | b | c | d | e | f | g | h | i | j |\n\
+               |---|---|---|---|---|---|---|---|---|---|\n\
+               | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 0 |\n";
+    let out = plain(src, 80);
+    assert_eq!(out, "  a | b | c | d | e | f | g | h\n  --+---+---+---+---+---+---+--\n  1 | 2 | 3 | 4 | 5 | 6 | 7 | 8\n");
+}
+
+#[test]
+fn a_row_with_fewer_cells_than_the_table_is_padded_rather_than_ragged() {
+    // Markdown in this repository is written by hand and a short row is ordinary. The missing cells
+    // are blanks of the column's width, so the rows below still line up under their headings.
+    assert_eq!(
+        plain("| a | b | c |\n|---|---|---|\n| x |\n| p | q | r |\n", 40),
+        "  a | b | c\n  --+---+--\n  x |   |  \n  p | q | r\n"
+    );
+}
