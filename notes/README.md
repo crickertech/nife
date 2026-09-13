@@ -449,7 +449,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The command line as a grant expression](grant-expression.md): milestone 31: naming a resource
   in a command is how you grant it (Miller's "designation is authorization"), the inversion of
   Unix's ambient authority at the one interface a human touches. The shell's own budget, the
-  `SEND_CAP`-to-init spawn protocol, `--mem N` made real by the `budgeter` program, the "you
+  `SEND_CAP`-to-init spawn protocol, `--mem N` made real by the `memory_grant_depleter` program, the "you
   hold no such capability" refusal, and the `SPLIT`-grants-`GRANT` fix that let untyped be delegated.
   Phase 2 adds **per-file grants**: a caretaker process narrowing a directory capability to one file
   in one direction, proven by a read-only and a writable attacker, and why the second one is what

@@ -471,7 +471,7 @@ the density is.
 | `read_volatile`/`write_volatile` | 36 | device registers and shared-frame fields with no further collapse available (see below) |
 | `core::arch::asm!` | 16 | entry stubs, the trap, and a handful of driver-specific instructions (`wfi`, `fence`) |
 | `core::slice::from_raw_parts[_mut]` | 12 | whole-page slice construction; down from ~30 before this round's own migration |
-| everything else | 97 | `MappedWindow`/`RegisterBlock`-family constructors (new, mostly this round: see below), the C ABI shim (`c_shim.rs`, `malloc`/`free`, already documented per milestone 82's survey), deliberate-fault test programs (`flaky.rs`, `outlaw.rs`, `hello.rs`'s `.bss`/`.data` probes), and single one-off writes (`budgeter.rs`, `swapper.rs`) |
+| everything else | 97 | `MappedWindow`/`RegisterBlock`-family constructors (new, mostly this round: see below), the C ABI shim (`c_shim.rs`, `malloc`/`free`, already documented per milestone 82's survey), deliberate-fault test programs (`flaky.rs`, `outlaw.rs`, `hello.rs`'s `.bss`/`.data` probes), and single one-off writes (`memory_grant_depleter.rs`, `swapper.rs`) |
 
 **Two clusters migrated this round, on `MappedWindow`, the same primitive round 1 built.**
 
@@ -593,7 +593,7 @@ registers this milestone investigated and deliberately left unmigrated (the NS16
 `console.rs`/`input.rs`, whose register stride is a runtime fact no compile-time layout can
 express; `clock.rs` and `driver.rs`, each already collapsed to one function apiece); the remaining
 `from_raw_parts` sites are deliberate-fault test programs (`flaky.rs`, `outlaw.rs`) and one-off
-writes (`budgeter.rs`, `swapper.rs`) this milestone's own text already names as not having a §94
+writes (`memory_grant_depleter.rs`, `swapper.rs`) this milestone's own text already names as not having a §94
 shape to collapse; and `crates/ipc`'s three call sites are DECIDED as genuinely distinct (round 2).
 So: **no single number, but a bounded one** -- somewhere between roughly 160 (if the `invoke`
 cluster turns out to need no wrapper at all) and roughly 260 (if it turns out nearly all of it is
@@ -936,7 +936,7 @@ sorted the non-FS hits into rough categories a follow-on lane can use rather tha
 - **Deliberately not migration candidates, named so nobody re-derives them and wastes a look**:
   `hello.rs` (tests `.bss` zeroing and `.data` writability on purpose; the raw access *is* the test),
   `flaky.rs` and `outlaw.rs` (deliberately touch a bad/unauthorized address to provoke a fault; a
-  bounds-checked wrapper would defeat the point), `budgeter.rs` and `swapper.rs` (single one-off
+  bounds-checked wrapper would defeat the point), `memory_grant_depleter.rs` and `swapper.rs` (single one-off
   writes, not a repeated hand-written invariant -- nothing to collapse).
 - **`login_test_client.rs`'s `PAGE_VA` is done** (round 6), along with five more files in the
   identical `core::slice::from_raw_parts[_mut]`-over-a-whole-page shape that reading this one
@@ -1116,7 +1116,7 @@ proofs and the type system are standing aside and a person's comment is the whol
 - **Recorded.** The NS16550 halves of the console and input programs stay hand-written, because the
   register stride is a runtime fact no register-layout macro can express, the same reason
   `kernel/src/drivers/ns16550.rs` gives in its own module doc.
-- **Recorded.** `hello.rs`, `flaky.rs`, `outlaw.rs`, `budgeter.rs` and `swapper.rs` are
+- **Recorded.** `hello.rs`, `flaky.rs`, `outlaw.rs`, `memory_grant_depleter.rs` and `swapper.rs` are
   deliberately not candidates: for three of them the raw access is the test, and the other two are
   one-off writes with nothing repeated to collapse.
 - **Recorded.** No target number, by design. The ceiling stands at 88 in

@@ -3466,7 +3466,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
         // Portable, so both archives carry it and both ISAs answer the same injected query.
         ("mdns_responder", "mdns_responder"),
-        ("budgeter", "budgeter"),
+        ("memory_grant_depleter", "memory_grant_depleter"),
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
@@ -4377,7 +4377,7 @@ fn initrd_aarch64() -> bool {
         ("net_stack", "net_stack"),
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
         ("mdns_responder", "mdns_responder"),
-        ("budgeter", "budgeter"),
+        ("memory_grant_depleter", "memory_grant_depleter"),
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),

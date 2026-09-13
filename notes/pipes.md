@@ -83,7 +83,7 @@ redirected:
 
 | | what slot 0 carries | can it be `>` or `\|`? |
 |---|---|---|
-| `least_authority_demo`, `budgeter` | a `u64` answer in a register | no |
+| `least_authority_demo`, `memory_grant_depleter` | a `u64` answer in a register | no |
 | `interrupt_heeder`, `interrupt_ignorer` | nothing; they report through a shared frame | no |
 | `date`, `wc`, `rm` | the sink contract's byte messages | yes |
 

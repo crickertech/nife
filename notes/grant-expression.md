@@ -23,8 +23,8 @@ makes the confused deputy constructible.
 The inversion: a nife command grants **exactly what it names, and nothing else**. A program
 that names no resource gets none. There is no ambient pool to draw from, so the question "may I?"
 is never asked; there is simply nothing in the program's hands it was not given. `least_authority_demo 9` grants a
-report channel and an argument. `budgeter --mem 16` grants a report channel and a 16-page memory
-budget. `budgeter` alone grants a report channel and is refused, because budgeter's manifest says it
+report channel and an argument. `memory_grant_depleter --mem 16` grants a report channel and a 16-page memory
+budget. `memory_grant_depleter` alone grants a report channel and is refused, because memory_grant_depleter's manifest says it
 needs memory and the command named none.
 
 ## The grammar
@@ -38,7 +38,7 @@ echo <text>
 
 **The command line itself is the grant expression.** Its parts are designators:
 
-- `<prog>` names the program to spawn (a closed set today: `least_authority_demo`, `budgeter`, `interrupt_heeder`,
+- `<prog>` names the program to spawn (a closed set today: `least_authority_demo`, `memory_grant_depleter`, `interrupt_heeder`,
   `interrupt_ignorer`, `date`).
 - `--mem N` designates **N pages of untyped**, carved from the shell's own budget.
 - a bare token designates whatever the program's manifest declares in that position: the integer
@@ -141,11 +141,11 @@ rights and no more, and the **root** untyped init holds at boot is the delegable
 `GRANT`) -> shell (narrowed to `WRITE|GRANT` at `CAP_INSERT`) -> shell split (inherits) -> spawned
 child (narrowed to `WRITE`, spend-only). `GRANT` never appears where it was not present above.
 
-## The budgeter proves the grant is real
+## The memory_grant_depleter proves the grant is real
 
-`budgeter` is a program whose whole job is to spend the memory it was granted: it maps pages out of
+`memory_grant_depleter` is a program whose whole job is to spend the memory it was granted: it maps pages out of
 its slot-1 untyped until the budget is exhausted, then reports the count. The number it prints is
-the authority the command handed it. `budgeter --mem 16` reports **15** pages mapped on both
+the authority the command handed it. `memory_grant_depleter --mem 16` reports **15** pages mapped on both
 ISAs: the sixteenth paid for the page table that reaches the others (the kernel allocates nothing on
 a process's behalf, DECISIONS §10). Grant more and it maps more; grant nothing and it holds no
 untyped at slot 1 at all, so its first `MAP` returns `NoSuchSlot` and it maps zero. There is no
@@ -159,7 +159,7 @@ A refusal is a fact about what the shell holds, phrased in the capability model'
 - `frobnicate 1` → "frobnicate: no such program (try 'help' for the builtins)." There is nothing to
   name. A mistyped builtin lands here too, now that the first word is either a builtin or a program,
   which is why the line points at both halves of what the prompt understands.
-- `budgeter` → "budgeter: needs a memory grant; add --mem <pages>." The manifest caught it.
+- `memory_grant_depleter` → "memory_grant_depleter: needs a memory grant; add --mem <pages>." The manifest caught it.
 - `least_authority_demo 3 --mem 8` → "least_authority_demo: takes no memory grant; drop the --mem."
 - `least_authority_demo 5 extra` → "least_authority_demo: takes no file; drop the name." The token could only have been a file,
   and least_authority_demo declares none, so it is refused rather than granted-and-dropped. **The answer is the

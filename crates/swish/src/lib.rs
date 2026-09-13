@@ -806,12 +806,13 @@ pub fn write_help(out: &mut dyn FnMut(&[u8])) {
         b"  apropos <word>          name the installed pages that mention it (it grants nothing)\n",
     );
     out(b"  rm [-rfv] <path>        a PROGRAM, granted the directory holding what you name\n");
-    // Two spaces rather than the column the rest of this block keeps: the name is 24 characters
-    // and the description column is 26, so aligning it would leave no separator at all. Milestone
-    // 175 ratified the name; a table that reflows every other line to suit one entry costs more
-    // than two columns of ragged edge.
+    // Two spaces rather than the column the rest of this block keeps: these two names run past the
+    // description column (26), so aligning them would leave no separator at all. Both were ratified
+    // after this table was laid out, `least_authority_demo` by milestone 175 and
+    // `memory_grant_depleter` on 2026-09-13, and a table that reflows every other line to suit two
+    // entries costs more than two columns of ragged edge.
     out(b"  least_authority_demo <n>  spawn a process that returns n*n\n");
-    out(b"  budgeter --mem N        grant a process N pages from this shell's budget\n");
+    out(b"  memory_grant_depleter --mem N  grant a process N pages from this shell's budget\n");
     out(b"  date                    print the wall-clock time\n");
     out(b"  printenv                print the inert configuration page (TZ, LANG, TERM)\n");
     out(b"  uuid                    a version-4 UUID, from the entropy service it is granted\n");
@@ -916,7 +917,7 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
             write_num(answer, out);
             out(b"\n");
         }
-        Prog::Budgeter => {
+        Prog::MemoryGrantDepleter => {
             out(b"  the process mapped ");
             write_num(answer, out);
             out(b" pages out of the ");
@@ -1138,7 +1139,7 @@ pub fn write_caps(
     for (i, stage) in l.stages().iter().enumerate() {
         // Only a program invocation carries a grant to preview; `caps help` has nothing to say.
         let Command::Run(spec) = grant_plan::parse(stage) else {
-            out(b"  caps previews a command's grant; try: caps budgeter --mem 16\n");
+            out(b"  caps previews a command's grant; try: caps memory_grant_depleter --mem 16\n");
             return;
         };
         let expanded = match expansion(&spec, expand) {
@@ -1875,7 +1876,11 @@ mod tests {
     fn a_spawn_that_failed_says_so_whatever_the_program_was() {
         // The sentinel is checked before the program is looked at, which matters: `least_authority_demo`'s arm
         // would otherwise report that a process computed `u64::MAX`.
-        for prog in [Prog::LeastAuthorityDemo, Prog::Budgeter, Prog::Date] {
+        for prog in [
+            Prog::LeastAuthorityDemo,
+            Prog::MemoryGrantDepleter,
+            Prog::Date,
+        ] {
             let s = shown(|o| write_outcome(&endowment(prog), spawnproto::SPAWN_FAILED, o));
             assert!(s.contains("could not spawn"), "{prog:?}: {s}");
         }
@@ -1890,7 +1895,7 @@ mod tests {
             "  a process at EL0 computed 7*7 = 49\n"
         );
 
-        let mut e = endowment(Prog::Budgeter);
+        let mut e = endowment(Prog::MemoryGrantDepleter);
         e.mem_pages = 16;
         let s = shown(|o| write_outcome(&e, 14, o));
         // Both numbers, because the gap between them is the page tables the grant paid for, and a
@@ -1918,7 +1923,7 @@ mod tests {
 
     #[test]
     fn a_memory_grant_is_a_row_and_no_grant_is_no_row() {
-        let mut e = endowment(Prog::Budgeter);
+        let mut e = endowment(Prog::MemoryGrantDepleter);
         assert!(!shown(|o| write_preview(&e, o)).contains("untyped"));
         e.mem_pages = 16;
         assert!(shown(|o| write_preview(&e, o)).contains("cap 1  untyped   16 pages"));
@@ -2375,8 +2380,8 @@ mod tests {
                 );
             })
         };
-        let timed = preview(b"time budgeter --mem 16");
-        let plain = preview(b"budgeter --mem 16");
+        let timed = preview(b"time memory_grant_depleter --mem 16");
+        let plain = preview(b"memory_grant_depleter --mem 16");
         assert_eq!(
             timed.strip_prefix("  time grants nothing; what it would run:\n"),
             Some(plain.as_str()),
@@ -2385,7 +2390,7 @@ mod tests {
 
         // Nested prefixes collapse rather than recursing, and a prefix with nothing after it is the
         // same complaint the prompt makes.
-        assert_eq!(preview(b"time time budgeter --mem 16"), timed);
+        assert_eq!(preview(b"time time memory_grant_depleter --mem 16"), timed);
         assert!(preview(b"time").contains("name a command to time"));
     }
 

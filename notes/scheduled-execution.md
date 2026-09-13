@@ -73,7 +73,7 @@ outcomes where `/proc` has one. Registration here has four where a crontab has o
 | `timetable::Error` | the document does not parse, with the line number | editing the document |
 
 **The `Refused`/`Unbacked` split is the one worth keeping.** Collapsing them would tell a person to
-edit a line that has nothing wrong with it. `budgeter` with no `--mem` is wrong wherever it is typed;
+edit a line that has nothing wrong with it. `memory_grant_depleter` with no `--mem` is wrong wherever it is typed;
 `date` is a perfectly good line that this particular scheduler cannot back, and the fix is a decision
 somebody makes on purpose at the spawn site.
 
@@ -266,14 +266,14 @@ architecture-specific, so the parity gate is met by literally the same test runn
 the real program on the real `components/timetable.conf`, reads the plan it prints, then watches what
 fires:
 
-- the plan names what an admitted `least_authority_demo` and an admitted `budgeter --mem 4` will each hold, and
+- the plan names what an admitted `least_authority_demo` and an admitted `memory_grant_depleter --mem 4` will each hold, and
   says "and nothing else";
 - `date` and `ps` are refused for want of a clock and a process view, in the plan, before anything
   runs;
-- `budgeter` with no `--mem` and `wc` carry the **prompt's own refusal sentences**, unchanged, which
+- `memory_grant_depleter` with no `--mem` and `wc` carry the **prompt's own refusal sentences**, unchanged, which
   is the check being the same check;
 - the admitted entries fire, under supervision, and their answers arrive on the endpoint the plan
-  said they would hold, `budgeter`'s included: its grant is nested inside its own instance's region
+  said they would hold, `memory_grant_depleter`'s included: its grant is nested inside its own instance's region
   (below) and reclaimed before the loop fires anything else;
 - and the summary accounts for every child: `4 fires, 4 clean exits, 0 faults`, which is the reap
   working. A scheduler that leaked a region per fire would print the same fire count and then run out
@@ -288,7 +288,7 @@ tree and this is not the lane to take it out again).
 
 Built 2026-08-22. `Held::mem_pages` was zero on the shipped scheduler, so an entry naming a memory
 grant was `Unbacked::Memory` even though the process held a budget; `timetable::SHIPPED_HELD.mem_pages`
-is now 4 and `timetable.conf`'s `at-boot budgeter --mem 4` is planned, backed, and fires.
+is now 4 and `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` is planned, backed, and fires.
 
 Milestone 129's block said to split the grant out of the *instance's own region*, "so that a
 single `Untyped::DESTROY` still reclaims both and a restart loop is not a leak". **The kernel
@@ -315,7 +315,7 @@ schedules exactly one such entry. The cost lands on every *other* entry, not on 
 `_start` is fully blocked in one syscall for as long as the grant-bearing instance takes to die, so
 an interval entry due during that window runs late rather than on schedule when the loop resumes
 (never dropped: `next_after`'s ordinary skip-not-catch-up rule covers a wait outlasting more than
-one period, same as any other stall). `timetable.conf`'s `at-boot budgeter --mem 4` fires before the
+one period, same as any other stall). `timetable.conf`'s `at-boot memory_grant_depleter --mem 4` fires before the
 first `every 150ms` tick can even become due, so the cross-ISA test does not exercise that cost; a
 document whose `--mem` entry shared the clock with a fast interval would.
 

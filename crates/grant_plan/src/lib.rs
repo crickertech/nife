@@ -97,7 +97,7 @@ pub enum Prog {
     /// Spends a granted untyped budget: maps pages until the budget is exhausted and reports how
     /// many it got. The program that makes `--mem` *real* rather than parsed-and-ignored: the
     /// number it reports is the authority the command line handed it.
-    Budgeter,
+    MemoryGrantDepleter,
     /// A long-running job that *heeds* the cooperative interrupt: it works forever, polling its
     /// interrupt flag between work units, and on `^C` cleans up and exits (DECISIONS §24). The
     /// cooperative tier made visible: the first `^C` stops it gracefully.
@@ -262,7 +262,7 @@ impl Prog {
     pub fn from_name(name: &[u8]) -> Option<Prog> {
         match name {
             b"least_authority_demo" => Some(Prog::LeastAuthorityDemo),
-            b"budgeter" => Some(Prog::Budgeter),
+            b"memory_grant_depleter" => Some(Prog::MemoryGrantDepleter),
             b"interrupt_heeder" => Some(Prog::InterruptHeeder),
             b"interrupt_ignorer" => Some(Prog::InterruptIgnorer),
             b"date" => Some(Prog::Date),
@@ -286,7 +286,7 @@ impl Prog {
     pub fn name(self) -> &'static str {
         match self {
             Prog::LeastAuthorityDemo => "least_authority_demo",
-            Prog::Budgeter => "budgeter",
+            Prog::MemoryGrantDepleter => "memory_grant_depleter",
             Prog::InterruptHeeder => "interrupt_heeder",
             Prog::InterruptIgnorer => "interrupt_ignorer",
             Prog::Date => "date",
@@ -306,7 +306,7 @@ impl Prog {
     pub fn id(self) -> u64 {
         match self {
             Prog::LeastAuthorityDemo => 0,
-            Prog::Budgeter => 1,
+            Prog::MemoryGrantDepleter => 1,
             Prog::InterruptHeeder => 2,
             Prog::InterruptIgnorer => 3,
             Prog::Date => 4,
@@ -326,7 +326,7 @@ impl Prog {
     pub fn from_id(id: u64) -> Option<Prog> {
         match id {
             0 => Some(Prog::LeastAuthorityDemo),
-            1 => Some(Prog::Budgeter),
+            1 => Some(Prog::MemoryGrantDepleter),
             2 => Some(Prog::InterruptHeeder),
             3 => Some(Prog::InterruptIgnorer),
             4 => Some(Prog::Date),
@@ -367,9 +367,9 @@ impl Prog {
                 config: false,
                 entropy: false,
             },
-            Prog::Budgeter => Manifest {
+            Prog::MemoryGrantDepleter => Manifest {
                 arg: ArgSpec::Forbidden,
-                // A budget between 1 and 64 pages. The lower bound makes "budgeter with no --mem"
+                // A budget between 1 and 64 pages. The lower bound makes "memory_grant_depleter with no --mem"
                 // a refusal (it exists to spend memory); the upper bound is a sanity ceiling the
                 // shell's own budget can actually back.
                 mem: MemSpec::Required { min: 1, max: 64 },
@@ -1185,7 +1185,7 @@ pub struct RunSpec<'a> {
     /// The program name as typed (may not resolve).
     pub prog: &'a [u8],
     /// `--mem N`, if given. Recognized before or after the program name, because with the `run`
-    /// verb gone the line reads `budgeter --mem 16` the way every other command line does.
+    /// verb gone the line reads `memory_grant_depleter --mem 16` the way every other command line does.
     pub mem: Option<u64>,
     /// The positional tokens after the program name, in order, filled prefix in `pos[..npos]`.
     pos: [&'a [u8]; MAX_POSITIONALS],
@@ -2781,11 +2781,14 @@ mod tests {
         // And unquoted it is still the option it always was.
         assert_eq!(parse_run(b"rm -r x").options(), b"r");
         // Same rule for `--mem`, which is an option that moves memory.
-        let r = parse_run(b"budgeter \"--mem\" 16");
+        let r = parse_run(b"memory_grant_depleter \"--mem\" 16");
         assert_eq!(r.mem, None);
         assert_eq!(r.positionals(), [&b"--mem"[..], &b"16"[..]]);
         // ... while a quoted *value* is still the number it says.
-        assert_eq!(parse_run(b"budgeter --mem \"16\"").mem, Some(16));
+        assert_eq!(
+            parse_run(b"memory_grant_depleter --mem \"16\"").mem,
+            Some(16)
+        );
     }
 
     /// A builtin's name is a word like any other, so quoting it still names it. Nothing about
@@ -2818,8 +2821,8 @@ mod tests {
     /// array either; the missing value stays `None` for the plan to refuse.
     #[test]
     fn a_trailing_mem_flag_is_a_missing_value_not_a_read_past_the_line() {
-        let r = parse_run(b"budgeter --mem");
-        assert_eq!(r.prog, b"budgeter");
+        let r = parse_run(b"memory_grant_depleter --mem");
+        assert_eq!(r.prog, b"memory_grant_depleter");
         assert_eq!(r.mem, None);
     }
 
@@ -2828,7 +2831,7 @@ mod tests {
     /// stepping by the wrong arithmetic visibly lands somewhere else.
     #[test]
     fn a_mem_flag_consumes_its_value_and_nothing_after_it() {
-        let r = parse_run(b"budgeter --mem 4");
+        let r = parse_run(b"memory_grant_depleter --mem 4");
         assert_eq!(r.mem, Some(4));
         assert!(r.positionals().is_empty(), "the value became an operand");
         assert_eq!(r.unexpected, None);
@@ -3021,34 +3024,34 @@ mod tests {
     }
 
     #[test]
-    fn budgeter_needs_a_memory_grant() {
-        let Command::Run(r) = parse(b"budgeter") else {
+    fn memory_grant_depleter_needs_its_grant() {
+        let Command::Run(r) = parse(b"memory_grant_depleter") else {
             panic!()
         };
         assert_eq!(plan(&r, Holdings::default()), Err(Refusal::MemRequired));
     }
 
     #[test]
-    fn budgeter_with_mem_plans_the_grant() {
-        let Command::Run(r) = parse(b"budgeter --mem 16") else {
+    fn memory_grant_depleter_with_mem_plans_the_grant() {
+        let Command::Run(r) = parse(b"memory_grant_depleter --mem 16") else {
             panic!()
         };
         let e = plan(&r, Holdings::default()).unwrap();
-        assert_eq!(e.prog, Prog::Budgeter);
+        assert_eq!(e.prog, Prog::MemoryGrantDepleter);
         assert_eq!(e.mem_pages, 16);
         assert_eq!(e.arg, 0);
     }
 
     #[test]
-    fn budgeter_mem_out_of_range() {
-        let Command::Run(r) = parse(b"budgeter --mem 999") else {
+    fn memory_grant_depleter_mem_out_of_range() {
+        let Command::Run(r) = parse(b"memory_grant_depleter --mem 999") else {
             panic!()
         };
         assert_eq!(
             plan(&r, Holdings::default()),
             Err(Refusal::MemOutOfRange { min: 1, max: 64 })
         );
-        let Command::Run(r0) = parse(b"budgeter --mem 0") else {
+        let Command::Run(r0) = parse(b"memory_grant_depleter --mem 0") else {
             panic!()
         };
         assert_eq!(
@@ -3061,7 +3064,10 @@ mod tests {
     /// pages plans, and only one past either edge refuses.
     #[test]
     fn a_memory_grant_at_either_end_of_the_declared_range_plans() {
-        for (line, pages) in [(&b"budgeter --mem 1"[..], 1), (b"budgeter --mem 64", 64)] {
+        for (line, pages) in [
+            (&b"memory_grant_depleter --mem 1"[..], 1),
+            (b"memory_grant_depleter --mem 64", 64),
+        ] {
             let Command::Run(r) = parse(line) else {
                 panic!()
             };
@@ -3075,8 +3081,8 @@ mod tests {
     }
 
     #[test]
-    fn budgeter_takes_no_argument() {
-        let Command::Run(r) = parse(b"budgeter --mem 8 5") else {
+    fn memory_grant_depleter_takes_no_argument() {
+        let Command::Run(r) = parse(b"memory_grant_depleter --mem 8 5") else {
             panic!()
         };
         assert_eq!(plan(&r, Holdings::default()), Err(Refusal::ArgForbidden));
@@ -3954,7 +3960,7 @@ mod tests {
         // And every other program declares none, so nothing else needs the slot at all.
         for p in [
             Prog::LeastAuthorityDemo,
-            Prog::Budgeter,
+            Prog::MemoryGrantDepleter,
             Prog::InterruptHeeder,
             Prog::InterruptIgnorer,
             Prog::Rm,
@@ -4231,9 +4237,9 @@ mod tests {
 
     #[test]
     fn mem_flag_must_have_a_numeric_value() {
-        // `--mem twelve` is a missing grant, not a silent zero: parse_u64 rejects it, so budgeter
+        // `--mem twelve` is a missing grant, not a silent zero: parse_u64 rejects it, so memory_grant_depleter
         // sees "no --mem given" and refuses.
-        let Command::Run(r) = parse(b"budgeter --mem twelve") else {
+        let Command::Run(r) = parse(b"memory_grant_depleter --mem twelve") else {
             panic!()
         };
         assert_eq!(r.mem, None);
@@ -4246,14 +4252,14 @@ mod tests {
         // and what you run cannot drift apart. With `run` gone there is no verb left to echo.
         assert_eq!(parse(b"caps"), Command::Caps(b""));
         assert_eq!(
-            parse(b"caps budgeter --mem 16"),
-            Command::Caps(b"budgeter --mem 16")
+            parse(b"caps memory_grant_depleter --mem 16"),
+            Command::Caps(b"memory_grant_depleter --mem 16")
         );
-        let Command::Caps(tail) = parse(b"caps budgeter --mem 16") else {
+        let Command::Caps(tail) = parse(b"caps memory_grant_depleter --mem 16") else {
             panic!()
         };
         let (Command::Run(previewed), Command::Run(typed)) =
-            (parse(tail), parse(b"budgeter --mem 16"))
+            (parse(tail), parse(b"memory_grant_depleter --mem 16"))
         else {
             panic!()
         };
@@ -4275,13 +4281,14 @@ mod tests {
     fn time_runs_the_command_you_would_have_typed() {
         assert_eq!(parse(b"time"), Command::Time(b""));
         assert_eq!(
-            parse(b"time budgeter --mem 16"),
-            Command::Time(b"budgeter --mem 16")
+            parse(b"time memory_grant_depleter --mem 16"),
+            Command::Time(b"memory_grant_depleter --mem 16")
         );
-        let Command::Time(tail) = parse(b"time budgeter --mem 16") else {
+        let Command::Time(tail) = parse(b"time memory_grant_depleter --mem 16") else {
             panic!()
         };
-        let (Command::Run(timed), Command::Run(typed)) = (parse(tail), parse(b"budgeter --mem 16"))
+        let (Command::Run(timed), Command::Run(typed)) =
+            (parse(tail), parse(b"memory_grant_depleter --mem 16"))
         else {
             panic!()
         };
@@ -4843,10 +4850,10 @@ mod tests {
     }
 
     #[test]
-    fn least_authority_demo_and_budgeter_are_not_interruptible() {
+    fn least_authority_demo_and_memory_grant_depleter_are_not_interruptible() {
         // Fast jobs finish in one step; the shell just waits for them, no ^C tier.
         assert!(!Prog::LeastAuthorityDemo.manifest().interruptible);
-        assert!(!Prog::Budgeter.manifest().interruptible);
+        assert!(!Prog::MemoryGrantDepleter.manifest().interruptible);
         let Command::Run(r) = parse(b"least_authority_demo 9") else {
             panic!()
         };
