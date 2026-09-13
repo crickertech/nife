@@ -178,7 +178,6 @@ pub enum Prog {
     /// carry until [`ArgSpec`] grows the positional arity milestone 47 deferred; see `crates/pgrep`'s
     /// `BUGS`.
     Pgrep,
-<<<<<<< HEAD
     // **There was a `Watch` here until milestone 281** (`user/src/watch.rs`, `crates/watch`, both
     // deleted 2026-09-13), and the reason it went is a test worth reusing rather than a one-off.
     //
@@ -204,19 +203,6 @@ pub enum Prog {
     // which this one never could (spawning by name is the shell's own capability and is granted to
     // nothing the shell spawns), so the program was never in `watch`'s family. It was a very thin
     // member of `top`'s, which is the shape 282 makes it worth rebuilding as.
-=======
-    /// **Redraw [`Prog::Ps`]'s own domain walk a bounded number of times instead of printing it
-    /// once** (milestone 126, `components/src/watch.rs`, `crates/watch`).
-    ///
-    /// [`Prog::Ps`]'s manifest with one field changed: [`ArgSpec::Required`] rather than
-    /// `Forbidden`, because this program needs a typed count to bound its loop (there is no `^C` for
-    /// it; see `crates/watch`'s module docs for why an interruptible spawn cannot also hold a
-    /// domain). It is not upstream `watch`'s "re-run an arbitrary command", which would need a
-    /// program to hold spawn authority this system grants to the shell alone; it redraws the one
-    /// thing it can already reach without that, which is also the most common real-world invocation
-    /// of the tool it is named for.
-    Watch,
->>>>>>> origin/main
     /// **Print how long the ambient monotonic counter has been running** (milestone 126,
     /// `components/src/uptime.rs`, `crates/uptime`).
     ///
@@ -629,35 +615,6 @@ impl Prog {
                 config: false,
                 entropy: false,
             },
-<<<<<<< HEAD
-=======
-            // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
-            // whole difference: this program needs a typed redraw count, because it cannot be spun
-            // up as an interruptible (`^C`-stoppable) job the way `interrupt_heeder` and
-            // `interrupt_ignorer` are (an interruptible child is built with no capabilities in its
-            // cspace at all, and this program needs the domain and the output sink for its whole
-            // run; see `crates/watch`'s module docs). Everything else is `ps`'s own reasoning
-            // verbatim: no file, no directory, no memory grant widens what this program can reach,
-            // and `domain` is the one real authority, endowed by init and not something the command
-            // line names.
-            Prog::Watch => Manifest {
-                arg: ArgSpec::Required,
-                mem: MemSpec::Forbidden,
-                file: FileSpec::Forbidden,
-                dir: DirSpec::Forbidden,
-                flags: NO_FLAGS,
-                output: OutputSpec::BytesAndDiagnostics {
-                    slot: DIAGNOSTICS_SLOT,
-                },
-                input: InputSpec::Forbidden,
-                reports: true,
-                interruptible: false,
-                clock: false,
-                domain: true,
-                config: false,
-                entropy: false,
-            },
->>>>>>> origin/main
             // **The one program in this table that declares the inert-configuration page.** Same
             // asymmetry as `date`'s clock: nothing on the command line designates it, so this is
             // init's to endow and this field is how init decides which children get it.
