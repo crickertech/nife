@@ -1259,6 +1259,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   jobs it deliberately does not, the QEMU rehearsal, and the bench procedure for radon with a table
   mapping every outcome to what it means. Also the reason a jobs-per-minute figure from one boot is
   a draw rather than a result: placement decides throughput on that board by up to fifteenfold.
+  Since 2026-09-13 it also carries the premise check, read out of Warton's own thesis rather than
+  the retrospective: his AIM7 ran on Wombat, a hosted Linux, over two tasks with the disk and
+  network jobs disabled, and he doubted the 20% himself. No number from this instrument is
+  comparable with it; the mechanism rather than the number is what the instrument can find.
 - [Scoping RISC-V / aarch64 parity](riscv-parity-scope.md): aarch64 is a strict superset once the
   port proved the capability core; this scopes the remaining gap (SMP, an in-kernel test run,
   virtio+DMA, the full boot/shell, benchmarks), what each proves, and the order to close them.

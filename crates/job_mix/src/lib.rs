@@ -14,6 +14,11 @@
 //! the kernel-side supervisor and the EL0 task read one description of what a job is rather than
 //! two copies that drift. AGENTS.md rule 7 is why it is a crate and not a `#[path]` module.
 //!
+//! **What that sentence does not license is a comparison against the 20% itself**, and the first
+//! two entries in [`BUGS`](self#bugs) say why: Warton's AIM7 ran on Wombat, a hosted Linux, and the
+//! 20% is a ratio between two kernel models where this tree has one. This instrument is for finding
+//! out whether the *mechanism* behind that number is live here.
+//!
 //! # What AIM7 actually is, since the name is not self-explanatory
 //!
 //! Read rather than recalled, on 2026-09-04, from the benchmark's own README
@@ -61,6 +66,28 @@
 //!
 //! # BUGS
 //!
+//! - **No number from this instrument is comparable with Warton's 20%, and the missing categories
+//!   below are not what stops it.** Checked on 2026-09-13 against both sources. The retrospective
+//!   names only "the Pistachio process kernel vs an event-based (single-stack) kernel with
+//!   continuations on an ARMv5 processor" (section 4.1, page 1:16) and never says what userland
+//!   AIM7 ran under. Warton's own thesis does
+//!   (<https://trustworthy.systems/publications/theses_public/05/Warton%3Abe.pdf>, section 5.4):
+//!   **AIM7 ran on Wombat**, the paravirtualised ARM Linux, so the 20% is a delta between two
+//!   microkernels measured through a hosted Linux's syscall path, where this is a native workload.
+//!   It is also a **ratio between two kernel models** and this tree has one, so the mix produces
+//!   one arm and no ratio, whatever jobs it contains. What the instrument can still do is show
+//!   whether the *mechanism* Warton offered as the only explanation (kernel cache and TLB
+//!   footprint) is live here, which is a knee in jobs-per-minute against task count and is a real
+//!   input to §96. See notes/job-mix.md.
+//! - **Two of the three categories below were disabled in the AIM7 run being cited, and that run
+//!   was two tasks with no sweep.** Warton's section 5.4 turned off the filesystem jobs (the
+//!   ramdisk was too small) and the network jobs (Wombat had no `GetHost`), and used "2 clients
+//!   with the normal workload file". So the disk-file gap below is not a gap against the number
+//!   this crate exists to chase, and [`TASK_SWEEP`] is this instrument's own good idea rather than
+//!   a reproduction of Warton's method. **Warton also doubted his own result**, calling it
+//!   something to treat "with scepticism until it can be satisfactorily explained" and never
+//!   running the cache simulation that would have explained it. Quote the 20% with that attached
+//!   or do not quote it.
 //! - **Three of AIM7's categories are absent: disk-file operations, process creation, and page
 //!   mapping.** Each was refused for a stated reason rather than overlooked. A filesystem job needs
 //!   a disk attached and would make the instrument's availability depend on the runner's storage,
@@ -70,7 +97,9 @@
 //!   allocator rather than the scheduler. A map job needs a per-task address-space capability that
 //!   the spawn path does not currently hand out. **All three are real gaps in fidelity**, and the
 //!   honest reading of a result from this mix is that it covers the compute, memory, trap,
-//!   scheduling and IPC categories and no others.
+//!   scheduling and IPC categories and no others. **Closing them would make a better likeness of
+//!   AIM7 in general and would not make a number from it comparable with Warton's**, for the two
+//!   reasons the bullets above give.
 //! - **The mix proportions are chosen, not derived.** AIM7 ships workfiles for four machine roles
 //!   (multiuser, compute server, large database, file server) and nobody here has one for a
 //!   capability microkernel. [`MIX`] is a flat-ish spread with the IPC job weighted up, on the
