@@ -112,15 +112,30 @@
 //!   jobs, in a per-task order. That is what makes two tasks' work comparable, and it is a
 //!   simplification against AIM7, whose tasks draw independently.
 //!
-//! Name: provisional, this lane's coinage (2026-09-04, milestone 168), and calef's call. A noun
-//! pair naming the thing the crate defines, in the `snake_case` this tree's crates use, and it is
-//! the phrase the source itself uses: AIM7's workfile is a *mix* of *jobs*. `aim7` was refused for
-//! claiming somebody else's benchmark, which this is not (see the BUGS above: none of AIM7's 53
-//! jobs is here, and no number from this is comparable with an AIM7 number). `workload` was refused
-//! as too general for a tree that already has a soak workload and a compute workload. `benchmark`
-//! was refused because this crate is the workload's *definition* and produces no measurement; the
-//! same distinction `os_primitives_benchmarker`'s own header draws between the agent and the
-//! output.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Coined by milestone 168's
+//! lane on 2026-09-04. A noun pair naming the thing the crate defines, in the `snake_case` this
+//! tree's crates use, and it is the phrase the source itself uses: AIM7's workfile is a *mix* of
+//! *jobs*.
+//!
+//! **The stem was settled a week before this ruling, while calef ratified something else.**
+//! `job_mix_task` was chosen over the maintainer's `mix_task` on 2026-09-05 for a reason the
+//! maintainer had not made: *the family stays greppable as one string*, so `job_mix` finds this
+//! crate, `fixtures/src/job_mix_task.rs` and `script/job-mix`. Three members in three naming
+//! domains, each correct for its own, which is the domain table working rather than a coincidence.
+//!
+//! **The refusal of `aim7` was righter than this block knew**, and the reason is worth recording
+//! because it inverts the usual direction. It was refused for claiming somebody else's benchmark.
+//! A premise check on 2026-09-13 (`notes/job-mix.md`, and the correction in §96) found the
+//! benchmark is not merely unclaimed but **unreachable in principle**: Warton ran AIM7 on Wombat,
+//! the paravirtualised ARM Linux, so the number this crate was built toward is a delta between two
+//! kernel models measured through a hosted Linux, and this tree has one kernel model and no hosted
+//! Linux. A name that had claimed AIM7 would now be claiming something that cannot be done here at
+//! all.
+//!
+//! Refused `workload`, too general for a tree that already has a soak workload and a compute
+//! workload. Refused `benchmark`, because this crate is the workload's *definition* and produces no
+//! measurement: the same distinction `os_primitives_benchmarker`'s own header draws between the
+//! agent and the output.
 
 #![no_std]
 #![deny(missing_docs)]
