@@ -957,6 +957,16 @@ MUTEOF
 # The fix a package makes is a dev-dependency on itself with the feature on: tests get it, consumers
 # do not, and `cargo build -p <pkg>` is unchanged. That is what this checks for.
 #
+# **`script/coverage` hit the same failure on the same crate two weeks earlier and fixed only
+# itself**, which is why this is a gate rather than another paragraph. On 2026-08-30 (PR #590,
+# milestone 87) the coverage floor reported 33.3% on an index reader that is round-tripped against
+# its own writer, because `builder` was off; it grew `--features documentation/builder` and a comment
+# saying a feature gating something un-buildable "is a trap for every workspace-wide sweep, not just
+# this one". The mutation config, whose own head comment asks the next person to keep the two lists
+# in step, was not touched, and fourteen days later published 52% for the same crate for the same
+# reason. The dev-dependency this gate requires fixes both tools at once, which is the other reason
+# to prefer it: `script/coverage`'s per-feature line is now belt and braces rather than the mechanism.
+#
 # **What it cannot see, said plainly rather than implied.** It checks that a feature is ON during the
 # package's test build, not that anything tests the code behind it. And it reads `required-features`
 # as the one honest exemption: a feature whose only job is to gate targets that are already excluded

@@ -797,3 +797,42 @@ fn a_row_with_fewer_cells_than_the_table_is_padded_rather_than_ragged() {
         "  a | b | c\n  --+---+--\n  x |   |  \n  p | q | r\n"
     );
 }
+
+// ---- milestone 280, fourth pass: the cases where a wrong answer looks right on one line --------
+//
+// Three classifiers can be wrong about what a line IS and still emit the same bytes for it, because
+// the marker they invent is made of the same characters they would otherwise have printed as text.
+// The difference is the margin a continuation aligns to, so it takes two lines to see.
+
+#[test]
+fn a_line_that_is_not_a_list_does_not_hang_like_one() {
+    // `. text` has no digits before its dot and `1a text` has no dot after its digits: neither is an
+    // ordered marker, and a classifier that accepted either would print the same first line and then
+    // indent everything after it under a bullet nobody wrote.
+    assert_eq!(
+        plain(". one two three four five six\n", 20),
+        "  . one two three\n  four five six\n"
+    );
+    assert_eq!(
+        plain("1a one two three four five six\n", 20),
+        "  1a one two three\n  four five six\n"
+    );
+}
+
+#[test]
+fn a_blank_line_inside_a_quoted_fence_is_not_read_past_its_marker() {
+    // The commonest line in a quoted transcript: a `>` with nothing after it. The marker walk has
+    // three length tests and each one indexes the byte after what it just consumed, so this is the
+    // line that separates them from the line buffer behind them. Both depths, because one level
+    // cannot tell a bound from the loop that stops at it.
+    assert_eq!(plain("> ```text\n>\n> after\n> ```\n", 40), "    | \n    | after\n");
+    assert_eq!(plain(">> ```text\n>>\n>> after\n>> ```\n", 40), "    | | \n    | | after\n");
+}
+
+#[test]
+fn a_code_span_hands_back_the_line_past_its_closing_backtick() {
+    // The existing code-span test asks what is inside the span; this asks where the scanner resumes.
+    // One byte early and the closing backtick is emitted as the first character of the next word,
+    // which a `contains` check cannot see.
+    assert_eq!(plain("a `code` b\n", 40), "  a code b\n");
+}
