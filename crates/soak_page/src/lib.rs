@@ -25,12 +25,27 @@
 //! that could write them could also lie about them, and a soak whose tripwire the subject can
 //! reach is not a tripwire.
 //!
-//! Name: provisional, this lane's coinage (2026-09-01, milestone 219), and calef's call. A noun for
-//! the thing it describes (the one page the soak workload and the kernel share), in the shape the
-//! tree already uses for a layout two binaries agree on: `block_roster`, `clock_proto`,
-//! `timebase_proto`, `grant_plan::job_page_frame`. `soak_proto` was considered and refused, because
-//! nothing here is a wire protocol: it is a memory layout, and the `_proto` suffix in this tree
-//! names request/reply vocabularies. `soak_counters` was refused for naming half the content.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Coined by milestone 219's
+//! lane on 2026-09-01. A noun for the thing it describes: the one page the soak workload and the
+//! kernel share.
+//!
+//! **The refusal is the valuable half, and it draws a line the rest of `crates/` follows without
+//! writing down.** `soak_proto` was refused because **nothing here is a wire protocol: it is a
+//! memory layout**, and the `_proto` suffix in this tree names request/reply vocabularies. That
+//! puts this crate in a family with `block_roster` and `grant_plan::job_page_frame`, against
+//! `clock_proto`, `credential_proto` and `supervision_proto` on the other side of the line.
+//!
+//! **The list this block used to give was wrong on its own terms**, and the correction is recorded
+//! rather than quietly swapped: it named `clock_proto` and `timebase_proto` as examples of "the
+//! shape the tree already uses for a layout", when both are `_proto` crates and therefore the
+//! counter-examples the very next sentence distinguishes. `timebase_proto` also became
+//! `counter_frequency_proto` by calef's ruling the same day, so the citation was about to dangle as
+//! well as contradict.
+//!
+//! Refused `soak_counters` for naming half the content: the page carries `rounds`, `mismatches` and
+//! `wakes` per worker, and the arithmetic both sides do to find them. Refused
+//! `soak_heartbeat_page`: the kernel reads this every heartbeat, but the page is not the heartbeat,
+//! it is what the heartbeat reads.
 //!
 //! # BUGS
 //!
