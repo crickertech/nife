@@ -909,6 +909,22 @@ carried `manual` at 52% **in its title**, `colour-and-the-pager` was about `doc`
 page, and `fatal-risk-3-against-the-new-number` cited the crate in a score table. All three
 `PROPOSED`. The directory looked like history; the status said otherwise.
 
+**Status is a property of the passage, not of the file, and the `jh7110` rename found the other
+direction of the same error** (2026-09-13). `notes/model-attribution-review.md` announces itself as a
+**plan**, so by the table above it moves. Two of its tables do not: they count the crates and
+programs created inside one measured commit window, and a crate created in that window under the name
+`jh7110_trng` did not exist under any other. Sweeping them made a live plan carry a false
+measurement, which nothing checks and no reader can spot. The same shape hit
+`notes/proof-retrospective.md`, where a captured shell transcript reading `in no shard: jh7110_trng`
+was rewritten into output that command had never produced, and `notes/unsafe-obligations.md`, where a
+block count measured against a named base commit was restated under a file name that commit does not
+contain.
+
+So read the **paragraph**, not the heading: a live document routinely contains dated accounts, and a
+dated account routinely contains pointers that must still resolve. The repair in all three cases was
+the one this section already prescribes, which is to restore the measured name and put a sentence
+beside it saying what the thing is called now.
+
 ### A quotation never moves
 
 Put a note beside it saying the thing was named differently when it was measured, so a number stays
@@ -956,9 +972,11 @@ Where it hides, from the two renames that found it:
 | Fixture strings in other crates | `crates/timetable`'s `"every 5s heeder"` |
 | A configuration file the tree ships | `components/timetable.conf`'s `at-boot budgeter --mem 4` |
 | Identifiers derived from the program's name | `saw_budgeter_grant`, `budgeter_reports`, four test function names |
+| A provenance block's "replacing" clause | `Name: ... replacing the provisional jh7110_trng` |
+| Another project's file name, URL or version string | `$NetBSD: jh7110_trng.c,v 1.2 ...` and the fetch URL beside it |
 
-**The last two rows were added by the `budgeter` rename on 2026-09-13, and both hide in a way the
-others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
+**The configuration-file and derived-identifier rows were added by the `budgeter` rename on
+2026-09-13, and both hide in a way the others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
 narrowed with `--include=*.rs --include=*.md --include=*.toml` is how most of these sweeps are
 scoped, and it misses a shipped configuration file entirely, while `crates/timetable` compiles that
 one in with `include_str!` and the kernel asserts on it firing. Derived identifiers hide for the
@@ -968,13 +986,75 @@ the tree naming a program that no longer exists, in the one place a sweep's own 
 them. Neither is exotic; both were hit by the `worker` rename earlier the same day and recorded only
 in its commit message, which is rung four.
 
+**The last two rows, the provenance clause and the foreign citation, are the first that mark a site a
+sweep must *not* touch, and the table earns them anyway** (the `jh7110` rename's repair,
+2026-09-13). Every row above them is a false negative, a place the sweep missed. These two are false
+positives. They belong here because the technique that catches both is the same one, which is
+enumerating the matches and reading them rather than counting them.
+
+**The provenance sentence is the worst place in the tree to sweep blind, because it is the one
+occurrence of the old name the standard exists to protect.** `95db4a3e` renamed `jh7110_trng` to
+`jh7110_entropy_source` and `jh7110_crg` to `jh7110_clock_and_reset`, and in both crates it rewrote
+the clause naming the predecessor. Each block came out saying it replaced **itself**, and the old
+name was then unrecoverable from the block: it had to be read back out of `git log`.
+
+**The only reason that was caught is that the resulting sentence is self-referentially absurd.**
+"Replacing the provisional `jh7110_entropy_source`" inside `jh7110_entropy_source` reads as nonsense
+to anyone who looks at it. A rename between two less similar words produces a sentence that reads
+perfectly and is false, and nothing here would say so: `script/names` parses the block and prints it
+and has no opinion about whether the name inside is the one being replaced. So treat the `replacing`
+clause exactly as a quotation is treated above, because that is what it is. It quotes a decision.
+
+**A citation to another project is a quotation wearing a path.** The same commit rewrote
+`sys/arch/riscv/starfive/jh7110_trng.c` to `jh7110_entropy_source.c` in three places in one file: the
+source bullet, its `raw.githubusercontent.com` fetch URL, and the reference-link definition at the
+bottom. One of them carried NetBSD's own RCS keyword string, `$NetBSD: jh7110_trng.c,v 1.2 2025/02/09
+09:09:49 skrll Exp $`, which is a verbatim line out of somebody else's source file. The tree then
+cited a file that does not exist upstream and a version string nothing ever printed, which is the
+fabricated-quote failure this project has already carried once for twelve days. The seven questions
+say prior art is read rather than recalled; a swept citation is a citation recalled, with `sed` doing
+the recalling.
+
+The sibling that survived shows it was luck rather than care. `crates/jh7110_clock_and_reset` cites
+Linux's `starfive%2Cjh7110-crg.h` and is still right only because upstream spells that one with a
+hyphen where the sweep matched an underscore.
+
 **The evidence is one failure and one success, a commit apart.** Renaming `doc` to `mdr` left
 `grant_plan` still saying `doc`, so the shell could not spawn the binary and the archive did not hold
 what the gate looked for; `cargo check` passed and three CI jobs failed for that one cause. The
 `jh7110` rename the same day enumerated strings first, found all four sites, and pushed green.
+**That success was real and partial**, which is why the paragraphs above exist: the same commit
+broke four records, fabricated three external citations, and left a whole crate behind. Enumerating
+the *program* strings is one clause of this standard and not the standard.
 
 So: for a program, grep the **quoted** name as well as the identifier, and treat `cargo check`
 passing as no evidence at all.
+
+### A crate copied rather than moved is invisible to every gate but one
+
+`95db4a3e` moved `kernel/src/drivers/jh7110_crg.rs` and `user/src/jh7110_trng.rs` properly, and git
+records both as renames. `crates/jh7110_crg` it **copied**: the new directory was added and the old
+one was never deleted, leaving 757 lines of duplicate source behind with no `Cargo.toml` at all.
+
+**Nothing compiled it.** It was not in `Cargo.toml`'s workspace members, no manifest referenced it,
+and this tree's gates are compile-driven almost everywhere, so there was no clippy over it, no test,
+no coverage, no mutation sweep, and no `cargo check` that could notice the duplicate at all. A
+directory outside the workspace is outside all of them at once.
+
+The one gate that did see it is `script/names`, because it walks `crates/*/src/lib.rs` on disk rather
+than the package graph. So the defect surfaced as a **worklist entry**: `jh7110_crg` went on
+`script/names --unratified`, queueing a name nobody could compile into the one queue whose entire
+purpose is to spend calef's attention well. Nothing red happened anywhere. The cost of this failure
+was paid in the scarcest thing in the project rather than in a build.
+
+**The general fact is worth more than the incident: an on-disk walker and a package-graph walker
+disagree, and the disagreement is information.** `script/verify` and `script/falsifications` both
+moved to `cargo metadata` because a hand-kept list went stale silently. `script/names` walks the disk
+because a name exists whether or not it compiles. Neither is wrong, and a name present to one and
+absent to the other is a thing to go and look at rather than reconcile.
+
+So, after any rename that moves a directory: `git status` showing an **add** where you expected a
+rename is the whole tell, and `git diff --stat -M` on the commit says which it was.
 
 ### What is checked, and what is not
 
