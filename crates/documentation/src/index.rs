@@ -1215,6 +1215,208 @@ mod tests {
         assert_eq!(out[1].location(), b"doc/b/long.md");
     }
 
+    // ---- milestone 280: what the mutation sweep found nothing asserting ---------------------
+    //
+    // Each of these was written against a surviving mutant. Half this crate's index tests need the
+    // `builder` feature to make an index to read, and until milestone 280 `cargo test -p
+    // documentation` did not have it, so the sweep scored the reader against a suite missing them.
+    // These are the gaps that were left once it did. See notes/mutation-testing.md.
+
+    #[test]
+    fn a_run_longer_than_a_term_record_holds_is_truncated_rather_than_written_past() {
+        // Both of the tokeniser's buffers are exactly `TERM_MAX` and both are written by index, so
+        // the bound is the difference between a truncated term and a panic in a `no_std` reader.
+        // `normalize` had this test and `tokens` did not, and the two write different buffers: the
+        // second is the underscore-joined compound, which overflows on a shorter source word.
+        let mut seen = [[0u8; TERM_MAX]; 8];
+        let mut lens = [0usize; 8];
+        let mut i = 0;
+        tokens(b"averyveryverylongidentifiername and_a_compound_far_past_the_limit", |t| {
+            assert!(t.len() <= TERM_MAX, "a term longer than its record: {}", t.len());
+            if i < 8 {
+                seen[i][..t.len()].copy_from_slice(t);
+                lens[i] = t.len();
+                i += 1;
+            }
+        });
+        let has = |want: &[u8]| (0..i).any(|k| &seen[k][..lens[k]] == want);
+        assert!(has(b"averyveryverylongidentif"), "the long word folds to its prefix");
+    }
+
+    #[test]
+    fn an_underscore_name_at_the_end_of_the_text_is_still_joined() {
+        // The tokeniser emits the compound when a separator ends the name; a name that ends the
+        // TEXT reaches the tail block instead, which is a second copy of the same three tests. A
+        // page whose last word is an identifier is ordinary, and nothing exercised that path.
+        let mut seen = [[0u8; TERM_MAX]; 8];
+        let mut lens = [0usize; 8];
+        let mut i = 0;
+        tokens(b"defined in grant_plan", |t| {
+            if i < 8 {
+                seen[i][..t.len()].copy_from_slice(t);
+                lens[i] = t.len();
+                i += 1;
+            }
+        });
+        let has = |want: &[u8]| (0..i).any(|k| &seen[k][..lens[k]] == want);
+        assert!(has(b"grantplan"), "the compound is not emitted at end of text");
+        assert!(has(b"grant") && has(b"plan"));
+    }
+
+    #[test]
+    fn a_word_is_offered_once_however_much_punctuation_precedes_it() {
+        // The part counter is what stops an ordinary word being offered twice as its own compound,
+        // and it only counts runs that had characters in them. A pair of separators (`", "`, which
+        // this repository's prose is full of) increments nothing, and a trailing underscore is the
+        // same test in the tail block.
+        let count = |text: &'static [u8], want: &[u8]| {
+            let mut n = 0;
+            tokens(text, |t| {
+                if t == want {
+                    n += 1;
+                }
+            });
+            n
+        };
+        assert_eq!(count(b"ab, cd", b"cd"), 1);
+        assert_eq!(count(b"ab_", b"ab"), 1);
+    }
+
+    #[cfg(feature = "builder")]
+    #[test]
+    fn a_query_that_names_nothing_is_answered_rather_than_searched() {
+        // Two refusals that share one `if`, so a test for either alone leaves the other's mutant
+        // alive: a query that folds to no term at all, and a well-formed query against a shard with
+        // no terms in it. Both are `None`, and neither may reach the binary search, which would be
+        // comparing against a key of no bytes or probing a table that is not there.
+        let bytes = build(&[Source { path: "a.md", title: "A", text: b"one two" }]);
+        let h = Header::parse(&bytes[..PAGE]).unwrap();
+        assert!(lookup(&h, b"!!!", &mut Slice(&bytes)).is_none(), "punctuation is not a term");
+
+        let empty = build(&[Source { path: "b.md", title: "B", text: b"" }]);
+        let eh = Header::parse(&empty[..PAGE]).unwrap();
+        assert_eq!(eh.terms, 0);
+        assert!(lookup(&eh, b"one", &mut Slice(&empty)).is_none());
+    }
+
+    #[cfg(feature = "builder")]
+    #[test]
+    fn a_term_table_that_exactly_fills_a_page_is_searched_to_its_last_record() {
+        // The binary search is over pages, and its last page is `(terms - 1) / per`. Every arity
+        // the other tests use hides the `- 1`: it only changes the answer when the record count is
+        // an exact multiple of the 128 records a page holds, which is where the table ends flush
+        // with a page boundary and a search that rounded up would probe past it.
+        let per = PAGE / TERM_REC;
+        let mut text = alloc::string::String::new();
+        let mut want: alloc::vec::Vec<alloc::string::String> = alloc::vec::Vec::new();
+        for i in 0..per {
+            let t = alloc::format!("term{i:04}");
+            text.push_str(&t);
+            text.push(' ');
+            want.push(t);
+        }
+        let bytes = build(&[Source { path: "x.md", title: "X", text: text.as_bytes() }]);
+        let h = Header::parse(&bytes[..PAGE]).unwrap();
+        assert_eq!(h.terms as usize, per, "the table has to be exactly one page");
+        let mut src = Slice(&bytes);
+        for t in &want {
+            assert!(lookup(&h, t.as_bytes(), &mut src).is_some(), "{t} is in the table and was not found");
+        }
+    }
+
+    #[cfg(feature = "builder")]
+    #[test]
+    fn a_store_with_more_pages_and_postings_than_fit_one_page_reads_them_all() {
+        // Both sections are paged and both divisions were exercised only in their first page. A
+        // page record is 128 bytes, so 32 fit a page; a posting is 4 bytes, so 1024 do. This corpus
+        // is past both, which is what makes `i / per` and `i % per` different from `i` and makes
+        // the postings loop cross a page boundary mid-term.
+        use alloc::string::String;
+        use alloc::vec::Vec;
+        let n = PAGE / POST_REC + 40;
+        let paths: Vec<String> = (0..n).map(|i| alloc::format!("p{i:05}.md")).collect();
+        let sources: Vec<Source<'_>> = paths
+            .iter()
+            .map(|p| Source { path: p, title: "page", text: b"capability" })
+            .collect();
+        let bytes = build(&sources);
+        let h = Header::parse(&bytes[..PAGE]).unwrap();
+        assert!(h.pages as usize > PAGE / PAGE_REC, "the fixture must span page-record pages");
+
+        let hit = lookup(&h, b"capability", &mut Slice(&bytes)).expect("every page says it");
+        assert_eq!(hit.count as usize, n, "a posting per page");
+
+        // Read them in the sixteen-posting batches `search` uses, which is what walks the boundary.
+        let mut src = Slice(&bytes);
+        let mut batch = [Posting { page: 0, count: 0 }; 16];
+        let mut done = 0usize;
+        let mut seen = alloc::vec![false; n];
+        while done < n {
+            let rest = Hit { first: hit.first + done as u32, count: (n - done) as u16 };
+            let got = postings(&h, &rest, &mut src, &mut batch);
+            assert!(got > 0, "the postings ran out at {done} of {n}");
+            for p in &batch[..got] {
+                let rec = page_record(&h, p.page, &mut src).expect("every posting names a page");
+                let path = rec.path();
+                let i: usize = core::str::from_utf8(&path[1..6]).unwrap().parse().unwrap();
+                assert!(!seen[i], "page {i} read twice");
+                seen[i] = true;
+            }
+            done += got;
+        }
+        assert!(seen.iter().all(|&b| b), "a page record was never reached");
+    }
+
+    #[cfg(feature = "builder")]
+    #[test]
+    fn a_location_too_long_for_the_field_is_truncated_and_says_so() {
+        // `Found::truncated` had no test at all, in either direction, so both of its mutants
+        // survived. It is the same promise the renderer makes about a long line: losing text is
+        // allowed, losing it silently is not.
+        let long_name = "a".repeat(60);
+        let path = alloc::format!("notes/{long_name}.md");
+        let bytes = build(&[Source { path: &path, title: "T", text: b"capability page" }]);
+
+        let bundle = "b".repeat(40);
+        let mut r = Ranked::new();
+        search(bundle.as_bytes(), b"capability", &mut Slice(&bytes), &mut r).unwrap();
+        let f = &r.results()[0];
+        assert_eq!(f.location().len(), LOCATION_MAX, "a truncated location fills the field");
+        assert!(f.truncated(), "a location that lost its tail must say so");
+
+        // And the other side, which is every real store: `doc/<bundle>/<page>` fits.
+        let mut fits = Ranked::new();
+        search(b"swish", b"capability", &mut Slice(&bytes), &mut fits).unwrap();
+        assert!(!fits.results()[0].truncated());
+        assert!(fits.results()[0].location().starts_with(b"doc/swish/"));
+    }
+
+    #[test]
+    fn the_merge_shifts_what_a_stronger_result_displaces() {
+        // Every existing merge test offers its results strongest first, so nothing ever moved: the
+        // shift that makes room for a late strong result had no test, and neither did the walk
+        // running the full length of a full table. `offer` takes fields rather than a record for
+        // exactly this reason, so neither needs a shard.
+        let mut r = Ranked::new();
+        // Weak first, then strong: the second has to displace the first rather than land after it.
+        r.offer(b"b", b"weak.md", b"Weak", 1, 100);
+        r.offer(b"b", b"strong.md", b"Strong", 10, 100);
+        assert_eq!(r.results().len(), 2);
+        assert_eq!(r.results()[0].title(), b"Strong");
+        assert_eq!(r.results()[1].title(), b"Weak", "the displaced result was not shifted down");
+
+        // Descending strength past the table's end, which walks `at` to the last slot held every
+        // time and is what a bound that is off by one falls off.
+        let mut full = Ranked::new();
+        for i in 0..RESULTS_MAX + 4 {
+            let count = (RESULTS_MAX + 4 - i) as u16;
+            full.offer(b"b", b"p.md", b"page", count, 100);
+        }
+        assert_eq!(full.results().len(), RESULTS_MAX);
+        assert_eq!(full.offered(), RESULTS_MAX + 4);
+        assert_eq!(full.results()[0].count as usize, RESULTS_MAX + 4);
+    }
+
     #[cfg(feature = "builder")]
     #[test]
     fn a_title_is_the_first_level_one_heading() {

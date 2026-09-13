@@ -391,3 +391,178 @@ fn every_character_survives() {
     }
     assert!(checked > 100, "only checked {checked} files");
 }
+
+// ---- milestone 280: what the mutation sweep found nothing asserting -------------------------
+//
+// Every test below was written against a surviving mutant. The sweep scored this crate at 52% in
+// the first published report, and the first half of that was a measurement bug (see
+// notes/mutation-testing.md); this is the other half, which was a real gap. Two of them are not
+// tests for behaviour that already worked: `read_align` filled a per-column alignment nothing read,
+// and `indent_of` returned a column count nothing read, so the mutants there could not be killed
+// until the values had a consumer.
+
+#[test]
+fn table_columns_align_the_way_the_delimiter_row_says() {
+    // `|:---|---:|:-:|` is left, right and centre, and until milestone 280 all three rendered
+    // identically because `flush_table` padded every cell on the right. Sixteen mutants in
+    // `read_align` survived the sweep for that reason, including replacing the whole function with
+    // `()`: a value nothing reads cannot be computed wrongly in a way anything notices.
+    let out = plain("| aaa | bbb | ccc |\n|:---|---:|:-:|\n| x | y | z |\n", 80);
+    assert_eq!(out, "  aaa | bbb | ccc\n  ----+-----+----\n  x   |   y |  z \n", "{out:?}");
+}
+
+#[test]
+fn alignment_does_not_outlive_its_table() {
+    // Alignment is a property of one delimiter row, so it is reset with `delimited` rather than
+    // carried. A paragraph that happens to begin with a pipe follows a right-aligned table here,
+    // and takes the default: if the array were not reset its cells would sit on the right.
+    let out = plain("| a | b |\n|---:|---|\n| x | y |\n\n| pp | q |\n| r | s |\n", 80);
+    assert!(out.ends_with("  pp | q\n  r  | s\n"), "{out:?}");
+}
+
+#[test]
+fn an_escaped_pipe_is_cell_text_and_not_a_column_boundary() {
+    // `notes/scripts.md` has one (`--arch aarch64\| riscv64`), and reading it as a separator gave
+    // that table a third column nobody wrote and squeezed the other two to pay for it. The
+    // backslash is the escape and not the text, so it does not reach the output either.
+    let out = plain("| cmd | note |\n|---|---|\n| a \\| b | two |\n", 80);
+    assert_eq!(out, "  cmd   | note\n  ------+-----\n  a | b | two \n", "{out:?}");
+}
+
+#[test]
+fn a_trailing_pipe_does_not_add_a_column() {
+    // `| a | b |` and `| a | b` are the same two-column row: the cell after the last pipe is one
+    // nobody typed, and keeping it would widen every table in the repository by a blank column.
+    assert_eq!(
+        plain("| a | b |\n|---|---|\n| x | y |\n", 80),
+        plain("| a | b\n|---|---\n| x | y\n", 80)
+    );
+}
+
+#[test]
+fn a_table_wider_than_the_terminal_shrinks_its_widest_column() {
+    // Shrinking the widest column rather than all of them is what keeps a table of one long prose
+    // column and three short labels readable: the prose loses characters and the labels do not.
+    let out = plain(
+        "| aaaaaaaaaa | bb |\n|---|---|\n| cccccccccccccccccccc | d |\n",
+        20,
+    );
+    assert_eq!(
+        out, "  aaaaaaaaaa    | bb\n  --------------+---\n  ccccccccccccc | d \n",
+        "{out:?}"
+    );
+    // Every line fits the terminal, which is the property the shrink exists for.
+    for line in out.lines() {
+        assert!(line.chars().count() <= 20, "line over width: {line:?}");
+    }
+}
+
+#[test]
+fn a_table_longer_than_the_buffer_spills_rather_than_losing_rows() {
+    // Losing text is the one failure mode a documentation service cannot have, so a table past
+    // `TABLE_ROWS` is emitted in chunks, each aligned to its own widths, with no blank line between
+    // them because they are one table. `design/roadmap/README.md` is 117 rows, so this is real.
+    let mut src = String::from("| n | v |\n|---|---|\n");
+    let rows = documentation::TABLE_ROWS + 10;
+    for i in 0..rows {
+        src.push_str(&format!("| r{i} | v{i} |\n"));
+    }
+    let out = plain(&src, 80);
+    for i in 0..rows {
+        assert!(out.contains(&format!("r{i} ")) || out.contains(&format!("r{i}\n")), "row {i} lost");
+    }
+    assert!(!out.contains("\n\n"), "a spilled chunk is not a new block: {out:?}");
+}
+
+#[test]
+fn a_header_row_is_emphasised_only_when_a_delimiter_row_says_it_is_one() {
+    // The delimiter row is what promotes a run of pipe-led lines to a table; without one the first
+    // row is ordinary text that happens to contain pipes, and emphasising it would claim a
+    // structure the author did not write.
+    let table = render("| h |\n|---|\n| c |\n", Style { width: 40, color: true });
+    assert!(table.contains("\x1b[1mh"), "{table:?}");
+    let not_a_table = render("| h |\n| c |\n", Style { width: 40, color: true });
+    assert!(!not_a_table.contains("\x1b[1m"), "{not_a_table:?}");
+}
+
+#[test]
+fn thematic_breaks_are_three_or_more_of_one_mark() {
+    // Three of `-`, `*` or `_` with only spaces between them, and nothing else. The corpus writes
+    // `---` far more often as a break than as a setext underline, which is why this renderer has no
+    // setext headings at all; that trade is only honest if the break itself is right.
+    let rule = "  ------------------\n";
+    for src in ["---", "***", "___", "- - -", "----------"] {
+        let out = plain(&format!("a\n\n{src}\n\nb\n"), 20);
+        assert_eq!(out, format!("  a\n\n{rule}\n  b\n"), "{src} is a thematic break");
+    }
+    // Two marks is not three, a different mark is not a rule at all, and a mark with text beside it
+    // is a paragraph. Each of these renders as its own source text.
+    for src in ["--", "+++", "-a-", "** *x"] {
+        let out = plain(&format!("a\n\n{src}\n\nb\n"), 20);
+        assert!(!out.contains("-----"), "{src} rendered as a rule: {out:?}");
+    }
+}
+
+#[test]
+fn a_document_that_lost_nothing_says_so() {
+    // The other side of `an_overlong_line_is_reported_rather_than_hidden`, and it is the side a
+    // caller acts on: `doc` prints a warning when this is true, so a renderer that always answered
+    // true would warn about every page in the store. Asserting only the positive left a mutant that
+    // hard-codes it alive.
+    let mut out = Buf(Vec::new());
+    let mut r = Renderer::new(Style { width: 80, color: false });
+    r.feed(b"# Title\n\nA line well inside the limit.\n", &mut out);
+    r.finish(&mut out);
+    assert!(!r.truncated());
+}
+
+#[test]
+fn a_page_that_never_closes_its_fence_says_so() {
+    // `every_character_survives` asserts this is false for all 547 pages, which a renderer that
+    // always answered false would pass. The guard is only worth having if it can answer true.
+    let mut out = Buf(Vec::new());
+    let mut r = Renderer::new(Style { width: 80, color: false });
+    r.feed(b"```text\nstill inside\n", &mut out);
+    r.finish(&mut out);
+    assert!(r.unclosed_fence());
+}
+
+#[test]
+fn a_seventh_hash_is_not_a_heading() {
+    // Markdown stops at six, and past that the line is text. The rule sits beside the one that
+    // keeps `#!/bin/sh` out of the heading path, and neither had a test on its upper edge.
+    assert_eq!(plain("###### six\n", 80), "        six\n");
+    assert_eq!(plain("####### seven\n", 80), "  ####### seven\n");
+}
+
+#[test]
+fn a_tab_indents_as_four_columns() {
+    // `indent_of` counts a tab as four columns and a space as one, and until milestone 280 every
+    // caller took its byte offset instead, so a tab indented by one. Nothing in this repository
+    // indents with a tab outside a fence, where this does not run, so the sweep was the only thing
+    // that could have found it.
+    assert_eq!(plain("para\n\n\tmore text\n", 40), plain("para\n\n    more text\n", 40));
+}
+
+#[test]
+fn an_ordered_marker_may_be_a_parenthesis_or_two_digits() {
+    // `1.`, `1)` and `10.` are all list markers and keep the number the author wrote, because a
+    // renumbered list is a different document.
+    assert_eq!(plain("1) one\n10. ten\n", 80), "  1) one\n  10. ten\n");
+}
+
+#[test]
+fn a_destination_too_long_for_the_line_is_broken_rather_than_overrun() {
+    // A word is never broken and a URL has to be: it is one unbreakable run that no terminal is
+    // wide enough for, and the alternative to breaking it is a line that runs off the screen.
+    let out = plain("see [x](aaaaaaaaaabbbbbbbbbbccccccccccdddddddddd) end\n", 20);
+    assert_eq!(out, "  see x\n  aaaaaaaaaabbb\n  bbbbbbbccccccccccd\n  ddddddddd end\n", "{out:?}");
+}
+
+#[test]
+fn a_quoted_code_line_keeps_its_own_indentation() {
+    // Inside a fence the quote markers come off and nothing else does: a code line's own leading
+    // spaces are its meaning. The classifier's stripping loop eats indentation after a marker,
+    // which is right for a quoted paragraph and would be wrong here.
+    assert_eq!(plain("> ```text\n>     indented\n> ```\n", 40), "    |     indented\n");
+}
