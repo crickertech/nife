@@ -27,7 +27,7 @@ crate) and the host-testability discipline have already lifted it out: the initr
 `video_terminal`, the shell's routing is `swish`, the pattern matcher is `glob`. Every one of those
 is in `script/verify`'s table already. What is left in `components/src/*.rs` and `fixtures/src/*.rs`
 is overwhelmingly **IO glue**:
-programs that call a crate to decode, call `user_rt` to move the result, and render. That is the
+programs that call a crate to decode, call `user_mode_runtime` to move the result, and render. That is the
 tree working as designed, and it means the prize this milestone was reaching for had largely been
 collected by other milestones under other names.
 
@@ -131,12 +131,12 @@ Shorter than milestone 193's list, because the kernel had already paid for most 
 | what stopped it | why | the fix |
 |---|---|---|
 | `unwinding panics are not supported without std` | the workspace deliberately does not set `panic = "abort"` (DECISIONS §7) | nothing: Kani passes `-C panic=abort` itself, so this is a `cargo check` problem and not a `cargo kani` one |
-| `found duplicate lang item panic_impl` | Kani links `std`, which defines the handler `user_rt::panic_handler!()` expands to | `#[cfg(not(kani))]` on the macro invocation, in the one binary carrying a harness |
+| `found duplicate lang item panic_impl` | Kani links `std`, which defines the handler `user_mode_runtime::panic_handler!()` expands to | `#[cfg(not(kani))]` on the macro invocation, in the one binary carrying a harness |
 | `Failed to detect Kani functions ... seems to be using #[no_std]` | Kani refuses a `no_std` crate root that never mentions it, and 67 of the 68 programs never will | select the binaries instead: `--bin`, derived in `script/verify` from a grep of the tree |
 
 **No `--ignore-global-asm`**, which is the difference from the kernel and is DECISIONS §4 rule 1
 paying out again: there is no `global_asm!` anywhere under `user/`, because the only assembly a
-program has any business containing is the syscall itself and that lives in `user_rt`.
+program has any business containing is the syscall itself and that lives in `user_mode_runtime`.
 
 The `--bin` selection is the one piece of machinery worth arguing about, and the argument is in
 `script/verify`'s own comment: a hand-written list of binaries would be one name short the first
@@ -151,7 +151,7 @@ the verify table; only the derivation catches a binary missing from inside one.
 exhaustive list of what a harness in a program package cannot see. The same list is at the top of each
 `mod proofs`, where somebody writing the next harness will actually meet it.
 
-1. **Every capability is unreachable, and the boundary is hard rather than soft.** `user_rt`'s
+1. **Every capability is unreachable, and the boundary is hard rather than soft.** `user_mode_runtime`'s
    `send`, `recv`, `call`, `invoke` and `exit` are `svc`/`ecall` through `asm!`, which Kani reports
    as an unsupported construct instead of proving past. So a harness that wanders into a program's
    IO **fails loudly** rather than reporting a proof about a fiction. This is the good direction and
@@ -162,7 +162,7 @@ exhaustive list of what a harness in a program package cannot see. The same list
    one; stub the boundary rather than pretend.
 3. **The panic handler is absent** under `cfg(kani)`, so nothing proved here says anything about what
    a program does after a panic. Note the asymmetry with the kernel: an EL0 program dying is one
-   process, and `user_rt::trap()` is what the supervisor sees.
+   process, and `user_mode_runtime::trap()` is what the supervisor sees.
 4. **`script/lint`'s harness-clippy pass excludes `components` and `fixtures`**, exactly as it
    excludes `kernel`, and for
    the same two tooling reasons that pass's own comment carries. Practical consequence: **keep these
@@ -179,8 +179,8 @@ exhaustive list of what a harness in a program package cannot see. The same list
 
 1. Put it beside the code it proves, in a `#[cfg(kani)] mod proofs`, not in a separate file. The
    stub list above is the reason: a reader has to meet the caveats where they meet the harness.
-2. Put `#[cfg(not(kani))]` on that binary's `user_rt::panic_handler!()`, or it will not compile.
-3. Check the call graph against the stub list. If it reaches `user_rt`, stop; Kani will say so
+2. Put `#[cfg(not(kani))]` on that binary's `user_mode_runtime::panic_handler!()`, or it will not compile.
+3. Check the call graph against the stub list. If it reaches `user_mode_runtime`, stop; Kani will say so
    rather than lie, but you will have spent the compile finding out.
 4. **Check the shape before you write it.** Bounded byte movement, comparisons and small fixed
    arrays are cheap. A sum over many symbolic values, a symbolic index into a large struct, and any

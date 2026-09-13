@@ -233,15 +233,15 @@ claim it "never loses the first character"; it does, under burst-piping. A user 
 prompt never hits it, and every line after the first is interrupt-driven and intact. The comment is
 corrected; fully closing the window is a separate input-driver fix, not part of the split.
 
-## The shared runtime, `user_rt` (milestone 19f.6)
+## The shared runtime, `user_mode_runtime` (milestone 19f.6)
 
 With the split done, the `invoke`/`send`/`recv`/`exit` runtime was copied verbatim into five binaries
-(hello and the four it shed). `crates/user_rt` is that runtime, lifted into one library crate all
+(hello and the four it shed). `crates/user_mode_runtime` is that runtime, lifted into one library crate all
 five now depend on: one `invoke` (the single syscall), and `send`/`recv`/`exit` built on it. The
 extraction waited on purpose until the split was complete, so the shared surface was known rather
 than guessed (the DECISIONS rule about not building an abstraction before its requirements exist).
 
-Two things deliberately stayed out of `user_rt`:
+Two things deliberately stayed out of `user_mode_runtime`:
 
 - The `#[panic_handler]`. A panic handler is per-final-binary, and one in the shared library would be
   forced on every program that links it and collide with any program (like hello) that wants its own.

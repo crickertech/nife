@@ -319,7 +319,7 @@ fn std_inputs_stamp() -> u64 {
     let root = workspace_root();
     let mut files: Vec<PathBuf> = vec![
         root.join("crates/abi/src/lib.rs"),
-        root.join("crates/user_heap/src/lib.rs"),
+        root.join("crates/user_mode_heap/src/lib.rs"),
         // The net PAL generates its wire constants verbatim from the net_stack contract; a change to it
         // must rebuild the farm just like a change to the ABI crate.
         root.join("crates/socket_proto/src/lib.rs"),
@@ -585,7 +585,7 @@ fn strip_doc_examples(body: &str) -> String {
     out.join("\n")
 }
 
-/// Generate `abi.rs` and `user_heap.rs` verbatim from the host-tested crates, so the ABI numbers and
+/// Generate `abi.rs` and `user_mode_heap.rs` verbatim from the host-tested crates, so the ABI numbers and
 /// the heap algorithm have exactly one definition. The transform strips crate-level inner
 /// attributes (`#![no_std]`, illegal in a non-root module), any trailing `#[cfg(test)]` module, and
 /// any `# Examples` section (see [`strip_doc_examples`] for why that last one).
@@ -597,8 +597,8 @@ fn std_generate_modules() -> bool {
             farm_std_src().join("sys/pal/nife/abi.rs"),
         ),
         (
-            root.join("crates/user_heap/src/lib.rs"),
-            farm_std_src().join("sys/alloc/nife/user_heap.rs"),
+            root.join("crates/user_mode_heap/src/lib.rs"),
+            farm_std_src().join("sys/alloc/nife/user_mode_heap.rs"),
         ),
         // The net_stack socket-contract wire format, verbatim, so the net PAL cannot drift from the
         // server it talks to (same discipline as the ABI and heap crates above).
@@ -4372,7 +4372,7 @@ fn initrd_aarch64() -> bool {
         // The compute workload (19e) and the EL0 microbenchmark program.
         ("coremark", "coremark"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
-        // Proves the user_rt heap (milestone 27).
+        // Proves the user_mode_runtime heap (milestone 27).
         ("allocator_exerciser", "allocator_exerciser"),
         ("net_stack", "net_stack"),
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
@@ -5910,12 +5910,12 @@ fn test() -> bool {
         // gate that quietly covers less than it claims is the failure mode script/fmt's `--check` bug
         // already cost this project a day over.
         //
-        // The exclusions are every crate that cannot compile for the host, which means `user_rt` (EL0
+        // The exclusions are every crate that cannot compile for the host, which means `user_mode_runtime` (EL0
         // syscall `asm!`) and everything that depends on it.
         //
         // **`--exclude` removes a package from the test SELECTION, not from the dependency graph.**
-        // Excluding `user_rt` alone stopped working on 2026-08-03, when `swap_proto`, `virtio` and
-        // `supervision_proto` took unconditional `user_rt` dependencies (`system_initializer`
+        // Excluding `user_mode_runtime` alone stopped working on 2026-08-03, when `swap_proto`, `virtio` and
+        // `supervision_proto` took unconditional `user_mode_runtime` dependencies (`system_initializer`
         // followed a day later): cargo still had to build it for them, so the host pass stopped
         // compiling on an x86_64 host and nobody noticed, because CI moved to `ubuntu-24.04-arm` the
         // same day and on an aarch64 host it builds by accident. A stranger with a clean x86_64
@@ -5923,7 +5923,7 @@ fn test() -> bool {
         //
         // `script/lint`'s "host pass excludes exactly the bare-metal crates" gate now DERIVES this
         // set from `cargo metadata` and fails if this list disagrees with it, so the next crate to
-        // take a `user_rt` dependency breaks the gate rather than the host build.
+        // take a `user_mode_runtime` dependency breaks the gate rather than the host build.
         if !cargo(&[
             "test",
             "--workspace",
@@ -5934,7 +5934,7 @@ fn test() -> bool {
             "--exclude",
             "fixtures",
             "--exclude",
-            "user_rt",
+            "user_mode_runtime",
             "--exclude",
             "swap_proto",
             "--exclude",
@@ -6543,7 +6543,7 @@ fn undefined_behavior_check() -> bool {
         "--exclude",
         "fixtures",
         "--exclude",
-        "user_rt",
+        "user_mode_runtime",
         "--exclude",
         "xtask",
         "--exclude",
@@ -8172,7 +8172,7 @@ fn bench_riscv(check: bool, save: bool) -> bool {
 
 /// **The `x86_64` benchmark path** (DECISIONS §121's amendment, milestone 161 item 4; the icount
 /// leg, milestone 161, 2026-08-25). Same suite, minus everything that needs a real userspace ELF:
-/// `crates/user_rt` has no `x86_64` arms yet, so every `_el0` bench self-skips (`crate::
+/// `crates/user_mode_runtime` has no `x86_64` arms yet, so every `_el0` bench self-skips (`crate::
 /// user::program` finds nothing in the initrd this leg never builds), and it adds one x86-only
 /// bench, `tss_iomap_switch`: `bench::yield_switch` with a full I/O-permission-bitmap-sized write
 /// added on every switch-in. Reading its `ns/iter` against `yield_switch`'s from the same boot is

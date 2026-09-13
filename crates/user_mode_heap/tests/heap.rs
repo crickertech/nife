@@ -1,10 +1,10 @@
 //! Host tests for the userspace heap algorithm. These prove the invariants QEMU never would
 //! cheaply: coalescing back to one block, alignment beyond the grid, sliver-free splitting, and
-//! the grow-at-top pattern `user_rt::heap` relies on.
+//! the grow-at-top pattern `user_mode_runtime::heap` relies on.
 
 use core::alloc::Layout;
 
-use user_heap::{Heap, MIN_ALIGN, effective_size};
+use user_mode_heap::{Heap, MIN_ALIGN, effective_size};
 
 /// A 16-aligned arena on the host stack-of-the-test; the heap only ever sees pointers into it.
 #[repr(align(4096))]
@@ -90,7 +90,7 @@ fn exhaustion_returns_none_and_growth_at_the_top_coalesces() {
         "must refuse, not corrupt"
     );
 
-    // Grow the way user_rt::heap does: donate the pages right above the committed top.
+    // Grow the way user_mode_runtime::heap does: donate the pages right above the committed top.
     // SAFETY: `rest` is the OTHER half of the same `split_at_mut`, so it is disjoint from the region donated above, which is what `add_region` requires of a second donation.
     unsafe { h.add_region(rest.as_mut_ptr(), 16 * 1024) };
     // The donation is adjacent to the free tail of the first region, so a block bigger than

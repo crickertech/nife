@@ -26,7 +26,7 @@ inside them, fix each with an honest SAFETY comment, then turn the lint on.
 running `cargo check` over each of the thirteen configurations `script/lint` builds (the host pass,
 the three side workspaces, the bare-metal pass, and each of the four kernel boot-mode features on
 both ISAs), with every `.rs` file touched first so nothing was served from cache. Plus one more that
-`script/lint` did not build: `-p user -p user_rt` for riscv64. The gate compiles those two packages
+`script/lint` did not build: `-p user -p user_mode_runtime` for riscv64. The gate compiles those two packages
 for aarch64 only, which is worth knowing on its own, and is still true.
 
 (Milestone 113 added a configuration, so `script/lint` now builds fourteen: the thirteen above plus
@@ -69,7 +69,7 @@ contain **no unsafe operation**:
 | `crates/clock_proto/src/lib.rs:178` `Clock::new` | takes a VA the caller promises is a mapped clock page |
 | `crates/paging/src/lib.rs:323` `assume_no_stale_entry` | the name is the contract: the caller asserts a TLB fact |
 | `crates/paging/src/lib.rs:410` `Mapper::new` | the caller promises `root` is a live table |
-| `crates/user_rt/src/heap.rs:193` `GlobalAlloc::alloc` | unsafe because the trait method is |
+| `crates/user_mode_runtime/src/heap.rs:193` `GlobalAlloc::alloc` | unsafe because the trait method is |
 | `kernel/src/arch/aarch64/mmu.rs:599` `set_ttbr0` | `aarch64-cpu` exposes `TTBR0_EL1.set` as **safe** |
 | `kernel/src/arch/riscv64/mmu.rs:513` `activate_user` | forwards to `write_satp`, which is a safe fn |
 | `kernel/src/drivers/gic.rs:149` `init` | takes two MMIO virtual addresses on trust |
@@ -105,7 +105,7 @@ in milestone 82, deliberately: turning these four into `unsafe fn`s puts an unsa
 SAFETY comment) at every call site including the context switch, which is a change to the kernel's
 soundness surface and deserves its own review rather than a ride on a lint milestone.
 
-Not every "caller" in a SAFETY comment is this. `sched.rs`'s `ipc_call` and `user_rt`'s `cap_delete`
+Not every "caller" in a SAFETY comment is this. `sched.rs`'s `ipc_call` and `user_mode_runtime`'s `cap_delete`
 mean the calling *thread* and the calling *process*; `interrupts::enable` says outright that the
 operation is sound and only the timing is the caller's problem. The pattern to look for is a safe
 fn that would be unsound if the sentence were false.
@@ -153,7 +153,7 @@ So `script/lint` grew a fourteenth clippy configuration. The tree's `#[cfg(kani)
 `crates/`, so it is the host pass's package selection with three flags added:
 
 ```sh
-cargo clippy --workspace --exclude kernel --exclude user --exclude user_rt --all-targets -- \
+cargo clippy --workspace --exclude kernel --exclude user --exclude user_mode_runtime --all-targets -- \
     --cfg kani --extern kani=target/kani-lint-shim/libkani.rlib -L target/kani-lint-shim -D warnings
 ```
 
@@ -335,7 +335,7 @@ to resolve. That is why the defect was invisible from the syscall and only appea
 
 ```
 // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-// before acting (user_rt's contract). A caller cannot break an invariant by passing a
+// before acting (user_mode_runtime's contract). A caller cannot break an invariant by passing a
 // bad slot or method; it gets an error back.
 ```
 
@@ -406,11 +406,11 @@ reads rather than in a report:
 | `components/src/swish.rs:616` `put_page` | "every caller is behind a `dir.is_some()` check" |
 | `components/src/line_editor.rs:217` `copy_in` | "offset+len is bounded by PAGE by every caller" |
 | `patches/std-nife/overlay/std/src/sys/fs/nife.rs:161` `put` | "callers clamp to it" |
-| `crates/user_heap/src/lib.rs:100` `effective_size` | "the caller provides the locking" (a data-race obligation, not an addressing one) |
+| `crates/user_mode_heap/src/lib.rs:100` `effective_size` | "the caller provides the locking" (a data-race obligation, not an addressing one) |
 
 Eight of the nine rows are the same clamp-to-a-page obligation, which suggests the answer there is
 one shared page-slice type rather than nine conversions. That is a design question and wants its own
-lane. `crates/user_heap`'s is a different flavour and should be judged separately. The `patches/`
+lane. `crates/user_mode_heap`'s is a different flavour and should be judged separately. The `patches/`
 one is in the vendored std overlay, which most gates exclude on purpose.
 
 ## The census, and which numbers have a direction (milestone 134)
@@ -465,7 +465,9 @@ sample.** Both facts are true and only the second one is about this kernel's sou
 a system being built. That is the whole reason the gate below holds a ratio rather than a count.
 
 Nothing was measuring either. The clearest evidence is a single commit two days before this was
-written: `d5a969a2`, "user_rt: one trap instruction, not forty-eight", took the count from **863 to
+written: `d5a969a2`, "user_rt: one trap instruction, not forty-eight" (the crate is
+`user_mode_runtime` since 2026-09-13; a commit subject keeps the spelling it was written under),
+took the count from **863 to
 769 in one change**, 10.9% of all non-arch unsafe, by lifting a panic handler that 48 binaries had
 each inlined with two `unsafe` blocks and two SAFETY comments. Its commit message argues from §61
 that a SAFETY comment is an assertion and not a formality, and it is exactly right; what it could
@@ -489,7 +491,7 @@ each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions 
 a shared IPC frame, one hand-written `// SAFETY:` comment per function, asserting one invariant
 ("this offset is inside the page the kernel mapped here") by hand at every call site; `ntp.rs`'s
 own comment had already named the duplication ("the same shape net_stack and socket_test_client
-use") without anyone lifting it out. `user_rt::mapped_window::MappedWindow` (new, milestone 139)
+use") without anyone lifting it out. `user_mode_runtime::mapped_window::MappedWindow` (new, milestone 139)
 holds that invariant once, at construction, and turns every access into a bounds-checked call with
 no unsafe at the call site.
 
@@ -525,14 +527,14 @@ measured the same way (from the diff, bracketed by the exact base commit this ro
 `a269403e`, rather than a stale baseline): the round found no unrelated tree growth in between, so
 this is the cleanest paired measurement this ceiling has had.
 
-*`crates/user_rt`'s `SYS_INVOKE` round trip.* Six methods (`recv`, `recv_cap`, `recv_fault`, `call`,
+*`crates/user_mode_runtime`'s `SYS_INVOKE` round trip.* Six methods (`recv`, `recv_cap`, `recv_fault`, `call`,
 `survey`, `list`), each duplicated once per architecture, had each hand-rolled its own `asm!` block
 asserting the identical invariant ("`svc`/`ecall` traps to the kernel, which validates before
 acting") at a register layout that differed only in which of the five return words the caller
 happened to read: twelve hand-written copies of one assertion, the exact §94 shape. `invoke5` (new,
 private to the crate) holds the trap once per architecture; every caller above it, including
 `invoke` itself, is now a safe wrapper with no `asm!` of its own. **14 `unsafe {` blocks removed, 9
-added, net -5**, in `crates/user_rt/src/lib.rs` alone.
+added, net -5**, in `crates/user_mode_runtime/src/lib.rs` alone.
 
 *The broader `read_volatile`/`write_volatile` sweep round 1's BUGS section asked for.* Grepping
 directly for `read_volatile`/`write_volatile` (rather than by the `r8`/`w8`/`r16` naming convention
@@ -542,7 +544,7 @@ programs (`rm`, `fs_file_caretaker`, `sink`, `fs_subtree_caretaker`, `fs_nameset
 loop over the page shared with the FS server (`fs_nameset_caretaker` carries a second, read-only
 window for its name set; `fs_test_client` carries five such helpers over one window sized to
 `fs::TRANSFER_MAX`), every one asserting "this VA is a mapped page of this size" by hand, near
-word-for-word the same comment. Migrated onto the existing `user_rt::mapped_window::MappedWindow`
+word-for-word the same comment. Migrated onto the existing `user_mode_runtime::mapped_window::MappedWindow`
 (round 1's type, reused rather than duplicated) the same way the DMA-page cluster was. **21 removed,
 10 added, net -11** across the nine files. `fs_subtree_caretaker.rs` alone is flat (1 before, 1
 after: one hand-rolled function traded for one window construction), the same "still real by
@@ -583,7 +585,7 @@ hand-written version made it, and the test's behaviour is unchanged. **3 `unsafe
 2 added, net -1**, in `components/src/disk_surveyor.rs` alone.
 
 *`net_stack.rs`'s `a_r8`/`a_r16`/`a_w16`/`a_w8` cluster.* The exact naming variant
-`user_rt::mapped_window`'s own doc comment already named as a shape round 1's search should have
+`user_mode_runtime::mapped_window`'s own doc comment already named as a shape round 1's search should have
 caught and did not (a different file, not one of round 1's seven). Harder than the FS cluster
 because it is genuinely harder, not because the milestone's own text says so: the VA is not a fixed
 constant but `socket_va(sid) = 0x00A0_0000 + sid * 0x1000`, a different page per open socket, and
@@ -860,9 +862,9 @@ script/lint
 
 # just the count, over every configuration, cache defeated
 find crates kernel user xtask -name '*.rs' -exec touch {} +
-cargo check --workspace --exclude kernel --exclude user --exclude user_rt --all-targets 2>&1 | grep E0133
-cargo check -p kernel -p user -p user_rt --target aarch64-unknown-none-softfloat --all-targets 2>&1 | grep E0133
-cargo check -p kernel -p user -p user_rt --target riscv64imac-unknown-none-elf --all-targets 2>&1 | grep E0133
+cargo check --workspace --exclude kernel --exclude user --exclude user_mode_runtime --all-targets 2>&1 | grep E0133
+cargo check -p kernel -p user -p user_mode_runtime --target aarch64-unknown-none-softfloat --all-targets 2>&1 | grep E0133
+cargo check -p kernel -p user -p user_mode_runtime --target riscv64imac-unknown-none-elf --all-targets 2>&1 | grep E0133
 ```
 
 Grep for `E0133`, not for the lint's name: rustc reports the error code and spells the lint
@@ -933,5 +935,5 @@ adding unsafe code would both report honest numbers that disagree, which is the 
 records for the Kani harness count.
 
 **The riscv64 `user` gap noted at the top of this file is still open.** `script/lint` compiles
-`user` and `user_rt` for aarch64 only, so nine of the fourteen sites in the handoff table above are
+`user` and `user_mode_runtime` for aarch64 only, so nine of the fourteen sites in the handoff table above are
 linted on one ISA.

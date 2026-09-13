@@ -43,7 +43,7 @@ import re
 # rather than a parse, and every count built on it is honest rather than close: a naive grep for
 # `unsafe {` over this tree scores 1071 against the census's 1057, and the fourteen it invents are
 # all `unsafe {}` written inside a `//!` doc example in `intrusive`, `ipc`, `paging` and
-# `user_heap`. Those are documentation ABOUT unsafe, and a ceiling that counted them would fire when
+# `user_mode_heap`. Those are documentation ABOUT unsafe, and a ceiling that counted them would fire when
 # somebody improved a doc comment.
 #
 # Block comments are matched non-greedily and do NOT nest, which Rust's do. The tree has none

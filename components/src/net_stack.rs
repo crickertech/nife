@@ -46,8 +46,8 @@ use smoltcp::iface::{Config, Interface, SocketHandle, SocketSet};
 use smoltcp::socket::{dhcpv4, tcp, udp};
 use smoltcp::time::Instant;
 use smoltcp::wire::{EthernetAddress, HardwareAddress, IpAddress, IpCidr, IpEndpoint, Ipv4Address};
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{cap_delete, cntfrq, irq_wait, map_page_frame, now, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{cap_delete, cntfrq, irq_wait, map_page_frame, now, recv_cap, reply, send};
 
 #[path = "net_transport.rs"]
 mod net_transport;
@@ -73,7 +73,8 @@ const STACK: u64 = 4;
 const HEAP_MAX: u64 = 96 * 4096;
 
 #[global_allocator]
-static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
+static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
+    user_mode_runtime::heap::MemoryRegionHeap::new();
 
 /// Our MAC. Locally administered; slirp routes DHCP regardless.
 const MAC: [u8; 6] = [0x52, 0x54, 0x00, 0x12, 0x34, 0x56];
@@ -174,7 +175,11 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, a2: u64) -> ! {
 
 /// The net server: bring the NIC up, run DHCP, then serve the socket contract.
 fn server(dma_phys: u64, grant_word: u64) -> ! {
-    HEAP.init(MEMORY_REGION, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(
+        MEMORY_REGION,
+        user_mode_runtime::heap::DEFAULT_BASE,
+        HEAP_MAX,
+    );
 
     let mut dev = net_transport::VirtioNet::bring_up(dma_phys);
     let mut config = Config::new(HardwareAddress::Ethernet(EthernetAddress(MAC)));
@@ -243,7 +248,7 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
                     // this asserts that once here instead of at every access the way the four
                     // `a_r8`/`a_r16`/`a_w16`/`a_w8` functions used to duplicate at each call site
                     // (milestone 139 round 3; the exact naming variant
-                    // `user_rt::mapped_window`'s own doc comment already named).
+                    // `user_mode_runtime::mapped_window`'s own doc comment already named).
                     frame_window[sid] = Some(unsafe { MappedWindow::new(va, PAGE) });
                 }
             }
@@ -421,7 +426,7 @@ fn wait_for_nic(
         // A smoltcp timer is due: keep the source armed and the device quiet, then yield so the
         // caller re-polls and smoltcp emits the retransmit/ACK. Not a blocking wait, on purpose.
         dev.ack_irq();
-        user_rt::yield_now();
+        user_mode_runtime::yield_now();
     }
 }
 
@@ -797,4 +802,4 @@ fn tcp_send(
     sent as u64
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

@@ -422,7 +422,7 @@ regular expression is not a designation of anything.
 
 - **`pgrep` has no exit status to report with**, so "nothing matched" is a sentence on the second
   stream rather than upstream's exit 1. A caller wanting to branch on the answer has to count lines.
-  `user_rt::exit` takes no code, and giving it one is a syscall-surface change.
+  `user_mode_runtime::exit` takes no code, and giving it one is a syscall-surface change.
 
 - **`ps` lists itself**, and in a pipeline it may or may not list its own reader. It is a member of
   the domain it was spawned into, which is truthful and is what Unix's `ps` does too. The pipeline

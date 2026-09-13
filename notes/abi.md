@@ -41,7 +41,7 @@ Four syscall numbers, and that is the whole width of the trap:
 That narrowness is deliberate (DECISIONS rule 3: the syscall surface stays a boundary, not a habit).
 Everything a program can do to another object goes through the single `SYS_INVOKE` door; adding a
 capability *type* or a *method* does not widen the trap, it adds a row to a table the kernel already
-dispatches. `crates/user_rt` is the userspace side of this: `invoke`, and `send`/`recv`/`exit` built
+dispatches. `crates/user_mode_runtime` is the userspace side of this: `invoke`, and `send`/`recv`/`exit` built
 on it.
 
 ## 2. The object surface, reached through `SYS_INVOKE`
@@ -186,7 +186,7 @@ path**; seL4's badged-endpoint machinery is what you would reach for if untruste
 shared a supervision endpoint, and it returns as its own decision if that day comes.
 
 The userspace side of that is two functions rather than one, and the split is not an ABI difference:
-`user_rt::recv` reads three words and `user_rt::recv_fault` reads all five, both from the same `RECV`.
+`user_mode_runtime::recv` reads three words and `user_mode_runtime::recv_fault` reads all five, both from the same `RECV`.
 `recv_fault` arrived with milestone 36 (notes/c-seam.md), the first program to want `w3`: a restart
 policy needs the event and the tid, but a *checker* needs the faulting address, because that is the
 only word that says where the dead thread actually pointed.
@@ -200,8 +200,8 @@ later without a format change: the corpse it would resume is still there.
 
 §10 says no ambient authority, and the object surface honors it: everything a program can *do* goes
 through a capability. There is exactly one deliberate exception, and it is a read, not a do: **EL0
-can read the virtual counter** (`CNTVCT_EL0`) and its frequency (`CNTFRQ_EL0`), via `user_rt::now`
-and `user_rt::cntfrq`, no syscall. The kernel opens this in `timer::init` (`CNTKCTL_EL1.EL0VCTEN`);
+can read the virtual counter** (`CNTVCT_EL0`) and its frequency (`CNTFRQ_EL0`), via `user_mode_runtime::now`
+and `user_mode_runtime::cntfrq`, no syscall. The kernel opens this in `timer::init` (`CNTKCTL_EL1.EL0VCTEN`);
 without it the read traps.
 
 It is an exception made with eyes open. A monotonic counter grants no authority to *affect*
@@ -248,7 +248,7 @@ each, so it would mean widening `invoke` itself.
 
 **The `x86_64` row is an exception §19 (architectural parity is a tenet) should read as stated
 rather than as a gap.** `CR4.TSD` would close `rdtsc` to ring 3, and there is no coarse fallback on
-that architecture the way `CNTVCT_EL0` and `rdtime` are fallbacks on the other two: `user_rt`'s
+that architecture the way `CNTVCT_EL0` and `rdtime` are fallbacks on the other two: `user_mode_runtime`'s
 `now()` there **is** `rdtsc`, so closing it takes out `Instant`, `thread::sleep`, the random seed,
 smoltcp's timestamps and the benchmark harness at once. DECISIONS 139 measured the alternatives
 (trap-and-emulate at 1,667 ns, 4.1x the syscall it would be beating) and closed them.

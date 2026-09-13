@@ -101,7 +101,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_rt::{exit, granted, monotonic_nanos, send, survey, yield_now};
+use user_mode_runtime::{exit, granted, monotonic_nanos, send, survey, yield_now};
 
 /// The output sink: where redrawn frames go. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -203,4 +203,4 @@ fn write_on(slot: u64, bytes: &[u8]) {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

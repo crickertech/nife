@@ -39,7 +39,7 @@
 use supervision_proto::{
     REP_BUILT, REPORT_FAILED, REPORT_SUP_GAVE_UP, REPORT_SUP_SAW_DEATH, REQ_BUILD,
 };
-use user_rt::{recv, send};
+use user_mode_runtime::{recv, send};
 
 /// What `root_supervisor` endowed us with, in order. Notice what is missing: memory.
 const REQ: u64 = 0; // WRITE: ask the spawner to build or reap
@@ -119,7 +119,7 @@ fn build(attempt: u64) -> bool {
 /// the kernel had told us a thread was dead and then said otherwise, which is worth failing loudly
 /// over rather than silently leaking a corpse.
 fn reap(tid: u64) -> bool {
-    user_rt::reap(FAULT, tid) == 0
+    user_mode_runtime::reap(FAULT, tid) == 0
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

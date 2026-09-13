@@ -25,7 +25,7 @@ use crate::sched;
 /// used to need collapsed into `super::HELLO_ENTRY`.
 ///
 /// **`x86_64` packs no initrd at all**, because no user program is built for
-/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). The
+/// `x86_64-unknown-none` (`crates/user_mode_runtime` has no arms for this ISA; see notes/x86-port.md). The
 /// constant names what the entry would be called rather than what is there, and every test that
 /// reaches for it skips instead: see [`init_image`].
 const HELLO_ENTRY: &str = super::HELLO_ENTRY;

@@ -26,7 +26,7 @@
 //!
 //! **This one cannot run either, and the reason is structural.** [`boot`] returns `!` and every step
 //! it takes is a syscall on a capability the kernel granted at spawn, so there is nothing to assert
-//! and nowhere to assert it: `script/test`'s host pass excludes this crate (it depends on `user_rt`'s
+//! and nowhere to assert it: `script/test`'s host pass excludes this crate (it depends on `user_mode_runtime`'s
 //! EL0 `asm!`, an exclusion `script/lint` derives and checks), and the thing that actually proves this
 //! code is `script/shell-check`, which boots both ISAs and types at the prompt. So the example below
 //! is `no_run`: type-checked against the real signatures, and executed by that gate.
@@ -173,7 +173,7 @@
 //! # BUGS
 //!
 //! **Nothing a host test could run proves any of this, and milestone 244 measured how much that
-//! costs rather than leaving it as a feeling.** This crate reaches `user_rt` through the dependency
+//! costs rather than leaving it as a feeling.** This crate reaches `user_mode_runtime` through the dependency
 //! graph, so it does not build for the host at all; `script/lint`, `script/coverage` and
 //! `.cargo/mutants.toml` all exclude it, and a gate in `script/lint` derives that set from cargo
 //! metadata so the four lists cannot drift apart again. `script/shell-check` is what proves this
@@ -302,7 +302,7 @@ use supervision_proto::{
     ChildEndowment, Retention, build_child, retype_obj_from as retype_obj,
     retype_page_frame_from as retype_page_frame, start_child,
 };
-use user_rt::{call, cap_delete, granted, invoke, recv, recv_cap, send};
+use user_mode_runtime::{call, cap_delete, granted, invoke, recv, recv_cap, send};
 
 /// **The capabilities the kernel granted the progenitor, by slot.** The one thing the boards do not
 /// agree on, so it is data the boot entry states rather than code this crate repeats, and since
@@ -451,7 +451,7 @@ const INITRD_VA: u64 = 0x2000_0000;
 ///
 /// `kernel::user::pipeline_service`'s `SHELL_EXTRA_STACK` must stay level with this: a test wiring
 /// with less headroom than the boot wiring finds faults the boot does not have (notes/pipes.md).
-/// The kernel cannot depend on this crate (it would drag `user_rt`'s EL0 syscall stubs in), so that
+/// The kernel cannot depend on this crate (it would drag `user_mode_runtime`'s EL0 syscall stubs in), so that
 /// one is still a number in two places, and this is the one it follows.
 pub const CHILD_STACK_PAGES: u64 = 12;
 
@@ -848,7 +848,7 @@ pub fn boot(
     }
 
     // **Graphical, when this boot has a GPU and a keyboard both attached** (milestone 177, option
-    // A). Probed the same way the virtio-rng trio is (`user_rt::granted`, since there is no
+    // A). Probed the same way the virtio-rng trio is (`user_mode_runtime::granted`, since there is no
     // fourth `START` argument word left to be told with instead): `disp_term_ep` and `kbd_ep` are
     // granted together or not at all (`kernel::user::boot_graphical_terminal`'s own contract), so
     // checking one stands for both.
@@ -1149,7 +1149,7 @@ pub fn boot(
         // maps it for the same reason and this path never reaches the giveaway; a refusal nobody
         // can see is most of what this milestone was written to fix.
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method before
-        // acting (user_rt's contract).
+        // acting (user_mode_runtime's contract).
         if unsafe { invoke(term_out, abi::page_frame::MAP, INIT_OUT_VA, 1, ut) } == 0 {
             let mut buf = [0u8; SENTENCE];
             announce(
@@ -1746,7 +1746,7 @@ pub fn boot(
     // permanent (there is no unmap, and `PageFrame::REVOKE` would take the page from the shell too); see
     // this module's BUGS.
     // SAFETY: `invoke` traps to the kernel, which validates the capability and the method before
-    // acting (user_rt's contract).
+    // acting (user_mode_runtime's contract).
     if unsafe { invoke(term_out, abi::page_frame::MAP, INIT_OUT_VA, 1, ut) } != 0 {
         fail()
     }
@@ -2553,7 +2553,7 @@ fn reclaim(region: u64) {
         if supervision_proto::memory_region_destroy(region) {
             return;
         }
-        user_rt::yield_now();
+        user_mode_runtime::yield_now();
     }
 }
 

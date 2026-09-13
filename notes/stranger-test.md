@@ -412,7 +412,7 @@ and how you would add a new user program to it." No brief, no pointers, no answe
 
 **The headline finding is the one nobody in the tree could see.** The workspace had not built on an
 x86_64 host since 2026-08-03. `--exclude` removes a package from the test *selection*, not from the
-dependency graph, so excluding `user_rt` while four crates depended on it unconditionally left it in
+dependency graph, so excluding `user_mode_runtime` while four crates depended on it unconditionally left it in
 the build. **CI moved to `ubuntu-24.04-arm` the same day those dependencies landed**, where the EL0
 assembly compiles by accident, so the one gate that would have caught it ran on the only architecture
 where the bug is invisible. `script/lint`'s comment asserted the opposite and was wrong in both

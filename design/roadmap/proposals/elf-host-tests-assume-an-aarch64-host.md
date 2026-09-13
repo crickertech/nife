@@ -44,7 +44,7 @@ the hardcoded `EM_AARCH64` is the native machine on every box that has ever run 
 
 This is milestone 117's stranger-test class precisely, and the tree has paid for it once already:
 `xtask`'s host pass carries a comment about `swap_proto`, `virtio` and `supervision_proto` taking
-`user_rt` dependencies, where *"cargo still had to build it for them, so the host pass stopped
+`user_mode_runtime` dependencies, where *"cargo still had to build it for them, so the host pass stopped
 compiling on an x86_64 host and nobody noticed, because CI moved to `ubuntu-24.04-arm` the same day
 and on an aarch64 host it builds by accident. A stranger with a clean x86_64 checkout found it."*
 Same shape, same cause, different crate: an aarch64 assumption that is invisible to every machine

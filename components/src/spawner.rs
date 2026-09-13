@@ -38,7 +38,7 @@
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead. This
 // is the one shape where a blanket allow is the honest one: no single binary uses all of it (§38).
 use supervision_proto::{ChildEndowment, REP_BUILT, REP_FAILED, REQ_BUILD, Retention};
-use user_rt::{cap_delete, recv, send};
+use user_mode_runtime::{cap_delete, recv, send};
 
 /// The capabilities `root_supervisor` endowed us with, in order.
 const REQ: u64 = 0; // READ: build/reap requests arrive here
@@ -108,4 +108,4 @@ fn build(elf: &elf::Elf, attempt: u64) -> bool {
     true
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

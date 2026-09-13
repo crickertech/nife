@@ -12,7 +12,7 @@
 //! role selector; a standalone binary needs none. It shares the `user` package's `link.ld` but not a
 //! line of hello's code.
 //!
-//! The syscall runtime (`send`/`recv`) comes from the shared `user_rt` crate (19f.6).
+//! The syscall runtime (`send`/`recv`) comes from the shared `user_mode_runtime` crate (19f.6).
 //!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
 //! right.
@@ -24,7 +24,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{recv, send};
+use user_mode_runtime::{recv, send};
 
 /// The PL011's register block, migrated onto `tock_registers` (milestone 139 round 5): every
 /// offset checked at compile time instead of asserted by a hand-written comment, matching
@@ -168,7 +168,7 @@ fn uart_put(byte: u8) {
 /// reaches it today: `xtask`'s x86 archive does not carry this program, for exactly this reason.
 #[cfg(target_arch = "x86_64")]
 fn uart_put(_byte: u8) {
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

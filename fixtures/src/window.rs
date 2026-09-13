@@ -45,8 +45,8 @@
 
 use compositor::proto::{ctl, wlist};
 use compositor::status;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, invoke, map_page_frame, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, invoke, map_page_frame, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
 const REPORT: u64 = 0;
@@ -240,7 +240,7 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
         // SAFETY: `svc`/`ecall`. The slot is empty, so the kernel refuses; nothing happens. Left as
         // a raw `invoke` (milestone 139 round 7's own survey of the whole `invoke` cluster): this is
         // the one call site of its kind, deliberately probing the raw negative `abi::Error` a RECV
-        // against an empty slot returns, which `user_rt::recv`'s own contract discards (it assumes
+        // against an empty slot returns, which `user_mode_runtime::recv`'s own contract discards (it assumes
         // success and returns the three data words, not the syscall's own return code). A wrapper
         // exposing the raw code would be a second `recv` for one caller, not a real reduction.
         let r = unsafe { invoke(INPUT, abi::rendezvous::RECV, 0, 0, 0) };
@@ -348,4 +348,4 @@ pub extern "C" fn _start(role: u64, neighbour_va: u64, _arg2: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

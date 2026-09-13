@@ -124,7 +124,7 @@ tests came along unchanged once three things moved.
    builder, the init roles), and xtask's comment claimed it was "aarch64-wired". Three quarters of
    that claim was already false (console, input and shell were in the riscv build list directly
    below it) and the last quarter was six syscalls hand-rolled in aarch64 `asm!` naming x0/x2/x3/x4/x8,
-   which on RISC-V are the zero register, sp, gp, tp and fp. `user_rt` had had portable versions of
+   which on RISC-V are the zero register, sp, gp, tp and fp. `user_mode_runtime` had had portable versions of
    all six since 19f.6 lifted the runtime out; the duplicates simply never got deleted. A stale
    comment stood in for a real blocker for a year, which is this note's recurring lesson in a new
    costume.
@@ -484,10 +484,10 @@ below.
 
 aarch64 runs CoreMark and the os_primitives_benchmarker EL0 primitive suite (null syscall, context switch, IPC RTT, map,
 spawn), plus cross-OS comparisons. RISC-V runs none. The workloads are userspace and mostly portable
-(`coremark` is compute; `os_primitives_benchmarker` uses `user_rt::now`, which is `rdtime` on riscv).
+(`coremark` is compute; `os_primitives_benchmarker` uses `user_mode_runtime::now`, which is `rdtime` on riscv).
 
 - Make the `bench` boot mode reachable on riscv.
-- Resolve the timing caveat honestly: `user_rt::cntfrq` is hardcoded to the QEMU virt 10 MHz timebase
+- Resolve the timing caveat honestly: `user_mode_runtime::cntfrq` is hardcoded to the QEMU virt 10 MHz timebase
   on riscv (there is no `CNTFRQ` register); a real number needs the frequency handed to userspace
   (an aux-vector entry from the DTB `timebase-frequency`).
 - **Proves:** comparable performance on a second arch: the "measure, don't argue" ethos, with riscv

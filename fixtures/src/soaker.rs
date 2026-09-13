@@ -112,8 +112,8 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::mapped_window::{self, MappedWindow};
-use user_rt::{call, irq_wait, recv_cap, reply};
+use user_mode_runtime::mapped_window::{self, MappedWindow};
+use user_mode_runtime::{call, irq_wait, recv_cap, reply};
 
 /// The one capability a soaker holds: the request endpoint, in slot 0.
 const ENDPOINT: u64 = 0;
@@ -231,4 +231,4 @@ pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

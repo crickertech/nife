@@ -37,4 +37,4 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

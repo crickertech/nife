@@ -11,7 +11,7 @@
 //! The compute lives in a portable crate on purpose, so the *identical* code later compiles for
 //! macOS and Linux and the compute comparison is one source on three OSs (notes/benchmarks.md).
 //!
-//! It **self-times**: it reads the virtual counter (`user_rt::now`) around the run, so it reports a
+//! It **self-times**: it reads the virtual counter (`user_mode_runtime::now`) around the run, so it reports a
 //! real score, not just correctness. Under HVF those ticks are real nanoseconds; under TCG they are
 //! icount fiction (magnitudes are meaningless, the CRC is not). The report is three words:
 //! `[crc, ticks, freq]`, so the receiver can compute iterations per second without a second syscall.
@@ -27,7 +27,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{cntfrq, exit, now, send};
+use user_mode_runtime::{cntfrq, exit, now, send};
 
 /// The endpoint init grants us (slot 0): we SEND `[crc, ticks, freq]` here, then exit.
 const RESULT: u64 = 0;
@@ -41,4 +41,4 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

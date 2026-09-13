@@ -88,7 +88,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_rt::{exit, granted, send, survey};
+use user_mode_runtime::{exit, granted, send, survey};
 
 /// The output sink: where the table goes. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -156,4 +156,4 @@ fn write_on(slot: u64, bytes: &[u8]) {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

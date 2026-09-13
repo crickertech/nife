@@ -85,7 +85,7 @@ use gpt::guid::types;
 use redoxfs::{BLOCK_SIZE, Disk, FileSystem};
 use redoxfs_server::Server;
 use syscall::error::{EIO, Error, Result};
-use user_rt::{call, send};
+use user_mode_runtime::{call, send};
 
 /// Capability table slots, by convention with `kernel/src/user/disk_service.rs`.
 const MEMORY_REGION: u64 = 0;
@@ -101,7 +101,7 @@ const BLK_PAGE_FRAME: u64 = 4;
 
 /// Where this program puts the page it shares with the block server. **Its choice**: it holds the
 /// frame and maps it (milestone 108). Clear of the heap, which runs from
-/// `user_rt::heap::DEFAULT_BASE` (1 GiB) for [`HEAP_MAX`].
+/// `user_mode_runtime::heap::DEFAULT_BASE` (1 GiB) for [`HEAP_MAX`].
 const BLK_PAGE: u64 = 0x5000_0000;
 
 /// One filesystem block / one shared page, in bytes. RedoxFS's `BLOCK_SIZE` and the blk wire's
@@ -120,7 +120,8 @@ const LBA: u64 = blank::LBA;
 const HEAP_MAX: u64 = 8 * 1024 * 1024;
 
 #[global_allocator]
-static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
+static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
+    user_mode_runtime::heap::MemoryRegionHeap::new();
 
 // The roles, in `a0`. Must match kernel/src/user/disk_service.rs.
 /// Create a filesystem in the nife data partition.
@@ -155,23 +156,27 @@ pub const R_NO_FILE: u64 = 0x_4E_4F_46_4C_45;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
-    HEAP.init(MEMORY_REGION, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(
+        MEMORY_REGION,
+        user_mode_runtime::heap::DEFAULT_BASE,
+        HEAP_MAX,
+    );
 
     // The shared page, mapped out of the same budget the heap draws on (milestone 108). It is
     // granted in all three wirings, so a failure here is a broken kernel rather than a control.
-    if !user_rt::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, MEMORY_REGION) {
-        user_rt::exit()
+    if !user_mode_runtime::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, MEMORY_REGION) {
+        user_mode_runtime::exit()
     }
 
     // The disk first, because "I was given no disk" and "I was given no entropy" must be
     // distinguishable, and the cheapest question decides it.
     let Some((first_block, blocks)) = data_partition() else {
         send(REPORT, R_NO_DISK, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     };
     if blocks == 0 {
         send(REPORT, R_NO_PARTITION, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
 
     if role == ROLE_CHECK {
@@ -183,7 +188,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // partition still holds whatever it held.
     let Some(uuid) = random16() else {
         send(REPORT, R_NO_ENTROPY, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     };
 
     let disk = PartitionDisk {
@@ -195,7 +200,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         Ok(fs) => drop(fs),
         Err(e) => {
             send(REPORT, R_FAILED, 1, e.errno as u64);
-            user_rt::exit()
+            user_mode_runtime::exit()
         }
     }
 
@@ -208,7 +213,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         Ok(s) => s,
         Err(e) => {
             send(REPORT, R_FAILED, 2, e.errno as u64);
-            user_rt::exit()
+            user_mode_runtime::exit()
         }
     };
     let made = server
@@ -220,17 +225,17 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         }
         Ok((_, n)) => {
             send(REPORT, R_FAILED, 3, n as u64);
-            user_rt::exit()
+            user_mode_runtime::exit()
         }
         Err(e) => {
             send(REPORT, R_FAILED, 4, e.errno as u64);
-            user_rt::exit()
+            user_mode_runtime::exit()
         }
     }
     drop(server);
 
     send(REPORT, R_MADE, blocks, first_block);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// **Is there a filesystem in the partition, and does it hold what a creation run puts there?**
@@ -247,13 +252,13 @@ fn check(first_block: u64, blocks: u64) -> ! {
     // to "is there a filesystem here at all", and it is the question this role is asked twice.
     if blk_call(blk::READ, first_block) < 0 {
         send(REPORT, R_NO_DISK, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
     // SAFETY: BLK_PAGE is a mapped page of BLOCK bytes holding the block just read.
     let signature = unsafe { core::slice::from_raw_parts(BLK_PAGE as *const u8, 8) };
     if signature != redoxfs::SIGNATURE {
         send(REPORT, R_NO_FS, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
 
     let mut server = match Server::open(PartitionDisk {
@@ -265,7 +270,7 @@ fn check(first_block: u64, blocks: u64) -> ! {
         // is what an unformatted one is.
         Err(_) => {
             send(REPORT, R_NO_FS, 0, 0);
-            user_rt::exit()
+            user_mode_runtime::exit()
         }
     };
     let mut buf = [0u8; 128];
@@ -278,7 +283,7 @@ fn check(first_block: u64, blocks: u64) -> ! {
         }
         _ => send(REPORT, R_NO_FILE, 0, 0),
     };
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// Find the nife data partition on the disk this process holds: `(first block, block count)`
@@ -439,4 +444,4 @@ impl Disk for PartitionDisk {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

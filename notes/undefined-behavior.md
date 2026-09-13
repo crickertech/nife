@@ -15,10 +15,10 @@ and leaks at process exit.
 The rest of the tree's analysis surface cannot see that class. Kani proves the properties it is
 asked about; the fuzzers see crashes and hangs; clippy sees shapes; the type system stops at every
 `unsafe` block. There are 224 `unsafe` occurrences under `crates/`, concentrated in `ipc`,
-`user_heap`, `intrusive_fifo`, `virtio`, and `paging`, and an aliasing bug in one of them passes every
+`user_mode_heap`, `intrusive_fifo`, `virtio`, and `paging`, and an aliasing bug in one of them passes every
 existing gate while being real UB on every target. Miri is the one tool here whose whole job is
 that class, and the first full run proved the point: it found two genuine UB defects in
-`user_heap`, both invisible to 60 passing native tests.
+`user_mode_heap`, both invisible to 60 passing native tests.
 
 The complement matters too. Miri only judges the paths the tests execute: it is a dynamic checker,
 not a proof, so an `unsafe` block no test reaches is as invisible to it as it was before. Coverage
@@ -42,7 +42,7 @@ when it was killed and sampled instead).
 
 ### Findings, each with its verdict
 
-**1. `user_heap::insert_free`: write through an invalidated borrow. Real UB, fixed.**
+**1. `user_mode_heap::insert_free`: write through an invalidated borrow. Real UB, fixed.**
 The free-list insertion walked the list through a raw `link` pointer derived from `&mut self.head`,
 then took `&mut self.head` a *second* time for the predecessor check. A fresh `&mut` is a fresh
 unique borrow: it invalidated the tag `link` carried, and the head-insertion store through `link`
@@ -51,7 +51,7 @@ native tests passed; it was still UB, licensed to break on any toolchain bump, i
 under every userspace program. Fix: take the head link once and compare pointers instead of
 re-borrowing. This is the exact class the milestone was run for, found on its first pass.
 
-**2. `user_heap`: integer-minted pointers with no exposed provenance. Real UB, fixed.**
+**2. `user_mode_heap`: integer-minted pointers with no exposed provenance. Real UB, fixed.**
 The allocator's arithmetic is integer arithmetic (`alloc` mints a tail block at `aligned + size`;
 `insert_free` recovers a predecessor node from a link address), and a coalesced block can span two
 separately donated regions, so no single donated pointer could carry provenance for it even in
@@ -173,7 +173,7 @@ adds it itself on a machine bootstrapped before milestone 79.
 
 - Miri judges only executed paths. An `unsafe` block without a test is not "Miri-clean", it is
   unvisited. The coverage floor is the guard on that gap, and it is a floor, not totality.
-- `-Zmiri-strict-provenance` is not on, and for `user_heap` it never can be: the allocator's
+- `-Zmiri-strict-provenance` is not on, and for `user_mode_heap` it never can be: the allocator's
   cross-donation coalescing is inherently expose-and-reclaim (finding 2 above). The roadmap block
   named strict provenance as a later ratchet; if it is ever tried, it needs a per-crate carve-out.
 - The weekly cadence means a regression can live on `main` for up to a week before CI sees it.

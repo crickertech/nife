@@ -58,7 +58,7 @@
 //!
 //! `components/src/timetable.rs` already says it: "There is no sleep, no timeout and no deadline anywhere
 //! in this kernel, so a process that wants to act at a time can only yield and re-read the counter."
-//! `watch`'s interval is [`INTERVAL_NANOS`], held against `user_rt::monotonic_nanos()` in a
+//! `watch`'s interval is [`INTERVAL_NANOS`], held against `user_mode_runtime::monotonic_nanos()` in a
 //! yield-spin loop, exactly `timetable`'s shape. It is milestone 106's sixth named consumer (the
 //! block already counted five: `net_stack`'s retransmit window, `thread::sleep`, `RECV`'s no-timeout
 //! limitation, the shell's `^C` poll, and `timetable` itself); the fix is the same one line

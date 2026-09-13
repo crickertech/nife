@@ -114,7 +114,7 @@ use filesystem_proto::{blk, req};
 use gpt::entry::Entry;
 use gpt::guid::{Guid, types};
 use gpt::{ENTRY_ARRAY_BYTES, Gpt};
-use user_rt::{call, send};
+use user_mode_runtime::{call, send};
 
 /// Slot 0: where the verdict goes. An endpoint with `WRITE`.
 const REPORT: u64 = 0;
@@ -178,8 +178,8 @@ static mut BACKUP: [u8; 6 * blk::BLOCK_SIZE] = [0; 6 * blk::BLOCK_SIZE];
 pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // The shared page is a `PageFrame` we hold, mapped here out of our own budget (milestone 108).
     // Before either role, because every `blk` call goes through it.
-    if !user_rt::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, BUDGET) {
-        user_rt::exit()
+    if !user_mode_runtime::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, BUDGET) {
+        user_mode_runtime::exit()
     }
     match role {
         ROLE_PARTITION => partition(),
@@ -197,7 +197,7 @@ fn partition() -> ! {
     for g in guids.iter_mut() {
         let Some(bytes) = random16() else {
             send(REPORT, R_NO_ENTROPY, 0, 0);
-            user_rt::exit()
+            user_mode_runtime::exit()
         };
         *g = Guid::v4_from_random(bytes);
     }
@@ -211,7 +211,7 @@ fn partition() -> ! {
     for (i, (type_guid, (first, last), name)) in layout.iter().enumerate() {
         let Ok(e) = Entry::new(*type_guid, guids[i + 1], *first, *last).with_name(name) else {
             send(REPORT, R_DISK_FAILED, 1, i as u64);
-            user_rt::exit()
+            user_mode_runtime::exit()
         };
         parts[i] = e;
     }
@@ -221,14 +221,14 @@ fn partition() -> ! {
     let size = call(BLK, req(blk::SIZE), 0).0 as i64;
     if size <= 0 || !(size as u64).is_multiple_of(LBA) {
         send(REPORT, R_DISK_FAILED, 2, size as u64);
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
     let block_count = size as u64 / LBA;
 
     let array = array();
     let Ok(table) = Gpt::create(guids[0], LBA as usize, block_count, &parts, array) else {
         send(REPORT, R_DISK_FAILED, 3, block_count);
-        user_rt::exit()
+        user_mode_runtime::exit()
     };
 
     // One logical block of scratch, built and written one at a time: the MBR, the primary header,
@@ -256,19 +256,19 @@ fn partition() -> ! {
                 };
                 if built.is_err() {
                     send(REPORT, R_DISK_FAILED, 4, n as u64);
-                    user_rt::exit()
+                    user_mode_runtime::exit()
                 }
                 &block
             }
         };
         if !write_at(*lba, data) {
             send(REPORT, R_DISK_FAILED, 5, *lba);
-            user_rt::exit()
+            user_mode_runtime::exit()
         }
     }
 
     send(REPORT, R_PARTITIONED, blank::PARTITIONS as u64, 0);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// Read the disk back and say what is on it. No entropy endpoint, no writes.
@@ -280,14 +280,14 @@ fn verify() -> ! {
     let size = call(BLK, req(blk::SIZE), 0).0 as i64;
     if size <= 0 || !(size as u64).is_multiple_of(LBA) {
         send(REPORT, 0, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
     let block_count = size as u64 / LBA;
 
     let head = primary();
     if !read_at(0, &mut head[..]) {
         send(REPORT, 0, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
     let head: &[u8] = head;
 
@@ -299,7 +299,7 @@ fn verify() -> ! {
         &head[2 * LBA as usize..],
     ) else {
         send(REPORT, flags, 0, 0);
-        user_rt::exit()
+        user_mode_runtime::exit()
     };
     flags |= F_PRIMARY;
 
@@ -365,7 +365,7 @@ fn verify() -> ! {
     }
 
     send(REPORT, flags, partitions, data_first_lba);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// Sixteen random bytes from the entropy service, or `None` if this process holds no entropy
@@ -475,4 +475,4 @@ fn backup() -> &'static mut [u8] {
     unsafe { &mut *p }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

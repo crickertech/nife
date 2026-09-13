@@ -122,7 +122,7 @@
 #![no_main]
 
 use documentation::{Renderer, Sink, Style};
-use user_rt::{exit, recv, send};
+use user_mode_runtime::{exit, recv, send};
 
 /// The output sink: where the rendered bytes go, in the sink contract's framing.
 const SINK: u64 = 0;
@@ -223,4 +223,4 @@ impl Sink for Out {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

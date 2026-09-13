@@ -86,8 +86,8 @@ use filesystem_proto::{blk, req};
 use gpt::Gpt;
 use gpt::guid::types;
 use gpt::span::Span;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, send};
 
 /// Slot 0: where the verdict goes. An endpoint with `WRITE`.
 const REPORT: u64 = 0;
@@ -187,18 +187,18 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
 /// the first. There is no way to un-share a page a program was handed at birth, which is the cost
 /// the milestone was raised to pay off.
 fn holder() -> ! {
-    if !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET) {
-        user_rt::exit()
+    if !user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET) {
+        user_mode_runtime::exit()
     }
     // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, on the line above: the
     // program's own `PageFrame::MAP` succeeded first, which is exactly the case
-    // `user_rt::mapped_window::MappedWindow::new`'s own doc names (milestone 139 round 3).
+    // `user_mode_runtime::mapped_window::MappedWindow::new`'s own doc names (milestone 139 round 3).
     let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };
     let word = roster.read::<u64>(0);
     send(REPORT, R_HOLDING, word, 0);
 
     // The kernel revokes the frame while we are parked here.
-    user_rt::recv(RESUME);
+    user_mode_runtime::recv(RESUME);
 
     // Not safe any more, and that is the test: the page is gone. This is the one deliberate
     // exception to `new`'s "stays mapped for as long as `self` is used" contract, and it is the
@@ -210,7 +210,7 @@ fn holder() -> ! {
     // Unreachable in a working kernel. If the read did land, say so, so a silent pass is
     // impossible: the test asserts on the fault, and this message is what it sees instead.
     send(REPORT, R_HOLDING, after, 1);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// Enumerate, read the table, report. Two messages: the roster, then the table.
@@ -219,10 +219,10 @@ fn survey() -> ! {
     // hold; the tables to reach them come out of our own budget. A failure here is fatal and
     // silent on purpose: this program's only channel is `REPORT`, and reporting through a page we
     // failed to map is not a thing it can do.
-    if !user_rt::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, BUDGET)
-        || !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET)
+    if !user_mode_runtime::map_page_frame(BLK_PAGE_FRAME, BLK_PAGE, true, BUDGET)
+        || !user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET)
     {
-        user_rt::exit()
+        user_mode_runtime::exit()
     }
 
     // The roster first, because it is the cheaper authority and answers a different question.
@@ -254,7 +254,7 @@ fn survey() -> ! {
     }
 
     send(REPORT, flags, partitions, nife_first_lba);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// Read and judge both halves of the table. Returns the flags it established.
@@ -366,11 +366,11 @@ fn read_span(span: Span, into: &mut [u8]) -> bool {
 /// program could be persuaded to skip.
 fn probe() -> ! {
     // Rung one: a writable mapping, refused by the rights on the capability itself.
-    let rw_refused = !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, true, BUDGET);
+    let rw_refused = !user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, true, BUDGET);
 
     // Rung two: the read-only mapping we are entitled to, and a write through it.
-    if !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET) {
-        user_rt::exit()
+    if !user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET) {
+        user_mode_runtime::exit()
     }
     send(
         REPORT,
@@ -386,7 +386,7 @@ fn probe() -> ! {
     roster.write(0u64, 0u64);
     // Unreachable in a working kernel; if we get here the write was allowed and the test's
     // fault-count assertion is what says so.
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// The roster page, read-only. Its contents are checked by `block_roster::Roster::read`, which
@@ -416,4 +416,4 @@ fn backup() -> &'static mut [u8] {
     unsafe { &mut *p }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

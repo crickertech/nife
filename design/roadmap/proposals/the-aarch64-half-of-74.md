@@ -6,7 +6,7 @@ built 74's riscv64 half and was scoped out of this one.
 **Gate: DECISION.** Not the authority question, which is answered: `design/decisions/139-cycle-counter-authority.md`
 chose option 4 and the mechanism is built and tested on all three architectures. What is owed is
 smaller and is still calef's, because it is a public API and a published number: what
-`user_rt`'s cycle-counter function is called and what it promises, and whether the counter counts in
+`user_mode_runtime`'s cycle-counter function is called and what it promises, and whether the counter counts in
 EL1 and EL2 as well as EL0.
 
 **In brief.** `PMCR_EL0.E` and `PMCNTENSET_EL0.C` are never written by this kernel, so
@@ -63,7 +63,7 @@ firmware call to blame: the kernel is the thing that failed to start the counter
 - Verify it is counting, and record why not when it is not, in the shape
   `arch::riscv64::pmu::CycleCounter` established.
 - The portable read. `fixtures/src/hello.rs`'s `read_cycle_counter` is deliberately *not* in
-  `crates/user_rt`, and its own comment says why: *"A portable userspace cycle-counter API is
+  `crates/user_mode_runtime`, and its own comment says why: *"A portable userspace cycle-counter API is
   milestone 74's deliverable, and it will want to say what the number means."* That is the naming
   and semantics question, and it is the second thing calef owes here.
 - The harness probe, matching the riscv64 half: one `bench-probe: cycles_per_tick` line, which

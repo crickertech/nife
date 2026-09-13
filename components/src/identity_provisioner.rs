@@ -95,8 +95,8 @@
 #![no_main]
 
 use filesystem_proto::fs;
-use user_rt::call;
-use user_rt::mapped_window::MappedWindow;
+use user_mode_runtime::call;
+use user_mode_runtime::mapped_window::MappedWindow;
 
 /// The credential service's provision endpoint (slot 0), `WRITE`, before its seal.
 const PROV: u64 = 0;
@@ -237,8 +237,8 @@ fn wipe_req() {
 }
 
 fn report(code: u64, detail: u64) -> ! {
-    user_rt::send(REPORT, code, detail, 0);
-    user_rt::exit()
+    user_mode_runtime::send(REPORT, code, detail, 0);
+    user_mode_runtime::exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

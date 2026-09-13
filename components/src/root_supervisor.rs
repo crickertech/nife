@@ -44,7 +44,7 @@
 use supervision_proto::{
     ChildEndowment, REPORT_FAILED, REPORT_INIT_DROPPED, REPORT_SUP_SAW_DEATH, Retention,
 };
-use user_rt::{cap_delete, recv, retype_object, retype_page_frame, send};
+use user_mode_runtime::{cap_delete, recv, retype_object, retype_page_frame, send};
 
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: ours briefly, then deleted
@@ -59,8 +59,8 @@ const SPAWNER_IMAGE_VA: u64 = 0x3000_0000;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };
@@ -191,4 +191,4 @@ fn bail(stage: u64) -> ! {
     supervision_proto::fail()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

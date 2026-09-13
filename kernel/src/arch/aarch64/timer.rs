@@ -181,7 +181,7 @@ pub fn init() {
 /// # Why writing zero is not a policy change
 ///
 /// Zero is what the rest of the tree already believes the value is. Nothing here grants or revokes
-/// anything a program was using: `crates/user_rt`'s `now()` reads `CNTVCT_EL0`, which the line above
+/// anything a program was using: `crates/user_mode_runtime`'s `now()` reads `CNTVCT_EL0`, which the line above
 /// opens, and nothing in this tree reads `PMCCNTR_EL0` from EL0 at all. What changes is that the
 /// belief stops being firmware's to confirm.
 ///

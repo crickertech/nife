@@ -305,7 +305,7 @@ says so where a reader meets the function.
   binding permits it per hart, and a machine whose harts genuinely differ would be misread. The
   kernel treats the counter as machine-wide regardless, so this is a limitation of the model rather
   than of the parse.
-- **`user_rt::cntfrq` still returns 10 MHz on RISC-V, and it is now the last copy.** The kernel reads
+- **`user_mode_runtime::cntfrq` still returns 10 MHz on RISC-V, and it is now the last copy.** The kernel reads
   the real rate; **userspace cannot**, because there is no register to read and no channel to hand it
   down. Closing it is an ABI addition (an aux-vector entry at process start, the way Linux passes
   `AT_HWCAP`), which is a design fork rather than a fix, and `notes/riscv-parity-scope.md` already
