@@ -436,8 +436,10 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// **Raised again, 2026-08-27, milestone 49's terminal update.** `login_tests.rs` gains
 /// `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout`, which
 /// spawns four more `login_test_client` roles (`ROLE_TERM_FIRST` twice, `ROLE_TERM_SECOND`,
-/// `ROLE_TERM_LOGOUT`) against the same memoized login instance every other test in that file
-/// shares. Each spawned role still costs `login_service.rs`'s own `CLIENT_SCRATCH_UT_PAGES` (four
+/// `ROLE_TERM_LOGOUT`; milestone 293 renamed these to `HOLD_TERMINAL` twice, a plain `LOGIN` as
+/// `corinne`, and `FREE_TERMINAL`, and the account is kept in the spelling it was measured in) against
+/// the same memoized login instance every other test in that file
+/// shares. Each spawned run still costs `login_service.rs`'s own `CLIENT_SCRATCH_UT_PAGES` (four
 /// pages, nothing reclaims it when the role exits, that constant's own BUGS entry), so this is
 /// scaffolding rather than a property under test, the identical shape the milestone 49
 /// channel-per-client raise above already named for the same reason: +16 frames, measured (a local

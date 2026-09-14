@@ -365,11 +365,123 @@ pub mod fixture {
     /// The domain bound into it. **Not** uppercased anywhere, which is [MS-NLMP] §3.3.2's asymmetry
     /// and the detail a reimplementation gets wrong silently.
     pub const SMB_DOMAIN: &[u8] = b"Domain";
+
+    /// **The three people every credential fixture in this tree authenticates** (milestone 293).
+    ///
+    /// Three, matching the three family members design/roadmap/56-secrets-and-entropy.md says the
+    /// real deployment serves. They were hand-copied in three places until this constant existed:
+    /// `credentialer_test_client`'s own `PEOPLE`, `login_test_client`'s role-to-credential lookup,
+    /// and `kernel::user::identity_provisioning_tests`, whose comment said out loud that it had
+    /// *chosen* to match the first of those. That is this module's own opening argument
+    /// ("a second copy of it somewhere would drift silently into a wrong answer that looks like a
+    /// bug in the code under test") happening three times over.
+    ///
+    /// **Paired rather than parallel**, because the pairing is the fact: an identity and the secret
+    /// that opens it are one thing, and two arrays indexed in step are one careless insertion away
+    /// from authenticating `corinne` with `graeme`'s password and still passing.
+    ///
+    /// `graeme` is deliberately the one with no home subtree in `kernel::user::login_tests`: a real,
+    /// authenticated identity that no one ever ran `identity_provisioner` for. That is a fact about
+    /// that suite's wiring rather than about this roster, and it is named here only so a reader who
+    /// picks `GRAEME` knows what they are picking up.
+    pub const PEOPLE: [(&[u8], &[u8]); 3] = [
+        (b"chris", b"correct horse battery staple"),
+        (b"corinne", b"a different secret entirely"),
+        (b"graeme", b"and a third one"),
+    ];
+
+    /// Index of `chris` in [`PEOPLE`], for both [`identity`] and [`secret`].
+    pub const CHRIS: u64 = 0;
+    /// Index of `corinne` in [`PEOPLE`].
+    pub const CORINNE: u64 = 1;
+    /// Index of `graeme` in [`PEOPLE`].
+    pub const GRAEME: u64 = 2;
+
+    /// **A secret that is nobody's**, for the refusal every credential gate owes: a real identity
+    /// presenting a real-looking secret that was never provisioned for anyone.
+    ///
+    /// Not another person's secret, deliberately. "One person's password must not open another
+    /// person's account" is a different property, and `credentialer_test_client`'s honest role
+    /// already tests it; a wrong-secret refusal that reused `corinne`'s password would be testing
+    /// that one twice and the plain wrong-secret case never.
+    pub const NOBODYS_SECRET: &[u8] = b"not-the-password";
+
+    /// **The secret index that means [`NOBODYS_SECRET`].** One past the last person, derived from
+    /// [`PEOPLE`] rather than written as `3`, so growing the roster cannot silently turn this into
+    /// a fourth person's real secret.
+    pub const WRONG: u64 = PEOPLE.len() as u64;
+
+    /// **No credential at all**, for a caller that presents neither. Both [`identity`] and
+    /// [`secret`] answer `None`, so a program handed this and asked to authenticate anyway reports
+    /// a malformed request instead of quietly logging in as whoever index zero happens to be.
+    pub const NONE: u64 = u64::MAX;
+
+    /// The identity at `i`, or `None` for [`NONE`] and any other index outside [`PEOPLE`].
+    ///
+    /// An index rather than a string because this is what a spawn argument can carry: a process is
+    /// started with three integer registers and no environment, so the bytes have to be somewhere
+    /// both sides already link, and the register names *which*. See `fixtures/src/login_test_client.rs`.
+    pub fn identity(i: u64) -> Option<&'static [u8]> {
+        PEOPLE.get(usize::try_from(i).ok()?).map(|p| p.0)
+    }
+
+    /// The secret at `i`: that person's own for an index into [`PEOPLE`], [`NOBODYS_SECRET`] for
+    /// [`WRONG`], and `None` for [`NONE`] or anything else.
+    pub fn secret(i: u64) -> Option<&'static [u8]> {
+        if i == WRONG {
+            return Some(NOBODYS_SECRET);
+        }
+        PEOPLE.get(usize::try_from(i).ok()?).map(|p| p.1)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// **The roster's indices name who they say they name.** A fixture whose `CHRIS` had drifted to
+    /// `corinne` would still authenticate, still pass every login test, and quietly stop proving
+    /// that two identities land in two subtrees, which is the one thing those tests exist for.
+    #[test]
+    fn the_roster_indices_name_the_people_they_are_named_for() {
+        assert_eq!(fixture::identity(fixture::CHRIS), Some(b"chris".as_slice()));
+        assert_eq!(
+            fixture::identity(fixture::CORINNE),
+            Some(b"corinne".as_slice())
+        );
+        assert_eq!(
+            fixture::identity(fixture::GRAEME),
+            Some(b"graeme".as_slice())
+        );
+        for i in [fixture::CHRIS, fixture::CORINNE, fixture::GRAEME] {
+            assert_eq!(fixture::secret(i), Some(fixture::PEOPLE[i as usize].1));
+        }
+    }
+
+    /// **`WRONG` is nobody's**, which is the property the refusal tests rest on: a wrong-secret run
+    /// that happened to present a real person's real secret would be authenticated, and the test
+    /// asserting a denial would fail in a way that reads as a service bug.
+    #[test]
+    fn the_wrong_secret_belongs_to_no_one_on_the_roster() {
+        assert_eq!(
+            fixture::secret(fixture::WRONG),
+            Some(fixture::NOBODYS_SECRET)
+        );
+        assert!(fixture::identity(fixture::WRONG).is_none());
+        assert!(
+            fixture::PEOPLE
+                .iter()
+                .all(|&(_, s)| s != fixture::NOBODYS_SECRET)
+        );
+    }
+
+    /// **`NONE` is neither**, so a behaviour that takes no credential cannot accidentally be handed
+    /// person zero's.
+    #[test]
+    fn no_credential_at_all_reads_as_absent_on_both_halves() {
+        assert!(fixture::identity(fixture::NONE).is_none());
+        assert!(fixture::secret(fixture::NONE).is_none());
+    }
 
     #[test]
     fn a_request_round_trips_its_opcode_and_both_lengths() {

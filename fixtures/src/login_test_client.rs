@@ -1,51 +1,77 @@
 //! **The login service's test client** (milestone 49; see `components/src/login.rs`).
 //!
-//! One binary, several roles, on `credentialer_test_client`'s own pattern: a program that shares the
-//! honest path with an attempted-wrong-secret run is a fairer test of a refusal than a different
-//! program failing for its own reasons. Every role holds the identical endowment: the login
-//! service's front-door request endpoint, its front-door result endpoint, a report endpoint, and a
-//! small scratch region (milestone 49's channel-per-client update: a role must map the page
-//! [`login_protocol::CONNECTED`] delegates before it holds anything else of its own to draw page tables
-//! from).
+//! **One binary, one endowment, and two separate things a run is handed: a behaviour and a
+//! credential** (milestone 293). It shares `credentialer_test_client`'s reason for being one
+//! program rather than several (a program that shares the honest path with an attempted-wrong-secret
+//! run is a fairer test of a refusal than a different program failing for its own reasons), but it
+//! delivers that by construction rather than by convention: the wrong-secret run is not a separate
+//! arm that could drift away from the honest one, it is [`LOGIN`] with a different secret.
 //!
-//! - [`ROLE_CHRIS`] and [`ROLE_CORINNE`] present two different identities' correct credentials.
-//!   Both must succeed, and the kernel test compares what each received: two distinct caretaker
-//!   endpoints is the channel-shaped attribution DECISIONS §109 decided on.
-//! - [`ROLE_WRONG_SECRET`] presents a real identity with the wrong secret. It must be refused, and
-//!   nothing may follow: this role never calls `RECV_CAP`, because the protocol promises nothing
-//!   does on a denial and a client that tried would block forever.
-//! - [`ROLE_CHRIS_MARK`] and [`ROLE_CORINNE_MARK`] (DECISIONS §117) each log in and then, through
-//!   the delegated directory, `CREATE` a one-shot marker file naming the identity that wrote it, and
-//!   check that [`filesystem_protocol::fixture::tree::INNER`] is *not* there (that name lives only in the old,
+//! Until 293 this file had **eleven roles** and its first act was a lookup from role number to a
+//! pair of byte strings. Five of the eleven ran byte-identical code and differed only in that pair
+//! (`chris`, `corinne`, the same `chris` with a wrong secret, a `graeme` with no home subtree, and a
+//! `corinne` presenting a real credential while the terminal was on loan), and two more differed
+//! only in which identity they wrote into a marker file. A role that differs only in its credentials
+//! is not a role.
+//!
+//! So a run is `_start(behaviour, identity, secret)`:
+//!
+//! - **`behaviour`** is what this process does with the session it gets, and the six below are six
+//!   genuinely different flows rather than six spellings of one.
+//! - **`identity` and `secret`** are indices into [`credential_protocol::fixture::PEOPLE`], the roster
+//!   three files used to keep their own copy of. They are composed at the call site, so
+//!   `(CHRIS, CHRIS)` is an honest login and `(CHRIS, WRONG)` is the same program presenting a
+//!   secret that is nobody's. [`FREE_TERMINAL`] takes `(NONE, NONE)` and authenticates nothing.
+//!
+//! Every behaviour holds the identical endowment: the login service's front-door request endpoint,
+//! its front-door result endpoint, a report endpoint, and a small scratch region (milestone 49's
+//! channel-per-client update: a run must map the page [`login_protocol::CONNECTED`] delegates before it
+//! holds anything else of its own to draw page tables from).
+//!
+//! # The six behaviours
+//!
+//! - [`LOGIN`] presents the credential it was handed and stops at the verdict, then proves what it
+//!   received. Every credential case is this one behaviour: two identities' correct credentials
+//!   (both must succeed, and the kernel test compares what each received; two distinct caretaker
+//!   endpoints is the channel-shaped attribution DECISIONS §109 decided on), a real identity with
+//!   the wrong secret (must be refused, and nothing may follow: this behaviour never calls
+//!   `RECV_CAP` after a refusal, because the protocol promises nothing does on a denial and a client
+//!   that tried would block forever), a real authenticated identity nobody provisioned a subtree for
+//!   (refused identically, DECISIONS §117's "no distinguishable signal" answer; see `login.rs`'s own
+//!   BUGS), and a real credential presented while [`HOLD_TERMINAL`]'s loan is outstanding (refused
+//!   [`login_protocol::NO_TERMINAL`], which the same "nothing follows a refusal" flow covers for free
+//!   since `NO_TERMINAL != OK`).
+//! - [`WRITE_MARKER`] (DECISIONS §117) logs in and then, through the delegated directory, `CREATE`s
+//!   a one-shot marker file naming **the identity it was handed**, and checks that
+//!   [`filesystem_protocol::fixture::tree::INNER`] is *not* there (that name lives only in the old,
 //!   shared fixture subtree every identity used to be attenuated to before §117; its absence is this
-//!   client's own proof that the granted directory is not that one). [`ROLE_CHRIS_CHECK`] logs in as
-//!   `chris` again, in a second, independent channel, and reads the marker back: the kernel test
-//!   compares what it reads against what each role wrote, which is the whole property under test:
-//!   two different identities land in two different, isolated subtrees, and the same identity's two
-//!   sessions land in the *same* one.
-//! - [`ROLE_LOGOUT`] logs in as `chris`, proves the directory works exactly like [`ROLE_CHRIS`] does,
-//!   then calls `MemoryRegion::DESTROY` on the fourth delegated capability (`login_protocol`'s own logout
-//!   ticket) and proves the *directory* came down with it: a further `READDIR` through it must fail.
-//!   This is milestone 49's caretaker-teardown fix, proven end to end rather than merely by the
-//!   syscall's own return code. It reports how long that `DESTROY` waited (microseconds) in the
-//!   third report word, where the other roles put an identity hint; see `destroy_with_retry`.
-//! - [`ROLE_TERM_FIRST`] (milestone 49's terminal update) logs in as `chris`, proves the fifth
-//!   delegated capability (the terminal) actually names a real, working endpoint by sending a known
-//!   word through it (which the kernel test catches with its own `sched::ipc_recv` on the stand-in
+//!   client's own proof that the granted directory is not that one). Two identities run it; it is
+//!   one behaviour because the only thing that differed was the name it wrote, and that name is now
+//!   an argument.
+//! - [`READ_MARKER`] logs in in a second, independent channel and reads the marker back: the kernel
+//!   test compares what it reads against what each [`WRITE_MARKER`] run wrote, which is the whole
+//!   property under test: two different identities land in two different, isolated subtrees, and the
+//!   same identity's two sessions land in the *same* one.
+//! - [`LOGOUT`] logs in, proves the directory works exactly like [`LOGIN`] does, then calls
+//!   `MemoryRegion::DESTROY` on the fourth delegated capability (`login_protocol`'s own logout ticket)
+//!   and proves the *directory* came down with it: a further `READDIR` through it must fail. This is
+//!   milestone 49's caretaker-teardown fix, proven end to end rather than merely by the syscall's own
+//!   return code. It reports how long that `DESTROY` waited (microseconds) in the third report word,
+//!   where the others put an identity hint; see `destroy_with_retry`.
+//! - [`HOLD_TERMINAL`] (milestone 49's terminal update) logs in, proves the fifth delegated
+//!   capability (the terminal) actually names a real, working endpoint by sending a known word
+//!   through it (which the kernel test catches with its own `sched::ipc_recv` on the stand-in
 //!   `Wiring::term_ep`, the same "prove it works, not merely that it arrived" standard the directory
-//!   and budget already get), then tears its own session down exactly like [`ROLE_LOGOUT`] -- but,
+//!   and budget already get), then tears its own session down exactly like [`LOGOUT`] -- but,
 //!   deliberately, **without** sending [`login_protocol::logout_word`], so the terminal itself stays on
 //!   loan even though the session's memory came home. That is the property under test: session
 //!   teardown and freeing the terminal are two independent acts.
-//! - [`ROLE_TERM_SECOND`] presents `corinne`'s real credentials while [`ROLE_TERM_FIRST`] still
-//!   holds the terminal. Must be refused [`login_protocol::NO_TERMINAL`], and nothing follows: the
-//!   existing "protocol promise" flow already used for [`ROLE_WRONG_SECRET`] covers this for free,
-//!   since `NO_TERMINAL != OK`.
-//! - [`ROLE_TERM_LOGOUT`] sends [`login_protocol::logout_word`] on the front door directly, without
-//!   ever calling `CONNECT`: there is no identity or secret in this word at all (`login_protocol`'s own
-//!   BUGS on what this does and does not authenticate).
+//! - [`FREE_TERMINAL`] sends [`login_protocol::logout_word`] on the front door directly, without ever
+//!   calling `CONNECT`: there is no identity or secret in this word at all (`login_protocol`'s own BUGS
+//!   on what this does and does not authenticate). It is the one behaviour that takes no credential,
+//!   and it says so with [`credential_protocol::fixture::NONE`] rather than by convention.
 //!
-//! A role that succeeds does not stop at the verdict. It **uses** what it received: a directory
+//! A run that succeeds does not stop at the verdict. It **uses** what it received: a directory
 //! read through the caretaker's endpoint, the file service's shared frame mapped and used for that
 //! read, and a page retyped from the delegated budget. A capability that arrived but does not work
 //! would pass every earlier assertion and fail only this one.
@@ -57,20 +83,41 @@
 //! - slot 1: the login service's front-door result endpoint, `READ`. [`login_protocol::CONNECTED`],
 //!   then three delegated capabilities: a private request endpoint, a private result endpoint, and
 //!   a staging page. The actual [`login_protocol::LOGIN`] exchange happens on the first two of those,
-//!   never on slots 0/1 again. [`login_protocol::logout_word`] also travels here directly ([`ROLE_TERM_LOGOUT`]),
+//!   never on slots 0/1 again. [`login_protocol::logout_word`] also travels here directly ([`FREE_TERMINAL`]),
 //!   since it needs no private channel at all.
 //! - slot 2: a report endpoint, `WRITE`.
 //! - slot 3: a small `MemoryRegion`, `WRITE`: this program's own scratch, for `map_page_frame`'s
 //!   page-table cost when it self-maps the page [`login_protocol::CONNECTED`] delegates (see
 //!   `kernel::user::login_service::CLIENT_SCRATCH_UT_PAGES`).
-//! - `a0`: the role.
+//! - `a0`: the behaviour.
+//! - `a1`: the identity, an index into [`credential_protocol::fixture::PEOPLE`].
+//! - `a2`: the secret: the same index for that person's own, [`credential_protocol::fixture::WRONG`]
+//!   for one that is nobody's, [`credential_protocol::fixture::NONE`] for no credential at all.
 //!
-//! Name: recorded (program `credentialer_test_client`, ratified 2026-08-01 by calef in milestone
-//! 63). Minted 2026-08-22 for milestone 49 on the `<service>_test_client` pattern, which is not
-//! this lane's invention: calef signed that exact shape for the credential service, turning down
-//! `credcli` as a squished abbreviation and `credentialer_client` because that name belongs to
-//! the real client a later milestone needs. The same reservation holds here, so a future real
-//! login client is not squatted. calef has not ratified this instance.
+//! # BUGS
+//!
+//! - **The identity and the secret travel as indices, not as bytes, because nothing in this tree can
+//!   hand a `no_std` program a string it was not compiled against.** A process is born with three
+//!   integer registers, a capability list and a set of mappings (`kernel::user::Spawn`), and that is
+//!   the whole of it: `grant_plan::ArgSpec` carries exactly one *integer*, `environment_protocol`'s
+//!   config page is validated against curated domains precisely so a secret cannot ride on it, and
+//!   a page of bytes needs a frame the spawner allocates, writes and maps. So the bytes live in a
+//!   crate both sides link and the register names which one. That is enough for a fixture and is not
+//!   a credential-passing mechanism: a real program needs a capability to something that holds the
+//!   secret, which is DECISIONS §41's answer and already what `login` itself uses.
+//! - **A spawn argument is visible wherever a spawn is recorded.** These indices are not, which is
+//!   an accident of them being small integers rather than a property anything enforces; had the
+//!   bytes themselves gone into the register the same argument would print. `swish`'s `caps` preview
+//!   reads a manifest and this program has none (it is spawned by the kernel test harness, not by
+//!   the shell), so nothing prints them today. Nothing here is a design for carrying real secrets.
+//!
+//! Name: ratified 2026-09-14 (calef, milestone 293), **on the name and not the shape**: the same
+//! ruling minted 293 to decide what the eleven roles should have been, so that this file's shape
+//! could be fixed without the name blocking it. Minted 2026-08-22 for milestone 49 on the
+//! `<service>_test_client` pattern, which was not that lane's invention: calef signed that exact
+//! shape for the credential service, turning down `credcli` as a squished abbreviation and
+//! `credentialer_client` because that name belongs to the real client a later milestone needs. The
+//! same reservation holds here, so a future real login client is not squatted.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -112,73 +159,41 @@ const FS_VA: u64 = 0x0000_0000_00f0_0000;
 const FS_WINDOW: MappedWindow =
     unsafe { MappedWindow::new(FS_VA, filesystem_protocol::PAGE as u64) };
 
-pub const ROLE_CHRIS: u64 = 0;
-pub const ROLE_CORINNE: u64 = 1;
-pub const ROLE_WRONG_SECRET: u64 = 2;
-/// Log in as `chris`, write this identity's marker, and check the old fixed subtree's own name is
-/// absent (DECISIONS §117). See the module docs.
-pub const ROLE_CHRIS_MARK: u64 = 3;
-/// `corinne`'s half of the pair above.
-pub const ROLE_CORINNE_MARK: u64 = 4;
-/// Log in as `chris` a second time, in an independent channel, and read the marker
-/// [`ROLE_CHRIS_MARK`] wrote, packed into the report the same way `login`'s own audit trail packs
-/// an identity ([`login_protocol::identity_hint`]). See the module docs.
-pub const ROLE_CHRIS_CHECK: u64 = 5;
-/// A real, authenticated identity that no one ever ran `identity_provisioner` for: a credential
-/// exists (`kernel/src/user/login_tests.rs` provisions it directly into the same store this
-/// program's other roles authenticate against, without the matching `MKDIR`) but its home subtree
-/// does not. Must be refused exactly like [`ROLE_WRONG_SECRET`] (DECISIONS §117's "no distinguishable
-/// signal" answer; see `login.rs`'s own BUGS).
-pub const ROLE_NO_SUBTREE: u64 = 6;
-/// Log in as `chris`, prove the directory and budget work exactly like [`ROLE_CHRIS`], then use the
-/// fourth delegated capability (the logout ticket; `login_protocol`'s own module docs) to tear the
-/// session down and confirm it actually came down: a further `READDIR` through the now-`DESTROY`ed
-/// directory capability must fail. See the module docs.
-pub const ROLE_LOGOUT: u64 = 7;
-/// Log in as `chris`, prove the fifth delegated capability (the terminal) is real by sending
-/// [`TERM_MAGIC`] through it, then tear the session down like [`ROLE_LOGOUT`] **without** freeing
-/// the terminal. See the module docs.
-pub const ROLE_TERM_FIRST: u64 = 8;
-/// Log in as `corinne` while [`ROLE_TERM_FIRST`]'s terminal loan is still outstanding. Must be
-/// refused [`login_protocol::NO_TERMINAL`]. See the module docs.
-pub const ROLE_TERM_SECOND: u64 = 9;
-/// Send [`login_protocol::logout_word`] on the front door directly; no identity involved. See the
+/// **Present the credential and prove what came back.** The whole of what every credential case
+/// needs: two identities' correct credentials, a wrong secret, an identity with no home subtree, and
+/// a real credential presented while [`HOLD_TERMINAL`]'s loan is outstanding are one behaviour with
+/// four different arguments, not four behaviours. See the module docs.
+pub const LOGIN: u64 = 0;
+/// Log in, write **the identity this run was handed** into the marker file, and check the old fixed
+/// subtree's own name is absent (DECISIONS §117). See the module docs.
+pub const WRITE_MARKER: u64 = 1;
+/// Log in in an independent channel and read the marker [`WRITE_MARKER`] wrote, packed into the
+/// report the same way `login`'s own audit trail packs an identity
+/// ([`login_protocol::identity_hint`]). See the module docs.
+pub const READ_MARKER: u64 = 2;
+/// Log in, prove the directory and budget work exactly like [`LOGIN`], then use the fourth delegated
+/// capability (the logout ticket; `login_protocol`'s own module docs) to tear the session down and
+/// confirm it actually came down: a further `READDIR` through the now-`DESTROY`ed directory
+/// capability must fail. See the module docs.
+pub const LOGOUT: u64 = 3;
+/// Log in, prove the fifth delegated capability (the terminal) is real by sending [`TERM_MAGIC`]
+/// through it, then tear the session down like [`LOGOUT`] **without** freeing the terminal. See the
 /// module docs.
-pub const ROLE_TERM_LOGOUT: u64 = 10;
+pub const HOLD_TERMINAL: u64 = 4;
+/// Send [`login_protocol::logout_word`] on the front door directly; no identity involved, and the one
+/// behaviour that takes [`credential_protocol::fixture::NONE`] for both halves of its credential. See
+/// the module docs.
+pub const FREE_TERMINAL: u64 = 5;
 
-/// The one-shot marker file every `*_MARK`/`*_CHECK` role reads or writes, inside the identity's own
+/// The one-shot marker file [`WRITE_MARKER`] writes and [`READ_MARKER`] reads, inside the identity's own
 /// granted subtree. Chosen to collide with nothing else this tree's fixtures use.
 const MARKER_NAME: &str = "whoami";
 
-/// **[`ROLE_TERM_FIRST`]'s proof of life for the delegated terminal.** Sent through the fifth
+/// **[`HOLD_TERMINAL`]'s proof of life for the delegated terminal.** Sent through the fifth
 /// delegated capability once it is in hand; the kernel test's own `sched::ipc_recv` on the stand-in
 /// `Wiring::term_ep` is what confirms the delegated copy names the real object rather than merely
 /// having arrived. The exact value carries no meaning beyond being recognisable in a test assertion.
 const TERM_MAGIC: u64 = 0x_7e12_0000_0000_0001;
-
-/// This role's identity and the secret it presents. `chris`/`corinne` are the same two identities
-/// `credentialer_test_client.rs`'s own `PEOPLE` fixture already provisions, reused rather than
-/// duplicated: `kernel/src/user/login_tests.rs` wires this service against
-/// `credential_tests::provisioned`'s already-sealed store, so a second, login-only credential
-/// service and a second fixture would be two copies of one fact. `graeme` is the same fixture's
-/// third person, provisioned with a credential and (deliberately, for [`ROLE_NO_SUBTREE`]) no
-/// subtree.
-fn credentials(role: u64) -> (&'static [u8], &'static [u8]) {
-    match role {
-        ROLE_CHRIS | ROLE_CHRIS_MARK | ROLE_CHRIS_CHECK | ROLE_LOGOUT | ROLE_TERM_FIRST => {
-            (b"chris", b"correct horse battery staple")
-        }
-        ROLE_CORINNE | ROLE_CORINNE_MARK | ROLE_TERM_SECOND => {
-            (b"corinne", b"a different secret entirely")
-        }
-        // The right identity, the wrong secret: a fairer refusal than an unknown identity would be,
-        // for `credentialer_test_client`'s own reason (a boundary tested by a program sharing the
-        // honest path rather than one failing for a different reason).
-        ROLE_WRONG_SECRET => (b"chris", b"not-the-password"),
-        ROLE_NO_SUBTREE => (b"graeme", b"and a third one"),
-        _ => (b"", b""),
-    }
-}
 
 /// The report's first word: what the service answered.
 pub const RPT_OK: u64 = login_protocol::OK;
@@ -186,7 +201,7 @@ pub const RPT_DENIED: u64 = login_protocol::DENIED;
 pub const RPT_MALFORMED: u64 = login_protocol::MALFORMED;
 /// Milestone 49's terminal update: the terminal was already on loan to another session.
 pub const RPT_NO_TERMINAL: u64 = login_protocol::NO_TERMINAL;
-/// [`ROLE_TERM_LOGOUT`]'s own answer: the terminal is free again.
+/// [`FREE_TERMINAL`]'s own answer: the terminal is free again.
 pub const RPT_LOGGED_OUT: u64 = login_protocol::LOGGED_OUT;
 
 /// Bits of the report's second word, set only when [`RPT_OK`] is the first: which of the delegated
@@ -195,40 +210,44 @@ pub const F_DIR_WORKS: u64 = 1 << 0;
 pub const F_BUDGET_WORKS: u64 = 1 << 1;
 /// **Set when [`filesystem_protocol::fixture::tree::INNER`] is confirmed absent** from the granted directory:
 /// that name exists only in the old, shared fixture subtree every identity used to be attenuated to.
-/// Its absence is this client's own proof (not merely an assertion) that the identity in this role is
-/// not looking at that subtree. Set only by [`ROLE_CHRIS_MARK`]/[`ROLE_CORINNE_MARK`].
+/// Its absence is this client's own proof (not merely an assertion) that the identity this run
+/// authenticated as is
+/// not looking at that subtree. Set only by [`WRITE_MARKER`].
 pub const F_NOT_SHARED_SUBTREE: u64 = 1 << 2;
 /// **Set when the marker file was created and written successfully.** Set only by
-/// [`ROLE_CHRIS_MARK`]/[`ROLE_CORINNE_MARK`]; its absence there means the isolation proof below did
+/// [`WRITE_MARKER`]; its absence there means the isolation proof below did
 /// not get to run at all, which the kernel test must treat as its own failure rather than silence.
 pub const F_MARKER_WRITTEN: u64 = 1 << 3;
 /// **Set when the fourth capability's `MemoryRegion::DESTROY` returned success.** Set only by
-/// [`ROLE_LOGOUT`]; retried on refusal until the region comes down or [`DESTROY_WAIT_SECS`] runs out
+/// [`LOGOUT`]; retried on refusal until the region comes down or [`DESTROY_WAIT_SECS`] runs out
 /// (`login_protocol`'s own module docs, on the fourth capability, name the transient window this
 /// covers, and `destroy_with_retry` says why the bound is a clock).
 pub const F_TEARDOWN_OK: u64 = 1 << 4;
 /// **Set when a `READDIR` through the directory capability failed *after* teardown.** Set only by
-/// [`ROLE_LOGOUT`]; this is the proof that the capability, not merely the syscall, came down: a
+/// [`LOGOUT`]; this is the proof that the capability, not merely the syscall, came down: a
 /// `DESTROY` that returned success but left the directory answering requests would pass every check
 /// up to this one and fail only this one.
 pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
 /// **Set when `MemoryRegion::DESTROY` on the *budget* (the third delegated capability) also returned
-/// success.** Set only by [`ROLE_LOGOUT`], and proves the other half of `login.rs`'s BUGS: a full
-/// logout needs no capability beyond what every role already receives, because `budget` was always
+/// success.** Set only by [`LOGOUT`], and proves the other half of `login.rs`'s BUGS: a full
+/// logout needs no capability beyond what every run already receives, because `budget` was always
 /// delegated with `WRITE`, the one right `DESTROY` needs. See the module docs.
 pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
 /// **Set when a further `RETYPE` on the budget failed *after* its own teardown.** The budget's half
 /// of [`F_DEAD_AFTER_TEARDOWN`].
 pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 /// **Set when the fifth delegated capability (the terminal) delivered [`TERM_MAGIC`] to a real
-/// receiver.** Set only by [`ROLE_TERM_FIRST`]. A capability that merely arrived (`RECV_CAP`
+/// receiver.** Set only by [`HOLD_TERMINAL`]. A capability that merely arrived (`RECV_CAP`
 /// succeeded) would pass every earlier check and never set this one: `send` only returns once a
 /// receiver is actually matched.
 pub const F_TERM_WORKS: u64 = 1 << 8;
 
+/// `a0` is the behaviour, `a1` the identity and `a2` the secret; see the module docs. Three
+/// registers because that is what a process is born with (`kernel::user::Spawn`), and the two
+/// credential halves are indices because a register cannot carry a byte string.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
-    if role == ROLE_TERM_LOGOUT {
+pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
+    if behaviour == FREE_TERMINAL {
         // **Never calls `CONNECT` at all.** `login_protocol::logout_word` travels on the shared front
         // door directly (`login_protocol`'s own module docs): there is no secret to protect, so there
         // is nothing a private channel would buy here.
@@ -237,7 +256,17 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         done(verdict, 0, 0);
     }
 
-    let (identity, secret) = credentials(role);
+    // **A credential this program cannot resolve is malformed, not a default.** Every other
+    // behaviour authenticates, so an out-of-range index (or `NONE`, which is what
+    // [`FREE_TERMINAL`] is handed and nothing else should be) must not fall back to whoever sits at
+    // index zero: a run that silently logged in as `chris` would pass every assertion that follows
+    // and prove nothing about the identity the caller meant.
+    let (Some(identity), Some(secret)) = (
+        credential_protocol::fixture::identity(identity),
+        credential_protocol::fixture::secret(secret),
+    ) else {
+        done(RPT_MALFORMED, 0, 0);
+    };
 
     // **Milestone 49's channel-per-client update: connect first.** The front door's only legal
     // word; see `login_protocol`'s own module docs for the two-phase exchange. Nothing is staged for
@@ -297,7 +326,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // this blocks until the kernel test's own `sched::ipc_recv(w.term_ep)` catches it -- a stronger
     // proof than `RECV_CAP` alone, which would pass even for a capability naming a dead or wrong
     // object.
-    if role == ROLE_TERM_FIRST {
+    if behaviour == HOLD_TERMINAL {
         send(term_ep, TERM_MAGIC, 0, 0);
         flags |= F_TERM_WORKS;
     }
@@ -315,7 +344,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         flags |= F_BUDGET_WORKS;
     }
 
-    // **`ROLE_LOGOUT` destroys `budget` before `region`, and the order is load-bearing, not a
+    // **`LOGOUT` destroys `budget` before `region`, and the order is load-bearing, not a
     // style choice.** `mint()` splits both from `login`'s own `CONSTRUCTION_UT`, `region` first and
     // `budget` second (`components/src/login.rs`), so `budget` sits at the top of `CONSTRUCTION_UT`'s
     // watermark and `region` sits below it. `crates/regions`' own `return_to_parent` only un-bumps
@@ -329,7 +358,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     // fixed, which is exactly the anti-oracle failure `login_protocol::DENIED`'s own fold exists to
     // prevent (a real password silently answered as though it were wrong). See `login_protocol`'s own
     // module docs on the fourth capability for the client-facing version of this note.
-    if (role == ROLE_LOGOUT || role == ROLE_TERM_FIRST) && destroy_with_retry(budget) {
+    if (behaviour == LOGOUT || behaviour == HOLD_TERMINAL) && destroy_with_retry(budget) {
         flags |= F_BUDGET_TEARDOWN_OK;
         if retype_page_frame(budget) < 0 {
             flags |= F_BUDGET_DEAD_AFTER_TEARDOWN;
@@ -355,25 +384,21 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
             flags |= F_DIR_WORKS;
 
             // DECISIONS §117's own proof: which subtree did this login actually land in? Only the
-            // `*_MARK`/`*_CHECK` roles do this; the original three roles above are unchanged.
-            match role {
-                ROLE_CHRIS_MARK => {
-                    if write_marker(dir_ep, b"chris") {
+            // `WRITE_MARKER`/`READ_MARKER` do this; `LOGIN` stops at proving what it received.
+            match behaviour {
+                // **One arm where there were two.** `chris`'s and `corinne`'s halves of this proof
+                // differed only in the name written into the marker, and that name is the identity
+                // this run authenticated as, which it now holds as an argument rather than as a
+                // second copy of the same fact in a second match arm.
+                WRITE_MARKER => {
+                    if write_marker(dir_ep, identity) {
                         flags |= F_MARKER_WRITTEN;
                     }
                     if absent(dir_ep, filesystem_protocol::fixture::tree::INNER) {
                         flags |= F_NOT_SHARED_SUBTREE;
                     }
                 }
-                ROLE_CORINNE_MARK => {
-                    if write_marker(dir_ep, b"corinne") {
-                        flags |= F_MARKER_WRITTEN;
-                    }
-                    if absent(dir_ep, filesystem_protocol::fixture::tree::INNER) {
-                        flags |= F_NOT_SHARED_SUBTREE;
-                    }
-                }
-                ROLE_CHRIS_CHECK => {
+                READ_MARKER => {
                     if let Some(h) = read_marker(dir_ep) {
                         hint = h;
                     }
@@ -381,29 +406,29 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
                 // `budget` is already gone by construction (above); `region` is now the top of
                 // `CONSTRUCTION_UT`'s watermark, so this `DESTROY` un-bumps it too, and this
                 // login's whole 128-page contribution comes home.
-                ROLE_LOGOUT => {
+                LOGOUT => {
                     flags |= teardown_directory(dir_ep, region);
-                    // The third report word, for this role only: how many microseconds the
+                    // The third report word, for this behaviour only: how many microseconds the
                     // caretaker region's `DESTROY` waited (the budget's own wait is not reported;
                     // nothing lives in that region, so it has never needed one). The kernel test
                     // quotes it in the failure message.
                     hint = waited_micros();
                 }
-                // `ROLE_TERM_FIRST` shares the teardown but not the wait report (see the module
+                // `HOLD_TERMINAL` shares the teardown but not the wait report (see the module
                 // docs: freeing the session's memory and freeing the terminal are two independent
-                // acts, and this role deliberately only does the first). It keeps the identity hint
-                // every other role puts in the third word, so the wait report stays ROLE_LOGOUT's
-                // alone, exactly as that comment above claims.
-                ROLE_TERM_FIRST => flags |= teardown_directory(dir_ep, region),
+                // acts, and this behaviour deliberately only does the first). It keeps the identity
+                // hint every other behaviour puts in the third word, so the wait report stays
+                // `LOGOUT`'s alone, exactly as that comment above claims.
+                HOLD_TERMINAL => flags |= teardown_directory(dir_ep, region),
                 _ => {}
             }
         }
     }
 
-    // **`ROLE_LOGOUT` deliberately does not also free the terminal here.** `login`'s own thread is
+    // **`LOGOUT` deliberately does not also free the terminal here.** `login`'s own thread is
     // blocked inside `send(AUDIT, ...)` (a blocking rendezvous) until the *caller* drains it, which
-    // happens after this role's report, not before; sending `login_protocol::logout_word` from inside
-    // this role and waiting for its answer here would deadlock against that (this role's own report
+    // happens after this behaviour's report, not before; sending `login_protocol::logout_word` from inside
+    // this behaviour and waiting for its answer here would deadlock against that (its own report
     // would never arrive, because `login` cannot get back to `RECV(REQUEST)` to answer the logout
     // until the caller has already drained `AUDIT`, which it does *after* waiting for this report).
     // A caller that also wants the terminal freed does that itself, after draining `AUDIT` --
@@ -429,7 +454,8 @@ fn get_page(n: usize, out: &mut [u8]) {
 /// `CREATE` [`MARKER_NAME`] under `dir` and `WRITE` `content` into it, then `CLOSE` the handle.
 /// `true` only if every step succeeded. Create is create, not create-or-open
 /// (`filesystem_protocol::fs::CREATE`'s own contract), so this fails loudly rather than overwriting a marker a
-/// previous run left behind, which would silently defeat the isolation proof this role exists for.
+/// previous run left behind, which would silently defeat the isolation proof this behaviour exists
+/// for.
 fn write_marker(dir: u64, content: &[u8]) -> bool {
     put_page(MARKER_NAME.as_bytes());
     let (h, _) = call(
@@ -469,7 +495,7 @@ fn absent(dir: u64, name: &str) -> bool {
 }
 
 /// `OPEN` and `READ` [`MARKER_NAME`] under `dir`, packed the same way `login`'s own audit trail
-/// packs an identity ([`login_protocol::identity_hint`]), so the kernel test can compare what this role
+/// packs an identity ([`login_protocol::identity_hint`]), so the kernel test can compare what this run
 /// read against what [`write_marker`]'s caller wrote without a second encoding to keep in sync.
 /// `None` if the marker could not be opened or read.
 fn read_marker(dir: u64) -> Option<u64> {
@@ -547,7 +573,7 @@ const DESTROY_WAIT_SECS: u64 = 5;
 
 /// **`MemoryRegion::DESTROY` on `ut`, retried until the region actually becomes destroyable.** Used
 /// on both the fourth delegated capability (the caretaker's construction region) and the third (the
-/// client's own budget, already held with `WRITE` by every role): `login_protocol`'s own module docs, on
+/// client's own budget, already held with `WRITE` by every behaviour): `login_protocol`'s own module docs, on
 /// the fourth capability, name the one transient refusal the *caretaker's* region can give
 /// (mid-`forward` to the file service, blocked on an endpoint the region does not own, at the exact
 /// instant `DESTROY` is attempted; that window closes on its own). The budget has no such window:
@@ -597,12 +623,12 @@ fn destroy_with_retry(ut: u64) -> bool {
     }
 }
 
-/// How long the last [`destroy_with_retry`] waited, in counter ticks. [`ROLE_LOGOUT`] reports it as
+/// How long the last [`destroy_with_retry`] waited, in counter ticks. [`LOGOUT`] reports it as
 /// microseconds in the third report word (see [`_start`]), so a red run carries the observation the
 /// wait actually decided on instead of sending the reader back to re-run under load.
 static mut WAITED: u64 = 0;
 
-/// Store [`WAITED`]. Every role of this program is single-threaded and this is its only writer.
+/// Store [`WAITED`]. Every run of this program is single-threaded and this is its only writer.
 fn record(ticks: u64) {
     // SAFETY: one thread, one writer, and the only reader runs after it in the same thread.
     unsafe { WAITED = ticks }
