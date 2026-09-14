@@ -333,7 +333,7 @@ U-Boot is proven to work and is deliberately absent here, because whether it bel
 or a second one is a scope question for calef; see milestone 216's block for the proposal.
 
 **Because it never writes, it cannot stop a rebooting soak, and that is now something a board does**
-(milestone 249). `--features reboot_soak` makes a board cold-reboot every two minutes, and its
+(milestone 249). `--features reboot_soak_test` makes a board cold-reboot every two minutes, and its
 escape is a byte on the console UART: any byte, checked every five seconds. This tool holds the
 port and cannot send one, so the escape is reached by a **person typing**, either into this
 session's terminal or by detaching it first, and detaching a console is not free (notes/soak.md

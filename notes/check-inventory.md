@@ -134,7 +134,7 @@ into `script/ci-build`'s table; the measurements are still 2026-09-03's, taken u
 | `interleaving-check` | **nothing** | no | **green, measured today, 12 seconds** |
 | `crate-probes` | **nothing** | no | **green, measured today, 43 of 50, about 3 minutes** |
 | `repeat-under-load` | `script/runner-container`, which nothing calls | no | unknown |
-| `soak` | **nothing** | no | unknown |
+| `soak-test` | **nothing** | no | unknown |
 | `rule-violations --check` | **nothing** | no | green (2 open strikes, threshold 3) |
 | `journeys` | **nothing** | no | report only, cannot fail |
 | `apropos`, `catch-up` | **nothing** | no | tools, no verdict |
@@ -264,7 +264,7 @@ the commit.
   Nothing calls it. It is green today at two open strikes across three rules, so nothing has been
   missed yet, but the threshold milestone 118 defined is currently checked by nobody.
 
-`script/repeat-under-load` and `script/soak` are also uncalled and are genuinely instruments rather
+`script/repeat-under-load` and `script/soak-test` are also uncalled and are genuinely instruments rather
 than gates: one is milestone 62's acceptance evidence for a flake, the other is milestone 219's
 rehearsal of a bench run. Neither wants a cadence; both want a caller when the question they answer
 is being asked.
