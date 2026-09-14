@@ -1269,7 +1269,8 @@ fn std_relative(p: &Path) -> String {
 /// architecture, and this table was where that showed.
 ///
 /// **`hello` is on every list too, and it is not a boot program in the ordinary sense.** It carries
-/// milestone 19d's test roles, and `spawn_progenitor` enters it directly for them; `trust::require`
+/// milestone 19d's and 19e's init roles, which are all nine it has left after milestone 291, and
+/// `spawn_progenitor` enters it directly for them; `trust::require`
 /// refuses any entry the trust root does not name. A kernel that could enter a program it never
 /// measured would be the hole measured boot exists to close, so the entry is here rather than the
 /// check being relaxed there.
@@ -3444,6 +3445,24 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // **The first process** (milestone 266). Packed under this name on all three architectures,
         // and the kernel's `riscv_shell_boot` looks it up by it.
         ("progenitor", "progenitor"),
+        // **The milestone 7-19 capability demonstrations, one program each** (milestone 291).
+        // Every one of these was a role of `hello`, selected by the word the kernel put in `x0`;
+        // none of them reads that word now. They are packed on every architecture because what
+        // they demonstrate is the kernel's, not a board's.
+        ("image_self_checker", "image_self_checker"),
+        ("console_test_client", "console_test_client"),
+        ("memory_region_depleter", "memory_region_depleter"),
+        ("delegation_granter", "delegation_granter"),
+        ("delegation_receiver", "delegation_receiver"),
+        ("page_frame_producer", "page_frame_producer"),
+        ("page_frame_consumer", "page_frame_consumer"),
+        ("call_server", "call_server"),
+        ("call_client", "call_client"),
+        ("frame_revoker", "frame_revoker"),
+        ("rendezvous_minter", "rendezvous_minter"),
+        ("rendezvous_peer", "rendezvous_peer"),
+        ("address_space_builder", "address_space_builder"),
+        ("cycle_counter_reader", "cycle_counter_reader"),
         ("least_authority_demo", "least_authority_demo"),
         ("serial_driver", "serial_driver"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
@@ -3575,10 +3594,11 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // kernel::user::tests used to hand-assemble as aarch64 machine code.
         ("outlaw", "outlaw"),
         // **`hello` under its own name**, which since milestone 266 is the only name it has on any
-        // board. It is the milestone 7-19 role catalogue (the printing client, the untyped demo,
-        // the granter and receiver, the call server), and the test suite reaches it by this name on
-        // all three architectures. aarch64 used to pack it as `init` because there it also carried
-        // the boot role; that role is `progenitor` now, and the alias went with it.
+        // board. It held the whole milestone 7-19 role catalogue (the printing client, the untyped
+        // demo, the granter and receiver, the call server) until milestone 291 split that into the
+        // fourteen programs above; what is left is milestone 19d's and 19e's init roles, which
+        // `spawn_progenitor` enters on aarch64. aarch64 used to pack it as `init` because there it
+        // also carried the boot role; that role is `progenitor` now, and the alias went with it.
         ("hello", "hello"),
         // The sink contract's ends (milestone 50). Portable, so both archives carry it: the claim
         // is that a program cannot tell what its output slot holds, and that has to hold on either
@@ -4316,8 +4336,8 @@ const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 ///
 /// The initrd is a **nifefs image**, the same format the virtio disk uses, so one parser serves
 /// both the RAM archive and the disk. It holds `progenitor` (the first process, milestone 266) and
-/// `hello` (the role catalogue the kernel re-enters for milestone 19d's tests), plus the distinct
-/// binaries lifted out of hello: `least_authority_demo` (19f.2) and `console` (19f.3). The kernel reads the
+/// `hello` (the init roles the kernel re-enters for milestone 19d's and 19e's tests), plus the
+/// binaries lifted out of hello over 19f.2, 19f.3 and milestone 291. The kernel reads the
 /// `progenitor` entry to boot; the progenitor loads the rest by name. Generated, not checked in, exactly like the disk and the flat kernel image: a blob
 /// in git is a blob nobody can review.
 ///
@@ -4351,9 +4371,28 @@ fn initrd_aarch64() -> bool {
         // **The first process** (milestone 266). Until then this row read `("init", "hello")` and
         // aarch64's boot was a role of the demo catalogue.
         ("progenitor", "progenitor"),
-        // **The milestone 7-19 role catalogue, under its own name.** `spawn_progenitor` enters it
-        // directly for 19d's test roles, so it is in `boot_programs` and measured.
+        // **Milestone 19d's and 19e's init roles, under `hello`'s name.** `spawn_progenitor` enters
+        // it directly for them, so it is in `boot_programs` and measured. It held the whole
+        // milestone 7-19 catalogue until 291 split that into the fourteen programs below.
         ("hello", "hello"),
+        // **The milestone 7-19 capability demonstrations, one program each** (milestone 291).
+        // Every one of these was a role of `hello`, selected by the word the kernel put in `x0`;
+        // none of them reads that word now. They are packed on every architecture because what
+        // they demonstrate is the kernel's, not a board's.
+        ("image_self_checker", "image_self_checker"),
+        ("console_test_client", "console_test_client"),
+        ("memory_region_depleter", "memory_region_depleter"),
+        ("delegation_granter", "delegation_granter"),
+        ("delegation_receiver", "delegation_receiver"),
+        ("page_frame_producer", "page_frame_producer"),
+        ("page_frame_consumer", "page_frame_consumer"),
+        ("call_server", "call_server"),
+        ("call_client", "call_client"),
+        ("frame_revoker", "frame_revoker"),
+        ("rendezvous_minter", "rendezvous_minter"),
+        ("rendezvous_peer", "rendezvous_peer"),
+        ("address_space_builder", "address_space_builder"),
+        ("cycle_counter_reader", "cycle_counter_reader"),
         ("least_authority_demo", "least_authority_demo"),
         ("console", "console"),
         ("input", "input"),
@@ -4365,6 +4404,12 @@ fn initrd_aarch64() -> bool {
         // The terminal's sink adapter (milestone 50), so a declared second stream has somewhere to
         // go that is not the shell's own output slot.
         ("terminal_sink_caretaker", "terminal_sink_caretaker"),
+        // The virtio driver (milestone 9), packed here since milestone 291. This is the same
+        // portable binary the other two archives carry; aarch64 used to reach the identical logic
+        // through seven roles of `hello` instead, which is the duplicate 291 removed. The driver
+        // logic was already one `crates/virtio` for both shapes, so what died was a second
+        // dispatch table, not a second driver.
+        ("block_driver", "block_driver"),
         // The compute workload (19e) and the EL0 microbenchmark program.
         ("coremark", "coremark"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
@@ -4529,8 +4574,15 @@ fn initrd_aarch64() -> bool {
 
     let size = nifefs::image_size(&files);
     let mut img = std::vec![0u8; size];
-    if nifefs::write_image(&files, &mut img).is_err() {
-        eprintln!("initrd-aarch64: could not build the initrd archive");
+    // Carry the reason, as `initrd_riscv` already does. "could not build the initrd archive" with
+    // the error thrown away is what milestone 291 hit on the commit that crossed `MAX_FILES`, and
+    // it cost a hunt through three candidate bounds by hand; the error names which one.
+    if let Err(e) = nifefs::write_image(&files, &mut img) {
+        eprintln!(
+            "initrd-aarch64: could not build the initrd archive: {e:?} ({} files, {} bytes)",
+            files.len(),
+            size
+        );
         return false;
     }
     if let Err(e) = std::fs::write(initrd_path(), &img) {

@@ -1847,7 +1847,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 }
 
                 // Milestone 11: a process spends its own memory; the kernel allocates nothing.
-                if let Some(image) = user::program(user::HELLO_ENTRY)
+                if let Some(image) = user::program("memory_region_depleter")
                     && let Some((_region, report, _demo)) =
                         user::memory_region_service::start(image, 24)
                 {
@@ -1997,13 +1997,15 @@ fn mode_note(stat: u32) -> &'static str {
     }
 }
 
-/// The initrd image, for the virtio service. Panics if absent (the demo checked `initrd()` above).
+/// The driver the virtio service spawns. `block_driver` on every architecture since milestone 291;
+/// on aarch64 this used to be a role of `hello`, which was the same `crates/virtio` code behind a
+/// second dispatch table. Panics if absent (the demo checked `initrd()` above).
 #[cfg(not(test))]
 // Tour-only: the shell, initboot, and bench boots all skip the milestone tour where it is used.
 #[cfg_attr(any(feature = "shell", feature = "initboot"), allow(dead_code))]
 #[cfg(not(feature = "bench"))]
 fn image_for_virtio() -> &'static [u8] {
-    user::program(user::HELLO_ENTRY).expect("no hello program in the initrd")
+    user::program("block_driver").expect("no block_driver program in the initrd")
 }
 
 fn interrupts_init(_dtb: usize) {

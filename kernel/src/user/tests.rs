@@ -13,25 +13,47 @@ use crate::arch::exceptions::{SVC_COUNT, USER_FAULTS, last_user_fault};
 use crate::arch::{UserFault, UserFaultAccess, timer};
 use crate::sched;
 
-/// **The `hello` binary's ELF bytes**, pulled out of the initrd archive by name (milestone 19f).
-/// This is the binary carrying the milestone 7-19 role catalogue: the printing client, the
-/// untyped demo, the granter and receiver, the call server, the address space builder, the init roles.
-/// A test that loads a real user program wants the program's bytes, not the whole nifefs
-/// archive; only the `spawn_progenitor` tests pass the archive, because the program parses it itself.
+/// **The `image_self_checker` program's ELF bytes**: the loader's subject.
 ///
-/// **The archive name used to differ by ISA and this was the one place it showed.** aarch64 packed
-/// hello as `init`, because on that ISA hello also carried the boot role. Milestone 266 moved that
-/// role into its own program, so the name is `hello` on all three and the three arms this constant
-/// used to need collapsed into `super::HELLO_ENTRY`.
+/// Four tests want *a real user ELF to load* rather than a particular program, and they all want
+/// the same one, which is the point of naming it once. Three read its segment table (three
+/// segments, none writable-and-executable, one with a `.bss`) and the fourth runs it and asserts
+/// it did not fault, which is that program checking those very properties from the inside. Naming
+/// two different binaries there would let the structural half and the behavioural half drift apart.
+///
+/// **The `.bss` requirement is load-bearing and nearly went missing.** It was `hello`'s bytes until
+/// milestone 291, and splitting hello's roles out took its last `static mut X = 0` with them, so
+/// the binary stopped having a `.bss` at all and `the_initrd_holds_a_native_executable` said so:
+/// "no segment has a .bss, so the zero-fill is untested". The vacuity guard fired exactly as
+/// written, which is why it is there.
 ///
 /// **`x86_64` packs no initrd at all**, because no user program is built for
-/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). The
-/// constant names what the entry would be called rather than what is there, and every test that
-/// reaches for it skips instead: see [`init_image`].
-const HELLO_ENTRY: &str = super::HELLO_ENTRY;
+/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). Every
+/// test that reaches for this skips instead.
+fn loader_subject_image() -> &'static [u8] {
+    program("image_self_checker").expect("no image_self_checker program in the initrd archive")
+}
 
-fn init_image() -> &'static [u8] {
-    program(HELLO_ENTRY).expect("no hello program in the initrd archive")
+/// **The `block_driver` binary's ELF bytes**: the virtio driver and its two DMA attackers, one
+/// program on every architecture since milestone 291.
+///
+/// This read a role of `hello` on aarch64 until then: that binary carried seven virtio roles which
+/// dispatched into the same `crates/virtio` the dedicated binary uses. `riscv_virtio_tests` has
+/// always named `block_driver` here; the two now name the same thing.
+///
+/// aarch64 and `x86_64`: the riscv64 leg drives these same properties through
+/// `riscv_virtio_tests`, which has its own `blk_image` naming the same program, and `x86_64` runs
+/// the two PCIe tests in this module (it packs RISC-V's archive but has no `riscv_virtio_tests`).
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
+fn blk_image() -> &'static [u8] {
+    program("block_driver").expect("no block_driver program in the initrd archive")
+}
+
+/// **The `cycle_counter_reader` program's ELF bytes** (milestone 229): reads the CPU's cycle
+/// counter twice across a yield and reports. It was role 42 of the `hello` multiplexer until
+/// milestone 291.
+fn cycle_counter_image() -> &'static [u8] {
+    program("cycle_counter_reader").expect("no cycle_counter_reader program in the initrd archive")
 }
 
 /// The `outlaw` program's ELF bytes: the two privilege-boundary behaviours that used to be
@@ -420,7 +442,7 @@ fn a_bad_binary_is_refused_rather_than_panicking() {
 /// refuses a foreign `e_machine`, so parsing at all is half the assertion.
 #[test_case]
 fn the_initrd_holds_a_native_executable() {
-    let image = init_image();
+    let image = loader_subject_image();
     let e = elf::Elf::parse(image).expect("the initrd is not a loadable native ELF");
 
     assert_eq!(e.entry(), 0x40_0000, "linked somewhere unexpected");
@@ -458,7 +480,7 @@ fn a_real_elf_from_the_initrd_runs_at_el0_and_verifies_itself() {
     let svc = SVC_COUNT.load(Ordering::Relaxed);
     let faults = USER_FAULTS.load(Ordering::Relaxed);
 
-    spawn_bare(init_image(), 0, 0).expect("spawn failed");
+    spawn_bare(loader_subject_image(), 0, 0).expect("spawn failed");
 
     assert!(
         wait_for(|| SVC_COUNT.load(Ordering::Relaxed) > svc),
@@ -788,7 +810,7 @@ fn an_asid_flush_reaches_the_other_cores() {
 /// program authority its own file never asked for.
 #[test_case]
 fn a_read_only_segment_is_mapped_read_only() {
-    let image = init_image();
+    let image = loader_subject_image();
     let (space, _) = load(image).expect("the initrd did not load");
 
     let rodata = elf::Elf::parse(image)
@@ -838,7 +860,7 @@ fn a_read_only_segment_is_mapped_read_only() {
 fn the_hardware_says_el0_cannot_read_the_kernels_memory() {
     const KERNEL_TEXT: u64 = 0xffff_0000_4008_0000;
 
-    let (space, _) = load(init_image()).expect("the initrd did not load");
+    let (space, _) = load(loader_subject_image()).expect("the initrd did not load");
 
     // SAFETY: nothing is at EL0; we are a kernel thread mid-test.
     unsafe { mmu::activate_user(space.ttbr0()) };
@@ -881,7 +903,7 @@ fn the_hardware_says_el0_cannot_read_the_kernels_memory() {
 /// those held.
 #[test_case]
 fn a_user_client_moves_data_through_shared_memory() {
-    // What the client prints first. Must match fixtures/src/hello.rs.
+    // What the client prints first. Must match fixtures/src/console_test_client.rs.
     const FIRST_LINE: &[u8] = b"      hello from EL0, printed by a driver that also runs at EL0.\n";
     const SHARED_VA: u64 = 0x0000_0000_0060_0000;
 
@@ -889,7 +911,7 @@ fn a_user_client_moves_data_through_shared_memory() {
     static LEN: AtomicU64 = AtomicU64::new(0);
     static mut BUF: [u8; 128] = [0; 128];
 
-    let image = init_image();
+    let image = program("console_test_client").expect("no console_test_client in the archive");
     let request = sched::create_rendezvous();
     let reply = sched::create_rendezvous();
 
@@ -928,7 +950,7 @@ fn a_user_client_moves_data_through_shared_memory() {
         run(
             image,
             Spawn {
-                arg0: 2, // printing-client role (matches fixtures/src/hello.rs)
+                arg0: 0, // `console_test_client` has one job and reads no role selector
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -1032,9 +1054,11 @@ fn a_new_thread_holds_no_capabilities() {
 /// driver blocks waiting for that interrupt with nothing else to run, and the scheduler idles
 /// rather than declaring a deadlock.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_reads_a_file_from_a_virtio_disk`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
@@ -1044,7 +1068,7 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
     // carries the argument for why that ordering, and not a longer wait, is the whole fix.
     let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
 
-    let Some(report) = virtio_service::start(init_image()) else {
+    let Some(report) = virtio_service::start(blk_image()) else {
         // No disk attached to this run. Nothing to test; do not fail.
         crate::testing::skip!("no virtio disk attached");
     };
@@ -1080,9 +1104,11 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 /// std, including the refusal of `..`, of an absolute path, and of a nested path. And the same
 /// binary run without slot 4 gets `Unsupported`, which the offline std test asserts.
 // RISC-V twin: `riscv_virtio_tests::std_fs_reads_a_file_through_a_granted_directory_capability`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn std_fs_reads_a_file_through_a_granted_directory_capability() {
@@ -1093,7 +1119,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
         crate::testing::skip!(std_service::NO_STD_EXERCISER);
     }
     let Some((readiness, report)) = fs_service::start_std(
-        init_image(),
+        blk_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         std_exerciser_image(),
     ) else {
@@ -1114,9 +1140,11 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 /// success here is the whole capability contract holding: designation is authorization, the
 /// handle is a server-minted token, and a real CoW filesystem we did not write runs confined.
 // RISC-V twin: `riscv_virtio_tests::the_redoxfs_server_serves_redoxfs_over_a_capability_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
@@ -1124,7 +1152,7 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
     let Some((readiness, report)) = fs_service::start(
-        init_image(),
+        blk_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         0, // the end-to-end proof role, not the benchmark loop
@@ -1169,9 +1197,11 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
 /// refused *everything* would pass it; that is what the writable twin below is for, and why the
 /// verdict is a bitmap rather than a boolean.
 // RISC-V twin: `riscv_virtio_tests::a_read_only_per_file_grant_survives_an_attacker`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_read_only_per_file_grant_survives_an_attacker() {
@@ -1236,9 +1266,11 @@ fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
 ///   same code, succeed. A confinement test with no witness that the thing being confined
 ///   *works* is a test that passes when the feature is missing entirely.
 // RISC-V twin: `riscv_virtio_tests::a_writable_per_file_grant_writes_that_file_and_still_only_that_file`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
@@ -1270,7 +1302,7 @@ fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
 #[cfg(target_arch = "aarch64")]
 fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let Some(report) = fs_service::start_granted(
-        init_image(),
+        blk_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_file_caretaker").expect("no fs_file_caretaker program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
@@ -1348,9 +1380,11 @@ fn describe_escape(v: u64) -> &'static str {
 /// FS-server process killed inside its own transaction, and a real second process recovering the
 /// disk it left behind. See `std_tests::assert_a_kill_mid_transaction_recovers`.
 // RISC-V twin: `riscv_virtio_tests::a_kill_mid_transaction_leaves_the_filesystem_consistent`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
@@ -1361,16 +1395,18 @@ fn a_kill_mid_transaction_leaves_the_filesystem_consistent() {
         crate::testing::skip!("no crash disk attached");
     }
     assert_a_kill_mid_transaction_recovers(
-        init_image(),
+        blk_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
     );
 }
 
 // RISC-V twin: `riscv_virtio_tests::the_redoxfs_servers_stack_still_has_headroom`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_redoxfs_servers_stack_still_has_headroom() {
@@ -1397,13 +1433,15 @@ fn the_redoxfs_servers_stack_still_has_headroom() {
 /// DISCOVER left (TX) and the OFFER returned (RX), across both queues and both directions of the
 /// confinement, with no TCP/IP stack in the loop.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net() {
-    let Some(report) = virtio_service::start_net(init_image()) else {
+    let Some(report) = virtio_service::start_net(blk_image()) else {
         // No NIC on this run (a bare boot). The test runners always attach one, so this
         // branch is not the parity gate. See scripts/qemu-runner-*.sh (NIFE_NET).
         crate::testing::skip!("no virtio-net device attached");
@@ -1430,13 +1468,15 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net() {
 /// mmio one. Proves the multi-queue confinement and the net driver work over the bus real
 /// hardware uses.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci() {
-    let Some(report) = virtio_service::start_net_pci(init_image()) else {
+    let Some(report) = virtio_service::start_net_pci(blk_image()) else {
         crate::testing::skip!("no virtio-net-pci device attached");
     };
 
@@ -1456,9 +1496,11 @@ fn a_userspace_driver_completes_a_dhcp_round_trip_over_virtio_net_pci() {
 /// address, which must land in slirp's 10.0.2.0/24, so only a real DHCP round trip driven by
 /// smoltcp over the confined NIC can produce it.
 // RISC-V twin: `riscv_virtio_tests::the_net_server_acquires_a_dhcp_lease_over_smoltcp`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_net_server_acquires_a_dhcp_lease_over_smoltcp() {
@@ -1477,9 +1519,11 @@ fn the_net_server_acquires_a_dhcp_lease_over_smoltcp() {
 /// The net server over the PCIe transport, behind the IOMMU (milestone 30, §20): smoltcp drives
 /// a NIC confined in hardware and still gets its lease.
 // RISC-V twin: `riscv_virtio_tests::the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci() {
@@ -1508,9 +1552,11 @@ fn the_net_server_acquires_a_dhcp_lease_over_smoltcp_pci() {
 /// nameserver, so the gate depended on the developer's DNS answering at that instant and flaked
 /// (~2.5% per query, measured). The real-resolution case still runs, non-gating, below.
 // RISC-V twin: `riscv_virtio_tests::a_client_completes_a_udp_round_trip_through_the_socket_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_client_completes_a_udp_round_trip_through_the_socket_contract() {
@@ -1532,9 +1578,11 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract() {
 
 /// The same UDP round trip over the PCIe transport, behind the IOMMU.
 // RISC-V twin: `riscv_virtio_tests::a_client_completes_a_udp_round_trip_through_the_socket_contract_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
@@ -1562,9 +1610,11 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
 /// that arrives and is *wrong* (not our transaction id, or not a response), because that would be
 /// our defect. The deterministic UDP coverage is the TFTP pair above. See notes/net.md.
 // RISC-V twin: `riscv_virtio_tests::a_client_resolves_a_real_dns_name_when_the_host_resolver_answers`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_client_resolves_a_real_dns_name_when_the_host_resolver_answers() {
@@ -1600,9 +1650,11 @@ fn a_client_resolves_a_real_dns_name_when_the_host_resolver_answers() {
 /// bidirectional data to teardown, deterministic and zero-host-setup (nothing outlives QEMU),
 /// through the client, `net_stack`, smoltcp, and the confined NIC.
 // RISC-V twin: `riscv_virtio_tests::a_client_echoes_over_tcp_through_the_socket_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_client_echoes_over_tcp_through_the_socket_contract() {
@@ -1624,9 +1676,11 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
 
 /// The same TCP echo round trip over the PCIe transport, behind the IOMMU.
 // RISC-V twin: `riscv_virtio_tests::a_client_echoes_over_tcp_through_the_socket_contract_pci`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_client_echoes_over_tcp_through_the_socket_contract_pci() {
@@ -1652,9 +1706,11 @@ fn a_client_echoes_over_tcp_through_the_socket_contract_pci() {
 /// the second connect stalled on a slirp flow that had not cleared; the rotating allocator hands
 /// the reopen a fresh port, so both connects complete. The client reports OK only if they do.
 // RISC-V twin: `riscv_virtio_tests::a_reopened_socket_id_connects_again_over_tcp`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_reopened_socket_id_connects_again_over_tcp() {
@@ -1820,9 +1876,11 @@ const STD_LISTEN_EXPECTED: &[u8] =
 /// reaching the same path the hand-written client does through std's blocking API. Its stdout
 /// is reassembled off the rendezvous and compared byte for byte, the `std_exerciser` discipline.
 // RISC-V twin: `riscv_virtio_tests::std_net_runs_over_the_socket_contract`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn std_net_runs_over_the_socket_contract() {
@@ -1935,8 +1993,9 @@ fn a_process_spends_memory_region_and_the_kernel_never_allocates() {
     let used = || crate::memory::stats().expect("no allocator").used;
 
     const PAGES: u64 = 24;
-    let (region, report, demo) = memory_region_service::start(init_image(), PAGES)
-        .expect("could not create the untyped region");
+    let (region, report, demo) =
+        memory_region_service::start(memory_region_service::depleter_image(), PAGES)
+            .expect("could not create the untyped region");
 
     // The process sends a "ready" signal once it is fully loaded (its ELF and stack are
     // kernel-allocated, like any process). We measure the frame count THERE, so the window we
@@ -1987,13 +2046,15 @@ fn a_process_spends_memory_region_and_the_kernel_never_allocates() {
 /// this one, so the device is never told to go and never touches the kernel. The driver
 /// reports `1` when it was refused.
 // RISC-V twin: `riscv_virtio_tests::the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region() {
-    let Some(report) = virtio_service::start_attacker(init_image()) else {
+    let Some(report) = virtio_service::start_attacker(blk_image()) else {
         crate::testing::skip!("no virtio disk attached");
     };
     let refused = sched::ipc_recv(report)[0];
@@ -2011,13 +2072,15 @@ fn the_kernel_refuses_a_dma_descriptor_that_escapes_the_drivers_region() {
 /// the device follow the table out. The kernel strips the feature and refuses the flag, so the
 /// device is never rung. The driver reports `1` when it was refused.
 // RISC-V twin: `riscv_virtio_tests::the_kernel_refuses_an_indirect_descriptor_escape`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn the_kernel_refuses_an_indirect_descriptor_escape() {
-    let Some(report) = virtio_service::start_attacker_indirect(init_image()) else {
+    let Some(report) = virtio_service::start_attacker_indirect(blk_image()) else {
         crate::testing::skip!("no virtio disk attached");
     };
     let refused = sched::ipc_recv(report)[0];
@@ -2042,9 +2105,11 @@ fn the_kernel_refuses_an_indirect_descriptor_escape() {
 /// which is the point: a driver binds an intid and waits, and how the machine delivers it is the
 /// arch layer's business.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_reads_a_file_over_the_pcie_transport`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
@@ -2070,7 +2135,7 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
     // one was never an option.
     let irqs_before = ROUTED_IRQS.load(Ordering::Relaxed);
 
-    let Some(report) = virtio_service::start_pci(init_image()) else {
+    let Some(report) = virtio_service::start_pci(blk_image()) else {
         crate::testing::skip!("no virtio-pci disk on the bus");
     };
 
@@ -2096,13 +2161,15 @@ fn a_userspace_driver_reads_a_file_over_the_pcie_transport() {
 /// read-back head. A matching report therefore certifies the round trip AND that the write
 /// landed only on its own block.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_writes_a_block_and_reads_it_back`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_userspace_driver_writes_a_block_and_reads_it_back() {
-    let Some(report) = virtio_service::start_writer(init_image()) else {
+    let Some(report) = virtio_service::start_writer(blk_image()) else {
         crate::testing::skip!("no virtio disk attached");
     };
     let word = sched::ipc_recv(report)[0];
@@ -2117,13 +2184,15 @@ fn a_userspace_driver_writes_a_block_and_reads_it_back() {
 /// hold on both buses, exactly as the read path does, or the transport seam has a
 /// direction-shaped hole.
 // RISC-V twin: `riscv_virtio_tests::a_userspace_driver_writes_a_block_over_the_pcie_transport`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn a_userspace_driver_writes_a_block_over_the_pcie_transport() {
-    let Some(report) = virtio_service::start_writer_pci(init_image()) else {
+    let Some(report) = virtio_service::start_writer_pci(blk_image()) else {
         crate::testing::skip!("no virtio-pci disk on the bus");
     };
     let word = sched::ipc_recv(report)[0];
@@ -2145,14 +2214,16 @@ fn a_userspace_driver_writes_a_block_over_the_pcie_transport() {
 /// round trip, which proves the abandoned request wedged nothing: not the device, not the
 /// validator's per-registration state, not the disk.
 // RISC-V twin: `riscv_virtio_tests::a_driver_killed_mid_write_leaves_the_device_and_transport_sane`. Gated here rather than run twice: that
-// module drives the same property through the dedicated `block_driver`/`net_stack` binaries, and a
-// second copy through hello's roles would double the suite's slowest tests to prove
-// nothing new. See this module's comment on the two kinds of gate.
+// module drives the same property on the other instruction set, through the same `block_driver` and
+// `net_stack` binaries this leg now uses, and a second copy would double the suite's slowest tests
+// to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
+// having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
+// the two kinds of gate.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
 fn a_driver_killed_mid_write_leaves_the_device_and_transport_sane() {
     let faults = USER_FAULTS.load(Ordering::Relaxed);
-    let Some(report) = virtio_service::start_write_abandoner(init_image()) else {
+    let Some(report) = virtio_service::start_write_abandoner(blk_image()) else {
         crate::testing::skip!("no virtio disk attached");
     };
 
@@ -2173,7 +2244,7 @@ fn a_driver_killed_mid_write_leaves_the_device_and_transport_sane() {
 
     // The survivor: the same full write-verify driver, same physical device. It must succeed
     // from a clean device reset, in-flight completion and all.
-    let report = virtio_service::start_writer(init_image())
+    let report = virtio_service::start_writer(blk_image())
         .expect("the disk vanished between the abandoner and the survivor");
     let word = sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2550,11 +2621,6 @@ fn init_builds_the_demo_and_passes_it_an_argument() {
 /// emulator rather than on this kernel.
 #[test_case]
 fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
-    /// `hello`'s `CYCLE_COUNTER_CHILD`.
-    const CYCLE_COUNTER_CHILD: u64 = 42;
-    /// `hello`'s `CYCLE_COUNTER_WORD`.
-    const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
-
     if !crate::arch::timer::cycle_counter_grantable() {
         crate::testing::skip!("this core has no user-readable cycle counter to grant");
     }
@@ -2565,7 +2631,7 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     #[cfg(not(target_arch = "x86_64"))]
     {
         let before = USER_FAULTS.load(Ordering::Relaxed);
-        spawn_bare(init_image(), CYCLE_COUNTER_CHILD, 0).expect("spawn failed");
+        spawn_bare(cycle_counter_image(), 0, 0).expect("spawn failed");
         assert!(
             wait_for(|| USER_FAULTS.load(Ordering::Relaxed) > before),
             "an ungranted thread read the cycle counter and was NOT stopped",
@@ -2579,9 +2645,9 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     sched::spawn(move || {
         sched::grant_cycle_counter_to_current();
         run(
-            init_image(),
+            cycle_counter_image(),
             Spawn {
-                arg0: CYCLE_COUNTER_CHILD,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[crate::cap::rendezvous_cap(
@@ -2596,7 +2662,8 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
 
     let message = sched::ipc_recv(result);
     assert_eq!(
-        message[0], CYCLE_COUNTER_WORD,
+        message[0],
+        capability_demo_proto::CYCLE_COUNTER_WORD,
         "the granted thread did not report: it was killed reading a counter it was granted",
     );
     assert_eq!(
@@ -2963,7 +3030,7 @@ fn spawn_to_reap_repeats_without_leaking() {
 /// the kernel enforces break-before-make inside the space it built. Verdict 0b111 or bust.
 #[test_case]
 fn a_process_can_build_an_address_space_from_el0() {
-    let report = address_space_service::wire(init_image());
+    let report = address_space_service::wire();
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
         verdict, 0b111,
@@ -2980,7 +3047,7 @@ fn a_process_can_build_an_address_space_from_el0() {
 /// working at EL0.
 #[test_case]
 fn a_process_can_mint_an_rendezvous_and_ipc_flows_over_it() {
-    let report = retype_ep_service::wire(init_image());
+    let report = retype_ep_service::wire();
     let word = sched::ipc_recv(report)[0];
     assert_eq!(
         word, 0x77,
@@ -2997,8 +3064,7 @@ fn a_process_can_mint_an_rendezvous_and_ipc_flows_over_it() {
 /// kernel at spawn. See fixtures/src/hello.rs and `user::delegation_service`.
 #[test_case]
 fn a_capability_can_be_delegated_over_ipc_and_grant_gates_re_delegation() {
-    let image = init_image();
-    let (resource, report) = delegation_service::wire(image);
+    let (resource, report) = delegation_service::wire();
 
     // The receiver invoked the *delegated* capability to SEND this word. Collecting it here is
     // proof the capability the granter minted for the receiver actually carries authority.
@@ -3031,7 +3097,7 @@ fn a_capability_can_be_delegated_over_ipc_and_grant_gates_re_delegation() {
 /// refused. This is what a pre-wired reply rendezvous cannot guarantee.
 #[test_case]
 fn a_process_calls_a_server_and_the_reply_is_one_shot() {
-    let (call_report, oneshot_report) = call_service::wire(init_image());
+    let (call_report, oneshot_report) = call_service::wire();
 
     let reply = sched::ipc_recv(call_report)[0];
     assert_eq!(
@@ -3053,7 +3119,7 @@ fn a_process_calls_a_server_and_the_reply_is_one_shot() {
 /// the safe reclamation are proven directly in kernel/src/revoke.rs.
 #[test_case]
 fn a_process_revokes_a_frame_and_loses_the_capability() {
-    let report = revoke_service::wire(init_image());
+    let report = revoke_service::wire();
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(
         verdict, 1,
@@ -3070,8 +3136,7 @@ fn a_process_revokes_a_frame_and_loses_the_capability() {
 /// fixtures/src/hello.rs and `user::page_frame_service`.
 #[test_case]
 fn a_frame_capability_shares_a_page_and_a_read_only_view_cannot_write_it() {
-    let image = init_image();
-    let report = page_frame_service::wire(image);
+    let report = page_frame_service::wire();
 
     let verdict = sched::ipc_recv(report)[0];
     assert_eq!(

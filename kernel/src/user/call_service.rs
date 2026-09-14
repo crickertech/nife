@@ -2,22 +2,25 @@ use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-const ROLE_SERVER: u64 = 14;
-const ROLE_CLIENT: u64 = 15;
-
 /// Spawn the pair, sharing one request endpoint. Returns `(client reply report, server one-shot
 /// report)`: the client publishes the reply it got, the server publishes whether a second reply
 /// was refused.
-pub fn wire(image: &'static [u8]) -> (RendezvousId, RendezvousId) {
+///
+/// **Two images, one endpoint.** These were roles 14 and 15 of the `hello` multiplexer until
+/// milestone 291, so this took one image and two role numbers; they are `fixtures/src/call_server.rs`
+/// and `fixtures/src/call_client.rs` now, and neither reads `x0`.
+pub fn wire() -> (RendezvousId, RendezvousId) {
+    let server = program("call_server").expect("no call_server program in the archive");
+    let client = program("call_client").expect("no call_client program in the archive");
     let ep = crate::sched::create_rendezvous(); // client CALL <-> server RECV_CAP
     let call_report = crate::sched::create_rendezvous();
     let oneshot_report = crate::sched::create_rendezvous();
 
     crate::sched::spawn(move || {
         run(
-            image,
+            server,
             Spawn {
-                arg0: ROLE_SERVER,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -32,9 +35,9 @@ pub fn wire(image: &'static [u8]) -> (RendezvousId, RendezvousId) {
 
     crate::sched::spawn(move || {
         run(
-            image,
+            client,
             Spawn {
-                arg0: ROLE_CLIENT,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[

@@ -9,11 +9,13 @@
 //! and the kernel loads them the way it loads any other program. The tests that drive them are the
 //! same tests on both ISAs.
 //!
-//! It is deliberately **not** a role of `hello`. hello is the system's init on aarch64 and carries
-//! the roles a running system uses; these two exist only to be killed or to be counted, and a
-//! process that reads a forbidden address on purpose has no business sharing an image with init.
-//! Keeping it separate also keeps it tiny, which the frame-accounting test cares about: it spawns
-//! this program five times and asserts every frame comes back exactly.
+//! It is deliberately **not** a role of `hello`, which at the time was the argument this file had
+//! to make and which milestone 291 turned into the tree's rule: a program does one thing, and a
+//! role is an exception that has to say why. hello carried the roles a running system used; these
+//! two exist only to be killed or to be counted, and a process that reads a forbidden address on
+//! purpose has no business sharing an image with init. Keeping it separate also keeps it tiny,
+//! which the frame-accounting test cares about: it spawns this program five times and asserts
+//! every frame comes back exactly.
 //!
 //! Name: provisional, and ruled: calef ruled **`kernel_test_subject`** on 2026-09-13, working the
 //! unratified worklist. The block stays `provisional` because the ratified name is not this file's

@@ -1,0 +1,49 @@
+//! **The Call/Reply server**, milestone 12.
+//!
+//! Holds `RECV` on a request endpoint (slot 0) and a report endpoint (slot 1). It answers one
+//! caller it was never individually wired to, then proves the reply capability is one-shot by
+//! trying to use it a second time and reporting that the kernel refused.
+//!
+//! That refusal is the property a pre-wired reply rendezvous cannot give you. The reply capability
+//! is minted by the kernel at the moment of the call, names the caller, and is consumed on first
+//! use; nothing the server holds outlives the one answer it owed.
+//!
+//! The other half is `call_client`; the wiring is `kernel/src/user/call_service.rs`.
+//!
+//! Name: provisional (milestone 291). This was `hello`'s `CALL_SERVER` role, number 14, and
+//! matches the kernel-side module that wires it. "Call" here is the IPC operation's own name
+//! (`user_rt::call`, `abi`'s `CALL`), which is the "standard term a reader already knows" case
+//! AGENTS.md's naming section protects rather than a generic verb.
+
+#![no_std]
+// Program entry points, not the crates/ library surface milestone 68's ratchet tracks
+// (DECISIONS §107): each `[[bin]]` is its own crate root with one `_start`, and 58 of them
+// documenting an OS-facing ABI entry point is not what the lint is for.
+#![allow(missing_docs)]
+#![no_main]
+
+use user_rt::{exit, recv_cap, reply, send};
+
+const ENDPOINT: u64 = 0;
+const REPORT: u64 = 1;
+
+#[unsafe(no_mangle)]
+pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
+    let (w0, reply_slot, w1) = recv_cap(ENDPOINT);
+    // Answer the caller: w0 + w1. This consumes the one-shot reply capability.
+    check(reply(reply_slot, w0 + w1, 0) == 0);
+    // A second reply on the same slot must fail: the cap was consumed on first use.
+    let second = reply(reply_slot, 0xBAD, 0);
+    send(REPORT, if second < 0 { 1 } else { 0 }, 0, 0); // 1 = refused (one-shot held), 0 = a hole
+    exit()
+}
+
+/// The only way this program can say "no": a trap, which the kernel treats as a fault and kills us
+/// for. A failed check must be indistinguishable from a broken program, because it is one.
+fn check(ok: bool) {
+    if !ok {
+        user_rt::trap()
+    }
+}
+
+user_rt::panic_handler!();

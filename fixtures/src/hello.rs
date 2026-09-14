@@ -1,33 +1,59 @@
-//! The initrd program. **One binary, two roles**, chosen by the argument the kernel puts in
-//! `x0` at `_start`, the way a real kernel hands a new process its argc.
+//! **Nine roles of milestone 19d and 19e: a userspace parent that builds children out of ELFs it
+//! parsed.** Which one runs is chosen by the word the kernel puts in `x0` at `_start`, the way a
+//! real kernel hands a new process its argc.
 //!
-//! - **Role `CLIENT`**: an ordinary program that wants to print. It does not own a UART and
-//!   cannot reach one. It writes its text into a page it *shares* with the console server, and
-//!   sends the length over an endpoint. That is the whole of "printing" now.
+//! Six of them are the parent. `INIT` builds a plain child; `INIT_DEV` builds one and hands it a
+//! device's registers; `INIT_IRQ` builds one and delegates it an interrupt; `INIT_CONSOLE` builds
+//! the real console server and then plays its client; `INIT_LEAST_AUTHORITY_DEMO` and
+//! `INIT_COREMARK` build programs they did not write and start them with an argument. Three are
+//! the children those roles build: `CHILD` reports a word, `DEV_CHILD` reads a device's identity
+//! registers, `IRQ_CHILD` blocks on an interrupt.
 //!
-//! - **The console driver, at EL0** (milestone 8: this code used to be in the kernel; milestone 8
-//!   is where it left). It owns a mapping of the PL011's registers and a read-only view of the
-//!   shared page, and loops: receive a length, copy that many bytes from the shared page to the
-//!   UART, acknowledge. It is its own binary now (`components/src/console.rs`, 19f.3), no longer a role
-//!   of hello, so hello keeps only the printing client that drives it.
+//! **The name is wrong and the rename is calef's** (see the limitation below). What is left here
+//! is not a greeting and has not been since 19d.
 //!
-//! # Why the bytes travel in shared memory and the length travels in a message
+//! # The principle this file is the exception to
 //!
-//! DECISIONS §10: **IPC carries control, shared memory carries data.** The kernel is not in the
-//! data path at all. It never sees the bytes, never copies them, never validates a pointer into
-//! them. The confused-deputy problem that 7d had to defend against **cannot arise here**, because
-//! the thing that could be confused (a kernel doing I/O for a user) no longer exists. The
-//! architecture dissolved the bug.
+//! **A program does one thing, and a role is an exception that has to say why.** The tree enacted
+//! that rule five times without ever writing it down: the least-authority demo left in 19f.2, the
+//! console in 19f.3, the input driver in 19f.4, the shell in 19f.5, and `init_boot` in 266. Five
+//! departures, each recorded in its own file as a local fix, and no principle anywhere; so the
+//! sixth arm anybody wanted to add had nothing to read that said not to. Milestone 291 deleted
+//! seven more roles, split fourteen into programs, and states the rule here, where a reader meets
+//! the last binary in this tree still dispatching on `x0`.
 //!
-//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
-//! outside"). The universal name for a first program, and this was the first program this kernel
-//! ever loaded, on 2026-07-14.
+//! **Why these nine are the exception, for now.** Six of them build a child out of an ELF, and
+//! three of them *are* that child: the parent finds its child by looking *itself* up in the
+//! archive ([`ROLES_ENTRY`]) and re-entering its own image at a different role. Splitting the
+//! parents from the children means each parent naming its child's archive entry instead, which
+//! changes what `kernel::user::spawn_progenitor` has to know: today it picks the entry from the
+//! role (`progenitor` for the boot role, this binary for everything else), and six roles becoming
+//! six programs means that choice becomes a table. That is a boot-path change rather than a
+//! fixtures change, and it is the one piece 291 did not take. See
+//! `design/roadmap/291-one-program-one-job.md`.
 //!
-//! **The limitation that used to be recorded here is closed** (milestone 266). It read that the
-//! name had outlived the description, because on aarch64 this binary also carried the `init_boot`
-//! role and a reader who took `hello` at face value would not expect to find boot sequencing
-//! inside it. That role is `components/src/progenitor.rs` now, on every architecture, and what is left
-//! here is the demo catalogue the name always described.
+//! Name: unrecorded, and overdue. Nobody wrote down why `hello` is called `hello` and nobody
+//! needed to while it was a first program: it is the universal name for one, and this was the
+//! first program this kernel ever loaded, on 2026-07-14. It has not been a first program since
+//! milestone 19d and stopped being a catalogue at 291; the rename is calef's and is deferred until
+//! there is something settled to name. See the limitation below.
+//!
+//! # Bugs
+//!
+//! **The name does not describe the contents, and this block used to claim otherwise.** Until
+//! milestone 291 it read *"The limitation that used to be recorded here is closed (milestone
+//! 266)"*, on the grounds that 266 had moved the boot role out. 266 moved **one** role out and
+//! thirty-one remained, so the claim was false on the day it was written and stayed false for
+//! three weeks. What is here now is nine roles of userspace process construction, which `hello`
+//! describes no better than it described thirty-one. calef deferred the new name until there was
+//! something settled to name (2026-09-14: *"If there is anything left then we can consider a name
+//! for what remains"*); this is what is left.
+//!
+//! **A caller that asks for a role this binary does not have gets a trap**, which is deliberate
+//! (the `_` arm used to run the self-checker and report success), but it is a trap rather than a
+//! message: the kernel counts a fault and the spawner waiting on a report waits until its
+//! watchdog. Nothing here can do better, because a program entered at a role it does not have may
+//! not hold a capability to report on.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -36,267 +62,59 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{Error, rendezvous};
 /// The endowment a child is born holding, for the one loader this tree has (milestone 96). The
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
 use supervision_proto::{Child, ChildEndowment, Retention};
-use user_rt::{
-    call, exit, irq_wait, map_into, map_page_frame, map_region_page, recv, recv_cap as rt_recv_cap,
-    reply, revoke_frame, send, send_cap, yield_now,
-};
+use user_rt::{exit, irq_wait, map_page_frame, recv, send};
 
 /// Roles, as passed in `x0` by the kernel.
-///
-/// One binary, several behaviours. The kernel chooses by the argument it puts in `x0`, the way a
-/// real kernel hands a new process its argv. A `SELF_CHECK` client needs no capabilities and no
-/// shared memory (it only inspects its own image), which is why the milestone-7 tests can spawn
-/// it bare; a `PRINTING` client needs the console endpoints and the shared page.
-const SELF_CHECK: u64 = 0;
-// Role 1 was the console server; it is its own binary now (`components/src/console.rs`, 19f.3).
-const PRINTING: u64 = 2;
-const VIRTIO_BLK: u64 = 3;
-// Role 4 was the input driver; it is its own binary now (`components/src/input.rs`, 19f.4).
-// Role 5 was the shell; it is its own binary now (`components/src/swish.rs`, 19f.5).
-// Role 6 was the least_authority_demo; it is its own binary now (`components/src/least_authority_demo.rs`, 19f.2). The progenitor loads
-// each of these from the archive by name; hello keeps only the milestone-tour demo roles below.
-const UNTYPED_DEMO: u64 = 7;
-const VIRTIO_ATTACK: u64 = 8;
-const GRANTER: u64 = 9;
-const RECEIVER: u64 = 10;
-const PAGE_FRAME_PRODUCER: u64 = 11;
-const PAGE_FRAME_CONSUMER: u64 = 12;
-const VIRTIO_ATTACK_INDIRECT: u64 = 13;
-const CALL_SERVER: u64 = 14;
-const CALL_CLIENT: u64 = 15;
-const REVOKE_DEMO: u64 = 16;
-const EP_MAKER: u64 = 17;
-const EP_USER: u64 = 18;
-const ADDRESS_SPACE_BUILDER: u64 = 19;
+// Roles 0, 2, 7, 9 to 19 and 42 were the milestone 7-19 capability demonstrations and the granted
+// cycle-counter reader. Every one of them is its own program in `fixtures/src/` since milestone
+// 291, and the whole table is in `design/roadmap/291-one-program-one-job.md`. Roles 1 and 3 to 6
+// had left over 19f, 27 at 266, and 8, 13 and 30 to 40 at 291, which found them already duplicated
+// in `components/src/block_driver.rs`.
+//
+// **The numbers are not reused and the gaps are not tidied.** A role number is the word the kernel
+// puts in `x0`, so it is a value the kernel's test wiring and this file agree on, and
+// `design/roadmap/proposals/one-grant-order-for-the-progenitor.md` records six `spawn_progenitor`
+// tests that name them. Renumbering would be an edit to a wire value bought with nothing.
 const INIT: u64 = 20;
 const CHILD: u64 = 21;
 const DEV_CHILD: u64 = 22;
 const IRQ_CHILD: u64 = 26;
-// 23-25 and 27-29 are init roles, declared below with their functions.
-const VIRTIO_BLK_WRITE: u64 = 30;
-const VIRTIO_BLK_WRITE_ABANDON: u64 = 31;
-/// The virtio-net driver (milestone 30); matches `kernel/src/user/virtio_service.rs` and `block_driver.rs`.
-const VIRTIO_NET: u64 = 40;
-const VIRTIO_BLK_SERVER: u64 = 32;
-
-/// The word the frame producer writes into a shared page and the consumer reads back through its
-/// own mapping of the same physical page. One binary, so one constant serves both roles.
-const PAGE_FRAME_SENTINEL: u64 = 0xF00D_CAFE_D00D_1234;
-
-// --- the shared layout, known to both roles because they are the same binary ---
-
-/// The page shared between the printing client and the console server. The client writes text here;
-/// the server reads it. Mapped read/write in the client, read-only in the server. (The console
-/// server itself is its own binary now, `components/src/console.rs`, 19f.3; hello keeps only the client.)
-const SHARED_VA: u64 = 0x0000_0000_0060_0000;
-
-// --- capability slots, by convention (the kernel granted them in this order) ---
-
-/// Client: slot 0 sends the print request. Server: slot 0 receives it.
-const REQUEST: u64 = 0;
-/// Client: slot 1 receives the ack. Server: slot 1 sends it.
-const REPLY: u64 = 1;
-
-// --- markers, so the client can check its own image was loaded correctly ---
+// 23-25 and 28-29 are init roles, declared below with their functions. 27 is the progenitor's,
+// which `kernel::user::PROGENITOR_ROLE` holds and this binary never sees.
 
 #[unsafe(no_mangle)]
-static RODATA_MARKER: [u8; 4] = [0xc0, 0xff, 0xee, 0xd0];
-#[unsafe(no_mangle)]
-static mut DATA_MARKER: u64 = 0x0000_c0ff_ee00_d0d0;
-#[unsafe(no_mangle)]
-static mut BSS_MARKER: u64 = 0;
-
-#[unsafe(no_mangle)]
-// `_arg2`: the third `START` word. Nothing in this catalogue reads it any more. The one role that
+// `_arg2`: the third `START` word. None of the nine reads it any more. The one role that
 // did was `init_boot`, which carried the filesystem rights the kernel granted the boot process;
 // that role is `components/src/progenitor.rs` now (milestone 266), and the parameter stays in the
 // signature because the kernel passes three words to every program it enters.
-pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
+//
+// The second word is `initrd_len`, and it was called `dma_phys` until milestone 291, when it was
+// wrong for every role that read it. To a virtio driver the second `START` word is a DMA region's
+// physical address; to an init role it is the initrd archive's length. This binary carried both
+// kinds, so one parameter had two meanings and was named after the one the init roles never used.
+// The seven virtio roles are `block_driver`'s now, so only the archive length is left.
+pub extern "C" fn _start(role: u64, initrd_len: u64, _arg2: u64) -> ! {
     match role {
-        PRINTING => printing_client(),
-        VIRTIO_BLK => virtio::run(dma_phys),
-        UNTYPED_DEMO => memory_region_demo(),
-        VIRTIO_ATTACK => virtio::run_attack(dma_phys),
-        VIRTIO_ATTACK_INDIRECT => virtio::run_attack_indirect(dma_phys),
-        VIRTIO_BLK_WRITE => virtio::run_write(dma_phys),
-        VIRTIO_BLK_WRITE_ABANDON => virtio::run_write_abandon(dma_phys),
-        VIRTIO_NET => virtio::run_net(dma_phys),
-        VIRTIO_BLK_SERVER => virtio::run_blk_server(dma_phys),
-        CALL_SERVER => call_server(),
-        CALL_CLIENT => call_client(),
-        REVOKE_DEMO => revoke_demo(),
-        GRANTER => granter(),
-        RECEIVER => receiver(),
-        PAGE_FRAME_PRODUCER => page_frame_producer(),
-        PAGE_FRAME_CONSUMER => page_frame_consumer(),
-        EP_MAKER => ep_maker(),
-        EP_USER => ep_user(),
-        ADDRESS_SPACE_BUILDER => address_space_builder(),
-        INIT => init(dma_phys), // x1 carries the initrd length
-        INIT_DEV => init_dev(dma_phys),
-        INIT_CONSOLE => init_console(dma_phys),
-        INIT_IRQ => init_irq(dma_phys),
+        INIT => init(initrd_len),
+        INIT_DEV => init_dev(initrd_len),
+        INIT_CONSOLE => init_console(initrd_len),
+        INIT_IRQ => init_irq(initrd_len),
         IRQ_CHILD => irq_child(),
-        INIT_LEAST_AUTHORITY_DEMO => init_least_authority_demo(dma_phys),
-        INIT_COREMARK => init_coremark(dma_phys),
-        CYCLE_COUNTER_CHILD => cycle_counter_child(),
+        INIT_LEAST_AUTHORITY_DEMO => init_least_authority_demo(initrd_len),
+        INIT_COREMARK => init_coremark(initrd_len),
         CHILD => child(),
         DEV_CHILD => dev_child(),
-        SELF_CHECK => self_check_client(),
-        _ => self_check_client(),
+        // **A role this binary does not have is a fault, not a default.** The arm here was
+        // `_ => self_check_client()` until milestone 291, which meant a caller that asked for a
+        // role this program had never heard of got a program that checked its own image, made one
+        // syscall and exited cleanly. Every spawner in the tree would read that as success.
+        // `block_driver` and `builder` both trap on an unknown role; this now matches them.
+        _ => user_rt::trap(),
     }
-}
-
-/// Prove our own image is intact. None of this needs a capability: it is all our own memory. A
-/// mismatch means the loader is broken, and we say so the only way we can, with a `brk` that the
-/// kernel turns into a fault.
-fn self_check() {
-    check(RODATA_MARKER == [0xc0, 0xff, 0xee, 0xd0]);
-    // SAFETY: single-threaded, sole owner of this address space.
-    unsafe {
-        check(core::ptr::read_volatile(&raw const DATA_MARKER) == 0x0000_c0ff_ee00_d0d0);
-        check(core::ptr::read_volatile(&raw const BSS_MARKER) == 0); // .bss was zeroed
-        core::ptr::write_volatile(&raw mut BSS_MARKER, 1);
-        check(core::ptr::read_volatile(&raw const BSS_MARKER) == 1); // .data is writable
-    }
-    check(stack_works(7));
-}
-
-/// A program that checks its own image and then does nothing but exist. Needs no capabilities.
-/// This is the "a real ELF ran and verified itself" program the milestone-7 tests spawn bare.
-fn self_check_client() -> ! {
-    self_check();
-
-    // Make one syscall that needs no capability at all, to prove we reached EL0 and can trap
-    // back in. Yield is authority over ourselves; nobody has to grant it.
-    yield_now();
-
-    // Then exit rather than spin. This is a one-shot role with nothing left to do, and a user
-    // thread that never exits sits on a core for the rest of the boot: `no_leaked_threads` says so
-    // in as many words, and it was three such leaks that starved a later test off a four-hart
-    // machine entirely.
-    exit();
-}
-
-/// A program that checks its own image and then prints, through the console server, using the
-/// endpoints and shared page the kernel handed it.
-fn printing_client() -> ! {
-    self_check();
-
-    // These cannot fail: this role is only ever spawned WITH the console, so `print` holds its
-    // capabilities. A failure would be a `brk`, which is what we want if the wiring is wrong.
-    check(print(b"      hello from EL0, printed by a driver that also runs at EL0.\n").is_ok());
-    check(print(b"      the kernel never saw these bytes.\n").is_ok());
-
-    // Done, so exit. This used to spin ("so the timer can prove it still preempts us"), which the
-    // dedicated `interrupt_ignorer` binary proves better and without leaving a CPU-bound thread
-    // behind for the rest of the run. See `self_check_client`.
-    exit();
-}
-
-/// Print `bytes` by handing them to the console server through shared memory.
-///
-/// Returns `Ok` if we hold the endpoints to reach the server, `Err(NoSuchSlot)` if we were not
-/// given them. The bytes go in the shared page; only the length crosses the endpoint.
-fn print(bytes: &[u8]) -> Result<(), Error> {
-    let n = bytes.len().min(4096);
-
-    // SAFETY: the shared page is mapped read/write in our address space. We own it between an
-    // ack and the next send, which the reply below is what guarantees.
-    let shared = SHARED_VA as *mut u8;
-    for (i, &b) in bytes[..n].iter().enumerate() {
-        // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-        // before acting (user_rt's contract). A caller cannot break an invariant by passing a
-        // bad slot or method; it gets an error back.
-        unsafe { core::ptr::write_volatile(shared.add(i), b) };
-    }
-
-    // The length is the message. The data is already in place, shared, uncopied.
-    let r = send(REQUEST, n as u64, 0, 0);
-    if let Some(e) = Error::from_ret(r) {
-        return Err(e); // e.g. NoSuchSlot: we were not handed a console
-    }
-
-    // Wait for the server to finish reading the buffer before we touch it again.
-    let (_ack, _, _) = recv(REPLY);
-    Ok(())
-}
-
-// The IPC primitives (send/recv/invoke/exit) come from the shared `user_rt` crate (19f.6).
-
-/// Receive a data word and, if the sender delegated one, a capability. Returns `(w0, slot)`, where
-/// `slot` is where the received capability landed in our capability table, or `rendezvous::NO_CAP` if none came.
-///
-/// A thin shape over `user_rt::recv_cap`, which returns the third word this caller does not want.
-fn recv_cap(slot: u64) -> (u64, u64) {
-    let (w0, got, _) = rt_recv_cap(slot);
-    (w0, got)
-}
-
-/// **The Call/Reply server, milestone 12.** Holds `RECV` on a request endpoint (slot 0) and a report
-/// endpoint (slot 1). It answers one caller it was never individually wired to, then proves the
-/// reply capability is one-shot by trying to use it a second time and reporting that the kernel
-/// refused. See `kernel/src/user/call_service.rs`.
-fn call_server() -> ! {
-    const EP: u64 = 0;
-    const REPORT: u64 = 1;
-
-    let (w0, reply_slot, w1) = rt_recv_cap(EP);
-    // Answer the caller: w0 + w1. This consumes the one-shot reply capability.
-    check(reply(reply_slot, w0 + w1, 0) == 0);
-    // A second reply on the same slot must fail: the cap was consumed on first use.
-    let second = reply(reply_slot, 0xBAD, 0);
-    send(REPORT, if second < 0 { 1 } else { 0 }, 0, 0); // 1 = refused (one-shot held), 0 = a hole
-    exit();
-}
-
-/// **The Call/Reply client, milestone 12.** Holds `WRITE` on the request endpoint (slot 0) and a
-/// report endpoint (slot 1). It calls with two words and reports the reply.
-fn call_client() -> ! {
-    const EP: u64 = 0;
-    const REPORT: u64 = 1;
-
-    let (r0, _r1) = call(EP, 40, 2); // expect 42 back
-    send(REPORT, r0, 0, 0);
-    exit();
-}
-
-/// **The revoke demo, milestone 13.** Holds an untyped budget (slot 0) and a report endpoint (slot
-/// 1). It retypes a page, maps it, then `REVOKE`s it: the kernel unmaps the page and deletes every
-/// capability to it, this process's own included, so a second operation on the frame slot finds
-/// nothing there. Reports 1 if REVOKE succeeded and the slot is now empty. See kernel/src/user.rs
-/// `revoke_service`.
-fn revoke_demo() -> ! {
-    const MEMORY_REGION: u64 = 0; // retype + page tables
-    const REPORT: u64 = 1;
-    const VA: u64 = 0x0000_0000_00c0_0000;
-
-    // Retype a page into a PageFrame capability we hold, then map it writable.
-    let frame = user_rt::retype_page_frame(MEMORY_REGION);
-    check(frame >= 0);
-    let frame = frame as u64;
-    check(map_page_frame(frame, VA, true, MEMORY_REGION));
-    // SAFETY: VA is now a mapped, writable page in our address space.
-    unsafe { core::ptr::write_volatile(VA as *mut u64, 0xABCD) };
-
-    // Revoke: unmap the page everywhere and delete every capability to it, ours included. The frame
-    // was retyped with GRANT, so we are allowed to.
-    let revoked = revoke_frame(frame);
-    // Our PageFrame capability is gone now: a second operation on that slot must fail (NoSuchSlot). We
-    // do NOT touch VA again, which is unmapped and would fault.
-    let after = if map_page_frame(frame, VA, true, MEMORY_REGION) {
-        0
-    } else {
-        -1
-    };
-
-    send(REPORT, if revoked == 0 && after < 0 { 1 } else { 0 }, 0, 0);
-    exit();
 }
 
 /// The bytes of the program named `name` in the initrd (milestone 19f). The initrd is a nifefs
@@ -345,19 +163,6 @@ const WORKER_INPUT: u64 = 7;
 const INIT_COREMARK: u64 = 29;
 /// The word a milestone-19d child reports through the endpoint init granted it.
 const CHILD_WORD: u64 = 0xC0FFEE;
-
-/// The role that reads the cycle counter and reports (milestone 229). Started directly by the
-/// kernel's own test, not built by init: milestone 229 shipped the grant mechanism without a
-/// syscall method to set it, so there is no userspace route to a granted thread to exercise.
-const CYCLE_COUNTER_CHILD: u64 = 42;
-/// The word [`cycle_counter_child`] reports when it read the counter without being killed for it.
-///
-/// **The word is the whole result, and the counter value is not.** An ungranted read of
-/// `PMCCNTR_EL0` or the `cycle` CSR traps, and this kernel turns that into a fault that ends the
-/// thread, so a child that gets as far as sending anything is a child the grant reached. What it
-/// read is uninteresting: QEMU leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however
-/// often you ask it.
-const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
 
 /// **The init role, milestone 19d.** The role in which this binary is the parent: it parses an ELF
 /// and starts a child, with the loader in userspace rather than in the kernel. It is **not** the
@@ -459,81 +264,6 @@ fn init_coremark(initrd_len: u64) -> ! {
     };
     check(start_child(child, 0, 0, 0)); // no args: the workload's iteration count is fixed
     exit();
-}
-
-/// **The granted child, milestone 229.** Reads the cycle counter twice and reports
-/// [`CYCLE_COUNTER_WORD`] plus both reads. Holds the report endpoint (slot 0) and nothing else:
-/// the grant is not a capability in a slot, it is a property of this thread that the context
-/// switch writes into a system register before the thread runs.
-///
-/// **Getting here at all is the result.** Without the grant the read is an EL0 access to a
-/// register `PMUSERENR_EL0` (aarch64) or `scounteren` (riscv64) does not permit, which traps and
-/// kills the thread, and nothing is sent. The kernel-side test runs this role both ways and
-/// asserts each outcome.
-///
-/// **The `yield` between the two reads is the point of there being two.** The first read proves
-/// the grant reached a thread that had not yet been switched; the yield gives the scheduler a
-/// chance to switch this thread out and back in, so the second read is one taken *after* the
-/// context switch re-applied the grant from the thread's own field. A yield is not a guarantee
-/// that a switch happened (this may be the only runnable thread on the core), so the second read
-/// is evidence rather than proof, and the register-level assertions in `arch::*::timer`'s tests
-/// are what prove the write itself.
-fn cycle_counter_child() -> ! {
-    const REPORT: u64 = 0;
-    let first = read_cycle_counter();
-    user_rt::yield_now();
-    let second = read_cycle_counter();
-    send(REPORT, CYCLE_COUNTER_WORD, first, second);
-    exit();
-}
-
-/// Read the CPU's cycle counter from user mode: one instruction on every architecture, which is
-/// the property DECISIONS 139 chose option 4 to keep.
-///
-/// **Deliberately not in `crates/user_rt`.** A portable userspace cycle-counter API is milestone
-/// 74's deliverable, and it will want to say what the number means (a frequency, a scaling, a
-/// story about what a "cycle" is on a big.LITTLE part). This is the raw read, in the one program
-/// that needs it today, so that 74 designs the API rather than inheriting one from a test vehicle.
-#[cfg(target_arch = "aarch64")]
-fn read_cycle_counter() -> u64 {
-    let value: u64;
-    // SAFETY: `mrs` from `PMCCNTR_EL0` reads a counter and touches no memory, which the options
-    // state. It is UNDEFINED at EL0 unless `PMUSERENR_EL0` permits it, which is exactly what this
-    // role exists to have been granted; an ungranted thread faults here, and that is the negative
-    // half of the test rather than an accident.
-    unsafe {
-        core::arch::asm!("mrs {}, pmccntr_el0", out(reg) value, options(nomem, nostack, preserves_flags));
-    }
-    value
-}
-
-/// **The `x86_64` half, which needs no grant at all.** `rdtsc` is ambient in ring 3 on this
-/// architecture and DECISIONS 139 part 3 kept it that way, so this reads without asking. It is
-/// here because the program is compiled for this target even though no `x86_64` initrd exists to
-/// run it from yet (notes/x86-port.md), and a role that cannot compile is a build failure rather
-/// than a skipped test.
-#[cfg(target_arch = "x86_64")]
-fn read_cycle_counter() -> u64 {
-    let low: u32;
-    let high: u32;
-    // SAFETY: `rdtsc` reads the time-stamp counter into `edx:eax` and touches no memory. `CR4.TSD`
-    // is clear (milestone 228 read it back rather than assuming it), so this is legal in ring 3.
-    unsafe {
-        core::arch::asm!("rdtsc", out("eax") low, out("edx") high, options(nomem, nostack, preserves_flags));
-    }
-    ((high as u64) << 32) | low as u64
-}
-
-/// The riscv64 half: the `cycle` CSR, gated by `scounteren.CY`.
-#[cfg(target_arch = "riscv64")]
-fn read_cycle_counter() -> u64 {
-    let value: u64;
-    // SAFETY: `csrr` from the `cycle` CSR reads a counter and touches no memory. It is an illegal
-    // instruction in U-mode unless `scounteren.CY` permits it; see the aarch64 twin above.
-    unsafe {
-        core::arch::asm!("csrr {}, cycle", out(reg) value, options(nomem, nostack, preserves_flags));
-    }
-    value
 }
 
 /// **An interrupt-driven child, milestone 19d.2b.** Holds a report endpoint (slot 0) and an
@@ -755,198 +485,6 @@ fn start_child(child: Child, arg0: u64, arg1: u64, arg2: u64) -> bool {
     supervision_proto::start_child(child, arg0, arg1, arg2)
 }
 
-/// **Building another address space, milestone 19b.** Holds an untyped budget (slot 0) and a
-/// report line (slot 1). It retypes part of its own memory into an address space, retypes a
-/// frame, maps the frame into the space it built, and proves the kernel keeps the rules there
-/// too: the same va twice is refused. Nothing can run in the built space yet (TCBs are 19c);
-/// what this witnesses is that a process can construct one at all.
-fn address_space_builder() -> ! {
-    const MEMORY_REGION: u64 = 0;
-    const REPORT: u64 = 1;
-    const VA: u64 = 0x0040_0000;
-
-    let aspace = user_rt::retype_object(MEMORY_REGION, abi::objtype::ADDRESS_SPACE);
-    let mut verdict = 0u64;
-    if aspace >= 0 {
-        verdict |= 1; // built a space out of our own pages
-        let frame = user_rt::retype_page_frame(MEMORY_REGION);
-        if frame >= 0 {
-            let mapped = map_into(aspace as u64, VA, frame as u64, 1);
-            if mapped == 0 {
-                verdict |= 2; // mapped our frame into the space we built
-            }
-            let again = map_into(aspace as u64, VA, frame as u64, 1);
-            if again < 0 {
-                verdict |= 4; // the same va twice was refused: break-before-make holds there too
-            }
-        }
-    }
-    send(REPORT, verdict, 0, 0);
-    exit();
-}
-
-/// **Minting an endpoint from our own memory, milestone 19a.** Holds an untyped budget (slot 0),
-/// a channel (slot 1), and nothing else. It retypes a page of its own untyped into a brand-new
-/// endpoint (`RETYPE_OBJ`), an object no kernel wiring created, then delegates a READ view of it
-/// over the channel and SENDs a word into it. If the kernel's object really works, a peer we
-/// have never met receives that word over an endpoint that did not exist a moment ago.
-fn ep_maker() -> ! {
-    const MEMORY_REGION: u64 = 0;
-    const CHANNEL: u64 = 1;
-
-    // Retype one page of our budget into an endpoint; the kernel returns the slot where our
-    // full-rights capability to it landed.
-    let ep = user_rt::retype_object(MEMORY_REGION, abi::objtype::RENDEZVOUS);
-    check(ep >= 0);
-    let ep = ep as u64;
-
-    // Delegate a READ-only view (recv, never send) to whoever is on the channel; we keep WRITE.
-    check(send_cap(CHANNEL, ep, abi::rights::READ, 0) == 0);
-
-    // Speak first through our own creation: blocks until the peer receives, which is the proof.
-    check(send(ep, 0x77, 0, 0) == 0);
-    exit();
-}
-
-/// **The peer, milestone 19a.** Holds the channel (slot 0) and a report endpoint (slot 1).
-/// Receives a capability to an endpoint that some other process minted out of its own memory,
-/// listens on it, and reports what arrives. It never saw an untyped and never asked the kernel
-/// to create anything: its authority to listen arrived entirely by delegation.
-fn ep_user() -> ! {
-    const CHANNEL: u64 = 0;
-    const REPORT: u64 = 1;
-
-    let (_w, slot) = recv_cap(CHANNEL);
-    check(slot != rendezvous::NO_CAP);
-
-    let (w0, _, _) = recv(slot); // listen on the minted endpoint
-    send(REPORT, w0, 0, 0); // report the word that crossed it
-    exit();
-}
-
-/// **The delegation demo, granter's half.** Holds a channel to send over (slot 0) and a resource
-/// capability held `WRITE | GRANT` (slot 1). It passes the resource on, narrowed to `WRITE` so the
-/// receiver can use it but not lend it further. The whole point of a capability system, in four
-/// lines: authority a process holds, handed to another process, at runtime, with less power than it
-/// arrived with. See `kernel/src/user/delegation_service.rs`.
-fn granter() -> ! {
-    const CHANNEL: u64 = 0;
-    const RESOURCE: u64 = 1;
-
-    // Delegate RESOURCE, narrowed to WRITE (dropping GRANT), over CHANNEL.
-    send_cap(CHANNEL, RESOURCE, abi::rights::WRITE, 0);
-
-    exit(); // one-shot: our authority is passed on, so we leave and the kernel reaps us
-}
-
-/// **The delegation demo, receiver's half.** Holds the channel (slot 0), a report endpoint
-/// (slot 1), and a loopback endpoint (slot 2) it uses only to *attempt* re-delegation. It receives
-/// the delegated capability, proves it works by invoking it, then proves it cannot pass it on.
-fn receiver() -> ! {
-    const CHANNEL: u64 = 0;
-    const REPORT: u64 = 1;
-    const LOOPBACK: u64 = 2;
-    const USED_WORD: u64 = 0x5A; // must match USED_WORD in kernel/src/user/delegation_service.rs
-
-    // Receive the delegated capability. It lands in a fresh slot of our own capability table; RECV_CAP tells
-    // us which one. We were never told the slot in advance: the kernel chose it and named it to us.
-    let (_data, got) = recv_cap(CHANNEL);
-    let received = got != rendezvous::NO_CAP;
-
-    // Use it. A SEND on the received capability rendezvous with whoever holds the other end, which
-    // proves a capability minted for us by another process carries real authority.
-    if received {
-        send(got, USED_WORD, 0, 0);
-    }
-
-    // Try to pass it on. We hold it WITHOUT grant, so the kernel refuses before any rendezvous, and
-    // the invoke returns an error. LOOPBACK needs no receiver: the refusal happens at the check.
-    let redelegate = send_cap(LOOPBACK, got, abi::rights::WRITE, 0);
-    let refused = redelegate < 0;
-
-    // Verdict: bit 0 we received a capability, bit 1 re-delegation was refused. 0b11 is the story.
-    let code = (received as u64) | ((refused as u64) << 1);
-    send(REPORT, code, 0, 0);
-
-    exit(); // one-shot: reported, so we leave and the kernel reaps us
-}
-
-/// **The frame demo, producer's half.** Retypes a page out of its own untyped into a `PageFrame`
-/// capability, maps it read/write, writes a sentinel, and hands the consumer a READ-only view of
-/// the *same physical page*. The kernel never copies the data and was never told these two
-/// processes would share memory: they composed the sharing themselves out of a capability.
-fn page_frame_producer() -> ! {
-    const MEMORY_REGION: u64 = 0; // retype the frame and draw page tables from here
-    const CHANNEL: u64 = 1; // delegate the frame to the consumer over here
-    const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
-
-    // Retype: a page out of our budget becomes a PageFrame capability we hold. Nothing is mapped yet.
-    let frame = user_rt::retype_page_frame(MEMORY_REGION);
-    check(frame >= 0);
-
-    // Map it read/write; the page tables to reach PAGE_FRAME_VA come from the same untyped.
-    check(map_page_frame(
-        frame as u64,
-        PAGE_FRAME_VA,
-        true,
-        MEMORY_REGION,
-    ));
-
-    // Write the sentinel the consumer will read back through its own mapping of this page.
-    // SAFETY: PAGE_FRAME_VA is now a mapped, writable page in our address space.
-    unsafe { core::ptr::write_volatile(PAGE_FRAME_VA as *mut u64, PAGE_FRAME_SENTINEL) };
-
-    // Delegate a READ-only view: drop WRITE and GRANT on the way over. The rendezvous is also the
-    // synchronization edge that makes our write visible to the consumer.
-    send_cap(CHANNEL, frame as u64, abi::rights::READ, 0);
-
-    exit();
-}
-
-/// **The frame demo, consumer's half.** Receives the delegated frame, maps the same physical page
-/// read-only, reads the producer's sentinel back (proof the memory is shared), and confirms it
-/// cannot map the page writable, because it was handed the frame with `READ` alone.
-fn page_frame_consumer() -> ! {
-    const CHANNEL: u64 = 0; // RECV_CAP the frame here
-    const MEMORY_REGION: u64 = 1; // page tables for our own mappings come from here
-    const REPORT: u64 = 2; // report the verdict here
-    const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
-    const RW_VA: u64 = 0x0000_0000_00B0_0000;
-
-    let (_data, frame) = recv_cap(CHANNEL);
-    let received = frame != rendezvous::NO_CAP;
-
-    let mut read_ok = false;
-    let mut rw_refused = false;
-    if received {
-        // Map the shared page read-only and read the producer's sentinel through it.
-        let mapped = map_page_frame(frame, PAGE_FRAME_VA, false, MEMORY_REGION);
-        if mapped {
-            // SAFETY: PAGE_FRAME_VA is now a mapped, readable page.
-            let seen = unsafe { core::ptr::read_volatile(PAGE_FRAME_VA as *const u64) };
-            read_ok = seen == PAGE_FRAME_SENTINEL;
-        }
-
-        // Try to map it read/write. We hold it READ only, so the kernel refuses before mapping.
-        rw_refused = !map_page_frame(frame, RW_VA, true, MEMORY_REGION);
-    }
-
-    // Verdict: bit 0 we read the shared sentinel, bit 1 a writable mapping was refused.
-    let code = (read_ok as u64) | ((rw_refused as u64) << 1);
-    send(REPORT, code, 0, 0);
-    exit();
-}
-
-#[inline(never)]
-fn stack_works(n: u64) -> bool {
-    let local = [n; 8];
-    if n == 0 {
-        return local[0] == 0;
-    }
-    core::hint::black_box(&local);
-    stack_works(n - 1)
-}
-
 /// The only way this program can say "no": a `brk`, which the kernel treats as a fault and kills
 /// us for. A failed check must be indistinguishable from a broken program, because it is one.
 fn check(ok: bool) {
@@ -961,61 +499,6 @@ fn check(ok: bool) {
 /// line in the program", which was true of `hello` and false of the tree: there were forty-eight.
 fn fail() -> ! {
     user_rt::trap()
-}
-
-/// Milestone 11: spend an untyped budget. This process holds a capability to a chunk of raw
-/// memory (slot 0) and a report endpoint (slot 1). It maps page after page out of that untyped
-/// into its own address space, writes and reads each one to prove it is real, and keeps going
-/// until the untyped is exhausted. Then it reports how many it mapped.
-///
-/// The whole point is what the KERNEL does while this runs: nothing. Every page here comes out of
-/// the untyped, so the kernel's free-frame count does not move. A test checks exactly that.
-fn memory_region_demo() -> ! {
-    const MEMORY_REGION: u64 = 0;
-    const REPORT: u64 = 1;
-    const BASE_VA: u64 = 0x0000_0000_00c0_0000;
-
-    // Signal that we are loaded and about to start spending the untyped. The test measures the
-    // kernel's frame count HERE, so it sees only what we do from now on: map from our untyped.
-    send(REPORT, 0, 0, 0);
-
-    let mut mapped: u64 = 0;
-    loop {
-        let va = BASE_VA + mapped * 4096;
-        // Retype a page out of our untyped and map it here.
-        let r = map_region_page(MEMORY_REGION, va);
-        if let Some(e) = Error::from_ret(r) {
-            // OutOfMemory means our budget is spent. Any other error is a real bug.
-            if e != Error::OutOfMemory {
-                fail();
-            }
-            break;
-        }
-
-        // Prove the page is genuinely ours: write a marker, read it back.
-        let marker = 0xA11C_0000_0000_0000u64 | mapped;
-        // SAFETY: the kernel just mapped this page writable in our address space.
-        unsafe {
-            core::ptr::write_volatile(va as *mut u64, marker);
-            if core::ptr::read_volatile(va as *const u64) != marker {
-                fail();
-            }
-        }
-
-        mapped += 1;
-        if mapped > 100_000 {
-            fail(); // a bump allocator that never exhausts is a bug
-        }
-    }
-
-    send(REPORT, mapped, 0, 0);
-    // **This one must NOT exit**, unlike the other one-shot roles. The test reads the kernel's
-    // used-frame count the instant this report lands, and exiting here would tear this address
-    // space down in that same window, so the number it reads would be the teardown's rather than
-    // the measurement's. Spinning holds the state still until the assertion has looked at it.
-    loop {
-        core::hint::spin_loop();
-    }
 }
 
 user_rt::panic_handler!();
