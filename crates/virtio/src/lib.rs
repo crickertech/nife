@@ -1,5 +1,5 @@
 #![no_std]
-//! A virtio-blk driver. **At EL0.**
+//! A virtio driver, block and net. **At EL0.**
 //!
 //! This is milestone 9's headline: a real block device, driven by an unprivileged process. The
 //! kernel handed us three things and knows nothing else about this device:
@@ -47,8 +47,22 @@
 //! If any of the register programming below is wrong, **this process faults and the kernel does
 //! not**, which is milestone 9's headline and the thing a reader should take from the crate.
 //!
-//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
-//! outside"; and milestone 63's name table, which treats the name as claimed territory).
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on AGENTS.md's naming
+//! section, "standard terms a reader already knows from outside", and milestone 63's name table,
+//! which treats the name as claimed territory.
+//!
+//! **Ratified as a proper name, not on the acronym test, and the distinction is the record here.**
+//! `virtio` contracts *virtual I/O*, which the tree nowhere expands and which this block is the
+//! first place to write down. The 2026-09-05 rule spells out an acronym unless the expansion
+//! teaches nothing, and *virtual I/O* sits awkwardly against it: it teaches more than `pci`'s
+//! expansion and less than `dma`'s, being generic enough to name almost anything in an operating
+//! system rather than saying "a device and driver standard", which is the job `notes/virtio.md`
+//! has to do instead. The ruling did not turn on that. It turned on the word being the
+//! **specification's own name** (virtio 1.x, OASIS), the string in every QEMU flag and device tree
+//! node, so expanding it would rename a standard rather than spell out an abbreviation. That is the
+//! `elf` and `pci` ground. The contraction point matters for the next coined name that arrives:
+//! `virtio` is `virt` + `io` and not an initialism at all, the same shape that kept `rm` the same
+//! day.
 //! Introduced 2026-07-14 with milestone 9's block driver. It is the device family's own name from
 //! the specification, which is the protected class exactly, and the tree has reasoned about it
 //! from the far side: milestone 63 refused `virtio_net` for the transport adapter because

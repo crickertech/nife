@@ -177,11 +177,16 @@ The alternative was to leave one crate spelled `_proto` while fourteen siblings 
 which is exactly the split state this milestone exists to end, so the uniform suffix won and the
 cost was taken with its eyes open rather than overlooked.
 
-**Where the stem question lives, and it is not on `main`**: a proposal named
-what-the-login-family-is-named-for.md exists on the branch `maintainer/ratify-entropy` and has not
-landed, so as of this milestone the only record of the cost a reader can reach is this block and the
-crate's own provenance. That is the branch-as-record failure `AGENTS.md` names (nobody reads
-branches), and it is why the cost is written twice here rather than cited once.
+**Where the stem question lives**: `design/roadmap/proposals/what-the-login-family-is-named-for.md`,
+which carries the measurement and the options and takes no position.
+
+**It was not on `main` while this milestone was performed, and that is why the cost is written twice
+here rather than cited once.** It sat unlanded on the branch `maintainer/ratify-entropy` until PR
+#861 merged partway through this lane, so for most of the work the only record a reader could reach
+was this block and the crate's own provenance. That is the branch-as-record failure `AGENTS.md`
+names, nobody reads branches, and it is worth leaving recorded now that it is closed: the duplication
+above is not redundancy, it is what a lane has to do when the record it depends on is somewhere a
+reader cannot get to.
 
 **What that costs, stated so nobody has to rediscover it**: when the `login` stem is ruled, these
 files move again. It is one crate, 27 files at the time of writing, and the compiler finds every

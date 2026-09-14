@@ -42,8 +42,10 @@
 //! [`filesystem_protocol::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
 //! and holds nothing that names a progenitor, a terminal, or the filesystem above its grant.
 //!
-//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
-//! outside"). Introduced 2026-07-31. The Unix command's own name, so the protected class keeps it
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on AGENTS.md's naming
+//! section, "standard terms a reader already knows from outside". This is the one of the five
+//! Unix names where the acronym rule had to be actively refused rather than being irrelevant; the
+//! refusal is below and the ratification rests on it. Introduced 2026-07-31. The Unix command's own name, so the protected class keeps it
 //! and a rename would spend a newcomer's recognition to buy nothing. It is a shortening rather
 //! than an acronym, so the acronym test set on 2026-09-05 does not reach it; read as one anyway,
 //! "remove" is what a reader already takes from `rm`, which is that test's own criterion for an

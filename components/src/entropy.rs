@@ -50,12 +50,17 @@
 //! [`REFILL_TRIES`] attempts, the reply is [`entropy_protocol::NO_ENTROPY`] and the caller finds out,
 //! because a caller who cannot be given randomness must not be told otherwise (DECISIONS §42).
 //!
-//! Name: recorded (milestone 63's name table, design/roadmap/63-name-spellings.md). Introduced
-//! 2026-07-30 with milestone 56. The same argument `clock` carries, made in the same sentence: 63
-//! cites the two together as the resource-name pattern it departed from for `credentialer`, on
-//! the ground that a credential service never hands you a credential. This service does hand you
-//! entropy, so the pattern holds. The word is also the field's own for the quantity, which the
-//! protected class keeps. calef has not ratified it.
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), confirming milestone 63's
+//! name table (design/roadmap/63-name-spellings.md). Introduced 2026-07-30 with milestone 56. The
+//! same argument `clock` carries, made in the same sentence: 63 cites the two together as the
+//! resource-name pattern it departed from for `credentialer`, on the ground that a credential
+//! service never hands you a credential. This service does hand you entropy, so the pattern holds.
+//! The word is also the field's own for the quantity, which the protected class keeps.
+//!
+//! The ratification also settles the pair: calef ratified `jh7110_entropy` on 2026-09-13 for the
+//! other backend of this same contract, refusing `_source` there partly because this peer carries
+//! no such suffix. Naming one of two backends for one contract decides how the other reads, so the
+//! two are one decision made a day apart.
 //!
 //! # A second backend, and a smaller authority than the first (milestone 162)
 //!

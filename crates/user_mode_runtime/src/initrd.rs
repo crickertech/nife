@@ -22,6 +22,12 @@
 //! `components/src/builder.rs` is started under") without anyone lifting it out, the same shape
 //! `ntp.rs`'s comment named for the [`mapped_window`](crate::mapped_window) cluster.
 //!
+//! **Seven is a count of 2026-09-02 and six of them are left** (milestone 295): `builder` was
+//! retired on 2026-09-14 when the RISC-V tour stopped composing a child of its own, so the file
+//! that phrase quotes is gone from the tree. The count and the quotation both stay, because they
+//! are an account of what this module was written to collapse rather than a description of today,
+//! and rewriting either would make milestone 139's own reasoning unreadable.
+//!
 //! [`initrd_bytes`] holds that one assertion instead of seven. This does not remove the `unsafe`
 //! block at each call site the way `MappedWindow` did: this hands back a whole `'static` slice
 //! rather than a bounds-checked per-offset accessor, and `initrd_len` cannot be validated by any
@@ -50,7 +56,7 @@
 
 /// Where the kernel maps the initrd archive before any program's `_start` runs. Must match
 /// `kernel::user::INITRD_VA` (`kernel/src/user.rs`), the kernel-side constant this value mirrors,
-/// which every kernel-side spawn path (`kernel::user::riscv_initrd_demo` on RISC-V, `spawn_init` on
+/// which every kernel-side spawn path (`kernel::user::riscv_shell_boot` on RISC-V, `spawn_init` on
 /// aarch64) maps this many bytes at, read-only, before starting the process. Every `_start` that
 /// receives an initrd receives it at this same VA; the seven callers this module replaces had each
 /// hard-coded it under this exact name.

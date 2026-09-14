@@ -188,7 +188,8 @@ const E_BUDGET: u64 = 0xE303; // the budget cannot back even one instance
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(fires_wanted: u64, initrd_len: u64, _a2: u64) -> ! {
     // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract, the same one
-    // `components/src/builder.rs` is started under.
+    // `components/src/root_supervisor.rs` is started under. It named `components/src/builder.rs`
+    // until milestone 295 retired that program; the contract is unchanged, only the sibling is.
     let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
 
     let doc = match timetable::parse(CONFIG) {

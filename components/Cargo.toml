@@ -60,16 +60,6 @@ path = "src/swish.rs"
 test = false
 bench = false
 
-# The minimal system builder (milestone 20): a fully portable program that loads the least_authority_demo from a
-# multi-entry initrd archive and builds it as a child through the capability verbs. It is the
-# RISC-V richer-initrd demonstration, and its claim is that **userspace, not the kernel, composes
-# the system**, proven on a second ISA in the smallest form that can prove it. It is not a boot
-# program (milestone 266 gave every board one progenitor); the riscv tour enters it by its own name.
-[[bin]]
-name = "builder"
-path = "src/builder.rs"
-test = false
-bench = false
 
 # The interrupt-driven console input driver (milestone 20): an unprivileged userspace device driver.
 # It holds an Irq capability, a report endpoint, and a device mapping of the UART, and services the

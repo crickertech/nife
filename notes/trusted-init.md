@@ -580,26 +580,33 @@ nife: handing the system to userspace init.
 
 ### Still not covered
 
-The chain now reaches everything **the interactive progenitor** loads. Three other userspace loaders still
-load unmeasured bytes, all of them test or demo programs rather than the shipped system:
+The chain now reaches everything **the interactive progenitor** loads. Two other userspace loaders
+still load unmeasured bytes, and both are test or demo programs rather than the shipped system:
 
-- **`builder`** (riscv's `riscv_initrd_demo`), which loads `least_authority_demo` out of the archive.
 - **`root_supervisor`/`spawner`** (the supervision tree), where the program image travels as a blob
   copied into the spawner's address space rather than as an archive read. Measuring it means
   measuring the blob at the point `root_supervisor` reads it.
 - **`c_confiner`**, which builds `c_shim`.
 
-All three run through `supervision_protocol::build_child`, the tree's only loader since milestone 96,
-and all three could read the same table; none of them does today. The table already carries their
-programs' digests, so the remaining work is the call, not the data.
+Both run through `supervision_protocol::build_child`, the tree's only loader since milestone 96, and
+both could read the same table; neither does today. The table already carries their programs'
+digests, so the remaining work is the call, not the data.
 
-**One caveat on "rather than the shipped system", added by milestone 289.** That phrase is right
-about what these three loaders *are* and understates where the first one *runs*. `builder` is the
-program the kernel loads and measures on the default riscv64 build, which is the build
-`script/board-image` writes to a card, so on that architecture the gap is on the boot a board
-actually performs rather than on a demo somebody runs in QEMU. It does not change the remedy (the
-call, not the data) and it does change how the gap should be priced: the chain reaches the first
-process there and stops one link short of the only child it builds.
+**There were three, and the third was the one that mattered** (milestone 295, 2026-09-14). `builder`
+loaded `least_authority_demo` out of the archive without consulting
+`measured_boot::PROGRAM_MEASUREMENTS`, and milestone 289 had added a caveat here saying why that was
+worse than the other two read: it was not a demo somebody runs in QEMU, it was the default riscv64
+build, which is what `script/board-image` writes to a card. The chain reached the first process
+there and stopped one link short of the only child it built.
+
+calef retired `builder` on 2026-09-14, so that gap is closed by the program going away rather than
+by the call being added. **What closed it is worth being exact about, because "the gap is gone" and
+"the gap was fixed" are different facts.** The default riscv64 boot now ends in `riscv_shell_boot`,
+which measures `progenitor` against the trust root and hands it the measurement table, and
+`crates/system_initializer` is the same code aarch64's progenitor runs, so that boot's userspace is
+now covered by the interactive chain above rather than by an exception to it. Nothing was added to
+the kernel; a link that stopped short was removed from the shipped path. The two loaders left really
+are QEMU-only.
 
 ## The alternative that was rejected, and stays rejected
 

@@ -6,7 +6,8 @@
 //! filter is `crates/pgrep`, both host-tested in milliseconds; what lives here is the syscall and
 //! the two sinks.
 //!
-//! Name: recorded (milestone 126). `pgrep` is upstream's, which the naming tenet calls the best name
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on milestone 126. Its crate
+//! was ratified 2026-08-23 in a kernel-dependency naming review, so the pair is signed at both ends. `pgrep` is upstream's, which the naming tenet calls the best name
 //! available and not one to spend a rename on; sharing it with `crates/pgrep` is the crate-and-
 //! program pair the same tenet describes, as `ps` and `crates/ps` already are. That rule plus the
 //! standard term produces this name, so calef ruled on the rules and never on this program.

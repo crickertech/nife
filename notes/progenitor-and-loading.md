@@ -250,6 +250,53 @@ Two things deliberately stayed out of `user_mode_runtime`:
 - Device helpers (the UART `putc` and echo logic in the console and input drivers). Those are not
   runtime, they are the program: they belong to the driver that owns the hardware.
 
+## Where the claim lives now that `builder` is gone (milestone 295, 2026-09-14)
+
+**The claim is "userspace, not the kernel, composes a process", and it used to be made twice on
+riscv64.** `components/src/builder.rs` made it in miniature as a step in the boot tour: the kernel
+loaded that one program out of the archive, granted it a budget and a report endpoint **and nothing
+else**, and it parsed `least_authority_demo` out of the same archive in userspace, built a child from
+its own budget and started it. The kernel never touched the child's bytes. The progenitor makes the
+same claim at the scale of a whole system, and since milestone 268 item 4 the default riscv64 boot
+reaches it too, so calef retired `builder`.
+
+**Split the claim in two, because only one half moved cleanly.**
+
+*Userspace composes a process.* Carried by the progenitor on every architecture that runs one
+(`spawn_progenitor` on aarch64, `riscv_shell_boot` on riscv64), on the boot a card actually performs.
+This half is better off than it was: the progenitor composes the console server, the line
+discipline, the input driver and `swish`, and a person can then type at the result.
+
+*...from an authority you can count on one hand.* This is the half `builder` carried alone, and it
+is **half-proved today**. The progenitor does not carry it: it is granted the NS16550 and the UART's
+interrupt line as well, because it is building a system rather than demonstrating a floor. What does
+carry it is `fixtures/src/address_space_builder.rs`, which holds **exactly the same two
+capabilities** `builder` held, a memory region in slot 0 and a report line in slot 1, and from those
+retypes an address space, retypes a frame, maps the frame into the space it built, and proves the
+kernel enforces break-before-make inside it. It is asserted by
+`kernel::user::tests::a_process_can_build_an_address_space_from_el0` on **both** architectures whose
+test kernel can load a user ELF, under `script/test`, which is more coverage than `builder` ever had
+(nothing on a pull request ever executed `builder`; see `design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md`).
+
+**What is proved nowhere is the rest of the sequence.** `address_space_builder` stops where milestone
+19b stopped: it builds a space and maps a frame, and nothing runs in it, because threads were 19c's
+object. Reading an ELF out of an archive **by name**, laying its segments down, retyping a TCB,
+endowing it, configuring it and starting it, all from those same two capabilities, was `builder`'s
+whole body and no other program in this tree does it from two. `os_primitives_benchmarker` starts a
+child from userspace and is a benchmark holding more than two; `supervision_proto::build_child` is
+the loader all of them share, and its callers are endowed for their jobs rather than trimmed to a
+floor.
+
+**The verbs are proved from the kernel's side**, which is what makes this a join rather than a hole:
+`kernel::user::tests::a_process_can_build_start_and_run_a_child_thread` drives the whole sequence and
+the child runs and reports, on both architectures, by calling `memory_region::create`,
+`user_address_space_map`, `configure` and `start` directly rather than across the syscall boundary.
+So: two verbs from userspace at a two-capability floor, and every verb from the kernel at no floor at
+all. `builder` was the only thing that was both.
+
+**That is a real gap and it is recorded rather than papered over**, which is the only reason to write
+this section. Milestone 295's block carries it as its handoff.
+
 ## What is not here yet
 
 **Resolved since this was written.** The kernel's own pre-init service wiring is gone: §28 retired

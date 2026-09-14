@@ -6,7 +6,9 @@
 //! itself is `crates/pmap`, which runs on the host in milliseconds; what lives here is the syscall
 //! and the two sinks.
 //!
-//! Name: recorded (milestone 126, and notes/naming.md). `pmap` is the name every reader already
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on milestone 126 and
+//! notes/naming.md. Its crate was ratified 2026-08-23 in a kernel-dependency naming review, so the
+//! pair is signed at both ends. `pmap` is the name every reader already
 //! knows from outside this project. The crate beside it shares the name deliberately, the same
 //! crate-and-program pair `ps`, `coremark`, `line_editor` and `compositor` already are.
 //!
@@ -35,8 +37,10 @@
 //! capability in this tree is minted and consumed **within the thread that built it**
 //! (`RETYPE_OBJ(ADDRESS_SPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
 //! registry the instant it binds to a thread), and nothing shipped here ever delegates one to a
-//! different program (checked: `components/src/builder.rs`, `crates/supervision_protocol`, `fixtures/src/hello.rs`,
-//! `fixtures/src/os_primitives_benchmarker.rs`, the only sites that mint an `Object::AddressSpace` at all --
+//! different program (checked: `crates/supervision_protocol`, `fixtures/src/hello.rs`,
+//! `fixtures/src/os_primitives_benchmarker.rs`, the only sites that mint an `Object::AddressSpace` at all;
+//! `components/src/builder.rs` was a fourth when DECISIONS §114's audit ran and milestone 295 retired
+//! it, which removes a site rather than changing the finding --
 //! DECISIONS §114's required audit). So there is no manifest field for this program to declare and
 //! no wiring for `system_initializer` to add: there is nothing alive anywhere in the system to hand
 //! it.
