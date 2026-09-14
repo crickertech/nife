@@ -115,7 +115,7 @@ pub enum Schedule {
     AtBoot,
     /// Every interval, in **nanoseconds**, from the moment the scheduler is armed.
     ///
-    /// Nanoseconds because that is what `user_rt::monotonic_nanos` reports and what the arithmetic
+    /// Nanoseconds because that is what `user_mode_runtime::monotonic_nanos` reports and what the arithmetic
     /// in [`next_after`] runs in; the document is written in `ms`, `s` and `m`, and [`parse`]
     /// converts once, where the conversion can be tested.
     Every(u64),

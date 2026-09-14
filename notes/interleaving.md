@@ -54,7 +54,7 @@ and fetch-op outside test code:
   correct as written, and single-shot at boot.
 - **`kernel/src/arch/*/irq.rs`**: the interrupt-routing lottery, a compare-exchange per IRQ line.
   Rule 1 keeps it under `arch/`, so lifting it is a bigger question than this milestone.
-- **`crates/user_rt/src/heap.rs`**: a hand-rolled userspace spin lock. `user_rt` is aarch64 inline
+- **`crates/user_mode_runtime/src/heap.rs`**: a hand-rolled userspace spin lock. `user_mode_runtime` is aarch64 inline
   `asm!` and does not compile for the host at all, so reaching it needs the lock lifted out first.
 - Everything else is a **counter**: `fetch_add` on a statistic that a reader compares against zero or
   against its own earlier reading. Relaxed is right and there is no protocol.
@@ -510,7 +510,7 @@ evaluates `cfg(loom)` as false for every real target, so:
   **nothing checks that a newly pinned public method is modelled at all**, so a lane can widen the
   surface, pin it, and never write a harness. That last one is the same gap one level up, and it is
   rung four: the failure message asks in words.
-- **`crates/user_rt`'s spin lock and the interrupt-routing lottery are unmodelled.** Both are named
+- **`crates/user_mode_runtime`'s spin lock and the interrupt-routing lottery are unmodelled.** Both are named
   in the survey above with the reason: one does not compile for the host, and the other lives under
   `arch/` where rule 1 keeps it. Neither is a small retrofit.
 - **The `#[cfg(loom)]` code is invisible to `script/lint`**, exactly as the Kani harnesses were before

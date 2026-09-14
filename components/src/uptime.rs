@@ -9,7 +9,7 @@
 //!
 //! Milestone 126's own BUGS section named `free`, `uptime` and `vmstat` together as "machine
 //! statistics rather than process enumeration," on the assumption all three want kernel-side
-//! accounting nothing exposes today. `uptime` turned out not to: [`user_rt::monotonic_nanos`] is
+//! accounting nothing exposes today. `uptime` turned out not to: [`user_mode_runtime::monotonic_nanos`] is
 //! the same counter `date` already reads, granted to **every** process unconditionally
 //! (`kernel/src/arch/*/timer.rs`'s documented, deliberate exception to DECISIONS §10's
 //! no-ambient-authority rule). So this program's manifest is `least_authority_demo`'s, not `date`'s: no memory,
@@ -49,7 +49,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, monotonic_nanos, send};
+use user_mode_runtime::{exit, monotonic_nanos, send};
 
 /// Slot 0: where the line goes. An endpoint with `WRITE`, the sink contract's framing.
 const REPORT: u64 = 0;
@@ -81,4 +81,4 @@ fn write_bytes(bytes: &[u8]) {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

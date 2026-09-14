@@ -3,7 +3,7 @@
 //!
 //! A [`GlobalAlloc`] that grows by mapping pages out of the untyped capability the process was
 //! granted, via `memory_region::MAP` (one page per invoke, zeroed by the kernel, writable). The
-//! algorithm itself lives in `crates/user_heap` and is host-tested; this module is the policy and the
+//! algorithm itself lives in `crates/user_mode_heap` and is host-tested; this module is the policy and the
 //! syscall glue: a spinlock, a committed-range cursor, and grow-on-demand.
 //!
 //! # The contract a program signs
@@ -13,9 +13,9 @@
 //!
 //! ```ignore
 //! #[global_allocator]
-//! static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
+//! static HEAP: user_mode_runtime::heap::MemoryRegionHeap = user_mode_runtime::heap::MemoryRegionHeap::new();
 //! // first thing in _start:
-//! HEAP.init(MEMORY_REGION_SLOT, user_rt::heap::DEFAULT_BASE, 4 * 1024 * 1024);
+//! HEAP.init(MEMORY_REGION_SLOT, user_mode_runtime::heap::DEFAULT_BASE, 4 * 1024 * 1024);
 //! ```
 //!
 //! - **Which untyped slot** feeds the heap is the program's convention with its parent, like
@@ -56,7 +56,7 @@ const PAGE: u64 = 4096;
 const MIN_GROW_PAGES: u64 = 8;
 
 struct Inner {
-    heap: user_heap::Heap,
+    heap: user_mode_heap::Heap,
     /// Which capability table slot holds the untyped that pays for pages. `u64::MAX` until `init`.
     memory_region_slot: u64,
     /// The heap's virtual range: `[base, base + max)`, of which `[base, base + committed)` is
@@ -98,7 +98,7 @@ impl MemoryRegionHeap {
         MemoryRegionHeap {
             locked: AtomicBool::new(false),
             inner: core::cell::UnsafeCell::new(Inner {
-                heap: user_heap::Heap::new(),
+                heap: user_mode_heap::Heap::new(),
                 memory_region_slot: u64::MAX,
                 base: 0,
                 committed: 0,
@@ -190,7 +190,7 @@ impl Default for MemoryRegionHeap {
 }
 
 // SAFETY: alloc/dealloc uphold the GlobalAlloc contract: unique live pointers, layout round-trip
-// (user_heap recomputes sizes from the same Layout), and no unwinding (there is none on this target).
+// (user_mode_heap recomputes sizes from the same Layout), and no unwinding (there is none on this target).
 unsafe impl GlobalAlloc for MemoryRegionHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         let mut g = self.lock();
@@ -202,7 +202,7 @@ unsafe impl GlobalAlloc for MemoryRegionHeap {
             // Worst case the fresh run must hold the request plus alignment slack (a fresh run
             // starts page-aligned, so only over-page alignments need the slack).
             let slack = layout.align().saturating_sub(PAGE as usize) as u64;
-            let need = user_heap::effective_size(layout) as u64 + slack;
+            let need = user_mode_heap::effective_size(layout) as u64 + slack;
             if !Self::grow(inner, need) {
                 return core::ptr::null_mut();
             }

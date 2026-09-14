@@ -227,7 +227,7 @@ The kernel stayed heapless (milestone 14 earned that and nothing since has neede
 but Rust `std` needs a `GlobalAlloc`, and a capability system has an obvious place to get one:
 **the process's own untyped budget.** The pair that landed:
 
-- **`crates/user_heap`**: the algorithm, host-tested. First-fit, address-sorted free list with
+- **`crates/user_mode_heap`**: the algorithm, host-tested. First-fit, address-sorted free list with
   coalescing, the same design as the milestone-4 kernel heap and for the same reason: zero
   overhead on allocated memory. The trick that makes it headerless is stated as an invariant this
   time: every block is 16-aligned with a size that is a multiple of 16, and `alloc`/`dealloc`
@@ -237,7 +237,7 @@ but Rust `std` needs a `GlobalAlloc`, and a capability system has an obvious pla
   coalescing back to one block under churn (`thrashing_does_not_fragment_the_heap_to_death`,
   re-proven from the kernel-heap days).
 
-- **`user_rt::heap::UntypedHeap`**: the policy and the syscall glue. A `#[global_allocator]`
+- **`user_mode_runtime::heap::UntypedHeap`**: the policy and the syscall glue. A `#[global_allocator]`
   static the program wires with one call, `HEAP.init(untyped_slot, base_va, max_bytes)`, first
   thing in `_start`. Growth maps pages at the top of `[base, base+committed)` via `untyped::MAP`
   (one page per invoke, zeroed by the kernel, paid from the budget), geometrically (double, at

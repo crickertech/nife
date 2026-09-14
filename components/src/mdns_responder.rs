@@ -90,8 +90,8 @@ use socket_proto::{
     DATA_MAX, LISTEN_DENIED, LISTEN_GRANTED, LISTEN_IN_USE, OFF_DST_IP, OFF_DST_PORT, OFF_PAYLOAD,
     OP_ATTACH_PAGE_FRAME, OP_BIND_UDP, OP_RECV, OP_SENDTO, REP_ERR, req,
 };
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{call, exit, map_page_frame, retype_page_frame, send, send_cap};
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{call, exit, map_page_frame, retype_page_frame, send, send_cap};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
@@ -146,7 +146,7 @@ const E_NO_QUERY: u64 = 0xE240; // nothing ever asked: the group join, or the ho
 const E_ANSWER_SEND: u64 = 0xE241;
 
 // `va` is always `PAGE_FRAME_VA + <an offset constant>` at every call site, so subtracting PAGE_FRAME_VA
-// recovers the offset `WINDOW` bounds-checks against (milestone 139; see `user_rt::mapped_window`,
+// recovers the offset `WINDOW` bounds-checks against (milestone 139; see `user_mode_runtime::mapped_window`,
 // the same abstraction socket_test_client, smb_server, ntp, keyboard_driver, entropy and net_transport share).
 fn w8(va: u64, v: u8) {
     WINDOW.w8(va - PAGE_FRAME_VA, v);
@@ -380,4 +380,4 @@ fn config_error_line(e: mdns_config::Error) -> usize {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

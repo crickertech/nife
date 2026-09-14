@@ -184,7 +184,7 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// `script/shell-check`, which at that time ran in neither `script/test` nor CI. PR #556 landed on
 /// 2026-08-28 and `main` booted straight into the silent halt this file's BUGS section describes:
 /// with a virtio-rng attached, the progenitor fills all seventeen slots building `credentialer` and dies at
-/// `user_rt::trap` before a console exists to carry a word about it. It stayed that way for five
+/// `user_mode_runtime::trap` before a console exists to carry a word about it. It stayed that way for five
 /// days, through a fully green tree, because nobody asked the one question that would have shown
 /// it.
 ///

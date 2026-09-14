@@ -23,7 +23,7 @@
 //!   `Rendezvous::REAP` to collect the corpses (§32).
 //! - `a0`: how many fires to perform before summarising and exiting. `0` means forever.
 //! - `a1`: the length of the archive the spawn site mapped read-only at
-//!   [`user_rt::initrd::INITRD_VA`]. **Not the initrd**: it holds exactly the programs this
+//!   [`user_mode_runtime::initrd::INITRD_VA`]. **Not the initrd**: it holds exactly the programs this
 //!   document will ever build, because the plan is computable before the first tick and so the
 //!   endowment can be narrowed to it. This process audits that and says what it found, in the
 //!   line after the plan.
@@ -57,7 +57,7 @@
 //!
 //! # The loop, and the one thing it cannot do
 //!
-//! Poll the monotonic counter (ambient, `user_rt::monotonic_nanos`, no capability); fire what is
+//! Poll the monotonic counter (ambient, `user_mode_runtime::monotonic_nanos`, no capability); fire what is
 //! due; when the budget cannot back another instance, block on the supervision endpoint until a
 //! corpse arrives and reclaim its region. That last step is the only blocking wait in the program,
 //! which matters because **this kernel has exactly one wait point per process and no timed wait at
@@ -149,7 +149,7 @@
 #![no_main]
 
 use timetable::Registry;
-use user_rt::{cap_delete, exit, monotonic_nanos, reap, recv_fault, send, yield_now};
+use user_mode_runtime::{cap_delete, exit, monotonic_nanos, reap, recv_fault, send, yield_now};
 
 /// The document. Compiled in; see `BUGS`.
 const CONFIG: &str = include_str!("../timetable.conf");
@@ -187,9 +187,9 @@ const E_BUDGET: u64 = 0xE303; // the budget cannot back even one instance
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(fires_wanted: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract, the same one
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract, the same one
     // `components/src/builder.rs` is started under.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
 
     let doc = match timetable::parse(CONFIG) {
         Ok(d) => d,
@@ -465,7 +465,7 @@ fn collect_grant(exits: &mut u64, faults: &mut u64, mem_slot: u64) {
         }
         yield_now();
     }
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
 /// **Block until one child dies, then collect it**, counting whether it finished or crashed.
@@ -489,7 +489,7 @@ fn collect(exits: &mut u64, faults: &mut u64) {
         }
         yield_now();
     }
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
 /// Write bytes down the output endpoint, `byte_sink_proto`-framed.
@@ -533,4 +533,4 @@ fn done(code: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

@@ -135,4 +135,4 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, fs_rights: u64) -> ! {
     system_initializer::boot(&GRANTS, initrd_len, fs_rights, None)
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

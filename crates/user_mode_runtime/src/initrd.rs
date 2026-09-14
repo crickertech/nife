@@ -41,8 +41,8 @@
 //! #[unsafe(no_mangle)]
 //! pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 //!     // SAFETY: the kernel maps `initrd_len` bytes of the initrd archive, read-only, at
-//!     // INITRD_VA, before this process's `_start` runs (user_rt::initrd's own contract).
-//!     let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+//!     // INITRD_VA, before this process's `_start` runs (user_mode_runtime::initrd's own contract).
+//!     let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
 //!     let _ = archive;
 //!     loop {}
 //! }

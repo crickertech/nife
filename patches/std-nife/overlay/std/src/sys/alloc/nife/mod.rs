@@ -1,8 +1,8 @@
 //! The System allocator for nife: the untyped-backed heap, inside std.
 //!
-//! The algorithm is `crates/user_heap`, generated verbatim into `user_heap.rs` next door by
+//! The algorithm is `crates/user_mode_heap`, generated verbatim into `user_mode_heap.rs` next door by
 //! `cargo xtask std-src` (so the host-tested source is the only source). This file is the same
-//! policy layer as `user_rt::heap::MemoryRegionHeap`, re-stated for std because std cannot depend on
+//! policy layer as `user_mode_runtime::heap::MemoryRegionHeap`, re-stated for std because std cannot depend on
 //! the out-of-tree crate: a spinlock, lazy wiring to the untyped in slot 0, and grow-on-demand
 //! by `memory_region::MAP` at the top of the committed range.
 //!
@@ -15,13 +15,13 @@
 use crate::alloc::Layout;
 use crate::sys::pal::nife::{abi, rt};
 
-mod user_heap;
+mod user_mode_heap;
 
 const PAGE: u64 = 4096;
 const MIN_GROW_PAGES: u64 = 8;
 
 struct Inner {
-    heap: user_heap::Heap,
+    heap: user_mode_heap::Heap,
     committed: u64,
 }
 
@@ -35,7 +35,7 @@ unsafe impl Sync for SpinHeap {}
 
 static HEAP: SpinHeap = SpinHeap {
     locked: crate::sync::atomic::AtomicBool::new(false),
-    inner: crate::cell::UnsafeCell::new(Inner { heap: user_heap::Heap::new(), committed: 0 }),
+    inner: crate::cell::UnsafeCell::new(Inner { heap: user_mode_heap::Heap::new(), committed: 0 }),
 };
 
 struct Guard;
@@ -67,7 +67,7 @@ impl Guard {
 }
 
 /// Map at least `need` more contiguous bytes at the top of the committed range, from the
-/// untyped in slot 0. Same growth policy as `user_rt::heap`: geometric, floor of 8 pages,
+/// untyped in slot 0. Same growth policy as `user_mode_runtime::heap`: geometric, floor of 8 pages,
 /// capped by `rt::HEAP_MAX`; only a fresh run big enough for the request counts as success.
 fn grow(inner: &mut Inner, need: u64) -> bool {
     let need_pages = need.div_ceil(PAGE);
@@ -106,7 +106,7 @@ pub unsafe fn alloc(layout: Layout) -> *mut u8 {
             return p.as_ptr();
         }
         let slack = layout.align().saturating_sub(PAGE as usize) as u64;
-        let need = user_heap::effective_size(layout) as u64 + slack;
+        let need = user_mode_heap::effective_size(layout) as u64 + slack;
         if !grow(inner, need) {
             return crate::ptr::null_mut();
         }

@@ -44,8 +44,8 @@
 #![no_main]
 
 use credential_proto as proto;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, send};
 
 /// The credential service's endpoint (slot 0). Verify or provision, depending on the role, and
 /// this program cannot tell which it was given: that is the point of an unforgeable reference.
@@ -315,4 +315,4 @@ fn done(codes: Codes, flags: u64) -> ! {
     exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

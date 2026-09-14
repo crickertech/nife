@@ -81,7 +81,7 @@ Recursive descent (`**/*.rs`) does not belong in this crate and will not arrive 
 and the second is the real one.
 
 **It needs a path separator, and milestone 47 has not settled path syntax.** The roadmap is still
-weighing Plan 9's answer (absolute paths that are personal, resolved in the client's `user_rt`
+weighing Plan 9's answer (absolute paths that are personal, resolved in the client's `user_mode_runtime`
 against a table of prefix-to-directory-capability) against resolution in the FS server. Baking `/`
 into the matcher now would be one lane guessing at another lane's decision.
 

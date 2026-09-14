@@ -1,7 +1,7 @@
 # Rust `std` on the native ABI
 
 *(Milestone 27. The first wall an application hits on nife was "no std": you could write a
-`no_std` binary against `crates/user_rt`, and nothing else. This milestone makes ordinary Rust,
+`no_std` binary against `crates/user_mode_runtime`, and nothing else. This milestone makes ordinary Rust,
 `Vec` and `String` and `println!` and `Instant`, compile and run on the capability ABI. See
 DECISIONS §22 for the decision and why; notes/abi.md for the ABI it binds to.)*
 
@@ -21,7 +21,7 @@ out-of-band convention (notes/abi.md §4) grants them at fixed slots:
 
 - **slot 0: an untyped budget.** The global allocator draws heap pages from it lazily via
   `untyped::MAP`, one page per invoke, at `0x4000_0000`. This is the same untyped-backed heap the
-  `allocator_exerciser` workload proved (`crates/user_heap` algorithm, host-tested), restated inside std because
+  `allocator_exerciser` workload proved (`crates/user_mode_heap` algorithm, host-tested), restated inside std because
   std cannot depend on an out-of-tree crate.
 - **slot 1: an endpoint with WRITE.** `stdout` and `stderr` SEND here, 16 bytes per message (w0 =
   byte count, w1|w2 = the bytes, little-endian). std's own `LineWriter` batches user writes; the
@@ -70,10 +70,10 @@ std by `cargo xtask std-src`. Each file binds one std concept to the ABI:
 | `std::env::current_dir` | `/`, the root of this process's own namespace (milestone 47); `Unsupported` when it holds no directory. `current_exe` and `chdir` refuse, `home_dir` is `None` |
 | `std::process::id` | `0`, because this system issues no process identifier (`sys/process/nife.rs`); everything else in `std::process` refuses |
 
-The syscall glue (`sys/pal/nife/rt.rs`) is a deliberate twin of `crates/user_rt`: the same
+The syscall glue (`sys/pal/nife/rt.rs`) is a deliberate twin of `crates/user_mode_runtime`: the same
 `svc`/`ecall` wrappers, restated because std cannot depend on the crate. The ABI **constants** are
 not restated: `abi.rs` is generated verbatim from `crates/abi` by `std-src`, so the numbers cannot
-drift. Likewise `user_heap.rs` from `crates/user_heap` (the host-tested heap algorithm is the only heap
+drift. Likewise `user_mode_heap.rs` from `crates/user_mode_heap` (the host-tested heap algorithm is the only heap
 algorithm), `netproto.rs` from `crates/socket_proto/src/lib.rs`, and `fsproto.rs` from `crates/filesystem_proto`: every
 wire format the PAL speaks has exactly one definition, and it lives with the server that answers it.
 
@@ -91,7 +91,7 @@ builds one:
    thing tried and measured).
 2. **Replace the `src` subtree with a real copy** (independent inodes), so patching it never
    touches the shared rustup toolchain.
-3. **Patch that copy**: drop in the overlay PAL files, generate `abi.rs`/`user_heap.rs`, and insert a
+3. **Patch that copy**: drop in the overlay PAL files, generate `abi.rs`/`user_mode_heap.rs`, and insert a
    `target_os = "nife"` arm into std's `cfg_select!` dispatchers (pal, alloc, stdio, random,
    thread, time, io/error, thread_local storage and guard) plus `env_consts` and the
    `restricted_std` chain in std's `build.rs`.
@@ -162,7 +162,7 @@ walks, reached through std's blocking API instead.
 
 The wire constants are not restated: `netproto.rs` is generated verbatim from `crates/socket_proto/src/lib.rs`
 into `sys/pal/nife/netproto.rs` by `std-src`, the same anti-drift discipline as `abi.rs` and
-`user_heap.rs`. If the contract changes, the PAL's numbers change with it, because there is one source.
+`user_mode_heap.rs`. If the contract changes, the PAL's numbers change with it, because there is one source.
 
 What binds, and how it maps to the contract:
 
