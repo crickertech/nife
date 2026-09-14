@@ -59,7 +59,9 @@
 use component_plan::Provisions;
 use supervision_proto::{ChildEndowment, Retention};
 use swap_proto::log_checks as lc;
-use user_rt::{cap_delete, map_into, map_page_frame, recv, recv_fault, revoke_frame, send};
+use user_mode_runtime::{
+    cap_delete, map_into, map_page_frame, recv, recv_fault, revoke_frame, send,
+};
 
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: what every process here is built out of
@@ -89,8 +91,8 @@ struct Wiring {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(role: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };
@@ -263,7 +265,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // does the waiting for us.
     // ------------------------------------------------------------------------------------------
 
-    let (verdict, served) = user_rt::call(w.svc, swap_proto::OP_QUIESCE, 0);
+    let (verdict, served) = user_mode_runtime::call(w.svc, swap_proto::OP_QUIESCE, 0);
     if verdict != swap_proto::QUIESCED {
         bail(22)
     }
@@ -357,7 +359,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
         verdict_from_log(0, revoke_enforced),
         changed_at(0),
     );
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 // ===============================================================================================
@@ -476,7 +478,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // it to each one the graph named, in the order the graph returned them.
     for &id in order {
         if id == 2 {
-            let (r, _) = user_rt::call(front, swap_proto::BOP_DOWN, 0);
+            let (r, _) = user_mode_runtime::call(front, swap_proto::BOP_DOWN, 0);
             if r != 0 {
                 bail(46)
             }
@@ -484,7 +486,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     }
 
     // Quiesce the backend and let it die, exactly as on the direct channel, minus the device.
-    let (verdict, served) = user_rt::call(w.svc, swap_proto::OP_QUIESCE, 0);
+    let (verdict, served) = user_mode_runtime::call(w.svc, swap_proto::OP_QUIESCE, 0);
     if verdict != swap_proto::QUIESCED {
         bail(47)
     }
@@ -513,7 +515,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // call returning means every buffered item has reached the new backend.
     for &id in order.iter().rev() {
         if id == 2 {
-            let (r, _drained) = user_rt::call(front, swap_proto::BOP_UP, 0);
+            let (r, _drained) = user_mode_runtime::call(front, swap_proto::BOP_UP, 0);
             if r != 0 {
                 bail(49)
             }
@@ -525,7 +527,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
 
     // Shut the channel down so the run leaves nothing running and nothing spent: the broker exits,
     // then the backend quiesces and exits, and both corpses are collected.
-    let _ = user_rt::call(front, swap_proto::OP_QUIESCE, 0);
+    let _ = user_mode_runtime::call(front, swap_proto::OP_QUIESCE, 0);
     expect_note(w.note, swap_proto::NOTE_BROKER_DONE, 51);
     reap_to(w.faultep, &mut corpses, 3); // and the broker
     retire(w, &mut corpses, 4, 52); // and the replacement backend
@@ -536,7 +538,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
         verdict_from_log(base, false),
         changed_at(base),
     );
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 // ===============================================================================================
@@ -636,7 +638,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // and holding it is the only handle anything in this system has on a wedged process.
     // ------------------------------------------------------------------------------------------
 
-    let (kind, release, served) = user_rt::recv_cap(w.note);
+    let (kind, release, served) = user_mode_runtime::recv_cap(w.note);
     if kind != swap_proto::NOTE_WEDGED || release == abi::rendezvous::NO_CAP {
         bail(81)
     }
@@ -717,7 +719,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // which is what makes this line the shape of the gap rather than its cure.
     // ------------------------------------------------------------------------------------------
 
-    user_rt::reply(release, swap_proto::NOTE_RELEASE, 0);
+    user_mode_runtime::reply(release, swap_proto::NOTE_RELEASE, 0);
 
     let mut corpses = 0u64;
     let revoke_enforced = wait_for_fault(w.faultep, &mut corpses, swap_proto::DEV_VA);
@@ -731,7 +733,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
         verdict_from_log(0, revoke_enforced),
         changed_at(0),
     );
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// **Walk the supervision domain and count what state its members are in** (milestone 126's
@@ -747,7 +749,7 @@ fn survey_domain(faultep: u64) -> (u64, u64) {
     let mut members = 0u64;
     let mut cursor = abi::survey::DONE;
     loop {
-        let (next, _tid, state) = user_rt::survey(faultep, cursor);
+        let (next, _tid, state) = user_mode_runtime::survey(faultep, cursor);
         if next < 0 {
             return (u64::MAX, (-next) as u64);
         }
@@ -799,7 +801,7 @@ fn ask_the_domain_to_be_collected(faultep: u64) -> (u64, u64) {
     let mut refused = 0u64;
     let mut cursor = abi::survey::DONE;
     loop {
-        let (next, tid, _state) = user_rt::survey(faultep, cursor);
+        let (next, tid, _state) = user_mode_runtime::survey(faultep, cursor);
         if next < 0 {
             break;
         }
@@ -808,7 +810,7 @@ fn ask_the_domain_to_be_collected(faultep: u64) -> (u64, u64) {
             break;
         }
         asked += 1;
-        if user_rt::reap(faultep, tid) == still_alive {
+        if user_mode_runtime::reap(faultep, tid) == still_alive {
             refused += 1;
         }
         cursor = next;
@@ -866,7 +868,7 @@ fn collect_corpse(faultep: u64, collected: &mut u64) -> (u64, u64) {
     send(REPORT, swap_proto::RPT_DEATH, tid, event);
     // We hold no capability to that region: we deleted it the moment the child was started, and the
     // authority for this is the supervision relationship, not the memory.
-    if user_rt::reap(faultep, tid) != 0 {
+    if user_mode_runtime::reap(faultep, tid) != 0 {
         bail(27)
     }
     *collected += 1;
@@ -909,7 +911,7 @@ fn wait_for_fault(faultep: u64, collected: &mut u64, expect_addr: u64) -> bool {
 /// Retire the last live instance on a channel: quiesce it, tell it to go, collect its corpse. The
 /// swap's own machinery, run once more with nothing to replace.
 fn retire(w: &Wiring, collected: &mut u64, target: u64, stage: u64) {
-    let (verdict, _) = user_rt::call(w.svc, swap_proto::OP_QUIESCE, 0);
+    let (verdict, _) = user_mode_runtime::call(w.svc, swap_proto::OP_QUIESCE, 0);
     if verdict != swap_proto::QUIESCED {
         bail(stage)
     }
@@ -997,4 +999,4 @@ fn bail(stage: u64) -> ! {
     swap_proto::fail()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

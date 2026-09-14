@@ -62,7 +62,7 @@ the complementary leg: real silicon executing the real orderings, unsearched but
   clean result narrows the gap rather than closing it, and litmus-level confidence would need
   herd7-style tooling that is nobody's deliverable.
 - **Recorded.** `notes/interleaving.md` names two protocols this method cannot reach:
-  `crates/user_rt`'s hand-rolled userspace spin lock, which is aarch64 inline `asm!` and does not
+  `crates/user_mode_runtime`'s hand-rolled userspace spin lock, which is aarch64 inline `asm!` and does not
   compile for the host, and the interrupt-routing lottery, which lives under `arch/`.
 
 ## Index row

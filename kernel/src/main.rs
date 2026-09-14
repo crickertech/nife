@@ -639,7 +639,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // userspace. See the roadmap for the order the rest comes in.
         println!();
         println!(
-            "  next        : real ELF user programs (user_rt has no x86_64 arms), then the device seam and port I/O (\u{a7}121)."
+            "  next        : real ELF user programs (user_mode_runtime has no x86_64 arms), then the device seam and port I/O (\u{a7}121)."
         );
         // **The tour ends and the soak begins** (milestone 219), before the halting line rather
         // than after it: a boot that says it is halting and then does not would be the tool's

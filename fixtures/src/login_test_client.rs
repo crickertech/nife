@@ -79,8 +79,8 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{
     call, destroy_region, exit, map_page_frame, recv, recv_cap, retype_page_frame, send, yield_now,
 };
 
@@ -108,7 +108,7 @@ const FS_VA: u64 = 0x0000_0000_00f0_0000;
 // SAFETY: constructing the window touches no memory; only `put_page`/`get_page` do, and every
 // caller of those runs behind `if mapped { .. }` (this process's own `map_page_frame(fs_page_frame, FS_VA,
 // ..)` having already returned true), the same condition the hand-rolled comment this replaces
-// relied on (milestone 139 round 2; see `user_rt::mapped_window`).
+// relied on (milestone 139 round 2; see `user_mode_runtime::mapped_window`).
 const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
 
 pub const ROLE_CHRIS: u64 = 0;
@@ -302,7 +302,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
     }
 
     // Prove the directory capability works: map the delegated frame (which needs `budget` alive, to
-    // supply page-table pages for the mapping: `user_rt::map_page_frame`'s own contract), then read the
+    // supply page-table pages for the mapping: `user_mode_runtime::map_page_frame`'s own contract), then read the
     // granted subtree's listing through the delegated caretaker endpoint. A capability that merely
     // arrived would pass every check up to this line and fail only this one.
     let mapped = map_page_frame(fs_page_frame, FS_VA, true, budget);
@@ -567,21 +567,21 @@ const DESTROY_WAIT_SECS: u64 = 5;
 /// **The bound is wall clock, which is the unit milestone 62 argues against**, and it is used here
 /// because the better one is not reachable from a process. That milestone re-denominated
 /// `smp.rs`'s migration drain in *delivered timer ticks* precisely because a counter deadline keeps
-/// running while the guest is descheduled; userspace has no delivered-tick counter (`user_rt::now`
+/// running while the guest is descheduled; userspace has no delivered-tick counter (`user_mode_runtime::now`
 /// is the raw counter and nothing publishes the kernel's per-core tick count), so what makes this
 /// safe is the 40x margin above rather than the unit. The margin is what would have to be
 /// re-measured if the wait ever grew. Giving a process a delivered-tick reading is an ABI addition
 /// and therefore calef's call, not a lane's.
 fn destroy_with_retry(ut: u64) -> bool {
-    let ceiling = user_rt::cntfrq().saturating_mul(DESTROY_WAIT_SECS);
-    let started = user_rt::now();
+    let ceiling = user_mode_runtime::cntfrq().saturating_mul(DESTROY_WAIT_SECS);
+    let started = user_mode_runtime::now();
     loop {
         if destroy_region(ut) == 0 {
-            record(user_rt::now().wrapping_sub(started));
+            record(user_mode_runtime::now().wrapping_sub(started));
             return true;
         }
-        if user_rt::now().wrapping_sub(started) >= ceiling {
-            record(user_rt::now().wrapping_sub(started));
+        if user_mode_runtime::now().wrapping_sub(started) >= ceiling {
+            record(user_mode_runtime::now().wrapping_sub(started));
             return false;
         }
         yield_now();
@@ -603,7 +603,7 @@ fn record(ticks: u64) {
 fn waited_micros() -> u64 {
     // SAFETY: as `record`.
     let ticks = unsafe { WAITED };
-    ticks.saturating_mul(1_000_000) / user_rt::cntfrq().max(1)
+    ticks.saturating_mul(1_000_000) / user_mode_runtime::cntfrq().max(1)
 }
 
 fn done(tag: u64, w1: u64, w2: u64) -> ! {
@@ -611,4 +611,4 @@ fn done(tag: u64, w1: u64, w2: u64) -> ! {
     exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

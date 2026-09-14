@@ -6,7 +6,7 @@ would have made it five.
 **Gate: NONE.** `script/lint` already derives the set for its own check, so the hard half exists;
 what is missing is the other three consuming that derivation instead of restating it.
 
-**In brief.** A crate that reaches `crates/user_rt` cannot compile for the host, because `svc` and
+**In brief.** A crate that reaches `crates/user_mode_runtime` cannot compile for the host, because `svc` and
 `ecall` from EL0 on a machine with no nife kernel under it are a fault. Four separate places record
 which crates those are: `script/lint`'s two clippy invocations, `xtask`'s `test`, `script/coverage`'s
 exclusions, and `.cargo/mutants.toml`'s. **`script/lint` asks cargo.** The other three carry a list.
@@ -24,13 +24,13 @@ own head comment that its list "deliberately mirrors script/coverage's exclusion
 person to keep the two in step. That is rung four of the ladder, in a file whose output is quoted in
 a fatal risk's verdict.
 
-Milestone 278 moves two modules out of `user_rt` into a crate that *can* compile for the host, which
+Milestone 278 moves two modules out of `user_mode_runtime` into a crate that *can* compile for the host, which
 means editing all four lists in one change. A fifth list would be added by the next milestone that
 splits anything.
 
 ## The shape
 
-`script/lint` already runs the derivation: ask cargo which workspace members reach `user_rt`, and
+`script/lint` already runs the derivation: ask cargo which workspace members reach `user_mode_runtime`, and
 check every consumer excludes every one. Two ways to close the class, and choosing is the work:
 
 - **Emit the set.** One command prints the exclusion list, and `script/coverage`, `xtask test` and
@@ -44,7 +44,7 @@ The first is the higher rung. The second is honest about cost and should say so 
 
 ## What this is not
 
-It is not a change to the exclusion itself. `user_rt` is correctly excluded and stays excluded;
+It is not a change to the exclusion itself. `user_mode_runtime` is correctly excluded and stays excluded;
 milestone 278's argument is that the *boundary* is in the wrong place, not that the rule is wrong.
 
 ## BUGS

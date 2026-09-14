@@ -255,8 +255,9 @@ accounting move together and want a lane of their own.
 - **Milestone 177.** `script/shell-check --graphical` and `--graphical-serial` remain red behind
   177's display driver bug. Neither `script/gates` nor CI runs them; the no-argument legs are green
   and are what got wired in.
-- **Recorded.** `crates/user_rt/src/lib.rs` carries it in `trap`'s own BUGS: a fault line cannot say
-  where a program died, because the kernel prints the `pc` of the breakpoint inside `user_rt::trap`,
+- **Recorded.** `crates/user_mode_runtime/src/lib.rs` carries it in `trap`'s own BUGS: a fault line
+  cannot say where a program died, because the kernel prints the `pc` of the breakpoint inside
+  `user_mode_runtime::trap`,
   which is one address per program however many callers it has. The return address is in `x30`, `ra`
   or on the stack at the moment the kernel takes the fault and is not printed. The workaround that
   worked here is to fault on a *data* address derived from it, since `far` is printed.

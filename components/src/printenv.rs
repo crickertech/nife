@@ -74,7 +74,7 @@
 #![no_main]
 
 use environment_proto::ConfigPage;
-use user_rt::{exit, invoke, send};
+use user_mode_runtime::{exit, invoke, send};
 
 /// Slot 0: where the output goes. An endpoint with `WRITE`, and the same 16-bytes-per-message
 /// framing the std PAL's stdout uses (`w0` = the byte count, `w1`|`w2` = the bytes, little-endian).
@@ -195,14 +195,14 @@ fn line(bytes: &[u8]) {
 // exactly this reason. What it costs is item 3 of notes/user-proofs.md's stub list: nothing proved
 // below says anything about what this program does after a panic.
 #[cfg(not(kani))]
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();
 
 /// **What the prover can see of `printenv`, and what it cannot** (milestone 197).
 ///
 /// Read notes/user-proofs.md before adding a harness here; it enumerates the stub boundary, and the
 /// hazard of proving a program like this one is that a stub reads as coverage. The short version:
 /// the boundary is **hard rather than soft**, because every capability this program holds is
-/// reached through `user_rt`, whose calls are `asm!`, and Kani refuses an unsupported construct
+/// reached through `user_mode_runtime`, whose calls are `asm!`, and Kani refuses an unsupported construct
 /// instead of proving past it. A harness that wandered into [`line`], [`granted`] or
 /// [`config_page`] would fail loudly rather than report a proof about a fiction. What is left is
 /// [`push`], which is the only thing here that decides anything.

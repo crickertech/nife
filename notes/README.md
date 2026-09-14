@@ -195,8 +195,8 @@ in the code or the conversation doesn't make sense, it belongs here.
   `heap`/`slab` crates were deleted outright on 2026-07-27 once nothing referenced them: the
   git history preserves the work, and a demonstrator's tree should hold what it ships. The
   note stays; building the allocator and then earning its deletion were both the point.
-  **Milestone 27 brought the heap back in userspace**: `crates/user_heap` (the algorithm,
-  host-tested) plus `user_rt::heap` (a `GlobalAlloc` that grows out of the process's own
+  **Milestone 27 brought the heap back in userspace**: `crates/user_mode_heap` (the algorithm,
+  host-tested) plus `user_mode_runtime::heap` (a `GlobalAlloc` that grows out of the process's own
   untyped via `untyped::MAP`); the note's last section is that story.
 - [Physical memory](physical-memory.md): the frame allocator. Why a bitmap and not a free
   list, the bootstrap problem (the allocator's first act is to allocate itself), and why
@@ -299,7 +299,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   forecloses nothing later.
 - [Running a foreign language: the C seam](c-seam.md): milestone 36: memory-unsafe C, compiled by
   bare-metal clang, confined and restarted. Why C is the *best* demonstration of "a verified core that
-  confines unverified workloads" rather than a dilution of it, and the seam's rules: a Rust `user_rt`
+  confines unverified workloads" rather than a dilution of it, and the seam's rules: a Rust `user_mode_runtime`
   shell holds every capability and makes every syscall so the C can hold none and make none, which is
   why a foreign component cannot widen the syscall surface. The libc question answered by tier (the
   object demands five symbols, the linker demands two, because `compiler_builtins` already supplies

@@ -107,7 +107,7 @@
 
 use entropy_proto as entropy;
 use gpt::guid::Guid;
-use user_rt::{call, exit, granted, send};
+use user_mode_runtime::{call, exit, granted, send};
 
 /// Slot 0: where the identifier goes. An endpoint with `WRITE`, under the sink contract.
 const REPORT: u64 = 0;
@@ -192,4 +192,4 @@ fn write_on(slot: u64, bytes: &[u8]) {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

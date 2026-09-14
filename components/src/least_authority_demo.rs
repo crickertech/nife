@@ -8,10 +8,10 @@
 //! it needs. Least authority made real, because the program *is* its authority, and the squaring is
 //! arbitrary.
 //!
-//! It shares `components`' linker script (`crates/user_rt/link.ld`, linked at `0x40_0000`, in its
+//! It shares `components`' linker script (`crates/user_mode_runtime/link.ld`, linked at `0x40_0000`, in its
 //! own address space, so the shared load address is not a conflict) but not one line of hello's
 //! code: a distinct ELF with its own `_start` and panic handler. The syscall runtime
-//! (`send`/`exit`) comes from the shared `user_rt` crate, lifted out at 19f.6 once all the split
+//! (`send`/`exit`) comes from the shared `user_mode_runtime` crate, lifted out at 19f.6 once all the split
 //! binaries existed.
 //!
 //! Name: ratified 2026-09-13 (calef, working the unratified worklist). Refused `worker` (a generic
@@ -34,7 +34,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, send};
+use user_mode_runtime::{exit, send};
 
 /// The endpoint the progenitor grants the `least_authority_demo` as its only capability (slot 0). Its one `SEND` goes here,
 /// straight to whoever is waiting (the kernel test, or the shell behind the progenitor's spawn service).
@@ -51,4 +51,4 @@ pub extern "C" fn _start(_x0: u64, n: u64, _x2: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

@@ -345,7 +345,7 @@ is the thread's or the hart's.** `tp` is the hart's.
    address space with each `PT_LOAD` segment mapped W^X at the VA it names, and maps a stack. The
    worker is granted WRITE on one endpoint (slot 0), started with an input in `a1`, squares it, and
    SENDs the answer home: "loaded a 13568-byte riscv ELF, ran worker(7) at U-mode, it sent 49". Three
-   small pieces made this work, each closing an aarch64 assumption: `user_rt` (the userspace syscall
+   small pieces made this work, each closing an aarch64 assumption: `user_mode_runtime` (the userspace syscall
    runtime) grew a RISC-V ABI (`ecall`+`a7` beside `svc`+`x8`); the `elf` crate accepts the running
    kernel's machine (`EXPECTED_MACHINE`, cfg-selected, symmetric: each kernel refuses the other's
    ELF); and `worker.rs` arch-gated its one trap instruction (`ebreak` vs `brk`). The loader itself

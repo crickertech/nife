@@ -76,9 +76,11 @@
 #![no_main]
 
 use line_editor::proto;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
-use user_rt::{call, irq_ack, irq_wait, send};
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::virtio::{
+    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+};
+use user_mode_runtime::{call, irq_ack, irq_wait, send};
 
 /// Capability slots, by convention with `kernel/src/user/keyboard_service.rs`.
 const REPORT: u64 = 0;
@@ -213,7 +215,7 @@ fn write_desc(i: u64, addr: u64, len: u32, flags: u16) {
 
 fn die(code: u64) -> ! {
     send(REPORT, 0xDEAD_0000_0000_0000 | code, 0, 0);
-    user_rt::exit();
+    user_mode_runtime::exit();
 }
 
 /// **Put a byte in the compositor's input ring.**
@@ -419,4 +421,4 @@ pub extern "C" fn _start(mode: u64, dma_phys: u64, _arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

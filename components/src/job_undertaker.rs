@@ -76,7 +76,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{reap, recv_fault, send, yield_now};
+use user_mode_runtime::{reap, recv_fault, send, yield_now};
 
 /// The supervision endpoint the progenitor endows every job with, held `READ`: the right to receive deaths
 /// here, which is the same right §32 makes the right to collect them.
@@ -157,7 +157,7 @@ fn collect(tid: u64) {
 }
 
 fn fail() -> ! {
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

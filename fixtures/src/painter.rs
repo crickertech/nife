@@ -36,8 +36,8 @@
 #![no_main]
 
 use graphics_proto as gfx;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
 const REPORT: u64 = 0;
@@ -88,7 +88,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     // run (DECISIONS §102): the `PageFrame` capability at `SURFACE_FRAME` names all
     // `gfx::SURFACE_PAGE_FRAMES` pages, contiguous in physics and in virtual memory, so one `MAP`
     // maps all of them starting at `SURFACE_VA`.
-    if !user_rt::map_page_frame(SURFACE_FRAME, SURFACE_VA, true, BUDGET) {
+    if !user_mode_runtime::map_page_frame(SURFACE_FRAME, SURFACE_VA, true, BUDGET) {
         die(E_SURFACE);
     }
 
@@ -149,4 +149,4 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

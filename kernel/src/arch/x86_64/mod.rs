@@ -360,7 +360,7 @@ pub fn init() {
 /// # The second door, and it is not the one milestone 228's block talks about
 ///
 /// That block names `CR4.TSD` (bit 2), which gates `RDTSC`, and deliberately leaves it alone: this
-/// architecture's `user_rt::now()` **is** `rdtsc` and there is no coarse counter to fall back to, so
+/// architecture's `user_mode_runtime::now()` **is** `rdtsc` and there is no coarse counter to fall back to, so
 /// closing it would take `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the
 /// benchmark harness away on one instruction. That trade is recorded in `notes/x86-port.md` and in a
 /// `BUGS` section beside `now()`, and nothing here changes it.
