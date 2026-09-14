@@ -20,6 +20,12 @@
 #
 # Run it directly any time; `script/bootstrap` calls it after installing.
 #
+# **"The QEMU on PATH" means the project's, not the system's** (milestone 287). This script
+# sources `scripts/qemu-path.sh` below, so on Linux it reports on whatever `script/ci-qemu`
+# built rather than on apt's. Before that it answered about `/usr/bin`'s 8.2.2 even on a
+# machine that had built 11.0.2 an hour earlier, which is how the remedy this check prints
+# came to name two commands that looped.
+#
 # Name: recorded (script/undefined-behavior-check, ratified 2026-08-03 by calef). Introduced
 # 2026-07-30. The `-check` suffix is not this script's coinage to defend: calef signed it while
 # replacing `miri`, and the ratification cites this script by name as one of the two that had
@@ -29,6 +35,10 @@
 
 set -e
 cd "$(dirname "$0")/.."
+
+# This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
+# PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
+. scripts/qemu-path.sh
 
 want="$(tr -d ' \n' < .qemu-version)"
 

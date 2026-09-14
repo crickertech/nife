@@ -86,6 +86,10 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
+# PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
+. scripts/qemu-path.sh
+
 IMAGE=nife-runner-container
 VOLUME=nife-runner-container-cache
 CPUSET=0-3
