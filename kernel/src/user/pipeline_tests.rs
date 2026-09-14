@@ -5,7 +5,7 @@ const DONE: &[u8] = b"== pipelines done\n";
 
 /// The script's transcript, run **once** and shared by every assertion below.
 ///
-/// Cached because running it is expensive (a shell, an init service, and several spawned
+/// Cached because running it is expensive (a shell, a spawn service, and several spawned
 /// programs) and because the assertions are about one run of one script: re-running it per test
 /// would not be four independent measurements, it would be the same measurement four times.
 static TRANSCRIPT: spin::Mutex<Option<([u8; 3072], usize)>> = spin::Mutex::new(None);

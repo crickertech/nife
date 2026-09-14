@@ -47,6 +47,9 @@ doc-valid-idents = [
     "NTLMv2",
     "INTx",
     "AArch64",
+    # The ISA Warton's 2005 event-kernel comparison ran on, quoted in `crates/job_mix`. Same
+    # category as `AArch64` above: an architecture's proper name, not an identifier in this tree.
+    "ARMv5",
     "SError",
     "CNodes",
     # Deliberate capitalisation inside prose, where the case IS the emphasis. "Address Space

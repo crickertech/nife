@@ -35,7 +35,7 @@ use user_rt::{call, irq_ack, irq_wait};
 
 // Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
 // so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
-// address is the wiring's fact, agreed with init, and hiding it on one architecture would make the
+// address is the wiring's fact, agreed with the progenitor, and hiding it on one architecture would make the
 // two sides of that agreement look like two different constants.
 #[cfg_attr(target_arch = "x86_64", allow(dead_code))]
 const UART_VA: u64 = 0x0000_0000_00a0_0000;

@@ -1,8 +1,8 @@
-//! **The spawn protocol: the wire half of the shell-to-init grant expression.**
+//! **The spawn protocol: the wire half of the shell-to-progenitor grant expression.**
 //!
 //! When the shell resolves a `run` into an [`Endowment`](crate::Endowment), it does not build the
-//! child itself: init holds the initrd and is the ELF loader (the parser stays in one place, out of
-//! the shell). So the shell tells init what to spawn and, crucially, *delegates the capabilities it
+//! child itself: the progenitor holds the initrd and is the ELF loader (the parser stays in one place, out of
+//! the shell). So the shell tells the progenitor what to spawn and, crucially, *delegates the capabilities it
 //! grants* over the same endpoint. This module is that contract's word layout, the capability-shell
 //! analogue of `line_editor::proto`.
 //!
@@ -12,7 +12,7 @@
 //!
 //! # The exchange
 //!
-//! The shell owns the sequence; init serves it in a loop.
+//! The shell owns the sequence; the progenitor serves it in a loop.
 //!
 //! 1. **Request.** The shell `SEND`s three words on the spawn endpoint: the program id, the
 //!    integer argument, and the memory-grant page count. See [`request`] / [`prog_id`] /
@@ -30,21 +30,21 @@
 //!
 //!    If `mem_pages > 0`, the shell `SEND_CAP`s exactly one capability there: an
 //!    untyped it split from *its own* budget, sized to `mem_pages`. This is the grant made real,
-//!    not parsed and dropped. Programs that grant no capability (`least_authority_demo`) skip this step, and init
+//!    not parsed and dropped. Programs that grant no capability (`least_authority_demo`) skip this step, and the progenitor
 //!    knows to skip the matching `RECV_CAP` from `mem_pages == 0`.
-//! 4. **Outcome.** init builds the child, endows it (the shared result endpoint always; the
+//! 4. **Outcome.** The progenitor builds the child, endows it (the shared result endpoint always; the
 //!    delegated untyped when present), and starts it. The child reports its own answer on the
-//!    result endpoint. If init cannot build it (its own budget is spent, or the program vanished),
+//!    result endpoint. If the progenitor cannot build it (its own budget is spent, or the program vanished),
 //!    it sends [`SPAWN_FAILED`] on the result endpoint so the shell's read completes instead of
 //!    hanging.
 //!
-//! The result endpoint carries both init's failure sentinel and the child's success answer, and
+//! The result endpoint carries both the progenitor's failure sentinel and the child's success answer, and
 //! the shell reads exactly once: a well-formed spawn yields the child's word, a failed one yields
 //! [`SPAWN_FAILED`]. One reader, one word, no ambiguity.
 //!
 //! 5. **Death** (milestone 235). A child the kernel killed sends nothing, so neither of those two
 //!    words arrives and the shell's single read has nothing to complete it. `job_undertaker`, which
-//!    already holds init's supervision endpoint and already collects the corpse, sends
+//!    already holds the progenitor's supervision endpoint and already collects the corpse, sends
 //!    [`JOB_FAULTED`] there instead. It is a third value on the same one-word read rather than a
 //!    second channel, because the shell has one thread and can be blocked in exactly one `RECV`;
 //!    see [`JOB_FAULTED`] for the two couplings this refused.
@@ -55,7 +55,7 @@
 const INTERRUPTIBLE_BIT: u64 = 1 << 32;
 
 /// **A capability for the child's output slot follows** (milestone 50). Set by `>` and by every
-/// stage of a `|` but the last: the shell delegates an endpoint and init puts it where the result
+/// stage of a `|` but the last: the shell delegates an endpoint and the progenitor puts it where the result
 /// endpoint would have gone, so the child writes to a pipe or a file sink without knowing which.
 const SINK_BIT: u64 = 1 << 33;
 
@@ -67,7 +67,7 @@ const SOURCE_BIT: u64 = 1 << 34;
 /// program whose manifest declares one, whether or not the line has a `2>` on it: the stream exists
 /// because the program says so, and the operator only names where it goes.
 ///
-/// Unlike [`SINK_BIT`] this does **not** say which slot: init reads that from the manifest, because
+/// Unlike [`SINK_BIT`] this does **not** say which slot: the progenitor reads that from the manifest, because
 /// the slot is the program's declaration and not the shell's choice. What the wire says is only
 /// "expect one more capability", which is what keeps the two sides in lockstep.
 const DIAG_BIT: u64 = 1 << 35;
@@ -79,22 +79,22 @@ const DIAG_BIT: u64 = 1 << 35;
 /// `terminal_sink_caretaker` instead of the shell's own result endpoint, the same adapter a
 /// declared second stream already reaches by default under DECISIONS §67.
 ///
-/// What follows is not a sink capability (init already knows to build that default from its own
+/// What follows is not a sink capability (the progenitor already knows to build that default from its own
 /// `term_sink`, unprompted, the same way it builds a diagnostic default). It is a **fresh
-/// endpoint the shell minted and kept a copy of**, delegated so init can install it as this child's
+/// endpoint the shell minted and kept a copy of**, delegated so the progenitor can install it as this child's
 /// DECISIONS §26 fault target in place of its own domain channel. The kernel then delivers the
-/// child's exit there instead of to init's reaper, and the shell `RECV`s it as its completion
+/// child's exit there instead of to the progenitor's reaper, and the shell `RECV`s it as its completion
 /// signal instead of draining the child's bytes, which it no longer sees.
 const SCREEN_BIT: u64 = 1 << 37;
 
-/// **A directory grant follows, and init is to build a caretaker for it** (milestone 31 phase 3).
+/// **A directory grant follows, and the progenitor is to build a caretaker for it** (milestone 31 phase 3).
 ///
 /// The odd one out on this word, because it announces **data rather than a capability**. Every other
 /// bit here says "expect one more `SEND_CAP`"; this one says "expect two more `SEND`s", and the
 /// reason is that the shell has nothing to delegate. A directory grant is delivered by a
 /// `fs_subtree_caretaker`, the caretaker has to hold the file service to attenuate it, and **the
 /// shell's file-service endpoint carries no `GRANT`**, so the shell could not hand one over if it
-/// wanted to. What it can do is say what the grant *is*; init holds the endpoint and builds the rest.
+/// wanted to. What it can do is say what the grant *is*; the progenitor holds the endpoint and builds the rest.
 ///
 /// See [`GRANT_WORDS`] for what the two messages carry and why they are opaque to this module.
 const DIR_BIT: u64 = 1 << 36;
@@ -113,22 +113,22 @@ const DIR_BIT: u64 = 1 << 36;
 ///
 /// **Nothing on the shell side sets this bit yet.** No verb in `grant_plan` constructs a
 /// two-directory `Endowment`: that is milestone 47's `bind`, still unbuilt. This is the wire
-/// format and init's decode side, built ahead of an emitter the way [`DIR_BIT`] itself once
+/// format and the progenitor's decode side, built ahead of an emitter the way [`DIR_BIT`] itself once
 /// stated a grant nothing could construct yet.
 const DIR2_BIT: u64 = 1 << 38;
 
 /// **The two messages a [`Wiring::dir`] request is followed by**, in order, each three words:
 ///
-/// 1. **the caretaker's `START` words**, which init passes to `fs_subtree_caretaker` verbatim: the
+/// 1. **the caretaker's `START` words**, which the progenitor passes to `fs_subtree_caretaker` verbatim: the
 ///    granted directory's name and the `filesystem_proto::dir` rights the subtree capability is to carry;
-/// 2. **the confined program's `START` words**, which init passes to the program verbatim: for `rm`,
+/// 2. **the confined program's `START` words**, which the progenitor passes to the program verbatim: for `rm`,
 ///    the operand's name and the options that were typed.
 ///
 /// **This module does not decode either, deliberately.** They are `filesystem_proto::grant`'s packing, and
 /// `grant_plan` has no non-dev dependency on `filesystem_proto` on purpose (its own manifest says why: the
 /// shell must be able to check a command line without linking the filesystem contract). Passing them
 /// through as opaque triples keeps that true, and it means a change to how a grant is packed is a
-/// change in one crate rather than in the wire this one owns. The shell packs them; init forwards
+/// change in one crate rather than in the wire this one owns. The shell packs them; the progenitor forwards
 /// them; nothing in between reads them.
 ///
 /// Two messages rather than one because the two processes are started with different names: the
@@ -151,7 +151,7 @@ pub struct Wiring {
     pub source: bool,
     /// The child declares a second output stream, so one more endpoint follows (DECISIONS §67).
     pub diagnostics: bool,
-    /// **A directory grant follows as two data messages** ([`GRANT_WORDS`]), and init is to build a
+    /// **A directory grant follows as two data messages** ([`GRANT_WORDS`]), and the progenitor is to build a
     /// `fs_subtree_caretaker` for it before it builds the child. The only entry here that announces
     /// data instead of a capability; see `DIR_BIT`.
     pub dir: bool,
@@ -194,7 +194,7 @@ pub fn request(prog_id: u64, arg: u64, mem_pages: u64, w: Wiring) -> (u64, u64, 
     (prog_id, arg, w2)
 }
 
-/// The whole wiring of a received request (word 2), so init reads it once rather than asking three
+/// The whole wiring of a received request (word 2), so the progenitor reads it once rather than asking three
 /// separate questions of the same word.
 pub fn wiring(w2: u64) -> Wiring {
     Wiring {
@@ -225,29 +225,29 @@ pub fn mem_pages(w2: u64) -> u64 {
 }
 
 /// Whether this is a supervised foreground job (word 2's high bit). When set, the delegation leads
-/// with two caps: a job untyped (init builds the child from it; the shell keeps it to `DESTROY`) and
+/// with two caps: a job untyped (the progenitor builds the child from it; the shell keeps it to `DESTROY`) and
 /// a shared job frame (the cooperative interrupt flag and the child's status).
 pub fn interruptible(w2: u64) -> bool {
     w2 & INTERRUPTIBLE_BIT != 0
 }
 
 /// The data word carried alongside the delegated untyped in the `SEND_CAP`. It is not load-bearing
-/// (init identifies the cap by the protocol position, not the tag), but a fixed marker makes a
+/// (the progenitor identifies the cap by the protocol position, not the tag), but a fixed marker makes a
 /// misrouted message obvious in a trace. Its low bits echo the page count as a cheap cross-check.
 pub const CAP_TAG: u64 = 0x6361_705f; // "cap_" little-endian-ish marker
 
-/// The sentinel init sends on the result endpoint when it could not build the child, so the
+/// The sentinel the progenitor sends on the result endpoint when it could not build the child, so the
 /// shell's single read completes with a legible failure rather than blocking forever. Distinct
 /// from any answer a real program would report (no phase-1 program returns `u64::MAX`).
 pub const SPAWN_FAILED: u64 = u64::MAX;
 
 /// **The word for a job the kernel killed** (milestone 235,
 /// design/roadmap/235-a-faulted-job-should-reach-the-prompt.md). Sent on the result endpoint by
-/// `job_undertaker`, which is the process already holding init's supervision endpoint, once it has
+/// `job_undertaker`, which is the process already holding the progenitor's supervision endpoint, once it has
 /// collected the corpse.
 ///
 /// It exists because a faulted job is the one outcome this protocol could not say. A child that
-/// exits non-zero has answered; a child init could not build gets [`SPAWN_FAILED`]; a child the
+/// exits non-zero has answered; a child the progenitor could not build gets [`SPAWN_FAILED`]; a child the
 /// kernel killed **sends nothing at all**, so the shell's single read had nothing to complete it
 /// and the prompt never came back (measured 2026-09-02: `least_authority_demo` patched to trap, and
 /// `script/shell-check` reporting "the prompt never came back to take `least_authority_demo 7`").
@@ -270,7 +270,7 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// the endpoint the shell reads would work for a fault, and §26.3 flows *exits* down the same
 /// endpoint too, so every ordinary job would leave a second message on the shell's result endpoint
 /// behind its answer and the next command's read would take it. It also moves collection into the
-/// shell for every job, and takes every job out of init's supervision domain, which is what
+/// shell for every job, and takes every job out of the progenitor's supervision domain, which is what
 /// `ps`/`pgrep` read (DECISIONS §106 already records that cost as acceptable for one narrow stage
 /// and it is not acceptable for all of them).
 ///
@@ -283,9 +283,9 @@ pub const SPAWN_FAILED: u64 = u64::MAX;
 /// that one sits at it, and the same caveat applies: no program in this tree answers with either.
 pub const JOB_FAULTED: u64 = u64::MAX - 1;
 
-/// The ack init sends on the result endpoint when a **supervised** (interruptible) child started
+/// The ack the progenitor sends on the result endpoint when a **supervised** (interruptible) child started
 /// cleanly. An interruptible child reports its own progress and exit through the shared job frame,
-/// not the result endpoint, so init sends this once as the go-ahead: the shell reads it, then begins
+/// not the result endpoint, so the progenitor sends this once as the go-ahead: the shell reads it, then begins
 /// watching the job frame. `0` is distinct from [`SPAWN_FAILED`].
 pub const SPAWN_OK: u64 = 0;
 
@@ -328,8 +328,8 @@ mod tests {
 
     /// **The seven flags are independent of each other and of the page count** (milestone 50,
     /// §67's fourth, milestone 31 phase 3's fifth, DECISIONS §106's sixth, and milestone 154's
-    /// seventh). They share one word, and what init reads next off the endpoint depends on all of
-    /// them, so a bit that bled into another would make init take a capability for a data word
+    /// seventh). They share one word, and what the progenitor reads next off the endpoint depends on all of
+    /// them, so a bit that bled into another would make the progenitor take a capability for a data word
     /// (or the reverse) and hang rather than fail.
     #[test]
     fn the_wiring_flags_do_not_collide() {

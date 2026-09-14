@@ -20,6 +20,11 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# This project's own QEMU, if `script/ci-qemu` has built one. This file matches its own
+# "the project's QEMU is on PATH" rule below, because a checker's source necessarily
+# carries every pattern it looks for; taking the line is cheaper than an exemption.
+. scripts/qemu-path.sh
+
 # The host pass excludes every crate that cannot compile for the host: `user_rt` (the EL0 syscall
 # runtime, inline `asm!` naming architecture registers) and everything that depends on it.
 #
@@ -200,7 +205,7 @@ cargo clippy -p components -p fixtures -p user_rt --target x86_64-unknown-none -
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
 # `icount` (milestone 78) parks before `bench` does, which is the one configuration where
 # `bench::run` and everything after it is unreachable, and `soak` (milestone 219) takes the place of
-# the init handoff and is the ONLY configuration in which the scheduler's event counters and
+# the progenitor handoff and is the ONLY configuration in which the scheduler's event counters and
 # `Thread::last_cpu` exist at all: those are `cfg`-gated rather than `allow(dead_code)` because
 # their increments sit on the IPC fastpath and shipping them everywhere put `ipc_fastpath` 5.7% over
 # milestone 132's bound, so this loop is the only thing that keeps them under clippy's eye. So a
@@ -1070,6 +1075,87 @@ for name in $(grep -oE "script/[a-z-]+" "$(dirname "$0")/../README.md" | sort -u
     [ -e "$(dirname "$0")/$name" ] || { echo "lint: README names script/$name, which does not exist" >&2; exit 1; }
 done
 echo "script docs: every script documented, every README reference resolves"
+
+# The project's QEMU is on PATH (milestone 287). On Linux `script/ci-qemu` builds the pinned
+# emulator into `$HOME/.cache/nife-qemu` because no Ubuntu release ships one with
+# `riscv-iommu-pci`, and until that milestone the ONLY thing in the tree that ever put that prefix
+# on PATH was `.github/workflows/ci.yml`. So a Linux developer followed `script/bootstrap`'s own
+# printed instructions, built the right QEMU, re-ran `script/setup` as told, and `qemu-check` found
+# `/usr/bin`'s 8.2.2 again. Same failure, same message, same remedy, forever.
+#
+# `scripts/qemu-path.sh` is the fix and this is the rung-two half of it. The mechanism is PATH
+# inherited by children, so it only works if the process at the TOP of the tree exported it, which
+# means every entry point that can reach an emulator has to source the fragment. That is a thing to
+# remember, and AGENTS.md is explicit that "somebody will notice" is rung zero.
+#
+# **The rule is mechanical on purpose, and it over-approximates.** A file under `script/` that runs
+# `cargo xtask`, names a `qemu-system-*` binary, or calls a `scripts/qemu-*` helper must source the
+# fragment. `script/apropos` and `script/crate-probes` are caught and boot nothing today; the line
+# costs them nothing, and the alternative is a judgement call per file plus an allow-list, which is
+# the shape `script/lint` check 5 and milestone 283 both refuse to grow.
+#
+# **A backticked mention is prose, not a call**, which is milestone 283's rule reused rather than
+# reinvented: this directory's headers discuss `cargo xtask` constantly. Stripping backticked spans
+# is what keeps `script/lint` (whose only hit is a sentence inside a Python heredoc) and
+# `script/board-netboot` out, correctly, without either of them needing an exemption.
+echo "==> the project's QEMU is on PATH"
+python3 - <<'QEMUEOF' || exit 1
+import pathlib
+import re
+import sys
+
+TOKEN = re.compile(r"cargo\s+xtask\b|qemu-system-|scripts/qemu-")
+FRAGMENT = "scripts/qemu-path.sh"
+
+def callable_body(path):
+    """The file with full-line comments and backticked prose removed."""
+    text = path.read_text(errors="replace")
+    lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
+    return re.sub(r"`[^`]*`", "", "\n".join(lines))
+
+
+def token_body(path):
+    """callable_body, minus the fragment's own path, so sourcing it is not itself a trigger."""
+    return callable_body(path).replace(FRAGMENT, "")
+
+if not pathlib.Path(FRAGMENT).is_file():
+    print(f"lint: {FRAGMENT} is missing; every script/ entry point sources it", file=sys.stderr)
+    sys.exit(1)
+
+missing = []
+checked = 0
+for path in sorted(pathlib.Path("script").iterdir()):
+    if not path.is_file():
+        continue
+    body = callable_body(path)
+    if not TOKEN.search(token_body(path)):
+        continue
+    checked += 1
+    if FRAGMENT not in body:
+        missing.append(path.as_posix())
+
+if missing:
+    print("lint: these script/ entry points can run an emulator and do not resolve the", file=sys.stderr)
+    print("      project's QEMU, so on Linux they get apt's 8.2.2 instead of the pinned build:",
+          file=sys.stderr)
+    for name in missing:
+        print(f"        {name}", file=sys.stderr)
+    print(f"""
+Add one line, immediately after the `cd` to the repository root:
+
+    . {FRAGMENT}
+
+It is sourced rather than executed because it edits the caller's PATH, which is
+how all 38 bare-name `qemu-system-*` invocations in this tree get the right
+emulator without any of them being patched. A no-op on macOS and wherever
+`script/ci-qemu` has never run.
+
+If this file genuinely cannot boot an emulator, the line still costs nothing and
+is the cheaper answer than an exemption; see milestone 287.""", file=sys.stderr)
+    sys.exit(1)
+
+print(f"the project's QEMU is on PATH: {checked} entry point(s), each sourcing {FRAGMENT}")
+QEMUEOF
 
 # Counted claims (milestone 125). DECISIONS §39 says a name is a claim; so is a number, and a number
 # is the kind of claim a machine can check, which is what makes this a gate rather than an audit.

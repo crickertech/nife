@@ -91,8 +91,8 @@ use crate::user::{NO_UART_PAGE, machine_has_no_device_page_for_the_console};
 ///
 /// Kept tight on purpose, and it is not merely tidiness. `memory_region::create` takes a **contiguous**
 /// run of frames and the suite runs three of these systems, on top of a dozen earlier tests that
-/// each park an init holding an eight-megabyte region. An over-generous budget here fragments
-/// the frame allocator enough that a *later, unrelated* test cannot get init's region, which is
+/// each park a progenitor holding an eight-megabyte region. An over-generous budget here fragments
+/// the frame allocator enough that a *later, unrelated* test cannot get the progenitor's region, which is
 /// how both of this milestone's memory failures surfaced: nowhere near their cause.
 const SWAPPER_BUDGET_PAGES: u64 = 224;
 
@@ -104,12 +104,12 @@ const SWAPPER_BUDGET_PAGES: u64 = 224;
 /// overflows this loses the operator's verdict and fails for the wrong reason.
 const MAX_REPORTS: usize = 42;
 
-/// **Spawn the operator the way the kernel spawns init**, and return the report rendezvous every
+/// **Spawn the operator the way the kernel spawns the progenitor**, and return the report rendezvous every
 /// process in the run holds a WRITE view of.
 ///
 /// Deliberately the same endowment `spawn_init` gives (the archive read-only at `INITRD_VA`, an
 /// untyped in slot 0, a report rendezvous in slot 1), **plus** the one thing this milestone is
-/// about: a device capability in slot 2, `WRITE|GRANT`, exactly as init gets one at boot. So
+/// about: a device capability in slot 2, `WRITE|GRANT`, exactly as the progenitor gets one at boot. So
 /// what is under test is the operator's choices, not a privileged shortcut.
 fn spawn_swapper(role: u64) -> (sched::RendezvousId, u64, u64) {
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
@@ -248,7 +248,7 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     // It also has to work, for a reason that has nothing to do with tidiness. `memory_region::create`
     // takes a **contiguous** run of frames, these tests run three systems, and the first version
     // of this leaked all three, which fragmented the allocator badly enough that a *later* test
-    // could not get init's own eight-megabyte region.
+    // could not get the progenitor's own eight-megabyte region.
     //
     // `sched::reclaim_region` rather than `memory_region::destroy` because these regions are *pinned*:
     // the operator retyped four endpoints and a frame out of its budget. Reclaiming a region
@@ -266,7 +266,7 @@ fn run_swap(role: u64) -> ([[u64; 5]; MAX_REPORTS], usize) {
     );
 
     // The operator's own address space and TCB are **not** in that budget: the kernel built the
-    // operator the way it builds init. They come home through the ordinary reaper, which with
+    // operator the way it builds the progenitor. They come home through the ordinary reaper, which with
     // per-CPU run queues (DECISIONS §28) runs when the core the operator died on next schedules,
     // and the boot thread yielding here cannot force that. So this is hygiene, deliberately not
     // asserted on: what this milestone is responsible for is the swap system's own memory,

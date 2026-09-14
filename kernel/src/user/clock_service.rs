@@ -10,7 +10,7 @@ use crate::sched::RendezvousId;
 pub const CLOCK_VA: u64 = 0x00c0_0000;
 const RTC_VA: u64 = 0x00d0_0000;
 
-/// What the clock service was wired with, so a test (or a real init) can play its clients.
+/// What the clock service was wired with, so a test (or a real progenitor) can play its clients.
 pub struct Wiring {
     /// The service's startup report.
     pub report: RendezvousId,

@@ -3434,7 +3434,7 @@ fn riscv_initrd_path() -> String {
 /// disagree.
 ///
 /// Order is preserved from the hand-written table this was lifted out of. It is not load-bearing
-/// (init looks entries up by name) but the measurement table is computed over this sequence, so
+/// (the progenitor looks entries up by name) but the measurement table is computed over this sequence, so
 /// reordering would churn two manifests for nothing.
 ///
 /// Name provisional (milestone 161): calef names things, and this one is read by anyone adding a
@@ -3481,7 +3481,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
         ("job_mix_task", "job_mix_task"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
+        // The authority-shrinking supervision tree (milestone 22 phase B.2): a progenitor that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops the
         // budget. Portable, so both archives carry all four.
         ("root_supervisor", "root_supervisor"),
@@ -4391,7 +4391,7 @@ fn initrd_aarch64() -> bool {
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
         ("job_mix_task", "job_mix_task"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): an init that hands its
+        // The authority-shrinking supervision tree (milestone 22 phase B.2): a progenitor that hands its
         // construction authority to a spawner and its restart policy to a supervisor, then drops
         // the budget.
         ("root_supervisor", "root_supervisor"),
@@ -4530,7 +4530,7 @@ fn initrd_aarch64() -> bool {
     // **The measurement table, last, so it measures everything above it** (milestone 104). The progenitor
     // reads this entry out of the archive it already holds and refuses to load a program whose
     // bytes it does not match. See [`measurement_table`] for why it lives here rather than inside
-    // The progenitor's own image.
+    // the progenitor's own image.
     let table = measurement_table(&files);
     files.push((measured_boot::PROGRAM_MEASUREMENTS, table.as_bytes()));
 
@@ -5662,8 +5662,8 @@ fn redoxfs_reads_back(name: &str, want: &[u8]) -> bool {
 }
 
 /// The ELF path of a named binary the `user` package builds (milestone 19f.2+): `hello`, `least_authority_demo`,
-/// `console`, and so on. `initrd_aarch64` packs each into the archive, under that same name for every
-/// program but `hello`, which is packed as `init`.
+/// `console`, and so on. `initrd_aarch64` packs each into the archive under that same name (milestone
+/// 266 retired the one exception, which packed `hello` under the entry `init` on aarch64).
 ///
 /// **The path is ABSOLUTE, and that is not fussiness.** Cargo runs the runner script with the
 /// working directory set to the **package** dir for `cargo test` and the workspace root for
@@ -7016,8 +7016,8 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 65] = [
     // and this shell's.
     ("least_authority_demo", &["needs an integer argument"]),
     ("echo $?", &["2"]),
-    // **Init's job budget is bounded and comes back** (milestone 22, the interactive increment).
-    // Init now holds a pool with room for six live jobs instead of the kernel's whole construction
+    // **The progenitor's job budget is bounded and comes back** (milestone 22, the interactive increment).
+    // The progenitor now holds a pool with room for six live jobs instead of the kernel's whole construction
     // budget, and every job runs in a region of its own that `job_undertaker` returns when the job ends.
     // **Sixteen spawns above plus these six are twenty-two jobs through a six-job pool**, so a boot
     // where nothing collected would answer "could not spawn (the progenitor is out of memory)" somewhere in
@@ -7458,8 +7458,8 @@ fn shell_check_leg(riscv: bool) -> bool {
              reached a shell"
         ));
     } else {
-        // **Init gave the construction budget away, and says so from the inside** (milestone 22,
-        // the interactive increment). Init prints this one line after deleting the root untyped and
+        // **The progenitor gave the construction budget away, and says so from the inside** (milestone 22,
+        // the interactive increment). The progenitor prints this one line after deleting the root untyped and
         // before starting the shell, and it prints it only when `RETYPE` and `RETYPE_OBJ` on that
         // slot both answered `NoSuchSlot`: the capability is gone, not narrowed. The other branch
         // says "NOT dropped", so a boot that kept its budget fails here rather than passing quietly.

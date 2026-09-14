@@ -77,7 +77,7 @@ fn nanos_of(said: &[u8]) -> u64 {
 ///   the same instant, which is what a `time` that read its clock once would print. The upper bound
 ///   is loose on purpose: TCG under load is slow and a tight bound would be a flake, while a
 ///   nanoseconds-for-microseconds error misses a ten-second ceiling by four orders of magnitude.
-/// - **`least_authority_demo` holds no clock.** Its manifest declares none, so init endows none, and it is still
+/// - **`least_authority_demo` holds no clock.** Its manifest declares none, so the progenitor endows none, and it is still
 ///   timed. That is the sentence the milestone exists for: measuring a thing needs the observer's
 ///   authority, not the subject's.
 ///

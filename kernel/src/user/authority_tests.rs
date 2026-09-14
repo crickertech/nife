@@ -14,7 +14,7 @@ const REPORT_FAILED: u64 = 9;
 /// spends afterwards.
 const ROOT_BUDGET_PAGES: u64 = 1024;
 
-/// **Spawn the tree's root the way the kernel spawns init**, and return the report endpoint every
+/// **Spawn the tree's root the way the kernel spawns the progenitor**, and return the report endpoint every
 /// process in the tree holds a WRITE view of.
 ///
 /// Deliberately the same endowment `spawn_init` gives (`INITRD_VA`, an untyped in slot 0, a report
@@ -88,7 +88,7 @@ fn spawn_tree() -> sched::RendezvousId {
     report
 }
 
-/// How many reports a healthy run of the tree makes: init's drop, the first instance running, its
+/// How many reports a healthy run of the tree makes: the progenitor's drop, the first instance running, its
 /// crash reaching the supervisor, the replacement running, and the replacement's clean exit
 /// reaching the supervisor. Exactly five, which is itself an assertion: a sixth would mean the
 /// supervisor restarted something it should have left finished, or a tier-one server died.
@@ -102,7 +102,7 @@ const EXPECTED_REPORTS: usize = 5;
 /// (`destroy_force_kills_a_runaway` counts threads before and after). A test that leaves work
 /// running is a test that fails somebody else.
 ///
-/// The order of the five is not fixed (init's drop races the sub-server's first run), so callers
+/// The order of the five is not fixed (the progenitor's drop races the sub-server's first run), so callers
 /// filter by kind; within a kind the order is causal and asserted.
 fn run_tree() -> [[u64; 5]; EXPECTED_REPORTS] {
     let report = spawn_tree();
@@ -143,14 +143,14 @@ fn of_kind(msgs: &[[u64; 5]; EXPECTED_REPORTS], kind: u64) -> impl Iterator<Item
     msgs.iter().filter(move |m| m[0] == kind)
 }
 
-/// **init drops its construction authority, and the drop is real.**
+/// **The progenitor drops its construction authority, and the drop is real.**
 ///
 /// `root_supervisor` builds its two servers, deletes the wiring capabilities and then the untyped budget
 /// itself, and immediately tries the two primitives that build things: retype a page, and retype a
 /// kernel object. Both must fail, and they must fail with `NoSuchSlot` (there is nothing there)
 /// rather than `NotPermitted` (there is something there and you may not use it), because the
 /// capability is *gone*, not narrowed. That distinction is the whole difference between "we asked
-/// init not to" and "init cannot."
+/// the progenitor not to" and "progenitor cannot."
 ///
 /// It is reported from inside the process on purpose: what matters is what the *holder* can do,
 /// and only the holder can ask.
@@ -159,10 +159,10 @@ fn init_drops_its_construction_authority_and_cannot_build_again() {
     let msgs = run_tree();
     let dropped = of_kind(&msgs, REPORT_INIT_DROPPED)
         .next()
-        .expect("init never reported dropping its budget");
+        .expect("progenitor never reported dropping its budget");
     assert_eq!(
         dropped[1], 1,
-        "init still built a page or a kernel object after deleting its untyped: the authority \
+        "progenitor still built a page or a kernel object after deleting its untyped: the authority \
          was not actually dropped",
     );
     assert_eq!(
@@ -173,7 +173,7 @@ fn init_drops_its_construction_authority_and_cannot_build_again() {
     );
 }
 
-/// **A dead sub-server is restarted by its own supervisor, in userspace, and init cannot have
+/// **A dead sub-server is restarted by its own supervisor, in userspace, and the progenitor cannot have
 /// helped.**
 ///
 /// The sequence: the sub-server runs as attempt 0 and crashes on a load from an unmapped address;
@@ -183,7 +183,7 @@ fn init_drops_its_construction_authority_and_cannot_build_again() {
 /// in an unprivileged process that holds no memory at all, and the kernel's whole contribution is
 /// one message.
 ///
-/// **How "without init's involvement" is proven, and why it is not a timing argument.** init has
+/// **How "without the progenitor's involvement" is proven, and why it is not a timing argument.** The progenitor has
 /// no construction authority by then: it deleted its untyped, and the companion test above
 /// confirms it can no longer use it. A process that cannot retype a page cannot have built the
 /// replacement. Authority, not scheduling order, is the evidence.

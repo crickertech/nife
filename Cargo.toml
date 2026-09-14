@@ -216,11 +216,12 @@ manual_let_else = "warn"
 # prose where it should be `code`, which rustdoc then renders as an English word.
 doc_markdown = "warn"
 
-# The measured-boot hash is compiled optimized even in a debug build (milestone 22 phase B.1). init is
-# a 1.2 MB ELF and the kernel hashes it before every boot, including six times per aarch64 test run;
-# an unoptimized SHA-256 makes that a visible tax under TCG for no benefit, since the crate is pure
-# arithmetic with nothing a debugger would want to step through. Its correctness is pinned by host
-# tests against the published FIPS vectors, so the optimized build is not less trustworthy.
+# The measured-boot hash is compiled optimized even in a debug build (milestone 22 phase B.1). The
+# progenitor is a 1.2 MB ELF and the kernel hashes it before every boot, including six times per
+# aarch64 test run; an unoptimized SHA-256 makes that a visible tax under TCG for no benefit, since
+# the crate is pure arithmetic with nothing a debugger would want to step through. Its correctness
+# is pinned by host tests against the published FIPS vectors, so the optimized build is not less
+# trustworthy.
 [profile.dev.package.measured_boot]
 opt-level = 2
 

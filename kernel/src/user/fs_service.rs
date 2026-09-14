@@ -351,7 +351,7 @@ struct FsServer {
     /// The untyped budget this server's heap draws from, in frames. The ordinary server gets
     /// [`FS_BUDGET_PAGES`]; milestone 37's two get a fraction of it, because an untyped is
     /// **reserved** rather than merely capped and three 8 MiB reservations do not fit in this
-    /// machine's 128 MiB (the first symptom was init failing to get its own budget, several
+    /// machine's 128 MiB (the first symptom was the progenitor failing to get its own budget, several
     /// tests later, which is a long way from the cause). The measured high-water of a real mount
     /// under this allocator is 352 KiB (DECISIONS §27), so [`CRASH_BUDGET_PAGES`] is still five
     /// times the number rather than a guess trimmed until it fit.
@@ -930,7 +930,7 @@ pub fn blk_server_image() -> &'static [u8] {
 ///
 /// This is the one entry point the interactive boot uses. It brings up the block server and the
 /// FS server, drains both readiness sentinels (so the service is *running* and not merely
-/// spawned by the time init exists), and returns `(the file-service endpoint, the physical frame
+/// spawned by the time the progenitor exists), and returns `(the file-service endpoint, the physical frame
 /// its clients map)`. `None` means no RedoxFS disk is attached to this run, which is the normal
 /// case for a plain `cargo xtask run`, and every caller treats it as "this boot has no
 /// filesystem" rather than as an error.
@@ -1398,7 +1398,7 @@ pub fn start_std_full(
 ///
 /// **The spawn-protocol position that says which directory is which is the capability table slot**: the
 /// confined program's slot 0 is always [`TwoDirGrant::a`], slot 1 always [`TwoDirGrant::b`].
-/// That is the whole of what this milestone decides about the wire, deliberately: a shell-to-init
+/// That is the whole of what this milestone decides about the wire, deliberately: a shell-to-progenitor
 /// encoding for a *second* `DIR_BIT` grant (extending `grant_plan::spawnproto`'s `GRANT_WORDS`
 /// precedent the way a real interactive `bind` eventually will) is a design fork this milestone's
 /// own roadmap block leaves to whoever wires this into the shell.

@@ -236,7 +236,7 @@ it.
 - **A program at the prompt can hold entropy, since milestone 111** (2026-09-05). This entry used to
   read "`init` does not endow the shell with entropy", and its own last sentence ("future work with
   no design problem in it") turned out to be right: no new mechanism, no new right, nothing on the
-  wire. `grant_plan::Manifest::entropy` joined `clock`, `domain` and `config`; init reads the
+  wire. `grant_plan::Manifest::entropy` joined `clock`, `domain` and `config`; the progenitor reads the
   declaration and places a `WRITE` view of the entropy service's request endpoint at
   `grant_plan::ENTROPY_SLOT`; a program that did not declare it holds an empty slot there and
   `entropy_proto::delivered` answers `None` rather than a short count. `components/src/uuid.rs` is the
@@ -248,7 +248,7 @@ it.
   `config` and `domain` make the same call, and `clock` is the exception only because `time`
   measures with it.
 
-  What it cost: one permanent capability slot in init, which used to release the endpoint once
+  What it cost: one permanent capability slot in the progenitor, which used to release the endpoint once
   `credentialer` held its own copy. `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED` moved 21 to 22 of
   24, caught by milestone 231's own gate on the first boot after the wiring landed.
 - **No cryptography anywhere.** No hash, no cipher, no key derivation. Milestone 56's other half

@@ -87,7 +87,35 @@
 //!   `kernel::user::map_x86_timebase_page`, or `supervision_proto::build_child_space` must map this
 //!   page too (real or placeholder), or must not link anything that calls `cntfrq`.
 //!
-//! Name: provisional (this lane, milestone 161's `cntfrq` follow-up). calef names crates.
+//! Name: provisional, and ruled: calef ruled **`counter_frequency_proto`** on 2026-09-13, working
+//! the unratified worklist. The block stays `provisional` because the ratified name is not this
+//! crate's until the rename is performed. Minted by milestone 161's `cntfrq` follow-up lane.
+//!
+//! **The block this replaces was the thinnest in the tree**, and that is worth recording rather
+//! than quietly improving: it read *"Name: provisional (this lane, milestone 161's `cntfrq`
+//! follow-up). calef names crates."* One line, no argument, no refusals. Nothing had ever been
+//! weighed, so there was no losing case for a reader to weigh against, which is the state
+//! milestone 115's provenance convention exists to prevent.
+//!
+//! **The ratified name mirrors the register this page substitutes for.** aarch64 answers "how many
+//! ticks make a second" from `CNTFRQ_EL0`, which is literally the *counter frequency*; `x86_64` has
+//! no such register, so the kernel learns the number once and publishes it here. A reader who knows
+//! why the crate exists meets a name that says so, and one who does not is told. The page carries
+//! exactly that number and a magic, which is the other half of the argument: `timebase` named the
+//! oscillator where the contents are the frequency.
+//!
+//! Refused `timebase_proto`, above. Refused `tick_rate_proto`, accurate and plainer but dropping
+//! the connection to `CNTFRQ_EL0` that explains the crate's existence. Refused `tsc_frequency_proto`
+//! for naming `x86_64`'s counter specifically, when the contract is architecture-neutral even
+//! though today's only consumer is not, and `TSC` would want expanding besides. Refused
+//! `x86_64_timebase_proto` on the same ground: `jh7110_` qualifies by chip because this tree will
+//! have a second system on a chip, but this page is the general answer to "the counter frequency is
+//! not in a register", and qualifying it by today's only caller would go stale the first time
+//! another architecture needed it.
+//!
+//! The `_proto` suffix is not reopened here: `clock_proto` was ratified with it on 2026-08-23 and
+//! this page uses the same `MAGIC` shape, so it is an established family rather than an open
+//! question.
 
 #![cfg_attr(not(test), no_std)]
 

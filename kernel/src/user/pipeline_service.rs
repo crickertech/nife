@@ -52,7 +52,7 @@ pub struct Wiring {
 static TRANSCRIPT: spin::Mutex<[u8; 8192]> = spin::Mutex::new([0; 8192]);
 static WRITTEN: AtomicUsize = AtomicUsize::new(0);
 
-/// **Wire a scripted shell and the init service behind it.**
+/// **Wire a scripted shell and the progenitor service behind it.**
 ///
 /// The endowment is deliberately the interactive one, slot for slot, because a witness with a
 /// wider endowment would be proving something about a shell nobody runs.
@@ -72,7 +72,7 @@ pub fn start() -> Option<Wiring> {
 /// - `None`: no capability at all, so no mapping either, and the shell has to answer without
 ///   touching the address a clock would have been at.
 ///
-/// `READ` and no `GRANT`, matching what the init hands the shell: a witness with wider rights than
+/// `READ` and no `GRANT`, matching what the progenitor hands the shell: a witness with wider rights than
 /// the boot wiring would be proving something about a shell nobody runs.
 pub fn start_timing(clock: Option<u64>) -> Option<Wiring> {
     start_with(ROLE_TIMING, 0, None, clock)
@@ -143,7 +143,7 @@ fn start_with(
     .addr();
     WRITTEN.store(0, Ordering::SeqCst);
 
-    // init first, so a shell that spawns before the service is listening merely blocks in a
+    // The progenitor first, so a shell that spawns before the service is listening merely blocks in a
     // rendezvous rather than failing.
     if crate::sched::spawn(move || init_service(spawn_ep, result)).is_none() {
         crate::println!("start_with: spawn(init_service) refused");
@@ -355,7 +355,7 @@ pub fn counts(said: &[u8]) -> (u64, u64, u64) {
     (l, w, b)
 }
 
-/// **init, as the shell sees it**: the spawn protocol, including milestone 50's two delegated
+/// **The progenitor, as the shell sees it**: the spawn protocol, including milestone 50's two delegated
 /// capabilities.
 ///
 /// The whole of what the operators added is here, and it is small: receive an rendezvous, and put
@@ -367,7 +367,7 @@ pub fn counts(said: &[u8]) -> (u64, u64, u64) {
 /// need a capability this stub has nothing behind (a file service to attenuate, a fault target to
 /// install), so neither bit is drained off the wire here, and a line that set one would desync the
 /// two sides' shared count of delegated capabilities. No guest test routes either shape through
-/// this path today; both are exercised only against the real init, by `script/shell-check`.
+/// this path today; both are exercised only against the real progenitor, by `script/shell-check`.
 fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
     loop {
         let m = crate::sched::ipc_recv(spawn_ep);
@@ -458,7 +458,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
         };
 
         // A redirected child's answer goes somewhere else, so the shell has nothing to read and
-        // init owes it an ack. Unredirected, the child's own message is the shell's single read.
+        // the progenitor owes it an ack. Unredirected, the child's own message is the shell's single read.
         if wiring.sink {
             crate::sched::ipc_send(
                 result,
@@ -479,7 +479,7 @@ fn init_service(spawn_ep: RendezvousId, result: RendezvousId) -> ! {
 }
 
 /// Take one delegated capability and read the rendezvous out of it. The slot is dropped straight
-/// away: what init needs is the *name* of the rendezvous, and holding the capability afterwards
+/// away: what the progenitor needs is the *name* of the rendezvous, and holding the capability afterwards
 /// would fill a capability table over a long session for nothing.
 fn take_rendezvous(ep: RendezvousId) -> Option<RendezvousId> {
     let m = crate::sched::ipc_recv_cap(ep);

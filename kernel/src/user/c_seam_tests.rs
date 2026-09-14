@@ -35,7 +35,7 @@ const CONFINER_BUDGET_PAGES: u64 = 512;
 /// Four reports per attempt (ran, death, site, verdict).
 const EXPECTED_REPORTS: usize = 4 * ATTEMPTS;
 
-/// **Spawn the confiner the way the kernel spawns init**, and return the report endpoint every
+/// **Spawn the confiner the way the kernel spawns the progenitor**, and return the report endpoint every
 /// process in the run holds a WRITE view of. Deliberately the same endowment `spawn_init` gives
 /// (the archive read-only at `INITRD_VA`, an untyped in slot 0, a report endpoint in slot 1), so
 /// what is under test is the seam rather than a privileged shortcut.

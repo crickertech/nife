@@ -89,6 +89,14 @@ memory argument is dead *at the scale this project runs at* and would revive at 
 256 MiB the static kernel-stack reservation is 2.27%; the arithmetic is linear, so on a 64 MiB
 machine it is **9.1%**, and on 32 MiB it is **18%**, which nobody would wave away.
 
+**One caveat on the clause this section leans on twice.** "Warton's result came from resource-starved
+embedded systems" is true of what drove the *move* to an event kernel, and the paper says so. It also
+says, in the same sentence, that *"the approach's benefits are not restricted to those contexts, and
+we believe it is generally the best approach on modern hardware"* (section 4.1, page 1:17, read
+2026-09-13). The authors are not neutral here, and this section should not paraphrase them into
+agreeing that the result is embedded-only. It does not change the memory arithmetic above, which
+stands on this tree's own numbers; it removes an argument from authority that was never the paper's.
+
 **What would revive it, stated so a future reader does not have to re-derive it.** A target where
 `MAX_THREADS * STACK_SLOT_SPAN` is a material fraction of RAM. notes/target-hardware.md's
 requirements do not exclude such a machine: an application-class SoC with an MMU, 32 KB of L1i and a
@@ -123,6 +131,33 @@ multi-tasking workload** (AIM7). Read that pairing carefully, because it is the 
 **every instrument this project owns is a micro-benchmark.** `ipc_rtt`, `ipc_rtt_el0`, the icount
 tripwire and milestone 132's footprint gate would all show approximately nothing. The one number that
 would move is the one we have no way to produce.
+
+**Correction, 2026-09-13: the 20% was never a number this project could reproduce, and the premise
+behind milestone 168 does not hold.** The retrospective names only *"the Pistachio process kernel vs
+an event-based (single-stack) kernel with continuations on an ARMv5 processor"* (section 4.1, page
+1:16) and never says what userland AIM7 ran under. Warton's own thesis does (*Single Kernel Stack
+L4*, BE thesis, UNSW, November 2005, section 5.4): *"The AIM7 benchmark was modified slightly so that
+it could run on Wombat."* **Wombat is the paravirtualised ARM Linux**, so the 20% is a delta between
+two microkernels measured through a hosted Linux's syscall path, where milestone 168's instrument
+runs native tasks on this kernel's own primitives. It is also a **ratio between two kernel models**,
+and this tree has one, so the instrument produces one arm and no ratio.
+
+**Three more facts the retrospective compresses away, each of which this section had been reasoning
+without.** Warton's run disabled AIM7's filesystem jobs (the ramdisk was too small) and its network
+jobs (Wombat had no `GetHost`), so two of the three categories `crates/job_mix` records as missing
+were absent from the cited run too. It was *"2 clients with the normal workload file"*, run in two
+user tasks, so there was no task-count sweep. And **Warton doubted the result himself**: he expected
+the single-stack kernel to perform similarly or worse, called the outcome something to treat *"with
+scepticism until it can be satisfactorily explained"*, and records that the cache simulation which
+would have explained it was never run for lack of time.
+
+**What this section should take from it is the mechanism, not the number.** The only explanation
+Warton offered is reduced kernel cache and TLB footprint. Whether per-thread kernel stacks displace
+enough cache to cost throughput **on this kernel** is local, open and measurable: it is what
+`app_displacement` measures in isolation, what milestone 134's E1 found bending 8 to 11% by 64 to 96
+threads, and what a knee in milestone 168's jobs-per-minute curve would confirm under load. That is a
+real input to this decision. Matching somebody else's 20% was never available. See
+`notes/job-mix.md`, which carries the quotations, both URLs and the read date.
 
 **Update, 2026-09-04: half of that is now false, and the half that moved is the one this section
 said would not.** Milestone 134's E1 (IPC round trip against thread count) ran on radon, six boots

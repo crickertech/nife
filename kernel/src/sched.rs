@@ -890,7 +890,8 @@ pub fn last_cpus(ids: &[ThreadId], out: &mut [u8]) {
 /// diagnostics, 2026-08-15; name provisional).
 ///
 /// Boots 7 through 9 on the VisionFive 2 were called a hang inside the initrd demo because the
-/// tour's serial lines after "init : measured, built, started" never showed at the bench, while
+/// tour's serial lines after "init : measured, built, started" (the prefix that line carried then;
+/// the demo's program is `builder` and the line says so now) never showed at the bench, while
 /// the thread dumps kept printing. The dumps' own rows later proved the tour had in fact advanced
 /// through the UART-driver step (notes/visionfive2.md, fifth stop), so "which step did the boot
 /// thread reach" must not be inferable only from serial lines that can go missing: a breadcrumb
@@ -3330,7 +3331,7 @@ fn reap_region_objects(base: u64, end: u64) -> Result<(), ()> {
     // by `schedule()`, and a `Blocked` thread never reaches `schedule()`. The owner retried until it
     // gave up, and the memory stayed spoken for until the machine stopped. That is the whole reason
     // the aarch64 test boot ran out of frames: `userspace_init_brings_up_the_console_server` builds a
-    // console server out of init's budget and that server blocks in its serve loop, so init's
+    // console server out of the progenitor's budget and that server blocks in its serve loop, so the progenitor's
     // 2048-frame region was unreclaimable by construction. See notes/frames.md.
     //
     // Sweeping first fixes it because **the wake is already here**: removing an rendezvous drains its
