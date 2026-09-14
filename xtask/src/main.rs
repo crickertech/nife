@@ -184,9 +184,9 @@ fn main() -> ExitCode {
         "board-console" => return board_console(),
         // The sustained multicore run under QEMU (milestone 219), judged by the same recogniser
         // `board-console` points at a board. Returns its own exit code for the same reason.
-        "soak" => return soak(),
+        "soak-test" => return soak_test(),
         // The multi-tasking workload sweep under QEMU (milestone 168). Returns its own exit code
-        // for `soak`'s reason: a rehearsal that cannot say *how* it failed is not a rehearsal.
+        // for `soak-test`'s reason: a rehearsal that cannot say *how* it failed is not a rehearsal.
         "job-mix" => return job_mix_sweep(),
         // The card's U-Boot script (milestone 218): what makes the board boot without a person at
         // its prompt. `script/board-image` calls this; it is a separate verb so the script it
@@ -197,7 +197,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");
@@ -3499,7 +3499,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("fs_nameset_caretaker", "fs_nameset_caretaker"),
         ("interrupt_heeder", "interrupt_heeder"),
         ("interrupt_ignorer", "interrupt_ignorer"),
-        // The sustained multicore workload (milestone 219): the program `--features soak` builds a
+        // The sustained multicore workload (milestone 219): the program `--features soak_test` builds a
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
@@ -4436,7 +4436,7 @@ fn initrd_aarch64() -> bool {
         ("fs_subtree_caretaker", "fs_subtree_caretaker"),
         ("interrupt_heeder", "interrupt_heeder"),
         ("interrupt_ignorer", "interrupt_ignorer"),
-        // The sustained multicore workload (milestone 219): the program `--features soak` builds a
+        // The sustained multicore workload (milestone 219): the program `--features soak_test` builds a
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
@@ -9903,7 +9903,7 @@ fn job_mix_sweep() -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// **The QEMU half of milestone 219's sustained run.** Boot a `--features soak` kernel, watch it
+/// **The QEMU half of milestone 219's sustained run.** Boot a `--features soak_test` kernel, watch it
 /// with the same recogniser and the same policy `script/board-console` points at a real board, and
 /// return the same exit statuses.
 ///
@@ -9913,8 +9913,12 @@ fn job_mix_sweep() -> ExitCode {
 /// the cheapest way for two things to agree is for there to be one of them.
 ///
 /// What this adds over `board_console` is only what a board does not need: building the kernel and
-/// the archive, starting QEMU, and killing it afterwards. See `script/soak`.
-fn soak() -> ExitCode {
+/// the archive, starting QEMU, and killing it afterwards. See `script/soak-test`.
+///
+/// Named for the command rather than for the workload (milestone 297): this function *is*
+/// `script/soak-test`, where `BootProgress::soak` one crate over reports on the workload, which is
+/// still a soak and keeps that spelling.
+fn soak_test() -> ExitCode {
     use std::io::Write;
     use std::time::Duration;
 
@@ -9938,7 +9942,7 @@ fn soak() -> ExitCode {
     while i < args.len() {
         let value = |i: usize| -> Result<&str, ExitCode> {
             args.get(i + 1).map(String::as_str).ok_or_else(|| {
-                eprintln!("soak: {} wants a value", args[i]);
+                eprintln!("soak-test: {} wants a value", args[i]);
                 ExitCode::from(4)
             })
         };
@@ -9958,7 +9962,7 @@ fn soak() -> ExitCode {
             "--for" | "--timeout" => match value(i).map(parse_duration) {
                 Ok(Some(d)) => policy.total = d,
                 Ok(None) => {
-                    eprintln!("soak: --for wants a duration like 90, 90s, 30m or 2h");
+                    eprintln!("soak-test: --for wants a duration like 90, 90s, 30m or 2h");
                     return ExitCode::from(4);
                 }
                 Err(code) => return code,
@@ -9966,15 +9970,15 @@ fn soak() -> ExitCode {
             "--quiet-after" => match value(i).map(parse_duration) {
                 Ok(Some(d)) => policy.quiet_after = if d.is_zero() { None } else { Some(d) },
                 Ok(None) => {
-                    eprintln!("soak: --quiet-after wants a duration, or 0 to disable");
+                    eprintln!("soak-test: --quiet-after wants a duration, or 0 to disable");
                     return ExitCode::from(4);
                 }
                 Err(code) => return code,
             },
             other => {
-                eprintln!("soak: unknown argument {other}");
+                eprintln!("soak-test: unknown argument {other}");
                 eprintln!(
-                    "usage: cargo xtask soak [--arch aarch64|riscv64|x86_64] [--for <duration>] \
+                    "usage: cargo xtask soak-test [--arch aarch64|riscv64|x86_64] [--for <duration>] \
                      [--smp <n>] [--quiet-after <duration>] [--log <file>]"
                 );
                 return ExitCode::from(4);
@@ -10011,7 +10015,7 @@ fn soak() -> ExitCode {
             )
         }
         other => {
-            eprintln!("soak: unknown architecture {other} (aarch64, riscv64 or x86_64)");
+            eprintln!("soak-test: unknown architecture {other} (aarch64, riscv64 or x86_64)");
             return ExitCode::from(4);
         }
     };
@@ -10021,7 +10025,7 @@ fn soak() -> ExitCode {
         "-p",
         "kernel",
         "--features",
-        "soak",
+        "soak_test",
         "--target",
         target,
     ]) {
@@ -10032,18 +10036,18 @@ fn soak() -> ExitCode {
         let stamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        PathBuf::from(format!("target/soak-{arch}-{stamp}.log"))
+        PathBuf::from(format!("target/soak-test-{arch}-{stamp}.log"))
     });
     if let Some(parent) = log_path.parent()
         && let Err(e) = std::fs::create_dir_all(parent)
     {
-        eprintln!("soak: cannot create {}: {e}", parent.display());
+        eprintln!("soak-test: cannot create {}: {e}", parent.display());
         return ExitCode::from(4);
     }
     let file = match std::fs::File::create(&log_path) {
         Ok(f) => f,
         Err(e) => {
-            eprintln!("soak: cannot write {}: {e}", log_path.display());
+            eprintln!("soak-test: cannot write {}: {e}", log_path.display());
             return ExitCode::from(4);
         }
     };
@@ -10069,20 +10073,20 @@ fn soak() -> ExitCode {
     cmd.stderr(std::process::Stdio::inherit());
 
     eprintln!(
-        "--- soak: {arch}, up to {:?}, logging to {} ---",
+        "--- soak-test: {arch}, up to {:?}, logging to {} ---",
         policy.total,
         log_path.display()
     );
     let mut child = match cmd.spawn() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("soak: cannot start {runner}: {e}");
+            eprintln!("soak-test: cannot start {runner}: {e}");
             return ExitCode::from(4);
         }
     };
     let runner_pid = child.id();
     let Some(stdout) = child.stdout.take() else {
-        eprintln!("soak: the runner gave us no stdout to read");
+        eprintln!("soak-test: the runner gave us no stdout to read");
         let _ = child.kill();
         return ExitCode::from(4);
     };
@@ -10111,28 +10115,28 @@ fn soak() -> ExitCode {
     let session = match session {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("soak: {e}");
-            eprintln!("soak: log at {}", log_path.display());
+            eprintln!("soak-test: {e}");
+            eprintln!("soak-test: log at {}", log_path.display());
             return ExitCode::from(4);
         }
     };
 
     eprintln!();
-    eprintln!("soak: {}", session.summary());
+    eprintln!("soak-test: {}", session.summary());
     match session.progress.soak() {
         Some(beat) => {
             eprintln!(
-                "soak: {} round trips in {}s ({} /s at the last beat), {} cross-core handoffs",
+                "soak-test: {} round trips in {}s ({} /s at the last beat), {} cross-core handoffs",
                 beat.rounds, beat.seconds, beat.rate, beat.crossings
             );
             eprintln!(
-                "soak: refused={} mismatch={} stalled={} (each must be 0)",
+                "soak-test: refused={} mismatch={} stalled={} (each must be 0)",
                 beat.refused, beat.mismatches, beat.stalled
             );
             // Said on every clean run, on purpose, because this is the sentence the milestone's own
             // BUGS section says will otherwise be dropped when the number is quoted.
             eprintln!(
-                "soak: a clean run is a number to compare against, NOT evidence that the \
+                "soak-test: a clean run is a number to compare against, NOT evidence that the \
                  concurrency is correct."
             );
             // **What the crossings are, said on every run that has any** (milestone 221). The
@@ -10143,7 +10147,7 @@ fn soak() -> ExitCode {
             // declines.
             if beat.wakes > 0 {
                 eprintln!(
-                    "soak: the {} crossings are tick waiters being placed by the wake protocol \
+                    "soak-test: the {} crossings are tick waiters being placed by the wake protocol \
                      ({} tick wakes drove them), NOT the IPC pairs migrating. See notes/soak.md.",
                     beat.crossings, beat.wakes
                 );
@@ -10154,7 +10158,7 @@ fn soak() -> ExitCode {
             if beat.crossings < beat.rounds / 1000 {
                 if beat.wakes == 0 {
                     eprintln!(
-                        "soak: and it barely crossed cores ({} handoffs against {} round trips): \
+                        "soak-test: and it barely crossed cores ({} handoffs against {} round trips): \
                          this scheduler does not rebalance, so a saturated workload stays where it \
                          was placed. See notes/soak.md.",
                         beat.crossings, beat.rounds
@@ -10165,7 +10169,7 @@ fn soak() -> ExitCode {
                     // rather than one being assumed, because this summary cannot see the core
                     // count and the kernel's own banner can.
                     eprintln!(
-                        "soak: and it barely crossed cores ({} handoffs against {} tick wakes), \
+                        "soak-test: and it barely crossed cores ({} handoffs against {} tick wakes), \
                          which on a single-core run is arithmetic and on a multicore one is a \
                          finding: check the core count in the soak's own start line.",
                         beat.crossings, beat.wakes
@@ -10173,9 +10177,9 @@ fn soak() -> ExitCode {
                 }
             }
         }
-        None => eprintln!("soak: no heartbeat was seen; the workload never started"),
+        None => eprintln!("soak-test: no heartbeat was seen; the workload never started"),
     }
-    eprintln!("soak: log at {}", log_path.display());
+    eprintln!("soak-test: log at {}", log_path.display());
 
     // The one judgement that is this driver's rather than the watcher's, because it is about a
     // process and not about a board. A serial port cannot end; a pipe can, and QEMU exiting before
@@ -10184,7 +10188,7 @@ fn soak() -> ExitCode {
     if session.outcome == Outcome::Ended && session.elapsed + Duration::from_secs(1) < policy.total
     {
         eprintln!(
-            "soak: QEMU exited after {:?}, before the deadline",
+            "soak-test: QEMU exited after {:?}, before the deadline",
             session.elapsed
         );
         return ExitCode::from(3);

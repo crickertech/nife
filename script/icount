@@ -31,7 +31,11 @@
 # it did not survive.** Asked directly why not `instruction-count`, two things were measured. The
 # tree has no convention to appeal to: `script/` splits 29 hyphenated to 26 single-word, so
 # `bench`, `lint`, `fmt`, `verify` and `soak` are as normal as `boot-check`, and "shorter is what we
-# do" is not a fact about this tree. What decided it is that `icount` is load-bearing in at least
+# do" is not a fact about this tree. (That count is as it stood on 2026-09-14 when calef ruled, and
+# it is left as measured. `soak` became `soak-test` later the same day, milestone 297, which moves
+# the split to 30 and 25 and costs this sentence one of its five examples. The argument is
+# unaffected: four single-word entry points still outnumber nothing, and the deciding reason below
+# never rested on the count.) What decided it is that `icount` is load-bearing in at least
 # five places that are not prose: QEMU's `-icount shift=0,sleep=off`, the cargo feature
 # `--features icount`, `feature = "icount"` in both ISAs' `timer.rs` and in `bench.rs`, and the CI
 # check named `bench (icount regression tripwire)`. **QEMU's flag is not ours to rename.** So

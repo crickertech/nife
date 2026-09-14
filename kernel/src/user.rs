@@ -1244,7 +1244,7 @@ pub fn spawn_progenitor(
 // The soak boot (milestone 219) takes the place of this handoff rather than following it: a run
 // that also brought up a console, a line discipline and a shell would be soaking those too. So on
 // that build this function has no caller, which is a configuration rather than a mistake.
-#[cfg_attr(feature = "soak", allow(dead_code))]
+#[cfg_attr(feature = "soak_test", allow(dead_code))]
 pub fn boot_via_progenitor(image: &'static [u8]) {
     let report = crate::sched::create_rendezvous();
     // The holding is dropped on purpose: on this path the progenitor **is** the system, and there
@@ -1819,7 +1819,7 @@ pub fn riscv_uart_driver_demo(
 // is kept for the configurations that reach neither (a `soak` or `jobmix` build replaces the
 // hand-off with its own workload; `test` and `bench` park before it).
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak", feature = "jobmix"),
+    any(test, feature = "bench", feature = "soak_test", feature = "jobmix"),
     allow(dead_code)
 )]
 pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), LoadError> {

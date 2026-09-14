@@ -1,7 +1,7 @@
 # The workload that does not stop, and what a clean run of it is worth
 
 *(Milestones 219 and 221. `kernel/src/soak.rs`, `fixtures/src/soaker.rs`, `crates/soak_page`,
-`script/soak`, and the `Stage::Soak` half of `crates/board_console`.)*
+`script/soak-test`, and the `Stage::Soak` half of `crates/board_console`.)*
 
 `design/fatal-risks.md`'s fifth entry, *it cannot be made reliable on multicore, and the bugs appear
 only on silicon*, names its decisive experiment as **sustained multi-core stress on the boards with
@@ -14,7 +14,7 @@ measured to be unable to do**.
 
 ## The shape
 
-One kernel feature (`--features soak`) replaces the halt at the end of the boot tour with a pool of
+One kernel feature (`--features soak_test`) replaces the halt at the end of the boot tour with a pool of
 user-mode workers and a supervisor that watches them forever.
 
 - **The workload is a user program** (`fixtures/src/soaker.rs`), so the pressure goes through the real
@@ -41,7 +41,7 @@ the jitter keeps the pairs' phase drifting instead of locking.
 Every five seconds the supervisor prints one line:
 
 ```
-soak: t=25s beat=5 rounds=1151772 rate=43031/s wakes=10032 wakerate=401/s workers=24 refused=0 mismatch=0 stalled=0 crossings=2252 remote=3584 steals=3 deferred=99
+soak-test: t=25s beat=5 rounds=1151772 rate=43031/s wakes=10032 wakerate=401/s workers=24 refused=0 mismatch=0 stalled=0 crossings=2252 remote=3584 steals=3 deferred=99
 ```
 
 `rounds` is **the** figure: cumulative IPC round trips completed by every worker. It exists so that
@@ -59,13 +59,15 @@ about 400 a second on a four-core QEMU), which makes it a useful liveness check 
 `wakerate` well under that is the timer or the wake path falling behind, not the workload.
 
 `refused`, `mismatch` and `stalled` must all be zero, and any of them nonzero fails the run: the
-supervisor prints `soak: FAILED`, dumps the threads (so the per-core event rings are on the log) and
+supervisor prints `soak-test: FAILED`, dumps the threads (so the per-core event rings are on the log) and
 panics.
 
 ### First measurements, 2026-09-01, patagonia, QEMU
 
 Taken with `script/soak --for 30s`, four groups per machine except x86, whose runner defaults to one
-core. **These are QEMU numbers on a loaded laptop and are a baseline for comparison, not a
+core. (That command is `script/soak-test` since 2026-09-14, milestone 297. The name is left as it
+was typed here and everywhere else on this page that says how a number was taken, because how a
+measurement was made is an account of a day.) **These are QEMU numbers on a loaded laptop and are a baseline for comparison, not a
 benchmark**; `script/bench` is the instrument for cost.
 
 | Architecture | Cores | Workers | Round trips/s | Cross-core handoffs in 25s |
@@ -118,10 +120,10 @@ than by architecture. That ratio is a fact about the placement policy under this
 this tree yet says what it should be.
 
 **Which build these came from, and it is not the one that ships.** Every figure above is from a
-`--features soak` kernel, which is the only build in which the counters and `Thread::last_cpu`
+`--features soak_test` kernel, which is the only build in which the counters and `Thread::last_cpu`
 exist at all. That is not free, and the size of it is measured rather than assumed:
 
-| Architecture | `ipc_fastpath`, production | with `--features soak` | |
+| Architecture | `ipc_fastpath`, production | with `--features soak_test` | |
 |---|---|---|---|
 | aarch64 | 5,788 bytes | 6,120 | 1.06x |
 | riscv64 | 5,106 bytes | 5,344 | 1.05x |
@@ -151,7 +153,7 @@ was caught by a gate. Shipping the counters and the `last_cpu` write uncondition
 `ipc_fastpath` **5.7% over milestone 132's 5% bound on aarch64** (5,788 -> 6,120), with riscv64 and
 x86_64 growing 4.7% and 4.6% behind it: one cause, three effects, and aarch64 merely the one that
 tipped. The `last_cpu` write sits in `schedule()`'s switch, the hottest line of the hottest
-function. `script/lint` now clippies `--features soak` on both ISAs, because a `cfg`-gated
+function. `script/lint` now clippies `--features soak_test` on both ISAs, because a `cfg`-gated
 instrument that nothing lints is one that rots (and the first run of that check found two real
 warnings in `kernel/src/soak.rs`, which had never been linted).
 
@@ -209,7 +211,7 @@ experiment**. It is at least two, and this milestone delivers the first:
 
 Saying so is the point. A run that quietly covered one and was quoted as covering both would be
 exactly the misuse `design/roadmap/219-a-workload-that-does-not-stop.md`'s BUGS section warns about,
-and `script/soak` prints the gap on every run so that nobody has to have read this note to know.
+and `script/soak-test` prints the gap on every run so that nobody has to have read this note to know.
 
 **The second half is now runnable, which is a different claim from "has been run".** See the next
 section.
@@ -228,20 +230,21 @@ The kernel knew the answer the whole time and threw it away: `sched::spawn` call
 
 ### What it prints
 
-Three things, all under a `soak-census:` prefix of their own. That prefix is not `soak:` on purpose:
-`crates/board_console`'s recogniser matches two substrings on that one (`soak: started` and
-`soak: t=`), and a census is neither, so giving it its own word means a block of census lines never
-has to be proven harmless against a recogniser it has nothing to do with.
+Three things, all under a `soak-test-census:` prefix of their own. That prefix is not `soak-test:`
+on purpose: `crates/board_console`'s recogniser matches two substrings on that one
+(`soak-test: started` and `soak-test: t=`), and a census is neither, so giving it its own word means
+a block of census lines never has to be proven harmless against a recogniser it has nothing to do
+with.
 
 **One block at soak start**, from the placement `pick_spawn_target` actually made, one line per
 online core:
 
 ```
-soak-census: where the kernel placed each worker at spawn: R=responder, C=caller, G=grinder, W=tick waiter, and the number after each letter is its group
-soak-census: core=0 threads=6 C0 C2 C2 G2 C3 W3
-soak-census: core=1 threads=6 R0 R1 C1 C1 C2 G3
-soak-census: core=2 threads=7 C0 C0 C1 G1 W2 R3 C3
-soak-census: core=3 threads=5 G0 W0 W1 R2 C3
+soak-test-census: where the kernel placed each worker at spawn: R=responder, C=caller, G=grinder, W=tick waiter, and the number after each letter is its group
+soak-test-census: core=0 threads=6 C0 C2 C2 G2 C3 W3
+soak-test-census: core=1 threads=6 R0 R1 C1 C1 C2 G3
+soak-test-census: core=2 threads=7 C0 C0 C1 G1 W2 R3 C3
+soak-test-census: core=3 threads=5 G0 W0 W1 R2 C3
 ```
 
 A token is a role letter and a group number, so `G0 G3` on one line is that core drawing two
@@ -274,7 +277,7 @@ tonight. The spawn placement is a lottery *result*, not a resting place.
 
 ### Four QEMU runs, and what the census does and does not support
 
-aarch64, `script/soak --for 40s`, same host, same build (the third differs only in which reference
+aarch64, `script/soak --for 40s` (the old name, as above), same host, same build (the third differs only in which reference
 `drifted` compares against, which cannot affect scheduling). The arrangement is the settled one
 from the first re-census; the rate is the mean of beats 2 through 7, after convergence.
 
@@ -312,7 +315,7 @@ thousands of round trips a second in the same window.
 `design/decisions/138-cross-core-handoff-under-load.md` (*how a saturated workload is made to hand
 threads across cores*) put four options in front of calef and he approved option D on 2026-09-02.
 
-**The mechanism, and it is short.** Under `--features soak` and nowhere else, `sched::on_tick`
+**The mechanism, and it is short.** Under `--features soak_test` and nowhere else, `sched::on_tick`
 signals a rendezvous, and one worker per group blocks on that rendezvous through the `Irq::WAIT` a
 device driver already uses. `on_tick` is called by all three architectures' timer dispatchers in
 real interrupt context on every core, so a tick runs the identical sequence a device interrupt runs:
@@ -347,7 +350,7 @@ local by design whatever else is happening, so the callers and responders are as
 were. This sustains the **wake protocol** across cores under load; it does not make the IPC workload
 migrate, and only a periodic rebalancer would, which DECISIONS 138 declines on
 DECISIONS §28's own reopening trigger (*a real workload where fairness visibly fails*), which has
-not fired. The kernel says this in words at the start of every run and `script/soak` says it again
+not fired. The kernel says this in words at the start of every run and `script/soak-test` says it again
 in its summary, because the flattering reading is available and a summary gets quoted.
 
 **The soak-only interrupt numbers.** Group `g`'s route is bound to intid `255 - g`, and none of
@@ -479,7 +482,10 @@ co-location rather than group crowding**, and 240's own four QEMU runs already p
 arrangement with two grinders on one core was the *fastest* of them, and the three-groups-on-one-core
 arrangement was the slowest).
 
-**What the census showed on the fast run**, and it differs from QEMU in a way nobody predicted:
+**What the census showed on the fast run**, and it differs from QEMU in a way nobody predicted.
+These blocks and the reboot-loop lines quoted further down are what radon printed on the evening
+they were taken, under the marker spelling of the day; milestone 297 renamed the prefix to
+`soak-test-census:` on 2026-09-14, and a log of that evening will never contain the new word:
 
 ```
 soak-census: core=1 threads=5 C0 W1 C2 R3 W3
@@ -563,13 +569,13 @@ its `stalled` count fires. So silence means the thing that prints is itself wedg
 thing silence is allowed to mean.
 
 `crates/board_console` is the other half. Its `Stage::Soak` is reached by the kernel's own
-`soak: started` line, and reaching it **re-arms the quiet check that a completed boot tour
+`soak-test: started` line, and reaching it **re-arms the quiet check that a completed boot tour
 suppresses**: a halted kernel is supposed to be quiet and a soaking one is not. That is a one-word
 change (`< Stage::Tour` became `!= Stage::Tour`) and it is the whole agreement. Beat interval five
 seconds against a fifteen-second default quiet window: three missed beats before a run is called a
 hang, exit status 2.
 
-`script/soak` runs the QEMU side through **the same recogniser and the same policy**, so the local
+`script/soak-test` runs the QEMU side through **the same recogniser and the same policy**, so the local
 rehearsal and the bench run are one experiment with different deadlines.
 
 ## Running it
@@ -577,9 +583,9 @@ rehearsal and the bench run are one experiment with different deadlines.
 ### Under QEMU, which is the rehearsal
 
 ```
-script/soak                                  # aarch64, one minute
-script/soak --arch riscv64 --for 10m         # radon's architecture
-script/soak --arch x86_64 --smp 1            # xenon's, single core (see BUGS)
+script/soak-test                             # aarch64, one minute
+script/soak-test --arch riscv64 --for 10m    # radon's architecture
+script/soak-test --arch x86_64 --smp 1       # xenon's, single core (see BUGS)
 ```
 
 Exit statuses are `script/board-console`'s: `0` beat for the whole watch, `1` announced a failure,
@@ -617,7 +623,7 @@ and the U-Boot commands, and changes only two things about it.
 4. **Power the board and type the four U-Boot commands** the runbook gives (milestone 218 is about
    removing this step).
 
-5. **Watch for `soak: started`.** Its own line names the worker mix, and on a four-hart JH7110 it
+5. **Watch for `soak-test: started`.** Its own line names the worker mix, and on a four-hart JH7110 it
    should read four groups and 24 user threads. If it does not appear at all, the kernel was built
    without the feature or the archive has no `soaker` entry; the tour's last line will be there
    either way.
@@ -630,7 +636,7 @@ and the U-Boot commands, and changes only two things about it.
      every online hart signals the tick route on its own timer, so a rate well under that means the
      timer or the wake path is falling behind and the run is measuring something else.
    - **`crossings` must be *rising* between beats.** Frozen is the pre-221 state and means the tick
-     route is not armed: a kernel built without `--features soak` cannot get this far, so the
+     route is not armed: a kernel built without `--features soak_test` cannot get this far, so the
      realistic cause is that the intid was already routed, and the kernel says so and refuses to
      start rather than soaking silently without it.
 
@@ -660,7 +666,7 @@ The same procedure works on **argon** and **xenon**, with their own architecture
 
 ## The rebooting soak on radon, which is milestone 249's experiment
 
-*(Milestone 249. `--features reboot_soak`, `script/board-image --soak --reboot`,
+*(Milestone 249. `--features reboot_soak_test`, `script/board-image --soak --reboot`,
 `script/board-console --tally`.)*
 
 **Nothing in this section has run on radon.** It was written on 2026-09-03 with the board powered
@@ -686,7 +692,7 @@ card. That is worse than the problem being solved, and it is why this is a miles
 one-line change. Four mechanisms, strongest first, in AGENTS.md's own ladder:
 
 1. **The loop exists only in a build that asked for it, by a name with `reboot` in it.**
-   `--features reboot_soak`; `script/board-image --soak --reboot`. An ordinary card, a `--soak`
+   `--features reboot_soak_test`; `script/board-image --soak --reboot`. An ordinary card, a `--soak`
    card, and every QEMU run are untouched, which means the failure cannot arrive by accident.
 2. **Any build of it for a non-riscv64 target is a compile error**, not a card that quietly never
    resets. The reset is SBI's and the escape is the NS16550's line-status register; neither exists
@@ -796,10 +802,10 @@ commands `script/board-image` prints still work from there.
    period is a few seconds of SPL and U-Boot output rather than silence, so the fifteen-second
    window is not at risk, and shortening it would make a slow boot look like a hang.
 
-4. **Power the board, and on the FIRST boot press a key, once, after `soak: started` appears.**
+4. **Power the board, and on the FIRST boot press a key, once, after `soak-test: started` appears.**
    This is the step that verifies the escape and it is not optional.
 
-   Expect, within five seconds, `soak-reboot: DISARMED at t=Ns: a byte arrived on this console.`
+   Expect, within five seconds, `soak-test-reboot: DISARMED at t=Ns: a byte arrived on this console.`
    The board then keeps soaking and never reboots. **If that line does not come**, the escape does
    not work on this cable and **nothing further in this procedure should be run**: power the board
    off, find out why the receive path is dead, and only then start again.
@@ -809,13 +815,13 @@ commands `script/board-image` prints still work from there.
 5. **Watch the first two draws before you walk away.** The whole cycle should read:
 
    ```
-   soak-reboot: THIS BUILD REBOOTS THE BOARD. It soaks for 120s, then asks the firmware ...
-   soak-census: core=1 threads=... (the spawn placement)
-   soak: t=5s beat=1 rounds=... rate=.../s ... drifted=0 ...
-   soak-census: where the workers are NOW, ...        (about 25s in, once)
-   soak: t=120s beat=24 ... 
-   soak-reboot: window reached at t=120s. Cold-rebooting in 5s ...
-   soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot). ...
+   soak-test-reboot: THIS BUILD REBOOTS THE BOARD. It soaks for 120s, then asks the firmware ...
+   soak-test-census: core=1 threads=... (the spawn placement)
+   soak-test: t=5s beat=1 rounds=... rate=.../s ... drifted=0 ...
+   soak-test-census: where the workers are NOW, ...        (about 25s in, once)
+   soak-test: t=120s beat=24 ...
+   soak-test-reboot: window reached at t=120s. Cold-rebooting in 5s ...
+   soak-test-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot). ...
    U-Boot SPL 2021.10                                  (the next draw)
    ```
 
@@ -846,16 +852,16 @@ Read this against the log, in this order; the first row that matches is the one 
 
 | What the console shows | What it means | What to do |
 |---|---|---|
-| `soak-reboot: DISARMED` on boot 1 after you press a key | The escape works. This is step 4 passing. | Power-cycle and start the series. |
+| `soak-test-reboot: DISARMED` on boot 1 after you press a key | The escape works. This is step 4 passing. | Power-cycle and start the series. |
 | No `DISARMED` after pressing keys for a beat or two | The receive path is dead, and the escape does not exist on this cable | **Stop.** Power off. Check the adapter's TX into the board's RX and the ground; nothing else here is safe until this works. |
-| `soak-reboot: DISARMED` on boot 1 with nobody typing | Something wrote to the port, or U-Boot left a byte the arming drain did not catch | Detach anything else holding the port. Harmless: it fails toward not rebooting. |
+| `soak-test-reboot: DISARMED` on boot 1 with nobody typing | Something wrote to the port, or U-Boot left a byte the arming drain did not catch | Detach anything else holding the port. Harmless: it fails toward not rebooting. |
 | `rebooting now`, then `U-Boot SPL` a few seconds later | **The mechanism works.** SRST reset type 1 is implemented and the loop is running. | Nothing. This is the series. |
 | `rebooting now`, then U-Boot SPL's `i2c read` retries and `cannot read pmic power register` | **What radon actually does** (2026-09-04). The reset happens and the firmware cannot re-init the PMIC on the way back. Not a refusal and not silence: a third outcome. | Power-cycle to recover. The route is closed on this board; milestone 224 is the alternative. |
-| `rebooting now`, then `soak-reboot: FAILED ... sbiret.error=-2` | This OpenSBI implements SRST shutdown and **not** cold reboot | The route is closed. The soak keeps running and the board is fine. A smart-plug power cycle is the alternative mechanism; raise it. |
+| `rebooting now`, then `soak-test-reboot: FAILED ... sbiret.error=-2` | This OpenSBI implements SRST shutdown and **not** cold reboot | The route is closed. The soak keeps running and the board is fine. A smart-plug power cycle is the alternative mechanism; raise it. |
 | `rebooting now`, then nothing, and the board is dark | The firmware treated reset type 1 as a shutdown | Power the board back on. Same conclusion as the row above; record which of the two happened, because they are different firmware bugs. |
 | `rebooting now`, then nothing, and the board is powered but silent | It reset and hung before SPL, or the console dropped | Power-cycle. If it recurs at the same point, that is a finding about the reset path and worth more than the distribution. |
-| `soak: FAILED ...` then `[PANIC]` and the series stops there | **The best possible outcome.** Risk 5's decisive experiment found something | Do not restart it. The board holds the state and the log holds the census of the arrangement that produced it. |
-| `U-Boot SPL` with no `soak: started` after it | A boot that never reached the workload | `--tally` counts these separately. Read the log around it: `MEASURED BOOT REFUSED` is a mismatched pair, `### ERROR ###` is milestone 218. |
+| `soak-test: FAILED ...` then `[PANIC]` and the series stops there | **The best possible outcome.** Risk 5's decisive experiment found something | Do not restart it. The board holds the state and the log holds the census of the arrangement that produced it. |
+| `U-Boot SPL` with no `soak-test: started` after it | A boot that never reached the workload | `--tally` counts these separately. Read the log around it: `MEASURED BOOT REFUSED` is a mismatched pair, `### ERROR ###` is milestone 218. |
 | The watcher exits 2 (went quiet) mid-series | Three beats missed with no reboot announced | A wedge, which is what this is all for. Leave the board alone and read the last census in the log. |
 
 ### What a completed series licenses, written before it runs
@@ -1024,7 +1030,7 @@ number does not by itself demonstrate the requirement. For concurrency, nothing 
 documentation, in seL4's practice, or in the literature converts clock time into a claim.
 
 **The alternative is to reason from this workload's own counters, which is available and is not
-available to most people asking this question.** `script/soak` already prints, every five seconds,
+available to most people asking this question.** `script/soak-test` already prints, every five seconds,
 `rounds`, `rate`, `wakes`, `wakerate`, `crossings`, `remote`, `steals` and `deferred`. Three questions
 those support, none of which is "how many hours":
 
@@ -1064,7 +1070,7 @@ hour count inherited from a tool's default.
   hours licenses exactly one claim: *this machine did N cross-core IPC round trips without the wake
   gate refusing one, without a wrong reply, and without a worker stalling.* It licenses nothing about
   the interleavings that did not occur, and the ones that did not occur are where the remaining bugs
-  are. `script/soak` prints this on every green run because a number quoted without it is a number
+  are. `script/soak-test` prints this on every green run because a number quoted without it is a number
   quoted wrongly.
 - **No duration is prescribed, because nobody knows what duration would be persuasive.** The risk's
   own text says this class "produces a confidence rather than a verdict". Eight hours is a night;
@@ -1143,6 +1149,6 @@ hour count inherited from a tool's default.
 - **The tally counts a boot by U-Boot's SPL banner**, so it counts boots of the *board* and reports
   zero attempts on a QEMU capture, which then looks like fewer boots than draws. Honest and odd.
 - **Nothing runs a soak in `script/test`.** A twenty-second leg per architecture would gate the
-  build against bitrot, and it is not there: the soak is exercised by `script/soak` and by
+  build against bitrot, and it is not there: the soak is exercised by `script/soak-test` and by
   `board_console`'s host tests over a real capture. If the feature stops compiling, nothing will say
   so until someone runs the script.

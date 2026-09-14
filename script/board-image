@@ -141,18 +141,18 @@ if [ "$SOAK" = yes ] && [ "$JOBMIX" = yes ]; then
     echo "board-image: --soak and --jobmix both replace the end of the boot tour; pick one" >&2
     exit 2
 fi
-if [ "$SOAK" = yes ]; then FEATURES="board,soak"; fi
+if [ "$SOAK" = yes ]; then FEATURES="board,soak_test"; fi
 if [ "$JOBMIX" = yes ]; then FEATURES="board,jobmix"; fi
 if [ "$BENCH" = yes ]; then FEATURES="board,bench,single_hart"; fi
 if [ "$REBOOT" = yes ]; then
-    FEATURES="board,soak,reboot_soak"
+    FEATURES="board,soak_test,reboot_soak_test"
     cat >&2 <<'WARNING'
 
 board-image: --reboot builds a card that makes the board RESET ITSELF every two minutes,
              forever, and draw the placement lottery again each time. Before you leave it:
 
   * Press a key on the serial console on the FIRST boot and confirm the kernel answers
-    `soak-reboot: DISARMED`. That is the only proof the escape works on your cable, and
+    `soak-test-reboot: DISARMED`. That is the only proof the escape works on your cable, and
     nothing in the kernel can prove it for you: a UART cannot receive a byte it sends.
   * The escape is any byte, checked every 5s and again 5s before each reset.
   * If the console is lost entirely, U-Boot's autoboot countdown on the next boot is the

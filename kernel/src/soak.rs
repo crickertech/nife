@@ -6,7 +6,7 @@
 //! nothing to sustain: the boot tour printed its last line and called `arch::halt()`, and a board
 //! sat in `wfi` indefinitely.
 //!
-//! This is the other end of the boot. With `--features soak` the tour does not halt; it builds a
+//! This is the other end of the boot. With `--features soak_test` the tour does not halt; it builds a
 //! pool of user-mode workers and then watches them forever.
 //!
 //! # The division of labour, which is the design decision this module embodies
@@ -112,7 +112,7 @@
 //!   another run of this same build and with nothing else; see notes/soak.md's table.
 //! - **Nothing here sets a duration, and nothing here should.** The kernel soaks until the power
 //!   goes away. The watcher decides when enough is enough, which is what makes the QEMU run and the
-//!   bench run the same experiment with a different deadline. `--features reboot_soak` is the one
+//!   bench run the same experiment with a different deadline. `--features reboot_soak_test` is the one
 //!   exception and it is a different quantity: [`REBOOT_AFTER_SECONDS`] is how long one *draw* of
 //!   the placement lottery lasts, not how long the experiment does, and the experiment is still the
 //!   watcher's to end.
@@ -134,9 +134,9 @@
 // console here. A build of this feature for aarch64 or x86_64 could not do either, and the failure
 // mode of letting it compile is the worst one available: a card written from a build that quietly
 // never reboots looks exactly like a board that drew the same placement fifty times.
-#[cfg(all(feature = "reboot_soak", not(target_arch = "riscv64")))]
+#[cfg(all(feature = "reboot_soak_test", not(target_arch = "riscv64")))]
 compile_error!(
-    "--features reboot_soak is riscv64-only: it reboots through SBI SRST and escapes through the \
+    "--features reboot_soak_test is riscv64-only: it reboots through SBI SRST and escapes through the \
      NS16550's LSR, and neither exists on this target. See design/roadmap/\
      249-the-boot-lottery-is-sampled-by-a-person-walking-to-the-board.md."
 );
@@ -162,7 +162,11 @@ const BEAT_SECONDS: u64 = 5;
 /// `crates/board_console`'s recogniser matches this prefix, so the two agree by construction rather
 /// than by both being remembered. Changing it means changing that recogniser, and its tests will
 /// say so.
-const START_MARKER: &str = "soak: started";
+///
+/// **Spelled for the command, not for this module** (milestone 297, calef's ruling 2026-09-14): a
+/// console marker takes the spelling of the command a reader typed to produce it, and the reader's
+/// path to this string runs through `script/soak-test`. It read `soak: started` until then.
+const START_MARKER: &str = "soak-test: started";
 
 /// Wire the pool and never come back.
 ///
@@ -173,13 +177,13 @@ pub fn run() -> ! {
     let callers = CALLERS_PER_GROUP;
 
     let Some(image) = user::program("soaker") else {
-        println!("soak: FAILED: no 'soaker' program in the initrd archive; nothing to run");
+        println!("soak-test: FAILED: no 'soaker' program in the initrd archive; nothing to run");
         arch::halt();
     };
 
     // Zeroed, so a first sample cannot read stale RAM as progress that already happened.
     let Some(frame) = memory::alloc_zeroed() else {
-        println!("soak: FAILED: no frame for the shared progress page");
+        println!("soak-test: FAILED: no frame for the shared progress page");
         arch::halt();
     };
     let shared = frame.addr();
@@ -196,7 +200,7 @@ pub fn run() -> ! {
     // still switched on last, below. See `bind_tick_routes`.
     if !bind_tick_routes(&tick_endpoints[..groups]) {
         println!(
-            "soak: FAILED: one of interrupts {}..={TICK_INTID_TOP} is already routed, so a tick \
+            "soak-test: FAILED: one of interrupts {}..={TICK_INTID_TOP} is already routed, so a tick \
              route would steal it; see TICK_INTID_TOP in kernel/src/soak.rs",
             tick_intid(groups - 1)
         );
@@ -250,7 +254,7 @@ pub fn run() -> ! {
             });
             let Some((tid, cpu)) = started else {
                 println!(
-                    "soak: FAILED: could not spawn worker {index} of {}",
+                    "soak-test: FAILED: could not spawn worker {index} of {}",
                     groups * MEMBERS_PER_GROUP
                 );
                 arch::halt();
@@ -278,25 +282,25 @@ pub fn run() -> ! {
          threads) on {cores} online core(s), beating every {BEAT_SECONDS}s"
     );
     println!(
-        "soak: silence longer than a few beats is a hang, not a slow run; the beat is on the wall \
+        "soak-test: silence longer than a few beats is a hang, not a slow run; the beat is on the wall \
          clock and does not depend on the workload making progress"
     );
     println!(
-        "soak: a clean run is a number to compare against, NOT evidence that the concurrency is \
+        "soak-test: a clean run is a number to compare against, NOT evidence that the concurrency is \
          correct (design/roadmap/219-a-workload-that-does-not-stop.md)"
     );
     println!(
-        "soak: the threads that cross cores are the tick waiters, NOT the rendezvous pairs; a \
+        "soak-test: the threads that cross cores are the tick waiters, NOT the rendezvous pairs; a \
          rising crossings count is the wake protocol sustained across cores under load, not the \
          IPC workload migrating (design/roadmap/221-a-soak-that-crosses-cores.md)"
     );
     println!(
-        "soak: rounds counts IPC round trips and wakes counts tick-route wakes; they are separate \
+        "soak-test: rounds counts IPC round trips and wakes counts tick-route wakes; they are separate \
          because they are separate quantities, and neither rate compares with a soak built \
          differently"
     );
 
-    #[cfg(feature = "reboot_soak")]
+    #[cfg(feature = "reboot_soak_test")]
     arm_reboot();
 
     print_census(
@@ -326,14 +330,15 @@ pub fn run() -> ! {
 
 /// **The prefix every census line carries** (milestone 240).
 ///
-/// Deliberately not `soak:`. `crates/board_console`'s recogniser matches two substrings on that
-/// prefix, [`START_MARKER`] and `soak: t=`, and a census is neither the start of a run nor a
+/// Deliberately not `soak-test:`. `crates/board_console`'s recogniser matches two substrings on
+/// that prefix, [`START_MARKER`] and `soak-test: t=`, and a census is neither the start of a run nor a
 /// heartbeat; giving it its own word keeps a block of census lines from having to be proven
 /// harmless against a recogniser it has nothing to do with. It is also what a reader greps for,
 /// which is the whole point of printing it.
 ///
-/// Name provisional (milestone 240): calef names what a reader meets.
-const CENSUS_MARKER: &str = "soak-census:";
+/// Name provisional (milestone 240): calef names what a reader meets. Respelled from
+/// `soak-census:` by milestone 297, tracking the command.
+const CENSUS_MARKER: &str = "soak-test-census:";
 
 /// Which role the `member`-th thread of a group plays.
 ///
@@ -471,14 +476,16 @@ const TICK_INTID_TOP: u32 = 255;
 /// **The prefix every line about the reboot loop carries** (milestone 249).
 ///
 /// Its own word, for [`CENSUS_MARKER`]'s reason and one more of its own. `crates/board_console`'s
-/// recogniser matches two substrings on `soak: `, and neither of them is anything this loop says.
+/// recogniser matches two substrings on `soak-test: `, and neither of them is anything this loop
+/// says.
 /// The extra reason is that these are the lines a person greps a fifty-boot log for when they want
 /// to know why the series stopped, and a prefix that means exactly "the reboot loop said something"
 /// answers that in one command.
 ///
-/// Name provisional (milestone 249): calef names public items.
-#[cfg(feature = "reboot_soak")]
-const REBOOT_MARKER: &str = "soak-reboot:";
+/// Name provisional (milestone 249): calef names public items. Respelled from `soak-reboot:` by
+/// milestone 297, tracking the command.
+#[cfg(feature = "reboot_soak_test")]
+const REBOOT_MARKER: &str = "soak-test-reboot:";
 
 /// **How long one boot soaks before it draws the placement lottery again** (milestone 249).
 ///
@@ -499,7 +506,7 @@ const REBOOT_MARKER: &str = "soak-reboot:";
 /// read off several of them rather than off the one that happened to be last. It is a constant
 /// rather than a knob because there is no configuration path to a board kernel: the card carries a
 /// build, and changing this means building another one.
-#[cfg(feature = "reboot_soak")]
+#[cfg(feature = "reboot_soak_test")]
 const REBOOT_AFTER_SECONDS: u64 = 120;
 
 /// **The last chance to stop the loop, after the window and before the reset** (milestone 249).
@@ -509,7 +516,7 @@ const REBOOT_AFTER_SECONDS: u64 = 120;
 /// load-bearing: [`REBOOT_AFTER_SECONDS`] worth of beats have already asked the same question, and
 /// this window exists for the case where somebody walks up mid-run and wants the board back without
 /// having to guess where in the cycle it is.
-#[cfg(feature = "reboot_soak")]
+#[cfg(feature = "reboot_soak_test")]
 const REBOOT_GRACE_SECONDS: u64 = 5;
 
 /// **Arm the reboot loop, and say so in the place a reader meets it** (milestone 249).
@@ -526,7 +533,7 @@ const REBOOT_GRACE_SECONDS: u64 = 5;
 /// is going to reboot the machine it is running on must say so on the only channel it has, before
 /// it does it, in words that include how to stop it. Somebody who inherits a card and boots it
 /// finds out what it is from the first screen, not from a milestone document.
-#[cfg(feature = "reboot_soak")]
+#[cfg(feature = "reboot_soak_test")]
 fn arm_reboot() {
     crate::console::discard_rx();
     println!(
@@ -556,7 +563,7 @@ fn arm_reboot() {
 /// that found something can never reboot over its own evidence. The whole point of fifty boots is
 /// the one that fails, and a loop that tidied it away by resetting would be an instrument that
 /// destroys its own best result.
-#[cfg(feature = "reboot_soak")]
+#[cfg(feature = "reboot_soak_test")]
 fn draw_again(elapsed: u64) {
     println!(
         "{REBOOT_MARKER} window reached at t={elapsed}s. Cold-rebooting in \
@@ -636,7 +643,7 @@ static TICK_CURSOR: AtomicUsize = AtomicUsize::new(0);
 /// interesting is downstream of it.
 ///
 /// Not armed on an ordinary boot, because there is no ordinary boot: the whole module is behind
-/// `--features soak`. Within a soak boot it stays inert until [`arm_tick_routes`] runs, which is
+/// `--features soak_test`. Within a soak boot it stays inert until [`arm_tick_routes`] runs, which is
 /// after every worker has been spawned, so the ticks that land during setup are not counted against
 /// a waiter that does not exist yet.
 ///
@@ -753,7 +760,7 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
     // **Is this boot still going to reboot itself?** (Milestone 249.) True until somebody types on
     // the console or the firmware refuses a reset. A plain local rather than a static because
     // exactly one thread ever asks: the supervisor is the only caller of both halves.
-    #[cfg(feature = "reboot_soak")]
+    #[cfg(feature = "reboot_soak_test")]
     let mut armed = true;
 
     loop {
@@ -825,7 +832,7 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
         // One line, one beat, every field named. A log a person greps six weeks later is worth more
         // than a table that lines up on a terminal nobody kept.
         println!(
-            "soak: t={elapsed}s beat={beat} rounds={total} rate={rate}/s wakes={wakes} \
+            "soak-test: t={elapsed}s beat={beat} rounds={total} rate={rate}/s wakes={wakes} \
              wakerate={wake_rate}/s workers={workers} refused={refused} mismatch={mismatches} \
              stalled={stalled} drifted={drifted} crossings={} remote={} steals={} deferred={}",
             sched::migrations(),
@@ -878,14 +885,14 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
         };
 
         if let Some(why) = verdict {
-            println!("soak: FAILED at t={elapsed}s beat={beat}: {why}");
+            println!("soak-test: FAILED at t={elapsed}s beat={beat}: {why}");
             if first_stalled != usize::MAX {
                 // Group and member, not a partner index. The old line printed `first_stalled ^ 1`
                 // and called it the partner, which was arithmetic from a two-member group that no
                 // longer exists; naming the group points a reader at every thread that could have
                 // wedged this one, which is what they actually need.
                 println!(
-                    "soak: first stalled worker is {first_stalled}: group {}, member {} of \
+                    "soak-test: first stalled worker is {first_stalled}: group {}, member {} of \
                      {MEMBERS_PER_GROUP} (member 0 is the responder, then {CALLERS_PER_GROUP} \
                      callers, then {GRINDERS_PER_GROUP} grinder, then the tick waiter)",
                     first_stalled / MEMBERS_PER_GROUP,
@@ -917,7 +924,7 @@ fn watch(shared: u64, workers: usize, tids: &[u64; MAX_WORKERS], placed: &[u8; M
         // sticky, cleared only by reading the byte out, so this poll every [`BEAT_SECONDS`] cannot
         // miss one: the question is "has anyone typed since the soak armed", not "is anyone typing
         // right now".
-        #[cfg(feature = "reboot_soak")]
+        #[cfg(feature = "reboot_soak_test")]
         if armed {
             if crate::console::rx_waiting() {
                 armed = false;

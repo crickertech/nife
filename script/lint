@@ -173,7 +173,7 @@ cargo clippy -p kernel --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
 
 # `bench` on x86_64, same flags, same reasoning: see the note above this block. The other
-# boot-mode features (shell, initboot, icount, board, fastpath_pad, soak) still fail on this
+# boot-mode features (shell, initboot, icount, board, fastpath_pad, soak_test) still fail on this
 # ISA and stay out of any loop until their own arch layer exists.
 echo "==> clippy: kernel --features bench (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
@@ -200,11 +200,11 @@ cargo clippy -p kernel --features cycle_counter_grant --target x86_64-unknown-no
 echo "==> clippy: user + user_mode_runtime (x86_64)"
 cargo clippy -p components -p fixtures -p user_mode_runtime --target x86_64-unknown-none --all-targets -- -D warnings
 
-# The kernel's build-mode features (shell, bench, initboot, soak, cycle_counter_grant) each compile
+# The kernel's build-mode features (shell, bench, initboot, soak_test, cycle_counter_grant) each compile
 # DIFFERENT code in and out:
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
 # `icount` (milestone 78) parks before `bench` does, which is the one configuration where
-# `bench::run` and everything after it is unreachable, and `soak` (milestone 219) takes the place of
+# `bench::run` and everything after it is unreachable, and `soak_test` (milestone 219) takes the place of
 # the progenitor handoff and is the ONLY configuration in which the scheduler's event counters and
 # `Thread::last_cpu` exist at all: those are `cfg`-gated rather than `allow(dead_code)` because
 # their increments sit on the IPC fastpath and shipping them everywhere put `ipc_fastpath` 5.7% over
@@ -219,13 +219,13 @@ cargo clippy -p components -p fixtures -p user_mode_runtime --target x86_64-unkn
 # by `cargo xtask` and checked by nobody. Parity is a gate, not an aspiration (DECISIONS §19), and
 # that applies to the gate itself.
 for tgt in aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf; do
-    for feat in shell bench initboot icount board fastpath_pad soak cycle_counter_grant; do
+    for feat in shell bench initboot icount board fastpath_pad soak_test cycle_counter_grant; do
         echo "==> clippy: kernel --features $feat ($tgt)"
         cargo clippy -p kernel --features "$feat" --target "$tgt" -- -D warnings
     done
 done
 
-# `cycle_counter_grant` (milestone 237) is in the loop above for the reason `soak` is: it compiles
+# `cycle_counter_grant` (milestone 237) is in the loop above for the reason `soak_test` is: it compiles
 # milestone 229's per-thread cycle-counter grant in, and a gated path rots unless something builds
 # it. **Bin-only is the interesting half here**, because the gate on every piece is
 # `any(test, feature = "cycle_counter_grant")`: the test target has `test` set, so `--all-targets`
