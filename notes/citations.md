@@ -7,7 +7,9 @@ the documentation is part of this project's deliverable, so a footnote that land
 is a defect in the product, not an untidiness.
 
 Two gates already check that a citation **resolves**. `script/decisions --check` proves a cited `§N`
-has an index row; `script/roadmap --check` proves a cited `milestone N` has one. Neither can prove
+has an index row; `script/roadmap --check` proves a cited `milestone N` has a block under
+`design/roadmap/` (it checked for an index row until milestone 294 generated that index from the
+blocks). Neither can prove
 it resolves to the thing its author meant, and both say so in their own headers.
 
 `script/citations` is the third gate, and it reads the target.
@@ -227,9 +229,11 @@ wants a lane rather than a drive-by. **The general shape is worth more than the 
 checker chooses its inputs with one pattern and reads them with another, the gap between the two is
 unreachable by any test that only runs the checker.
 
-**Nothing checks the index rows' own titles against the files they link to**, which is
-`script/decisions`' and `script/roadmap`' stated non-goal (a row may abbreviate). A row that
-abbreviates *wrongly* is still invisible.
+**Nothing checks `design/decisions/`'s index rows' own titles against the files they link to**,
+which is `script/decisions`' stated non-goal (a row may abbreviate). A row that abbreviates
+*wrongly* is still invisible. The roadmap left this class on 2026-09-14: milestone 294 generates its
+index from the blocks, so a roadmap row's title is its block's H1 by construction, and the migration
+found five rows that had drifted.
 
 ## What it found on the first run
 

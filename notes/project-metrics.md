@@ -195,7 +195,10 @@ milestone goes nowhere, and this is the third time), and a single measurement is
 than a series. The column exists so that the series accumulates from here.
 
 **Nothing else on this page could count these, and that is the reason for the column.** The
-milestones chart reads index rows out of `design/roadmap/README.md` and keys on a milestone number.
+milestones chart reads index rows out of `design/roadmap/README.md` and keys on a milestone number
+(that table is generated as of milestone 294, and a week whose row was counted before the index was
+regenerated undercounts by however many milestones landed in between; it self-corrects on the next
+regeneration, and past weeks are read from their own revisions).
 A proposal is *defined* by not having one: a lane that finds work it is not doing writes
 `design/roadmap/proposals/<slug>.md`, because the thing concurrent lanes collide over is the number
 and not the authority, and an integrator assigns the number at promotion. So the pile was invisible
