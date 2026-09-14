@@ -7,6 +7,22 @@ why and what the removal is when it happens.
 **Gate: DECISION.** One sentence from calef, set out under "What calef has to decide" below. It is
 not a design fork and it does not need a lane to research it: the options and their costs are here.
 
+## RULED 2026-09-14: option (b), go ahead now
+
+calef, given the one sentence this file was written to ask for: *"Retire builder"*. The status line
+above stays `PROPOSED` because that is what `script/roadmap` measures and what promotion will clear;
+the ruling is recorded here so it is not left in a chat log, and what it waits on now is a milestone
+to perform it.
+
+**The risk (b) takes is accepted rather than open.** The tree keeps *userspace composes a process*
+wherever a progenitor runs, and drops *...from an authority you can count on one hand*. If minimality
+is to be kept it is to be kept elsewhere, and this file's own suggestion is where to start looking.
+
+**The removal must not be attempted before milestone 268 lands.** Item 6 below is why: the live
+matcher can only move to `Stage::Prompt`, which 268 introduces. The captured board transcript keeps
+its `init/build` matcher regardless, because that evidence came off real silicon and cannot be
+re-taken.
+
 ## What `builder` is, and the claim it carries
 
 `components/src/builder.rs` is milestone 20's richer-initrd demonstration, and the RISC-V boot tour
