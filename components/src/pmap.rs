@@ -35,8 +35,10 @@
 //! capability in this tree is minted and consumed **within the thread that built it**
 //! (`RETYPE_OBJ(ADDRESS_SPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
 //! registry the instant it binds to a thread), and nothing shipped here ever delegates one to a
-//! different program (checked: `components/src/builder.rs`, `crates/supervision_proto`, `fixtures/src/hello.rs`,
-//! `fixtures/src/os_primitives_benchmarker.rs`, the only sites that mint an `Object::AddressSpace` at all --
+//! different program (checked: `crates/supervision_proto`, `fixtures/src/hello.rs`,
+//! `fixtures/src/os_primitives_benchmarker.rs`, the only sites that mint an `Object::AddressSpace` at all;
+//! `components/src/builder.rs` was a fourth when DECISIONS §114's audit ran and milestone 295 retired
+//! it, which removes a site rather than changing the finding --
 //! DECISIONS §114's required audit). So there is no manifest field for this program to declare and
 //! no wiring for `system_initializer` to add: there is nothing alive anywhere in the system to hand
 //! it.

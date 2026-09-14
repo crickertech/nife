@@ -288,7 +288,9 @@
 //! Name: ratified 2026-08-04 (calef, milestone 96), and it is the ratification that raised
 //! milestone 115. Refused `system_builder` (milestone 63 had already refused it, for a reason still
 //! true: `builder.rs` called itself "a minimal init: the system builder" when this was recorded,
-//! so two programs would claim one phrase) and `system_bootloader` (it claims a position in the
+//! so two programs would claim one phrase; that program was retired on 2026-09-14 by milestone 295
+//! and the quotation is kept because a refusal is an account of why a name lost, not a description
+//! of the tree) and `system_bootloader` (it claims a position in the
 //! boot sequence it does not occupy, and milestone 88 will need the real one). A lane proposed
 //! `system_builder` anyway and the maintainer endorsed it, because that refusal lived in one table
 //! cell inside one milestone block and neither of them found it. The type this crate exports as
