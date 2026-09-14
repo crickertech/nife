@@ -1030,6 +1030,23 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // The probe names `progenitor` rather than the entry the demo actually loads, because
             // it is asking "is this one of our archives at all", and since milestone 266 that entry
             // is on every archive this tree packs.
+            //
+            // **Why this step is still here when the machine boots to `swish`** (milestone 289,
+            // which was sent to retire it and did not). `swish` arrives through `progenitor`, and
+            // on RISC-V `progenitor` is `#[cfg(feature = "shell")]`: `script/shell-check` is the
+            // only thing that builds it, in QEMU. The **default** build is this one, and it is what
+            // `script/board-image` writes to a card, so on RISC-V this step is the
+            // userspace-loads-userspace demonstration that reaches the board. It can be, because it
+            // is trimmed to a budget and a report endpoint: no PLIC, no NS16550 delegation, no
+            // interrupt route, and therefore no dependence on the board's UART source number, which
+            // is 10 on QEMU `virt` and 32 on the JH7110.
+            //
+            // **The `init/build` line below is read by a program, not only by a person.**
+            // `crates/board_console`'s `Progress::userspace_ran` matches it by substring; four host
+            // tests assert on it, and three captured transcripts carry it, one of them off the
+            // VisionFive 2 (`vf2-2026-09-01-userspace.log`). `notes/board-console.md` calls it the
+            // only difference between the two successful board captures (an archive on the card,
+            // and none). Change the words and that goes quiet.
             let is_archive = nifefs::Fs::parse(initrd)
                 .map(|fs| fs.read(user::PROGENITOR_ENTRY).is_some())
                 .unwrap_or(false);
