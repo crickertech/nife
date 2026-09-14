@@ -63,7 +63,8 @@
 //!   second would need positional arity the shell does not have yet. Unix prints a per-file table
 //!   and a total; that is formatting over a set, and this program counts one stream.
 //!
-//! Name: recorded (AGENTS.md's naming section, which reasons about this exact string twice). The
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on AGENTS.md's naming
+//! section, which reasons about this exact string twice and so needed no new argument to sign. The
 //! Unix command's own name, in the protected class the tenet calls the best names available: a
 //! word a reader already knows from outside this project costs a newcomer nothing to learn.
 //! AGENTS.md does not merely cover it by rule, it argues it by name, first as the case that

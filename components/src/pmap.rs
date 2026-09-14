@@ -6,7 +6,9 @@
 //! itself is `crates/pmap`, which runs on the host in milliseconds; what lives here is the syscall
 //! and the two sinks.
 //!
-//! Name: recorded (milestone 126, and notes/naming.md). `pmap` is the name every reader already
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on milestone 126 and
+//! notes/naming.md. Its crate was ratified 2026-08-23 in a kernel-dependency naming review, so the
+//! pair is signed at both ends. `pmap` is the name every reader already
 //! knows from outside this project. The crate beside it shares the name deliberately, the same
 //! crate-and-program pair `ps`, `coremark`, `line_editor` and `compositor` already are.
 //!

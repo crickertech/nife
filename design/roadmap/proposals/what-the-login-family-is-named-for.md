@@ -12,13 +12,13 @@ meanwhile: every file keeps the name it has, and `script/names` takes `recorded`
 **Nothing types `login`.** Its own module docs say it is started by `kernel/src/user/login_service.rs`,
 the same way `credentialer` is, and *"is not itself reachable"* from the prompt. Clients reach it by
 `CONNECT` on a front-door endpoint. That matters because the argument for keeping the word was the
-protected class — *the Unix name for the program that answers exactly this request* — and that
+protected class (*the Unix name for the program that answers exactly this request*), and that
 argument rests on a person meeting it. The only things that meet this one are other programs and a
 reader of the source.
 
 **And it does not authenticate.** Asked directly, the answer is no: it holds `WRITE` on the credential
 service's verify endpoint and **relays**; `components/src/credentialer.rs` checks the secret. What this
-program does is mint a session's worth of capabilities on the answer — a fresh `fs_subtree_caretaker`,
+program does is mint a session's worth of capabilities on the answer: a fresh `fs_subtree_caretaker`,
 a budget, a logout ticket, the terminal when free. With `principal` ratified the same day, the sentence
 is available: **it turns an identity into a principal.**
 
@@ -45,7 +45,7 @@ lands in the right place.
 ## The sequencing, which is the urgent half
 
 **`login_proto` is already in milestone 265's table**, to become `login_protocol`. That rename keeps
-the stem. If the stem changes afterwards, those files are renamed twice — which is the exact cost
+the stem. If the stem changes afterwards, those files are renamed twice, which is the exact cost
 265's own block says it was written to avoid, and why calef's `mdns` and `ntp` stem rulings were taken
 *into* 265 rather than performed separately.
 
