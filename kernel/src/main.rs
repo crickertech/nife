@@ -872,8 +872,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // A `shell` build hands the machine to userspace progenitor here and parks, instead of the tour.
         // The kernel loads `system_initializer` from the initrd, grants it the NS16550 and the UART interrupt,
         // and it builds the console server, input driver, and shell out of its own budget; the shell
-        // is interactive over the serial. This is the RISC-V equivalent of the aarch64 `initboot`
-        // path. Needs the shell programs in the initrd (cargo xtask initrd-riscv packs them).
+        // is interactive over the serial. This is the RISC-V equivalent of the aarch64 `shell`
+        // path (named `initboot` there until milestone 296 found the two features identical).
+        // Needs the shell programs in the initrd (cargo xtask initrd-riscv packs them).
         #[cfg(feature = "shell")]
         {
             riscv_hand_over();
@@ -1694,12 +1695,11 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // It is not a survivor either, and since the narrator was deleted it is not the move
         // either: it comes up with nothing to print. See the block below.
         //
-        // Compiled out by `cargo xtask shell` and `cargo xtask initboot`, which boot straight to
-        // the system instead of scrolling all of this first. **Both features mean exactly this
-        // one thing** and `initboot` names nothing `shell` does not; whether that is still worth a
-        // compile-time switch is measured in the milestone block and proposed there rather than
-        // decided here.
-        #[cfg(not(any(feature = "shell", feature = "initboot")))]
+        // Compiled out by `cargo xtask shell`, which boots straight to the system instead of
+        // scrolling all of this first. There were two features here until milestone 296: `initboot`
+        // named nothing `shell` did not, and a build of each produced the same 3,109 symbols at the
+        // same total size. calef ruled it deleted rather than renamed on 2026-09-14.
+        #[cfg(not(feature = "shell"))]
         {
             // **The console server, with nothing to print through it.** Milestone 267 moved the
             // nine-line milestone narrative out of `kernel_main` into `user/src/narrator.rs` and
@@ -1919,8 +1919,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // discipline (`line_editor`, milestone 28), the input driver, and the shell out of its own budget
         // through the granular verbs. This is the line that retires the kernel as the system's
         // builder. Every aarch64 interactive build reaches it: `--features shell` and the milestone
-        // tour hand off straight away (the tour after running its demos), the same way `initboot`
-        // always has, and the same way RISC-V's `--features shell` hands off to `system_initializer`. The
+        // tour hand off straight away (the tour after running its demos), and the same way
+        // RISC-V's `--features shell` hands off to `system_initializer`. The
         // legacy kernel-wired `user::shell_service` is retired as a boot path (it cannot host the
         // milestone-28 shell, which speaks the terminal contract, not the raw console protocol) and
         // is kept only as dead code for reference.
@@ -1972,8 +1972,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 /// signature of a register window that answered with nothing, which milestone 220's clock line
 /// above is what explains.
 // riscv64-only because the JH7110 is; `allow(dead_code)` because the boot tour that calls it is
-// itself compiled out of the shell, initboot and bench builds, the same way `image_for_virtio`
-// below is.
+// itself compiled out of the shell and bench builds, the same way `image_for_virtio` below is.
 /// **Counter ticks as microseconds** (design/roadmap/proposals/time-the-hw-entropy-step.md), for
 /// the boot tour's `hw entropy` line.
 ///
@@ -2046,8 +2045,8 @@ fn mode_note(stat: u32) -> &'static str {
 /// on aarch64 this used to be a role of `hello`, which was the same `crates/virtio` code behind a
 /// second dispatch table. Panics if absent (the demo checked `initrd()` above).
 #[cfg(not(test))]
-// Tour-only: the shell, initboot, and bench boots all skip the milestone tour where it is used.
-#[cfg_attr(any(feature = "shell", feature = "initboot"), allow(dead_code))]
+// Tour-only: the shell and bench boots both skip the milestone tour where it is used.
+#[cfg_attr(feature = "shell", allow(dead_code))]
 #[cfg(not(feature = "bench"))]
 fn image_for_virtio() -> &'static [u8] {
     user::program("block_driver").expect("no block_driver program in the initrd")
@@ -2163,6 +2162,8 @@ fn riscv_hand_over() {
 /// demonstration. Milestone 267 split the two for that reason; before it, one
 /// `#[cfg(not(any(feature = "shell", feature = "initboot")))]` sat in the middle of a single block
 /// and the boundary between the two audiences was a reader's inference rather than a name.
+/// (That cfg is quoted as it stood: milestone 296 deleted `initboot`, and the live gate on the
+/// block below it now reads `not(feature = "shell")`.)
 ///
 /// The `test` and `bench` exclusions on the signature are not that switch and are deliberately
 /// kept. A `bench` boot diverges into `bench::run` before this point and never returns, and a

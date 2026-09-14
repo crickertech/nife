@@ -87,9 +87,10 @@ table stays because it also says what each workflow is for, which no API can:
 
 ## B. The `script/` entry points
 
-Fifty files. Not all of them are checks: `apropos`, `bootstrap`, `setup`, `update`, `console`,
-`server`, `initboot`, `board-console`, `board-image`, `catch-up`, `qemu-check`, `ci-qemu` and
-`runner-container` are tools or provisioning. What follows is every entry point that renders a
+Fifty-four files. Not all of them are checks: `apropos`, `bootstrap`, `setup`, `update`, `console`,
+`server`, `board-console`, `board-image`, `catch-up`, `qemu-check`, `ci-qemu` and
+`runner-container` are tools or provisioning. (`initboot` was on that list until milestone 296
+deleted it: it ran the same kernel `console` runs.) What follows is every entry point that renders a
 verdict or a measurement, and who calls it.
 
 *The "called by" column was re-spelled 2026-09-13 by milestone 286, which retired `script/gates`

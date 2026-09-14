@@ -1238,8 +1238,8 @@ pub fn spawn_progenitor(
 /// system's first output comes from a userspace driver the progenitor built, not from the kernel.
 /// The report endpoint is unused on this path (the progenitor prints via the console it builds, not
 /// back to the kernel); it is created only to satisfy `spawn_progenitor`'s shape.
-// The aarch64 interactive boot hands off here for every non-bench build (the tour, `--features
-// shell`, and `--features initboot`), since milestone 28 retired the kernel-wired `shell_service`.
+// The aarch64 interactive boot hands off here for every non-bench build (the tour and `--features
+// shell`), since milestone 28 retired the kernel-wired `shell_service`.
 #[cfg(not(any(test, feature = "bench")))]
 // The soak boot (milestone 219) takes the place of this handoff rather than following it: a run
 // that also brought up a console, a line discipline and a shell would be soaking those too. So on
@@ -1421,7 +1421,7 @@ pub const OUTLAW_ROUND_TRIP: u64 = 0;
 /// `READ_KERNEL` reads the address handed to it in the second argument register, which is what makes
 /// the program portable: the kernel's own memory lives at a different virtual address on each ISA,
 /// and the caller knows which. See `tests::a_user_program_cannot_read_a_kernel_address`.
-// The tour uses it, and the shell/initboot/bench boots skip the tour.
+// The tour uses it, and the shell/bench boots skip the tour.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const OUTLAW_READ_KERNEL: u64 = 1;
 
@@ -2058,12 +2058,9 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
 /// what a client needs to reach it. The server binary and the client binary are the *same ELF*,
 /// told apart by the argument in `x0`.
 // The milestone tour is the only consumer, so this is dead in exactly the configurations that
-// have no tour: a test build, and the three alternate boot modes. The allow sits on the module
+// have no tour: a test build, and the two alternate boot modes. The allow sits on the module
 // because the module is one wiring, not a bag of independent items.
-#[cfg_attr(
-    any(test, feature = "shell", feature = "bench", feature = "initboot"),
-    allow(dead_code)
-)]
+#[cfg_attr(any(test, feature = "shell", feature = "bench"), allow(dead_code))]
 pub mod console_service;
 
 /// Bringing the virtio block driver up in userspace.

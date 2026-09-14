@@ -106,23 +106,6 @@ fn main() -> ExitCode {
                     TARGET,
                 ])
         }
-        "initboot" => {
-            // Milestone 19d.2c: boot with the userspace progenitor as the boot path (it brings up the
-            // console). Add --hvf for the real core.
-            maybe_hvf();
-            eprintln!("--- booting nife via the userspace progenitor (Ctrl-C to quit) ---");
-            mkdisk()
-                && user()
-                && cargo(&[
-                    "run",
-                    "-p",
-                    "kernel",
-                    "--features",
-                    "initboot",
-                    "--target",
-                    TARGET,
-                ])
-        }
         // The aarch64 archive, standalone (2026-08-27): every other caller reaches
         // `initrd_aarch64` through `user()` as part of a boot (`build`, `run`, `shell`, ...), and
         // `initrd_aarch64` itself only packs, it does not build. `initrd_riscv` and `initrd_x86`
@@ -197,7 +180,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");

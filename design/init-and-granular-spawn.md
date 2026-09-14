@@ -172,6 +172,10 @@ names the space through the same registry revocation uses.
     wires none of it. Interactive typing is validated by hand (the harness cannot inject
     keystrokes); the default, shell, bench, and test boots are unchanged, 105 tests still pass.
 
+    *(**`initboot` is the name this path had in 2026-07.** The feature and `script/initboot` were
+    deleted by milestone 296, which found the feature selected nothing `shell` did; `script/console`
+    runs the boot this paragraph describes. The account above is left as it was written.)*
+
     Two real bugs fixed in the bring-up, both recorded: **stack size** -- init loads whole ELFs
     with deep call chains and the shell is a big program, so one page overflows; init now gets 8
     stack pages and each child 4. **Scratch collision** -- `build_child` mapped each child's
