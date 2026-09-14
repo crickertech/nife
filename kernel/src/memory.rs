@@ -99,7 +99,7 @@ pub fn init() {
     // there and `drivers::jh7110_clock_and_reset` is never reached.
     {
         let crg = jh7110_clock_and_reset::discover(&dtb).ok();
-        let has_trng = matches!(jh7110_entropy_source::discover(&dtb), Ok(Some(_)));
+        let has_trng = matches!(jh7110_entropy::discover(&dtb), Ok(Some(_)));
         if let Some(found) = crg
             && (found.from_tree || has_trng)
         {

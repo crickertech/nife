@@ -1,5 +1,5 @@
 [package]
-name = "jh7110_entropy_source"
+name = "jh7110_entropy"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
