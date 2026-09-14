@@ -110,7 +110,7 @@
 //! and `WRITE` is the one right `MemoryRegion::DESTROY` needs. Nothing before this fix had a reason to
 //! call it, so this program's BUGS never named it, but any client holding `budget` could always
 //! reclaim it the same way the logout ticket reclaims `region`. `fixtures/src/login_test_client.rs`'s
-//! `ROLE_LOGOUT` does both, so a full logout gives back everything a session spent:
+//! `LOGOUT` behaviour does both, so a full logout gives back everything a session spent:
 //! [`CARETAKER_REGION_PAGES`] through the fourth capability and [`CLIENT_BUDGET_PAGES`] through the
 //! third, both returning to [`CONSTRUCTION_UT`].
 //!
