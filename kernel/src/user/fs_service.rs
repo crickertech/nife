@@ -905,24 +905,19 @@ pub fn mkfs_image() -> Option<&'static [u8]> {
 pub const NO_MKFS: &str = "no mkfs in this archive (nothing built one for this target before \
                            the archive was packed)";
 
-/// **The binary carrying the block server's role**, which is the one thing the two ISAs
-/// disagree about here: on aarch64 it is a role of the `hello` binary, on riscv the
-/// dedicated `block_driver` one. Every caller goes through this so the disagreement is one `cfg`
-/// rather than a second copy of every wiring.
+/// **The binary carrying the block server's role**, which is now the same one everywhere.
+///
+/// **Three `cfg` arms stood here until milestone 291**, because aarch64 reached this role through
+/// the `hello` multiplexer while the other two boards had the dedicated `block_driver`. The two
+/// shapes always ran the same code (`crates/virtio` is the driver; both binaries were dispatch
+/// tables in front of it), so the disagreement bought nothing and cost a fact every caller of this
+/// function had to be routed around. 291 packed `block_driver` into the aarch64 archive too and
+/// the arms collapsed.
 ///
 /// It panics rather than returning `None` because a boot archive without it is a build that did
 /// not finish, not a machine without a disk; the disk's absence is [`root_directory`]'s `None`.
 pub fn blk_server_image() -> &'static [u8] {
-    #[cfg(target_arch = "aarch64")]
-    return program(super::HELLO_ENTRY).expect("no hello program in the initrd archive");
-    #[cfg(target_arch = "riscv64")]
-    return program("block_driver").expect("no block_driver program in the initrd archive");
-    // x86_64 (milestone 161) packs RISC-V's archive, so it gets RISC-V's answer: the dedicated
-    // `block_driver` program. This arm used to panic outright, because nothing in `user/` compiled
-    // for this target at all; item 4's hand-off changed that and the arm became a third copy of
-    // the same line rather than a special case.
-    #[cfg(target_arch = "x86_64")]
-    return program("block_driver").expect("no block_driver program in the initrd archive");
+    program("block_driver").expect("no block_driver program in the initrd archive")
 }
 
 /// **Wire the filesystem and hand back the root directory capability**, for a boot rather than

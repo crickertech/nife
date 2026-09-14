@@ -1,0 +1,10 @@
+# A program's check that its own ELF image was loaded correctly (milestone 291).
+# The name block, with the refusals, is in src/lib.rs where `script/names` reads it.
+[package]
+name = "loaded_image_check"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true

@@ -27,15 +27,12 @@ use super::*;
 const NO_RIPGREP: &str = "no rg in this archive: build it with scripts/build-ripgrep.sh, which \
                           fetches the published ripgrep crate from crates.io (milestone 121)";
 
-/// **The block server's ELF**, which the two archives carry in different programs. On aarch64 it is
-/// a role of `hello` (`super::HELLO_ENTRY`); RISC-V has a dedicated `block_driver`
-/// (`riscv_virtio_tests::blk_image`). The names stopped differing at milestone 266; what still
-/// differs is which binary carries the role.
+/// **The block server's ELF**, one program in every archive since milestone 291. This was two
+/// `cfg` arms (a role of `hello` on aarch64, the dedicated `block_driver` elsewhere) until that
+/// milestone packed `block_driver` on aarch64 too; `fs_service::blk_server_image` carries the
+/// reason.
 fn block_server_image() -> &'static [u8] {
-    #[cfg(target_arch = "aarch64")]
-    return program(super::HELLO_ENTRY).expect("no hello program in the initrd archive");
-    #[cfg(target_arch = "riscv64")]
-    return program("block_driver").expect("no block_driver program in the initrd archive");
+    program("block_driver").expect("no block_driver program in the initrd archive")
 }
 
 /// **Somebody else's forty-crate application loads, runs, reaches a real filesystem through a
