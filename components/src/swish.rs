@@ -1301,7 +1301,13 @@ const TIMING_DONE: &[u8] = b"== timings done\n";
 /// The interactive prompt. `rights` is the [`_start`] convention: the `filesystem_proto::dir` rights of the
 /// directory capability at [`DIR_TERMINAL`], or 0 for a boot that wired no filesystem.
 fn interactive(rights: u64) -> ! {
-    print(b"\nnife capability shell. naming a resource in a command IS granting it.\n");
+    // **The line that says userspace is up**, and it is the top rung of milestone 268's boot
+    // ladder: a default boot ends at this prompt rather than at a halt, so this is the sentence a
+    // watcher reads to learn that the boot finished. Its head comes from `crates/boot_ladder`
+    // rather than from a literal here, because `crates/board_console` matches it and AGENTS.md
+    // rule 7 says two binaries agreeing on a string means a crate.
+    print(boot_ladder::PROMPT.as_bytes());
+    print(b". naming a resource in a command IS granting it.\n");
     print(b"commands: help, echo <text>, caps [command], time <command>, xargs <command>,\n");
     print(b"          cd, pwd, ls, mkdir, touch, apropos <word>, rm, wc, mdr, <prog> [--mem N] [arg]\n");
     print(b"          and the operators  >  >>  <  |\n");

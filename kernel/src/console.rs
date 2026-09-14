@@ -150,6 +150,61 @@ pub fn init() {
     CONSOLE.lock().uart.init();
 }
 
+/// **This machine's console, for the machine description** (milestone 268).
+///
+/// One of the eight questions the description answers on every architecture, and the one that
+/// answers itself: a reader who can see this line is reading it through the device it names. That
+/// is not a joke at the line's expense, it is what makes it worth printing. The address here is the
+/// **compile-time** constant this kernel came up on (see [`UART_BASE`]'s own doc for why the
+/// console cannot ask the machine where it is), so a board whose real UART is somewhere else
+/// prints nothing at all, and a board whose UART is here but whose *tree* disagrees is a board
+/// where this line and the interrupt line below it are the diagnosis.
+///
+/// **The screen half is printed too, or its absence is** (milestone 243). A machine with a
+/// framebuffer says the same thing on both surfaces, and `xenon` is why: at first light there was
+/// no serial console this project could read, so the description *was* the transcript, photographed
+/// off a monitor.
+// The machine description and the boot self-test are the only callers, and both are
+// `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench
+// boot diverges into `bench::run`, so neither reads a bring-up transcript. Same treatment
+// `memory::print_summary` already carries, and for the same reason.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+pub fn print_summary() {
+    let irq = crate::memory::uart_irq();
+    // The screen is read through the same lock the UART is, which is the point of `KernelConsole`:
+    // one lock serialises both surfaces. Copied out and released before printing, because printing
+    // takes that lock again.
+    let screen = CONSOLE.lock().screen.as_ref().map(|s| (s.pixels, s.len));
+
+    #[cfg(target_arch = "x86_64")]
+    crate::print!("  console         : 16550 at i/o port {UART_BASE:#06x}");
+    #[cfg(not(target_arch = "x86_64"))]
+    crate::print!("  console         : {CONSOLE_KIND} at {UART_BASE:#018x}");
+    match irq {
+        Some(line) => crate::print!(", interrupt line {line}"),
+        // Not a failure: the x86 console is polled and nothing routes its line yet, and a device
+        // tree that names no `interrupts` property for the UART is a tree this kernel still boots
+        // on. Saying which is the diagnosis a blank would not be.
+        None => crate::print!(", no interrupt line recorded"),
+    }
+    crate::println!();
+    match screen {
+        Some((pixels, len)) => crate::println!(
+            "                  : and a screen, {len} bytes of framebuffer at {pixels:#018x}",
+        ),
+        None => crate::println!("                  : no screen; this console is the UART alone"),
+    }
+}
+
+/// What the console driver is called, for the line above. x86 spells its own inline because the
+/// address is a port rather than a pointer and the sentence is shaped differently.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+#[cfg(target_arch = "aarch64")]
+const CONSOLE_KIND: &str = "PL011";
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+#[cfg(target_arch = "riscv64")]
+const CONSOLE_KIND: &str = "NS16550";
+
 /// **Start printing to a screen as well as to the UART** (milestone 243).
 ///
 /// `found` is what the boot stage before this kernel measured and wrote into the boot handoff;

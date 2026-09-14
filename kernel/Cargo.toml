@@ -58,6 +58,11 @@ timebase_proto = { version = "0.1.0", path = "../crates/timebase_proto" }
 # the kernel's own tests read it back through this crate rather than by trusting the count the
 # program sent home, so no party has its own copy of the layout.
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
+# The boot ladder's console markers (milestone 268): the exact bytes each rung of the boot prints.
+# The kernel prints them and `board_console` matches them, so AGENTS.md rule 7 makes them a crate
+# rather than two copies of a literal. That is not hypothetical here: the one marker that existed
+# before this crate WAS two copies of a literal, one inside a single architecture's arm.
+boot_ladder = { version = "0.1.0", path = "../crates/boot_ladder" }
 # The soak workload's shared page (milestone 219): the kernel reads the progress counters the
 # `soaker` program writes, through one definition of the layout rather than two copies.
 soak_page = { version = "0.1.0", path = "../crates/soak_page" }
@@ -232,6 +237,21 @@ reboot_soak = ["soak", "board"]
 initboot = []
 # Boot straight to the interactive shell, skipping the milestone tour. Used by cargo xtask shell.
 shell = []
+# **The boot self-test's fault injector** (milestone 268). One check in `kernel/src/self_test.rs`
+# reports failure, so the verdict line goes red on a kernel that is otherwise fine.
+#
+# It exists because a verdict nobody has seen red is a verdict nobody has tested, and milestone
+# 268's proof condition is exactly that: the same failure injected into any one architecture turns
+# the verdict red there and fails CI. `cargo xtask boot-check --inject` builds each architecture
+# with this on and asserts the gate goes red; without it the only way to exercise the red path
+# would be to break the kernel for real, which is a thing nobody does on purpose twice.
+#
+# Off by default and never on in anything that ships. It changes one boolean and prints a different
+# sentence; it breaks nothing, which is deliberate, because an injector that actually broke the
+# machine would be untestable in the one configuration it is for.
+#
+# Name provisional (milestone 268): calef names what a reader meets.
+self_test_injection = []
 # Adds a test that deliberately livelocks while making IPC progress, to prove the per-test wall-clock
 # ceiling catches what the no-progress heartbeat cannot see (testing.rs). It is EXPECTED TO FAIL the
 # run, so it is not part of the normal suite; see notes/scheduler.md for the command that runs it.

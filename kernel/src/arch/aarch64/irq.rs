@@ -104,3 +104,26 @@ pub fn init_this_cpu() {
 pub fn send_reschedule(target_cpu: usize) {
     crate::drivers::gic::send_sgi(crate::sched::RESCHED_SGI, target_cpu);
 }
+
+/// **This machine's interrupt controller, for the machine description** (milestone 268).
+///
+/// One of the eight questions the description answers on every architecture, in this
+/// architecture's own vocabulary. The two register blocks are the pair that makes a GICv2 a GICv2:
+/// the distributor is one per machine and decides routing, the CPU interface is private to each
+/// core and is what actually delivers. A board where the second address is wrong takes no
+/// interrupts at all while the first one looks perfectly healthy, which is why both are printed.
+// The machine description and the boot self-test are the only callers, and both are
+// `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench
+// boot diverges into `bench::run`, so neither reads a bring-up transcript. Same treatment
+// `memory::print_summary` already carries, and for the same reason.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+pub fn print_summary() {
+    match crate::memory::gic_regions() {
+        Some(((gicd, _), (gicc, _))) => crate::println!(
+            "  interrupts      : GICv2, distributor {gicd:#018x}, cpu interface {gicc:#018x}",
+        ),
+        None => {
+            crate::println!("  interrupts      : none (this machine's device tree names no GIC)");
+        }
+    }
+}

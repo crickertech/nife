@@ -83,9 +83,14 @@ name = "board_console"
 version = "0.1.0"
 dependencies = [
  "bitmap_font",
+ "boot_ladder",
  "machine_discovery",
  "screen_console",
 ]
+
+[[package]]
+name = "boot_ladder"
+version = "0.1.0"
 
 [[package]]
 name = "byte_sink_proto"
@@ -155,6 +160,7 @@ dependencies = [
  "abi",
  "bitmap_font",
  "block_roster",
+ "boot_ladder",
  "byte_sink_proto",
  "calendar",
  "clock_proto",
@@ -465,6 +471,7 @@ dependencies = [
  "asid",
  "bitmap_font",
  "block_roster",
+ "boot_ladder",
  "byte_sink_proto",
  "calendar",
  "capability",

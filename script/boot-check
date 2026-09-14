@@ -1,0 +1,61 @@
+#!/bin/sh
+# script/boot-check: boot every architecture's default kernel and read its self-test verdict.
+#
+#   script/boot-check                     all three architectures, the verdict must be green
+#   script/boot-check --arch riscv64      one leg
+#   script/boot-check --inject            all three, with a failure injected: the verdict must be RED
+#
+# **This is the gate that makes milestone 268's boot ladder mean something.** The kernel describes
+# the machine, self-tests, and hands over; the self-test *reports* rather than gating, because a
+# machine you cannot log into is a machine you cannot fix (calef, 2026-09-09). Something else
+# therefore has to read the verdict, or the milestone ships the defect it was written to fix: the
+# boot tour's checks have printed `FAILED:` and carried on since they were written, and nothing ever
+# read those either, which is why a stage that could never fire on two of three architectures hid
+# for months.
+#
+# What it asserts, per architecture:
+#
+#   - the default kernel boots at all, in the configuration `cargo xtask run` gives a person
+#   - the machine description printed to its end (`nife machine: ...` is its LAST line)
+#   - the self-test verdict is `nife self-test: N of N passed` with nothing failed
+#
+# It reads those with `crates/board_console`, the same recogniser `cargo xtask board-console` points
+# at a real board over a serial cable. One reader, so a gate cannot pass something a bench run would
+# call broken.
+#
+# `--inject` builds each kernel with `--features self_test_injection`, which makes one check report
+# failure, and requires the run to come back RED. **A gate that has only ever been seen green is a
+# gate nobody has tested**; this is milestone 268's proof condition, and it is cheap enough to keep.
+#
+# No initrd and no disk: every rung this reads is printed before userspace exists. The rung above it
+# (the `swish` prompt) needs an archive, and `script/shell-check` is the gate that boots that.
+#
+# BUGS
+#
+# **It does not check the prompt**, which is the ladder's top rung and the stated terminal state of
+# a default boot. `script/shell-check` reaches one on aarch64 and riscv64; x86_64 cannot reach one
+# at all until DECISIONS §149 and milestone 182, x86_64's own interactive-boot entry point
+# (`design/roadmap/182-x86-64-interactive-boot.md`). Asserting
+# it on two of three would be the shape of defect this milestone exists to fix, so it is recorded
+# here instead of half-done.
+#
+# **A red verdict ends each leg's watch early**, so a kernel whose self-test fails and then panics
+# is reported as the self-test failure. That is the right first thing to report; the log named in
+# the output has the rest.
+#
+# **Three debug kernels under TCG is around a minute** against a warm target directory, and each leg
+# is killed rather than waited on (a default boot parks in `wfi` or sits at a prompt and never
+# exits). Run it when you touch the boot path, the machine description, or the self-tests.
+#
+# Name: provisional (milestone 268). It sits beside `script/shell-check` and is named the same way,
+# which is deliberate and also inherits that name's recorded problem: `script/lint` runs
+# `shellcheck`, and this family of `-check` entry points is one hyphen from several unrelated
+# things. calef has not ruled.
+
+set -e
+cd "$(dirname "$0")/.."
+
+# This project's own QEMU, if `script/ci-qemu` has built one (scripts/qemu-path.sh says why
+# PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
+. scripts/qemu-path.sh
+exec cargo xtask boot-check "$@"
