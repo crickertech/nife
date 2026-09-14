@@ -82,3 +82,11 @@ volatile as a provisioned one until that separate gap closes.
 
 Not started; nothing built yet to carry its own BUGS section. This file's own "design question"
 above is the gate.
+
+## Index row
+
+Surfaced deciding how a real boot's demo credential is provisioned (§120's amendment): the boot
+now generates and prints a fresh password each time, and nothing lets a person replace it with one
+of their own choosing. The sealed credential store's no-update-path is deliberate (`Store::put`'s
+own doc names the race it refuses), so this needs a real design fork on where a proof-gated
+rotation verb lives, not a bug fix. Gate: DECISION.

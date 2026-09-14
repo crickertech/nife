@@ -123,3 +123,20 @@ missing claim.
 - **Recorded.** `notes/merge-queue.md` records the reporting asymmetry. It writes to stdout only:
   the drain can comment on the pull request it is complaining about, and a branch with no pull
   request has nowhere to be told.
+
+## Index row
+
+**Built:** 2026-08-31
+
+Minted by calef on 2026-08-31, after two lanes in one session pushed `milestone/*` branches and
+never opened the draft pull request their briefs named as the first act. §90 says the draft **is**
+the claim and nothing checks it; the board was empty while two milestones were being worked. Prose
+in a brief is rung four and behaved like it, for the second time in this project's history. A
+report in `scripts/merge-drain.sh`'s family, never a gate, comparing `git ls-remote --heads origin
+'milestone/*'` against `gh pr list --draft`. Shipped as `scripts/lane-claim-check.sh`, called once
+per pass from the merge drain, which is the only unattended runner this project has. Grace period
+15 minutes, measured: the branch that built it took 3 minutes from branch creation to draft, and
+that included writing the file GitHub requires before it will accept a pull request at all. The
+clock runs from branch birth and a later push does not reset it, which is the opposite of the
+stale-draft report next door and for the opposite reason. Found a live unclaimed branch on its
+first run.

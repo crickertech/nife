@@ -49,3 +49,9 @@ prerequisite piece and worth building first as its own tested step. Feeds 23 and
   DHCP on purpose: a wider surface would be reimplementing Berkeley sockets, which proves nothing
   about a kernel confining a stack, and this milestone's thesis is the confinement rather than the
   stack.
+
+## Index row
+
+**Built:** 2026-07-30
+
+the canonical microkernel component, and the one people ask about first

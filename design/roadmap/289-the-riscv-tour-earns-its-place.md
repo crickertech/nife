@@ -160,3 +160,18 @@ Proposed provisionally, with the refusals: see the block in `components/src/buil
 - **This milestone measured the riscv64 tour and did not boot it on silicon.** Every claim above about
   the board is read from `notes/visionfive2.md`'s captures and from the source; radon was not at this
   lane's bench.
+
+## Index row
+
+**Built:** 2026-09-14
+
+Minted 2026-09-14 after calef asked what `components/src/builder.rs` is for in a world that boots
+to swish. The answer is keep, and the premise was false: booting to swish describes aarch64 and
+riscv64's `--features shell`, not the **default** riscv64 build, which is what `script/board-image` puts on a card. `progenitor` has never run on RISC-V silicon; `riscv_shell_boot` needs the PLIC, the NS16550 delegated and a UART source number that differs
+between QEMU (10) and the JH7110 (32), and `builder` needs a budget and a report endpoint and
+nothing else. `crates/board_console` parses its `init/build` line into `userspace_ran`, asserted
+by four host tests and two captured board fixtures, and `notes/board-console.md` calls it the only
+difference between the two successful captures. The VF2 bring-up did use the tour with an initrd:
+three of the fifth stop's five identifications are facts about `builder`. Found the breadcrumb
+table wrong about stage 10 (set before the banner, not after) and silent about stage 11 (what the
+hang watcher keys on).

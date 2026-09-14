@@ -106,3 +106,12 @@ Nothing else is gated on this. It is named because a durable-session-heavy futur
 is exactly the scenario where cause 3 (system-wide exhaustion, not the caller's own fault) would
 start being hit by ordinary use rather than only by a misbehaving process, and a caller that cannot
 tell that apart from its own mistake will be debugged as if it were one.
+
+## Index row
+
+Found while pricing milestone 49's attribution fork: `Untyped::SPLIT` returns `OutOfMemory` for
+the caller's own budget exhaustion, a full cspace, or `MAX_REGIONS` (system-wide) exhaustion, and
+a caller cannot tell which. The first two are facts about the caller; the third is a fact about
+every other live region on the machine. `crates/timetable`'s `Unbacked`/`Refusal` split is the
+same shape of fix in a different subsystem, already precedented here. Gate: DECISION, since the
+fix touches the shared `Error` enum.

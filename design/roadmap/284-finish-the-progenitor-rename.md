@@ -198,3 +198,15 @@ deliberately, so that a rename moves one set of words and not two.
 - **Proposed.** `design/roadmap/proposals/the-six-init-roles-in-hello.md`. The six role constants
   above, their functions, and the `kernel/src/user/tests.rs` duplicates, with `PARENT_*` recommended
   and three alternatives refused. Held out of this milestone because a name is calef's.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Minted 2026-09-13 by the maintainer from a measurement against `main`. Milestone 266 renamed the
+first process and published the rule that a present-tense claim about the system changes because
+it is now false; it applied that to three claims out of the 748 it counted. 1,751 whole-word `init` remained where a lane may edit, hundreds of them live sentences about a process that has
+not been called that since 2026-09-08. 775 changed across 98 files, 976 left and each class named:
+the verb `fn init` (correct and untouched), records, quotations, captured transcripts, `fixtures/src/hello.rs`'s six role constants (calef's, proposed with `PARENT_*` recommended and
+four refusals) and 471 in files a lane may not edit. Three claims were wrong about more than the
+name. calef's refusal of a `system_initializer` rename now sits in that crate's own `Name:` block.

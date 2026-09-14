@@ -165,3 +165,7 @@ against the tree today.
 Renaming directories touches `xtask`'s `--bin` lists and the initrd packing, and a union merge in
 exactly that code dropped a `--bin` flag on 2026-07-29 and duplicated a loop header the same day. It
 must not be folded into feature work.
+
+## Index row
+
+the structure has to serve the thesis, and one constraint dominates

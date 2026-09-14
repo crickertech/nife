@@ -96,3 +96,10 @@ file it agreed exactly: **701 outside `arch/`, 253 inside, zero files disagreein
   45.3% now, climbing every week, so the figure a reader meets in the project's own front-door file
   is wrong and drifting further from true. AGENTS.md is calef's file, so the one-line edit is his to
   make; this page flags the staleness and cannot fix it.
+
+## Index row
+
+**Built:** 2026-09-02
+
+`notes/register-of-measures.md` opens by saying this tree measures a great deal and remembers
+almost none of it

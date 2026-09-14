@@ -40,3 +40,8 @@ core-pinning story differs that could be it) that simply was never written down.
 - **Milestone 186.** If x86_64 was simply missed rather than deliberately excluded, this is a
   twelfth instance of 186's own pattern (a parity gap that predates x86_64 fully joining the tree)
   and should be named there once confirmed.
+
+## Index row
+
+calef, 2026-09-10. The one gap in the inventory with no stated reason, checked and confirmed
+absent.

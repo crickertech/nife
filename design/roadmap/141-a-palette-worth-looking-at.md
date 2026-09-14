@@ -62,3 +62,11 @@ person would recognise.
   down. A fourth failure mode nobody has named would not be caught by them.
 - **A palette that passes the gate can still be ugly**, and no gate can fix that. The check makes an
   attractive palette *admissible*; it does not make one appear.
+
+## Index row
+
+Minted by calef on 2026-08-19: the terminal's colours were chosen as a test instrument and it
+shows. The finding that makes it cheap is that the palette does not deliver the property it is
+ugly for: no entry has three distinct channel values and eight pairs are channel permutations of
+each other, so swapping red and green is undetected. Gate the property, then any palette that
+passes is free to be pretty.

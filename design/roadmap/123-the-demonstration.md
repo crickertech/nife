@@ -131,3 +131,12 @@ opposites, which is the whole reason §85 exists.
 - **This milestone can be marked done while proving little.** If the corpus is one program, the
   distribution is meaningless and the claim is no better supported than before. The corpus size is the
   thing to hold, and nothing here enforces it.
+
+## Index row
+
+The only claim in why-now.md with nothing scheduled against it, and the one the thesis rests on.
+Four elements: byte-identical output against Linux to pin the word useful, the `caps` manifest
+printed beside it so the question has an answer here and none there, a negative control at two
+strengths (the strong one being an attack class with no spelling, since `one_name` refuses `..`),
+and a tripwire, which matters most because ports that reconstruct ambient authority look like
+success while they happen. One program proves possible; the corpus proves typical

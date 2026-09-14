@@ -37,3 +37,9 @@ until revocation lands.** This milestone is that work, and the precondition is w
   memory-safety-critical half and is exactly what reclamation wants, nothing on the roadmap needs
   subtree revoke, and if one ever does, the unmap side and the revoke-before-reclaim discipline are
   reused unchanged with only the holders index rebuilt as a tree.
+
+## Index row
+
+**Built:** 2026-07-22
+
+safe teardown, a TCB property

@@ -227,3 +227,18 @@ separate work.
   reads. A grep found nothing else consumes it, so the rest is a gate enforcing a convention with no
   consumer. `design/decisions/77-branch-prefixes.md` answers which prefixes belong on the list and
   assumes it stays, so retiring it is calef's call.
+
+## Index row
+
+**Built:** 2026-08-17
+
+A code-smell survey calef asked for, and the honest headline is that the tree is clean: eleven
+TODO-shaped markers across 155,000 lines and thirty-six `#[allow]`s against one lint table. Four
+exceptions. The trap instruction every userspace panic handler inlines is at forty-eight sites in
+seven variants, one of which (`terminal_sink_caretaker`) exits cleanly instead of trapping and
+would misreport to a supervisor, latent only because it is spawned unsupervised. The lift is
+already half-done and stopped: `supervision_proto::fail` and `swap_proto::fail` are byte-identical
+copies serving thirteen programs, in protocol crates rather than in the runtime crate whose header
+claims to be the one place in userspace naming the two ABIs. Also `mkinitrd` doing one job three
+ways where its riscv sibling does it once, and `xtask`'s 6,785 lines of `-> bool` with no error
+type

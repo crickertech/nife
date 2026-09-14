@@ -69,3 +69,12 @@ what it is.
   goes. Twice today uncommitted work survived only because a worktree did.
 - **The name is provisional.** calef names things, and this one is awkward: it both reports and acts,
   so it sits between `script/`'s noun-shaped reporters and its verb-shaped doers.
+
+## Index row
+
+calef, 2026-08-31, after a day in which the machine slept twice and killed two lanes mid-response,
+the `launchd` watchers were found unloaded, and `nife-dev` pointed into a worktree about to be
+pruned. The operational half of what `script/catch-up` does for information. The design turns on
+one distinction: machine-scoped things belong to `launchd` and are only **verified** here, while
+session-scoped things like `caffeinate` are this script's to hold. It must report and never reap:
+killing a QEMU or relinking the toolchain blindly are both races that have already bitten.

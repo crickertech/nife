@@ -136,3 +136,11 @@ inventory to answer it with.
   `script/crate-probes` (about 3 minutes, 43 of 50) and `script/rule-violations --check`. Deciding
   which joins `script/gates`, which joins CI and which gets a cadence is unowned, and fatal risk 1
   stands GREEN on a hand-run instrument meanwhile.
+
+## Index row
+
+**Built:** 2026-09-03
+
+`notes/check-inventory.md`: 19 check names reach a pull request and 11 block; the mutation
+workflow behind fatal risk 3 has never once succeeded, Miri is red on a missing environment
+variable, and three instruments run nowhere

@@ -64,3 +64,11 @@ the complementary leg: real silicon executing the real orderings, unsearched but
 - **Recorded.** `notes/interleaving.md` names two protocols this method cannot reach:
   `crates/user_rt`'s hand-rolled userspace spin lock, which is aarch64 inline `asm!` and does not
   compile for the host, and the interrupt-routing lottery, which lives under `arch/`.
+
+## Index row
+
+**Built:** 2026-08-13
+
+TCG explores almost none of the orderings real silicon will, so an acquire/release mistake passes
+every gate this tree has and first appears on hardware. The board lands ~2026-08-21. One protocol
+as a pilot, then decide

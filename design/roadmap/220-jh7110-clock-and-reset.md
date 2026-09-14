@@ -177,3 +177,17 @@ split than NVMe was:
 - **Scope is unbounded as written**, and the 2026-09-04 pass took the small end deliberately: the
   STG domain only, and within it only the two clocks and one reset the TRNG needs. The other four
   domains and their hundreds of clocks are untouched and unmodelled.
+
+## Index row
+
+**Built:** 2026-09-04
+
+Linux's JH7110 TRNG driver takes two clocks and a reset line before touching a register; nife has
+never programmed either. **The premise stopped being a prediction on 2026-09-04**: radon's TRNG
+register file read back all zeros on two byte-identical boots, and the vendor tree independently
+marks the node disabled. **A driver was written 2026-09-04 and radon was powered off with no bench
+session**, so the token says what the outcome is rather than what was built: the STG domain's
+arithmetic, the TRNG's three-step plan resolved identically from mainline Linux and the vendor
+U-Boot, a kernel-resident controller with §86's argument for why, and a boot-tour line whose *before* words can refute the whole premise. QEMU's `virt` has no clock controller, so CI
+exercises only the absence path. The block carries the bench procedure and what each outcome would
+mean

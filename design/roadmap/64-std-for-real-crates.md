@@ -314,3 +314,23 @@ build them, and report what breaks.
   invisible to it.
 - **Recorded.** `script/crate-probes` and the abort scan both ship under provisional names, said so
   where they live, and naming is calef's.
+
+## Index row
+
+Fifty crates.io crates measured: **43 build, 7 fail** (2026-08-18), where 39 is the same fifty
+without `entropy_backend`; the gaps are ranked by demand rather than by function count, which is
+the deliverable milestones 99 and 66 consume. The measurement is `script/crate-probes` now rather
+than a prose recipe, after three hand re-derivations produced two wrong headlines (35/15, then
+39/11 read as current). **A green build is not evidence**, and the third pass found the sharp
+version of that: three std calls **abort a nife process** while compiling perfectly
+(`env::temp_dir`, `env::split_paths`, `process::id`), and none of them could appear on a gap list
+built from `Unsupported` counts, because a function that aborts never answers. `tempfile` died in
+the first of them rather than returning the "operation not supported" this row claimed for a
+fortnight. The fourth pass made that reading a check (`cargo xtask std-aborts`, inside `script/test`) and the check found a fourth abort the reading could not: **`std::process::exit`
+was a trap instruction**, so a clean exit reached its supervisor as `EVENT_FAULT`. Closed so far:
+five bindings, then `getrandom` (rank 1, `entropy_backend`), `env` (4), `File::set_len` (8), `fs::copy` (26), and the four aborts. **What remains is not a decision each**, which is what this
+row used to say: `TcpListener` (21) stopped being a contract gap at milestone 107 and is now a PAL
+binding its own doc comment calls *"small and mechanical"*, and it is on the customer path. The
+genuinely decided-elsewhere rows are the `std::os::unix` fallthrough (rank 2, a uid and an mtime
+set this system does not have), `thread::spawn` (3, **decided §105, 2026-08-22: declined for want
+of a customer**), `Metadata::modified` (19, a wire-format change), and everything waiting on `File::open`'s resolution

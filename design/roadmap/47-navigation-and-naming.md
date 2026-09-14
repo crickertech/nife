@@ -1392,3 +1392,8 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
   and lives nowhere but this block; no file under `design/decisions/` holds it, and the block's own
   recommendation (kill word splitting, parentheses for grouping, record that application is grant)
   has not been taken up. Checked 2026-09-03.
+
+## Index row
+
+**divergence from Unix must be earned, never stylistic.** Keep the commands; change only what the
+capability model actually forces, and get one missing primitive right

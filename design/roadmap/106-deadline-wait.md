@@ -226,3 +226,10 @@ and so read it closely. This block twice attributed the three candidate shapes t
 list. `script/decisions --check` proves that a cited §N resolves to *some* section and never that it
 resolves to the right one, so a well-formed wrong citation is invisible to it. §N and milestone N are
 colliding schemes, and this is what the collision costs.
+
+## Index row
+
+calef, 2026-09-05: not deciding the three-shape fork. The timed wait is served from a userspace
+timer service signalling a notification, which is how seL4 does it and what §101 anticipated. All
+four consumers are userspace; this stays owed against a kernel-side one appearing. Milestone 263
+prices the prerequisite

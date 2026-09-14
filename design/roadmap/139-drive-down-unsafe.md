@@ -1133,3 +1133,10 @@ proofs and the type system are standing aside and a person's comment is the whol
 - **Outstanding.** This block's own "What is still open" section opens by saying the broader `user/`
   survey is incomplete, which its rounds 6 and 7 completed and its own `BUGS` says was closed. The
   sentence and its refutation are 140 lines apart in one file. Checked 2026-09-03.
+
+## Index row
+
+First real reduction: seven programs' hand-rolled shared-page volatile-access functions collapsed
+into `user_rt::mapped_window::MappedWindow`, net -21 unsafe blocks (32 removed, 11 added),
+bounds-checked at every access instead of trusted by hand. Density 93.4 to 90.8; the `unsafe-density-outside-arch` ceiling cinched from 100 to 97 in the same commit. `user/`'s broader
+unsafe survey and several named candidate clusters remain.

@@ -212,3 +212,10 @@ Recorded here so a later lane does not rediscover them per filesystem:
 - **The seam argument is a prediction.** "Build two and the abstraction falls out" is the tree's
   stated preference and the usual outcome; it is not guaranteed, and a lane that finds FAT32 and
   RedoxFS share nothing worth abstracting should say so rather than manufacturing a trait.
+
+## Index row
+
+Minted by calef on 2026-08-18. An operating system mounts media it did not format, and this one
+cannot: `fs_server` is bound to RedoxFS at the type level. RedoxFS stays as the backup volume;
+FAT32 comes first because that is what a USB stick is, then ext2, then ext4 and ZFS some day. The
+seam is deliberately the SECOND increment, not the first.

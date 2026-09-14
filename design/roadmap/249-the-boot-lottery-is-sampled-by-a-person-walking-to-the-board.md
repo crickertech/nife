@@ -266,3 +266,8 @@ this block names working as an obstacle.
   distribution over placements; the three-hour run in notes/soak.md measures what one placement does
   over time and is the only evidence that a slow draw is stable rather than a warm-up. Neither
   replaces the other.
+
+## Index row
+
+SBI SRST is already called with reset type 0; type 1 is a cold reboot, and 3 and 4 clean cores
+have never been drawn

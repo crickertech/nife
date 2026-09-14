@@ -99,3 +99,12 @@ tree), not an assumption to start from.
   eleven of the tree's 33 `unsafe fn`s contain no unsafe operation at all, so their unsafety is a
   contract about meaning and the rustdoc `# Safety` section is the only enforcement there is for a
   third of them. Converting a site moves it into that category rather than out of it.
+
+## Index row
+
+**Built:** 2026-08-05
+
+Four safe fns discharge an obligation onto "the caller" that their signatures impose on no one, so
+both unsafe lints are satisfied and any safe code may call them. `riscv64::write_satp` is also an
+ISA asymmetry: aarch64's `set_ttbr0` is an `unsafe fn` for the same register write. Fixing them
+adds an unsafe block at every call site including the context switch, so it wants its own review

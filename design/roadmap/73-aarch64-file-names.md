@@ -187,3 +187,13 @@ stem, not just the path.
   `match` on the architecture, and its lack of a suffix correctly means "shared" rather than
   "aarch64 by default". A mechanical sweep for `link.ld` renames it and breaks both ISAs at once,
   which is why the rule is "suffix a file that has a named twin" and not "suffix every unnamed file".
+
+## Index row
+
+**Built:** 2026-08-03
+
+Five files carried a riscv name while their aarch64 twin carried none, so the unnamed one read as
+"the general case" and was not. Both sides now carry the ISA, and a sixth file the entry had
+missed (`qemu-virt-initrd.dtb`) came with them. `user/link.ld` is genuinely shared and was NOT
+renamed, nor was `riscv_virtio_tests.rs`, which has no twin. `crates/paging` moved OUT to
+milestone 77

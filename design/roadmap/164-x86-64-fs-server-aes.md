@@ -146,3 +146,15 @@ architecture costs a restructure rather than a port") named this as a piece of.
   the target rather than on the one package that needs it, because Cargo can only replace a
   `rustflags` list and never add to it. Every crate on `x86_64-unknown-none` gets the cfg and it is
   inert in all of them but `aes`.
+
+## Index row
+
+**Built:** 2026-09-01
+
+The blocker was one build flag, and both routes this block sized are superseded. `aes` 0.8.4 gates
+every architecture-specific backend `not(aes_force_soft)` and ships a portable software one; `--cfg aes_force_soft` on `[target.x86_64-unknown-none]` turns exit 101 into exit 0, so `patches/`
+grows no third entry and the SSE context-switch state Route 2 priced is not owed. `redoxfs_server`
+and `mkfs` now build for x86_64 and ride its archive. **No test was recovered**: the eleven that
+moved out of the skip column `println!` and return rather than `skip!`, which is milestone 214.
+The wall behind `aes` is the disk, and it is one bounded piece of interrupt routing (milestone
+215), not a port.

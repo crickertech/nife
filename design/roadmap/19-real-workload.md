@@ -31,3 +31,9 @@ compat code, so it stays scoped.
 - **Recorded.** `design/driver-domains.md` holds the EL2 shape that VM hosting, seL4's route and the
   third option this block named, would need. This kernel has no EL2 work and nothing has been built
   against that page.
+
+## Index row
+
+**Built:** 2026-07-25
+
+the "runs real workloads" half of the thesis

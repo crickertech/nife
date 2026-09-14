@@ -144,3 +144,8 @@ need.
 **Sequencing.** After milestone 50 (pipes and redirection), because 50 removes most of the
 requirement and changes what is left. **Effort: not estimated**, because the design is not chosen and
 the options differ by more than an order of magnitude.
+
+## Index row
+
+`( ... )` is fork, we deliberately have no fork, and **capability duplication is not a total
+function**

@@ -150,3 +150,15 @@ mechanism works before it ever has to be right about something.
   version. Bumping means re-applying five divergences, regenerating with `script/vendor-verify
   --write-patch`, and re-running the suite plus milestone 37's crash injector. Nobody owns it, and
   this is the engine holding backups.
+
+## Index row
+
+**Built:** 2026-08-31
+
+calef, 2026-08-31: a regular process to check whether RedoxFS changed, and to initiate the update
+of our version and our divergences when it does. `script/vendor-verify` proves the pin is what we
+say it is and never asks what upstream published since; dependabot cannot see `vendor/redoxfs`
+because it is deliberately its own workspace. **`vendor/` is §81's blind spot**, and the cost of
+the gap grows with it: `vendor/README.md` records five divergences, three of them re-applied
+forever and able to conflict on a bump. The narrow case that matters is a correctness fix upstream
+in the engine holding backups.

@@ -169,3 +169,13 @@ that does not exist): seven injections, seven failures reported, none missed.
   status-agreement check, the tree-wide citation check, the backfill of milestones 1 to 11, and the
   removal of the `n >= 12` floor. The postscript records the three places the build differed from
   the plan, and none of them left work behind.
+
+## Index row
+
+**Built:** 2026-08-03
+
+**built 2026-08-03, the day the single file (by then 6,200 lines) took nine entries and two more
+same-day PR conflicts.** The split is this directory, proven by byte-for-byte reassembly; the gate
+now checks index/file status agreement, one milestone per file, and every `milestone N` citation
+tree-wide (2,255, all resolving), with 1 to 11 backfilled from the first commits and the `n >= 12`
+floor gone

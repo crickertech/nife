@@ -38,3 +38,9 @@ the deferral.
   address-space-switch cost this block calls ASIDs the prerequisite for reasoning about. QEMU cannot
   show it; argon, radon or xenon can. The mechanism ships with its payoff asserted rather than
   measured.
+
+## Index row
+
+**Built:** 2026-07-23
+
+a context switch stops flushing every translation

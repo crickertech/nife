@@ -168,3 +168,8 @@ replacing it is harder than it looks.
   have a serial port and it has its own home.
 - **A machine that can only report over a network is a machine whose failures you cannot see when
   the network is the failure**, and no answer here escapes that entirely.
+
+## Index row
+
+the boot tour is on the screen on any UEFI machine, read back off the framebuffer by a gate under
+OVMF; a gate on real silicon and early boot are both still open

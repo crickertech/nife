@@ -219,3 +219,12 @@ NTP), noting estimates for unbuilt work are guesses on a history-calibrated scal
 - **Refused.** The IANA tzdata is out and a fixed UTC offset is in, recorded in `notes/calendar.md`:
   zone rules are a data-distribution problem rather than a calendar one. There is no `strftime`
   either, five named formats instead.
+
+## Index row
+
+**Built:** 2026-08-03
+
+the machine knows what time it is: two RTC drivers, the clock service (§43), `crates/calendar`, `crates/ntp_proto`, `date`, and an NTP client holding **propose and not set**. `date` prints the
+time at the interactive prompt on both ISAs, the clock delegated read-only by both boot paths.
+Continuous polling waits on the timed-wait kernel fork, which the block records as tracked
+separately

@@ -60,3 +60,11 @@ under `patches/`, the same road milestone 57 took with RedoxFS. Sequenced after 
 measures what a real crate actually needs, because 64's probe crates are the cheap version of this
 milestone's first week, and after milestone 91's glossary if it lands, since a reader meeting
 "packfile", "ref" and "object database" deserves the same treatment acronyms get.
+
+## Index row
+
+A second real-workload target beside 66's Vaultwarden, chosen because local git needs no network,
+no threads, no async runtime and no SQLite: it is a filesystem, a hash, a compressor and a clock,
+which is what milestone 57 just finished building. First fork **decided 2026-08-04: gitoxide**
+(Rust, rides the std PAL), so its gaps are milestone 64's surface with known owners; C git is a
+later, harder claim whose `fork`/`exec` question is its own design fork

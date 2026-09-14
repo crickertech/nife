@@ -266,3 +266,23 @@ proven here is the handoff below: the suite does not run under real firmware, on
   above the image 0xb9fbf000..0xc8940000`, with the census one line above reading **13 of 15
   functions outside the window**. The sentence above about reading that number first was written two
   days earlier and is why the boot needed no second attempt to diagnose.
+
+## Index row
+
+**Built:** 2026-09-02
+
+Scoped as a parallel check on whether x86_64 reaches a real-hardware data point for DECISIONS §86
+faster than a from-scratch JH7110 PCIe driver would. Wires `memory::pci_regions()` from ACPI's
+MCFG instead of a device-tree node, and finds a real complication along the way: PVH boots run no
+firmware, so nothing has enabled the chipset's ECAM decode, which this milestone does itself
+(measured on QEMU's monitor: the address faults until the host bridge's PCIEXBAR register is
+programmed). Proven under `q35`: real PCI enumeration finds the machine's own host bridge over the
+ACPI-sourced window. Does not, and cannot yet, reach §86's confinement half: x86 has no IOMMU
+driver (VT-d, unbuilt), so a real NVMe-behind-IOMMU data point is still blocked on that, not on
+anything here. Closed 2026-09-02, and the thing that kept it open was not the wiring: the ACPI
+walk bounded itself at 1 GiB while `boot.s`'s direct map covers 4, and both runners passed `-m
+256M`, so firmware's tables fit and every gate passed. At 2 GiB under OVMF the same kernel found
+no ACPI at all, so no APIC, no timer, no PCI and no VT-d, which was unconditional on any real
+machine. The UEFI gate now boots where firmware's tables are high, the PCIEXBAR write reads before
+it writes so it cannot widen a window firmware sized, and `pci::bar_census` prints how much of the
+bus this kernel relocates into its hardcoded BAR window (5 of 8 under PVH, 3 of 6 under OVMF).

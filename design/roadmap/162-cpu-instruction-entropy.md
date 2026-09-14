@@ -164,3 +164,13 @@ itself, at which point no further code change is expected, only a status flip on
 - **Refused.** A riscv64 arm. Neither `RDSEED` nor `RNDR`/`RNDRRS` exists on that ISA, so there is
   no instruction to wrap; milestone 159's JH7110 TRNG is the real hardware source there, through its
   own driver, and pretending otherwise would be a parity claim with nothing behind it.
+
+## Index row
+
+**Built:** 2026-08-26
+
+Parity with 159, asked for once calef said the §120 customer condition is met. Unlike 159, not
+hardware-gated: RDSEED and RNDRRS (not the DRBG-buffered RDRAND/RNDR, checked against the specs)
+are CPU instructions QEMU's TCG genuinely emulates, so this can be built and verified without
+silicon. New backends inside the existing `entropy` process. **Proven end to end under QEMU on
+both aarch64 and x86_64.**

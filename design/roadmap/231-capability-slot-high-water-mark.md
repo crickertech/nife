@@ -142,3 +142,9 @@ milestone is what would replace it.
   them. `MAX_REGIONS` and `nifefs::NAME_LEN` have no gauge at all and `sched::MAX_THREADS` has its
   own separate `PEAK_THREADS`, so the shape is being solved once per table by hand and every
   ungauged constant is still raised only after it has failed silently.
+
+## Index row
+
+**Built:** 2026-09-02
+
+the table counts its own peak, the boot prints `capability slots: 21 of 24 at peak`, and `script/shell-check` fails when the recorded measurement goes stale

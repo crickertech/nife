@@ -694,3 +694,15 @@ is ordinary, and `line_editor` and the compositor already exist beneath it.
   took the subtree option by construction, with `ps` reading the rendezvous survey, but no file
   under `design/decisions/` records it, so a non-subtree view is neither built nor refused. Checked
   2026-09-03.
+
+## Index row
+
+The sharpest ambient-authority case in the utility set, because what these programs want IS
+enumeration of the process namespace. `/proc` is ambient, so `ps aux` prints every command line on
+the box including secrets in argv, and the reader already knows that is wrong. Scoped to the whole
+package for consistency with 123's corpus approach, and the package is the unit of ambient
+authority rather than the program: once `/proc` is replaced by a held capability these stop being
+one thing and stratify into view, signal, machine statistics, kernel tunables and `watch`, which
+is the build order. `pgrep` beside `pkill` is the demonstration, since they do the same lookup and
+differ only in authority. `sysctl` is a design fork rather than a port. **The first stratum is
+built** (2026-08-16): `endpoint::SURVEY`, a view over a supervision subtree, and `ps`

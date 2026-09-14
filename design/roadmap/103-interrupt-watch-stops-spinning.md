@@ -59,3 +59,9 @@ and separate: 48 adds a state a job can be in, this one changes how the shell wa
 reasons recorded (a running computation cannot watch an endpoint). A notification primitive does not
 reopen that; it removes the spin from the *shell's* side, where the shell is not the party doing the
 work.
+
+## Index row
+
+Raised as "decided and never built" from a handoff note whose other items were struck when they
+landed; `^C` shipped, both tiers, both ISAs (§24's built amendment, `OP_INTRCOUNT`, `jobframe`, `Escalation`). What is unbuilt is §24's own named interim: the shell busy-polls for the whole life
+of every foreground job because there is nothing to block on. Downstream of 106

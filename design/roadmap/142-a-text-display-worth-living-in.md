@@ -702,3 +702,16 @@ live**, rather than folded in here.
 - **Recorded.** A font transcribed into a Rust table stays invisible to `script/supply-chain`,
   which reads the cargo graph, and `vendor/README.md` still carries no entry for the current font
   or a future atlas.
+
+## Index row
+
+Minted by calef on 2026-08-20, on seeing the Kaypro-style font land: he wants Solarized Dark
+Higher Contrast and Menlo Regular 11, and the sentence that is the milestone is *"a text display
+so good that people would use it outside of a GUI."* Four axes, and the font is the smallest: the
+surface, the terminal, the type and the colour. The finding that makes the expensive axis cheap is
+that a monospace grid puts every glyph on an integer cell boundary, so the rasteriser belongs at
+build time and the runtime keeps a coverage table exactly as `bitfont` keeps a bit table, which is
+what preserves the three-party pixel-exact proof. Increments one and two (the scanout, first grown
+to 1280x720 via DECISIONS §102 then retargeted 2026-08-27 to 924x344 for a 132x43 grid at the
+shipping 7x8 cell, and a real terminal: scrollback, UTF-8, arrow keys) are built; three through
+six (the font atlas onward) remain NOT-STARTED, blocked on the font and palette decisions.

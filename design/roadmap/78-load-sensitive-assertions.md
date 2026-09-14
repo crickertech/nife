@@ -262,3 +262,13 @@ claims are. And the scope note's remaining sites are still unaudited, for the si
   direction is purely positive, and the icount bench boots `-smp 1` because a shared virtual clock
   makes multi-hart timing fictional, so a cross-core delivery test cannot run on it even in
   principle.
+
+## Index row
+
+**Built:** 2026-08-17
+
+**Seven** distinct failures in one day on PRs that changed no code, two of them documentation
+only, and one reproduces off CI. Three reported a NEGATIVE discrepancy, so they were not
+slow-machine timeouts and were rescoped to the property; the two that ARE timing moved to the
+icount instrument (`script/icount`), where a claim is denominated in instructions and a busy host
+cannot falsify it

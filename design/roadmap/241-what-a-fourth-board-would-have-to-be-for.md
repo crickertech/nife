@@ -131,3 +131,8 @@ would boot and say nothing after the loader.
   riscv64 board or a second x86_64 machine would test claim 1 as well and claims 2 and 3 not at all.
 - **A trigger nothing checks is still rung four.** Nothing will fire when argon and xenon boot; a
   person has to notice and reread this.
+
+## Index row
+
+two machines here have never booted nife, so the trigger is written down rather than the purchase
+made

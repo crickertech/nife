@@ -119,3 +119,8 @@ mistaken for the finding.
 - **The lever must not leak into the shipped kernel.** Milestone 240 kept its census behind the soak
   feature and `script/fastpath-footprint` read the same 6,687 bytes over eight symbols afterwards;
   the same evidence is owed here.
+
+## Index row
+
+one card and one build gave a 15x spread explained by grinder co-location, and no arrangement can
+be built on purpose to test it

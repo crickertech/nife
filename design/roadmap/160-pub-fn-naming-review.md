@@ -69,3 +69,10 @@ tree).
 Nothing else is gated on this. It exists to carry the naming discipline this session applied to
 crates one level further down, and to record honestly that doing so required extending a written
 rule's stated scope rather than assuming it already covered this.
+
+## Index row
+
+calef asked to extend this session's crate-naming review one level down: 392 `pub fn` across the
+kernel's 47 dependency crates (1,753 total functions, 681 of them tests and out of scope). Extends
+the naming tenet's stated scope from crates/programs/shared modules to functions, recorded rather
+than silently assumed. Wait for the four in-flight crate-rename lanes to land first.

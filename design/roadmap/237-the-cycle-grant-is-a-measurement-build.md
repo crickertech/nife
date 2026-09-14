@@ -212,3 +212,11 @@ that a footprint change is intended and understood; do it in the commit that cau
   call and has costs on both sides. Two lanes each measured "within bound" against the same stale
   baseline and neither re-saved it, so aarch64 headroom fell from 3.9 points to 1.5 with nothing
   firing. This milestone fixed the instance, not the mechanism.
+
+## Index row
+
+**Built:** 2026-09-03
+
+`--features cycle_counter_grant`, gated as `any(test, feature = ...)` so `script/test` keeps
+compiling and running 229's proofs; production aarch64 `ipc_fastpath` back to 5852, measured, and
+the +56 the mint attributed here turned out to be milestone 231's

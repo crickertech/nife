@@ -30,3 +30,9 @@ row are the evidence.
   names milestone 1, because these commits predate the "Milestone N:" title convention that starts
   at `543d390`. The boot commit and the plan row are the evidence, and nothing can be done about it
   now without rewriting history.
+
+## Index row
+
+**Built:** 2026-07-12
+
+the first instruction; freestanding Rust, the linker script, and a test harness on day one

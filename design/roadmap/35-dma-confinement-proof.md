@@ -115,3 +115,9 @@ placement policy stay host-tested; a bad placement is a performance bug, not a s
 - **Refused.** Proving the userspace-only crates (`user_heap`, `grant_plan`, `line_editor`) and
   scheduler placement policy, on the same reasoning one step down. A bad placement is a performance
   bug rather than a safety hole, and host tests are the right instrument for it.
+
+## Index row
+
+**Built:** 2026-07-29
+
+closes the one isolation boundary we test instead of prove

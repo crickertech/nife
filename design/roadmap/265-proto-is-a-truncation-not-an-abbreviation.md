@@ -126,3 +126,9 @@ this milestone is about to change. calef held it back on 2026-09-05 for exactly 
 - **Fourteen crate names get five characters longer**, and `nifefs` caps archive names at 32 bytes.
   Crates are not in the archive, so nothing here is bounded by it, but a program taking one of these
   names later would be.
+
+## Index row
+
+calef, 2026-09-05: it was lazy and should have been `_protocol` globally. 14 crates across 349
+files. `proto` is equally short for `prototype`, which this tree uses for a real thing, and
+notes/naming.md already refuses truncation

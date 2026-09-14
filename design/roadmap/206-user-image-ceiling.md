@@ -33,3 +33,8 @@ what to do).
   the image overlaps the stack and name both addresses, independently of any layout decision.
 - **This block proposes no new layout.** Picking one is the work, and it interacts with the std
   heap's base at `0x4000_0000` and the shared pages above it.
+
+## Index row
+
+Minted from milestone 121's lane, which hit it the hard way. `user/link.ld` links at `0x40_0000`, `USER_STACK_VA` is `0x50_0000`, and 32 std stack pages sit below it; `ripgrep`'s `.text` alone is
+1.37 MiB. The error is `Unmappable(AlreadyMapped)`, which names an overlap and not a size. `USER_STACK_VA` is a protocol constant in two `_proto` crates and moving it alone breaks `authority_tests` at stage 10, measured.

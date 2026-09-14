@@ -24,3 +24,9 @@ is milestone 32's work, eighteen days and a real filesystem later.
 - **Milestone 32.** The revised row promised "virtio-blk in userspace + a filesystem server" and the
   server did not land here; the driver parsed nifefs itself. A filesystem behind its own capability
   server is milestone 32, eighteen days and a real filesystem later, and this block already says so.
+
+## Index row
+
+**Built:** 2026-07-14
+
+userspace drivers: MMIO by capability, IRQ as message, the kernel touches no DMA

@@ -139,3 +139,17 @@ project has no third-party contributors.
 - **Recorded.** The three routing forms are more work to fill in than an issue elsewhere would be,
   on purpose, so a stranger with a small good idea may not write four paragraphs. The trade is
   stated in this block's own `BUGS` and in `CONTRIBUTING.md`.
+
+## Index row
+
+Minted by calef on 2026-08-31 from GitHub's Community Standards checklist. Measured: `README`, `CONTRIBUTING` and `LICENSE` present; `CODE_OF_CONDUCT`, issue template and pull request template
+missing. The PR template is the one with a mechanism behind it, making AGENTS.md's required lane
+line a default rather than a thing to remember. The issue template is premature because **issues
+are disabled**, and whether they are a channel at all has never been decided. A code of conduct is
+a commitment rather than a file, and needs an enforcement contact. Content reports are a setting,
+not a file. **Shipped 2026-08-31**: the pull request template, and issue templates that route (a
+bug report asking for the sha, the ISA and how it was run; a feature request that says the outcome
+is a roadmap block; a design argument that says the outcome is a decisions file; a vulnerability
+as a contact link so it is visible before the wrong thing is opened). Blank issues off. The
+premise that issues were premature expired the day it was written, because calef enabled them. **Open**: the code of conduct, which needs an enforcement contact and is a commitment rather than
+a file, and the content-reports setting, which no pull request can deliver.

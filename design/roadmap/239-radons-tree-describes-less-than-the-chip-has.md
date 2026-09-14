@@ -200,3 +200,11 @@ there was no bench session. Two commands and one boot settle all of it.
 - **The `dtb` crate's `MAX_DEPTH` is 16 and this fixture's node sits at depth 3.** The real control
   DTB's `/soc/trng@1600C000` is at the same depth, so the limit is not in play, but nothing in the
   test proves that about the real tree because the real tree is not in the test.
+
+## Index row
+
+**the title's premise is false and the block says so**: the vendor U-Boot's tree describes the
+device as `trng@1600C000`, `compatible = "starfive,trng"`, `status = "disabled"`, where mainline
+says `rng@1600c000`/`starfive,jh7110-trng`. `discover` now matches both spellings and carries the `status` it found. A route was taken 2026-09-03 and radon was powered off, so like milestone 218
+the token says what the outcome is rather than what was built; the block carries the two commands
+that settle it

@@ -26,3 +26,11 @@ while.
   ISA-suffixed module", which is a different check with its own false-positive surface, and
   `script/lint` has already had checks deleted for exactly that. Whether it is worth writing is a
   question for after this one has run for a while.
+
+## Index row
+
+**Built:** 2026-08-03
+
+CLAUDE.md's first rule (architecture-specific code lives under `arch/`) is enforced by nothing,
+and one violation exists today: `user/tests.rs` reads `SPSel` by raw `asm!`. `script/lint` learns
+the grep; the violation moves

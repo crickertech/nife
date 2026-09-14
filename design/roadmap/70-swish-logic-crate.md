@@ -78,3 +78,11 @@ person to touch these scripts finds them.
   after milestone 69 fixed 49 stale ones by hand. `script/citations` now treats a repo path as an
   exact citation rather than a gloss: it must exist, and a numbered record file must carry the
   number citing it.
+
+## Index row
+
+**Built:** 2026-08-02
+
+`coremark`, `line_editor` and `compositor` are each a crate holding the logic plus a program
+holding the IO. `swish` is the largest program that is not, so its dispatch, endowment preview and
+outcome handling are reachable only through QEMU

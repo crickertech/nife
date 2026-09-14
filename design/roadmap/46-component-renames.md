@@ -82,3 +82,10 @@ arrival, or a checker that is red on arrival.
   the filesystem for names and `git grep` for the word, so an untracked file saying "daemon" is
   invisible, and check 1 sees names rather than behaviour, so a component with a good name that acts
   like a daemon is not its problem.
+
+## Index row
+
+**Built:** 2026-07-30
+
+a name is a claim, and `-d` claims something we rejected; conventions that matter get a checker,
+not a paragraph

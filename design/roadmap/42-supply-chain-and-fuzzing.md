@@ -55,3 +55,10 @@ between them is not always the bound. Sometimes it is that nobody wrote the prop
 - **Recorded.** `deny.toml` carries the one duplicate the first supply-chain run found, `getrandom`
   0.2 beside 0.4 under vendored redoxfs, skipped with its reason and its expiry condition written
   beside it: it is host-side only and it goes away when the redoxfs pin advances.
+
+## Index row
+
+**Built:** 2026-08-02
+
+we confine code we did not write, and the parsers that read what firmware and disks hand us are
+where a bound is a lie

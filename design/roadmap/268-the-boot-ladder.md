@@ -136,3 +136,9 @@ prints, and not a marker that exists on one architecture, which is the defect be
 - **Milestone 269.** `machine` as a program that can be run from the prompt.
 - **Recorded.** The `attach_screen` asymmetry is named in BUGS above rather than left for a lane to
   rediscover, because the wrong move is the obvious one.
+
+## Index row
+
+calef, 2026-09-09. Parity is the demonstrator's claim (§19) and three boot arms had quietly
+diverged: `machine.rs` on one architecture, `self_test` on two, a `Stage::Tour` marker reachable
+on one.

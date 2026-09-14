@@ -70,3 +70,9 @@ that gap is ever closed, and what `git`'s optional hook/external-tool features
 The actual shape of the primitive (new syscall vs. composition of existing ones), whether it is
 scoped to a single synchronous child or a small pool, and whether stdin/stdout are pipes, shared
 memory rings, or something else. All of that is the DECISION this milestone's gate names.
+
+## Index row
+
+The real architectural piece the self-hosting question surfaced: `cargo`/`rustc` need to spawn a
+process per compilation unit and to invoke a linker, structurally, with no bypass. DECISIONS §10
+already rejected Unix-shaped fork/exec but explicitly endorsed the additive direction (Fuchsia's `fdio` shape); this is that direction applied to one more convenience. Gate: DECISION.

@@ -164,3 +164,21 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
   only that this line ran, and the drift worth catching is a later write elsewhere, which only a
   periodic check or a review habit would see. So nothing gates it, and the block says so rather than
   shipping a check that answers the wrong question.
+
+## Index row
+
+**Built:** 2026-09-02
+
+aarch64 now writes `PMUSERENR_EL0 = 0` in its per-core timer init, gated on `ID_AA64DFR0_EL1.PMUVer` because the register is UNDEFINED without FEAT_PMUv3; riscv64's `csrs
+scounteren, TM` became a `csrw`, so the comment claiming CY and IR "stay closed" is now made true
+by the instruction beside it. **This changed no policy**: both architectures end where the tree
+already believed they were, and stop depending on firmware to agree. `CR4.TSD` was deliberately
+left alone, because on `x86_64` `now()` **is** `rdtsc` and closing it would break `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps and the benchmark harness at once; that
+position is recorded in `notes/x86-port.md` and in a `BUGS` section on `user_rt`'s `now()`. **`CR4.PCE` was a second door nobody had looked at**, found mid-lane by a research lane reading
+the ISA: it gates `rdpmc`, fixed counter 2 runs at the TSC rate, and nothing here reads a
+performance counter from ring 3, so `arch::init` now establishes it clear per core at no cost. It
+reads `CR4` back rather than trusting the reset value, and that paid: OVMF leaves five bits set
+that this kernel never wrote (`0x668` against the PVH boot's `0x20`), though bit 8 was clear in
+both. Nothing broke when the bits were cleared, which is the result worth having: nothing in this
+tree was reading a counter it lacked permission for. The values firmware actually leaves on argon
+and radon stay unknown until a bench reads them.

@@ -44,3 +44,7 @@ staying invisible.
 ## Follow-on
 
 - **None.** Self-contained; does not touch milestone 268's boot ladder or DECISIONS §149.
+
+## Index row
+
+calef, 2026-09-10. No test has ever independently verified x86_64's core roster.

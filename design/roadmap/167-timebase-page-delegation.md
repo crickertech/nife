@@ -81,3 +81,10 @@ shape.
 ## BUGS
 
 - **Unbuilt.** Everything above is the plan; nothing in this milestone is built yet.
+
+## Index row
+
+PR #476 (milestone 161's `cntfrq` follow-up) found and documented, but did not close: `supervision_proto::build_child_space` (the userspace ELF loader `root_supervisor`/`spawner` use)
+has no capability naming the kernel's real x86_64 timebase frame, so a child it builds gets a
+zeroed placeholder and `cntfrq()` falls back to a hardcoded 1GHz. Needs a real `Frame` capability
+for the page, a spawn-protocol grant path to hand it to builder processes, and a new `build_child_space` parameter to map it into children.

@@ -73,3 +73,10 @@ contract.
 
 **Effort: not estimated, and deliberately not.** The first honest deliverable is the sequence, not a
 date.
+
+## Index row
+
+the north star for "runs real workloads". Names the gaps concretely rather than aspirationally: no
+TCP **listen or accept** in the socket contract, threads mostly stubs, most of `std::fs`
+unsupported, no async runtime, no TLS, and SQLite is a C library. Largest single item on this
+roadmap

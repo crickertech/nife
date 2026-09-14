@@ -19,3 +19,13 @@ so this is also alignment with where the language is going rather than a house r
 ## Follow-on
 
 - **None.**
+
+## Index row
+
+**Built:** 2026-08-04
+
+The premise was wrong and the milestone records it: **zero violations existed**, because every
+owned package is edition 2024 where this lint is warn-by-default and `script/lint` runs `-D
+warnings`, so it had been a hard gate since the edition bump with nobody having written it down.
+Enabled explicitly anyway, for lint-policy visibility. Three things neither unsafe lint can reach
+became milestones 112 and 113

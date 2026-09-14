@@ -89,3 +89,9 @@ about a real device at real speed.
 - **`crates/nvme`'s Kani harnesses cover queue mechanics, not confinement.** Moving the driver to EL0
   does not move the proofs, and this block does not say what the confinement claim's own test would
   be. Milestone 202's convention (a claim, a test, a replayable falsification) is what it should meet.
+
+## Index row
+
+§86 was DECIDED 2026-09-03 and its work had no milestone. §86's premise that this project's
+silicon has no IOMMU is now false: xenon has VT-d in front of a real NVMe, so option 2a there is
+risk 6's decisive experiment. One thing is calef's, wiping the disk

@@ -135,3 +135,14 @@ citations, and milestone 97 is the neighbouring case.
 - **Milestone 97.** The neighbouring case this block's scope note names: the same blind spot in the
   decisions check, where a citation can be verified for naming something that exists and never for
   naming the right thing.
+
+## Index row
+
+**Built:** 2026-08-04
+
+Nothing tracks calef's naming calls, and on 2026-08-04 a lane proposed `system_builder`, the
+maintainer endorsed it, and milestone 63 turned out to have refused it months earlier for a
+collision neither had found. The refusals are the valuable half. Provenance lives at the name (the
+crate header that would carry the refusal is what a proposer actually reads), a lint that every
+crate, program and script carries one, and the table as a derived query. The first draft proposed
+a central table and calef rejected it for scaling like `roadmap.md` and `DECISIONS.md` did

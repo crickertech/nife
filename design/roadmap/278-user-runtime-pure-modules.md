@@ -114,3 +114,13 @@ a name had been refused. Read before sweeping.
   touches all four, so it would have made a fifth. Deriving that set once, the way `script/lint`
   already derives it for its own check, closes the class rather than this instance. Not scoped
   here: `design/roadmap/proposals/the-host-excluded-crate-set-lives-in-four-places.md`.
+
+## Index row
+
+Minted 2026-09-12 by calef out of the `user_rt` naming review, from a question that was not about
+naming. `crates/user_rt` is excluded from the host pass, coverage, mutation and Kani because it is
+the EL0 syscall floor, and the exclusion is crate-level: `mapped_window` (176 lines, 29 consumers)
+and `initrd` (60 lines) make **no syscall at all** and inherit it from the file they are declared
+in. `MappedWindow`'s one-line bounds check with an overflow guard stands behind 29 call sites and
+cannot be reached by a prover; the crate has zero harnesses. Milestone 191's finding one scale
+down. Touches the four exclusion lists milestone 244 found drifting. Does not settle whether `user_rt` keeps its name.

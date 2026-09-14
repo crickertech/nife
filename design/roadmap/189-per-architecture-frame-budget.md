@@ -100,3 +100,11 @@ rather than only as a fix here.
 - **It cannot say whether today's x86_64 figure is already carrying a leak**, because there is no
   earlier reading to compare against. The first measurement establishes a baseline and blesses
   whatever is already there, which is the honest cost of having gone this long without one.
+
+## Index row
+
+`SUITE_PAGE_FRAME_BUDGET` is one number for three suites and was fitted to aarch64. x86_64 runs
+194 tests against aarch64's 306, and its 57 skips are disproportionately the heavy frame keepers
+(`NO_FS_SERVER`, `NO_STD_EXERCISER`), so it sits far under a ceiling it cannot approach. Measured
+2026-08-28: x86_64 keeps 7,514 frames against aarch64's 22,217, roughly 14,700 under a ceiling it
+is nominally gated by, so its retained frames could triple and still read green.

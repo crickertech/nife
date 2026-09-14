@@ -52,3 +52,8 @@ risk has produced and the first found by an instrument rather than by somebody w
   BUGS, so it is not a figure to compare machines on without more care than a single run affords.
 - **argon has never booted nife at all**, so its soak sits behind milestone 127 (the seL4 machine)
   rather than beside radon's.
+
+## Index row
+
+fatal risk 5's premise is that these defects appear only on silicon, and every tool it needs now
+exists
