@@ -174,7 +174,7 @@ pub fn start_net_server(image: &'static [u8]) -> Option<(RendezvousId, Holding)>
         },
         dev.intid,
         None,
-        socket_proto::NO_LISTEN_GRANT, // a DHCP bring-up serves nobody inbound
+        socket_protocol::NO_LISTEN_GRANT, // a DHCP bring-up serves nobody inbound
     );
     Some((report, holding))
 }
@@ -187,7 +187,7 @@ pub fn start_net_server_pci(image: &'static [u8]) -> Option<(RendezvousId, Holdi
         crate::virtio::Transport::pci(&d),
         d.intid,
         Some(d.rid),
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     );
     Some((report, holding))
 }
@@ -292,7 +292,7 @@ fn wire_net_server(
 const NET_CLIENT_BUDGET_PAGES: u64 = 16;
 
 /// A stack client's stack, in pages. **Six, raised from two** by milestone 55's responder lane, and
-/// the number came from a call frame rather than from taste: `mdns_proto::respond` holds nine
+/// the number came from a call frame rather than from taste: `multicast_dns_protocol::respond` holds nine
 /// 256-byte wire names, the echoed questions and a TXT assembly buffer, which is about five
 /// kilobytes of one frame, and the responder adds its own datagram buffers on top. Two pages fit
 /// none of that, and an overflowed EL0 stack is a fault a long way from its cause. Four frames per
@@ -308,8 +308,8 @@ const NET_CLIENT_STACK_PAGES: u64 = 6;
 /// TCP echo). Returns the client's report endpoint, or `None` if no NIC is attached.
 ///
 /// `listen_grant` is the **inbound authority** this stack hands its client (milestone 107,
-/// `socket_proto::listen_grant`): the port range a `LISTEN` may bind, and
-/// [`socket_proto::NO_LISTEN_GRANT`] for every outbound exchange, which is most of them. The grant
+/// `socket_protocol::listen_grant`): the port range a `LISTEN` may bind, and
+/// [`socket_protocol::NO_LISTEN_GRANT`] for every outbound exchange, which is most of them. The grant
 /// is decided *here*, by whoever spawns the pair, and not by the client asking: that is the answer
 /// to "who binds the port", and it is the same shape as handing a program a directory capability
 /// rather than letting it name a path.
@@ -444,7 +444,7 @@ fn spawn_stack_client(
 /// the listen grant keeps the denied-port check (8080) meaningful.
 ///
 /// `udp_bind_grant` is milestone 55's mDNS stack half: the UDP port range the socket client may
-/// `BIND_UDP`, [`socket_proto::udp_bind_grant`]'s half of the word, or zero when no client needs
+/// `BIND_UDP`, [`socket_protocol::udp_bind_grant`]'s half of the word, or zero when no client needs
 /// one. It is a *separate* parameter rather than folded into the port arguments because it grants a
 /// different verb over a different namespace, and because the two halves living in one word is
 /// exactly what the composed packing has to be exercised on: this is the only spawn in the tree
@@ -473,7 +473,7 @@ pub fn start_shared_net_stack(
     let transport = crate::virtio::Transport::Mmio {
         mmio_phys: dev.mmio_phys,
     };
-    let grant = socket_proto::listen_grant(echo_port, echo_port) | udp_bind_grant;
+    let grant = socket_protocol::listen_grant(echo_port, echo_port) | udp_bind_grant;
     let (net_stack_report, stack, mut held) =
         wire_net_server(image, transport, dev.intid, None, grant);
     let cli_report = spawn_stack_client(image, cli_arg, 0, stack, &mut held);
@@ -510,9 +510,9 @@ const STD_NET_STACK_PAGES: u64 = 32;
 /// stdout endpoint for the test to reassemble, or `None` if no NIC is attached.
 ///
 /// `listen_grant` is the **inbound authority** the std program gets, and it is decided here rather
-/// than asked for (milestone 64, `socket_proto::listen_grant`). It is the difference between a std
+/// than asked for (milestone 64, `socket_protocol::listen_grant`). It is the difference between a std
 /// program that may accept connections and one that may not, and it is visible at this call site
-/// before the program exists: `socket_proto::NO_LISTEN_GRANT` is a `std::net::TcpListener::bind`
+/// before the program exists: `socket_protocol::NO_LISTEN_GRANT` is a `std::net::TcpListener::bind`
 /// that answers `PermissionDenied` for every port there is. This parameter used to be a hardcoded
 /// `NO_LISTEN_GRANT` with a comment saying the PAL could not spend a grant; the PAL can now, so the
 /// decision moved out to the caller where it belongs.

@@ -1278,7 +1278,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // The skip itself is the honest answer on every machine but radon and it has not
             // changed. What is new is the number after it, and the reason it is worth printing is
             // that the TRNG figure this step exists to produce is **not interpretable on its own**.
-            // A draw through this service is one `entropy_proto` exchange per 8 bytes
+            // A draw through this service is one `entropy_protocol` exchange per 8 bytes
             // (`MAX_BYTES`), so 32 bytes is four round trips through a userspace process, and a
             // measured microsecond count over 64 bytes mixes the device's cost with the IPC's
             // without saying in what proportion. The proposal names that as the thing to state
@@ -1286,7 +1286,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // process spawn?*
             //
             // The virtio-rng backend answers it, because it is **the same path with a different
-            // device at the end**: the same `entropy_proto`, the same `Wiring::fill`, the same
+            // device at the end**: the same `entropy_protocol`, the same `Wiring::fill`, the same
             // eight round trips, the same confined userspace process holding the same two
             // rendezvous capabilities. Whatever it costs here is what the JH7110's number would
             // cost with a free device, so the difference between the two is the driver's.
@@ -1312,16 +1312,16 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 });
                 match reference {
                     Some((verdict, bytes, ready_at, drawn_at))
-                        if verdict == entropy_proto::READY && bytes > 0 =>
+                        if verdict == entropy_protocol::READY && bytes > 0 =>
                     {
                         println!(
-                            "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither); since the pcie line {} us. Reference, NOT a TRNG and NOT hardware: this emulator's virtio-rng over the same entropy_proto path, bring-up {} us, {} bytes in {} us ({} bytes/s over {} round trips)",
+                            "  hw entropy  : skipped (this machine's tree names no TRNG: neither starfive,jh7110-trng nor the vendor U-Boot's starfive,trng; QEMU virt has neither); since the pcie line {} us. Reference, NOT a TRNG and NOT hardware: this emulator's virtio-rng over the same entropy_protocol path, bring-up {} us, {} bytes in {} us ({} bytes/s over {} round trips)",
                             micros_between(entropy_step_start, arch::timer::now()),
                             micros_between(entropy_step_start, ready_at),
                             bytes,
                             micros_between(ready_at, drawn_at),
                             bytes_per_second(bytes as u64, drawn_at.wrapping_sub(ready_at)),
-                            bytes as u64 / entropy_proto::MAX_BYTES,
+                            bytes as u64 / entropy_protocol::MAX_BYTES,
                         );
                     }
                     // A device was there and the service did not come up, or came up dry. Said
@@ -1430,7 +1430,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // `[READY, first_refill_ok, bytes_in_hand]`, or a 0xDEAD_.. word whose
                             // low byte names the step. A device that never answered says so here,
                             // and since 2026-09-04 so does one that answered with zeros:
-                            // `entropy_proto::readiness` decides that word from the bytes, which
+                            // `entropy_protocol::readiness` decides that word from the bytes, which
                             // is what the boot below found it was not doing.
                             let wait_start = arch::timer::now();
                             let report = w.wait_for_ready().unwrap_or([0; 5]);
@@ -1442,7 +1442,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             //
                             // **Each draw is four round trips, not one**, and that is the fix for
                             // the failure radon printed on 2026-09-04. `Wiring::get` is a single
-                            // `entropy_proto` exchange, and that protocol carries `MAX_BYTES = 8`,
+                            // `entropy_protocol` exchange, and that protocol carries `MAX_BYTES = 8`,
                             // so `get(32, ..)` returns 8 and can never return 32: the success line
                             // below was unreachable on any device, working or not. It went
                             // unnoticed for three days because this branch runs on exactly one
@@ -1470,7 +1470,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                             // because a tour that only repeated the service's own verdict would
                             // have caught nothing on 2026-09-04.
                             let zeros = a.iter().all(|&x| x == 0);
-                            if report[0] == entropy_proto::READY
+                            if report[0] == entropy_protocol::READY
                                 && na == 32
                                 && nb == 32
                                 && !zeros
@@ -1490,7 +1490,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                                     na + nb,
                                     micros(draw_ticks),
                                     bytes_per_second((na + nb) as u64, draw_ticks),
-                                    (na + nb) as u64 / entropy_proto::MAX_BYTES,
+                                    (na + nb) as u64 / entropy_protocol::MAX_BYTES,
                                 );
                             } else {
                                 // `report[2]` is the driver's bring-up diagnostic and it is the
@@ -2020,8 +2020,8 @@ fn micros_between(start: u64, end: u64) -> u64 {
 /// answer: a rate derived from a zero-length interval is not a large number, it is no number.
 ///
 /// **What it counts, which has to be stated before it is quoted.** Everything between the readiness
-/// report and the last byte landing: the `entropy_proto` round trips (one per
-/// `entropy_proto::MAX_BYTES`, so four per 32-byte draw), the two context switches each one costs,
+/// report and the last byte landing: the `entropy_protocol` round trips (one per
+/// `entropy_protocol::MAX_BYTES`, so four per 32-byte draw), the two context switches each one costs,
 /// the driver's own poll loop, and the device. It does **not** count the process spawn or the
 /// bring-up, which are the once-per-boot cost reported separately. It is therefore not comparable
 /// to a Linux `hwrng` throughput figure, which is a read from an already-running kernel driver with

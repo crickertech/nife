@@ -9,7 +9,7 @@
 //!
 //! # The recursion is in here, and that is the design
 //!
-//! `filesystem_proto` has no verb that removes a subtree. [`fs::UNLINK`] refuses a directory and
+//! `filesystem_protocol` has no verb that removes a subtree. [`fs::UNLINK`] refuses a directory and
 //! [`fs::RMDIR`] refuses a non-empty one, so **no single call on that contract can take a tree
 //! away**. What this program does is the loop Unix does: enumerate, unlink the files, recurse into
 //! the directories, remove them from the bottom up. Every step is one request the FS server runs to
@@ -27,7 +27,7 @@
 //!   holds the operand: the shell resolves any leading path at the prompt and grants **the
 //!   directory the name is in**, because taking a name away is an operation on a directory.
 //! - **slot 1**: a report endpoint, `WRITE`. Diagnostics and `-v` lines as framed text, then one
-//!   [`byte_sink_proto::eof`] carrying the verdict; see [`filesystem_proto::fixture::rm`] and [`verdict`].
+//!   [`byte_sink_protocol::eof`] carrying the verdict; see [`filesystem_protocol::fixture::rm`] and [`verdict`].
 //! - **[`PAGE_VA`]**: the page shared with the FS server, where a name goes out and a listing comes
 //!   back.
 //!
@@ -39,7 +39,7 @@
 //! exception is recorded there rather than left for a reader to infer from two call sites.
 //!
 //! The name and the options ride in the three `START` argument words, packed by
-//! [`filesystem_proto::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
+//! [`filesystem_protocol::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
 //! and holds nothing that names a progenitor, a terminal, or the filesystem above its grant.
 //!
 //! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
@@ -58,7 +58,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use filesystem_proto::{dir, dirent, fixture, fs, grant};
+use filesystem_protocol::{dir, dirent, fixture, fs, grant};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, exit, send};
 
@@ -72,7 +72,8 @@ const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 // SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
 // round 2; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled read_volatile/
 // write_volatile loops below).
-const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, filesystem_proto::PAGE as u64) };
+const WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(PAGE_VA, filesystem_protocol::PAGE as u64) };
 
 /// `ENOENT`. Not in [`dir`]'s list because it is POSIX's oldest number and this contract answers it
 /// from three different rungs; `-f` cares about exactly one of them (see [`remove`]).
@@ -98,7 +99,7 @@ const LISTING: usize = 128;
 /// at the top of the stack and is never held across the recursion, which is why it can be larger
 /// than [`LISTING`] on a program with four stack pages.
 const SET_LISTING: usize =
-    dirent::record_len(grant::MAX_NAME) * filesystem_proto::nameset::MAX_NAMES;
+    dirent::record_len(grant::MAX_NAME) * filesystem_protocol::nameset::MAX_NAMES;
 
 /// The most rounds one directory takes before the walk gives up on it. A ceiling rather than a limit
 /// on directories: **each round removes everything it saw and starts again at cursor 0**, because a
@@ -109,7 +110,7 @@ const MAX_ROUNDS: usize = 64;
 
 /// Copy `bytes` into the shared page.
 fn put_page(bytes: &[u8]) {
-    for (i, &b) in bytes.iter().take(filesystem_proto::PAGE).enumerate() {
+    for (i, &b) in bytes.iter().take(filesystem_protocol::PAGE).enumerate() {
         WINDOW.w8(i as u64, b);
     }
 }
@@ -352,14 +353,14 @@ fn text(bytes: &[u8]) {
     }
 }
 
-/// **The last message, and it closes the stream** ([`byte_sink_proto::eof`]) rather than inventing a
+/// **The last message, and it closes the stream** ([`byte_sink_protocol::eof`]) rather than inventing a
 /// terminator of its own.
 ///
 /// This program's manifest declares [`grant_plan::OutputSpec::Bytes`], which is the sink contract:
 /// self-framing byte messages ending in `OP_EOF`. [`text`] always produced them, and the verdict
-/// used to be `filesystem_proto::fixture::VERDICT`, a word that contract has no meaning for. Under the guest
+/// used to be `filesystem_protocol::fixture::VERDICT`, a word that contract has no meaning for. Under the guest
 /// wiring the reader was a test that knew to look for it; at the real prompt the reader is the shell,
-/// which reads the same three words through `byte_sink_proto::unpack` and would have called it malformed.
+/// which reads the same three words through `byte_sink_protocol::unpack` and would have called it malformed.
 /// So `rm -rv logs | wc` had never been expressible, and the declaration and the program disagreed
 /// with nothing to notice. Found while wiring milestone 31 phase 3, 2026-08-17.
 ///
@@ -367,7 +368,7 @@ fn text(bytes: &[u8]) {
 /// the two the contract leaves free. Every reader that wants them takes them off the message that
 /// ends the stream, which is also the only message that can carry a status without racing the text.
 fn verdict(status: u64, count: u64) {
-    send(REPORT, byte_sink_proto::eof(), status, count);
+    send(REPORT, byte_sink_protocol::eof(), status, count);
 }
 
 #[unsafe(no_mangle)]

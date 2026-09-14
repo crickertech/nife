@@ -28,7 +28,7 @@ fi
 # `user_mode_runtime` is excluded like kernel/user: it is aarch64-only inline asm (the user-mode
 # syscall runtime), so it does not build for the host at all, let alone run under host
 # instrumentation. There is no host logic to measure in it.
-# `supervision_proto` and `swap_proto` join that exclusion for the same reason, and only that
+# `supervision_protocol` and `swap_protocol` join that exclusion for the same reason, and only that
 # reason: both are thin wrappers over `user_mode_runtime`'s syscalls (build a child, quiesce a
 # component),
 # so every line needs a kernel underneath and none can execute on the host. They were invisible
@@ -68,7 +68,7 @@ fi
 # had anyway, which is that a union-of-all-features run can carry an undertested default build.
 cargo llvm-cov --workspace --features documentation/builder \
     --exclude kernel --exclude components --exclude fixtures --exclude xtask --exclude user_mode_runtime \
-    --exclude supervision_proto --exclude swap_proto --exclude system_initializer --no-report
+    --exclude supervision_protocol --exclude swap_protocol --exclude system_initializer --no-report
 cargo llvm-cov report --summary-only
 mkdir -p target/llvm-cov # the lcov --output-path parent must exist; --html creates its own
 cargo llvm-cov report --lcov --output-path target/llvm-cov/lcov.info
@@ -112,7 +112,7 @@ awk -F: -v floor="$floor" '
         # **c_seam is deliberately NOT here.** It is pure, and it now carries the test asserting
         # that fixtures/c/c_seam.c states the same constants it does. Keep this list to things that
         # physically cannot run, never to things that are merely untested.
-        if (index(file, "/supervision_proto/src/") || index(file, "/swap_proto/src/") ||
+        if (index(file, "/supervision_protocol/src/") || index(file, "/swap_protocol/src/") ||
             index(file, "/system_initializer/src/") ||
             index(file, "/virtio/src/")) { next }
         # **Build scripts, and this is a structural exemption rather than a membership one.** The

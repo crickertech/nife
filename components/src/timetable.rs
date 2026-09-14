@@ -13,7 +13,7 @@
 //!
 //! # What it holds, and that is the whole list
 //!
-//! - slot 0: the output endpoint (WRITE). Where the plan and the summary go, as `byte_sink_proto` bytes.
+//! - slot 0: the output endpoint (WRITE). Where the plan and the summary go, as `byte_sink_protocol` bytes.
 //! - slot 1: an untyped budget (WRITE). What every instance is made of, what pays for the loader's
 //!   own scratch mappings, and what a `--mem` entry's grant is carved from (nested inside that
 //!   instance's own region rather than split from this budget directly; see `fire` and `BUGS`).
@@ -108,7 +108,7 @@
 //!
 //!   The nesting survives the correction for a better reason: it is the only thing that can ever
 //!   pair a death with a grant, because a builder is never told its child's tid
-//!   (`supervision_proto::build_child` hands back a TCB capability, and `abi::thread_control_block`
+//!   (`supervision_protocol::build_child` hands back a TCB capability, and `abi::thread_control_block`
 //!   has no method that reads one out), so the only fact this process has about a death is the tid
 //!   the kernel stamped on it. `fire_with_grant` keeps the split untyped's own capability rather
 //!   than `cap_delete`-ing it the way it does the region and the TCB, so `collect_grant` can destroy
@@ -137,7 +137,7 @@
 //!   services durable configuration at all, which does not exist yet.
 //!
 //! - **The document is compiled in, not read from disk.** `include_str!`, exactly as
-//!   `components/src/mdns_responder.rs` does and for the same reason: reading a file needs a file
+//!   `components/src/multicast_dns_responder.rs` does and for the same reason: reading a file needs a file
 //!   capability wired through the spawn. The format, the parser, the line-numbered errors and every
 //!   test are unaffected by where the bytes come from.
 
@@ -154,7 +154,7 @@ use user_mode_runtime::{cap_delete, exit, monotonic_nanos, reap, recv_fault, sen
 /// The document. Compiled in; see `BUGS`.
 const CONFIG: &str = include_str!("../timetable.conf");
 
-/// The output endpoint: the plan, and the summary. `byte_sink_proto` bytes.
+/// The output endpoint: the plan, and the summary. `byte_sink_protocol` bytes.
 const OUT: u64 = 0;
 /// The budget every instance is made of, and what pays this loader's scratch mappings.
 const BUDGET: u64 = 1;
@@ -364,26 +364,26 @@ pub extern "C" fn _start(fires_wanted: u64, initrd_len: u64, _a2: u64) -> ! {
 /// thread, and since DECISIONS §32 the region capability is not the reap either. The pages come back
 /// to this budget when the corpse is collected.
 fn fire(elf: &elf::Elf, arg: u64) -> bool {
-    let Ok(region) = supervision_proto::memory_region_split(BUDGET, INSTANCE_PAGES) else {
+    let Ok(region) = supervision_protocol::memory_region_split(BUDGET, INSTANCE_PAGES) else {
         return false;
     };
-    let Ok(child) = supervision_proto::build_child(
+    let Ok(child) = supervision_protocol::build_child(
         BUDGET,
         region,
         elf,
-        &supervision_proto::ChildEndowment {
+        &supervision_protocol::ChildEndowment {
             caps: &[(CHILD_REPORT, abi::rights::WRITE)],
             fault: Some(DEATHS),
-            ..supervision_proto::ChildEndowment::new(supervision_proto::Retention::Nothing)
+            ..supervision_protocol::ChildEndowment::new(supervision_protocol::Retention::Nothing)
         },
     ) else {
         // The region is ours and the child does not exist, so hand the pages straight back rather
         // than leaking them into a budget that will refuse the next fire.
-        supervision_proto::memory_region_destroy(region);
+        supervision_protocol::memory_region_destroy(region);
         return false;
     };
-    if !supervision_proto::start_child(child, 0, arg, 0) {
-        supervision_proto::memory_region_destroy(region);
+    if !supervision_protocol::start_child(child, 0, arg, 0) {
+        supervision_protocol::memory_region_destroy(region);
         return false;
     }
     cap_delete(region);
@@ -401,19 +401,19 @@ fn fire(elf: &elf::Elf, arg: u64) -> bool {
 /// the way [`fire`] deletes `region`**: it is the caller's only way to reclaim the grant later, and
 /// the caller is [`collect_grant`], called next and only next by this program's one call site.
 fn fire_with_grant(elf: &elf::Elf, arg: u64, mem_pages: u64) -> Option<u64> {
-    let Ok(region) = supervision_proto::memory_region_split(BUDGET, INSTANCE_PAGES + mem_pages)
+    let Ok(region) = supervision_protocol::memory_region_split(BUDGET, INSTANCE_PAGES + mem_pages)
     else {
         return None;
     };
-    let Ok(mem_slot) = supervision_proto::memory_region_split(region, mem_pages) else {
-        supervision_proto::memory_region_destroy(region);
+    let Ok(mem_slot) = supervision_protocol::memory_region_split(region, mem_pages) else {
+        supervision_protocol::memory_region_destroy(region);
         return None;
     };
-    let Ok(child) = supervision_proto::build_child(
+    let Ok(child) = supervision_protocol::build_child(
         BUDGET,
         region,
         elf,
-        &supervision_proto::ChildEndowment {
+        &supervision_protocol::ChildEndowment {
             // Slot 0: the report endpoint, as every instance gets. Slot 1: the grant, narrowed to
             // WRITE so the child may spend it and not lend it (the same narrowing
             // `system_initializer` gives a shell's `--mem` delegation).
@@ -422,17 +422,17 @@ fn fire_with_grant(elf: &elf::Elf, arg: u64, mem_pages: u64) -> Option<u64> {
                 (mem_slot, abi::rights::WRITE),
             ],
             fault: Some(DEATHS),
-            ..supervision_proto::ChildEndowment::new(supervision_proto::Retention::Nothing)
+            ..supervision_protocol::ChildEndowment::new(supervision_protocol::Retention::Nothing)
         },
     ) else {
         // `memory_region_destroy(region)` is owner authority over the whole region, not the supervised
         // reap `collect_grant` uses later: it reclaims `mem_slot` along with everything else here,
         // because nothing has been handed to a child yet for anyone else to still be holding.
-        supervision_proto::memory_region_destroy(region);
+        supervision_protocol::memory_region_destroy(region);
         return None;
     };
-    if !supervision_proto::start_child(child, 0, arg, 0) {
-        supervision_proto::memory_region_destroy(region);
+    if !supervision_protocol::start_child(child, 0, arg, 0) {
+        supervision_protocol::memory_region_destroy(region);
         return None;
     }
     cap_delete(region);
@@ -458,7 +458,7 @@ fn collect_grant(exits: &mut u64, faults: &mut u64, mem_slot: u64) {
     // a region with one), so it has to go before `reap` can succeed at all; nothing here needs to
     // try `reap` first and fail to learn that, because this call is only ever made about the one
     // instance that was built with a nested grant.
-    supervision_proto::memory_region_destroy(mem_slot);
+    supervision_protocol::memory_region_destroy(mem_slot);
     for _ in 0..REAP_ATTEMPTS {
         if reap(DEATHS, tid) == 0 {
             return;
@@ -492,11 +492,11 @@ fn collect(exits: &mut u64, faults: &mut u64) {
     user_mode_runtime::trap()
 }
 
-/// Write bytes down the output endpoint, `byte_sink_proto`-framed.
+/// Write bytes down the output endpoint, `byte_sink_protocol`-framed.
 fn say(bytes: &[u8]) {
     let mut rest = bytes;
     while !rest.is_empty() {
-        let (w0, w1, w2, n) = byte_sink_proto::pack(rest);
+        let (w0, w1, w2, n) = byte_sink_protocol::pack(rest);
         send(OUT, w0, w1, w2);
         rest = &rest[n..];
     }
@@ -524,11 +524,11 @@ fn say_num(v: u64) {
 
 /// End the stream, report the verdict, and stop.
 ///
-/// The `byte_sink_proto` end-of-stream comes first so a reader draining text sees a stream that ended
+/// The `byte_sink_protocol` end-of-stream comes first so a reader draining text sees a stream that ended
 /// rather than one that stopped, and the verdict word after it so a spawn site reading one word
 /// still learns how this went.
 fn done(code: u64) -> ! {
-    send(OUT, byte_sink_proto::eof(), 0, 0);
+    send(OUT, byte_sink_protocol::eof(), 0, 0);
     send(OUT, code, 0, 0);
     exit();
 }

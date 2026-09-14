@@ -9,7 +9,7 @@
 //!
 //! # What it does, in order
 //!
-//! 1. Stamp the clock page (it starts as an honest [`clock_proto::state::UNKNOWN`]).
+//! 1. Stamp the clock page (it starts as an honest [`clock_protocol::state::UNKNOWN`]).
 //! 2. Read the RTC once, through whichever driver the *machine* named (`a0`, from the device
 //!    tree's `compatible`, not from `target_arch`), or, on `x86_64`, take the reading the *kernel*
 //!    already made (`a1`), because the CMOS clock is two I/O ports the kernel keeps to itself
@@ -17,7 +17,7 @@
 //! 3. If the reading is plausible, publish it. **If it is not, publish nothing**: the page stays
 //!    unknown and every reader can see that the machine does not know what time it is. This is
 //!    DECISIONS §42's no-silent-degradation rule; the alternative is confidently reporting 1970.
-//! 4. Serve proposals forever, each judged by `clock_proto::policy` and none of them able to set
+//! 4. Serve proposals forever, each judged by `clock_protocol::policy` and none of them able to set
 //!    the clock outright.
 //!
 //! # The three authorities are three different objects, and only one of them is here
@@ -51,7 +51,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use clock_proto::{ClockPage, policy, propose, rtc, state, status};
+use clock_protocol::{ClockPage, policy, propose, rtc, state, status};
 use user_mode_runtime::{cntfrq, now, recv_cap, reply, send};
 
 /// The propose endpoint (slot 0): the service RECVs proposals on it. Everything that arrives here
@@ -88,7 +88,7 @@ pub extern "C" fn _start(rtc_kind: u64, rtc_seed: u64, _a2: u64) -> ! {
     {
         page.publish(
             state::RTC,
-            clock_proto::offset_for(unix_nanos, monotonic_nanos()),
+            clock_protocol::offset_for(unix_nanos, monotonic_nanos()),
         );
     }
 
@@ -118,7 +118,7 @@ fn serve(page: ClockPage) -> ! {
                     // provenance is what a caller weighing a certificate expiry actually wants.
                     page.publish(
                         state::SYNCED,
-                        clock_proto::offset_for(w1, monotonic_nanos()),
+                        clock_protocol::offset_for(w1, monotonic_nanos()),
                     );
                 }
                 reply(cap, verdict, wall_now(&page));
@@ -138,7 +138,7 @@ fn serve(page: ClockPage) -> ! {
 fn wall_now(page: &ClockPage) -> u64 {
     let r = page.read();
     if state::known(r.state) {
-        clock_proto::wall_nanos(r.offset_nanos, monotonic_nanos())
+        clock_protocol::wall_nanos(r.offset_nanos, monotonic_nanos())
     } else {
         0
     }
@@ -154,7 +154,7 @@ fn monotonic_nanos() -> u64 {
     let ticks = now();
     let secs = ticks / freq;
     let rem = ticks % freq;
-    secs * clock_proto::NANOS_PER_SEC + rem * clock_proto::NANOS_PER_SEC / freq
+    secs * clock_protocol::NANOS_PER_SEC + rem * clock_protocol::NANOS_PER_SEC / freq
 }
 
 /// Read the machine's RTC, whichever one it has. `None` when it has none.
@@ -187,7 +187,7 @@ fn pl031_unix_nanos(base: u64) -> u64 {
     const DR: u64 = 0x00;
     // SAFETY: `base` is this process's device mapping of a PL031, placed by whoever built us.
     let secs = unsafe { core::ptr::read_volatile((base + DR) as *const u32) } as u64;
-    secs * clock_proto::NANOS_PER_SEC
+    secs * clock_protocol::NANOS_PER_SEC
 }
 
 /// **The Goldfish RTC driver** (`google,goldfish-rtc`, QEMU `virt` on riscv64). Same rule 2 shape:

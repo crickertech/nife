@@ -1,4 +1,4 @@
-use filesystem_proto::dir;
+use filesystem_protocol::dir;
 use pipeline_service::{answer, counts};
 
 use super::*;
@@ -29,7 +29,7 @@ pub(super) fn transcript(out: &mut [u8; TRANSCRIPT_MAX]) -> Option<usize> {
             program("redoxfs_server")?,
             program("fs_subtree_caretaker")
                 .expect("no fs_subtree_caretaker program in the initrd archive"),
-            filesystem_proto::fixture::tree::REDIR,
+            filesystem_protocol::fixture::tree::REDIR,
             dir::ALL,
         )?;
         let Some(w) = pipeline_service::start_redirecting(dir, dir::ALL) else {
@@ -153,7 +153,7 @@ fn naming_a_file_to_a_reader_is_the_operator_left_out() {
 /// thrown away and the stage was spawned with an **empty** input slot.
 ///
 /// It did not hang, which is what made it hard to see. A `recv` on an empty slot answers
-/// `NoSuchSlot` rather than blocking, the error word decodes as `byte_sink_proto::Msg::Malformed`, and
+/// `NoSuchSlot` rather than blocking, the error word decodes as `byte_sink_protocol::Msg::Malformed`, and
 /// every reader in this tree treats a malformed message as the end of the document. So the stage
 /// ran to completion over nothing and reported an honest count of an empty stream.
 ///

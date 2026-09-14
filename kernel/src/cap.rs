@@ -158,7 +158,7 @@ const _: () = assert!(core::mem::size_of::<Cap>() == 32);
 /// **Raised 16 -> 17, milestone 49's terminal update.** `components/src/login.rs` gaining an eighth
 /// permanent grant (`TERM_EP`) pushed its own peak past the old fifteen usable slots (sixteen
 /// minus the reserved fault slot, `abi::fault::FAULT_EP_SLOT`) by exactly one: the first login
-/// against a freshly built service answered `login_proto::DENIED` instead of `OK`, on a correct
+/// against a freshly built service answered `login_protocol::DENIED` instead of `OK`, on a correct
 /// password, which is the exact silent-capacity-exhaustion symptom this file's own BUGS section
 /// already describes for a different cause. Measured, not guessed: `mint`'s own peak (`region`,
 /// `narrow_ep`, `ready`, briefly `tcb`, four objects) plus what a channel still holds at that point

@@ -39,7 +39,7 @@ cd "$(dirname "$0")/.."
 # trusting this line.
 echo "==> clippy: host crates + xtask"
 cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_mode_runtime \
-    --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
+    --exclude swap_protocol --exclude virtio --exclude supervision_protocol --exclude system_initializer \
     --all-targets -- -D warnings
 
 # The RedoxFS host tool (tools/redoxfs_host) is its own workspace, outside ours on purpose (it wraps
@@ -118,7 +118,7 @@ rustc --edition 2024 --crate-type lib --crate-name kani \
 # lints through `RUSTFLAGS`, and `script/lint`'s aarch64 pass below compiles the same file without
 # the cfg. Keep kernel harnesses free of `unsafe` while this holds.
 cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_mode_runtime \
-    --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
+    --exclude swap_protocol --exclude virtio --exclude supervision_protocol --exclude system_initializer \
     --all-targets -- \
     --cfg kani --extern "kani=$shim/libkani.rlib" -L "$shim" -D warnings
 
@@ -1851,7 +1851,7 @@ if git -C "$(dirname "$0")/.." grep -Iilnw daemon -- \
 fi
 
 # 3. One spelling for contract crates. The tree had four spellings of "the wire contract" when this
-#    was written (`filesystem_proto`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` wins for CRATES
+#    was written (`filesystem_protocol`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` wins for CRATES
 #    because it is what both of them already were, and a second habit is how the first one rots.
 for dir in "$(dirname "$0")"/../crates/*proto; do
     name="$(basename "$dir")"
@@ -2625,7 +2625,7 @@ print(f'kani modules: {blocks} blocks, none hiding a #[test]')
 PY
 
 # **A crate can carry proof harnesses and be proved by nothing, and the suite gets FASTER when it
-# happens.** `script/verify`'s own table comment records the first instance: `mdns_proto` landed
+# happens.** `script/verify`'s own table comment records the first instance: `multicast_dns_protocol` landed
 # with milestone 55 carrying three harnesses, was never added to the crate list, and nothing said
 # so for three months. Milestone 193 found the second, `jh7110_entropy`, the same way: by counting.
 #

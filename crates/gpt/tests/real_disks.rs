@@ -269,7 +269,7 @@ fn creating_the_same_table_from_scratch_matches_sgdisk_byte_for_byte() {
 /// Not a sample and not a bounded proof: 512 positions times the 255 values each byte could have
 /// held instead, every one of them run through the real validator against a real disk. The domain
 /// is small enough to enumerate, so enumerating it is a *complete* verification for this table, and
-/// stronger than any solver result about it (`ntp_proto`'s note on when a model checker is the
+/// stronger than any solver result about it (`network_time_protocol`'s note on when a model checker is the
 /// wrong tool; the symbolic version, over tables this crate never saw, is the Kani harness
 /// `a_single_byte_change_always_changes_the_crc`).
 ///

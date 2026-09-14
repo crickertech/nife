@@ -27,7 +27,7 @@
 //!     lane re-measured it: an eleventh spawn died as `Unmappable(OutOfPageFrames)` in an unrelated
 //!     later test). A fixed port outside the grant is refused as authority, a granted one binds
 //!     and is exclusive, which incidentally proves the two grant halves compose in one word on the
-//!     machine. The traffic that used to ride here belongs to `mdns_responder` now: it is a third
+//!     machine. The traffic that used to ride here belongs to `multicast_dns_responder` now: it is a third
 //!     client of this same stack, it holds 5353 for the whole run, and it proves the multicast
 //!     path with real DNS rather than with marker payloads.
 //!
@@ -48,7 +48,7 @@
 //! single-consumer `#[path]` module rather than a `[[bin]]`.
 
 use abi::rights;
-use socket_proto::*;
+use socket_protocol::*;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::{call, exit, map_page_frame, retype_page_frame, send, send_cap};
 
@@ -97,11 +97,11 @@ const DNS_TXID: u16 = 0x1234;
 /// spawn service hands this stack, so asking for it proves the grant refuses rather than that
 /// nothing happened to bind.
 ///
-/// Both come from `socket_proto::fixture` since milestone 64, when `std_exerciser` became a second
+/// Both come from `socket_protocol::fixture` since milestone 64, when `std_exerciser` became a second
 /// binary that has to agree with this one about which port is granted and which is not. Rule 7:
 /// what two binaries agree on is a crate.
-const LISTEN_PORT: u64 = socket_proto::fixture::LISTEN_PORT as u64;
-const DENIED_PORT: u64 = socket_proto::fixture::DENIED_PORT as u64;
+const LISTEN_PORT: u64 = socket_protocol::fixture::LISTEN_PORT as u64;
+const DENIED_PORT: u64 = socket_protocol::fixture::DENIED_PORT as u64;
 /// The listener's socket id and the accepted connection's. Two ids, because they are two objects:
 /// the listener never carries a byte and never gets a frame, and the connection is where the frame
 /// is. Keeping them apart is the contract, not a convenience.
@@ -110,10 +110,10 @@ const CONN_SID: u64 = 1;
 /// What the host sends in and what the guest answers with. Different strings on purpose: an echo
 /// would pass even if the guest were somehow reflecting the host's own bytes, and the point of this
 /// gate is that the guest *composed* an answer to a connection it did not make. Shared with
-/// `std_exerciser`'s inbound half through `socket_proto::fixture`; `xtask`'s prober deliberately
+/// `std_exerciser`'s inbound half through `socket_protocol::fixture`; `xtask`'s prober deliberately
 /// keeps its own literals, so the two sides of the exchange are written independently.
-const IN_MSG: &[u8] = socket_proto::fixture::IN_MSG;
-const OUT_MSG: &[u8] = socket_proto::fixture::OUT_MSG;
+const IN_MSG: &[u8] = socket_protocol::fixture::IN_MSG;
+const OUT_MSG: &[u8] = socket_protocol::fixture::OUT_MSG;
 
 /// The fixture the runners put in slirp's TFTP directory, and its exact contents. Both sides are
 /// fixed so the round trip is asserted byte for byte (see scripts/qemu-runner-*.sh).
@@ -125,7 +125,7 @@ const TFTP_BODY: &[u8] = b"nife-tftp!";
 /// that nothing happened to bind; `MDNS_GRANTED_PORT` is inside it, and is deliberately **not**
 /// 5353.
 ///
-/// The real port belongs to `mdns_responder`, which is a third client of this same stack and holds
+/// The real port belongs to `multicast_dns_responder`, which is a third client of this same stack and holds
 /// it for the whole run (milestone 55's responder lane). That is why the traffic half of this
 /// exchange is gone: the marker datagrams this test used to trade with xtask's multicast prober
 /// proved that a joined group receives, that the source endpoint rides back on RECV, and that a
@@ -157,7 +157,7 @@ fn r16le(va: u64) -> u16 {
     WINDOW.r16(va - PAGE_FRAME_VA)
 }
 
-/// The source endpoint a UDP RECV reply left in the frame header (`socket_proto`'s layout note).
+/// The source endpoint a UDP RECV reply left in the frame header (`socket_protocol`'s layout note).
 fn recv_source() -> ([u8; 4], u16) {
     let mut ip = [0u8; 4];
     for (i, b) in ip.iter_mut().enumerate() {
@@ -548,7 +548,7 @@ fn serve_one_inbound(base: u64) {
 ///
 /// **What is deliberately not here any more**: the marker-payload exchange with xtask's multicast
 /// prober. It proved that a joined group receives, that a multicast `SENDTO` reaches the wire, and
-/// that a datagram's source endpoint rides back on `RECV`; `mdns_responder`, a third client of this
+/// that a datagram's source endpoint rides back on `RECV`; `multicast_dns_responder`, a third client of this
 /// same stack, now proves all three with real DNS messages the prober decodes as records
 /// (notes/mdns.md). Two programs sending markers past each other proved carriage twice and protocol
 /// never.

@@ -1,11 +1,11 @@
 /// The word the receiver sends back through the delegated capability, so a test can confirm a
 /// capability minted by one process works when invoked by another.
 ///
-/// **One definition, in `capability_demo_proto`.** This was a `pub const` here with a matching
+/// **One definition, in `capability_demo_protocol`.** This was a `pub const` here with a matching
 /// literal in `fixtures/src/hello.rs` and a "must match" comment beside it, which is the shape
 /// AGENTS.md rule 7 exists to remove; milestone 291 split the receiver into its own binary and the
 /// duplicate became a crate.
-pub use capability_demo_proto::USED_WORD;
+pub use capability_demo_protocol::USED_WORD;
 
 use super::*;
 use crate::cap::{Rights, rendezvous_cap};

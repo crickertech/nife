@@ -66,7 +66,7 @@ fn wired() -> Option<Wired> {
             if let Some(r) = e.wait_for_ready() {
                 assert_eq!(
                     r[0],
-                    entropy_proto::READY,
+                    entropy_protocol::READY,
                     "the entropy service did not come up, so no salt could be drawn",
                 );
             }
@@ -187,7 +187,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
     assert_eq!(honest[0], cs::RPT_DONE, "the honest client did not report");
     assert_eq!(
         cs::nth(honest[1], 0),
-        credential_proto::MATCH,
+        credential_protocol::MATCH,
         "the identity this tool PUT did not verify with the secret it was given",
     );
 
@@ -201,7 +201,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
         redoxfs_server_image(),
         caretaker,
         IDENTITY_STR,
-        filesystem_proto::dir::ALL,
+        filesystem_protocol::dir::ALL,
     )
     .expect("the subtree identity_provisioner created did not open");
 }
@@ -224,7 +224,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     };
     assert_eq!(
         w.duplicate,
-        [ips::RPT_CRED_FAILED, credential_proto::MALFORMED],
+        [ips::RPT_CRED_FAILED, credential_protocol::MALFORMED],
         "a genuine duplicate PUT was not refused the way credentialer::Store::put's own rule says it must \
          be (a duplicate identity answers MALFORMED, the same code a malformed request gets, \
          because neither is an authentication outcome)",
@@ -236,7 +236,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     assert_eq!(honest[0], cs::RPT_DONE, "the honest client did not report");
     assert_eq!(
         cs::nth(honest[1], 0),
-        credential_proto::MATCH,
+        credential_protocol::MATCH,
         "the refused second PUT disturbed the identity the first, successful PUT already stored",
     );
 }

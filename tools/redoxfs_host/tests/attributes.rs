@@ -21,7 +21,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use filesystem_proto::{dir, fs, xattr};
+use filesystem_protocol::{dir, fs, xattr};
 use redoxfs::DiskFile;
 
 const TOOL: &str = env!("CARGO_BIN_EXE_redoxfs_host");
@@ -236,7 +236,7 @@ fn attributes_written_by_the_redoxfs_server_come_back_onto_host_files() {
     );
 
     // The type code is not lost, it is relocated: the raw store comes out with the tree, and the
-    // format is published in `filesystem_proto::xattr::store`. That is what makes "dropped" honest rather
+    // format is published in `filesystem_protocol::xattr::store`. That is what makes "dropped" honest rather
     // than lossy, so the test asserts the fallback is really there.
     let blobs = std::fs::read_dir(out.join(xattr::STORE_DIR))
         .expect("the raw store must be extracted alongside, as the type codes' only home")

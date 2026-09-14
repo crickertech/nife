@@ -3,7 +3,7 @@ use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
 /// Where the tool expects the caller to have staged the identity and secret, in
-/// `credential_proto::place`'s layout. Must match `components/src/identity_provisioner.rs`'s own `REQ_VA`.
+/// `credential_protocol::place`'s layout. Must match `components/src/identity_provisioner.rs`'s own `REQ_VA`.
 const REQ_VA: u64 = 0x0000_0000_00e4_0000;
 /// The page shared with the credential service. Must match the same file's `PROV_VA`, and
 /// `components/src/credentialer.rs`'s own `PROV_VA` (the physical frame behind both must be the one
@@ -59,8 +59,8 @@ pub fn provision(
         core::slice::from_raw_parts_mut(mmu::phys_to_virt(req_phys) as *mut u8, FRAME_SIZE as usize)
     };
     req_slice.fill(0);
-    credential_proto::place(req_slice, identity, secret, credential_proto::provision::PUT).expect(
-        "identity/secret out of credential_proto's bounds; this is a test-fixture bug, not a wiring one",
+    credential_protocol::place(req_slice, identity, secret, credential_protocol::provision::PUT).expect(
+        "identity/secret out of credential_protocol's bounds; this is a test-fixture bug, not a wiring one",
     );
 
     let maps = [

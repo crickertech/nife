@@ -84,7 +84,7 @@
 use grant_plan::expand::Expansion;
 use grant_plan::{Endowment, Holdings, Refusal};
 
-/// Nanoseconds in a second. Spelled here rather than taken from `clock_proto`, because this crate
+/// Nanoseconds in a second. Spelled here rather than taken from `clock_protocol`, because this crate
 /// decides *when* rather than *what time it is*: it never touches the wall clock, and depending on
 /// the wall-clock contract to name a unit would claim otherwise.
 pub const NANOS_PER_SEC: u64 = 1_000_000_000;
@@ -106,7 +106,7 @@ pub const MAX_ENTRIES: usize = 8;
 /// Milestone 129's block scopes the vocabulary to exactly these because the housekeeping its first
 /// customer needs (snapshot thinning, scrub passes, log rotation) is interval-shaped, and because
 /// calendar syntax is a decision with real content in it: what a `0 2 * * *` entry should do when
-/// the wall clock steps an hour is a question this system has vocabulary for (`ntp_proto`'s era
+/// the wall clock steps an hour is a question this system has vocabulary for (`network_time_protocol`'s era
 /// pivot) and no answer to yet. Adding a field to this enum later is cheap; shipping an
 /// ambiguous one now is not.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -143,7 +143,7 @@ pub struct Document<'a> {
 
 /// Why a document does not parse. Every variant carries the **1-based line number** it went wrong
 /// on, because a configuration error a person cannot find is a configuration error they will not
-/// fix. `mdns_config` reached the same shape for the same reason.
+/// fix. `multicast_dns_config` reached the same shape for the same reason.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Error {
     /// A line that is neither blank, a comment, nor a schedule word followed by a command.
@@ -193,7 +193,7 @@ impl Error {
 
 /// Parse a timetable document.
 ///
-/// Fails on the **first** problem, with its line, which is `mdns_config`'s posture and the right one
+/// Fails on the **first** problem, with its line, which is `multicast_dns_config`'s posture and the right one
 /// for a document a person edits: reporting six errors when the first one is a typo that shifted
 /// everything after it is noise, and the second error is often the first one wearing a hat.
 ///
@@ -1002,7 +1002,7 @@ mod tests {
 
     use super::*;
 
-    /// **The shipped document is a specification, not a comment.** `mdns_config` reached this shape
+    /// **The shipped document is a specification, not a comment.** `multicast_dns_config` reached this shape
     /// first and the reason is the same: a configuration file nothing parses in CI is a file that
     /// rots, and the first person to notice is the one whose machine will not boot.
     const REFERENCE: &str = include_str!("../../../components/timetable.conf");

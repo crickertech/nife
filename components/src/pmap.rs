@@ -35,7 +35,7 @@
 //! capability in this tree is minted and consumed **within the thread that built it**
 //! (`RETYPE_OBJ(ADDRESS_SPACE)` -> `MAP_INTO`* -> `ThreadControlBlock::CONFIGURE`, which removes the space from the
 //! registry the instant it binds to a thread), and nothing shipped here ever delegates one to a
-//! different program (checked: `components/src/builder.rs`, `crates/supervision_proto`, `fixtures/src/hello.rs`,
+//! different program (checked: `components/src/builder.rs`, `crates/supervision_protocol`, `fixtures/src/hello.rs`,
 //! `fixtures/src/os_primitives_benchmarker.rs`, the only sites that mint an `Object::AddressSpace` at all --
 //! DECISIONS §114's required audit). So there is no manifest field for this program to declare and
 //! no wiring for `system_initializer` to add: there is nothing alive anywhere in the system to hand
@@ -109,7 +109,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     diag_end();
 
     found.write_report(&mut |bytes| write_on(REPORT, bytes));
-    send(REPORT, byte_sink_proto::eof(), 0, 0);
+    send(REPORT, byte_sink_protocol::eof(), 0, 0);
     exit();
 }
 
@@ -128,7 +128,7 @@ fn diag_slot() -> u64 {
 /// the first, so a `pmap` that exited without this would leave the prompt blocked.
 fn diag_end() {
     if HAS_DIAG.load(Ordering::Relaxed) {
-        send(DIAG_SLOT, byte_sink_proto::eof(), 0, 0);
+        send(DIAG_SLOT, byte_sink_protocol::eof(), 0, 0);
     }
 }
 
@@ -136,7 +136,7 @@ fn diag_end() {
 fn write_on(slot: u64, bytes: &[u8]) {
     let mut rest = bytes;
     while !rest.is_empty() {
-        let (w0, w1, w2, n) = byte_sink_proto::pack(rest);
+        let (w0, w1, w2, n) = byte_sink_protocol::pack(rest);
         send(slot, w0, w1, w2);
         rest = &rest[n..];
     }

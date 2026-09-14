@@ -138,8 +138,8 @@ pub mod script;
 /// Fixed rather than allocated, because the terminal component has no allocator and this crate is
 /// the same code the kernel and the host run. **Grown from 32 to 182 at milestone 142's increment
 /// 1, then retargeted to 132 on 2026-08-27** alongside the scanout (128x64 -> 1280x720 -> 924x344,
-/// `graphics_proto::WIDTH`'s doc comment has the full story). 132 is exactly
-/// `graphics_proto::WIDTH / bitmap_font::GLYPH_W` (924 / 7), the classic VT100/VT220 "wide mode"
+/// `graphics_protocol::WIDTH`'s doc comment has the full story). 132 is exactly
+/// `graphics_protocol::WIDTH / bitmap_font::GLYPH_W` (924 / 7), the classic VT100/VT220 "wide mode"
 /// column count and roughly what a real terminal actually runs, unlike 182's near-double of any
 /// terminal anyone uses. A screen bigger than that gets a bigger constant, and the terminal
 /// component asserts its own geometry fits at compile time so the failure is a build error rather

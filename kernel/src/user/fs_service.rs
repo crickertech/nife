@@ -66,11 +66,11 @@ fn page_frame() -> u64 {
 
 /// **How many pages the file channel spans**, straight from the contract, so this wiring cannot
 /// disagree with the two programs that speak it.
-const FILE_PAGES: usize = filesystem_proto::fs::TRANSFER_PAGES;
+const FILE_PAGES: usize = filesystem_protocol::fs::TRANSFER_PAGES;
 
 /// **How many pages the blk channel spans** (milestone 138 step 4), straight from the contract, the
 /// same reason [`FILE_PAGES`] is.
-const BLK_PAGES: usize = filesystem_proto::blk::TRANSFER_BLOCKS;
+const BLK_PAGES: usize = filesystem_protocol::blk::TRANSFER_BLOCKS;
 
 /// **The file channel: [`FILE_PAGES`] fresh, zeroed, physically contiguous frames**, returned by
 /// the base physical address (milestone 138 step 3).
@@ -95,13 +95,13 @@ fn file_channel() -> u64 {
 ///
 /// **`pages` is how much of the channel this party maps**, and it is a parameter rather than always
 /// [`FILE_PAGES`] because a client is entitled to map less: a client that only ever moves one page
-/// needs one page, and `filesystem_proto::fs::TRANSFER_PAGES` says so. The FS server is the one party that
+/// needs one page, and `filesystem_protocol::fs::TRANSFER_PAGES` says so. The FS server is the one party that
 /// must map all of it.
 ///
 /// Visible to the rest of `user` because its callers are wired somewhere else entirely
 /// (`virtio_service`, since it is a client of the net stack rather than of this module) and shares
 /// the same channel with the same FS server. Two spellings of "map every page of it" is exactly the
-/// drift the foot gun at `filesystem_proto::fs::TRANSFER_PAGES` punishes, so there is one.
+/// drift the foot gun at `filesystem_protocol::fs::TRANSFER_PAGES` punishes, so there is one.
 pub(super) fn map_channel(maps: &mut [Mapping], va: u64, phys: u64, pages: usize) -> usize {
     for (i, m) in maps.iter_mut().take(pages).enumerate() {
         *m = Mapping {
@@ -276,7 +276,7 @@ fn wire_servers(
 /// server is no longer the only thing that wants "a block device, served over IPC, by a process
 /// that owns the DMA and nothing else". Its two clients (`disk_surveyor`, `disk_partitioner`) only
 /// ever map the first data page and only ever send single-block requests, so they are unmodified
-/// by the region's growth, the same compatibility [`filesystem_proto::blk::TRANSFER_BLOCKS`] documents.
+/// by the region's growth, the same compatibility [`filesystem_protocol::blk::TRANSFER_BLOCKS`] documents.
 pub(super) fn spawn_block_server(
     blk_image: &'static [u8],
     dev: crate::virtio::VirtioMmioDevice,
@@ -381,9 +381,9 @@ fn spawn_fs_server(fs_server_image: &'static [u8], cfg: FsServer) {
     crate::sched::spawn(move || {
         // Build the mapping list: the two shared channels, then the extra stack pages. The FS
         // server maps the whole of both, the one party that must for each: it drives every block
-        // the blk channel can carry (up to `filesystem_proto::blk::TRANSFER_BLOCKS`, milestone 138 step 4)
+        // the blk channel can carry (up to `filesystem_protocol::blk::TRANSFER_BLOCKS`, milestone 138 step 4)
         // and serves whatever length a client asks for on the file channel, up to
-        // `filesystem_proto::fs::TRANSFER_MAX` (step 3). A client maps only what it uses of the file
+        // `filesystem_protocol::fs::TRANSFER_MAX` (step 3). A client maps only what it uses of the file
         // channel; nothing else maps the blk channel at all.
         let mut maps = [Mapping {
             va: 0,
@@ -606,7 +606,7 @@ pub(super) fn spawn_fs_client(
             flags: Flags::user_data(),
         }; FILE_PAGES + CLIENT_EXTRA_STACK];
         // The whole channel, because this is the spawn the throughput benchmark comes through and
-        // a client may not ask for more than it mapped (`filesystem_proto::fs::TRANSFER_PAGES`). It costs
+        // a client may not ask for more than it mapped (`filesystem_protocol::fs::TRANSFER_PAGES`). It costs
         // fifteen extra page-table entries against the same frames, not fifteen extra frames.
         let n = map_channel(&mut maps, FILE_VA_CLIENT, file_shared, FILE_PAGES);
         for (k, m) in maps[n..n + extra_stack].iter_mut().enumerate() {
@@ -619,7 +619,7 @@ pub(super) fn spawn_fs_client(
                 arg0: role,
                 arg1: arg,
                 // A third word, because the `rm` program is started the way a **grant** is
-                // (`filesystem_proto::grant`): a spec word and two words of name. Every other client
+                // (`filesystem_protocol::grant`): a spec word and two words of name. Every other client
                 // here takes a role and one number and leaves this zero.
                 arg2,
                 grants: &[
@@ -678,7 +678,7 @@ pub fn start(
 /// invites a caller to get `rights` and `role` the wrong way round, and both are bare integers.
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct Grant {
-    /// The one name the caretaker will answer for. Must fit [`filesystem_proto::grant::MAX_NAME`].
+    /// The one name the caretaker will answer for. Must fit [`filesystem_protocol::grant::MAX_NAME`].
     pub name: &'static str,
     /// `grant::READ`, or `READ | WRITE`.
     pub rights: u64,
@@ -703,12 +703,12 @@ pub fn wait_for_service(readiness: Option<(RendezvousId, RendezvousId)>) {
     };
     assert_eq!(
         crate::sched::ipc_recv(blk_ready)[0],
-        filesystem_proto::fixture::READY,
+        filesystem_protocol::fixture::READY,
         "the block server did not bring the RedoxFS device up",
     );
     assert_eq!(
         crate::sched::ipc_recv(fs_ready)[0],
-        filesystem_proto::fixture::READY,
+        filesystem_protocol::fixture::READY,
         "the FS server did not open the RedoxFS image",
     );
 }
@@ -739,7 +739,7 @@ pub fn wait_for_service(readiness: Option<(RendezvousId, RendezvousId)>) {
 fn wait_for_caretaker(caretaker_ready: RendezvousId) {
     assert_eq!(
         crate::sched::ipc_recv(caretaker_ready)[0],
-        filesystem_proto::fixture::READY,
+        filesystem_protocol::fixture::READY,
         "the caretaker could not open what it was granted, so there is nothing to attenuate",
     );
 }
@@ -759,15 +759,15 @@ pub fn start_granted(
         arg: client_arg,
     } = grant;
     assert!(
-        filesystem_proto::grant::fits(name.as_bytes()),
+        filesystem_protocol::grant::fits(name.as_bytes()),
         "a granted name rides in two argument words; this one does not fit",
     );
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let narrow_ep = crate::sched::create_rendezvous();
     let caretaker_ready = crate::sched::create_rendezvous();
 
-    let (lo, hi) = filesystem_proto::grant::pack_name(name.as_bytes());
-    let spec = filesystem_proto::grant::spec(name.len(), rights);
+    let (lo, hi) = filesystem_protocol::grant::pack_name(name.as_bytes());
+    let spec = filesystem_protocol::grant::spec(name.len(), rights);
 
     // The caretaker: the directory capability, the narrowed endpoint it serves, and the shared
     // page. The grant itself (the name and the direction) rides in its START arguments, so a
@@ -826,18 +826,18 @@ pub fn start_granted(
 /// reach the parent directory or a sibling" a statement about its capability table rather than about a
 /// branch. That argument is `fs_file_caretaker`'s, and it is load-bearing here for an extra
 /// reason: the FS server's handle table is per *server*, so a rights-carrying handle on its own
-/// would not confine a program that could still name [`filesystem_proto::fs::ROOT`].
+/// would not confine a program that could still name [`filesystem_protocol::fs::ROOT`].
 ///
-/// `rights` is a [`filesystem_proto::dir`] mask. It is what the caretaker *asks* for; the FS server
+/// `rights` is a [`filesystem_protocol::dir`] mask. It is what the caretaker *asks* for; the FS server
 /// intersects it with the root's and refuses if the answer is smaller, so a wiring that asked
 /// for more than exists fails at the caretaker's first request rather than silently serving
 /// less.
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct DirGrant {
     /// The directory the caretaker descends into, one component under the image root. Must fit
-    /// [`filesystem_proto::grant::MAX_NAME`].
+    /// [`filesystem_protocol::grant::MAX_NAME`].
     pub name: &'static str,
-    /// The [`filesystem_proto::dir`] rights the subtree capability is to carry.
+    /// The [`filesystem_protocol::dir`] rights the subtree capability is to carry.
     pub rights: u64,
     /// The confined program's `arg0` (its role) and `arg1`.
     pub role: u64,
@@ -963,15 +963,15 @@ pub fn narrow_dir(
     rights: u64,
 ) -> Option<(RendezvousId, u64)> {
     assert!(
-        filesystem_proto::grant::fits(name.as_bytes()),
+        filesystem_protocol::grant::fits(name.as_bytes()),
         "a granted name rides in two argument words; this one does not fit",
     );
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let narrow_ep = crate::sched::create_rendezvous();
     let caretaker_ready = crate::sched::create_rendezvous();
 
-    let (lo, hi) = filesystem_proto::grant::pack_name(name.as_bytes());
-    let spec = filesystem_proto::grant::spec(name.len(), rights);
+    let (lo, hi) = filesystem_protocol::grant::pack_name(name.as_bytes());
+    let spec = filesystem_protocol::grant::spec(name.len(), rights);
 
     crate::sched::spawn(move || {
         run(
@@ -1052,7 +1052,7 @@ const SET_VA_CARETAKER: u64 = 0x0000_0000_0070_0000;
 /// encoded into a **frame of its own and mapped read-only** into the caretaker, which copies it
 /// into a local before it does anything else. That is the honest place for `ARG_MAX` to
 /// reappear: it is the size of a capability now, not the size of a buffer, and it is bounded by
-/// `filesystem_proto::nameset::MAX_NAMES` at both ends.
+/// `filesystem_protocol::nameset::MAX_NAMES` at both ends.
 ///
 /// The set is written **before the caretaker is spawned**, into a frame nothing else has ever
 /// been handed, which is why it needs none of [`wait_for_caretaker`]'s ordering care: unlike
@@ -1063,11 +1063,11 @@ pub struct SetGrant<'a> {
     /// names are the names *in* it that the grant designates.
     pub dir: &'static str,
     /// The set, as `(name, is_dir)`: what the shell's expansion produced. At most
-    /// `filesystem_proto::nameset::MAX_NAMES` of them, and an over-long set is a panic here because the
+    /// `filesystem_protocol::nameset::MAX_NAMES` of them, and an over-long set is a panic here because the
     /// shell refuses it at the prompt (`grant_plan::Refusal::TooManyNames`), so one arriving means
     /// the wiring built a grant no command line could have expressed.
     pub names: &'a [(&'a [u8], bool)],
-    /// The [`filesystem_proto::dir`] rights the caretaker asks for on its descent.
+    /// The [`filesystem_protocol::dir`] rights the caretaker asks for on its descent.
     pub rights: u64,
     /// The confined program's three `START` words. `rm` is started with a grant's spec and two
     /// name words rather than a role and a number; see [`DirGrant`].
@@ -1096,7 +1096,7 @@ pub fn start_granted_set(
         stack_pages,
     } = grant;
     assert!(
-        filesystem_proto::grant::fits(dir.as_bytes()),
+        filesystem_protocol::grant::fits(dir.as_bytes()),
         "a granted directory's name rides in two argument words; this one does not fit",
     );
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
@@ -1106,8 +1106,8 @@ pub fn start_granted_set(
     // The set, encoded into its own frame before anything can see it. `encode` refuses rather
     // than truncating, and a truncated set would be a capability nobody planned.
     let set_phys = page_frame();
-    let mut encoded = [0u8; filesystem_proto::nameset::BYTES];
-    let n = filesystem_proto::nameset::encode(names, &mut encoded)
+    let mut encoded = [0u8; filesystem_protocol::nameset::BYTES];
+    let n = filesystem_protocol::nameset::encode(names, &mut encoded)
         .expect("this set does not fit one grant, so no command line could have named it");
     // SAFETY: a fresh frame of FRAME_SIZE bytes reachable through the direct map, and `n` is at
     // most `nameset::BYTES`, which is far smaller.
@@ -1115,8 +1115,8 @@ pub fn start_granted_set(
         core::ptr::copy_nonoverlapping(encoded.as_ptr(), mmu::phys_to_virt(set_phys) as *mut u8, n);
     };
 
-    let (lo, hi) = filesystem_proto::grant::pack_name(dir.as_bytes());
-    let spec = filesystem_proto::grant::spec(dir.len(), rights);
+    let (lo, hi) = filesystem_protocol::grant::pack_name(dir.as_bytes());
+    let spec = filesystem_protocol::grant::spec(dir.len(), rights);
 
     crate::sched::spawn(move || {
         run(
@@ -1403,7 +1403,7 @@ pub fn start_std_full(
 #[cfg_attr(not(test), allow(dead_code))]
 pub struct TwoDirGrant {
     /// The first grant: the directory (one component under the image root) and the
-    /// [`filesystem_proto::dir`] rights, delivered at the confined program's capability table slot 0.
+    /// [`filesystem_protocol::dir`] rights, delivered at the confined program's capability table slot 0.
     pub a: (&'static str, u64),
     /// The second grant, at slot 1.
     pub b: (&'static str, u64),

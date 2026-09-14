@@ -218,7 +218,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8f59926911ef34d1efb9ea1ee8ca78385df62ce700ccf2bcb149011bd226888"
 
 [[package]]
-name = "entropy_proto"
+name = "entropy_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -245,7 +245,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filesystem_proto"
+name = "filesystem_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -511,8 +511,8 @@ name = "redoxfs_server"
 version = "0.1.0"
 dependencies = [
  "abi",
- "entropy_proto",
- "filesystem_proto",
+ "entropy_protocol",
+ "filesystem_protocol",
  "gpt",
  "redox_syscall",
  "redoxfs",
@@ -634,7 +634,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "timebase_proto"
+name = "timebase_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -658,7 +658,7 @@ name = "user_mode_runtime"
 version = "0.1.0"
 dependencies = [
  "abi",
- "timebase_proto",
+ "timebase_protocol",
  "user_mode_heap",
 ]
 

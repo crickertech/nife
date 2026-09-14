@@ -463,7 +463,7 @@ pub fn blank_disk(blk_image: &'static [u8]) -> Option<BlankDisk> {
 ///
 /// `entropy` is the whole experiment. `Some(ep)` and the program can draw the unique ids a GPT
 /// requires; `None` leaves slot 2 empty and its first `CALL` there comes back as a kernel error,
-/// which `entropy_proto::delivered` reports as "no entropy" rather than as a short reply. Same
+/// which `entropy_protocol::delivered` reports as "no entropy" rather than as a short reply. Same
 /// binary, same role, same disk, same everything else.
 pub fn start_partitioner(
     image: &'static [u8],

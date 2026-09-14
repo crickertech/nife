@@ -1,5 +1,5 @@
-use filesystem_proto::dir;
-use filesystem_proto::fixture::{navscape as nb, tree};
+use filesystem_protocol::dir;
+use filesystem_protocol::fixture::{navscape as nb, tree};
 
 use super::*;
 use crate::sched;
@@ -52,7 +52,7 @@ const ALWAYS: u64 = nb::PWD_IS_ROOT
 /// Wire a `fs_subtree_caretaker` holding a capability to `root` and run the shell's navigation
 /// script inside it. `run` keeps the names it creates distinct across runs sharing one image.
 ///
-/// The run index and the rights ride in one word packed by `filesystem_proto::grant::spec`, the same
+/// The run index and the rights ride in one word packed by `filesystem_protocol::grant::spec`, the same
 /// packing the caretaker's own grant uses: the shell is **told** what its capability carries
 /// because nothing on this wire reports what a handle holds, and `OPENDIR` refuses a request
 /// wider than the parent rather than narrowing it (notes/shell-navigation.md).
@@ -69,7 +69,7 @@ fn navigate(root: &'static str, run: u64) -> Option<u64> {
             name: root,
             rights: dir::ALL,
             role: ROLE_NAVIGATE,
-            arg: filesystem_proto::grant::spec(run as usize, dir::ALL),
+            arg: filesystem_protocol::grant::spec(run as usize, dir::ALL),
             arg2: 0,
             // Measured, not guessed: see `spawn_fs_client`. A shell carries a path stack, a
             // parsed path and a listing buffer by value, and one page is 192 bytes short.
@@ -79,7 +79,7 @@ fn navigate(root: &'static str, run: u64) -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        filesystem_proto::fixture::VERDICT,
+        filesystem_protocol::fixture::VERDICT,
         "the shell's report is not a verdict word",
     );
     Some(verdict)

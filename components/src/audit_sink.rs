@@ -1,7 +1,7 @@
 //! **Drains `login`'s audit trail so the service never blocks on it** (milestone 49's terminal
 //! update, wiring the login stack into the real interactive boot).
 //!
-//! `components/src/login.rs` sends one [`login_proto::ATTRIBUTED`] message per successful login on its
+//! `components/src/login.rs` sends one [`login_protocol::ATTRIBUTED`] message per successful login on its
 //! `AUDIT` endpoint, and that send is a plain, blocking rendezvous (`crates/ipc`'s own model): it
 //! does not return until something receives it. Nothing in a real interactive boot was reading that
 //! endpoint before this program existed, so `login`'s very first successful login would have parked
@@ -45,7 +45,7 @@
 //! performs that rename in the same change.
 //!
 //! **Why `audit_sink` went.** Half the name was honest and half was not. "Sink" is already this
-//! tree's word for the end of a stream nobody reads further (`byte_sink_proto`,
+//! tree's word for the end of a stream nobody reads further (`byte_sink_protocol`,
 //! `terminal_sink_caretaker`), and that is exactly this program's role. But an audit trail that is
 //! discarded is not an audit trail, and a reader meeting `audit_sink` in a process listing would
 //! reasonably conclude the system records logins somewhere. Nothing does. That is the fault

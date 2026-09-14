@@ -93,7 +93,7 @@ name = "boot_ladder"
 version = "0.1.0"
 
 [[package]]
-name = "byte_sink_proto"
+name = "byte_sink_protocol"
 version = "0.1.0"
 dependencies = [
  "abi",
@@ -118,7 +118,7 @@ name = "capability"
 version = "0.1.0"
 
 [[package]]
-name = "capability_demo_proto"
+name = "capability_demo_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -138,7 +138,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "clock_proto"
+name = "clock_protocol"
 version = "0.1.0"
 dependencies = [
  "loom",
@@ -165,37 +165,37 @@ dependencies = [
  "bitmap_font",
  "block_roster",
  "boot_ladder",
- "byte_sink_proto",
+ "byte_sink_protocol",
  "calendar",
- "clock_proto",
+ "clock_protocol",
  "component_plan",
  "compositor",
- "credential_proto",
+ "credential_protocol",
  "credentialer",
  "documentation",
  "elf",
- "entropy_proto",
- "environment_proto",
- "filesystem_proto",
+ "entropy_protocol",
+ "environment_protocol",
+ "filesystem_protocol",
  "gpt",
  "grant_plan",
- "graphics_proto",
+ "graphics_protocol",
  "jh7110_entropy",
  "line_editor",
- "login_proto",
- "mdns_config",
- "mdns_proto",
+ "login_protocol",
+ "multicast_dns_config",
+ "multicast_dns_protocol",
  "measured_boot",
  "nifefs",
- "ntp_proto",
+ "network_time_protocol",
  "pgrep",
  "pmap",
  "ps",
  "schedule_store",
  "smoltcp",
- "socket_proto",
- "supervision_proto",
- "swap_proto",
+ "socket_protocol",
+ "supervision_protocol",
+ "swap_protocol",
  "swish",
  "system_initializer",
  "timetable",
@@ -210,7 +210,7 @@ dependencies = [
 name = "compositor"
 version = "0.1.0"
 dependencies = [
- "graphics_proto",
+ "graphics_protocol",
 ]
 
 [[package]]
@@ -231,7 +231,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "credential_proto"
+name = "credential_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -322,15 +322,15 @@ name = "elf"
 version = "0.1.0"
 
 [[package]]
-name = "entropy_proto"
+name = "entropy_protocol"
 version = "0.1.0"
 
 [[package]]
-name = "environment_proto"
+name = "environment_protocol"
 version = "0.1.0"
 
 [[package]]
-name = "filesystem_proto"
+name = "filesystem_protocol"
 version = "0.1.0"
 dependencies = [
  "glob",
@@ -347,29 +347,29 @@ name = "fixtures"
 version = "0.1.0"
 dependencies = [
  "abi",
- "byte_sink_proto",
+ "byte_sink_protocol",
  "c_seam",
- "capability_demo_proto",
- "clock_proto",
+ "capability_demo_protocol",
+ "clock_protocol",
  "component_plan",
  "compositor",
  "coremark",
- "credential_proto",
+ "credential_protocol",
  "elf",
- "filesystem_proto",
+ "filesystem_protocol",
  "grant_plan",
- "graphics_proto",
+ "graphics_protocol",
  "job_mix",
  "line_editor",
  "loaded_image_check",
- "login_proto",
+ "login_protocol",
  "nifefs",
- "ntp_proto",
+ "network_time_protocol",
  "schedule_store",
  "soak_page",
- "socket_proto",
- "supervision_proto",
- "swap_proto",
+ "socket_protocol",
+ "supervision_protocol",
+ "swap_protocol",
  "system_initializer",
  "user_mode_runtime",
 ]
@@ -405,12 +405,12 @@ version = "0.1.0"
 name = "grant_plan"
 version = "0.1.0"
 dependencies = [
- "filesystem_proto",
+ "filesystem_protocol",
  "glob",
 ]
 
 [[package]]
-name = "graphics_proto"
+name = "graphics_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -480,37 +480,37 @@ dependencies = [
  "bitmap_font",
  "block_roster",
  "boot_ladder",
- "byte_sink_proto",
+ "byte_sink_protocol",
  "calendar",
  "capability",
- "capability_demo_proto",
- "clock_proto",
+ "capability_demo_protocol",
+ "clock_protocol",
  "compositor",
  "coremark",
  "cpu_set",
- "credential_proto",
+ "credential_protocol",
  "dma_validator",
  "dtb",
  "elf",
- "entropy_proto",
- "environment_proto",
- "filesystem_proto",
+ "entropy_protocol",
+ "environment_protocol",
+ "filesystem_protocol",
  "generational_table",
  "grant_plan",
- "graphics_proto",
+ "graphics_protocol",
  "intrusive_fifo",
  "ipc",
  "jh7110_clock_and_reset",
  "jh7110_entropy",
  "job_mix",
  "line_editor",
- "login_proto",
+ "login_protocol",
  "machine_discovery",
  "measured_boot",
  "memory_corruption_canary_gate",
  "memory_regions",
  "nifefs",
- "ntp_proto",
+ "network_time_protocol",
  "nvme",
  "page_frames",
  "paging",
@@ -520,10 +520,10 @@ dependencies = [
  "ps",
  "screen_console",
  "soak_page",
- "socket_proto",
+ "socket_protocol",
  "spin",
  "thread_wake_handshake",
- "timebase_proto",
+ "timebase_protocol",
  "tock-registers",
  "video_terminal",
  "work_steal_slot",
@@ -556,10 +556,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
-name = "login_proto"
+name = "login_protocol"
 version = "0.1.0"
 dependencies = [
- "credential_proto",
+ "credential_protocol",
 ]
 
 [[package]]
@@ -598,14 +598,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mdns_config"
+name = "multicast_dns_config"
 version = "0.1.0"
 dependencies = [
- "mdns_proto",
+ "multicast_dns_protocol",
 ]
 
 [[package]]
-name = "mdns_proto"
+name = "multicast_dns_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -641,7 +641,7 @@ name = "nifefs"
 version = "0.1.0"
 
 [[package]]
-name = "ntp_proto"
+name = "network_time_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -806,7 +806,7 @@ name = "soak_page"
 version = "0.1.0"
 
 [[package]]
-name = "socket_proto"
+name = "socket_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -828,17 +828,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
-name = "supervision_proto"
+name = "supervision_protocol"
 version = "0.1.0"
 dependencies = [
  "abi",
  "elf",
- "timebase_proto",
+ "timebase_protocol",
  "user_mode_runtime",
 ]
 
 [[package]]
-name = "swap_proto"
+name = "swap_protocol"
 version = "0.1.0"
 dependencies = [
  "abi",
@@ -851,7 +851,7 @@ name = "swish"
 version = "0.1.0"
 dependencies = [
  "documentation",
- "filesystem_proto",
+ "filesystem_protocol",
  "glob",
  "grant_plan",
 ]
@@ -883,17 +883,17 @@ name = "system_initializer"
 version = "0.1.0"
 dependencies = [
  "abi",
- "byte_sink_proto",
- "credential_proto",
+ "byte_sink_protocol",
+ "credential_protocol",
  "elf",
- "entropy_proto",
- "filesystem_proto",
+ "entropy_protocol",
+ "filesystem_protocol",
  "grant_plan",
  "line_editor",
- "login_proto",
+ "login_protocol",
  "measured_boot",
  "nifefs",
- "supervision_proto",
+ "supervision_protocol",
  "user_mode_runtime",
 ]
 
@@ -934,7 +934,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "timebase_proto"
+name = "timebase_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -1032,7 +1032,7 @@ name = "user_mode_runtime"
 version = "0.1.0"
 dependencies = [
  "abi",
- "timebase_proto",
+ "timebase_protocol",
  "user_mode_heap",
 ]
 
@@ -1055,7 +1055,7 @@ name = "virtio"
 version = "0.1.0"
 dependencies = [
  "abi",
- "filesystem_proto",
+ "filesystem_protocol",
  "nifefs",
  "user_mode_runtime",
 ]
@@ -1099,10 +1099,10 @@ dependencies = [
  "board_console",
  "compositor",
  "documentation",
- "filesystem_proto",
+ "filesystem_protocol",
  "gpt",
- "graphics_proto",
- "mdns_config",
+ "graphics_protocol",
+ "multicast_dns_config",
  "measured_boot",
  "nifefs",
  "video_terminal",

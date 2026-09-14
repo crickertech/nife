@@ -62,7 +62,7 @@
 //! is derived and checked by `script/lint`). So the examples below are `no_run`: they are type-checked
 //! against the real signatures on an aarch64 host and are **not executed anywhere**. The things that
 //! *can* be checked are the wire contracts layered over them, which is where those crates put their
-//! examples (`byte_sink_proto`, `filesystem_proto`, `entropy_proto`).
+//! examples (`byte_sink_protocol`, `filesystem_protocol`, `entropy_protocol`).
 //!
 //! A program's whole life, in the four calls that make up this crate. Note what is absent: there is
 //! no `open`, no path, and no way to name anything that was not handed over.
@@ -99,7 +99,7 @@
 //! let (r0, r1) = call(SERVICE, 0x0100_0000_0000_0008, 0);
 //!
 //! // Negative-as-u64 is enormous, which is how a wire contract tells "no capability in that slot"
-//! // from an answer without a probe request. See `entropy_proto::delivered`.
+//! // from an answer without a probe request. See `entropy_protocol::delivered`.
 //! assert!((r0 as i64) >= 0 || abi::Error::from_ret(r0 as i64).is_some());
 //! # let _ = r1;
 //! # }
@@ -125,7 +125,7 @@
 //! Name: ratified 2026-09-13 (calef, milestone 285), replacing `user_rt`. Two halves, argued
 //! separately. **`rt`** was an **abbreviation that needs a decoder**, the first of the three
 //! failure modes AGENTS.md names, and this crate's own first line had always spelled it out; the
-//! precedent is `cred_proto` to `credential_proto`, ratified 2026-08-23 for "spell out the
+//! precedent is `cred_proto` to `credential_protocol`, ratified 2026-08-23 for "spell out the
 //! contraction fully". Nothing outside the tree owns the spelling (no specification, no wire
 //! format, no command-line flag), so the acronym test applies at full force here in a way it did
 //! not to `initrd`. **`user_`** expanded to **`user_mode_`** because in this tree `user` means *a
@@ -771,7 +771,7 @@ pub fn now() -> u64 {
 }
 
 /// The counter frequency in Hz (`x86_64`), read from the **timebase page** the kernel maps
-/// read-only into every process at [`timebase_proto::PAGE_VA`] (milestone 161's `cntfrq`
+/// read-only into every process at [`timebase_protocol::PAGE_VA`] (milestone 161's `cntfrq`
 /// follow-up).
 ///
 /// aarch64 has `CNTFRQ_EL0`, which states the rate. RISC-V has none, but the device tree does,
@@ -811,7 +811,7 @@ pub fn now() -> u64 {
 ///
 /// - **Calibration genuinely has not run yet.** Not observed in practice: `init_frequency` runs
 ///   early in the boot tour, well before the first process is loaded.
-/// - **A process was built by `supervision_proto::build_child_space`** (the tree's one userspace
+/// - **A process was built by `supervision_protocol::build_child_space`** (the tree's one userspace
 ///   ELF loader, used by `root_supervisor`, `spawner`, `system_initializer`, and every role
 ///   `hello` builds, `coremark` and `timetable`'s own `least_authority_demo` included), which maps
 ///   a *freshly
@@ -829,8 +829,8 @@ pub fn now() -> u64 {
 pub fn cntfrq() -> u64 {
     // SAFETY: every kernel-side space-building function this crate's own docs list maps a page
     // (real, or a zeroed placeholder; see this function's own `BUGS` section) read-only at
-    // `timebase_proto::PAGE_VA` into every x86_64 process before it ever runs.
-    let page = unsafe { timebase_proto::TimebasePage::new(timebase_proto::PAGE_VA) };
+    // `timebase_protocol::PAGE_VA` into every x86_64 process before it ever runs.
+    let page = unsafe { timebase_protocol::TimebasePage::new(timebase_protocol::PAGE_VA) };
     page.hz().unwrap_or(1_000_000_000)
 }
 
@@ -847,7 +847,7 @@ pub fn cntfrq() -> u64 {
 /// What needs a capability is the **wall clock**, which is this plus an offset only the clock page
 /// carries. See notes/clock.md.
 pub fn monotonic_nanos() -> u64 {
-    /// Nanoseconds in a second. Spelled here rather than taken from `clock_proto`, because this
+    /// Nanoseconds in a second. Spelled here rather than taken from `clock_protocol`, because this
     /// crate is the syscall runtime and depends on `abi` alone; a runtime that pulled in a wire
     /// contract to name a unit would be the wrong direction for the dependency.
     const NANOS_PER_SEC: u64 = 1_000_000_000;

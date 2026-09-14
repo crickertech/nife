@@ -4,7 +4,7 @@
 //!
 //! [`Entry::decode`] is **total**: every one of the 2^1024 bit patterns is a valid `Entry` value,
 //! and the round trip back through [`Entry::encode`] returns the bytes it started with. That is a
-//! deliberate layering, the same one `ntp_proto` makes: decoding judges nothing, so it needs no
+//! deliberate layering, the same one `network_time_protocol` makes: decoding judges nothing, so it needs no
 //! error type, and every rule about whether an entry makes *sense* on a particular disk lives in
 //! [`crate::Gpt`] where the disk's geometry is known.
 //!

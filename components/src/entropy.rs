@@ -47,7 +47,7 @@
 //! in. So the service takes what arrived and asks again for the rest, gathering across the boundary
 //! (see [`Pool::take`]). It never pads, never repeats a byte it has already served, and never
 //! substitutes a pseudo-random stand-in. If the device produces nothing at all across
-//! [`REFILL_TRIES`] attempts, the reply is [`entropy_proto::NO_ENTROPY`] and the caller finds out,
+//! [`REFILL_TRIES`] attempts, the reply is [`entropy_protocol::NO_ENTROPY`] and the caller finds out,
 //! because a caller who cannot be given randomness must not be told otherwise (DECISIONS §42).
 //!
 //! Name: recorded (milestone 63's name table, design/roadmap/63-name-spellings.md). Introduced
@@ -93,11 +93,11 @@
 //!
 //! **A first bufferful of zeros is reported as a dead device, and it could in principle be
 //! randomness.** Both backends here refuse to report [`proto::READY`] when their first draw is all
-//! zero (`entropy_proto::readiness`), and then answer every request `NO_ENTROPY` for the rest of
+//! zero (`entropy_protocol::readiness`), and then answer every request `NO_ENTROPY` for the rest of
 //! the boot rather than serving those bytes. On a working source that is wrong with probability
 //! 2^-2048 for the virtio backend's 256-byte bufferful and 2^-64 for the instruction backend's
 //! eight bytes. The trade is deliberate and is stated where the contract is:
-//! `entropy_proto`'s own `BUGS`, and the roadmap block that recorded the defect
+//! `entropy_protocol`'s own `BUGS`, and the roadmap block that recorded the defect
 //! (`design/roadmap/159-jh7110-trng-driver.md`, "The bench ran it, 2026-09-04").
 //!
 //! **A condemned backend does not recover.** There is no path back short of restarting the
@@ -122,7 +122,7 @@
 #![no_main]
 
 use abi::rendezvous;
-use entropy_proto as proto;
+use entropy_protocol as proto;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::virtio::{
     virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
@@ -214,7 +214,7 @@ const E_DEVICE_ID: u64 = 0x02;
 const E_FEATURES: u64 = 0x03;
 const E_QUEUE: u64 = 0x04;
 
-/// The virtio steps above are this backend's own, and `entropy_proto` reserves `0x01..=0x0f` for
+/// The virtio steps above are this backend's own, and `entropy_protocol` reserves `0x01..=0x0f` for
 /// exactly that. The two steps every backend shares (`STEP_NO_FIRST_BYTES`, `STEP_FIRST_ALL_ZERO`)
 /// start at `0x10`, and this assert is what keeps a fifth virtio step from silently becoming one
 /// of them: a report word decodes to one step or it decodes to a lie.
@@ -626,7 +626,7 @@ fn serve_instruction() -> ! {
     // Eight zero bytes out of `RDSEED`/`RNDRRS` condemn the source for the boot, the same rule the
     // two device backends follow. The false-positive probability is 2^-64 here rather than the
     // 2^-256 a 32-byte draw gets, which is the width of the answer rather than a weaker check;
-    // `entropy_proto`'s `BUGS` carries the number.
+    // `entropy_protocol`'s `BUGS` carries the number.
     let refuse = report == proto::bringup_failure(proto::STEP_FIRST_ALL_ZERO);
     loop {
         let (w0, cap, _) = recv_cap(I_REQ);

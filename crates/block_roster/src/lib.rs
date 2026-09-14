@@ -16,7 +16,7 @@
 //!
 //! So the roster deliberately carries **no capacity**, and that is a design decision rather than an
 //! omission. A disk's size is a fact about its contents-bearing surface, and you learn it by asking
-//! the device (`filesystem_proto::blk::SIZE`), which takes the endpoint. An enumerator that answered "how
+//! the device (`filesystem_protocol::blk::SIZE`), which takes the endpoint. An enumerator that answered "how
 //! big" would be answering a question only a holder should be able to ask, and it would also have
 //! to bring a PCI function up to find out, which has side effects the kernel has no business
 //! causing on behalf of a listing.
@@ -29,7 +29,7 @@
 //! # This is not a `*_proto`, and the difference is the whole design
 //!
 //! Ten crates in `crates/` end in `_proto` and describe **messages two programs exchange**:
-//! `filesystem_proto`, `byte_sink_proto`, `clock_proto` and the rest. This one is not among them, and a reader
+//! `filesystem_protocol`, `byte_sink_protocol`, `clock_protocol` and the rest. This one is not among them, and a reader
 //! scanning the directory should not expect a protocol here. It describes **bytes at an address**,
 //! written once by the kernel at wiring time and thereafter only read.
 //!
@@ -39,7 +39,7 @@
 //! program either holds the page or has nowhere to look.
 //!
 //! It also has a consequence the `_proto` crates carry and this one does not: **no seqlock.** The
-//! clock page needs one because the clock service republishes it (`clock_proto::ClockPage`); this
+//! clock page needs one because the clock service republishes it (`clock_protocol::ClockPage`); this
 //! page never changes after the mapping exists, so a reader needs no protocol for reading it
 //! consistently. Hot plug would change that, and it would be a change to this crate rather than to
 //! its readers.

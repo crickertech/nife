@@ -92,7 +92,7 @@
 //! argument surface and there is not meant to be: the proof is that the verbs compose a process, not
 //! that this program is configurable. A second child, a different demo, or a failure injected partway
 //! through the build are all things it cannot express, and a reader looking for a general userspace
-//! loader wants `supervision_proto::build_child` and `progenitor`.
+//! loader wants `supervision_protocol::build_child` and `progenitor`.
 //!
 //! Name: recorded (crate `system_initializer`, ratified 2026-08-04 by calef, and milestone 63's
 //! name table before it). Never argued for directly and argued around twice, which is stronger

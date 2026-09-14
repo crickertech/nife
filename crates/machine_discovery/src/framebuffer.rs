@@ -27,7 +27,7 @@
 //!
 //! [`Framebuffer::encode`] is what `uefi_loader` calls and [`Framebuffer::parse`] is what the kernel
 //! calls, and the tests below round-trip one through the other. Neither party keeps its own copy of
-//! the spelling, which is the rule `byte_sink_proto`, `grant_plan` and [`crate::x86_64`] itself are
+//! the spelling, which is the rule `byte_sink_protocol`, `grant_plan` and [`crate::x86_64`] itself are
 //! already held to.
 //!
 //! # Examples

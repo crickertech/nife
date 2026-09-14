@@ -38,7 +38,7 @@
 //! | 2 | a report endpoint, `WRITE` | one message, sent right before `exit()` |
 //!
 //! `_start(spec, name_lo, name_hi)`: the target filename arrives the way `rm` and
-//! `fs_file_caretaker` already take one (`filesystem_proto::grant::{spec, pack_name}`), not as a
+//! `fs_file_caretaker` already take one (`filesystem_protocol::grant::{spec, pack_name}`), not as a
 //! fourth capability slot. `rmle` never learns any other name in the directory it holds: it is not
 //! handed a listing right, and [`load`] only ever calls `OPEN`/`CREATE` with the one name it was
 //! started with.
@@ -68,14 +68,14 @@
 #![allow(missing_docs)] // program entry point, not library surface (DECISIONS §107)
 #![no_main]
 
-use filesystem_proto::{fs, grant};
+use filesystem_protocol::{fs, grant};
 use line_editor::proto;
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, exit, send};
 
 /// The terminal endpoint: `CALL` for `OP_RAWMODE` / `OP_READRAW` / `OP_WRITE`.
 const TERM: u64 = 0;
-/// The directory capability: `CALL` for the `filesystem_proto::fs` verbs.
+/// The directory capability: `CALL` for the `filesystem_protocol::fs` verbs.
 const DIR: u64 = 1;
 /// Where the one closing report goes.
 const REPORT: u64 = 2;
@@ -94,7 +94,7 @@ const MAX_COLS: usize = 100;
 /// (`components/src/line_editor.rs`'s `APP_OUT_VA`). Chosen not to collide with [`FS_VA`] below, in the
 /// same address space.
 const TERM_OUT_VA: u64 = 0x0000_0000_0080_0000;
-/// The page shared with the FS server, `filesystem_proto`'s own transfer unit. The same
+/// The page shared with the FS server, `filesystem_protocol`'s own transfer unit. The same
 /// conventional address `swish` and `fs_test_client` use; nothing requires it match theirs, since
 /// each program is its own address space, but a reader who knows one FS client's layout should not
 /// have to learn a second one for no reason.
@@ -104,7 +104,8 @@ const FS_VA: u64 = 0x0000_0000_0060_0000;
 // before this program runs, the same convention `fs_file_caretaker.rs`'s own `WINDOW` documents.
 const TERM_OUT_WINDOW: MappedWindow = unsafe { MappedWindow::new(TERM_OUT_VA, 4096) };
 // SAFETY: see above.
-const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
+const FS_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(FS_VA, filesystem_protocol::PAGE as u64) };
 
 // ---- the terminal half ----
 
@@ -379,7 +380,7 @@ fn load(ed: &mut Editor, name: &[u8]) {
         // SAFETY: single-threaded (DECISIONS §33); see `Editor::new`'s doc for the same reasoning.
         let buf = unsafe { &mut *scratch_p };
         let n = read_at(ed.handle, buf.len(), 0).max(0) as usize;
-        get_fs_page(n.min(filesystem_proto::PAGE), buf);
+        get_fs_page(n.min(filesystem_protocol::PAGE), buf);
         // A read past one page needs more rounds; the whole scratch buffer is under one page today
         // (`FILE_SCRATCH_LEN` is 32 * 101 = 3232), so this is exact rather than an approximation
         // that happens to work.
@@ -568,7 +569,7 @@ enum Esc {
 
 /// One `^Q` too many without saving reports this and quits; `STATUS_OPEN_FAILED` reports the errno
 /// of an OPEN/CREATE that both failed. Kept as plain constants rather than an enum so the report
-/// word is exactly what a kernel test reads off the wire, the same convention `login_proto`'s
+/// word is exactly what a kernel test reads off the wire, the same convention `login_protocol`'s
 /// `RPT_*` constants use.
 const STATUS_QUIT: u64 = 1;
 const STATUS_OPEN_FAILED: u64 = 2;

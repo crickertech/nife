@@ -77,7 +77,7 @@
 //! - mapped [`FS_VA`]: one page shared with the FS server, the channel every request in this
 //!   contract stages a name into or reads a result out of. One page is enough: every read this
 //!   process ever performs (the manifest, one identity's `schedule` file) is well under
-//!   `filesystem_proto::PAGE` bytes, unlike `fs_test_client.rs`'s own channel, which maps the whole
+//!   `filesystem_protocol::PAGE` bytes, unlike `fs_test_client.rs`'s own channel, which maps the whole
 //!   `fs::TRANSFER_MAX` width for its throughput role.
 //!
 //! Name: provisional, and ruled: calef ruled **`session_rederiver`** on 2026-09-13, working the
@@ -116,7 +116,7 @@
 //! `mint()` shape) and torn down before the next identity. Building that would need this process to
 //! also hold the caretaker's own ELF bytes and a measured-boot check on them, which is real additional
 //! machinery this lane judged out of proportion to what it demonstrates: this process already never
-//! *requests* more than `filesystem_proto::dir::READ | filesystem_proto::dir::DESCEND` on any
+//! *requests* more than `filesystem_protocol::dir::READ | filesystem_protocol::dir::DESCEND` on any
 //! `OPENDIR` (never `ENUMERATE`, so it cannot list what it was not told), so the residual risk this
 //! leaves is a compromised re-deriver reading (not writing, not enumerating) every identity's schedule
 //! rather than only the one currently being processed. A real deployment building on this shape should
@@ -141,8 +141,8 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use filesystem_proto::{dir, fs};
-use supervision_proto::{memory_region_destroy, memory_region_split};
+use filesystem_protocol::{dir, fs};
+use supervision_protocol::{memory_region_destroy, memory_region_split};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, cap_delete, retype_page_frame, send};
 
@@ -158,7 +158,8 @@ const FS_EP: u64 = 2;
 const FS_VA: u64 = 0x0000_0000_00e6_0000;
 // SAFETY: the wiring maps one page read/write at FS_VA before this process runs, shared with the
 // FS server and with nothing else.
-const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
+const FS_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(FS_VA, filesystem_protocol::PAGE as u64) };
 
 /// Each synthetic session's own construction, `MemoryRegion::SPLIT` off [`UT`]. One page is enough:
 /// nothing is ever retyped from it, matching `smb_server.rs`'s own `SESSION_UT_PAGES`.
@@ -182,17 +183,17 @@ pub const FAILED: u64 = 2;
 /// simultaneously-live page for the identity's own document, which the two together do not fit.
 /// `fixtures/src/fs_test_client.rs`'s `PAGE_BUF_A`/`PAGE_BUF_B` are the identical fix for the identical
 /// mistake, found by the same `script/test` run that caught this one.
-static mut MANIFEST_BUF: [u8; filesystem_proto::PAGE] = [0; filesystem_proto::PAGE];
-static mut DOC_BUF: [u8; filesystem_proto::PAGE] = [0; filesystem_proto::PAGE];
+static mut MANIFEST_BUF: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
+static mut DOC_BUF: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
 
 /// One thread per address space (DECISIONS §33), so there is no concurrent access.
-fn manifest_buf() -> &'static mut [u8; filesystem_proto::PAGE] {
+fn manifest_buf() -> &'static mut [u8; filesystem_protocol::PAGE] {
     let p = &raw mut MANIFEST_BUF;
     // SAFETY: see above.
     unsafe { &mut *p }
 }
 /// Same reasoning as [`manifest_buf`].
-fn doc_buf() -> &'static mut [u8; filesystem_proto::PAGE] {
+fn doc_buf() -> &'static mut [u8; filesystem_protocol::PAGE] {
     let p = &raw mut DOC_BUF;
     // SAFETY: see `manifest_buf`.
     unsafe { &mut *p }
@@ -286,7 +287,7 @@ fn rederive_one(identity: &[u8]) -> bool {
         return false;
     };
     // **The connective proof this lane exists to make**: the bytes `ROLE_SCHEDULE_SEED` wrote
-    // through `filesystem_proto::fs::WRITE` parse, unchanged, with the exact parser
+    // through `filesystem_protocol::fs::WRITE` parse, unchanged, with the exact parser
     // `components/src/timetable.rs` would use for the compile-time document. DECISIONS §122's whole
     // recommendation was that reusing this format costs "the two IPC call sites... a page of client
     // code each, not a new subsystem"; this is where that claim is either true or is not.
@@ -345,7 +346,7 @@ fn read_under(dir: u64, name: &[u8]) -> Option<usize> {
     n
 }
 
-/// Read the whole of an already-open handle into the shared page, one `filesystem_proto::PAGE`-sized
+/// Read the whole of an already-open handle into the shared page, one `filesystem_protocol::PAGE`-sized
 /// request (every document this process ever reads, §125's manifest and one `timetable::parse`
 /// document, is well under that by construction: [`schedule_store::MAX_IDENTITIES`] short names, or
 /// [`timetable::MAX_ENTRIES`] short lines). `None` on a refusal; `Some(0)` is an empty file, which
@@ -353,13 +354,13 @@ fn read_under(dir: u64, name: &[u8]) -> Option<usize> {
 fn read_all(handle: u64) -> Option<usize> {
     let (n, _) = call(
         FS_EP,
-        fs::req(fs::READ, handle, filesystem_proto::PAGE as u64),
+        fs::req(fs::READ, handle, filesystem_protocol::PAGE as u64),
         0,
     );
     if (n as i64) < 0 {
         return None;
     }
-    Some((n as usize).min(filesystem_proto::PAGE))
+    Some((n as usize).min(filesystem_protocol::PAGE))
 }
 
 /// Copy `bytes` to the start of the shared page (a name to resolve).

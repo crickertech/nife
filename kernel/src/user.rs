@@ -296,11 +296,11 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
     // out of table budget, and it makes no sense for the many callers of this syscall that build
     // nothing resembling a real ELF process at all). This syscall is shared by every purpose that
     // needs a bare address space object, not only the userspace ELF loader
-    // (`supervision_proto::build_child_space`), and the loader is where this page actually
+    // (`supervision_protocol::build_child_space`), and the loader is where this page actually
     // belongs: see that crate's own x86_64-gated code for the targeted fix, which maps a zeroed
     // placeholder (this crate has no way to hand a child-builder the *real*, kernel-measured
     // number without a new syscall or capability plumbing well past this milestone's scope; see
-    // `timebase_proto`'s and `user_mode_runtime::cntfrq`'s own `BUGS` sections) only into spaces the loader
+    // `timebase_protocol`'s and `user_mode_runtime::cntfrq`'s own `BUGS` sections) only into spaces the loader
     // itself builds, so `user_mode_runtime::cntfrq` reads "unknown" there and falls back rather than
     // faulting on an unmapped read.
     let name = USER_SPACES.lock().insert_with(|_| space);
@@ -499,7 +499,7 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
     #[cfg(target_arch = "x86_64")]
     if let Some(phys) = x86_timebase_page_phys() {
         space
-            .map_physical(timebase_proto::PAGE_VA, phys, Flags::user_rodata())
+            .map_physical(timebase_protocol::PAGE_VA, phys, Flags::user_rodata())
             .map_err(LoadError::Unmappable)?;
     }
 
@@ -515,7 +515,7 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
 /// `OutOfFrames` a segment that would not fit reports; this is not a bad-program condition, so it
 /// is not a panic). If [`crate::arch::timer::frequency_checked`] has not resolved yet (never
 /// observed: `init_frequency` runs early in the `x86_64` boot tour, well before the first call to
-/// `load`), the frame is allocated anyway and left zeroed, which [`timebase_proto::TimebasePage::hz`]
+/// `load`), the frame is allocated anyway and left zeroed, which [`timebase_protocol::TimebasePage::hz`]
 /// reads as "unknown" rather than a fabricated rate; that keeps every `x86_64` process's layout
 /// identical regardless of boot order, the same reason `boot_clock_page` hands out a zeroed page
 /// when there is no `clock` program to ask.
@@ -536,7 +536,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
     let dst = mmu::phys_to_virt(phys) as *mut u8;
     match crate::arch::timer::frequency_checked() {
         Some(hz) => {
-            let bytes = timebase_proto::build_page(hz);
+            let bytes = timebase_protocol::build_page(hz);
             // SAFETY: `dst` names a freshly allocated frame, reachable through the direct map and
             // owned by nobody else yet; `bytes` is `PAGE_BYTES` (16) bytes, far under the frame's
             // `FRAME_SIZE`, so the copy does not run past it.
@@ -548,7 +548,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
         //
         // SAFETY: as the `Some` arm above: `dst` names a freshly allocated, exclusively owned
         // frame, and `PAGE_BYTES` is far under `FRAME_SIZE`.
-        None => unsafe { core::ptr::write_bytes(dst, 0, timebase_proto::PAGE_BYTES) },
+        None => unsafe { core::ptr::write_bytes(dst, 0, timebase_protocol::PAGE_BYTES) },
     }
 
     PAGE_PHYS.store(phys, Ordering::Release);
@@ -573,7 +573,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
 #[cfg(target_arch = "x86_64")]
 fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
     if let Some(phys) = x86_timebase_page_phys() {
-        space.map_physical(timebase_proto::PAGE_VA, phys, Flags::user_rodata())?;
+        space.map_physical(timebase_protocol::PAGE_VA, phys, Flags::user_rodata())?;
     }
     Ok(())
 }
@@ -1129,7 +1129,7 @@ pub fn spawn_progenitor(
                     crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
                 ))
                 .expect("grant the shared file page");
-                filesystem_proto::dir::ALL
+                filesystem_protocol::dir::ALL
             }
             None => 0,
         };
@@ -2091,7 +2091,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
             )
             .expect("insert the shared file page");
             assert_eq!(s6, 6);
-            filesystem_proto::dir::ALL
+            filesystem_protocol::dir::ALL
         }
         None => 0,
     };
@@ -2318,7 +2318,7 @@ fn term_print(out: u64, ep: crate::sched::RendezvousId, text: &[u8]) {
 /// `Spawn` literal, and know nothing about what they do. It never sees a virtio-gpu command, a
 /// pixel, or a rectangle. What is new is the **size** of the DMA region, and that is the whole
 /// memory story: a framebuffer does not fit in the single page the disk and NIC drivers get, so the
-/// region is `1 + graphics_proto::SURFACE_PAGE_FRAMES` **contiguous** frames, page 0 for the rings and the
+/// region is `1 + graphics_protocol::SURFACE_PAGE_FRAMES` **contiguous** frames, page 0 for the rings and the
 /// control buffers and the rest for the surface. Registering the whole run as the driver's DMA region
 /// is what keeps the framebuffer inside the grant: the shadow-ring validator bounds every descriptor
 /// to it, and `iommu::confine` maps exactly it, so the device can reach the pixels and nothing else.
@@ -2397,7 +2397,7 @@ pub mod input_service;
 /// tree (by `compatible`, `memory::rtc_region`), allocate one frame for the clock page, and hand
 /// the service the registers, the page read/write, and an endpoint. It does not read the clock, does
 /// not know what time it is, and has no notion of an offset. Everything after the spawn is
-/// userspace agreeing with userspace over `clock_proto`.
+/// userspace agreeing with userspace over `clock_protocol`.
 ///
 /// Arch-neutral, like the display and compositor wiring: the component is one portable binary
 /// carrying both RTC drivers, and the *machine* says which one it has, so **both ISAs run literally
@@ -2411,7 +2411,7 @@ pub mod clock_service;
 /// machine with no clock looks like (milestone 51's wiring; `spawn_progenitor`, `riscv_shell_boot`).
 ///
 /// The grant is **unconditional**, and that is the design rather than an oversight. A zeroed page
-/// reads as `clock_proto::state::UNKNOWN` (`a_zeroed_page_reads_as_unknown`), so a boot with no
+/// reads as `clock_protocol::state::UNKNOWN` (`a_zeroed_page_reads_as_unknown`), so a boot with no
 /// `clock` program in its initrd hands the progenitor a page that honestly says "the machine has no clock it
 /// believes" instead of no page at all. That keeps the slot numbering the same on every boot, which
 /// matters more than it sounds: the progenitor's capability table is read positionally, and a capability whose *slot*
@@ -2537,7 +2537,7 @@ fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
 /// environment-variable fork, DECISIONS §111; `spawn_progenitor`, `riscv_shell_boot`).
 /// [`boot_clock_page`]'s twin, minus the service: nothing here runs, so there is nothing to spawn
 /// and nothing to wait for a report from. The page is assembled once, into a frame nothing else
-/// can see, and only then handed to the progenitor; see `environment_proto`'s own docs for why that
+/// can see, and only then handed to the progenitor; see `environment_protocol`'s own docs for why that
 /// ordering needs no seqlock.
 ///
 /// The grant is **unconditional**, [`boot_clock_page`]'s own reason: a fixed slot on every boot,
@@ -2550,13 +2550,13 @@ fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
 /// (the "inheritance with visibility" shape design/roadmap/47-navigation-and-naming.md names);
 /// this is the fixed default until one exists.
 fn boot_config_page() -> u64 {
-    let bytes = environment_proto::PageBuilder::new()
+    let bytes = environment_protocol::PageBuilder::new()
         .tz("UTC")
-        .expect("UTC is not a recognized environment_proto::domain::KNOWN_TZ member")
+        .expect("UTC is not a recognized environment_protocol::domain::KNOWN_TZ member")
         .lang("C")
-        .expect("C is not a recognized environment_proto::domain::KNOWN_LANG member")
+        .expect("C is not a recognized environment_protocol::domain::KNOWN_LANG member")
         .term("dumb")
-        .expect("dumb is not a recognized environment_proto::domain::KNOWN_TERM member")
+        .expect("dumb is not a recognized environment_protocol::domain::KNOWN_TERM member")
         .build();
     // Zeroed before the assembled bytes are written, so nothing left behind by a previous
     // occupant of this physical page is visible through the reserved tail past `PAGE_BYTES`
@@ -2672,7 +2672,7 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
     let w = display_service::start_terminal(gpu_driver, display_terminal)?;
     assert_eq!(
         crate::sched::ipc_recv(w.driver_report)[0],
-        graphics_proto::status::UP,
+        graphics_protocol::status::UP,
         "the GPU driver did not come up",
     );
     let [tag, ..] = crate::sched::ipc_recv(w.term_report);
@@ -2736,7 +2736,7 @@ mod date_tests;
 /// `date`'s own proof, one manifest field over: the program that makes the inert-configuration
 /// page visible to a person, and the first spawnable, shell-facing program to declare
 /// [`grant_plan::Manifest::config`]. Arch-neutral like the page it reads: one portable binary over
-/// one host-tested contract (`environment_proto`), so **both ISAs run literally these tests**
+/// one host-tested contract (`environment_protocol`), so **both ISAs run literally these tests**
 /// (DECISIONS §19).
 ///
 /// What these prove that nothing else does: a real spawned process, given the real capability
@@ -2773,7 +2773,7 @@ mod uuid_tests;
 /// whichever bus the caller named, confine it to one DMA page, and hand the service the transport,
 /// the interrupt, and two endpoints. **The kernel never reads the device and holds no entropy of
 /// its own.** Everything after the spawn is userspace agreeing with userspace over
-/// `entropy_proto`.
+/// `entropy_protocol`.
 ///
 /// The authority split is the point, and it is one sentence: the service holds the device; a client
 /// holds an endpoint that means *"you may obtain randomness"*. Those are different powers, and only
@@ -2821,7 +2821,7 @@ mod entropy_tests;
 ///
 /// The kernel never sees a secret, holds no store, and computes no hash. It creates two endpoints,
 /// two frames, and a budget, and hands each process a different subset. Everything after the spawn
-/// is userspace agreeing with userspace over `credential_proto`.
+/// is userspace agreeing with userspace over `credential_protocol`.
 ///
 /// **Two frames and not one**, which is the detail worth stating: the provisioner writes plaintext
 /// secrets into its page, so a client sharing that frame would read them. The two pages are
@@ -2855,7 +2855,7 @@ mod credential_tests;
 /// `components/src/login.rs`'s own choices rather than a privileged shortcut.
 ///
 /// Not arch-gated, for `credential_service`'s own reason: `nifefs`, `elf`, and
-/// `supervision_proto::build_child` are portable, and a login service that mints capabilities on
+/// `supervision_protocol::build_child` are portable, and a login service that mints capabilities on
 /// one instruction set and not another is not the claim this milestone makes.
 #[cfg_attr(not(test), allow(dead_code))] // the milestone-49 login tests are its callers
 pub mod login_service;
@@ -2907,7 +2907,7 @@ pub mod session_reviver_service;
 /// first and third pieces; DECISIONS §122, §123, §125).
 ///
 /// What these prove that nothing else would: that a schedule entry `fs_test_client`'s
-/// `ROLE_SCHEDULE_SEED` writes through ordinary `filesystem_proto` verbs is the same document
+/// `ROLE_SCHEDULE_SEED` writes through ordinary `filesystem_protocol` verbs is the same document
 /// `session_reviver` reads back and `timetable::parse` accepts, that the manifest (§125's own answer
 /// to "which identities", read by name rather than by `READDIR`) carries that identity to the
 /// re-deriver without either program enumerating anything, that a session re-derived at boot has the

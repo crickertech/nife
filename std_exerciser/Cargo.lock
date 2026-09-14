@@ -3,17 +3,17 @@
 version = 4
 
 [[package]]
-name = "filesystem_proto"
+name = "filesystem_protocol"
 version = "0.1.0"
 
 [[package]]
-name = "socket_proto"
+name = "socket_protocol"
 version = "0.1.0"
 
 [[package]]
 name = "std_exerciser"
 version = "0.1.0"
 dependencies = [
- "filesystem_proto",
- "socket_proto",
+ "filesystem_protocol",
+ "socket_protocol",
 ]

@@ -326,20 +326,20 @@ fn std_inputs_stamp() -> u64 {
         root.join("crates/user_mode_heap/src/lib.rs"),
         // The net PAL generates its wire constants verbatim from the net_stack contract; a change to it
         // must rebuild the farm just like a change to the ABI crate.
-        root.join("crates/socket_proto/src/lib.rs"),
+        root.join("crates/socket_protocol/src/lib.rs"),
         // Likewise the FS-service contract: `std::fs` is a client of it (milestone 27 phase two),
         // and its wire constants are generated verbatim into the PAL.
-        root.join("crates/filesystem_proto/src/lib.rs"),
+        root.join("crates/filesystem_protocol/src/lib.rs"),
         // The wall-clock and entropy contracts, for the same reason: `sys/time` reads the clock
         // page's layout out of one and `sys/random` packs its requests with the other, so a change
         // to either must rebuild the farm or the PAL silently drifts from the service.
-        root.join("crates/clock_proto/src/lib.rs"),
-        root.join("crates/entropy_proto/src/lib.rs"),
+        root.join("crates/clock_protocol/src/lib.rs"),
+        root.join("crates/entropy_protocol/src/lib.rs"),
         // The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS
         // §111): `sys/env` reads the page's layout and `PageBuilder`'s validated domains out of
         // this crate, generated verbatim into the PAL, so a change to either must rebuild the
         // farm or the PAL silently drifts from what assembles the page.
-        root.join("crates/environment_proto/src/lib.rs"),
+        root.join("crates/environment_protocol/src/lib.rs"),
         root.join("targets/aarch64-unknown-nife.json"),
         root.join("targets/riscv64-unknown-nife.json"),
     ];
@@ -543,7 +543,7 @@ fn std_apply_overlay() -> bool {
 /// Remove `# Examples` sections from the doc comments of a file about to be copied into the patched
 /// std sysroot.
 ///
-/// A doctest in one of these crates says `use entropy_proto::...`, and in the copy there is no such
+/// A doctest in one of these crates says `use entropy_protocol::...`, and in the copy there is no such
 /// crate: the file arrives as `sys/pal/nife/entropyproto.rs`, an inner module of `std`. So the
 /// example is *false* in its destination, in the specific way milestone 68 cares about, which is
 /// that it teaches a reader of the PAL something that is not true of the code they are reading.
@@ -607,13 +607,13 @@ fn std_generate_modules() -> bool {
         // The net_stack socket-contract wire format, verbatim, so the net PAL cannot drift from the
         // server it talks to (same discipline as the ABI and heap crates above).
         (
-            root.join("crates/socket_proto/src/lib.rs"),
+            root.join("crates/socket_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/netproto.rs"),
         ),
         // The FS-service wire protocol (DECISIONS §27), so `std::fs`'s PAL cannot drift from the
         // server it opens files through. Same discipline as the three above.
         (
-            root.join("crates/filesystem_proto/src/lib.rs"),
+            root.join("crates/filesystem_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/fsproto.rs"),
         ),
         // The wall-clock contract (DECISIONS §43), so the time PAL reads the clock page with the
@@ -621,21 +621,21 @@ fn std_generate_modules() -> bool {
         // the four above; this one matters more than most, because a drift here would be a torn
         // read of a timestamp rather than a compile error.
         (
-            root.join("crates/clock_proto/src/lib.rs"),
+            root.join("crates/clock_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/clockproto.rs"),
         ),
         // The entropy contract (DECISIONS §44), so the random PAL packs its requests and reads its
         // replies exactly the way the entropy service serves them. Same discipline as the five
         // above; a drift here would be a program reading the wrong bytes as a key.
         (
-            root.join("crates/entropy_proto/src/lib.rs"),
+            root.join("crates/entropy_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/entropyproto.rs"),
         ),
         // The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS
         // §111), so `sys/env`'s seeding reads the config page with the same layout and the same
         // validated domains whoever assembles a page uses. Same discipline as the six above.
         (
-            root.join("crates/environment_proto/src/lib.rs"),
+            root.join("crates/environment_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/envproto.rs"),
         ),
         // The byte-sink contract (milestone 50), so `println!`'s framing and the classification of
@@ -643,7 +643,7 @@ fn std_generate_modules() -> bool {
         // Same discipline as the six above, and the one that would hurt most to get wrong: a drift
         // in `GONE` would be a program that keeps printing into a pipe whose reader has exited.
         (
-            root.join("crates/byte_sink_proto/src/lib.rs"),
+            root.join("crates/byte_sink_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/sinkproto.rs"),
         ),
     ];
@@ -1167,7 +1167,7 @@ const ABORTS_ACCEPTED: &[(&str, &str, &str)] = &[
         "sys/pal/nife/clockproto.rs",
         "panic!(",
         "the clock contract's own host-side test assertions, generated verbatim from \
-         crates/clock_proto and unreachable in a target build",
+         crates/clock_protocol and unreachable in a target build",
     ),
 ];
 
@@ -1430,10 +1430,10 @@ fn gpu_text_path(arch: &str) -> PathBuf {
 
 /// Does this PPM hold the pattern rung one's client painted (milestone 29)?
 ///
-/// Compares against `graphics_proto::pixel`, the same definition the client painted from and the kernel
+/// Compares against `graphics_protocol::pixel`, the same definition the client painted from and the kernel
 /// test digested against, so the host cannot disagree with the guest about what the pattern is.
 fn scanout_holds_the_pattern(ppm: &[u8]) -> Result<(), String> {
-    scanout_matches(ppm, graphics_proto::pixel)
+    scanout_matches(ppm, graphics_protocol::pixel)
 }
 
 /// Does this PPM hold the screen rung two's compositor composed (milestone 33)?
@@ -1497,11 +1497,11 @@ fn scanout_matches(ppm: &[u8], want_pixel: impl Fn(u32, u32) -> u32) -> Result<(
     if maxval != "255" {
         return Err(format!("maxval {maxval}, expected 255"));
     }
-    if (w, h) != (graphics_proto::WIDTH, graphics_proto::HEIGHT) {
+    if (w, h) != (graphics_protocol::WIDTH, graphics_protocol::HEIGHT) {
         return Err(format!(
             "scanout is {w}x{h}, the surface is {}x{}",
-            graphics_proto::WIDTH,
-            graphics_proto::HEIGHT
+            graphics_protocol::WIDTH,
+            graphics_protocol::HEIGHT
         ));
     }
     // The pixel data starts after the fourth whitespace-terminated field. Find it by walking the
@@ -1636,11 +1636,11 @@ fn decode_cell(w: u32, pixels: &[u8], col: u32, row: u32, alphabet: &[u8]) -> Op
 /// scroll position is exactly what this leg does not want to have to predict).
 fn scanout_rows(ppm: &[u8], alphabet: &[u8]) -> Result<Vec<String>, String> {
     let (w, h, pixels) = parse_ppm(ppm)?;
-    if (w, h) != (graphics_proto::WIDTH, graphics_proto::HEIGHT) {
+    if (w, h) != (graphics_protocol::WIDTH, graphics_protocol::HEIGHT) {
         return Err(format!(
             "scanout is {w}x{h}, the surface is {}x{}",
-            graphics_proto::WIDTH,
-            graphics_proto::HEIGHT
+            graphics_protocol::WIDTH,
+            graphics_protocol::HEIGHT
         ));
     }
     let (cols, rows) = (w / bitmap_font::GLYPH_W, h / bitmap_font::GLYPH_H);
@@ -2093,9 +2093,9 @@ impl ScanoutReferee {
         match matched {
             Some(path) => eprintln!(
                 "scanout check ({arch}): the {}x{} pattern reached the DEVICE's scanout, verified pixel \
-             for pixel against graphics_proto::pixel ({path})",
-                graphics_proto::WIDTH,
-                graphics_proto::HEIGHT,
+             for pixel against graphics_protocol::pixel ({path})",
+                graphics_protocol::WIDTH,
+                graphics_protocol::HEIGHT,
             ),
             None => {
                 eprintln!();
@@ -2115,7 +2115,7 @@ impl ScanoutReferee {
 }
 
 /// The bytes the inbound prober sends into the guest and the answer it requires back. They must
-/// match `socket_proto::fixture` (`IN_MSG`/`OUT_MSG`), which is what the two guest programs read
+/// match `socket_protocol::fixture` (`IN_MSG`/`OUT_MSG`), which is what the two guest programs read
 /// them from, and they are deliberately different strings: an echo would pass even if the guest
 /// were only reflecting our own bytes, and the point of this gate is that the guest **composed** an
 /// answer to a connection it did not make.
@@ -2503,9 +2503,9 @@ const MDNS_LEGACY_ID: u16 = 0x4321;
 const MDNS_BROWSE: &str = "_adisk._tcp.local";
 
 /// **The guest's own configuration document**, so the gate's expectations and the responder's
-/// behaviour have one source. Editing `components/mdns_responder.conf` moves both; a value asserted here
+/// behaviour have one source. Editing `components/multicast_dns_responder.conf` moves both; a value asserted here
 /// as a literal would be a second copy of a measurement.
-const RESPONDER_CONFIG: &str = include_str!("../../components/mdns_responder.conf");
+const RESPONDER_CONFIG: &str = include_str!("../../components/multicast_dns_responder.conf");
 
 /// **The host side of the mDNS gate** (milestone 55): the peer on the frame-level hub the runner
 /// wires beside slirp when `NIFE_MCAST_PORT` is set.
@@ -2528,7 +2528,7 @@ const RESPONDER_CONFIG: &str = include_str!("../../components/mdns_responder.con
 ///    with the id echoed, the question repeated, everything in the answer section and every TTL
 ///    capped at 10 (RFC 6762 §6.7).
 ///
-/// And the record contents are checked against `components/mdns_responder.conf`, so what is asserted is
+/// And the record contents are checked against `components/multicast_dns_responder.conf`, so what is asserted is
 /// that the machine advertises what it was configured to advertise.
 ///
 /// Same shape and lifecycle as [`InboundProber`]: constructed before the child so the runner
@@ -2573,7 +2573,7 @@ impl MulticastProber {
 
     /// Stop listening, and say whether the whole exchange happened: the guest's announcement seen
     /// raw on the wire, both injected queries answered, and both answers carrying the records
-    /// `components/mdns_responder.conf` describes. The guest's own verdict covers that it answered
+    /// `components/multicast_dns_responder.conf` describes. The guest's own verdict covers that it answered
     /// something; this covers what it said.
     fn report(mut self) -> bool {
         self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -2588,7 +2588,7 @@ impl MulticastProber {
                     "multicast check ({arch}): the guest announced itself on {}.{}.{}.{}, answered \
                      a multicast browse for {MDNS_BROWSE} to the group, and answered a legacy \
                      query unicast to the port it came from. Both carried the PTR, SRV, TXT and A \
-                     records components/mdns_responder.conf describes.",
+                     records components/multicast_dns_responder.conf describes.",
                     MDNS_GROUP[0], MDNS_GROUP[1], MDNS_GROUP[2], MDNS_GROUP[3],
                 );
                 true
@@ -2641,7 +2641,7 @@ fn probe_multicast(
     use std::sync::atomic::Ordering;
 
     // The expectations, derived from the document the guest ships rather than written out again.
-    let config = mdns_config::Config::parse(RESPONDER_CONFIG)
+    let config = multicast_dns_config::Config::parse(RESPONDER_CONFIG)
         .map_err(|e| format!("the responder's own configuration document does not parse: {e:?}"))?;
     let adv = config.advertisement(None);
     // Lower-cased, because `dns_name` normalises what it decodes: DNS names compare
@@ -2893,7 +2893,7 @@ fn stage_id(stage: MdnsStage) -> u16 {
     }
 }
 
-// DNS record types, by their IANA numbers. Spelled here rather than imported from `mdns_proto`
+// DNS record types, by their IANA numbers. Spelled here rather than imported from `multicast_dns_protocol`
 // deliberately: this prober is the independent half of the gate, and a check that shared its
 // vocabulary with the code under test could agree with it about a number that was wrong.
 const RR_A: u16 = 1;
@@ -2970,7 +2970,7 @@ fn dns_name(msg: &[u8], at: usize) -> Result<(String, usize), String> {
     Err("a name with too many labels or pointers".to_string())
 }
 
-/// Decode a whole DNS message. Deliberately a second implementation, not `mdns_proto`'s: a gate
+/// Decode a whole DNS message. Deliberately a second implementation, not `multicast_dns_protocol`'s: a gate
 /// that decoded the guest's bytes with the guest's own parser would pass on any bug the two share.
 fn parse_dns(msg: &[u8]) -> Result<DnsMessage, String> {
     if msg.len() < 12 {
@@ -3037,7 +3037,7 @@ fn dns_find<'a>(rs: &[&'a [DnsRecord]], name: &str, rrtype: u16) -> Option<&'a D
 
 /// The records both answers must carry, whatever section they are in: the service PTR pointing at
 /// the instance, the instance's SRV and TXT, and the host's A. **Every value comes from
-/// `components/mdns_responder.conf`**, so this asserts that the machine advertises what it was
+/// `components/multicast_dns_responder.conf`**, so this asserts that the machine advertises what it was
 /// configured to advertise rather than what somebody typed here twice.
 fn check_records(
     msg: &DnsMessage,
@@ -3093,7 +3093,7 @@ fn check_records(
     }
     if got != txt_entries {
         return Err(format!(
-            "the _adisk TXT record says {got:?}, and components/mdns_responder.conf says {txt_entries:?}"
+            "the _adisk TXT record says {got:?}, and components/multicast_dns_responder.conf says {txt_entries:?}"
         ));
     }
 
@@ -3488,7 +3488,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("net_stack", "net_stack"),
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
         // Portable, so both archives carry it and both ISAs answer the same injected query.
-        ("mdns_responder", "mdns_responder"),
+        ("multicast_dns_responder", "multicast_dns_responder"),
         ("memory_grant_depleter", "memory_grant_depleter"),
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
@@ -4426,7 +4426,7 @@ fn initrd_aarch64() -> bool {
         ("allocator_exerciser", "allocator_exerciser"),
         ("net_stack", "net_stack"),
         // The mDNS responder (milestone 55): the discovery half of the Time Machine target.
-        ("mdns_responder", "mdns_responder"),
+        ("multicast_dns_responder", "multicast_dns_responder"),
         ("memory_grant_depleter", "memory_grant_depleter"),
         ("fs_test_client", "fs_test_client"),
         ("fs_file_caretaker", "fs_file_caretaker"),
@@ -5018,11 +5018,11 @@ fn mkredoxfs() -> bool {
         return true;
     }
     // Stage the fixture contents in temp files (the host tool's `put` takes a host file), then load
-    // them. The contents live in filesystem_proto::fixture, shared with the client and the fixture's readers.
+    // them. The contents live in filesystem_protocol::fixture, shared with the client and the fixture's readers.
     let motd = workspace_root().join("target/redoxfs-motd.tmp");
     let scratch = workspace_root().join("target/redoxfs-scratch.tmp");
-    if std::fs::write(&motd, filesystem_proto::fixture::MOTD).is_err()
-        || std::fs::write(&scratch, filesystem_proto::fixture::SCRATCH_INIT).is_err()
+    if std::fs::write(&motd, filesystem_protocol::fixture::MOTD).is_err()
+        || std::fs::write(&scratch, filesystem_protocol::fixture::SCRATCH_INIT).is_err()
     {
         eprintln!("mkredoxfs: cannot stage the fixture files");
         return false;
@@ -5033,11 +5033,11 @@ fn mkredoxfs() -> bool {
         return false;
     };
     redoxfs_host(&["mkfs", &img, "16"])
-        && redoxfs_host(&["put", &img, filesystem_proto::fixture::MOTD_NAME, &motd])
+        && redoxfs_host(&["put", &img, filesystem_protocol::fixture::MOTD_NAME, &motd])
         && redoxfs_host(&[
             "put",
             &img,
-            filesystem_proto::fixture::SCRATCH_NAME,
+            filesystem_protocol::fixture::SCRATCH_NAME,
             &scratch,
         ])
         && doc_store().is_some()
@@ -5056,7 +5056,7 @@ fn mkredoxfs() -> bool {
 /// fixture would end up in the image and fail the post-run `ls /` check for a reason that has
 /// nothing to do with the run.
 fn stage_subtree() -> Option<String> {
-    use filesystem_proto::fixture::tree;
+    use filesystem_protocol::fixture::tree;
     let root = workspace_root().join("target/redoxfs-tree");
     let _ = std::fs::remove_dir_all(&root);
     let sub = root.join(tree::SUB);
@@ -5133,7 +5133,7 @@ fn crash_disk_path() -> String {
 fn mkredoxfs_crash() -> bool {
     let img = crash_disk_path();
     let initial = workspace_root().join("target/redoxfs-crash-initial.tmp");
-    if std::fs::write(&initial, filesystem_proto::fixture::crash::INITIAL).is_err() {
+    if std::fs::write(&initial, filesystem_protocol::fixture::crash::INITIAL).is_err() {
         eprintln!("mkredoxfs_crash: cannot stage the fixture file");
         return false;
     }
@@ -5142,7 +5142,7 @@ fn mkredoxfs_crash() -> bool {
         && redoxfs_host(&[
             "put",
             &img,
-            filesystem_proto::fixture::crash::NAME,
+            filesystem_protocol::fixture::crash::NAME,
             &initial,
         ])
 }
@@ -5244,7 +5244,7 @@ fn mknvmedisk() -> bool {
 /// not apply here for the same reason it does not apply to the crash image.
 fn mkblankdisk() -> bool {
     let path = blank_disk_path();
-    let bytes = std::vec![0u8; (filesystem_proto::fixture::blank::DISK_BLOCKS * filesystem_proto::fixture::blank::LBA) as usize];
+    let bytes = std::vec![0u8; (filesystem_protocol::fixture::blank::DISK_BLOCKS * filesystem_protocol::fixture::blank::LBA) as usize];
     if let Err(e) = std::fs::write(&path, &bytes) {
         eprintln!("mkblankdisk: could not write {path}: {e}");
         return false;
@@ -5268,7 +5268,7 @@ fn mkblankdisk() -> bool {
 /// same reason the guest's `mkfs` finds it that way: the type is what the partition is, and the slot
 /// is a fact about this table's current order.
 fn blank_check_after_run() -> bool {
-    use filesystem_proto::fixture::blank;
+    use filesystem_protocol::fixture::blank;
 
     let path = blank_disk_path();
     let Ok(img) = std::fs::read(&path) else {
@@ -5388,11 +5388,11 @@ fn redoxfs_crash_check_after_run() -> bool {
             "--",
             "cat",
             &crash_disk_path(),
-            filesystem_proto::fixture::crash::NAME,
+            filesystem_protocol::fixture::crash::NAME,
         ],
     );
-    let want_a = filesystem_proto::fixture::crash::A;
-    let want_b = filesystem_proto::fixture::crash::B;
+    let want_a = filesystem_protocol::fixture::crash::A;
+    let want_b = filesystem_protocol::fixture::crash::B;
     match out.as_deref() {
         Some(s) if s.as_bytes() == want_a => {
             eprintln!(
@@ -5429,11 +5429,11 @@ fn redoxfs_crash_check_after_run() -> bool {
 /// notes/fs-server.md used to record, so it belongs in the gate, not in a comment.
 fn redoxfs_check_after_run() -> bool {
     redoxfs_reads_back(
-        filesystem_proto::fixture::MOTD_NAME,
-        filesystem_proto::fixture::MOTD,
+        filesystem_protocol::fixture::MOTD_NAME,
+        filesystem_protocol::fixture::MOTD,
     ) && redoxfs_reads_back(
-        filesystem_proto::fixture::SCRATCH_NAME,
-        filesystem_proto::fixture::WRITE_PATTERN,
+        filesystem_protocol::fixture::SCRATCH_NAME,
+        filesystem_protocol::fixture::WRITE_PATTERN,
     ) && redoxfs_subtree_was_confined()
         && redoxfs_glob_grant_took_exactly_the_match()
 }
@@ -5455,7 +5455,7 @@ fn redoxfs_check_after_run() -> bool {
 /// 3. **The unmatched directory still holds its file.** A `rm` that had walked into it would have
 ///    emptied it, and a set capability carrying no `-r` cannot even look inside one it *did* match.
 fn redoxfs_glob_grant_took_exactly_the_match() -> bool {
-    use filesystem_proto::fixture::tree;
+    use filesystem_protocol::fixture::tree;
     let img = redoxfs_disk_path();
     let Some(globset) = redoxfs_ls(&img, tree::GLOBSET) else {
         eprintln!("milestone-47 glob check: `{}` did not list", tree::GLOBSET);
@@ -5547,7 +5547,7 @@ fn redoxfs_glob_grant_took_exactly_the_match() -> bool {
 /// that a leaked name whose spelling matches neither fixture prefix would slip past claim 2, so the
 /// attacker's names are the thing this check is precise about.
 fn redoxfs_subtree_was_confined() -> bool {
-    use filesystem_proto::fixture::tree;
+    use filesystem_protocol::fixture::tree;
     let img = redoxfs_disk_path();
 
     let (Some(root), Some(sub)) = (redoxfs_ls(&img, "/"), redoxfs_ls(&img, tree::SUB)) else {
@@ -5628,7 +5628,7 @@ fn redoxfs_subtree_was_confined() -> bool {
 /// shell that holds the handle to read it back with; this file has no run index to reconstruct the
 /// exact name a body-reading check through `redoxfs_reads_back` would need.
 fn shell_navigation_landed(root: &[String], home: &[String]) -> bool {
-    use filesystem_proto::fixture::tree;
+    use filesystem_protocol::fixture::tree;
     let count = |dir: &[String], prefix: &str| dir.iter().filter(|n| n.starts_with(prefix)).count();
 
     if count(home, tree::NAV_KEPT) == 0 || count(home, tree::NAV_DIR) == 0 {
@@ -5965,7 +5965,7 @@ fn test() -> bool {
         //
         // This was a hand-maintained list of twenty `-p` flags, and it drifted exactly the way a
         // hand-maintained list does. It was written because `paging`, `heap` and `slab` were silently not
-        // run for four milestones; by milestone 51 it had five crates missing again, and `filesystem_proto`,
+        // run for four milestones; by milestone 51 it had five crates missing again, and `filesystem_protocol`,
         // `compositor`, `video_terminal`, `bitmap_font` and `grant_plan` carried **82 host tests that this gate never ran**. All
         // 82 passed when finally run, which is the point: nobody noticed because nothing failed, and a
         // gate that quietly covers less than it claims is the failure mode script/fmt's `--check` bug
@@ -5975,8 +5975,8 @@ fn test() -> bool {
         // syscall `asm!`) and everything that depends on it.
         //
         // **`--exclude` removes a package from the test SELECTION, not from the dependency graph.**
-        // Excluding `user_mode_runtime` alone stopped working on 2026-08-03, when `swap_proto`, `virtio` and
-        // `supervision_proto` took unconditional `user_mode_runtime` dependencies (`system_initializer`
+        // Excluding `user_mode_runtime` alone stopped working on 2026-08-03, when `swap_protocol`, `virtio` and
+        // `supervision_protocol` took unconditional `user_mode_runtime` dependencies (`system_initializer`
         // followed a day later): cargo still had to build it for them, so the host pass stopped
         // compiling on an x86_64 host and nobody noticed, because CI moved to `ubuntu-24.04-arm` the
         // same day and on an aarch64 host it builds by accident. A stranger with a clean x86_64
@@ -5997,11 +5997,11 @@ fn test() -> bool {
             "--exclude",
             "user_mode_runtime",
             "--exclude",
-            "swap_proto",
+            "swap_protocol",
             "--exclude",
             "virtio",
             "--exclude",
-            "supervision_proto",
+            "supervision_protocol",
             "--exclude",
             "system_initializer",
         ]) {
@@ -6581,7 +6581,7 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 /// milestone 238 cleared the failure in front of it.
 ///
 /// **"Miri-clean" means the sampled paths.** An interpreter runs roughly a thousand times slower
-/// than the silicon, so the exhaustive suites gate themselves down under `cfg(miri)`: `ntp_proto`
+/// than the silicon, so the exhaustive suites gate themselves down under `cfg(miri)`: `network_time_protocol`
 /// strides its 10^9-value sweep, `gpt` skips its 460k-parse corruption sweeps, `calendar` and
 /// `glob` shrink their strides and scales, `credentialer` derives at Argon2's floor (each site says so,
 /// next to the test). What Miri certifies is every path the sampled suite executes, not the
@@ -7860,7 +7860,7 @@ fn shell_check_leg(riscv: bool) -> bool {
     //
     // **What a deliberate trap does was measured rather than assumed** (milestone 233), because
     // milestone 230's lane named it as the thing it could not cheaply find out. `least_authority_demo` was
-    // patched to `supervision_proto::fail()` on `least_authority_demo 5` and this gate run against it. Two
+    // patched to `supervision_protocol::fail()` on `least_authority_demo 5` and this gate run against it. Two
     // results, and the second is the more interesting one:
     //
     //   1. This check fires, naming the thread and the reason, so it is a check that can fail
@@ -10808,7 +10808,7 @@ $ outlaw
 //! # Examples
 //!
 //! ```
-//! # use entropy_proto::GET;
+//! # use entropy_protocol::GET;
 //! assert_eq!(GET, 1);
 //! ```
 //!
@@ -10833,7 +10833,7 @@ pub const GET: u64 = 1;
         assert!(got.contains("pub const GET: u64 = 1;"));
         assert!(!got.contains("# Examples"));
         assert!(
-            !got.contains("entropy_proto"),
+            !got.contains("entropy_protocol"),
             "the copy is an inner module of std, where that crate does not exist"
         );
         assert!(
@@ -10845,7 +10845,7 @@ pub const GET: u64 = 1;
     /// Build a P6 PPM of the surface's geometry from a per-pixel function, the way QEMU's
     /// `screendump` writes one.
     fn ppm(pixel: impl Fn(u32, u32) -> (u8, u8, u8)) -> Vec<u8> {
-        let (w, h) = (graphics_proto::WIDTH, graphics_proto::HEIGHT);
+        let (w, h) = (graphics_protocol::WIDTH, graphics_protocol::HEIGHT);
         let mut v = format!("P6\n{w} {h}\n255\n").into_bytes();
         for y in 0..h {
             for x in 0..w {
@@ -10857,7 +10857,7 @@ pub const GET: u64 = 1;
     }
 
     fn pattern_rgb(x: u32, y: u32) -> (u8, u8, u8) {
-        let w = graphics_proto::pixel(x, y);
+        let w = graphics_protocol::pixel(x, y);
         (
             ((w >> 16) & 0xff) as u8,
             ((w >> 8) & 0xff) as u8,
@@ -10897,7 +10897,7 @@ pub const GET: u64 = 1;
         assert!(
             scanout_holds_the_pattern(&ppm(|x, y| pattern_rgb(
                 x,
-                (y + 1) % graphics_proto::HEIGHT
+                (y + 1) % graphics_protocol::HEIGHT
             )))
             .is_err(),
             "a scanout shifted by one row was accepted",

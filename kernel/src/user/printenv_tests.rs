@@ -77,7 +77,7 @@ fn line(out: RendezvousId, buf: &mut [u8; 128]) -> usize {
 }
 
 /// A page nobody assembled: allocated and left zeroed, exactly `date_tests`'s unpublished-clock
-/// shape and `environment_proto`'s own `a_zeroed_page_reads_as_no_configuration`.
+/// shape and `environment_protocol`'s own `a_zeroed_page_reads_as_no_configuration`.
 fn blank_page() -> u64 {
     crate::memory::alloc_zeroed()
         .expect("no frame for a blank config page")
@@ -87,10 +87,10 @@ fn blank_page() -> u64 {
 /// Assemble a page with `builder`, into a fresh frame, and return its physical address.
 fn assembled_page(
     builder: impl FnOnce(
-        environment_proto::PageBuilder<'static>,
-    ) -> environment_proto::PageBuilder<'static>,
+        environment_protocol::PageBuilder<'static>,
+    ) -> environment_protocol::PageBuilder<'static>,
 ) -> u64 {
-    let bytes = builder(environment_proto::PageBuilder::new()).build();
+    let bytes = builder(environment_protocol::PageBuilder::new()).build();
     let phys = crate::memory::alloc_zeroed()
         .expect("no frame for a config page")
         .addr();
@@ -110,7 +110,7 @@ fn assembled_page(
 ///
 /// The values are deliberately not the boot's own defaults (`UTC`/`C`/`dumb`): a program that
 /// happened to have those three strings compiled in would pass this test by coincidence. Distinct
-/// values from every one of `environment_proto`'s three domains prove the read path carries the
+/// values from every one of `environment_protocol`'s three domains prove the read path carries the
 /// page's own bytes rather than a baked-in answer.
 #[test_case]
 fn printenv_prints_the_page_it_was_granted() {
@@ -143,7 +143,7 @@ fn printenv_prints_the_page_it_was_granted() {
 ///
 /// `LANG` and `TERM` are left off this page entirely; the assertion is that `printenv` says so
 /// plainly rather than printing `LANG=` (which would read as "explicitly set to nothing", a
-/// different claim `environment_proto`'s `Option<&str>` never makes).
+/// different claim `environment_protocol`'s `Option<&str>` never makes).
 #[test_case]
 fn a_key_never_declared_reads_as_unset_not_empty() {
     let phys = assembled_page(|b| b.tz("UTC").expect("UTC is a real KNOWN_TZ member"));
@@ -160,7 +160,7 @@ fn a_key_never_declared_reads_as_unset_not_empty() {
 
 /// **A page nobody assembled reads as no configuration, not as three empty strings.**
 ///
-/// This is `environment_proto`'s own default-honest shape (the same one `boot_clock_page` uses for
+/// This is `environment_protocol`'s own default-honest shape (the same one `boot_clock_page` uses for
 /// a machine with no RTC), proven again from the reading side rather than only against the raw
 /// bytes: a zeroed frame is indistinguishable from "the page was never carried at all", by design,
 /// so a boot that granted the slot but never had anything write to it still tells the truth.

@@ -162,7 +162,7 @@ fn a_command_is_timed_by_the_shells_clock_and_holds_none_itself() {
 /// gated nothing.
 ///
 /// So both old causes are exercised here as *non*-causes: a zeroed clock page (UNKNOWN to
-/// `clock_proto`) and no clock capability at all. In each, the timed line must both answer and
+/// `clock_protocol`) and no clock capability at all. In each, the timed line must both answer and
 /// carry a duration, and neither of the two retired sentences may appear anywhere in the
 /// transcript.
 #[test_case]
@@ -170,7 +170,7 @@ fn a_shell_with_no_usable_clock_times_the_command_anyway() {
     let mut buf = [0u8; 2048];
 
     // A frame nobody has published to, which is what a reader on a machine with no believable RTC
-    // holds. Zeroed, which `clock_proto`'s `a_zeroed_page_reads_as_unknown` pins as UNKNOWN.
+    // holds. Zeroed, which `clock_protocol`'s `a_zeroed_page_reads_as_unknown` pins as UNKNOWN.
     let blank = crate::memory::alloc_zeroed()
         .expect("no frame for a blank clock page")
         .addr();

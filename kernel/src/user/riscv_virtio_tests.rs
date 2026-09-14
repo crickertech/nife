@@ -29,11 +29,11 @@ const NET_TEST_UDP_TFTP: u64 = 4;
 const NET_TEST_TCP_ACCEPT: u64 = 5;
 /// The one port the inbound gate is granted (milestone 107); the runners forward a host port to
 /// it. Both ISA legs use the same number and the same host port, because they run one after the
-/// other and never hold it at once. From `socket_proto::fixture` since milestone 64: see the
+/// other and never hold it at once. From `socket_protocol::fixture` since milestone 64: see the
 /// aarch64 twin for why the number has one definition.
-const NET_LISTEN_PORT: u16 = socket_proto::fixture::LISTEN_PORT;
+const NET_LISTEN_PORT: u16 = socket_protocol::fixture::LISTEN_PORT;
 /// The fixed UDP ports the mDNS gate is granted (milestone 55): RFC 6762's 5353, which
-/// `mdns_responder` holds for the whole run, and its neighbour, which `socket_test_client` uses to
+/// `multicast_dns_responder` holds for the whole run, and its neighbour, which `socket_test_client` uses to
 /// prove that a granted port binds and is exclusive. See the aarch64 twin for why they are two.
 const NET_MDNS_PORT: u16 = 5353;
 const NET_MDNS_GRANT_TOP: u16 = 5354;
@@ -213,12 +213,12 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
     let [head, status, attrs, ..] = sched::ipc_recv(report);
     assert_eq!(
         status,
-        filesystem_proto::fixture::SUCCESS,
+        filesystem_protocol::fixture::SUCCESS,
         "the client did not report success: a check in the read or write path failed",
     );
     assert_eq!(
         &head.to_le_bytes()[..],
-        &filesystem_proto::fixture::MOTD[..8],
+        &filesystem_protocol::fixture::MOTD[..8],
         "the client read the wrong motd bytes off the RedoxFS image",
     );
     // Milestone 57: the same attribute witness, the same exact expected set. The layer is the
@@ -256,7 +256,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
 /// verdict carries it, which is what the parity gate wants (§19: the same suite, both ISAs).
 #[test_case]
 fn a_read_only_per_file_grant_survives_an_attacker() {
-    let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
+    let Some(verdict) = attack_a_grant(filesystem_protocol::grant::READ, false) else {
         crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(
@@ -269,9 +269,9 @@ fn a_read_only_per_file_grant_survives_an_attacker() {
 /// test's control here too). See the aarch64 twin.
 #[test_case]
 fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
-    use filesystem_proto::fixture::escape;
+    use filesystem_protocol::fixture::escape;
     let Some(verdict) = attack_a_grant(
-        filesystem_proto::grant::READ | filesystem_proto::grant::WRITE,
+        filesystem_protocol::grant::READ | filesystem_protocol::grant::WRITE,
         true,
     ) else {
         crate::testing::skip!("no RedoxFS disk attached");
@@ -294,9 +294,9 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
         program("fs_test_client").expect("no fs_test_client program in the initrd archive"),
         fs_service::Grant {
             name: if writable {
-                filesystem_proto::fixture::SCRATCH_NAME
+                filesystem_protocol::fixture::SCRATCH_NAME
             } else {
-                filesystem_proto::fixture::MOTD_NAME
+                filesystem_protocol::fixture::MOTD_NAME
             },
             rights,
             role: 2, // ROLE_ATTACKER
@@ -313,7 +313,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        filesystem_proto::fixture::VERDICT,
+        filesystem_protocol::fixture::VERDICT,
         "the attacker's report is not a verdict word",
     );
     Some(verdict)
@@ -427,7 +427,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract() {
         net_stack_image(),
         NET_TEST_UDP_TFTP,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -446,7 +446,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
         net_stack_image(),
         NET_TEST_UDP_TFTP,
         true,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net-pci device attached");
     };
@@ -466,7 +466,7 @@ fn a_client_resolves_a_real_dns_name_when_the_host_resolver_answers() {
         net_stack_image(),
         NET_TEST_UDP_DNS,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -496,7 +496,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
         net_stack_image(),
         NET_TEST_TCP_ECHO,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -515,7 +515,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract_pci() {
         net_stack_image(),
         NET_TEST_TCP_ECHO,
         true,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net-pci device attached");
     };
@@ -535,7 +535,7 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
         net_stack_image(),
         NET_TEST_TCP_REOPEN,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -547,10 +547,11 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
     net.release_or_fail("a net test's net_stack");
 }
 
-/// The `mdns_responder` program's ELF bytes (milestone 55): the discovery half, a third client of
+/// The `multicast_dns_responder` program's ELF bytes (milestone 55): the discovery half, a third client of
 /// the same stack. See the aarch64 twin.
-fn mdns_responder_image() -> &'static [u8] {
-    program("mdns_responder").expect("no mdns_responder program in the initrd archive")
+fn multicast_dns_responder_image() -> &'static [u8] {
+    program("multicast_dns_responder")
+        .expect("no multicast_dns_responder program in the initrd archive")
 }
 
 /// **The guest is connected TO, on a granted port, on the second ISA** (milestone 107). A port
@@ -572,11 +573,11 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let e2_baseline_threads = sched::thread_count();
     let Some((report, mdns_report, net)) = virtio_service::start_shared_net_stack(
         net_stack_image(),
-        mdns_responder_image(),
+        multicast_dns_responder_image(),
         NET_TEST_TCP_ACCEPT,
         NET_LISTEN_PORT,
         MDNS_QUERIES,
-        socket_proto::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
+        socket_protocol::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -639,7 +640,7 @@ fn std_net_runs_over_the_socket_contract() {
     let Some((report, net)) = virtio_service::start_net_std(
         net_stack_image(),
         std_exerciser_image(),
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -661,7 +662,7 @@ fn a_std_program_serves_a_granted_listening_port() {
     let Some((report, net)) = virtio_service::start_net_std(
         net_stack_image(),
         std_exerciser_image(),
-        socket_proto::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
+        socket_protocol::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };

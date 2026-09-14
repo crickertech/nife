@@ -866,7 +866,7 @@ impl core::fmt::Display for Error {
 // Machine-checked proofs (Kani). Behind `#[cfg(kani)]`, so an ordinary build or test never sees
 // them; only `cargo kani` (script/verify) sets that cfg. See notes/verification.md and notes/gpt.md.
 //
-// The division of labour with the tests is deliberate and is the one `ntp_proto` argued for:
+// The division of labour with the tests is deliberate and is the one `network_time_protocol` argued for:
 // **where a domain is small enough to count, the tests count it, exhaustively, and that is a
 // stronger result than any bounded solver run.** Every single-byte corruption of a real 512-byte
 // header block is enumerated in tests/real_disks.rs; every value of every byte of a small table is

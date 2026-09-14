@@ -5,7 +5,7 @@
 # sees shapes; none of them sees a `&mut` that aliases. See notes/undefined-behavior.md.
 #
 # **"Miri-clean" means the sampled paths.** The interpreter is roughly a thousand times slower
-# than native, so the exhaustive suites gate themselves down under `cfg(miri)`: ntp_proto strides
+# than native, so the exhaustive suites gate themselves down under `cfg(miri)`: network_time_protocol strides
 # its 10^9-value sweep, gpt skips its 460k-parse corruption sweeps. Each site says so next to the
 # test, and the note carries the full exclusion list. The exhaustive claims stay native-only.
 #

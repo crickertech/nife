@@ -1,7 +1,7 @@
 //! **The network time client** (milestone 51, split out of one binary by milestone 290;
 //! DECISIONS §43 and §44, notes/ntp.md).
 //!
-//! The component that turns `ntp_proto`'s wire format into an actual clock correction. It holds a
+//! The component that turns `network_time_protocol`'s wire format into an actual clock correction. It holds a
 //! **network capability** and a capability to **propose** a time. It does not hold the clock.
 //!
 //! Its test server is `fixtures/src/network_time_test_server.rs` and the witness that proves the
@@ -23,7 +23,7 @@
 //!
 //! Five slots, and the interesting one is the slot that is missing. There is no clock page here,
 //! writable or not, so "set the time" is not an operation this process can express: the only thing
-//! it can do with the wall clock is ask, and `clock_proto::policy` answers. **A compromised NTP
+//! it can do with the wall clock is ask, and `clock_protocol::policy` answers. **A compromised NTP
 //! client can lie inside the service's bounds and can do nothing else.** In Unix `ntpd` runs as root
 //! and may set the clock to anything at all. `an_ntp_client_holds_no_writable_clock_page` in
 //! `kernel/src/user/ntp_tests.rs` proves the claim the way the machine proves things: a process
@@ -76,7 +76,7 @@
 //!
 //! The test server is **both an NTP server and the network**: it holds `READ` on the endpoint this
 //! client was given `WRITE` on, and it speaks the same socket contract
-//! (`crates/socket_proto/src/lib.rs`) `net_stack` does. The client cannot tell, and that is the
+//! (`crates/socket_protocol/src/lib.rs`) `net_stack` does. The client cannot tell, and that is the
 //! point rather than a convenience: its network path is one endpoint capability, so substituting
 //! the peer at that boundary runs the client's **real, unmodified code**. That property comes from
 //! the capability boundary and not from co-location, which is exactly why splitting the two
@@ -101,7 +101,7 @@
 //! from implementation convenience and AGENTS.md ranks it below everything else. Refused keeping
 //! `ntp` for the typed-command latitude: nothing types this name, it is loaded from the archive by
 //! the kernel's wiring, so the latitude that produced `mdr` does not reach it. `network_time`
-//! carries the stem calef ruled on 2026-09-13 for `ntp_proto`, so these three names are already
+//! carries the stem calef ruled on 2026-09-13 for `network_time_protocol`, so these three names are already
 //! spelled the way milestone 265 will spell the crate, and 265 never has to rename them. That also
 //! **overtakes 265's "the `ntp` program stays `ntp`" exception**, which was written when there was
 //! one program to keep the short name: after 290 there is no `ntp` program, the client's name is
@@ -117,15 +117,15 @@
 #![no_main]
 
 use abi::rights;
-use clock_proto::propose;
-use ntp_proto::{Query, Reject, Timestamp};
+use clock_protocol::propose;
+use network_time_protocol::{Query, Reject, Timestamp};
 // The socket contract, verbatim from the file `net_stack` compiles, so this client and the test
 // server cannot drift from the real server's idea of the wire format.
 // An NTP client speaks the UDP half of the contract and never the TCP half, so the rest of the
 // file is dead here. Allowed rather than trimmed: the value of compiling the *same file* net_stack
 // does is that the two cannot drift, and a per-consumer subset would throw that away.
 #[allow(dead_code)]
-use socket_proto::*;
+use socket_protocol::*;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::{
     call, cntfrq, exit, map_page_frame, now, retype_page_frame, send, send_cap, yield_now,
@@ -153,7 +153,7 @@ const PROPOSE: u64 = 3;
 /// Slot 4: the entropy service's endpoint (WRITE): "you may obtain randomness", naming no device.
 const ENTROPY: u64 = 4;
 
-/// A sample was accepted and proposed. `w1` is the `clock_proto::status` the service answered with,
+/// A sample was accepted and proposed. `w1` is the `clock_protocol::status` the service answered with,
 /// `w2` the nanoseconds proposed.
 pub const RPT_SYNCED: u64 = 1;
 /// A reply arrived and `Query::accept` refused it. `w1` is a [`reject_code`], `w2` the number of
@@ -182,7 +182,7 @@ const RETRY_GAP_NANOS: u64 = 2 * 1_000_000;
 /// Where this client maps the shared socket frame in its own address space. Above the program's
 /// segments; the same address `socket_test_client` uses, and each address space is its own. The
 /// test server picks its own, and the two do not have to agree: what they share is the frame's
-/// *layout*, which is `socket_proto`'s.
+/// *layout*, which is `socket_protocol`'s.
 const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
 // SAFETY: this program's own `PageFrame::MAP` (in `attach_page_frame`, before the frame is touched)
@@ -253,7 +253,13 @@ fn client(server_ip: u64, server_port: u64) -> ! {
         let query = Query::with_nonce(t1, Timestamp::from_bits(nonce));
         write_payload(&query.request());
         sent += 1;
-        if call(STACK, req(OP_SENDTO, SID), ntp_proto::PACKET_LEN as u64).0 != REP_OK {
+        if call(
+            STACK,
+            req(OP_SENDTO, SID),
+            network_time_protocol::PACKET_LEN as u64,
+        )
+        .0 != REP_OK
+        {
             done(RPT_NET_ERROR, 3, sent as u64);
         }
 
@@ -268,7 +274,7 @@ fn client(server_ip: u64, server_port: u64) -> ! {
         let Some(t4) = stamp(local.now()) else {
             done(RPT_BAD_LOCAL_TIME, local.now(), 0);
         };
-        let mut wire = [0u8; ntp_proto::PACKET_LEN];
+        let mut wire = [0u8; network_time_protocol::PACKET_LEN];
         let n = read_payload(n as usize, &mut wire);
 
         match query.accept(&wire[..n], t4) {
@@ -302,20 +308,20 @@ fn client(server_ip: u64, server_port: u64) -> ! {
 
 /// **Eight unguessable bytes, or an error word that says why not.**
 ///
-/// `entropy_proto::delivered` is what makes the two failures distinguishable with no probe: a byte
+/// `entropy_protocol::delivered` is what makes the two failures distinguishable with no probe: a byte
 /// count is `0..=8`, and every error a `CALL` can return is one of the kernel's small negatives,
 /// which read as enormous `u64`s. So `Err(0)` is "the service has no entropy" and `Err(huge)` is
 /// "there is no entropy service in slot 4". Both stop the client; only the report tells them apart.
 fn nonce_bits() -> Result<u64, u64> {
-    let (r0, r1) = call(ENTROPY, entropy_proto::req(entropy_proto::GET, 8), 0);
-    let Some(n) = entropy_proto::delivered(r0) else {
+    let (r0, r1) = call(ENTROPY, entropy_protocol::req(entropy_protocol::GET, 8), 0);
+    let Some(n) = entropy_protocol::delivered(r0) else {
         return Err(r0);
     };
     if n < 8 {
         return Err(r0);
     }
     let mut bytes = [0u8; 8];
-    entropy_proto::take(n, r1, &mut bytes);
+    entropy_protocol::take(n, r1, &mut bytes);
     Ok(u64::from_le_bytes(bytes))
 }
 
@@ -348,7 +354,7 @@ fn monotonic_nanos() -> u64 {
     let ticks = now();
     let secs = ticks / freq;
     let rem = ticks % freq;
-    secs * clock_proto::NANOS_PER_SEC + rem * clock_proto::NANOS_PER_SEC / freq
+    secs * clock_protocol::NANOS_PER_SEC + rem * clock_protocol::NANOS_PER_SEC / freq
 }
 
 /// Unix nanoseconds to an NTP timestamp. `None` outside the crate's representable window, which the
@@ -356,8 +362,8 @@ fn monotonic_nanos() -> u64 {
 /// alternative to checking is a timestamp 136 years out.
 fn stamp(unix_nanos: u64) -> Option<Timestamp> {
     Timestamp::from_unix(
-        unix_nanos / clock_proto::NANOS_PER_SEC,
-        (unix_nanos % clock_proto::NANOS_PER_SEC) as u32,
+        unix_nanos / clock_protocol::NANOS_PER_SEC,
+        (unix_nanos % clock_protocol::NANOS_PER_SEC) as u32,
     )
 }
 
@@ -418,7 +424,7 @@ fn attach_page_frame() {
 
 // =================================================================================================
 // The shared frame. Absolute-VA volatile access through `WINDOW` (milestone 139), the same
-// abstraction mdns_responder, socket_test_client, network_time_test_server, keyboard_driver, entropy and net_transport share.
+// abstraction multicast_dns_responder, socket_test_client, network_time_test_server, keyboard_driver, entropy and net_transport share.
 // `va` is always `PAGE_FRAME_VA + <an offset constant>`, so subtracting PAGE_FRAME_VA recovers the offset
 // `WINDOW` bounds-checks against.
 // =================================================================================================

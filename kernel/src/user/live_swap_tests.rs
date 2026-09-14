@@ -56,7 +56,7 @@ const V1: u64 = 1;
 const V2: u64 = 2;
 const REQUESTS: u64 = 64;
 
-/// The request a wedging instance swallows (`swap_proto::WEDGE_SEQ`). The test asserts the swap
+/// The request a wedging instance swallows (`swap_protocol::WEDGE_SEQ`). The test asserts the swap
 /// landed here, so both sides name one constant.
 const WEDGE_SEQ: u64 = 24;
 
@@ -81,7 +81,7 @@ use crate::user::UART_PHYS;
 /// outgoing instance then **faults inside [`DEV_VA`]**. On x86 there is no UART page to lend, and
 /// the trap worth naming is that lending physical page zero instead would still produce a green
 /// test: the read would return a real-mode interrupt-vector byte and the revoke would still fault.
-/// That is a passing test about nothing. See `swap_proto::probe_device`'s x86 arm, which refuses
+/// That is a passing test about nothing. See `swap_protocol::probe_device`'s x86 arm, which refuses
 /// for the same reason, and `user::machine_has_no_device_page_for_the_console`, which is the one
 /// definition of the question.
 use crate::user::{NO_UART_PAGE, machine_has_no_device_page_for_the_console};
@@ -596,7 +596,7 @@ fn a_producer_never_blocks_on_an_absent_consumer_and_loses_nothing() {
 // Milestone 23's third residual: a component that stops answering **without dying**.
 // ===============================================================================================
 
-/// `abi::survey`'s state codes, unpacked from `RPT_SURVEY` by `swap_proto::survey_counts`'s layout.
+/// `abi::survey`'s state codes, unpacked from `RPT_SURVEY` by `swap_protocol::survey_counts`'s layout.
 /// Mirrored here for the reason every other constant in this file is: userspace owns the definition.
 fn survey_blocked(w: u64) -> u64 {
     (w >> 16) & 0xff

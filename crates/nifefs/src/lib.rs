@@ -706,7 +706,7 @@ mod verification {
     /// The two equalities below are the **format**, not the implementation: nifefs entries name
     /// an absolute block and blocks are [`BLOCK`] bytes, which is a fact about the on-disk
     /// layout the image writer and every reader share, and so is the one thing this function is
-    /// not free to choose. Stating them here is the same move `credential_proto`'s parse
+    /// not free to choose. Stating them here is the same move `credential_protocol`'s parse
     /// harness makes with the request word's shifts.
     /// Falsification: replayable `crates/nifefs/falsifications/verification.the_validation_implies_reads_slice_is_in_bounds.patch`
     #[kani::proof]
