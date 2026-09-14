@@ -65,18 +65,12 @@
 //!   `kernel::user::login_service::CLIENT_SCRATCH_UT_PAGES`).
 //! - `a0`: the role.
 //!
-//! Name: ratified 2026-09-14 (calef, working the unratified worklist), confirming the
-//! `<service>_test_client` pattern he signed for `credentialer_test_client` on 2026-08-01 in
-//! milestone 63. Minted 2026-08-22 for milestone 49. The pattern is not this lane's invention:
-//! calef turned down `credcli` as a squished abbreviation and `credentialer_client` because that
-//! name belongs to the real client a later milestone needs. The same reservation holds here, so a
-//! future real login client is not squatted, and that reservation is the half of the name doing
-//! the work.
-//!
-//! **Ratified on the name, not on the shape.** calef ruled the same day that this binary's eleven
-//! roles are the wrong shape, and minted a milestone for it: four of them differ only in which identity and secret
-//! they carry, which wants arguments rather than a dispatch table. The name survives that change
-//! and is expected to; what it names is one test client either way.
+//! Name: recorded (program `credentialer_test_client`, ratified 2026-08-01 by calef in milestone
+//! 63). Minted 2026-08-22 for milestone 49 on the `<service>_test_client` pattern, which is not
+//! this lane's invention: calef signed that exact shape for the credential service, turning down
+//! `credcli` as a squished abbreviation and `credentialer_client` because that name belongs to
+//! the real client a later milestone needs. The same reservation holds here, so a future real
+//! login client is not squatted. calef has not ratified this instance.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
