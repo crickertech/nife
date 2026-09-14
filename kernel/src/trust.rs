@@ -1,8 +1,11 @@
 //! **The trust root: what the progenitor is allowed to be** (milestone 22 phase B.1, DECISIONS §22).
 //!
 //! The kernel loads exactly one program itself: the boot program, out of the initrd archive
-//! (`"progenitor"` on every architecture, and `"builder"` for riscv64's boot tour). Everything else
-//! is the progenitor's to load.
+//! (`"progenitor"`, on every architecture, since milestone 295 took `"builder"` off riscv64's and
+//! `x86_64`'s lists). Everything else is the progenitor's to load. `"hello"` is in the root too and
+//! is not a counter-example: `spawn_progenitor` enters it directly for milestone 19d's and 19e's
+//! init roles, and [`require`] refuses an entry the root does not name, so the root grew rather
+//! than the check being relaxed (`xtask`'s `boot_programs`).
 //! That one load used to be pure trust: whatever bytes sat at `/chosen/linux,initrd-start` got
 //! parsed and entered. Since a compromised progenitor can endow malicious children and deny the system it
 //! was meant to start, and since milestone 16b closed the DMA window a device could have used to

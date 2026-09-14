@@ -391,7 +391,12 @@ pub unsafe fn force_unlock() {
 static TX_BYTES: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 
 /// The [`TX_BYTES`] counter. Diagnostic; racy reads are fine.
-#[cfg_attr(target_arch = "aarch64", allow(dead_code))] // the riscv diag line is the reader today
+///
+/// **No reader since milestone 295.** The riscv diag line printed it, and that line lived inside
+/// `kernel::user::riscv_initrd_demo`'s hang watcher, which went with the program it loaded. The
+/// counter is still incremented on every print, so it is still true and still free to read; what is
+/// gone is the thing that read it. Kept for the same reason `sched::canary` is, written there.
+#[allow(dead_code)]
 pub fn tx_bytes() -> u64 {
     TX_BYTES.load(core::sync::atomic::Ordering::Relaxed)
 }

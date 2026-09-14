@@ -1264,9 +1264,8 @@ fn std_relative(p: &Path) -> String {
 // the manifest) and notes/trusted-init.md.
 // ===========================================================================================
 
-/// The archive entries the kernel itself may enter as the boot program, per architecture. Everything
-/// else in the archive is loaded by the progenitor, in userspace, so it is not part of the kernel's
-/// trust root.
+/// The archive entries the kernel itself may enter as the boot program. Everything else in the
+/// archive is loaded by the progenitor, in userspace, so it is not part of the kernel's trust root.
 ///
 /// **`progenitor` is on every list** (milestone 266): one first process, one name, on all three
 /// boards. Before that the entry was called `init` and meant a different binary depending on the
@@ -1279,14 +1278,21 @@ fn std_relative(p: &Path) -> String {
 /// measured would be the hole measured boot exists to close, so the entry is here rather than the
 /// check being relaxed there.
 ///
-/// riscv64 and `x86_64` add **`builder`**, milestone 20's richer-initrd demo, which the RISC-V boot
-/// tour enters directly to prove that userspace composes the system. aarch64's tour has no such
-/// step. `x86_64` (milestone 161) packs RISC-V's archive, so it takes RISC-V's list.
-fn boot_programs(arch: &str) -> &'static [&'static str] {
-    match arch {
-        "riscv64" | "x86_64" => &["progenitor", "builder", "hello"],
-        _ => &["progenitor", "hello"],
-    }
+/// **It stopped being per-architecture at milestone 295, and took its `arch` parameter with it.**
+/// riscv64 and `x86_64` used to add `builder`, milestone 20's richer-initrd demo, because the
+/// RISC-V boot tour entered it directly to prove that userspace composes the system; calef retired
+/// that program on 2026-09-14 once milestone 268 made the default riscv64 boot hand over to the
+/// progenitor, which makes the same claim at a larger scale. So the kernel now enters exactly two
+/// programs on every board, and a trust root that differed by architecture is one fewer thing for a
+/// reader to hold.
+///
+/// The parameter went rather than being kept for a future divergence, because an argument nothing
+/// reads is a claim that something varies when nothing does. `write_measure_manifest` still takes
+/// an `arch` and still writes one manifest per architecture; if a board's list ever needs to differ
+/// again, the parameter comes back at that point with a reason attached. The absent-name path below
+/// it is the one that was already written for lists that differ, and it is kept.
+fn boot_programs() -> &'static [&'static str] {
+    &["progenitor", "hello"]
 }
 
 /// Where the measurement manifest for an architecture is written. `kernel/build.rs` derives exactly
@@ -1357,15 +1363,17 @@ fn write_measure_manifest(arch: &str, image: &[u8]) -> bool {
     // (milestone 104). The kernel never reads the table's contents; it hashes the entry and refuses
     // to hand the archive over if it is not the one this kernel image was built against, which is
     // what makes the progenitor's refusals worth as much as its own measurement.
-    for name in boot_programs(arch)
+    for name in boot_programs()
         .iter()
         .copied()
         .chain([measured_boot::PROGRAM_MEASUREMENTS])
     {
         let Some(bytes) = fs.read(name) else {
-            // Not every archive carries every boot program (the aarch64 one has no `builder`). A
-            // name that is absent simply gets no measurement, and the kernel refuses to enter a
-            // program it has no measurement for, so nothing is quietly waved through.
+            // Not every archive has to carry every boot program. A name that is absent simply
+            // gets no measurement, and the kernel refuses to enter a program it has no measurement
+            // for, so nothing is quietly waved through. No list differs today (milestone 295 took
+            // `builder` off riscv64's and `x86_64`'s, which was the one that did); this is kept
+            // because the lists are allowed to differ and a `None` here must not be a panic.
             continue;
         };
         let digest = measured_boot::sha256(bytes);
@@ -3471,11 +3479,6 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         ("serial_driver", "serial_driver"),
         ("os_primitives_benchmarker", "os_primitives_benchmarker"),
         ("coremark", "coremark"),
-        // Milestone 20's richer-initrd demo, under its own name since 266: the RISC-V boot tour
-        // enters it to show that userspace, not the kernel, composes the system. It used to be the
-        // entry called `init` here, which is what made `init` mean two different binaries depending
-        // on the board.
-        ("builder", "builder"),
         ("console", "console"),
         ("input", "input"),
         ("swish", "swish"),
@@ -3644,8 +3647,8 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
 
 /// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the
 /// portable programs the second architecture runs and packs them into a nifefs archive. The kernel
-/// enters `progenitor` for the interactive boot and `builder` (milestone 20's minimal system
-/// builder) for the tour; `builder` is the one that loads `least_authority_demo` by name. Every entry is packed
+/// enters `progenitor` and nothing else: the tour used to enter `builder` as well, to load
+/// `least_authority_demo` by name from userspace, and milestone 295 retired it. Every entry is packed
 /// under its own name since milestone 266. Point `NIFE_INITRD` at the result and boot the riscv
 /// kernel, e.g.:
 ///
@@ -3754,7 +3757,7 @@ fn initrd_riscv() -> bool {
         return false;
     }
     eprintln!(
-        "wrote {} ({size} bytes): progenitor, builder, least_authority_demo",
+        "wrote {} ({size} bytes): progenitor, least_authority_demo",
         riscv_initrd_path()
     );
     true

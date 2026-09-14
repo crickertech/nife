@@ -364,6 +364,10 @@ programs would claim one phrase. The refusal existed, in one table cell inside o
 moment it was needed. A blind rename then swept the old name out of that very row, and the record of
 the refusal was nearly destroyed by the rename it should have prevented.
 
+That program was retired on 2026-09-14 (milestone 295) and the refusal stands unchanged, which is
+the same point one turn later: a refusal records why a name lost on the day it lost, and one
+rewritten every time the tree moves is one nobody can check.
+
 **The record is derived, not maintained.** The first draft of the fix was one ratified-names table,
 here in this file. calef rejected it on 2026-08-04 for scaling the way the original `DECISIONS.md`
 and `design/roadmap.md` scaled, and size is the smaller half of that argument. The **conflict shape**
@@ -526,8 +530,8 @@ nobody can justify comes before one whose reasoning merely lacks a signature.
 $ script/names --unratified
 UNRATIFIED (54 of 126), in the order worth working through
 ...
-  programs, unrecorded
-    builder                      components/src/builder.rs
+  programs, provisional
+    address_space_builder        fixtures/src/address_space_builder.rs
     ...
   crates, unrecorded
     abi                          crates/abi/src/lib.rs

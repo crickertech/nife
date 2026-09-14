@@ -140,7 +140,11 @@ prints, and not a marker that exists on one architecture, which is the defect be
   `nife x86_64: boot complete, halting.` after a green verdict, because the architecture has no
   entry point that hands the machine to a shell. Still this block's scope and still gated on the two
   things named above it; checked 2026-09-14 by booting it.
-- **Proposed.** `design/roadmap/proposals/retire-the-builder-program.md`. **Retire
+- **Done.** By milestone 295 (design/roadmap/295-retire-the-builder-program.md), which is the
+  proposal file below promoted in place: calef answered the one-sentence question it was written to
+  ask with *"Retire builder"*, option (b), and the removal landed on 2026-09-14. The paragraph that
+  follows is this block's own account of the handoff and is kept as written, except that the file it
+  named now carries a number. **Retire
   `components/src/builder.rs`.** calef ruled on 2026-09-14 that it should go
   away as a result of this milestone, because the claim it carries (*userspace, not the kernel,
   composes a process*) becomes one of item 2's collected self-tests on all three architectures. Its
@@ -320,11 +324,12 @@ close the door on the version calef actually described. And it is not free: the 
 (`kernel/src/trust.rs`), the measured-boot manifest (`xtask`'s `boot_programs`), the archive table,
 and `board_console`'s `userspace_ran` with its captured board transcript all name it.
 
-So it is proposed rather than performed:
-`design/roadmap/proposals/retire-the-builder-program.md`, listed under Follow-on above. The
+So it was proposed rather than performed, and the proposal is
+`design/roadmap/295-retire-the-builder-program.md` now, listed under Follow-on above. The
 one-sentence decision calef
-can make: whether the retirement waits for an `x86_64` leg that can run a compiled ELF, or goes
-ahead now on the strength of the progenitor carrying the claim wherever a progenitor runs.
+could make: whether the retirement waits for an `x86_64` leg that can run a compiled ELF, or goes
+ahead now on the strength of the progenitor carrying the claim wherever a progenitor runs. He made
+it the same day, *"Retire builder"*, and milestone 295 performed it.
 
 ## BUGS (as built)
 

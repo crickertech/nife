@@ -66,6 +66,18 @@ runs the whole tour and never reaches it, so putting it below `tour` would make 
 imply something that did not happen. It is a detail of a successful boot, like `Moving Image from`,
 and it is the only difference between the two successful captures.
 
+**Since milestone 295 it reads captured logs and nothing else.** calef retired
+`components/src/builder.rs` on 2026-09-14, so no kernel this tree builds prints `init/build` and
+`userspace_ran()` is `false` on every live board. The matcher stays because
+`tests/fixtures/captured/vf2-2026-09-01-userspace.log` carries the line, and that capture is
+evidence off real VisionFive 2 silicon that cannot be re-taken with a different kernel; deleting the
+recogniser to tidy the code would throw the evidence away. **What to ask of a board booted today is
+`reached() >= Stage::Prompt`**, and it is a stronger question: `init/build` meant userspace built one
+child out of two capabilities, where the prompt cannot appear unless userspace built the console
+server, the line discipline, the input driver and the shell. The two successful captures are still
+the two successful captures; what distinguishes them is now a fact about 2026-09-01 rather than a
+test to run.
+
 And five things that end a session early rather than waiting the clock out:
 
 | what | marker | source |

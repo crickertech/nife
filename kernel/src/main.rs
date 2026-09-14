@@ -988,8 +988,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // thread got, re-stated every dump. The table, so a stage number reads without the code:
         //
         //   3 = the outlaw step finished        7 = the UART-driver step finished
-        //   4 = the initrd demo was entered     8 = the virtio probe finished
-        //   5 = the initrd demo returned        9 = the PCIe probe finished
+        //   4 = the user-ELF step was entered   8 = the virtio probe finished
+        //   5 = the user-ELF step returned      9 = the PCIe probe finished
         //   6 = the preemption step finished   10 = the hardware-entropy step finished
         //                                      11 = the banner printed; the tour is over
         //
@@ -1001,59 +1001,54 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // that got as far as the entropy step and then stopped, not a boot that completed.
         sched::note_boot_stage(3);
 
-        // Running a real compiled ELF at U-mode, two ways, depending on the initrd.
+        // Running a real compiled ELF at U-mode, on the boots that carry one to run.
         if let Some(initrd) = user::initrd() {
-            // A nifefs archive with a `progenitor` entry means the richer path: the kernel loads
-            // only `builder` (milestone 20's minimal system builder), maps the whole archive into
-            // it, grants it a budget and a report endpoint, and the builder loads
-            // "least_authority_demo" from the
-            // archive and builds it as a child. Anything else is treated as a single bare ELF and
-            // run directly (the simpler path).
+            // Entered for either shape of initrd, which it was not before milestone 295: the
+            // breadcrumb used to fire only on the archive arm, so a bare-ELF boot that died here
+            // reported the stage before it and read as having died one step earlier than it did.
+            sched::note_boot_stage(4);
+
+            // **An archive initrd has no demonstration of its own here any more** (milestone 295,
+            // calef's ruling of 2026-09-14). It used to have the best one on this architecture:
+            // the kernel loaded `builder` out of the archive, granted it a budget and a report
+            // endpoint and nothing else, and `builder` parsed `least_authority_demo` out of the
+            // same archive **in userspace**, built it as a child from its own budget and started
+            // it. The kernel never touched the child's bytes. That was milestone 20's proof that
+            // userspace, not the kernel, composes a process, and the `init/build` line was it
+            // announcing itself.
             //
-            // The probe names `progenitor` rather than the entry the demo actually loads, because
-            // it is asking "is this one of our archives at all", and since milestone 266 that entry
-            // is on every archive this tree packs.
+            // **Milestone 268's item 4 is why it could go.** Nothing halts by default any more:
+            // this same boot now ends in `riscv_hand_over`, where the progenitor composes the
+            // console server, the line discipline, the input driver and `swish` out of its own
+            // budget through the same granular verbs. That is the identical claim at a larger
+            // scale, on the build `script/board-image` writes to a card, so the step below it was
+            // making it twice.
             //
-            // **Why this step was still here when the machine booted to `swish`** (milestone 289,
-            // which was sent to retire it and did not), **and what milestone 268 changed about that
-            // argument.** 289's reason was that `swish` arrives through the progenitor and the
-            // progenitor handoff was reached only by a `--features shell` build, so the **default**
-            // build, which is what `script/board-image` writes to a card, ran the tour and halted.
-            // On that build this step was the userspace-loads-userspace demonstration that reached
-            // the board, and it could be, because it is trimmed to a budget and a report endpoint:
-            // no PLIC, no NS16550 delegation, no interrupt route, and therefore no dependence on
-            // the board's UART source number, which is 10 on QEMU `virt` and 32 on the JH7110.
+            // **What the retirement drops is the minimality half, and it is dropped knowingly.**
+            // `builder` composed a process from **exactly two** capabilities; the progenitor is
+            // granted the NS16550 and the UART's interrupt line as well, because it is building a
+            // system rather than demonstrating a floor. See
+            // design/roadmap/295-retire-the-builder-program.md for where that claim went.
             //
-            // **Milestone 268's item 4 made that premise false, deliberately.** Nothing halts by
-            // default any more: the tour now ends in `riscv_hand_over`, so the default build and
-            // the card reach the progenitor and a prompt, and the progenitor composes the console,
-            // the line discipline, the input driver and `swish` out of its own budget on the same
-            // boot this step runs on. The claim this step makes is therefore carried by the handoff
-            // as well, at a larger scale, on this architecture. It is kept rather than deleted
-            // because the two claims are not identical (this one composes from **exactly two**
-            // capabilities and the progenitor does not) and because calef's 2026-09-14 ruling on
-            // retiring it has a condition attached. See
-            // `design/roadmap/proposals/retire-the-builder-program.md`, which is where the decision
-            // lives and what it costs.
+            // **And the measured-boot refusal moved rather than went.** The archive used to be
+            // checked against this kernel's trust root here (`trust::require("builder", ...)` and
+            // the measurement table with it); it is now checked in `riscv_shell_boot` at the
+            // handoff, which every default boot reaches. A card with the wrong archive still halts
+            // with `MEASURED BOOT REFUSED`, later in the transcript than it used to.
             //
-            // **The `init/build` line below is read by a program, not only by a person.**
-            // `crates/board_console`'s `Progress::userspace_ran` matches it by substring; four host
-            // tests assert on it, and three captured transcripts carry it, one of them off the
-            // VisionFive 2 (`vf2-2026-09-01-userspace.log`). `notes/board-console.md` calls it the
-            // only difference between the two successful board captures (an archive on the card,
-            // and none). Change the words and that goes quiet.
+            // **A board reader who knew the `init/build` line wants `boot_ladder::PROMPT` now.**
+            // That was the marker `crates/board_console`'s `Progress::userspace_ran` matched, and
+            // no kernel prints it after this milestone. The live rung is `Stage::Prompt`, which
+            // cannot appear unless userspace built the whole console stack, so it says more than
+            // the line it replaces. `userspace_ran` itself stays, for the captured VisionFive 2
+            // transcript that carries the old line and cannot be re-taken; its doc says so.
             let is_archive = nifefs::Fs::parse(initrd)
                 .map(|fs| fs.read(user::PROGENITOR_ENTRY).is_some())
                 .unwrap_or(false);
             if is_archive {
-                sched::note_boot_stage(4);
-                match user::riscv_initrd_demo(initrd) {
-                    Ok(sq) => println!(
-                        "  init/build  : the userspace builder loaded 'least_authority_demo' from a {}-byte archive and built it as a child; the child sent {sq} (expected 81)",
-                        initrd.len(),
-                    ),
-                    Err(e) => println!("  init/build  : the builder failed: {e:?}"),
-                }
+                println!(
+                    "  user ELF    : an archive; the progenitor composes this machine's userspace at the handoff below"
+                );
             } else {
                 const N: u64 = 7;
                 match user::riscv_least_authority_demo(initrd, N) {
@@ -2093,10 +2088,13 @@ fn stack_top() -> usize {
 /// The kernel loads the progenitor from the initrd, grants it the NS16550 and the UART's interrupt,
 /// and it builds the console server, the line discipline, the input driver and `swish` out of its
 /// own budget through the granular verbs. This is the line that retires the kernel as the system's
-/// builder on this architecture, and it is the same claim `components/src/builder.rs` was written
-/// to demonstrate in miniature: **userspace, not the kernel, composes a process.** The difference
-/// is that this one composes the whole running system rather than one child, and a person can then
-/// type at it.
+/// builder on this architecture, and since milestone 295 it is the **only** place this architecture
+/// makes that claim: **userspace, not the kernel, composes a process.** `components/src/builder.rs`
+/// used to make it in miniature one step up the tour, from exactly two capabilities, and calef
+/// retired it on 2026-09-14 on the ground that this carries it at a larger scale on the same boot.
+/// The difference is that this one composes the whole running system rather than one child, and a
+/// person can then type at it; what it does not carry is the minimality half, which is why
+/// design/roadmap/295-retire-the-builder-program.md exists and says where that went.
 ///
 /// **Two callers, one body** (milestone 268). It was the inside of the `#[cfg(feature = "shell")]`
 /// block and nothing else; since this milestone the *default* boot ends here too, so the two paths
