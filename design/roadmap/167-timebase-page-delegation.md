@@ -2,7 +2,7 @@
 
 **Status: NOT-STARTED.** Minted 2026-08-25, from a gap PR #476 (milestone 161's `cntfrq` follow-up,
 DECISIONS §121-adjacent but not that decision itself) found and documented rather than closed: a
-process built through the userspace ELF loader (`crates/supervision_proto::build_child_space`)
+process built through the userspace ELF loader (`crates/supervision_protocol::build_child_space`)
 cannot reach the real x86_64 timebase page that a kernel-built process gets automatically.
 
 **Gate: NONE.** No hardware dependency; this is capability plumbing.
@@ -19,7 +19,7 @@ capability is involved, because the kernel does not need permission to touch its
 
 ## Why `build_child_space` cannot do the same thing
 
-`crates/supervision_proto::build_child_space` runs in **userspace**, inside whatever process calls
+`crates/supervision_protocol::build_child_space` runs in **userspace**, inside whatever process calls
 it (`root_supervisor`, `spawner`, and any other builder role), and builds every page of the child it
 constructs by `Untyped::RETYPE`ing a **fresh frame out of its own budget**
 (`retype_page_frame_from(build_ut)`). It has no mechanism for mapping a specific, pre-existing physical
@@ -29,13 +29,13 @@ to any userspace process.
 
 **Current mitigation, already built and documented (PR #476), so this degrades safely rather than
 faulting.** `build_child_space` retypes a fresh, zeroed placeholder frame instead and maps that at
-`timebase_proto::PAGE_VA`. `timebase_proto::TimebasePage::hz()` reads a zeroed page as `None`
+`counter_frequency_protocol::PAGE_VA`. `counter_frequency_protocol::TimebasePage::hz()` reads a zeroed page as `None`
 ("unknown"), never as a fabricated rate, and `user_rt::cntfrq()` falls back to its old hardcoded
 `1_000_000_000` in that case. The honest gap is recorded in both crates' own `BUGS` sections:
-`crates/timebase_proto`'s (*"A process built by `supervision_proto::build_child_space` reads a
+`crates/counter_frequency_protocol`'s (*"A process built by `supervision_protocol::build_child_space` reads a
 placeholder, not the kernel's real number... closing it needs a capability handed from whoever built
 the calling process, forwarded through every generation of the supervision tree"*) and
-`crates/supervision_proto`'s own comment at the `build_child_space` call site making the identical
+`crates/supervision_protocol`'s own comment at the `build_child_space` call site making the identical
 point. This milestone is where that closing happens.
 
 ## What it needs, three real pieces

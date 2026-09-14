@@ -26,14 +26,14 @@ fn read_payload(n: usize, out: &mut [u8]) -> usize { ... OFF_PAYLOAD ... }
 |---|---|---|
 | `components/src/entropy.rs` | `components/` | a virtio DMA region |
 | `components/src/net_transport.rs` | `components/` | a virtio DMA region |
-| `components/src/mdns_responder.rs` | `components/` | the socket contract's frame |
+| `components/src/multicast_dns_responder.rs` | `components/` | the socket contract's frame |
 | `components/src/socket_test_client.rs` | `components/` | the socket contract's frame |
 | `components/src/network_time_client.rs` | `components/` | the socket contract's frame |
 | `fixtures/src/network_time_test_server.rs` | `fixtures/` | the socket contract's frame |
 
 **This is code, not a fact two binaries agree on**, which is why AGENTS.md rule 7 does not already
 forbid it and why `script/lint` check 5 does not fire: the layout the accessors read is
-`crates/socket_proto`'s, and it is a crate already. What is copied is the arithmetic that turns an
+`crates/socket_protocol`'s, and it is a crate already. What is copied is the arithmetic that turns an
 absolute virtual address back into the offset `MappedWindow` bounds-checks.
 
 ## Why it is worth closing anyway
@@ -49,13 +49,13 @@ if the window abstraction moves again.
 
 ## The shape, and the one question a lane has to answer
 
-**Four of the six speak the socket contract**, and for those the natural home is `crates/socket_proto`
+**Four of the six speak the socket contract**, and for those the natural home is `crates/socket_protocol`
 beside the offsets they already use: a small type holding the window and the base address, with
 `payload_write`, `payload_read`, `dst_ip`, `dst_port` and `len` as methods rather than free functions
 over an absolute VA.
 
 **Two are virtio DMA users** and are a different shape: their offsets are device descriptor rings, not
-`socket_proto`'s header, and `crates/virtio` is where that belongs if anywhere. **Price them
+`socket_protocol`'s header, and `crates/virtio` is where that belongs if anywhere. **Price them
 separately and do not force one abstraction over both**, which is the speculative trait-ification
 AGENTS.md refuses.
 
@@ -66,7 +66,7 @@ into the crate would be inventing an agreement that does not exist.
 
 ## What would close it
 
-Four programs constructing one type from `socket_proto`, their local accessor functions gone, and the
+Four programs constructing one type from `socket_protocol`, their local accessor functions gone, and the
 existing socket, mDNS and network time tests green on both ISAs with no test changed. If the virtio
 pair is done in the same lane, `crates/virtio`'s own host tests too. Any new type is a name calef has
 not ruled on, so it ships provisional and says so.

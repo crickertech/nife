@@ -13,7 +13,7 @@
 //!   `CALL`s here).
 //! - **slot 1**: the report endpoint, `WRITE`.
 //! - **[`FILE_VA`]**: the base of the channel shared with the FS server (a name out, file bytes
-//!   both ways). `filesystem_proto::fs::TRANSFER_PAGES` pages, all of them mapped by this client's wiring,
+//!   both ways). `filesystem_protocol::fs::TRANSFER_PAGES` pages, all of them mapped by this client's wiring,
 //!   because the throughput role asks for the whole of it in one request.
 //!
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `fsclient`. Refused `fsclient`
@@ -28,7 +28,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use filesystem_proto::{dir, fixture, fs, grant, xattr};
+use filesystem_protocol::{dir, fixture, fs, grant, xattr};
 use grant_plan::nav::{TwoRoots, Which};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, exit, now, send};
@@ -40,7 +40,7 @@ const FILE: u64 = 0;
 const REPORT: u64 = 1;
 /// The base of the client's mapping of the channel it shares with the FS server.
 ///
-/// **It is `filesystem_proto::fs::TRANSFER_MAX` bytes wide, not one page** (milestone 138 step 3), and the
+/// **It is `filesystem_protocol::fs::TRANSFER_MAX` bytes wide, not one page** (milestone 138 step 3), and the
 /// kernel's wiring maps every page of it here (`kernel/src/user/fs_service.rs`, `map_channel`). A
 /// client may not ask for more than it mapped, and this one maps all of it, which is what lets the
 /// throughput role measure the contract's own ceiling rather than a page.
@@ -103,7 +103,7 @@ const STAGE_WRITE: u64 = 3;
 /// compared against `SUCCESS`.
 ///
 /// `w0` is the raw reply word, `w1` is `0xBADD_0000 | stage << 12 | errno`. The errno is recovered
-/// with `filesystem_proto::reply_errno`'s rule (a negative reply is a negated errno). Note the known
+/// with `filesystem_protocol::reply_errno`'s rule (a negative reply is a negated errno). Note the known
 /// reply-space overlap (notes/std.md): the kernel's own `invoke` errors are -1..-8, so a small value
 /// here is ambiguous between "the server returned this errno" and "the IPC itself failed". The raw
 /// word travels in `w0` precisely so that ambiguity is visible rather than hidden.
@@ -196,8 +196,8 @@ const ROLE_DIR_ATTACKER: u64 = 5;
 /// nothing; it tries a name the set carries and a name it does not, and reports what got through.
 const ROLE_SET_ATTRS: u64 = 6;
 /// Milestone 38: sequential and random read/write throughput through the FS server, the four
-/// phases `filesystem_proto::fixture::throughput` names. The `--real --smp` bench boot spawns it after
-/// [`ROLE_BENCH`], on the service that role already wired. The number lives in `filesystem_proto` because
+/// phases `filesystem_protocol::fixture::throughput` names. The `--real --smp` bench boot spawns it after
+/// [`ROLE_BENCH`], on the service that role already wired. The number lives in `filesystem_protocol` because
 /// the kernel passes it and this program matches on it, which is rule 7's case exactly.
 const ROLE_THROUGHPUT: u64 = fixture::throughput::ROLE;
 /// Milestone 154: the confined program that holds **two** directory capabilities at once, one at
@@ -248,7 +248,7 @@ const STAGE_OPENDIR: u64 = 5;
 const STAGE_CREATE: u64 = 6;
 
 /// `EEXIST`: the standard value (matching `redoxfs`/`syscall`'s own, which `redoxfs_server` returns and
-/// nothing in `filesystem_proto` re-exports under a name), the same constant
+/// nothing in `filesystem_protocol` re-exports under a name), the same constant
 /// `identity_provisioner.rs` defines locally for the identical reason.
 const EEXIST: i32 = 17;
 
@@ -258,22 +258,22 @@ const EEXIST: i32 = 17;
 /// [`ROLE_SCHEDULE_VERIFY`]), in `.bss` rather than on the stack: this program's stack is small
 /// (`fs_service::spawn_fs_client`'s default, no extra pages granted to either role), the same
 /// reason the SMB adapter's own buffers were `static mut` rather than local, and
-/// `filesystem_proto::PAGE` bytes does not fit it (this crashed under `script/test`'s aarch64 run
+/// `filesystem_protocol::PAGE` bytes does not fit it (this crashed under `script/test`'s aarch64 run
 /// before this fix landed: a data abort at the stack's guard page, from `schedule_verify` alone
 /// putting two page-sized arrays on the stack at once). `schedule_verify` needs both live
 /// simultaneously to compare them; `schedule_seed` uses only [`page_buf_a`].
-static mut PAGE_BUF_A: [u8; filesystem_proto::PAGE] = [0; filesystem_proto::PAGE];
-static mut PAGE_BUF_B: [u8; filesystem_proto::PAGE] = [0; filesystem_proto::PAGE];
+static mut PAGE_BUF_A: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
+static mut PAGE_BUF_B: [u8; filesystem_protocol::PAGE] = [0; filesystem_protocol::PAGE];
 
 /// One thread per address space (DECISIONS §33), so there is no concurrent access; the previous
 /// role's use of this buffer, if any, is done before `_start` ever picks a role to run.
-fn page_buf_a() -> &'static mut [u8; filesystem_proto::PAGE] {
+fn page_buf_a() -> &'static mut [u8; filesystem_protocol::PAGE] {
     let p = &raw mut PAGE_BUF_A;
     // SAFETY: see above.
     unsafe { &mut *p }
 }
 /// Same reasoning as [`page_buf_a`].
-fn page_buf_b() -> &'static mut [u8; filesystem_proto::PAGE] {
+fn page_buf_b() -> &'static mut [u8; filesystem_protocol::PAGE] {
     let p = &raw mut PAGE_BUF_B;
     // SAFETY: see `page_buf_a`.
     unsafe { &mut *p }
@@ -288,7 +288,7 @@ fn schedule_seed() -> ! {
     // why that is recovery rather than failure, not a special case invented for this role.
     put_page(identity);
     let (mk, _) = call(FILE, fs::req(fs::MKDIR, 0, identity.len() as u64), dir::ALL);
-    if (mk as i64) < 0 && filesystem_proto::reply_errno(mk as i64) != Some(EEXIST) {
+    if (mk as i64) < 0 && filesystem_protocol::reply_errno(mk as i64) != Some(EEXIST) {
         fail(STAGE_MKDIR, mk);
     }
 
@@ -380,7 +380,11 @@ fn schedule_verify() -> ! {
     let sh = open_at(dh, schedule_store::SCHEDULE_FILE_NAME.as_bytes());
     // One byte past what is expected, so a file that is *longer* than expected (a bug that wrote
     // extra bytes) is visible as a mismatch rather than silently truncated to a match.
-    let n = read(sh, 0, (expected_doc.len() + 1).min(filesystem_proto::PAGE));
+    let n = read(
+        sh,
+        0,
+        (expected_doc.len() + 1).min(filesystem_protocol::PAGE),
+    );
     let got = page_buf_a();
     get_page(n, got);
     let (c, _) = call(FILE, fs::req(fs::CLOSE, sh, 0), 0);
@@ -400,7 +404,7 @@ fn schedule_verify() -> ! {
     let mn = schedule_store::render_manifest(&[identity], expected_manifest)
         .expect("one short identity name always fits the manifest buffer");
     let mh = open(schedule_store::MANIFEST_FILE_NAME);
-    let got_n = read(mh, 0, (mn + 1).min(filesystem_proto::PAGE));
+    let got_n = read(mh, 0, (mn + 1).min(filesystem_protocol::PAGE));
     let got_manifest = page_buf_b();
     get_page(got_n, got_manifest);
     let (mc, _) = call(FILE, fs::req(fs::CLOSE, mh, 0), 0);
@@ -619,7 +623,7 @@ fn attacker(writable: bool) -> ! {
         ),
         0,
     );
-    if filesystem_proto::reply_errno(g0 as i64) == Some(xattr::ENOTSUP) {
+    if filesystem_protocol::reply_errno(g0 as i64) == Some(xattr::ENOTSUP) {
         verdict |= escape::GRANTED_ATTRS_FAILED;
     }
 
@@ -816,7 +820,7 @@ fn dir_attacker(run: u64) -> ! {
         // buffer with a length the server chose would be a panic this program cannot report.
         let n = (n as usize).min(buf.len());
         get_page(n, &mut buf);
-        for (name, _) in filesystem_proto::dirent::iter(&buf[..n]) {
+        for (name, _) in filesystem_protocol::dirent::iter(&buf[..n]) {
             for stranger in [
                 fixture::MOTD_NAME,
                 fixture::SCRATCH_NAME,
@@ -948,7 +952,7 @@ fn dir_attacker(run: u64) -> ! {
 ///   already argues (the endpoint is the boundary), witnessed here with two live caretakers
 ///   rather than inferred from one.
 fn two_dir() -> ! {
-    use filesystem_proto::fixture::twodir as t;
+    use filesystem_protocol::fixture::twodir as t;
     use fixture::tree;
 
     /// Grant A's endpoint: `fs_service::start_granted_two_dirs`' slot 0.
@@ -1280,14 +1284,14 @@ fn attr_witness(scratch: u64) -> u64 {
         xattr::spec(xattr::RAW, (xattr::MAX_VALUE + 1) as u64),
     )
     .0 as i64;
-    if filesystem_proto::reply_errno(r) == Some(xattr::E2BIG) {
+    if filesystem_protocol::reply_errno(r) == Some(xattr::E2BIG) {
         v |= attrs::OVERSIZE_REFUSED;
     }
 
     // 4. Removing it takes it away, and reading it afterwards is ENODATA. Without this the round
     //    trip above is equally true of a store that never forgets anything.
     if xattr_remove(scratch, attrs::NAME) >= 0
-        && filesystem_proto::reply_errno(xattr_get(scratch, attrs::NAME)) == Some(xattr::ENODATA)
+        && filesystem_protocol::reply_errno(xattr_get(scratch, attrs::NAME)) == Some(xattr::ENODATA)
     {
         v |= attrs::GONE_AFTER_REMOVE;
     }
@@ -1350,7 +1354,7 @@ fn attr_witness(scratch: u64) -> u64 {
         }
         get_page(n as usize, &mut buf);
         let mut seen = 0u64;
-        for (name, _) in filesystem_proto::dirent::iter(&buf[..(n as usize).min(buf.len())]) {
+        for (name, _) in filesystem_protocol::dirent::iter(&buf[..(n as usize).min(buf.len())]) {
             if name == xattr::STORE_DIR.as_bytes() {
                 clean = false;
             }
@@ -1409,7 +1413,7 @@ fn bench() -> ! {
 /// payload cost. The bench boot turns those into the `fs_seq_write` / `fs_seq_read` /
 /// `fs_rand_read` / `fs_record_read` / `fs_rand_write` / `fs_payload_fill` lines and into MiB/s.
 ///
-/// **What one transfer is, and why that is the whole story.** One `filesystem_proto` request moves at most
+/// **What one transfer is, and why that is the whole story.** One `filesystem_protocol` request moves at most
 /// `fs::TRANSFER_MAX` bytes, because the payload travels through the region the client shares with
 /// the server. That was one page until milestone 138 step 3 and is sixteen now, so a phase here is
 /// `UNIT` per request and the throughput is the request rate times `UNIT`. A Linux program reading
@@ -1425,10 +1429,10 @@ fn bench() -> ! {
 /// allocation, and the read phases have something laid out by the server under test rather than by
 /// the host tool. It is also the reason there is no separate "create" number.
 ///
-/// **What a write here promises, which decides what it compares against.** Every `filesystem_proto` write
+/// **What a write here promises, which decides what it compares against.** Every `filesystem_protocol` write
 /// goes through one RedoxFS transaction that commits to the header ring before the reply, so the
 /// filesystem's own state is durable per request the way `O_DSYNC` makes ext4's; but no device
-/// flush is issued unless a client asks for one (`filesystem_proto::fs::SYNC`), so the bytes sit where
+/// flush is issued unless a client asks for one (`filesystem_protocol::fs::SYNC`), so the bytes sit where
 /// `O_DIRECT` alone leaves them. This sits **between** Linux's two, and notes/benchmarks.md prints
 /// both rather than picking one.
 ///
@@ -1549,7 +1553,7 @@ fn throughput() -> ! {
 }
 
 /// Open the throughput file, creating it if this is the first run against this image and emptying
-/// it if it is not. `CREATE` answers `EEXIST` rather than opening (`filesystem_proto`'s note says why), so
+/// it if it is not. `CREATE` answers `EEXIST` rather than opening (`filesystem_protocol`'s note says why), so
 /// the fallback is an explicit open-and-truncate.
 fn throughput_file() -> u64 {
     let name = fixture::THROUGHPUT_NAME;

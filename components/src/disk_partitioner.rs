@@ -3,9 +3,9 @@
 //! The destructive half of the pair, and the one whose endowment is the point. It holds exactly
 //! two things:
 //!
-//! - a **block-service endpoint** for **one** disk (`filesystem_proto::blk`), which is the authority to
+//! - a **block-service endpoint** for **one** disk (`filesystem_protocol::blk`), which is the authority to
 //!   destroy that disk and no other; and
-//! - an **entropy endpoint** (`entropy_proto`), which is the authority to obtain random bytes and
+//! - an **entropy endpoint** (`entropy_protocol`), which is the authority to obtain random bytes and
 //!   nothing else: it cannot reach the virtio-rng device, program its queue, or see the page the
 //!   device writes into.
 //!
@@ -34,7 +34,7 @@
 //!
 //! # What it writes
 //!
-//! The layout is `filesystem_proto::fixture::blank`, three partitions on a 64 MiB disk in the 2048-block
+//! The layout is `filesystem_protocol::fixture::blank`, three partitions on a 64 MiB disk in the 2048-block
 //! alignment every real tool uses. Placement is this program's decision and not the crate's:
 //! `Gpt::create` validates a layout and refuses to move one, because alignment is policy and a
 //! format library that quietly relocated a partition would be doing policy behind its caller's
@@ -62,7 +62,7 @@
 //! # BUGS
 //!
 //! - **The logical block size is assumed to be 512**, the same assumption and the same reason as
-//!   `disk_surveyor`: nothing in `filesystem_proto::blk` carries the device's, and every disk this project
+//!   `disk_surveyor`: nothing in `filesystem_protocol::blk` carries the device's, and every disk this project
 //!   has met reports 512. Writing a table with the wrong unit produces a table no other OS can
 //!   read, which is worse than a wrong answer on the read side. The fix is a field on the wire.
 //! - **It writes one hard-coded layout.** There is no `mkpart` command line, no partition sizing,
@@ -108,9 +108,9 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use entropy_proto as entropy;
-use filesystem_proto::fixture::blank;
-use filesystem_proto::{blk, req};
+use entropy_protocol as entropy;
+use filesystem_protocol::fixture::blank;
+use filesystem_protocol::{blk, req};
 use gpt::entry::Entry;
 use gpt::guid::{Guid, types};
 use gpt::{ENTRY_ARRAY_BYTES, Gpt};
@@ -371,7 +371,7 @@ fn verify() -> ! {
 /// Sixteen random bytes from the entropy service, or `None` if this process holds no entropy
 /// endpoint (or the service has none to give).
 ///
-/// Two round trips, because a reply carries one word. `entropy_proto::delivered` is what separates
+/// Two round trips, because a reply carries one word. `entropy_protocol::delivered` is what separates
 /// "the service answered with n bytes" from "the kernel refused the call", and it can: a count is
 /// always `0..=8`, while every kernel error is a small negative that reads as an enormous `u64`.
 /// So a program with an empty slot 2 finds out here, before it has written anything.

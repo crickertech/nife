@@ -10,7 +10,7 @@ has existed and been live all along; this milestone spent it for its first real 
 ## What was built
 
 **The `MappedWindow` cluster, the milestone's first real reduction.** Seven userspace programs
-(`entropy`, `kbd`, `net_transport`, `mdns_responder`, `socket_test_client`, `smb_server`, `ntp`)
+(`entropy`, `kbd`, `net_transport`, `multicast_dns_responder`, `socket_test_client`, `smb_server`, `ntp`)
 each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions over a DMA page or
 a shared IPC frame, one hand-written `// SAFETY:` comment per function asserting the same
 invariant ("this offset is inside the page the kernel mapped here") by hand at every call site --
@@ -251,7 +251,7 @@ real performance question" framing, because the answer is: not here, since there
 check (bounds or otherwise) on this path today.
 
 What remains is genuinely per-pixel `unsafe`: `painter.rs`'s and `window.rs`'s `px_write`/`px_read`
-(a client painting and then digesting its own surface, `graphics_proto::PIXELS` = 8,192 accesses per
+(a client painting and then digesting its own surface, `graphics_protocol::PIXELS` = 8,192 accesses per
 run for `painter.rs`, up to 2,048 for the largest window in `compositor::SCENE`), `display.rs`'s
 `surface_pixel` (the driver's own post-flush digest, also 8,192 accesses per run, sharing its
 `dma_read`/`dma_write` pair with a few dozen one-off virtqueue-field writes that are not the
@@ -285,7 +285,7 @@ about it further" in round 3's own words. This round got that number, then migra
 against one loop performing `MappedWindow::check`'s own arithmetic first
 (`off.checked_add(size).is_some_and(|end| end <= len)`), at three volumes: 56 (one glyph cell,
 `bitmap_font::GLYPH_W * GLYPH_H`, `display_terminal.rs`'s smallest keystroke-driven repaint), 2,048
-(`window.rs`'s largest `compositor::SCENE` surface) and 8,192 (`graphics_proto::PIXELS`, the
+(`window.rs`'s largest `compositor::SCENE` surface) and 8,192 (`graphics_protocol::PIXELS`, the
 one-shot digest volume `painter.rs`, `display.rs` and `window.rs`'s own largest surface all share).
 Run via `script/bench` (icount, deterministic instruction counts, the right instrument for a
 path-length question rather than a magnitude one; notes/benchmarks.md's own table names icount for

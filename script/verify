@@ -221,7 +221,7 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 # wrong. Re-measure by reading the `==> kani:` timestamps out of a CI log, which is what produced
 # these, rather than by running the suite locally for half an hour.
 #
-# **A MISSING ROW is the one way this table can make the proofs wrong**, and it happened. `mdns_proto`
+# **A MISSING ROW is the one way this table can make the proofs wrong**, and it happened. `multicast_dns_protocol`
 # landed with milestone 55 carrying three harnesses and was not added here, so nothing proved them and
 # nothing said so: the suite went green faster, which is exactly the invisible failure the sharding
 # comment below warns about, arriving through the crate list instead of through the packer. Found on
@@ -233,10 +233,10 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 # **It happened a second time, and the fix is a gate rather than another paragraph** (milestone 193,
 # 2026-08-30). `jh7110_entropy` had carried three harnesses since the board work and appeared nowhere in
 # this file; the three pass, and now they run. Nothing in the tree could have found either it or
-# `mdns_proto`, because the packer's partition assertion below checks that the shards cover this
+# `multicast_dns_protocol`, because the packer's partition assertion below checks that the shards cover this
 # TABLE and never that this table covers the TREE. `script/lint`'s "every crate with proof harnesses
 # is in the verify table" check is that missing comparison, and it costs a second instead of 42
-# minutes. Its 6 seconds, like `mdns_proto`'s 21, are a dev-Mac number and the wrong machine for this
+# minutes. Its 6 seconds, like `multicast_dns_protocol`'s 21, are a dev-Mac number and the wrong machine for this
 # column; replace both from the first CI log that carries them.
 #
 # `kernel`'s 5 seconds are the same kind of number and carry one extra caveat: what the solver spends
@@ -265,13 +265,13 @@ nifefs	2	the initrd parser the kernel runs on boot input
 pci	6	config-space decode on hostile-device input
 nvme	2	the queue rings never index out, and the doorbell/PRP arithmetic is total
 dma_validator	175	the DMA-confinement validator, no descriptor escapes the grant
-ntp_proto	17	the 1900-epoch era pivot, and no hostile packet moves the clock
+network_time_protocol	17	the 1900-epoch era pivot, and no hostile packet moves the clock
 gpt	64	the partition table's CRC-32, its round trips, and partitions that overlap
 calendar	600	the civil-date arithmetic, and the parser on hostile text
 glob	902	matching is total, and a hostile pattern cannot be made to blow up
-filesystem_proto	1	a directory capability's child never exceeds its parent, at any depth
-credential_proto	4	no request word reads outside the page; nothing but MATCH authenticates
-mdns_proto	21	the name decoder terminates and stays in bounds on every byte string
+filesystem_protocol	1	a directory capability's child never exceeds its parent, at any depth
+credential_protocol	4	no request word reads outside the page; nothing but MATCH authenticates
+multicast_dns_protocol	21	the name decoder terminates and stays in bounds on every byte string
 component_plan	10	no wiring grants a right its declaration did not ask for
 timetable	5	the scheduler's fire arithmetic: strictly forward, minimal, and a stall costs one fire
 jh7110_entropy	6	the board TRNG's status decode, and that a lockup bit is never overridden
@@ -361,7 +361,7 @@ for c in $crates; do
         # So the binaries are SELECTED, and the selection is **derived from the tree** rather than
         # written here. A list would be one name short the first time somebody adds a harness to a
         # 69th program, and that failure is the invisible one this file has now recorded twice
-        # (`mdns_proto`, `jh7110_entropy`): the suite goes green faster and nothing says a harness
+        # (`multicast_dns_protocol`, `jh7110_entropy`): the suite goes green faster and nothing says a harness
         # stopped running. `script/lint` catches a whole crate missing from the table above; only
         # this can catch a binary missing from within one.
         #

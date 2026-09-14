@@ -289,7 +289,7 @@ build them, and report what breaks.
   `design/decisions/105-thread-spawn-decline-for-now.md` and in `notes/thread-spawn-fork.md`. It
   stays unsupported permanently rather than pending.
 - **Done.** Ranks 19 and 28 no longer want a decision: milestone 47's mtime lane landed the get,
-  set and set-at verbs in `crates/filesystem_proto`, on
+  set and set-at verbs in `crates/filesystem_protocol`, on
   `design/decisions/112-touch-mtime-authority.md`, decided 2026-08-23.
 - **Outstanding.** What is left of ranks 19 and 28 is a PAL binding rather than a fork: the
   filesystem shim under `patches/std-nife/overlay/std/src/sys/` still returns unsupported and its
@@ -297,7 +297,7 @@ build them, and report what breaks.
 - **Recorded.** The exit event still carries no exit code, so a supervisor can tell exit from crash
   and cannot tell `exit(0)` from `exit(1)`. The reasoning lives in `notes/std.md`.
 - **Done.** `env` is seeded now: `design/decisions/111-inert-config-is-a-validated-page.md` and
-  `crates/environment_proto` define a validated read-only page, and the environment shim under
+  `crates/environment_protocol` define a validated read-only page, and the environment shim under
   `patches/std-nife/overlay/std/src/sys/env/nife.rs` fills `TZ`, `LANG` and `TERM` from it before
   `main` runs.
 - **Milestone 154.** Tier-two `File::open`, anything that joins or traverses, still waits on a

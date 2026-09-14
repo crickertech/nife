@@ -248,7 +248,7 @@ fn the_entry_array_buffer_sets_the_entry_count() {
 /// real-disk version proves the same thing about bytes a real tool wrote.
 ///
 /// Enumeration is the right tool at this size and it is *stronger* than a solver result, which is
-/// the point `ntp_proto` made and this crate inherits: a model checker is for domains too big to
+/// the point `network_time_protocol` made and this crate inherits: a model checker is for domains too big to
 /// count. The symbolic form of this property (any buffer, not this one) is the Kani harness
 /// `a_single_byte_change_always_changes_the_crc`.
 ///

@@ -119,7 +119,7 @@ rule already priced. Each new adapter adds the wire format only.
   named under "NFSv3" and the reason SMB was required for Time Machine. If the demonstration
   target ever includes a multi-user nife with NFS, the credential story would need RPCSEC_GSS or
   a local mapping layer.
-- **`crates/nfs_proto` would be the third protocol crate in this tree** (`smb_proto`, `mdns_proto`,
+- **`crates/nfs_proto` would be the third protocol crate in this tree** (`smb_proto`, `multicast_dns_protocol`,
   then `nfs_proto`), and the milestone-54 and 55 lane experience says the protocol crate is the
   place the bugs concentrate. Budget for it.
 - **No estimate of effort**, because the adapter pattern is proven but the XDR encoder-decoder is

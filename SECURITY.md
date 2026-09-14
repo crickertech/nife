@@ -169,7 +169,7 @@ disagreeing.)
   has the most room.
 - **notes/untrusted-input-audit.md**: the parsers and drivers that read bytes a hostile counterparty
   supplies in a single message or completion, which is the surface that arrived with `crates/nvme`
-  and `crates/mdns_proto` after the pass above was written. One finding, recorded and accepted: the
+  and `crates/multicast_dns_protocol` after the pass above was written. One finding, recorded and accepted: the
   NVMe driver panics on two completion fields the device writes, and the rule it hands forward is
   that **an IOMMU confines placement, not values**, so a confined device's accounting is as
   untrusted as its reach.

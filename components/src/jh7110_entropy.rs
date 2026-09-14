@@ -1,5 +1,5 @@
 //! **The JH7110 TRNG driver** (milestone 159; roadmap `design/roadmap/159-jh7110-trng-driver.md`,
-//! notes/entropy.md), an alternate backend for the entropy contract (`entropy_proto`,
+//! notes/entropy.md), an alternate backend for the entropy contract (`entropy_protocol`,
 //! DECISIONS §44), alongside `entropy.rs`'s virtio-rng one. Same contract, same shape ("a driver,
 //! not a new protocol"), different device: no virtqueue, no DMA page, just a register window.
 //!
@@ -31,12 +31,12 @@
 //!
 //! # Its authority, once something grants it
 //!
-//! - slot 0, the **request** endpoint (RECV): clients `CALL` here, `entropy_proto`'s wire format,
+//! - slot 0, the **request** endpoint (RECV): clients `CALL` here, `entropy_protocol`'s wire format,
 //!   unchanged from `entropy.rs`'s;
 //! - slot 1, a **readiness** endpoint (WRITE): exactly one message, either
-//!   [`proto::READY`](entropy_proto::READY) once the device has answered a first generation with
+//!   [`proto::READY`](entropy_protocol::READY) once the device has answered a first generation with
 //!   bytes that are not all zero, or a
-//!   [`bringup_failure`](entropy_proto::bringup_failure) word naming which step failed;
+//!   [`bringup_failure`](entropy_protocol::bringup_failure) word naming which step failed;
 //! - mapped: **one page**, the TRNG's register block, device-typed at [`TRNG_VA`], placed there by
 //!   whoever spawns this (rule 2: a base address, passed in, nothing this driver looks up). The
 //!   binding's `reg` window is `0x4000` and the spawner maps `0x1000` of it, because
@@ -64,11 +64,11 @@
 //!
 //! **A device that answers with zeros is condemned for the whole boot, with no way back.** An
 //! all-zero first generation is treated as a bring-up failure
-//! ([`proto::STEP_FIRST_ALL_ZERO`](entropy_proto::STEP_FIRST_ALL_ZERO)) and this driver then
+//! ([`proto::STEP_FIRST_ALL_ZERO`](entropy_protocol::STEP_FIRST_ALL_ZERO)) and this driver then
 //! answers every request `NO_ENTROPY` until it is restarted, even if the block is powered on
 //! underneath it a moment later. That is deliberate (a device that answers wrongly is worse than
 //! one that does not answer) and it is also the case a real clock driver would want to retry;
-//! milestone 220 is where that becomes worth building, and `entropy_proto`'s own `BUGS` carries the
+//! milestone 220 is where that becomes worth building, and `entropy_protocol`'s own `BUGS` carries the
 //! probability this refusal is wrong on a working device.
 //!
 //! **The polling bounds below are guesses.** [`POLL_TRIES`] and [`LOCKUP_RETRIES`] have no board
@@ -119,7 +119,7 @@
 #![no_main]
 
 use abi::rendezvous;
-use entropy_proto as proto;
+use entropy_protocol as proto;
 use jh7110_entropy::{
     CTRL_EXEC_RANDRESEED, CTRL_GENE_RANDNUM, ISTAT_ALL, ISTAT_RAND_RDY, ISTAT_SEED_DONE, MODE_R256,
     Outcome, Pool, interpret,
@@ -366,7 +366,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
 }
 
 /// The serve loop: one endpoint, one wait point, forever. Identical in shape to `entropy.rs`'s,
-/// because the contract (`entropy_proto`) is the thing that does not change between backends.
+/// because the contract (`entropy_protocol`) is the thing that does not change between backends.
 fn serve(mut pool: Pool, refuse: bool) -> ! {
     loop {
         let (w0, cap, _) = recv_cap(REQ);
@@ -387,7 +387,7 @@ fn serve(mut pool: Pool, refuse: bool) -> ! {
 }
 
 /// **The two 8s are the same 8.** `jh7110_entropy::Pool::take` clamps to the width of the word it
-/// answers with; `entropy_proto::want` clamps to the width of the word the wire carries. This file
+/// answers with; `entropy_protocol::want` clamps to the width of the word the wire carries. This file
 /// is the only one that depends on both, so it is where the agreement can be checked, and a
 /// compile-time assert is the rung this project reaches for when a fact can be made unrepresentable
 /// rather than remembered.

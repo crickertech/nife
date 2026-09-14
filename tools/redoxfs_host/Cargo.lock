@@ -214,7 +214,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8f59926911ef34d1efb9ea1ee8ca78385df62ce700ccf2bcb149011bd226888"
 
 [[package]]
-name = "entropy_proto"
+name = "entropy_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -241,7 +241,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "filesystem_proto"
+name = "filesystem_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -506,7 +506,7 @@ dependencies = [
 name = "redoxfs_host"
 version = "0.1.0"
 dependencies = [
- "filesystem_proto",
+ "filesystem_protocol",
  "gpt",
  "libc",
  "redox_syscall",
@@ -518,8 +518,8 @@ dependencies = [
 name = "redoxfs_server"
 version = "0.1.0"
 dependencies = [
- "entropy_proto",
- "filesystem_proto",
+ "entropy_protocol",
+ "filesystem_protocol",
  "gpt",
  "redox_syscall",
  "redoxfs",

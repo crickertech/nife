@@ -2,7 +2,7 @@
 
 *Milestone 23's third residual, and the one §32 named and declined: a component that stops answering
 **without dying**. The mechanism it interferes with is DECISIONS §41 and notes/live-replacement.md;
-read those first if you want the swap itself. `crates/swap_proto`, `components/src/swapper.rs`'s
+read those first if you want the swap itself. `crates/swap_protocol`, `components/src/swapper.rs`'s
 `ROLE_HUNG`, and `a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor` in
 `kernel/src/user/live_swap_tests.rs`.*
 
@@ -152,7 +152,7 @@ And its closing line, which is the general form: *"a bound expressed in somethin
 property under test."* A duration is that. A monotone count of work completed is not.
 
 Concretely, and it needs nothing that does not exist: **a component publishes a monotone progress
-counter in a page its supervisor owns.** §41 already has that page. `swap_proto::LOG_VA` is a frame
+counter in a page its supervisor owns.** §41 already has that page. `swap_protocol::LOG_VA` is a frame
 the operator retyped from its own budget and mapped read/write into every instance, and every instance
 stamps it as it serves. Reading it costs the watcher **zero syscalls** and the component **one store**.
 A verdict is then: *work is owed (a request went in and no counter moved) and the counter has not moved
@@ -212,7 +212,7 @@ component's capability table, and it is consumed on use. It cannot be delegated 
 reached by revoking anything. **Freeing a stranded caller requires the cooperation of the component
 whose lack of cooperation is the definition of the hang.**
 
-The test demonstrates that inversion rather than asserting it. `swap_proto::NOTE_RELEASE` is the
+The test demonstrates that inversion rather than asserting it. `swap_protocol::NOTE_RELEASE` is the
 operator's reply to the wedged instance, and the instance then uses the reply capability it took to
 answer `WEDGE_RELEASED` to the caller it stranded. In the test the wedge is deliberate and
 cooperates; a real one does not, and the `CL_WAS_RELEASED` bit exists so a reader can tell which of
@@ -378,7 +378,7 @@ invoke(DEVICE, abi::frame::REVOKE, 0, 0, 0);
 ## BUGS
 
 **Detection is not demonstrated, only its impossibility with what exists.** The wedge announces
-itself, and the note says so at every site: `swap_proto::NOTE_WEDGED`'s doc comment, the test's
+itself, and the note says so at every site: `swap_protocol::NOTE_WEDGED`'s doc comment, the test's
 header, and this file. What is under test is what a supervisor can do about a hang **it already knows
 about**. A run in which something noticed a hang on its own is not in this tree and cannot be until
 milestone 106's fork is decided, because every available notifier is a deadline and there is nothing

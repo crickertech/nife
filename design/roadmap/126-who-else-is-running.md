@@ -121,7 +121,7 @@ vocabulary invented) via `arch::mmu::translate_at`, present on both architecture
 previously reachable only from revocation's own tests.
 
 **The delegation audit §114 required, done rather than deferred.** Every site that mints an
-`Object::Aspace` capability was checked (`components/src/builder.rs`, `crates/supervision_proto`,
+`Object::Aspace` capability was checked (`components/src/builder.rs`, `crates/supervision_protocol`,
 `fixtures/src/hello.rs`, `fixtures/src/os_primitives_benchmarker.rs`, plus `kernel/src/bench.rs`'s
 benchmark harness): **none delegates one to a program other than its own builder.** Every path is
 retype -> map -> `Tcb::CONFIGURE` (which consumes the capability), all inside one thread. So there

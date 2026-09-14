@@ -56,7 +56,7 @@ block_roster        53       1        0         4      58    98.1
 c_seam              21       1        0         3      25    95.5
 calendar           369       7        3        16     395    98.2
 capability          37       1        0        16      54    97.4
-clock_proto         54       2        7         3      66    96.8
+clock_protocol         54       2        7         3      66    96.8
 compositor         209      14        0        10     233    93.7
 coremark           106       2        1         0     109    98.2
 cred               127       3        1        16     147    97.7
@@ -65,10 +65,10 @@ nifefs          107       0        0         8     115   100.0
 dma_validator       79       0        0         6      85   100.0
 dtb                294       1       20        10     325    99.7
 elf                 98       0        0         4     102   100.0
-entropy_proto       21       2        0         0      23    91.3
+entropy_protocol       21       2        0         0      23    91.3
 frames              93       3        1        12     109    96.9
 fs_proto           489      37        9        31     566    93.1
-graphics_proto          120       6        0         6     132    95.2
+graphics_protocol          120       6        0         6     132    95.2
 glob               110      14        6         5     135    89.2
 gpt                423       5        1        36     465    98.8
 grant_plan         367      26       20        76     489    93.7
@@ -77,13 +77,13 @@ ipc                 24       5        0         4      33    82.8
 isa                147      22        3        40     212    87.2
 line_editor        183      46        2         6     237    80.1
 measured_boot      118       9        4         6     137    93.1
-ntp_proto          156      16        0        14     186    90.7
+network_time_protocol          156      16        0        14     186    90.7
 paging             256      39        0        17     312    86.8
 pci                 88      27        4         3     122    77.3
 regions             11       0        0         1      12   100.0
 sink_proto          43       2        0         2      47    95.6
 slots               26       5        0        13      44    83.9
-socket_proto        15       2        0         0      17    88.2
+socket_protocol        15       2        0         0      17    88.2
 swish               44       3        9         2      58    94.6
 user_mode_heap           20       3        5         7      35    89.3
 video_terminal     211      79        0        11     301    72.8
@@ -112,7 +112,7 @@ what the final pass caught and the earlier passes' kills are in `previously_caug
 carries their unviable mutants. Reading `caught` off that file would undercount. The table instead
 takes the total per crate from `cargo mutants --list` on the merged tree, subtracts missed, timeout
 and the union of every pass's unviable, and calls the rest caught. Three of 5,551 listed mutants
-could not be matched to any pass's outcome (two in `glob`, one in `ntp_proto`, both crates whose
+could not be matched to any pass's outcome (two in `glob`, one in `network_time_protocol`, both crates whose
 line numbers moved when tests landed) and are counted as caught, which is the only place this table
 guesses. `script/mutation --save-baseline` writes the machine-readable copy the weekly job diffs
 against.
@@ -182,7 +182,7 @@ with an untested surface; it was a bookkeeping gap, and the two that remain (`ue
 `manual` at 52%) are the real ones.
 
 **Where the drop is.** The crates that existed at baseline are broadly stable or better: `gpt` 55/1,
-`elf` 12/0, `calendar` 46/0, `glob` 14/0, `cred` 14/0, `dtb` 43/3, `filesystem_proto` 65/8,
+`elf` 12/0, `calendar` 46/0, `glob` 14/0, `cred` 14/0, `dtb` 43/3, `filesystem_protocol` 65/8,
 `grant_plan` 67/2. Three crates carry nearly all of the loss, and all three are new since the
 baseline:
 
@@ -221,11 +221,11 @@ own. A refresh has now arrived, once, and it is lower.
 
 ## Calibration: the exhaustive crates
 
-The roadmap block predicted `ntp_proto` and `gpt` would score near-perfectly as a check on the
+The roadmap block predicted `network_time_protocol` and `gpt` would score near-perfectly as a check on the
 tool. The honest verdict: **they scored near-perfectly exactly where their exhaustive method
 reaches, and the tool's value was showing precisely where that is.**
 
-- **ntp_proto**: 155 of 186 mutants caught on first contact (83%, or 90% of the viable ones), and
+- **network_time_protocol**: 155 of 186 mutants caught on first contact (83%, or 90% of the viable ones), and
   every conversion the sweeps quantify over was mutation-proof. The 17 survivors sat in what the
   sweeps never read: a range constant tested from only one side, accessors no test called, a
   fixture whose tiny root delay could not tell `/ 2` from `% 2`, and stratum 15, which no
@@ -262,7 +262,7 @@ buckets. "Killed by" names the test written for it.
   assertions on: every input that would reach the guard's differing behaviour panics first, in
   both the original and the mutant. Those mutants are recorded equivalent-under-harness, not
   excluded in config, so they stay visible if the assertions ever move.
-- **Single-threaded blindness**: mutants in seqlock/atomic orderings (clock_proto's `publish`)
+- **Single-threaded blindness**: mutants in seqlock/atomic orderings (clock_protocol's `publish`)
   change nothing a single-threaded test can observe. Concurrency claims are argued in the code's
   comments and, where they are pure, proved; a unit test cannot carry them.
 
@@ -310,7 +310,7 @@ input that also trips check A.
 - **capability** (11): rights bits, `from_bits` masking (an OR there turns undefined bits into
   defined rights), idempotent union, and `insert_at` landing in the named slot; killed by
   `rights_bits_are_the_wire_format` and `insert_at_fills_exactly_the_named_slot`.
-- **clock_proto** (10): the request wire format and the sanity window's seconds-times-a-billion
+- **clock_protocol** (10): the request wire format and the sanity window's seconds-times-a-billion
   arithmetic, killed by `the_request_word_is_the_wire_format_it_claims` and
   `the_sanity_window_is_where_it_says`. Equivalent: the CAS's `s + 1` (single-threaded blindness,
   above; nothing observes the odd window, and the sequence still advances by two) and `decide`'s `>`
@@ -368,11 +368,11 @@ input that also trips check A.
   execute-only segment now asserts both sides, the header-table bounds get their exact edges, and
   `u16le` is pinned on bytes whose halves differ (every field in the old fixtures had a zero high
   byte, so reading the wrong neighbour byte read the same).
-- **entropy_proto** (3): `op` pinned with a non-GET opcode (`GET` is 1, so a body replaced by the
+- **entropy_protocol** (3): `op` pinned with a non-GET opcode (`GET` is 1, so a body replaced by the
   constant 1 passed every round trip). Equivalent: `|` vs `^` over disjoint masked operands, and
   `want`'s `>` at `n == MAX_BYTES`, where both branches return the same 8.
 
-- **graphics_proto** (22): the test pattern's channel math had no pinned pixel, so a wrong buffer
+- **graphics_protocol** (22): the test pattern's channel math had no pinned pixel, so a wrong buffer
   could only be wrong the same way on both sides; five hand-computed pixels, a one-bit-change
   digest test (an FNV whose xor became or collides exactly where it matters), and the errno's
   minus sign. Equivalent (7): OR-vs-XOR in `req` and the `rect` packing, where every field is
@@ -587,7 +587,7 @@ input that also trips check A.
   `a_table_is_empty_only_while_it_holds_nothing`. Equivalent: `name`'s `|` to `^`, where the
   generation is shifted into bits 63:32 and the slot is `< N <= u32::MAX` by the const assert in
   `new`, so the two operands never share a bit.
-- **socket_proto** (2): one real. `DATA_MAX` is `4096 - OFF_PAYLOAD` and the test only asked
+- **socket_protocol** (2): one real. `DATA_MAX` is `4096 - OFF_PAYLOAD` and the test only asked
   whether a full payload *fits* the frame, which `4096 / OFF_PAYLOAD` also does, so the constant
   could shrink by 3576 bytes unnoticed; it is now pinned as the whole page after the header, which
   refuses both a payload that overruns the grant and one that leaves granted bytes unreachable.
@@ -640,15 +640,15 @@ loop rather than an undetected bug.
 | isa | 25 | 12 | 10 | 3 | 0 |
 | glob | 21 | 14 | 0 | 7 | 0 |
 | dtb | 21 | 0 | 1 | 20 | 0 |
-| ntp_proto | 16 | 4 | 12 | 0 | 0 |
+| network_time_protocol | 16 | 4 | 12 | 0 | 0 |
 | compositor | 14 | 0 | 14 | 0 | 0 |
 | measured_boot | 13 | 1 | 8 | 4 | 0 |
 | swish | 12 | 2 | 1 | 9 | 0 |
 | calendar | 10 | 2 | 5 | 3 | 0 |
-| clock_proto | 9 | 0 | 2 | 7 | 0 |
+| clock_protocol | 9 | 0 | 2 | 7 | 0 |
 | user_mode_heap | 8 | 3 | 0 | 5 | 0 |
 | gpt | 6 | 1 | 4 | 1 | 0 |
-| graphics_proto | 6 | 0 | 6 | 0 | 0 |
+| graphics_protocol | 6 | 0 | 6 | 0 | 0 |
 | slots | 5 | 4 | 1 | 0 | 0 |
 | ipc | 5 | 4 | 1 | 0 | 0 |
 | frames | 4 | 1 | 2 | 1 | 0 |
@@ -659,26 +659,26 @@ loop rather than an undetected bug.
 | the 1-survivor crates | 4 | 0 | 4 | 0 | 0 |
 | **total** | **487** | **225** | **170** | **95** | **0** |
 
-The 2-survivor crates are `asid`, `credential_proto`, `entropy_proto`, `byte_sink_proto`, `socket_proto` and
+The 2-survivor crates are `asid`, `credential_protocol`, `entropy_protocol`, `byte_sink_protocol`, `socket_protocol` and
 `generational_table`' siblings; the 1-survivor crates are `abi`, `block_roster`, `c_seam` and `capability`. Their
 survivors are the recurring patterns named at the top of this section, one or two each.
 
 **Nothing is deferred, and that is a claim worth being suspicious of**, so here is what it rests on.
 Every "equivalent" in the table was argued from the code, and in the crates a later pass audited
-(compositor, frames, calendar, cred, clock_proto, gpt, fs_proto, dtb, glob) every one was also
+(compositor, frames, calendar, cred, clock_protocol, gpt, fs_proto, dtb, glob) every one was also
 **re-run under its mutation**. That audit changed six verdicts: five mutants called equivalent were
 real gaps (`frames::index_of`'s upper bound, `calendar::from_hm`'s sign guard and its offset-length
 check, `cred`'s memory ceiling, `gpt::check_partitions`' one-block partition), and glob's entire
 first pass turned out to have written its tests where `cargo test` could not see them. **A verdict
 reached by reading is wrong about ten percent of the time; a verdict reached by running is not.**
-The crates that were not re-audited (`grant_plan`, `machine_discovery`, `measured_boot`, `ntp_proto`, `ipc`,
+The crates that were not re-audited (`grant_plan`, `machine_discovery`, `measured_boot`, `network_time_protocol`, `ipc`,
 `intrusive_fifo`) had their kills verified the same way when they were written, but their *equivalence*
 claims rest on argument alone, and the weekly run is what will check them.
 
 **The alarming survivors, named.** A survivor in a security boundary is worth more attention than
 fifty in a display crate, so: `capability`, `memory_regions`, `dma_validator`, `nifefs` and `elf` have
 **zero real survivors** between them, and the three trust-boundary parsers score 100%. The one
-security-relevant survivor the run found anywhere was `filesystem_proto::xattr::store::write_record`, whose
+security-relevant survivor the run found anywhere was `filesystem_protocol::xattr::store::write_record`, whose
 value limit stopped being enforced under a single `||` to `&&`, on a path that re-emits records
 whose lengths come off the blob rather than from a bounds-checked caller. It is closed. The
 next-most-serious were `paging`'s user-VA gate and `Mapper::root` (a constant there installs the
@@ -723,8 +723,8 @@ this note records elsewhere.
 ## Scope and honest caveats
 
 - **Scope is the main workspace's host crates.** The exclusions (and their reasons) are in
-  `.cargo/mutants.toml`: the bare-metal crates cannot compile for the host, `supervision_proto`,
-  `swap_proto` and `virtio` compile but cannot execute a line without a kernel underneath, and
+  `.cargo/mutants.toml`: the bare-metal crates cannot compile for the host, `supervision_protocol`,
+  `swap_protocol` and `virtio` compile but cannot execute a line without a kernel underneath, and
   `xtask` is the build system, whose tests are the gates it runs.
 - **`redoxfs_server` and `tools/redoxfs_host` are not mutated.** Each is its own workspace (kept out of
   ours so upstream RedoxFS never meets our clippy/fmt gates), and cargo-mutants works one workspace
@@ -855,7 +855,7 @@ of the tree.
 | | peak address space |
 |---|---|
 | largest (`board_console`) | 1,028 MiB |
-| next (`graphics_proto`) | 481 MiB |
+| next (`graphics_protocol`) | 481 MiB |
 | mean across 143 binaries | 169 MiB |
 
 So 4 GiB is **4.0x the largest honest test binary in the tree**. The other half of the choice is the

@@ -867,7 +867,7 @@ that reports it.
 words** because x86 instructions are not a fixed width; one `copy_nonoverlapping` over
 `size_of_val` now serves all three element types.
 
-`console::uart_put`, `input`'s `uart` module and `swap_proto::probe_device` cannot reach a device
+`console::uart_put`, `input`'s `uart` module and `swap_protocol::probe_device` cannot reach a device
 from ring 3 at all. Their x86 arms `trap()` (or return a sentinel that nothing observes) rather than
 no-op, and that is the whole point: a silent no-op compiles into a console that acknowledges every
 byte and prints none, which is a lie told in the one place an operator is looking. Those programs

@@ -68,7 +68,7 @@ fn wired() -> Option<[u64; 3]> {
             let seed = crate::sched::ipc_recv(seed_report);
             assert_eq!(
                 seed[0],
-                filesystem_proto::fixture::SUCCESS,
+                filesystem_protocol::fixture::SUCCESS,
                 "the schedule-store seed (ROLE_SCHEDULE_SEED) did not report success; word 1 \
                  carries the stage/errno `fail`'s own encoding packs (see \
                  `fixtures/src/fs_test_client.rs`'s `fail`): {seed:?}",
@@ -104,7 +104,7 @@ fn wired() -> Option<[u64; 3]> {
     ])
 }
 
-/// **The headline: what `ROLE_SCHEDULE_SEED` wrote through `filesystem_proto`,
+/// **The headline: what `ROLE_SCHEDULE_SEED` wrote through `filesystem_protocol`,
 /// `session_reviver` reads back, parses with the real `timetable::parse`, re-derives a session for
 /// in the durable-session shape milestone 152 first built for the SMB adapter, and then provably
 /// relinquishes.**
@@ -199,7 +199,7 @@ fn a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote() {
     let verify = crate::sched::ipc_recv(report);
     assert_eq!(
         verify[0],
-        filesystem_proto::fixture::SUCCESS,
+        filesystem_protocol::fixture::SUCCESS,
         "a fresh read of the store did not match what ROLE_SCHEDULE_SEED wrote (code {:#x}, word \
          1 = {}); 0xBAD50001 means the schedule file's bytes did not match \
          schedule_store::fixture::DEMO_SCHEDULE_DOC (word 1 is how many bytes were actually \

@@ -15,25 +15,25 @@ members = [
     "crates/calendar",
     "crates/memory_corruption_canary_gate",
     "crates/capability",
-    "crates/capability_demo_proto",
+    "crates/capability_demo_protocol",
     "crates/component_plan",
     "crates/compositor",
     "crates/cpu_set",
     "crates/grant_plan",
     "crates/credentialer",
-    "crates/credential_proto",
-    "crates/clock_proto",
-    "crates/environment_proto",
-    "crates/timebase_proto",
-    "crates/login_proto",
+    "crates/credential_protocol",
+    "crates/clock_protocol",
+    "crates/environment_protocol",
+    "crates/counter_frequency_protocol",
+    "crates/login_protocol",
     "crates/nifefs",
     "crates/dma_validator",
     "crates/dtb",
     "crates/elf",
-    "crates/entropy_proto",
+    "crates/entropy_protocol",
     "crates/page_frames",
-    "crates/filesystem_proto",
-    "crates/graphics_proto",
+    "crates/filesystem_protocol",
+    "crates/graphics_protocol",
     "crates/glob",
     "crates/gpt",
     "crates/ipc",
@@ -50,21 +50,21 @@ members = [
     "crates/ps",
     "crates/memory_regions",
     "crates/c_seam",
-    "crates/supervision_proto",
+    "crates/supervision_protocol",
     "crates/system_initializer",
-    "crates/swap_proto",
+    "crates/swap_protocol",
     "crates/soak_page",
-    "crates/socket_proto",
-    "crates/byte_sink_proto",
+    "crates/socket_protocol",
+    "crates/byte_sink_protocol",
     "crates/virtio",
     "crates/intrusive_fifo",
     "crates/line_editor",
     "crates/loaded_image_check",
     "crates/documentation",
     "crates/measured_boot",
-    "crates/mdns_config",
-    "crates/mdns_proto",
-    "crates/ntp_proto",
+    "crates/multicast_dns_config",
+    "crates/multicast_dns_protocol",
+    "crates/network_time_protocol",
     "crates/nvme",
     "crates/generational_table",
     "crates/work_steal_slot",
@@ -147,7 +147,7 @@ unsafe_op_in_unsafe_fn = "warn"
 # Workspace-wide as of DECISIONS §107 (2026-08-22), a deliberate, recorded exception to §61's own
 # rule against adding a lint before every existing violation is fixed: the worklist had shrunk from
 # 32 crates to 7 by the time this landed, so the cost is 7 `#[allow(missing_docs)]` lines, not an
-# open-ended commitment. Those remaining (`machine_discovery`, `mdns_proto`, `pci`, `gpt`, `grant_plan`,
+# open-ended commitment. Those remaining (`machine_discovery`, `multicast_dns_protocol`, `pci`, `gpt`, `grant_plan`,
 # `compositor`) carry the allow explicitly, citing their own item count; see notes/doc-coverage.md
 # for the tracked worklist.
 missing_docs = "warn"
@@ -227,12 +227,12 @@ doc_markdown = "warn"
 [profile.dev.package.measured_boot]
 opt-level = 2
 
-# Same reason, different arithmetic (milestone 51 lane C). `ntp_proto`'s nanosecond round trip is
+# Same reason, different arithmetic (milestone 51 lane C). `network_time_protocol`'s nanosecond round trip is
 # verified by running it on every one of the 10^9 values in its domain, which is a complete proof and
 # takes 0.6 s optimised. Unoptimised it is a minute of nothing, for a crate that is pure fixed-point
 # arithmetic with nothing a debugger would want to step through. See the test's own comment for why
 # exhaustion beats a bounded solver run here.
-[profile.dev.package.ntp_proto]
+[profile.dev.package.network_time_protocol]
 opt-level = 2
 
 # Same reason again (milestone 57). `gpt`'s mutation tests are exhaustive rather than sampled: every

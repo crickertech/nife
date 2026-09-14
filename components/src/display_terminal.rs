@@ -67,7 +67,7 @@
 #![no_main]
 
 use compositor::proto::ctl;
-use graphics_proto as gfx;
+use graphics_protocol as gfx;
 use line_editor::proto;
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, recv_cap, reply, send};
@@ -108,7 +108,7 @@ const OUT_PAGE_FRAME: u64 = SURFACE_FRAME + 1;
 /// (`display_service::MAP_BUDGET_PAGES`'s own comment has the arithmetic).
 const SURFACE_VA: u64 = 0x0000_0000_0060_0000;
 /// The page an application writes the bytes of an `OP_WRITE` into. The terminal contract's
-/// "control by message, bulk by shared page" split (DECISIONS §10), the same one `filesystem_proto` makes.
+/// "control by message, bulk by shared page" split (DECISIONS §10), the same one `filesystem_protocol` makes.
 const OUT_VA: u64 = 0x0000_0000_0a00_0000;
 /// The compositor's per-client control page. [`MODE_WINDOW`] only.
 const CTL_VA: u64 = 0x0000_0000_0a01_0000;

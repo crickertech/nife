@@ -184,7 +184,7 @@ provisional number, this lane's own finding).
   document itself unchanged, exactly §122's recommendation.
 - **The write path**: `fixtures/src/fs_test_client.rs`'s new `ROLE_SCHEDULE_SEED` (this lane's own
   demonstration writer, not a real registrar; #387 remains that) `MKDIR`s one identity's subtree,
-  writes its `schedule` file through ordinary `filesystem_proto::fs::CREATE`/`WRITE`, and records
+  writes its `schedule` file through ordinary `filesystem_protocol::fs::CREATE`/`WRITE`, and records
   that identity in the manifest at the store's own root. `ROLE_SCHEDULE_VERIFY` reads both back
   through a **fresh** descent, independent of the re-deriver's own read, and confirms the bytes match
   exactly (the `smb_seed`/`smb_verify` shape, one level over).

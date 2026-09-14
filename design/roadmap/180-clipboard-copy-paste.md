@@ -23,7 +23,7 @@ paste target is anything a shell or an editor (milestone 169's `kilo`) accepts t
 
 **Every existing multi-client object in this tree is minted, held, and delegated explicitly.** A
 directory capability is handed to exactly the principal it names (DECISIONS §117); a channel
-endpoint is minted per connection (milestone 49's login front door, `login_proto::CONNECT`); even
+endpoint is minted per connection (milestone 49's login front door, `login_protocol::CONNECT`); even
 the compositor's shared windows are each their own object, not one global surface every client can
 address. **A clipboard, in the form anyone has ever used one, is the opposite of all of that**: one
 slot, last-writer-wins, readable by whoever asks, with the OS deliberately not checking who "whoever"

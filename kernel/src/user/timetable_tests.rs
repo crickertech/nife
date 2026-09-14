@@ -18,7 +18,7 @@ const FIRES: u64 = 4;
 
 /// Stack pages for the timetable, four times what `INIT_STACK_PAGES` gives a boot's the progenitor.
 ///
-/// A number a spawn site **states** rather than inherits, which is `supervision_proto`'s own rule
+/// A number a spawn site **states** rather than inherits, which is `supervision_protocol`'s own rule
 /// (`CHILD_STACK_PAGES`: "a builder that silently inherits somebody else's stack size finds faults
 /// that builder does not have"). The timetable needs it because its working set is the plan itself:
 /// a `grant_plan::Endowment` is a kilobyte, mostly the name set a directory grant can carry, and a
@@ -206,18 +206,18 @@ fn spawn_timetable(fires: u64) -> (RendezvousId, RendezvousId, RendezvousId) {
     (out, child_report, deaths)
 }
 
-/// One line of `byte_sink_proto` bytes off `ep`, without its newline. `None` at end of stream.
+/// One line of `byte_sink_protocol` bytes off `ep`, without its newline. `None` at end of stream.
 fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
     let mut len = 0usize;
     loop {
         let m = crate::sched::ipc_recv(ep);
-        let mut chunk = [0u8; byte_sink_proto::INLINE_MAX];
-        match byte_sink_proto::unpack(m[0], m[1], m[2], &mut chunk) {
-            byte_sink_proto::Msg::Eof => return None,
-            byte_sink_proto::Msg::Malformed => {
+        let mut chunk = [0u8; byte_sink_protocol::INLINE_MAX];
+        match byte_sink_protocol::unpack(m[0], m[1], m[2], &mut chunk) {
+            byte_sink_protocol::Msg::Eof => return None,
+            byte_sink_protocol::Msg::Malformed => {
                 panic!("the timetable wrote a malformed sink message")
             }
-            byte_sink_proto::Msg::Bytes(n) => {
+            byte_sink_protocol::Msg::Bytes(n) => {
                 for &b in &chunk[..n] {
                     if b == b'\n' {
                         return Some(len);
@@ -366,7 +366,7 @@ fn a_scheduled_entry_holds_what_the_plan_said_and_a_refused_one_never_runs() {
     // free to differ between aarch64 and riscv64, so the exact count is not this milestone's claim;
     // `MEM_GRANT_PAGES` bounds it rather than pinning it). **This is the negative control**: every
     // refused entry in the document is a program that would have written something else here (`date`
-    // and `wc` write `byte_sink_proto` bytes), so a document whose refusals had leaked would fail on
+    // and `wc` write `byte_sink_protocol` bytes), so a document whose refusals had leaked would fail on
     // the value rather than on a count.
     let mut nines = 0;
     let mut forty_nines = 0;

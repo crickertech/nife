@@ -48,7 +48,7 @@ pub(super) fn provisioned() -> Option<(cs::Wiring, [u64; 3], [u64; 3])> {
         if let Some(r) = e.wait_for_ready() {
             assert_eq!(
                 r[0],
-                entropy_proto::READY,
+                entropy_protocol::READY,
                 "the entropy service did not come up, so no salt could be drawn",
             );
         }
@@ -111,7 +111,7 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
     for k in 0..3 {
         assert_eq!(
             cs::nth(codes, k),
-            credential_proto::OK,
+            credential_protocol::OK,
             "identity {k} was not stored (reply {}), codes {codes:#018x}",
             cs::nth(codes, k),
         );
@@ -119,7 +119,7 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
     for k in 3..6 {
         assert_eq!(
             cs::nth(codes, k),
-            credential_proto::OK,
+            credential_protocol::OK,
             "share {} was not stored (reply {}), codes {codes:#018x}",
             k - 3,
             cs::nth(codes, k),
@@ -127,12 +127,12 @@ fn provisioning_fills_the_store_and_the_seal_closes_it() {
     }
     assert_eq!(
         cs::nth(codes, 6),
-        credential_proto::FULL,
+        credential_protocol::FULL,
         "a seventh secret in a six-slot store must be refused, not silently accepted",
     );
     assert_eq!(
         cs::nth(codes, 7),
-        credential_proto::OK,
+        credential_protocol::OK,
         "the seal was not accepted"
     );
     assert_eq!(
@@ -179,22 +179,22 @@ fn a_client_gets_a_correct_yes_or_no_and_nothing_else() {
     let codes = r[1];
     assert_eq!(
         cs::nth(codes, 0),
-        credential_proto::MATCH,
+        credential_protocol::MATCH,
         "the right secret for a provisioned identity was refused, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 1),
-        credential_proto::MISMATCH,
+        credential_protocol::MISMATCH,
         "the wrong secret was accepted, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 2),
-        credential_proto::MISMATCH,
+        credential_protocol::MISMATCH,
         "an identity nobody provisioned was accepted, codes {codes:#018x}",
     );
     assert_eq!(
         cs::nth(codes, 3),
-        credential_proto::MISMATCH,
+        credential_protocol::MISMATCH,
         "one identity's secret opened another's account, codes {codes:#018x}",
     );
     assert_eq!(
@@ -234,7 +234,7 @@ fn the_same_endowment_cannot_write_the_store() {
     // forbidden opcode from an unknown one, and it does not.
     assert_eq!(
         cs::nth(codes, 0),
-        credential_proto::MISMATCH,
+        credential_protocol::MISMATCH,
         "a PUT on the verify endpoint is a verify of an identity nobody provisioned, so the \
          answer must be MISMATCH; codes {codes:#018x}",
     );
@@ -252,7 +252,7 @@ fn the_same_endowment_cannot_write_the_store() {
     // authority in the first place.
     assert_eq!(
         cs::nth(codes, 1),
-        credential_proto::MALFORMED,
+        credential_protocol::MALFORMED,
         "a SEAL on the verify endpoint is an opcode this endpoint does not serve, so the answer \
          must be MALFORMED; codes {codes:#018x}",
     );
@@ -263,7 +263,7 @@ fn the_same_endowment_cannot_write_the_store() {
     ] {
         assert_eq!(
             cs::nth(codes, k),
-            credential_proto::MALFORMED,
+            credential_protocol::MALFORMED,
             "{what} on the verify endpoint was answered {} rather than MALFORMED, codes \
              {codes:#018x}",
             cs::nth(codes, k),
@@ -271,7 +271,7 @@ fn the_same_endowment_cannot_write_the_store() {
     }
     assert_eq!(
         cs::nth(codes, 5),
-        credential_proto::MISMATCH,
+        credential_protocol::MISMATCH,
         "the attacker installed a working credential for itself, codes {codes:#018x}",
     );
     assert_eq!(

@@ -37,7 +37,7 @@ was **182x90**, comfortably past the 80x24 floor but, on review with calef (2026
 double any terminal anyone runs (most are 80x24 up to maybe 160x50 on a large monitor). **Retargeted
 2026-08-27 to 132x43** (the classic VT100/VT220 "wide mode" size) at a 924x344 scanout, sized
 directly against the shipping 7x8 cell instead of the future one: 924 = 132 * 7 and 344 = 43 * 8,
-both exact. This drops [`graphics_proto::SURFACE_PAGE_FRAMES`] to 311 (`crates/graphics_proto/src/
+both exact. This drops [`graphics_protocol::SURFACE_PAGE_FRAMES`] to 311 (`crates/graphics_protocol/src/
 lib.rs`'s `WIDTH` doc comment has the full arithmetic, including the one property lost: 924x344's
 byte count is no longer an exact multiple of 4096, unlike 1280x720's, and no nearby resolution that
 still delivers exactly 132x43 recovers it). When the atlas lands and the cell widens, the grid
@@ -68,7 +68,7 @@ was **182x90**, comfortably past the 80x24 floor but, on review with calef (2026
 double any terminal anyone runs (most are 80x24 up to maybe 160x50 on a large monitor). **Retargeted
 2026-08-27 to 132x43** (the classic VT100/VT220 "wide mode" size) at a 924x344 scanout, sized
 directly against the shipping 7x8 cell instead of the future one: 924 = 132 * 7 and 344 = 43 * 8,
-both exact. This drops [`graphics_proto::SURFACE_PAGE_FRAMES`] to 311 (`crates/graphics_proto/src/
+both exact. This drops [`graphics_protocol::SURFACE_PAGE_FRAMES`] to 311 (`crates/graphics_protocol/src/
 lib.rs`'s `WIDTH` doc comment has the full arithmetic, including the one property lost: 924x344's
 byte count is no longer an exact multiple of 4096, unlike 1280x720's, and no nearby resolution that
 still delivers exactly 132x43 recovers it). When the atlas lands and the cell widens, the grid
@@ -672,7 +672,7 @@ live**, rather than folded in here.
   "Higher Contrast" is a 2011 gist and a different palette rather than a contrast adjustment.
 - **Done.** DECISIONS §102 is built and consumed rather than "decided and nobody is building it":
   the page-frame object in `kernel/src/cap.rs` carries a count that is the run's length in pages,
-  and `crates/graphics_proto` sizes the scanout at 924x344 over 311 frames.
+  and `crates/graphics_protocol` sizes the scanout at 924x344 over 311 frames.
 - **Done.** The screendump cost this block flagged as worth attacking was measured and settled: the
   referee poll in `xtask/src/main.rs` records the 39x growth, that both suites still finish in
   normal time, and calef's call to leave the 100 ms cadence alone until something is measurably

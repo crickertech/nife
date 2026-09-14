@@ -16,14 +16,14 @@ watching a serial console.
 
 Concretely: the riscv64 tour emits `pcie` and then, with nothing in between, `hw entropy`. The wall
 time between those two lines is roughly one TRNG bring-up (a reseed, then a generation) plus the
-eight `entropy_proto` round trips the two 32-byte draws now take. A person with a stopwatch resolves
+eight `entropy_protocol` round trips the two 32-byte draws now take. A person with a stopwatch resolves
 that to about a second, which answers "is this milliseconds or minutes" and nothing finer. A
 bytes-per-second figure worth publishing needs the machine to time itself.
 
 **What to build.** Read the timebase around the `hw entropy` step and print the elapsed time in the
 step's own line, separating the two costs that are interesting for different reasons: the bring-up
 (a once-per-boot cost, which is what a slow reseed would show up in) and the per-draw cost (which is
-the rate). The tour already has a clock: `uptime` and `timebase_proto` are in the tree and the
+the rate). The tour already has a clock: `uptime` and `counter_frequency_protocol` are in the tree and the
 riscv64 tour reads the timebase for other steps.
 
 **Why it is worth a proposal rather than a line in the driver.** Two reasons it should be decided
@@ -56,7 +56,7 @@ The three figures, and each is a different question:
   from it**, and that exclusion is load-bearing rather than fussy: a `println!` here is a polled
   UART, and on radon at 115200 baud that one line is roughly 30 ms of the kernel doing nothing but
   shift bits out, which is the same order as the bring-up it would otherwise be added to.
-- **the draws**, in bytes and microseconds with a rate: the eight `entropy_proto` round trips two
+- **the draws**, in bytes and microseconds with a rate: the eight `entropy_protocol` round trips two
   32-byte draws take.
 
 **What the rate counts is stated at the function that computes it**, per this proposal's own reason
@@ -70,7 +70,7 @@ already-running in-kernel driver with no IPC in it at all.
 
 QEMU's riscv64 `virt` has no JH7110, so the tour takes the skip arm there and always will. What it
 can do is the **same client path with a different device at the end**: virtio-rng, the same
-`entropy_proto`, the same `Wiring::fill`, the same eight round trips, the same confined userspace
+`entropy_protocol`, the same `Wiring::fill`, the same eight round trips, the same confined userspace
 process holding the same two rendezvous capabilities. So the skip arm now prints a **reference**
 measurement when the machine has one, and says in the line itself that it is neither a TRNG nor
 hardware.

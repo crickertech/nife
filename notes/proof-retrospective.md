@@ -103,7 +103,7 @@ Column 4 is a judgement in every row.
 | 3 | riscv64 `trap_entry` `sscratch` window | no user value is a `&TrapStash` | no | none possible | the arch audit; left documented |
 | 4 | PLIC enable-bit lost update | concurrent `enable`/`disable` on one word preserve each other | **by loom, not by Kani** | none | the arch audit |
 | 5 | wake-before-switch-out race | a thread is never queued while a core still executes it | **by loom**, and now is | Kani harness existed, structurally blind | a flake, 10/10 to 8/10 |
-| 6 | `clock_proto` seqlock missing `fence(Release)` | a reader never sees a torn `(state, offset)` pair | **by loom** | none | loom, on its first run |
+| 6 | `clock_protocol` seqlock missing `fence(Release)` | a reader never sees a torn `(state, offset)` pair | **by loom** | none | loom, on its first run |
 | 7 | timer re-arm drift (milestone 6) | the deadline advances one interval per delivered tick | **yes, and the proof now exists elsewhere** | none | measurement, 100 Hz became ~70 Hz |
 | 8 | FS-server stack 528 bytes short | the grant exceeds the deepest handler recursion | no (a property of codegen) | none | a wall-clock ceiling, misread for a day |
 | 9 | `nifefs::write_image` accepted a NUL name | every accepted name reads back as itself | **yes, cheaply** | 2 harnesses, neither states it | the fuzzer, under a minute |
@@ -365,15 +365,15 @@ set and a vacuous harness reports `SUCCESSFUL`; `kani::cover!` is the one check 
 are **19 `cover!` sites, in four crates** (calendar 7, paging 5, dma_validator 5, glob 2). The other
 twenty harness crates have none. Every harness that constrains its inputs with `kani::assume` and
 carries no `cover!` is a harness whose input set nobody has confirmed is non-empty, and there are many
-of them: `jh7110_trng`'s three all assume, `timetable`'s five all assume, `ntp_proto` and
-`credential_proto` assume throughout.
+of them: `jh7110_trng`'s three all assume, `timetable`'s five all assume, `network_time_protocol` and
+`credential_protocol` assume throughout.
 
 Not a claim that any of them is vacuous. A claim that **nothing in this tree would say so if one
 were**, which is the same shape as every other finding here.
 
 ## A hole found while counting: three harnesses that nothing runs
 
-`script/verify` proves a **hand-kept crate list**. On 2026-08-16 milestone 125 found `mdns_proto` had
+`script/verify` proves a **hand-kept crate list**. On 2026-08-16 milestone 125 found `multicast_dns_protocol` had
 landed with three harnesses and never been added to it, so the suite had never run them, and the way
 it showed up was the suite going green *faster*. The file's own comment now says a missing row *"is
 the one way this table can make the proofs wrong"*.
@@ -387,7 +387,7 @@ first-silicon milestone runs on.
 
 The counted-claims gate cannot see it. `harness-crates` and `kani-harnesses` are **`count-at-least`
 floors** against prose, so they check that the tree has at least as many harnesses as a note claims;
-neither compares the tree against the shard table. The mdns_proto case was caught only because a prose
+neither compares the tree against the shard table. The multicast_dns_protocol case was caught only because a prose
 claim happened to be one crate off, which is luck rather than a mechanism.
 
 `vendor/redoxfs`'s two harnesses are also unrun, and that one is **fine**: `script/lint`'s
@@ -417,7 +417,7 @@ next lane on.
 
 | # | Harness or gate | The defect it answers | Shape | Cost |
 |---|---|---|---|---|
-| 1 | A gate comparing the harness-crate set against `script/verify`'s shard table | `mdns_proto` 2026-08-16, `jh7110_trng` today | a check in `script/lint`, plus the missing row once it is known to pass | small, and it is rung two |
+| 1 | A gate comparing the harness-crate set against `script/verify`'s shard table | `multicast_dns_protocol` 2026-08-16, `jh7110_trng` today | a check in `script/lint`, plus the missing row once it is known to pass | small, and it is rung two |
 | 2 | Extract the timer re-arm law and point both ISAs' `rearm` at it | timer drift, milestone 6: 100 Hz became 70 Hz | Phase-2 extraction; `crates/timetable`'s three harnesses already state the law | small, and the proof is written |
 | 3 | `every_accepted_name_reads_back_as_itself` in `nifefs` | `write_image` accepted a NUL name, 2026-08-02 | one harness over the writer, which is the half currently unproved | small |
 | 4 | `no_accepted_table_puts_a_usable_block_in_an_entry_array` in `gpt` | `Gpt::parse`'s backup-boundary wrong-accept | state the property absolutely, not relative to `create` | small |

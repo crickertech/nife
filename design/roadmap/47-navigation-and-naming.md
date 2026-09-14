@@ -204,7 +204,7 @@ only naming that a fork exists; see "PATH, sized rather than merely found" and "
 concrete primitive, priced and not built" below for the costed options and recommendations, neither
 built, both **PROPOSED**. Environment's secrets third
 has no PAL and no shell support, unchanged, and the same lane found the deeper reason: unlike
-inert configuration, there is no shipped mechanism to extend (`credential_proto` is purpose-built
+inert configuration, there is no shipped mechanism to extend (`credential_protocol` is purpose-built
 for login, not a generic secret), so this is a design question with real alternatives rather than a
 wiring gap; see the environment section below. The
 `std` PAL's `rename`, `unlink` and `rmdir` **were** bindings rather than missing verbs,
@@ -553,7 +553,7 @@ already uses for `enumerate`/`open`/`create`/`remove`, now a seven-rung ladder, 
 (provisional) the seventh, DECISIONS §47 extended by §112.
 
 **Built to that spec, exactly.** Three verbs rather than one with a flag, because
-`filesystem_proto::verb::TABLE` encodes one fixed rights requirement per opcode and the two halves
+`filesystem_protocol::verb::TABLE` encodes one fixed rights requirement per opcode and the two halves
 need different ones; `GETMTIME`/`SETMTIME` need `dir::READ`/`dir::WRITE` respectively, resolved
 directly under a directory handle like `UNLINK` (neither opens what it acts on), and `SETMTIME_AT`
 needs `dir::WRITE | dir::SETTIME` with the caller's asserted seconds riding in the second word,
@@ -563,7 +563,7 @@ because this tree already had an RFC 3339 parser (`calendar`) and no reason to b
 grammar for one flag; see notes/touch.md's `BUGS`.
 
 **Proven over the real wire, not only in `fs_server`'s host tests.** Extending
-`filesystem_proto::verb::TABLE` past `STATFS` also closed a latent gap the extension itself
+`filesystem_protocol::verb::TABLE` past `STATFS` also closed a latent gap the extension itself
 required fixing to stay contiguous: `SYNC` (milestone 55) had never been given a row, so every
 caretaker refused it with `EINVAL` and a program confined to a subtree could never `SYNC` through
 it. `kernel::user::shell_navigation_tests` now proves the two-right split against a real,
@@ -918,13 +918,13 @@ support, unchanged") is accurate but understates why: inert configuration had a 
 build path the moment it had a customer, because the *mechanism* (a validated, read-only page) was
 already fully designed by DECISIONS §111 and this section's own 2026-08-18 pricing table; nothing
 about secrets is in that position. "Secrets become endpoints (§41)" names the *shape* of the
-answer, not a mechanism ready to extend: `credential_proto`'s `PROVISION`/`VERIFY` split (milestone
+answer, not a mechanism ready to extend: `credential_protocol`'s `PROVISION`/`VERIFY` split (milestone
 56) is the one concrete instance of that shape in this tree, and it is purpose-built for *login*
 (an identity and a password-shaped secret, checked but never read back). A generic secret,
 `AWS_SECRET_KEY`'s own case, is a different shape again: the *bytes* themselves are often needed
 client-side (to sign a request), not merely a yes/no over them, so the credential service's whole
 security property (a client can use a secret and never read it) does not transfer. Generalizing
-`credential_proto` into "any named secret, capability-gated" is itself an undecided design question
+`credential_protocol` into "any named secret, capability-gated" is itself an undecided design question
 with real alternatives (a single broker service keyed by name and an ACL, versus per-secret minted
 endpoints an admin tool hands out, versus folding it into milestone 49's login/session work since
 that is what would actually *grant* a secret to a session in the first place) and, per this
@@ -1073,7 +1073,7 @@ all, and the trust chain already covers an arbitrary name.**
   with **zero new kernel mechanism**: the same `require` call that already vouches for a program's
   bytes before `Elf::parse` touches them would vouch for its manifest's bytes before anything parses
   those either. Rule 7's "a shared definition is a crate" is the only new thing this half needs: a
-  small, dependency-free crate (provisional name `manifest_proto`, `environment_proto`'s own shape)
+  small, dependency-free crate (provisional name `manifest_proto`, `environment_protocol`'s own shape)
   defining `Manifest`'s on-disk encoding, so the build tool that writes the bytes and the shell that
   reads them share one definition and cannot drift.
 
@@ -1367,7 +1367,7 @@ estimates for unbuilt work are guesses on a scale calibrated from history, not m
 - **Outstanding.** `PATH`. `Prog` is still a closed enum and `Prog::from_name` in
   `crates/grant_plan` is still a hardcoded match; there is no manifest crate in `crates/` and no
   manifest rides beside a program in `crates/nifefs`. Checked 2026-09-03.
-- **Outstanding.** Environment's secrets third. `crates/credential_proto` is still the login shape,
+- **Outstanding.** Environment's secrets third. `crates/credential_protocol` is still the login shape,
   `PUT`, `SEAL` and `VERIFY` over an identity and a password-equivalent, with no generic
   named-secret verb and no PAL, exactly as this block says and for the reason it gives. Checked
   2026-09-03.

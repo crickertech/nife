@@ -1,4 +1,4 @@
-use clock_proto::{policy, propose, state, status};
+use clock_protocol::{policy, propose, state, status};
 
 use super::*;
 
@@ -34,7 +34,7 @@ fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
 
     assert_ne!(
         w.kind,
-        clock_proto::rtc::NONE,
+        clock_protocol::rtc::NONE,
         "every machine this suite runs on has an RTC; finding none means the compatible match \
          (or, on x86_64, the CMOS read) broke",
     );
@@ -54,9 +54,9 @@ fn the_clock_service_reads_a_plausible_wall_clock_from_the_rtc() {
     let r = w.page().read();
     assert_eq!(r.state, state::RTC);
     assert_eq!(r.generation, 1, "one publish: the RTC reading");
-    let by_hand = clock_proto::wall_nanos(r.offset_nanos, clock_service::monotonic_nanos());
+    let by_hand = clock_protocol::wall_nanos(r.offset_nanos, clock_service::monotonic_nanos());
     assert!(
-        by_hand >= report[2] && by_hand - report[2] < 10 * clock_proto::NANOS_PER_SEC,
+        by_hand >= report[2] && by_hand - report[2] < 10 * clock_protocol::NANOS_PER_SEC,
         "a reader's own arithmetic ({by_hand}) should agree with the service's ({})",
         report[2],
     );
@@ -110,7 +110,7 @@ fn a_proposer_can_ask_and_cannot_tell() {
 
     // And the bounded case it exists to allow: a small correction is accepted, and the
     // provenance says it came from a proposal rather than from a human.
-    let (got, after) = w.propose_nanos(now + clock_proto::NANOS_PER_SEC / 2);
+    let (got, after) = w.propose_nanos(now + clock_protocol::NANOS_PER_SEC / 2);
     assert_eq!(got, status::ACCEPTED);
     assert!(after >= now);
     let r = w.page().read();
@@ -132,7 +132,7 @@ fn adjusting_the_wall_clock_leaves_the_monotonic_counter_alone() {
         crate::testing::skip!(clock_service::NO_RTC);
     }
     let (w, _) = start();
-    let step = clock_proto::NANOS_PER_SEC / 2;
+    let step = clock_protocol::NANOS_PER_SEC / 2;
 
     let mono_before = clock_service::monotonic_nanos();
     let wall_before = w.wall_nanos();

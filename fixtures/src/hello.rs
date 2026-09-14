@@ -65,7 +65,7 @@
 /// The endowment a child is born holding, for the one loader this tree has (milestone 96). The
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
-use supervision_proto::{Child, ChildEndowment, Retention};
+use supervision_protocol::{Child, ChildEndowment, Retention};
 use user_mode_runtime::{exit, irq_wait, map_page_frame, recv, send};
 
 /// Roles, as passed in `x0` by the kernel.
@@ -438,7 +438,7 @@ fn child() -> ! {
 /// a `MAP_*` mode), which is how init hands a driver its registers and a shared buffer (19d.2).
 /// Returns the [`Child`], ready to start.
 ///
-/// **The loader itself is `supervision_proto`'s, and is the tree's only one** (milestone 96). It
+/// **The loader itself is `supervision_protocol`'s, and is the tree's only one** (milestone 96). It
 /// used to be written out here, once more in `system_initializer`, and once more in that crate, with
 /// a fault slot in each; a change that landed in one of the three was a change the other two did not
 /// get. What is left here is the call shape hello's remaining roles want: one budget for both halves
@@ -449,7 +449,7 @@ fn build_child(
     caps: &[(u64, u64)],
     maps: &[(u64, u64, u64)],
 ) -> Result<Child, ()> {
-    supervision_proto::build_child(
+    supervision_protocol::build_child(
         untyped,
         untyped,
         elf,
@@ -471,18 +471,18 @@ fn build_child(
 
 /// Retype a kernel object (endpoint | address space | tcb) out of `untyped`; returns its cap slot.
 fn retype_obj(untyped: u64, objtype: u64) -> Result<u64, ()> {
-    supervision_proto::retype_obj_from(untyped, objtype)
+    supervision_protocol::retype_obj_from(untyped, objtype)
 }
 
 /// Retype a page of `untyped` into a `PageFrame` capability; returns its cap slot.
 fn retype_page_frame(untyped: u64) -> Result<u64, ()> {
-    supervision_proto::retype_page_frame_from(untyped)
+    supervision_protocol::retype_page_frame_from(untyped)
 }
 
 /// Start a configured child, handing it `arg0`, `arg1`, `arg2` as its first three registers, and
 /// dispose of its TCB capability as [`build_child`] declared. True if the kernel started it.
 fn start_child(child: Child, arg0: u64, arg1: u64, arg2: u64) -> bool {
-    supervision_proto::start_child(child, arg0, arg1, arg2)
+    supervision_protocol::start_child(child, arg0, arg1, arg2)
 }
 
 /// The only way this program can say "no": a `brk`, which the kernel treats as a fault and kills

@@ -5,7 +5,7 @@ demo credential is provisioned (§120's amendment, milestone 49's login-boot-wir
 now generates a fresh password each boot and prints it before the prompt, and the first thing
 calef expects a person to do with a new system is set their own. Nothing in this tree lets them.
 
-**Gate: DECISION.** Where a proof-gated rotation verb lives is a `credential_proto` wire change two
+**Gate: DECISION.** Where a proof-gated rotation verb lives is a `credential_protocol` wire change two
 programs must agree on, and the options below are close enough in cost that the choice is calef's
 rather than a lane's; see "The design question this needs answered" below.
 
@@ -20,7 +20,7 @@ else's. It does not exist today, and it is not an oversight.
 `credentialer::Store::put`'s own doc comment names the reason directly: **"replacing an existing identity
 is not offered: this runs once, before the seal, and 'put twice, second wins' is a rule with a bug
 in it (which of two concurrent provisioners won?) that a store with no update path simply does not
-have."** `credential_proto::provision::SEAL`'s own doc is blunter still: after it, "the store
+have."** `credential_protocol::provision::SEAL`'s own doc is blunter still: after it, "the store
 cannot be changed by anything short of restarting the service." Both are considered, not
 accidental: the sealed store is what lets `credentialer.rs` promise a client that a stored secret
 is exactly what an operator vouched for at boot, with nothing able to move it later.
@@ -36,11 +36,11 @@ identity, one at a time, by construction.
 
 ## The design question this needs answered, and why it is calef's
 
-Where the rotation verb lives, and it is a wire change to `credential_proto` two programs (whichever
+Where the rotation verb lives, and it is a wire change to `credential_protocol` two programs (whichever
 client calls it, and `credentialer.rs`) must agree on, which the *move fast on what can be undone*
 tenet puts in the irreversible column. Options, not decided here:
 
-- **A new op on the verify endpoint** (`credential_proto::verify`), the endpoint a real login flow
+- **A new op on the verify endpoint** (`credential_protocol::verify`), the endpoint a real login flow
   already reaches: extend it with a `ROTATE` opcode carrying the current secret and the new one in
   one request, verified and replaced atomically. Reuses the trust boundary a client already crosses
   to log in at all, and needs no new capability wired to anyone beyond what login-boot-wiring

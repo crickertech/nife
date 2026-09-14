@@ -66,7 +66,7 @@ contain **no unsafe operation**:
 
 | Site | Why it is `unsafe fn` anyway |
 |---|---|
-| `crates/clock_proto/src/lib.rs:178` `Clock::new` | takes a VA the caller promises is a mapped clock page |
+| `crates/clock_protocol/src/lib.rs:178` `Clock::new` | takes a VA the caller promises is a mapped clock page |
 | `crates/paging/src/lib.rs:323` `assume_no_stale_entry` | the name is the contract: the caller asserts a TLB fact |
 | `crates/paging/src/lib.rs:410` `Mapper::new` | the caller promises `root` is a live table |
 | `crates/user_mode_runtime/src/heap.rs:193` `GlobalAlloc::alloc` | unsafe because the trait method is |
@@ -206,7 +206,7 @@ gates in one line.
 
 The other thirteen are ordinary clippy, in crates nobody suspected: `doc_markdown` (4),
 `manual_range_contains` (4), `manual_let_else` (2), `len_zero` (2), `needless_range_loop` (1),
-`assertions_on_constants` (1), across `asid`, `calendar`, `credential_proto`, `nifefs`, `dma_validator`,
+`assertions_on_constants` (1), across `asid`, `calendar`, `credential_protocol`, `nifefs`, `dma_validator`,
 `paging`, `pci` and `generational_table`. That half is the answer to "does this find anything besides unsafe",
 and it is yes: **half of what the pass finds has nothing to do with unsafe at all.** One of them,
 `dma_validator`'s `assert!(RING_END <= RING_BLOCK)` over two constants, became a `const {}` assertion
@@ -486,7 +486,7 @@ decoration.
 
 **Lowered from 100 to 97 by milestone 139 (2026-08-23), cinching the ratchet behind a real
 reduction rather than the tree's own growth.** Seven userspace programs
-(`entropy`, `keyboard_driver`, `net_transport`, `mdns_responder`, `socket_test_client`, `smb_server`, `ntp`)
+(`entropy`, `keyboard_driver`, `net_transport`, `multicast_dns_responder`, `socket_test_client`, `smb_server`, `ntp`)
 each hand-rolled the same `r8`/`w8`/`r16`/`w16`/`r32` volatile-access functions over a DMA page or
 a shared IPC frame, one hand-written `// SAFETY:` comment per function, asserting one invariant
 ("this offset is inside the page the kernel mapped here") by hand at every call site; `ntp.rs`'s
@@ -768,18 +768,18 @@ that one already carries, a scratch buffer one thread at a time touches, seriali
 rather than by a lock. Same shape, same reasoning, a different file.
 
 Raised from 18 to 20 by milestone 47's environment-variable fork (2026-08-23, DECISIONS §111):
-`crates/environment_proto::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_proto::ClockPage`
+`crates/environment_protocol::ConfigPage`'s `unsafe impl Send`/`Sync`, the exact pair `clock_protocol::ClockPage`
 already carries and for the same argument, restated for a type with a plainer contract. The config
 page is shared across address spaces by construction (that is the whole point of a page-shaped
 endowment), and every access goes through the same immutable byte reads regardless of which
 process is doing the reading, so there is no non-atomic mutable aliasing for either trait to
 protect against. `ClockPage` needs the same two impls despite carrying a seqlock precisely because
 its *writer* uses atomics too; `ConfigPage` needs them for the simpler reason that it has no writer
-at all once it is mapped (see `environment_proto`'s own docs on why it needs no seqlock), which makes the
+at all once it is mapped (see `environment_protocol`'s own docs on why it needs no seqlock), which makes the
 claim, if anything, easier to justify than its precedent's.
 
 Raised from 20 to 22 by milestone 161's x86_64 timebase-page work (2026-08-25):
-`crates/timebase_proto::TimebasePage`'s `unsafe impl Send`/`Sync`, the same pair `ConfigPage`
+`crates/counter_frequency_protocol::TimebasePage`'s `unsafe impl Send`/`Sync`, the same pair `ConfigPage`
 already carries and for the identical argument. The page is computed once by the kernel at boot
 (`kernel::user::x86_timebase_page_phys`) and mapped read-only into every x86_64 process; it has no
 writer once mapped, the same shape that makes `ConfigPage`'s claim easy to justify, restated for a

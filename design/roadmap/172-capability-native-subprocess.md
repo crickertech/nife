@@ -31,7 +31,7 @@ not a back door around them.
 
 ## What already exists to build on
 
-`crates/supervision_proto`'s `build_child` (milestone 22 phase B.2, "the supervision tree: the
+`crates/supervision_protocol`'s `build_child` (milestone 22 phase B.2, "the supervision tree: the
 shared half") already constructs a child process with a specific, narrowed capability endowment and
 lets a parent supervise it (see [DECISIONS §24](../decisions/24-interrupting-the-foreground.md) for
 how a shell already holds a child's interrupt endpoint). What is missing, checked directly against

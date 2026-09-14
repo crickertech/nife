@@ -49,7 +49,7 @@ tagging xenon by MAC, two `dhcp-match` lines tagging an EFI x86-64 client by opt
 
 **It is not only a record, and that is the point.** `script/netboot-rehearsal` parses this file and
 answers DHCP out of it, so a typo in the configuration fails a gate on patagonia rather than at a
-bench with a camera in hand. That is the same move `user/mdns_responder.conf` made: one document,
+bench with a camera in hand. That is the same move `user/multicast_dns_responder.conf` made: one document,
 read by the thing and by the thing's test. A fact that lived only in the router would be the
 rung-four failure AGENTS.md names, and a reflashed router would take it with it.
 

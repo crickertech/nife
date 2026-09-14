@@ -155,7 +155,7 @@ named. It is also, for a foreign program, no design at all: `ripgrep` wants a re
 
 The env-var escape hatch is closed too, and it is worth naming because it looks open. `ripgrep`
 reads `RIPGREP_CONFIG_PATH` and takes its arguments from the file it names, which would have been a
-complete answer using only concepts nife already has. But `environment_proto` is a **closed
+complete answer using only concepts nife already has. But `environment_protocol` is a **closed
 three-key page**: `TZ`, `LANG` and `TERM`, each validated against a curated domain list. There is no
 way to hand a std program an arbitrary environment variable, by design (DECISIONS §111).
 
@@ -182,7 +182,7 @@ compiling a program for this platform has no way to know the ceiling exists, the
 overlap rather than a size, and 896 KiB is small for anything with a dependency tree.
 
 The address is **not** a private kernel detail, which is why this lane did not simply change it. It
-is written into `crates/supervision_proto` (`CHILD_STACK_VA`), `crates/timebase_proto`,
+is written into `crates/supervision_protocol` (`CHILD_STACK_VA`), `crates/counter_frequency_protocol`,
 `crates/c_seam`, `components/src/builder.rs`, `fixtures/src/os_primitives_benchmarker.rs`, and half a dozen
 kernel tests. Moving `USER_STACK_VA` alone breaks `authority_tests` immediately (measured: the
 supervision tree fails to build at stage 10, because the programs building it map their children's

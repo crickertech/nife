@@ -534,7 +534,7 @@ This is the part that took the most care, because text is where "it looked right
 and least sufficient.
 
 **The picture is a value three parties compute without talking to each other.** The script is
-`video_terminal::script`, a constant in the contract crate, the same move `graphics_proto::pixel` and `compositor::SCENE`
+`video_terminal::script`, a constant in the contract crate, the same move `graphics_protocol::pixel` and `compositor::SCENE`
 make:
 
 1. **The terminal** runs the engine over the bytes it was sent and paints what it says;
@@ -624,9 +624,9 @@ Stated plainly, because a demonstrator's caveats are part of the deliverable.
   use all 344 rows, so unlike the 1280x720 scanout's six leftover columns, there is no strip left
   for the terminal to paint background into and no cell to own it. `MAX_COLS`/`MAX_ROWS` shrank with
   the retargeted scanout and are still constants, still exactly sized to the current font and
-  screen. (The surface itself, [`graphics_proto::SURFACE_BYTES`], does carry about 2 KiB of
+  screen. (The surface itself, [`graphics_protocol::SURFACE_BYTES`], does carry about 2 KiB of
   unrelated padding past the last pixel, for frame-alignment reasons that have nothing to do with
-  the character grid; see `graphics_proto::WIDTH`'s doc comment.)
+  the character grid; see `graphics_protocol::WIDTH`'s doc comment.)
 - **The font's own weak glyphs, named where a reader meets them.** `M` and `W` are near vertical
   mirrors, because five ink columns leaves one way to draw each; `&` is the busiest glyph in the set
   and reads as a knot at a glance; `%` fills its corners heavily enough to look bolder than its

@@ -153,7 +153,7 @@ fn date_prints_the_wall_clock_it_was_granted() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| panic!("date printed {:?}, which is not a number", &buf[..n]));
-    let ours = (w.wall_nanos() / clock_proto::NANOS_PER_SEC) as i64;
+    let ours = (w.wall_nanos() / clock_protocol::NANOS_PER_SEC) as i64;
     assert!(
         (printed - ours).abs() < 10,
         "date printed {printed} seconds; the kernel reads {ours} from the same page",
@@ -211,7 +211,7 @@ fn date_prints_the_wall_clock_it_was_granted() {
 /// **An unknown clock is a sentence, not 1970 and not a panic.**
 ///
 /// This is DECISIONS §42's no-silent-degradation rule applied where a person can see it, and it
-/// is the reason `date` reads `clock_proto::state` before it reads the offset. `std`'s
+/// is the reason `date` reads `clock_protocol::state` before it reads the offset. `std`'s
 /// `SystemTime::now()` has no error channel and must panic here; `date` has one, so it says
 /// which of the two causes it was:
 ///
@@ -227,7 +227,7 @@ fn an_unknown_clock_is_said_plainly_rather_than_printed_as_1970() {
     let mut buf = [0u8; 128];
 
     // A clock page nobody has published to. Zeroed, which is what the frame allocator hands
-    // out and what `clock_proto`'s `a_zeroed_page_reads_as_unknown` pins as UNKNOWN.
+    // out and what `clock_protocol`'s `a_zeroed_page_reads_as_unknown` pins as UNKNOWN.
     let blank = crate::memory::alloc_zeroed()
         .expect("no frame for a blank clock page")
         .addr();
@@ -290,8 +290,13 @@ fn a_declared_second_stream_carries_the_complaint_and_the_output_stays_empty() {
     let m = crate::sched::ipc_recv(diag);
     assert!(
         matches!(
-            byte_sink_proto::unpack(m[0], m[1], m[2], &mut [0u8; byte_sink_proto::INLINE_MAX]),
-            byte_sink_proto::Msg::Eof
+            byte_sink_protocol::unpack(
+                m[0],
+                m[1],
+                m[2],
+                &mut [0u8; byte_sink_protocol::INLINE_MAX]
+            ),
+            byte_sink_protocol::Msg::Eof
         ),
         "the second stream did not end: {m:?}",
     );
@@ -301,8 +306,13 @@ fn a_declared_second_stream_carries_the_complaint_and_the_output_stays_empty() {
     let m = crate::sched::ipc_recv(out);
     assert!(
         matches!(
-            byte_sink_proto::unpack(m[0], m[1], m[2], &mut [0u8; byte_sink_proto::INLINE_MAX]),
-            byte_sink_proto::Msg::Eof
+            byte_sink_protocol::unpack(
+                m[0],
+                m[1],
+                m[2],
+                &mut [0u8; byte_sink_protocol::INLINE_MAX]
+            ),
+            byte_sink_protocol::Msg::Eof
         ),
         "a clockless date wrote {m:?} to its OUTPUT; that is the byte that used to land in the file",
     );
@@ -357,8 +367,8 @@ fn date_reports_where_the_time_came_from() {
 
     // Step it through the propose endpoint, which is an authority `date` does not hold, and the
     // provenance follows the page rather than the process.
-    let (status, _) = w.propose_nanos(w.wall_nanos() + clock_proto::NANOS_PER_SEC / 2);
-    assert_eq!(status, clock_proto::status::ACCEPTED);
+    let (status, _) = w.propose_nanos(w.wall_nanos() + clock_protocol::NANOS_PER_SEC / 2);
+    assert_eq!(status, clock_protocol::status::ACCEPTED);
     let out = spawn_date(Some(w.page_phys), FMT_UNIX, 0, PROVENANCE);
     let _ = line(out, &mut buf);
     let n = line(out, &mut buf);

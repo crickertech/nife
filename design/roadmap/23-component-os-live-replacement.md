@@ -51,7 +51,7 @@ which is the "deferred CDT finally earns its keep" this block predicted, at one 
 
 **The manifest landed 2026-08-17, and the defect it named is gone.** `swapper` no longer contains
 an endowment: grep it for `abi::rights` or `abi::aspace::MAP_R` and there is nothing left. The
-capability half of the contract lives in `swap_proto` beside the wire half, which is where §41's own
+capability half of the contract lives in `swap_protocol` beside the wire half, which is where §41's own
 sentence puts it (a program that speaks the protocol **and holds the right capabilities** is the
 component), and the operator declares only which of *its own* objects answers to which role name, per
 child. Three things fell out that were not obvious from this block. **A component manifest is a
@@ -169,7 +169,7 @@ ring variant is io_uring, DPDK, and virtio.
 **Generalising to all components: what the console case does not yet need.**
 
 - **A uniform component contract + manifest.** **Built 2026-08-17**, `crates/component_plan` and the
-  four declarations in `crates/swap_proto`. Each component declares the capabilities it needs (this
+  four declarations in `crates/swap_protocol`. Each component declares the capabilities it needs (this
   device, these endpoints) and the supervisor wires it from the declaration, with a typed refusal
   before anything is built when it cannot. seL4 CapDL / Fuchsia territory as this block predicted, and
   Fuchsia's `use`/`offer` split turned out to be the load-bearing half. Still compiled in rather than

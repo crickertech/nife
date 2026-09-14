@@ -24,7 +24,7 @@
 //! Name: ratified 2026-08-01 (calef, milestone 63), replacing `subsup`. Refused `subsup` and
 //! `sub_supervisor`, which is ambiguous in the way that matters: this supervises **a sub-server**,
 //! rather than being a supervisor beneath another one. "Sub-server" was already established
-//! vocabulary here, 44 occurrences across the decisions, `supervision_proto`, the kernel and the
+//! vocabulary here, 44 occurrences across the decisions, `supervision_protocol`, the kernel and the
 //! notes, so the name is built from a word the reader has met.
 
 #![no_std]
@@ -36,7 +36,7 @@
 
 // Each binary in the tree compiles the shared module but uses a different slice of it (the sub-server
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead.
-use supervision_proto::{
+use supervision_protocol::{
     REP_BUILT, REPORT_FAILED, REPORT_SUP_GAVE_UP, REPORT_SUP_SAW_DEATH, REQ_BUILD,
 };
 use user_mode_runtime::{recv, send};
@@ -59,7 +59,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     let mut restarts = 0u64;
     if !build(attempt) {
         send(REPORT, REPORT_FAILED, 20, 0);
-        supervision_proto::fail()
+        supervision_protocol::fail()
     }
 
     loop {
@@ -71,7 +71,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
         // say so. Reaping a finished child matters as much as reaping a crashed one.
         if !reap(tid) {
             send(REPORT, REPORT_FAILED, 22, 0);
-            supervision_proto::fail()
+            supervision_protocol::fail()
         }
 
         if event != abi::fault::EVENT_FAULT {

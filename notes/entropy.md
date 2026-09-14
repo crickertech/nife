@@ -2,7 +2,7 @@
 
 Where random numbers come from on this machine, who is allowed to reach the device, and what
 `std::random` does when nobody granted you any. Milestone 56, the entropy half; the decision and its
-argument are [DECISIONS §44](../design/decisions/44-entropy-capability.md), the contract is `crates/entropy_proto`.
+argument are [DECISIONS §44](../design/decisions/44-entropy-capability.md), the contract is `crates/entropy_protocol`.
 
 ## The thing this replaced
 
@@ -101,7 +101,7 @@ trips. `bench/` prices a round trip; nothing about this is free.
 The reply's first word is a byte count in `0..=8`. Every failure the kernel can return from a `CALL`
 is one of its small negatives (-1..-8), which read as enormous `u64`s. So "there is no entropy
 service" and "the service has no entropy" are distinguishable with no probe request and no ambiguity
-to reason about. `filesystem_proto` could not manage that (its errno space collides with the kernel's, a
+to reason about. `filesystem_protocol` could not manage that (its errno space collides with the kernel's, a
 wart notes/std.md records), and a contract this new had no excuse to inherit the collision.
 
 ## What `std::random` does
@@ -187,7 +187,7 @@ it.
   transcribed from `drivers/char/hw_random/jh7110-trng.c`, mainline as of 2026-08-24) and a DTB
   discovery query (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`, PLIC interrupt 30, from the
   device-tree binding's own worked example), both host-tested against fixtures, never against
-  silicon. `components/src/jh7110_entropy.rs` is a full `entropy_proto` backend built on that logic, over a
+  silicon. `components/src/jh7110_entropy.rs` is a full `entropy_protocol` backend built on that logic, over a
   raw device mapping rather than a virtqueue (this device has no DMA and no queue, only registers).
   **Wired on 2026-09-01**: `entropy_service`'s `Bus` enum grew a `Jh7110` variant and the riscv64
   boot tour spawns the driver when the machine's device tree describes the device, which on every
@@ -239,7 +239,7 @@ it.
   wire. `grant_plan::Manifest::entropy` joined `clock`, `domain` and `config`; the progenitor reads the
   declaration and places a `WRITE` view of the entropy service's request endpoint at
   `grant_plan::ENTROPY_SLOT`; a program that did not declare it holds an empty slot there and
-  `entropy_proto::delivered` answers `None` rather than a short count. `components/src/uuid.rs` is the
+  `entropy_protocol::delivered` answers `None` rather than a short count. `components/src/uuid.rs` is the
   first consumer a person can type, and `caps uuid` prints the row.
 
   **Ambient entropy would still be ambient authority**, and nothing here made randomness ambient:

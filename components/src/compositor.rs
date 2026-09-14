@@ -48,7 +48,7 @@
 
 use compositor::proto::{ctl, ring, wlist};
 use compositor::{Rect, SCENE};
-use graphics_proto as gfx;
+use graphics_protocol as gfx;
 use user_mode_runtime::{call, map_page_frame, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
@@ -152,7 +152,7 @@ fn publish(n: usize, focus: u32) {
         //
         // MAGIC stays last anyway, because it costs nothing and is the right shape if this ever
         // publishes again while clients run. If it does, this needs a release fence and every client
-        // needs an acquire one, the way `clock_proto` does it. See notes/memory-ordering.md.
+        // needs an acquire one, the way `clock_protocol` does it. See notes/memory-ordering.md.
         wr32(c + ctl::MAGIC, ctl::MAGIC_VALUE);
     }
 

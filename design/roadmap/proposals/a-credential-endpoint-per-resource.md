@@ -2,7 +2,7 @@
 
 **Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 54's block.
 
-**Gate: DECISION.** It changes `credential_proto`, a contract two programs agree on, so it is
+**Gate: DECISION.** It changes `credential_protocol`, a contract two programs agree on, so it is
 calef's the same way every wire decision in this tree is. The request currently carries the identity
 it asks about; removing that word from the wire is not something a lane can decide.
 
@@ -10,7 +10,7 @@ it asks about; removing that word from the wire is not something a lane can deci
 record to test. That is one authority more than a caller needs. The endpoint should *be* the
 credential for one resource, with the name implied by which endpoint you hold and therefore
 unforgeable. This is DECISIONS §27's argument, which the tree already accepted elsewhere, applied to
-`credential_proto`.
+`credential_protocol`.
 
 ## Why this matters
 
@@ -23,7 +23,7 @@ promise about a branch the program is trusted to take.
 **The consumer that motivated it is gone, and that is the honest reason this may sit unpromoted.**
 Milestone 54's SMB adapter was deleted on 2026-08-30 with the rest of the network file service, and
 it was the caller that named a resource it was configured with. What remains is `credentialer`,
-`login`, `identity_provisioner` and their test client, plus `login_proto` and `system_initializer`
+`login`, `identity_provisioner` and their test client, plus `login_protocol` and `system_initializer`
 on top. The extra authority is still on the wire and still unchosen, but nothing today is visibly
 harmed by it.
 
@@ -38,7 +38,7 @@ accepted limitation, which means nobody ever chose to carry it.
 Milestone 54's block: *"Replace the SMB adapter's resource-name configuration with a narrower
 `cred_proto` capability, so the endpoint is the credential for one resource and the name is implied
 and unforgeable, which is DECISIONS §27's argument applied to `cred_proto`."* (`cred_proto` has
-since been renamed `credential_proto`.)
+since been renamed `credential_protocol`.)
 
 `notes/smb.md`'s BUGS section states the shape: *"The right fix is not a configuration string, it is
 a narrower capability: a request that names its resource is the adapter choosing which record to ask

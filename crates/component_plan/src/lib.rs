@@ -290,7 +290,7 @@ pub struct MapNeed {
 /// **What a component declares it needs.** The capability half of a contract, beside the wire half.
 ///
 /// The order of [`caps`](Requirements::caps) is load-bearing: it **is** the component's capability table slot
-/// order, because `supervision_proto::ChildEndowment::caps` lands its entries in slots 0, 1, 2, ...
+/// order, because `supervision_protocol::ChildEndowment::caps` lands its entries in slots 0, 1, 2, ...
 /// Before this crate that agreement was a comment in two files. Now the component derives its own
 /// slot numbers from this list with [`slot_of`], so a reordered manifest is a compile error rather
 /// than a component reading the wrong slot at run time.
@@ -493,7 +493,7 @@ impl Refusal {
     }
 }
 
-/// **Exactly what to endow one child with**, in the form `supervision_proto::ChildEndowment` takes.
+/// **Exactly what to endow one child with**, in the form `supervision_protocol::ChildEndowment` takes.
 ///
 /// A value with no allocation, bounded by [`MAX_CAPS`] and [`MAX_MAPS`], so a supervisor holds it on
 /// its stack and hands out slices of it.

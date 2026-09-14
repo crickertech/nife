@@ -43,7 +43,7 @@
 //!   client's endowment does not reach the clock page at the address the setter uses. It does not,
 //!   and cannot, show there is no other page in the system that would let a client move time; that
 //!   would be a proof over the whole capability graph, which nothing here performs.
-//! - **It writes `clock_proto::state::SET` because that is what a real attempt would write**, and
+//! - **It writes `clock_protocol::state::SET` because that is what a real attempt would write**, and
 //!   nothing checks the value, since the write never lands. If the confinement ever broke, the
 //!   clock page would be left holding a plausible state word rather than an obvious sentinel, and
 //!   the test would catch it through `clock.page()` changing rather than through the value.
@@ -87,7 +87,7 @@ pub extern "C" fn _start(va: u64) -> ! {
     // SAFETY: deliberately not safe. This is the assertion: the write must fault. If it does not,
     // the process survives to send the report below, and the test fails on that.
     unsafe {
-        core::ptr::write_volatile(va as *mut u64, clock_proto::state::SET);
+        core::ptr::write_volatile(va as *mut u64, clock_protocol::state::SET);
     }
     send(REPORT, RPT_PROBING, va, 1);
     exit()

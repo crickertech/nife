@@ -37,7 +37,7 @@
 // Each binary in the tree compiles the shared module but uses a different slice of it (the sub-server
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead. This
 // is the one shape where a blanket allow is the honest one: no single binary uses all of it (§38).
-use supervision_proto::{ChildEndowment, REP_BUILT, REP_FAILED, REQ_BUILD, Retention};
+use supervision_protocol::{ChildEndowment, REP_BUILT, REP_FAILED, REQ_BUILD, Retention};
 use user_mode_runtime::{cap_delete, recv, send};
 
 /// The capabilities `root_supervisor` endowed us with, in order.
@@ -59,7 +59,7 @@ pub extern "C" fn _start(_a0: u64, image_len: u64, _a2: u64) -> ! {
     // SAFETY: root_supervisor mapped `image_len` bytes of program image read-only at IMAGE_VA.
     let image = unsafe { core::slice::from_raw_parts(IMAGE_VA as *const u8, image_len as usize) };
     let Ok(elf) = elf::Elf::parse(image) else {
-        supervision_proto::fail()
+        supervision_protocol::fail()
     };
 
     loop {
@@ -84,10 +84,10 @@ pub extern "C" fn _start(_a0: u64, image_len: u64, _a2: u64) -> ! {
 /// reap either. The supervisor collects the corpse through its supervision endpoint, and these pages
 /// come back to this budget when it does.
 fn build(elf: &elf::Elf, attempt: u64) -> bool {
-    let Ok(region) = supervision_proto::memory_region_split(BUDGET, INSTANCE_PAGES) else {
+    let Ok(region) = supervision_protocol::memory_region_split(BUDGET, INSTANCE_PAGES) else {
         return false;
     };
-    let Ok(child) = supervision_proto::build_child(
+    let Ok(child) = supervision_protocol::build_child(
         BUDGET,
         region,
         elf,
@@ -101,7 +101,7 @@ fn build(elf: &elf::Elf, attempt: u64) -> bool {
     ) else {
         return false;
     };
-    if !supervision_proto::start_child(child, 0, attempt, 0) {
+    if !supervision_protocol::start_child(child, 0, attempt, 0) {
         return false;
     }
     cap_delete(region);

@@ -7,7 +7,7 @@ on the roadmap runs anything on a schedule.
 
 **Gate: NONE.** It stays `NONE` rather than moving to `DECISION`, which is worth a sentence because
 the temptation was there. Every ingredient existed as predicted: §43's clock authority and
-`clock_proto`, the spawn machinery and program manifests (milestone 31's grant expressions), and
+`clock_protocol`, the spawn machinery and program manifests (milestone 31's grant expressions), and
 supervision (§40) for what happens when a scheduled child dies. No new syscall surface was needed.
 The `--mem` grant needs nobody (the archive endowment was narrowed to the plan on 2026-08-18); the
 per-entry image turned out to need a design fork rather than a lane's capability wiring, checked
@@ -28,7 +28,7 @@ children on both ISAs, with the plan printed before anything fires.
 - **`components/src/timetable.rs`** holds a budget, the monotonic counter and the loader. Its complete
   authority is four capabilities: an output endpoint, an untyped budget, a child report endpoint and
   a supervision endpoint. No clock, no directory, no console, no network.
-- **`user/timetable.conf`** is the document, in `mdns_config`'s shape and carrying its recorded
+- **`user/timetable.conf`** is the document, in `multicast_dns_config`'s shape and carrying its recorded
   compiled-in limitation.
 - **`kernel/src/user/timetable_tests.rs`**, one module for both ISAs.
 
@@ -204,7 +204,7 @@ endowments, not the system.
   interval-shaped.
 - **The service holds one clock capability** and subscribes to §43's monotonic time; wall-clock
   scheduling waits for a decision about what a wall-clock entry should do across an NTP step,
-  which the era-pivot work (`ntp_proto`) already gives vocabulary for.
+  which the era-pivot work (`network_time_protocol`) already gives vocabulary for.
 - **A fired entry is an ordinary spawn** through the existing verbs, supervised per §40: a
   scheduled child that dies is reaped like any other, and the entry's failure count is state the
   service reports rather than hides.
@@ -232,7 +232,7 @@ entries, and persistence of the entry table across reboot are each their own lat
   whatever milestone gives services durable configuration at all, which does not exist yet.
 
 - **The document is compiled in, not read from disk**, which is the limitation
-  `components/src/mdns_responder.rs` records and has the same fix (a `FileSpec` grant plus an `fs_proto`
+  `components/src/multicast_dns_responder.rs` records and has the same fix (a `FileSpec` grant plus an `fs_proto`
   open-and-read at startup, milestone 131). It is load-bearing here in a way it is not there, because
   where the document lives is also what answers "who may register".
 

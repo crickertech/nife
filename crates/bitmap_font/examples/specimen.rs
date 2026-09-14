@@ -598,7 +598,7 @@ fn summary(font: &Font) -> String {
     )
 }
 
-/// The scanout the grid is measured against, which is `graphics_proto::WIDTH` and `HEIGHT` on the
+/// The scanout the grid is measured against, which is `graphics_protocol::WIDTH` and `HEIGHT` on the
 /// display ladder today. Written here rather than depended on, because this example is a bench
 /// tool and a dependency on the protocol crate would make it part of the shipping graph.
 const SCANOUT_W: usize = 128;

@@ -1,6 +1,6 @@
 use core::sync::atomic::Ordering;
 
-use clock_proto::{NANOS_PER_SEC, policy, state, status};
+use clock_protocol::{NANOS_PER_SEC, policy, state, status};
 use ntp_service::{ATTEMPTS, reject, rpt, srv};
 
 use super::*;
@@ -59,7 +59,7 @@ fn entropy() -> Option<crate::sched::RendezvousId> {
     if let Some(report) = w.wait_for_ready() {
         assert_eq!(
             report[0],
-            entropy_proto::READY,
+            entropy_protocol::READY,
             "the entropy service did not come up (it reported {:#x})",
             report[0],
         );
@@ -99,7 +99,7 @@ fn machine_has_no_entropy() -> bool {
 /// endpoint, not behind the address. The address is asserted anyway, because a client that
 /// invented its own destination would be one that ignores its wiring.
 const SERVER_IP: u32 = 0x0a00_0202; // 10.0.2.2, slirp's gateway
-const SERVER_PORT: u16 = ntp_proto::PORT;
+const SERVER_PORT: u16 = network_time_protocol::PORT;
 
 /// Run one exchange: a fresh server at `claimed_nanos`, a fresh client, both reports drained in
 /// the order the blocking `send` requires. Returns `(the server's report, the client's report)`.
@@ -162,17 +162,17 @@ fn an_ntp_exchange_reaches_the_clock_as_a_proposal() {
     assert_eq!(served[0], rpt::SERVED);
     assert_eq!(
         served[2] >> 32,
-        ntp_proto::PORT as u64,
+        network_time_protocol::PORT as u64,
         "the client did not address UDP 123",
     );
     assert_eq!(
         (served[2] >> 8) & 0xff,
-        ntp_proto::VERSION as u64,
+        network_time_protocol::VERSION as u64,
         "not an NTPv4 request",
     );
     assert_eq!(
         served[2] & 0xff,
-        ntp_proto::mode::CLIENT as u64,
+        network_time_protocol::mode::CLIENT as u64,
         "not a client-mode request: a server would take this for an unsolicited packet",
     );
 
@@ -221,7 +221,7 @@ fn an_ntp_exchange_reaches_the_clock_as_a_proposal() {
 /// Three replies a real client meets, and each is a different situation rather than three ways
 /// of saying "bad packet": an origin that is not our nonce is the off-path spoof the check
 /// exists for, a kiss-o'-death is an instruction, and twenty bytes is something that is not NTP
-/// arriving on our socket. `ntp_proto` proves the checks themselves over 2^384 packets; what is
+/// arriving on our socket. `network_time_protocol` proves the checks themselves over 2^384 packets; what is
 /// proved here is that the client **honours the verdict**, which is a property of this component.
 ///
 /// The attempt count is the second half of it. A rejected reply is retried, because it may have
@@ -422,7 +422,7 @@ fn the_nonce_on_the_wire_is_random_and_is_not_the_clock() {
     let claimed = clock.wall_nanos() + NANOS_PER_SEC / 2;
 
     // A time in the NTP era the transmit field would carry if it were a clock reading.
-    let now_ntp_secs = clock.wall_nanos() / NANOS_PER_SEC + ntp_proto::UNIX_DELTA;
+    let now_ntp_secs = clock.wall_nanos() / NANOS_PER_SEC + network_time_protocol::UNIX_DELTA;
 
     let mut nonces = [0u64; 2];
     for slot in nonces.iter_mut() {

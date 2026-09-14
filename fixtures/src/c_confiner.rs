@@ -54,7 +54,7 @@
 // The loader, shared with the milestone-22 supervision tree. `ChildEndowment.maps` and `ChildEndowment.fault` are the
 // two parts this milestone leans on: a child born with shared pages and born supervised.
 use c_seam::checks;
-use supervision_proto::{ChildEndowment, Retention};
+use supervision_protocol::{ChildEndowment, Retention};
 use user_mode_runtime::{cap_delete, map_page_frame, recv_fault, send};
 
 /// What the kernel grants us, and nothing else.
@@ -79,13 +79,13 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 
     // The three pages the whole proof rests on. All from our own budget, all ours to start with; the
     // C component's process will see two of them and never the third.
-    let Ok(grant) = supervision_proto::retype_page_frame_from(ROOT_UT) else {
+    let Ok(grant) = supervision_protocol::retype_page_frame_from(ROOT_UT) else {
         bail(3)
     };
-    let Ok(wit_ro) = supervision_proto::retype_page_frame_from(ROOT_UT) else {
+    let Ok(wit_ro) = supervision_protocol::retype_page_frame_from(ROOT_UT) else {
         bail(4)
     };
-    let Ok(wit_far) = supervision_proto::retype_page_frame_from(ROOT_UT) else {
+    let Ok(wit_far) = supervision_protocol::retype_page_frame_from(ROOT_UT) else {
         bail(5)
     };
 
@@ -108,7 +108,8 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 
     // Our children's deaths arrive here. We are the only holder with READ, and the kernel is the only
     // sender (§26.5), so both the tid and the fault address are trustworthy without a badge.
-    let Ok(faultep) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
+    let Ok(faultep) = supervision_protocol::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
+    else {
         bail(7)
     };
 
@@ -121,10 +122,10 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         g.fill(0);
         g[c_seam::IN_OFF..c_seam::IN_OFF + c_seam::INPUT.len()].copy_from_slice(c_seam::INPUT);
 
-        let Ok(region) = supervision_proto::memory_region_split(ROOT_UT, INSTANCE_PAGES) else {
+        let Ok(region) = supervision_protocol::memory_region_split(ROOT_UT, INSTANCE_PAGES) else {
             bail(10)
         };
-        let Ok(child) = supervision_proto::build_child(
+        let Ok(child) = supervision_protocol::build_child(
             ROOT_UT,
             region,
             &shim,
@@ -153,7 +154,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         // capability is not the reap: the corpse is collected through the supervision endpoint. So we
         // hold nothing that reaches a live instance's memory, and the child keeps the narrowed copy of
         // the region it was endowed with, which is what `malloc` spends.
-        if !supervision_proto::start_child(child, 0, attempt, 0) {
+        if !supervision_protocol::start_child(child, 0, attempt, 0) {
             bail(12)
         }
         cap_delete(region);
@@ -298,7 +299,7 @@ fn witness_far() -> &'static mut [u8] {
 /// stage code turns "nothing happened" into a legible failure.
 fn bail(stage: u64) -> ! {
     send(REPORT, c_seam::RPT_FAILED, stage, 0);
-    supervision_proto::fail()
+    supervision_protocol::fail()
 }
 
 user_mode_runtime::panic_handler!();

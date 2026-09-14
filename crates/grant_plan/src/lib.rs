@@ -65,7 +65,7 @@
 //! designates by typing a name, and this crate's work starts after that, so all three put it in a
 //! role it does not hold); and the grant synonyms `endow`, `award`, `confer`, `bestow`, `allot` and
 //! `furnish` (grant is already this tree's word and a synonym is a decoder ring, and `endow` is
-//! additionally taken by `supervision_proto::ChildEndowment`). Deliberately not named for `swish`: seven
+//! additionally taken by `supervision_protocol::ChildEndowment`). Deliberately not named for `swish`: seven
 //! things use it, so naming it for one consumer would repeat `dwarden`'s defect.
 
 #![no_std]
@@ -219,14 +219,14 @@ pub enum Prog {
     /// The reason [`Manifest::config`] exists, and the same asymmetry [`Prog::Date`] made for the
     /// clock: the grant is real and it is not something a person designates on the line. Before
     /// this program, the page existed and could be assembled and mapped
-    /// (`crates/environment_proto`), but nothing in the shell's program table declared wanting one,
+    /// (`crates/environment_protocol`), but nothing in the shell's program table declared wanting one,
     /// so `caps`'s preview of it had nothing to show and no boot granted it outside a kernel test
     /// harness standing in for a std program. `date` before `Prog::Date` existed is the position
     /// this section of the roadmap named; `printenv` is this milestone's `date`.
     ///
     /// Takes no argument, no memory, no file: its whole authority is the read-only page. `TZ`,
     /// `LANG` and `TERM` print as `KEY=value` when the key is present and `KEY (unset)` when the
-    /// page is valid but does not carry it (`environment_proto`'s validated-domain shape makes both
+    /// page is valid but does not carry it (`environment_protocol`'s validated-domain shape makes both
     /// states distinguishable from a page nobody has assembled at all, which reads as
     /// "no configuration was granted").
     ///
@@ -699,7 +699,7 @@ pub enum OutputSpec {
     /// One or more raw `u64` answers on the result endpoint, read by the shell and rendered by it.
     /// Older than the sink contract and still right for an integer; not redirectable.
     Words,
-    /// The sink contract (`crates/byte_sink_proto`): self-framing byte messages ending in `OP_EOF`. The
+    /// The sink contract (`crates/byte_sink_protocol`): self-framing byte messages ending in `OP_EOF`. The
     /// only output that `>` and `|` can substitute, because it is the only one whose meaning does
     /// not depend on who is reading it.
     Bytes,
@@ -827,7 +827,7 @@ pub const DOMAIN_SLOT: u64 = 7;
 ///
 /// A number is not a right. What it means to hold this slot is decided by the capability the progenitor puts
 /// in it, and a program spawned without the declaration holds an empty slot here: its first `CALL`
-/// answers `abi::Error::NoSuchSlot`, which `entropy_proto::delivered` reads as `None` rather than
+/// answers `abi::Error::NoSuchSlot`, which `entropy_protocol::delivered` reads as `None` rather than
 /// as a count.
 pub const ENTROPY_SLOT: u64 = 9;
 
@@ -893,7 +893,7 @@ pub enum FileSpec {
 ///
 /// # Why the rights are not a mask here
 ///
-/// The fields say what the program will *do*, not what the wire calls it. `filesystem_proto::dir`'s
+/// The fields say what the program will *do*, not what the wire calls it. `filesystem_protocol::dir`'s
 /// six-rung ladder is the filesystem contract's vocabulary, and translating into it belongs to the
 /// shell, which holds both contracts; keeping it out of `grant_plan` is [`MAX_FILE_NAME`]'s rule, that a
 /// command line can be checked without linking the filesystem.
@@ -985,7 +985,7 @@ pub struct Manifest {
     /// `ps` prints the two apart.
     pub domain: bool,
     /// **Endowed a read-only mapping of the inert-configuration page** (milestone 47's
-    /// environment-variable fork, DECISIONS §111; `crates/environment_proto`).
+    /// environment-variable fork, DECISIONS §111; `crates/environment_protocol`).
     ///
     /// [`clock`](Manifest::clock)'s twin again, for the identical reason: `TZ`/`LANG`/`TERM` are
     /// not something a command line designates, so there is no token to place and no refusal to
@@ -1001,7 +1001,7 @@ pub struct Manifest {
     /// change what a shell hands its children. **Provisional field name.**
     pub config: bool,
     /// **Endowed a client view of the entropy service** (milestone 111; DECISIONS §44,
-    /// `crates/entropy_proto`, notes/entropy.md).
+    /// `crates/entropy_protocol`, notes/entropy.md).
     ///
     /// The fourth member of [`clock`](Manifest::clock)'s family and the first one that is an
     /// *endpoint a service answers on* rather than a page: randomness is not a name a person types,
@@ -1013,7 +1013,7 @@ pub struct Manifest {
     /// and nothing else: a declaring program may ask the service for bytes and may not receive
     /// another client's request, and it holds no `GRANT`, so it cannot hand randomness to anything
     /// it spawns. A program that does not declare it holds an empty slot there and its first
-    /// `CALL` comes back as a kernel error, which `entropy_proto::delivered` reports as `None`
+    /// `CALL` comes back as a kernel error, which `entropy_protocol::delivered` reports as `None`
     /// rather than as a short reply: **that difference is the whole feature**, and it is what
     /// `disk_partitioner` already turns into `R_NO_ENTROPY` instead of writing a GPT full of
     /// counter-derived ids.
@@ -1083,14 +1083,14 @@ pub enum Command<'a> {
     /// to hold the power to read everything it lists.
     Ls(&'a [u8]),
     /// `mkdir <path>`: make a directory and, in the same verb, obtain a capability to it
-    /// (`filesystem_proto::fs::MKDIR` is descend-with-creation). Needs `CREATE` **and** `DESCEND`.
+    /// (`filesystem_protocol::fs::MKDIR` is descend-with-creation). Needs `CREATE` **and** `DESCEND`.
     Mkdir(&'a [u8]),
     /// `touch <path>` or `touch -t <RFC-3339-instant> <path>`: create an empty file if the name is
     /// not there (a no-op if it already is), then bump its modification time. Bare `touch` sets it
     /// to now; `-t` asserts a caller-chosen instant (DECISIONS §112: the ability to *lie about
     /// history*). **A builtin, in [`Mkdir`](Command::Mkdir)'s category rather than [`Prog::Rm`]'s**:
     /// even the `-t` half takes no more than this shell's own directory capability
-    /// (`filesystem_proto::dir::WRITE` for the bare form, `dir::WRITE | dir::SETTIME` for `-t`),
+    /// (`filesystem_protocol::dir::WRITE` for the bare form, `dir::WRITE | dir::SETTIME` for `-t`),
     /// which `mkdir` and the create half already established as the model, so there is nothing to
     /// attenuate and nothing gained by confining it to a program.
     ///
@@ -1287,7 +1287,7 @@ pub struct Endowment {
 
 /// One resolved per-file grant: the directory it was resolved against, the name the command
 /// designated, and the direction the program's manifest declared. Those three are the whole
-/// authority; `filesystem_proto::grant` packs the name and the direction into the file caretaker's start
+/// authority; `filesystem_protocol::grant` packs the name and the direction into the file caretaker's start
 /// arguments, and the directory is which capability the caretaker is handed to narrow.
 ///
 /// # The cwd stops at the process boundary, and this value is where that is true
@@ -1549,7 +1549,7 @@ pub enum Refusal {
     /// whose printed preview and actual transfer could disagree.
     NoSuchOption,
     /// The named file is not something this shell can express: empty, a component longer than the
-    /// two argument words a grant's name rides in (`filesystem_proto::grant::MAX_NAME`), deeper than the
+    /// two argument words a grant's name rides in (`filesystem_protocol::grant::MAX_NAME`), deeper than the
     /// shell tracks, or a path that designates a directory rather than a file.
     FileNotNameable,
     /// The program takes no memory grant, but `--mem` was given.
@@ -2532,7 +2532,7 @@ fn unplaceable(tok: &[u8], m: Manifest) -> Refusal {
     }
 }
 
-/// The longest file name a per-file grant can carry. Duplicated from `filesystem_proto::grant::MAX_NAME`
+/// The longest file name a per-file grant can carry. Duplicated from `filesystem_protocol::grant::MAX_NAME`
 /// rather than imported, because `grant_plan` is the shell's parser and must not depend on the filesystem
 /// contract to check a command line; the pair is pinned by a test in each crate so a change to one
 /// without the other fails on the host in milliseconds.
@@ -4202,10 +4202,10 @@ mod tests {
 
     #[test]
     fn a_grant_name_limit_matches_the_filesystem_contract() {
-        // `grant_plan` deliberately does not depend on `filesystem_proto` (the shell's parser must not need the
+        // `grant_plan` deliberately does not depend on `filesystem_protocol` (the shell's parser must not need the
         // filesystem contract to check a command line), so the constant is duplicated. That is only
         // safe if a change to one without the other fails here, on the host, in milliseconds.
-        assert_eq!(MAX_FILE_NAME, filesystem_proto::grant::MAX_NAME);
+        assert_eq!(MAX_FILE_NAME, filesystem_protocol::grant::MAX_NAME);
         assert!(file_name_fits(b"sixteen-bytes!!!"));
         assert!(!file_name_fits(b"seventeen-bytes!!"));
         assert!(!file_name_fits(b""));
@@ -4772,12 +4772,12 @@ mod tests {
     /// pinned here rather than shared.
     #[test]
     fn the_set_bound_matches_the_contract_that_carries_the_set() {
-        assert_eq!(MAX_NAMES, filesystem_proto::nameset::MAX_NAMES);
-        assert_eq!(expand::MAX_NAME, filesystem_proto::grant::MAX_NAME);
+        assert_eq!(MAX_NAMES, filesystem_protocol::nameset::MAX_NAMES);
+        assert_eq!(expand::MAX_NAME, filesystem_protocol::grant::MAX_NAME);
         // And the widest set this crate can plan must fit the buffer that contract sizes for it.
         let widest: [(&[u8], bool); MAX_NAMES] = [(b"sixteen-bytes!!!", false); MAX_NAMES];
-        let mut buf = [0u8; filesystem_proto::nameset::BYTES];
-        assert!(filesystem_proto::nameset::encode(&widest, &mut buf).is_some());
+        let mut buf = [0u8; filesystem_protocol::nameset::BYTES];
+        assert!(filesystem_protocol::nameset::encode(&widest, &mut buf).is_some());
     }
 
     /// **Every id the progenitor can index resolves, and round trips through both names.**

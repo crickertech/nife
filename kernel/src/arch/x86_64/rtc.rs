@@ -8,7 +8,7 @@
 //! drivers, which map their device and poll it themselves, nothing in userspace ever touches this
 //! one: the kernel reads it here, once per clock-service spawn, and
 //! `kernel::user::clock_service::start` hands the already-converted reading across as a plain
-//! `Spawn` argument (`clock_proto::rtc::CMOS`). Same shape as `arch::x86_64::timer`'s PIT
+//! `Spawn` argument (`clock_protocol::rtc::CMOS`). Same shape as `arch::x86_64::timer`'s PIT
 //! calibration: kernel-side, boot-time, `in`/`out` only, sub-microsecond.
 //!
 //! # The register map
@@ -53,7 +53,7 @@
 //! - **No century byte, so a date before 2000 or after 2099 cannot be represented.** Not the failure
 //!   mode this file is built for; see above.
 //! - **Daylight saving and the alarm/periodic-interrupt registers are untouched.** This kernel reads
-//!   the clock once and never again (`clock_proto`'s wall clock is counter-plus-offset from then
+//!   the clock once and never again (`clock_protocol`'s wall clock is counter-plus-offset from then
 //!   on), so nothing here needs an alarm, a periodic tick, or status register B's DST bit.
 //! - **Not proven against real hardware.** QEMU's CMOS is a straightforward MC146818A model seeded
 //!   from the host clock; a real board's chipset (milestone 87's `OptiPlex`) may exercise a branch
@@ -137,7 +137,7 @@ fn bcd_to_binary(v: u8) -> u8 {
 /// a CMOS with a dead battery and no host to seed it reads as, is the case this actually exists to
 /// catch (`calendar::Civil::new` refuses month 0 and day 0). A machine this kernel can otherwise run
 /// on has no way to make CMOS report a well-formed but implausible date; `components/src/clock.rs` still
-/// runs whatever it is handed through `clock_proto::policy::plausible` before publishing it, the
+/// runs whatever it is handed through `clock_protocol::policy::plausible` before publishing it, the
 /// same as every other RTC binding.
 pub fn read_unix_nanos() -> Option<u64> {
     let raw = loop {
@@ -193,5 +193,5 @@ pub fn read_unix_nanos() -> Option<u64> {
 
     let civil = calendar::Civil::new(year, month, day, hour, minute, second).ok()?;
     let secs = u64::try_from(civil.to_unix()).ok()?;
-    Some(secs * clock_proto::NANOS_PER_SEC)
+    Some(secs * clock_protocol::NANOS_PER_SEC)
 }

@@ -98,7 +98,7 @@ pub const MAX_IDENTITIES: usize = 8;
 
 /// The longest one identity name this crate will carry.
 ///
-/// Matches `login_proto::MAX_IDENTITY` (64 bytes) by convention rather than by a shared type: the
+/// Matches `login_protocol::MAX_IDENTITY` (64 bytes) by convention rather than by a shared type: the
 /// manifest names the same identities a login authenticates, so a name too long to ever log in with
 /// is not a name this store needs to carry either. Not enforced by a shared dependency (this crate
 /// takes none), only by this constant and the comment naming why it was chosen.
@@ -245,7 +245,7 @@ pub fn render_manifest(names: &[&[u8]], buf: &mut [u8]) -> Option<usize> {
 /// Fixture data both this lane's own demonstration writer
 /// (`fixtures/src/fs_test_client.rs`'s `ROLE_SCHEDULE_SEED`) and the kernel test wiring them together
 /// use, so the identity and the schedule document a reader meets in either place are the one the
-/// other was written against, matching `filesystem_proto::fixture`'s own convention for
+/// other was written against, matching `filesystem_protocol::fixture`'s own convention for
 /// `SMB_SEED`/`SMB_SEED_NAME`.
 pub mod fixture {
     /// The one identity this lane's demonstration seeds a durable schedule for. Deliberately not
