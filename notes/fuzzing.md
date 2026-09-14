@@ -241,21 +241,31 @@ Three kinds of input, and they are kept apart because they have different reason
 
 **Seeds are committed, and they are read-only.** A fuzzer starting from `[]` spends its first minutes
 rediscovering that a device tree begins `d0 0d fe ed`. With a sixty-second budget it would never get
-past the magic check. But `fuzz/seeds/` holds exactly one file, because the seeds this project needs
+past the magic check. But `fuzz/seeds/` holds one small ELF per machine and nothing else, because
+the seeds this project needs
 **already exist in the tree**: `crates/dtb/tests/fixtures/` holds three real device trees dumped from
 the boards we boot, and `crates/gpt/tests/fixtures/` holds two real disks formatted by `sgdisk` and
 by Apple's Disk Utility. `script/fuzz` passes those directories to libFuzzer as extra corpus
 arguments. Copying them under `fuzz/` would create a second copy that can drift from the first.
 
-The exception is `fuzz/seeds/elf_parse/minimal_rx.elf`, 120 bytes, because nothing else in the tree is
-a small ELF (our real binaries are over a megabyte). It is hand-assembled, and
-[fuzz/seeds/README.md](../fuzz/seeds/README.md) carries the generator that produces it.
+The exception is `fuzz/seeds/elf_parse/minimal_rx_<machine>.elf`, 120 bytes each, because nothing else
+in the tree is a small ELF (our real binaries are over a megabyte). They are hand-assembled, and
+[fuzz/seeds/README.md](../fuzz/seeds/README.md) carries the generator that produces them.
+
+**There are three of them, one per machine nife runs, and that is milestone 288's repair.** `elf`
+picks the `e_machine` it accepts at compile time, so a seed carries a machine or it carries nothing
+useful. There was one seed, `EM_AARCH64`, under a note saying a riscv64 build would reject it; an
+x86_64 build rejects it too, which nobody wrote down because `x86_64` became a target after that
+sentence was written. On an x86_64 host the corpus really was empty. The two seeds a given build
+refuses cost that build's fuzzer one rejected input each, which is the cheapest form this can take.
 
 **A seed that stops parsing is not a seed, and nothing about a fuzz run would say so.** The target
 returns immediately on anything the parser rejects, so a corpus of rejected inputs reports the same
-"no crashes" a working one does. `crates/elf/tests/fuzz_seed.rs` holds that seed to actually parsing,
-and to carrying this build's `e_machine`, which is a compile-time constant and would be wrong on a
-riscv64 developer machine. The other three targets seed from fixtures that already have tests.
+"no crashes" a working one does. `crates/elf/tests/fuzz_seed.rs` holds the seed for this build to
+actually parsing, and holds the directory to carrying a seed for **every** machine in
+`elf::KNOWN_MACHINES`, so a fourth architecture with no seed fails on whatever host adds it rather
+than on the first machine that tries to fuzz there. The other three targets seed from fixtures that
+already have tests.
 
 The seed's effect, measured from an empty corpus: `elf_parse` starts at `cov: 65` on its very first
 execution and is at 90 edges by input 256. Without it, that first execution is a four-byte magic check
