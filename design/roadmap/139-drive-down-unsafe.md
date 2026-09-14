@@ -403,7 +403,7 @@ that at least invite a reader to ask "is this the right stride." Left unmigrated
 matching `ns16550.rs`'s own precedent rather than round 3's "identical hardware" premise.
 
 **`jh7110_trng.rs`: migrated.** Checked against the crate's own sourced register file
-(`crates/jh7110_entropy_source::regs`, transcribed from `jh7110-trng.c`) and the device-tree binding
+(`crates/jh7110_entropy::regs`, transcribed from `jh7110-trng.c`) and the device-tree binding
 (`starfive,jh7110-trng`, `reg = <0x1600C000 0x4000>`) before assuming this was the file round 3's
 brief warned it might be ("the one most likely to have this problem," being real-hardware-specific
 code for a board this tree has not yet run against, milestone 159, `NOT-STARTED`, gate HARDWARE):
@@ -427,6 +427,11 @@ abstraction, the same "flat but real" case `smb_server.rs`, `fs_subtree_caretake
 the line count grew despite the block count falling, because the compile-time-checked layout costs
 more lines in doc comments and macro invocations than the hand-written offsets and SAFETY comments
 it replaced, the mirror image of round 2's `asm!`-collapse where both moved together.
+
+*`jh7110_trng.rs` is `components/src/jh7110_entropy.rs` now (milestone 175's split, then calef's
+two 2026-09-13 rulings, `jh7110_entropy_source` and then `jh7110_entropy`; the second was performed
+2026-09-14). This round's sections spell it as it was when the blocks were counted, so the -1 stays
+checkable against base commit `757562a3`, and `notes/unsafe-obligations.md` spells it the same way.*
 
 **The ratchet, cinched a fourth time: `<!--count-at-most:unsafe-density-outside-arch-->` lowered
 from 95 to 94** (`notes/unsafe-obligations.md`, `notes/counted-claims.md`,

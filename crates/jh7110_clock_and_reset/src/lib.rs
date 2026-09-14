@@ -5,7 +5,7 @@
 //! Register offsets, bit positions, the bring-up plan the TRNG needs, and the device-tree query
 //! that finds the controller, with nothing an actual driver touches. The volatile shell is
 //! `kernel/src/drivers/jh7110_clock_and_reset.rs`; this crate never dereferences a pointer, which is what
-//! makes it host-testable and Kani-reachable, the same rule-7 split `jh7110_entropy_source` and `pci`
+//! makes it host-testable and Kani-reachable, the same rule-7 split `jh7110_entropy` and `pci`
 //! already use.
 //!
 //! # Why this exists at all, and it is a measurement rather than an inference
@@ -459,7 +459,7 @@ const VENDOR_RSTGEN_STG_NAME: &[u8] = b"stgcrg";
 /// return is an error, if the blob itself does not parse.
 ///
 /// **Three spellings are tried, mainline's first**, the same order and the same reasoning
-/// `jh7110_entropy_source::discover` uses: a tree that carries the standardised binding is describing itself
+/// `jh7110_entropy::discover` uses: a tree that carries the standardised binding is describing itself
 /// in the language the binding standardised, and that is the one to believe. The two vendor nodes
 /// carry several windows and are indexed by `reg-names` rather than by position, because a
 /// position that happens to be right today is a fact nobody wrote down.

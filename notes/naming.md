@@ -1013,7 +1013,7 @@ Where it hides, from the two renames that found it:
 | A configuration file the tree ships | `components/timetable.conf`'s `at-boot budgeter --mem 4` |
 | Identifiers derived from the program's name | `saw_budgeter_grant`, `budgeter_reports`, four test function names |
 | A provenance block's "replacing" clause | `Name: ... replacing the provisional jh7110_trng` |
-| Another project's file name, URL or version string | `$NetBSD: jh7110_trng.c,v 1.2 ...` and the fetch URL beside it |
+| Another project's file name, URL, version string or identifier | `$NetBSD: jh7110_trng.c,v 1.2 ...`, the fetch URL beside it, and `jh7110_trng_init` in its text |
 
 **The configuration-file and derived-identifier rows were added by the `budgeter` rename on
 2026-09-13, and both hide in a way the others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
@@ -1058,6 +1058,22 @@ the recalling.
 The sibling that survived shows it was luck rather than care. `crates/jh7110_clock_and_reset` cites
 Linux's `starfive%2Cjh7110-crg.h` and is still right only because upstream spells that one with a
 hyphen where the sweep matched an underscore.
+
+**There was a fourth site in that same file, and it outlived the repair**, found 2026-09-14 by the
+rename that replaced `jh7110_entropy_source` with `jh7110_entropy`. `95db4a3e` also rewrote the
+**function name inside** NetBSD's driver, so the crate's bring-up section credited the sequence to
+`[netbsd]'s jh7110_entropy_source_init`, a symbol that exists in no tree anywhere. `0cfb6f63`
+restored the two `replacing` clauses and did not look for this, because the three sites it knew
+about were all paths and this one is an identifier. It was repaired by fetching the file
+(`raw.githubusercontent.com/NetBSD/src/trunk/sys/arch/riscv/starfive/jh7110_trng.c`, which also
+re-confirmed the `$NetBSD: jh7110_trng.c,v 1.2 2025/02/09 09:09:49 skrll Exp $` line the crate
+quotes) and reading the name out of it: `jh7110_trng_init`.
+
+So the row above reads **file name, URL, version string, or identifier**. The general shape is that
+a foreign name does not have to look like a path to be somebody else's, and the sweep's own pattern
+is what decides which of them it eats: an underscore-spelled rename matches an
+underscore-spelled foreign symbol and leaves a hyphen-spelled one standing, which is why the
+survivor above survived and this one did not.
 
 **The evidence is one failure and one success, a commit apart.** Renaming `doc` to `mdr` left
 `grant_plan` still saying `doc`, so the shell could not spawn the binary and the archive did not hold
