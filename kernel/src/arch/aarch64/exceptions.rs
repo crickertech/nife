@@ -186,6 +186,35 @@ pub fn user_pc(stack_top: u64) -> u64 {
 /// that we didn't crash.
 pub static BRK_COUNT: AtomicUsize = AtomicUsize::new(0);
 
+/// **Prove the trap path works end to end: execute a breakpoint and return** (milestone 268).
+///
+/// The twin of `arch::riscv64::exceptions::self_test` and `arch::x86_64::exceptions::self_test`,
+/// which both architectures have had since their ports were written and which
+/// `notes/riscv-port.md` already calls "a boot self-test". aarch64 had every part of it except the
+/// function: [`BRK_COUNT`], a handler arm for `ec::BRK64`, and a test that fires a `brk` and reads
+/// the counter back. Milestone 268 collected the three into the same shape the other two have, so
+/// that `self_test::run` can call one name on all three.
+///
+/// If the vector is wired, the handler catches EC `0x3c`, advances `ELR_EL1` past the `brk` (the
+/// hardware does **not** do that for a `brk`, unlike a data abort), and the `eret` lands on the
+/// line after this one. If it is not wired, this never returns, which is the same exposure the
+/// other two carry and is why the caller's own doc says a self-test can hang a boot.
+///
+/// Returns how many breakpoints were caught during the call, so the caller can tell "the handler
+/// ran" from "we survived somehow".
+// The machine description and the boot self-test are the only callers, and both are
+// `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench
+// boot diverges into `bench::run`, so neither reads a bring-up transcript. Same treatment
+// `memory::print_summary` already carries, and for the same reason.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+pub fn self_test() -> usize {
+    let before = BRK_COUNT.load(Ordering::Relaxed);
+    // SAFETY: `brk #0` raises a synchronous exception the dispatcher handles, and the guard in that
+    // arm (`!from_lower_el`) admits this one because it comes from EL1. It has no other effect.
+    unsafe { core::arch::asm!("brk #0") };
+    BRK_COUNT.load(Ordering::Relaxed) - before
+}
+
 /// Exception Class: `ESR_EL1` bits 31:26.
 ///
 /// The single most useful field in the machine when something has gone wrong. It says
