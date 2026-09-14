@@ -42,7 +42,7 @@
 // Each binary in the tree compiles the shared module but uses a different slice of it (the sub-server
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead.
 
-use supervision_proto::REPORT_SERVER_RAN;
+use supervision_protocol::REPORT_SERVER_RAN;
 use user_mode_runtime::send;
 
 /// Our one capability.

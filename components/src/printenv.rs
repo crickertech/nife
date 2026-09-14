@@ -15,7 +15,7 @@
 //!
 //! # Three keys, three closed domains, and a state the type carries honestly
 //!
-//! `environment_proto::ConfigPage` answers `Option<&str>` per key: `Some(value)` when the page is
+//! `environment_protocol::ConfigPage` answers `Option<&str>` per key: `Some(value)` when the page is
 //! valid and carries that key, `None` when the page is valid but that key was never set, and
 //! (indistinguishably from the outside, by design) `None` when nobody assembled a page into this
 //! frame at all. This program tells the second case apart from the first two the same way `date`
@@ -46,7 +46,7 @@
 //!   because `ArgSpec` has no position yet (the same gap `date`'s module docs name for a format
 //!   selector) and three lines cost nothing to read in full.
 //! - **The three keys are hardcoded.** Nothing here enumerates the page; a fourth validated domain
-//!   would need a fourth line written by hand. `environment_proto::PAGE_BYTES` is small and fixed,
+//!   would need a fourth line written by hand. `environment_protocol::PAGE_BYTES` is small and fixed,
 //!   so this is a property of the contract rather than an oversight, but a reader expecting a
 //!   generic env dump should know the shape is closed.
 //!
@@ -63,7 +63,7 @@
 //!
 //! Refused `env`, which names `env(1)`, a program that also *sets* variables and *runs* a command;
 //! neither is possible here and the name would promise both. Refused `config` and `environment` as
-//! generic words that could name almost anything in an operating system, and `environment_proto`
+//! generic words that could name almost anything in an operating system, and `environment_protocol`
 //! already spends the stem on the wire format.
 
 #![no_std]
@@ -73,7 +73,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use environment_proto::ConfigPage;
+use environment_protocol::ConfigPage;
 use user_mode_runtime::{exit, invoke, send};
 
 /// Slot 0: where the output goes. An endpoint with `WRITE`, and the same 16-bytes-per-message
@@ -92,7 +92,7 @@ const CONFIG_VA: u64 = 0x00e0_0000;
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     let Some(page) = config_page() else {
         line(b"printenv: no configuration was granted");
-        send(REPORT, byte_sink_proto::eof(), 0, 0);
+        send(REPORT, byte_sink_protocol::eof(), 0, 0);
         exit();
     };
 
@@ -100,7 +100,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     key_line(&page, b"LANG", page.lang());
     key_line(&page, b"TERM", page.term());
 
-    send(REPORT, byte_sink_proto::eof(), 0, 0);
+    send(REPORT, byte_sink_protocol::eof(), 0, 0);
     exit();
 }
 

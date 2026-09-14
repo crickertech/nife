@@ -47,7 +47,7 @@ the search: this kernel puts almost everything behind a ranked interrupt-safe lo
 and fetch-op outside test code:
 
 - **`crates/work_steal_slot`** (new, milestone 80): the work-steal request slot. The pilot.
-- **`crates/clock_proto`**: the clock page's **seqlock**. Cross-*address-space*, hand-rolled, with an
+- **`crates/clock_protocol`**: the clock page's **seqlock**. Cross-*address-space*, hand-rolled, with an
   explicit fence in the reader. This one the roadmap did not name, and it is where the bug was.
 - **`kernel/src/smp.rs`**: the boot roster. `HWID`/`STARTABLE` written relaxed, then `ROSTER` stored
   with a release; readers acquire `ROSTER` and then read the arrays. A textbook array publication,
@@ -94,7 +94,7 @@ calls it rather than keeping a copy of the protocol. Same Phase-2 move `memory_r
 | `a_relaxed_pairing_publishes_nothing` | **the falsification**, `#[should_panic]`: the same handshake with relaxed orderings must fail, and if it ever stops failing we want to hear about it |
 | `a_stale_load_reading_costs_a_round_and_nothing_more` | §28's gossip claim, that a thief reads its victim's load relaxed and possibly stale on purpose: the interleaving where the victim drains between the load and the claim costs a wasted round and nothing else |
 
-### `crates/clock_proto`, the second protocol
+### `crates/clock_protocol`, the second protocol
 
 A seqlock over a shared page: the clock service writes, and every process holding a read mapping
 reads, with no lock available between them because they are in different address spaces. Its own
@@ -283,7 +283,7 @@ argued.
 
 **Why nothing else caught it.** It is unreachable on x86 (total store order gives the missing
 barrier for free). QEMU's TCG explores almost none of the orderings that produce it. The ten host
-tests in `clock_proto`, the kernel's clock tests on both ISAs, `script/verify`, `script/fuzz` and
+tests in `clock_protocol`, the kernel's clock tests on both ISAs, `script/verify`, `script/fuzz` and
 `script/undefined-behavior-check` all passed before the fix and all pass after it: none of them asks
 a question this could answer. The failure mode it would have produced on the VisionFive 2 is a
 timestamp that is wrong by however far the clock last stepped, at a rate too low to reproduce and
@@ -364,8 +364,8 @@ Reproduce the clock bug, to see what a loom failure looks like before trusting a
 the `fence(Ordering::Release)` from `ClockPage::publish` and:
 
 ```
-$ script/interleaving-check -p clock_proto
-thread '...a_reader_never_sees_half_a_publish' panicked at crates/clock_proto/src/lib.rs:738:26:
+$ script/interleaving-check -p clock_protocol
+thread '...a_reader_never_sees_half_a_publish' panicked at crates/clock_protocol/src/lib.rs:738:26:
 a torn reading: (1, 2000) is neither publish
 ```
 
@@ -383,7 +383,7 @@ Add a protocol of your own. Four steps, and the third is the one that is easy to
    and add `[target.'cfg(loom)'.dependencies] loom = "0.7"` to the crate's manifest.
 3. **Give every spin loop a yield.** Loom's scheduler is cooperative, so a thread spinning on
    `core::hint::spin_loop()` can starve the writer whose progress it is waiting for and the model
-   never terminates. `clock_proto` has a `spin_hint()` helper that is `loom::thread::yield_now()`
+   never terminates. `clock_protocol` has a `spin_hint()` helper that is `loom::thread::yield_now()`
    under the cfg and the hint otherwise; copy that shape.
 4. Add the crate to `script/interleaving-check`'s package list, write the harnesses, and **falsify
    each one** before believing it.

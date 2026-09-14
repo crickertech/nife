@@ -2,7 +2,7 @@
 
 *(Milestone 19d. `kernel/src/user.rs` `spawn_progenitor`, and the `init`/`child` roles in
 `fixtures/src/hello.rs`. The loader described here lived in that file until milestone 96 gave the tree
-one of them; it is `crates/supervision_proto`'s `build_child` now, and every caller reaches it there.
+one of them; it is `crates/supervision_protocol`'s `build_child` now, and every caller reaches it there.
 What the loader does is unchanged, and the steps below are still the steps.)*
 
 *This note said, until milestone 266, that the archive entry named `init` meant a different program

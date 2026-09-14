@@ -4,7 +4,7 @@
 //!
 //! **`entropy_backend`**, calef's, ruled 2026-08-18 after asking what the tree's other entropy
 //! crates are called. They are `entropy` (the service that holds the virtio-rng capability) and
-//! `entropy_proto` (its contract), so **entropy** is this tree's word for the domain and a third
+//! `entropy_protocol` (its contract), so **entropy** is this tree's word for the domain and a third
 //! participant takes the same stem.
 //!
 //! - **`getrandom_backend`** was the lane's provisional name and the strongest rival: it is

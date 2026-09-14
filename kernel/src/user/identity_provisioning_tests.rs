@@ -9,12 +9,12 @@ use super::*;
 /// later verify, and its other three checks (a wrong password, an unknown identity, another
 /// identity's password against this one) are unaffected by which store they run against.
 ///
-/// **Taken from `credential_proto::fixture` rather than matched to it by hand** (milestone 293).
+/// **Taken from `credential_protocol::fixture` rather than matched to it by hand** (milestone 293).
 /// The comment that used to sit here said this suite had *chosen* `chris`/`correct horse battery
 /// staple` to line up with a constant in a fixture program, which is a coupling with nothing holding
 /// it: the next person to edit either copy would have had no way to know the other existed.
 const IDENTITY: &[u8] =
-    credential_proto::fixture::PEOPLE[credential_proto::fixture::CHRIS as usize].0;
+    credential_protocol::fixture::PEOPLE[credential_protocol::fixture::CHRIS as usize].0;
 /// The same identity as a `&str`, because `fs_service::narrow_dir` names a path component rather
 /// than a credential. **Derived rather than re-typed** (milestone 293): a second spelling of the
 /// same name is the exact shape this milestone spent its diff removing, and a `const` conversion
@@ -24,13 +24,13 @@ const IDENTITY_STR: &str = match core::str::from_utf8(IDENTITY) {
     Err(_) => panic!("the roster's identity is not UTF-8, so it cannot name a directory"),
 };
 const SECRET: &[u8] =
-    credential_proto::fixture::PEOPLE[credential_proto::fixture::CHRIS as usize].1;
+    credential_protocol::fixture::PEOPLE[credential_protocol::fixture::CHRIS as usize].1;
 
 /// A second `PUT` for the same identity, with a different secret, used only to provoke the refusal
 /// this suite's second test asks for. Never expected to be stored. Another person's, which is what
 /// makes it certainly not this one's.
 const DUPLICATE_SECRET: &[u8] =
-    credential_proto::fixture::PEOPLE[credential_proto::fixture::CORINNE as usize].1;
+    credential_protocol::fixture::PEOPLE[credential_protocol::fixture::CORINNE as usize].1;
 
 /// What [`wired`] hands each test: the sealed store's own wiring (for a real `VERIFY`) and both
 /// provisioning attempts' raw reports. The file service's root that both attempts were run against
@@ -81,7 +81,7 @@ fn wired() -> Option<Wired> {
             if let Some(r) = e.wait_for_ready() {
                 assert_eq!(
                     r[0],
-                    entropy_proto::READY,
+                    entropy_protocol::READY,
                     "the entropy service did not come up, so no salt could be drawn",
                 );
             }
@@ -201,7 +201,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
     assert_eq!(honest[0], cs::RPT_DONE, "the honest client did not report");
     assert_eq!(
         cs::nth(honest[1], 0),
-        credential_proto::MATCH,
+        credential_protocol::MATCH,
         "the identity this tool PUT did not verify with the secret it was given",
     );
 
@@ -215,7 +215,7 @@ fn provisioning_creates_a_working_credential_and_a_real_subtree() {
         redoxfs_server_image(),
         caretaker,
         IDENTITY_STR,
-        filesystem_proto::dir::ALL,
+        filesystem_protocol::dir::ALL,
     )
     .expect("the subtree identity_provisioner created did not open");
 }
@@ -238,7 +238,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     };
     assert_eq!(
         w.duplicate,
-        [ips::RPT_CRED_FAILED, credential_proto::MALFORMED],
+        [ips::RPT_CRED_FAILED, credential_protocol::MALFORMED],
         "a genuine duplicate PUT was not refused the way credentialer::Store::put's own rule says it must \
          be (a duplicate identity answers MALFORMED, the same code a malformed request gets, \
          because neither is an authentication outcome)",
@@ -250,7 +250,7 @@ fn a_duplicate_identity_is_refused_without_disturbing_the_original() {
     assert_eq!(honest[0], cs::RPT_DONE, "the honest client did not report");
     assert_eq!(
         cs::nth(honest[1], 0),
-        credential_proto::MATCH,
+        credential_protocol::MATCH,
         "the refused second PUT disturbed the identity the first, successful PUT already stored",
     );
 }

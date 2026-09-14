@@ -7,7 +7,7 @@ copy is in the tree. The block declines to choose between copying it four times 
 it, and that choice is a lane's to make and recommend, not calef's: it is reversible, it is
 internal to `script/lint`, and nothing outside this repository acts on it.
 
-**In brief.** `steal_request`, `clock_proto`, `wake_handshake` and `canary_gate` were each lifted
+**In brief.** `steal_request`, `clock_protocol`, `wake_handshake` and `canary_gate` were each lifted
 out of their callers so loom could search their concurrent transitions. Loom then proves things
 about the lifted code. Nothing checks that the callers still route through it, so a caller that
 grows a second path around the searched surface takes the proof's name without its coverage.
@@ -49,7 +49,7 @@ to find out how much of it is actually shared.
 ## Where it came from
 
 Milestone 136's Follow-on: *"Gate the other four loom-searched crates (`steal_request`,
-`clock_proto`, `wake_handshake`, `canary_gate`): each was lifted so loom could search it, and
+`clock_protocol`, `wake_handshake`, `canary_gate`): each was lifted so loom could search it, and
 nothing checks that its callers still call the lifted code. Repeat this block's three-piece gate
 four more times, or build one mechanism pinning a loom-searched surface and its callers; the block
 declines to pick."*

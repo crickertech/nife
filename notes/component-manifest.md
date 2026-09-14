@@ -1,7 +1,7 @@
 # The component manifest
 
 *Milestone 23's second residual, built 2026-08-17. `crates/component_plan`, the four declarations in
-`crates/swap_proto`, and the operator that no longer contains an endowment. The mechanism it serves
+`crates/swap_protocol`, and the operator that no longer contains an endowment. The mechanism it serves
 is DECISIONS §41 and notes/live-replacement.md; read those first if you want the swap itself.*
 
 ## The defect, in the roadmap's own six words
@@ -14,10 +14,10 @@ milestone was built. The capability half was four arrays inside `swapper`:
 
 ```rust
 let instance_caps = [
-    (w.svc, abi::rights::READ),   // swap_proto::SVC:  we may answer here
-    (REPORT, abi::rights::WRITE), // swap_proto::RPT
-    (w.note, abi::rights::WRITE), // swap_proto::NOTE
-    (w.poke, abi::rights::READ),  // swap_proto::POKE
+    (w.svc, abi::rights::READ),   // swap_protocol::SVC:  we may answer here
+    (REPORT, abi::rights::WRITE), // swap_protocol::RPT
+    (w.note, abi::rights::WRITE), // swap_protocol::NOTE
+    (w.poke, abi::rights::READ),  // swap_protocol::POKE
 ];
 ```
 
@@ -27,7 +27,7 @@ Three things are wrong with that, and only the first is the one the block names.
 program that starts one. Swapping in `c_swappable` worked because somebody had typed its endowment
 into `swapper` too.
 
-**The slot agreement was a comment.** `swap_proto`'s own header said "the operator's
+**The slot agreement was a comment.** `swap_protocol`'s own header said "the operator's
 `ChildEndowment.caps` lists them in this order, so they land in these slots", and that sentence was
 the only thing holding two files together. A reordered array would have produced a component
 receiving on its report channel and sending its answers to the operator's coordination channel, with
@@ -84,7 +84,7 @@ echo is the part worth teaching, and the distinguishing word carries the differe
 
 ## Where a manifest lives, and why it is the contract's and not the build's
 
-The declarations are `const` values in `crates/swap_proto`, next to the wire format they belong to.
+The declarations are `const` values in `crates/swap_protocol`, next to the wire format they belong to.
 Four of them: `CONSOLE`, `BACKEND`, `CLIENT`, `BROKER`.
 
 **A `*_proto` crate declares what two programs agree on, and what a component must hold is the other
@@ -109,7 +109,7 @@ The corollary is the property that makes a component substitutable at all:
 
 > **The name is the component's and the object is the supervisor's.**
 
-`swap_proto::CLIENT` asks to *use* an endpoint it calls `service`. On the direct channel the operator
+`swap_protocol::CLIENT` asks to *use* an endpoint it calls `service`. On the direct channel the operator
 routes that name to the shared service endpoint; on the queued channel it routes the same name to the
 queue broker's front endpoint. One declaration, two routings, and `chatty` cannot tell which it got.
 That is what makes a component's **peer** substitutable and not only the component.
@@ -144,7 +144,7 @@ not compile, on both architectures, without any test having to run. Each of thos
 that would otherwise be invisible at run time: a component reading one of two slots, one mapping
 silently winning, or a region split refusing for no visible reason.
 
-**The slot numbers are derived, which is the same rung reached a second way.** `swap_proto::SVC` is
+**The slot numbers are derived, which is the same rung reached a second way.** `swap_protocol::SVC` is
 not `0` any more; it is `component_plan::slot_of(&CONSOLE, "service")`, computed at compile time from
 the declaration the operator wires from. A role the manifest does not declare **does not compile**.
 `chatty` and `broker` derive their own the same way, and because one binary serves both `CONSOLE` and
@@ -194,7 +194,7 @@ order and kinds were declared.
 contract crate, so it is the thing to open:
 
 ```sh
-grep -A20 'pub const CONSOLE' crates/swap_proto/src/lib.rs
+grep -A20 'pub const CONSOLE' crates/swap_protocol/src/lib.rs
 ```
 
 **Add a component to a system that already has one.** Three steps, and none of them is in the

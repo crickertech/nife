@@ -24,30 +24,30 @@ pub(crate) mod abi;
 // The net PAL (`sys/net`) is a client of it.
 pub(crate) mod netproto;
 // The FS-service wire format (opcodes, request packing, the errno convention), generated verbatim
-// from `crates/filesystem_proto/src/lib.rs` by the same xtask step. The fs PAL (`sys/fs`) is a client of
+// from `crates/filesystem_protocol/src/lib.rs` by the same xtask step. The fs PAL (`sys/fs`) is a client of
 // it. `blk`/`fixture` in there belong to the other two parties, hence the allow.
 #[allow(dead_code)]
 pub(crate) mod fsproto;
 // The wall-clock contract (DECISIONS §43): the clock page's layout and its seqlock, the propose
-// protocol, and the policy, generated verbatim from `crates/clock_proto/src/lib.rs` by the same
+// protocol, and the policy, generated verbatim from `crates/clock_protocol/src/lib.rs` by the same
 // xtask step. The time PAL (`sys/time`) is a *reader* of the page and never a writer, so the
 // publish half and the propose half belong to the other parties; hence the allow.
 #[allow(dead_code)]
 pub(crate) mod clockproto;
 // The entropy contract (DECISIONS §44): the request packing and the reply's byte count, generated
-// verbatim from `crates/entropy_proto/src/lib.rs` by the same xtask step. The random PAL
+// verbatim from `crates/entropy_protocol/src/lib.rs` by the same xtask step. The random PAL
 // (`sys/random`) is a client of it; `READY` belongs to the service and its spawner, hence the allow.
 #[allow(dead_code)]
 pub(crate) mod entropyproto;
 // The byte-sink contract (milestone 50, notes/sink-protocol.md): the one framing every "write
-// these bytes there" destination speaks, generated verbatim from `crates/byte_sink_proto/src/lib.rs` by
+// these bytes there" destination speaks, generated verbatim from `crates/byte_sink_protocol/src/lib.rs` by
 // the same xtask step. `sys/stdio` is a *writer* of it, so the receiving half (`unpack`, `Msg`)
 // belongs to the sinks; hence the allow.
 #[allow(dead_code)]
 pub(crate) mod sinkproto;
 // The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS §111):
 // the config page's layout and the closed, validated domains TZ/LANG/TERM are checked against,
-// generated verbatim from `crates/environment_proto/src/lib.rs` by the same xtask step. `sys/env` is a
+// generated verbatim from `crates/environment_protocol/src/lib.rs` by the same xtask step. `sys/env` is a
 // *reader* of the page; `PageBuilder` and the domain tables belong to whoever assembles one
 // (init, or today's kernel test harness standing in for it), hence the allow.
 #[allow(dead_code)]

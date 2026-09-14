@@ -43,9 +43,9 @@
 //! service's answer is different and, for a credential store, better: writing the store is not an
 //! *operation* at all, it is a **phase**, and the phase ends.
 //!
-//! 1. **Provision.** RECV on the provision endpoint. Each [`credential_proto::provision::PUT`]
+//! 1. **Provision.** RECV on the provision endpoint. Each [`credential_protocol::provision::PUT`]
 //!    derives a record with a salt drawn from the entropy service.
-//!    [`credential_proto::provision::SEAL`] ends it.
+//!    [`credential_protocol::provision::SEAL`] ends it.
 //! 2. **Delete.** The service `cap_delete`s its receive end of the provision endpoint, and the
 //!    provisioner deletes its send end. Nothing in the system can name it any more.
 //! 3. **Serve.** RECV on the verify endpoint, forever. One opcode, one kind of secret, yes or no.
@@ -61,7 +61,7 @@
 //! # It never invents a salt
 //!
 //! Every salt comes from the entropy service (DECISIONS §44), and a provisioning request that
-//! cannot get one is answered [`credential_proto::NO_ENTROPY`] rather than being served with something
+//! cannot get one is answered [`credential_protocol::NO_ENTROPY`] rather than being served with something
 //! weaker. A predictable salt is a store one rainbow table covers, so falling back would be
 //! exactly the silent degradation DECISIONS §42 forbids, in the one place it would be hardest to
 //! notice: everything would keep working.
@@ -89,7 +89,7 @@
 //!
 //! **One verify page means one client at a time.** The page is per service, not per channel, so
 //! two clients sharing the endpoint would also share the frame each writes its presented secret
-//! into. Nothing here detects that. `filesystem_proto`'s answer (one page per channel) is the shape to
+//! into. Nothing here detects that. `filesystem_protocol`'s answer (one page per channel) is the shape to
 //! copy when a second client exists; today the intended client is the single SMB adapter.
 //!
 //! **Nothing survives a reboot.** The store is memory only. Secrets at rest are unsolved and this
@@ -122,7 +122,7 @@
 //! credential service into a **secrets service**: it now holds an `NTOWFv2` beside the
 //! Argon2id tag and answers `NTLM_PROOF`, so the argument above ("this service will never
 //! give you a credential") still holds while the noun no longer describes the scope. A
-//! rename is owed, and it is calef's, not a lane's; `cred`, `credential_proto` and
+//! rename is owed, and it is calef's, not a lane's; `cred`, `credential_protocol` and
 //! `credentialer_test_client` are in the same boat. Recorded here rather than acted on.
 
 #![no_std]
@@ -137,7 +137,7 @@ extern crate alloc;
 use alloc::vec;
 use alloc::vec::Vec;
 
-use credential_proto as proto;
+use credential_protocol as proto;
 use credentialer::{Block, Cost, Store, Verdict};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, cap_delete, exit, recv_cap, reply, send};
@@ -315,7 +315,7 @@ fn serve(store: &Store<CAPACITY>, scratch: &mut [Block]) -> ! {
     }
 }
 
-/// One `VERIFY`. The reply is a verdict and nothing else; see `credential_proto`'s module docs on why
+/// One `VERIFY`. The reply is a verdict and nothing else; see `credential_protocol`'s module docs on why
 /// the reply channel has no room for data.
 fn answer(store: &Store<CAPACITY>, scratch: &mut [Block], w0: u64) -> u64 {
     // SAFETY: forwarded from VERIFY_WINDOW's own contract.
@@ -341,7 +341,7 @@ fn wipe(window: MappedWindow) {
     proto::wipe(page);
 }
 
-/// Fill `out` with bytes from the entropy service, `entropy_proto::MAX_BYTES` at a time. `false`
+/// Fill `out` with bytes from the entropy service, `entropy_protocol::MAX_BYTES` at a time. `false`
 /// when the service could not supply them, which every caller treats as fatal to the request.
 ///
 /// A short reply is a refusal here, not something to pad out. The entropy contract is explicit
@@ -349,21 +349,21 @@ fn wipe(window: MappedWindow) {
 fn fill(out: &mut [u8]) -> bool {
     let mut done = 0;
     while done < out.len() {
-        let want = (out.len() - done).min(entropy_proto::MAX_BYTES as usize);
+        let want = (out.len() - done).min(entropy_protocol::MAX_BYTES as usize);
         let (r0, r1) = call(
             ENTROPY,
-            entropy_proto::req(entropy_proto::GET, want as u64),
+            entropy_protocol::req(entropy_protocol::GET, want as u64),
             0,
         );
         // `delivered` is what makes "no entropy capability" distinguishable from "no entropy"
         // without a probe: a count is 0..=8 and every kernel error is a huge u64.
-        let Some(n) = entropy_proto::delivered(r0) else {
+        let Some(n) = entropy_protocol::delivered(r0) else {
             return false;
         };
         if n < want {
             return false;
         }
-        done += entropy_proto::take(n, r1, &mut out[done..]);
+        done += entropy_protocol::take(n, r1, &mut out[done..]);
     }
     true
 }

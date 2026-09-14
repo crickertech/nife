@@ -2,9 +2,9 @@
 //!
 //! The program that creates a filesystem, and the whole of its authority is two capabilities:
 //!
-//! - a **block-service endpoint** for **one** disk (`filesystem_proto::blk`), which is the power to destroy
+//! - a **block-service endpoint** for **one** disk (`filesystem_protocol::blk`), which is the power to destroy
 //!   that disk and nothing else; and
-//! - an **entropy endpoint** (`entropy_proto`), which is the power to obtain random bytes and
+//! - an **entropy endpoint** (`entropy_protocol`), which is the power to obtain random bytes and
 //!   nothing else. It cannot reach the virtio-rng device, program its queue, or see the DMA page.
 //!
 //! **That pair is sufficient and neither half is**, which is what this program exists to
@@ -58,7 +58,7 @@
 //!   because the engine has no clock, and this program holds no clock capability either: it has a
 //!   disk and an entropy endpoint, and nothing else. The honest thing is to pass zero rather than
 //!   invent a plausible number, so a filesystem made on the target is dated 1970 until the wiring
-//!   grows a `clock_proto` endpoint. A one-slot change, deliberately not taken here, because adding
+//!   grows a `clock_protocol` endpoint. A one-slot change, deliberately not taken here, because adding
 //!   it would blur the two-capability claim this program is making.
 //! - **It refuses a partition that is not 4096-aligned at both ends**, rather than rounding one in.
 //!   A filesystem whose blocks straddle the partition's first byte reads back correctly through the
@@ -77,9 +77,9 @@
 
 extern crate alloc;
 
-use entropy_proto as entropy;
-use filesystem_proto::fixture::blank;
-use filesystem_proto::{blk, req};
+use entropy_protocol as entropy;
+use filesystem_protocol::fixture::blank;
+use filesystem_protocol::{blk, req};
 use gpt::Gpt;
 use gpt::guid::types;
 use redoxfs::{BLOCK_SIZE, Disk, FileSystem};
@@ -217,7 +217,7 @@ pub extern "C" fn _start(role: u64, _a1: u64, _a2: u64) -> ! {
         }
     };
     let made = server
-        .create_file_at(filesystem_proto::fs::ROOT as u32, blank::MADE_NAME)
+        .create_file_at(filesystem_protocol::fs::ROOT as u32, blank::MADE_NAME)
         .and_then(|h| server.write(h, 0, blank::MADE_BODY).map(|n| (h, n)));
     match made {
         Ok((h, n)) if n == blank::MADE_BODY.len() => {
@@ -275,7 +275,7 @@ fn check(first_block: u64, blocks: u64) -> ! {
     };
     let mut buf = [0u8; 128];
     let read = server
-        .open_file_at(filesystem_proto::fs::ROOT as u32, blank::MADE_NAME)
+        .open_file_at(filesystem_protocol::fs::ROOT as u32, blank::MADE_NAME)
         .and_then(|h| server.read(h, 0, &mut buf[..blank::MADE_BODY.len()]));
     match read {
         Ok(n) if n == blank::MADE_BODY.len() && buf[..n] == *blank::MADE_BODY => {
@@ -348,7 +348,7 @@ fn data_partition() -> Option<(u64, u64)> {
 /// Sixteen random bytes from the entropy service, or `None` if this process holds no entropy
 /// endpoint (or the service has none to give).
 ///
-/// Two round trips, because one reply carries one word. `entropy_proto::delivered` is what tells a
+/// Two round trips, because one reply carries one word. `entropy_protocol::delivered` is what tells a
 /// missing capability apart from a short answer: a count is always `0..=8` and every kernel error is
 /// a small negative that reads as an enormous `u64`.
 fn random16() -> Option<[u8; 16]> {

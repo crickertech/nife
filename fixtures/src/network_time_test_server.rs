@@ -3,7 +3,7 @@
 //!
 //! The peer `components/src/network_time_client.rs` is tested against. It holds `READ` on the
 //! endpoint the client holds `WRITE` on, and it speaks the same socket contract
-//! (`crates/socket_proto/src/lib.rs`) `net_stack` does, so the client cannot tell it apart from the
+//! (`crates/socket_protocol/src/lib.rs`) `net_stack` does, so the client cannot tell it apart from the
 //! real stack.
 //!
 //! # What the substitution is worth, and why it survives being a separate binary
@@ -44,7 +44,8 @@
 //! `components/` (what a distribution ships because somebody wants its function) and `fixtures/`
 //! (what exists to exercise the system), and a test server sitting in `components/` was the defect
 //! that line exists to prevent. `network_time` carries the stem calef ruled on 2026-09-13 for
-//! `ntp_proto`, so this name is already spelled the way milestone 265 will spell the crate. Refused
+//! `ntp_proto`, so this name was already spelled the way milestone 265 would spell the crate
+//! (`network_time_protocol`, landed 2026-09-14). Refused
 //! `ntp_test_server`: the acronym rule set 2026-09-05 asks whether the expansion teaches, and
 //! network time does where `pci` does not, which is the same ruling that moved the crate's stem.
 //! Refused `fake_stack` and `stub_net_stack`, which name what it *stands in for* rather than what
@@ -61,13 +62,13 @@
 #![no_main]
 
 use abi::rendezvous;
-use ntp_proto::{Packet, Short, Timestamp, leap, mode};
+use network_time_protocol::{Packet, Short, Timestamp, leap, mode};
 // The socket contract, verbatim from the file `net_stack` compiles, so this server and the client
 // cannot drift from the real server's idea of the wire format. The TCP half is dead here and is
 // allowed rather than trimmed: the value of compiling the *same file* net_stack does is that the
 // two cannot drift, and a per-consumer subset would throw that away.
 #[allow(dead_code)]
-use socket_proto::*;
+use socket_protocol::*;
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::{cap_delete, map_page_frame, recv_cap, reply, send};
 
@@ -110,7 +111,7 @@ const SERVER_TURNAROUND_NANOS: u64 = 1_000;
 
 /// Where this server maps the client's shared frame in its own address space. The client picks its
 /// own, and the two do not have to agree: what they share is the frame's *layout*, which is
-/// `socket_proto`'s.
+/// `socket_protocol`'s.
 const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
 // SAFETY: the `OP_ATTACH_PAGE_FRAME` arm below maps one page read/write at PAGE_FRAME_VA, and it is
@@ -126,7 +127,7 @@ pub extern "C" fn _start(variant: u64, claimed_nanos: u64) -> ! {
 /// Serve the socket contract on [`STACK`], answering each request with an NTP reply built from
 /// `variant` at `claimed_nanos`. See the module docs for what this does and does not prove.
 fn server(variant: u64, claimed_nanos: u64) -> ! {
-    let mut pending = [0u8; ntp_proto::PACKET_LEN];
+    let mut pending = [0u8; network_time_protocol::PACKET_LEN];
     let mut pending_len = 0usize;
     let mut reported = false;
 
@@ -144,8 +145,11 @@ fn server(variant: u64, claimed_nanos: u64) -> ! {
             }
             OP_SENDTO => {
                 // The length the client declared, which is how the real server learns it too.
-                let mut wire = [0u8; ntp_proto::PACKET_LEN];
-                let n = read_payload((w1 as usize).min(ntp_proto::PACKET_LEN), &mut wire);
+                let mut wire = [0u8; network_time_protocol::PACKET_LEN];
+                let n = read_payload(
+                    (w1 as usize).min(network_time_protocol::PACKET_LEN),
+                    &mut wire,
+                );
                 let request = Packet::parse(&wire[..n]).unwrap_or_default();
                 pending_len = build_reply(&request, variant, claimed_nanos, &mut pending);
                 reply(cap, REP_OK, 0);
@@ -184,7 +188,7 @@ fn build_reply(request: &Packet, variant: u64, claimed_nanos: u64, out: &mut [u8
 
     let mut p = Packet {
         leap: leap::NONE,
-        version: ntp_proto::VERSION,
+        version: network_time_protocol::VERSION,
         mode: mode::SERVER,
         stratum: 2,
         poll: request.poll,
@@ -216,8 +220,8 @@ fn build_reply(request: &Packet, variant: u64, claimed_nanos: u64, out: &mut [u8
         _ => {}
     }
 
-    out[..ntp_proto::PACKET_LEN].copy_from_slice(&p.to_bytes());
-    ntp_proto::PACKET_LEN
+    out[..network_time_protocol::PACKET_LEN].copy_from_slice(&p.to_bytes());
+    network_time_protocol::PACKET_LEN
 }
 
 /// Unix nanoseconds to an NTP timestamp. `None` outside the crate's representable window. The
@@ -226,14 +230,14 @@ fn build_reply(request: &Packet, variant: u64, claimed_nanos: u64, out: &mut [u8
 /// `Query::accept` refuses it, which is the behaviour a test wiring an absurd time wants.
 fn stamp(unix_nanos: u64) -> Option<Timestamp> {
     Timestamp::from_unix(
-        unix_nanos / clock_proto::NANOS_PER_SEC,
-        (unix_nanos % clock_proto::NANOS_PER_SEC) as u32,
+        unix_nanos / clock_protocol::NANOS_PER_SEC,
+        (unix_nanos % clock_protocol::NANOS_PER_SEC) as u32,
     )
 }
 
 // =================================================================================================
 // The shared frame. Absolute-VA volatile access through `WINDOW` (milestone 139), the same
-// abstraction mdns_responder, socket_test_client, network_time_client, keyboard_driver, entropy and net_transport share.
+// abstraction multicast_dns_responder, socket_test_client, network_time_client, keyboard_driver, entropy and net_transport share.
 // `va` is always `PAGE_FRAME_VA + <an offset constant>`, so subtracting PAGE_FRAME_VA recovers the offset
 // `WINDOW` bounds-checks against.
 // =================================================================================================

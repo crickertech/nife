@@ -255,6 +255,10 @@ The risk names three things and they were never one claim. Measured on radon, tr
   `design/roadmap/proposals/time-the-hw-entropy-step.md` has the QEMU numbers that give radon's a
   denominator, about 250 us per 8-byte exchange with an emulated device that costs nothing. What is
   left is one boot of radon, which is why that proposal's gate is now `HARDWARE` rather than `NONE`.
+  **Re-read 2026-09-14** because milestone 265 touched that proposal and this check asked: the only
+  change was three crate spellings (`entropy_proto` and `timebase_proto` became
+  `entropy_protocol` and `counter_frequency_protocol`), and every figure and every claim above is
+  unchanged.
 
 **What it took is worth recording, because none of it was the driver.** Milestone 239 found the
 device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's

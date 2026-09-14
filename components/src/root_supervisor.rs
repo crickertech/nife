@@ -41,7 +41,7 @@
 
 // Each binary in the tree compiles the shared module but uses a different slice of it (the sub-server
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead.
-use supervision_proto::{
+use supervision_protocol::{
     ChildEndowment, REPORT_FAILED, REPORT_INIT_DROPPED, REPORT_SUP_SAW_DEATH, Retention,
 };
 use user_mode_runtime::{cap_delete, recv, retype_object, retype_page_frame, send};
@@ -81,21 +81,21 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 
     // The channels. The spawner serves `req` and answers on `rep`; `childfault` is where the
     // sub-server's deaths go (sub_server_supervisor receives them); `rootfault` is where OUR children's deaths go.
-    let Ok(req) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
+    let Ok(req) = supervision_protocol::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
         bail(5)
     };
-    let Ok(rep) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
+    let Ok(rep) = supervision_protocol::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS) else {
         bail(6)
     };
-    let Ok(childfault) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
+    let Ok(childfault) = supervision_protocol::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
     else {
         bail(7)
     };
-    let Ok(rootfault) = supervision_proto::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
+    let Ok(rootfault) = supervision_protocol::retype_obj_from(ROOT_UT, abi::objtype::RENDEZVOUS)
     else {
         bail(8)
     };
-    let Ok(sp_ut) = supervision_proto::memory_region_split(ROOT_UT, SPAWNER_BUDGET_PAGES) else {
+    let Ok(sp_ut) = supervision_protocol::memory_region_split(ROOT_UT, SPAWNER_BUDGET_PAGES) else {
         bail(9)
     };
 
@@ -103,7 +103,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     //    lend it), the request pair, a grantable report endpoint so it can endow the children it
     //    builds, a grantable view of the child fault endpoint so children are born supervised, and
     //    the one program image. It cannot build anything else, because it has nothing else to build.
-    let Ok(child) = supervision_proto::build_child(
+    let Ok(child) = supervision_protocol::build_child(
         ROOT_UT,
         ROOT_UT,
         &spawner,
@@ -123,14 +123,14 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     ) else {
         bail(10)
     };
-    if !supervision_proto::start_child(child, 0, flaky.len() as u64, 0) {
+    if !supervision_protocol::start_child(child, 0, flaky.len() as u64, 0) {
         bail(11)
     }
 
     // 2. The supervisor. **It holds no memory at all**: a request channel, a death channel, and a way
     //    to report. Its restart policy is code, not authority, so a compromised sub_server_supervisor can ask for
     //    rebuilds of one program and nothing more.
-    let Ok(child) = supervision_proto::build_child(
+    let Ok(child) = supervision_protocol::build_child(
         ROOT_UT,
         ROOT_UT,
         &sub_server_supervisor,
@@ -149,7 +149,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
     ) else {
         bail(12)
     };
-    if !supervision_proto::start_child(child, 0, 0, 0) {
+    if !supervision_protocol::start_child(child, 0, 0, 0) {
         bail(13)
     }
 
@@ -188,7 +188,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
 /// code turns "nothing happened" into a legible failure.
 fn bail(stage: u64) -> ! {
     send(REPORT, REPORT_FAILED, stage, 0);
-    supervision_proto::fail()
+    supervision_protocol::fail()
 }
 
 user_mode_runtime::panic_handler!();

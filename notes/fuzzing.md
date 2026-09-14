@@ -81,7 +81,7 @@ quietly grows to cover everything.
 
 - **`nifefs`'s `Fs::parse` on raw bytes.** Kani proves it total with no size bound. A fuzz target
   there would be a fuzz target that cannot find anything.
-- **`filesystem_proto`, `byte_sink_proto`, `socket_proto`.** These *are* a trust boundary (a malicious client on
+- **`filesystem_protocol`, `byte_sink_protocol`, `socket_protocol`.** These *are* a trust boundary (a malicious client on
   the other end of an endpoint), and they are unproved. But their decoders are written with
   `slice::get` throughout and are total by construction, and the real hazard at that boundary is not
   a byte string at all: it is the **double fetch**, where a server validates a length out of a

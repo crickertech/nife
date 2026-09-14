@@ -58,7 +58,7 @@ const REPORT: u64 = 0;
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     let line = uptime::format(monotonic_nanos());
     write_bytes(line.as_bytes());
-    send(REPORT, byte_sink_proto::eof(), 0, 0);
+    send(REPORT, byte_sink_protocol::eof(), 0, 0);
     exit();
 }
 
@@ -70,10 +70,10 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
 fn write_bytes(bytes: &[u8]) {
     let mut off = 0usize;
     while off < bytes.len() {
-        let (w0, w1, w2, took) = byte_sink_proto::pack(&bytes[off..]);
+        let (w0, w1, w2, took) = byte_sink_protocol::pack(&bytes[off..]);
         if !matches!(
-            byte_sink_proto::classify(send(REPORT, w0, w1, w2)),
-            byte_sink_proto::Sent::Ok
+            byte_sink_protocol::classify(send(REPORT, w0, w1, w2)),
+            byte_sink_protocol::Sent::Ok
         ) {
             return;
         }

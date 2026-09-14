@@ -7,7 +7,7 @@
 //!
 //! `net_stack` brings the NIC up, runs DHCP to completion (reporting the lease), then serves a
 //! capability-shaped socket contract on a `Stack` endpoint (DECISIONS §25, notes/net.md,
-//! `crates/socket_proto/src/lib.rs)`: a socket is a socket id, per-connection bytes cross in a shared frame the
+//! `crates/socket_protocol/src/lib.rs)`: a socket is a socket id, per-connection bytes cross in a shared frame the
 //! client delegates, and every operation is one message. Phase one is single-threaded and
 //! synchronous, one exchange per request; the server blocks on the `Stack` endpoint between
 //! requests and drives the network inside handling one.
@@ -21,7 +21,7 @@
 //! - arg1: the DMA page's physical address
 //! - arg2: the **grant word**: the TCP listen range (milestone 107) in its low half and the
 //!   fixed-UDP bind range (milestone 55's mDNS stack half) in its high half, both packed by
-//!   `socket_proto`. Zero, the default, means no port anywhere in either protocol: a stack serves
+//!   `socket_protocol`. Zero, the default, means no port anywhere in either protocol: a stack serves
 //!   inbound connections, or claims a fixed UDP port, only when whoever spawned it said which.
 //!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39, landed by milestone 46), replacing `netd`, and
@@ -55,7 +55,7 @@ mod net_transport;
 // initrd directory holds at most 15 files; see components/src/socket_test_client.rs.
 #[path = "socket_test_client.rs"]
 mod socket_test_client;
-use socket_proto::*;
+use socket_protocol::*;
 
 const REPORT: u64 = 0;
 const IRQ: u64 = 1;
@@ -84,7 +84,7 @@ const MAC: [u8; 6] = [0x52, 0x54, 0x00, 0x12, 0x34, 0x56];
 /// group, and an mDNS responder cannot exist without that. Unconditional rather than
 /// client-requested because membership is interface state, not socket state, and this stack has
 /// exactly one interface; what IS granted per client is the right to bind port 5353
-/// (`socket_proto::udp_bind_grant`). See notes/mdns.md.
+/// (`socket_protocol::udp_bind_grant`). See notes/mdns.md.
 const MDNS_GROUP: Ipv4Address = Ipv4Address::new(224, 0, 0, 251);
 
 /// Where a client's shared frame for socket `sid` is mapped in `net_stack`'s address space. Above the DMA
@@ -159,8 +159,8 @@ const SOCK_BUF: usize = 2048;
 /// binary, so the initrd stays under its 15-file directory limit).
 ///
 /// `a2` is the server's **grant word**, both port authorities in one spawn argument: the TCP
-/// listen range in the low half (milestone 107, `socket_proto::listen_grant`) and the fixed-UDP
-/// bind range in the high half (milestone 55's mDNS stack half, `socket_proto::udp_bind_grant`).
+/// listen range in the low half (milestone 107, `socket_protocol::listen_grant`) and the fixed-UDP
+/// bind range in the high half (milestone 55's mDNS stack half, `socket_protocol::udp_bind_grant`).
 /// Whoever spawns the server decides both; a server spawned with zero (`NO_LISTEN_GRANT`, which
 /// every outbound-only test uses) refuses every `LISTEN` and every `BIND_UDP`. The client half
 /// ignores it.
@@ -521,7 +521,7 @@ fn sock_recv(
         match sockets.get_mut::<udp::Socket>(handle).recv_slice(&mut buf) {
             Ok((n, meta)) => {
                 // The datagram's source endpoint rides back in the frame's dst fields, which are
-                // dead space on a reply (socket_proto's layout note). A responder needs it: mDNS's
+                // dead space on a reply (socket_protocol's layout note). A responder needs it: mDNS's
                 // reply semantics turn on the querier's source port (RFC 6762 §6.7), and this used
                 // to be discarded here with `.map(|(n, _)| n)`.
                 let IpAddress::Ipv4(src) = meta.endpoint.addr;
@@ -598,7 +598,7 @@ fn arm_listener(sockets: &mut SocketSet, port: u16) -> Option<SocketHandle> {
 
 /// **`LISTEN`: claim a port, if this stack was granted it** (milestone 107).
 ///
-/// Three refusals, and they are deliberately distinguishable (`socket_proto`): outside the grant is
+/// Three refusals, and they are deliberately distinguishable (`socket_protocol`): outside the grant is
 /// a refusal of *authority* and no retry will fix it; already-listening is a collision on an
 /// exclusive name and another port would work; `REP_ERR` is the client asking on a socket id it is
 /// already using, which is its own bookkeeping bug.

@@ -12,7 +12,7 @@ ship a document with a hole where the only value that matters goes.
 
 **What is still live in it, and why it is not simply deleted.** Two of the four deliverables were
 never really about SMB. The **configuration document** half generalizes to any service that is
-currently a set of compile-time constants, and `mdns_responder.conf` is still the shape. The
+currently a set of compile-time constants, and `multicast_dns_responder.conf` is still the shape. The
 **provisioning path** fork is still unanswered and still matters: nothing in the tree can tell a
 running system a secret, and the only provisioner is a test program carrying a published fixture.
 That is a real gap in the credential service regardless of who its clients are. The other two
@@ -48,14 +48,14 @@ of that.
 ## The precedent to copy rather than invent
 
 **Milestone 55's mDNS responder already did the configuration half**, and it is the shape to follow:
-`user/mdns_responder.conf` describes what the machine advertises, `crates/mdns_config` parses it
+`user/multicast_dns_responder.conf` describes what the machine advertises, `crates/multicast_dns_config` parses it
 host-tested, and `notes/mdns.md` records the property that matters, that what it advertises "is
-`user/mdns_responder.conf`, not compiled-in". A share document is the same move one service over.
+`user/multicast_dns_responder.conf`, not compiled-in". A share document is the same move one service over.
 
 ## The four deliverables, in order
 
 1. **A share configuration document.** Which directory, read-only or read-write, which resource
-   authenticates it, and which port. Parsed by a host-tested crate in `mdns_config`'s shape, read at
+   authenticates it, and which port. Parsed by a host-tested crate in `multicast_dns_config`'s shape, read at
    boot by whoever wires the adapter.
 
 2. **A provisioning path**: how a secret reaches a running system's credential store. This is the
@@ -117,7 +117,7 @@ running system a real password.
   estimate; (2) is a design fork and (3) is a wire change to `cred_proto`, which is the irreversible
   category.
 - **A configuration document is a new parser reading attacker-adjacent bytes** if it is ever read
-  from anywhere but the image. `crates/mdns_config` is host-tested and fuzzed; a share document
+  from anywhere but the image. `crates/multicast_dns_config` is host-tested and fuzzed; a share document
   should be held to the same standard on day one rather than after.
 - **Nothing here fixes the fixed port.** `smb-serve` binds `127.0.0.1:10445`, so two serve boots on
   one machine still collide; the document is the natural place for it and this block does not require

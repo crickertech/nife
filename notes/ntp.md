@@ -1,6 +1,6 @@
 # NTP: the wire format, and the client that carries it
 
-Two halves, built a day apart. **The wire format** is `crates/ntp_proto` (milestone 51 lane C): the
+Two halves, built a day apart. **The wire format** is `crates/network_time_protocol` (milestone 51 lane C): the
 48 bytes of RFC 5905, the 1900-epoch fixed-point timestamp, the offset arithmetic, and the handful of
 checks that are the whole of unauthenticated NTP's spoofing resistance. Pure computation, no socket,
 no clock, no service, and its tests run in milliseconds on the host. **The client** is
@@ -20,7 +20,7 @@ capability, belongs with the service and is recorded in notes/clock.md.
 
 ## Why the protocol is a crate and not part of a component
 
-The same reason `filesystem_proto` and `graphics_proto` are crates. A wire format is arithmetic and byte layout,
+The same reason `filesystem_protocol` and `graphics_protocol` are crates. A wire format is arithmetic and byte layout,
 which is the cheapest thing in the system to get wrong and the most expensive to debug from inside a
 QEMU boot against a live server. Here it is 21 host tests and 7 Kani harnesses, and the whole lot
 runs in under a second with no emulator.
@@ -270,7 +270,7 @@ notes/entropy.md calls predictable to anyone who can guess boot-relative time. T
 touches the network at all*: no socket, no frame, no datagram. Falling back to the weak stream would
 be §42's silent degradation in the one place where the entire value of the number is that nobody can
 predict it, and it is the same call `SystemRng` makes when it panics rather than degrading. The two
-failures stay distinguishable with no probe, because `entropy_proto::delivered` reads a byte count of
+failures stay distinguishable with no probe, because `entropy_protocol::delivered` reads a byte count of
 `0..=8` and every kernel `CALL` error is one of the small negatives: `NoSuchSlot` means "there is no
 entropy service", 0 means "the service has none".
 
@@ -299,7 +299,7 @@ for a kiss.
 
 The client's whole network authority is one endpoint capability, so the tests **substitute the peer
 at that boundary**: `fixtures/src/network_time_test_server.rs` holds `READ` on the endpoint the client
-holds `WRITE` on, and speaks the same socket contract (`crates/socket_proto/src/lib.rs`, the same file
+holds `WRITE` on, and speaks the same socket contract (`crates/socket_protocol/src/lib.rs`, the same file
 `net_stack` compiles) while being an NTP server on the other side of it. The client cannot tell, and
 **there is no test-only branch anywhere in the client**. That is the shape a capability system makes
 available, and it is why this is the honest choice rather than a compromise.

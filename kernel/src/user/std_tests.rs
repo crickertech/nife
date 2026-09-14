@@ -3,7 +3,7 @@ use super::*;
 /// Reassemble a std program's stdout off its endpoint until the writer says the stream is over,
 /// and compare byte for byte.
 ///
-/// The framing is the sink contract's (`crates/byte_sink_proto`, milestone 50), which for bytes is
+/// The framing is the sink contract's (`crates/byte_sink_protocol`, milestone 50), which for bytes is
 /// bit-for-bit the framing the PAL used before that contract existed: `w0` is the count, `w1`
 /// and `w2` are the bytes, little-endian. `SEND` blocks until a receiver takes it, so the
 /// program is somewhere between its last `println!` and `SYS_EXIT` when the bytes land.
@@ -35,17 +35,17 @@ pub(super) fn drain_sink(ep: crate::sched::RendezvousId, out: &mut [u8], what: &
     let mut len = 0usize;
     loop {
         let words = crate::sched::ipc_recv(ep);
-        let mut chunk = [0u8; byte_sink_proto::INLINE_MAX];
-        match byte_sink_proto::unpack(words[0], words[1], words[2], &mut chunk) {
-            byte_sink_proto::Msg::Bytes(n) => {
+        let mut chunk = [0u8; byte_sink_protocol::INLINE_MAX];
+        match byte_sink_protocol::unpack(words[0], words[1], words[2], &mut chunk) {
+            byte_sink_protocol::Msg::Bytes(n) => {
                 for &b in &chunk[..n] {
                     assert!(len < out.len(), "{what}: wrote more than the buffer holds");
                     out[len] = b;
                     len += 1;
                 }
             }
-            byte_sink_proto::Msg::Eof => return len,
-            byte_sink_proto::Msg::Malformed => {
+            byte_sink_protocol::Msg::Eof => return len,
+            byte_sink_protocol::Msg::Malformed => {
                 panic!(
                     "{what}: a sink message the contract does not define: {:#x}",
                     words[0]
@@ -87,7 +87,7 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
     redoxfs_server_image: &'static [u8],
     client_image: &'static [u8],
 ) {
-    use filesystem_proto::fixture::{READY, SUCCESS, crash};
+    use filesystem_protocol::fixture::{READY, SUCCESS, crash};
     // The caller has already established the disk is there (`fs_service::crash_disk_present`) and
     // skipped its own `#[test_case]` if it is not. This `expect` is that guard restated where it
     // can fail loudly: a `None` here means the disk went away between the two calls, which is a
@@ -147,7 +147,7 @@ pub(super) fn assert_a_kill_mid_transaction_recovers(
 /// same thing and the useful part is naming *which* claim broke rather than printing a number
 /// the reader has to decode. Each missing bit is one sentence about the layer.
 pub(super) fn assert_attrs(attrs: u64) {
-    use filesystem_proto::fixture::attrs as a;
+    use filesystem_protocol::fixture::attrs as a;
     if attrs == a::EXPECTED {
         return;
     }
@@ -203,14 +203,14 @@ pub(super) fn std_fs_expected(buf: &mut [u8; 768]) -> usize {
     // The lengths spelled out below are the motd's; if the fixture changes, fail here rather
     // than in a byte comparison nobody can read.
     assert_eq!(
-        filesystem_proto::fixture::MOTD.len(),
+        filesystem_protocol::fixture::MOTD.len(),
         70,
         "the motd fixture changed; the expected transcript's lengths must change with it",
     );
     let mut n = 0;
     for part in [
         b"std fs on nife\n".as_slice(),
-        filesystem_proto::fixture::MOTD,
+        filesystem_protocol::fixture::MOTD,
         b"read_to_string 70\nmetadata len 70\n".as_slice(),
         // Milestone 122 changed the third of these. `sub/motd` used to be refused for being
         // nested, which is no longer a category; what replaces it is `sub/../other/secret`, a real
@@ -298,7 +298,7 @@ pub(super) const EXPECTED: &[u8] = b"hello from std on nife\n\
 /// The `config seeded` line is milestone 47's environment-variable fork (DECISIONS §111): this
 /// process is granted an inert-configuration page unconditionally
 /// (`std_service::start_on`/`CONFIG_SLOT`/`CONFIG_PAGE_STD`), assembled once from
-/// `environment_proto::PageBuilder` before the program exists, and `pal::nife::init` reads `TZ`, `LANG`
+/// `environment_protocol::PageBuilder` before the program exists, and `pal::nife::init` reads `TZ`, `LANG`
 /// and `TERM` off it into `std::env`'s table before `main` runs. The line proves the whole path:
 /// the kernel assembled and validated the page, mapped it read-only, the std PAL's probe found
 /// the granted capability, and the values it read back are the exact ones the kernel wrote. The

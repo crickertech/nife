@@ -19,7 +19,7 @@ pub struct Wiring {
     /// The clock page's **physical** frame, so a reader can be given a read-only mapping of it
     /// (and so the kernel's own tests can read it through the direct map).
     pub page_phys: u64,
-    /// Which RTC the machine turned out to have, one of `clock_proto::rtc`.
+    /// Which RTC the machine turned out to have, one of `clock_protocol::rtc`.
     pub kind: u64,
 }
 
@@ -57,7 +57,7 @@ pub const NO_RTC: &str = "this machine has no working real-time clock (no RTC bi
 /// Wire and spawn the clock service.
 pub fn start(image: &'static [u8]) -> Wiring {
     // Zeroed, which is also the honest starting state: a page nobody has published to reads as
-    // `state::UNKNOWN` rather than as 1970 (clock_proto's `a_zeroed_page_reads_as_unknown`).
+    // `state::UNKNOWN` rather than as 1970 (clock_protocol's `a_zeroed_page_reads_as_unknown`).
     let page_phys = crate::memory::alloc_zeroed()
         .expect("no frame for the clock page")
         .addr();
@@ -75,11 +75,11 @@ pub fn start(image: &'static [u8]) -> Wiring {
     // answer across as data instead (DECISIONS §130, option 3; milestone 176's piece 2).
     #[cfg(target_arch = "x86_64")]
     let (kind, seed) = match crate::arch::rtc::read_unix_nanos() {
-        Some(nanos) => (clock_proto::rtc::CMOS, nanos),
-        None => (clock_proto::rtc::NONE, 0u64),
+        Some(nanos) => (clock_protocol::rtc::CMOS, nanos),
+        None => (clock_protocol::rtc::NONE, 0u64),
     };
     #[cfg(not(target_arch = "x86_64"))]
-    let (kind, seed) = (rtc.map_or(clock_proto::rtc::NONE, |(_, _, k)| k), 0u64);
+    let (kind, seed) = (rtc.map_or(clock_protocol::rtc::NONE, |(_, _, k)| k), 0u64);
 
     // Two mappings, or one on a machine with no RTC. The device page is mapped and no
     // `DeviceFrame` capability is granted, exactly as the console server's UART is: the service
@@ -134,17 +134,17 @@ impl Wiring {
     /// The clock page as the kernel sees it, through the direct map. A reader process would
     /// hold a read-only mapping instead; the seqlock and the layout are the same either way,
     /// because they come from the one contract crate.
-    pub fn page(&self) -> clock_proto::ClockPage {
+    pub fn page(&self) -> clock_protocol::ClockPage {
         // SAFETY: a frame this module allocated and still owns, named through the direct map.
-        unsafe { clock_proto::ClockPage::new(mmu::phys_to_virt(self.page_phys)) }
+        unsafe { clock_protocol::ClockPage::new(mmu::phys_to_virt(self.page_phys)) }
     }
 
     /// Wall-clock nanoseconds as a reader would compute them: the page's offset plus the
     /// ambient monotonic counter. 0 when the machine does not know.
     pub fn wall_nanos(&self) -> u64 {
         let r = self.page().read();
-        if clock_proto::state::known(r.state) {
-            clock_proto::wall_nanos(r.offset_nanos, monotonic_nanos())
+        if clock_protocol::state::known(r.state) {
+            clock_protocol::wall_nanos(r.offset_nanos, monotonic_nanos())
         } else {
             0
         }
@@ -155,7 +155,7 @@ impl Wiring {
         let r = crate::sched::ipc_call(
             self.propose,
             [
-                clock_proto::propose::req(clock_proto::propose::PROPOSE),
+                clock_protocol::propose::req(clock_protocol::propose::PROPOSE),
                 unix_nanos,
             ],
         );
@@ -171,5 +171,5 @@ pub fn monotonic_nanos() -> u64 {
     let ticks = crate::arch::timer::now();
     let secs = ticks / freq;
     let rem = ticks % freq;
-    secs * clock_proto::NANOS_PER_SEC + rem * clock_proto::NANOS_PER_SEC / freq
+    secs * clock_protocol::NANOS_PER_SEC + rem * clock_protocol::NANOS_PER_SEC / freq
 }

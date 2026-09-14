@@ -17,13 +17,13 @@ Measured 2026-08-17, against the block's 2026-08-02 numbers.
 |---|---|
 | 28 host crates with no doc example | **31**, before this pass. Now **0** |
 | 23 doctests in the host workspace | **49**, before this pass. Now **116** (109 of them run by `script/test`'s selection; see BUGS) |
-| Item coverage 36.4% (`socket_proto`) to 100% | **50.0%** (`intrusive_fifo`) to 100%; `socket_proto` is now 57.6% |
+| Item coverage 36.4% (`socket_protocol`) to 100% | **50.0%** (`intrusive_fifo`) to 100%; `socket_protocol` is now 57.6% |
 
 **The deficit grew while work was being done, and both halves of that are worth seeing.** Three of
 the four crates the block named as the hard ones left (`dtb`, `nifefs`, `gpt`) got their examples in
 the following fortnight, and `machine_discovery`, `manual`, `swish` and `generational_table` gained theirs too. Meanwhile five
 crates arrived with none: `ntlm` and `system_initializer` (2026-08-04), `nvme` (2026-08-15), and
-`mdns_proto` and `smb_proto` (2026-08-15). `ntlm` and `smb_proto` were removed from the tree on
+`multicast_dns_protocol` and `smb_proto` (2026-08-15). `ntlm` and `smb_proto` were removed from the tree on
 2026-08-30 (notes/smb.md); their rows below are left as the record they always were. A count of
 what is missing is a moving target in a tree
 adding a crate every few days, which is the argument for a gate rather than a number in a block.
@@ -43,7 +43,7 @@ recorded limitation rather than a pass:
    project's whole method is pure logic in host-testable crates. Each example was written to carry the
    crate's own argument rather than to restate a signature, so `elf` forges a writable-and-executable
    segment and watches it be refused, `paging` builds real page tables on the host and demonstrates
-   that break-before-make is forced, `smb_proto` performed a whole SMB2 mount, and `ntp_proto` shows an
+   that break-before-make is forced, `smb_proto` performed a whole SMB2 mount, and `network_time_protocol` shows an
    off-path spoof failing the origin check before any of the packet is believed.
 
 2. **`no_run`, with the reason stated in the prose** (`user_mode_runtime`, `virtio`, `system_initializer`).
@@ -51,19 +51,19 @@ recorded limitation rather than a pass:
    machine with no nife kernel under it is a fault, not a syscall. The examples are type-checked
    against the real signatures and executed by the QEMU boot and `script/shell-check`.
 
-3. **An executing doctest that the gate does not run** (`swap_proto`, `supervision_proto`, and the
+3. **An executing doctest that the gate does not run** (`swap_protocol`, `supervision_protocol`, and the
    two above that are not `no_run`). See BUGS below; this is the one honest gap.
 
 ## BUGS
 
-- **Five crates' doctests are never run by `script/test`.** `user_mode_runtime`, `swap_proto`, `virtio`,
-  `supervision_proto` and `system_initializer` take unconditional `user_mode_runtime` dependencies, so the host
+- **Five crates' doctests are never run by `script/test`.** `user_mode_runtime`, `swap_protocol`, `virtio`,
+  `supervision_protocol` and `system_initializer` take unconditional `user_mode_runtime` dependencies, so the host
   test selection excludes them (the list is in `xtask/src/main.rs`, derived and checked by
   `script/lint`). Their examples run under `cargo test --doc -p <crate>` **on an aarch64 host** and
   are checked by nothing in CI. On an x86_64 host they do not even compile, which is a property of the
   packages and not of the examples. The fix is to split each crate's pure half out from its syscall
-  half, which is a lane of its own and is what would let the arithmetic in `swap_proto::digest` and
-  the constants in `supervision_proto` be gate-checked like every other wire contract.
+  half, which is a lane of its own and is what would let the arithmetic in `swap_protocol::digest` and
+  the constants in `supervision_protocol` be gate-checked like every other wire contract.
 
 - **`rustdoc --show-coverage` undercounts.** See the section above. It is still the right tool for
   "does this crate have any example at all", which is what the examples half is about.
@@ -93,11 +93,11 @@ of those 404, crate by crate, re-measuring the same way after every batch: **235
 a hard gate, so those crates cannot regress:
 
 `abi`, `asid`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `memory_corruption_canary_gate`, `capability`,
-`clock_proto`, `component_plan`, `coremark`, `cpu_set`, `cred`, `credential_proto`, `dma_validator`, `dtb`,
-`elf`, `entropy_proto`, `page_frames`, `filesystem_proto`, `graphics_proto`, `glob`, `intrusive_fifo`, `ipc`, `line_editor`,
-`manual`, `mdns_config`, `measured_boot`, `nifefs`, `ntp_proto`, `nvme`, `paging`, `pgrep`,
-`ps`, `memory_regions`, `byte_sink_proto`, `generational_table`, `socket_proto`, `work_steal_slot`, `supervision_proto`,
-`swap_proto`, `swish`, `system_initializer`, `timetable`, `user_mode_heap`, `user_mode_runtime`, `video_terminal`,
+`clock_protocol`, `component_plan`, `coremark`, `cpu_set`, `cred`, `credential_protocol`, `dma_validator`, `dtb`,
+`elf`, `entropy_protocol`, `page_frames`, `filesystem_protocol`, `graphics_protocol`, `glob`, `intrusive_fifo`, `ipc`, `line_editor`,
+`manual`, `multicast_dns_config`, `measured_boot`, `nifefs`, `network_time_protocol`, `nvme`, `paging`, `pgrep`,
+`ps`, `memory_regions`, `byte_sink_protocol`, `generational_table`, `socket_protocol`, `work_steal_slot`, `supervision_protocol`,
+`swap_protocol`, `swish`, `system_initializer`, `timetable`, `user_mode_heap`, `user_mode_runtime`, `video_terminal`,
 `virtio`, `thread_wake_handshake`.
 
 The worklist, largest first, so the next person can take one crate and turn its line on:
@@ -106,7 +106,7 @@ The worklist, largest first, so the next person can take one crate and turn its 
 |---|---|
 | `machine_discovery` | 54 |
 | `smb_proto` (removed 2026-08-30) | 52 |
-| `mdns_proto` | 41 |
+| `multicast_dns_protocol` | 41 |
 | `pci` | 24 |
 | `gpt` | 23 |
 | `grant_plan` | 22 |

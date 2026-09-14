@@ -190,7 +190,7 @@ Sources and the exact text:
 - **QEMU riscv64 `virt`.** `hw/riscv/virt.c`'s `virt_memmap[]` has the CLINT and a goldfish RTC and no
   general-purpose timer. The goldfish RTC's alarm *is* usable: `hw/rtc/goldfish_rtc.c` has
   `RTC_ALARM_LOW/HIGH`, a nanosecond counter, and a real one-shot `timer_mod`. One comparator, and
-  this tree already drives that device for the wall clock (`crates/clock_proto`, §43).
+  this tree already drives that device for the wall clock (`crates/clock_protocol`, §43).
 - **HPET.** IA-PC HPET Specification 1.0a (Intel, October 2004). §2.3.4, `NUM_TIM_CAP` (bits 12:8):
   *"This indicates the number of timers in this block. The number in this field indicates the last
   timer"*, so the count is `NUM_TIM_CAP + 1`. §2.2's recommended minimum is **3 comparators**, all

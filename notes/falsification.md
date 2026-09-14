@@ -137,7 +137,7 @@ created `kernel/falsifications/` and nothing swept it.
 
 **The scope now comes from `cargo metadata`**, which is where `script/lint`'s verify-table check
 already gets the same fact. A hand-kept list is the same defect one iteration later, and
-`script/verify` has recorded that failure twice: `mdns_proto` and then `jh7110_entropy`, each carrying
+`script/verify` has recorded that failure twice: `multicast_dns_protocol` and then `jh7110_entropy`, each carrying
 harnesses nothing ran, each invisible because a suite whose scope is too small goes green *faster*.
 
 Three things fell out of following packages rather than a directory.
@@ -243,7 +243,7 @@ of taste.
 
 ### The same shape, one crate along
 
-`filesystem_proto::a_grandchild_is_bounded_by_the_root` is `attenuate_never_widens` at depth two.
+`filesystem_protocol::a_grandchild_is_bounded_by_the_root` is `attenuate_never_widens` at depth two.
 `attenuate` is a single `&`, so the only claim the second harness adds is that AND is associative,
 and there is no plausible defect that breaks it while leaving the depth-one harness green. Both go
 red on the same one-character patch (`&` becoming `|`). Recorded in the patch prose rather than acted
@@ -311,10 +311,10 @@ harness goes **red**. Both directions were checked for every one, because the wh
 | `component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for` | `Direction::rights`, which `plan` fills the word from | `Use` routed `READ`, so a client can receive on its server's rendezvous |
 | `component_plan::the_device_split_partitions_the_mappings` | `PageKind::mode`, which `plan` fills the word from | device registers mapped `MAP_RW` |
 | `component_plan::dependents_finds_exactly_the_non_target_instances_that_declared_it` | `str_eq`, which `dependents` decides membership with | `str_eq` true for strings of different lengths |
-| `credential_proto::no_request_word_makes_the_parse_read_outside_the_page` | `id_len`, which `read` slices with | the identity length read from the wrong four bits of the request word |
+| `credential_protocol::no_request_word_makes_the_parse_read_outside_the_page` | `id_len`, which `read` slices with | the identity length read from the wrong four bits of the request word |
 | `dma_validator::an_accepted_descriptor_is_confined` | `Desc::is_indirect`, which `check_descriptor` guards on | the indirect flag tested against the wrong bit, so an indirect table reaches the device |
 | `jh7110_entropy::ready_requires_rand_rdy_and_carries_the_words_untouched` | `assemble`, which `interpret` calls | entropy laid out big-endian |
-| `ntp_proto::accepting_is_total_and_a_sample_is_coherent` | `Interval::is_negative`, which `accept` guards on | the predicate never true, so a negative delay is accepted |
+| `network_time_protocol::accepting_is_total_and_a_sample_is_coherent` | `Interval::is_negative`, which `accept` guards on | the predicate never true, so a negative delay is accepted |
 | `paging::sv39::the_leaf_keeps_address_and_permissions_apart` | `entry_pa`, the decoder for the encoder under test | `PPN_SHIFT` moved, so both agree on the wrong bits |
 | `paging::aarch64::the_leaf_keeps_address_and_permissions_apart` | the same round trip | the descriptor-type field dropped, so every leaf faults |
 | `paging::x86_64::the_leaf_keeps_address_and_permissions_apart` | the same round trip | the present bit dropped |
@@ -327,7 +327,7 @@ walks `crates/` only, so the ratio it prints is not the tree's) landed between t
 figure rather than either branch's.
 
 **Three more were rewritten and are recorded as *not* findings**, which is the half worth being
-strict about. `filesystem_proto`'s two attenuation harnesses state their property through
+strict about. `filesystem_protocol`'s two attenuation harnesses state their property through
 `allows`, and `capability::a_deleted_capability_stays_deleted` states it through `get`. Each
 looks like the class and is not: the sweep tried to exhibit a defect their original phrasing
 misses and could not. `attenuate` does not call `allows`, and a widening `attenuate` shows up on
@@ -482,7 +482,7 @@ limitation rather than a split.
 Recording these is not modesty. 211 found its own first draft wrong about one of these once, and
 a sweep that reports only its hits is unfalsifiable prose.
 
-**`credential_proto::a_request_word_round_trips_every_field` is blind on its own, and covered by
+**`credential_protocol::a_request_word_round_trips_every_field` is blind on its own, and covered by
 its neighbour.** It is an encoder round-tripped through its own decoder, which is 211's third
 family. Swapping the identity and secret length fields in `req` and in `id_len`/`secret_len`
 together leaves it verifying: both sides move and the round trip is perfect, while a client using

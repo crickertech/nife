@@ -162,12 +162,12 @@ Each is independently useful, and none depends on the next being funded.
 
 Recorded here so the idea is not lost, not because it is decided.
 
-**Transaction boundaries are free, because we control the caller.** One `filesystem_proto` request is
+**Transaction boundaries are free, because we control the caller.** One `filesystem_protocol` request is
 one filesystem operation. The server brackets it, and every block write the engine emits in between
 arrives at our own IO layer, which is the interposition point we have to write anyway. Log those
 blocks physically to the journal, flush, then write them in place.
 
-**The barrier exists, which is what makes this different from RedoxFS.** `filesystem_proto`'s
+**The barrier exists, which is what makes this different from RedoxFS.** `filesystem_protocol`'s
 `blk::FLUSH` is a real `VIRTIO_BLK_T_FLUSH` the block server does not reply to until the device
 completes it, with `EOPNOTSUPP` passed through honestly when the device cannot flush. notes/fs-server.md
 names the absence of exactly this as RedoxFS's honest limit: its `Disk` trait has no flush and no

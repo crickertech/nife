@@ -33,12 +33,12 @@
 //! writing down.** `soak_proto` was refused because **nothing here is a wire protocol: it is a
 //! memory layout**, and the `_proto` suffix in this tree names request/reply vocabularies. That
 //! puts this crate in a family with `block_roster` and `grant_plan::job_page_frame`, against
-//! `clock_proto`, `credential_proto` and `supervision_proto` on the other side of the line.
+//! `clock_protocol`, `credential_protocol` and `supervision_protocol` on the other side of the line.
 //!
 //! **The list this block used to give was wrong on its own terms**, and the correction is recorded
-//! rather than quietly swapped: it named `clock_proto` and `timebase_proto` as examples of "the
+//! rather than quietly swapped: it named `clock_protocol` and `counter_frequency_protocol` as examples of "the
 //! shape the tree already uses for a layout", when both are `_proto` crates and therefore the
-//! counter-examples the very next sentence distinguishes. `timebase_proto` also became
+//! counter-examples the very next sentence distinguishes. `counter_frequency_protocol` also became
 //! `counter_frequency_proto` by calef's ruling the same day, so the citation was about to dangle as
 //! well as contradict.
 //!

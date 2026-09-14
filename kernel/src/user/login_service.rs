@@ -29,7 +29,7 @@ const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 
 /// Stack pages beyond the one page `run` maps. This process parses the initrd, parses an ELF, and
-/// builds a child address space (`supervision_proto::build_child`), which is deeper than
+/// builds a child address space (`supervision_protocol::build_child`), which is deeper than
 /// `root_supervisor`'s own 8-page stack covers; sized against `credentialer.rs`'s own lesson (its
 /// Argon2id inner loop needed 16 pages where one was not close) rather than guessed from nothing.
 const LOGIN_STACK_PAGES: u64 = 16;
@@ -38,7 +38,7 @@ const LOGIN_STACK_PAGES: u64 = 16;
 /// credential. Must match `fixtures/src/login_test_client.rs`, whose module docs carry the argument
 /// for why these are two things and not eleven roles.
 ///
-/// The credential halves are `credential_proto::fixture`'s own indices, not named again here: a
+/// The credential halves are `credential_protocol::fixture`'s own indices, not named again here: a
 /// third copy of `chris` is exactly what 293 removed.
 pub const LOGIN: u64 = 0;
 /// DECISIONS §117's per-identity subtree proof, writing the identity it was handed; see the same
@@ -52,18 +52,18 @@ pub const LOGOUT: u64 = 3;
 /// Milestone 49's terminal update: logs in, proves the fifth delegated capability (the terminal)
 /// works, tears the session down without freeing the terminal. See the same file's module docs.
 pub const HOLD_TERMINAL: u64 = 4;
-/// Sends `login_proto::logout_word` on the front door directly, with no credential at all.
+/// Sends `login_protocol::logout_word` on the front door directly, with no credential at all.
 pub const FREE_TERMINAL: u64 = 5;
 
 /// The report words `login_test_client` sends; must match the same file.
-pub const RPT_OK: u64 = login_proto::OK;
-pub const RPT_DENIED: u64 = login_proto::DENIED;
+pub const RPT_OK: u64 = login_protocol::OK;
+pub const RPT_DENIED: u64 = login_protocol::DENIED;
 #[allow(dead_code)] // named for completeness with the pair above; nothing exercises it today
-pub const RPT_MALFORMED: u64 = login_proto::MALFORMED;
+pub const RPT_MALFORMED: u64 = login_protocol::MALFORMED;
 /// Milestone 49's terminal update: the terminal was already on loan.
-pub const RPT_NO_TERMINAL: u64 = login_proto::NO_TERMINAL;
+pub const RPT_NO_TERMINAL: u64 = login_protocol::NO_TERMINAL;
 /// [`FREE_TERMINAL`]'s own answer.
-pub const RPT_LOGGED_OUT: u64 = login_proto::LOGGED_OUT;
+pub const RPT_LOGGED_OUT: u64 = login_protocol::LOGGED_OUT;
 
 /// [`HOLD_TERMINAL`]'s proof-of-life word for the delegated terminal; must match the same file's
 /// `TERM_MAGIC`.
@@ -84,7 +84,7 @@ pub const F_TERM_WORKS: u64 = 1 << 8;
 
 /// **[`LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
 /// behaviour's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
-/// Every other behaviour that fills the third word puts a [`login_proto::identity_hint`] there; this one
+/// Every other behaviour that fills the third word puts a [`login_protocol::identity_hint`] there; this one
 /// has no identity to report and a number a red run needs. Must match
 /// `fixtures/src/login_test_client.rs`'s `waited_micros`.
 ///
@@ -99,7 +99,7 @@ pub struct Wiring {
     pub request: RendezvousId,
     /// The verdict and, on success, five delegated capabilities, `READ`.
     pub result: RendezvousId,
-    /// One [`login_proto::ATTRIBUTED`] message per successful login, `READ`.
+    /// One [`login_protocol::ATTRIBUTED`] message per successful login, `READ`.
     pub audit: RendezvousId,
     /// **The stand-in terminal** (milestone 49's terminal update): this test harness holds no real
     /// terminal to grant, so it wires a bare rendezvous in its place, `READ`. A test can `ipc_recv`
@@ -111,7 +111,7 @@ pub struct Wiring {
 
 /// Copy `bytes` into fresh read-only pages at consecutive VAs from `base` (milestone 233).
 ///
-/// The kernel-side twin of `supervision_proto`'s `blobs`, which is how
+/// The kernel-side twin of `supervision_protocol`'s `blobs`, which is how
 /// `crates/system_initializer` hands the same two blobs to the same program. Read-only for the
 /// same reason that one gives: a program image is data the child reads, and a child that could
 /// rewrite the image it was handed could hand a different one on.
@@ -138,7 +138,7 @@ fn map_blob(space: &mut AddressSpace, base: u64, bytes: &[u8]) {
 /// its own `VERIFY_VA` (`credential_service::Wiring::verify_page_frame` on the instance `verify` came
 /// from). `fs_ep`/`fs_page_frame` are the file service's root directory capability and the page its
 /// clients share with it (`fs_service::root_directory`). `construction_pages` bounds how many
-/// logins this instance can serve before every further one is answered [`login_proto::DENIED`] (see
+/// logins this instance can serve before every further one is answered [`login_protocol::DENIED`] (see
 /// `components/src/login.rs`'s BUGS: nothing reclaims a caretaker's region in this slice).
 ///
 /// **`verify_page_frame` is a parameter and not a lookup**, on purpose (milestone 155): a caller that
@@ -192,10 +192,10 @@ pub fn start(
     }
     #[cfg(target_arch = "x86_64")]
     map_x86_timebase_page(&mut space).expect("could not map login's timebase page");
-    map_blob(&mut space, login_proto::CARETAKER_ELF_VA, caretaker);
+    map_blob(&mut space, login_protocol::CARETAKER_ELF_VA, caretaker);
     map_blob(
         &mut space,
-        login_proto::PROGRAM_MEASUREMENTS_VA,
+        login_protocol::PROGRAM_MEASUREMENTS_VA,
         measurements,
     );
     // Milestone 49's channel-per-client update removed the front door's own shared staging page:
@@ -317,7 +317,7 @@ pub fn client(
 ///
 /// **`identity` and `secret` are separate arguments on purpose** (milestone 293): they compose, so
 /// the wrong-secret case is `(fixture::CHRIS, fixture::WRONG)` rather than an eleventh role whose
-/// code could drift away from the honest one's. Both are `credential_proto::fixture` indices.
+/// code could drift away from the honest one's. Both are `credential_protocol::fixture` indices.
 pub fn spawn_client(
     image: &'static [u8],
     w: &Wiring,

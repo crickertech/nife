@@ -26,8 +26,8 @@ exclude_globs = [
     # wrong**, found by milestone 244: `--exclude` removes a package from the test SELECTION, not
     # from the dependency graph, and script/lint's own bare-metal gate carries the whole story of
     # how that distinction stayed invisible for eleven days.
-    "crates/supervision_proto/**",
-    "crates/swap_proto/**",
+    "crates/supervision_protocol/**",
+    "crates/swap_protocol/**",
 
     # The system builder (milestone 96), and it was MISSING here until milestone 244 measured why
     # its score looked the way it did. It reaches `user_mode_runtime` like the two above, so the host suite
@@ -76,8 +76,8 @@ exclude_globs = [
 # Matched against mutant names ("replace X with Y in path::fn"). Entries arrive with reasons or
 # not at all.
 exclude_re = [
-    # The Kani harness modules: 18 `mod verification` blocks and 3 `mod proofs` (credential_proto,
-    # filesystem_proto, regions), every one behind `#[cfg(kani)]`, so `cargo test` never compiles them: a
+    # The Kani harness modules: 18 `mod verification` blocks and 3 `mod proofs` (credential_protocol,
+    # filesystem_protocol, regions), every one behind `#[cfg(kani)]`, so `cargo test` never compiles them: a
     # mutant there always "survives", and the first full run reported dozens of exactly that (every
     # one of calendar's harnesses, mutated to `()`, "missed"). Their checker is script/verify, not
     # the test suite, and mutating the proof rather than the code under proof measures nothing this

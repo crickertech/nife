@@ -51,8 +51,22 @@
 //! `.text` was mapped, so there is nothing left for a marker to say; a loader that mapped `.text`
 //! writable would pass every check here and DECISIONS §10's `W^X` assertions in
 //! `kernel/src/user/tests.rs` are what catch that instead.
-//! Name: provisional (milestone 291). A program's check that its own ELF image was loaded
-//! correctly. It is a crate because two fixtures need it and AGENTS.md rule 7 admits no `#[path]`
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist). A program's check that its
+//! own ELF image was loaded correctly.
+//!
+//! **Ratified after reading the prior art rather than recalling it, and the field offers nothing to
+//! defer to.** Searched 2026-09-14: everything published about verifying ELF sections is
+//! *loader-side*, a loader sanity-checking magic bytes, header size and segment bounds before it
+//! maps anything, and handling the `p_filesz`/`p_memsz` gap by zero-filling. This crate is the
+//! inverse: it runs **inside** the loaded program and audits what the loader already did to it. The
+//! one named convention nearby is Linux's `kselftest`, which is a suite run against a built kernel
+//! rather than a program auditing its own image. And `POST` is spoken for, as milestone 268's block
+//! established from `notes/xenon-firmware.md`'s quotation of Dell's Power On Self-Test.
+//!
+//! So this is **coined, not standard**, and claims none of the shelter `virtio` and `elf` get from
+//! being the field's own word. That also sharpens the `self_check` refusal below: beyond `self`
+//! naming the caller, `selftest` and `self-check` mean *a system testing itself* in this field,
+//! where this program verifies **someone else's work on it**. `loaded_` earns its place. It is a crate because two fixtures need it and AGENTS.md rule 7 admits no `#[path]`
 //! module; it was `hello`'s `self_check()` while the self-checker and the printing client were two
 //! roles of one binary. Refused `self_check` (a verb phrase, and `self` names the caller rather
 //! than the thing checked, which reads oddly at `self_check::verify()`). Refused `image_check`

@@ -2,7 +2,7 @@
 
 What the machine knows about the time, who is allowed to change it, and why the three answers are
 three different capabilities. Milestone 51 lane A; the decision and its argument are
-[DECISIONS §43](../design/decisions/43-clock-authority.md), the contract is `crates/clock_proto`.
+[DECISIONS §43](../design/decisions/43-clock-authority.md), the contract is `crates/clock_protocol`.
 
 ## The thing this replaced
 
@@ -87,11 +87,11 @@ that sees the even sequence; the reader's fence keeps its data loads from sinkin
 sequence read, which is what makes the check mean anything.
 
 A torn read here would be a wrong time rather than a crash, which is the worst kind of bug to leave
-possible, so the invariant has its own test in `clock_proto`.
+possible, so the invariant has its own test in `clock_protocol`.
 
 ## "I do not know what time it is" is a state, and it is the default
 
-`clock_proto::state` has four values:
+`clock_protocol::state` has four values:
 
 | | meaning |
 |---|---|
@@ -110,7 +110,7 @@ different provenance, and that difference is what a caller weighing a certificat
 
 ## The policy, and the asymmetry that is the point
 
-`clock_proto::policy` is a pure function, host-tested in milliseconds, and it lives in the contract
+`clock_protocol::policy` is a pure function, host-tested in milliseconds, and it lives in the contract
 crate rather than inside the service so a well-behaved proposer can predict the answer. The bounds
 are public because the authority was never secrecy about them; it is that a proposer cannot write
 the page.
@@ -190,7 +190,7 @@ The uncomfortable part, recorded rather than smoothed over: `SystemTime::now()` 
 channel**, so the only loud refusal available when the clock is unknown is a **panic**. That is what
 it does, with a message naming which of the two causes it was. A program that never asks the time is
 unaffected, but a program cannot ask whether it *can* ask, because std has no way to represent "I do
-not know". The readable form of the state lives one level down in `clock_proto` for anything that
+not know". The readable form of the state lives one level down in `clock_protocol` for anything that
 wants to check first, and a `no_std` component simply reads the page.
 
 ## What this lane did not build

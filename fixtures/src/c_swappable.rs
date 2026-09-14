@@ -49,7 +49,7 @@ fn digest_in_c(seq: u64) -> u64 {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(device: u64, log_base: u64, wedge: u64) -> ! {
-    swap_proto::serve(swap_proto::V2, digest_in_c, log_base, device != 0, wedge)
+    swap_protocol::serve(swap_protocol::V2, digest_in_c, log_base, device != 0, wedge)
 }
 
 user_mode_runtime::panic_handler!();

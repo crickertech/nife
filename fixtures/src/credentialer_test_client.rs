@@ -10,7 +10,7 @@
 //! provisioner fills a store, the honest client asks four questions, and the attacker sends five
 //! things the contract does not offer. There is no role-to-credential lookup here to dissolve, which
 //! is the difference between this file and `login_test_client.rs`. What 293 did take from here is
-//! [`PEOPLE`], which lives in `credential_proto::fixture` now because three files were keeping their
+//! [`PEOPLE`], which lives in `credential_protocol::fixture` now because three files were keeping their
 //! own copy of it.
 //!
 //! - [`ROLE_HONEST`] is what any authenticating server would be: it asks three questions and reports the
@@ -51,7 +51,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use credential_proto as proto;
+use credential_protocol as proto;
 /// The identities and secrets this milestone's tests use, from the one place they live
 /// (milestone 293). This file held the definition until then and two other files held their own
 /// copies of it, one of which said in a comment that it had *chosen* to match this one; a fact
@@ -101,7 +101,7 @@ type Share = (&'static [u8], &'static [u8], &'static [u8], &'static [u8]);
 /// where it came from: milestone 65 stored it under that account because Microsoft publishes every
 /// intermediate NTLMv2 value for it. That path was removed on 2026-08-30 (notes/smb.md) and these
 /// are now three ordinary password records; the values are kept because nothing is served by
-/// changing them and `credential_proto::fixture` is still where they live.
+/// changing them and `credential_protocol::fixture` is still where they live.
 const SHARES: [Share; 3] = [
     (
         proto::fixture::SMB_RESOURCE,
@@ -218,7 +218,7 @@ fn attacker() -> ! {
     // and that is the model working rather than a hole in it: `provision::PUT` and `verify::VERIFY`
     // are both opcode 1, because the *endpoint* gives a number its meaning and a client cannot
     // choose which serve loop reads it. So this is a verify of an identity nobody provisioned, and
-    // the honest answer is no. See `credential_proto`'s "an opcode is not an authority".
+    // the honest answer is no. See `credential_protocol`'s "an opcode is not an authority".
     codes.push(request(
         PAGE_WINDOW,
         IMPOSTOR,
@@ -228,7 +228,7 @@ fn attacker() -> ! {
     // Re-seal it, in case a service that had not sealed would accept one. `SEAL` is 2, and this
     // endpoint implements no opcode 2, so the answer is MALFORMED. It was MISMATCH between
     // milestone 65 and 2026-08-30, when `verify::NTLM_PROOF` also lived at 2 and what the attacker
-    // sent read as a proof for a resource nobody provisioned; notes/smb.md, and `credential_proto`'s
+    // sent read as a proof for a resource nobody provisioned; notes/smb.md, and `credential_protocol`'s
     // module docs on why a number's meaning is the endpoint's rather than its own.
     codes.push(request(
         PAGE_WINDOW,

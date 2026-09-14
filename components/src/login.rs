@@ -26,13 +26,13 @@
 //! **The same "a fresh object per principal, not a shared view" idea now starts one step earlier
 //! too** (milestone 49's channel-per-client update, resolving this program's own former "one client
 //! at a time" limit). [`REQUEST`]/[`RESULT`] are a front door every client is handed identically at
-//! spawn, but the only thing a client may say there is [`login_proto::CONNECT`]: "give me my own
+//! spawn, but the only thing a client may say there is [`login_protocol::CONNECT`]: "give me my own
 //! channel." Login answers with a freshly minted, private request/result pair and a freshly minted
 //! staging page ([`connect`]), delegated to exactly that caller. The identity and secret an actual
 //! login needs are staged and read on that private pair, never on the shared front door, so two
 //! clients that reach the front door close together can never see or overwrite each other's secret:
 //! the only thing they could ever contend for is which of them gets served *first*, which is a wait,
-//! not a hazard. See `login_proto`'s own module docs for the two-phase exchange in full.
+//! not a hazard. See `login_protocol`'s own module docs for the two-phase exchange in full.
 //!
 //! # Which subtree a principal gets (see BUGS for the rest)
 //!
@@ -44,7 +44,7 @@
 //! at provisioning time, deliberately not auto-vivified here; see that decision's own reasoning for
 //! why provision-time creation was chosen over creating it on a principal's first login). An
 //! authenticated identity with no provisioned subtree is refused, folded into the same
-//! [`login_proto::DENIED`] a wrong password gets (see this program's BUGS on why). Per-principal
+//! [`login_protocol::DENIED`] a wrong password gets (see this program's BUGS on why). Per-principal
 //! subtree *scoping* (which subtree a grant may name at all, as opposed to *which one this program
 //! picks*) is milestone 47's already-built mechanism (`fs_subtree_caretaker`'s whole reason to
 //! exist); this program only decides the name.
@@ -127,7 +127,7 @@
 //! by leaving thirteen logins' worth of stranded pages behind (see
 //! `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory`'s own doc
 //! comment). The fix is ordering, not a capability change: destroy `budget` (the third capability)
-//! before `region` (the fourth). See `crates/login_proto`'s own module docs for the client-facing
+//! before `region` (the fourth). See `crates/login_protocol`'s own module docs for the client-facing
 //! version of this note, including why it holds regardless of what other clients do (nothing else is
 //! ever split from `CONSTRUCTION_UT` between one login's two capabilities) but does not generalize to
 //! reclaiming two different logins' memory out of the order they were minted in.
@@ -150,20 +150,20 @@
 //! qualifies). `_start`'s own `terminal_held: bool`, `false` at start-up, is the whole of the
 //! state this needs:
 //!
-//! - A login is refused [`login_proto::NO_TERMINAL`], **before** its identity and secret are even
+//! - A login is refused [`login_protocol::NO_TERMINAL`], **before** its identity and secret are even
 //!   relayed to the credential service, whenever `terminal_held` is already `true`. See
 //!   [`serve_login`]'s own comment for why the check runs first rather than after authentication.
 //! - The first login to arrive while `terminal_held` is `false` receives [`TERM_EP`] as its fifth
 //!   delegated capability (`WRITE`, the same right the interactive boot's shell already holds on
 //!   it), and `terminal_held` becomes `true`.
-//! - [`login_proto::LOGOUT`], a bare word on the *front door* (not a private channel: it carries no
+//! - [`login_protocol::LOGOUT`], a bare word on the *front door* (not a private channel: it carries no
 //!   secret, so there is nothing a shared endpoint exposes by handling it directly), sets
-//!   `terminal_held` back to `false` and answers [`login_proto::LOGGED_OUT`]. The next login to
+//!   `terminal_held` back to `false` and answers [`login_protocol::LOGGED_OUT`]. The next login to
 //!   arrive after that may receive the terminal again.
 //!
 //! **What this does not build, named rather than assumed away.** `LOGOUT` authenticates nothing (a
 //! deliberate choice for today's actual deployment, one interactive boot with no untrusted co-tenant
-//! reaching the front door; see `login_proto`'s own BUGS for the real interruption hazard a hostile
+//! reaching the front door; see `login_protocol`'s own BUGS for the real interruption hazard a hostile
 //! holder of [`REQUEST`] would pose in a different deployment). There is no liveness check on
 //! whoever currently holds the terminal: a session that exits, crashes, or simply never calls
 //! `LOGOUT` leaves `terminal_held` stuck `true` for the rest of this process's life, indistinguishable
@@ -179,11 +179,11 @@
 //! # Capability contract
 //!
 //! - slot [`REQUEST`]: `RECV`. The front door. A client sends exactly one
-//!   [`login_proto::connect_word`] here, ever, or exactly one [`login_proto::logout_word`], any
-//!   number of times; the actual [`login_proto::LOGIN`] request travels on the private endpoint
-//!   [`connect`] delegates in answer (see "Two phases" above and `login_proto`'s own module docs).
+//!   [`login_protocol::connect_word`] here, ever, or exactly one [`login_protocol::logout_word`], any
+//!   number of times; the actual [`login_protocol::LOGIN`] request travels on the private endpoint
+//!   [`connect`] delegates in answer (see "Two phases" above and `login_protocol`'s own module docs).
 //!   No page is read for either front-door word.
-//! - slot [`RESULT`]: `WRITE | GRANT`. [`login_proto::CONNECTED`], followed by three delegated
+//! - slot [`RESULT`]: `WRITE | GRANT`. [`login_protocol::CONNECTED`], followed by three delegated
 //!   capabilities: a private request endpoint (`WRITE`), a private result endpoint (`READ`), and a
 //!   staging page (`READ | WRITE`). This process keeps its own copies of all three (the "delegate,
 //!   then keep going" pattern [`FS_PAGE_FRAME`] already uses, not the "delegate, then drop" pattern
@@ -203,7 +203,7 @@
 //!   a caretaker, and a client budget are all built from. Never given away, unlike
 //!   `root_supervisor`'s: this process keeps serving logins for its whole life, so unlike a progenitor
 //!   that hands its authority away once, it must keep some.
-//! - slot [`AUDIT`]: `WRITE`. One [`login_proto::ATTRIBUTED`] message per successful login, so the
+//! - slot [`AUDIT`]: `WRITE`. One [`login_protocol::ATTRIBUTED`] message per successful login, so the
 //!   property DECISIONS §109 names (a server logging which channel it just established, and for
 //!   whom) is checkable rather than merely claimed. See this program's BUGS on the scope of what
 //!   this endpoint proves. **Must be drained by something**, or the first successful login blocks
@@ -214,11 +214,11 @@
 //! - slot [`TERM_EP`]: `WRITE | GRANT` on the interactive terminal `crates/system_initializer::boot`
 //!   already wires. See "The terminal: single-session, deny cleanly" above.
 //! - mapped [`CRED_VA`]: the page shared with the credential service, for the relayed `VERIFY`.
-//! - mapped [`login_proto::CARETAKER_ELF_VA`]: `fs_subtree_caretaker`'s own ELF bytes, read-only,
+//! - mapped [`login_protocol::CARETAKER_ELF_VA`]: `fs_subtree_caretaker`'s own ELF bytes, read-only,
 //!   with the length in `x0`. This is the image every caretaker this process mints is built from,
 //!   and it is all of the boot archive this process is given: it needs one program, not a
 //!   filesystem. Zero length means the spawner had nothing vouched-for to hand over.
-//! - mapped [`login_proto::PROGRAM_MEASUREMENTS_VA`]: [`measured_boot::PROGRAM_MEASUREMENTS`]'
+//! - mapped [`login_protocol::PROGRAM_MEASUREMENTS_VA`]: [`measured_boot::PROGRAM_MEASUREMENTS`]'
 //!   bytes, read-only, with the length in `x1`, so the image above can be checked against the same
 //!   table `crates/system_initializer` checks everything it loads against.
 //! - mapped, dynamically, starting at [`CONNECT_VA_BASE`]: one page per channel [`connect`] mints,
@@ -249,7 +249,7 @@
 //! interactive boot, on both architectures.** `_start` read the boot archive to find
 //! `fs_subtree_caretaker`, from `initrd_len` in `a1` and the kernel's mapping at
 //! `user_mode_runtime::initrd::INITRD_VA`. That is what `kernel::user::login_service::start` handed it, and it
-//! is what `crates/system_initializer` could never hand it: `supervision_proto::build_child` maps
+//! is what `crates/system_initializer` could never hand it: `supervision_protocol::build_child` maps
 //! only pages the spawner holds a `PageFrame` capability for, and the archive is reserved RAM the
 //! frame allocator does not own and no capability names. So the progenitor started this process with
 //! `start_child(login_child, 0, 0, 0)` and no archive, `initrd_bytes` yielded a
@@ -259,7 +259,7 @@
 //! **The real defect was that the two spawners disagreed**, and only one of them was tested. A
 //! harness that starts a program differently from the way the system starts it is not testing that
 //! program, and this one had been passing for an unknown length of time. Both now lay down the same
-//! two blobs (see the endowment above), and `login_proto::CARETAKER_ELF_VA` carries the account of
+//! two blobs (see the endowment above), and `login_protocol::CARETAKER_ELF_VA` carries the account of
 //! why the fix went this way rather than by finding some way to give this process the archive: it
 //! needs one program's bytes and a table to check them against, and a service that can read every
 //! file in the boot image to answer a password holds authority it never exercises.
@@ -273,7 +273,7 @@
 //!
 //! **What this cost in the currency that was scarce: nothing.** Milestone 231's gauge says the
 //! boot's capability-slot high-water mark is 21 of 24 before this change and 21 of 24 after it, on
-//! both architectures, because `supervision_proto`'s `fill_and_map` holds one frame capability at a
+//! both architectures, because `supervision_protocol`'s `fill_and_map` holds one frame capability at a
 //! time and deletes it.
 //!
 //! **The measurement check's trust root moved and is weaker.** When this process read the initrd it
@@ -291,8 +291,8 @@
 //! single endpoint pair carrying an actual login's identity and secret, on a single shared staging
 //! page reused by every client this process ever spawned: two concurrent callers could interleave
 //! their words on that one page, exactly the limit `credentialer.rs` still documents for its own
-//! verify page. [`filesystem_proto`]'s answer, a channel per client, is now copied here: the front door's
-//! only legal message is [`login_proto::CONNECT`], carrying nothing a caller did not already know, and
+//! verify page. [`filesystem_protocol`]'s answer, a channel per client, is now copied here: the front door's
+//! only legal message is [`login_protocol::CONNECT`], carrying nothing a caller did not already know, and
 //! [`connect`] answers it with a freshly minted, private request/result pair and staging page,
 //! delegated to exactly the caller that asked. Two clients reaching the front door together can
 //! contend only for which one is served first (this process still has one thread and no wait-any
@@ -321,7 +321,7 @@
 //! **Resolved, 2026-08-26: `MemoryRegion::DESTROY` does not free the destroyer's own capability
 //! table slot, and this process leaked two slots per connect.** The symptom was
 //! `kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory` refusing
-//! its **second** of ten back-to-back connect-login-logout cycles with [`login_proto::DENIED`], as
+//! its **second** of ten back-to-back connect-login-logout cycles with [`login_protocol::DENIED`], as
 //! though `chris`'s password were wrong, which it is not. The first cycle always succeeded, and an
 //! earlier version of this entry recorded that later cycles succeed too; **that was wrong**, and
 //! finding out cost nothing but letting the test run past its first failed assertion: cycles two
@@ -329,7 +329,7 @@
 //!
 //! The cause was found by instrumenting rather than by reasoning, in four steps, each narrowing the
 //! previous one: which branch answers `DENIED` (`mint` returning `None`), which step of `mint`
-//! (`supervision_proto::build_child`), which step of `build_child_space` (`fill_and_map`'s own
+//! (`supervision_protocol::build_child`), which step of `build_child_space` (`fill_and_map`'s own
 //! `RETYPE`), and finally which half of the kernel's `memory_region_retype` refused it. That last
 //! step is the one that mattered, because the syscall collapses two unrelated causes into one
 //! `Error::OutOfMemory` (`kernel::memory_region`'s own BUGS says so): the region was **not**
@@ -376,8 +376,8 @@
 //! recommendation).** The roadmap's own text names three things a login hands back: a root
 //! directory, a budget, a terminal. This program now hands back all three, in the single-session,
 //! deny-cleanly shape that recommendation named: see "The terminal: single-session, deny cleanly"
-//! above for the design, [`TERM_EP`] for the capability, and [`login_proto::NO_TERMINAL`] /
-//! [`login_proto::LOGOUT`] for the wire contract. What that recommendation explicitly declined to
+//! above for the design, [`TERM_EP`] for the capability, and [`login_protocol::NO_TERMINAL`] /
+//! [`login_protocol::LOGOUT`] for the wire contract. What that recommendation explicitly declined to
 //! build (a real multiplexing primitive, more than one live session with its own view) remains
 //! undecided and unbuilt, on purpose; see the same section for why choosing the narrow shape now
 //! commits to nothing the wider one would later have to unwind.
@@ -387,25 +387,25 @@
 //! named by the identity string itself; see the module docs above for what that does and does not
 //! cover, and the two bounds this brought with it, named honestly rather than left implicit:
 //!
-//! - **An identity longer than [`filesystem_proto::grant::MAX_NAME`] (16 bytes) cannot get a per-identity
-//!   subtree in this slice at all**, even though [`login_proto::MAX_IDENTITY`] (64 bytes) would
+//! - **An identity longer than [`filesystem_protocol::grant::MAX_NAME`] (16 bytes) cannot get a per-identity
+//!   subtree in this slice at all**, even though [`login_protocol::MAX_IDENTITY`] (64 bytes) would
 //!   otherwise accept it. The grant name travels in two `START` argument words to the caretaker,
-//!   not a frame (`filesystem_proto::grant`'s own doc explains why: a per-file or per-subtree grant this way
+//!   not a frame (`filesystem_protocol::grant`'s own doc explains why: a per-file or per-subtree grant this way
 //!   costs no extra page and no extra mapping), and that encoding is the 16-byte one, not
-//!   `login_proto`'s wider one. `mint` refuses (folded into [`login_proto::DENIED`], next bullet)
-//!   rather than silently truncating the name `filesystem_proto::grant::pack_name` would otherwise produce,
+//!   `login_protocol`'s wider one. `mint` refuses (folded into [`login_protocol::DENIED`], next bullet)
+//!   rather than silently truncating the name `filesystem_protocol::grant::pack_name` would otherwise produce,
 //!   which would attenuate the caretaker to a *different* subtree than the one
 //!   `identity_provisioner` created (a name collision hazard, not merely a usability one: two
 //!   identities that agree on their first 16 bytes would silently share a subtree). Lifting this
-//!   bound to `login_proto`'s own 64 means giving the caretaker a frame for its grant instead of two
-//!   argument words, which is a change to `filesystem_proto::grant`'s contract and every caretaker built
+//!   bound to `login_protocol`'s own 64 means giving the caretaker a frame for its grant instead of two
+//!   argument words, which is a change to `filesystem_protocol::grant`'s contract and every caretaker built
 //!   against it, not a one-line fix here.
 //! - **An authenticated identity with no provisioned subtree is refused, indistinguishably from a
 //!   wrong password.** `mint`'s caretaker construction reaches the same `OPENDIR`-against-a-missing-
 //!   name refusal an unprovisioned identity's descent gets, and this program's existing fold (below,
-//!   "an otherwise-authenticated principal") already answers it with [`login_proto::DENIED`] rather
+//!   "an otherwise-authenticated principal") already answers it with [`login_protocol::DENIED`] rather
 //!   than a distinguishable code. **This is a considered answer, not the accident of reusing the
-//!   fold**: the same reasoning [`login_proto::DENIED`]'s own doc gives for a wrong password applies
+//!   fold**: the same reasoning [`login_protocol::DENIED`]'s own doc gives for a wrong password applies
 //!   just as much here (a caller must not be able to tell "your identity has no home" from "your
 //!   password is wrong" by comparing outcomes across attempts, which would let a caller probe which
 //!   identities are provisioned without ever presenting a right password for one). The honest cost is
@@ -503,7 +503,7 @@
 //! mirrors that instead of refusing to start: the check runs once, at `_start`, before any client
 //! exists, and on refusal `care_elf` becomes `None` rather than a call to [`fail`]. [`mint`] then
 //! returns `None` immediately for every future login (`care?`, its very first line), which its
-//! caller already folds into [`login_proto::DENIED`], the same code "the construction budget is
+//! caller already folds into [`login_protocol::DENIED`], the same code "the construction budget is
 //! spent" and "the caretaker's descent was refused" already share.
 //!
 //! **This fold is not the anti-oracle reasoning the other two folded cases get, and should not be
@@ -512,7 +512,7 @@
 //! outcomes across attempts. A failed caretaker measurement varies with *nothing* a caller controls:
 //! the archive is immutable RAM fixed for the whole boot, so every identity, on every attempt, for
 //! the rest of this process's life, gets the identical answer. There is nothing to probe. The honest
-//! reason for the fold is narrower and more mundane: [`login_proto`] has no separate wire code for
+//! reason for the fold is narrower and more mundane: [`login_protocol`] has no separate wire code for
 //! "this service's core dependency failed to verify," and DENIED's own doc already covers "the
 //! service could not mint a capability set for an otherwise-authenticated principal," which this is
 //! one more instance of. The cost this leaves unaddressed is operational rather than a security gap:
@@ -559,8 +559,8 @@
 //! already names) and record that this was caught empirically, not merely reasoned about.
 //!
 //! [`CONSTRUCTION_UT`] is still sized by whoever spawns this process, and running out (a client that
-//! never logs out) still answers every further login with [`login_proto::DENIED`] rather than a
-//! distinguishable error, for `login_proto`'s own stated reason (a caller must not learn "the
+//! never logs out) still answers every further login with [`login_protocol::DENIED`] rather than a
+//! distinguishable error, for `login_protocol`'s own stated reason (a caller must not learn "the
 //! service is out of resources" by comparing outcomes across two attempts with the same identity);
 //! a deployment that wants that not to happen relies on clients actually calling `DESTROY`, which
 //! this program cannot compel and does not police (see "one client at a time" above: policing would
@@ -586,7 +586,7 @@
 //! region, never the destroyer's own table slot naming it, so every abandon site here goes through
 //! [`discard`].
 //!
-//! **The audit endpoint proves establishment, not per-request attribution.** [`login_proto::ATTRIBUTED`]
+//! **The audit endpoint proves establishment, not per-request attribution.** [`login_protocol::ATTRIBUTED`]
 //! records which identity established which channel at the moment this process minted it. It does
 //! not prove that a *downstream* server, later, can say which channel one of its own requests
 //! arrived on; DECISIONS §109's own text describes both halves and this program is only the first.
@@ -603,15 +603,15 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use supervision_proto::{
+use supervision_protocol::{
     ChildEndowment, Retention, build_child, memory_region_destroy, memory_region_split,
     retype_obj_from as retype_obj, retype_page_frame_from, start_child,
 };
 use user_mode_runtime::{call, cap_delete, map_page_frame, recv, send, send_cap, yield_now};
 
-/// The front door: a bare [`login_proto::CONNECT`], `RECV` (milestone 49).
+/// The front door: a bare [`login_protocol::CONNECT`], `RECV` (milestone 49).
 const REQUEST: u64 = 0;
-/// [`login_proto::CONNECTED`], then three delegated capabilities, `WRITE | GRANT`.
+/// [`login_protocol::CONNECTED`], then three delegated capabilities, `WRITE | GRANT`.
 const RESULT: u64 = 1;
 /// The credential service's verify endpoint (milestone 56), `WRITE`.
 const VERIFY: u64 = 2;
@@ -622,7 +622,7 @@ const FS_PAGE_FRAME: u64 = 4;
 /// Everything a connecting client's own channel, a caretaker, and a client budget are all built
 /// from, `WRITE | GRANT`.
 const CONSTRUCTION_UT: u64 = 5;
-/// One [`login_proto::ATTRIBUTED`] message per successful login, `WRITE`.
+/// One [`login_protocol::ATTRIBUTED`] message per successful login, `WRITE`.
 const AUDIT: u64 = 6;
 /// **The interactive terminal** (milestone 49's terminal update), `WRITE | GRANT`. The same
 /// endpoint `crates/system_initializer::boot` already hands the shell, `WRITE` only: this process
@@ -644,7 +644,7 @@ const CONNECT_VA_BASE: u64 = 0x0000_0000_00e4_0000;
 /// One channel's whole cost: two `RETYPE_OBJ`s (request, result), one `RETYPE` (the staging page),
 /// and the page tables `page_frame::MAP` needs for that page's own mapping. Three pages minimum,
 /// with margin over a tight count for the same reason [`CARETAKER_REGION_PAGES`] is (a region too
-/// small fails as `Err(())`, which [`connect`] can only answer with `login_proto::DENIED`).
+/// small fails as `Err(())`, which [`connect`] can only answer with `login_protocol::DENIED`).
 const CHANNEL_REGION_PAGES: u64 = 8;
 
 /// **A budget of its own that only [`connect`] ever spends, so a served channel's pages actually
@@ -683,7 +683,7 @@ const CARETAKER_FS_VA: u64 = 0x0000_0000_0060_0000;
 ///
 /// **Not "one build's worth," corrected.** An earlier version of this comment claimed only one
 /// caretaker is ever mid-construction, so this budget never holds more than one build's worth of
-/// intermediate page tables. That is wrong about `supervision_proto::fill_and_map`'s own mechanism:
+/// intermediate page tables. That is wrong about `supervision_protocol::fill_and_map`'s own mechanism:
 /// its `SCRATCH_NEXT` counter is a single, process-wide, monotonically increasing VA allocator that
 /// is **never reused or unmapped** between calls, so every segment and blob page of every caretaker
 /// this process has ever built (successfully or not: `mint` calls `build_child` before it knows
@@ -704,7 +704,7 @@ const OWN_UT_PAGES: u64 = 128;
 /// `crates/system_initializer::DIR_JOB_REGION_PAGES` (96) covers a caretaker **and** the program
 /// behind it; this process builds only the caretaker, so a smaller region should hold it, with
 /// margin rather than a tight fit (a region too small fails as `Err(())` mid-login, which this
-/// process can only answer with the one code `login_proto::DENIED` already carries for "could not
+/// process can only answer with the one code `login_protocol::DENIED` already carries for "could not
 /// mint", see this program's BUGS).
 const CARETAKER_REGION_PAGES: u64 = 64;
 
@@ -721,20 +721,20 @@ const CLIENT_BUDGET_PAGES: u64 = 64;
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
     // **Two blobs rather than the archive** (milestone 233). Whoever started this process mapped
-    // `fs_subtree_caretaker`'s ELF bytes read-only at `login_proto::CARETAKER_ELF_VA` and the
-    // measurement table at `login_proto::PROGRAM_MEASUREMENTS_VA`, with their lengths in the first
+    // `fs_subtree_caretaker`'s ELF bytes read-only at `login_protocol::CARETAKER_ELF_VA` and the
+    // measurement table at `login_protocol::PROGRAM_MEASUREMENTS_VA`, with their lengths in the first
     // two argument registers. Those constants carry the whole account of why this is not a mapping
     // of the initrd any more; the short version is that the real boot could not hand over the
     // initrd at all, so this program died at `_start` on every interactive boot until milestone 233.
     //
     // SAFETY: the spawner maps `caretaker_len` bytes read-only at `CARETAKER_ELF_VA`, for the
-    // lifetime of this process, before `_start` runs (`login_proto::CARETAKER_ELF_VA`'s own
-    // contract). Both spawners do: `crates/system_initializer` through `supervision_proto`'s
+    // lifetime of this process, before `_start` runs (`login_protocol::CARETAKER_ELF_VA`'s own
+    // contract). Both spawners do: `crates/system_initializer` through `supervision_protocol`'s
     // `blobs`, and `kernel::user::login_service::start` through `map_new`. A zero length is a slice
     // of nothing rather than a read of nothing, which is the case below.
     let care_bytes = unsafe {
         core::slice::from_raw_parts(
-            login_proto::CARETAKER_ELF_VA as *const u8,
+            login_protocol::CARETAKER_ELF_VA as *const u8,
             caretaker_len as usize,
         )
     };
@@ -766,7 +766,7 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
     // SAFETY: as above, for `table_len` bytes at `PROGRAM_MEASUREMENTS_VA`.
     let table = unsafe {
         core::slice::from_raw_parts(
-            login_proto::PROGRAM_MEASUREMENTS_VA as *const u8,
+            login_protocol::PROGRAM_MEASUREMENTS_VA as *const u8,
             table_len as usize,
         )
     };
@@ -803,33 +803,33 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
 
     loop {
         let (w0, _w1, _w2) = recv(REQUEST);
-        let op = login_proto::op(w0);
-        if op == login_proto::LOGOUT {
+        let op = login_protocol::op(w0);
+        if op == login_protocol::LOGOUT {
             // **Travels on the front door itself**, unlike an actual login: it carries no secret,
             // so there is nothing a shared endpoint would expose by handling it here directly (see
-            // `login_proto`'s own BUGS on what this does and does not authenticate). Idempotent: a
+            // `login_protocol`'s own BUGS on what this does and does not authenticate). Idempotent: a
             // logout that arrives when nobody holds the terminal simply finds `terminal_held`
             // already `false`.
             terminal_held = false;
-            send(RESULT, login_proto::LOGGED_OUT, 0, 0);
+            send(RESULT, login_protocol::LOGGED_OUT, 0, 0);
             continue;
         }
-        if op != login_proto::CONNECT {
-            // The front door's only other legal word; see `login_proto`'s own module docs. Not an
+        if op != login_protocol::CONNECT {
+            // The front door's only other legal word; see `login_protocol`'s own module docs. Not an
             // authentication outcome (no identity has been presented yet), so `MALFORMED` rather
             // than `DENIED`.
-            send(RESULT, login_proto::MALFORMED, 0, 0);
+            send(RESULT, login_protocol::MALFORMED, 0, 0);
             continue;
         }
         let Some(channel) = connect(channel_ut, connect_seq) else {
             // The construction budget is spent (see BUGS); folded into `DENIED` for
-            // `login_proto::DENIED`'s own stated reason, even though no identity is in play yet:
+            // `login_protocol::DENIED`'s own stated reason, even though no identity is in play yet:
             // this program has exactly one code for "authenticated or not, I could not serve you".
-            send(RESULT, login_proto::DENIED, 0, 0);
+            send(RESULT, login_protocol::DENIED, 0, 0);
             continue;
         };
         connect_seq += 1;
-        send(RESULT, login_proto::CONNECTED, 0, 0);
+        send(RESULT, login_protocol::CONNECTED, 0, 0);
         // Delegate narrowed copies and **keep our own for the width of this one exchange**: unlike
         // `FS_PAGE_FRAME` (shared with every future client, forever), this channel is this process's
         // for exactly as long as `serve_login` is running and no longer, so its objects are reclaimed
@@ -876,7 +876,7 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
         // those sixteen slots permanently, which is exactly two logins' worth of headroom: the
         // second login after this process started would reach `mint`, get through `build_child`'s
         // address space, and fail on the next `RETYPE` with the table full, and the caller reads
-        // that as `login_proto::DENIED` on a correct password. See this program's BUGS.
+        // that as `login_protocol::DENIED` on a correct password. See this program's BUGS.
         cap_delete(channel.result);
         discard(channel.region);
     }
@@ -909,11 +909,12 @@ fn serve_login(
     cap_delete(channel.request);
     // SAFETY: `connect` mapped one page read/write at `channel.va` before delegating `channel.page`
     // to the same client this request now arrives from.
-    let page = unsafe { core::slice::from_raw_parts(channel.va as *const u8, login_proto::PAGE) };
-    let Some((identity, secret)) = login_proto::read(page, w0) else {
+    let page =
+        unsafe { core::slice::from_raw_parts(channel.va as *const u8, login_protocol::PAGE) };
+    let Some((identity, secret)) = login_protocol::read(page, w0) else {
         wipe_page(channel.va);
         cap_delete(channel.page);
-        send(channel.result, login_proto::MALFORMED, 0, 0);
+        send(channel.result, login_protocol::MALFORMED, 0, 0);
         return;
     };
     // **The terminal check runs before anything about `identity` or `secret` is acted on**
@@ -925,50 +926,50 @@ fn serve_login(
     if *terminal_held {
         wipe_page(channel.va);
         cap_delete(channel.page);
-        send(channel.result, login_proto::NO_TERMINAL, 0, 0);
+        send(channel.result, login_protocol::NO_TERMINAL, 0, 0);
         return;
     }
     // Computed before the page is wiped: `identity` borrows `channel.va` and must not be read after.
-    let hint = login_proto::identity_hint(identity);
+    let hint = login_protocol::identity_hint(identity);
     // **Copy the identity out before it is gone.** `identity` borrows `channel.va`, and the page is
     // wiped a few lines below (`wipe_page`, right after the credential relay); `mint` needs the
     // identity's own bytes to name the subtree to attenuate to (DECISIONS §117), which happens after
-    // that wipe, on success. An owned, fixed-size copy (bounded by `login_proto::MAX_IDENTITY`,
-    // which `login_proto::read` has already checked `identity` fits within) is the only way to carry
+    // that wipe, on success. An owned, fixed-size copy (bounded by `login_protocol::MAX_IDENTITY`,
+    // which `login_protocol::read` has already checked `identity` fits within) is the only way to carry
     // it that far without reading freed/zeroed memory.
-    let mut identity_buf = [0u8; login_proto::MAX_IDENTITY];
+    let mut identity_buf = [0u8; login_protocol::MAX_IDENTITY];
     let identity_len = identity.len();
     identity_buf[..identity_len].copy_from_slice(identity);
 
     // SAFETY: the wiring mapped one page read/write at CRED_VA before this process ran, shared
     // with the credential service and with nothing else.
     let cred_page =
-        unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, credential_proto::PAGE) };
-    let placed = credential_proto::place(
+        unsafe { core::slice::from_raw_parts_mut(CRED_VA as *mut u8, credential_protocol::PAGE) };
+    let placed = credential_protocol::place(
         cred_page,
         identity,
         secret,
-        credential_proto::verify::VERIFY,
+        credential_protocol::verify::VERIFY,
     );
     // The presented secret has now been copied to CRED_VA (or the placement failed and never will
     // be); either way `channel.va`'s copy is done being read.
     wipe_page(channel.va);
     cap_delete(channel.page);
     let Some(cw0) = placed else {
-        send(channel.result, login_proto::MALFORMED, 0, 0);
+        send(channel.result, login_protocol::MALFORMED, 0, 0);
         return;
     };
     let (cr0, _) = call(VERIFY, cw0, 0);
-    credential_proto::wipe(cred_page);
+    credential_protocol::wipe(cred_page);
 
-    if !credential_proto::authenticated(cr0) {
-        send(channel.result, login_proto::DENIED, 0, 0);
+    if !credential_protocol::authenticated(cr0) {
+        send(channel.result, login_protocol::DENIED, 0, 0);
         return;
     }
 
     match mint(own_ut, care, &identity_buf[..identity_len]) {
         Some((dir_ep, budget, region)) => {
-            send(channel.result, login_proto::OK, 0, 0);
+            send(channel.result, login_protocol::OK, 0, 0);
             delegate(channel.result, dir_ep, abi::rights::WRITE);
             // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring
             // update): the kernel's own `page_frame_map` checks only `Rights::WRITE` for a
@@ -1009,15 +1010,15 @@ fn serve_login(
             cap_delete(dir_ep);
             cap_delete(budget);
             cap_delete(region);
-            send(AUDIT, login_proto::ATTRIBUTED, *seq, hint);
+            send(AUDIT, login_protocol::ATTRIBUTED, *seq, hint);
             *seq += 1;
         }
         // Authenticated, and the service still could not serve it (the construction budget is
         // spent, or the caretaker's descent was refused). Answered identically to a wrong
-        // secret; see login_proto::DENIED's own doc on why that fold is deliberate rather than
+        // secret; see login_protocol::DENIED's own doc on why that fold is deliberate rather than
         // a missed distinction.
         None => {
-            send(channel.result, login_proto::DENIED, 0, 0);
+            send(channel.result, login_protocol::DENIED, 0, 0);
         }
     }
 }
@@ -1048,7 +1049,7 @@ struct Channel {
 /// request/result rendezvous pair and a staging page retyped from it. `connect_seq` picks a scratch
 /// VA this process has never mapped before (`page_frame::MAP` refuses a second mapping at an
 /// already-mapped `va`, so `_start`'s own counter bumps by one page per successful call rather than
-/// reusing one). `None` on any failure, which the caller answers with [`login_proto::DENIED`].
+/// reusing one). `None` on any failure, which the caller answers with [`login_protocol::DENIED`].
 ///
 /// **Retyped from their own region, not from a shared budget directly, and that choice is the
 /// whole reason this channel is reclaimable at all.** An earlier version of this function retyped
@@ -1089,7 +1090,7 @@ fn connect(channel_ut: u64, connect_seq: u64) -> Option<Channel> {
         discard(region);
         return None;
     };
-    let va = CONNECT_VA_BASE + connect_seq * login_proto::PAGE as u64;
+    let va = CONNECT_VA_BASE + connect_seq * login_protocol::PAGE as u64;
     // Page tables for this new mapping come from `region` itself: the channel's whole cost, objects
     // and page tables alike, lives in one place and comes home in one `DESTROY`.
     if !map_page_frame(page, va, true, region) {
@@ -1106,7 +1107,7 @@ fn connect(channel_ut: u64, connect_seq: u64) -> Option<Channel> {
     // SAFETY: `va` was just mapped, read/write, by this process and by no one else yet (the frame
     // has not been delegated to a client at the point this runs).
     unsafe {
-        core::ptr::write_bytes(va as *mut u8, 0, login_proto::PAGE);
+        core::ptr::write_bytes(va as *mut u8, 0, login_protocol::PAGE);
     }
     Some(Channel {
         request,
@@ -1122,7 +1123,7 @@ fn connect(channel_ut: u64, connect_seq: u64) -> Option<Channel> {
 /// separate lookup table), a fresh budget, and the construction region itself (the caretaker's own
 /// logout ticket; see this program's module docs, "Reclaiming a session"), all three held with full
 /// rights so [`delegate`] can narrow them on the way out. `None` on any failure, which this
-/// process's caller answers with [`login_proto::DENIED`] (see this program's BUGS on why that is the
+/// process's caller answers with [`login_protocol::DENIED`] (see this program's BUGS on why that is the
 /// honest fold rather than a missing distinction, and on the two failures this now folds in
 /// alongside "the construction budget is spent": an identity too long for the grant mechanism, and
 /// an authenticated identity with no provisioned subtree).
@@ -1137,15 +1138,15 @@ fn connect(channel_ut: u64, connect_seq: u64) -> Option<Channel> {
 fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u64, u64)> {
     let care = care?;
 
-    // **The grant name travels in two `START` argument words, not a frame** (`filesystem_proto::grant`'s own
-    // doc), so it is capped at `grant::MAX_NAME` (16 bytes): smaller than `login_proto::MAX_IDENTITY`
-    // (64), the bound `identity` already satisfies by construction (`login_proto::read` checked it).
+    // **The grant name travels in two `START` argument words, not a frame** (`filesystem_protocol::grant`'s own
+    // doc), so it is capped at `grant::MAX_NAME` (16 bytes): smaller than `login_protocol::MAX_IDENTITY`
+    // (64), the bound `identity` already satisfies by construction (`login_protocol::read` checked it).
     // `pack_name` does not itself refuse an oversized name; it silently stops copying at the 16th
     // byte, which would otherwise mint a caretaker attenuated to a *different, truncated* name than
     // the one `identity_provisioner` created. Refusing here, before anything is built, is what keeps
     // that silent truncation from ever happening. See this program's BUGS: identities over 16 bytes
     // cannot get a per-identity subtree in this slice at all.
-    if !filesystem_proto::grant::fits(identity) {
+    if !filesystem_protocol::grant::fits(identity) {
         return None;
     }
 
@@ -1162,8 +1163,8 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         return None;
     };
 
-    let (lo, hi) = filesystem_proto::grant::pack_name(identity);
-    let spec = filesystem_proto::grant::spec(identity.len(), filesystem_proto::dir::ALL);
+    let (lo, hi) = filesystem_protocol::grant::pack_name(identity);
+    let spec = filesystem_protocol::grant::spec(identity.len(), filesystem_protocol::dir::ALL);
 
     // Its whole authority: the file service to attenuate, the endpoint it will serve, one place to
     // say it is ready, and the frame it shares with the file service. No untyped of its own, no
@@ -1190,7 +1191,7 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
         // **`build_child` leaks its own capability slots on failure**, which this cannot reach: it
         // returns `Err(())` with nothing named, so the address space it retyped and the frame it
         // was mid-way through stay in this process's table. Recorded in
-        // `supervision_proto::build_child_space`'s own BUGS rather than worked around here, since
+        // `supervision_protocol::build_child_space`'s own BUGS rather than worked around here, since
         // every caller of that function has the same problem and none of them can fix it.
         discard(region);
         return None;
@@ -1213,14 +1214,14 @@ fn mint(own_ut: u64, care: Option<&elf::Elf>, identity: &[u8]) -> Option<(u64, u
     // **This is also where "the credential is real but nobody ever provisioned this identity's
     // subtree" is answered**, and deliberately with no special case: `identity_provisioner` didn't
     // run, or its `MKDIR` never reached this file service's disk, so the caretaker's `OPENDIR`
-    // against `identity` comes back `ENOENT` and it reports [`filesystem_proto::fixture::DESCENT_REFUSED`]
+    // against `identity` comes back `ENOENT` and it reports [`filesystem_protocol::fixture::DESCENT_REFUSED`]
     // here instead of `READY`, which this function already turns into `None` and this program's
-    // caller already folds into `login_proto::DENIED`, indistinguishable from a wrong password. See
+    // caller already folds into `login_protocol::DENIED`, indistinguishable from a wrong password. See
     // this program's BUGS for why that fold is the considered answer for this case too, not merely
     // an accident of reusing the same code path.
     let (verdict, _, _) = recv(ready);
     cap_delete(ready);
-    if verdict != filesystem_proto::fixture::READY {
+    if verdict != filesystem_protocol::fixture::READY {
         cap_delete(narrow_ep);
         // **`region` used to be abandoned here.** The caretaker's `OPENDIR` was refused, so it has
         // already called `exit()` (`fs_subtree_caretaker.rs`'s own descent handshake): nothing is
@@ -1294,8 +1295,8 @@ fn discard(region: u64) {
 /// Delegate our own copy of `slot`, narrowed to `rights`, over `ep`. `GRANT` must already be on our
 /// own copy for the kernel to allow this at all (`abi::rendezvous::SEND_CAP`'s contract); every
 /// capability this process delegates was retyped or split by this process, so it always is. `ep` is
-/// [`RESULT`] for a [`login_proto::CONNECTED`] answer and a channel's own private `result` for a
-/// [`login_proto::OK`] one; both are this process's own copy, always held with `GRANT`.
+/// [`RESULT`] for a [`login_protocol::CONNECTED`] answer and a channel's own private `result` for a
+/// [`login_protocol::OK`] one; both are this process's own copy, always held with `GRANT`.
 fn delegate(ep: u64, slot: u64, rights: u64) {
     send_cap(ep, slot, rights, 0);
 }
@@ -1305,13 +1306,13 @@ fn delegate(ep: u64, slot: u64, rights: u64) {
 fn wipe_page(va: u64) {
     // SAFETY: `connect` mapped one page read/write here, and this process is the only writer
     // between a request arriving on the channel it belongs to and that channel's reply going out.
-    let page = unsafe { core::slice::from_raw_parts_mut(va as *mut u8, login_proto::PAGE) };
-    login_proto::wipe(page);
+    let page = unsafe { core::slice::from_raw_parts_mut(va as *mut u8, login_protocol::PAGE) };
+    login_protocol::wipe(page);
 }
 
 fn fail(step: u64) -> ! {
     send(AUDIT, 0xDEAD_0000_0000_0000 | step, 0, 0);
-    supervision_proto::fail()
+    supervision_protocol::fail()
 }
 
 user_mode_runtime::panic_handler!();

@@ -342,19 +342,19 @@ Ordered as it was built, because each step is what made the next one debuggable.
     **RISC-V's recorded gap, one architecture worse**: there is no architected TSC rate (`CPUID`
     leaf 0x15 gives a ratio to a crystal leaf 0x16 may not report, and neither leaf is universal),
     so the kernel **measures** it against the PIT at boot (`kernel/src/arch/x86_64/timer.rs`) and
-    delivers the number through `timebase_proto::TimebasePage`, mapped read-only into every
+    delivers the number through `counter_frequency_protocol::TimebasePage`, mapped read-only into every
     process the kernel builds directly, the same aux-vector-at-process-start shape riscv64's own
     `cntfrq` doc comment already predicted. A ring-3 program cannot repeat the PIT measurement
     itself because the PIT is at ports 0x40..0x43 behind `IOPL` 0 and an empty TSS bitmap; that is
     §121 rather than an oversight. **The 1 GHz constant that remains is narrower than it first
-    reads**: only a process built by `supervision_proto::build_child_space` (the userspace ELF
+    reads**: only a process built by `supervision_protocol::build_child_space` (the userspace ELF
     loader, not the kernel) falls back to it, because that loader maps a freshly retyped, zeroed
     placeholder page rather than a capability naming the kernel's real one. Closing that gap is
     [milestone 167](167-timebase-page-delegation.md)'s own, separately-scoped remaining piece, not
     a live design fork on this one.
 
     **Three programs refuse rather than pretend.** `console::uart_put`, `input`'s `uart` module and
-    `swap_proto::probe_device` cannot reach a device from ring 3; their x86 arms `trap()` rather
+    `swap_protocol::probe_device` cannot reach a device from ring 3; their x86 arms `trap()` rather
     than no-op, because a silent no-op is a console that acknowledges every byte and prints none.
     `user/build.rs` compiles the C seam with `--target=x86_64-unknown-none-elf -mno-sse -mno-mmx
     -mno-red-zone`, matching the Rust target's own `-mmx,-sse,+soft-float` and `disable_redzone`.
@@ -686,7 +686,7 @@ One thing that is not a step, and is now resolved rather than owed:
 ## Follow-on
 
 - **Milestone 176.** Item 0's last piece, the CMOS RTC seam, is built rather than "DECIDED but not
-  yet built": `kernel/src/arch/x86_64/rtc.rs` reads CMOS at boot and `clock_proto`'s RTC seam
+  yet built": `kernel/src/arch/x86_64/rtc.rs` reads CMOS at boot and `clock_protocol`'s RTC seam
   carries the seed to the clock service.
 - **Outstanding.** `crates/paging` still maps 4 KiB leaves only, says so in its own x86_64 module
   and has no block-descriptor path, so the direct map still costs 0.2% of RAM. No milestone and no

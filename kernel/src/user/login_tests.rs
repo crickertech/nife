@@ -1,4 +1,4 @@
-use credential_proto::fixture::{CHRIS, CORINNE, GRAEME, NONE, WRONG};
+use credential_protocol::fixture::{CHRIS, CORINNE, GRAEME, NONE, WRONG};
 use login_service as ls;
 
 use super::*;
@@ -72,7 +72,7 @@ const EEXIST: i32 = 17;
 
 /// **Ensure `name` exists as a subtree under `fs_ep`'s root, tolerating `EEXIST`** exactly as
 /// `identity_provisioner.rs`'s own `mkdir_home` does: the same opcode
-/// ([`filesystem_proto::fs::MKDIR`]), the same rights ([`filesystem_proto::dir::ALL`]), and the identity string
+/// ([`filesystem_protocol::fs::MKDIR`]), the same rights ([`filesystem_protocol::dir::ALL`]), and the identity string
 /// itself as the name (DECISIONS §117). Issued directly from this test rather than through a
 /// spawned `identity_provisioner`, because this suite's fs root is the tree-wide shared fixture
 /// (`fs_service`'s own memoized `ensure`, one FS server for the whole kernel test binary): another
@@ -92,22 +92,22 @@ fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_page_frame: u64, name: &[u
     let page = unsafe {
         core::slice::from_raw_parts_mut(
             mmu::phys_to_virt(fs_page_frame) as *mut u8,
-            filesystem_proto::PAGE,
+            filesystem_protocol::PAGE,
         )
     };
     page[..name.len()].copy_from_slice(name);
     let r = sched::ipc_call(
         fs_ep,
         [
-            filesystem_proto::fs::req(
-                filesystem_proto::fs::MKDIR,
-                filesystem_proto::fs::ROOT,
+            filesystem_protocol::fs::req(
+                filesystem_protocol::fs::MKDIR,
+                filesystem_protocol::fs::ROOT,
                 name.len() as u64,
             ),
-            filesystem_proto::dir::ALL,
+            filesystem_protocol::dir::ALL,
         ],
     );
-    match filesystem_proto::reply_errno(r[0] as i64) {
+    match filesystem_protocol::reply_errno(r[0] as i64) {
         Some(errno) => assert_eq!(
             errno,
             EEXIST,
@@ -122,7 +122,7 @@ fn ensure_home_subtree(fs_ep: sched::RendezvousId, fs_page_frame: u64, name: &[u
             let _ = sched::ipc_call(
                 fs_ep,
                 [
-                    filesystem_proto::fs::req(filesystem_proto::fs::CLOSE, r[0], 0),
+                    filesystem_protocol::fs::req(filesystem_protocol::fs::CLOSE, r[0], 0),
                     0,
                 ],
             );
@@ -210,22 +210,22 @@ fn redoxfs_server_image() -> &'static [u8] {
 /// **Free the terminal directly, without spawning a client** (milestone 49's terminal update).
 ///
 /// Every successful login now also claims the single, shared terminal
-/// (`login_proto::NO_TERMINAL` denies any concurrent second one until it is freed), and `wired()`
+/// (`login_protocol::NO_TERMINAL` denies any concurrent second one until it is freed), and `wired()`
 /// memoizes **one** login instance across this entire file. Every test below that performs a
 /// successful login and does not itself exercise the terminal property calls this first, as a
-/// defensive, idempotent reset: `login_proto::LOGOUT` is answered `LOGGED_OUT` whether or not
-/// anything was actually held (`login_proto::LOGGED_OUT`'s own doc), so this is safe to call
+/// defensive, idempotent reset: `login_protocol::LOGOUT` is answered `LOGGED_OUT` whether or not
+/// anything was actually held (`login_protocol::LOGGED_OUT`'s own doc), so this is safe to call
 /// regardless of what a previous test (in whatever order this suite happens to run them) left
 /// behind. Issued as a raw front-door exchange rather than through `login_test_client`, since
-/// freeing the terminal needs no identity and carries no secret (`login_proto`'s own module docs on
+/// freeing the terminal needs no identity and carries no secret (`login_protocol`'s own module docs on
 /// why `LOGOUT` travels on the shared front door at all).
 fn free_terminal(w: &ls::Wiring) {
-    sched::ipc_send(w.request, [login_proto::logout_word(), 0, 0]);
+    sched::ipc_send(w.request, [login_protocol::logout_word(), 0, 0]);
     let r = sched::ipc_recv(w.result);
     assert_eq!(
         r[0],
-        login_proto::LOGGED_OUT,
-        "login_proto::logout_word on the front door was not answered LOGGED_OUT",
+        login_protocol::LOGGED_OUT,
+        "login_protocol::logout_word on the front door was not answered LOGGED_OUT",
     );
 }
 
@@ -267,7 +267,7 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
     let a = sched::ipc_recv(w.audit);
     assert_eq!(
         a[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed a successful login",
     );
 }
@@ -324,12 +324,12 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
     let a_chris = sched::ipc_recv(w.audit);
     assert_eq!(
         a_chris[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed chris's login",
     );
     assert_eq!(
         a_chris[2],
-        login_proto::identity_hint(b"chris"),
+        login_protocol::identity_hint(b"chris"),
         "the attribution record named the wrong identity for the first channel",
     );
     // Free the terminal before corinne's login (milestone 49's terminal update): unrelated to the
@@ -342,12 +342,12 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
     let a_corinne = sched::ipc_recv(w.audit);
     assert_eq!(
         a_corinne[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed corinne's login",
     );
     assert_eq!(
         a_corinne[2],
-        login_proto::identity_hint(b"corinne"),
+        login_protocol::identity_hint(b"corinne"),
         "the attribution record named the wrong identity for the second channel",
     );
 
@@ -389,7 +389,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 /// **Rewritten for milestone 49's terminal update.** Before it, both concurrent logins succeeded
 /// and this test's own property was that the two attribution records named exactly one chris and
 /// one corinne, never crossed. Now only one of them *can* succeed: the single, shared terminal has
-/// exactly one holder at a time, and the loser is refused `login_proto::NO_TERMINAL` before its
+/// exactly one holder at a time, and the loser is refused `login_protocol::NO_TERMINAL` before its
 /// identity or secret is even relayed to the credential service (`login.rs`'s own `serve_login`
 /// checks this first, deliberately, so the refusal cannot become a timing or outcome oracle about a
 /// specific identity). The property this test can still prove, and does: whichever one wins, its
@@ -425,7 +425,7 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
     let a = sched::ipc_recv(w.audit);
     assert_eq!(
         a[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed the winning login",
     );
 
@@ -465,7 +465,7 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
 
     // The property under test, stated positively: the one attribution record names exactly the
     // identity that won, never the other one and never a garbled third value.
-    let expected_hint = login_proto::identity_hint(winner_label.as_bytes());
+    let expected_hint = login_protocol::identity_hint(winner_label.as_bytes());
     assert_eq!(
         a[2], expected_hint,
         "the attribution record named the wrong identity for the winning channel \
@@ -480,7 +480,7 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
 /// untyped), and before `components/src/login.rs`'s `mint` learned to drop its own copy of the
 /// caretaker's construction region, that region's capability was never freed on a successful
 /// login. That left room for exactly eight successful logins ever; a ninth, correctly
-/// authenticated, was silently answered [`login_proto::DENIED`], indistinguishable from a wrong
+/// authenticated, was silently answered [`login_protocol::DENIED`], indistinguishable from a wrong
 /// password, at a far tighter ceiling than the memory bound `components/src/login.rs`'s BUGS documents.
 ///
 /// This performs **six** successful logins against one service instance, on top of the three the
@@ -537,7 +537,7 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
         let a = sched::ipc_recv(w.audit);
         assert_eq!(
             a[0],
-            login_proto::ATTRIBUTED,
+            login_protocol::ATTRIBUTED,
             "no attribution record followed login {i}",
         );
         // Free the terminal so login {i+1} is authenticated rather than refused NO_TERMINAL
@@ -553,7 +553,7 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
 /// `chris` and `corinne` each log in and, through the directory capability `login` delegated,
 /// `CREATE` a marker file naming themselves ([`ls::WRITE_MARKER`], run once per identity); both
 /// also confirm
-/// [`filesystem_proto::fixture::tree::INNER`] is absent, which is this suite's own proof (not merely a
+/// [`filesystem_protocol::fixture::tree::INNER`] is absent, which is this suite's own proof (not merely a
 /// stated intent) that neither landed in the old shared subtree every identity used to be
 /// attenuated to before this milestone. `chris` then logs in a **second, independent** time
 /// ([`ls::READ_MARKER`]) and reads the marker back: it must read `chris`'s own,
@@ -562,9 +562,9 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
 /// later write would have overwritten `chris`'s marker in the one subtree they would have shared,
 /// and this final read would come back `corinne`'s instead).
 ///
-/// `wired`'s own `ensure_home_subtree` issues the identical `filesystem_proto::fs::MKDIR` request
+/// `wired`'s own `ensure_home_subtree` issues the identical `filesystem_protocol::fs::MKDIR` request
 /// `identity_provisioner.rs`'s own `mkdir_home` does (same opcode, same
-/// [`filesystem_proto::dir::ALL`] rights, the identity string as the name); that milestone's own suite
+/// [`filesystem_protocol::dir::ALL`] rights, the identity string as the name); that milestone's own suite
 /// (`identity_provisioning_tests.rs`, `provisioning_creates_a_working_credential_and_a_real_subtree`)
 /// already proves the *tool* produces a real, descendable subtree end to end, so this test's job is
 /// the other half: that `login`, given one, finds and attenuates to the *right* one.
@@ -591,12 +591,12 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         r_chris[1] & ls::F_NOT_SHARED_SUBTREE,
         ls::F_NOT_SHARED_SUBTREE,
         "chris's granted directory carries the old shared fixture's own file \
-         (filesystem_proto::fixture::tree::INNER), so it is not a subtree of chris's own",
+         (filesystem_protocol::fixture::tree::INNER), so it is not a subtree of chris's own",
     );
     let a_chris = sched::ipc_recv(w.audit);
     assert_eq!(
         a_chris[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed chris's marking login",
     );
     // Free the terminal before corinne's own login (milestone 49's terminal update): unrelated to
@@ -615,12 +615,12 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
         r_corinne[1] & ls::F_NOT_SHARED_SUBTREE,
         ls::F_NOT_SHARED_SUBTREE,
         "corinne's granted directory carries the old shared fixture's own file \
-         (filesystem_proto::fixture::tree::INNER), so it is not a subtree of corinne's own",
+         (filesystem_protocol::fixture::tree::INNER), so it is not a subtree of corinne's own",
     );
     let a_corinne = sched::ipc_recv(w.audit);
     assert_eq!(
         a_corinne[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed corinne's marking login",
     );
     free_terminal(&w);
@@ -638,7 +638,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
     );
     assert_eq!(
         r_check[2],
-        login_proto::identity_hint(b"chris"),
+        login_protocol::identity_hint(b"chris"),
         "chris's second, independent login did not read back chris's own marker: either it did \
          not land in chris's subtree, or corinne's write clobbered it, which is exactly the \
          everyone-shares-one-subtree bug this milestone fixes",
@@ -646,7 +646,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
     let a_check = sched::ipc_recv(w.audit);
     assert_eq!(
         a_check[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed chris's second login",
     );
     free_terminal(&w);
@@ -660,7 +660,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
 /// and `corinne`): the case `identity_provisioner` never having run for a real identity, or its
 /// `MKDIR` never reaching this file service's disk. `mint`'s caretaker construction reaches the
 /// same `OPENDIR`-against-a-missing-name refusal, and `login`'s existing fold answers it with
-/// [`login_proto::DENIED`], the same code [`login_denies_a_wrong_secret_and_sends_nothing_further`]
+/// [`login_protocol::DENIED`], the same code [`login_denies_a_wrong_secret_and_sends_nothing_further`]
 /// above already proves a wrong password gets. See `components/src/login.rs`'s own BUGS for the reasoning
 /// (a caller must not be able to tell "your identity has no home" from "your password is wrong" by
 /// comparing outcomes across attempts).
@@ -694,7 +694,7 @@ fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
 /// build a caretaker from those bytes, the identical check `crates/system_initializer::measured`
 /// performs for its own six boot components (see `components/src/login.rs`'s own BUGS, "Resolved,
 /// 2026-08-24", for the full reasoning, including why this is a boot-time check rather than a
-/// per-login one, and why the fold into [`login_proto::DENIED`] it produces on refusal is not the
+/// per-login one, and why the fold into [`login_protocol::DENIED`] it produces on refusal is not the
 /// same anti-oracle reasoning a wrong password or a missing subtree gets).
 ///
 /// **This suite cannot make the real, already-booted archive disagree with itself** to prove a live
@@ -832,7 +832,7 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
         let a = sched::ipc_recv(w.audit);
         assert_eq!(
             a[0],
-            login_proto::ATTRIBUTED,
+            login_protocol::ATTRIBUTED,
             "no attribution record followed login {i}",
         );
         // **Free the terminal, after draining `AUDIT`, not before.** `LOGOUT` deliberately
@@ -853,13 +853,13 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
 ///    role sends through it on `w.term_ep` -- the stand-in terminal this suite's own harness wires
 ///    in place of a real one (`ls::Wiring::term_ep`'s own doc). `chris` then tears the *session*
 ///    down (the same `MemoryRegion::DESTROY` pair [`ls::LOGOUT`] already proves) **without**
-///    freeing the terminal: no `login_proto::logout_word` is ever sent.
+///    freeing the terminal: no `login_protocol::logout_word` is ever sent.
 /// 2. `corinne` then presents a **real, correct** credential (a plain [`ls::LOGIN`], which is all
 ///    that case ever was) while the
-///    terminal is still on loan. She is refused [`login_proto::NO_TERMINAL`], not `DENIED`: this is
+///    terminal is still on loan. She is refused [`login_protocol::NO_TERMINAL`], not `DENIED`: this is
 ///    provably not about her identity or secret, both of which are genuine.
 /// 3. [`ls::FREE_TERMINAL`] frees the terminal, a bare word on the front door with no identity
-///    involved at all, and is answered [`login_proto::LOGGED_OUT`].
+///    involved at all, and is answered [`login_protocol::LOGGED_OUT`].
 /// 4. `chris` logs in again ([`ls::HOLD_TERMINAL`], a second, independent time) and receives the
 ///    terminal a second time, proven the same way as step 1 -- the property stated positively: a
 ///    session freeing the terminal is what makes it available to the *next* login, not merely what
@@ -891,7 +891,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     let a1 = sched::ipc_recv(w.audit);
     assert_eq!(
         a1[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed chris's first terminal login",
     );
     let term_msg = sched::ipc_recv(w.term_ep);
@@ -941,7 +941,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     assert_eq!(
         r3[0],
         ls::RPT_LOGGED_OUT,
-        "login_proto::logout_word on the front door was not answered LOGGED_OUT",
+        "login_protocol::logout_word on the front door was not answered LOGGED_OUT",
     );
 
     // Step 4: chris again, a second, independent time, and the terminal is available once more.
@@ -949,7 +949,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     let a4 = sched::ipc_recv(w.audit);
     assert_eq!(
         a4[0],
-        login_proto::ATTRIBUTED,
+        login_protocol::ATTRIBUTED,
         "no attribution record followed chris's second terminal login",
     );
     let term_msg2 = sched::ipc_recv(w.term_ep);

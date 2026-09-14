@@ -35,7 +35,7 @@
 //! | anything else | itself |
 //!
 //! Everything is **bytes**, not characters. A name on this system is a byte string
-//! (`filesystem_proto::grant::MAX_NAME` is sixteen of them), and a matcher that decoded UTF-8 would have to
+//! (`filesystem_protocol::grant::MAX_NAME` is sixteen of them), and a matcher that decoded UTF-8 would have to
 //! decide what to do with a name that is not valid UTF-8, which is a question the filesystem does
 //! not ask. `?` therefore matches one *byte*, so it matches half of a two-byte UTF-8 character. That
 //! is the same behaviour as `fnmatch(3)` in the C locale and as every shell running under it.
@@ -79,7 +79,7 @@
 //!   enumeration and granting. Putting `**` in a string matcher hides an authority question inside
 //!   a pure function, which is the exact mistake this OS exists to not make.
 //!
-//! So this crate matches **one name**, a single path component, the thing `filesystem_proto` actually
+//! So this crate matches **one name**, a single path component, the thing `filesystem_protocol` actually
 //! carries. When path syntax is settled, recursive descent lands as a traversal layer *above* this
 //! crate, walking directory capabilities and calling [`matches()`] per component. That layer is where
 //! `**` belongs, because that is where the authority to descend is.
@@ -756,7 +756,7 @@ mod tests {
     /// **The greedy matcher agrees with exhaustive search, on every pattern and name in a domain
     /// small enough to enumerate completely.**
     ///
-    /// This is the `ntp_proto` lesson applied (see notes/ntp.md): a model checker is the tool for
+    /// This is the `network_time_protocol` lesson applied (see notes/ntp.md): a model checker is the tool for
     /// domains too big to enumerate, not a better tool for domains that are not. Equivalence with a
     /// recursive reference is exactly the property a solver struggles with, because the reference is
     /// recursive and Kani has to unwind it, and it is exactly the property this loop settles
@@ -1067,7 +1067,7 @@ mod tests {
 ///
 /// The length-independent claims are the host tests' job, and deliberately: the exhaustive
 /// cross-check against a naive recursive matcher covers 2,657,200 pattern/name pairs completely, and
-/// the blowup tests run at 100,000 bytes. Splitting it this way follows the rule `ntp_proto` wrote
+/// the blowup tests run at 100,000 bytes. Splitting it this way follows the rule `network_time_protocol` wrote
 /// down (notes/ntp.md): the solver takes the domains too big to enumerate, and enumeration takes the
 /// ones that are not.
 #[cfg(kani)]
@@ -1127,7 +1127,7 @@ mod verification {
     ///
     /// This is the anti-blowup claim, and it is a separate harness from totality above for a reason
     /// that cost two dead runs to find. [`cost_bound`] is three saturating 64-bit multiplies, and a
-    /// bit-blasting model checker is bad at multiplication (`ntp_proto` measured about four times the
+    /// bit-blasting model checker is bad at multiplication (`network_time_protocol` measured about four times the
     /// work per bit of operand, notes/ntp.md). Composed with a match loop that was already being
     /// unrolled twenty times over two symbolic lengths, the harness passed 3 GB and was killed.
     /// Splitting it moved the multiply next to a smaller unrolling instead of on top of the largest

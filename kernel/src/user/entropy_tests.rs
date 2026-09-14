@@ -15,7 +15,7 @@ fn start(bus: Bus) -> Option<entropy_service::Wiring> {
     if let Some(report) = w.wait_for_ready() {
         assert_eq!(
             report[0],
-            entropy_proto::READY,
+            entropy_protocol::READY,
             "the entropy service did not come up on {bus:?} (it reported {:#x}; a 0xDEAD_.. \
              word's low byte names the step, see components/src/entropy.rs)",
             report[0],
@@ -198,14 +198,14 @@ fn a_reply_never_delivers_more_bytes_than_it_says() {
     let mut big = [0u8; 8];
     assert_eq!(
         w.get(200, &mut big),
-        entropy_proto::MAX_BYTES as usize,
+        entropy_protocol::MAX_BYTES as usize,
         "an oversized request should be clamped and answered, not refused",
     );
 
-    let r = crate::sched::ipc_call(w.request, [entropy_proto::req(0xff, 8), 0]);
+    let r = crate::sched::ipc_call(w.request, [entropy_protocol::req(0xff, 8), 0]);
     assert_eq!(
         r[0],
-        entropy_proto::NO_ENTROPY,
+        entropy_protocol::NO_ENTROPY,
         "an unknown opcode should be answered with no bytes",
     );
 
@@ -220,7 +220,7 @@ fn a_reply_never_delivers_more_bytes_than_it_says() {
 /// **More than one word's worth takes more than one round trip, and the loop that does it is
 /// checked here** (milestone 159).
 ///
-/// `entropy_proto` carries [`entropy_proto::MAX_BYTES`] bytes per exchange, so a caller wanting a
+/// `entropy_protocol` carries [`entropy_protocol::MAX_BYTES`] bytes per exchange, so a caller wanting a
 /// 32-byte buffer needs four. Nothing in this suite exercised that until now, and the gap had a
 /// cost: the riscv64 boot tour asked `get(32, ..)`, compared the 8 it got against 32, and printed
 /// FAILED on a working JH7110 for three days, on the one machine in the world that runs the

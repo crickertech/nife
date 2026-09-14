@@ -94,7 +94,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use filesystem_proto::{dirent, fs};
+use filesystem_protocol::{dirent, fs};
 use grant_plan::expand::{Expander, NameSet, Resume};
 use grant_plan::line::{self, Line, Source};
 use grant_plan::nav::{self, Cwd, Refused, Step};
@@ -200,7 +200,8 @@ const FS_VA: u64 = 0x0000_0000_0060_0000;
 // collapsed the hand-rolled read_volatile/write_volatile loops below). Constructing the window
 // touches no memory; every caller of `put_page`/`get_page` already runs behind a `dir.is_some()`
 // check, which is only true in that wiring, matching the comment this replaces.
-const FS_WINDOW: MappedWindow = unsafe { MappedWindow::new(FS_VA, filesystem_proto::PAGE as u64) };
+const FS_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(FS_VA, filesystem_protocol::PAGE as u64) };
 
 /// The directory capability's slot in the navigating wiring (`fs_service::start_granted_dir` grants
 /// it at 0). A shell that was granted none has no such slot at all, which is why [`Nav::dir`] is an
@@ -227,7 +228,7 @@ struct Nav {
     /// **The rights the root capability carries**, as this shell was told at spawn.
     ///
     /// It is told rather than asking, and that is a gap in the contract rather than a shortcut:
-    /// `filesystem_proto` has no verb that reports what a handle carries. It matters because `OPENDIR`
+    /// `filesystem_protocol` has no verb that reports what a handle carries. It matters because `OPENDIR`
     /// refuses (`EPERM`) when the intersection is smaller than the request, so a shell that asked
     /// for `dir::ALL` from a narrower capability could not `cd` at all. See notes/shell-navigation.md.
     rights: u64,
@@ -698,7 +699,7 @@ impl Nav {
                 let errno = -r as i32;
                 // `CREATE` is create, not create-or-open (DECISIONS §27): an existing name answers
                 // `EEXIST`, which is exactly the outcome this half of `touch` wants for a name that
-                // is already there. Not in `filesystem_proto::dir`'s named list, for
+                // is already there. Not in `filesystem_protocol::dir`'s named list, for
                 // `components/src/rm.rs::ENOENT`'s reason: this contract answers it from one rung only,
                 // so there is nothing else in this program that would collide with a local name for
                 // it.
@@ -866,7 +867,7 @@ const ROUNDS: usize = 16;
 
 /// Copy a name into the page shared with the FS server.
 fn put_page(bytes: &[u8]) {
-    for (i, &b) in bytes.iter().take(filesystem_proto::PAGE).enumerate() {
+    for (i, &b) in bytes.iter().take(filesystem_protocol::PAGE).enumerate() {
         FS_WINDOW.w8(i as u64, b);
     }
 }
@@ -1087,10 +1088,10 @@ const ROLE_REDIRECT: u64 = 4;
 /// makes the refusals assertions rather than unreachable branches. See [`timing`].
 const ROLE_TIMING: u64 = 5;
 
-/// **What `arg1` carries into every role that holds a directory**: the `filesystem_proto::dir` rights that
+/// **What `arg1` carries into every role that holds a directory**: the `filesystem_protocol::dir` rights that
 /// capability was granted, with 0 meaning "you were granted no directory at all".
 ///
-/// The shell is **told** rather than asking, and that is a gap in `filesystem_proto` rather than a shortcut:
+/// The shell is **told** rather than asking, and that is a gap in `filesystem_protocol` rather than a shortcut:
 /// nothing on that wire reports what a handle carries, and `OPENDIR` refuses a request wider than
 /// the parent instead of narrowing it, so a shell that guessed `dir::ALL` from a narrower capability
 /// could not `cd` at all. See notes/shell-navigation.md.
@@ -1298,7 +1299,7 @@ fn timing() -> ! {
 /// [`PIPELINE_DONE`]'s twin for [`timing`]. Must match `kernel::user::time_tests`.
 const TIMING_DONE: &[u8] = b"== timings done\n";
 
-/// The interactive prompt. `rights` is the [`_start`] convention: the `filesystem_proto::dir` rights of the
+/// The interactive prompt. `rights` is the [`_start`] convention: the `filesystem_protocol::dir` rights of the
 /// directory capability at [`DIR_TERMINAL`], or 0 for a boot that wired no filesystem.
 fn interactive(rights: u64) -> ! {
     // **The line that says userspace is up**, and it is the top rung of milestone 268's boot
@@ -1684,7 +1685,7 @@ fn refuse(spec: RunSpec, refusal: Refusal) {
 }
 
 /// One process's three `START` argument words, packed by this shell and forwarded by the progenitor without
-/// being read. `filesystem_proto::grant`'s layout: two words of name, and a spec carrying the length plus
+/// being read. `filesystem_protocol::grant`'s layout: two words of name, and a spec carrying the length plus
 /// either a rights mask (a caretaker's) or an option mask (a program's).
 type StartWords = (u64, u64, u64);
 
@@ -1705,7 +1706,7 @@ struct DirWords {
 /// says why this one cannot be delivered (milestone 31 phase 3).
 ///
 /// The `Ok` half is the whole of the delivery: `(the caretaker's START words, the program's)`. The
-/// caretaker is told the directory and the `filesystem_proto::dir` rights to ask for; the program is told
+/// caretaker is told the directory and the `filesystem_protocol::dir` rights to ask for; the program is told
 /// the operand and the options that were typed. Neither triple is decoded by anything between here
 /// and the process it starts, which is why `spawnproto` can carry them without linking the
 /// filesystem contract.
@@ -1722,7 +1723,7 @@ struct DirWords {
 /// spawned rather than half-granted.
 ///
 /// **A grant on the root of this shell's namespace.** A caretaker's whole attenuation is one
-/// `OPENDIR` *into* the granted directory, and the root has no name to descend into: `filesystem_proto`'s
+/// `OPENDIR` *into* the granted directory, and the root has no name to descend into: `filesystem_protocol`'s
 /// contract resolves a single component under a handle, and there is no verb for "the directory I
 /// already hold, with fewer rights". So `rm gate.txt` typed at the top prompt cannot be narrowed at
 /// all, and handing the program the unnarrowed service would be granting it the whole disk. The
@@ -1755,29 +1756,29 @@ fn dir_grant(g: &GrantDir, flags: u64) -> Result<DirWords, &'static [u8]> {
             b"  a set of names is delivered by a nameset caretaker, and the progenitor builds the subtree \n  one; name a single file\n",
         );
     };
-    if !filesystem_proto::grant::fits(dir) || !filesystem_proto::grant::fits(name) {
+    if !filesystem_protocol::grant::fits(dir) || !filesystem_protocol::grant::fits(name) {
         return Err(b"  that name does not fit in a grant's two argument words\n");
     }
     // What `-r` buys, stated as the difference between two capabilities rather than as a branch in
     // the program: REMOVE alone cannot even look at what is under the directory.
     let rights = if g.subtree {
-        filesystem_proto::dir::REMOVE_TREE
+        filesystem_protocol::dir::REMOVE_TREE
     } else {
-        filesystem_proto::dir::REMOVE
+        filesystem_protocol::dir::REMOVE
     };
-    let (dir_lo, dir_hi) = filesystem_proto::grant::pack_name(dir);
-    let (name_lo, name_hi) = filesystem_proto::grant::pack_name(name);
+    let (dir_lo, dir_hi) = filesystem_protocol::grant::pack_name(dir);
+    let (name_lo, name_hi) = filesystem_protocol::grant::pack_name(name);
     Ok(DirWords {
         // `fs_subtree_caretaker::_start(name_lo, name_hi, spec)`.
         caretaker: (
             dir_lo,
             dir_hi,
-            filesystem_proto::grant::spec(dir.len(), rights),
+            filesystem_protocol::grant::spec(dir.len(), rights),
         ),
         // `rm::_start(spec, name_lo, name_hi)`, whose spec carries the options where a caretaker's
         // carries rights: both are "what this process was started with".
         child: (
-            filesystem_proto::grant::spec(name.len(), flags),
+            filesystem_protocol::grant::spec(name.len(), flags),
             name_lo,
             name_hi,
         ),
@@ -1917,11 +1918,11 @@ fn drain_text() {
             print(swish::FAULTED_SENTENCE);
             return;
         }
-        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
-        match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
-            byte_sink_proto::Msg::Bytes(n) => print(&buf[..n]),
-            byte_sink_proto::Msg::Eof => return,
-            byte_sink_proto::Msg::Malformed => {
+        let mut buf = [0u8; byte_sink_protocol::INLINE_MAX];
+        match byte_sink_protocol::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_protocol::Msg::Bytes(n) => print(&buf[..n]),
+            byte_sink_protocol::Msg::Eof => return,
+            byte_sink_protocol::Msg::Malformed => {
                 print(b"\n  (that program sent something this shell cannot read as bytes)\n");
                 return;
             }
@@ -2035,13 +2036,13 @@ fn drain_diagnostics(dest: &mut dyn ByteOut, writers: usize) {
             break;
         }
         let (w0, w1, w2) = recv(ep);
-        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
-        match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
-            byte_sink_proto::Msg::Bytes(n) => dest.push(&buf[..n]),
-            byte_sink_proto::Msg::Eof => done += 1,
+        let mut buf = [0u8; byte_sink_protocol::INLINE_MAX];
+        match byte_sink_protocol::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_protocol::Msg::Bytes(n) => dest.push(&buf[..n]),
+            byte_sink_protocol::Msg::Eof => done += 1,
             // The progenitor's failure sentinel arrives here too, as an `OP_EOF` it sends on this rendezvous so
             // this drain can end; anything else is a program that cannot spell the contract.
-            byte_sink_proto::Msg::Malformed => done += 1,
+            byte_sink_protocol::Msg::Malformed => done += 1,
         }
     }
     dest.finish();
@@ -2233,7 +2234,7 @@ fn pipeline(nav: &mut Nav, l: Line<'_>) {
 /// deliver what comes out of the tail. Everything above this decided; this moves capabilities.
 ///
 /// **The shell is the process behind a `>` and a `<`**, and that is milestone 50's one wiring
-/// decision that is not the obvious one. See notes/pipes.md: `filesystem_proto` shares a single page between
+/// decision that is not the obvious one. See notes/pipes.md: `filesystem_protocol` shares a single page between
 /// the FS server and its client, so two client processes racing to stage bytes in it is not sound,
 /// and `ls > out.txt` is precisely a line where the shell must read the filesystem *while* the
 /// redirection is being written. The shell already holds the directory capability, so it is the one
@@ -2521,7 +2522,7 @@ fn feed(nav: &mut Nav, stage: &[u8], w: &mut dyn ByteOut) {
 /// two words at a time; `fixtures/src/file_source.rs` is the same loop from the other side.
 struct SinkWriter {
     slot: u64,
-    buf: [u8; byte_sink_proto::INLINE_MAX],
+    buf: [u8; byte_sink_protocol::INLINE_MAX],
     n: usize,
     /// Set once a send has failed. Everything after is dropped rather than retried: `Gone` means the
     /// reader stopped caring, and there is nothing to report it to.
@@ -2532,7 +2533,7 @@ impl SinkWriter {
     fn new(slot: u64) -> Self {
         SinkWriter {
             slot,
-            buf: [0; byte_sink_proto::INLINE_MAX],
+            buf: [0; byte_sink_protocol::INLINE_MAX],
             n: 0,
             stopped: false,
         }
@@ -2542,11 +2543,11 @@ impl SinkWriter {
         if self.n == 0 || self.stopped {
             return;
         }
-        let (w0, w1, w2, _) = byte_sink_proto::pack(&self.buf[..self.n]);
+        let (w0, w1, w2, _) = byte_sink_protocol::pack(&self.buf[..self.n]);
         self.n = 0;
         if !matches!(
-            byte_sink_proto::classify(send(self.slot, w0, w1, w2)),
-            byte_sink_proto::Sent::Ok
+            byte_sink_protocol::classify(send(self.slot, w0, w1, w2)),
+            byte_sink_protocol::Sent::Ok
         ) {
             self.stopped = true;
         }
@@ -2570,7 +2571,7 @@ impl ByteOut for SinkWriter {
     fn finish(&mut self) {
         self.flush();
         if !self.stopped {
-            send(self.slot, byte_sink_proto::eof(), 0, 0);
+            send(self.slot, byte_sink_protocol::eof(), 0, 0);
         }
     }
 }
@@ -2827,14 +2828,14 @@ fn drain_into(f: &mut FileOut) {
             print(swish::FAULTED_SENTENCE);
             return;
         }
-        let mut buf = [0u8; byte_sink_proto::INLINE_MAX];
-        match byte_sink_proto::unpack(w0, w1, w2, &mut buf) {
-            byte_sink_proto::Msg::Bytes(n) => f.push(&buf[..n]),
-            byte_sink_proto::Msg::Eof => {
+        let mut buf = [0u8; byte_sink_protocol::INLINE_MAX];
+        match byte_sink_protocol::unpack(w0, w1, w2, &mut buf) {
+            byte_sink_protocol::Msg::Bytes(n) => f.push(&buf[..n]),
+            byte_sink_protocol::Msg::Eof => {
                 f.finish();
                 return;
             }
-            byte_sink_proto::Msg::Malformed => {
+            byte_sink_protocol::Msg::Malformed => {
                 f.finish();
                 print(b"  (that program sent something this shell cannot read as bytes)\n");
                 return;
@@ -2904,7 +2905,7 @@ fn spawn_stage(
         // READ (not WRITE): the progenitor installs this as the *child's* fault target, and what this shell
         // needs back from its own copy is the right to `RECV`/`REAP` on it, exactly
         // `job_undertaker`'s DEATHS. The progenitor narrows its own copy no further than that when it inserts
-        // the child's (`abi::rights::READ`, `supervision_proto::build_child_space`), so delegating
+        // the child's (`abi::rights::READ`, `supervision_protocol::build_child_space`), so delegating
         // less than READ here would leave the progenitor unable to hand the child anything at all.
         delegate(slot, abi::rights::READ | abi::rights::GRANT);
     }
@@ -3211,9 +3212,9 @@ const REPORT: u64 = 1;
 /// The lines below are literally command lines, parsed by `grant_plan::parse` and executed by
 /// [`builtin`], which is the same path the prompt takes.
 fn navigate(spec: u64) -> ! {
-    use filesystem_proto::fixture::{VERDICT, navscape as nb, tree};
-    let run = filesystem_proto::grant::spec_len(spec) as u64;
-    let mut nav = Nav::rooted(filesystem_proto::grant::spec_rights(spec));
+    use filesystem_protocol::fixture::{VERDICT, navscape as nb, tree};
+    let run = filesystem_protocol::grant::spec_len(spec) as u64;
+    let mut nav = Nav::rooted(filesystem_protocol::grant::spec_rights(spec));
     let mut v = 0u64;
 
     // 1. `pwd` at the start. The root of your namespace renders as `/` because it is the root of
@@ -3562,8 +3563,8 @@ impl Text {
 /// direction: a pattern that matched nothing, a pattern where one cannot mean anything, and a line
 /// with no pattern in it at all.
 fn globbing(spec: u64) -> ! {
-    use filesystem_proto::fixture::{VERDICT, globscape as gb, tree};
-    let mut nav = Nav::rooted(filesystem_proto::grant::spec_rights(spec));
+    use filesystem_protocol::fixture::{VERDICT, globscape as gb, tree};
+    let mut nav = Nav::rooted(filesystem_protocol::grant::spec_rights(spec));
     let mut v = 0u64;
 
     // 1. What `echo` shows.
@@ -3698,7 +3699,7 @@ fn open_dir(nav: &Nav, name: &[u8]) -> Option<u64> {
 /// no-op half. A `touch` that truncated what it found would satisfy the first check and fail this
 /// one, which is why the two are chained with early returns rather than nested as one question.
 fn touch_twice(nav: &mut Nav, touched: &([u8; 16], usize), cmd: &mut [u8; 32], v: &mut u64) {
-    use filesystem_proto::fixture::{navscape as nb, tree};
+    use filesystem_protocol::fixture::{navscape as nb, tree};
 
     let Some(Say::Nothing) = run_line(nav, line(cmd, b"touch ", touched)) else {
         return;
@@ -3748,9 +3749,9 @@ fn touch_twice(nav: &mut Nav, touched: &([u8; 16], usize), cmd: &mut [u8; 32], v
 /// Two claims, and they are chained deliberately (early return on the first) because the second
 /// is only meaningful once the first held: `TOUCH_MTIME_ADVANCED` establishes what "the mtime
 /// this file had a moment ago" is, and `TOUCH_AT_ROUND_TRIPPED` is checked against *that*
-/// value, not against zero (`filesystem_proto::fixture::navscape`).
+/// value, not against zero (`filesystem_protocol::fixture::navscape`).
 fn touch_mtime_probes(nav: &mut Nav, touched: &([u8; 16], usize), v: &mut u64) {
-    use filesystem_proto::fixture::{navscape as nb, tree};
+    use filesystem_protocol::fixture::{navscape as nb, tree};
 
     let Some(before) = mtime_of(nav, name_of(touched)) else {
         return;
@@ -3805,8 +3806,8 @@ fn touch_mtime_probes(nav: &mut Nav, touched: &([u8; 16], usize), v: &mut u64) {
 /// cannot exercise. A raw `fs::MKDIR` mints a **fresh** directory attenuated to `WRITE` and not
 /// `SETTIME`, one level below the shell's own root, and both mtime verbs are sent straight to it.
 fn touch_mtime_without_settime(nav: &Nav, name: &[u8], v: &mut u64) {
-    use filesystem_proto::dir;
-    use filesystem_proto::fixture::navscape as nb;
+    use filesystem_protocol::dir;
+    use filesystem_protocol::fixture::navscape as nb;
 
     let narrow_rights = dir::ALL & !dir::SETTIME;
     let r = nav.name_call(fs::MKDIR, nav.here(), name, narrow_rights);
@@ -3827,7 +3828,7 @@ fn touch_mtime_without_settime(nav: &Nav, name: &[u8], v: &mut u64) {
             fs::SETMTIME_AT,
             dir_handle,
             inner,
-            filesystem_proto::fixture::tree::NAV_TOUCH_AT_UNIX,
+            filesystem_protocol::fixture::tree::NAV_TOUCH_AT_UNIX,
         ) < 0
         {
             *v |= nb::TOUCH_AT_REFUSED_WITHOUT_SETTIME;

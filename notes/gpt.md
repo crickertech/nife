@@ -57,7 +57,7 @@ The layering inside it is worth stating, because it is what makes the proofs pos
 | `Gpt::check_backup` | the two copies against each other | nine fields, by name |
 | `mbr::validate` | LBA 0 | signature, the protective record, hybrid MBRs |
 
-`Entry::decode` being total is the same trick `ntp_proto` uses: decoding judges nothing, so the
+`Entry::decode` being total is the same trick `network_time_protocol` uses: decoding judges nothing, so the
 round trip is provable over every input there is, and every rule lives in one place instead of being
 scattered through the decoder.
 
@@ -140,7 +140,7 @@ board is dead, can I get my data") depends on a `sgdisk -p` five years from now 
 
 ## How it is proved, and the division of labour
 
-This crate is the clearest case yet of the rule `ntp_proto` wrote down: **where a domain is small
+This crate is the clearest case yet of the rule `network_time_protocol` wrote down: **where a domain is small
 enough to count, count it; a model checker is for the domains that are not.**
 
 ### Counted, exhaustively

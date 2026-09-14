@@ -62,8 +62,8 @@
 //!   rather than the thing. The tree's own habit is against it: `block_roster` is not
 //!   `block_records`, `soak_page` is not `soak_layout`.
 //! - **`boot_proto`** was refused on `soak_page`'s line, which this tree already draws: the
-//!   `_proto` suffix names a request/reply vocabulary (`clock_proto`, `cred_proto`,
-//!   `supervision_proto`), and nothing here is a protocol. It is one-way text on a console.
+//!   `_proto` suffix names a request/reply vocabulary (`clock_protocol`, `cred_proto`,
+//!   `supervision_protocol`), and nothing here is a protocol. It is one-way text on a console.
 //! - **`boot_stages`** was refused as the plural of a word `board_console` already spends:
 //!   `progress::Stage` is the recogniser's ordered enum, and a crate with almost that name holding
 //!   almost that content is the collision a reader pays for.

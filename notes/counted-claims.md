@@ -156,7 +156,7 @@ the wrong question. See notes/counted-claims.md.
 **Two things, and the second one caught the gate's own author.**
 
 The `harness-crates` derivation reads the tree, and `script/verify` reads a hand-kept table of crates
-to prove. They disagreed by one: **`mdns_proto` landed with milestone 55 carrying three harnesses and
+to prove. They disagreed by one: **`multicast_dns_protocol` landed with milestone 55 carrying three harnesses and
 was never added to that table**, so nothing proved them and nothing said so. The suite went green
 *faster*, which `notes/verification.md` already names as the dangerous failure mode; it simply arrived
 through the crate list rather than through the shard packer that note was worried about.
@@ -268,7 +268,7 @@ gate still runs against the real file; only the claim about it moved.
 refused. This gate's failure message offers two responses, and they are not equally likely to be
 right: *fix the number*, or *fix the derivation if the tree is right and the gate is asking the
 wrong question*. An auto-fix biases every disagreement toward the first, and the second is where the
-real bugs are; the `mdns_proto` shard hole was found exactly that way. With two exact sites left,
+real bugs are; the `multicast_dns_protocol` shard hole was found exactly that way. With two exact sites left,
 hand-editing is cheap and thinking is the point.
 
 ## BUGS

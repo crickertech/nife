@@ -4,7 +4,7 @@
 //! The pure logic behind the credential service: how a secret becomes a record, how a presented
 //! secret is checked against one, and how a record is encoded. No syscalls, no allocation, no
 //! `alloc`, so it compiles for the host and for both bare-metal targets from one source and its
-//! tests run in milliseconds. The wire contract is `credential_proto`; the service is
+//! tests run in milliseconds. The wire contract is `credential_protocol`; the service is
 //! `components/src/credentialer.rs`.
 //!
 //! # Examples
@@ -124,7 +124,7 @@
 //! reachable by the prover, while the program keeps the IO. That is exactly this: no syscalls, no
 //! allocation, no `alloc`, tests in milliseconds, and `components/src/credentialer.rs` doing the talking.
 //! `coremark`, `line_editor` and `compositor` are the same shape. Three of this family's four names
-//! were already ratified and agreed (`credentialer` the program, `credential_proto` the wire
+//! were already ratified and agreed (`credentialer` the program, `credential_protocol` the wire
 //! contract, `credentialer_test_client`); this was the loose end.
 //!
 //! The argument against, recorded because it is real: `credentialer` is an agent noun for a thing
@@ -145,11 +145,11 @@ pub const SALT_LEN: usize = 16;
 /// Tag length, in bytes. 32 is RFC 9106's recommendation and Argon2's default.
 pub const TAG_LEN: usize = 32;
 
-/// The longest identity a record can hold. Matches `credential_proto::MAX_IDENTITY`; the two constants
-/// are checked against each other by a test in `credential_proto`'s consumer, the service.
+/// The longest identity a record can hold. Matches `credential_protocol::MAX_IDENTITY`; the two constants
+/// are checked against each other by a test in `credential_protocol`'s consumer, the service.
 pub const MAX_IDENTITY: usize = 64;
 
-/// The longest secret [`Record::derive`] will accept. Matches `credential_proto::MAX_SECRET`.
+/// The longest secret [`Record::derive`] will accept. Matches `credential_protocol::MAX_SECRET`.
 pub const MAX_SECRET: usize = 256;
 
 /// Argon2's own lower bound on `m_cost`, restated so [`Cost::new`] can check it before handing a
@@ -162,7 +162,7 @@ const MAX_P_COST: u32 = (1 << 24) - 1;
 /// **What went wrong with the question**, as distinct from the answer to it. Every variant here is
 /// a caller bug: a length out of range, a cost the KDF will not accept, a scratch buffer too
 /// small. None of them is an authentication outcome, and the service maps all of them to
-/// `credential_proto::MALFORMED` rather than to a verdict.
+/// `credential_protocol::MALFORMED` rather than to a verdict.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Error {
     /// The identity is empty or longer than [`MAX_IDENTITY`].
@@ -180,7 +180,7 @@ pub enum Error {
 }
 
 /// **The answer**, and it has exactly two values on purpose. A miss and a wrong secret are the
-/// same [`Verdict::Mismatch`]; see `credential_proto`'s module docs for why.
+/// same [`Verdict::Mismatch`]; see `credential_protocol`'s module docs for why.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
     /// The presented secret hashed to the stored value.
@@ -422,7 +422,7 @@ impl Record {
     }
 
     /// An unwritten slot: an identity of length zero, which [`Store::verify`] can never be asked
-    /// about because both this crate and `credential_proto` refuse an empty identity.
+    /// about because both this crate and `credential_protocol` refuse an empty identity.
     const fn empty() -> Self {
         Record {
             id_len: 0,
@@ -462,7 +462,7 @@ impl core::fmt::Debug for Record {
 ///
 /// The absence of a getter is the API expressing what the process boundary enforces. The
 /// credential service holds one of these in its own address space and serves
-/// `credential_proto::verify::VERIFY` over an endpoint; a client cannot read a record because there is
+/// `credential_protocol::verify::VERIFY` over an endpoint; a client cannot read a record because there is
 /// no message that returns one, no page that carries one, and no method here that produces one.
 pub struct Store<const N: usize> {
     records: [Record; N],

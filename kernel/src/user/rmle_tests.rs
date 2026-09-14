@@ -9,8 +9,8 @@
 //! client digest, taken from two different address spaces): neither witness here is `rmle` grading
 //! its own homework.
 
-use filesystem_proto::fixture::tree;
-use filesystem_proto::fs;
+use filesystem_protocol::fixture::tree;
+use filesystem_protocol::fs;
 
 use super::*;
 use crate::sched;

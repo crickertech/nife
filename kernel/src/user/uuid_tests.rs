@@ -39,7 +39,7 @@ fn spawn_uuid_holding_no_entropy() -> RendezvousId {
 /// **where the stream ends** and not only what a line said.
 fn chunk(out: RendezvousId, buf: &mut [u8; 16]) -> Option<usize> {
     let words = crate::sched::ipc_recv(out);
-    if words[0] == byte_sink_proto::eof() {
+    if words[0] == byte_sink_protocol::eof() {
         return None;
     }
     let count = words[0] as usize;
@@ -93,7 +93,7 @@ fn a_process_granted_no_entropy_prints_no_identifier() {
 
     // And the shape of what it did not say. A version-4 identifier is 36 characters with four
     // hyphens in fixed places, so a single hyphen anywhere in this stream would mean bytes derived
-    // from *something* got out. `entropy_proto::delivered` reading a kernel error as `None` rather
+    // from *something* got out. `entropy_protocol::delivered` reading a kernel error as `None` rather
     // than as a short count is what makes that impossible, and this is the assertion that it holds
     // through the whole program rather than only at the accessor.
     assert!(

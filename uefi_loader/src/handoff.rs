@@ -15,7 +15,7 @@
 //!
 //! And the tests below say so literally: every encoder here is checked by decoding its output with
 //! that crate. Neither side carries its own copy of the layout, which is the same rule
-//! `byte_sink_proto`, `grant_plan` and `clock_proto` are held to.
+//! `byte_sink_protocol`, `grant_plan` and `clock_protocol` are held to.
 //!
 //! # BUGS
 //!

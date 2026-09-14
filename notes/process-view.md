@@ -90,7 +90,7 @@ knowingly.
 ## Refused, empty, and populated are three answers
 
 **This is the deliverable, not a detail.** A monitor that reports nothing because it *could not look*
-reads exactly like a quiet machine, which is the worst failure this tool has available. `filesystem_proto`
+reads exactly like a quiet machine, which is the worst failure this tool has available. `filesystem_protocol`
 chose `EPERM` over an empty listing for the same reason (milestone 108's shape).
 
 | what the viewer holds | answer |
@@ -334,7 +334,7 @@ regular expression is not a designation of anything.
   mostly evaporated when calef ruled that a domain names its members and does not act on them: there
   was no second decision to wait for, and the deferral was buying nothing.
 
-  The fix is `capability::Rights::ENUMERATE`, the kernel-level twin of `filesystem_proto`'s directory
+  The fix is `capability::Rights::ENUMERATE`, the kernel-level twin of `filesystem_protocol`'s directory
   `ENUMERATE`, and it is the same argument one layer down. `SURVEY` takes it; `RECV` and `REAP`
   still take `READ`; `system_initializer` grants a viewer `ENUMERATE` **alone**. So a `ps` does not
   get refused a reap, it cannot name one, which is the ladder's top rung in place of an argument
@@ -480,7 +480,7 @@ vocabulary invented for what is, read back, the same fact about the same page.
 ### The delegation audit DECISIONS §114 required
 
 Every site that mints an `Object::AddressSpace` capability was found and checked: `components/src/builder.rs`,
-`crates/supervision_proto::build_child_space`, `fixtures/src/hello.rs`'s `aspace_builder`,
+`crates/supervision_protocol::build_child_space`, `fixtures/src/hello.rs`'s `aspace_builder`,
 `fixtures/src/os_primitives_benchmarker.rs`'s `spawn_one`, and `kernel/src/bench.rs`'s `map_el0`
 harness. **Every one retypes, maps, and (except `hello.rs`'s deliberately-unconfigured demo)
 consumes the capability at `Tcb::CONFIGURE`, all inside the one thread that started it. None
