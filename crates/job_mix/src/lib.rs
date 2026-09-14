@@ -127,9 +127,9 @@
 //! already false when it was written** (found and repaired by milestone 296). The fourth is the
 //! kernel-side supervisor of this same workload, and it was spelled `kernel/src/jobmix.rs`, with a
 //! `jobmix` Cargo feature and `jobmix:` console markers. A squish is exactly what a
-//! separator-insensitive grep cannot reach: `git grep -ie 'job[_-]mix'` returned 31 files and
-//! `git grep -ie jobmix` returned 26, and `kernel/src/user.rs` was in the second set and not the
-//! first. So the greppability the ratification was *made for* did not hold, and it did not hold
+//! separator-insensitive grep cannot reach: at `9b68f17e`, `git grep -lie 'job[_-]mix'` returns 31
+//! files and `git grep -lie jobmix` returns 25, and `kernel/src/user.rs` is in the second set and
+//! not the first. So the greppability the ratification was *made for* did not hold, and it did not hold
 //! because of the one member nobody had counted.
 //!
 //! **The repair is therefore not the hyphen rule being applied to a stray file. It is this

@@ -152,8 +152,11 @@ made. From that crate's provenance block:
 
 **The block counts three members and there were four.** `kernel/src/jobmix.rs` is the kernel-side
 supervisor of that same workload, it was squished, and a squish is precisely what a
-separator-insensitive grep cannot reach. Measured: `git grep -ie 'job[_-]mix'` returned 31 files and
-`git grep -ie jobmix` returned 26, and `kernel/src/user.rs` was in the second set and not the first.
+separator-insensitive grep cannot reach. Measured at this lane's base `9b68f17e`:
+`git grep -lie 'job[_-]mix'` returns 31 files and `git grep -lie jobmix` returns **25**, and
+`kernel/src/user.rs` is in the second set and not the first. *(The first two commits on this branch
+say 26. That was a hand count of a terminal listing, made before the numbers were re-taken against
+the base commit; 25 is the measured one and those messages are left as they were written.)*
 **The property the ratification explicitly rests on was already false, and it was false because of
 the one member nobody had counted.**
 
