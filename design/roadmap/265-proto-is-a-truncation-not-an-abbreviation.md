@@ -261,6 +261,10 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
   request.
 - **Done.** `script/lint` check 3's glob, which this rename would have left selecting nothing. Fixed
   in the same pull request, with the hazard written into the check's comment.
+- **Proposed.** `design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md`, for the class
+  that glob belongs to. One instance is a fix; the question of how many other gates pick their own
+  subject with a pattern that is allowed to stop matching is a lane, and this milestone measured only
+  what it tripped over.
 - **Proposed.** The other truncations nobody has swept for. Named but not taken here, and it is the
   same shape as the acronym question:
   `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md` is the list that already
