@@ -5,6 +5,13 @@ names and deliberately answered none of them, because answering one at a time is
 
 **Gate: DECISION.** calef names things, and this is a list of names.
 
+**Two of the four rows are answered, both by calef on 2026-09-13**, working the unratified
+worklist: `jh7110_crg` is `jh7110_clock_and_reset`, and `jh7110_trng` (crate and program) is
+`jh7110_entropy`, by way of `jh7110_entropy_source`, which he ratified first and replaced later the
+same day. The rows stay in the table below with their answers beside them, because the question
+each one asked is the half a future proposer needs. `ntp`/`ntp_proto` and the nested `mdns` case
+are still open, and the gate stands for them.
+
 ## Why it cannot be done a name at a time
 
 **An acronym is spelled out unless its expansion teaches nothing** (calef, 2026-09-05). The rule
@@ -18,6 +25,12 @@ pair disagreeing; spelling out the crate alone overturns a ratification as a sid
 program. The same holds for `jh7110_trng`, which is a crate and the program built from it, a pairing
 AGENTS.md describes as deliberate and worth seeing.
 
+**That prediction was tested and held.** The `jh7110_trng` pair was ruled and performed as one
+object both times, crate and program together, and the second ruling turned on the pair: bare
+`jh7110_entropy_driver` was refused precisely because the crate is not a driver, which is a refusal
+only visible if you are holding both halves at once. See `crates/jh7110_entropy/src/lib.rs`'s
+provenance block.
+
 ## The names 264 surfaced, each with the question already asked
 
 Every one of these carries the question in its own provenance block, recorded as open rather than
@@ -27,8 +40,8 @@ guessed at.
 |---|---|---|
 | `ntp`, `ntp_proto` | network time protocol | Expands into something more informative than itself, which is the deratified class. Against: it is the protocol's registered name and `ntp_proto` is ratified. |
 | `mdns_proto`, `mdns_config`, `mdns_responder` | multicast DNS | The expansion contains a second acronym. A full spelling runs to `multicast_domain_name_system_proto` and has stopped teaching before it ends. |
-| `jh7110_trng` (crate and program) | true random number generator | Expansion teaches, and the acronym is not one a reader outside hardware carries. |
-| `jh7110_crg` | clock and reset generator | Expansion teaches. Against: both device trees for this chip spell the blocks `syscrg`, `stgcrg` and `aoncrg`, so the acronym is the hardware documentation's own. |
+| ~~`jh7110_trng`~~ (crate and program) | true random number generator | Expansion teaches, and the acronym is not one a reader outside hardware carries. **Answered 2026-09-13: `jh7110_entropy`**, via `jh7110_entropy_source` the same day. |
+| ~~`jh7110_crg`~~ | clock and reset generator | Expansion teaches. Against: both device trees for this chip spell the blocks `syscrg`, `stgcrg` and `aoncrg`, so the acronym is the hardware documentation's own. **Answered 2026-09-13: `jh7110_clock_and_reset`**, the against-case overruled by the same-day amendment to decision 113, which ends the external-standard exemption for acronym crates. |
 
 `cpu` and `icount` were asked and answered inside 264: `cpu` expands to something a reader already
 has, and `icount` is a contraction rather than an acronym and is the exact string QEMU prints and
@@ -46,3 +59,14 @@ not answerable by applying the rule harder.
 - **The five names the rule deratified by name are not in the table above**, because 264's scope was
   the sixty unrecorded ones and all five were ratified. They are the larger half of the work and
   `ipc` is the reason this is a milestone rather than an afternoon.
+- **Two public function names in the kernel carry the acronyms the crates just shed, and nobody has
+  ruled on them** (found 2026-09-14 by the `jh7110_entropy` rename, which deliberately did not touch
+  them). `kernel/src/user/entropy_service.rs` exports `jh7110_trng_device` and `jh7110_crg_window`,
+  and both survived the 2026-09-13 renames of the crates they call into, so the file now reads
+  `jh7110_entropy::discover` inside a function called `jh7110_trng_device`. They are a genuinely
+  harder case than the crates were and that is why they were left: unlike a crate name, each of
+  these names the **hardware block**, whose device-tree spelling is the vendor's
+  (`starfive,jh7110-trng`) and whose boot-log wording throughout the tree is "JH7110 TRNG", so the
+  "abbreviation we receive rather than author" clause in notes/naming.md may cover them where it did
+  not cover the crate. A lane should not guess: AGENTS.md puts public function names in calef's
+  hands, and this list is where a name waits for him.

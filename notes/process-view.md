@@ -515,33 +515,47 @@ builder to hand a narrowed, still-registered view of a space it is constructing 
 `pmap` works, and is named as an open finding in `design/roadmap/126-who-else-is-running.md`'s
 `BUGS` and `crates/pmap`'s own for whoever picks it up.
 
-## `watch`, redrawn over the same domain
+## `watch` was built, and then cut (milestone 281)
 
-**`watch` works on both ISAs, and it is granted exactly what `ps` and `pgrep` are, plus a required
-argument.** It re-walks the domain a bounded number of times (`crates/watch`'s `clamp_iterations`)
-and prefixes each table with `CSI 2J`/`CSI H` (erase, then home the cursor) so the terminal shows
-the latest snapshot in place, proven against a real `video_terminal::Vt` in
-`kernel::user::watch_tests`: a domain member is spawned, surveyed, reaped through a capability
-`watch` itself never holds, and surveyed again, and the first survey's tid is shown gone from the
-whole rendered grid rather than merely absent from wherever the second frame wrote.
+**It is gone as of 2026-09-13**, along with `crates/watch`, and the reason is the useful part of this
+section rather than the obituary.
 
-**It is not upstream `watch`.** Re-running an arbitrary command needs a program to hold spawn
-authority, which in this system belongs to the shell alone (`grant_plan::spawnproto`) and is granted
-to nothing the shell spawns -- an interruptible child is built with no capabilities in its
-capability table at all, so there is no route from "a program is running" to "that program can
-start a second one"
-without new spawn-delegation machinery this milestone does not build. That is the same category of
-gap `top`, `pwdx` and `w` are blocked on. So `watch` redraws the one thing it can already reach
-without any of that: the domain it was spawned into, exactly `ps`'s own listing, which is also real
-`watch`'s own single most common invocation (`watch ps`).
+`watch` re-walked the domain a bounded number of times and prefixed each table with `CSI 2J`/`CSI H`
+(erase, then home the cursor) so the terminal showed the latest snapshot in place. It was granted
+exactly what `ps` and `pgrep` are, plus a required argument, and that turned out to be the whole
+problem: **it held the same three slots from the same `grant_plan` constants** (`REPORT`,
+`DOMAIN_SLOT`, `DIAGNOSTICS_SLOT`) while being, literally, `ps`'s own loop, down to a `diag_slot()`
+fallback whose comment read "`ps`'s own fallback, verbatim".
 
-**Bounded rather than interruptible, stated as a scope decision rather than found later.** Since an
-interruptible (`^C`-stoppable) spawn is endowed no capabilities at all, and this program needs the
-domain and the output sink for its whole run, it cannot be both. A typed count
-(`watch N`, clamped to `[1, watch::MAX_ITERATIONS]`) bounds it instead, and it always terminates on
-its own. The interval between frames is fixed and is a yield-spin against `monotonic_nanos`, not a
-sleep, because this kernel has neither (`components/src/timetable.rs`'s module docs name the first four
-consumers of milestone 106's timed-wait fork; `watch` is the fifth).
+**That is a reusable test and it is why this paragraph stays after the program is gone.** In a
+capability system "should these be one program or two" is not a matter of taste: two programs are
+two programs when they hold **different authority**. Identical cspaces mean there is no boundary
+being drawn, and the split is arbitrary. The refresh needed no capability of its own either, because
+the interval was a yield-spin over `monotonic_nanos` (granted to every process unconditionally)
+rather than a clock grant, so even the least-authority argument for a separate program was absent.
+Had the interval needed a clock, the answer would have gone the other way.
+
+Milestone 281 was minted to fold it into `ps --watch N` on exactly that argument. calef took it one
+step further: the flag's entire content was a busy-wait over a table of two columns that barely
+changes, so **deleting it buys the same simplification and costs nothing anyone was using.**
+
+**It was never in `watch`'s family to begin with.** Upstream `watch` re-runs an arbitrary command,
+which this one could not: re-running a named command needs a program to hold spawn authority, which
+here belongs to the shell alone (`grant_plan::spawnproto`) and is granted to nothing the shell spawns
+(an interruptible child is built with no capabilities in its capability table at all), so there was
+no route from "a program is running" to "that program can start a second one". That is the same
+category of gap `top`, `pwdx` and `w` are blocked on. So it redrew the one thing it could already
+reach: the domain it was spawned into, which is `ps`'s own listing. A very thin member of `top`'s
+family wearing `watch`'s name, which is why the name was wrong and why neither it nor `crates/watch`
+was ever ratified. calef declined to rule on both while this milestone might retire them; it did.
+
+**What replaces it is not a flag, it is milestone 282.** DECISIONS §150 adds per-thread scheduled CPU
+time as a `u64` on `Thread`, tick-sampled in `sched::on_tick()` and exposed as a fourth word on
+`abi::rendezvous::SURVEY`. Today `abi::survey` carries a tid and a state and **nothing to rank by**,
+which is the real reason a live view of it was not worth much. Once there is something worth watching
+and something to sort on, the live view gets rebuilt as `top`, properly, instead of as a refresh flag
+on a static table. Cutting now is not losing the feature; it is declining to carry a poor version of
+it across the milestone that makes a good one possible.
 
 ## What this does not build
 
@@ -550,7 +564,7 @@ milestone 126's block records as a design fork rather than a program to port). T
 stratum is not on this list and is not deferred either: calef's ruling abolished most of it, and the
 `pgrep` section above is where that is recorded. `pmap` is built (see above) and is not on this list
 either, though it is not reachable from the interactive shell, which is a finding rather than an
-omission. `watch` is built (see above) and is not on this list either.
+omission. `watch` was built and then cut (see above); `top` is on this list, and milestone 282 is what makes it worth building.
 
 Each of the three remaining view programs is blocked on something real rather than on effort, which
 is worth writing down so nobody estimates from `ps`:

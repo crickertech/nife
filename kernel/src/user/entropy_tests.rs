@@ -111,9 +111,9 @@ fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
              tour's hw entropy line is the test that matters here, not this one"
         );
     }
-    let Some(image) = program("jh7110_entropy_source") else {
+    let Some(image) = program("jh7110_entropy") else {
         crate::testing::skip!(
-            "no jh7110_entropy_source program in this archive (the aarch64 one has none)"
+            "no jh7110_entropy program in this archive (the aarch64 one has none)"
         );
     };
     assert!(

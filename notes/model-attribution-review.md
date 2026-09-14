@@ -178,9 +178,10 @@ That is the mechanism working exactly as designed. `script/names --unratified` i
 not want a study.
 
 *Two of the names in the three rows above have since moved: the crate and program `jh7110_trng`
-became `jh7110_entropy_source` when calef ratified it on 2026-09-13. They are spelled here as they
-were in the window this reconnaissance measured, which is what makes the counts checkable against
-the commits they came from.*
+became `jh7110_entropy_source` when calef ratified it on 2026-09-13, and `jh7110_entropy` when he
+replaced that later the same day (performed 2026-09-14). They are spelled here as they were in the
+window this reconnaissance measured, which is what makes the counts checkable against the commits
+they came from.*
 
 ### 6. Three defect metrics, and they rank the models three different ways
 

@@ -178,17 +178,31 @@ pub enum Prog {
     /// carry until [`ArgSpec`] grows the positional arity milestone 47 deferred; see `crates/pgrep`'s
     /// `BUGS`.
     Pgrep,
-    /// **Redraw [`Prog::Ps`]'s own domain walk a bounded number of times instead of printing it
-    /// once** (milestone 126, `components/src/watch.rs`, `crates/watch`).
-    ///
-    /// [`Prog::Ps`]'s manifest with one field changed: [`ArgSpec::Required`] rather than
-    /// `Forbidden`, because this program needs a typed count to bound its loop (there is no `^C` for
-    /// it; see `crates/watch`'s module docs for why an interruptible spawn cannot also hold a
-    /// domain). It is not upstream `watch`'s "re-run an arbitrary command", which would need a
-    /// program to hold spawn authority this system grants to the shell alone; it redraws the one
-    /// thing it can already reach without that, which is also the most common real-world invocation
-    /// of the tool it is named for.
-    Watch,
+    // **There was a `Watch` here until milestone 281** (`user/src/watch.rs`, `crates/watch`, both
+    // deleted 2026-09-13), and the reason it went is a test worth reusing rather than a one-off.
+    //
+    // **Two programs are two programs when they hold different authority.** `Watch`'s manifest was
+    // [`Prog::Ps`]'s with one field changed, and the program held the same three slots from the same
+    // named constants (`REPORT`, [`DOMAIN_SLOT`], [`DIAGNOSTICS_SLOT`]) while being, literally,
+    // `ps`'s own loop. In a capability system that settles "one program or two" without appealing to
+    // taste: there was no boundary there to draw. The refresh needed no capability of its own
+    // either, because the interval was a yield-spin over the ambient monotonic counter and this
+    // kernel has no timed wait, so even the least-authority argument for keeping them apart was
+    // absent.
+    //
+    // That argued for folding it into `ps` as a flag, which is what milestone 281 was minted to do.
+    // calef then took it one step further: the flag's entire content was a busy-wait over a table of
+    // two columns that barely changes, so **deleting it buys the same simplification and costs
+    // nothing anyone was using**. Milestone 282 (DECISIONS §150) adds per-thread scheduled CPU time
+    // as a fourth `abi::rendezvous::SURVEY` word, and once there is something worth watching and
+    // something to rank by, the live view is rebuilt properly as `top`.
+    //
+    // **Neither `watch` nor `crates/watch` was ever ratified**, and that was deliberate rather than
+    // an oversight: calef declined to rule on both while this milestone might retire them, which it
+    // did. The name was wrong on its own terms too. Upstream `watch` re-runs an arbitrary command,
+    // which this one never could (spawning by name is the shell's own capability and is granted to
+    // nothing the shell spawns), so the program was never in `watch`'s family. It was a very thin
+    // member of `top`'s, which is the shape 282 makes it worth rebuilding as.
     /// **Print how long the ambient monotonic counter has been running** (milestone 126,
     /// `components/src/uptime.rs`, `crates/uptime`).
     ///
@@ -253,7 +267,7 @@ pub enum Prog {
 /// it. The progenitor's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
 /// an out-of-bounds panic in the progenitor rather than a compile error; the constant is here so both inits
 /// can be written against one number.
-pub const PROG_COUNT: usize = 14;
+pub const PROG_COUNT: usize = 13;
 
 impl Prog {
     /// Resolve a program by the name typed on the command line.
@@ -275,7 +289,6 @@ impl Prog {
             b"mdr" => Some(Prog::Mdr),
             b"ps" => Some(Prog::Ps),
             b"pgrep" => Some(Prog::Pgrep),
-            b"watch" => Some(Prog::Watch),
             b"uptime" => Some(Prog::Uptime),
             b"printenv" => Some(Prog::Printenv),
             b"uuid" => Some(Prog::Uuid),
@@ -296,7 +309,6 @@ impl Prog {
             Prog::Mdr => "mdr",
             Prog::Ps => "ps",
             Prog::Pgrep => "pgrep",
-            Prog::Watch => "watch",
             Prog::Uptime => "uptime",
             Prog::Printenv => "printenv",
             Prog::Uuid => "uuid",
@@ -316,10 +328,9 @@ impl Prog {
             Prog::Mdr => 7,
             Prog::Ps => 8,
             Prog::Pgrep => 9,
-            Prog::Watch => 10,
-            Prog::Uptime => 11,
-            Prog::Printenv => 12,
-            Prog::Uuid => 13,
+            Prog::Uptime => 10,
+            Prog::Printenv => 11,
+            Prog::Uuid => 12,
         }
     }
 
@@ -336,10 +347,9 @@ impl Prog {
             7 => Some(Prog::Mdr),
             8 => Some(Prog::Ps),
             9 => Some(Prog::Pgrep),
-            10 => Some(Prog::Watch),
-            11 => Some(Prog::Uptime),
-            12 => Some(Prog::Printenv),
-            13 => Some(Prog::Uuid),
+            10 => Some(Prog::Uptime),
+            11 => Some(Prog::Printenv),
+            12 => Some(Prog::Uuid),
             _ => None,
         }
     }
@@ -590,32 +600,6 @@ impl Prog {
             // for why that is a property of the boundary rather than of this program.
             Prog::Pgrep => Manifest {
                 arg: ArgSpec::Forbidden,
-                mem: MemSpec::Forbidden,
-                file: FileSpec::Forbidden,
-                dir: DirSpec::Forbidden,
-                flags: NO_FLAGS,
-                output: OutputSpec::BytesAndDiagnostics {
-                    slot: DIAGNOSTICS_SLOT,
-                },
-                input: InputSpec::Forbidden,
-                reports: true,
-                interruptible: false,
-                clock: false,
-                domain: true,
-                config: false,
-                entropy: false,
-            },
-            // **`watch`: `ps`'s manifest with one field changed.** `arg: ArgSpec::Required` is the
-            // whole difference: this program needs a typed redraw count, because it cannot be spun
-            // up as an interruptible (`^C`-stoppable) job the way `interrupt_heeder` and
-            // `interrupt_ignorer` are (an interruptible child is built with no capabilities in its
-            // cspace at all, and this program needs the domain and the output sink for its whole
-            // run; see `crates/watch`'s module docs). Everything else is `ps`'s own reasoning
-            // verbatim: no file, no directory, no memory grant widens what this program can reach,
-            // and `domain` is the one real authority, endowed by the progenitor and not something the command
-            // line names.
-            Prog::Watch => Manifest {
-                arg: ArgSpec::Required,
                 mem: MemSpec::Forbidden,
                 file: FileSpec::Forbidden,
                 dir: DirSpec::Forbidden,

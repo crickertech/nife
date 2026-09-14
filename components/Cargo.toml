@@ -328,8 +328,8 @@ bench = false
 # describes the device, which on every machine CI boots it does not. It ran on radon for the first
 # time on 2026-09-04. Name: PROVISIONAL, matching the crate it is the volatile shell over.
 [[bin]]
-name = "jh7110_entropy_source"
-path = "src/jh7110_entropy_source.rs"
+name = "jh7110_entropy"
+path = "src/jh7110_entropy.rs"
 test = false
 bench = false
 
@@ -444,20 +444,6 @@ path = "src/pmap.rs"
 test = false
 bench = false
 
-# `watch` (milestone 126): `ps`'s own domain walk, redrawn a bounded number of times instead of
-# printed once, with `CSI 2J`/`CSI H` ahead of each frame so the terminal shows the latest snapshot
-# rather than the whole run scrolling past. Not real `watch`'s "re-run an arbitrary command": that
-# needs spawn authority this system grants to the shell alone. Holds exactly `ps`'s three
-# capabilities and reads its own typed count out of the argument register `ps` leaves unused. The
-# redraw and the interval are crates/watch, host-tested. Portable for `ps`'s reason. **Provisional
-# name**: the same word upstream `procps` uses, flagged anyway because this program is narrower than
-# upstream's; see the crate's module docs.
-[[bin]]
-name = "watch"
-path = "src/watch.rs"
-test = false
-bench = false
-
 # `uptime` (milestone 126): how long the ambient monotonic counter has been running. Needed no
 # new capability at all: `monotonic_nanos` is granted to every process unconditionally
 # (kernel/src/arch/*/timer.rs's documented exception to DECISIONS §10), so this program's manifest
@@ -534,13 +520,12 @@ nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 pgrep = { version = "0.1.0", path = "../crates/pgrep" }
 pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
-watch = { version = "0.1.0", path = "../crates/watch" }
 uptime = { version = "0.1.0", path = "../crates/uptime" }
 elf = { version = "0.1.0", path = "../crates/elf" }
 entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
 # The JH7110 TRNG's register logic, DTB discovery and byte pool (milestone 159), host-tested in
-# the crate itself; jh7110_entropy_source.rs is the volatile shell of register writes over it.
-jh7110_entropy_source = { version = "0.1.0", path = "../crates/jh7110_entropy_source" }
+# the crate itself; jh7110_entropy.rs is the volatile shell of register writes over it.
+jh7110_entropy = { version = "0.1.0", path = "../crates/jh7110_entropy" }
 # login's own measured-boot consultation before it will build a caretaker from an archive entry
 # (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
@@ -567,7 +552,7 @@ user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # The register-block idiom milestone 139 round 5 brought to `user` (calef, 2026-08-24, "take the
 # dependency for user"): compile-time-checked device register layouts for the fixed-layout blocks
-# console.rs's and input.rs's PL011 half and jh7110_entropy_source.rs use, matching
+# console.rs's and input.rs's PL011 half and jh7110_entropy.rs use, matching
 # kernel/src/drivers/pl011.rs's own idiom for the identical hardware. Pinned to the same version as
 # kernel/Cargo.toml's own dependency so the two crates using this library never skew.
 tock-registers = "0.10"
