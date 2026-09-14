@@ -152,12 +152,14 @@ cost and the number should be re-taken if anyone ever measures boot time against
 `initrd_aarch64` now prints *why* a pack failed, which `initrd_riscv` has done since somebody lost
 an afternoon to the silent version. This milestone lost a shorter one to the same message.
 
-**The one cost of the move that is not 2 KB is unmeasured.** `a_short_image_is_refused_not_indexed`
-proves its boundary with a `kani::any()` array of `DIR_BLOCKS * BLOCK - 1` bytes, so that symbolic
-input grew from 3071 to 5119. The path under it is trivial (`parse` compares the length and returns
-before touching a byte), so the solver should not care, but nobody has checked: this lane's
-environment had no Kani in it, so `script/verify` was the one gate it could not run. The caveat is
-recorded beside the constant as well as here.
+**The one cost of the move that is not 2 KB was measured by CI, not by this lane.**
+`a_short_image_is_refused_not_indexed` proves its boundary with a `kani::any()` array of
+`DIR_BLOCKS * BLOCK - 1` bytes, so that symbolic input grew from 3071 to 5119. This lane's
+environment had no Kani in it, so `script/verify` was the one gate it could not run, and the block
+said so before CI answered. It answered: both `prove` shards passed on the tree that made the
+change, in 14:59 and 15:20. That is the suite's ordinary shape and it is **not** a measurement of
+the harness itself, so the caveat beside the constant now says which number to watch if anybody
+raises `DIR_BLOCKS` again.
 
 ## What was not done, and why
 
@@ -195,9 +197,10 @@ See the proposal below.
   construction, which `hello` describes no better than it described thirty-one), and a caller that
   asks for a role it does not have now gets a trap rather than a message, which is deliberate and
   is still a spawner waiting on its watchdog.
-- **Recorded.** `crates/nifefs/src/lib.rs`'s `DIR_BLOCKS` block carries the unmeasured cost of the
-  raise: a Kani harness's symbolic input grew from 3071 bytes to 5119, and this lane had no Kani to
-  time it with. Whoever runs `script/verify` next should look at that harness.
+- **Done.** The Kani cost of the `DIR_BLOCKS` raise, which this lane could not measure, was
+  answered by CI: both `prove` shards green on the tree that made the change. What that does not
+  settle, and what `crates/nifefs/src/lib.rs`'s `DIR_BLOCKS` block now names, is the harness's own
+  share of those fifteen minutes, which is the number to take if this constant is raised again.
 - **Recorded.** `notes/adding-a-program.md` gained the principle and the archive ceiling, because
   that is the page the next person adding a fixture reads and a roadmap block is not.
 - **Done.** The archive-size and directory-ceiling costs are measured and stated in this block

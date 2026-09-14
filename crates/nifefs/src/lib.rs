@@ -116,12 +116,15 @@ pub const MAGIC: [u8; 8] = *b"CRKR0002";
 /// headroom is 2 KB, once, in an image that is nine megabytes; the cost of running out again is a
 /// lane's build failing on a change that has nothing to do with archives.
 ///
-/// **The one cost that is not 2 KB, and it is unmeasured**: `a_short_image_is_refused_not_indexed`
-/// proves the boundary with a `kani::any()` array of `DIR_BLOCKS * BLOCK - 1` bytes, so this move
-/// grew that symbolic input from 3071 bytes to 5119. The path under it is trivial (`parse` compares
-/// the length and returns before touching a byte), so the solver should not care; nobody has
-/// checked, because milestone 291's lane had no Kani in its environment. Whoever runs
-/// `script/verify` next should look at that harness's time.
+/// **The one cost that is not 2 KB, and it was measured by CI rather than by the lane that caused
+/// it**: `a_short_image_is_refused_not_indexed` proves the boundary with a `kani::any()` array of
+/// `DIR_BLOCKS * BLOCK - 1` bytes, so this move grew that symbolic input from 3071 bytes to 5119.
+/// The prediction was that the solver would not care, because the path under it is trivial
+/// (`parse` compares the length and returns before touching a byte). Both `prove` shards passed on
+/// the tree that made the change, in 14:59 and 15:20, which is the suite's ordinary shape. The
+/// prediction is not *proven* by that (a shard's total says nothing about one harness's share), so
+/// the number to watch if this constant is raised again is that harness's own time, not the
+/// shard's.
 pub const DIR_BLOCKS: usize = 10;
 
 /// The magic plus the count, before the first entry.
