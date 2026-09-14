@@ -55,13 +55,27 @@
 #   this is currently written for people who already know the tree. Recorded rather than fixed,
 #   because where it should be named is a claim about the reading order and those are calef's.
 #
-# Name: provisional. Minted by milestone 40's lane on 2026-08-18. It is deliberately the same word
+# Name: ratified 2026-09-14 (calef, working the unratified worklist). Minted by milestone 40's
+# lane on 2026-08-18. It is deliberately the same word
 # as the builtin at the nife prompt, which is the claim: one verb, one index, two places you can
 # be standing. `script/search` and `script/docs` were the alternatives and both lose that.
 # `apropos` also carries the Unix meaning a reader already has, which AGENTS.md's naming rule
 # calls the best name available, and it is the one entry point here whose name is fixed from two
 # directions at once, since changing it changes what a person types inside the running system as
-# well. calef has not ratified it.
+# well.
+#
+# **Ratified on the protected class, with the noun rule exempted deliberately.** AGENTS.md says name
+# things with nouns, and `apropos` is not one by any reading: it is a Latin adverb pressed into
+# service as a Unix command name. The exemption is the one §50 already draws for `bind`, Plan 9's
+# word: where the field has a term of art, respelling it to satisfy a form rule asserts novelty
+# where there is none, and costs the reader the recognition the whole tenet exists to buy. Recorded
+# because the next Unix-command-shaped name to arrive will want to know which rule applied.
+#
+# BUGS: **the pairing with the guest builtin is not gated.** This name and the `apropos` at the nife
+# prompt are one decision, and the block above says so, but nothing checks it. Rename the builtin
+# and this script keeps its name silently, which breaks the claim the shared word is making. The
+# cost of a rename here is also larger than a script's: it changes what a person types inside a
+# shipped system, which is the facts-that-leave-the-machine category.
 
 set -e
 cd "$(dirname "$0")/.."
