@@ -23,6 +23,31 @@ this because somebody wants its function?*
 here is reached only from a kernel test, `disk_partitioner` and `timetable` included, because this
 system has one user. What separates them is what the program *is*.
 
+## One program does one thing
+
+**A behaviour is a program, not a role.** The tempting shortcut, when a fixture already exists that
+is nearly what you want, is to add an arm to its `match` on `x0` and select the new behaviour with
+a number. Do not. calef, 2026-09-14: *"Part of the beauty of Unix that I think we want to retain is
+small programs with specific functions"*, and, on the binary that had accumulated thirty-one arms,
+*"31 role binary is not the right shape."*
+
+The cost is not aesthetic. A role is dispatched on a word the kernel puts in `x0`, so it is a value
+the kernel's wiring and the program agree on that nothing checks; its name lives in a `const` two
+files apart rather than in the archive; the binary links everything every role needs, so a fixture
+spawned to prove one syscall drags in an ELF parser; and the program's name has to describe all of
+them at once, which it stops doing at about the third.
+
+**Milestone 291 is the worked example.** `fixtures/src/hello.rs` reached thirty-one roles one
+convenient arm at a time over two months. Seven of them were an exact duplicate of
+`components/src/block_driver.rs`, a whole program nobody had noticed was already there, kept alive
+only because one archive table did not pack it; fourteen more became programs. See
+[291](../design/roadmap/291-one-program-one-job.md).
+
+**The exception is allowed and has to say so** (AGENTS.md's ladder, rung four's rule). If two
+behaviours genuinely are one program, write down in the module doc why, where a reader meets it.
+`hello`'s remaining nine do: six of them build a child and three of them *are* that child, which is
+a relationship rather than a convenience.
+
 ## The steps
 
 ### 1. The source
@@ -123,6 +148,12 @@ that (`write_measure_manifest`), so the table follows the archive by constructio
 
 `nifefs` caps `NAME_LEN` at 32, raised from 24 so `os_primitives_benchmarker` would fit. Raising
 it again costs directory entries per block, so do not let a name spend it.
+
+**There is also a ceiling on how many programs an archive holds**, `nifefs::MAX_FILES`, 127 since
+milestone 291 raised `DIR_BLOCKS` from 6 to 10. You will not meet it adding one program, and it is
+here because it has now been crossed three times by lanes that could not see each other. It fails
+loudly: `write_image` returns `TooManyFiles` and both `initrd_aarch64` and `initrd_riscv` print the
+error, the file count and the size.
 
 ### 6. If the shell should be able to spawn it: a `Prog` variant
 
