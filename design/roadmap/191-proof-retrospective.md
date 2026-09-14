@@ -94,3 +94,13 @@ more than an expensive one that probably will not**, and this is the cheapest on
 - **Recorded.** The study's own limits are in `notes/proof-retrospective.md`'s `BUGS`: ten of the
   eighteen corpus entries are single-sourced, the reverse pass is a reading rather than a
   measurement, and the counts were taken at base `f1f138a8` and will drift.
+
+## Index row
+
+**Built:** 2026-08-30
+
+Minted by calef on 2026-08-30 from the fatal-risk sweep (design/fatal-risks.md), where it ranks
+first: an afternoon, no hardware, aimed at half of DECISIONS §14's thesis. 112+ Kani harnesses
+exist and nothing asks whether they caught anything. Four fixed questions per defect over the
+tree's own recorded failures, plus a second pass over the harnesses asking which prove a property
+that could plausibly have been false, which is what stops a study that can only confirm.

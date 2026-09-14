@@ -72,3 +72,9 @@ the asymmetry finds the reasoning instead of filing it again.
 When it happens: module move, type rename, and every call site. `Aarch64` and `Sv39` appear **174
 times across 16 files**, including `kernel/src/arch/*/mmu.rs`, both `iommu.rs` files, and
 `crates/paging/tests/mapping.rs`. No behaviour change, and milestone 69's proof obligation applies.
+
+## Index row
+
+`Aarch64` names an ISA while describing a configuration, beside `Sv39` which names one properly. A
+second aarch64 configuration is expected, so the fix is room for siblings on both sides rather
+than a rename. **Waits for that configuration**, because it names the axis

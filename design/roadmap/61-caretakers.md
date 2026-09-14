@@ -293,3 +293,11 @@ work.
   security hole: `fs_file_caretaker` substitutes its own handle for the caller's and enforces
   direction, and a blind proxy would forward the caller's handle and hand back the wide capability
   the caretaker exists to attenuate.
+
+## Index row
+
+**Built:** 2026-08-01
+
+**built, both ISAs.** The rename landed first (532 tokens, not four filenames); `fs_proto::verb`
+is one row per opcode and a verb with no row is a compile error; all three caretakers forward the
+four extended-attribute verbs, proven by three witnesses each with a control that must fail

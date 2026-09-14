@@ -68,3 +68,12 @@ in either order and not to merge them.
 - **Recorded.** `notes/frames.md`: each migrated program costs one more untyped region held for the
   life of the process, against a region table with a finite number of slots and a page frame pool
   milestone 107 already found at the edge.
+
+## Index row
+
+**Built:** 2026-08-14
+
+The `Frame` object is built and proved, including a confinement check proved able to fail; the
+console, disk and display services still take a page wired into both address spaces at spawn. Two
+mechanisms for one thing, and the one every real driver uses carries no capability, so the
+buffer's authority is visible nowhere

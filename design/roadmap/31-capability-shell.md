@@ -159,3 +159,9 @@ out to be `script/shell-check` and already built.
   calef's: a narrowing verb on the `fs_proto` contract, small in the server and forever on a wire
   two programs agree on, or an interactive boot rooted one component below the image root, which
   puts nothing on the wire and changes what every other command at that prompt means.
+
+## Index row
+
+**Built:** 2026-08-17
+
+no-ambient-authority made user-visible, at the one interface a human touches

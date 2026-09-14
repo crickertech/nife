@@ -165,3 +165,10 @@ counters) stay themselves. The survey's other finding is recorded where it belon
 `gic.rs` is GICv2-only, and a GICv3 driver milestone should be minted deliberately someday, since
 this is the last GICv2 generation anyone will buy. Nothing here advances the aarch64 IOMMU story;
 16b's silicon gate stands.
+
+## Index row
+
+The Foundation publishes aarch64 numbers for exactly one platform, and it is the one
+notes/benchmarks.md already compares against with a recorded caveat this purchase retires. Sealed
+kit bought 2026-08-15 ($89.99, arrives ~08-19 to -26); port cost near the floor; the comparison
+work stays milestone 25's, behind the customer path

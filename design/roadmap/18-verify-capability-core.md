@@ -61,3 +61,9 @@ board without one they are unconfined. See DECISIONS §30 and notes/verification
   deliberately as the tractable path against seL4's Isabelle/HOL refinement, and the block keeps
   Verus as something to revisit only if a specific property needs a loop invariant rather than as
   work anybody owes.
+
+## Index row
+
+**Built:** 2026-07-23
+
+the verification itself

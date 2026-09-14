@@ -85,3 +85,9 @@ its fix are documented in the workflow comment where the person debugging it wil
   personal-account one.
 - **Bot-authored PRs change the byline.** Bump PRs would arrive as `<app-name>[bot]` rather than
   as calef; anything filtering PRs by author (none known in-tree today) would need updating.
+
+## Index row
+
+The toolchain-bump PAT expires on a personal timer and couples the project's automation to one
+account; an org-owned App names the role, not the person. Deliberately parked until a second
+architect, the PAT's first expiry, or a second workflow needing the authority

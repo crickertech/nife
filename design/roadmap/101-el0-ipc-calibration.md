@@ -151,3 +151,11 @@ and it did not.
 - **Outstanding.** Every line number in this block's verified-against-the-code table has drifted,
   which is the well-formed-but-wrong failure this block itself names: the four citations now land
   on unrelated code. Checked 2026-09-03.
+
+## Index row
+
+Re-measured on five release boots: `ipc_rtt_el0` 350 ns, about **1.1x to 1.7x** an L4-lineage
+round trip, not the 4-7x the note claimed nor the 12-24x this block predicted. Three errors found
+where one was expected, and the prediction is left standing as the record rather than quietly
+fixed. Cycles are still arithmetic on an assumed clock; the PMU reading waits on milestone 16's
+silicon

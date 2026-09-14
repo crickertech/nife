@@ -141,3 +141,15 @@ numbers in CLAUDE.md are his to place.
 - **Refused.** A gate on the two prose conventions. No check can tell an intention from an
   observation in prose, and a lint that tried would be `git grep -w TODO`'s 82% false-positive rate
   wearing a different hat, which is the measurement that shaped the TODO lint in the first place.
+
+## Index row
+
+**Built:** 2026-08-18
+
+The sweep ran and the lint landed: `script/lint` fails a `TODO`/`FIXME` that does not cite a
+milestone with a block, and the measurement corrected the block's own floor (11 hits, 2 real
+markers; `git grep -w TODO` is 82% false positives here). Twelve findings that lived only in prose
+became milestones 100-111. Deliverable one is done: the inventory is `notes/untracked-work-sweep.md` and each of the nine recorded-accepted findings carries its
+blessing in the paragraph a reader meets the limitation in. **Outstanding, and calef's**:
+deliverable two's two prose conventions never reached AGENTS.md, and the text is written out in
+the block ready to paste

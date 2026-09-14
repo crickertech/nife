@@ -104,3 +104,10 @@ login would use `verify`; and anything later that signs.
 - **Recorded.** The store holds six secrets, a compiled-in constant sized to three family members
   with a share each, and revocation is per holder rather than per secret: rotating one means
   restarting the service and reprovisioning every other. `notes/credentials.md`.
+
+## Index row
+
+**Built:** 2026-08-04
+
+NTLMv2 does not verify a presented secret, it **computes with a key**, so §54's verifier shape
+does not fit it. Generalises the credentialer into a software HSM. Blocks milestone 55

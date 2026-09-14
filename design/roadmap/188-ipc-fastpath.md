@@ -595,3 +595,20 @@ The measurement is precise. It is the attribution that is missing.
 - **Refused.** `ReplyRecv` fusion, which would take the round trip from three syscalls to two. It is
   a syscall-surface change, DECISIONS §10 and §16 govern it, and the block already says it is named
   so it is tracked and not so it is planned. A lane must not take it.
+
+## Index row
+
+Minted from the lane that gated the footprint on x86_64 (#574), whose finding was that `syscall::dispatch` is the largest single item in every architecture's entry figure. Scoping it
+found the premise had moved: milestone 156 already cut `dispatch` from 2,024 to 1,160 bytes on
+aarch64, `script/fastpath-footprint`'s roots measure a SEND/RECV shape that 25 of 69 userspace
+programs replace with `CALL`/reply (7,516 bytes against the gate's 5,788), and 1,892 of aarch64's
+3,304-byte entry figure is vector-table padding no syscall fetches. Recommends three cheap phases
+(measure the right shape, make the entry figure honest, apply milestone 156's extraction to the
+closure) before any hand-written second path, which cannot be justified until milestone 74's PMU
+on milestone 127's TX1 can observe the payoff. Gate: DECISION. **PARTIAL 2026-09-04**: phases 1 to
+3 built. Both premises held. The gate now reports `ipc_send_recv` and `ipc_call_reply` separately
+(the shape services run is 25 to 29% larger), and aarch64's `syscall_entry` counts one vector
+entry instead of sixteen (3,304 to 1,508, accounting, nothing got faster). Phase 3's finding:
+milestone 156's extraction does **not** transfer to a closure, and the gate now reads `#[cold]`
+from the source rather than a list inside itself; 6 to 10% off both closures for +0.2%
+instructions. **The gap is not closed**, so phase 4 stays calef's.

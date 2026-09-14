@@ -29,3 +29,9 @@ and gives it its own numbered §.
 
 - **None.** The block is a proposal and its own build; the reply capability, the `Call` method and
   the syscall-surface widening it named all landed, and it names nothing left over.
+
+## Index row
+
+**Built:** 2026-07-22
+
+the IPC the TCB must get right

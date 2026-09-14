@@ -295,3 +295,13 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   the default boot and the 2026-09-13 deletion removed all fifteen along with the `timer::spin_for`
   window that separated the writers, leaving the hazard exactly where it was found. Recorded in the
   BUGS section above and beside the code in `kernel/src/main.rs`.
+
+## Index row
+
+**Built:** 2026-09-13
+
+calef, 2026-09-09. The machine description is diagnostics and must always print, xenon proved that
+with no serial console; the narrative is a demo that could be a program; the remainder needs
+sched::spawn and a kernel static. It also dissolves the shell/initboot feature pair, which mean
+the same thing to the kernel. The narrative program was deleted 2026-09-13 on calef's ruling and
+the block keeps its text; the split, the lint check and the remainder list stand

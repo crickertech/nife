@@ -36,3 +36,9 @@ kernel-heap-exhaustion class disappears entirely.
   naming and why the capability payloads fall last. They still carry a generational name rather than
   a TCB pointer, which is safe because a dead name can never resolve again; the pointer form waits
   on the derivation tree refused above.
+
+## Index row
+
+**Built:** 2026-07-23
+
+removes the kernel heap: the prerequisite for "small enough to verify"

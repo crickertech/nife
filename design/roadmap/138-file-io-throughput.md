@@ -591,3 +591,19 @@ measurements rather than asserted, and this is the measurement that most weakens
   directly instead of one IPC round trip per request, which is what `mmap` over a page cache buys
   Linux. Frames are already capabilities here, so the primitive exists and nobody has drawn the
   design. Until someone does, the residual stays a frontier described in prose.
+
+## Index row
+
+**Built:** 2026-08-22
+
+Minted by calef on 2026-08-18 from milestone 38's measurement. Every 4 KiB file request moved 128
+KiB in both directions, and that single term was the whole remaining gap: the confined-server tax
+is 0.07% of the measurement and the block server is already at parity with Linux's block layer.
+calef decided to take all four steps in order, measuring at each. All four are built and measured:
+a smaller record (5.13x/3.01x), a 64 KiB file transfer (5.67x/8.02x on top), a 16-block blk
+transfer (1.16x to 1.55x more, far below the naive 16x because the first two steps already shrank
+what one blk request can batch), and a 64-slot metadata cache over the tree walk the third step's
+own residual pointed at (22.2x on a repeated inline read, 1.37x to 1.64x on the throughput
+phases). Combined against milestone 38's original baseline, measured head to head: 70.9x on
+sequential read throughput. The 13 us IPC-round-trip floor survives every step untouched and is
+named as the frontier past this milestone, not a wall inside it

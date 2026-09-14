@@ -280,3 +280,10 @@ ship under a feedback loop that slow.
   `system_initializer` as carrying nearly all of the fall from 92.4% to 83.4%. Milestone 244 took
   `system_initializer` alone. Nothing tracks these two, and no `BUGS` entry anywhere accepts their
   scores, so the published number has two unexplained holes in it.
+
+## Index row
+
+**Built:** 2026-09-03
+
+four mutation runs, four failures, zero reports, while fatal risk 3 rests partly on the claim that
+the weekly workflow publishes one

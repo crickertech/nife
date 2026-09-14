@@ -60,3 +60,11 @@ says which mode ran.
   CI, since GitHub's macOS arm64 runners are themselves virtual machines with no nested
   virtualization. It couples CI to a laptop that sleeps, and the loud skip was taken instead so a
   transcript can never be misread as having had silicon coverage.
+
+## Index row
+
+**Built:** 2026-08-04
+
+`NIFE_ACCEL=hvf` exists and bench uses it; nothing runs `script/test` there as a habit. GitHub's
+hosted runners cannot (no nested virtualization), so the leg rides `script/gates`: it runs
+wherever HVF exists and skips loudly where it does not. aarch64 only

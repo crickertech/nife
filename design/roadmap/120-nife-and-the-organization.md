@@ -212,3 +212,14 @@ Redox is the closest neighbour in this tree's own reference set and does the opp
 - **Recorded.** `design/roadmap/120-nife-and-the-organization.md` also states that a rename cannot
   be un-published. The mitigation was timing rather than technique, the project had one customer and
   no audience on the day, and the cost only rises from here.
+
+## Index row
+
+**Built:** 2026-08-15
+
+Suess's name for the Earth's nickel-iron core, which is the layer everything rests on and nothing
+is beneath. It also unblocks 119: GitHub's merge queue exists only for organization-owned
+repositories, which is why the setting is absent rather than hidden. 1,001 occurrences across 255
+files, a partition GUID that must not move with the name, and an account-wide toolchain link. The
+organization is deliberately not named after the OS, and the tiers are stated so a stranger can
+infer them: the kernel is the core, distributions are rocks (`basalt`), components are minerals

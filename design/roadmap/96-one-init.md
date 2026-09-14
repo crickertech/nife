@@ -39,3 +39,12 @@ cannot be ambiguous between two changes.
   userspace and prints nothing cost three lanes an evening each, twice through this duplication and
   once through init's sixteen-slot capability table overflowing. Milestone 231 made the table count
   its own peak and print it, so the wall is measured rather than met.
+
+## Index row
+
+**Built:** 2026-08-04
+
+aarch64 boots `hello.rs`'s init role and riscv64 boots `system_initializer`, with ~140
+near-identical lines of spawn service in each. A fix landing in one and not the other presents as
+a boot that reaches userspace and prints nothing, which has now cost three lanes an evening. Rule
+7 says what two binaries share is a crate

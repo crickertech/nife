@@ -182,3 +182,16 @@ case is the miss rather than the hit, because the kernel asks both queues on eve
   which it cannot tell from a client that never called. That is Zircon's RFC-0007 objection to
   thread killing, and it lands; what makes it bearable here is that a `Blocked` thread holds no
   kernel state in flight and its region is going away regardless.
+
+## Index row
+
+**Built:** 2026-09-04
+
+Milestone 23's case (c): `DESTROY` arms a kill that `schedule()` spends only for a `Running`
+thread, so a permanently `Blocked` one is refused forever and its region never returns. One hang
+can cost two unreclaimable regions (its own and its stranded caller's), which makes the hangs an
+unattended backup target survives a function of spare budget. **calef chose proposal A on
+2026-09-03**, *`DESTROY` finishes what it starts*: such a resident is unlinked from whatever queue
+holds it, every outstanding `Reply` capability naming it is swept out of every capability table,
+and it is written to `Finished` without ever being woken. The authority is the untyped capability,
+unchanged, and nothing is added to the syscall surface

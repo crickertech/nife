@@ -71,3 +71,10 @@ this milestone has no plain-console fallback to prove against in the meantime.
 ## BUGS
 
 Not started; nothing built yet to carry its own BUGS section.
+
+## Index row
+
+Split from milestone 177 once its build lane found this piece needs a from-scratch ELF-loading
+boot path (`spawn_init`/`riscv_shell_boot`'s own shape), not wiring: x86_64 has no plain-console
+fallback at all (DECISIONS §121, permanently kernel-resident), so its only route to an interactive
+shell is through 177's graphical stack.

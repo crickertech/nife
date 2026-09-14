@@ -170,3 +170,14 @@ pointing existing checks at new inputs, which is what the gate now does permanen
   `script/image-permissions` a required check in the merge queue's ruleset. It is one checkbox and
   it is calef's, because it is a repository setting rather than a file in this tree. Until it is
   flipped, a red run is visible and merges anyway, so the gate reports rather than gates.
+
+## Index row
+
+**Built:** 2026-09-02
+
+Found by milestone 196's lane while trying to delete a duplicate ELF parser: `link-x86_64.ld`
+folded `.text.boot` and `.data.boot` into one output section, so the trampoline shipped as a
+single **RWX** `PT_LOAD` and `crates/elf::Elf::parse` refused the kernel's own image. Split in
+two; the shipped artifact now parses, `uefi_loader`'s forty-line duplicate reader is deleted and
+the loader validates what it places, and `script/image-permissions` gates all three images so a
+linker script cannot regress it. aarch64 and riscv64 were already clean, structurally.

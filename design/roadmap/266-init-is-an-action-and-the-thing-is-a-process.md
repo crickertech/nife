@@ -331,3 +331,11 @@ applied, stated so it can be disagreed with:
 - **The grant orders still differ**, which is the `cfg` above. It is the one architectural difference
   left in the first process, and it is data rather than code, but it is still a thing two boards
   disagree about in a milestone whose whole point was that they should not.
+
+## Index row
+
+**Built:** 2026-09-08
+
+calef, 2026-09-08: one program, not a relabelling. Three stand behind one archive entry today, and
+the alias layer is already self-contradictory. aarch64's first process is a role bolted inside a
+demo binary while the others get a purpose-built one, which is §19's own failure mode

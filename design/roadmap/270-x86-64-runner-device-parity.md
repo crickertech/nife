@@ -48,3 +48,7 @@ single change that closes four of the seven skips found in the 2026-09-10 invent
 
 - **None.** Once the four sites pass, this does not touch milestone 182 or DECISIONS §149; it is
   display and input, not the console.
+
+## Index row
+
+calef, 2026-09-10. Four of seven live x86_64 skips, one missing runner flag.

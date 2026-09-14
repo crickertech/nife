@@ -71,3 +71,16 @@ to a fraction, so it comes before any code.
   judgement and not mechanism.
   Falsifying somebody else's harness means understanding what it was for, and a wrong falsification
   is worse than none because it certifies.
+
+## Index row
+
+**Built:** 2026-08-31
+
+DECISIONS §134 was decided 2026-08-30 and had no tracked work, which is the state a finding may
+never be left in. All five increments landed 2026-08-31: the record and its two-directional lint, `script/falsifications`, the weekly sweep that applies each diff and requires red, the per-PR half
+in `verify.yml`, and the retroactive pass putting all 141 harnesses at `unfalsified` with six real
+falsifications on top. **The Inductive Validity Core check came back no**, structurally: an IVC
+comes out of an induction step and Kani is a bounded model checker. Two findings: the `capability`
+crate's central theorem is blind to a defect in the predicate it states its property through, and
+§134's patch path could not name eighteen of `paging`'s harnesses, which calef amended the same
+day.

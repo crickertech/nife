@@ -218,3 +218,18 @@ ripgrep working beautifully and confinement being decorative.
 - **Recorded.** A process is single-threaded, so any published number must say so and pin the Linux
   side to one thread. `ripgrep` never reaches DECISIONS §105 because the parallelism query answers
   one and it picks its own serial walker.
+
+## Index row
+
+Enumeration is the one authority this system treats as dangerous, and nothing in the tree walks: `ENUMERATE` is a §47 right that only `rm -r` composes. `rg pattern src/` that provably cannot see
+outside the grant is the confinement claim anyone who has typed a search understands. Every
+dependency (`regex`, `walkdir`, `ignore`, `crossbeam-channel`) is already in milestone 64's
+built-with-no-change list, and `read_dir` is bound, so this is a port. The prize is the number:
+every `read_dir` is IPC to the FS server, which prices the central bet, single-threaded on both
+sides or it is a lie. **Run 2026-08-31 on aarch64 and riscv64, and the prediction was wrong**
+(notes/ripgrep-on-nife.md): unmodified `ripgrep` 14.1.1 builds on both with zero source changes,
+runs, names its own directory through a granted capability and exits cleanly, and never reaches
+DECISIONS §105 because it asks `available_parallelism()` and nife answers `1` honestly. What stops
+it is that the ABI has **no argument vector**, so it prints its own "requires at least one
+pattern". The demonstration, the `ENUMERATE` refusal and the benchmark all wait on a way to tell a
+foreign program what to do. x86_64 has no `std` and so no `ripgrep`; milestone 184 closes that

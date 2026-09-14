@@ -62,3 +62,10 @@ was written against, which is the thing only the board can answer.
 This is the emulate-then-carry pattern: seL4 developed against QEMU and carried to hardware; the
 same pattern this kernel's riscv port used (Sv39 in QEMU, then the VisionFive 2). 16b's block has
 the full argument.
+
+## Index row
+
+Split out of milestone 16 on 2026-08-20. 16b built IOMMU-backed DMA isolation in QEMU emulation on
+both ISAs; this is the carry-over to silicon, which waits on a RISC-V board that ships the
+ratified IOMMU spec (v1.0.1). No such board exists today. The driver is built; the work is "boot
+it and fix what the silicon got wrong."

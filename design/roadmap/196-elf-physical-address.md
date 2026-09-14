@@ -97,3 +97,12 @@ comment, and milestone 200 makes the mistake unsayable everywhere at once.
   not a reader, and it stays out of the shared crate on purpose: a program loader maps at `p_vaddr`
   and a firmware loader places at `p_paddr`, and on this image they are unrelated, so the span is
   the firmware loader's own question rather than the format's.
+
+## Index row
+
+**Built:** 2026-09-02
+
+The UEFI loader carries its own forty-line ELF reader because `crates/elf` exposes no `p_paddr`,
+and in this kernel `p_vaddr` and `p_paddr` are genuinely unrelated. Two readers of one format is
+the defect rule 7 exists to prevent. Gate: DECISION, because a shared definition is global to the
+tree; recommends widening.

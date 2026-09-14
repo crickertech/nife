@@ -21,3 +21,9 @@
   over `untyped::destroy` is checked by loom rather than by the machine: loom models C11 rather than
   aarch64 or riscv64, assumes the mutual exclusion `IrqSafeMutex` is supposed to deliver, and
   searches who wins the claim rather than whether the winner then frees the right pages.
+
+## Index row
+
+**Built:** 2026-07-26
+
+the teardown half of "run real workloads": a process can be reaped, not just built

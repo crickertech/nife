@@ -167,3 +167,10 @@ Not a survey of what could be proved, and not a harness over a function moved ou
   The two drivers rhyme and their entry-building does not: RISC-V writes 64-bit stores with no split
   across words, so there is no counterpart property, and asserting one would be the overclaim this
   milestone was minted to remove. It also could not be run: see the proposal above.
+
+## Index row
+
+**Built:** 2026-09-04
+
+two harnesses over the SMMUv3's stream table and context descriptor, both replayably falsified;
+and `cargo kani -p kernel` turns out to compile only the host's `arch/`

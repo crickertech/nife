@@ -25,3 +25,9 @@ the unsafe census) are each a whole audit and belong to §74's cadence, not to t
   them on real reductions.
 - **Recorded.** `notes/untrusted-input-audit.md` holds the further-lens pass's one open finding,
   the NVMe kernel driver turning two device-written completion fields into a kernel panic.
+
+## Index row
+
+**Built:** 2026-08-15
+
+the attack surface roughly doubled after the first audit was written

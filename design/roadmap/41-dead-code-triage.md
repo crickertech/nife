@@ -131,3 +131,9 @@ it when no other lane is open, or accept the rebases. **Effort: 1 lane estimated
   on the function, because deleting a documented safety mechanism is a design decision and not
   dead-code triage. The bound itself did not go away, it moved into the untyped budget a process
   spawns out of.
+
+## Index row
+
+**Built:** 2026-07-30
+
+a `-D warnings` gate with holes in a third of the kernel is not a gate

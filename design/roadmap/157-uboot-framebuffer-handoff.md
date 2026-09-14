@@ -70,3 +70,10 @@ before milestone 49's boot-wiring work can boot into a *display* rather than onl
 Linux's `simplefb`/`simpledrm` drivers are the exact same shape: read a bootloader-provided
 framebuffer description, do no mode-setting, defer everything else. U-Boot's own EFI GOP handoff on
 UEFI-booting platforms is the same convention one layer up the boot chain.
+
+## Index row
+
+The display ladder's rung five (struck 2026-07-28) named the path and never got a milestone: no
+bare-metal GPU driver, read U-Boot's pre-set framebuffer instead, zero mode-setting code. A new
+backend behind rung one's existing framebuffer contract, not a new protocol. Gate: HARDWARE, since
+the handoff itself can only be verified by booting the real board.

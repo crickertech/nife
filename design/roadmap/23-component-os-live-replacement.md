@@ -246,3 +246,7 @@ be swapped under the others.
   `kernel/src/user/display_tests.rs`, `kernel/src/user/compositor_tests.rs`) and milestone 177
   wired all three into a real boot path on 2026-08-27. What is missing is a swap role for them,
   not a harness. Checked 2026-09-03.
+
+## Index row
+
+the flagship payoff, and a product ambition

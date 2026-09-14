@@ -90,3 +90,9 @@ a reach in the 24 spirit. **Effort: 2 lanes** (measured: first pixels, then glyp
   left open on purpose with the cost measured. The recommendation is to adopt libghostty-vt as a
   second engine behind the same seam rather than as a replacement, because the expensive part is
   rebuilding the three-witness proof structure, not the rendering.
+
+## Index row
+
+**Built:** 2026-07-30
+
+the first pixels the demonstrator ever puts on a screen, and then the first letters

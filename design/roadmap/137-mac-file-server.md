@@ -61,3 +61,11 @@ in its name. §99 records it; whichever lane claims the bit fixes this in the sa
   enough to rank the options and not good enough to schedule against.
 - **This block does not say what "good enough" is.** A Finder window that lists files is not the same
   bar as one that shows the right icons, and nobody has written down which one this is aiming at.
+
+## Index row
+
+Split out of milestone 55 by calef on 2026-08-18, ruling on §99. A Time Machine backup is a sparse
+bundle and never touches Apple's metadata surface, so the two workloads had two feature lists
+under one block and the backup path looked blocked on work it never needed. This is where `FILE_NAMED_STREAMS`, resource forks and the Finder-facing enumeration extensions lived. **Subject
+removed 2026-08-30** with the SMB implementation (notes/smb.md); nothing here is buildable without
+an SMB server, so the block needs retiring, which is calef's

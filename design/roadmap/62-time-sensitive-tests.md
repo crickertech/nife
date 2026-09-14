@@ -342,3 +342,25 @@ assertions) but how many are mechanical and how many need a rethink is not.
   candidate fix was identified and not taken, because the 25% figure justifying it rested on
   eighteen runs from one host; the forty-five-run confirmation then reported zero of ninety legs
   unmeasured, so there was nothing left for the change to buy.
+
+## Index row
+
+**Built:** 2026-08-23
+
+~19 bounded spins (`for _ in 0..N { yield_now() }`) and wall-clock assertions flake under load.
+Four separate lanes and the integrator hit them on 2026-08-01; the CPU matrix multiplies the
+exposure fivefold. The prescribed fixes shipped via milestone 78's rounds and milestone 50's shell
+work; the first acceptance run ran 2026-08-17 (`script/repeat-under-load`, 45 full-suite runs at
+load average 26 to 63) and **did not pass**: 9 red, 8 of them the two timing assertions, twice
+each on both ISAs, and 1 a real double free of a frame in DESTROY's reclaim path (**fixed
+2026-08-18 in PR #316**, an aspace-ownership defect reproducible on both ISAs rather than a
+riscv64 one). The disposition was made 2026-08-18: `the_handler_keeps_up_when_no_lock_is_held` **deleted** on both ISAs, its firing band being exactly the band in which it cannot attribute what
+it saw, and `ticks_arrive_at_the_configured_rate`'s retry budget converted to a loud `UNMEASURED`
+report, its law untouched. Neither was widened. `script/icount` gained the re-arm law as a fourth
+claim first, because an injection showed it was **blind** to the drift bug the record said it
+subsumed, and `script/gates` now runs it. A migration-drain assertion found in the disposition's
+own 18-run interim check (`smp.rs`, `a_migrated_kernel_thread_keeps_its_hart_pointer`) was fixed
+the same day, budgeted in delivered guest ticks rather than counter time. The block's own
+standard, a repeat count under load of the current tree, was taken 2026-08-22/23 at the same
+45-run scale: **45 of 45 green**, load average 4.8 to 90.1, zero `UNMEASURED` results across 90
+legs of the retry-budget assertion. Closes the block

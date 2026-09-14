@@ -52,3 +52,8 @@ So this milestone is where that decision gets made, with a real consumer in hand
   general question would not be settled on the momentum of the narrow one, and said it should be
   answered when a real consumer exists. This milestone is that consumer, so the section gets written
   here rather than before.
+
+## Index row
+
+calef, 2026-09-09. The boot description serves the machine that did not come up; this serves the
+one that did, and is the first real consumer of kernel introspection.

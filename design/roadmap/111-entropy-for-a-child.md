@@ -195,3 +195,12 @@ lost in a BUGS list while the fold is being decided.
 and they are the service's business, not the shell's. In particular "nife has a cryptographic
 random source" is still a claim about QEMU until the JH7110's TRNG is verified on the VisionFive 2,
 and endowing a shell with a grant does not change what is behind it.
+
+## Index row
+
+**Built:** 2026-09-05
+
+`Manifest::entropy` joins `clock`, `domain` and `config`: init places a `WRITE` view of the
+entropy service at `ENTROPY_SLOT` for a child that declares it, a child that does not holds an
+empty slot, and `caps uuid` prints the row. `uuid` is the first program a person can type that
+needs randomness

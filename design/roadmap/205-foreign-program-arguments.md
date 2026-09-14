@@ -34,3 +34,9 @@ as a per-program tax, and it is the kind of decision AGENTS.md says reaches cale
   somebody has costed one, which nobody has.
 - **It says nothing about environment variables or exit codes**, which are the same family of
   question and will arrive right behind it.
+
+## Index row
+
+Minted from milestone 121's lane. Unmodified `ripgrep` runs and stops at argument parsing: `std::env::args()` compiles std's `unsupported` backend and yields nothing, because the nife ABI
+has no argument vector. Everything 121 still owes is behind it. Gate: DECISION, and it arrives as
+options rather than a recommendation, because every future program is written against the answer.

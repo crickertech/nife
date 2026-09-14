@@ -246,3 +246,19 @@ gated and still correctly undecided); the exact directory name for the third cat
 out to be real (`tools/`, `bin/`, or something else); and whether `net_transport` and any other
 still-module shared code gets lifted into its own crate as part of this move or left for a follow-on,
 matching how `virtio`/`socket_proto`/`supervision_proto` were each lifted separately under Rule 7.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Milestone 39's own "cheap first move, which commits to none of the four options", performed. 74
+files split 49/23 (plus `net_stack`'s two `#[path]` modules) by one question: **would a
+distribution ship this because somebody wants its function?** "Who calls it" is deliberately not
+the rule, since nearly everything here is reached only from a kernel test. Two Cargo packages
+rather than two directories, so the split is real dependency isolation: 43 dependencies for `components`, 22 for `fixtures`, and the provisional package name `user` is gone rather than
+renamed. The linker script moved to `crates/user_rt/link.ld` so one file serves both. Performs
+calef's three 2026-09-13 rulings: `heeder`/`spinner` become `interrupt_heeder`/`interrupt_ignorer`
+and `worker` becomes `least_authority_demo`, all three read by hand rather than swept because the
+English words outnumber the programs. **Found a real third category and did not take it**: sixteen
+of the forty-nine components are tools a person invokes rather than services, proposed rather than
+named because a top-level package directory is calef's.

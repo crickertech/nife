@@ -55,3 +55,8 @@ About ten call sites reach `drivers::gic::` directly.
   promoted past work that is. It restores a convenience and opens future hardware.
 - **Nothing checks that a GICv2 assumption stays true.** The silent-loss failure above was found by
   someone deliberately asking; no gate would have noticed.
+
+## Index row
+
+measured 2026-09-02: under GICv3 the kernel boots, brings four cores up, and takes zero interrupts
+with nothing faulting

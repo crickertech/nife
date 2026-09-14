@@ -430,3 +430,9 @@ not an unscoped rewrite. "The path to BUILT" above is the current re-scope this 
 - **Refused.** Reviving SMB behind a different server (porting Samba over the §31 C seam) is
   refused, and was before the removal: Samba assumes `fork`, threads and an enormous POSIX
   surface, and milestone 52 records that we have no `fork` and that getting one is not cheap.
+
+## Index row
+
+**Premise retired 2026-08-30**: the customer moved to borg over SSH, journey 2 is retired, and the
+SMB half was removed with milestone 54. The mDNS discovery half is built and stays. What the
+backup path reached, and the several things it never did, are in notes/smb.md

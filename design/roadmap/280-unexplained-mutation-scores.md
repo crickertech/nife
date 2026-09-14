@@ -174,3 +174,16 @@ it."*
   `design/roadmap/proposals/fatal-risk-3-against-the-new-number.md`. It still wants the clean full
   sweep that milestone 277's memory bound is meant to make possible, which this milestone does not
   supply.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Written by the milestone 247 sweep 2026-09-03, promoted 2026-09-13 by calef while working out what
+progresses fatal risk 3. `uefi_loader` was answered on 2026-09-04 and the promotion did not
+notice, so what was left was `documentation`. Its 52% was the third instance of one failure:
+cargo-mutants tests one package at a time, so a non-default feature is mutated and never compiled,
+and `builder` gates the index writer AND six of the twelve index tests, so the reader was scored
+against half a suite. 54.6% whole-crate before, 78.9% with the feature on, 95.4% after. Fixed by a
+dev-dependency on itself plus a third script/lint gate; the sweep also found table alignment and
+tab indentation computed correctly and read by nobody.

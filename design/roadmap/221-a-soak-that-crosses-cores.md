@@ -124,3 +124,22 @@ are bound before the first waiter; only the signalling is switched on last.
 - **Recorded.** The hook fires on a timer, which is the one thing a saturated workload cannot
   starve. That is why it works and also why it is not evidence about what happens without it.
   `design/roadmap/221-a-soak-that-crosses-cores.md`.
+
+## Index row
+
+**Built:** 2026-09-02
+
+`sched::on_tick` signals a routed rendezvous under `--features soak` and one worker per group
+blocks on it through the `Irq::WAIT` a device driver already uses, so a tick runs the whole real
+wake path down through `wake_load_aware`, `pick_wake_target`, `place_on` and the reschedule IPI.
+That is DECISIONS 138's option D, which calef approved: no syscall, no architecture-specific code,
+and nothing in a production build (checked, not asserted: every symbol and every loaded section
+the same size on all three architectures, and a base commit padded with ten comment lines builds a
+byte-identical image). **aarch64 went from 15 crossings, frozen from the first beat, to 1,452 and
+3,779 across two runs; riscv64 from 10 and 14 to 2,573 and 4,358.** The round-trip cost is nothing
+measurable on aarch64 and about 7% on riscv64, far below the spike's 30% and 55%, and that
+difference is recorded rather than explained away. Running it found two ordering bugs in the
+mechanism itself, both written up. **What crosses is the waiters, not the rendezvous pairs**, and
+the kernel and the tool both say so in words, because only a rebalancer would move the pairs and
+138 declines one. It makes risk 5's second experiment runnable; it does not run it, which needs a
+bench evening on radon.

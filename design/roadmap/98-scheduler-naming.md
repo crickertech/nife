@@ -90,3 +90,11 @@ need its own entry: `sched` stays, because the module really does schedule.
   and `sched` is a word every kernel reader arrives knowing (POSIX ships `sched.h`, Linux keeps
   `kernel/sched/`). Renaming it would also have been 915 call sites across 70 files against this
   milestone's hundred in one.
+
+## Index row
+
+**Built:** 2026-08-23
+
+Decided (DECISIONS §118): `Scheduler`/`SCHED` renamed to `IpcTables`/`IPC_TABLES` throughout `kernel/src/sched.rs`, the lock rank constant, and every doc comment across `kernel/src`/`crates`
+naming the lock. The module keeps `sched` (it really does schedule). `notes/sched-lock-inventory.md` renamed to `notes/ipc-tables-lock-inventory.md` last, per the
+scope note. `script/fastpath-footprint` measured 0% delta on both ISAs

@@ -34,3 +34,7 @@ first machine with enough harts for the `smp_throughput` curve to bend (no machi
 run on exceeds ten), and **milestone 80** provides the method, because a design that replaces the
 lock with messages wants its protocol born loom-checked. Until 88's curve shows the lock in the
 data, the answer to this milestone is the one already written above: the one lock, on purpose.
+
+## Index row
+
+optional; not on the thesis path

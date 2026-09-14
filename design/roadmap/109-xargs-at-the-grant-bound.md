@@ -77,3 +77,13 @@ which is the strongest argument any name gets here.
   calef's call, like every name a lane ships. It is what milestone 47 and both glob notes call it,
   and it is a standard term a reader already knows from outside, which is the strongest argument any
   name gets here.
+
+## Index row
+
+**Built:** 2026-08-04
+
+Built as a shell prefix word, not a program, because a batching program would have to hold the
+union it cannot be handed. Each batch prints its own set before it runs, a failing batch stops the
+sweep so what ran is a prefix, and the resume point is a name rather than a cursor. Proven at a
+real prompt for `xargs echo` and `xargs caps rm`; `xargs <program>` still stops after batch one
+because the shell cannot yet mint a per-batch caretaker

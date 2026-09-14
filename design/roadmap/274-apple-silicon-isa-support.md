@@ -90,3 +90,9 @@ Not a fresh finding about Apple Silicon's ISA. It is the much narrower thing tha
   same class, now on record.
 - **Milestone 268.** The same class of defect as this block's BUGS entry: a real check whose
   verdict nothing enforces. Worth reading together rather than as coincidence.
+
+## Index row
+
+calef, 2026-09-10. Corrected same day: HVF cannot boot this kernel at all yet (blocked on 227), so
+nothing about the core's ISA is measured; this test has still passed exactly once in the project's
+history, by hand.

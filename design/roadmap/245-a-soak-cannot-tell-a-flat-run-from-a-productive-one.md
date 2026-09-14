@@ -93,3 +93,8 @@ Not a new counter that rises monotonically, which is what the existing eight alr
 - **Nothing here helps the slow draw.** A run at 0.51 crossings per second will look flat because it
   is barely doing anything, and distinguishing "flat because saturated" from "flat because starved"
   is a real hazard this block does not solve.
+
+## Index row
+
+all eight soak counters are volumes; nothing counts distinct behaviour, so a saturated run and a
+productive one look identical

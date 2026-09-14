@@ -113,3 +113,12 @@ same shape milestone 123's demonstration already asks every capability claim to 
 - **No effort estimate.** The capability type, spawn-path grant, and trap-and-check are each small in
   isolation (milestone 75 says as much for the single-counter case); the counter-set generalization
   and the enumeration-style target-naming are the parts with no precedent in this tree to price from.
+
+## Index row
+
+CrayPat, VTune and Linaro Forge all read hardware counters through their host OS's ambient perf
+interface, gated only by a privilege level or a global sysctl. Once milestone 75 answers whether
+the cycle counter is a capability, this is the second consumer that generalizes the grant from one
+counter to a profiling session naming a target subtree and a counter set: a confined tenant's
+profiler that can read its own job's counters and is refused, at the type level, from reading a
+neighbor's. The HPC differentiation case for the whole idea.

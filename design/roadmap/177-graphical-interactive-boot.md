@@ -213,3 +213,12 @@ milestone builds.
 - **Milestone 182.** Piece 5, x86_64's own entry point, is
   `design/roadmap/182-x86-64-interactive-boot.md`, which this block already names; the earlier
   sentence saying neither architecture plans it is superseded by the split recorded lower down.
+
+## Index row
+
+The real interactive boot spawns the plain UART `console`/`input` pair; the framebuffer contract,
+compositor, VT engine and virtio keyboard are all built and proven but only under the test
+harness, since neither the GPU nor the keyboard is in `BootEndowment`'s device grants. Device
+attachment and the program swap are built and merged (2026-08-27); a pre-existing display-driver
+bug (a second `FLUSH` hangs) still blocks a working prompt, recorded rather than held on. x86_64's
+own entry point split off as milestone 182.

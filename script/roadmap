@@ -18,11 +18,26 @@
 # script checks the one the split alone cannot prevent: the status in the index and in the milestone's
 # own file must agree.
 #
+# **The index is GENERATED as of milestone 294 (2026-09-14)**, which retired two of the checks
+# below and changed what the rest read. `--write` rewrites design/roadmap/README.md's table from the
+# blocks; `--index` prints it; the blocks are the source for status, gates, follow-on and citation
+# resolution, all four of which used to key on the table. The reason is measured: that table was
+# this tree's worst merge hotspot, eight conflicts in one session and none anywhere else, because
+# check 4b makes every lane touch its own block and every milestone also needed a row in one sorted
+# table. The long comment on the index section below has the argument and the migration's proof.
+#
 # What is checked, and which defect each check answers:
-#   - every index row links to a milestone file that exists, and every milestone file has an index
-#     row (the milestone-34 class);
-#   - the status vocabulary, in the index AND in each file's own Status line, and the two must agree
-#     (the milestone-69 class);
+#   - every index row links to a milestone file that exists (the milestone-34 class). The other
+#     half, "every milestone file has an index row", is now the index being STALE rather than a
+#     failure: a lane never edits the generated table, so a missing row is the integrator's
+#     regeneration at merge and not the lane's defect. The count and the command print on every run;
+#   - the status vocabulary, in each file's own Status line. The index-versus-file comparison (the
+#     milestone-69 class) is gone because it cannot fail any more: one of the two records is now
+#     derived from the other, which is rung one where this check was rung two;
+#   - **every non-lettered block carries one `## Index row` section**: an optional
+#     `**Built:** <ISO date>` line and exactly one summary paragraph, which are the two columns
+#     nothing else in the block states. The Built column's rules moved here from the row it now
+#     generates: BUILT must carry a date, REMOVED may, every other status must not;
 #   - each file holds exactly one milestone: one H1, on line 1, whose number matches the filename
 #     (the filed-under-an-essay class, and the appended-past-the-closer class);
 #   - two files claiming one milestone number is fatal, for the reason script/decisions records: as
@@ -48,26 +63,29 @@
 #     name more than one. A `MILESTONE N` gate must resolve to a row and must not be BUILT, so the
 #     day a milestone lands, every gate still pointing at it fails the build instead of quietly
 #     staying stale. A BUILT file may not carry a gate at all, for the same reason;
-#   - every `milestone N` citation TREE-WIDE resolves to an index row (vendor/ and patches/ excluded:
+#   - every `milestone N` citation TREE-WIDE resolves to a block (vendor/ and patches/ excluded:
 #     other people's text). The old gate checked only the roadmap's own prose, so ~1,988 citations in
 #     code comments were validated by nothing. A citation to a milestone that never existed is drift,
 #     and failing the build on it is the point: the docs are versioned with the code so they cannot
 #     describe a system that does not exist.
 #
-# Deliberately NOT checked: row title == file title (rows abbreviate on purpose), and whether a
+# Deliberately NOT checked: whether a
 # citation that resolves points where its author meant (well-formed-but-wrong is invisible here, the
 # same blind spot CLAUDE.md records for §N citations; check by content after any renumber).
 #
-# Lettered milestones (20a) are addenda: the file needs its base row to exist, but carries no row of
-# its own and therefore no status line to compare.
+# Lettered milestones (20a) are addenda: the file needs its base milestone to exist, but carries no
+# row of its own, and therefore no status line and no `## Index row` section.
 #
 # With no arguments it prints the normalized status report, statuses first and gates after it.
 # `--ready` prints only the milestones a lane could start today (gate `NONE`, status `NOT-STARTED` or
 # `PARTIAL`), which is the query the maintainer actually makes. `--unclaimed` prints the follow-on
 # work a finished milestone named that nobody has taken, `--proposed` the unnumbered proposals oldest
 # first, and `--outstanding` what a PARTIAL milestone still says is left (milestone 252, and the
-# question calef had to ask by hand about milestone 16). `--check` validates and exits non-zero on a
-# problem, which is what a gate wants. See design/roadmap/README.md for both vocabularies.
+# question calef had to ask by hand about milestone 16). `--index` prints the generated table and
+# `--write` rewrites it into design/roadmap/README.md between its markers. `--check` validates and
+# exits non-zero on a problem, which is what a gate wants; a stale committed table is reported
+# rather than failed, for the reason the index section below spells out.
+# See design/roadmap/README.md for both vocabularies.
 #
 # (The sentence above replaced a dangling one that named a `--unswept` mode this script has never
 # had: milestone 247's exemption list was removed an hour after it was written and took the mode
@@ -151,14 +169,64 @@ built_dates = {}
 # (milestone, file, branch) for every IN-PROGRESS block, checked against merge history below.
 in_progress_branches = []
 
-# ---- the index ---------------------------------------------------------------
-rows = {}
+# ---- the index, which is now GENERATED (milestone 294) ------------------------
+# **The index table used to be the tree's worst merge hotspot, and it was structural rather than
+# bad luck.** `script/lint` 4b makes every lane touch its own milestone's block; every milestone
+# also needed a row in ONE sorted table; so every milestone in flight collided with every other
+# milestone in flight, always, in that one file. Eight conflicts in a single session on
+# 2026-09-14 (pull requests #836, #843, #847, #849, #850, #851, #854 and #855), every one of them
+# in this table and none anywhere else, and every resolution mechanical: take both sides' rows and
+# sort by number.
+#
+# So the row is derived from the block instead. `--write` regenerates the table between the markers
+# in design/roadmap/README.md; `--index` prints it. The five columns come from four places in the
+# milestone's own file:
+#
+#   #        the filename's number
+#   Status   the `**Status: <TOKEN>` line, which this script already read
+#   Title    the H1, which this script already read
+#   Why      the `## Index row` section's summary paragraph
+#   Built    that section's `**Built:** <ISO date>` line
+#
+# **The summary and the date had to MOVE, and moving them was the milestone.** Neither was
+# derivable from what the blocks already said. The summary is a hand-written precis (median 369
+# characters), and measured against the block's own opening paragraph it scored a median
+# similarity of 0.07: the opening paragraph is written to open a document, not to summarise one,
+# and deriving the column from it would have silently rewritten what the index said about 288
+# milestones. The date was worse: 129 of 288 blocks did not state it in any parseable position,
+# and the ones that did used at least eight spellings (`**Status: BUILT.**` with the date in a
+# later sentence, `**Status: BUILT, 2026-08-26.**`, `**Status: BUILT (2026-08-01).**`,
+# `**Status: BUILT** on 2026-08-18 (PR #320)`, and so on). So both were moved verbatim into a
+# `## Index row` section, one per block, and the proof that nothing was lost is the reconstruction:
+# regenerating the table from the migrated blocks reproduced 271 of 288 rows byte for byte, and
+# every one of the other 17 was pre-existing drift in the hand-maintained table (12 whitespace, 5
+# titles the row had abbreviated away from its own block's H1).
+#
+# **What this check no longer does, and why that is the point.** The milestone-69 defect (a row
+# saying NOT-STARTED while its block said BUILT) was a defect because BOTH records were
+# hand-maintained and both looked authoritative, so a reader could not tell which was lying. Once
+# the row is derived there is nothing to decide: a table that disagrees with a block is stale, and
+# the fix is one command rather than a judgement. So a disagreement is REPORTED here, with the
+# command, and does not fail.
+#
+# **It must not fail, and that is a design choice with a cost.** Failing would force every lane
+# whose status moves to regenerate, which means editing this table, which is the hotspot coming
+# straight back. A lane therefore never touches design/roadmap/README.md, and the regeneration is
+# the integrator's at merge, in the same breath as the other things that are global to the tree
+# and minted there. The cost is that `main`'s committed table can lag the blocks between a merge
+# and a regeneration. That is bounded and visible (the count is printed on every run), and it is a
+# much smaller defect than the one it replaces, because a stale derived artifact raises no question
+# about which record is right.
+committed = {}
+generated = {}
 try:
     index = open(index_path).read()
 except FileNotFoundError:
     print(f"roadmap: {index_path} not found", file=sys.stderr)
     sys.exit(1)
 
+# Kept as a check on the COMMITTED table only: a row is well formed, links to a block that exists,
+# and is not a duplicate. Everything the row SAYS is now checked at the block instead.
 ROW = re.compile(r"^\| (\d+) \| ([A-Z-]+) \| \[((?:\\\||[^\]])+)\]\(([^)]+)\) \|")
 for i, line in enumerate(index.split("\n"), start=1):
     if not re.match(r"^\| \d+ \| ", line):
@@ -166,60 +234,65 @@ for i, line in enumerate(index.split("\n"), start=1):
     m = ROW.match(line)
     if not m:
         problems.append(f"index line {i} looks like a milestone row but does not parse "
-                        f"(number | STATUS | [title](file) | why): {line[:60]}...")
+                        f"(number | STATUS | [title](file) | why). The table is generated: run "
+                        f"`script/roadmap --write` rather than editing it: {line[:60]}...")
         continue
-    num, status, title, target = int(m.group(1)), m.group(2), m.group(3), m.group(4)
-    if num in rows:
+    num, target = int(m.group(1)), m.group(4)
+    if num in committed:
         problems.append(f"milestone {num} has two index rows (line {i})")
-    if status not in VOCAB:
-        problems.append(f"milestone {num}: status {status!r} is not in the vocabulary (line {i})")
-    # Single-digit milestones zero-pad their filenames (01-first-boot.md) so the directory sorts.
     if not re.fullmatch(rf"0?{num}-[a-z0-9][a-z0-9-]*\.md", target):
         problems.append(f"milestone {num}: row links to {target!r}, not to its own file")
     elif not os.path.exists(os.path.join(d, target)):
-        problems.append(f"milestone {num}: row links to {target!r}, which does not exist")
-    # ---- the Built column ----------------------------------------------------
-    # `ROW` above anchors on the first four fields and stops, which the index's own note explains
-    # as deliberate: a column appended at the end cannot break the parser. The cost was that
-    # nothing ever LOOKED at the appended column, and on 2026-08-17 calef found milestone 43
-    # BUILT with an empty date by eye. The sweep that followed found 23 defective rows: 13 BUILT
-    # with no date, 3 non-BUILT carrying one, 1 row missing the column entirely, and 6 whose date
-    # sat behind a stray empty cell, so GitHub rendered five columns and dropped the date. Every
-    # one of them was invisible here. "Somebody will notice" is rung zero (AGENTS.md), and this is
-    # the same fact one rung up.
-    #
-    # Split on unescaped pipes only: six descriptions contain `\|`, milestone 67's because it is
-    # about the `||` operator, and a naive split miscounts their cells.
-    cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.rstrip())[1:-1]]
-    if len(cells) != 5:
-        problems.append(f"milestone {num}: the row has {len(cells)} columns where the header has "
-                        f"5 (# | Status | Milestone | Why it matters | Built). A stray or missing "
-                        f"pipe puts the date in a column GitHub does not render (line {i})")
-    else:
-        built = cells[4]
-        if status == "BUILT" and not built:
-            problems.append(f"milestone {num}: BUILT with no date in the Built column. It is the "
-                            f"date the milestone turned BUILT, from the milestone's own file where "
-                            f"that file states one (line {i})")
-        elif status in DATED and built and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", built):
-            problems.append(f"milestone {num}: Built column reads {built!r}, which is not an "
-                            f"ISO date. Dates in this tree are UTC (line {i})")
-        elif status not in DATED and built:
-            problems.append(f"milestone {num}: status is {status} and the Built column reads "
-                            f"{built!r}. It is the date a milestone turned BUILT and is empty for "
-                            f"every status but BUILT and REMOVED; a first phase's date belongs in "
-                            f"the block (line {i})")
-        else:
-            built_dates[num] = built
-    rows[num] = (status, title, target)
+        problems.append(f"milestone {num}: row links to {target!r}, which does not exist. A row "
+                        f"whose block is gone is the milestone-34 class: run "
+                        f"`script/roadmap --write`")
+    committed[num] = line.rstrip()
 
-if not rows:
-    problems.append("no milestone rows found in the index: has the table format changed?")
+# There is deliberately no "the table is empty" check any more. It existed to catch a format
+# change that made the parser blind, and the staleness report answers that better: an empty table
+# reports 288 rows missing rather than one vague problem, and a `--write` that refused to run on a
+# blank table could never lay the first one down.
 
-# ---- the files ---------------------------------------------------------------
+# ---- the files, which are now the SOURCE of the index -------------------------
 FNAME = re.compile(r"(\d+)([a-z]?)-[a-z0-9][a-z0-9-]*\.md")
+INDEX_HEADING = "## Index row"
+# `**Built:** <ISO>`, the Built column, kept as a field rather than read out of the status
+# sentence: 129 of 288 blocks stated the date in prose or not at all, in eight spellings.
+BUILT_LINE = re.compile(r"\*\*Built:\*\* (\d{4}-\d{2}-\d{2})")
 ids = {}
+milestones = {}
 gates = {}
+gate_specs = []
+
+
+def section(lines, heading):
+    """The lines under `heading`, up to the next heading of any level or the end of the file."""
+    body, collecting = [], False
+    for l in lines:
+        if l.rstrip() == heading:
+            collecting = True
+            continue
+        if collecting:
+            if l.startswith("#"):
+                break
+            body.append(l)
+    return body
+
+
+def blocks_of(lines):
+    """Non-blank runs, each joined into one line."""
+    out, cur = [], []
+    for l in lines:
+        if l.strip():
+            cur.append(l.strip())
+        elif cur:
+            out.append(" ".join(cur))
+            cur = []
+    if cur:
+        out.append(" ".join(cur))
+    return out
+
+
 for fname in sorted(os.listdir(d)):
     if fname == "README.md" or fname == PROPOSED_DIR:
         continue
@@ -236,13 +309,8 @@ for fname in sorted(os.listdir(d)):
         continue
     ids[mid] = fname
 
-    if num not in rows:
-        problems.append(f"{fname}: no index row for milestone {num}")
-    elif not letter and rows[num][2] != fname:
-        problems.append(f"{fname}: the index row for milestone {num} links to {rows[num][2]}")
-
     lines = open(os.path.join(d, fname)).read().split("\n")
-    h = re.match(rf"# ({num}{letter})\. \S", lines[0] if lines else "")
+    h = re.match(rf"# ({num}{letter})\. (\S.*)$", lines[0] if lines else "")
     if not h:
         problems.append(f"{fname}: line 1 must be '# {mid}. <title>' (found {lines[0][:40]!r})")
     fence = False
@@ -258,67 +326,121 @@ for fname in sorted(os.listdir(d)):
             problems.append(f"{fname}:{n}: a milestone-shaped heading ({l[:40]!r}) inside another "
                             f"milestone's file")
 
-    if not letter and num in rows:
-        first = next((l for l in lines[1:] if l.strip()), "")
-        sm = re.match(r"\*\*Status: ([A-Z-]+)\b", first)
-        if not sm:
-            problems.append(f"{fname}: the first line after the title must be '**Status: <token>'"
-                            f" (found {first[:40]!r})")
-        elif sm.group(1) != rows[num][0]:
-            problems.append(f"milestone {num}: file says {sm.group(1)}, index says {rows[num][0]} "
-                            f"(the defect the 2026-08-03 split exists to catch)")
-        # ---- IN-PROGRESS must name the branch it is held on ----------------
-        # Added 2026-08-17, after a sweep found that ALL SIX IN-PROGRESS rows were false and four
-        # of them had MERGED, one of them thirteen days earlier. This is the token with a
-        # mechanically checkable definition ("active work on a branch right now") and nothing was
-        # checking it, so it was the only token in the vocabulary that rotted: nine NOT-STARTED
-        # blocks audited in the same sweep were all honest.
-        #
-        # Naming the branch is what makes the claim falsifiable at all, which is why it is required
-        # rather than encouraged. Two of the six named no branch, and that alone is the defect: a
-        # status saying somebody is working on this, with nothing a reader can look up, is prose.
-        elif sm.group(1) == "IN-PROGRESS":
-            para = []
-            for l in lines[1:]:
-                if not l.strip():
-                    if para:
-                        break
-                    continue
-                para.append(l)
-            claimed = re.findall(r"`([a-z][a-z0-9]*(?:/[A-Za-z0-9._-]+)+)`", " ".join(para))
-            if not claimed:
-                problems.append(f"milestone {num}: IN-PROGRESS names no branch. The token means "
-                                f"'active work on a branch right now', so it must name the branch "
-                                f"in backticks; a claim with nothing to look up cannot be checked "
-                                f"and was false all six times it was made")
+    if letter:
+        # A lettered addendum (20a) takes no index row, so it has no status and no `## Index row`.
+        continue
+
+    first = next((l for l in lines[1:] if l.strip()), "")
+    sm = re.match(r"\*\*Status: ([A-Z-]+)\b", first)
+    if not sm:
+        problems.append(f"{fname}: the first line after the title must be '**Status: <token>'"
+                        f" (found {first[:40]!r})")
+        continue
+    status = sm.group(1)
+    if status not in VOCAB:
+        problems.append(f"{fname}: status {status!r} is not in the vocabulary "
+                        f"({', '.join(VOCAB)})")
+        continue
+
+    # ---- the `## Index row` section, which IS the index row (milestone 294) --------
+    # It carries the two fields nothing else in the block states: the Built date, and the
+    # one-paragraph summary the table's "Why it matters" column shows. Both were moved here
+    # verbatim from the table on 2026-09-14; see this script's header for the reconstruction that
+    # proves nothing was lost.
+    #
+    # **One paragraph, on purpose.** A table cell is one paragraph, so the section is one, and a
+    # section that could hold three would make the generator choose. The optional `**Built:**`
+    # line comes first because a reader scanning for a date should not have to read a paragraph.
+    built, summary = "", ""
+    if lines.count(INDEX_HEADING) > 1:
+        problems.append(f"{fname}: {lines.count(INDEX_HEADING)} '{INDEX_HEADING}' sections; one "
+                        f"milestone is one row, and a second copy is the one that stops being "
+                        f"updated")
+    elif INDEX_HEADING not in lines:
+        problems.append(
+            f"{fname}: no '{INDEX_HEADING}' section. The index in design/roadmap/README.md is "
+            f"GENERATED from it (milestone 294), so a block without one has no row: give it "
+            f"'{INDEX_HEADING}', a '**Built:** <YYYY-MM-DD>' line if the status is BUILT, and one "
+            f"paragraph saying why this milestone matters. Do not add the row to the table by "
+            f"hand; run `script/roadmap --write`")
+    else:
+        paras = blocks_of(section(lines, INDEX_HEADING))
+        if paras and paras[0].startswith("**Built:"):
+            bm = BUILT_LINE.fullmatch(paras[0])
+            if not bm:
+                problems.append(f"{fname}: '{INDEX_HEADING}' opens {paras[0][:48]!r}, which is not "
+                                f"'**Built:** <YYYY-MM-DD>'. Dates in this tree are UTC")
             else:
-                for b in claimed:
-                    in_progress_branches.append((num, fname, b))
+                built = bm.group(1)
+            paras = paras[1:]
+        if not paras:
+            problems.append(f"{fname}: '{INDEX_HEADING}' carries no summary. It is the table's "
+                            f"'Why it matters' cell, and an empty one is a row that says nothing")
+        elif len(paras) > 1:
+            problems.append(f"{fname}: '{INDEX_HEADING}' has {len(paras)} paragraphs after the "
+                            f"Built line. A table cell is one paragraph, so this section is one; "
+                            f"the rest of the argument belongs in the block above it")
+        else:
+            summary = paras[0]
+        # The Built column's own rule, moved here from the row it now generates. BUILT must carry
+        # a date; REMOVED may (54 was BUILT on one, 55 never was, and inventing one would be a lie
+        # in the field whose whole job is not lying); every other status must not.
+        if status == "BUILT" and not built:
+            problems.append(f"{fname}: BUILT with no '**Built:** <YYYY-MM-DD>' line under "
+                            f"'{INDEX_HEADING}'. It is the date the milestone turned BUILT, and "
+                            f"the index's Built column is generated from it")
+        elif status not in DATED and built:
+            problems.append(f"{fname}: status is {status} and '{INDEX_HEADING}' carries "
+                            f"'**Built:** {built}'. It is the date a milestone turned BUILT and "
+                            f"belongs to BUILT and REMOVED alone; a first phase's date belongs in "
+                            f"the block's prose")
+    title = h.group(2).strip() if h else ""
+    milestones[num] = {"file": fname, "status": status, "title": title,
+                       "built": built, "summary": summary}
+    built_dates[num] = built
+
+    # ---- IN-PROGRESS must name the branch it is held on ----------------------
+    # Added 2026-08-17, after a sweep found that ALL SIX IN-PROGRESS rows were false and four
+    # of them had MERGED, one of them thirteen days earlier. This is the token with a
+    # mechanically checkable definition ("active work on a branch right now") and nothing was
+    # checking it, so it was the only token in the vocabulary that rotted: nine NOT-STARTED
+    # blocks audited in the same sweep were all honest.
+    #
+    # Naming the branch is what makes the claim falsifiable at all, which is why it is required
+    # rather than encouraged. Two of the six named no branch, and that alone is the defect: a
+    # status saying somebody is working on this, with nothing a reader can look up, is prose.
+    if status == "IN-PROGRESS":
+        para = []
+        for l in lines[1:]:
+            if not l.strip():
+                if para:
+                    break
+                continue
+            para.append(l)
+        claimed = re.findall(r"`([a-z][a-z0-9]*(?:/[A-Za-z0-9._-]+)+)`", " ".join(para))
+        if not claimed:
+            problems.append(f"milestone {num}: IN-PROGRESS names no branch. The token means "
+                            f"'active work on a branch right now', so it must name the branch "
+                            f"in backticks; a claim with nothing to look up cannot be checked "
+                            f"and was false all six times it was made")
+        else:
+            for b in claimed:
+                in_progress_branches.append((num, fname, b))
 
     # ---- the gate line -------------------------------------------------------
     # It sits in the paragraph directly under the status, so a reader meets "where do we stand" and
     # "what stops a start" together, and a new milestone cannot be filed without answering both.
     stray = [n for n, l in enumerate(lines, start=1) if l.startswith("**Gate:")]
-    if letter or num not in rows:
-        continue
-    if rows[num][0] in DATED:
+    if status in DATED:
         for n in stray:
-            problems.append(f"{fname}:{n}: a {rows[num][0]} milestone carries a gate, which can "
+            problems.append(f"{fname}:{n}: a {status} milestone carries a gate, which can "
                             f"only be stale: nothing gates work that is finished, and nothing "
                             f"gates work that has been deleted")
         continue
 
     # Paragraph 1 is the title, paragraph 2 the status, paragraph 3 the gate.
-    paras, cur = [], []
-    for l in lines:
-        if l.strip():
-            cur.append(l)
-        elif cur:
-            paras.append(cur)
-            cur = []
-    if cur:
-        paras.append(cur)
-    gate_para = " ".join(paras[2]) if len(paras) > 2 else ""
+    paras = blocks_of(lines)
+    gate_para = paras[2] if len(paras) > 2 else ""
     gm = re.match(r"\*\*Gate: ([A-Z0-9, ]+)\.\*\* (\S)", gate_para)
     if not gm:
         problems.append(f"{fname}: the paragraph under the status must be "
@@ -344,21 +466,44 @@ for fname in sorted(os.listdir(d)):
             problems.append(f"milestone {num}: gate NONE says nothing stands in the way, so it "
                             f"cannot sit beside {', '.join(t for t in spec if t != 'NONE')}")
         if kind == "MILESTONE":
-            mn = re.fullmatch(r"MILESTONE (\d+)", token)
-            if not mn:
-                problems.append(f"milestone {num}: gate {token!r} must name a number "
-                                f"(MILESTONE 64), because a gate nobody can look up is prose")
-            elif int(mn.group(1)) not in rows:
-                problems.append(f"milestone {num}: gate {token!r} names no milestone in the index")
-            elif int(mn.group(1)) == num:
-                problems.append(f"milestone {num}: gate {token!r} names itself")
-            elif rows[int(mn.group(1))][0] == "BUILT":
-                problems.append(f"milestone {num}: gate {token!r} is stale, because milestone "
-                                f"{mn.group(1)} is BUILT and no longer gates anything")
+            gate_specs.append((num, token))
     gates[num] = seen
 
-# A row whose file is missing is already reported by the row's link check above.
+# A `MILESTONE <n>` gate resolves against the BLOCKS rather than the table, which is what lets a
+# lane gate on a milestone whose own block it can see and whose row is minted at merge.
+for num, token in gate_specs:
+    mn = re.fullmatch(r"MILESTONE (\d+)", token)
+    if not mn:
+        problems.append(f"milestone {num}: gate {token!r} must name a number "
+                        f"(MILESTONE 64), because a gate nobody can look up is prose")
+    elif int(mn.group(1)) not in milestones:
+        problems.append(f"milestone {num}: gate {token!r} names no milestone in design/roadmap/")
+    elif int(mn.group(1)) == num:
+        problems.append(f"milestone {num}: gate {token!r} names itself")
+    elif milestones[int(mn.group(1))]["status"] == "BUILT":
+        problems.append(f"milestone {num}: gate {token!r} is stale, because milestone "
+                        f"{mn.group(1)} is BUILT and no longer gates anything")
 
+# ---- the generated table ------------------------------------------------------
+# Five columns, and the one escape: a literal `|` inside a cell would end it, so it is written
+# `\|` here and stored unescaped in the block, where it is ordinary prose. Two summaries and one
+# title need this, milestone 67's because it is ABOUT the `||` operator.
+INDEX_HEADER = ["| #  | Status | Milestone | Why it matters (§14) | Built |",
+                "|----|--------|-----------|----------------------|------------|"]
+
+
+def cell(text):
+    return text.replace("|", r"\|")
+
+
+for num in sorted(milestones):
+    ms = milestones[num]
+    tail = f" {ms['built']} |" if ms["built"] else " |"
+    generated[num] = (f"| {num} | {ms['status']} | [{cell(ms['title'])}]({ms['file']}) "
+                      f"| {cell(ms['summary'])} |" + tail)
+
+stale = sorted(set(committed) ^ set(generated)
+               | {n for n in set(committed) & set(generated) if committed[n] != generated[n]})
 # ---- unnumbered proposals (milestone 247, calef 2026-09-03) -------------------
 # **Anybody may add to the roadmap; prioritising it is a different act.** That is calef's
 # distinction and it dissolves a rule this tree had been treating as one thing. Lanes could not
@@ -540,7 +685,7 @@ for mid, fname in sorted(ids.items()):
     if not mid.isdigit():
         continue
     num = int(mid)
-    if num not in rows:
+    if num not in milestones:
         continue
     text = open(os.path.join(d, fname)).read()
     lines = text.split("\n")
@@ -549,14 +694,14 @@ for mid, fname in sorted(ids.items()):
         problems.append(f"{fname}: {len(heads)} '## Follow-on' sections; one milestone answers the "
                         f"question once, and a second copy is the one that stops being updated")
     if not heads:
-        if rows[num][0] in ANSWERS:
+        if milestones[num]["status"] in ANSWERS:
             why = ("A finished block is the last place anyone looks, so it says what happened to "
                    "the work it named"
-                   if rows[num][0] in DATED else
+                   if milestones[num]["status"] in DATED else
                    "A PARTIAL block claims work is remaining, and nothing re-reads the claim, so "
                    "it enumerates what is left and says of each that it is still true")
             problems.append(
-                f"{fname}: milestone {num} is {rows[num][0]} and carries no '## Follow-on' "
+                f"{fname}: milestone {num} is {milestones[num]['status']} and carries no '## Follow-on' "
                 f"section. {why}: bullets opening '**None.**', "
                 f"'**Milestone N.**', '**Recorded.**' (naming the file the limitation lives "
                 f"beside, in backticks), '**Refused.**' with a reason, '**Done.**' with what "
@@ -567,7 +712,7 @@ for mid, fname in sorted(ids.items()):
                 f"notes/follow-on-work.md")
         continue
     swept += 1
-    if rows[num][0] == "PARTIAL":
+    if milestones[num]["status"] == "PARTIAL":
         partial_swept += 1
     body, collecting = [], False
     for n, l in enumerate(lines, start=1):
@@ -611,15 +756,16 @@ for mid, fname in sorted(ids.items()):
             # Either something is left, or the status is wrong and the row wants BUILT with a date.
             # This is the milestone-69 class of defect (the row and the block disagreeing) one
             # level in, where the block disagrees with itself.
-            if rows[num][0] == "PARTIAL":
+            if milestones[num]["status"] == "PARTIAL":
                 problems.append(f"{fname}:{n}: milestone {num} is PARTIAL and answers '**None.**', "
                                 f"which is a contradiction: PARTIAL means work remains. Either "
                                 f"name what is left, or the status is stale and the row wants "
                                 f"BUILT with a date")
         elif kind == "Milestone":
             target = int(dm.group(2))
-            if target not in rows:
-                problems.append(f"{fname}:{n}: names milestone {target}, which has no index row")
+            if target not in milestones:
+                problems.append(f"{fname}:{n}: names milestone {target}, which has no block "
+                                f"under design/roadmap/")
             elif target == num:
                 problems.append(f"{fname}:{n}: names itself as its own follow-on")
         elif kind == "Recorded":
@@ -663,9 +809,9 @@ for mid, fname in sorted(ids.items()):
             # (`Milestone N.`), and letting the word through there would give all three a softer
             # synonym to hide in. On a PARTIAL block it is the honest answer and the other three
             # are the lies.
-            if rows[num][0] != "PARTIAL":
+            if milestones[num]["status"] != "PARTIAL":
                 problems.append(f"{fname}:{n}: '**Outstanding.**' is for a PARTIAL block, whose "
-                                f"own scope is what is left. Milestone {num} is {rows[num][0]}: "
+                                f"own scope is what is left. Milestone {num} is {milestones[num]['status']}: "
                                 f"work still open there is '**Recorded.**', '**Proposed.**' or "
                                 f"'**Milestone N.**'")
             elif len(rest) < 40:
@@ -755,11 +901,76 @@ for line in grep.stdout.splitlines():
         n = int(m.group(1))
         # No floor: milestones 1 to 11 were backfilled from the first commits on 2026-08-03,
         # so every citation back to the first instruction resolves or fails the gate.
-        if n not in rows:
-            problems.append(f"{loc}: cites milestone {n}, which has no index row")
+        if n not in milestones:
+            problems.append(f"{loc}: cites milestone {n}, which has no block under "
+                            f"design/roadmap/")
+
+# ---- the index, rendered ------------------------------------------------------
+# The table lives between these markers in design/roadmap/README.md. HTML comments, so a reader on
+# GitHub sees the table and not the plumbing, and so the prose around it (the status vocabulary,
+# the gate vocabulary, the ordering essay) stays hand-written where it belongs: those paragraphs
+# are an argument, and nothing derives an argument from a directory listing.
+BEGIN = "<!-- BEGIN GENERATED INDEX: script/roadmap --write -->"
+END = "<!-- END GENERATED INDEX -->"
+
+
+def rendered():
+    return "\n".join(INDEX_HEADER + [generated[n] for n in sorted(generated)])
+
+
+def rewrite_index():
+    text = open(index_path).read()
+    a, b = text.find(BEGIN), text.find(END)
+    if a < 0 or b < 0:
+        print(f"roadmap: {index_path} has no generated-index markers ({BEGIN})", file=sys.stderr)
+        sys.exit(1)
+    out = text[:a] + BEGIN + "\n\n" + rendered() + "\n\n" + text[b:]
+    if out == text:
+        return False
+    open(index_path, "w").write(out)
+    return True
+
+
+if mode == "--index":
+    print(rendered())
+    sys.exit(0)
+
+if mode == "--write":
+    if problems:
+        for p in sorted(set(problems)):
+            print(f"roadmap: {p}", file=sys.stderr)
+        print("roadmap: refusing to write an index generated from blocks that do not validate",
+              file=sys.stderr)
+        sys.exit(1)
+    changed = rewrite_index()
+    print(f"roadmap: {'rewrote' if changed else 'index already current:'} "
+          f"{len(generated)} rows in design/roadmap/README.md")
+    sys.exit(0)
 
 # ---- report ------------------------------------------------------------------
-ready = sorted(n for n, g in gates.items() if g == ["NONE"] and rows[n][0] in STARTABLE)
+ready = sorted(n for n, g in gates.items() if g == ["NONE"] and milestones[n]["status"] in STARTABLE)
+
+
+def stale_line():
+    """One line, printed by every mode that reports, because the committed table is a rendering
+    and the only thing that keeps it honest is somebody noticing it has fallen behind."""
+    if not stale:
+        return None
+    missing = sorted(set(generated) - set(committed))
+    gone = sorted(set(committed) - set(generated))
+    what = []
+    if missing:
+        what.append(f"{len(missing)} not in it yet ({', '.join(str(n) for n in missing[:8])})")
+    if gone:
+        what.append(f"{len(gone)} row{'s' if len(gone) != 1 else ''} with no block "
+                    f"({', '.join(str(n) for n in gone[:8])})")
+    changed = len(stale) - len(missing) - len(gone)
+    if changed:
+        what.append(f"{changed} row{'s' if changed != 1 else ''} behind "
+                    f"{'their' if changed != 1 else 'its'} block")
+    return (f"roadmap: the committed index is STALE in {len(stale)} of {len(generated)} rows: "
+            f"{'; '.join(what)}. Run `script/roadmap --write` (the integrator does this at merge)")
+
 
 if mode == "--check":
     for p in sorted(set(problems)):
@@ -767,8 +978,11 @@ if mode == "--check":
     if problems:
         sys.exit(1)
     lettered = sorted(i for i in ids if not i.isdigit())
-    print(f"roadmap: {len(rows)} milestones, {len(ids)} files, status vocabulary clean, "
-          f"index and files agree, every tree-wide citation resolves")
+    print(f"roadmap: {len(milestones)} milestones, {len(ids)} files, status vocabulary clean, "
+          f"every '## Index row' parses, every tree-wide citation resolves")
+    # Deliberately not a failure: see the header. A lane never edits the generated table, so a
+    # missing or behind row is the integrator's regeneration and not the lane's defect.
+    print(stale_line() or f"roadmap: the committed index matches all {len(generated)} blocks")
     print(f"roadmap: {len(gates)} of them classified by gate, {len(ready)} ready to start "
           f"(script/roadmap --ready)")
     print(f"roadmap: {swept} blocks answer '## Follow-on', {partial_swept} of them PARTIAL")
@@ -815,18 +1029,18 @@ if mode == "--ready":
     # The maintainer's question, answered from the files rather than from a conversation: nothing
     # gates these and nobody is on them.
     for n in ready:
-        print(f"  {n:>3}  {rows[n][0]:<11}  {rows[n][1][:66]}")
+        print(f"  {n:>3}  {milestones[n]['status']:<11}  {milestones[n]['title'][:66]}")
     print(f"\n{len(ready)} ready of {len(gates)} not built")
     sys.exit(0)
 
 if mode:
-    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, --proposed, or --check)",
-          file=sys.stderr)
+    print(f"roadmap: unknown argument {mode!r} (no argument, --ready, --unclaimed, "
+          f"--outstanding, --proposed, --index, --write, or --check)", file=sys.stderr)
     sys.exit(2)
 
 by_status = {}
-for n, (status, title, _) in rows.items():
-    by_status.setdefault(status, []).append((n, title))
+for n, ms in milestones.items():
+    by_status.setdefault(ms["status"], []).append((n, ms["title"]))
 
 for status in VOCAB:
     items = sorted(by_status.get(status, []))
@@ -854,7 +1068,9 @@ for token in sorted(by_gate, key=gate_order):
     label = "NONE (ready to start)" if token == "NONE" else token
     print(f"  {label:<22} {', '.join(str(n) for n in sorted(by_gate[token]))}")
 
-print(f"\ntotal: {len(rows)} milestones, {len(ready)} ready to start")
+print(f"\ntotal: {len(milestones)} milestones, {len(ready)} ready to start")
+if stale_line():
+    print(stale_line())
 for p in sorted(set(problems)):
     print(f"PROBLEM: {p}")
 PY

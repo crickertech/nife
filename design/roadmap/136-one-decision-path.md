@@ -184,3 +184,19 @@ kernel and the crate are byte-identical apart from the doc comment carrying the 
   lifted so loom could search it, and nothing checks that its callers still call the lifted code.
   Repeat this block's three-piece gate four more times, or build one mechanism pinning a
   loom-searched surface and its callers; the block declines to pick.
+
+## Index row
+
+**Built:** 2026-08-18
+
+Milestone 135's value is that the thing loom searches is the thing the kernel runs, and nothing
+checked it: a later lane could hand the decision back to `untyped.rs` and every gate would stay
+green. 135 proposed milestone 113's Kani shim shape; **it does not transfer, because 135 already
+did it** in one flag (`RUSTFLAGS="--cfg loom -D warnings"`), loom being an ordinary dependency
+where `kani` is not. The real property needed a different gate: pin the claim protocol's public
+surface with receivers (`claim_for_destroy` taking `&mut self` IS the mechanism), require every
+region free site to have taken its warrant, and two `compile_fail` doctests with error codes so
+the claim cannot be forged or duplicated. **The first draft was green against a rebuilt double
+free** that needed no edit to `crates/regions` at all, because `has_children` and `bounds` are
+public and enough; that miss is why the unit is the warrant rather than the set. Verified against
+seven regressions, all seven caught

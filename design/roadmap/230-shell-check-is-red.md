@@ -278,3 +278,10 @@ accounting move together and want a lane of their own.
   the same UART from two address spaces with nothing arbitrating, so the streams interleave at byte
   granularity. It corrupts every bench session on argon, radon and xenon, and 243's BUGS points at a
   home that does not exist.
+
+## Index row
+
+**Built:** 2026-09-02
+
+init ran out of capability slots building the login stack; the table goes 17 -> 24 and the check
+now runs in `script/gates` and CI

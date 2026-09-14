@@ -116,3 +116,15 @@ whole family. Every harness was read.
   duplication is correct and must not be swept up: `intrusive_fifo` keeps a model queue on purpose
   and compares the real one against it. The difference is whether the crate's own function is on the
   other side of the comparison, and that one sentence is the whole discriminator.
+
+## Index row
+
+**Built:** 2026-09-02
+
+Found beside milestone 211's sweep, which was looking for a different defect. `nifefs::the_validation_implies_reads_slice_is_in_bounds` calls neither `parse` nor `read`: it
+recomputes both functions' arithmetic inline and proves a property of the copy, so a rewrite of `read` leaves it green. Its own comments say "exactly parse's acceptance condition", which is a
+claim in prose standing where evidence should be, and DECISIONS §134 exists to stop that. The
+repair is a restructuring rather than a harness edit, along the lines of `elf::check_segment_bounds`, and whether it earns its keep was the first thing decided: it does,
+because the duplication was in the implementation before it was in the harness. Swept 2026-09-02:
+148 harnesses read, one measured blind, two more recorded as having the shape and not being
+findings.

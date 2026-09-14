@@ -160,3 +160,15 @@ now records that it asserted the opposite for a month.
 - **Recorded.** `notes/scripts.md` claimed `script/lint`'s row was the longest markdown line in the
   repository; the counted-claim marker vouches for the number and nothing vouched for which line
   carried it, and it had moved to `design/roadmap/README.md`. Corrected in place.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Minted 2026-09-13 by calef. The gating set was written down twice, in `script/gates` and in `.github/workflows/ci.yml`, with nothing comparing them; `ci.yml` carried three prose comments
+explaining why a check was not in the other list. Six places described the local set and four were
+wrong, each having been correct when written. `script/gates` is retired rather than kept as a
+wrapper (calef: a wrapper to avoid making the changes is an argument from implementation cost, and
+it leaves two names for one thing). `script/ci-build` now carries one table of name, tier and
+command, cheapest first: no arguments runs the `local` tier, names run exactly those, and every CI
+job names one out of it. Tier names and the no-argument default are provisional pending calef.

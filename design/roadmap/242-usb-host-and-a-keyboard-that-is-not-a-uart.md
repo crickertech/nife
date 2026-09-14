@@ -59,3 +59,8 @@ keyboard.
   should not: the deliverable is a keystroke, not a USB stack.
 - **Nothing here helps a headless machine**, which is the other half of the same question and is
   milestone 243 (a machine with no serial port has no way to say anything).
+
+## Index row
+
+`xhci` appears in one roadmap block as a word; milestone 192's option B is a large unbuilt
+subsystem nothing owns

@@ -138,3 +138,21 @@ something this project did not start.
   larger failure, eleven QEMU processes over one day with the oldest holding eight hours of CPU
   time. It gives the habits that catch them, which are to ask who holds the file, kill the tree at
   its root, and walk the parent chain up before killing anything.
+
+## Index row
+
+**Built:** 2026-09-03
+
+Both shapes. The killer had one reason to fire, the bound, which bounds a run allowed to finish
+and does nothing about a run whose wrapper is killed: the emulator was then inherited by pid 1,
+held a disk image's write lock, and billed a **later** run with QEMU's `Failed to get "write"
+lock`, which names a file and no process. It now also **polls its parent** once a second (covering
+a SIGKILLed wrapper and a dead session, neither of which runs a trap) and **traps TERM and HUP**,
+so the one process knowing the child's pid does not take it along. SIGINT is deliberately absent:
+a shell puts an async subshell's SIGINT to ignore before it can be trapped, so listing it would
+read as coverage and be a lie. The leak was **reproduced before and after** and `scripts/qemu-bounded-selftest.sh` is that reproduction as an artifact: three of seven cases fail
+on the old script, none on the new. The early-reader property and milestone 38's fast-child
+property were both verified against a real QEMU, and `perl`'s alarm is still swallowed, so the
+premise holds. What macOS cannot prevent (SIGKILL to the killer; no PDEATHSIG) gets the other half
+instead: a failing run runs `lsof` over its own image paths and names the holder's pid, ppid and
+start time, and says to walk the parent chain up first.

@@ -108,3 +108,10 @@ priced, for whoever next finds a real (not synthetic) workload where `DESTROY` o
 ## BUGS
 
 Not started; nothing built yet to carry its own `BUGS` section.
+
+## Index row
+
+Measured, not guessed: CRITICAL 1's reclamation sweep (DECISIONS §102/§132) added +29,302 ticks to `spawn_el0`, roughly halved by `CapabilityTable::delete_matching` to a ~4.4% remainder now
+accepted as baseline. Capabilities travel over IPC delegation, not only parent-child, so the scan
+cannot be narrowed to a subtree without an index; not urgent today since the remainder is inside
+normal tolerance and no real workload calls `DESTROY` in `spawn_el0`'s tight loop.

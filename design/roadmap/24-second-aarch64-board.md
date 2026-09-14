@@ -74,3 +74,7 @@ board boundary this milestone exists to prove means the VZ directory must not le
 1, applied at board rather than ISA granularity). Interrupt controller and memory layout under VZ
 are facts to read from what VZ actually presents (it declares a GICv3 and its layout in the DTB
 it hands over), not assumed from QEMU's `virt`.
+
+## Index row
+
+proves the `arch/` **board** boundary on a second machine of the same ISA; optional

@@ -105,3 +105,9 @@ inside rustdoc is a different mechanism and a follow-on decision). Sequencing: t
 nearly every documentation file, so it lands as mechanical passes (glossary first, then linking
 in reviewable batches) and should start only when no lane holds unmerged notes/ edits, for the
 same conflict reason the roadmap split cited. Milestone 40 inherits these notes the way it inherits every other one.
+
+## Index row
+
+a note per acronym, flat in notes/, the way an encyclopedia gets an article (calef, 2026-09-05).
+IPC appears 601 times and DMA 385 with no expansion a reader can reach; six of the top eighteen
+already own a note, which is the convention this extends rather than invents

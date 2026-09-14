@@ -39,3 +39,11 @@ not per-PR. `-Zmiri-strict-provenance` is a later ratchet to consider once the d
 - **Refused.** Running Miri per pull request. It is an interpreter roughly two orders of magnitude
   slower than native, so the cadence is a weekly scheduled workflow plus on demand; paying that on
   every change would buy a check that already runs against the same tests once a week.
+
+## Index row
+
+**Built:** 2026-08-03
+
+The method is pure logic in host-testable crates, and Miri checks exactly those tests for the
+undefined behaviour Kani is not asked about and fuzzing cannot see. The pinned nightly already
+ships it. Weekly, not per-PR, because the cost is runtime

@@ -378,3 +378,10 @@ contraction or borrowed abbreviation from this list anywhere in the tree anymore
   naming rationale names `Tcb`/`Aspace`/`Untyped` as the abbreviations a review sank, and renaming
   them would make the sentence describe the winning name as the one that lost.
   `design/decisions/114-aspace-enumerate.md` was left as the point-in-time record it is.
+
+## Index row
+
+**Built:** 2026-08-25
+
+All seven names built across five lanes and green on all three ISAs, each measured far larger than
+§113's own estimate once its ABI module and lowercase identifier family were counted: `Endpoint`/`EpId`/`EpFail` -> `Rendezvous`/`RendezvousId`/`RendezvousFailure`, `Tcb`/`Tid`/`TcbPtr`/`TidSet` -> `ThreadControlBlock`/`ThreadId`/`ThreadControlBlockPointer`/`ThreadIdSet`, `Aspace`/`FreeVas` -> `AddressSpace`/`FreeAddressSpace`, `Frame` -> `PageFrame`, `Untyped` -> `MemoryRegion`.

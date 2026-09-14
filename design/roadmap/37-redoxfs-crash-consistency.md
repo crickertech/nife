@@ -36,3 +36,9 @@ process** mounts what it left behind through the same block server and reads the
   durability of the last acknowledged write is the device's word rather than ours. Every block
   pointer carries a checksum, so the failure is an error and never a wrong answer, which is what the
   74 refusals and the zero silently-wrong count measure.
+
+## Index row
+
+**Built:** 2026-07-30
+
+decides whether §34's "primary filesystem" label is earned

@@ -206,3 +206,14 @@ Everything above is reasoning. This is what settles it. Steps 1 and 2 need no bo
 - **A boot script is a second thing that can be stale on a card.** It changes far less often than
   the kernel and the archive, and `--card` rewrites all three every time, but a card written by
   hand can now be wrong in one more way.
+
+## Index row
+
+the board cannot boot unattended and fatal risk 5 wants sustained runs. **A route was taken
+2026-09-02 and radon was unreachable to try it on**, so the token still says what the outcome is
+rather than what was built: the card now carries a U-Boot script issuing the same sequence the
+successful bench capture proves, and no `extlinux.conf`, which U-Boot hangs on. The captured
+failure refuted the premise this row used to state: U-Boot handed `bootm` no device tree at all,
+so nothing of ours ran and the DTB address was never reached, which retires the gigapage route and
+makes the SPI-flash one unnecessary. The block carries the ordered bench procedure and what each
+failure would mean

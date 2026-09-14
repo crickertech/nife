@@ -134,3 +134,12 @@ coverage behind it, not an untested change riding along.
 - **Recorded.** `components/src/identity_provisioner.rs` carries a provisional name block: the program's
   name has not been put to calef, and what was refused and why is written where the next proposer
   would read it.
+
+## Index row
+
+**Built:** 2026-08-23
+
+Surfaced by DECISIONS §117 (a principal's subtree is named by its identity string, created at
+provisioning time), which means a tool has to exist to do that creating. Nothing outside test
+harness code calls the credential service's `PROVISION` endpoint today. `useradd`'s shape without
+a uid.

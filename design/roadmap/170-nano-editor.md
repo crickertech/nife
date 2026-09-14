@@ -43,3 +43,9 @@ next, rather than partially touching both.
 Whether the optional spell-check/`execute command` subprocess feature ships at all in a first cut, or
 is recorded as a `BUGS`-section limitation the way milestone 164 recorded `fs_server`'s x86_64 gap.
 Left for whoever picks this up, once milestone 169's primitive exists to build against.
+
+## Index row
+
+Sequenced as milestone 169's follow-on rather than run in parallel: nano needs the identical
+raw-input primitive at roughly 25x the code size, plus an optional, skippable subprocess
+dependency (spell-check, `execute command`) `kilo` never has to answer.

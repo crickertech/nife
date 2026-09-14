@@ -161,3 +161,16 @@ that does the wrong thing on an architecture is not something to schedule.
 Phase 1 is an hour. Phase 2 is a day, most of it in converting the four `case` blocks and checking
 that each caller still behaves. Phase 3 is unbounded on its own terms and bounded by this
 milestone's scope note: the widenings are small, and what they find is somebody else's lane.
+
+## Index row
+
+`script/stack-frame-check` gated two of three architectures ten days after the third became a test
+target, with nothing in its BUGS section saying so; the sweep in notes/architecture-list-sweep.md
+found eleven silent gaps in nine files, beside nine recorded gaps that are working as designed.
+Everything in the tree that stayed complete at three is a Rust `match` the compiler pushed on or a
+file whose absence a build notices; everything stale is a string in a shell script, a YAML step,
+or a TOML array. Phased so each widening is its own commit and its own green run, since newly
+gating an architecture surfaces real offenders (`--arch x86_64` already found a 12,504-byte
+frame). Recommends deriving the one list `rust-toolchain.toml` already carries, refuses a file-set
+gate whose exception table would be a third its own size, and scopes out both the offenders that
+widening finds and notes/arch-audit.md's 6,797 unaudited lines.

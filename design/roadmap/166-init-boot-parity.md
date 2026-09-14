@@ -109,3 +109,13 @@ Whoever picks this up should read PR #476's actual, landed x86_64 choice first (
 description of it, which is current only as of 2026-08-25), decide whether aarch64's real boot should
 move to a named `system_initializer` archive entry the way riscv64's already is, and only then decide
 what (if anything) the `init` slot should mean on each architecture going forward.
+
+## Index row
+
+A naming review asked whether aarch64's `init -> hello` mapping should become `init -> builder` to
+match riscv64/x86_64; the premise was false, and repointing it would have silently broken the real
+interactive boot plus six live kernel tests. `hello`'s `init_boot` role (aarch64) and riscv64's
+separately-named `system_initializer` entry already reach the same real orchestrator
+(`crates/system_initializer::boot()`) correctly; the three architectures just reach it through
+inconsistent paths, one of which (`builder`, riscv64's and possibly x86_64's `init` slot) was
+never the real boot program at all.

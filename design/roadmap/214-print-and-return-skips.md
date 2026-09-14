@@ -185,3 +185,18 @@ by hand and why nothing here claims to have found the last one.
   `fs_service::crash_disk_present` as a **provisional** name.
   Public function names are calef's under milestone 160, and the block says so where the helper is
   introduced.
+
+## Index row
+
+**Built:** 2026-09-01
+
+Minted by milestone 164's lane, which moved eleven tests from the skip column to the pass column
+without running a line of them. `kernel/src/testing.rs` has a `skip!` macro that sets a reason and
+gets its own column; the minting note said 46 sites, and the merged tree held **80 across 18
+files**, 5 of them returning early with no line at all, which the grep that produced 46 could not
+have seen. 77 were genuine skips and 3 partial (one arm of a two-arm claim proved, which is
+neither column and now says so). x86_64 reads **187 passed / 69 skipped** where it read 212 / 44,
+with nothing running that did not run before; aarch64 and riscv64 are unchanged, which is the
+control. Kept from recurring at rung two, in the harness rather than in `script/lint`: the console
+tells `Testable::run` when a test printed "skip", and a test that said it and returned without a
+skip reason fails the run.

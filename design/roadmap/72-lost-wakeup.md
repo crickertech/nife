@@ -60,3 +60,12 @@ entry, with the evidence recorded in notes/scheduler.md.
   arms the kill on every live thread in the region, which is what §24's `^C` escalation needs and
   what made a comment reading "the refusal leaves the region untouched" cost four days. The function
   carries a `BUGS` section saying so where a caller meets it.
+
+## Index row
+
+**Built:** 2026-08-03
+
+Not the leak, and not RISC-V. One line of test code probed `reclaim_region(...).is_err()` on its
+own child's TCB region, which under §16 as amended **arms the kill**; the child was reaped before
+it could SEND. Widening the window reproduces it on aarch64 too, first run. The 101-thread
+accumulation is real, unrelated, and wants its own entry

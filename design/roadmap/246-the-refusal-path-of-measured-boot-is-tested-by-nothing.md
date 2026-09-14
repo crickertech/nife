@@ -112,3 +112,10 @@ Not a test that only takes the accept path, which `script/shell-check` already d
   `verify_in_manifest` over the caretaker blob it was handed and folds all three outcomes into
   `None`; it takes bytes rather than an archive, so `verdict`'s signature already fits it, and
   nothing here changed it. See the handoff in this lane's report.
+
+## Index row
+
+**Built:** 2026-09-03
+
+The decision is `measured_boot::verdict` now, with three host tests. Falsified by hand
+(`unvouched: false` turns one red) and then made a standing mutant rather than a one-off check

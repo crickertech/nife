@@ -56,3 +56,12 @@ partition index is the acceptance evidence.
 - **Refused.** Turning the Linux FUSE mount on. It stays behind its feature flag, because enabling
   it would put a platform dependency into the one tool in this tree that has none, and the recovery
   story this milestone is about is somebody at a Mac at 2am.
+
+## Index row
+
+**Built:** 2026-08-04
+
+`tools/redoxfs_host` reads a whole-device image; a real drive has a partition table at offset
+zero. `crates/gpt` and the recovery verbs both exist and nothing joins them, except in xtask's
+post-run check, which slices the partition into a temp file: twenty lines of the join, written in
+the wrong place. Milestone 57's residual, and small

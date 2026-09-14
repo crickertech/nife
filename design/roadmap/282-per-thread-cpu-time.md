@@ -55,3 +55,12 @@ is not `%CPU`, and a sampled estimate is not a measurement.
 ## Follow-on
 
 - **None.**
+
+## Index row
+
+Minted 2026-09-13 when calef ruled milestone 126's eighteen-day-old fork; the decision is §150.
+There is no per-thread CPU accounting anywhere in this kernel, dead or live: `Thread` carries no
+time-on-CPU field, `on_tick()` touches no per-thread state, and the only counter is a machine-wide `preemptions()`. Build a `u64` per `Thread` incremented one tick at a time in `on_tick()`, a
+fourth word on `SURVEY`'s return gated by the `ENUMERATE` right it already requires (widening a
+method rather than adding a syscall, §114's `pmap` shape), then the `ps` column. `top` is *earned*
+by this rather than assumed: the name means ranking by resource use and today's table is `TID` and `STATE`, so under the two refused options the name would have overclaimed.
