@@ -320,7 +320,9 @@ close the door on the version calef actually described. And it is not free: the 
 (`kernel/src/trust.rs`), the measured-boot manifest (`xtask`'s `boot_programs`), the archive table,
 and `board_console`'s `userspace_ran` with its captured board transcript all name it.
 
-So it is proposed rather than performed; see the follow-on below. The one-sentence decision calef
+So it is proposed rather than performed:
+`design/roadmap/proposals/retire-the-builder-program.md`, listed under Follow-on above. The
+one-sentence decision calef
 can make: whether the retirement waits for an `x86_64` leg that can run a compiled ELF, or goes
 ahead now on the strength of the progenitor carrying the claim wherever a progenitor runs.
 
@@ -331,7 +333,9 @@ ahead now on the strength of the progenitor carrying the claim wherever a progen
   the description then answers the same questions again in one block. The duplication is noise
   rather than a defect, and trimming the arms' copies is not free: the riscv64 arm's `isa` and
   `firmware` lines exist so that `test` and `bench` boots, which compile the description out, still
-  report what machine they ran on. Proposed below.
+  report what machine they ran on. Proposed in
+  `design/roadmap/proposals/one-machine-description-not-two.md`, which is listed under Follow-on
+  above.
 - **Nothing proves an architecture ran the right five checks.** The verdict says five of five passed
   on a kernel that ran five; a check deleted from the list takes its own evidence with it. The count
   is the partial defence and review is the rest. `kernel/src/self_test.rs`'s own `BUGS` says this
