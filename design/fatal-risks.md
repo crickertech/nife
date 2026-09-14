@@ -46,13 +46,21 @@ cannot spawn; `std::process` refuses everything; there is no `fork`, no POSIX, n
 **The experiment:** milestone 121 (`ripgrep`: enumeration as a capability), chosen because `ripgrep`
 has a real dependency tree, walks a filesystem, and uses threads.
 
-**Status: RUN, 2026-08-31. GREEN, and the blocker is not what anyone predicted.**
+**Status: RUN, 2026-08-31. GREEN on two of three architectures, and the blocker is not what anyone
+predicted.**
 notes/ripgrep-on-nife.md has it; PR #600.
 
 - **Unmodified `ripgrep` 14.1.1 from crates.io, forty transitive crates, builds for
-  `aarch64-unknown-nife` with zero source changes**, loads, runs, resolves its working directory
-  through a granted directory capability, and exits through `std::process::exit`. **Zero patches.**
-  Everything that differs from a Linux build is on the command line.
+  `aarch64-unknown-nife` and `riscv64-unknown-nife` with zero source changes**, loads, runs, resolves
+  its working directory through a granted directory capability, and exits through
+  `std::process::exit`. **Zero patches**, and the two transcripts are byte for byte identical from
+  two separately built binaries. Everything that differs from a Linux build is on the command line.
+- **x86_64 was not built, and cannot be yet.** There is no `std` on that architecture: milestone 27
+  shipped the platform layer for aarch64 and riscv64 only, and milestone 184 (extend the `std` port to
+  x86_64) is `NOT-STARTED`. So the honest sentence is *unmodified third-party software runs on nife on
+  aarch64 and riscv64*, and writing it without the architectures is the overclaim DECISIONS §19
+  (architectural parity is a tenet) exists to prevent. `notes/ripgrep-on-nife.md` has the parity
+  table.
 - **What stops it is that the ABI has no argument vector.** `std::env::args()` compiles std's
   `unsupported` backend and yields nothing, so `ripgrep` parses no arguments and prints its own
   *"requires at least one pattern to execute a search"*. **Somebody else's application reached its
@@ -65,9 +73,17 @@ notes/ripgrep-on-nife.md has it; PR #600.
 - **The capability model is visible from inside a stranger's program.** Without slot 4 the same
   binary prints `failed to get current working directory: operation not supported on this platform`.
 
-**What it changes.** The structural fear behind this risk is retired: this system runs software it
-did not write, unmodified, with a real dependency tree. What remains is an ABI gap with a name, which
-is a design question rather than a wall.
+**What it changes.** The structural fear behind this risk is retired **on the two architectures that
+have `std`**: this system runs software it did not write, unmodified, with a real dependency tree.
+What remains is an ABI gap with a name, which is a design question rather than a wall, plus a parity
+gap on x86_64 that is a milestone rather than a question.
+
+**This qualifier was written on 2026-08-31 and did not land for two weeks.** calef caught the first
+draft omitting the architecture the day the result came in; the correction was committed to a
+maintainer branch that was never pushed, and survived only because a branch cleanup on 2026-09-14
+checked for unique commits before deleting. By then half of it was stale (it said riscv64 was
+unbuilt, and riscv64 had been run), which is why it was rewritten here rather than merged. AGENTS.md
+already names the failure: *nobody reads branches.*
 
 ## 2. The proofs prove trivia, and the real bugs live where Kani cannot reach
 
@@ -458,7 +474,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | ~~1~~ | 2, the proofs | **RUN 2026-08-30: amber.** No harness has ever caught a defect after the day it was written, because `cargo kani` never compiles the kernel | milestone 191 | done |
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
-| ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads | milestone 121 | done |
+| ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has no `std` and waits on milestone 184 | milestone 121 | done for two ISAs |
 | 5 | 3, the tests | **the re-run dies the same way every time (a runaway mutant, out of memory).** Build the bound first, then re-run against the baseline | milestone 277, then milestone 85 | a day once the bound exists |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
