@@ -78,9 +78,21 @@ fn entropy() -> Option<crate::sched::RendezvousId> {
 /// any bus yet (notes/x86-port.md), where both QEMU `virt` boards have one on mmio. Milestone 176
 /// only fixed the wall clock (DECISIONS §130); it did not, and was not scoped to, give this
 /// architecture a network entropy device.
+///
+/// **It goes through [`entropy`] rather than calling `ensure` itself, and that is load-bearing**
+/// (milestone 290, found by running these tests under a `--test` filter). It used to call
+/// `entropy_service::ensure` and throw the `Wiring` away. The first caller of `ensure` is the one
+/// handed the service's `ready` endpoint, and the service announces itself with a **blocking**
+/// send: discarding that `Wiring` without draining it parks the entropy service in its own startup,
+/// before it ever reaches its request loop. Every later `ensure` gets `ready: None` and cannot
+/// rescue it. The client then blocks forever in `call(ENTROPY, ...)`, which surfaces here as *"the
+/// test server never saw a request"* two frames away from the cause.
+///
+/// It never showed in a whole-suite run because `entropy_tests` sorts before `ntp_tests` and drains
+/// the report first, so this file was relying on another file's ordering. It showed the moment one
+/// of these tests was run on its own.
 fn machine_has_no_entropy() -> bool {
-    let image = program("entropy").expect("no entropy program in the initrd archive");
-    entropy_service::ensure(image, entropy_service::Bus::Mmio).is_none()
+    entropy().is_none()
 }
 
 /// Where the client is told to send. Nothing listens there; the test server is behind the
