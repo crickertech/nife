@@ -170,7 +170,7 @@ dependencies = [
  "gpt",
  "grant_plan",
  "graphics_proto",
- "jh7110_entropy_source",
+ "jh7110_entropy",
  "line_editor",
  "login_proto",
  "mdns_config",
@@ -194,7 +194,6 @@ dependencies = [
  "user_rt",
  "video_terminal",
  "virtio",
- "watch",
 ]
 
 [[package]]
@@ -447,7 +446,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "jh7110_entropy_source"
+name = "jh7110_entropy"
 version = "0.1.0"
 dependencies = [
  "dtb",
@@ -486,7 +485,7 @@ dependencies = [
  "intrusive_fifo",
  "ipc",
  "jh7110_clock_and_reset",
- "jh7110_entropy_source",
+ "jh7110_entropy",
  "job_mix",
  "line_editor",
  "login_proto",
@@ -511,7 +510,6 @@ dependencies = [
  "timebase_proto",
  "tock-registers",
  "video_terminal",
- "watch",
  "work_steal_slot",
 ]
 
@@ -1040,15 +1038,6 @@ dependencies = [
  "filesystem_proto",
  "nifefs",
  "user_rt",
-]
-
-[[package]]
-name = "watch"
-version = "0.1.0"
-dependencies = [
- "abi",
- "ps",
- "video_terminal",
 ]
 
 [[package]]

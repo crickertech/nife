@@ -213,14 +213,16 @@ half is fixed and proven, and a different wall is standing behind it.
   was removed. Written up as
   `design/roadmap/proposals/an-apt-qemu-that-is-installed-and-then-shadowed.md`, which names the four
   runs that would close it and prices the prize honestly: a few hundred megabytes, not correctness.
-- **Proposed.** `crates/elf`'s host tests assume the host is aarch64, so `script/test` cannot go
+- **Milestone 288.** `crates/elf`'s host tests assume the host is aarch64, so `script/test` cannot go
   green on an **x86_64 Linux** box: twenty of twenty-five tests fail at the machine check and the
   host pass never reaches the kernel legs. Found here because this is the first machine in the
   project's history to gate from a host that is not aarch64; it is pre-existing on `main` and this
   milestone touches no Rust. The crate exports `NATIVE_MACHINE` for exactly this and its own test
   `Builder` hardcodes `EM_AARCH64` instead, while a second test's doc comment states the false
-  premise out loud (*"these host tests build with `EXPECTED_MACHINE == EM_AARCH64`"*). Written up as
-  `design/roadmap/proposals/host-tests-that-assume-the-host-is-aarch64.md`. **It matters to this
+  premise out loud (*"these host tests build with `EXPECTED_MACHINE == EM_AARCH64`"*). Written up as a proposal, which
+  milestone 288 has since absorbed and closed (`design/roadmap/288-host-tests-that-assume-an-aarch64-host.md`);
+  the proposal file was deleted at that merge, 2026-09-14, as one of two written eight days apart
+  for the same defect. **It matters to this
   milestone's own principle**: 287 removes the first wall a Linux newcomer hits and this is the
   second one, louder, because twenty red tests in a crate named `elf` read as "this project is
   broken".

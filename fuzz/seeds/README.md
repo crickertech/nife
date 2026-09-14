@@ -13,25 +13,54 @@ tree**, committed for their own reasons and tested by their own tests:
 |---|---|---|
 | `dtb_walk` | `crates/dtb/tests/fixtures/` | three real device trees, dumped from the boards we boot |
 | `gpt_table` | `crates/gpt/tests/fixtures/` | two real disks, formatted by `sgdisk` and by Apple's Disk Utility |
-| `elf_parse` | here | the file below, because nothing else in the tree is a small ELF |
+| `elf_parse` | here | the three files below, because nothing else in the tree is a small ELF |
 | `nifefs_roundtrip` | nothing | the input is a *structure*, not bytes; the fuzzer builds file sets from scratch and reaches the interesting shapes immediately |
 
 `script/fuzz` passes those fixture directories to libFuzzer as read-only corpora. Copying them here
 would make a second copy of bytes that already have one, and a second copy drifts.
 
-## `elf_parse/minimal_rx.elf`
+## `elf_parse/minimal_rx_<machine>.elf`
 
-120 bytes: a 64-byte ELF64 header and one 56-byte `PT_LOAD` program header, read-execute, with the
-entry point inside the segment. It is the smallest thing `elf::Elf::parse` accepts, which is exactly
-what a seed should be: past every constant check and every validation refusal, so the fuzzer's
-mutations land on the arithmetic instead of on the magic number.
+120 bytes each: a 64-byte ELF64 header and one 56-byte `PT_LOAD` program header, read-execute, with
+the entry point inside the segment. It is the smallest thing `elf::Elf::parse` accepts, which is
+exactly what a seed should be: past every constant check and every validation refusal, so the
+fuzzer's mutations land on the arithmetic instead of on the magic number.
 
-**`e_machine` is `EM_AARCH64` (183)**, and that is host-dependent: `crates/elf` picks its expected
-machine at compile time, so a riscv64 build would reject this seed. `crates/elf/tests/fuzz_seed.rs`
-asserts both that the seed parses and that its machine matches the build, so the degradation is loud
-rather than silent.
+**There is one per machine nife runs**, differing in the `e_machine` field at offset 18 and nowhere
+else. All three numbers happen to be under 256, so in practice the files differ at exactly **one**
+byte, which `cmp` will confirm:
 
-Regenerate it with:
+| File | `e_machine` |
+|---|---|
+| `minimal_rx_aarch64.elf` | `EM_AARCH64` (183) |
+| `minimal_rx_riscv64.elf` | `EM_RISCV` (243) |
+| `minimal_rx_x86_64.elf` | `EM_X86_64` (62) |
+
+**Why three and not one.** `crates/elf` picks the machine it accepts at compile time, so any single
+seed is right for one host and refused by the other two. There was one seed, the aarch64 one, under
+a note saying a riscv64 build would reject it; the note predated `x86_64` becoming a target and
+never grew the third case, so on an x86_64 host the `elf_parse` corpus was silently empty and
+`crates/elf/tests/fuzz_seed.rs` went red with no available fix (milestone 288).
+
+`crates/elf/tests/fuzz_seed.rs` now asserts that the seed for *this* build parses, and that this
+directory holds a seed for every machine in `elf::KNOWN_MACHINES`, so adding a fourth architecture
+fails on whatever host adds it.
+
+## BUGS
+
+**Two of the three seeds are dead weight in any one fuzz run.** The target returns immediately on
+anything `Elf::parse` rejects, so on an aarch64 host the riscv64 and x86_64 seeds each cost one
+rejected input and contribute no coverage. That is the price of committing the corpus rather than
+generating it per host, and at 120 bytes and one execution apiece it is not worth removing. It does
+mean a corpus count of three overstates what any one run starts from by two.
+
+**Nothing checks that the committed bytes match the generator below.** The script is a record a
+reader can re-run, not a gate: an edit to the seeds that the script would not produce passes every
+check in this repository, so long as the result still parses and carries a machine
+`elf::KNOWN_MACHINES` names. Re-running it was verified byte-identical for the aarch64 seed when the
+other two were written (milestone 288), which is evidence about one day rather than a mechanism.
+
+Regenerate all three with:
 
 ```sh
 python3 - <<'PY'
@@ -40,28 +69,32 @@ EHDR, PHDR = 64, 56
 total = EHDR + PHDR
 vaddr, memsz, entry = 0x4000_0000, 0x1000, 0x4000_0000
 
-e = bytearray(EHDR)
-e[0:4] = b'\x7fELF'
-e[4], e[5], e[6] = 2, 1, 1             # ELFCLASS64, ELFDATA2LSB, EV_CURRENT
-struct.pack_into('<H', e, 16, 2)       # e_type = ET_EXEC
-struct.pack_into('<H', e, 18, 183)     # e_machine = EM_AARCH64 (243 for riscv)
-struct.pack_into('<Q', e, 24, entry)
-struct.pack_into('<Q', e, 32, EHDR)    # e_phoff
-struct.pack_into('<H', e, 52, EHDR)    # e_ehsize
-struct.pack_into('<H', e, 54, PHDR)    # e_phentsize
-struct.pack_into('<H', e, 56, 1)       # e_phnum
+# Every machine `elf::KNOWN_MACHINES` names. A fourth architecture adds a row here and a row in the
+# table above, and `crates/elf/tests/fuzz_seed.rs` fails until it does.
+for arch, machine in [('aarch64', 183), ('riscv64', 243), ('x86_64', 62)]:
+    e = bytearray(EHDR)
+    e[0:4] = b'\x7fELF'
+    e[4], e[5], e[6] = 2, 1, 1             # ELFCLASS64, ELFDATA2LSB, EV_CURRENT
+    struct.pack_into('<H', e, 16, 2)       # e_type = ET_EXEC
+    struct.pack_into('<H', e, 18, machine) # e_machine
+    struct.pack_into('<Q', e, 24, entry)
+    struct.pack_into('<Q', e, 32, EHDR)    # e_phoff
+    struct.pack_into('<H', e, 52, EHDR)    # e_ehsize
+    struct.pack_into('<H', e, 54, PHDR)    # e_phentsize
+    struct.pack_into('<H', e, 56, 1)       # e_phnum
 
-p = bytearray(PHDR)
-struct.pack_into('<I', p, 0, 1)        # p_type = PT_LOAD
-struct.pack_into('<I', p, 4, 5)        # p_flags = PF_R | PF_X
-struct.pack_into('<Q', p, 8, 0)        # p_offset
-struct.pack_into('<Q', p, 16, vaddr)
-struct.pack_into('<Q', p, 24, vaddr)   # p_paddr
-struct.pack_into('<Q', p, 32, total)   # p_filesz
-struct.pack_into('<Q', p, 40, memsz)
-struct.pack_into('<Q', p, 48, 0x1000)  # p_align
+    p = bytearray(PHDR)
+    struct.pack_into('<I', p, 0, 1)        # p_type = PT_LOAD
+    struct.pack_into('<I', p, 4, 5)        # p_flags = PF_R | PF_X
+    struct.pack_into('<Q', p, 8, 0)        # p_offset
+    struct.pack_into('<Q', p, 16, vaddr)
+    struct.pack_into('<Q', p, 24, vaddr)   # p_paddr
+    struct.pack_into('<Q', p, 32, total)   # p_filesz
+    struct.pack_into('<Q', p, 40, memsz)
+    struct.pack_into('<Q', p, 48, 0x1000)  # p_align
 
-open('fuzz/seeds/elf_parse/minimal_rx.elf', 'wb').write(bytes(e + p))
+    path = f'fuzz/seeds/elf_parse/minimal_rx_{arch}.elf'
+    open(path, 'wb').write(bytes(e + p))
 PY
 ```
 

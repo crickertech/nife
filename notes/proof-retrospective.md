@@ -404,9 +404,11 @@ recurring accident into an impossible state. **Worklist.**
 
 **Closed on 2026-08-30 by milestone 193, and the crate has since been renamed.** The three harnesses
 were run (all pass), the row was added, and `script/lint` grew the check that makes it the last time.
-The names above are the ones the count was taken under: the crate is `jh7110_entropy_source` now
-(calef ratified it 2026-09-13), so `script/verify`'s table carries it under that spelling and the
-measurement above stays traceable to the run that produced it. Item 1 of the worklist below is done.
+The names above are the ones the count was taken under: the crate is `jh7110_entropy` now
+(calef ratified `jh7110_entropy_source` on 2026-09-13 and replaced it with `jh7110_entropy` later
+the same day, performed 2026-09-14), so `script/verify`'s table carries it under that spelling and
+the measurement above
+stays traceable to the run that produced it. Item 1 of the worklist below is done.
 
 ## The worklist
 

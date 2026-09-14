@@ -29,7 +29,7 @@ kinds, and the third is the one nothing predicted:
   asserts the thing the code refuses on, through the call it refuses with.
 - **The value's own producer.** `component_plan`'s three (`Direction::rights`, `PageKind::mode`,
   `str_eq`), `credential_proto::no_request_word_makes_the_parse_read_outside_the_page` (`id_len`),
-  `jh7110_trng::ready_requires_rand_rdy_and_carries_the_words_untouched` (`assemble`). The harness
+  `jh7110_entropy::ready_requires_rand_rdy_and_carries_the_words_untouched` (`assemble`). The harness
   checks a field against the function that filled it.
 - **An encoder round-tripped through its own decoder.** `the_leaf_keeps_address_and_permissions_apart`,
   once per ISA. `leaf_entry` and `entry_pa` never call each other, so **no call-graph test finds
