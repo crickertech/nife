@@ -3591,9 +3591,12 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
         // both archives carry it and the same guest tests run against either ISA.
         ("session_reviver", "session_reviver"),
-        // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
-        // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
-        ("ntp", "ntp"),
+        // The network time client (milestone 51), and the two test-only programs it used to carry as
+        // `arg0` roles of one binary until milestone 290 split them out into `fixtures/`. Portable,
+        // so both archives carry all three and both ISAs run the same tests.
+        ("network_time_client", "network_time_client"),
+        ("network_time_test_server", "network_time_test_server"),
+        ("unwritable_clock_witness", "unwritable_clock_witness"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble as aarch64 machine code.
         ("outlaw", "outlaw"),
@@ -4502,7 +4505,11 @@ fn initrd_aarch64() -> bool {
         // root_supervisor-shaped boot-only process that reads the durable schedule store's
         // manifest and re-derives every identity it names, then deletes its own capabilities.
         ("session_reviver", "session_reviver"),
-        ("ntp", "ntp"),
+        // The network time client (milestone 51) and the two test-only programs milestone 290 split
+        // out of its binary into `fixtures/`.
+        ("network_time_client", "network_time_client"),
+        ("network_time_test_server", "network_time_test_server"),
+        ("unwritable_clock_witness", "unwritable_clock_witness"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble.
         ("outlaw", "outlaw"),
