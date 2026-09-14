@@ -35,7 +35,7 @@ use filesystem_proto::{blk, fs, op, reply_err, xattr};
 use redoxfs::Disk;
 use redoxfs_server::{CachedDisk, Server};
 use syscall::error::{EINVAL, EIO, Error, Result};
-use user_rt::{call, invoke, recv_cap, send};
+use user_mode_runtime::{call, invoke, recv_cap, send};
 
 /// Capability table slots, by convention with the kernel-side wiring (`kernel/src/user/fs_service.rs`).
 const MEMORY_REGION: u64 = 0;
@@ -79,7 +79,8 @@ const HEAP_MAX: u64 = 8 * 1024 * 1024;
 const CACHE_SLOTS: usize = 64;
 
 #[global_allocator]
-static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
+static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
+    user_mode_runtime::heap::MemoryRegionHeap::new();
 
 /// Read every written block straight back and compare (a `fix/redoxfs-repeat-write` diagnostic). Off
 /// by default: it doubles the write cost, and its scratch block is 4 KiB of stack inside a call
@@ -609,7 +610,11 @@ pub extern "C" fn _start(crash_at_write: u64, crash_after_blocks: u64, crash_tea
         inject::AFTER_BLOCKS.store(crash_after_blocks, Ordering::Relaxed);
         inject::TEAR_BYTES.store(crash_tear_bytes, Ordering::Relaxed);
     }
-    HEAP.init(MEMORY_REGION, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(
+        MEMORY_REGION,
+        user_mode_runtime::heap::DEFAULT_BASE,
+        HEAP_MAX,
+    );
 
     // Open the image over blk IPC and bind to its root. A bad image (or a block server that never
     // answers correctly) faults here, which the kernel reports; the server never creates.
@@ -626,4 +631,4 @@ pub extern "C" fn _start(crash_at_write: u64, crash_after_blocks: u64, crash_tea
 }
 
 // A server fault is a dead server: trap, and the kernel reaps it legibly.
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

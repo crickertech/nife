@@ -160,7 +160,7 @@ pub fn start(
     // archive this harness used to map wholesale.
     //
     // This changed so that there is **one** contract rather than two. `login` used to read the
-    // initrd at `user_rt::initrd::INITRD_VA`, which this harness could hand it (it is the kernel;
+    // initrd at `user_mode_runtime::initrd::INITRD_VA`, which this harness could hand it (it is the kernel;
     // it maps reserved RAM directly) and which `crates/system_initializer` could not (`build_child`
     // maps only pages the spawner holds a capability for, and nothing names the archive). So the
     // one path the suite exercised was the one the real boot never took, and `login` died at

@@ -30,8 +30,8 @@
 
 use filesystem_proto::{dir, fixture, fs, grant, xattr};
 use grant_plan::nav::{TwoRoots, Which};
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, now, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, now, send};
 
 /// The file-service endpoint: the client's whole authority to the filesystem. Naming a file over it
 /// is a request the server resolves under the one directory this endpoint is bound to.
@@ -47,7 +47,7 @@ const REPORT: u64 = 1;
 const FILE_VA: u64 = 0x0000_0000_0060_0000;
 
 // SAFETY: the kernel's wiring maps every page of the fs::TRANSFER_MAX-byte channel at FILE_VA
-// before this program runs (milestone 139 round 2; see `user_rt::mapped_window`, which is what
+// before this program runs (milestone 139 round 2; see `user_mode_runtime::mapped_window`, which is what
 // collapsed the five hand-rolled read_volatile/write_volatile loops below into bounds-checked
 // calls).
 const WINDOW: MappedWindow = unsafe { MappedWindow::new(FILE_VA, fs::TRANSFER_MAX as u64) };
@@ -1658,4 +1658,4 @@ fn proof() -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

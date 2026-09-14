@@ -17,7 +17,7 @@
 //! lives in, which is the same right that *builds* a process out of it, so a supervisor that
 //! restarted its child either held construction authority or proxied the reap through something that
 //! did. §32 put the reap on the supervision endpoint instead, and role 2 here now uses it: the
-//! corpse is collected with `user_rt::reap`, and the per-instance region capability is deleted as
+//! corpse is collected with `user_mode_runtime::reap`, and the per-instance region capability is deleted as
 //! soon as the child is started rather than held for the instance's whole life.
 //!
 //! **What that did not remove, which is itself a finding about §32.** This program still holds a full
@@ -55,7 +55,7 @@
 // two parts this milestone leans on: a child born with shared pages and born supervised.
 use c_seam::checks;
 use supervision_proto::{ChildEndowment, Retention};
-use user_rt::{cap_delete, map_page_frame, recv_fault, send};
+use user_mode_runtime::{cap_delete, map_page_frame, recv_fault, send};
 
 /// What the kernel grants us, and nothing else.
 const ROOT_UT: u64 = 0; // the construction budget: what we build each instance out of
@@ -68,8 +68,8 @@ const INSTANCE_PAGES: u64 = 96;
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         bail(1)
     };
@@ -175,7 +175,7 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
         // until now and the verdict above was computed while it was still there to inspect. We hold no
         // capability to that region: the authority for this is the supervision relationship, and the
         // pages go back to ROOT_UT, which is where they came from.
-        if user_rt::reap(faultep, tid) != 0 {
+        if user_mode_runtime::reap(faultep, tid) != 0 {
             bail(13)
         }
 
@@ -301,4 +301,4 @@ fn bail(stage: u64) -> ! {
     supervision_proto::fail()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

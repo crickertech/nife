@@ -1,7 +1,7 @@
 //! **The inert-configuration contract** (milestone 47's environment-variable fork, DECISIONS
 //! §111). One definition of the read-only page that carries `TZ`, `LANG` and `TERM` into a
 //! process, so whoever assembles it (init, or a kernel test harness standing in for init today)
-//! and whoever reads it (the `std` PAL, and eventually a `no_std` program through `user_rt`)
+//! and whoever reads it (the `std` PAL, and eventually a `no_std` program through `user_mode_runtime`)
 //! cannot drift. The same split `clock_proto` makes for the wall clock and `filesystem_proto` makes for
 //! the filesystem.
 //!

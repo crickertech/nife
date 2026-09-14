@@ -18,7 +18,7 @@ separately and reported differently. So the shape is being solved once per table
 The argument for the first gauge applies unchanged to the rest, and milestone 231's block makes it
 in the strongest available form: `CAPABILITY_TABLE_SLOTS` was raised three times and **every raise
 was reactive, after a silent failure that named something else**. Milestone 230 is the worked
-example, and it cost a bisect: a virtio-rng attached, init trapping at `user_rt::trap` with no
+example, and it cost a bisect: a virtio-rng attached, init trapping at `user_mode_runtime::trap` with no
 message, and the cause was slot exhaustion in `crates/system_initializer`. Nothing about the failure
 said "table full".
 

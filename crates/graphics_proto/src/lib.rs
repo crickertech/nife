@@ -120,7 +120,7 @@
 /// multiple of 1024 pixels, the threshold that makes the byte count a frame multiple).
 /// [`SURFACE_PAGE_FRAMES`] rounds up (`div_ceil`) the way it always did, so this costs about 2 KiB
 /// of mapped-but-unused padding in the last frame; nothing reads or writes there:
-/// `user_rt::mapped_window::MappedWindow` bounds every access against [`SURFACE_BYTES`], not the
+/// `user_mode_runtime::mapped_window::MappedWindow` bounds every access against [`SURFACE_BYTES`], not the
 /// frame count, so the padding is unreachable rather than merely unused. The 900-frame-exact
 /// property was a nice-to-have this size doesn't get to keep, not a load-bearing invariant; the
 /// frame count itself drops well under the 900 the old size needed either way (see
@@ -173,7 +173,7 @@ const _: () = assert!(
 // still delivers exactly 132x43 columns and rows does either (WIDTH's doc comment records the
 // search). The assertion was documentation of a coincidence, not a real invariant: SURFACE_BYTES
 // not filling its last frame exactly is harmless, because SURFACE_PAGE_FRAMES already rounds up
-// (div_ceil) and every consumer (`user_rt::mapped_window::MappedWindow`) bounds-checks against
+// (div_ceil) and every consumer (`user_mode_runtime::mapped_window::MappedWindow`) bounds-checks against
 // SURFACE_BYTES, not the frame count, so the unused tail of the last frame is unreachable rather
 // than a "partial page" anything can read or write.
 //

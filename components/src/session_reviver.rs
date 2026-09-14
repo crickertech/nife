@@ -143,8 +143,8 @@
 
 use filesystem_proto::{dir, fs};
 use supervision_proto::{memory_region_destroy, memory_region_split};
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, cap_delete, retype_page_frame, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, cap_delete, retype_page_frame, send};
 
 /// The report endpoint, `WRITE`. One report, then this process exits.
 const REPORT: u64 = 0;
@@ -247,7 +247,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     let ut_gone = ut_try < 0;
 
     send(REPORT, OK, rederived, (store_gone && ut_gone) as u64);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// **Re-derive one identity's session**, standing in for what a real registrar (#387) would build:
@@ -385,7 +385,7 @@ fn fs_page_mut() -> &'static mut [u8] {
 /// (matching `smb_server.rs`'s own `done`).
 fn done(stage: u64) -> ! {
     send(REPORT, FAILED, stage, 0);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

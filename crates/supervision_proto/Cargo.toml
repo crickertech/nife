@@ -10,8 +10,8 @@ workspace = true
 [dependencies]
 abi = { version = "0.1.0", path = "../abi" }
 elf = { version = "0.1.0", path = "../elf" }
-user_rt = { version = "0.1.0", path = "../user_rt" }
+user_mode_runtime = { version = "0.1.0", path = "../user_mode_runtime" }
 # The x86_64 timebase page's fixed VA (milestone 161's `cntfrq` follow-up): this crate's own
 # x86_64-gated code in `build_child_space` needs the same constant `kernel::user::load` and
-# `user_rt::cntfrq` agree on, so no party keeps its own copy.
+# `user_mode_runtime::cntfrq` agree on, so no party keeps its own copy.
 timebase_proto = { version = "0.1.0", path = "../timebase_proto" }

@@ -13,4 +13,4 @@ abi = { version = "0.1.0", path = "../abi" }
 # programs agree on; what a component must HOLD is the other half of that agreement, and it lives
 # beside the wire format rather than in whichever operator happens to start one.
 component_plan = { version = "0.1.0", path = "../component_plan" }
-user_rt = { version = "0.1.0", path = "../user_rt" }
+user_mode_runtime = { version = "0.1.0", path = "../user_mode_runtime" }

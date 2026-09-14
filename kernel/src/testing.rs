@@ -278,7 +278,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// no-op (markdown-only) commits on top. Both populations are internally consistent (zero
 /// variance within seven and four samples respectively), so the +5 is attributed to
 /// `202831a3`/`c94f5d21` (`painter`/`window`/`display`/`display_terminal` onto
-/// `user_rt::mapped_window::MappedWindow`) with confidence, even though the exact byte-level
+/// `user_mode_runtime::mapped_window::MappedWindow`) with confidence, even though the exact byte-level
 /// accounting below is not.
 ///
 /// The mechanism: `MappedWindow::check` panics with a **formatted** message (`"MappedWindow:

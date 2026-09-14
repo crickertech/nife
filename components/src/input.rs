@@ -15,7 +15,7 @@
 //!
 //! Its whole authority: WRITE on the terminal endpoint (slot 0), the RX interrupt capability
 //! (slot 1), and the UART registers mapped device-typed. It cannot print, spawn, or read what
-//! anyone else typed. No role selector; the syscall runtime comes from `user_rt`.
+//! anyone else typed. No role selector; the syscall runtime comes from `user_mode_runtime`.
 //!
 //! The one arch-specific thing is the UART register layout, in the `uart` module below
 //! (aarch64 PL011, RISC-V NS16550).
@@ -31,7 +31,7 @@
 #![no_main]
 
 use line_editor::proto;
-use user_rt::{call, irq_ack, irq_wait};
+use user_mode_runtime::{call, irq_ack, irq_wait};
 
 // Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
 // so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
@@ -167,16 +167,16 @@ mod uart {
 #[cfg(target_arch = "x86_64")]
 mod uart {
     pub fn rx_pending() -> bool {
-        user_rt::trap()
+        user_mode_runtime::trap()
     }
     pub fn rx_get() -> u8 {
-        user_rt::trap()
+        user_mode_runtime::trap()
     }
     pub fn arm_rx_interrupt() {
-        user_rt::trap()
+        user_mode_runtime::trap()
     }
     pub fn clear_interrupt() {
-        user_rt::trap()
+        user_mode_runtime::trap()
     }
 }
 
@@ -218,4 +218,4 @@ fn drain() {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

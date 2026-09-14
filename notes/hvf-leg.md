@@ -65,7 +65,7 @@ scanout referee, and the post-run image checks.
 |---|---|---|
 | `script/test --arch aarch64` | host crates + the 234-test aarch64 kernel suite under TCG + image checks | 58 s, 52 s |
 | `script/test --hvf` | the same 234-test suite on the physical core + image checks | 16 s, 12 s |
-| `cargo test --workspace --exclude kernel --exclude user --exclude user_rt` | the host crates alone | 14 s |
+| `cargo test --workspace --exclude kernel --exclude user --exclude user_mode_runtime` | the host crates alone | 14 s |
 
 The counts here read 232 when the timings were taken, and are 234 in the merged tree: milestone 86's
 `time` brought two kernel tests with it. The number is a fact about the whole suite rather than

@@ -25,20 +25,20 @@ cd "$(dirname "$0")/.."
 # carries every pattern it looks for; taking the line is cheaper than an exemption.
 . scripts/qemu-path.sh
 
-# The host pass excludes every crate that cannot compile for the host: `user_rt` (the EL0 syscall
+# The host pass excludes every crate that cannot compile for the host: `user_mode_runtime` (the EL0 syscall
 # runtime, inline `asm!` naming architecture registers) and everything that depends on it.
 #
 # **The old comment here said "on CI's x86_64 host those registers are unknown register errors", and
 # it was wrong in both directions by 2026-08-14.** CI runs on `ubuntu-24.04-arm`, where the asm
-# compiles; and excluding `user_rt` alone never removed it from the dependency graph, so four crates
-# that took unconditional `user_rt` dependencies dragged it into the host pass anyway. The result was
+# compiles; and excluding `user_mode_runtime` alone never removed it from the dependency graph, so four crates
+# that took unconditional `user_mode_runtime` dependencies dragged it into the host pass anyway. The result was
 # a workspace that did not build on x86_64, invisible to the one gate that would have caught it
 # because that gate runs on aarch64. Found by milestone 117's first stranger run.
 #
 # The "host pass excludes exactly the bare-metal crates" gate below derives this set rather than
 # trusting this line.
 echo "==> clippy: host crates + xtask"
-cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_rt \
+cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_mode_runtime \
     --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
     --all-targets -- -D warnings
 
@@ -117,13 +117,13 @@ rustc --edition 2024 --crate-type lib --crate-name kani \
 # kernel's harnesses. What still covers them: `script/verify` builds them for real and gates rustc
 # lints through `RUSTFLAGS`, and `script/lint`'s aarch64 pass below compiles the same file without
 # the cfg. Keep kernel harnesses free of `unsafe` while this holds.
-cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_rt \
+cargo clippy --workspace --exclude kernel --exclude components --exclude fixtures --exclude user_mode_runtime \
     --exclude swap_proto --exclude virtio --exclude supervision_proto --exclude system_initializer \
     --all-targets -- \
     --cfg kani --extern "kani=$shim/libkani.rlib" -L "$shim" -D warnings
 
-echo "==> clippy: kernel + user + user_rt (aarch64)"
-cargo clippy -p kernel -p components -p fixtures -p user_rt --target aarch64-unknown-none-softfloat --all-targets -- -D warnings
+echo "==> clippy: kernel + user + user_mode_runtime (aarch64)"
+cargo clippy -p kernel -p components -p fixtures -p user_mode_runtime --target aarch64-unknown-none-softfloat --all-targets -- -D warnings
 
 # The third architecture (milestone 161). **The kernel BINARY only, with dead code allowed**, and
 # every one of those narrowings is a scope gap rather than an oversight, so they are named here,
@@ -131,7 +131,7 @@ cargo clippy -p kernel -p components -p fixtures -p user_rt --target aarch64-unk
 #
 # - **No `--all-targets`** on the kernel. Its test suite DOES compile and run for x86_64 now
 #   (170 pass, 67 skip), but `--all-targets` also builds the nine build-mode feature targets, which
-#   is the next bullet's problem rather than this one's. `user` and `user_rt` below take
+#   is the next bullet's problem rather than this one's. `user` and `user_mode_runtime` below take
 #   `--all-targets`.
 # - **No feature loop for seven of the nine build-mode features.** They fail on x86_64, measured,
 #   because each selects a boot path that needs an arch layer this port has not written. Adding
@@ -191,14 +191,14 @@ cargo clippy -p kernel --features cycle_counter_grant --target x86_64-unknown-no
 
 # And userspace on the third architecture (milestone 161, item 4's hand-off). Held to the SAME bar
 # as the aarch64 pass above, with no `-A dead_code` and no narrowings, because there is nothing
-# partial about it: every program in `user/` compiles for this target and `crates/user_rt` has arms
+# partial about it: every program in `user/` compiles for this target and `crates/user_mode_runtime` has arms
 # for all three ISAs.
 #
 # This is the pass that keeps parity honest for the programs rather than for the kernel. Without
 # it, a lane could add an aarch64/riscv64 pair to a user program and never learn that x86 fell
 # through to nothing until `cargo xtask test --arch x86_64` failed to pack an archive.
-echo "==> clippy: user + user_rt (x86_64)"
-cargo clippy -p components -p fixtures -p user_rt --target x86_64-unknown-none --all-targets -- -D warnings
+echo "==> clippy: user + user_mode_runtime (x86_64)"
+cargo clippy -p components -p fixtures -p user_mode_runtime --target x86_64-unknown-none --all-targets -- -D warnings
 
 # The kernel's build-mode features (shell, bench, initboot, soak, cycle_counter_grant) each compile
 # DIFFERENT code in and out:
@@ -783,13 +783,13 @@ echo "==> fatal risks"
 # that set rather than trusting a list.
 #
 # The failure it prevents is the one that happened. `--exclude` removes a package from the test
-# selection, not from the dependency graph, so excluding `user_rt` while four workspace crates
+# selection, not from the dependency graph, so excluding `user_mode_runtime` while four workspace crates
 # depended on it unconditionally left it in the build. The host pass stopped compiling on x86_64 on
 # 2026-08-03 and stayed broken until 2026-08-14, invisible throughout because CI moved to an aarch64
 # runner the same day, where the EL0 assembly compiles by accident.
 #
-# So: ask cargo which workspace members reach `user_rt`, and check that every consumer of that
-# knowledge excludes every one. A crate that takes a new `user_rt` dependency now fails here, naming
+# So: ask cargo which workspace members reach `user_mode_runtime`, and check that every consumer of that
+# knowledge excludes every one. A crate that takes a new `user_mode_runtime` dependency now fails here, naming
 # itself, instead of breaking a stranger's first build.
 #
 # **Four consumers, not two** (milestone 244). It used to check this file's clippy lines and xtask's
@@ -816,19 +816,19 @@ members = set(meta["workspace_members"])
 name_of = {p["id"]: p["name"] for p in meta["packages"]}
 edges = {n["id"]: [d["pkg"] for d in n.get("deps", [])] for n in meta["resolve"]["nodes"]}
 
-def reaches_user_rt(pid, seen=None):
+def reaches_user_mode_runtime(pid, seen=None):
     if seen is None:
         seen = set()
     if pid in seen:
         return False
     seen.add(pid)
     for dep in edges.get(pid, []):
-        if name_of.get(dep) == "user_rt" or reaches_user_rt(dep, seen):
+        if name_of.get(dep) == "user_mode_runtime" or reaches_user_mode_runtime(dep, seen):
             return True
     return False
 
 bare = sorted(name_of[m] for m in members
-              if name_of[m] == "user_rt" or reaches_user_rt(m))
+              if name_of[m] == "user_mode_runtime" or reaches_user_mode_runtime(m))
 
 lint = open("script/lint").read()
 xtask = open("xtask/src/main.rs").read()
@@ -854,13 +854,13 @@ if missing:
     for c, where in missing:
         sys.stderr.write(f"  {c}  (missing from {where})\n")
     sys.stderr.write("""
-These reach `user_rt`, which is EL0 syscall `asm!` and compiles only for aarch64 or riscv64. A
+These reach `user_mode_runtime`, which is EL0 syscall `asm!` and compiles only for aarch64 or riscv64. A
 workspace member that reaches it cannot be built by a host `cargo test`, and `--exclude` on the
 package alone does NOT help: it removes the package from the test selection, not from the dependency
 graph, so cargo builds it anyway for whoever depends on it.
 
 Either exclude it from the host pass in ALL FOUR places above, or do what redoxfs_server/Cargo.toml
-does and put `user_rt` behind an optional `el0` feature, which is the better fix when the crate has
+does and put `user_mode_runtime` behind an optional `el0` feature, which is the better fix when the crate has
 host logic worth testing. Milestone 244 measured that trade for the largest such crate
 (`system_initializer`) and recommended the exclusion, with the numbers, in its own block: the pure
 fraction there is about a fifth of the mutants and a fiftieth of the lines, and every pure function
@@ -2301,7 +2301,7 @@ echo "==> shellcheck"
 # compiles fine and opts out of the tests and the proofs. Zero violations today; this is a ratchet,
 # the same shape as the shellcheck gate below.
 #
-# `user_rt` is deliberately NOT in the forbidden set even though it is EL0 syscall `asm!`: it lives
+# `user_mode_runtime` is deliberately NOT in the forbidden set even though it is EL0 syscall `asm!`: it lives
 # in crates/ and is a legitimate dependency for other EL0 crates.
 echo "==> dependency direction"
 upward=""

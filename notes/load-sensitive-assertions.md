@@ -1719,7 +1719,7 @@ being wrong.
 **The unit is wall clock, which is the unit the migration-drain section above argues against, and
 that is a limitation rather than a disagreement.** Milestone 62 re-denominated `smp.rs`'s drain in
 *delivered timer ticks* precisely because a counter deadline keeps running while the guest is
-descheduled. A process cannot do that: `user_rt::now` is the raw counter, and nothing publishes the
+descheduled. A process cannot do that: `user_mode_runtime::now` is the raw counter, and nothing publishes the
 kernel's per-core tick count to userspace. So what makes this safe is the margin and not the unit,
 and the margin is what would have to be re-measured if the wait ever grew. Giving a process a
 delivered-tick reading is an ABI addition, which is calef's call rather than a lane's; it is written
@@ -1800,8 +1800,8 @@ refusal, and none has a clock in it:
 | `crates/system_initializer::reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
 | `components/src/login.rs`'s `reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
 | `components/src/swish.rs`'s `await_screen` (`SCREEN_REAP_ATTEMPTS`) | returns; leaks one job's pool |
-| `components/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_rt::trap()`** |
-| `components/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_rt::trap()`** |
+| `components/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_mode_runtime::trap()`** |
+| `components/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_mode_runtime::trap()`** |
 
 That is the reading order's fourth grep, and it is the first one that leaves this repository's
 kernel: **a bounded retry count in a user program, over a syscall that a timer tick has to clear.**
