@@ -45,7 +45,7 @@ against one.
 | blk IPC | block server | FS server | `crates/filesystem_proto` (`blk`), `components/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC | FS server | every FS client | `crates/filesystem_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC, narrowed | the three caretakers | one confined program each | `components/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
-| the sink | `fixtures/src/sink.rs` | a redirected program | `crates/byte_sink_proto` |
+| the sink | `fixtures/src/file_sink.rs`, `fixtures/src/file_source.rs` | a redirected program | `crates/byte_sink_proto` |
 | the serial terminal | `components/src/line_editor.rs` | the shell | `crates/line_editor` |
 | the console | `components/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
 | the display | `components/src/gpu_driver.rs` | painter, terminal, compositor | `crates/graphics_proto` |
@@ -55,7 +55,7 @@ against one.
 | the wall clock | `kernel/src/user/clock_service.rs` | The progenitor, the shell, `date` | `crates/clock_proto` |
 | the C seam | `fixtures/src/c_shim.rs` (C) | `fixtures/src/c_confiner.rs` | `crates/c_seam`, `fixtures/c/c_seam.c` |
 | the input ring | the compositor | the keyboard driver | `crates/compositor` (`proto::ring`) |
-| sockets | `components/src/net_stack.rs` | a client, `std::net`, `ntp` | `crates/socket_proto` |
+| sockets | `components/src/net_stack.rs` | a client, `std::net`, `network_time_client` | `crates/socket_proto` |
 | the virtio DMA regions | four userspace drivers | the **device** | `components/src/net_transport.rs`, `kbd.rs`, `entropy.rs`, `display.rs` |
 
 The last row is not a process pair and is in the table on purpose: a DMA region is a page one party
@@ -512,7 +512,7 @@ audit's lens, stated in the tree, and it is the model the file page should follo
 **The socket contract's decode.** Opcode and socket id from the request word, the id refused above
 `MAX_SOCKETS` before it indexes anything; every payload length refused above `DATA_MAX`; receives
 staged through a `[0u8; DATA_MAX]` stack buffer and then copied into the page. No slice is ever
-formed over the shared mapping, in the server, in `std::net`'s PAL, or in `ntp`, so a concurrent
+formed over the shared mapping, in the server, in `std::net`'s PAL, or in `network_time_client`, so a concurrent
 writer can change the bytes that go out and can corrupt nothing. The PAL's half is **generated** from
 `crates/socket_proto` by `xtask`, so the offsets cannot drift.
 

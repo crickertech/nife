@@ -187,17 +187,53 @@ path = "src/login_test_client.rs"
 test = false
 bench = false
 
-# The sink contract's ends (milestone 50): a program that writes to whatever is in its output slot,
-# a caretaker that puts a file behind that slot, and the read-back that proves the bytes went
-# through a real filesystem. One binary, three roles. `initrd_aarch64` packs it as "sink" for both ISAs.
+# The sink contract's ends (milestone 50), three programs since milestone 292: a program that
+# writes to whatever is in its output slot, the sink that puts a real file behind that slot, and the
+# read-back that streams the file out over the same contract. They were one binary picking a role
+# out of `arg0` until the role numbers turned out to be three hand-maintained copies of a fact two
+# binaries had to agree on; splitting them deleted the numbers. `initrd_aarch64` packs all three
+# under their own names for both ISAs.
 [[bin]]
-name = "sink"
-path = "src/sink.rs"
+name = "sink_transcript_writer"
+path = "src/sink_transcript_writer.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "file_sink"
+path = "src/file_sink.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "file_source"
+path = "src/file_source.rs"
 test = false
 bench = false
 
 [lints]
 workspace = true
+
+# The network time test server (milestone 51, lifted out of the `ntp` binary by milestone 290): an
+# NTP server and the network under it, in one process. It holds `READ` on the socket endpoint the
+# client holds `WRITE` on and speaks the same contract `net_stack` does, so substituting it at that
+# capability boundary runs the client's real, unmodified code. Both ISAs' archives carry it.
+[[bin]]
+name = "network_time_test_server"
+path = "src/network_time_test_server.rs"
+test = false
+bench = false
+
+# The unwritable clock witness (milestone 51, lifted out of the `ntp` binary by milestone 290): it
+# is handed the network time client's five slots plus the address a clock *setter* maps the clock
+# page at, reports, writes there, and faults. The claim Unix cannot make, and the one function that
+# endows both it and the client (`spawn_with_client_endowment`) is what keeps the two from drifting.
+# Both ISAs' archives carry it.
+[[bin]]
+name = "unwritable_clock_witness"
+path = "src/unwritable_clock_witness.rs"
+test = false
+bench = false
 
 # **Milestone 291 split `hello` into programs.** Each of these was a role of one binary chosen by
 # the word the kernel put in `x0`; every one of them now ignores that word and does one thing. All
@@ -355,3 +391,9 @@ byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
 # manifest format neither `timetable` nor `filesystem_proto` already owns.
 schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
 user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
+# The three crates `network_time_test_server` and `unwritable_clock_witness` need (milestone 290),
+# which arrived with them when the `ntp` binary's test-only roles moved out of `components/`. All
+# three are already in the shipping graph through `components`; nothing external was taken.
+ntp_proto = { version = "0.1.0", path = "../crates/ntp_proto" }
+socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
+clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }

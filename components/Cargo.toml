@@ -383,13 +383,14 @@ path = "src/session_reviver.rs"
 test = false
 bench = false
 
-# The NTP client (milestone 51): holds a network capability and the right to PROPOSE a time, and
-# deliberately not the right to set one. One binary, three roles (the client, the test server that
-# answers it, and the probe that proves the clock page is unreachable). `initrd_aarch64` packs it as "ntp"
-# for both ISAs.
+# The network time client (milestone 51, renamed and split by milestone 290): holds a network
+# capability and the right to PROPOSE a time, and deliberately not the right to set one. It used to
+# be one binary with three `arg0` roles; the other two are test-only and live in `fixtures/` now
+# (`network_time_test_server` and `unwritable_clock_witness`), which is the line milestone 175 drew.
+# Both ISAs' archives carry it.
 [[bin]]
-name = "ntp"
-path = "src/ntp.rs"
+name = "network_time_client"
+path = "src/network_time_client.rs"
 test = false
 bench = false
 

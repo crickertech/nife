@@ -4,8 +4,15 @@ Two halves, built a day apart. **The wire format** is `crates/ntp_proto` (milest
 48 bytes of RFC 5905, the 1900-epoch fixed-point timestamp, the offset arithmetic, and the handful of
 checks that are the whole of unauthenticated NTP's spoofing resistance. Pure computation, no socket,
 no clock, no service, and its tests run in milliseconds on the host. **The client** is
-`components/src/ntp.rs` (milestone 51 lane D), the process that turns those bytes into a clock correction,
-and it is the second half of this file.
+`components/src/network_time_client.rs` (milestone 51 lane D), the process that turns those bytes
+into a clock correction, and it is the second half of this file.
+
+**Three programs, not one** (milestone 290, 2026-09-14). Until then the client, the test server that
+answers it and the witness that proves the clock page is unreachable were one binary with three roles
+dispatched on `arg0`, packed as `ntp`. calef ruled the split and named all three:
+`network_time_client` in `components/`, `network_time_test_server` and `unwritable_clock_witness` in
+`fixtures/`, because only the first is a program a distribution would ship. Where this note says
+"role", read "program"; the sections below are written in the present tense and say which is which.
 
 Milestone 51's other lanes own the RTC drivers and the clock service, and `date` plus the calendar
 crate. The authority argument in full, that reading the clock is harmless and setting it is a real
@@ -200,7 +207,8 @@ can just try all of them.
 
 # The client (milestone 51 lane D)
 
-`components/src/ntp.rs`. Five capability slots, and **the interesting one is the slot that is missing.**
+`components/src/network_time_client.rs`. Five capability slots, and **the interesting one is the
+slot that is missing.**
 
 ```text
   entropy ──an endpoint──►┌──────────────┐──an endpoint──► net_stack ──► the network
@@ -290,11 +298,17 @@ for a kiss.
 ## The test server, and what it does and does not prove
 
 The client's whole network authority is one endpoint capability, so the tests **substitute the peer
-at that boundary**: a second role of the same binary holds `READ` on the endpoint the client holds
-`WRITE` on, and speaks the same socket contract (`crates/socket_proto/src/lib.rs`, the same file `net_stack`
-compiles) while being an NTP server on the other side of it. The client cannot tell, and **there is
-no test-only branch anywhere in the client**. That is the shape a capability system makes available,
-and it is why this is the honest choice rather than a compromise.
+at that boundary**: `fixtures/src/network_time_test_server.rs` holds `READ` on the endpoint the client
+holds `WRITE` on, and speaks the same socket contract (`crates/socket_proto/src/lib.rs`, the same file
+`net_stack` compiles) while being an NTP server on the other side of it. The client cannot tell, and
+**there is no test-only branch anywhere in the client**. That is the shape a capability system makes
+available, and it is why this is the honest choice rather than a compromise.
+
+**The substitution never depended on the two sharing a binary**, which milestone 290 settled by
+splitting them: what the client talks to is decided by which endpoint is in slot 1, and the peer's
+ELF has nothing to do with it. Before the split this sentence had a second problem, which is that
+"no test-only branch anywhere in the client" sat on the same page as `ROLE_PROBE_CLOCK`, a test-only
+branch in the client's binary. It is unqualified now.
 
 What it proves: the socket-contract glue (minting a frame, delegating it, the destination header,
 `SENDTO`/`RECV` framing), that the 48 bytes are a well-formed NTPv4 client packet addressed to port
@@ -321,9 +335,37 @@ overclaimed:
 The honest summary: the client is proven against a server we wrote, over a network we wrote, and the
 parts we did not write are proven elsewhere.
 
+## The witness, and the argument about it that turned out to be false
+
+`fixtures/src/unwritable_clock_witness.rs` is handed the client's five slots plus the address at
+which a process holding the *set* authority maps the clock page. It reports, writes there, and dies
+of a translation fault, because its address space has no mapping of that frame at any address. The
+boundary is the mapping, not the layout, so knowing where to look buys nothing. That is the claim
+Unix cannot make: `ntpd` runs as root, and there is no address in a Unix system its `settimeofday`
+cannot reach.
+
+**Until milestone 290 the witness was a role of the client's binary, and the reason given was that
+the proof needed it to be the *same binary*.** That reason is false and is worth writing down,
+because it was believed for six weeks and it is the sort of argument that survives review by sounding
+like rigour. The fault is caused by the **capability set**. Any process holding that endowment faults
+at that address whatever code it runs, and no amount of shared machine code would make a stale
+capability list fault.
+
+**What actually keeps the witness honest is that one function endows both.**
+`kernel/src/user/ntp_service.rs`'s `spawn_with_client_endowment` takes the image as a parameter, so
+`start_client` and `start_witness` are the same five `grants` with a different ELF. A sixth slot given
+to the client is a sixth slot given to the witness, with nothing to remember and no second list to
+update. A separate binary passed through that one function proves exactly what a shared binary did.
+
+**The failure this guards against is a second capability list, not a second binary.** Milestone 117's
+stranger run found `swish` carrying a hand-maintained copy of a fact its manifest already held, which
+is the same shape: a copy that decays silently rather than breaking a build. If a future change ever
+needs the witness wired differently from the client, the honest move is to say so in the test's own
+words, not to grow a second `grants` array beside the first.
+
 ## What is proven, and where
 
-Six kernel tests (`kernel/src/user/ntp_tests.rs`), not arch-gated: one portable binary, so
+Six kernel tests (`kernel/src/user/ntp_tests.rs`), not arch-gated: three portable binaries, so
 aarch64 and riscv64 run literally the same assertions. The suite went from 181 to 187 tests on
 aarch64 and 152 to 158 on riscv64.
 
@@ -337,7 +379,7 @@ aarch64 and 152 to 158 on riscv64.
 | `without_entropy_the_client_refuses_rather_than_guessing` | the refusal names `NoSuchSlot`, and no request was ever sent |
 
 Every one of those assertions was **watched fail** before it was trusted: the write removed from the
-probe, `with_nonce` swapped for the plain form, a proposal made despite a rejection, a fallback
+witness, `with_nonce` swapped for the plain form, a proposal made despite a rejection, a fallback
 inserted where the entropy refusal is, the kiss-o'-death `break` deleted, the offset dropped from the
 correction, and the destination port hard-coded past the wiring. Seven mutations, seven failures,
 each naming the right thing.
@@ -347,6 +389,28 @@ because it is the shape a test-server design invites: with the client mutated to
 unbounded `ipc_recv` on a report nobody would ever send became a sixty-second watchdog hang instead
 of an assertion. Both waits are now bounded, so "the client never got there" fails in two seconds
 with a sentence.
+
+### Running one of these on its own used to hang, and why
+
+**If you reach for `script/test --arch aarch64 --test an_ntp_exchange`, it works now, and before
+milestone 290 it did not.** Every exchange test failed in isolation with *"the test server never saw a
+request: the client failed before it reached the network"*, while the whole suite was green. The
+cause was three steps from the message, which is why it is written down here rather than left to the
+next person's afternoon:
+
+`machine_has_no_entropy()` called `entropy_service::ensure` and threw the `Wiring` away. The **first**
+caller of `ensure` is handed the entropy service's `ready` endpoint, and the service announces itself
+with a **blocking** send, so discarding that wiring parks the service inside its own startup, before
+its request loop. Every later `ensure` gets `ready: None` and cannot rescue it. The client then blocks
+forever in `call(ENTROPY, ...)`, and what the test reports is the *server's* silence.
+
+It never showed in a whole-suite run because `entropy_tests` sorts before `ntp_tests` and drains the
+report first: this file was correct only because of another file's name. `machine_has_no_entropy()`
+is `entropy().is_none()` now, which asks the same question through the helper that drains properly.
+
+**The trap itself is still there for anyone else calling `ensure`**, and the remedy belongs in
+`ensure` rather than in its callers;
+`design/roadmap/proposals/a-service-report-nobody-is-obliged-to-drain.md` prices it.
 
 ## What the client does not do
 

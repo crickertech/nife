@@ -20,8 +20,21 @@ fn wait_for(mut cond: impl FnMut() -> bool) -> bool {
     cond()
 }
 
-fn ntp_image() -> &'static [u8] {
-    program("ntp").expect("no ntp program in the initrd archive")
+/// The three images milestone 290 split the one `ntp` binary into. Named separately because after
+/// the split each test says which program it is spawning, and a test that spawns the witness where
+/// it meant the client now fails to compile rather than passing for the wrong reason.
+fn client_image() -> &'static [u8] {
+    program("network_time_client").expect("no network_time_client program in the initrd archive")
+}
+
+fn test_server_image() -> &'static [u8] {
+    program("network_time_test_server")
+        .expect("no network_time_test_server program in the initrd archive")
+}
+
+fn witness_image() -> &'static [u8] {
+    program("unwritable_clock_witness")
+        .expect("no unwritable_clock_witness program in the initrd archive")
 }
 
 /// **A fresh clock service per test.** Each one allocates its own page and reads the RTC again,
@@ -65,9 +78,21 @@ fn entropy() -> Option<crate::sched::RendezvousId> {
 /// any bus yet (notes/x86-port.md), where both QEMU `virt` boards have one on mmio. Milestone 176
 /// only fixed the wall clock (DECISIONS §130); it did not, and was not scoped to, give this
 /// architecture a network entropy device.
+///
+/// **It goes through [`entropy`] rather than calling `ensure` itself, and that is load-bearing**
+/// (milestone 290, found by running these tests under a `--test` filter). It used to call
+/// `entropy_service::ensure` and throw the `Wiring` away. The first caller of `ensure` is the one
+/// handed the service's `ready` endpoint, and the service announces itself with a **blocking**
+/// send: discarding that `Wiring` without draining it parks the entropy service in its own startup,
+/// before it ever reaches its request loop. Every later `ensure` gets `ready: None` and cannot
+/// rescue it. The client then blocks forever in `call(ENTROPY, ...)`, which surfaces here as *"the
+/// test server never saw a request"* two frames away from the cause.
+///
+/// It never showed in a whole-suite run because `entropy_tests` sorts before `ntp_tests` and drains
+/// the report first, so this file was relying on another file's ordering. It showed the moment one
+/// of these tests was run on its own.
 fn machine_has_no_entropy() -> bool {
-    let image = program("entropy").expect("no entropy program in the initrd archive");
-    entropy_service::ensure(image, entropy_service::Bus::Mmio).is_none()
+    entropy().is_none()
 }
 
 /// Where the client is told to send. Nothing listens there; the test server is behind the
@@ -83,9 +108,9 @@ fn exchange(
     variant: u64,
     claimed_nanos: u64,
 ) -> ([u64; 5], [u64; 5]) {
-    let server = ntp_service::start_server(ntp_image(), variant, claimed_nanos);
+    let server = ntp_service::start_server(test_server_image(), variant, claimed_nanos);
     let client = ntp_service::start_client(
-        ntp_image(),
+        client_image(),
         server.stack,
         clock.propose,
         entropy(),
@@ -307,10 +332,18 @@ fn a_proposal_outside_the_policy_is_refused_by_the_service() {
 
 /// **The client holds no writable clock page, and knowing where one would be buys it nothing.**
 ///
-/// The same binary, the same five slots an NTP client is given, plus the exact address at which
-/// a process holding the *set* authority maps the clock page. It reports the address, writes
-/// there, and dies. The boundary is the mapping and not the layout, so there is no address at
-/// which this write succeeds; this one is chosen because it is the address that would matter.
+/// `unwritable_clock_witness`, given the same five slots an NTP client is given, plus the exact
+/// address at which a process holding the *set* authority maps the clock page. It reports the
+/// address, writes there, and dies. The boundary is the mapping and not the layout, so there is no
+/// address at which this write succeeds; this one is chosen because it is the address that would
+/// matter.
+///
+/// **What makes "the same five slots" true is the wiring, not the binary.** Until milestone 290 the
+/// witness was a role of the client's own binary and this comment said "the same binary", as though
+/// sharing code were the guarantee. It is not: the fault comes from the capability set, so any
+/// process holding it faults here whatever code it runs. `start_client` and `start_witness` both
+/// go through `ntp_service::spawn_with_client_endowment`, which is the single grant list, and a
+/// sixth slot given to the client is a sixth slot given to this witness with nothing to remember.
 ///
 /// This is the claim Unix cannot make. `ntpd` runs as root: there is no address in a Unix system
 /// its `settimeofday` cannot reach.
@@ -321,13 +354,14 @@ fn an_ntp_client_holds_no_writable_clock_page() {
     }
     let clock = clock();
     let before = clock.page().read();
-    // An endpoint nobody serves: the probe never sends a request, and giving it a real server
-    // would only add a process to the boot.
+    // An endpoint nobody serves: the witness never sends a request, and giving it a real server
+    // would only add a process to the boot. It is granted anyway, because the point is that this
+    // process holds everything a client holds.
     let stack = crate::sched::create_rendezvous();
 
     let faults = USER_FAULTS.load(Ordering::Relaxed);
-    let report = ntp_service::start_probe(
-        ntp_image(),
+    let report = ntp_service::start_witness(
+        witness_image(),
         stack,
         clock.propose,
         entropy(),
@@ -335,7 +369,7 @@ fn an_ntp_client_holds_no_writable_clock_page() {
     );
 
     let [tag, va, ..] = crate::sched::ipc_recv(report);
-    assert_eq!(tag, rpt::PROBING, "the probe never reached its write");
+    assert_eq!(tag, rpt::PROBING, "the witness never reached its write");
     assert_eq!(va, clock_service::CLOCK_VA);
 
     assert!(
@@ -345,7 +379,7 @@ fn an_ntp_client_holds_no_writable_clock_page() {
     // The exact address, on both ISAs. This half used to be aarch64-only, because aarch64 had a
     // last-fault record (`FAR_EL1`, stashed for tests) and RISC-V had only a fault *count*.
     // Milestone 19's portable record keeps it on both. The *kind* is deliberately not asserted:
-    // the probe holds no mapping of the clock page at all, so the fault is a translation fault,
+    // the witness holds no mapping of the clock page at all, so the fault is a translation fault,
     // and the claim being made here is about the address the client aimed at.
     assert_eq!(
         crate::arch::exceptions::last_user_fault().map(|(_, addr)| addr),
@@ -355,7 +389,7 @@ fn an_ntp_client_holds_no_writable_clock_page() {
     assert_eq!(
         crate::sched::rendezvous_waiting_senders(report),
         0,
-        "the probe reported past its write: the write did not fault, so an NTP client set the \
+        "the witness reported past its write: the write did not fault, so an NTP client set the \
          clock by hand",
     );
     assert_eq!(
@@ -427,9 +461,9 @@ fn without_entropy_the_client_refuses_rather_than_guessing() {
     }
     let clock = clock();
     let before = clock.page().read();
-    let server = ntp_service::start_server(ntp_image(), srv::GOOD, clock.wall_nanos());
+    let server = ntp_service::start_server(test_server_image(), srv::GOOD, clock.wall_nanos());
     let report = ntp_service::start_client(
-        ntp_image(),
+        client_image(),
         server.stack,
         clock.propose,
         None, // slot 4 empty
