@@ -43,7 +43,7 @@ address never changes (direct-mapped, its region pinned), which supplies the pin
 and then the pool both provided. The win over the pool: the kernel reserves no per-thread memory
 it was not handed, the last corner of milestone 14's no-open-ended-spending thesis. Why this is
 now worth doing when B.2 said retype earned nothing: B.2's premise was "the kernel is the only
-payer," and 19c is exactly when that expires (init becomes a payer).
+payer," and 19c is exactly when that expires (the progenitor becomes a payer).
 
 On the page-granularity worry the pool decision leaned on: a TCB is sub-page, so page-residency
 "wastes" most of a page. That was a real reason to prefer the pool *while the kernel paid*, and

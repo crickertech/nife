@@ -173,7 +173,7 @@ somewhere in the tree; collecting them is the point.
   the whole gate.
 - **`script/shell-check` can pass a boot it should have failed**, and says so in its own `BUGS`: the
   kernel's fault printer and the userspace console server drive the same UART with nothing
-  arbitrating, so the boot-line checks put their teeth on the sentence init prints when the answer
+  arbitrating, so the boot-line checks put their teeth on the sentence the progenitor prints when the answer
   is no, and a line destroyed by interleaving is reported rather than failed when the kernel
   demonstrably wrote during the boot.
 - **`script/crate-probes` measures compile and link and nothing else**, per its own `BUGS`.

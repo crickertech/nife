@@ -327,23 +327,23 @@ in the code or the conversation doesn't make sense, it belongs here.
   corpse is dead-until-reaped so the supervisor can inspect it and reap it with §16 revocation. No
   new syscall or method: a spawn-slot convention and a message-format convention. Restart policy
   stays in userspace; the kernel never relaunches anything.
-- [Trusted init: measuring the boot program, and then everything init loads](trusted-init.md): milestone 22
-  phase B.1. init's bytes used to be loaded on trust; now the build hashes the boot program and the
+- [Trusted init: measuring the boot program, and then everything the progenitor loads](trusted-init.md): milestone 22
+  phase B.1. The progenitor's bytes used to be loaded on trust; now the build hashes the boot program and the
   kernel refuses to enter anything else, digest compiled into its own image ("this kernel runs exactly
-  this init"). Why SHA-256 hand-written and shared by the build and the kernel, why an unmeasured
+  this progenitor"). Why SHA-256 hand-written and shared by the build and the kernel, why an unmeasured
   program is a refusal and not a pass, how the build composes without a chicken-and-egg, and the
   signature variant's cost (Ed25519 in the TCB, key custody) recorded rather than built. Phase B.2 is
-  the other half, what a broken init can still reach: a four-program tree where construction moves to a
+  the other half, what a broken progenitor can still reach: a four-program tree where construction moves to a
   sub-server holding one program image, the supervisor holds no memory at all, and the root deletes its
   budget, proven by authority (a dropped untyped answers `NoSuchSlot`) rather than by timing. The
-  interactive boot is migrated too: init keeps the ELF loader (moving it would relocate the authority
+  interactive boot is migrated too: the progenitor keeps the ELF loader (moving it would relocate the authority
   rather than reduce it) but drops the root untyped for a bounded job pool, gives back the UART and its
   interrupt, and builds every job in a region `job_undertaker` returns when the job ends, so a bounded
-  budget is affordable. Honest limits included: recovery is LIFO, and init still maps every page it
-  ever laid down for a child. Milestone 104 then continues the chain past init: the build packs a table
+  budget is affordable. Honest limits included: recovery is LIFO, and the progenitor still maps every page it
+  ever laid down for a child. Milestone 104 then continues the chain past the progenitor: the build packs a table
   of every program's digest into the archive, the kernel's trust root vouches for that table exactly as
-  it vouches for init (one digest, no policy, no 14 MB hash), and init refuses to load anything it
-  cannot match. One rule, `init runs nothing it cannot vouch for`, with a refused program treated
+  it vouches for the progenitor (one digest, no policy, no 14 MB hash), and the progenitor refuses to load anything it
+  cannot match. One rule, `the progenitor runs nothing it cannot vouch for`, with a refused program treated
   exactly as a missing one, so what a refusal costs is decided by what the program was for rather than
   by a second policy.
 - [Delegating a capability](delegation.md): a capability system where processes can't pass
@@ -394,7 +394,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   ELF against two destinations that share nothing but sixteen bytes of message. Since 2026-08-03 it
   runs against a **third**: `components/src/terminal_sink_caretaker.rs` makes the terminal a sink, which is a
   separate process for a capability reason (its endpoint also carries `OP_READLINE`) and which
-  needed a register-only `OP_PRINT`, because `OP_WRITE` reads from the one client page init maps.
+  needed a register-only `OP_PRINT`, because `OP_WRITE` reads from the one client page the progenitor maps.
 - [The documentation crate](documentation.md): milestone 40's documentation service. A streaming markdown renderer that
   allocates nothing, because `doc` reads its input as sixteen-byte sink messages and a renderer that
   held a document would need a memory grant to do it. Why the roadmap's `pulldown-cmark` was
@@ -449,14 +449,14 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [The command line as a grant expression](grant-expression.md): milestone 31: naming a resource
   in a command is how you grant it (Miller's "designation is authorization"), the inversion of
   Unix's ambient authority at the one interface a human touches. The shell's own budget, the
-  `SEND_CAP`-to-init spawn protocol, `--mem N` made real by the `memory_grant_depleter` program, the "you
+  `SEND_CAP`-to-progenitor spawn protocol, `--mem N` made real by the `memory_grant_depleter` program, the "you
   hold no such capability" refusal, and the `SPLIT`-grants-`GRANT` fix that let untyped be delegated.
   Phase 2 adds **per-file grants**: a caretaker process narrowing a directory capability to one file
   in one direction, proven by a read-only and a writable attacker, and why the second one is what
   makes the first mean anything. Milestone 47 then deleted two words from the grammar (`run` and
   `file:`), because the manifest was already doing the work the designator claimed credit for, and
   records what a shell that could delegate a **clock** to `date` would need. Phase 3 (2026-08-17)
-  closes it: **init builds a `fs_subtree_caretaker` per directory grant**, so `rm` runs at the real
+  closes it: **The progenitor builds a `fs_subtree_caretaker` per directory grant**, so `rm` runs at the real
   prompt, and the note now records how the four obstacles it predicted before building actually came
   out, including the one it got wrong.
 - [Live component replacement](live-replacement.md): milestone 23, the flagship: a running
@@ -970,7 +970,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   every core it is waiting for), and why the NMI is therefore forced rather than chosen. The test
   that already existed and fails without it.
 - [The progenitor, and loading a program from userspace](progenitor-and-loading.md): milestone 19d: the ELF
-  parser leaves the kernel for init, an ordinary confined program. How init loads a child through
+  parser leaves the kernel for the progenitor, an ordinary confined program. How the progenitor loads a child through
   the granular verbs (retype, copy-and-map each segment, endow, configure, start), why
   SYS_CAP_DELETE exists (a loader recycles a 16-slot capability table over hundreds of frames), and the two
   hardware details a userspace loader must respect (I-cache coherency, cross-space W^X).

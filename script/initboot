@@ -1,11 +1,11 @@
 #!/bin/sh
-# script/initboot: boot nife-os with userspace init as the boot path (milestone 19d.2c).
-# init brings up the console (and, in the interactive build, input and the shell) out of its own
+# script/initboot: boot nife-os with the userspace progenitor as the boot path (milestone 19d.2c).
+# The progenitor brings up the console (and, in the interactive build, input and the shell) out of its own
 # budget through the granular verbs; the kernel stops wiring services itself. Add --hvf for the
 # real Apple Silicon core. See design/init-and-granular-spawn.md.
 #
 # Name: provisional, and this lane proposes a rename to `init-boot`. Introduced 2026-07-25 with
-# milestone 19d.2c to boot with userspace init as the boot path. The name is not wrong about what
+# milestone 19d.2c to boot with the userspace progenitor as the boot path. The name is not wrong about what
 # it does; it is the **one entry point in this directory of fifty-two that runs two words
 # together**, where every other multiword name is hyphenated and AGENTS.md's naming table makes
 # that the rule, because a shell command is hyphenated everywhere outside this project and an

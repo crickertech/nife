@@ -449,8 +449,8 @@ riscv initboot). aarch64 keeps hello's init_boot; its shell still works. Origina
 
 ### D (original scope). Full integrated boot + interactive shell: M–L. Mostly userspace porting.
 
-aarch64 boots userspace init as the boot process, which builds the whole system (console + input +
-shell + spawn service). RISC-V demonstrates init building *one* worker, then halts. Closing this is
+aarch64 boots the userspace progenitor as the boot process, which builds the whole system (console + input +
+shell + spawn service). RISC-V demonstrates the progenitor building *one* worker, then halts. Closing this is
 mostly porting userspace, not proving new kernel behavior.
 
 - Port the device-specific programs to the NS16550: `console.rs` (writes the UART, ~6 PL011 register
@@ -458,7 +458,7 @@ mostly porting userspace, not proving new kernel behavior.
   or ship NS16550 variants. `swish.rs` is already mostly portable (IPC, no direct hardware).
 - A riscv `spawn_progenitor` (or a generalized one) that grants the PLIC/NS16550 equivalents of the
   GIC/PL011/IRQ capabilities aarch64's grants.
-- Wire the riscv boot to hand off to init-as-PID-1 instead of halting.
+- Wire the riscv boot to hand off to progenitor-as-PID-1 instead of halting.
 - **Proves:** the full interactive system runs on riscv. Lowest *kernel* value of the list; highest
   app-porting cost. Do last, or skip if the goal is "prove the kernel," not "ship the system."
 

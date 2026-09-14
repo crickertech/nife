@@ -422,9 +422,9 @@ doc: reads an input stream: name a file, redirect with '<', or pipe into it
   shell `WAIT` on "the caretaker's queue for this client has drained" instead of racing it. See
   notes/tail-output-narrowing.md.
 - **A screen-narrowed child is invisible to a concurrent `ps`/`pgrep` for its short life.** Its
-  DECISIONS §26 fault target is a fresh endpoint this shell minted, not init's `deaths` domain
+  DECISIONS §26 fault target is a fresh endpoint this shell minted, not the progenitor's `deaths` domain
   channel, because the shell needs to `RECV` its own child's exit directly rather than race
-  `job_undertaker` for the same message. Its memory still returns to init's job pool when this
+  `job_undertaker` for the same message. Its memory still returns to the progenitor's job pool when this
   shell reaps it (§26: a corpse's region returns to its *builder*, not its supervisor), so nothing
   leaks; it simply does not appear in a domain survey while it runs. Given `doc`'s render is a
   handful of milliseconds, this is unlikely to matter in practice and is recorded here rather than

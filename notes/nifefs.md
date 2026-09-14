@@ -47,7 +47,7 @@ alone would have taken `MAX_FILES` from 63 down to 50, and the riscv64 initrd ho
 files**. It would have built, once, and the next program added to it would have failed. That was
 measured after the fact rather than predicted, which is the argument for measuring: the plan in the
 roadmap reasoned about the aarch64 archive, which carries 46, and the riscv64 one carries four more
-because its `init` is a separate program from `hello`.
+because its progenitor is a separate program from `hello`.
 
 That ceiling gets crossed by lanes that cannot see each other. It went from 31 to 63 on 2026-07-30
 when three of them landed together and made 32 files, so the cost is invisible to every branch that
@@ -93,7 +93,7 @@ from before the change fail loudly, and it forced every reader to be visited rat
 A format change has to reach all of them, and one of them was the reason this needed care.
 
 1. **The kernel** (`kernel/src/user.rs`, `kernel/src/main.rs`), which parses the initrd to find
-   `init`. Uses `nifefs::Fs`.
+   `progenitor`. Uses `nifefs::Fs`.
 2. **`xtask`** (`initrd_aarch64`, `initrd_riscv`, `initrd_x86`, `mkdisk`), which writes every image and then parses it
    back to hash the boot programs. Uses `nifefs::write_image` and `Fs`.
 3. **The EL0 blk driver** (`crates/virtio`), which walked the directory out of a 512-byte DMA buffer
@@ -107,7 +107,7 @@ A format change has to reach all of them, and one of them was the reason this ne
 
 `write_image` used to write `name.len().min(NAME_LEN)` bytes, so a name that was too long was
 **silently truncated**. Two names agreeing in their first `NAME_LEN` bytes become one directory
-entry, and `init` then loads whichever program was packed first, arbitrarily far from the edit that
+entry, and `progenitor` then loads whichever program was packed first, arbitrarily far from the edit that
 caused it. Packing `os_primitives_benchmarker` under the old limit would have produced
 `os_primitives_benchmark` and no error at all.
 

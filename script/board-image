@@ -259,7 +259,7 @@ if [ "$TFTP" = yes ]; then
 fi
 echo
 echo "The kernel and the archive are ONE pair. The kernel compiles in a hash of the archive it was"
-echo "built against and halts rather than hand init an archive that does not match, so a card that"
+echo "built against and halts rather than hand the progenitor an archive that does not match, so a card that"
 echo "carries a new kernel over an old archive stops at MEASURED BOOT REFUSED. Copy all three files"
 echo "or none, which is what --card is for."
 echo

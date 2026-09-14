@@ -56,7 +56,7 @@ few programs and the enum carries more.
 
 **The last four are one family and they are the ones a newcomer misreads.** Every other field is
 about something the command line can designate; these four are about authority no token can name, so
-there is nothing to type and nothing to refuse. What they do is tell **init** which children to
+there is nothing to type and nothing to refuse. What they do is tell **The progenitor** which children to
 endow, and tell a person reading `caps <program>` that the authority exists at all. `clock` and
 `config` are read-only page mappings; `domain` and `entropy` are endpoints placed at named slots
 (`grant_plan::DOMAIN_SLOT`, `ENTROPY_SLOT`), narrowed to `ENUMERATE` and `WRITE` respectively.
@@ -91,7 +91,7 @@ declare nothing but `interruptible`):
 | `date`     | Forbidden  | Forbidden            | Forbidden | yes     |
 
 **`date`'s row is all `Forbidden`, and that is the interesting one.** Its authority is a read-only
-mapping of the clock page, which init endows and the command line cannot name: there is nothing to
+mapping of the clock page, which the progenitor endows and the command line cannot name: there is nothing to
 type, so there is nothing to get wrong. What the manifest still does is refuse everything else, so a
 memory grant or a file aimed at a clock reader stops at the prompt rather than being handed over and
 ignored. A manifest is as much about what a program will *not* accept as what it needs.

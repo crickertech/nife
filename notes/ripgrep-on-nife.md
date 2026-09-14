@@ -149,7 +149,7 @@ Three things, in the order they bite. All three are platform gaps rather than `r
 no `main` wrapper"*; a program is entered with three registers and a capability table.
 
 The native answer is `grant_plan`: the shell parses the line, resolves it against the program's
-`Manifest`, and sends init **a program id, one integer, and a page count**, plus capabilities. That
+`Manifest`, and sends the progenitor **a program id, one integer, and a page count**, plus capabilities. That
 is a rich and deliberate design, and it is the reason `swish` can grant exactly the file a command
 named. It is also, for a foreign program, no design at all: `ripgrep` wants a regex.
 

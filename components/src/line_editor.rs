@@ -92,7 +92,7 @@ const MODE_DISPLAY: u64 = 1;
 /// The output sink's shared page, mapped read/write: we fill it, the sink prints it. In
 /// [`MODE_CONSOLE`] the same frame the console server reads at its own `SHARED_VA`; in
 /// [`MODE_DISPLAY`] the same frame `display_terminal` reads at its own `OUT_VA`. Must match the
-/// wiring (init, or `kernel::user::boot_graphical_terminal` one level further up); one address
+/// wiring (the progenitor, or `kernel::user::boot_graphical_terminal` one level further up); one address
 /// either way, since the two modes never coexist in one process.
 const CONOUT_VA: u64 = 0x0060_0000;
 /// The client's output page, mapped read-only: `OP_WRITE` text and `OP_READLINE` prompts arrive
@@ -264,7 +264,7 @@ pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
             proto::OP_PRINT => {
                 // **A second writer, with no second page** (DECISIONS §67, notes/sink-protocol.md).
                 // The bytes are in the request's own words, so this client needs no frame mapped
-                // here and no frame of its own; `OP_WRITE` above reads the *one* page init maps in,
+                // here and no frame of its own; `OP_WRITE` above reads the *one* page the progenitor maps in,
                 // and a second page-based client would need this contract to grow a page index.
                 //
                 // Through the same `expand_output` as `OP_WRITE`, so a newline from a sink adapter
