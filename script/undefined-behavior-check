@@ -9,7 +9,7 @@
 # its 10^9-value sweep, gpt skips its 460k-parse corruption sweeps. Each site says so next to the
 # test, and the note carries the full exclusion list. The exhaustive claims stay native-only.
 #
-# Not in script/test or script/gates, on purpose: the sampled run is minutes where the host tests
+# Not in script/test and not in script/ci-build's table, on purpose: the sampled run is minutes where the host tests
 # are milliseconds, and the class of bug it catches moves at the pace of `unsafe` blocks, not of
 # commits. Cadence is the weekly miri workflow plus on demand, here. Extra args go to
 # `cargo miri test`, so `script/undefined-behavior-check -p gpt` narrows the run.

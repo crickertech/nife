@@ -89,7 +89,8 @@ either; that is how a checkpoint reachable on one of three architectures hid for
 
 ## EXAMPLES
 
-Boot all three and require a green verdict (this runs in `script/gates` and in CI):
+Boot all three and require a green verdict (a `local` row in `script/ci-build`'s table, so the
+no-argument path runs it before a push and CI's test job names it):
 
 ```
 $ script/boot-check

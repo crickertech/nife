@@ -1,17 +1,92 @@
 #!/bin/sh
-# script/ci-build: the entry point CI uses to run the tests on a clean machine.
+# script/ci-build: every check that gates a pull request, in ONE enumeration.
 #
-# Unlike script/test, it provisions dependencies first, because a CI runner starts bare. This is
-# what the workflow's test job runs, so CI exercises the same bootstrap a developer does. The
-# lint and format checks are separate CI jobs (script/lint, script/fmt) so they fail fast and in
-# parallel. See notes/scripts.md and .github/workflows/ci.yml.
+# **Why this file is shaped like a table** (milestone 286). Until 2026-09-13 the set of gating
+# checks was written down twice: this script plus `script/gates` held the list a developer runs, and
+# `.github/workflows/ci.yml` held its own list as parallel jobs. Nothing compared them, and the
+# evidence that this was rung four rather than a design is that the divergence had already happened
+# three times in prose nobody re-derived:
+#
+#   * `ci.yml` said of `script/icount` "it is not in script/test and it is not in script/gates".
+#     It had been in `script/gates` since milestone 62.
+#   * `notes/scripts.md` listed `gates` as "`script/fmt --check`, `script/lint`, `script/test`,
+#     then `script/test --hvf`", three milestones after `image-permissions`, `icount` and
+#     `shell-check` joined it.
+#   * `CONTRIBUTING.md` and `.github/pull_request_template.md` both said "the five checks". There
+#     were six, and `script/gates` itself printed six names on every run.
+#
+# Each of those was correct when written. The ladder in `AGENTS.md` says to move up a rung when a
+# fact exists only as a comment, and the rung above a gate that compares two lists is **one list**.
+# So the table below is the only place the set lives: CI fans it out by name, a developer runs it
+# with no arguments, and a seventh check cannot be added to one without the other learning about it.
+#
+# **The two tiers, and the principle that forced them.** It cannot be that "no arguments" means
+# everything: `script/verify` is about 47 minutes of Kani and `script/cpu-matrix` is five QEMU
+# boots, and `script/gates`' own header carried the rule that has to survive this milestone, which
+# is that **a gate people skip is not a gate**. So the enumeration carries a tier column and the
+# two tiers are two tags in one table rather than two files:
+#
+#   * `local`  a developer waits for it before pushing, and the no-argument path runs it.
+#   * `ci`     only a runner waits for it. Nameable here, never run by the no-argument path.
+#
+# **The tier is data; the reason a check is `ci` is still prose**, and that half cannot be
+# mechanised: "it builds the kernel test binary twice" is a judgement about what a person will wait
+# for. What changed is that the prose now sits in the same table as the tag it explains, so a
+# comment can no longer claim a membership the code contradicts. Each `ci` row below says why.
+#
+# **The tier tags and the no-argument meaning are PROVISIONAL** pending calef:
+# `design/roadmap/proposals/what-no-arguments-means.md` states the options and their costs.
+#
+# **Order is cheapest first, and it is the table's order.** That is the whole value of the
+# no-argument path to a developer: a formatting slip costs twenty seconds rather than ten minutes.
+# Do not reorder these rows for tidiness.
+#
+# **Bootstrapping is the no-argument path's job and nobody else's, and it runs FIRST rather than
+# lazily.** calef ruled this on 2026-09-13 and it is the shipped behaviour: a machine that cannot
+# provision will fail the later rows anyway, and failing early is honest. It is a real cost against
+# the cheapest-first rule and it is priced rather than hidden, since a formatting slip now costs
+# `script/bootstrap` plus twenty seconds. Lazy provisioning would buy almost nothing, because `lint`
+# is the second row and needs `shellcheck`, `cargo-machete` and `typos`, all of which bootstrap
+# installs; so the saving would be one row wide and the cost would be a second column in the table
+# saying which rows need it.
+#
+# **What that ruling costs, and why the failure path below is loud.** `script/bootstrap` does two
+# jobs: it installs what is missing, and it verifies the environment is ADEQUATE. The second can
+# fail on a machine where most of this tier would have run perfectly; measured on milestone 286's
+# own container, where the packaged QEMU is 8.2.2 and lacks `riscv-iommu-pci`, so bootstrap exits 1
+# having installed nothing and broken nothing. The developer then gets **one error about QEMU** and
+# no checks at all, where the retired `script/gates` (which never provisioned) ran three. Read as
+# the QEMU error alone, that is a gate silently giving somebody nothing, which is the same failure
+# `a gate people skip is not a gate` names, arriving from the other side. So the exit says in plain
+# words that NO CHECKS RAN, lists the tier it skipped out of this table rather than out of a second
+# hand-written list, and names what is still runnable by hand.
+# **Bootstrapping is the no-argument path's job and nobody else's.** With no arguments this is the
+# one command a person runs before pushing, so it provisions first; `script/bootstrap` is idempotent
+# and does nothing on a warm machine. A named check runs exactly what it names, because the caller
+# that names one check is a CI job whose own steps have already installed the targets, the
+# components and the QEMU it needs. That is not a new convention: the `bench` and `cpu matrix` jobs
+# in `ci.yml` have always carried their own `script/bootstrap` step, and the `test` job now does
+# too.
+#
+# Usage:
+#   script/ci-build                 the `local` tier, in this table's order, cheapest first
+#   script/ci-build <check>...      exactly those checks, in the order given
+#   script/ci-build --list          print the table
+#
+# This script never writes. `script/fmt` with no argument is the one that formats.
+#
+# See notes/scripts.md, notes/check-inventory.md and .github/workflows/ci.yml.
 #
 # Name: ratified 2026-07-22 by adopting Scripts to Rule Them All. The canonical set keeps its
 # standard names even where a more descriptive word exists, because the entire value is that the
 # command is the same in every repository that follows the pattern (notes/naming.md). Respelled from
 # `cibuild` on 2026-08-01 (milestone 63) under the rule that shell entry points are hyphenated,
 # because an underscore or a squash in a command name reads as a mistake next to `apt-get` and
-# `pkg-config`.
+# `pkg-config`. Milestone 286 widened what it does without touching the name, and the widening is
+# what the name always promised: "build it the way CI does" is exactly a set of checks a developer
+# can run. It absorbed `script/gates`, which was unratified, was `DECISIONS §134`'s one clear
+# exception (a noun that acts), and is retired rather than kept as a wrapper, because two names for
+# one thing is the comprehension cost the naming rules exist to prevent.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -20,52 +95,208 @@ cd "$(dirname "$0")/.."
 # PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
 . scripts/qemu-path.sh
 
-script/bootstrap
-cargo xtask test
+# --- the enumeration --------------------------------------------------------------------------
+#
+# `name|tier|command`. One row per check. The command is evaluated by `sh`, so a row may chain.
+#
+# Adding a check here is the whole of adding a check: the no-argument path picks it up if the tier
+# is `local`, `--list` prints it, and `ci.yml` names it in a job. Adding it to `ci.yml` WITHOUT a row
+# here is the defect this table exists to prevent.
+checks() {
+    cat <<'TABLE'
+fmt|local|script/fmt --check
+lint|local|script/lint
+image-permissions|local|script/image-permissions
+icount|local|script/icount
+test|local|script/test
+shell-check|local|script/shell-check
+boot-check|local|script/boot-check
+hvf|local|hvf_leg
+fastpath-footprint|ci|script/fastpath-footprint
+stack-frame-check|ci|script/stack-frame-check
+stack-depth-check|ci|script/stack-depth-check
+supply-chain|ci|script/supply-chain
+coverage|ci|script/coverage
+fuzz|ci|script/fuzz --time 60
+bench|ci|script/bench --check && script/bench --riscv --check
+cpu-matrix|ci|script/cpu-matrix
+TABLE
+}
 
-# **The interactive boot, in the same job rather than a job of its own** (milestone 230). Until that
-# milestone `script/shell-check` ran in neither `script/test` nor CI, so it was red on `main` on both
-# architectures for five days and a fully green tree said nothing about it: the progenitor trapped before the
-# console existed, and the only gate that boots the real progenitor is this one.
+# Why each `ci` row is not `local`. Kept beside the tier it explains, because the three comments
+# this milestone deleted from `ci.yml` were each correct when written and each drifted.
 #
-# **It earned its place on its first run here.** The aarch64 leg passed and the riscv64 leg failed,
-# on a check whose local runs were green on both, and the divergence was real rather than flaky
-# infrastructure: the kernel's fault printer and the userspace console server drive the same UART
-# from two address spaces with nothing arbitrating, so a thread dying while the progenitor prints shuffles the
-# two lines together at byte granularity. That happens on every boot; whether it lands on top of a
-# line the gate reads is timing, and a runner is not this laptop. Local-only would have kept it
-# invisible.
+#   fastpath-footprint  builds two RELEASE kernels, which no other check builds, so there is
+#                       nothing warm to share and a developer would wait for a cold build.
+#   stack-frame-check   builds the kernel test binary twice; `-Z emit-stack-sizes` changes the
+#                       build, so the artifacts the `test` check just made cannot be reused.
+#   stack-depth-check   the same build as the row above, sharing its artifacts.
+#   supply-chain        advisories and licences are a property of the dependency graph on the day
+#                       it is audited, not of the diff; `cargo-deny` also wants the network.
+#   coverage            instruments and re-runs the whole host suite.
+#   fuzz                60 seconds per target by construction, and unbounded by intent.
+#   bench               two full icount baselines; `script/icount` above is the seven-second
+#                       instrument that carries the timing claims, and it IS local.
+#   cpu-matrix          five QEMU boots of the riscv64 suite, one per CPU model.
 #
-# Here, and not as a thirteenth workflow job, because of what the two cost. Measured on 2026-09-02:
-# the check itself is **30 seconds** for both architectures against a warm target directory, while
-# this job's build is around ten minutes. A separate job would pay that ten minutes again, plus its
-# own QEMU cache restore and runner slot, to do thirty seconds of work; appended here it reuses the
-# build that just ran and adds only the `--features shell` kernels. Runner concurrency is a real
-# ceiling on this project (CLAUDE.md's lane-count section), so a job that buys nothing the step
-# cannot is a job that slows every other lane's group build down.
-#
-# After `cargo xtask test` rather than before it: the suite is the broader signal and should be what
-# fails first when both would.
-cargo xtask shell-check
+# `script/verify` (Kani, ~47 minutes) and the re-falsification sweep are deliberately absent: they
+# are `verify.yml`, a different workflow with its own sharding, and this table's claim is about the
+# checks `ci.yml` runs. Naming them here without running them would be a fourth kind of prose that
+# nothing keeps true. See notes/check-inventory.md for the whole surface.
 
-# **The boot ladder's gate, in the same job and for the same reasons** (milestone 268). It boots the
-# default kernel on all three architectures and fails if the boot self-test's verdict is not green.
+# The silicon leg (milestone 81), a check rather than a line because everything else here is a row.
 #
-# **It is the only thing on a pull request that boots the default riscv64 or x86_64 kernel at all.**
-# `cargo xtask test` above boots a `#[cfg(test)]` build that exits through semihosting before the
-# tour, and `shell-check` boots `--features shell` on two architectures; the boot a person gets by
-# typing `cargo xtask run` was unasserted. That is not a theoretical gap: milestone 268's finding 3
-# is a checkpoint that could never fire on two of three architectures, and it hid for months because
-# nothing read the channel it was supposed to appear on.
+# Everything above it runs under TCG, which emulates every instruction: a machine with no real
+# caches, no real reordering, and a scheduler QEMU round-robins between vCPUs. Hypervisor.framework
+# runs the same kernel at guest EL1 on the physical Apple Silicon core, four vCPUs on four host
+# threads at once, and that is a genuinely different machine to be correct on. It found a scheduler
+# test asserting against a yield count on its first run.
 #
-# Appended here rather than given a job, on `shell-check`'s measurement: three debug kernels against
-# a warm target directory is about a minute, where a job of its own would pay this job's ten-minute
-# build again plus a runner slot and a QEMU cache restore. Runner concurrency is a real ceiling on
-# this project (AGENTS.md's lane-count section).
+# It is `local` and has no CI job because GitHub's hosted macOS arm64 runners are themselves virtual
+# machines with no nested virtualization, so HVF does not exist there. This is the one command a
+# person runs before pushing, so this is where the leg reaches a real core.
 #
-# **The injected leg (`--inject`) is deliberately NOT here**, and that is a stated cost rather than
-# an oversight. It rebuilds all three kernels with a feature flipped, which is the whole build again
-# for one boolean, and what it proves is a property of this gate rather than of the change under
-# test. It is run by hand when the self-test or the recogniser changes; the milestone block records
-# the transcript from the run that proved it.
-cargo xtask boot-check
+# aarch64 only, and that is the honest name for it: HVF runs the host's own ISA, and riscv64 has no
+# equivalent until the board lands.
+hvf_missing=""
+hvf_leg() {
+    if [ "$(uname -s)" != "Darwin" ]; then
+        hvf_missing="this host is not macOS"
+    elif [ "$(uname -m)" != "arm64" ]; then
+        hvf_missing="this host is not Apple Silicon"
+    elif [ "$(sysctl -n kern.hv_support 2>/dev/null)" != "1" ]; then
+        hvf_missing="Hypervisor.framework is unavailable (kern.hv_support is not 1; a VM, or entitlements)"
+    elif ! qemu-system-aarch64 -accel help 2>/dev/null | grep -q '^hvf$'; then
+        hvf_missing="the QEMU on PATH was built without the hvf accelerator"
+    else
+        # The four conditions above ask whether HVF exists. This one asks whether QEMU will start the
+        # machine the runner actually configures, which is a different question and the one that was
+        # being answered by a crash (milestone 222). On QEMU 11.1.1 it will not: HVF refuses GICv2, and
+        # `kernel/src/drivers/gic.rs` speaks GICv2 only, so the leg has no version of the machine it can
+        # run on. Asking the runner rather than testing a QEMU version keeps the machine string in one
+        # place; see the probe in scripts/qemu-runner-aarch64.sh.
+        if ! hvf_refusal="$(NIFE_PROBE=1 NIFE_ACCEL=hvf scripts/qemu-runner-aarch64.sh 2>/dev/null)"; then
+            hvf_missing="QEMU will not start the machine this leg needs. It said: $hvf_refusal. The kernel drives GICv2 only (kernel/src/drivers/gic.rs, and the BUGS section of notes/interrupts.md), so there is no GIC version this QEMU and this kernel both accept"
+        fi
+    fi
+
+    # **Skip LOUDLY.** A silent omission would let a transcript from a Linux CI runner read exactly
+    # like one from this laptop, and the whole point of the leg is that those two are not the same
+    # evidence. One line, naming what did not run and why, so nobody has to infer it from an absence.
+    if [ -n "$hvf_missing" ]; then
+        echo "ci-build: SKIPPED the HVF leg ($hvf_missing). NO code in this run executed on a physical core; everything else in this run was TCG emulation."
+    else
+        script/test --hvf
+    fi
+}
+
+# --- the machinery ----------------------------------------------------------------------------
+
+command_for() {
+    checks | awk -F'|' -v want="$1" '$1 == want { print $3; found = 1 } END { exit !found }'
+}
+
+names_in_tier() {
+    checks | awk -F'|' -v want="$1" '$2 == want { print $1 }'
+}
+
+usage() {
+    echo "usage: script/ci-build [--list | <check>...]" >&2
+    echo "  no arguments runs the 'local' tier, cheapest first:" >&2
+    echo "    $(names_in_tier local | tr '\n' ' ')" >&2
+    echo "  CI-only checks, runnable by name:" >&2
+    echo "    $(names_in_tier ci | tr '\n' ' ')" >&2
+    echo "  To FORMAT rather than check, run script/fmt. This script never writes." >&2
+}
+
+run_one() {
+    echo
+    echo "==> script/ci-build $1"
+    cmd="$(command_for "$1")" || { echo "script/ci-build: no such check '$1'" >&2; usage; exit 2; }
+    eval "$cmd"
+}
+
+case "$1" in
+--list)
+    [ $# -eq 1 ] || { usage; exit 2; }
+    printf '%-20s %-6s %s\n' check tier runs
+    checks | awk -F'|' '{ printf "%-20s %-6s %s\n", $1, $2, $3 }'
+    exit 0
+    ;;
+-h | --help)
+    usage
+    exit 0
+    ;;
+-*)
+    echo "script/ci-build: unknown option '$1'" >&2
+    usage
+    exit 2
+    ;;
+esac
+
+if [ $# -gt 0 ]; then
+    # Named checks. Validate the whole list BEFORE running any of it, so a typo in the last name
+    # does not surface after the first check has spent ten minutes.
+    for name in "$@"; do
+        command_for "$name" >/dev/null || {
+            echo "script/ci-build: no such check '$name'" >&2
+            usage
+            exit 2
+        }
+    done
+    for name in "$@"; do
+        run_one "$name"
+    done
+    echo
+    if [ -n "$hvf_missing" ]; then
+        echo "ci-build: $* all pass (TCG only; the HVF leg was skipped)"
+    else
+        echo "ci-build: $* all pass"
+    fi
+    exit 0
+fi
+
+# The no-argument path: provision, then the `local` tier in this table's order.
+#
+# **A failed bootstrap ends the run, loudly, saying what it cost.** `set -e` would already exit here
+# and would leave the developer holding whatever sentence `script/bootstrap` printed last, which on
+# the machine this was measured on is a line about a QEMU device. The point of the block below is
+# that nobody should have to infer "and therefore nothing was checked" from the absence of output.
+echo "==> script/bootstrap"
+if ! script/bootstrap; then
+    echo
+    echo "ci-build: NO CHECKS RAN. script/bootstrap failed above, and every check below it needs"
+    echo "  something it provisions: the toolchain components, the three emulators, or the lint tools."
+    echo "  Read its last line as the CAUSE, not as the whole cost. The cost is this:"
+    echo
+    echo "  Skipped, the entire local tier:"
+    names_in_tier local | sed 's/^/    /'
+    echo
+    echo "  Still runnable by name on a machine in this state:"
+    echo "    script/ci-build fmt      rustfmt only; needs nothing script/bootstrap installs"
+    echo
+    # **`fmt` is named by hand and the others are not, and that is deliberate.** Which rows survive a
+    # failed bootstrap depends on WHICH PART of it failed, and this table has no column for that: an
+    # adequacy failure (an old QEMU) leaves `lint` and `image-permissions` perfectly runnable, while a
+    # missing rustup leaves nothing. Guessing from the table would produce a list that is wrong half
+    # the time, which is worse than a short list that is always right. `fmt` is the one row that is
+    # safe under every failure mode, so it is the one named.
+    echo "  Other rows may also work, depending on what failed: an out-of-date emulator leaves"
+    echo "  script/ci-build lint and script/ci-build image-permissions runnable, where a missing"
+    echo "  rustup leaves nothing. This script does not guess which, because the table does not"
+    echo "  record why a row needs bootstrap and a wrong guess is worse than a short list."
+    exit 1
+fi
+
+ran=""
+for name in $(names_in_tier local); do
+    run_one "$name"
+    ran="$ran $name"
+done
+
+echo
+if [ -n "$hvf_missing" ]; then
+    echo "ci-build:$ran all pass (TCG only; the HVF leg was skipped)"
+else
+    echo "ci-build:$ran all pass, the aarch64 suite twice (TCG and the physical core)"
+fi

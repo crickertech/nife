@@ -116,7 +116,7 @@ only visible by running the thing.
   It is what puts the HVF leg back, and `notes/aarch64-board-survey.md` already records GICv3 as the
   largest single item barring most modern aarch64 boards, which makes it a customer-path constraint
   rather than a test-harness one.
-- **Recorded.** `script/gates` says on the closing line of every run that the leg was skipped and
+- **Recorded.** `script/ci-build` says on the closing line of every run that the leg was skipped and
   the run was TCG only. Until that driver exists this machine has no accelerated coverage at all,
   and the loud skip is a record of the gap rather than a substitute for it.
 - **Recorded.** `design/roadmap/222-hvf-leg-fails-silently.md` states the split the probe holds: it

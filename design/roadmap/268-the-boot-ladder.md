@@ -214,7 +214,8 @@ $ echo $?
 ```
 
 Exit 1 is what fails CI: `script/boot-check` is appended to `script/ci-build`, which is the test
-job's command, and to `script/gates`. **The verdict has been seen red on all three**, which is the
+job's command, as a `local` row in its enumeration. **The verdict has been seen red on all three**,
+which is the
 half of a gate that usually never gets checked.
 
 ### The six items
@@ -243,7 +244,8 @@ half of a gate that usually never gets checked.
    and a **failed verdict is `Failure::SelfTestFailed`, not a stage**, so a degraded board does not
    read as a good one. `cargo xtask board-console --until machine|selftest|prompt`. Eight new host
    tests.
-6. **CI fails on a red verdict**: `script/boot-check`, in `script/ci-build` and `script/gates`.
+6. **CI fails on a red verdict**: `script/boot-check`, a `local` row in `script/ci-build`'s table
+   (milestone 286's one enumeration), named by CI's test job beside `test` and `shell-check`.
 
 ### `crates/boot_ladder`, which was not in the plan
 

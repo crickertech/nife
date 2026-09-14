@@ -990,7 +990,15 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //   3 = the outlaw step finished        7 = the UART-driver step finished
         //   4 = the initrd demo was entered     8 = the virtio probe finished
         //   5 = the initrd demo returned        9 = the PCIe probe finished
-        //   6 = the preemption step finished   10 = the final banner printed; halting
+        //   6 = the preemption step finished   10 = the hardware-entropy step finished
+        //                                      11 = the banner printed; the tour is over
+        //
+        // **10 is not the end, and reading it as one is the mistake this table used to invite.**
+        // It said `10 = the final banner printed; halting` and stopped there, which was true until
+        // milestone 159 put the hardware-entropy step after what had been the last one and moved
+        // the meaning down a row. 11 is the number that means finished, and it is the one the hang
+        // watcher keys on (`user.rs`, `boot_stage() >= 11`), so a board log reporting 10 is a boot
+        // that got as far as the entropy step and then stopped, not a boot that completed.
         sched::note_boot_stage(3);
 
         // Running a real compiled ELF at U-mode, two ways, depending on the initrd.
@@ -1005,6 +1013,35 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // The probe names `progenitor` rather than the entry the demo actually loads, because
             // it is asking "is this one of our archives at all", and since milestone 266 that entry
             // is on every archive this tree packs.
+            //
+            // **Why this step was still here when the machine booted to `swish`** (milestone 289,
+            // which was sent to retire it and did not), **and what milestone 268 changed about that
+            // argument.** 289's reason was that `swish` arrives through the progenitor and the
+            // progenitor handoff was reached only by a `--features shell` build, so the **default**
+            // build, which is what `script/board-image` writes to a card, ran the tour and halted.
+            // On that build this step was the userspace-loads-userspace demonstration that reached
+            // the board, and it could be, because it is trimmed to a budget and a report endpoint:
+            // no PLIC, no NS16550 delegation, no interrupt route, and therefore no dependence on
+            // the board's UART source number, which is 10 on QEMU `virt` and 32 on the JH7110.
+            //
+            // **Milestone 268's item 4 made that premise false, deliberately.** Nothing halts by
+            // default any more: the tour now ends in `riscv_hand_over`, so the default build and
+            // the card reach the progenitor and a prompt, and the progenitor composes the console,
+            // the line discipline, the input driver and `swish` out of its own budget on the same
+            // boot this step runs on. The claim this step makes is therefore carried by the handoff
+            // as well, at a larger scale, on this architecture. It is kept rather than deleted
+            // because the two claims are not identical (this one composes from **exactly two**
+            // capabilities and the progenitor does not) and because calef's 2026-09-14 ruling on
+            // retiring it has a condition attached. See
+            // `design/roadmap/proposals/retire-the-builder-program.md`, which is where the decision
+            // lives and what it costs.
+            //
+            // **The `init/build` line below is read by a program, not only by a person.**
+            // `crates/board_console`'s `Progress::userspace_ran` matches it by substring; four host
+            // tests assert on it, and three captured transcripts carry it, one of them off the
+            // VisionFive 2 (`vf2-2026-09-01-userspace.log`). `notes/board-console.md` calls it the
+            // only difference between the two successful board captures (an archive on the card,
+            // and none). Change the words and that goes quiet.
             let is_archive = nifefs::Fs::parse(initrd)
                 .map(|fs| fs.read(user::PROGENITOR_ENTRY).is_some())
                 .unwrap_or(false);

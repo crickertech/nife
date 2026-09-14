@@ -69,8 +69,14 @@ concurrency:
   group: ci-${{ github.ref }}-${{ github.ref == 'refs/heads/main' && github.sha || 'tip' }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/gh-readonly-queue/') }}
 
-# Each job's real work is a script from script/ (the "Scripts to Rule Them All" set), so CI runs
-# exactly what a developer runs locally. See notes/scripts.md.
+# **Each job's real work is one named check out of `script/ci-build`'s table** (milestone 286), so
+# CI runs exactly what a developer runs locally and the two cannot drift. That table is the single
+# enumeration of the checks a pull request must pass: it carries a tier saying whether a developer
+# waits for a check before pushing, and `script/ci-build` with no arguments runs that tier, cheapest
+# first. Until 2026-09-13 the local set lived in a second script and this file explained in three
+# separate comments why a given check was not in it; one of those three had been false since
+# milestone 62. Adding a job here without adding its row there is the defect the table exists to
+# prevent. `script/ci-build --list` prints it. See notes/scripts.md.
 #
 # **Every job skips while the pull request is a draft** (2026-08-23), checked with
 # `github.event_name != 'pull_request' || github.event.pull_request.draft == false`. §90's
@@ -215,10 +221,46 @@ jobs:
         if: steps.scope.outputs.needed == 'true'
         run: echo "$HOME/.cache/nife-qemu/bin" >> "$GITHUB_PATH"
 
-      # script/ci-build bootstraps the toolchain and QEMU (the same script/bootstrap a developer
-      # runs), then runs the host-logic crates and the kernel under QEMU (TCG), exiting through
-      # semihosting.
-      - run: script/ci-build
+      # **The provisioning step is explicit** (milestone 286), the same shape the `bench` and `cpu
+      # matrix` jobs have always had. `script/ci-build` bootstraps only on its no-argument path,
+      # which is the command a developer runs before pushing; a job that names checks has already
+      # installed exactly what it needs in its own steps, and a bare `script/ci-build fmt` must not
+      # drag an apt install of QEMU onto the rustfmt runner.
+      - run: script/bootstrap
+        if: steps.scope.outputs.needed == 'true'
+
+      # The host-logic crates and the kernel under QEMU (TCG), exiting through semihosting, then the
+      # interactive boot. Both named out of `script/ci-build`'s table, which is the one place the
+      # gating set lives; `script/ci-build --list` prints it.
+      #
+      # `shell-check` is in this job rather than a thirteenth one because of what the two cost.
+      # Measured on 2026-09-02: the check itself is **30 seconds** for both architectures against a
+      # warm target directory, while this job's build is around ten minutes. A separate job would pay
+      # that ten minutes again, plus its own QEMU cache restore and runner slot, to do thirty seconds
+      # of work; appended here it reuses the build that just ran and adds only the
+      # `--features shell` kernels. Runner concurrency is a real ceiling on this project (AGENTS.md's
+      # lane-count section), so a job that buys nothing the step cannot is a job that slows every
+      # other lane's group build down.
+      #
+      # It earned its place on its first run here (milestone 230). The aarch64 leg passed and the
+      # riscv64 leg failed, on a check whose local runs were green on both, and the divergence was
+      # real rather than flaky infrastructure: the kernel's fault printer and the userspace console
+      # server drive the same UART from two address spaces with nothing arbitrating, so a thread
+      # dying while the progenitor prints shuffles the two lines together at byte granularity.
+      # Local-only would have kept it invisible.
+      #
+      # `boot-check` rides here on exactly the same argument (milestone 268), and it is the only
+      # thing on a pull request that boots the DEFAULT riscv64 or `x86_64` kernel at all: `test`
+      # boots a `cfg(test)` build that exits through semihosting before the tour, and `shell-check`
+      # boots `--features shell` on two architectures. The boot a person gets by typing `cargo xtask
+      # run` was unasserted, which is not theoretical: milestone 268's finding 3 is a checkpoint that
+      # could never fire on two of three architectures, and it hid for months because nothing read
+      # the channel it was supposed to appear on. Three debug kernels against this job's warm target
+      # directory is about a minute.
+      #
+      # The suite first, because it is the broader signal and should be what fails first when both
+      # would.
+      - run: script/ci-build test shell-check boot-check
         if: steps.scope.outputs.needed == 'true'
 
   cpu-matrix:
@@ -287,7 +329,7 @@ jobs:
       # See notes/cpu-models.md, including its BUGS section: a narrower QEMU model is still QEMU.
       - run: script/bootstrap
         if: steps.scope.outputs.needed == 'true'
-      - run: script/cpu-matrix
+      - run: script/ci-build cpu-matrix
         if: steps.scope.outputs.needed == 'true'
       # The per-model logs, kept only when something failed. `script/cpu-matrix` now prints an
       # excerpt inline, which answers most questions without leaving the browser; this is for the
@@ -311,7 +353,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Install rustfmt (pinned nightly)
         run: rustup toolchain install nightly --profile minimal --component rustfmt
-      - run: script/fmt --check
+      - run: script/ci-build fmt
 
   clippy:
     name: clippy
@@ -354,7 +396,7 @@ jobs:
         run: |
           command -v cargo-machete >/dev/null || cargo install cargo-machete --locked
           command -v typos        >/dev/null || cargo install typos-cli     --locked
-      - run: script/lint
+      - run: script/ci-build lint
 
   fastpath-footprint:
     name: fastpath footprint (the IPC path must stay L1i-sized)
@@ -373,7 +415,7 @@ jobs:
       # Its own job rather than a step in an existing one, for stack-frame-check's reason: it needs a
       # RELEASE kernel, and no other job builds one, so there is nothing to share. Jobs run in
       # parallel, so it costs no wall clock against the 30-minute Kani job.
-      - run: script/fastpath-footprint
+      - run: script/ci-build fastpath-footprint
 
   image-permissions:
     name: image permissions (no kernel image ships a writable-executable segment)
@@ -398,9 +440,8 @@ jobs:
       #
       # BUGS: this is not a REQUIRED check in the merge queue's ruleset, because that is a repository
       # setting rather than a file in this tree, so today a red run here is visible and does not block
-      # a merge. `script/gates` runs the same check locally, which is where a developer meets it.
-      # Making it required is calef's, and is one checkbox.
-      - run: script/image-permissions
+      # a merge. Making it required is calef's, and is one checkbox.
+      - run: script/ci-build image-permissions
 
   stack-frame-check:
     name: stack frames (no frame over a third of a thread stack)
@@ -418,11 +459,13 @@ jobs:
           rustup target add --toolchain nightly aarch64-unknown-none-softfloat
           rustup target add --toolchain nightly riscv64imac-unknown-none-elf
       - uses: Swatinem/rust-cache@v2
-      # Its own job rather than a step in `clippy`, and not in `script/gates`. It builds the kernel
-      # test binary twice (the flag changes the build, so CI's existing kernel artifacts cannot be
-      # reused), which is more than `script/gates`'s header promises a developer will wait for, and
-      # jobs run in parallel so a separate one costs no wall clock against the 30-minute Kani job.
-      - run: script/stack-frame-check
+      # Its own job rather than a step in `clippy`: it builds the kernel test binary twice (the flag
+      # changes the build, so CI's existing kernel artifacts cannot be reused), and jobs run in
+      # parallel so a separate one costs no wall clock against the 30-minute Kani job. **Why it is
+      # not in the tier a developer runs before pushing is recorded beside its row** in
+      # `script/ci-build`'s table, not here: this file used to carry three such explanations and one
+      # of them had been false for a month.
+      - run: script/ci-build stack-frame-check
       # The chain, in the same job as the frame, because they need the identical build: same
       # targets, same `-Z emit-stack-sizes`, so the second reuses the first's artifacts and costs
       # near nothing. They answer different halves of one question and a tree that gated only the
@@ -432,7 +475,7 @@ jobs:
       # already stale before this step existed (milestone 124 moved the ceiling to the guard page)
       # and understates it further now. Left alone on purpose: the name is what branch protection
       # matches on, so renaming it is a merge-queue change rather than a wording one.
-      - run: script/stack-depth-check
+      - run: script/ci-build stack-depth-check
 
   bench:
     name: bench (icount regression tripwire)
@@ -499,9 +542,7 @@ jobs:
 
       - run: script/bootstrap
         if: steps.scope.outputs.needed == 'true'
-      - run: script/bench --check
-        if: steps.scope.outputs.needed == 'true'
-      - run: script/bench --riscv --check
+      - run: script/ci-build bench
         if: steps.scope.outputs.needed == 'true'
       # BUGS: two legs, three architectures. `cargo xtask bench --x86 --check` exists and
       # `bench/baseline-x86_64.txt` is committed, so the third tripwire is built and recorded and
@@ -514,12 +555,14 @@ jobs:
       # markdown change cannot move an instruction count" predicate. It costs about seven seconds
       # for both ISAs, against this job's forty-five minute budget.
       #
-      # It is not in script/test and it is not in script/gates, and notes/instruction-clock.md
-      # carries the reason: `-icount` gives every vCPU one shared virtual clock, so the instrument is
-      # single-hart, and a suite run there would silently stop proving every cross-core property it
-      # exists for. The honest cost of that choice is that a developer meets a violated timing claim
-      # here rather than before pushing.
-      - run: script/icount
+      # It is not in `script/test`, and notes/instruction-clock.md carries the reason: `-icount`
+      # gives every vCPU one shared virtual clock, so the instrument is single-hart, and a suite run
+      # there would silently stop proving every cross-core property it exists for. That argument is
+      # about a boot mode rather than about a command, which is why it IS in the tier a developer
+      # runs before pushing; `script/ci-build`'s table is where that membership lives. **This comment
+      # asserted the opposite for a month**, having been written before milestone 62 put the
+      # instrument in the local set, and nothing compared the claim against the script.
+      - run: script/ci-build icount
         if: steps.scope.outputs.needed == 'true'
 
   supply-chain:
@@ -553,7 +596,7 @@ jobs:
           path: ~/.cache/nife-vendor
           key: nife-vendor-${{ hashFiles('vendor/*.pin') }}
       - uses: Swatinem/rust-cache@v2
-      - run: script/supply-chain
+      - run: script/ci-build supply-chain
 
   fuzz:
     name: fuzz (parsers, 60s per target)
@@ -626,7 +669,7 @@ jobs:
       # coverage depend on which runs happened before it, so a red run could not be reproduced from
       # the repository alone. Every run starts from exactly the committed seeds and the two fixture
       # directories, which is the same starting point a developer gets.
-      - run: script/fuzz --time 60
+      - run: script/ci-build fuzz
         if: steps.scope.outputs.needed == 'true'
 
   coverage:
@@ -669,7 +712,7 @@ jobs:
       # Measures the pure-logic host crates only; the kernel/user crates run under QEMU, out of
       # reach of host instrumentation. Gates on the 80%-per-file line-coverage floor (the floor
       # lives in script/coverage, next to the check itself); the report is still published below.
-      - run: script/coverage
+      - run: script/ci-build coverage
         if: steps.scope.outputs.needed == 'true'
       - name: Publish the summary to the run
         if: steps.scope.outputs.needed == 'true'
