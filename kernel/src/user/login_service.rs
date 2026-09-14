@@ -5,26 +5,26 @@ use crate::sched::{self, RendezvousId};
 /// Where the service maps its own request to the credential service. Must match `components/src/login.rs`.
 const CRED_VA: u64 = 0x0000_0000_00e3_0000;
 
-/// How many pages a spawned `login_test_client` role's own `memory_region_cap` (slot 3) holds:
+/// How many pages a spawned `login_test_client` run's own `memory_region_cap` (slot 3) holds:
 /// enough for `page_frame::MAP`'s own page-table cost when it self-maps the frame `login`'s
 /// `CONNECT` step delegates (milestone 49's channel-per-client update; `fixtures/src/login_test_client.rs`
 /// mirrors this program's own post-auth `map_page_frame(fs_page_frame, FS_VA, true, budget)`, but a
-/// role holds no budget yet at the point it must map its own connect channel). Margin over the one
+/// run holds no budget yet at the point it must map its own connect channel). Margin over the one
 /// page a fresh mapping ever strictly needs, on this file's own existing style for every other
 /// region here.
 ///
 /// # BUGS
 ///
-/// **Nothing reclaims one of these when its role exits**, so a full aarch64 suite leaves thirty of
+/// **Nothing reclaims one of these when its run exits**, so a full aarch64 suite leaves thirty of
 /// them (120 frames) held for the rest of the boot (milestone 49's terminal update added four more:
 /// `login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout`'s own
-/// `ROLE_TERM_FIRST` x2, `ROLE_TERM_SECOND`, `ROLE_TERM_LOGOUT`), which is a measured line item in
+/// `HOLD_TERMINAL` x2, a refused `LOGIN`, `FREE_TERMINAL`), which is a measured line item in
 /// `kernel::testing::SUITE_PAGE_FRAME_BUDGET`'s own account. This is scaffolding rather than a
 /// property under test, and `kernel::user::holding::Holding` is the mechanism that would give it
-/// back; what stops it being a two-line change is that a role's scratch pays for **page tables** in
-/// that role's own address space rather than for anything the role holds a capability to, so
+/// back; what stops it being a two-line change is that a run's scratch pays for **page tables** in
+/// that run's own address space rather than for anything the run holds a capability to, so
 /// destroying the region frees tables the dying process is still walking. Doing this properly means
-/// reclaiming the role's whole address space first (`Holding::add_region_after_death`), which needs
+/// reclaiming the run's whole address space first (`Holding::add_region_after_death`), which needs
 /// [`spawn_client`] to hand its caller the thread id it currently drops.
 const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 
@@ -34,39 +34,38 @@ const CLIENT_SCRATCH_UT_PAGES: u64 = 4;
 /// Argon2id inner loop needed 16 pages where one was not close) rather than guessed from nothing.
 const LOGIN_STACK_PAGES: u64 = 16;
 
-/// The `login_test_client` roles; must match `fixtures/src/login_test_client.rs`.
-pub const ROLE_CHRIS: u64 = 0;
-pub const ROLE_CORINNE: u64 = 1;
-pub const ROLE_WRONG_SECRET: u64 = 2;
-/// DECISIONS §117's per-identity subtree proof; see the same file's module docs.
-pub const ROLE_CHRIS_MARK: u64 = 3;
-pub const ROLE_CORINNE_MARK: u64 = 4;
-pub const ROLE_CHRIS_CHECK: u64 = 5;
-/// A real, authenticated identity with no provisioned subtree (`login_tests.rs`'s `wired`
-/// deliberately never creates one for `graeme`).
-pub const ROLE_NO_SUBTREE: u64 = 6;
+/// **What a `login_test_client` run is handed** (milestone 293): a behaviour, and separately a
+/// credential. Must match `fixtures/src/login_test_client.rs`, whose module docs carry the argument
+/// for why these are two things and not eleven roles.
+///
+/// The credential halves are `credential_proto::fixture`'s own indices, not named again here: a
+/// third copy of `chris` is exactly what 293 removed.
+pub const LOGIN: u64 = 0;
+/// DECISIONS §117's per-identity subtree proof, writing the identity it was handed; see the same
+/// file's module docs.
+pub const WRITE_MARKER: u64 = 1;
+/// Reads that marker back, in an independent channel.
+pub const READ_MARKER: u64 = 2;
 /// Logs in, then tears the session down with the fourth delegated capability and proves the
 /// directory came down with it. See the same file's module docs.
-pub const ROLE_LOGOUT: u64 = 7;
+pub const LOGOUT: u64 = 3;
 /// Milestone 49's terminal update: logs in, proves the fifth delegated capability (the terminal)
 /// works, tears the session down without freeing the terminal. See the same file's module docs.
-pub const ROLE_TERM_FIRST: u64 = 8;
-/// A real credential presented while [`ROLE_TERM_FIRST`]'s terminal loan is outstanding.
-pub const ROLE_TERM_SECOND: u64 = 9;
-/// Sends `login_proto::logout_word` on the front door directly.
-pub const ROLE_TERM_LOGOUT: u64 = 10;
+pub const HOLD_TERMINAL: u64 = 4;
+/// Sends `login_proto::logout_word` on the front door directly, with no credential at all.
+pub const FREE_TERMINAL: u64 = 5;
 
 /// The report words `login_test_client` sends; must match the same file.
 pub const RPT_OK: u64 = login_proto::OK;
 pub const RPT_DENIED: u64 = login_proto::DENIED;
-#[allow(dead_code)] // named for completeness with the pair above; no role exercises it today
+#[allow(dead_code)] // named for completeness with the pair above; nothing exercises it today
 pub const RPT_MALFORMED: u64 = login_proto::MALFORMED;
 /// Milestone 49's terminal update: the terminal was already on loan.
 pub const RPT_NO_TERMINAL: u64 = login_proto::NO_TERMINAL;
-/// [`ROLE_TERM_LOGOUT`]'s own answer.
+/// [`FREE_TERMINAL`]'s own answer.
 pub const RPT_LOGGED_OUT: u64 = login_proto::LOGGED_OUT;
 
-/// [`ROLE_TERM_FIRST`]'s proof-of-life word for the delegated terminal; must match the same file's
+/// [`HOLD_TERMINAL`]'s proof-of-life word for the delegated terminal; must match the same file's
 /// `TERM_MAGIC`.
 pub const TERM_MAGIC: u64 = 0x_7e12_0000_0000_0001;
 
@@ -80,12 +79,12 @@ pub const F_DEAD_AFTER_TEARDOWN: u64 = 1 << 5;
 pub const F_BUDGET_TEARDOWN_OK: u64 = 1 << 6;
 pub const F_BUDGET_DEAD_AFTER_TEARDOWN: u64 = 1 << 7;
 /// Milestone 49's terminal update: the fifth delegated capability delivered [`TERM_MAGIC`] to a
-/// real receiver. Set only by [`ROLE_TERM_FIRST`].
+/// real receiver. Set only by [`HOLD_TERMINAL`].
 pub const F_TERM_WORKS: u64 = 1 << 8;
 
-/// **[`ROLE_LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
-/// role's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
-/// Every other role that fills the third word puts a [`login_proto::identity_hint`] there; this one
+/// **[`LOGOUT`]'s third report word is microseconds, not an identity hint**: how long that
+/// behaviour's `MemoryRegion::DESTROY` on the caretaker region waited for §16's armed kill to land.
+/// Every other behaviour that fills the third word puts a [`login_proto::identity_hint`] there; this one
 /// has no identity to report and a number a red run needs. Must match
 /// `fixtures/src/login_test_client.rs`'s `waited_micros`.
 ///
@@ -295,30 +294,46 @@ pub fn start(
     }
 }
 
-/// **Spawn a `login_test_client` role** against `w`, and return its report. Waits for the role to
+/// **Spawn one `login_test_client` run** against `w`, and return its report. Waits for it to
 /// finish before returning: `spawn_client` followed by `wait_client` is the same pair, split, for a
-/// caller that wants two (or more) roles genuinely in flight together (see those two functions'
+/// caller that wants two (or more) runs genuinely in flight together (see those two functions'
 /// own docs, and `kernel::user::login_tests` for the isolation proof that needs it).
-pub fn client(image: &'static [u8], w: &Wiring, role: u64) -> [u64; 5] {
-    wait_client(spawn_client(image, w, role))
+pub fn client(
+    image: &'static [u8],
+    w: &Wiring,
+    behaviour: u64,
+    identity: u64,
+    secret: u64,
+) -> [u64; 5] {
+    wait_client(spawn_client(image, w, behaviour, identity, secret))
 }
 
-/// **Spawn a `login_test_client` role and return its report endpoint immediately**, without
+/// **Spawn one `login_test_client` run and return its report endpoint immediately**, without
 /// waiting for it to run at all. Milestone 49's channel-per-client update is what makes this worth
-/// having separately from [`client`]: two roles spawned this way before either is waited on reach
+/// having separately from [`client`]: two runs spawned this way before either is waited on reach
 /// the front door on their own schedule, which is genuine concurrency at the front door rather than
 /// the artificial kind a single call that spawns-then-waits could ever produce. Pair with
 /// [`wait_client`].
-pub fn spawn_client(image: &'static [u8], w: &Wiring, role: u64) -> RendezvousId {
+///
+/// **`identity` and `secret` are separate arguments on purpose** (milestone 293): they compose, so
+/// the wrong-secret case is `(fixture::CHRIS, fixture::WRONG)` rather than an eleventh role whose
+/// code could drift away from the honest one's. Both are `credential_proto::fixture` indices.
+pub fn spawn_client(
+    image: &'static [u8],
+    w: &Wiring,
+    behaviour: u64,
+    identity: u64,
+    secret: u64,
+) -> RendezvousId {
     let report = sched::create_rendezvous();
-    // A small, private scratch budget for this one role: milestone 49's channel-per-client update
-    // means a role must map the page `login`'s `CONNECT` step delegates before it holds anything
+    // A small, private scratch budget for this one run: milestone 49's channel-per-client update
+    // means a run must map the page `login`'s `CONNECT` step delegates before it holds anything
     // else of its own (unlike the post-auth `budget`, `map_page_frame`'s own page-table cost has
-    // nowhere else to come from at that point). Independent per role, the same reason
-    // `login`'s own `CONSTRUCTION_UT` is never shared with a client: two roles racing to map their
+    // nowhere else to come from at that point). Independent per run, the same reason
+    // `login`'s own `CONSTRUCTION_UT` is never shared with a client: two runs racing to map their
     // own, unrelated pages must never be able to exhaust or interfere with each other's page tables.
     let scratch =
-        crate::memory_region::create(CLIENT_SCRATCH_UT_PAGES).expect("no scratch region for role");
+        crate::memory_region::create(CLIENT_SCRATCH_UT_PAGES).expect("no scratch region for a run");
     // Copied out of `w` rather than captured by reference: the spawned closure must be `'static`,
     // and an `RendezvousId` is a plain integer with nothing left to borrow once it is in hand.
     let (request, result) = (w.request, w.result);
@@ -326,9 +341,9 @@ pub fn spawn_client(image: &'static [u8], w: &Wiring, role: u64) -> RendezvousId
         run(
             image,
             Spawn {
-                arg0: role,
-                arg1: 0,
-                arg2: 0,
+                arg0: behaviour,
+                arg1: identity,
+                arg2: secret,
                 grants: &[
                     rendezvous_cap(request, Rights::WRITE),
                     rendezvous_cap(result, Rights::READ),
@@ -343,7 +358,7 @@ pub fn spawn_client(image: &'static [u8], w: &Wiring, role: u64) -> RendezvousId
     report
 }
 
-/// **Block for one role's report**, the other half of [`spawn_client`].
+/// **Block for one run's report**, the other half of [`spawn_client`].
 pub fn wait_client(report: RendezvousId) -> [u64; 5] {
     sched::ipc_recv(report)
 }

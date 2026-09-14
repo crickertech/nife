@@ -1,3 +1,4 @@
+use credential_proto::fixture::{CHRIS, CORINNE, GRAEME, NONE, WRONG};
 use login_service as ls;
 
 use super::*;
@@ -243,7 +244,7 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
     free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
-    let r = ls::client(cli, &w, ls::ROLE_CHRIS);
+    let r = ls::client(cli, &w, ls::LOGIN, CHRIS, CHRIS);
     assert_eq!(
         r[0],
         ls::RPT_OK,
@@ -272,7 +273,7 @@ fn login_grants_a_working_capability_set_to_the_identity_it_verified() {
 }
 
 /// **The refusal, and the promise that nothing follows it.** A real identity with the wrong secret
-/// is denied. `login_test_client`'s `ROLE_WRONG_SECRET` never calls `RECV_CAP`; if the service ever
+/// is denied. `login_test_client` never calls `RECV_CAP` after a refusal; if the service ever
 /// sent a capability after a denial anyway, that role would simply never reach its report and this
 /// test would hang rather than fail cleanly, which is the honest failure mode for a protocol
 /// promise broken at the sender.
@@ -287,7 +288,9 @@ fn login_denies_a_wrong_secret_and_sends_nothing_further() {
     free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
-    let r = ls::client(cli, &w, ls::ROLE_WRONG_SECRET);
+    // `chris`'s own identity with a secret that is nobody's: the same behaviour as the honest
+    // login above, composed from a different credential rather than run as a different arm.
+    let r = ls::client(cli, &w, ls::LOGIN, CHRIS, WRONG);
     assert_eq!(r[0], ls::RPT_DENIED, "a wrong secret was not refused",);
 }
 
@@ -316,7 +319,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
-    let r_chris = ls::client(cli, &w, ls::ROLE_CHRIS);
+    let r_chris = ls::client(cli, &w, ls::LOGIN, CHRIS, CHRIS);
     assert_eq!(r_chris[0], ls::RPT_OK, "chris was not authenticated");
     let a_chris = sched::ipc_recv(w.audit);
     assert_eq!(
@@ -334,7 +337,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
     // claims the single, shared terminal.
     free_terminal(&w);
 
-    let r_corinne = ls::client(cli, &w, ls::ROLE_CORINNE);
+    let r_corinne = ls::client(cli, &w, ls::LOGIN, CORINNE, CORINNE);
     assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated",);
     let a_corinne = sched::ipc_recv(w.audit);
     assert_eq!(
@@ -374,7 +377,7 @@ fn two_different_identities_get_independently_working_channels_and_correct_attri
 /// "Resolved"): before it, `REQUEST`/`RESULT` and a single shared staging page carried every
 /// client's identity and secret for the service's whole life, so two callers reaching the front door
 /// close together could corrupt or observe each other's presented credential. `ls::spawn_client`
-/// (unlike `ls::client`) returns the instant a role is spawned, without waiting for it to run at
+/// (unlike `ls::client`) returns the instant a run is spawned, without waiting for it to run at
 /// all, so calling it twice before waiting on either puts both roles genuinely in flight together,
 /// racing each other to `CONNECT` on the kernel's own schedule: this is the scenario the old design's
 /// hazard needed, and the new one's whole point is that it no longer matters who wins the race.
@@ -409,8 +412,8 @@ fn two_clients_connecting_together_get_independent_channels_and_neither_observes
     // Both spawned before either is waited on: this is the race. Which role's CONNECT actually
     // reaches `login`'s front door first is the kernel scheduler's call, not this test's, and the
     // property under test holds either way.
-    let chris_report = ls::spawn_client(cli, &w, ls::ROLE_CHRIS);
-    let corinne_report = ls::spawn_client(cli, &w, ls::ROLE_CORINNE);
+    let chris_report = ls::spawn_client(cli, &w, ls::LOGIN, CHRIS, CHRIS);
+    let corinne_report = ls::spawn_client(cli, &w, ls::LOGIN, CORINNE, CORINNE);
 
     // Whichever role wins the race, `login` cannot accept the *other*'s `CONNECT` until it finishes
     // fully serving the first: its own `send(AUDIT, ...)` is a blocking rendezvous (every other
@@ -508,12 +511,10 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
 
     const ATTEMPTS: usize = 6;
     for i in 0..ATTEMPTS {
-        let role = if i % 2 == 0 {
-            ls::ROLE_CHRIS
-        } else {
-            ls::ROLE_CORINNE
-        };
-        let r = ls::client(cli, &w, role);
+        // Alternating identities, which is what this loop always meant and can now say: one
+        // behaviour, two credentials, rather than two roles that happened to run the same code.
+        let who = if i % 2 == 0 { CHRIS } else { CORINNE };
+        let r = ls::client(cli, &w, ls::LOGIN, who, who);
         assert_eq!(
             r[0],
             ls::RPT_OK,
@@ -550,12 +551,12 @@ fn the_login_service_serves_past_the_old_capability_table_ceiling() {
 /// shared fixture and not another identity's.**
 ///
 /// `chris` and `corinne` each log in and, through the directory capability `login` delegated,
-/// `CREATE` a marker file naming themselves ([`ls::ROLE_CHRIS_MARK`],
-/// [`ls::ROLE_CORINNE_MARK`]); both also confirm
+/// `CREATE` a marker file naming themselves ([`ls::WRITE_MARKER`], run once per identity); both
+/// also confirm
 /// [`filesystem_proto::fixture::tree::INNER`] is absent, which is this suite's own proof (not merely a
 /// stated intent) that neither landed in the old shared subtree every identity used to be
 /// attenuated to before this milestone. `chris` then logs in a **second, independent** time
-/// ([`ls::ROLE_CHRIS_CHECK`]) and reads the marker back: it must read `chris`'s own,
+/// ([`ls::READ_MARKER`]) and reads the marker back: it must read `chris`'s own,
 /// which is the property under test stated positively: the *same* identity's two sessions land in
 /// the *same* subtree, and it is not `corinne`'s (had the old bug still been present, `corinne`'s
 /// later write would have overwritten `chris`'s marker in the one subtree they would have shared,
@@ -579,7 +580,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
 
-    let r_chris = ls::client(cli, &w, ls::ROLE_CHRIS_MARK);
+    let r_chris = ls::client(cli, &w, ls::WRITE_MARKER, CHRIS, CHRIS);
     assert_eq!(r_chris[0], ls::RPT_OK, "chris was not authenticated");
     assert_eq!(
         r_chris[1] & ls::F_MARKER_WRITTEN,
@@ -603,7 +604,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
     // also claims the single, shared terminal.
     free_terminal(&w);
 
-    let r_corinne = ls::client(cli, &w, ls::ROLE_CORINNE_MARK);
+    let r_corinne = ls::client(cli, &w, ls::WRITE_MARKER, CORINNE, CORINNE);
     assert_eq!(r_corinne[0], ls::RPT_OK, "corinne was not authenticated");
     assert_eq!(
         r_corinne[1] & ls::F_MARKER_WRITTEN,
@@ -624,7 +625,7 @@ fn login_scopes_each_identity_to_its_own_provisioned_subtree() {
     );
     free_terminal(&w);
 
-    let r_check = ls::client(cli, &w, ls::ROLE_CHRIS_CHECK);
+    let r_check = ls::client(cli, &w, ls::READ_MARKER, CHRIS, CHRIS);
     assert_eq!(
         r_check[0],
         ls::RPT_OK,
@@ -677,7 +678,9 @@ fn login_denies_an_authenticated_identity_with_no_provisioned_subtree() {
     free_terminal(&w);
     let cli =
         program("login_test_client").expect("no login_test_client program in the initrd archive");
-    let r = ls::client(cli, &w, ls::ROLE_NO_SUBTREE);
+    // `graeme`: a real credential this suite provisions and a home subtree it deliberately never
+    // creates. An honest login, refused for the subtree rather than for the secret.
+    let r = ls::client(cli, &w, ls::LOGIN, GRAEME, GRAEME);
     assert_eq!(
         r[0],
         ls::RPT_DENIED,
@@ -753,7 +756,7 @@ fn logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_
 /// would not survive a *second* leaked session at the old 128-pages-per-login rate, let alone the
 /// ten this test performs (2560 pages, an order of magnitude past the headroom). Every one of the
 /// ten logs fully back out
-/// (both delegated `MemoryRegion`s destroyed, `login_test_client.rs`'s `ROLE_LOGOUT`) before the next
+/// (both delegated `MemoryRegion`s destroyed, `login_test_client.rs`'s `LOGOUT`) before the next
 /// begins, so this test could only pass by the memory genuinely coming home each time.
 ///
 /// Each iteration asserts the whole chain, not merely that the final `DESTROY` returned success: a
@@ -781,7 +784,7 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
 
     const ATTEMPTS: usize = 10;
     for i in 0..ATTEMPTS {
-        let r = ls::client(cli, &w, ls::ROLE_LOGOUT);
+        let r = ls::client(cli, &w, ls::LOGOUT, CHRIS, CHRIS);
         assert_eq!(
             r[0],
             ls::RPT_OK,
@@ -832,7 +835,7 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
             login_proto::ATTRIBUTED,
             "no attribution record followed login {i}",
         );
-        // **Free the terminal, after draining `AUDIT`, not before.** `ROLE_LOGOUT` deliberately
+        // **Free the terminal, after draining `AUDIT`, not before.** `LOGOUT` deliberately
         // does not do this itself (`login_test_client.rs`'s own comment on why: it would deadlock
         // against this same drain). Every iteration after the first would otherwise be refused
         // `NO_TERMINAL` instead of authenticated, since milestone 49's terminal update means every
@@ -845,25 +848,26 @@ fn caretaker_teardown_reclaims_a_full_session_worth_of_memory() {
 /// recommendation (`design/roadmap/49-users-and-attribution.md`'s BUGS) built and proven here in one
 /// sequence against the one memoized service instance every other test in this file shares:
 ///
-/// 1. `chris` logs in ([`ls::ROLE_TERM_FIRST`]) and receives a fifth delegated capability, the
+/// 1. `chris` logs in ([`ls::HOLD_TERMINAL`]) and receives a fifth delegated capability, the
 ///    terminal, which this test confirms is real (not merely present) by receiving the word the
 ///    role sends through it on `w.term_ep` -- the stand-in terminal this suite's own harness wires
 ///    in place of a real one (`ls::Wiring::term_ep`'s own doc). `chris` then tears the *session*
-///    down (the same `MemoryRegion::DESTROY` pair [`ROLE_LOGOUT`] already proves) **without**
+///    down (the same `MemoryRegion::DESTROY` pair [`ls::LOGOUT`] already proves) **without**
 ///    freeing the terminal: no `login_proto::logout_word` is ever sent.
-/// 2. `corinne` then presents a **real, correct** credential ([`ls::ROLE_TERM_SECOND`]) while the
+/// 2. `corinne` then presents a **real, correct** credential (a plain [`ls::LOGIN`], which is all
+///    that case ever was) while the
 ///    terminal is still on loan. She is refused [`login_proto::NO_TERMINAL`], not `DENIED`: this is
 ///    provably not about her identity or secret, both of which are genuine.
-/// 3. [`ls::ROLE_TERM_LOGOUT`] frees the terminal, a bare word on the front door with no identity
+/// 3. [`ls::FREE_TERMINAL`] frees the terminal, a bare word on the front door with no identity
 ///    involved at all, and is answered [`login_proto::LOGGED_OUT`].
-/// 4. `chris` logs in again ([`ls::ROLE_TERM_FIRST`], a second, independent time) and receives the
+/// 4. `chris` logs in again ([`ls::HOLD_TERMINAL`], a second, independent time) and receives the
 ///    terminal a second time, proven the same way as step 1 -- the property stated positively: a
 ///    session freeing the terminal is what makes it available to the *next* login, not merely what
 ///    stops it being refused.
 ///
 /// **Costs nothing permanent against [`CONSTRUCTION_PAGES`].** Every login this test performs either
-/// tears its own session down before returning (`ROLE_TERM_FIRST`, exactly like `ROLE_LOGOUT`) or is
-/// refused before `mint` ever runs (`ROLE_TERM_SECOND`'s `NO_TERMINAL`, checked in `login.rs`'s
+/// tears its own session down before returning (`HOLD_TERMINAL`, exactly like `LOGOUT`) or is
+/// refused before `mint` ever runs (`corinne`'s `NO_TERMINAL`, checked in `login.rs`'s
 /// `serve_login` before authentication is even attempted), so this test's own two successful logins
 /// are the same "logs back out" shape `caretaker_teardown_reclaims_a_full_session_worth_of_memory`
 /// already established, not a third kind of permanent charge.
@@ -883,7 +887,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     // role blocks inside `send(term_ep, ...)` until this test's own `ipc_recv(w.term_ep)` catches
     // it (a genuine rendezvous, not merely `RECV_CAP` succeeding): waiting on the report first would
     // deadlock against the role's own forward progress.
-    let report1 = ls::spawn_client(cli, &w, ls::ROLE_TERM_FIRST);
+    let report1 = ls::spawn_client(cli, &w, ls::HOLD_TERMINAL, CHRIS, CHRIS);
     let a1 = sched::ipc_recv(w.audit);
     assert_eq!(
         a1[0],
@@ -925,7 +929,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     }
 
     // Step 2: corinne, a real credential, refused purely because the terminal is spoken for.
-    let r2 = ls::client(cli, &w, ls::ROLE_TERM_SECOND);
+    let r2 = ls::client(cli, &w, ls::LOGIN, CORINNE, CORINNE);
     assert_eq!(
         r2[0],
         ls::RPT_NO_TERMINAL,
@@ -933,7 +937,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     );
 
     // Step 3: free it.
-    let r3 = ls::client(cli, &w, ls::ROLE_TERM_LOGOUT);
+    let r3 = ls::client(cli, &w, ls::FREE_TERMINAL, NONE, NONE);
     assert_eq!(
         r3[0],
         ls::RPT_LOGGED_OUT,
@@ -941,7 +945,7 @@ fn login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_
     );
 
     // Step 4: chris again, a second, independent time, and the terminal is available once more.
-    let report4 = ls::spawn_client(cli, &w, ls::ROLE_TERM_FIRST);
+    let report4 = ls::spawn_client(cli, &w, ls::HOLD_TERMINAL, CHRIS, CHRIS);
     let a4 = sched::ipc_recv(w.audit);
     assert_eq!(
         a4[0],
