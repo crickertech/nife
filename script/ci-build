@@ -110,6 +110,7 @@ image-permissions|local|script/image-permissions
 icount|local|script/icount
 test|local|script/test
 shell-check|local|script/shell-check
+boot-check|local|script/boot-check
 hvf|local|hvf_leg
 fastpath-footprint|ci|script/fastpath-footprint
 stack-frame-check|ci|script/stack-frame-check

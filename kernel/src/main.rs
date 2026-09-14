@@ -58,6 +58,13 @@ mod pci;
 mod nvme;
 mod revoke;
 mod sched;
+// The boot self-tests (milestone 268): the kernel proving it works on this machine, between the
+// machine description and the hand-off to userspace. The same set on all three architectures. A
+// `bench` or `icount` boot parks before userspace by design and never reaches this, and a `test`
+// boot exits through semihosting; neither is a boot anybody reads to bring up a board, which is the
+// same exclusion `print_machine_description` carries and for the same reason.
+#[cfg(not(any(test, feature = "bench")))]
+mod self_test;
 mod smp;
 // The sustained multicore workload (milestone 219). Behind its own feature because an ordinary boot
 // must still halt: this module is the thing that makes a boot never end.
@@ -151,6 +158,32 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     #[cfg(target_arch = "riscv64")]
     console::configure_from_dtb();
 
+    // **The earliest line, and every architecture now has one** (milestone 268).
+    //
+    // riscv64 and x86_64 have opened with `nife on <arch>` since their ports were written, as the
+    // first thing after the console comes up: it is the one line that says the console works and
+    // says nothing else, which is exactly the claim wanted at first light on a board. aarch64 had
+    // no such line at all, so `board_console`'s `Stage::Banner` (which matches `nife on `,
+    // deliberately generic so that a healthy aarch64 or x86_64 board would not read as never having
+    // booted) was **unreachable on aarch64** for as long as the recogniser has existed. That is
+    // milestone 268's finding 3 again, one rung lower, and it was found the same way: by looking
+    // for the marker rather than by anything failing.
+    //
+    // Levelling up, not down: the other two keep their own opening lines, which say more than this
+    // one because those architectures know more at this point (long mode is on, Sv39 is on). This
+    // is what aarch64 can honestly claim here, which is that the console is up and the MMU is not.
+    #[cfg(target_arch = "aarch64")]
+    {
+        use aarch64_cpu::registers::CurrentEL;
+        use tock_registers::interfaces::Readable;
+        println!();
+        println!(
+            "{}aarch64 (EL{}, MMU off: physical addresses until mmu::init)",
+            boot_ladder::BANNER,
+            CurrentEL.read(CurrentEL::EL),
+        );
+    }
+
     // **The x86_64 boot is a self-contained tour and it halts at the end**, the same shape the
     // RISC-V boot took on its first day and for the same reason: the arch layer beneath the shared
     // path is not built yet, so there is nothing honest to fall through to. What it proves is
@@ -177,7 +210,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         let screen = arch::machine::attach_screen(boot_info_pointer);
 
         println!();
-        println!("nife on x86_64 (long mode, ring 0, 4-level paging)");
+        println!(
+            "{}x86_64 (long mode, ring 0, 4-level paging)",
+            boot_ladder::BANNER,
+        );
         println!("  cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.");
         println!("  running at  : {pc:#018x}  (high half: the long-mode jump landed)");
         println!(
@@ -542,6 +578,20 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // the first x86 test run.
         smp::bring_up_secondaries();
 
+        // **The ladder** (milestone 268): say what this machine is, then prove the kernel works on
+        // it, then hand over. The third rung is what this architecture cannot reach yet: there is
+        // no entry point that hands x86_64 to a `swish` prompt until DECISIONS §149 says how a
+        // shell gets a console here and milestone 182 builds it, so this boot still ends by
+        // halting a few hundred lines below. Everything under that rung runs before userspace
+        // exists and waits on neither, which is why it lands now.
+        //
+        // The `bench` exclusion is on the functions rather than here; see the riscv64 site.
+        #[cfg(not(any(test, feature = "bench")))]
+        {
+            print_machine_description(boot_info_pointer);
+            self_test::run();
+        }
+
         // The benchmark boot (milestone 21, `script/bench`; DECISIONS §121's amendment measuring
         // the TSS I/O-bitmap switch cost): run the microbenchmarks and halt, instead of the rest of
         // the tour. Everything `bench::run()` needs is up by this line (the scheduler, `sched::spawn`,
@@ -676,7 +726,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // table). If this reads 0xffffffc0_8020_xxxx, Sv39 is on and the kernel is in the high half.
         let pc = kernel_main as *const () as usize;
         println!();
-        println!("nife on RISC-V (rv64, S-mode, Sv39)");
+        println!("{}RISC-V (rv64, S-mode, Sv39)", boot_ladder::BANNER);
         println!("  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.");
         println!("  running at  : {pc:#018x}  (high half: Sv39 paging is on)");
         println!("  device tree : {boot_info_pointer:#018x}");
@@ -790,6 +840,22 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // kernel runs exactly as before. See kernel/src/iommu.rs, notes/iommu.md.
         pci::init_iommu();
 
+        // **The ladder** (milestone 268): say what this machine is, then prove the kernel works on
+        // it, then hand over. Here, and not further down the tour, because every build that is not
+        // a measurement build passes this line: the `shell` boot below hands to the progenitor from
+        // here, and a board's boot is read from exactly these lines.
+        //
+        // The `bench` and `icount` boots park before userspace by design and are excluded on the
+        // functions themselves rather than here (see `print_machine_description`'s own doc and
+        // `kernel/Cargo.toml`'s feature comments: a board has no command line, so a measurement
+        // build is compile-time or it is nothing). A `test` boot exits through semihosting a few
+        // lines below and is excluded the same way.
+        #[cfg(not(any(test, feature = "bench")))]
+        {
+            print_machine_description(boot_info_pointer);
+            self_test::run();
+        }
+
         // The instruction-count boot (milestone 78, `script/icount`) diverges here, on the ISA whose
         // claim it was written for: SBI's `set_timer` is write-only, so this is the only place in
         // the tree that proves the firmware was armed with the deadline the kernel recorded. Before
@@ -810,36 +876,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // path. Needs the shell programs in the initrd (cargo xtask initrd-riscv packs them).
         #[cfg(feature = "shell")]
         {
-            if let Some((plic_phys, _)) = memory::plic_region() {
-                // SAFETY: the PLIC is device-mapped in the direct map; the context is the boot
-                // hart's S context (derived, not hardcoded: OpenSBI's hart lottery).
-                unsafe {
-                    drivers::plic::init(
-                        arch::mmu::phys_to_virt(plic_phys) as usize,
-                        arch::irq::boot_s_context(),
-                    );
-                };
-            }
-            match user::initrd() {
-                Some(initrd) => {
-                    // The UART's PLIC source, from the machine's own tree: 10 on QEMU virt, 32 on
-                    // the JH7110. It was a constant, and the constant was QEMU's; see the tour's
-                    // driver step below and notes/visionfive2.md (BUGS). The line names which
-                    // source won, so a bench transcript is diagnosable.
-                    let (uart_irq, uart_irq_source) = user::uart_irq_and_source();
-                    println!("  uart irq: source {uart_irq} ({uart_irq_source})");
-                    if let Err(e) = user::riscv_shell_boot(initrd, uart_irq) {
-                        println!("  shell boot failed: {e:?}");
-                    } else {
-                        println!(
-                            "  shell: the userspace progenitor is building the console, input, and shell."
-                        );
-                        println!();
-                    }
-                }
-                None => println!("  shell: no initrd (run `cargo xtask initrd-riscv`)"),
-            }
-            // The boot thread parks; system_initializer and its children (console/input/shell) run on the
+            riscv_hand_over();
+            // The boot thread parks; the progenitor and its children (console/input/shell) run on the
             // scheduler. `halt` is a preemptible wfi loop, so they get scheduled from here on.
             arch::halt();
         }
@@ -870,74 +908,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             arch::halt();
         }
 
-        // Dynamic kernel mapping self-test: map a fresh frame at an unused high-half VA, read it
-        // back through the tables, write and read through the mapping, then unmap it. Proves
-        // map_page / translate / unmap_page / flush_tlb, which the kernel stack allocator needs.
-        {
-            use paging::Flags;
-            // Above the direct map of whatever RAM this machine actually has, computed rather than
-            // assumed: a constant here was the third QEMU-shaped address the VisionFive 2 caught in
-            // one bench session (2026-08-14). The direct map ends at KERNEL_VA_BASE + top-of-RAM;
-            // one gigapage of headroom clears any alignment the mapper rounds to.
-            let ram_top = memory::ram_regions()
-                .map(|(start, size)| start + size)
-                .max()
-                .expect("the device tree described no RAM");
-            let test_va = arch::mmu::KERNEL_VA_BASE + ram_top + (1 << 30);
-            let frame = memory::alloc()
-                .expect("no frame for the mmu self-test")
-                .addr();
-            arch::mmu::map_page(test_va, frame, Flags::kernel_data()).expect("map_page failed");
-            let (pa, flags) = arch::mmu::translate(test_va).expect("translate found nothing");
-            // SAFETY: we just mapped this VA read/write.
-            unsafe { (test_va as *mut u64).write_volatile(0xc0ffee) };
-            // SAFETY: the same VA the line above just wrote through, still mapped read/write; this reads back what it stored.
-            let readback = unsafe { (test_va as *const u64).read_volatile() };
-            let freed = arch::mmu::unmap_page(test_va).expect("unmap_page failed");
-            println!(
-                "  kmap test   : mapped {test_va:#x}->{pa:#x} (w:{}), rw={:#x}, unmapped->{freed:#x}",
-                flags.is_writable(),
-                readback,
-            );
-        }
-
-        // The scheduler and the context switch: adopt the boot thread, spawn two kernel threads,
-        // and wait for both. Each spawned thread runs its closure (via switch_to ->
-        // thread_trampoline -> thread_entry -> the closure) and exits, cascading back to us. Both
-        // having run proves the RISC-V context switch (context.s: switch_to and the trampolines)
-        // works end to end.
-        {
-            use core::sync::atomic::{AtomicU32, Ordering};
-            static RAN: AtomicU32 = AtomicU32::new(0);
-            // sched::init() ran above (it is needed by both the tour and the test build).
-            sched::spawn(|| {
-                RAN.fetch_add(1, Ordering::SeqCst);
-            });
-            sched::spawn(|| {
-                RAN.fetch_add(1, Ordering::SeqCst);
-            });
-            // Clock-bounded, not yield-bounded, the same shape as the sched test module's
-            // `wait_for` and for its reason: the secondaries are online, so placement (§28) can
-            // put both threads on other harts, and a fixed count of yields on this hart elapses
-            // in microseconds, long before another hart has scheduled them. This used to be four
-            // yields, which was always enough on QEMU and missed on the VisionFive 2 (boot 12
-            // printed "1 of 2", boot 13 "0 of 2", while the preemption step below ran millions
-            // of iterations; see notes/visionfive2.md). Two seconds is far beyond any honest
-            // completion, and the failure line says what did not happen instead of claiming the
-            // switch works regardless.
-            let deadline = arch::timer::now() + 2 * arch::timer::frequency();
-            while RAN.load(Ordering::SeqCst) < 2 && arch::timer::now() < deadline {
-                sched::yield_now();
-            }
-            match RAN.load(Ordering::SeqCst) {
-                2 => println!(
-                    "  scheduler   : 2 of 2 kernel threads ran (RISC-V context switch works)"
-                ),
-                n => println!(
-                    "  scheduler   : FAILED: {n} of 2 kernel threads ran within 2s (context switch not proven)"
-                ),
-            }
-        }
+        // **The kernel mapping check and the context-switch check both moved into
+        // `self_test::run`** (milestone 268, item 2).
+        //
+        // They were here, unnamed, as `kmap test` and `scheduler   : 2 of 2 ...`, and they were two
+        // of the three self-tests this tree already had. Collecting them is the milestone's second
+        // item: the same two checks now run on aarch64 and x86_64 as well, report through one
+        // verdict line that CI reads, and are still measured the way this arm measured them (the
+        // address computed from the machine's own RAM rather than a constant, the wait bounded by
+        // the clock rather than by a yield count, both learned on the VisionFive 2).
+        //
+        // **Nothing was deleted to make three arms agree.** The claims went up into the ladder and
+        // gained two architectures; that is what levelling up looks like, and it is the opposite of
+        // the trap this milestone's block warns about.
 
         // User address spaces (the single-satp model): build a process address space, switch satp
         // to it, and keep running. That only survives if share_kernel_half copied the kernel high
@@ -1031,15 +1014,27 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // it is asking "is this one of our archives at all", and since milestone 266 that entry
             // is on every archive this tree packs.
             //
-            // **Why this step is still here when the machine boots to `swish`** (milestone 289,
-            // which was sent to retire it and did not). `swish` arrives through `progenitor`, and
-            // on RISC-V `progenitor` is `#[cfg(feature = "shell")]`: `script/shell-check` is the
-            // only thing that builds it, in QEMU. The **default** build is this one, and it is what
-            // `script/board-image` writes to a card, so on RISC-V this step is the
-            // userspace-loads-userspace demonstration that reaches the board. It can be, because it
-            // is trimmed to a budget and a report endpoint: no PLIC, no NS16550 delegation, no
-            // interrupt route, and therefore no dependence on the board's UART source number, which
-            // is 10 on QEMU `virt` and 32 on the JH7110.
+            // **Why this step was still here when the machine booted to `swish`** (milestone 289,
+            // which was sent to retire it and did not), **and what milestone 268 changed about that
+            // argument.** 289's reason was that `swish` arrives through the progenitor and the
+            // progenitor handoff was reached only by a `--features shell` build, so the **default**
+            // build, which is what `script/board-image` writes to a card, ran the tour and halted.
+            // On that build this step was the userspace-loads-userspace demonstration that reached
+            // the board, and it could be, because it is trimmed to a budget and a report endpoint:
+            // no PLIC, no NS16550 delegation, no interrupt route, and therefore no dependence on
+            // the board's UART source number, which is 10 on QEMU `virt` and 32 on the JH7110.
+            //
+            // **Milestone 268's item 4 made that premise false, deliberately.** Nothing halts by
+            // default any more: the tour now ends in `riscv_hand_over`, so the default build and
+            // the card reach the progenitor and a prompt, and the progenitor composes the console,
+            // the line discipline, the input driver and `swish` out of its own budget on the same
+            // boot this step runs on. The claim this step makes is therefore carried by the handoff
+            // as well, at a larger scale, on this architecture. It is kept rather than deleted
+            // because the two claims are not identical (this one composes from **exactly two**
+            // capabilities and the progenitor does not) and because calef's 2026-09-14 ruling on
+            // retiring it has a condition attached. See
+            // `design/roadmap/proposals/retire-the-builder-program.md`, which is where the decision
+            // lives and what it costs.
             //
             // **The `init/build` line below is read by a program, not only by a person.**
             // `crates/board_console`'s `Progress::userspace_ran` matches it by substring; four host
@@ -1540,7 +1535,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         }
         sched::note_boot_stage(10);
 
-        println!("nife: the capability core runs on RISC-V.");
+        println!("{}RISC-V.", boot_ladder::TOUR);
         // 11, not 10: the hang watcher falls silent at "the tour has finished" and milestone 159
         // added a stage after what used to be the last one. See `user.rs`'s `boot_stage() >= 11`.
         sched::note_boot_stage(11);
@@ -1556,8 +1551,31 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         jobmix::run();
         #[cfg(feature = "soak")]
         soak::run();
+        // **Nothing halts by default** (milestone 268, item 4). The tour used to end here in
+        // `arch::halt()`, and that was the right thing to do while the arch layer beneath the
+        // shared path was still being built: there was nothing honest to fall through to. There is
+        // now. `riscv_hand_over` is the same call the `shell` build makes a few hundred lines
+        // above, so this architecture's default boot ends where aarch64's already did, at a
+        // `swish` prompt, and **the prompt is the signal that the boot finished**.
+        //
+        // What this buys on a board is the whole reason calef decided it: a machine that reaches a
+        // prompt can be logged into and diagnosed, and one that halted could only be power-cycled.
+        // The VisionFive 2's card boots exactly this configuration (`script/board-image` builds
+        // `--features board`, not `shell`), so it is the card that gains most.
+        //
+        // **The tour is untouched and still runs first.** Every demonstration above this line still
+        // runs, still prints, and still ends with the line `board_console` calls `Stage::Tour`.
+        // Those steps are the only thing in this tree proving the boot's middle stages on real
+        // silicon (notes/visionfive2.md), so this adds a rung above them rather than removing any.
+        //
+        // `halt` afterwards, and it is not dead: the boot thread's own work is done and it parks in
+        // a preemptible `wfi` loop so the progenitor and its children get scheduled. A boot with no
+        // archive says so inside `riscv_hand_over` and parks the same way.
         #[cfg(not(any(feature = "soak", feature = "jobmix")))]
-        arch::halt();
+        {
+            riscv_hand_over();
+            arch::halt();
+        }
     }
 
     arch::init();
@@ -1641,6 +1659,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     #[cfg(not(any(test, feature = "bench")))]
     {
         print_machine_description(boot_info_pointer);
+
+        // **Rung two of the ladder** (milestone 268): the kernel proving it works on the machine it
+        // has just described, before anything is handed to userspace. The same five checks on all
+        // three architectures, and the verdict line is what CI and `board_console` read. It
+        // reports and does not gate: a failure prints and the boot carries on to the prompt,
+        // because a machine you cannot log into is a machine you cannot fix.
+        self_test::run();
 
         // **The milestone tour, and what is left of it after milestone 267.**
         //
@@ -1872,7 +1897,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 }
 
                 // Milestone 11: a process spends its own memory; the kernel allocates nothing.
-                if let Some(image) = user::program(user::HELLO_ENTRY)
+                if let Some(image) = user::program("memory_region_depleter")
                     && let Some((_region, report, _demo)) =
                         user::memory_region_service::start(image, 24)
                 {
@@ -2022,13 +2047,15 @@ fn mode_note(stat: u32) -> &'static str {
     }
 }
 
-/// The initrd image, for the virtio service. Panics if absent (the demo checked `initrd()` above).
+/// The driver the virtio service spawns. `block_driver` on every architecture since milestone 291;
+/// on aarch64 this used to be a role of `hello`, which was the same `crates/virtio` code behind a
+/// second dispatch table. Panics if absent (the demo checked `initrd()` above).
 #[cfg(not(test))]
 // Tour-only: the shell, initboot, and bench boots all skip the milestone tour where it is used.
 #[cfg_attr(any(feature = "shell", feature = "initboot"), allow(dead_code))]
 #[cfg(not(feature = "bench"))]
 fn image_for_virtio() -> &'static [u8] {
-    user::program(user::HELLO_ENTRY).expect("no hello program in the initrd")
+    user::program("block_driver").expect("no block_driver program in the initrd")
 }
 
 fn interrupts_init(_dtb: usize) {
@@ -2058,6 +2085,67 @@ fn stack_top() -> usize {
         static __stack_top: core::ffi::c_void;
     }
     (&raw const __stack_top) as usize
+}
+
+/// **Hand the machine to the userspace progenitor**, riscv64's half of the ladder's top rung
+/// (milestone 268, item 4).
+///
+/// The kernel loads the progenitor from the initrd, grants it the NS16550 and the UART's interrupt,
+/// and it builds the console server, the line discipline, the input driver and `swish` out of its
+/// own budget through the granular verbs. This is the line that retires the kernel as the system's
+/// builder on this architecture, and it is the same claim `components/src/builder.rs` was written
+/// to demonstrate in miniature: **userspace, not the kernel, composes a process.** The difference
+/// is that this one composes the whole running system rather than one child, and a person can then
+/// type at it.
+///
+/// **Two callers, one body** (milestone 268). It was the inside of the `#[cfg(feature = "shell")]`
+/// block and nothing else; since this milestone the *default* boot ends here too, so the two paths
+/// cannot drift. A `shell` build reaches it early and parks; a default build runs the whole tour
+/// first and then reaches it.
+///
+/// Excluded from `test` and `bench` builds for `print_machine_description`'s reasons: a test boot
+/// exits through semihosting before the tour and a bench boot diverges into `bench::run`, so
+/// neither has a system to hand over.
+///
+/// Name provisional (milestone 268). `boot_via_progenitor` is taken by the aarch64 path's own
+/// function in `user.rs`, which this is not (that one takes an image and this one finds it), and
+/// calef names what a reader meets.
+#[cfg(target_arch = "riscv64")]
+// A `soak` or `jobmix` build replaces the handoff with its own workload and never calls this, and
+// a `test` or `bench` build parks before it; all four are boots with nothing to hand over. Allowed
+// rather than `cfg`-ed out, so the function still compiles in every configuration: a handoff that
+// only type-checks in the configurations that use it is one that rots in the others.
+#[cfg_attr(
+    any(test, feature = "bench", feature = "soak", feature = "jobmix"),
+    allow(dead_code)
+)]
+fn riscv_hand_over() {
+    if let Some((plic_phys, _)) = memory::plic_region() {
+        // SAFETY: the PLIC is device-mapped in the direct map; the context is the boot hart's S
+        // context (derived, not hardcoded: OpenSBI's hart lottery).
+        unsafe {
+            drivers::plic::init(
+                arch::mmu::phys_to_virt(plic_phys) as usize,
+                arch::irq::boot_s_context(),
+            );
+        };
+    }
+    let Some(initrd) = user::initrd() else {
+        println!();
+        println!("nife: no archive to hand the system to (run `cargo xtask initrd-riscv`).");
+        return;
+    };
+    println!();
+    println!("nife: handing the system to the userspace progenitor.");
+    // The UART's PLIC source, from the machine's own tree: 10 on QEMU virt, 32 on the JH7110. It
+    // was a constant, and the constant was QEMU's; see the tour's driver step and
+    // notes/visionfive2.md (BUGS). The line names which source won, so a bench transcript is
+    // diagnosable.
+    let (uart_irq, uart_irq_source) = user::uart_irq_and_source();
+    println!("  uart irq: source {uart_irq} ({uart_irq_source})");
+    if let Err(e) = user::riscv_shell_boot(initrd, uart_irq) {
+        println!("  handoff FAILED: {e:?}");
+    }
 }
 
 /// **The machine description: what this machine is, printed on every boot that reaches here.**
@@ -2107,9 +2195,52 @@ fn print_machine_description(boot_info_pointer: usize) {
     }
     arch::isa::print_summary();
     println!("  stack top       : {:#018x}", stack_top());
-    println!("  device tree     : {boot_info_pointer:#018x}");
+    // **What the thing in the handoff register actually is**, which differs by architecture and is
+    // the first thing a bring-up reader has to know: two of these machines pass a device tree and
+    // one passes a PVH `hvm_start_info`. Milestone 268 replaced a line that called it a device tree
+    // everywhere, which was true on two architectures out of three.
+    println!(
+        "  firmware handoff: {boot_info_pointer:#018x}  ({})",
+        if cfg!(target_arch = "x86_64") {
+            "PVH hvm_start_info"
+        } else {
+            "device tree"
+        },
+    );
+
+    // ------------------------------------------------------------------------------------------
+    // **The eight questions** (milestone 268, item 1), in this order on every architecture.
+    //
+    // The parity claim is *the same questions answered, not the same lines printed*: one of these
+    // machines has ACPI and two have a device tree, so each answers in its own vocabulary. What is
+    // not allowed is a blank. An architecture that cannot answer says so in words, because a
+    // missing line and a line nobody wrote are indistinguishable to the person reading a
+    // photograph of a monitor, which is the audience this whole block exists for.
+    // ------------------------------------------------------------------------------------------
+
+    // 1. Processors. Two counts, because they answer different questions: how many the machine
+    //    *describes* is a fact about the firmware's tables, and how many are *online* is a fact
+    //    about this kernel's bring-up. They disagree on a board where a core refused to start,
+    //    which is the failure this line exists to make visible.
+    println!(
+        "  processors      : {} online of {} described, boot cpu hwid {:#x}",
+        smp::online_count(),
+        smp::described_count(),
+        smp::hwid(cpu::id()).unwrap_or(0),
+    );
+
+    // 2. Memory.
     memory::print_summary();
-    arch::mmu::print_summary();
+
+    // 3. The console, which is the device carrying this sentence.
+    console::print_summary();
+
+    // 4. The interrupt controller, in each architecture's own vocabulary: a GICv2, a PLIC, or the
+    //    local-APIC/IO-APIC pair.
+    arch::irq::print_summary();
+
+    // 5. The timer, and whether interrupts are unmasked at all. Both halves matter on a board: a
+    //    correct tick rate with interrupts off is a machine that will never preempt anything.
     {
         use crate::arch::{interrupts, timer};
         println!(
@@ -2118,11 +2249,79 @@ fn print_machine_description(boot_info_pointer: usize) {
             timer::frequency() / 1_000_000,
             if interrupts::enabled() { "ON" } else { "off" },
         );
-        println!(
-            "  scheduler       : {} thread(s), round robin, preemptive",
-            sched::thread_count(),
-        );
     }
+
+    // 6. The initrd. Two facts, printed apart on purpose, because a boot where the loader passed
+    //    an image the kernel cannot parse looks identical to a boot with no image at all from any
+    //    test's point of view (the x86 arm learned this at milestone 161).
+    match memory::initrd_region() {
+        None => println!("  initrd          : none (nothing was passed to this boot)"),
+        Some((at, size)) => match user::initrd().map(nifefs::Fs::parse) {
+            Some(Ok(fs)) => println!(
+                "  initrd          : {size} bytes at {at:#018x}, a nifefs archive of {} program(s)",
+                fs.len(),
+            ),
+            Some(Err(e)) => println!(
+                "  initrd          : {size} bytes at {at:#018x}, but it does not parse: {e:?}",
+            ),
+            None => println!(
+                "  initrd          : {size} bytes at {at:#018x}, recorded but not reachable",
+            ),
+        },
+    }
+
+    // 7. The PCIe window: where configuration space is, and where this kernel places BARs. The
+    //    second is the one that has actually been wrong on real hardware (milestone 256: a
+    //    constant BAR window that was RAM on the first real machine), so it is printed rather
+    //    than assumed.
+    match memory::pci_regions() {
+        Some(((ecam, ecam_len), (bar, bar_len))) => {
+            println!(
+                "  pcie            : ecam {ecam:#018x}..{:#x}, bar window {bar:#x}..{:#x}",
+                ecam + ecam_len,
+                bar + bar_len,
+            );
+        }
+        None => println!("  pcie            : none (this machine describes no host bridge)"),
+    }
+
+    // 8. The IOMMU, or its absence. A machine without one still runs; what it does not have is the
+    //    hardware half of DMA confinement (notes/dma.md), and that is a fact about the machine
+    //    worth reading off the boot rather than inferring from a driver's silence.
+    arch::iommu::print_summary();
+
+    // The paging geometry, after the eight rather than inside them: it is a fact about what this
+    // kernel did to the machine rather than about the machine, and on a bring-up it is read after
+    // the questions above have said whether the machine is what was expected.
+    arch::mmu::print_summary();
+    println!(
+        "  scheduler       : {} thread(s), round robin, preemptive",
+        sched::thread_count(),
+    );
+
+    // **The summary line, and it is a contract** (milestone 268, item 3's sibling).
+    //
+    // Same shape and same reason as `self_test::VERDICT` below it: a **stable prefix, identical on
+    // all three architectures**, so that `board_console` and CI have something to match that does
+    // not live inside one architecture's arm. Milestone 268's finding 3 is what happens without
+    // one, and it hid for months.
+    //
+    // Printed last rather than first, deliberately: reaching it means the whole description
+    // printed, which is the claim a ladder rung should make. A header would only mean the block
+    // started.
+    //
+    // **Wording provisional** (milestone 268): a line two programs agree on is calef's under
+    // AGENTS.md's *move fast on what can be undone* tenet, and a lane ships one and says so rather
+    // than waiting.
+    println!(
+        "{}{}, {} processor(s), {} MiB, {} Hz",
+        boot_ladder::MACHINE,
+        arch::NAME,
+        smp::online_count(),
+        memory::stats().map_or(0, |s| (s.total as u64 * page_frames::FRAME_SIZE)
+            / (1024 * 1024)),
+        arch::timer::TICK_HZ,
+    );
 }
 
 #[cfg(test)]

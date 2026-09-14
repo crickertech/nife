@@ -905,24 +905,19 @@ pub fn mkfs_image() -> Option<&'static [u8]> {
 pub const NO_MKFS: &str = "no mkfs in this archive (nothing built one for this target before \
                            the archive was packed)";
 
-/// **The binary carrying the block server's role**, which is the one thing the two ISAs
-/// disagree about here: on aarch64 it is a role of the `hello` binary, on riscv the
-/// dedicated `block_driver` one. Every caller goes through this so the disagreement is one `cfg`
-/// rather than a second copy of every wiring.
+/// **The binary carrying the block server's role**, which is now the same one everywhere.
+///
+/// **Three `cfg` arms stood here until milestone 291**, because aarch64 reached this role through
+/// the `hello` multiplexer while the other two boards had the dedicated `block_driver`. The two
+/// shapes always ran the same code (`crates/virtio` is the driver; both binaries were dispatch
+/// tables in front of it), so the disagreement bought nothing and cost a fact every caller of this
+/// function had to be routed around. 291 packed `block_driver` into the aarch64 archive too and
+/// the arms collapsed.
 ///
 /// It panics rather than returning `None` because a boot archive without it is a build that did
 /// not finish, not a machine without a disk; the disk's absence is [`root_directory`]'s `None`.
 pub fn blk_server_image() -> &'static [u8] {
-    #[cfg(target_arch = "aarch64")]
-    return program(super::HELLO_ENTRY).expect("no hello program in the initrd archive");
-    #[cfg(target_arch = "riscv64")]
-    return program("block_driver").expect("no block_driver program in the initrd archive");
-    // x86_64 (milestone 161) packs RISC-V's archive, so it gets RISC-V's answer: the dedicated
-    // `block_driver` program. This arm used to panic outright, because nothing in `user/` compiled
-    // for this target at all; item 4's hand-off changed that and the arm became a third copy of
-    // the same line rather than a special case.
-    #[cfg(target_arch = "x86_64")]
-    return program("block_driver").expect("no block_driver program in the initrd archive");
+    program("block_driver").expect("no block_driver program in the initrd archive")
 }
 
 /// **Wire the filesystem and hand back the root directory capability**, for a boot rather than
@@ -1171,9 +1166,9 @@ pub fn start_granted_set(
 
 /// **Put a file behind a byte sink** (milestone 50, notes/sink-protocol.md).
 ///
-/// Wires the FS service (or reuses this boot's) and spawns `fixtures/src/sink.rs` in its file role:
-/// it holds the FS-service endpoint, a report endpoint, and the page it shares with the FS
-/// server, and it serves one endpoint whose only expressible request is "append these bytes".
+/// Wires the FS service (or reuses this boot's) and spawns `fixtures/src/file_sink.rs`: it holds
+/// the FS-service endpoint, a report endpoint, and the page it shares with the FS server, and it
+/// serves one endpoint whose only expressible request is "append these bytes".
 ///
 /// `sink` is the capability a program's output slot gets, and **that endpoint is the whole of
 /// what the writer holds**, which is the property the milestone rests on: it is created here
@@ -1192,16 +1187,16 @@ pub struct FileSink {
 pub fn start_file_sink(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-    sink_image: &'static [u8],
+    file_sink_image: &'static [u8],
 ) -> Option<FileSink> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let sink = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
-            sink_image,
+            file_sink_image,
             Spawn {
-                arg0: SINK_ROLE_FILE,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -1227,26 +1222,27 @@ pub fn start_file_sink(
 
 /// **Read back what the file sink wrote**, in a different process with a different FS session.
 ///
-/// Spawned only after the sink has reported that it closed the file, because the two share the
-/// FS server's one file page (the [`wait_for_caretaker`] lesson: one page is sound between
-/// parties that are never using it at once, and sequencing is what makes that true).
+/// Spawns `fixtures/src/file_source.rs`, and only after the sink has reported that it closed the
+/// file, because the two share the FS server's one file page (the [`wait_for_caretaker`] lesson:
+/// one page is sound between parties that are never using it at once, and sequencing is what makes
+/// that true).
 ///
 /// It streams the file's contents out **over the sink contract**, so the bytes that reach the
 /// test arrive in the same sixteen-byte framing a `println!` does. Returns `(out, report)`.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn start_sink_verify(
+pub fn start_file_source(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-    sink_image: &'static [u8],
+    file_source_image: &'static [u8],
 ) -> Option<(RendezvousId, RendezvousId)> {
     let (file_ep, file_shared, _) = ensure(blk_image, fs_server_image)?;
     let out = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
-            sink_image,
+            file_source_image,
             Spawn {
-                arg0: SINK_ROLE_VERIFY,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -1262,15 +1258,9 @@ pub fn start_sink_verify(
             },
         )
     })
-    .expect("could not spawn the sink verifier");
+    .expect("could not spawn the file source");
     Some((out, report))
 }
-
-/// `fixtures/src/sink.rs`'s roles. Kept in sync with that file by name and by this comment; a
-/// mismatch spawns the wrong role and hangs, which is why they are named here rather than
-/// spelled as bare integers at the two call sites.
-const SINK_ROLE_FILE: u64 = 1;
-const SINK_ROLE_VERIFY: u64 = 2;
 
 /// The `std::fs` client's heap budget and extra stack. Same magnitudes as the networked std
 /// program: it is a full std program (formatting, `Vec`, `String`, `read_to_string`), so it

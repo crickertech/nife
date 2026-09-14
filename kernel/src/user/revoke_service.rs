@@ -2,17 +2,19 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-const ROLE_REVOKE_DEMO: u64 = 16;
-
-/// Spawn the demo with an 8-page untyped budget; returns the endpoint it reports its verdict on.
-pub fn wire(image: &'static [u8]) -> RendezvousId {
+/// Spawn the revoker with an 8-page memory region; returns the endpoint it reports its verdict on.
+///
+/// It was role 16 of the `hello` multiplexer until milestone 291 and is
+/// `fixtures/src/frame_revoker.rs` now, which reads nothing from `x0`.
+pub fn wire() -> RendezvousId {
+    let image = program("frame_revoker").expect("no frame_revoker program in the archive");
     let region = crate::memory_region::create(8).expect("no untyped for the revoke demo");
     let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
             image,
             Spawn {
-                arg0: ROLE_REVOKE_DEMO,
+                arg0: 0, // one job, no role selector
                 arg1: 0,
                 arg2: 0,
                 grants: &[

@@ -901,3 +901,32 @@ pub fn send_startup(dest_apic_id: u8, vector: u8) {
     write(reg::ICR_HIGH, (dest_apic_id as u32) << 24);
     write(reg::ICR_LOW, ICR_STARTUP | ICR_ASSERT | vector as u32);
 }
+
+/// **This machine's interrupt controller, for the machine description** (milestone 268).
+///
+/// One of the eight questions the description answers on every architecture, in this
+/// architecture's own vocabulary, and on x86 the answer is two chips rather than one. The local
+/// APIC is per-core and is what delivers; the IO APIC is per-machine and is what routes a device's
+/// line to a vector. A machine with the first and not the second takes its own timer interrupt and
+/// no device interrupt at all, so the two are printed apart.
+// The machine description is the only caller, and it is
+// `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench
+// boot diverges into `bench::run`, so neither reads a bring-up transcript. Same treatment
+// `memory::print_summary` already carries, and for the same reason.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+pub fn print_summary() {
+    match (local_apic_phys(), io_apic_phys()) {
+        (Some(lapic), Some(ioapic)) => crate::println!(
+            "  interrupts      : local apic {lapic:#018x} (id {}), io apic {ioapic:#018x} ({} entries)",
+            local_apic_id(),
+            io_apic_entries(),
+        ),
+        (Some(lapic), None) => crate::println!(
+            "  interrupts      : local apic {lapic:#018x} (id {}), no io apic (the MADT described none)",
+            local_apic_id(),
+        ),
+        (None, _) => crate::println!(
+            "  interrupts      : none (the MADT did not say where the local apic is)",
+        ),
+    }
+}

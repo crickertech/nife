@@ -142,17 +142,25 @@ already answered by who holds what.
 
 ## The sinks
 
-`fixtures/src/sink.rs` is one binary with roles, and it is the `fs_file_caretaker` shape: a caretaker
+Three programs in `fixtures/`, and the sink among them is the `fs_file_caretaker` shape: something
 that speaks the sink contract to its client and the underlying protocol to whatever is behind it.
 
-- **`ROLE_FILE`**: holds an `filesystem_proto` endpoint and a shared page, creates or opens one name, and
-  appends every message's bytes at a running offset. `OP_EOF` closes the handle and reports the
+- **`file_sink`**: holds a `filesystem_proto` endpoint and a shared page, creates or opens one name,
+  and appends every message's bytes at a running offset. `OP_EOF` closes the handle and reports the
   total. Its client holds an endpoint to this process and nothing that names the FS server, so it
   cannot seek, truncate, re-read or stat, which is milestone 50's "grants strictly less than Unix"
   made structural rather than promised.
-- **`ROLE_WRITER`**: the indifferent writer used by the tests. It writes a fixed transcript to
-  whatever is in slot 0 and reports the classification it got back, which is how the "gone" path is
-  asserted by value.
+- **`file_source`**: the read-back. It opens the same name in its own FS session and streams the
+  contents out over this contract, which is what makes `<` the same shape as `|` for whatever is
+  reading.
+- **`sink_transcript_writer`**: the writer that cannot tell what it is writing to, used by the
+  tests. It writes a fixed transcript to whatever is in slot 0 and reports the classification it got
+  back, which is how the "gone" path is asserted by value.
+
+**These were one binary until milestone 292**, dispatching `ROLE_FILE`, `ROLE_VERIFY` and
+`ROLE_WRITER` out of `arg0`. The role numbers existed in three files (this program, the kernel's
+`sink_tests`, and `fs_service`) with nothing keeping them equal, and a mismatch spawned the wrong
+role and hung. Three programs have no role numbers to keep equal.
 
 ## What the indifference test proves
 
@@ -160,7 +168,7 @@ that speaks the sink contract to its client and the underlying protocol to whate
 
 The same `std_exerciser` ELF is spawned twice with **identical grants except for what is behind slot 1**:
 once with an endpoint the kernel test receives on directly (the pipe shape: the reader is an
-ordinary receiver), and once with an endpoint served by `sink` in `ROLE_FILE`, which writes the bytes
+ordinary receiver), and once with an endpoint served by `file_sink`, which writes the bytes
 into a file on the real RedoxFS image through the real FS server. The test then reads that file back
 and compares it, byte for byte, with the transcript the first arm received.
 
@@ -168,7 +176,7 @@ Same binary, same transcript, two destinations that share nothing but the sixtee
 message. The program is not told which one it has and has no way to find out.
 
 The `Gone` half is asserted separately and by value, because it is a claim about a number: the
-kernel creates an endpoint out of a region it owns, spawns `sink` in `ROLE_WRITER` with WRITE on it,
+kernel creates an endpoint out of a region it owns, spawns `sink_transcript_writer` with WRITE on it,
 takes some messages, destroys the region, and the writer reports that its next SEND classified as
 `Sent::Gone` rather than `Sent::NoSink`. Without the ABI variant that assertion is not expressible.
 
@@ -231,7 +239,7 @@ process holding both contracts and handing out only one.
 
 ### And it needed a new opcode, which was not known
 
-The plan said the adapter would be `ROLE_FILE`'s shape and that the work was rewiring the progenitor. Building
+The plan said the adapter would be `file_sink`'s shape and that the work was rewiring the progenitor. Building
 it found something else: **`OP_WRITE` reads from the client's output page, and there is exactly one
 of those.** The progenitor maps a single frame into `line_editor` read-only and into the shell read/write. A
 second page-based client needs a second frame and a page index in every request, which is `filesystem_proto`'s
@@ -257,7 +265,7 @@ screen **without passing through the shell at all**, which is stronger than the 
 nothing the shell does to the output can touch those bytes, and `caps` says so in its `diags` row.
 
 `kernel::user::sink_tests::the_terminal_is_a_sink_like_any_other_and_the_writer_cannot_tell` is the
-proof, and it is the indifference claim made a third time: the same `sink` writer ELF, the same
+proof, and it is the indifference claim made a third time: the same `sink_transcript_writer` ELF, the same
 transcript, a pipe and a file and now a terminal, and the program holds one capability in each case.
 
 ### BUGS
@@ -294,6 +302,6 @@ transcript, a pipe and a file and now a terminal, and the program holds one capa
   contract**; `2>` names where those bytes go. Nothing about the framing changed, which is the
   measure of whether the contract was right: a diagnostic is bytes, and the only thing that makes
   one a diagnostic is which endpoint it is on. See notes/pipes.md.
-- **`>>`.** Append is a property of `ROLE_FILE`'s wiring (it starts at the file's current size)
+- **`>>`.** Append is a property of `file_sink`'s wiring (it starts at the file's current size)
   rather than a mode a client can ask for, because a client of a sink cannot ask for anything.
   Whether append is a mode on open or a property of the sink is milestone 50's later question.

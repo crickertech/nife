@@ -216,6 +216,29 @@ pub fn init(base: u64) {
 }
 
 /// Is the SMMU up? The portable seam asks this to decide whether attaching is possible.
+/// **This machine's IOMMU, for the machine description** (milestone 268).
+///
+/// One of the eight questions the description answers on every architecture. The vocabulary is this
+/// architecture's, because that is what parity means here: the same question, answered in the terms
+/// of the hardware that answers it. A machine with no IOMMU says so plainly rather than printing a
+/// blank, because a blank is indistinguishable from a line nobody wrote.
+// The machine description and the boot self-test are the only callers, and both are
+// `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench
+// boot diverges into `bench::run`, so neither reads a bring-up transcript. Same treatment
+// `memory::print_summary` already carries, and for the same reason.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+pub fn print_summary() {
+    match SMMU.lock().as_ref() {
+        Some(s) => crate::println!(
+            "  iommu           : SMMUv3 at {:#018x}, stream table default-deny, translating",
+            s.base,
+        ),
+        None => crate::println!(
+            "  iommu           : none (this machine's device tree names no smmuv3 node)",
+        ),
+    }
+}
+
 pub fn active() -> bool {
     SMMU.lock().is_some()
 }
