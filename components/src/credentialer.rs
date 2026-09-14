@@ -139,8 +139,8 @@ use alloc::vec::Vec;
 
 use credential_proto as proto;
 use credentialer::{Block, Cost, Store, Verdict};
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, cap_delete, exit, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, cap_delete, exit, recv_cap, reply, send};
 
 /// The provision endpoint (slot 0): RECV, and only until the seal.
 const PROV: u64 = 0;
@@ -200,11 +200,12 @@ const _: () = assert!(proto::MAX_SECRET == credentialer::MAX_SECRET);
 // implementation that was its only consumer (notes/smb.md).
 
 #[global_allocator]
-static HEAP: user_rt::heap::MemoryRegionHeap = user_rt::heap::MemoryRegionHeap::new();
+static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
+    user_mode_runtime::heap::MemoryRegionHeap::new();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
-    HEAP.init(BUDGET, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(BUDGET, user_mode_runtime::heap::DEFAULT_BASE, HEAP_MAX);
 
     let cost = Cost::DEFAULT;
 
@@ -372,4 +373,4 @@ fn die(step: u64) -> ! {
     exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

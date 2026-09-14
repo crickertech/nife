@@ -52,7 +52,7 @@
 //!
 //! 1. the **directory** capability: a freshly built `fs_subtree_caretaker`'s endpoint, `WRITE`;
 //! 2. the **filesystem's shared page**, a `PageFrame`, `READ | WRITE`: the client maps it itself
-//!    (`user_rt::map_page_frame`) at whatever address it chooses, and uses it for both the request it
+//!    (`user_mode_runtime::map_page_frame`) at whatever address it chooses, and uses it for both the request it
 //!    stages to the directory endpoint and the caretaker's own hop to the file service, which is
 //!    sound for the reason `crates/system_initializer` gives (`fs_subtree_caretaker` and its client
 //!    share one frame because every request on both hops is a blocking `CALL`);
@@ -251,7 +251,7 @@ pub fn identity_hint(identity: &[u8]) -> u64 {
 /// runs**, with the length in `x0`/`a0`/`rdi` (milestone 233).
 ///
 /// **This replaced a mapping of the whole initrd archive, and the reason is not economy.** `login`
-/// used to read the archive at `user_rt::initrd::INITRD_VA` and index it by name, which is what the
+/// used to read the archive at `user_mode_runtime::initrd::INITRD_VA` and index it by name, which is what the
 /// kernel's own test harness handed it and what nothing else ever did: `crates/system_initializer`
 /// spawns this program through `supervision_proto::build_child`, which can map only pages the
 /// spawner holds a `PageFrame` capability for, and the archive is reserved RAM the frame allocator
@@ -275,7 +275,7 @@ pub const CARETAKER_ELF_VA: u64 = 0x0000_0000_0100_0000;
 /// `_start` runs**, with the length in `x1`/`a1`/`rsi` (milestone 233).
 ///
 /// Four megabytes above [`CARETAKER_ELF_VA`] so a caretaker image would have to grow forty-fold
-/// before the two could meet. Both sit well below `user_rt::initrd::INITRD_VA` and well above the
+/// before the two could meet. Both sit well below `user_mode_runtime::initrd::INITRD_VA` and well above the
 /// per-channel scratch VAs `login` bump-allocates, which is the only other thing in that address
 /// space that grows.
 pub const PROGRAM_MEASUREMENTS_VA: u64 = 0x0000_0000_0140_0000;

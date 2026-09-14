@@ -507,7 +507,7 @@ disproved guess left standing sends the next reader down a road already walked.
 a higher header generation, a longer allocator log and more live tree blocks, so the second mount would
 drive the FS server past its 8 MiB cap (`HEAP_MAX` in `redoxfs_server.rs`, matched by `FS_BUDGET_PAGES` in
 `kernel/src/user.rs`). It does not. `redoxfs_server/src/bin/second_mount.rs` runs the real engine under the
-**same allocator the FS server uses** (`user_heap`, the algorithm behind `user_rt::heap::UntypedHeap`), grown
+**same allocator the FS server uses** (`user_mode_heap`, the algorithm behind `user_mode_runtime::heap::UntypedHeap`), grown
 incrementally and capped identically, with the image in a `static` so it stays off the heap exactly as a
 real disk does. At the device's own 8 MiB cap it completes **30 mount-and-write cycles**, every one fine,
 heap high-water **flat at 352 KiB**, and the cap never once refuses a growth. Four percent of the budget,

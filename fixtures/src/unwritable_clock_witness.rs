@@ -68,7 +68,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, send};
+use user_mode_runtime::{exit, send};
 
 /// Slot 0: the report endpoint (WRITE). **The only slot this program uses**, and it is handed the
 /// client's other four so that what it fails to reach, it fails to reach as a fully endowed network
@@ -93,4 +93,4 @@ pub extern "C" fn _start(va: u64) -> ! {
     exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

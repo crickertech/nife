@@ -126,8 +126,8 @@ use ntp_proto::{Query, Reject, Timestamp};
 // does is that the two cannot drift, and a per-consumer subset would throw that away.
 #[allow(dead_code)]
 use socket_proto::*;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{
     call, cntfrq, exit, map_page_frame, now, retype_page_frame, send, send_cap, yield_now,
 };
 
@@ -456,4 +456,4 @@ fn read_payload(n: usize, out: &mut [u8]) -> usize {
     n
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

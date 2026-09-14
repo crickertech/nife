@@ -85,7 +85,7 @@ test = false
 bench = false
 
 # The allocator workload (milestone 27): the first program that links `extern crate alloc`, over
-# the untyped-backed heap in user_rt. Proves Vec/String/BTreeMap churn, free-in-any-order, and
+# the untyped-backed heap in user_mode_runtime. Proves Vec/String/BTreeMap churn, free-in-any-order, and
 # reuse-without-growth against a real budget, on both ISAs.
 [[bin]]
 name = "allocator_exerciser"
@@ -115,7 +115,7 @@ path = "src/flaky.rs"
 test = false
 bench = false
 
-# The C seam (milestone 36). Three files, two binaries: `c_shim` is the Rust user_rt shell that
+# The C seam (milestone 36). Three files, two binaries: `c_shim` is the Rust user_mode_runtime shell that
 # links fixtures/c/c_seam.c (compiled by build.rs with a bare-metal clang) and holds every capability
 # the foreign component is not allowed to see; `c_confiner` builds it, supervises it, and holds the
 # witness pages that prove what the C could not reach. Both portable; both archives carry both.
@@ -254,7 +254,7 @@ byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
 # names `session_reviver.rs` and `fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` both depend on, and the
 # manifest format neither `timetable` nor `filesystem_proto` already owns.
 schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
-user_rt = { version = "0.1.0", path = "../crates/user_rt" }
+user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
 # The three crates `network_time_test_server` and `unwritable_clock_witness` need (milestone 290),
 # which arrived with them when the `ntp` binary's test-only roles moved out of `components/`. All
 # three are already in the shipping graph through `components`; nothing external was taken.

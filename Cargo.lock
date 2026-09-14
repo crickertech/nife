@@ -191,7 +191,7 @@ dependencies = [
  "timetable",
  "tock-registers",
  "uptime",
- "user_rt",
+ "user_mode_runtime",
  "video_terminal",
  "virtio",
 ]
@@ -359,7 +359,7 @@ dependencies = [
  "supervision_proto",
  "swap_proto",
  "system_initializer",
- "user_rt",
+ "user_mode_runtime",
  "virtio",
 ]
 
@@ -817,7 +817,7 @@ dependencies = [
  "abi",
  "elf",
  "timebase_proto",
- "user_rt",
+ "user_mode_runtime",
 ]
 
 [[package]]
@@ -826,7 +826,7 @@ version = "0.1.0"
 dependencies = [
  "abi",
  "component_plan",
- "user_rt",
+ "user_mode_runtime",
 ]
 
 [[package]]
@@ -877,7 +877,7 @@ dependencies = [
  "measured_boot",
  "nifefs",
  "supervision_proto",
- "user_rt",
+ "user_mode_runtime",
 ]
 
 [[package]]
@@ -1007,16 +1007,16 @@ name = "uptime"
 version = "0.1.0"
 
 [[package]]
-name = "user_heap"
+name = "user_mode_heap"
 version = "0.1.0"
 
 [[package]]
-name = "user_rt"
+name = "user_mode_runtime"
 version = "0.1.0"
 dependencies = [
  "abi",
  "timebase_proto",
- "user_heap",
+ "user_mode_heap",
 ]
 
 [[package]]
@@ -1040,7 +1040,7 @@ dependencies = [
  "abi",
  "filesystem_proto",
  "nifefs",
- "user_rt",
+ "user_mode_runtime",
 ]
 
 [[package]]

@@ -24,7 +24,7 @@
 //! # Examples
 //!
 //! **A caveat about this example first, because it is a limitation and not a footnote.** This crate
-//! takes an unconditional `user_rt` dependency, so `script/test`'s host pass excludes it (see the
+//! takes an unconditional `user_mode_runtime` dependency, so `script/test`'s host pass excludes it (see the
 //! exclusion list in `xtask`, derived and checked by `script/lint`). The example below therefore runs
 //! under `cargo test --doc -p swap_proto` on an aarch64 host and **is not checked by the gate**. It
 //! is written as a real example rather than a fenced comment so that it is at least checkable; the
@@ -68,7 +68,7 @@
 //! claims: calef ruled on the rule, and never on this crate.
 //! The stem is milestone 23's word for live replacement, which no record weighs against another.
 
-use user_rt::invoke;
+use user_mode_runtime::invoke;
 
 // ===========================================================================================
 // The service protocol. Every request is a `CALL` on the stable endpoint; the component serves it
@@ -716,11 +716,11 @@ pub fn serve(version: u64, xform: fn(u64) -> u64, log_base: u64, device: bool, w
         // line *is* the answer.
         let _ = probe_device();
     }
-    user_rt::send(RPT, RPT_UP, version, device as u64);
+    user_mode_runtime::send(RPT, RPT_UP, version, device as u64);
 
     let mut served = 0u64;
     loop {
-        let (op, slot, arg) = user_rt::recv_cap(SVC);
+        let (op, slot, arg) = user_mode_runtime::recv_cap(SVC);
         if slot == abi::rendezvous::NO_CAP {
             continue; // a plain SEND slipped in; the contract says CALL, and there is nobody to answer
         }
@@ -744,37 +744,37 @@ pub fn serve(version: u64, xform: fn(u64) -> u64, log_base: u64, device: bool, w
             // real gap at this sequence number, and no `reply`, so the caller stays parked awaiting
             // a reply that is not coming. Both are facts the operator reads afterwards.
             OP_PUT if wedge != 0 && arg == wedge => {
-                let (what, _) = user_rt::call(NOTE, NOTE_WEDGED, served);
+                let (what, _) = user_mode_runtime::call(NOTE, NOTE_WEDGED, served);
                 // Reached only because the operator answered, which in a real hang it cannot do.
                 // **The caller first, then the device**, because the device read is expected to
                 // fault and a fault takes this reply capability to the grave with the capability table holding
                 // it, leaving that caller blocked for the life of the machine.
                 if what == NOTE_RELEASE {
-                    user_rt::reply(slot, WEDGE_RELEASED, 0);
+                    user_mode_runtime::reply(slot, WEDGE_RELEASED, 0);
                 }
                 if device {
                     let _ = probe_device();
-                    user_rt::send(RPT, RPT_PROBE_SURVIVED, version, 0);
+                    user_mode_runtime::send(RPT, RPT_PROBE_SURVIVED, version, 0);
                 }
-                user_rt::exit()
+                user_mode_runtime::exit()
             }
             OP_PUT => {
                 log_put(log_base + arg, version);
                 served += 1;
-                user_rt::reply(slot, xform(arg), tag(version, arg));
+                user_mode_runtime::reply(slot, xform(arg), tag(version, arg));
                 if served == SWAP_TRIGGER && version == V1 {
                     // Tell the operator the conversation is well under way. Sent *after* the reply,
                     // so the client is already waiting on its next call when the swap begins.
-                    user_rt::send(NOTE, NOTE_SWAP_NOW, version, served);
+                    user_mode_runtime::send(NOTE, NOTE_SWAP_NOW, version, served);
                 }
             }
             OP_QUIESCE => {
-                user_rt::send(RPT, RPT_QUIESCED, version, served);
-                user_rt::reply(slot, QUIESCED, served);
+                user_mode_runtime::send(RPT, RPT_QUIESCED, version, served);
+                user_mode_runtime::reply(slot, QUIESCED, served);
                 break;
             }
             _ => {
-                user_rt::reply(slot, BAD_REQUEST, 0);
+                user_mode_runtime::reply(slot, BAD_REQUEST, 0);
             }
         }
     }
@@ -782,16 +782,16 @@ pub fn serve(version: u64, xform: fn(u64) -> u64, log_base: u64, device: bool, w
     // Quiesced. We no longer receive on the stable endpoint, so requests arriving from here on park
     // on its sender queue for whoever receives next. We wait for the operator to tell us what to do
     // with the corpse we are about to become.
-    let (what, _, _) = user_rt::recv(POKE);
+    let (what, _, _) = user_mode_runtime::recv(POKE);
     if what == POKE_PROBE && device {
         // Touch the registers one last time. If the operator's revoke was real this faults, and the
         // kernel's fault message is the receipt. Reaching the line after it is the failure, and it
         // is reported positively: a silent success here would be indistinguishable from the healthy
         // run, in which this program simply stops existing at the read above.
         let _ = probe_device();
-        user_rt::send(RPT, RPT_PROBE_SURVIVED, version, 0);
+        user_mode_runtime::send(RPT, RPT_PROBE_SURVIVED, version, 0);
     }
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// The operator's coordination messages, on `NOTE`. Separate from the report endpoint on purpose:
@@ -837,14 +837,14 @@ pub const NOTE_RELEASE: u64 = 6;
 /// Trap. A half-built system is not worth limping along, and a fault is legible: the kernel prints
 /// the pc and the process dies where the mistake was.
 ///
-/// Delegates to [`user_rt::trap`] since milestone 130, for the reason `supervision_proto::fail`
+/// Delegates to [`user_mode_runtime::trap`] since milestone 130, for the reason `supervision_proto::fail`
 /// records: the name earns its keep, the duplicated asm did not.
 pub fn fail() -> ! {
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
 /// A raw `RECV_CAP`, returning the kernel's answer rather than a message. The attacker uses it:
-/// `user_rt::recv_cap` is written for a caller that is allowed to receive, and the whole question
+/// `user_mode_runtime::recv_cap` is written for a caller that is allowed to receive, and the whole question
 /// here is what happens to one that is not.
 pub fn try_recv_cap(slot: u64) -> i64 {
     // SAFETY: a plain syscall. If it succeeds we have stolen a request, which is the failure.

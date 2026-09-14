@@ -14,4 +14,4 @@ abi = { version = "0.1.0", path = "../abi" }
 # stride was the only place in the tree that had to be found by hand.
 nifefs = { version = "0.1.0", path = "../nifefs" }
 filesystem_proto = { version = "0.1.0", path = "../filesystem_proto" }
-user_rt = { version = "0.1.0", path = "../user_rt" }
+user_mode_runtime = { version = "0.1.0", path = "../user_mode_runtime" }

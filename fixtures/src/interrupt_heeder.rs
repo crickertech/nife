@@ -30,15 +30,15 @@
 #![no_main]
 
 use grant_plan::job_page_frame;
-use user_rt::exit;
-use user_rt::mapped_window::{self, MappedWindow};
+use user_mode_runtime::exit;
+use user_mode_runtime::mapped_window::{self, MappedWindow};
 
 /// Where init maps the shared job frame in the child's address space. Must match the shell/init
 /// wiring (below the ELF load address `0x40_0000` and the stack).
 const JOB_PAGE_FRAME_VA: usize = 0x0030_0000;
 
 // SAFETY: init mapped one page read/write at JOB_PAGE_FRAME_VA before this program runs (milestone 139
-// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled read_volatile/
+// round 2; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled read_volatile/
 // write_volatile pair below).
 const WINDOW: MappedWindow =
     unsafe { MappedWindow::new(JOB_PAGE_FRAME_VA as u64, mapped_window::PAGE) };
@@ -71,4 +71,4 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

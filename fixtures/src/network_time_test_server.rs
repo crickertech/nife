@@ -68,8 +68,8 @@ use ntp_proto::{Packet, Short, Timestamp, leap, mode};
 // two cannot drift, and a per-consumer subset would throw that away.
 #[allow(dead_code)]
 use socket_proto::*;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{cap_delete, map_page_frame, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{cap_delete, map_page_frame, recv_cap, reply, send};
 
 // =================================================================================================
 // The slots, and the one word this program reports.
@@ -265,4 +265,4 @@ fn read_payload(n: usize, out: &mut [u8]) -> usize {
     n
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

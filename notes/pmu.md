@@ -48,7 +48,7 @@ An aarch64 core has two unrelated counters, and confusing them is a category err
 
 The **generic timer** is the OS's clock: a steady reference tick used to tell time and schedule
 deadlines (`CNTPCT`, `CNTP_CVAL`; see interrupts.md). It is what our own bench reads, through
-`user_rt::now` at EL0 (abi.md opened `CNTKCTL_EL1.EL0VCTEN` for exactly this). It is coarse, ~41 ns per
+`user_mode_runtime::now` at EL0 (abi.md opened `CNTKCTL_EL1.EL0VCTEN` for exactly this). It is coarse, ~41 ns per
 tick, so one IPC reads as "1 tick, maybe 2." We beat the coarseness by timing a **loop of thousands**
 of operations and dividing; the per-op cost falls out cleanly and the tick noise averages away.
 

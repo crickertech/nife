@@ -38,5 +38,5 @@ byte_sink_proto 43 2 0 2
 generational_table 26 5 0 13
 socket_proto 15 2 0 0
 swish 44 3 9 2
-user_heap 20 3 5 7
+user_mode_heap 20 3 5 7
 video_terminal 211 79 0 11

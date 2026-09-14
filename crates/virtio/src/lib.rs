@@ -21,7 +21,7 @@
 //! **Nothing here can run off a machine, and the reason is the whole point of the crate.** Every
 //! entry point below writes device registers through a mapping the kernel handed this process and
 //! returns `!`: there is no virtio device on a host, `script/test`'s host pass excludes this crate
-//! (it depends on `user_rt`'s EL0 `asm!`, an exclusion `script/lint` derives and checks), and a
+//! (it depends on `user_mode_runtime`'s EL0 `asm!`, an exclusion `script/lint` derives and checks), and a
 //! function that never returns has no assertion to make. So the example is `no_run`: type-checked
 //! against the real signatures, executed by the QEMU boot and by nothing else. The parts of this
 //! subsystem that *are* checkable are in `dma_validator` and `filesystem_proto`, which is where their
@@ -31,7 +31,7 @@
 //! because the interesting part is what it is holding rather than what it does:
 //!
 //! ```no_run
-//! # use user_rt::exit;
+//! # use user_mode_runtime::exit;
 //! /// The kernel starts this thread with the DMA page's **physical** address in the first argument
 //! /// register. It has to: descriptors speak physical addresses and a process knows only virtual
 //! /// ones, and there is no syscall that would translate one, deliberately.
@@ -60,7 +60,7 @@
 
 use abi::irq;
 use filesystem_proto::blk;
-use user_rt::{exit, invoke, send};
+use user_mode_runtime::{exit, invoke, send};
 
 // The kernel maps the DMA page at this fixed VA (must match kernel/src/user/virtio_service.rs).
 // The device REGISTERS are NOT mapped: we drive the device through a `Virtio` capability (slot 2),
@@ -568,7 +568,7 @@ fn complete_block(used_before: u16) {
         let istatus = mr(INTERRUPT_STATUS);
         mw(INTERRUPT_ACK, istatus);
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-        // before acting (user_rt's contract). A caller cannot break an invariant by passing a
+        // before acting (user_mode_runtime's contract). A caller cannot break an invariant by passing a
         // bad slot or method; it gets an error back.
         unsafe { invoke(IRQ, irq::ACK, 0, 0, 0) };
 
@@ -1030,7 +1030,7 @@ pub fn run_blk_server(dma_phys: u64) -> ! {
     let mut flushes: i64 = 0;
     loop {
         // RECV_CAP: (first word, the Reply cap's slot, second word = the starting block index).
-        let (w0, reply, block) = user_rt::recv_cap(BLK_REQ);
+        let (w0, reply, block) = user_mode_runtime::recv_cap(BLK_REQ);
         // **Clamp, the same defence the file channel's server-side clamp is** (milestone 138 step
         // 4, mirroring step 3's `fs_service.rs` clamp): every caller today sends at most
         // `blk::TRANSFER_BLOCKS` (the field cannot encode more), but a request is never trusted to

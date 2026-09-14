@@ -151,8 +151,8 @@ The program side, from `components/src/disk_surveyor.rs`. It picks its own addre
 page now and the kernel has no opinion:
 
 ```rust
-if !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, /* writable */ false, BUDGET) {
-    user_rt::exit()
+if !user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, /* writable */ false, BUDGET) {
+    user_mode_runtime::exit()
 }
 ```
 
@@ -162,9 +162,9 @@ cannot even obtain a writable window:
 
 ```rust
 // Rung one: refused by the rights on the capability, before a page-table entry is written.
-let rw_refused = !user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, true, BUDGET);
+let rw_refused = !user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, true, BUDGET);
 // Rung two: the read-only mapping we are entitled to, and a write through it. This faults.
-user_rt::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET);
+user_mode_runtime::map_page_frame(ROSTER_PAGE_FRAME, ROSTER_VA, false, BUDGET);
 unsafe { core::ptr::write_volatile(ROSTER_VA as *mut u64, 0) };
 ```
 
@@ -342,7 +342,7 @@ went), and the difference is accounted rather than shrugged at:
   `toolchain/nightly-bump` PR going red on a plain toolchain bump with no code change of its own;
   bisected against CI's own historical `build + test (host + QEMU)` logs (five independent runs at
   18621 before `202831a3`/`c94f5d21`, two independent runs at 18626 immediately after, both
-  populations internally exact). `MappedWindow::check` (`crates/user_rt/src/mapped_window.rs`,
+  populations internally exact). `MappedWindow::check` (`crates/user_mode_runtime/src/mapped_window.rs`,
   milestone 139) panics with a *formatted* message, and that alone is enough to pull `core::fmt`'s
   panic-with-arguments machinery into any binary that calls it, even once. Measured directly
   (`llvm-size`, dev profile): `painter`, `window` and `display` each grew their linked text by
@@ -466,7 +466,7 @@ went), and the difference is accounted rather than shrugged at:
   the capability names 2,432 bytes past the end of the surface. Those bytes are inside the same
   contiguous allocation (the driver's DMA region), not another object's memory, and nothing
   addresses them: every consumer bounds-checks against `SURFACE_BYTES` rather than the frame count
-  (`user_rt::mapped_window::MappedWindow`). It is recorded because a capability that names more
+  (`user_mode_runtime::mapped_window::MappedWindow`). It is recorded because a capability that names more
   than the thing it stands for is exactly the kind of fact this convention exists to write down,
   and because the `SURFACE_BYTES % 4096 == 0` assertion that used to hide the question by
   construction was deleted this milestone (`crates/graphics_proto/src/lib.rs` has the search that

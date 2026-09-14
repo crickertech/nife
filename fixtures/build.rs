@@ -4,11 +4,11 @@
 //! `cargo:rustc-link-arg` is per-package, which is the whole reason the EL0 programs are their own
 //! packages rather than more binaries in `kernel/`.
 //!
-//! **The linker script lives in `crates/user_rt`, not here, and that is deliberate.** Both
+//! **The linker script lives in `crates/user_mode_runtime`, not here, and that is deliberate.** Both
 //! `components` and `fixtures` link against the identical EL0 layout, so a copy in each would be
 //! two places to be wrong about `0x40_0000` with nothing comparing them; milestone 73 refused to
 //! rename `user/link.ld` on exactly that ground ("it is genuinely shared"), and milestone 175 split
-//! the package that held it. `user_rt` is the runtime that supplies `_start`'s ABI and the panic
+//! the package that held it. `user_mode_runtime` is the runtime that supplies `_start`'s ABI and the panic
 //! handler to every program in both packages, so a program image's layout is its business.
 //! `scripts/build-ripgrep.sh` derives its high-load variant from the same file by substitution.
 //!
@@ -23,7 +23,7 @@ use std::process::Command;
 
 fn main() {
     let dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
-    let script = Path::new(&dir).join("../crates/user_rt/link.ld");
+    let script = Path::new(&dir).join("../crates/user_mode_runtime/link.ld");
     let script = script.display();
     println!("cargo::rerun-if-changed={script}");
     println!("cargo::rustc-link-arg=-T{script}");

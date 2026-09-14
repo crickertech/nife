@@ -41,7 +41,7 @@ use abi::{Error, rendezvous};
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
 use supervision_proto::{Child, ChildEndowment, Retention};
-use user_rt::{
+use user_mode_runtime::{
     call, exit, irq_wait, map_into, map_page_frame, map_region_page, recv, recv_cap as rt_recv_cap,
     reply, revoke_frame, send, send_cap, yield_now,
 };
@@ -211,7 +211,7 @@ fn print(bytes: &[u8]) -> Result<(), Error> {
     let shared = SHARED_VA as *mut u8;
     for (i, &b) in bytes[..n].iter().enumerate() {
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-        // before acting (user_rt's contract). A caller cannot break an invariant by passing a
+        // before acting (user_mode_runtime's contract). A caller cannot break an invariant by passing a
         // bad slot or method; it gets an error back.
         unsafe { core::ptr::write_volatile(shared.add(i), b) };
     }
@@ -227,12 +227,12 @@ fn print(bytes: &[u8]) -> Result<(), Error> {
     Ok(())
 }
 
-// The IPC primitives (send/recv/invoke/exit) come from the shared `user_rt` crate (19f.6).
+// The IPC primitives (send/recv/invoke/exit) come from the shared `user_mode_runtime` crate (19f.6).
 
 /// Receive a data word and, if the sender delegated one, a capability. Returns `(w0, slot)`, where
 /// `slot` is where the received capability landed in our capability table, or `rendezvous::NO_CAP` if none came.
 ///
-/// A thin shape over `user_rt::recv_cap`, which returns the third word this caller does not want.
+/// A thin shape over `user_mode_runtime::recv_cap`, which returns the third word this caller does not want.
 fn recv_cap(slot: u64) -> (u64, u64) {
     let (w0, got, _) = rt_recv_cap(slot);
     (w0, got)
@@ -277,7 +277,7 @@ fn revoke_demo() -> ! {
     const VA: u64 = 0x0000_0000_00c0_0000;
 
     // Retype a page into a PageFrame capability we hold, then map it writable.
-    let frame = user_rt::retype_page_frame(MEMORY_REGION);
+    let frame = user_mode_runtime::retype_page_frame(MEMORY_REGION);
     check(frame >= 0);
     let frame = frame as u64;
     check(map_page_frame(frame, VA, true, MEMORY_REGION));
@@ -300,7 +300,7 @@ fn revoke_demo() -> ! {
 }
 
 /// The bytes of the program named `name` in the initrd (milestone 19f). The initrd is a nifefs
-/// archive the kernel maps read-only at [`user_rt::initrd::INITRD_VA`]; init indexes it by name
+/// archive the kernel maps read-only at [`user_mode_runtime::initrd::INITRD_VA`]; init indexes it by name
 /// rather than treating the whole blob as a single ELF. `initrd_len` (the archive length) arrives
 /// in `x1` at entry. Returns `None` if the archive will not parse or holds no such program.
 ///
@@ -308,8 +308,8 @@ fn revoke_demo() -> ! {
 /// kernel had loaded and re-entered it at a different role; 19f.2 added distinct entries a caller
 /// can name directly (`"least_authority_demo"` and so on).
 fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
     nifefs::Fs::parse(archive).ok()?.read(name)
 }
 
@@ -364,7 +364,7 @@ const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
 /// first process; since milestone 266 that is `progenitor`, and this role's name has not followed
 /// it (the constants below are unratified, and a rename of them is calef's). init holds a
 /// building untyped (slot 0) and a report endpoint (slot 1, `WRITE|GRANT`); the initrd is mapped
-/// read-only at [`user_rt::initrd::INITRD_VA`], and its length arrives in `x1`.
+/// read-only at [`user_mode_runtime::initrd::INITRD_VA`], and its length arrives in `x1`.
 ///
 /// It parses that ELF (the `elf` crate, linked into userspace) and loads it as a **child**: a
 /// second instance of this same program, entered at role [`CHILD`], built entirely by init out
@@ -481,7 +481,7 @@ fn init_coremark(initrd_len: u64) -> ! {
 fn cycle_counter_child() -> ! {
     const REPORT: u64 = 0;
     let first = read_cycle_counter();
-    user_rt::yield_now();
+    user_mode_runtime::yield_now();
     let second = read_cycle_counter();
     send(REPORT, CYCLE_COUNTER_WORD, first, second);
     exit();
@@ -490,7 +490,7 @@ fn cycle_counter_child() -> ! {
 /// Read the CPU's cycle counter from user mode: one instruction on every architecture, which is
 /// the property DECISIONS 139 chose option 4 to keep.
 ///
-/// **Deliberately not in `crates/user_rt`.** A portable userspace cycle-counter API is milestone
+/// **Deliberately not in `crates/user_mode_runtime`.** A portable userspace cycle-counter API is milestone
 /// 74's deliverable, and it will want to say what the number means (a frequency, a scaling, a
 /// story about what a "cycle" is on a big.LITTLE part). This is the raw read, in the one program
 /// that needs it today, so that 74 designs the API rather than inheriting one from a test vehicle.
@@ -765,11 +765,11 @@ fn address_space_builder() -> ! {
     const REPORT: u64 = 1;
     const VA: u64 = 0x0040_0000;
 
-    let aspace = user_rt::retype_object(MEMORY_REGION, abi::objtype::ADDRESS_SPACE);
+    let aspace = user_mode_runtime::retype_object(MEMORY_REGION, abi::objtype::ADDRESS_SPACE);
     let mut verdict = 0u64;
     if aspace >= 0 {
         verdict |= 1; // built a space out of our own pages
-        let frame = user_rt::retype_page_frame(MEMORY_REGION);
+        let frame = user_mode_runtime::retype_page_frame(MEMORY_REGION);
         if frame >= 0 {
             let mapped = map_into(aspace as u64, VA, frame as u64, 1);
             if mapped == 0 {
@@ -796,7 +796,7 @@ fn ep_maker() -> ! {
 
     // Retype one page of our budget into an endpoint; the kernel returns the slot where our
     // full-rights capability to it landed.
-    let ep = user_rt::retype_object(MEMORY_REGION, abi::objtype::RENDEZVOUS);
+    let ep = user_mode_runtime::retype_object(MEMORY_REGION, abi::objtype::RENDEZVOUS);
     check(ep >= 0);
     let ep = ep as u64;
 
@@ -881,7 +881,7 @@ fn page_frame_producer() -> ! {
     const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
     // Retype: a page out of our budget becomes a PageFrame capability we hold. Nothing is mapped yet.
-    let frame = user_rt::retype_page_frame(MEMORY_REGION);
+    let frame = user_mode_runtime::retype_page_frame(MEMORY_REGION);
     check(frame >= 0);
 
     // Map it read/write; the page tables to reach PAGE_FRAME_VA come from the same untyped.
@@ -957,10 +957,10 @@ fn check(ok: bool) {
 
 /// Trap, killing this program where the mistake was. Kept as a local name because the call sites
 /// above read as "this build step failed", not as "execute a breakpoint"; the instruction itself
-/// is `user_rt`'s since milestone 130. The comment this replaces called it "the one arch-specific
+/// is `user_mode_runtime`'s since milestone 130. The comment this replaces called it "the one arch-specific
 /// line in the program", which was true of `hello` and false of the tree: there were forty-eight.
 fn fail() -> ! {
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
 /// Milestone 11: spend an untyped budget. This process holds a capability to a chunk of raw
@@ -1018,4 +1018,4 @@ fn memory_region_demo() -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

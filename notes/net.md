@@ -234,7 +234,7 @@ smoltcp is no_std-clean and used across embedded Rust.
 **Corrected assumption.** smoltcp bills itself as "for bare-metal, real-time systems **without a
 heap**." It can run with fixed socket buffers and a static `SocketSet`, so the net server does **not**
 strictly need the untyped-backed `GlobalAlloc` that RedoxFS (milestone 32) and the `std` PAL
-(milestone 27) require. In the build we shipped, net_stack does use `alloc` (over user_rt's `UntypedHeap`,
+(milestone 27) require. In the build we shipped, net_stack does use `alloc` (over user_mode_runtime's `UntypedHeap`,
 milestone 27) because it is available and makes the socket set and per-frame buffers simpler; the
 `alloc` feature is a convenience, not a precondition, so a fixed-capacity server remains possible if
 that heap were ever unavailable.
@@ -250,7 +250,7 @@ kernel confines by DMA. The kernel knows nothing about DHCP.
   tokens own their bytes so they never borrow the device), and transmits via the DMA ring (TX tokens
   carry a raw pointer to the device, sound because net_stack is single-threaded and the device outlives
   any token within a poll).
-- `net_stack` links `alloc` over user_rt's `UntypedHeap`, builds a smoltcp `Interface` and a DHCP socket,
+- `net_stack` links `alloc` over user_mode_runtime's `UntypedHeap`, builds a smoltcp `Interface` and a DHCP socket,
   and runs the poll loop, blocking on the NIC interrupt between polls. It reports the acquired
   address, which the test asserts lands in slirp's 10.0.2.0/24 (`the_net_server_acquires_a_dhcp_lease_over_smoltcp`
   and its `_pci` twin, both ISAs). Only a real DHCP handshake driven by smoltcp over the confined NIC

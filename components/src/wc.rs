@@ -79,7 +79,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, recv, send};
+use user_mode_runtime::{exit, recv, send};
 
 /// The output sink: where the three numbers go, in the sink contract's framing.
 const SINK: u64 = 0;
@@ -193,4 +193,4 @@ fn render(mut v: u64, out: &mut [u8]) -> usize {
     n
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

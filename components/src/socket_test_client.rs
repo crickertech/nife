@@ -49,8 +49,8 @@
 
 use abi::rights;
 use socket_proto::*;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{call, exit, map_page_frame, retype_page_frame, send, send_cap};
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{call, exit, map_page_frame, retype_page_frame, send, send_cap};
 
 const REPORT: u64 = 0;
 const STACK: u64 = 1;
@@ -72,7 +72,7 @@ const NO_ANSWER: u64 = 2;
 /// Where the client maps its shared frame.
 const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
-/// The window onto that frame (milestone 139; see `user_rt::mapped_window`). A `static`, not a
+/// The window onto that frame (milestone 139; see `user_mode_runtime::mapped_window`). A `static`, not a
 /// `const`, for the same reason the type's own doc names as its second valid case: the range is
 /// only actually mapped once `attach_page_frame`'s `PageFrame::MAP` succeeds, and every `r8`/`w8`/`r16le`/
 /// `w16le` call in this file happens after that, during the protocol exchanges `attach_page_frame` is

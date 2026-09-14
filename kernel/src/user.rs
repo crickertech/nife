@@ -300,8 +300,8 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
     // belongs: see that crate's own x86_64-gated code for the targeted fix, which maps a zeroed
     // placeholder (this crate has no way to hand a child-builder the *real*, kernel-measured
     // number without a new syscall or capability plumbing well past this milestone's scope; see
-    // `timebase_proto`'s and `user_rt::cntfrq`'s own `BUGS` sections) only into spaces the loader
-    // itself builds, so `user_rt::cntfrq` reads "unknown" there and falls back rather than
+    // `timebase_proto`'s and `user_mode_runtime::cntfrq`'s own `BUGS` sections) only into spaces the loader
+    // itself builds, so `user_mode_runtime::cntfrq` reads "unknown" there and falls back rather than
     // faulting on an unmapped read.
     let name = USER_SPACES.lock().insert_with(|_| space);
     if name.is_none() {
@@ -490,7 +490,7 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
         .map_err(LoadError::Unmappable)?;
 
     // The x86_64 timebase page (milestone 161's `cntfrq` follow-up): the one number this
-    // architecture's `user_rt::now()` needs that neither a register (aarch64's `CNTFRQ_EL0`) nor
+    // architecture's `user_mode_runtime::now()` needs that neither a register (aarch64's `CNTFRQ_EL0`) nor
     // a build-time constant (RISC-V's device-tree rate) can give it. `map_physical` does not
     // spend `content`'s budget (only the intermediate table pages it walks come from the space's
     // own region, the same as every `Spawn::maps` entry `run()` applies below), so this needs no
@@ -564,7 +564,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
 /// each wants a narrower or differently-shaped world than a generic `load` call builds. `load`'s
 /// own unconditional mapping never reaches any of them, and each one found this the same way:
 /// **empirically**, as an unmapped-read page fault the first time something in that process
-/// called `user_rt::cntfrq` (`timetable`'s own scheduling logic was the one that actually found
+/// called `user_mode_runtime::cntfrq` (`timetable`'s own scheduling logic was the one that actually found
 /// this; `load`'s coverage alone left every one of these kernel-built processes unmapped and it
 /// took a real `script/test --arch x86_64` run, not a reading of the call graph, to find them
 /// all). Factored out once here rather than copied into each, per CLAUDE.md rule 7's reasoning
@@ -2933,7 +2933,7 @@ pub mod memory_region_service;
 
 /// **The untyped-backed userspace heap** (milestone 27): spawn the `allocator_exerciser` workload, the
 /// first program that links `extern crate alloc`, with an untyped budget (slot 0) and a report
-/// endpoint (slot 1). The program wires `user_rt::heap` as its global allocator, churns
+/// endpoint (slot 1). The program wires `user_mode_runtime::heap` as its global allocator, churns
 /// `Vec`/`String`/`BTreeMap` with frees in arbitrary order, asserts every intermediate result
 /// itself (a wrong value faults), and reports a magic word plus how many bytes of heap it
 /// committed. Portable: the same test runs the riscv64 ELF on riscv and the aarch64 ELF on
@@ -3077,7 +3077,7 @@ pub mod revoke_service;
 ///    keeps "a PERMISSION fault at exactly this address" assertable rather than softened to "a fault
 ///    happened".
 /// 3. `hello`, which carries the milestone 7-19 role catalogue, was found to build for RISC-V once
-///    six syscalls it had hand-rolled in aarch64 `asm!` were routed through `user_rt`, which already
+///    six syscalls it had hand-rolled in aarch64 `asm!` were routed through `user_mode_runtime`, which already
 ///    had portable versions of all six.
 ///
 /// **What is still gated, and why, is written at each test rather than here**, because a blanket
@@ -3171,7 +3171,7 @@ mod job_undertaker_tests;
 /// **What is under test is the seam, not the C.** `fixtures/c/c_seam.c` is deliberately throwaway: 150
 /// lines, one honest function and two one-line bugs. What the milestone de-risks is everything around
 /// it, before a real foreign component (libghostty-vt, milestone 29's later rung) depends on it: a
-/// bare-metal clang in the build for both ISAs, a Rust `user_rt` shell that holds every capability so
+/// bare-metal clang in the build for both ISAs, a Rust `user_mode_runtime` shell that holds every capability so
 /// the C can hold none, and five libc symbols shimmed rather than a libc ported.
 ///
 /// **The four claims, and how each is proven rather than assumed.** All four are asserted from

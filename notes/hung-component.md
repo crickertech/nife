@@ -168,7 +168,7 @@ Two honest costs, and the first is the one to design against:
 - **Separating k observations still needs the watcher to wait**, and there is no timed wait. See the
   next paragraph, because this is the fork.
 
-**What is genuinely missing, precisely.** Measuring a duration needs nothing: `user_rt::now()` is a
+**What is genuinely missing, precisely.** Measuring a duration needs nothing: `user_mode_runtime::now()` is a
 plain register read (`CNTVCT_EL0` / `rdtime`), ambient by design, so any process can time anything.
 **Waiting** on one is what does not exist. There is no timed wait anywhere in the kernel; the syscall
 surface is `EXIT`, `YIELD`, `INVOKE`, `CAP_DELETE`. So a watchdog today must yield-spin between
@@ -346,7 +346,7 @@ script/cpu-matrix                     # the riscv64 leg
 ```rust
 let mut cursor = abi::survey::DONE;          // 0, which is also "start here"
 loop {
-    let (next, tid, state) = user_rt::survey(domain, cursor);
+    let (next, tid, state) = user_mode_runtime::survey(domain, cursor);
     if next < 0 { break }                    // refused: NOT an empty domain. Say so.
     let next = next as u64;
     if next == abi::survey::DONE || next <= cursor { break }

@@ -43,7 +43,7 @@
 // builds nothing, the supervisor holds no memory), so the unused halves are expected, not dead.
 
 use supervision_proto::REPORT_SERVER_RAN;
-use user_rt::send;
+use user_mode_runtime::send;
 
 /// Our one capability.
 const REPORT: u64 = 0;
@@ -64,7 +64,7 @@ pub extern "C" fn _start(_a0: u64, attempt: u64, _a2: u64) -> ! {
     }
 
     // The restart did its work. Exit cleanly, which the supervisor must read as "finished."
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

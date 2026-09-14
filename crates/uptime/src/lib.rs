@@ -19,7 +19,7 @@
 //!
 //! # Where the number comes from, and why it needed no new capability
 //!
-//! `components/src/uptime.rs` reads `user_rt::monotonic_nanos`, the same ambient counter `date` reads
+//! `components/src/uptime.rs` reads `user_mode_runtime::monotonic_nanos`, the same ambient counter `date` reads
 //! to compute the wall clock and `os_primitives_benchmarker` reads to time itself. It is granted to
 //! **every** EL0 program, unconditionally, by `kernel/src/arch/*/timer.rs`'s `init` (`CNTKCTL_EL1`'s
 //! `EL0VCTEN` bit on aarch64, the RISC-V and `x86_64` equivalents), which documents the grant as **a

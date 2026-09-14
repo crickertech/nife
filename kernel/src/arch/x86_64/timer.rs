@@ -341,7 +341,7 @@ pub fn cycle_counter_grantable() -> bool {
 /// **This is a stated exception to DECISIONS §19 (architectural parity is a tenet), not a gap.**
 /// `CR4.TSD` (bit 2) would close `rdtsc` to ring 3 and is writable per switch like the other two
 /// registers, so option 4 is mechanically available here. What is not available is a fallback:
-/// `crates/user_rt`'s `now()` on this architecture **is** `rdtsc`, with no coarse monotonic source
+/// `crates/user_mode_runtime`'s `now()` on this architecture **is** `rdtsc`, with no coarse monotonic source
 /// to fall back to the way aarch64 has `CNTVCT_EL0` and riscv64 has `rdtime`, so closing it for
 /// ungranted threads would take out `Instant`, `thread::sleep`, the random seed, smoltcp's
 /// timestamps and the benchmark harness at once. DECISIONS 139 measured the two alternatives

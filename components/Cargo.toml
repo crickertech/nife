@@ -165,7 +165,7 @@ test = false
 bench = false
 
 # The net server (milestone 30, piece 3): smoltcp as a userspace TCP/IP stack driving the confined
-# NIC. Links `extern crate alloc` over user_rt's heap. `initrd_aarch64` packs it as "net_stack" for both ISAs.
+# NIC. Links `extern crate alloc` over user_mode_runtime's heap. `initrd_aarch64` packs it as "net_stack" for both ISAs.
 [[bin]]
 name = "net_stack"
 path = "src/net_stack.rs"
@@ -549,7 +549,7 @@ timetable = { version = "0.1.0", path = "../crates/timetable" }
 # names `session_reviver.rs` and `fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` both depend on, and the
 # manifest format neither `timetable` nor `filesystem_proto` already owns.
 schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
-user_rt = { version = "0.1.0", path = "../crates/user_rt" }
+user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # The register-block idiom milestone 139 round 5 brought to `user` (calef, 2026-08-24, "take the
 # dependency for user"): compile-time-checked device register layouts for the fixed-layout blocks
@@ -557,7 +557,7 @@ video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # kernel/src/drivers/pl011.rs's own idiom for the identical hardware. Pinned to the same version as
 # kernel/Cargo.toml's own dependency so the two crates using this library never skew.
 tock-registers = "0.10"
-# smoltcp (milestone 30, piece 3): the userspace TCP/IP stack. no_std, heap over user_rt's
+# smoltcp (milestone 30, piece 3): the userspace TCP/IP stack. no_std, heap over user_mode_runtime's
 # UntypedHeap. Pinned at 0.13.1; divergence policy is the vendored-engine discipline (DECISIONS §18).
 smoltcp = { version = "0.14.0", default-features = false, features = [
     "alloc",

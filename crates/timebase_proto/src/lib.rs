@@ -1,11 +1,11 @@
 //! **The `x86_64` timebase page** (milestone 161's `cntfrq` follow-up).
 //!
-//! aarch64 answers "how many [`user_rt::now`](../user_rt/fn.now.html) ticks make a second" by
+//! aarch64 answers "how many [`user_mode_runtime::now`](../user_mode_runtime/fn.now.html) ticks make a second" by
 //! reading `CNTFRQ_EL0`, a register the machine states. `x86_64` has no such register: the TSC's
 //! rate is either reported by `CPUID` leaf `0x15` (on parts that implement it) or has to be
 //! measured against a timer the kernel already trusts, and either way the number is known **once,
 //! at boot, in ring 0**, then never again. This crate is the one definition of the page that
-//! carries that number to every process, so the kernel (the one writer) and `user_rt::cntfrq`
+//! carries that number to every process, so the kernel (the one writer) and `user_mode_runtime::cntfrq`
 //! (every reader) cannot drift on its layout or its fixed address. The same split `clock_proto`
 //! makes for the wall clock and `environment_proto` makes for `TZ`/`LANG`/`TERM`.
 //!
@@ -13,7 +13,7 @@
 //!
 //! `clock_proto`'s page is capability-gated: a process either holds a mapping or it does not, and
 //! not knowing the wall clock is a real, representable state. The timebase page is not like that.
-//! Every `x86_64` process that calls [`now`](../user_rt/fn.now.html) needs a rate to turn ticks
+//! Every `x86_64` process that calls [`now`](../user_mode_runtime/fn.now.html) needs a rate to turn ticks
 //! into seconds, ambiently, with no capability to ask for (aarch64 and RISC-V both give this for
 //! free: a register read and a build-time constant respectively, neither gated on anything). So
 //! `kernel::user::load` (the arch-neutral function every ordinary ELF-loaded test fixture passes
@@ -31,7 +31,7 @@
 //! included, actually goes through) cannot reach the kernel's real page at all: nothing hands that
 //! crate a capability naming the kernel's specific physical frame, so it maps a *freshly retyped,
 //! zeroed* placeholder from the child's own budget instead, exactly the amount of forwarding a
-//! userspace crate can do without one. See `user_rt::cntfrq`'s own `BUGS` section for what that
+//! userspace crate can do without one. See `user_mode_runtime::cntfrq`'s own `BUGS` section for what that
 //! means for the number such a process reads back.
 //!
 //! # One writer, then read-only, no seqlock
@@ -81,8 +81,8 @@
 //!   `spawn_init` and every builder role this milestone did not reach.
 //! - **A process spawned any way other than those two paths** (there is currently exactly one on
 //!   this architecture: `kernel::user::x86_userspace_demo`'s hand-assembled children, which run raw
-//!   machine code and never call `user_rt::cntfrq`) does not get this page mapped at all, and a
-//!   call to [`user_rt::cntfrq`](../user_rt/fn.cntfrq.html) from such a process would fault on the
+//!   machine code and never call `user_mode_runtime::cntfrq`) does not get this page mapped at all, and a
+//!   call to [`user_mode_runtime::cntfrq`](../user_mode_runtime/fn.cntfrq.html) from such a process would fault on the
 //!   unmapped read. A future spawn path that does not go through `kernel::user::load`,
 //!   `kernel::user::map_x86_timebase_page`, or `supervision_proto::build_child_space` must map this
 //!   page too (real or placeholder), or must not link anything that calls `cntfrq`.
@@ -131,13 +131,13 @@ const OFF_HZ: usize = OFF_MAGIC + 8;
 pub const PAGE_BYTES: usize = OFF_HZ + 8;
 
 /// **The fixed virtual address `kernel::user::load` maps this page at**, in every `x86_64`
-/// process. Both sides of the page (the kernel's writer, `user_rt::cntfrq`'s reader) agree on
+/// process. Both sides of the page (the kernel's writer, `user_mode_runtime::cntfrq`'s reader) agree on
 /// this number through this crate rather than through two copies of a magic constant (CLAUDE.md
 /// rule 7).
 ///
 /// **Deliberately far above every other low-half address this tree hands out**, rather than
 /// beside the boot tour's own small demo addresses (`kernel::user::X86_DEMO_CODE_VA` = `0x40_0000`,
-/// `USER_STACK_VA` = `0x50_0000`). Every program's ELF loads at `0x40_0000` (`crates/user_rt/link.ld`) and
+/// `USER_STACK_VA` = `0x50_0000`). Every program's ELF loads at `0x40_0000` (`crates/user_mode_runtime/link.ld`) and
 /// individual test fixtures map their own extra windows in the low few megabytes above it (a
 /// first attempt at `0x60_0000` collided with `fixtures/src/window.rs`'s own `CTL_VA`, which a
 /// full-suite run under `script/test --arch x86_64` caught as `AlreadyMapped`). Because this page

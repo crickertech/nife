@@ -14,7 +14,7 @@ answer the question) or read out of a specification.
 | `cycle` (`0xc00`) | this hart's CPU cycles | `rdcycle`, gated by `scounteren.CY` **and** `mcounteren.CY` | the core clock, and it moves |
 | `instret` (`0xc02`) | retired instructions | `rdinstret`, same two gates | one per instruction |
 
-`crates/user_rt`'s `now()` and `crate::arch::timer::now()` both read the **first** row. Every
+`crates/user_mode_runtime`'s `now()` and `crate::arch::timer::now()` both read the **first** row. Every
 number in `bench/baseline-riscv64.txt` is denominated in it. That is the right instrument for a
 long loop and it is not cycles: notes/pmu.md sets out the same distinction for aarch64 and calls
 confusing the two a category error.

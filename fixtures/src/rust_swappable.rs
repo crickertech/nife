@@ -53,4 +53,4 @@ pub extern "C" fn _start(device: u64, log_base: u64, wedge: u64) -> ! {
     )
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();
