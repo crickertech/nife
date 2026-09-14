@@ -1166,9 +1166,9 @@ pub fn start_granted_set(
 
 /// **Put a file behind a byte sink** (milestone 50, notes/sink-protocol.md).
 ///
-/// Wires the FS service (or reuses this boot's) and spawns `fixtures/src/sink.rs` in its file role:
-/// it holds the FS-service endpoint, a report endpoint, and the page it shares with the FS
-/// server, and it serves one endpoint whose only expressible request is "append these bytes".
+/// Wires the FS service (or reuses this boot's) and spawns `fixtures/src/file_sink.rs`: it holds
+/// the FS-service endpoint, a report endpoint, and the page it shares with the FS server, and it
+/// serves one endpoint whose only expressible request is "append these bytes".
 ///
 /// `sink` is the capability a program's output slot gets, and **that endpoint is the whole of
 /// what the writer holds**, which is the property the milestone rests on: it is created here
@@ -1187,16 +1187,16 @@ pub struct FileSink {
 pub fn start_file_sink(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-    sink_image: &'static [u8],
+    file_sink_image: &'static [u8],
 ) -> Option<FileSink> {
     let (file_ep, file_shared, readiness) = ensure(blk_image, fs_server_image)?;
     let sink = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
-            sink_image,
+            file_sink_image,
             Spawn {
-                arg0: SINK_ROLE_FILE,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -1222,26 +1222,27 @@ pub fn start_file_sink(
 
 /// **Read back what the file sink wrote**, in a different process with a different FS session.
 ///
-/// Spawned only after the sink has reported that it closed the file, because the two share the
-/// FS server's one file page (the [`wait_for_caretaker`] lesson: one page is sound between
-/// parties that are never using it at once, and sequencing is what makes that true).
+/// Spawns `fixtures/src/file_source.rs`, and only after the sink has reported that it closed the
+/// file, because the two share the FS server's one file page (the [`wait_for_caretaker`] lesson:
+/// one page is sound between parties that are never using it at once, and sequencing is what makes
+/// that true).
 ///
 /// It streams the file's contents out **over the sink contract**, so the bytes that reach the
 /// test arrive in the same sixteen-byte framing a `println!` does. Returns `(out, report)`.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn start_sink_verify(
+pub fn start_file_source(
     blk_image: &'static [u8],
     fs_server_image: &'static [u8],
-    sink_image: &'static [u8],
+    file_source_image: &'static [u8],
 ) -> Option<(RendezvousId, RendezvousId)> {
     let (file_ep, file_shared, _) = ensure(blk_image, fs_server_image)?;
     let out = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
     crate::sched::spawn(move || {
         run(
-            sink_image,
+            file_source_image,
             Spawn {
-                arg0: SINK_ROLE_VERIFY,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -1257,15 +1258,9 @@ pub fn start_sink_verify(
             },
         )
     })
-    .expect("could not spawn the sink verifier");
+    .expect("could not spawn the file source");
     Some((out, report))
 }
-
-/// `fixtures/src/sink.rs`'s roles. Kept in sync with that file by name and by this comment; a
-/// mismatch spawns the wrong role and hangs, which is why they are named here rather than
-/// spelled as bare integers at the two call sites.
-const SINK_ROLE_FILE: u64 = 1;
-const SINK_ROLE_VERIFY: u64 = 2;
 
 /// The `std::fs` client's heap budget and extra stack. Same magnitudes as the networked std
 /// program: it is a full std program (formatting, `Vec`, `String`, `read_to_string`), so it

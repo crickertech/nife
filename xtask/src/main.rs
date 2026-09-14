@@ -3591,9 +3591,12 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
         // both archives carry it and the same guest tests run against either ISA.
         ("session_reviver", "session_reviver"),
-        // The NTP client (milestone 51), with its test server and its clock-page probe as roles of
-        // the same binary. Portable, so both archives carry it and both ISAs run the same tests.
-        ("ntp", "ntp"),
+        // The network time client (milestone 51), and the two test-only programs it used to carry as
+        // `arg0` roles of one binary until milestone 290 split them out into `fixtures/`. Portable,
+        // so both archives carry all three and both ISAs run the same tests.
+        ("network_time_client", "network_time_client"),
+        ("network_time_test_server", "network_time_test_server"),
+        ("unwritable_clock_witness", "unwritable_clock_witness"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble as aarch64 machine code.
         ("outlaw", "outlaw"),
@@ -3604,10 +3607,12 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // `spawn_progenitor` enters on aarch64. aarch64 used to pack it as `init` because there it
         // also carried the boot role; that role is `progenitor` now, and the alias went with it.
         ("hello", "hello"),
-        // The sink contract's ends (milestone 50). Portable, so both archives carry it: the claim
-        // is that a program cannot tell what its output slot holds, and that has to hold on either
-        // instruction set or it is not a claim.
-        ("sink", "sink"),
+        // The sink contract's ends (milestone 50), three programs since milestone 292. Portable, so
+        // both archives carry them: the claim is that a program cannot tell what its output slot
+        // holds, and that has to hold on either instruction set or it is not a claim.
+        ("sink_transcript_writer", "sink_transcript_writer"),
+        ("file_sink", "file_sink"),
+        ("file_source", "file_source"),
         // The consumer (milestone 50). Both archives, for the sink's reason: `date | wc` has to
         // compose on either instruction set or it is not a claim about the system.
         ("wc", "wc"),
@@ -4502,12 +4507,19 @@ fn initrd_aarch64() -> bool {
         // root_supervisor-shaped boot-only process that reads the durable schedule store's
         // manifest and re-derives every identity it names, then deletes its own capabilities.
         ("session_reviver", "session_reviver"),
-        ("ntp", "ntp"),
+        // The network time client (milestone 51) and the two test-only programs milestone 290 split
+        // out of its binary into `fixtures/`.
+        ("network_time_client", "network_time_client"),
+        ("network_time_test_server", "network_time_test_server"),
+        ("unwritable_clock_witness", "unwritable_clock_witness"),
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble.
         ("outlaw", "outlaw"),
-        // The sink contract's ends (milestone 50): the indifferent writer and the read-back.
-        ("sink", "sink"),
+        // The sink contract's ends (milestone 50): the writer that cannot tell what it is writing
+        // to, the file behind the slot, and the read-back. Three programs since milestone 292.
+        ("sink_transcript_writer", "sink_transcript_writer"),
+        ("file_sink", "file_sink"),
+        ("file_source", "file_source"),
         // `wc` (milestone 50): the right-hand side of a pipe, and the first program that reads a
         // stream.
         ("wc", "wc"),
