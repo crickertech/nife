@@ -490,12 +490,29 @@ lanes.** When two lanes must gate together, `VERIFY_JOBS=2` each shares the budg
 doubling it. The tell is the same every time and is easy to misread: a heavy job dying with no
 failing assertion, reported as a cancellation or a timing failure rather than as memory.
 
+**And a third ceiling, which is disk, and which the two above will not warn you about** (2026-09-14,
+met four times in one session and treated as an incident each time). Five lanes at roughly 3 GB of
+`target/` each, plus **7.2 GB in the main checkout's own** `target/`, took a 252 GB volume to 1.9 GB
+free and then to a command failing mid-write with `No space left on device`. The main checkout is the
+one nobody watches, because it is not a lane and does not appear in `git worktree list`, and every
+gate run from it builds there. **So: three or four lanes, not five, and run gates from a lane's
+worktree rather than the main checkout**, which removes a whole build tree from the budget. The
+failure mode is the one this file already fears most: disk is the only pressure here that destroys
+work rather than delaying it, and deletes still succeed while writes fail, so recovery is always
+cleanup and never a restart.
+
 **The prover is the queue's long pole**, not the queue itself: a group's CI goes green while
 `verify` is still running, every time. Milestone 119's remaining half is measuring exactly that.
 
 **Prune a lane's worktree the moment its pull request merges**, in the same breath as deleting the
-branch and relinking `nife-dev`. Eight finished worktrees had accumulated by the time anyone
-looked, and one of them alone held 3.3 GB.
+branch and relinking `nife-dev`, and then `git worktree prune`. Deleting the branch does not remove
+the ~2 GB of `target/` behind it. This has failed twice at opposite scales: eight finished worktrees
+accumulated before anyone looked, one holding 3.3 GB; and on 2026-07-31 the volume hit **zero bytes
+free** with 42 worktrees holding **78 GB**, at which point two lanes died mid-work and could not even
+run `pgrep` to check for leaked emulators, because every tool must create an output file before it
+runs. The warning signs were noted hours earlier, not acted on, and four more lanes launched on top
+of them. **If a lane is blocked, commit and push its work before removing anything**: a snapshot on
+the remote cannot be lost by a cleanup.
 
 **Both watchers now run unattended on patagonia, via `launchd`** (`com.nife.merge-drain` and
 `com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
@@ -607,15 +624,6 @@ pruning the worktree. Do not tell a lane not to do the thing gating requires; te
 its report so the relink is not forgotten. That lane also demonstrated the workaround worth knowing:
 symlink the worktree's `target/nife-farm` at the main checkout's farm after checking the stamps
 match (`cargo xtask std-stamp`), and `std_src()` early-returns instead of rebuilding.
-
-**Delete a lane's worktree too, and do it before the disk decides for you.** On 2026-07-31 the data
-volume hit **zero bytes free** with 42 agent worktrees holding **78 GB**. Two lanes died mid-work and
-could not even run `pgrep` to check whether they had leaked emulators, because every tool must create
-an output file before it runs. Deleting the branch at merge does not remove the ~2 GB of `target/`
-behind it, so **prune the worktree in the same breath**, and `git worktree prune` afterwards. If a
-lane is blocked, commit and **push** its work before removing anything: a snapshot on the remote
-cannot be lost by a cleanup. The warning signs were noted hours earlier and not acted on, and then
-four more lanes were launched on top of them.
 
 **An unmerged branch is either abandoned or it is
 holding knowledge that is not on `main`, and the second case is a bug in where the knowledge lives.**

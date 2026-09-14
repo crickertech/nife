@@ -35,14 +35,20 @@
 //! would have needed two servers. Making `set` a page write instead is not a workaround; it is
 //! what "set the offset outright" already means (DECISIONS §43).
 //!
-//! Name: recorded (milestone 63's name table, design/roadmap/63-name-spellings.md). Introduced
-//! 2026-07-30. Milestone 63 argues this name from the other side, while settling `credentialer`:
-//! it treats `clock` and `entropy` as the established resource-name pattern and departs from that
-//! pattern only where the departure is earned, because the credential service will never hand you
-//! a credential and naming it for the resource would imply the one thing it exists to refuse. A
-//! clock service does hand you the time, so the pattern holds and 63's exception does not reach
-//! it. That is a real argument for this name, made in the tree, by a lane that was arguing about
-//! a different one. calef has not ratified it.
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), confirming milestone 63's
+//! name table (design/roadmap/63-name-spellings.md). Introduced 2026-07-30. Milestone 63 argues
+//! this name from the other side, while settling `credentialer`: it treats `clock` and `entropy`
+//! as the established resource-name pattern and departs from that pattern only where the departure
+//! is earned, because the credential service will never hand you a credential and naming it for
+//! the resource would imply the one thing it exists to refuse. A clock service does hand you the
+//! time, so the pattern holds and 63's exception does not reach it. That is a real argument for
+//! this name, made in the tree, by a lane that was arguing about a different one.
+//!
+//! **The pair was ratified together**, `entropy` the same day, because 63 cites the two in one
+//! sentence as the pattern; signing one and not the other would have split an argument the tree
+//! makes as a unit. The strong form of the pattern is visible here: the name says what this hands
+//! you, and what it conspicuously does not hand you is the ability to set it, which is three
+//! objects apart (read the page, write the page, propose) rather than one service's options.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
