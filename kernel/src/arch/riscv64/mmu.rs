@@ -970,13 +970,32 @@ pub fn share_kernel_half(root: u64) {
     }
 }
 
-/// Print a human summary of the kernel's mapping (the boot tour). The MMU step.
+/// **Print a human summary of the kernel's mapping**, for the machine description.
 ///
-/// The RISC-V boot tour is its only caller. A test build compiles the tour out, and so does the
-/// `bench` boot mode, which diverges into `bench::run` before it.
+/// **It was `unimplemented!()` until milestone 268**, and nothing had ever called it: the RISC-V
+/// arm of `main.rs` printed its own `paging` line inline instead, so this function was a
+/// panic waiting for its first caller. The machine description calls the same name on all three
+/// architectures (that is what "the same questions answered" means), so it found this the first
+/// time it ran, as a `[PANIC]` in the middle of the block it had just printed.
+///
+/// The shape is aarch64's, said in this architecture's vocabulary: one root register rather than a
+/// TTBR pair, so the line names `satp` and the root it holds rather than a split.
 #[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
 pub fn print_summary() {
-    unimplemented!("riscv mapping summary: the MMU step")
+    crate::println!(
+        "  mmu             : Sv39 {}, one satp, kernel high half at {:#018x}",
+        if is_enabled() {
+            "on, fine-grained W^X tables installed"
+        } else {
+            "OFF (still on the boot map)"
+        },
+        KERNEL_VA_BASE,
+    );
+    crate::println!(
+        "                  : kernel root {:#018x}, live satp root {:#018x}",
+        KERNEL_ROOT.load(Ordering::Relaxed),
+        current_root_pa(),
+    );
 }
 
 #[cfg(test)]

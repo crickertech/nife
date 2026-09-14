@@ -1937,7 +1937,14 @@ pub fn riscv_uart_driver_demo(
 /// none of it. Unlike the other demos this
 /// does not block: `system_initializer` and its children run on the scheduler while the boot thread parks.
 #[cfg(target_arch = "riscv64")]
-#[cfg_attr(not(feature = "shell"), allow(dead_code))] // the `shell` boot mode is the only caller
+// Two callers since milestone 268: the `shell` boot mode, and the default boot's own hand-off at
+// the end of the tour (`riscv_hand_over`), because nothing halts by default any more. The `allow`
+// is kept for the configurations that reach neither (a `soak` or `jobmix` build replaces the
+// hand-off with its own workload; `test` and `bench` park before it).
+#[cfg_attr(
+    any(test, feature = "bench", feature = "soak", feature = "jobmix"),
+    allow(dead_code)
+)]
 pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), LoadError> {
     use crate::cap::Rights;
     const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt
