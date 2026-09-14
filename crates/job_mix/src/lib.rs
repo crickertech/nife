@@ -138,7 +138,14 @@
 //! `script/board-image`'s flag is `--job-mix`.
 //!
 //! **The console markers went to `job-mix:`, the command's spelling rather than this crate's, and
-//! that half is provisional.** A marker is neither a Rust identifier nor a shell command; it is a
+//! calef ratified that on 2026-09-14** (`job-mix:` and `job-mix-census:`), on the argument below.
+//! **The rule it settles, which is the part worth carrying forward**: a console marker takes the
+//! spelling of the command a reader typed to produce it, not of the crate that implements it,
+//! because the reader's path to the string runs through the command. That makes `soak`'s markers a
+//! precedent rather than a coincidence, and gives the next workload's markers an answer before
+//! anyone has to ask.
+//!
+//! The case as it stood when he ruled: A marker is neither a Rust identifier nor a shell command; it is a
 //! string a person reads on a serial console after typing `script/job-mix`, and the one recogniser
 //! that matches it sits beside `script/board-console`. `kernel/src/soak.rs` sets the precedent by
 //! accident rather than by argument, since `soak` is one word and cannot show a seam: its markers
