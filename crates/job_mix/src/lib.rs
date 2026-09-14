@@ -149,7 +149,14 @@
 //! string a person reads on a serial console after typing `script/job-mix`, and the one recogniser
 //! that matches it sits beside `script/board-console`. `kernel/src/soak.rs` sets the precedent by
 //! accident rather than by argument, since `soak` is one word and cannot show a seam: its markers
-//! (`soak: `, `soak-census:`) match `script/soak` exactly. The deciding evidence was that
+//! matched `script/soak` exactly without anyone having to decide that they should.
+//!
+//! **That precedent has since been tested, and it held.** calef ruled `script/soak` to `soak-test`
+//! the same day, and the markers moved with the command to `soak-test:` and
+//! `soak-test-census:` rather than staying with the crate or the module, which are still spelled
+//! `soak`. So the rule stated here is not a description of one accident: it predicted what a rename
+//! would do to a marker, and the rename did it. If that rename has not landed where you are reading
+//! this, the markers there still say `soak:`. The deciding evidence was that
 //! `xtask`'s own line already read "job-mix: QEMU ended before printing `jobmix: done`", one
 //! sentence in two spellings. calef names what a reader meets, and this is a reader-facing string
 //! he has not ruled on.
