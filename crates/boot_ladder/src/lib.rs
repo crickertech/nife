@@ -41,8 +41,22 @@
 //!   under `AGENTS.md`'s *move fast on what can be undone* tenet; a lane ships one and says so
 //!   rather than waiting, which is what the milestone block instructed.
 //!
-//! Name: provisional, minted by milestone 268's lane on 2026-09-14. A noun for the thing it
-//! describes: the ladder a boot climbs. Refusals, because they are the valuable half:
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), the same day milestone
+//! 268's lane minted it. A noun for the thing it describes: the ladder a boot climbs.
+//!
+//! **The collision was weighed and accepted, and that is the part worth recording.** `AGENTS.md`
+//! already spends *ladder* on its own most-cited metaphor: make the wrong state unrepresentable,
+//! then a gate, then a record at the thing, then a note. So a reader who has internalised the
+//! constitution meets this crate carrying a different sense of the word. It was kept because the
+//! two are unambiguous in context (nothing here is about mechanism strength, and nothing there is
+//! about a console), because *rungs of a boot* is legible on sight, and because the alternatives
+//! each lose something this keeps: `boot_stages` and `boot_markers` drop the ordering that is the
+//! whole claim, and `console_contract` describes the mechanism rather than the thing.
+//!
+//! **Coined rather than standard**, so it is not the protected class `virtio` and `elf` sit in and
+//! it earned no shelter from being the field's word. It is this tree's metaphor, ratified as one.
+//!
+//! Refusals, because they are the valuable half:
 //!
 //! - **`boot_markers`** was refused for naming the *mechanism* (they are strings that get matched)
 //!   rather than the thing. The tree's own habit is against it: `block_roster` is not

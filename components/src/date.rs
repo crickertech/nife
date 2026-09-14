@@ -87,11 +87,13 @@
 //! - **No `strftime`.** Five named formats, because a format-string interpreter is a second parser
 //!   with runtime errors in a program that has no allocator (notes/calendar.md).
 //!
-//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
-//! outside"). Introduced 2026-07-31. The Unix command's own name, and a plain noun, so it
-//! satisfies the protected class and the name-things-with-nouns rule at once and there was
-//! nothing left to decide. The reasoning is the general rule rather than a ruling on this string,
-//! which is what `recorded` means and is why this is not claimed as ratified.
+//! Name: ratified 2026-09-14 (calef, working the unratified worklist), on AGENTS.md's naming
+//! section, "standard terms a reader already knows from outside". Introduced 2026-07-31. The Unix
+//! command's own name, and a plain noun, so it satisfies the protected class and the
+//! name-things-with-nouns rule at once and there was nothing left to decide. What the ratification
+//! adds is the signature the general rule could not supply on its own, which is the whole
+//! difference between `recorded` and `ratified`: the rule covered this string, and now a person
+//! has said so about this string.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
