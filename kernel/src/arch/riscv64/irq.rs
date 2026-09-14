@@ -184,6 +184,30 @@ pub fn send_reschedule(target_cpu: usize) {
     crate::arch::sbi_send_ipi(target_cpu);
 }
 
+/// **This machine's interrupt controller, for the machine description** (milestone 268).
+///
+/// One of the eight questions the description answers on every architecture, in this
+/// architecture's own vocabulary. The context number is printed beside the address because it is
+/// the number that is *not* architectural: `2 * hart + 1` is QEMU's layout, and the JH7110's
+/// disabled S7 shifts every context down one, so a board whose PLIC address is right and whose
+/// context is wrong enables sources nobody is listening on (notes/visionfive2.md).
+// The machine description is the only caller, and it is
+// `#[cfg(not(any(test, feature = "bench")))]`: a test boot exits through semihosting and a bench
+// boot diverges into `bench::run`, so neither reads a bring-up transcript. Same treatment
+// `memory::print_summary` already carries, and for the same reason.
+#[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
+pub fn print_summary() {
+    match crate::memory::plic_region() {
+        Some((plic, _)) => crate::println!(
+            "  interrupts      : PLIC at {plic:#018x}, this hart's S-mode context {}",
+            this_s_context(),
+        ),
+        None => {
+            crate::println!("  interrupts      : none (this machine's device tree names no PLIC)");
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

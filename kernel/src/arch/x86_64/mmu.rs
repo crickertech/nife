@@ -267,12 +267,12 @@ pub fn print_summary() {
     let root = KERNEL_ROOT.load(Ordering::Relaxed);
     if root == 0 {
         crate::println!(
-            "  mmu         : 4-level paging on (cr3 {:#x}), boot map: 4 GiB identity + high alias",
+            "  mmu             : 4-level paging on (cr3 {:#x}), boot map: 4 GiB identity + high alias",
             current_root(),
         );
     } else {
         crate::println!(
-            "  mmu         : fine W^X 4-level map installed (cr3 {:#x}), image {:#x}, direct map {:#x}",
+            "  mmu             : fine W^X 4-level map installed (cr3 {:#x}), image {:#x}, direct map {:#x}",
             current_root(),
             KERNEL_VA_BASE,
             DIRECT_MAP_BASE,
@@ -281,7 +281,7 @@ pub fn print_summary() {
         // and the module's BUGS section says what that is worth on a bigger machine. On QEMU's
         // 256 MiB it is the number to watch if the direct map ever grows a second consumer.
         crate::println!(
-            "                {} KiB of page tables, no identity map, guard pages are holes",
+            "                  : {} KiB of page tables, no identity map, guard pages are holes",
             TABLE_FRAMES.load(Ordering::Relaxed) * PAGE_SIZE / 1024,
         );
     }
