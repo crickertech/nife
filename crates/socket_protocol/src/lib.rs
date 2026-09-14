@@ -142,8 +142,8 @@
 //! Name: ratified 2026-08-01 (calef, the naming tenet), which names `socket_proto` among the
 //! standard terms that are already right. It graduated from a module inside `net_stack` to a crate
 //! on 2026-07-31 under rule 7, taking the spelling the suffix rule already required. That suffix
-//! rule changed at milestone 265 (calef, 2026-09-05: `_proto` is a truncation that is equally
-//! short for `prototype`), so the crate is `socket_protocol` now; `socket`, the half the 2026-08-01
+//! rule changed at milestone 265, on calef's ruling of 2026-09-05 that `_proto` is a truncation and
+//! is equally short for `prototype`, so the crate is `socket_protocol` now; `socket`, the half the 2026-08-01
 //! ruling was about, is untouched.
 
 /// Operations. The opcode is the low byte of the request word; the socket id is the next byte.

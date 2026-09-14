@@ -1152,11 +1152,43 @@ before it saying a word. That is the same shape as everything below.
 | A shell script that derives an artifact from the crate's directory | `scripts/build-ripgrep.sh` seds `crates/user_mode_runtime/link.ld` into a high-load variant | shell, and it runs only when somebody builds ripgrep |
 | A generated module in the patched-`std` overlay | `sys/alloc/nife/user_mode_heap.rs`, written by `xtask` from the crate and declared `mod user_mode_heap;` in the overlay | it compiles only when the `std` farm is rebuilt, in a source tree outside every workspace |
 | `Cargo.lock` in each separate workspace | `redoxfs_server/Cargo.lock`, `tools/redoxfs_host/Cargo.lock` | regenerated on their own next build, not on the main workspace's |
+| A **glob that selects the set a gate then judges** | `script/lint` check 3 looped over `crates/*proto` and rejected any name not ending `_proto` | after milestone 265 that glob matches no directory, so the loop body never runs and the check passes by checking zero crates |
+
+**The glob row is worse than the `--exclude` row above it and belongs beside it anyway.** Both fail
+by going quiet, but an `--exclude` that has gone stale still covers everything else; a selector that
+has gone stale covers nothing, and the gate's whole subject vanishes at once. The tell is the same
+and it is not a failure: **a gate that passed before your change and passes after it, on a change
+that is precisely its subject, has probably stopped looking.** Run it against a deliberately wrong
+name once and confirm it still says no.
 
 **The habit that catches all of them is the same one the program clause asks for**, applied a
 directory wider: grep the **path** (`crates/<name>`) as well as the identifier, and then build every
 workspace, not the one `cargo build` means by default. `find . -name Cargo.toml -maxdepth 3 | xargs
 grep -l '\[workspace\]'` is the enumeration; there are five.
+
+### A suffix rename is one decision and N provenance blocks
+
+**The cost of a rename scales with the names it touches; the cost of *repairing* one scales with the
+records those names appear in, and a family rename makes the second number much larger than the
+first.** Milestone 265 renamed fifteen crates by changing one suffix, which is one decision, and then
+had to read every one of their provenance blocks, because a provenance block's job is to record what
+the name was.
+
+Two shapes recur and are worth expecting:
+
+- **The same account, copied into several crates.** Four crates (`clock_proto`, `entropy_proto`,
+  `supervision_proto`, `swap_proto`) carried a byte-identical sentence about the wire contract having
+  been spelled four ways on 2026-07-30. A sweep breaks all four the same way, so the repair is also
+  four copies, and finding one is no evidence you have found them all. Grep the sentence, not the
+  name.
+- **An account whose subject is the spelling itself.** Those four sentences list four spellings in
+  order to contrast them, and two of the four ended in the suffix being renamed. Swept, the sentence
+  still parses and is now nonsense: it contrasts four spellings, two of which no longer contain the
+  thing being contrasted. Nothing catches that but reading it.
+
+**The general rule this is a case of**: when the thing being renamed is a *convention* rather than a
+single name, every passage arguing the convention is an account, and there are as many of them as
+there were names.
 
 ### What is checked, and what is not
 

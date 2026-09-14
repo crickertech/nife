@@ -130,9 +130,9 @@
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review) as
 //! `byte_sink_proto`, itself renamed from `sink_proto`: matches the crate's own opening line
-//! ("the byte-sink contract"). The suffix became `_protocol` at milestone 265 (calef, 2026-09-05:
-//! `_proto` is a truncation, and it is equally short for `prototype`); the stem is untouched and
-//! the 2026-08-23 ruling stands.
+//! ("the byte-sink contract"). The suffix became `_protocol` at milestone 265, on calef's ruling of
+//! 2026-09-05 that `_proto` is a truncation and is equally short for `prototype`; the stem is
+//! untouched and the 2026-08-23 ruling stands.
 
 #![no_std]
 

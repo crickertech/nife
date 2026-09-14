@@ -218,6 +218,10 @@ name = "coremark"
 version = "0.1.0"
 
 [[package]]
+name = "counter_frequency_protocol"
+version = "0.1.0"
+
+[[package]]
 name = "cpu_set"
 version = "0.1.0"
 
@@ -487,6 +491,7 @@ dependencies = [
  "clock_protocol",
  "compositor",
  "coremark",
+ "counter_frequency_protocol",
  "cpu_set",
  "credential_protocol",
  "dma_validator",
@@ -523,7 +528,6 @@ dependencies = [
  "socket_protocol",
  "spin",
  "thread_wake_handshake",
- "counter_frequency_protocol",
  "tock-registers",
  "video_terminal",
  "work_steal_slot",
@@ -832,8 +836,8 @@ name = "supervision_protocol"
 version = "0.1.0"
 dependencies = [
  "abi",
- "elf",
  "counter_frequency_protocol",
+ "elf",
  "user_mode_runtime",
 ]
 
@@ -932,10 +936,6 @@ version = "0.1.0"
 dependencies = [
  "loom",
 ]
-
-[[package]]
-name = "counter_frequency_protocol"
-version = "0.1.0"
 
 [[package]]
 name = "timetable"
