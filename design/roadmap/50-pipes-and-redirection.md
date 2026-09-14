@@ -194,3 +194,13 @@ likely to surprise.
   slot 1 each mean several things depending on what the line granted, so the ordered convention is
   owed a numbered one, and the register fastpath wart `OutputSpec` refuses rather than fixes is
   recorded with it.
+
+## Index row
+
+**Built:** 2026-07-31
+
+the sink contract is **built** (`crates/sink_proto`, notes/sink-protocol.md) and a program is
+proven indifferent to what its output slot holds; all four operators run at a real prompt on both
+ISAs. The three residuals this row used to list closed on 2026-08-03 and the file said so from
+2026-08-14: buffering was measured and the verdict is build nothing, the terminal's own sink
+adapter is `terminal_sink_caretaker`, and `2>` was built as the declared second stream (§67)

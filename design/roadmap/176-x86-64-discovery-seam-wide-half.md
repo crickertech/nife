@@ -101,3 +101,15 @@ Piece 1 is complete and independent of this.
   function to the x86_64 test runner and wire it, so the NTP client has a nonce source there; four
   of `ntp_tests.rs`'s six tests skip on x86_64 without one. Milestone 215's block proposes this as
   one item in a larger x86_64 fixture lane, so take it there rather than as a second piece of work.
+
+## Index row
+
+**Built:** 2026-08-25
+
+Milestone 161's own item 0, re-scoped fresh: two of the four windows its text named (the interrupt
+controller, PCI) turned out to already be built, checked directly against the tree. **Piece 1
+built** (2026-08-25): COM1's already-discovered IRQ (`Acpi::isa_irqs[4]`) wired into `memory::UART_IRQ`, and `machine.rs`'s stale `BUGS` comment corrected. **Piece 2, a CMOS RTC,
+built** (2026-08-25) against [DECISIONS §130](../decisions/130-cmos-rtc-delegation.md): the kernel
+reads CMOS once (`arch::x86_64::rtc`) and hands the wall-clock seed to the clock service as a `Spawn` argument (`clock_proto::rtc::CMOS`), since every existing RTC consumer assumed the
+userspace clock service reads its device itself and DECISIONS §121 forever forecloses that shape
+for CMOS's kernel-resident ports. `date_tests.rs`, `time_tests.rs`, `clock_tests.rs` and `ntp_tests.rs` now run on `x86_64` instead of skipping.

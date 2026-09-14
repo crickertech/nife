@@ -111,3 +111,12 @@ Two things the probe settles for whoever builds this:
   That is arguably the next instance of the same problem and is not in scope.
 - **The refactor touches the most delicate code in the project** for a benefit that is invisible when
   it works. That is the honest cost, and it is why the sequencing constraint above is not optional.
+
+## Index row
+
+Minted by calef on 2026-08-31, when "what is wrong with the tree-wide refactor" turned out to have
+no answer on merit. Physical and virtual addresses are bare `u64` across `paging`, `memory_regions`, three `arch/*/mmu.rs`, `user.rs` and `syscall.rs`, and the confusion is recorded
+rather than hypothetical: `notes/higher-half.md` has a test dereferencing a physical address that
+the identity map made work by accident, and names the consequence as a security hole once
+userspace exists. Names ratified: `VirtualCpuAddress`, `VirtualDeviceAddress`, `PhysicalMemoryAddress`. Two virtual views, one physical fact. Do it when `kernel/src` is quiet,
+and check Kani first.

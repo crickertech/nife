@@ -147,3 +147,12 @@ literature without visiting a second source.
 - **No estimate of effort.** Porting NPB-Rust's sequential kernels is bounded by how much of `std`
   each one touches (milestone 64's own measurement method: build it, let the failures name the
   work), and this milestone has not yet run that measurement against any of the eight kernels.
+
+## Index row
+
+Milestones 147 and 148 are new capability-shaped HPC ideas nobody else offers; this is the
+opposite and equally necessary half: run the benchmarks an HPC reader already recognizes. NPB-Rust
+(GMAP/PUCRS, a real published port) makes the NAS Parallel Benchmarks nearly free to port; STREAM
+is short enough to write clean-room against its own spec rather than take the GPL crate;
+HPCC/HPL's from-scratch BLAS dependency is named and deliberately left out of scope. Sequential
+kernels gate on nothing new; the Rayon-parallel variants gate on milestone 64's still-open `thread::spawn` fork.

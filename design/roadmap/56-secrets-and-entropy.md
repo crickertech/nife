@@ -181,3 +181,12 @@ milestone 55's critical path, because provisioning at boot is enough to authenti
   one to a disk.
 - **Recorded.** `notes/credentials.md`: one verify page means one client, and there is no rate limit
   or lockout on the verify endpoint.
+
+## Index row
+
+**Built:** 2026-07-31
+
+**built 2026-08-01**: entropy (§44), the Argon2id crypto taken as a dependency per §46, and the
+credentialer, a store with no getter that verifies and never reads back (§54). The thesis-level
+gap it named, that *a secret is still a bearer token where a capability is an unforgeable
+reference*, is **milestone 65's** subject: hold the key, expose the operation

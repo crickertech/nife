@@ -293,3 +293,24 @@ later. **Effort: 1 lane estimated per phase**, three phases, landed separately.
   it ends at a real screen (colour, the honest `isatty` replacement), and a way to grant one line of
   input without granting the keyboard (the pager). Both widen a protocol two programs agree on, so
   both are calef's call; `notes/manual.md`'s "where this goes next" is the only record either has.
+
+## Index row
+
+**Built:** 2026-08-26
+
+the OS explains itself, on itself. Phases 1 and 2 built: `crates/manual` (a streaming renderer and
+an index layout a reader with one 4 KiB page can binary-search), `doc` at the prompt, and `apropos` as a builtin because search is enumeration and a searching *program* would need the
+whole store. 2026-08-18 fixed a renderer bug the corpus test structurally could not see (a fence
+inside a block quote never closed, so one quoted transcript misrendered every line after it),
+fixed an index defect where the builder and the reader disagreed about what a word is (`apropos
+fs_proto` could not match a term the builder never wrote), corrected three `BUGS` entries that
+described a system which no longer existed, and pointed the same index at the repository as `script/apropos`, which is milestone 117's finding rather than a nicety: three strangers reached
+neither `notes/capabilities.md` nor any `design/decisions/` file. **The `terminal_sink_caretaker`
+narrowing is decided and built (§106, 2026-08-22): `doc <page>` renders at the prompt.** An
+unredirected tail stage's output now defaults to the same adapter `2>` already uses; `grant_plan::check_chain` no longer refuses that shape, only the redirected one; and the shell's
+completion signal is DECISIONS §26's kernel exit-delivery on a fresh endpoint. Verified at the
+real prompt, both architectures: `doc gate.txt` prints `hello world hello world` with no `| wc` in
+front of it. Milestone 151 tracks the one known cost (the caretaker-hop display race) as a
+carried, accepted interim rather than a blocker. **A graphical viewer, named as phase 3's other
+half through every revision, is struck 2026-08-26**: traced to its origin, an unattributed
+sentence, and confirmed unrequested.

@@ -78,3 +78,9 @@ the ruleset itself is sequenced after this branch merges.
 - **Milestone 78.** The `cpu matrix` check is one of the five that deliberately does not block, and
   the reason is that it is load-sensitive. Milestone 78 is where that family of assertions was
   diagnosed and fixed.
+
+## Index row
+
+**Built:** 2026-08-04
+
+a repository with a security thesis should be able to receive a report privately

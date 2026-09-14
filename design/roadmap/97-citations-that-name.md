@@ -54,3 +54,12 @@ its author meant.
   a citation whose number and gloss are wrong in the same direction grounds fine and passes, a gloss
   may span at most one line break so a three-line one is invisible, and fenced code blocks in
   markdown are skipped entirely.
+
+## Index row
+
+**Built:** 2026-08-04
+
+28 sites cited "milestone 24" meaning DECISIONS §24, wrong at birth (the roadmap said
+Virtualization.framework on the day the first was written) and spread by copy-paste. Neither gate
+could see it, because both numbers resolve. `script/citations` checks a citation's parenthetical
+name against the record's own title or body, and an attributed block quote against its source

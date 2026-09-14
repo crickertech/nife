@@ -33,3 +33,11 @@ suite, not of the host, so this one should be immune to runner noise by construc
   so an unexercised deep path stays invisible, and the walker's answer is a lower bound because
   indirect calls and hand-written assembly carry no `.stack_sizes` entries. The same section carries
   the rule that the two thresholds must be raised together or they stop describing the same stack.
+
+## Index row
+
+**Built:** 2026-08-03
+
+The FS-server stack overflow already happened once, and nothing since bounds depth on any kernel
+stack. Paint at boot, read the mark at suite end, assert headroom. Works identically on every ISA
+and covers every path the suite takes

@@ -133,3 +133,14 @@ half of the same observation and is untouched.
   actually calls. Where the seam goes is calef's: too high and the arch layer keeps the milestone 6
   drift bug, too low and every ISA restates it. Until it moves, the tree's sharpest counterfactual
   is a property proved over code that nothing runs.
+
+## Index row
+
+**Built:** 2026-08-31
+
+The `user/` half is built (2026-08-31): `user` is in `script/verify`'s table, with the binaries
+carrying harnesses derived from the tree rather than listed, and two falsified properties over `printenv`'s bounded append cost 2.4 seconds. **The block's premise was half wrong and the lane
+says so**: rule 7 has already lifted almost every parser out of `user/` into a crate the suite
+proves. The value arrived anyway, from stating a property rather than from running one, as a live
+buffer defect in `rmle`. `xtask` is **refused, with the argument written down**. The timer re-arm
+seam is still a design fork and is untouched, as is `crates/timetable`'s row.

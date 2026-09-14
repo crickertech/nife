@@ -36,3 +36,8 @@ milestone is that difference.
   card can be wrong, and milestone 218 has just changed which of those a card should carry.
 - **Nothing forces anyone to run it.** It is rung two at best, and a card written by hand by somebody
   who did not read this block is exactly the case it cannot reach.
+
+## Index row
+
+the measured-boot gate catches a mismatched pair after a power cycle, a capture and a person
+watching

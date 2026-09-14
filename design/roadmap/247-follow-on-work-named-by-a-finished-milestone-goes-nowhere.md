@@ -165,3 +165,10 @@ this milestone's own failure mode arriving through this milestone's own mechanis
   in the status vocabulary himself, so this one is the same shape one level down; the ratification
   ask is `design/decisions/140-follow-on-disposition-vocabulary.md`, which also points at the
   sweep's five proposed milestones.
+
+## Index row
+
+**Built:** 2026-09-03
+
+151 BUILT blocks name work in `BUGS` sections and handoffs, and nothing can tell which of it
+became a milestone

@@ -119,3 +119,11 @@ Whether nife should actually switch kernel models. That is DECISIONS §96's own 
   that gate meaningful, and a workload whose entire subject is scheduling under contention is not
   deterministic on any accelerator this tree has. A gate here would be asserting a tolerance nobody
   has measured, which is how `script/lint` has already lost three checks.
+
+## Index row
+
+Minted from DECISIONS §96's own recommendation: every benchmark this project owns is a
+micro-benchmark, and the one number that could decide process-kernel-vs-event-kernel only shows up
+on a real multi-tasking workload, on real hardware. The instrument is built, gated and rehearsed
+on all three architectures (`crates/job_mix`, `fixtures/src/job_mix_task.rs`, `--features jobmix`, `script/job-mix`); **the number is outstanding and needs radon**. Closes the same hole in
+milestone 25's cross-OS comparison too.

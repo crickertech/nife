@@ -30,3 +30,9 @@ designed, and it is a `BUGS` entry in notes/fs-server.md with the two shapes a f
 - **Recorded.** `notes/fs-server.md`: a fixed per-request cost of about 204 us that neither the
   record size nor the transfer unit touches. It is device latency under HVF rather than anything the
   architecture adds, and the note carries the share it accounts for before and after 138.
+
+## Index row
+
+**Built:** 2026-08-18
+
+"primary filesystem" invites a comparison we cannot currently make

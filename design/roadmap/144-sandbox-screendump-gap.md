@@ -85,3 +85,12 @@ of gap this project's own BUGS-section discipline exists to name rather than hid
   check, and the SMB check are proven elsewhere (this same tree's QEMU CI, presumably, since the
   notes describe them as already working); this milestone is about why they fail specifically
   in this bench sandbox.
+
+## Index row
+
+Minted provisionally on 2026-08-21 during milestone 16a's bench session. `cargo xtask test --arch
+riscv64` passes its full 279-test kernel suite, but the host-side scanout and network referees
+(`ScanoutReferee`, `InboundProber`, the multicast and SMB checks) all fail with "no screendump was
+ever taken" / connection-refused, even though QEMU's monitor mechanism itself was confirmed
+working by hand. The gap between "the mechanism works in isolation" and "it connects during a real
+run" is unmeasured.

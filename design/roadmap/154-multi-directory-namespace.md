@@ -194,3 +194,11 @@ disjoint, individually-labeled trees with one position at a time.
   string) are untouched here and stay 47's, which its own block confirms.
 - **Recorded.** The two-root type, the second-directory field and its grant all ship as provisional
   names, said so where they live, and naming is calef's.
+
+## Index row
+
+Milestones 47 (`bind`) and 64 (tier-two `File::open`) independently named the same missing
+primitive: nothing today grants a second directory capability to one process. **Built
+2026-08-23**: the core mechanism (`grant_plan::nav::TwoRoots`, `fs_service::start_granted_two_dirs`), proven end to end on both ISAs; `/a/x` and `/b/y` both
+resolve, `/a/../b` refuses for free. Still open: `caps`'s display, wiring a second grant into the
+real interactive boot, the spawn-protocol encoding.

@@ -165,3 +165,12 @@ name is the mechanism working rather than failing, and the note that the band wo
   `tools/redoxfs_host` were uncovered surfaces. They have carried blocks since the `package` kind
   landed on 2026-08-18, and this milestone's own series is what showed the sentence was stale. The
   entry now says what closed it and when.
+
+## Index row
+
+**Built:** 2026-09-11
+
+calef, 2026-09-11. 101 of 205 names unratified and nothing shows whether that is climbing or
+falling, where milestones get seven status columns and decisions six. Five naming columns and a
+chart, plus proposals_unnumbered (scope added the same day). The series found seven packages
+carrying no provenance for two weeks, and a --backfill that dropped the coverage cell.

@@ -27,3 +27,9 @@ removing the kernel heap outright.
   kernel object is retyped out of a process's own untyped, so the "the kernel stops allocating"
   measurement here becomes a structural property rather than one path's result. This block names it
   in its closing line.
+
+## Index row
+
+**Built:** 2026-07-15
+
+a process cannot make the kernel allocate, so it cannot exhaust it

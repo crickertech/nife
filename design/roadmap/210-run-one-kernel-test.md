@@ -87,3 +87,13 @@ cheap, which is worth knowing before anybody promises a fast inner loop.
   records live against §134's per-crate rule, which `kernel/falsifications/` currently reads as a
   refusal of. Milestone 212 handed this back here, and six kernel confinement claims from milestone
   202 have no replay mechanism until it is done.
+
+## Index row
+
+**Built:** 2026-08-31
+
+Minted from milestone 202's lane, which paid the cost twenty-five times. `kernel/src/testing.rs`'s
+runner takes no filter and `cargo xtask test` parses only `--arch`, `--cpu` and `--hvf`, so one
+kernel test costs a full suite run of about four minutes. Every host crate has this for free. It
+also gates a real thing: `kernel/falsifications/` exists on `main` and **nothing sweeps it**,
+because a sweep that runs the whole suite per record is not a sweep.

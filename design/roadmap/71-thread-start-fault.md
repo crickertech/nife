@@ -101,3 +101,12 @@ looks like when the guard does not happen to catch it first.
   The `sepc == 0` guard fires only when `t5` happened to be zero, and otherwise the thread `sret`s
   to a garbage PC and dies quietly, which is why the note also says not to answer such a hang by
   widening a deadline or re-running.
+
+## Index row
+
+**Built:** 2026-08-03
+
+Frame placement, as this entry guessed. RISC-V put the frame 16 bytes under where `trap.s` builds
+an S-mode frame, so any interrupt in the window rewrote it and the user `sp` read the trap frame's
+hardwired-zero slot. Reproduced deterministically by widening the window; fixed by placing the
+frame at the stack top on both ISAs

@@ -139,3 +139,21 @@ blind; the sets were listed, read, and then edited, which is what caught the rec
   clause it corrects. Eight kinds of site, each with why the compiler is blind to it and the habit
   that finds it: grep the path as well as the identifier, and build every workspace rather than the
   one `cargo build` means by default.
+
+## Index row
+
+**Built:** 2026-09-13
+
+calef ratified `crates/user_rt` to `crates/user_mode_runtime` and `crates/user_heap` to `crates/user_mode_heap` on 2026-09-13, and ruled the prefix itself in the same breath, which is
+why both moved together. `rt` was an abbreviation with no owner outside this tree, the `cred_proto`/`credential_proto` case again; `user_` was the harder half, because `git grep -oiw`
+answers `a user` 291, `the user` 254, `users` 68 and `per-user` 19, so the prefix read as *a
+person* rather than as a privilege level. **`user mode` is the architecture-neutral phrase** (59
+uses) where `EL0` (1375), `U-mode` (252) and `ring 3` (123) are each one architecture's, so `el0_runtime` was refused under rule 5 for a crate that ships on three. Closes milestone 63's
+circle: `user_heap` was ratified partly because "`user_rt` already establishes `user_`", so the
+prefix rested on a crate nobody had argued. 818 occurrences in 223 files plus 79 in 37, swept by
+enumeration; the `uheap` refusal record, a quoted commit subject and a milestone 68 quotation kept
+their spelling. **Found that the "renaming a crate is compiler-checked" clause is too generous**
+and wrote the eight sites it misses into notes/naming.md: four `build.rs` linker-script paths, two
+of them in separate workspaces, plus `--exclude` arguments, two mutation-testing files, a derived
+identifier in a gate's python, a shell script that seds the script by path, the generated module
+in the patched-`std` overlay, and each separate workspace's lockfile.

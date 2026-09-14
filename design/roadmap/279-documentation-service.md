@@ -69,3 +69,12 @@ The wire contract is a crate, per §7, and its name is calef's. A lane ships a p
 ## Follow-on
 
 - **None.**
+
+## Index row
+
+Minted 2026-09-13 by calef, from his own question while ratifying `crates/manual`'s name. `apropos` is a builtin in `crates/swish` and the capability argument for that is sound: searching
+reads the store, and a program holding that capability widens the contract `doc`'s two-slot table
+exists to demonstrate. The consequence nobody recorded is that the search is not a component. Only `manual::index::search` is portable; the store walk (`swish.rs:937`) and the presentation are not,
+and the walk already exists three times. A server holding the store with `apropos` as a thin
+client applies the shape `fs_server` already has and keeps the capability argument intact. Wire
+format and the protocol crate's name are calef's.

@@ -285,3 +285,19 @@ fatal-risk list that months of driver work is a reasonable thing to spend.
   bar for this block stays literal.
 - **Recorded.** Option C is closed: the 7050 Micro has no PS/2 port and calef owns neither a
   keyboard nor an adapter, so there is no cheap native shortcut on any of the three machines.
+
+## Index row
+
+Discovered 2026-08-30 by tracing journey 3, the way journey 1's trace discovered milestone 177.
+Nothing in nife can read a keypress on real hardware: milestone 29's driver is virtio-input, a
+QEMU device none of the three boards has, and the whole roadmap returns nothing for `usb`, `xhci`, `hid` or `ps/2`. **Decided 2026-08-30**: both options are in scope and the decision is their
+order. Option A (serial input, framebuffer output, no new driver) goes first so the rest of
+journey 3 can be proved on hardware; option B (xHCI plus USB core plus HID, on three
+architectures, months) follows. **Done means a keyboard plugged into the machine and the OS on its
+own monitor**, so A reaches PARTIAL and cannot close this. The one cheap shortcut is closed: the
+OptiPlex has no PS/2 port. **Option A's wiring built 2026-09-02**: the graphical boot's keystroke
+source is now one choice in `kernel::user::boot_graphical_terminal` (a virtio keyboard when the
+bus has one, the board's own UART when it does not), `crates/system_initializer` needed no line
+changed, and option B is a third arm of that `match`. Comes up on both architectures in QEMU; a
+keystroke reaching the screen is still blocked by milestone 177's open display-driver bug, and the
+board half waits on milestone 157.

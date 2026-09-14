@@ -229,3 +229,17 @@ cuts both ways here, and the honest statement is that the aarch64 and riscv64 ho
   whoever merges second deletes the file. A proposal whose work has landed is a second reading of
   the tree that disagrees with it. That two lanes filed the same proposal eight days apart is itself
   worth seeing, and is what `script/roadmap`'s pile is for.
+
+## Index row
+
+**Built:** 2026-09-14
+
+Minted 2026-09-14 by the maintainer, promoting a proposal two lanes filed eight days apart
+(milestone 277 on 2026-09-12, and a second lane on 2026-09-13) after `cargo test -p elf` failed 20
+of 25 unit tests, both integration tests and the module doc-test on an x86_64 Linux host, blocking `script/test`'s host pass before a single kernel leg. One defect written four times: a machine
+literal where the meaning was host-relative, three of the four within a screen of the `NATIVE_MACHINE` that exists to prevent them. Rung one twice: `FOREIGN_MACHINES` is `KNOWN_MACHINES` minus `EXPECTED_MACHINE`, so the pair cannot be written by hand and a fourth
+architecture fails the build; `machine_no_nife_build_accepts` checks a never-a-nife-machine number
+in a `const`, on every host rather than only where it bites. Three fuzz seeds replace one that
+could only be right for one machine. Whole host pass swept with `--no-fail-fast`: 150 test
+binaries, three failing targets, all three in `crates/elf`, nowhere else. Four fault injections,
+two of which corrected the change.

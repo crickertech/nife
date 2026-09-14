@@ -75,3 +75,8 @@ Not a check that only fires on `main`, which is the one that already exists.
 - **The cost of the failure is what made this urgent, and the gate does not reduce it.** A red `main`
   deadlocking its own fix is a property of running `script/lint` on the merged tree, and that stays
   true for every other check in it.
+
+## Index row
+
+milestone 247 merged reading IN-PROGRESS on its own branch; the check that refuses it can only
+fire afterwards, on somebody else

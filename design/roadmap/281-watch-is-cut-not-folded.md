@@ -152,3 +152,18 @@ from the flag.
   (one `**Recorded.**` bullet that cited a file this milestone deleted) and left the rest for the
   integrator. `design/decisions/139-cycle-counter-authority.md` names one of this program's lines as
   a spin-yield site and is likewise not a lane's to edit. Both are in this block's own `BUGS`.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Minted 2026-09-13 by calef from his own question while ratifying `watch`'s name, and reshaped by
+him the same day: *"We can cut `ps` with the `watch` and simplify."* The measurement that decides
+it is durable even though the conclusion moved: `ps` and `watch` held the same three slots from
+the same `grant_plan` constants, and in a capability system two programs are two programs when
+they hold different authority, so the split was arbitrary. The refresh needed no capability of its
+own either, the interval being a yield-spin over the ambient monotonic counter. That argued for a
+flag; one step further and the flag's whole content was a busy-wait over a table of two columns
+that barely changes, so it was deleted instead. Safe rather than merely tempting because milestone
+282 (DECISIONS §150) adds per-thread CPU time to `abi::rendezvous::SURVEY`, after which the live
+view is rebuilt properly as `top`. Retired two unratified names calef deliberately never ruled.

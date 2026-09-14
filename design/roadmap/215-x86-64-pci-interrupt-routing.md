@@ -187,3 +187,20 @@ arriving on a machine whose firmware turns it on.
   the NIC, the GPU, the keyboard and the RNG, each a line in `scripts/qemu-runner-x86_64.sh` plus
   its wiring, starting with making the FS server's disk lookup transport-blind. The measure is the
   36 tests taking a "no RedoxFS disk attached" arm.
+
+## Index row
+
+**Built:** 2026-09-01
+
+A userspace driver now reads a file off a `virtio-blk-pci` disk on x86_64 and writes a block back,
+with the completion arriving as an **MSI-X** message the device writes straight to the local APIC. **MSI-X, and the INTx refusal is the valuable half**: reading ACPI's `_PRT` needs an AML
+interpreter, and hardcoding q35's swizzle would pass every gate here and might fail on xenon,
+which milestone 87 would discover at a null modem. MSI-X has no board-specific table to be wrong
+about. The design fell out rather than being built: an MSI intid **is** its vector, so `irq::enable` and `Irq::ACK` are correctly no-ops and the vector-to-intid inversion an IO APIC
+line would need never arises. A machine that wants MSI and meets a function without it now **refuses loudly** instead of falling back to `intx_irq(0, ..)`, which was the original bug. **The
+VT-d fault milestone 164 saw is not a confinement gap**: both QEMU lines come from the VT-d unit
+itself (`Interrupt Mask set` is its own fault-event interrupt, masked because this kernel polls),
+and the escape test now runs on x86_64 for the first time and passes. Legs: aarch64 310/3, riscv64
+314/2, x86_64 214/44 (from 212/44). The remaining fixtures (RedoxFS, GPT, blank, NIC, GPU,
+keyboard, RNG) and a transport-blind FS-server disk lookup are a proposed milestone this lane left
+unnumbered.

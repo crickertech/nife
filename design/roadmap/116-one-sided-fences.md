@@ -60,3 +60,12 @@ right.
   first.
 - **Recorded.** `notes/memory-ordering.md`: nothing in the inventory is a proof about aarch64 or
   riscv64. Every soundness argument in it is a C11-model argument about happens-before.
+
+## Index row
+
+**Built:** 2026-08-14
+
+A release fence with no matching acquire orders nothing and reads as though it does, which is
+worse than no fence because the fence is the comment. Found twice on one day by two methods
+sharing nothing (loom on the clock seqlock, the audit on the compositor), and no gate in the tree
+can see either

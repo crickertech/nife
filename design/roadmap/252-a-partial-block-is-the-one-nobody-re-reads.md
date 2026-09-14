@@ -139,3 +139,10 @@ That call is calef's, so the block says so rather than moving.
   review, not a decision file.
 - **Recorded.** `Outstanding.` is a provisional name, like the seven words it joins. It is recorded
   as provisional in `script/roadmap`'s own comment and in `design/roadmap/README.md`.
+
+## Index row
+
+**Built:** 2026-09-03
+
+All 22 `PARTIAL` blocks swept: 215 dispositions written, **56 of them recording a claim the tree
+disproved, and every one of the 22 blocks carried at least one**

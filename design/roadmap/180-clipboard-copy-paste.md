@@ -68,3 +68,11 @@ to read before designing this, not to copy outright.
 
 Not started; nothing built yet to carry its own BUGS section. This file's own "tension" section is
 the gate.
+
+## Index row
+
+Not a driver gap: a clipboard is shared, mutable, ambient state, and this tree's whole capability
+model exists to not have that shape (milestone 126, "enumeration is itself authority"). Three
+candidate shapes named, none decided: a systemwide object as a named exception, scoped to a login
+session under milestone 49's identity model, or a targeted transfer that never has an ambient slot
+at all. Gate: DECISION.

@@ -382,3 +382,13 @@ that the other two targets have already had.
 Not started; nothing built yet to carry its own BUGS section. The limits of the work itself are
 under *What this audit cannot find*, above, and are stated in advance on purpose: they are the
 reasons a reader should not treat the resulting note as a clean bill of health.
+
+## Index row
+
+`notes/arch-audit.md` contains zero occurrences of "x86". Measured: `kernel/src/arch/x86_64` is 18
+files and 6,797 lines, larger than the 6,202-line two-ISA tree that audit read in full, in the
+code that note calls the least-verified in the TCB and that no prover reaches. Priced as three
+passes cut by risk, each smaller than the one pass already proven affordable. The cadence's
+blindness to this (an entire ISA moved none of `script/audits`' four counters) is argued out as a
+separate milestone rather than folded in, so the gate is not written by the lane that satisfies
+it.

@@ -137,3 +137,16 @@ tens of cycles instead of a trip to DRAM, rather than not costing anything.
   build-failing gate is `-check`, so the consistent spelling is `fastpath-footprint-check`; it was
   not taken because the name reads badly at nine syllables. Nothing depends on it and it is calef's
   call.
+
+## Index row
+
+**Built:** 2026-08-18
+
+Liedtke's actual finding is that Mach's IPC was slow because the hot path evicted the
+application's working set, so the user paid the miss after the syscall returned where no latency
+benchmark could see it. Nothing here measured that: an icount tripwire counts instructions
+retired, not instruction cache occupied, so a change doubling the footprint would land green. `script/fastpath-footprint` walks the call graph out of the release disassembly, `stack-depth-check`'s technique, and gates two numbers per ISA at 5%. Closing naively from `finish_switch` returned 11.2 KiB because the reap branch drags in teardown that never runs during
+an IPC; excluding it gave 5.6. **We are over the 4 KiB target and the gate holds it still rather
+than closing it**: `syscall::dispatch` at 2,024 bytes is the largest item and is exactly what
+seL4's hand-written fastpath skips, which is separate work that wanted this instrument to exist
+first

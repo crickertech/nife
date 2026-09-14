@@ -219,3 +219,20 @@ not.
   already says about "load-bearing". 46 concept and 129 state is one reading; `nifefs.md` and
   `gpt.md` are formats (concept) that also describe what this tree implements (state), and both
   were counted as concept.
+
+## Index row
+
+**Built:** 2026-09-05
+
+the other half of the stale-notes proposal: a page saying "there is no networking" cites nothing,
+so no check can catch it. 175 notes read and classified 46 concept / 129 state, 66 found stale,
+109 left alone. **The recurring shape is that a note gets corrected where its subject lives and
+not where its framing does**: `capability-lifecycle.md`'s revocation section said BUILT while its
+own opening paragraph said "cannot yet be revoked", and `target-hardware.md` carried a recast
+banner over a plan section still naming a Pi 4 as the next port. So the rule is three cheap
+places, the first paragraph, the last paragraph and the `notes/README.md` entry. **262 of the
+corrections were one mechanical shape** a gate should own, a backticked in-tree path that no
+longer resolves, which every check here passes because it is neither a markdown link nor a `§N`;
+proposed, with the trap that a crate is named three ways and a one-spelling check reports a clean
+tree. It also found a deleted test: `crates/elf/tests/fuzz_seed.rs` went away in a commit about `p_paddr` that never mentions it, and two documents described the guard in the present tense for
+five days

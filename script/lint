@@ -670,10 +670,13 @@ todo_count=$(git grep -hoE '(TODO|FIXME|XXX|HACK)[[:blank:]]*\(milestone [0-9]+\
     ':!vendor' ':!patches' ':!*.md' ':!script/lint' 2>/dev/null | wc -l | tr -d ' ')
 echo "TODO markers: $todo_count in code, each naming a milestone that has a block"
 
-# The milestone index's status column, validated (see design/roadmap/README.md's status vocabulary and
-# script/roadmap). Catches a status token nobody defined, a detail block with no table row, and a
-# milestone referenced in prose that the table does not carry, which is exactly how milestone 34 went
-# missing. Documentation is part of this project's deliverable, so its index gets a gate.
+# The milestone blocks, validated (see design/roadmap/README.md's status vocabulary and
+# script/roadmap). Catches a status token nobody defined, a block missing the `## Index row` section
+# the generated table is built from, and a milestone referenced in prose that has no block, which is
+# exactly how milestone 34 went missing. Documentation is part of this project's deliverable, so its
+# index gets a gate. Since milestone 294 that index is GENERATED: `script/roadmap --check` reports a
+# committed table that has fallen behind the blocks and does not fail on it, because failing would
+# make every lane edit the one file that was this tree's worst merge hotspot.
 echo "==> roadmap status"
 "$(dirname "$0")/roadmap" --check
 

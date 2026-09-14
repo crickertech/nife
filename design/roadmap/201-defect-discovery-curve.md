@@ -47,3 +47,11 @@ waiting for new ones.
   find nothing and flatten the curve for free, so the workload has to be stated with the number.
 - **This is expensive and slow**, and its own answer arrives over weeks. It is on the fatal-risk list
   because it could be fatal, not because it is efficient.
+
+## Index row
+
+Scopes `design/fatal-risks.md`'s risk 5, which its own BUGS recorded as unowned. "Sustained
+stress" is a plan, not a test: it can never come back green. Measuring defects found per hour can:
+a flattening curve is evidence, **a linear one is the red result**. The VisionFive 2's undelivered
+wake and x86_64's two unresolved `ap_boot` bugs are its first three data points. Gate: HARDWARE,
+in the sense that somebody must sit at three boards.

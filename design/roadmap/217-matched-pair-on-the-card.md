@@ -135,3 +135,15 @@ the build rather than after it. What no host check covers is a real card's files
   and reports whether its kernel and its archive match. `--card` narrows who needs one rather than
   removing the need: a card written by any other means stays unverifiable without booting it, so a
   mismatch is found after a power cycle at the bench instead of before one.
+
+## Index row
+
+**Built:** 2026-09-02
+
+`script/board-image --card <dir>` copies the kernel, the archive and the boot script onto a
+mounted card as one act, so the pair cannot be separated by following the printed steps, which is
+how it came apart. The block's design question was answered rather than assumed: formatting names
+a whole device and stays the operator's, copying names a filesystem they already mounted, and only
+the script can make a set indivisible, because a printed instruction is the same rung as the
+printed instruction that failed. It also removes a stale nife `extlinux.conf`, matched by content
+so a stranger's is left alone, since one on this board hangs U-Boot before the kernel runs (218)

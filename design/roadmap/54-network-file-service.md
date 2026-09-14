@@ -162,3 +162,14 @@ backups but not delete them", which is a genuinely useful thing to be able to sa
   block's own status line now reads `REMOVED 2026-08-30`, so the index no longer shows a reader a
   working network file service that does not exist. The bullet above was written before that
   landed.
+
+## Index row
+
+**Built:** 2026-08-17
+
+**Built 2026-08-17 and removed from the tree 2026-08-30**, on calef's decision, after the customer
+it served moved to borg over SSH. It was the project's only realized instance of principle 1: a
+real Mac's own `mount_smbfs` mounted a share this kernel served, read and wrote it, walked its
+subdirectories, and proved who it was against milestone 65's store while the adapter held no key.
+What it demonstrated, what it never reached, and why it went are recorded in full in notes/smb.md.
+The status word is the vocabulary's closest fit and is not right; see that note

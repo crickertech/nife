@@ -67,3 +67,10 @@ decision on one does not commit the other.
 established model is a design fork raised before it is built, and a rights-model change is further
 out than that. The deliverable of *this* block is the statement; the deliverable of the milestone is
 whatever calef decides plus its `design/decisions/` entry.
+
+## Index row
+
+A reap-only right split out of `WRITE`, so a root supervisor can restart a child without regaining
+construction authority; and `Tcb::NAME`, turning a tid the kernel already sends into a handle a
+builder holds. Both recorded as "calef's call, not a thing to slip in", so this block states them
+precisely enough to be decided and picks neither

@@ -56,3 +56,10 @@ Whether `clone`/`fetch`/`push` (needing a network client, and eventually
 [DECISIONS §31](../decisions/31-foreign-language-seam.md)-shaped work over whatever wire protocol)
 are folded into this milestone or left for whoever builds milestone 174's remote-development
 protocol, since the two may end up sharing a network-client crate. Left for whoever picks this up.
+
+## Index row
+
+The second of four self-hosting milestones from calef's own question about developing nife on a
+nife host. Git's object database, refs and index are direct file I/O with no subprocess involved
+by default; `init`/`add`/`commit`/`diff`/`log`/`branch`/`checkout` need zero fork/exec. Nano-class
+DECISIONS §31 work, no new kernel primitive.

@@ -193,3 +193,13 @@ is §82's stated failure mode.
   under a narrowed grant. Every std test today grants the mount root, which means a walk that
   over-asks for rights passes all of them. The PAL has already come close once: `readdir` nearly
   shipped asking for `dir::ALL`.
+
+## Index row
+
+**Built:** 2026-08-18
+
+Descent was built and native programs used it, and `std` could not reach it: the PAL called `OPENDIR` only inside `read_dir` against ROOT and dropped the handle, so a program could list a
+subdirectory and not open what it found there. Both answers are now built. A nested path is a
+chain of attenuated descents, and `std::fs::Dir` (upstream's own `openat`, `#![feature(dirfd)]`)
+holds one. `remove_dir_all` needed no code. Two live bugs fell out: a created file was unwritable
+one level down, and `dir::EPERM` was reaching std programs as `Unsupported`

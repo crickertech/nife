@@ -52,3 +52,10 @@ or purpose-built for this tree's own layout, and whether `git`'s network operati
 (`clone`/`fetch`/`push`, explicitly left open by [milestone 171](171-git-core-userspace.md)) share a
 network-client crate with this milestone's remote-build client or stay separate. Left for whoever
 picks this up.
+
+## Index row
+
+The nearer-term alternative to full local self-hosting: edit and version-control on nife, hand the
+actual `cargo build` to a remote service over the network. Needs a network client and a
+remote-build protocol, not the capability-native subprocess primitive or an LLVM port; could run
+over plain TCP on a trusted LAN before nife's still-missing TLS stack matters.

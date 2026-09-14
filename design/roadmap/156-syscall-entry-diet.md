@@ -151,3 +151,13 @@ None needed outside this tree: `LIST`'s own fix (milestone 126, `kernel/src/sysc
   resolution, so its `--save` measurement was taken on a build missing a shipped feature and looked
   better than reality. The corrected numbers are in `bench/fastpath-aarch64.txt` and its riscv64
   sibling.
+
+## Index row
+
+**Built:** 2026-08-23
+
+`invoke` has no separate symbol in the compiled binary; the compiler folds it wholesale into `dispatch`, so `script/fastpath-footprint`'s flat measurement has been counting every capability
+method's bytes, not just the IPC round trip, since before milestone 126's `pmap` tripped it.
+Extract the rest of the rare administrative arms into `#[inline(never)]` functions, the pattern
+already proven on `abi::aspace::LIST`; and fix the gate's own one-sided check so a genuine
+improvement is required to tighten the baseline, not just permitted to.

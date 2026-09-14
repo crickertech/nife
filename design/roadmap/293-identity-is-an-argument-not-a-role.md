@@ -173,3 +173,9 @@ The behaviour constants (`LOGIN`, `WRITE_MARKER`, `READ_MARKER`, `LOGOUT`, `HOLD
 `NOBODYS_SECRET`, `WRONG`, `NONE`, `identity`, `secret`) are **provisional** and go to calef with
 the merge, per AGENTS.md. That is a naming backlog rather than follow-on work, and it never blocks,
 which is milestone 115's own rule.
+
+## Index row
+
+**Built:** 2026-09-14
+
+Minted 2026-09-14 by calef, deliberately apart from 290/291/292, which he ruled into separate programs the same day: the answer here is not eleven programs. `fixtures/src/login_test_client.rs` had eleven roles and its first act was a lookup from role number to a pair of byte strings. Classified by code rather than by name: **five of the eleven were pure credential**, byte-identical runs differing only in that pair (`ROLE_TERM_SECOND` included, whose distinguishing fact was a precondition the caller arranges), and two more were one behaviour written twice because the only thing separating them was the identity written into a marker file. `_start` now takes `(behaviour, identity, secret)`, so the wrong-secret run is `LOGIN` with a different secret rather than an arm that could drift from the honest one. Credentials travel as `credential_proto::fixture` indices because nothing here hands a `no_std` program a string it was not compiled against, recorded in the file's BUGS. Six behaviours stayed in one binary and the equal-cost test says so: the preamble they share is the contract under test. 293's premise about `credentialer_test_client` was **false** and checking it was the work; what it did hold was the `PEOPLE` definition two other files hand-copied, one saying it had *chosen* to match. All 24 `const ROLE_` files swept: the only role-to-data lookup in the tree. Behaviour names provisional.

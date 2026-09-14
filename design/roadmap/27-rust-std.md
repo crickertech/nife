@@ -63,3 +63,9 @@ the history here cannot bound). Off the thesis path, like 20 was: a reach the de
 - **Recorded.** `notes/std.md`. The operations that stay `Unsupported` because no verb in the
   contract backs them (`canonicalize`, `read_link`, symlinks, permissions) are listed there under
   "Honest caveats", where a reader writing a `std` program meets them.
+
+## Index row
+
+**Built:** 2026-07-29
+
+widens "runs real workloads" by orders of magnitude

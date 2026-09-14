@@ -68,3 +68,8 @@ not transfer.
   exists. The root-complex-compounds-into-87 half of that argument survives; the measurement half
   has no customer, and `notes/nvme.md` still cites 55's storage bench as the thing that will want
   real queue depth.
+
+## Index row
+
+16a boots the board; this is what makes it able to *do* anything, and it is where virtio stops
+carrying us

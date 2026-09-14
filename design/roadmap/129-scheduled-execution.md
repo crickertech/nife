@@ -277,3 +277,15 @@ entries, and persistence of the entry table across reboot are each their own lat
 - **Recorded.** `timetable` is a provisional name for the crate, the program and the document, said
   so in every module header, with `cron`, `almanac`, `metronome` and `scheduler` recorded as
   refused.
+
+## Index row
+
+The backup server owes housekeeping on a schedule; Unix cron is ambient authority made periodic,
+and the capability shape inverts it: an entry is a manifest plus a schedule, checked at
+registration like a command line at the prompt. First customer is milestone 55's housekeeping, so
+it is sequenced by need, not dependency. **The interval scheduler is built** (2026-08-18): `crates/timetable`, `components/src/timetable.rs` and a cross-ISA test, where registration gives
+four answers to a crontab's one and `every 1s date` is refused for want of a clock capability. **The archive endowment is narrowed to the plan** (2026-08-18), and **a `--mem` grant is backed**
+(2026-08-22): `at-boot memory_grant_depleter --mem 4` is planned, fires, and its grant, nested
+inside its own instance's region because the kernel refuses to reclaim a region with a live child,
+is destroyed once its death is the only one that could be outstanding. Remaining: one image per
+entry rather than one archive per timetable, and the runtime-registration fork, which is calef's

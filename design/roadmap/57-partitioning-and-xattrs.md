@@ -340,3 +340,12 @@ scale, and so did the block-device lane.
   `patches/redoxfs-no-std-create-uuid.patch`. The engine takes the uuid as an argument the same way
   `create` already takes `ctime`, so no randomness enters vendored code. The bullet above was
   written before that landed.
+
+## Index row
+
+**Built:** 2026-08-03
+
+you cannot find a partition without reading the table, and all of it is testable in QEMU before
+the board lands. Built: the host recovery tool (`ls`/`cat`/`extract`/`xattr`), `crates/gpt`, the **extended-attribute layer**, and (2026-08-03) **reading a real table on the target** plus **block-device enumeration**, which is a read-only roster page. What is left is the **write**
+half, and it is one decision rather than a task: partitioning and on-target `mkfs` both need
+randomness, and the `mkfs` half needs a new divergence from the RedoxFS pin

@@ -194,3 +194,18 @@ as built serves every read-only use, and 218 is the thing to do first either way
   different banners and a different boot sequence, and the choice is calef's. Until it is made the
   other two boards have no console tool at all, so the bench workflow this milestone built exists
   for one board out of three.
+
+## Index row
+
+**Built:** 2026-09-01
+
+`script/board-console` (name provisional) opens the port at 115200 8N1, logs every byte to a file
+that is never optional, recognises the boot sequence, and returns a different exit status for each
+way a session ends. Built with no hardware, then **checked against four real captures** from
+2026-09-01, all committed as raw bytes and asserted on: two successful boots, U-Boot refusing
+before the kernel ran, and the kernel halting at the measured-boot gate. The documentation was
+right about every marker it named and silent about two the board prints. **The captures broke two
+things reasoning had got wrong**: a refusal that prints the whole banner before halting was
+reported as a success (fixed by a settle window), and silence after the tour was reported as a
+hang when it is how a good boot ends in `wfi`. A genuine hang is the one outcome with no real
+sample. It reads and never writes; 217 and 218 took the driving question.

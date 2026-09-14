@@ -29,3 +29,11 @@ new survivor deserves to fail something.
 - **Milestone 238.** The weekly workflow this milestone shipped never once succeeded: four scheduled
   runs on 2026-08-10, -17, -24 and -31, four failures, zero reports, which left
   `design/fatal-risks.md` risk 3 reading green on a number nothing was refreshing.
+
+## Index row
+
+**Built:** 2026-08-04
+
+Coverage reports what ran; cargo-mutants reports whether a test would notice a change, which is
+the claim the suite actually makes. A weekly, time-boxed job with a recorded baseline, not a PR
+gate

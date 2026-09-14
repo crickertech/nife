@@ -190,3 +190,13 @@ the `ecall`).
   `hpmcounter` that TCG does not drive, so a counter firmware describes as working can read zero
   forever. `init` now refuses such a counter, and the module's `BUGS` and the stop test's own doc
   comment carry the observation.
+
+## Index row
+
+16a's deliverable names "benches on real cycles via the SBI PMU extension". **The riscv64 half is
+built** (2026-09-03): SBI PMU is probed as the first *optional* row of `SBI_TABLE`, `arch::riscv64::pmu` asks firmware to find and start a counter for CPU cycles and remembers which
+CSR reads it, and `bench --riscv` prints one `cycles_per_tick` probe that converts every existing
+tick-denominated row at once. **No number has been measured**: TCG drives the `cycle` and `time`
+CSRs off one virtual clock, so the probe reads an implausibly exact 100.00 and
+notes/riscv-cycle-counters.md carries the untested bench procedure for radon. The **aarch64 half
+is not built** and waits on milestone 75, which still gates milestone 25's `sel4bench`

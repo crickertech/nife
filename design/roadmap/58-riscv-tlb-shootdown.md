@@ -92,3 +92,10 @@ cost.
   ASID-tagged. QEMU charges the added gate and credits nothing for the removed flush, so the win
   this milestone exists for has never been measured, and the block's citation of milestone 24 is
   wrong (that is an aarch64 board). Somebody still has to say which board leg owns the measurement.
+
+## Index row
+
+**Built:** 2026-08-05
+
+every riscv context switch discards the whole TLB; the fix needs a **software** shootdown
+protocol, because `sfence.vma` does not broadcast

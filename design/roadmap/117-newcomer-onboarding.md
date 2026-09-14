@@ -632,3 +632,13 @@ the milestone should say so wherever it reports a number.
   five stages where it runs seven, and `script/setup`'s comment named a toolchain pin two weeks
   behind `rust-toolchain.toml`. Milestone 252's sweep found both and fixed them by deleting the
   duplicated fact rather than by re-copying it, so neither sentence can rot a third time.
+
+## Index row
+
+The third principle says a newcomer must succeed without asking anyone, and nothing held it. An
+agent with no context is handed the repository and nothing else; its questions are the deliverable
+and its confident wrong answers are the worse defect. One pass measures, two show whether the
+fixes worked. Five runs; `script/stranger-test` is the harness and, since calef's monthly cadence
+of 2026-08-18, a weekly workflow says when the next one is owed. Run 5's handoffs are landed or
+tracked (2026-08-22, milestone 150 minted for the design fork). Remaining: only a run 6, conducted
+when the cadence next owes one (`script/stranger-test --due`, not before roughly 2026-09-17)

@@ -652,3 +652,14 @@ honestly, which is a culture rather than a mechanism. **Say so where the reader 
 - **Recorded.** The ledger stays out of `script/lint` and CI: `notes/rule-violations.md` and
   `script/rule-violations` exist and nothing in `script/lint` references either, with the
   git-clobber row marked resolved on §128's basis exactly as this block says.
+
+## Index row
+
+`AGENTS.md` (942 lines today) warns against `pkill` and `git reset --hard` once each, and both had
+already been violated when that was written: one lane killed another's emulator mid-test and four
+agents clobbered work with a destructive git operation in one day, all having been told to read it
+in full. Audited (#309), a cut verified and proposed (2026-08-18, awaiting the integrator), and a
+size gate (`script/lint`'s `agents-md-lines` ceiling) plus a violation ledger built (2026-08-22):
+the ledger's first run found the git-clobber rule already four strikes over the three-strike
+threshold, a decision for calef or the integrator. Only the split (core plus linked documents)
+remains, and it too needs an `AGENTS.md` edit no lane can make

@@ -24,14 +24,35 @@
 # This is its own boot for the same reason script/bench is. See
 # design/roadmap/78-load-sensitive-assertions.md and notes/instruction-clock.md.
 #
-# Name: provisional. Minted by milestone 78's lane on 2026-08-17. It borrows QEMU's own flag,
-# `-icount`, on the "standard terms are already right" argument: a reader who has met the emulator
-# knows the word, and it is a noun (an instruction count). Considered and set aside:
-# `instruction-clock`, which names the mechanism the note is named for but is longer to type and
-# does not match the flag anyone would grep for. The 2026-09-05 acronym test does not reach it,
-# because `icount` is not an acronym but a contraction, and it is the exact string the tool prints
-# and accepts, so spelling it out would break the property that argues for it. calef has not
-# ratified it.
+# Name: ratified 2026-09-14 (calef, working the unratified worklist). Minted by milestone 78's lane
+# on 2026-08-17. It borrows QEMU's own flag, `-icount`, and it is a noun (an instruction count).
+#
+# **Kept on the interface string, not on brevity, because calef challenged the brevity argument and
+# it did not survive.** Asked directly why not `instruction-count`, two things were measured. The
+# tree has no convention to appeal to: `script/` splits 29 hyphenated to 26 single-word, so
+# `bench`, `lint`, `fmt`, `verify` and `soak` are as normal as `boot-check`, and "shorter is what we
+# do" is not a fact about this tree. What decided it is that `icount` is load-bearing in at least
+# five places that are not prose: QEMU's `-icount shift=0,sleep=off`, the cargo feature
+# `--features icount`, `feature = "icount"` in both ISAs' `timer.rs` and in `bench.rs`, and the CI
+# check named `bench (icount regression tripwire)`. **QEMU's flag is not ours to rename.** So
+# spelling the script out gives one thing three spellings across a boundary we do not control,
+# which is the split state milestone 265 spent 424 files ending for `_proto`.
+#
+# **The expansion does teach, and that is conceded rather than denied.** "Instruction count" says
+# what is counted, which is the `dma` case rather than the `pci` case. The 2026-09-05 rule does not
+# reach it only because `icount` is a contraction and not an acronym, the same distinction that kept
+# `rm` on the same day. That escape was used three times in one session (`rm`, `virtio`, `icount`),
+# which is frequent enough to be worth noticing: if it is too convenient a hatch, the fix is to
+# tighten the rule rather than to decide one name against it.
+#
+# Considered and set aside: `instruction-clock`, which is arguably *more* accurate, since the
+# mechanism is a virtual clock advancing one nanosecond per instruction retired rather than a count
+# a reader consumes. It loses on the same ground `instruction-count` does: it is not the string the
+# tool prints and accepts.
+#
+# **What ratifying the short name costs, so nobody rediscovers it**: a newcomer who has never run
+# QEMU meets a word that does not say what it does, and the only thing that teaches them is this
+# block and the usage line above.
 
 set -e
 cd "$(dirname "$0")/.."

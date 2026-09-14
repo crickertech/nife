@@ -129,3 +129,10 @@ only visible by running the thing.
 - **Refused.** Extending the probe to the other accelerated paths, KVM on cordoba and WHPX. Neither
   has a leg in `script/gates` today, so neither can fail this way yet, and a probe guarding a leg
   that does not exist is the false-skip shape `script/lint` has deleted three checks for.
+
+## Index row
+
+**Built:** 2026-09-02
+
+`script/gates` now skips the HVF leg out loud, on a probe that asks QEMU rather than a version
+test; GICv3 measured and refused as its own milestone

@@ -100,3 +100,13 @@ the bus and places every BAR before nife exists:
   MiB to clear OVMF's low reservations, which buys a larger gap rather than a fix, and `.boot`'s
   absolute self-references have to become position-independent because a 32-bit instruction stream
   cannot name a 64-bit one.
+
+## Index row
+
+**Built:** 2026-09-02
+
+The kernel suite runs under OVMF now (`cargo xtask uefi-test`): the same 192 passes and the same
+68 skips as under PVH. Boot-services memory and the loader's own code come back, 36 MiB of a 2 GiB
+machine. Two cores come up under firmware and the tour gates it. It also moved `PHYS_START` to 32
+MiB, because the test build would not load at 1 MiB under real firmware at all, and closed two of
+the three things milestone 215 recorded as answerable only at a bench.

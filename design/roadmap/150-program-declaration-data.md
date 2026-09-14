@@ -130,3 +130,14 @@ would need to answer:
 the file and line the previous stranger read) and should link to this milestone once the integrator
 confirms its number, replacing the current circular pointer at "the tracked home for the mechanism is
 milestone 117's handoff."
+
+## Index row
+
+Minted provisionally by milestone 117's handoffs lane on 2026-08-22, nominated independently by
+three successive stranger-test runs (3, 4, 5). A program's declaration is spread across eight
+hand-maintained places (a `[[bin]]` block, two initrd builders across four sites, a seven-edit `Prog` variant, a `swish` render arm, `SHELL_CHECK_SCRIPT`, and the note describing the other
+seven), and the compiler silently accepts a variant missing its `PROG_COUNT` bump: the tree
+compiles, every host test passes, and the program simply cannot be spawned. A `Prog` variant
+carrying its archive name and manifest as data, generating both initrd tables the way the
+measurement manifest is already generated, is the shape three strangers converged on without being
+told to.

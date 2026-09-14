@@ -145,3 +145,13 @@ shape, which is why it is named here rather than deferred.
   nearly all of the prover tail still on the merge queue, and this block prices fixing them above
   more shards, since one crate's proofs are atomic at half the suite's time. Each is its own small
   lane.
+
+## Index row
+
+**Built:** 2026-08-16
+
+Ten pull requests landing one at a time under the up-to-date rule, and a merge cycle is the Kani
+job plus noise: 28 to 36 minutes against six for the next slowest. Scoping is already pulled and
+VERIFY_JOBS is capped by one runner's memory, so the unpulled lever is sharding, which
+mutation.yml already does four ways. A merge queue and a self-hosted runner are named as calef's
+to decide

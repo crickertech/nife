@@ -57,3 +57,12 @@ named in notes/supervision.md, notes/compositor.md, notes/dir-capability.md) and
 - **Not yet measured against `Endpoint`'s own proof effort or milestone 19a's actual size.** §101's
   estimate ("same scale as 19a") is a comparison, not a number; the first lane to scope this should
   measure rather than trust the estimate.
+
+## Index row
+
+DECISIONS §101 already specified the design (a new `objtype::NOTIFICATION`, four methods under the
+existing `SYS_INVOKE` surface, no new syscall); this is that kernel build. Forced by a concrete
+bug: milestone 40's `terminal_sink_caretaker` narrowing (§106) can race its own completion signal
+against the caretaker's trailing delivery, a carried `BUGS` entry until this lands. Also unblocks
+the shell's exit-wait hack, the compositor's per-client wakeup, the FS server's async events, and
+retires the network stack's yield-and-re-poll spin.

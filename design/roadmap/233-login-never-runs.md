@@ -129,3 +129,11 @@ is not this case.
   `login` performs is weaker than it was. It used to read the same physical archive the kernel maps
   for init; both blobs now come from init, which has already run the identical check, so what
   remains is a consistency check on the hand-over.
+
+## Index row
+
+**Built:** 2026-09-02
+
+it is handed the caretaker image and the measurement table as blobs instead of the archive, for
+zero capability slots; the boot line names what init measured, and the gate fails on any killed
+thread

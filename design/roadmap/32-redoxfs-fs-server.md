@@ -89,3 +89,9 @@ hand off across a live swap, the hardest handoff case yet named), 27 (`std::fs`)
   and `patches/redoxfs-no-std-create-uuid.patch` are written and `patches/README.md` names the
   route, but no merge request exists on gitlab.redox-os.org. So the pin carries divergences that
   could have stopped existing, and every future bump re-applies them by hand.
+
+## Index row
+
+**Built:** 2026-07-29
+
+the flagship userspace-reuse story: a real filesystem we did not write, confined

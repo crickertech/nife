@@ -27,3 +27,9 @@ program can take reaches kernel UART code.
   cannot report the failure of that service, and a panic has to reach a human whatever else is
   broken. The claim was narrowed to match rather than the code changed, and the narrow claim is the
   true one: no code path a user program can take reaches kernel UART code.
+
+## Index row
+
+**Built:** 2026-07-14
+
+the microkernel thesis, executable: no user-reachable path touches kernel UART code

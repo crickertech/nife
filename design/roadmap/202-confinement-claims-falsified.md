@@ -155,3 +155,17 @@ prediction down is what made it checkable.
 - **Recorded.** `design/fatal-risks.md` keeps risk 7 open. The enumeration inherits the blind spots
   of the tests it was read out of, and it cannot reach the claim nobody made, which is where real
   escapes live.
+
+## Index row
+
+**Built:** 2026-08-31
+
+Scopes risk 7. A passing confinement test is consistent with two worlds: the component was
+stopped, or it never reached the address and the assertion is decorative. Nothing distinguishes
+them today. Applies §134's falsification discipline to security claims: enumerate what a confined
+component cannot do, record the change that breaks each, show the test goes red. A **floor**,
+explicitly: it cannot find the claim nobody made, and no result may be quoted as "the confinement
+holds". Landed as notes/confinement-claims.md (26 claims enumerated) plus 25 replayable
+falsifications, up from 6; found that §31's headline witness assertion is not what catches a
+broken confinement, and that six kernel confinement tests cannot be falsified by machine because
+no kernel test can be run by name.

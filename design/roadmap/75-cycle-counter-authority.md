@@ -73,3 +73,9 @@ a security framework. If option 2 is chosen it must **not** grow into a general 
 capability class on one consumer, which is CLAUDE.md's rule against speculative abstraction. Milestone
 74 should not land its aarch64 half until this is answered, because the wrong answer is the one that
 is hardest to walk back: an ambient opening, once shipped, is a thing programs come to depend on.
+
+## Index row
+
+Opening `PMCCNTR_EL0` to EL0 is not the same decision as opening `CNTVCT_EL0` was: it is **~160x
+finer** (~0.25 ns against ~41 ns), and the generic timer's coarseness was doing real security
+work. A capability is the answer this OS already has, and notes/abi.md anticipated it

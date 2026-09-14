@@ -77,3 +77,12 @@ proof of coverage, which is the same honest limit the cpu matrix records about f
 - **Recorded.** `design/roadmap/92-security-audit-cadence.md`'s scope note states the limit plainly:
   a mechanism guarantees audits happen and findings get dispositioned, and it does not make any
   audit good. The lens list is a prompt, not a proof of coverage.
+
+## Index row
+
+**Built:** 2026-08-16
+
+One audit happened and milestone 43 asks for a second; this is the machine that makes them
+routine. A recorded cadence with a drift-style overdue tripwire, a lens rotation, docs
+re-baselined in the same lane, and every finding ending fixed, minted as a milestone, or
+recorded-accepted; "noted" is not a state (§35's wallpaper rule, applied to audits)

@@ -146,3 +146,15 @@ hardware side finished before the code side needed it.
   when open firmware becomes the point, priced in this block at $150 over the used route.
 - **Milestone 161.** The `igc` driver deltas QEMU cannot emulate belong to the x86_64 port rather
   than to the machine purchase.
+
+## Index row
+
+Milestone 161's third ISA needs what milestone 16's second needed: a dedicated, brickable board,
+selected before the port so the requirements drive the purchase. Selected: a used OptiPlex 7050
+Micro plus the C4PDJ serial module, ~$194 all-in; every new option cost $150-350 more at real
+prices. Machine, serial module and RS-232 chain all arrived and installed as of 2026-08-23. **The
+software blocker closed 2026-08-30**: the port boots by PVH, a hypervisor protocol no firmware
+speaks, so `uefi_loader` now places the kernel and enters its existing `_start` with PVH's own
+register contract, proved under OVMF and gated by `cargo xtask uefi-boot`. What remains is one
+person, one FAT32 stick and a serial console; the procedure is written out in
+notes/x86-uefi-boot.md

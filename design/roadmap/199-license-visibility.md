@@ -55,3 +55,9 @@ expectation**, since the detector's behaviour is the whole question.
   API, which no gate in this tree does, so the fix is a one-time act that can silently regress.
 - **The dual-licence convention is Rust's, and GitHub's detector is not going to change for us.**
   Any fix is working around somebody else's heuristic and may break when that heuristic does.
+
+## Index row
+
+**Retracted the day it was minted.** The premise was false: the sidebar reads "Apache-2.0, MIT
+licenses found" and `gh api repos/<slug>` returns a full licence object. The `none` came from one `gh repo view --json licenseInfo` field, which was read as the world's answer without anyone
+opening the page. Kept because the tooling defect is real and the next person will hit it.

@@ -97,3 +97,9 @@ a fixture rather than on a running `git`, since milestone 99 is `NOT-STARTED`.
   milestone 198, which is what makes a customer path possible, and that is a longer chain than the
   ranking function usually rewards. Saying so plainly is what keeps this from looking like a
   utilities shopping list.
+
+## Index row
+
+there is no compression code anywhere in this tree, and milestone 99's case for `git` as the first
+real workload counts a compressor among the things it says we have or are building. `tar` is a
+lane; the compressor's write-or-take call is §146

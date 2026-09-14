@@ -159,3 +159,16 @@ right reason.
   is where the next person changing `strays()` meets them. The one most likely to bite is the
   angle-bracket escape hatch being documented in `scripts/name_provenance.py` rather than in the
   gate's own failure message.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Minted 2026-09-13 by the maintainer, one message from asking calef to ratify `serial_driver` a
+second time; he ratified it 2026-09-08, and `job_mix_task` 2026-09-05. A stale `Name: provisional`
+block above a bolded `**Name: ratified ...**` was silent both ways: the parse stops at the first
+block and cannot see a bolded one, so the gate reported a plausible wrong answer. Rung four to
+rung two: `strays()` in the shared module finds every comment line a reader would take as a header
+and is not the one that was read, with the reason it could not be. Verified by injecting five
+fault shapes. Found a third instance nobody knew about, on a surface `script/names` does not
+enumerate.

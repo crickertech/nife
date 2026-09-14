@@ -268,3 +268,12 @@ drives, so the feature set phase 1 must support is a measured list rather than a
   default and almost certainly true, and the `dumpe2fs` action above is what turns it into a fact.
 - **The borg-survivability argument is reasoning about a workload, not a measurement.** Milestone
   37's injector is what would turn it into one, and nobody has run it against ext4.
+
+## Index row
+
+Minted by calef on 2026-08-30, after a session costed the whole option space. His ext4 drives hold
+the family's borg repositories, so nife must eventually read and write the format Linux wrote; the
+requirement is standing and has no deadline. Four phases: read-only, then a differential oracle
+against libext2fs and Linux, then write with `metadata_csum`, then jbd2-format journaling. The
+refusals are the valuable half: `lwext4` is GPLv2 where it counts, `ext4plus` cannot update `metadata_csum` on write, LKL needs §105's declined shared-address-space threads, and shipping
+libext2fs itself was an argument from effort. C stays on the host as the oracle, the way `tools/redoxfs_host` already does.

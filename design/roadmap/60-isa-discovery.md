@@ -101,3 +101,12 @@ in 2019 and an older string simply does not list them. `m`, `a` and `c` are what
 - **Recorded.** `design/roadmap/60-isa-discovery.md`'s own `BUGS`: the device tree can lie, or
   firmware can describe a machine it is not. Tier 2, the targeted probe, exists for exactly that,
   and the rule is that the machine wins when the two disagree.
+
+## Index row
+
+**Built:** 2026-08-03
+
+one `Isa` record per ISA, built at boot, printed at boot, in `crates/machine_discovery`. RISC-V
+parses the device tree (there is no `CPUID`) and keeps its `satp.ASID` probe; aarch64 decodes `MIDR_EL1` and `ID_AA64MMFR*`, because ARM never removed the CPU's self-description. **Four call
+sites vary, not the predicted five or six**, and two of the entry's four candidates dropped out.
+QEMU `virt` declares Sv57 while we run Sv39

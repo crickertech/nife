@@ -63,3 +63,10 @@ control from inside a VM and no physical peripherals; it complements the boards,
 replace them. (RISC-V rental is milestone 89's subject, not this one's.) Nothing in this
 milestone may regress the QEMU boot: DTB stays the first-class discovery path, ACPI is a second
 front door beside it, gated by the same parity rule as everything else (§19).
+
+## Index row
+
+"Here is the image, rerun it on your own free account" is a credibility claim no desk machine can
+make, at $0 recurring. OCI's A1 VMs are KVM with virtio, which this tree already drives; the PMU
+stage stays Graviton `.metal` by the hour, unblocking milestone 25's deferred `sel4bench`. Costs a
+UEFI boot path and an ACPI front door, both shared with optional milestone 24

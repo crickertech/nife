@@ -197,3 +197,19 @@ because each is a scheduler-policy or syscall-surface question and those are cal
 - **Recorded.** `design/roadmap/219-a-workload-that-does-not-stop.md`: an x86_64 soak runs one core
   unless told otherwise, because that runner defaults to one and its SMP bring-up has two open bugs.
   A crossing count of zero says so out loud, and a single-core soak is not a multicore soak.
+
+## Index row
+
+**Built:** 2026-09-01
+
+`--features soak` replaces the halt at the end of the boot tour with user-mode IPC workers and a
+supervisor that beats every five seconds, on all three architectures. The workload is a user
+program and the detection is in the kernel, because the one defect risk 5 produced is causable
+from userspace and assertable only from inside. `script/soak` judges the QEMU run with the same
+recogniser `script/board-console` points at a board, and `Stage::Soak` re-arms the quiet check a
+completed tour suppresses, so a hang and a slow run are told apart by one rule both halves
+implement. First numbers: **aarch64 ~58,000 round trips/s on four cores, riscv64 ~24,000, x86_64
+~3,900 on one.** **And a finding the block did not think to ask for: a saturated workload does not
+migrate between cores under this scheduler**, measured across three topologies and both multicore
+architectures, so the soak sustains contention on shared kernel state and cannot sustain
+cross-core handoff, which is where the observed defect lived. No board has been run yet.

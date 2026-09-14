@@ -98,3 +98,13 @@ nearly all of it is proven in milliseconds without an emulator.
   this block sit at NOT-STARTED for twelve days after the work merged: the gate cannot see a status
   that is wrong in both places, because two records agreeing with each other and not with the tree
   look consistent to a consistency check.
+
+## Index row
+
+**Built:** 2026-08-04
+
+quoting was an authority gap rather than a convenience, and it closed: a name with a space can be
+granted, and a quoted pattern **narrows** to one name where a bare one designates a set. `;`, `&&`
+and `||` split outermost, and the fork the block was raised to settle is settled: a refusal is not
+an error, and `$?` says which (`0` ran, `1` failed, `2` refused). Built 2026-08-04; the record
+caught up 2026-08-16

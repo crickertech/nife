@@ -63,3 +63,8 @@ reported, so the signal stays worth reading.
   when one ask of three is answered.
 - **Two sessions can both see the report and both act**, which is harmless for a label and worth
   knowing before the same shape is used for anything that is not idempotent.
+
+## Index row
+
+nothing takes the label off, so the one query that says what is waiting on the architect can be
+false

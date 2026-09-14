@@ -339,3 +339,17 @@ proofs and tests run in a configuration nobody checks is not demonstrating.
   No caller would then see the transient `NotPermitted` this block records as a race. It touches the
   death protocol and `RunState` in `crates/wake_handshake`, where loom searches the transitions, so
   it wants a lane rather than a hotfix.
+
+## Index row
+
+**Built:** 2026-08-17
+
+`sched::spawn_on` carries a 4592-byte frame and the guard page under every kernel thread stack is
+4096, so ten instantiations can step from inside the stack to below the guard in one move,
+touching nothing, and the guard never fires. Measured on both ISAs; a `thead-c906` fault landed
+4088 bytes below the bottom of a 4096-byte guard. The `Thread` travels by value from `Thread::spawn` into `Table::insert_with`, which a debug build copies rather than elides; the fix
+is an in-place insert, in a Kani-verified crate. Raising `STACK_PAGES` is the wrong lever: the
+guard page stays one page. **Reopened 2026-08-16 and closed 2026-08-17**: the returning banner was
+never an overflow. A supervised corpse is published `Dead` while still executing on its own kernel
+stack, and an out-of-band reap frees that stack under it; the exception vector then walks `sp` to
+the slot base, which is why the address never moved. Refused while `handshake.on_cpu`
