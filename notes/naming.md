@@ -902,6 +902,14 @@ The three that survived the same question, and each for its own reason:
 | `terminal_sink_caretaker` | It holds the terminal endpoint, which also carries `OP_READLINE`, and hands out a sink that **cannot read**. `sink` names what it hands out, `caretaker` names what it is. calef already caught this class once here, ratifying the longer form over `terminal_sink` on 2026-08-03 |
 | `sink` (the program) | Not a terminus at all. Three roles, and `ROLE_FILE` is a real file behind a sink: the process can open, read, write at offsets, truncate and stat, while its client can only say *here are sixteen bytes, append them*. Renaming it `receiver` would name one end of a three-role program |
 
+**The third row's program no longer exists in that form**, and the ruling is unaffected: milestone
+292 split it into `sink_transcript_writer`, `file_sink` and `file_source` on 2026-09-14. The row's
+*reason* was that one name covered three jobs, and that reason retired itself. What survived the
+split is the answer: `file_sink`'s terminus is structural, because its client holds a capability over
+which no message but *append* is expressible, and no grant anybody could make would change that.
+That is the strongest form of this test passing, and it is why `sink` stays the contract's word
+rather than becoming `receiver`. The row stands as the account of what was ruled on 2026-09-13.
+
 **The second half of the ruling is the part that is easy to lose.** `audit_sink` failed on two
 counts and only one of them is about "sink". The `audit` half promised a record that does not exist,
 which is `flaky`'s fault (borrowed recognition the program contradicts) applied to a payload rather

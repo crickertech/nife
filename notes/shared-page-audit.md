@@ -45,7 +45,7 @@ against one.
 | blk IPC | block server | FS server | `crates/filesystem_proto` (`blk`), `components/src/block_driver.rs`, `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC | FS server | every FS client | `crates/filesystem_proto` (`fs`, `xattr`), `redoxfs_server/src/bin/redoxfs_server.rs` |
 | file IPC, narrowed | the three caretakers | one confined program each | `components/src/fs_file_caretaker.rs`, `fs_subtree_caretaker.rs`, `fs_nameset_caretaker.rs` |
-| the sink | `fixtures/src/sink.rs` | a redirected program | `crates/byte_sink_proto` |
+| the sink | `fixtures/src/file_sink.rs`, `fixtures/src/file_source.rs` | a redirected program | `crates/byte_sink_proto` |
 | the serial terminal | `components/src/line_editor.rs` | the shell | `crates/line_editor` |
 | the console | `components/src/console.rs` | its client | `kernel/src/user/console_service.rs` |
 | the display | `components/src/gpu_driver.rs` | painter, terminal, compositor | `crates/graphics_proto` |
