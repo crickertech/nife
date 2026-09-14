@@ -3,7 +3,7 @@
 #
 #   script/board-image
 #   script/board-image --soak                 # the sustained multicore workload instead of a halt (219)
-#   script/board-image --jobmix               # the multi-tasking workload sweep instead of a halt (168)
+#   script/board-image --job-mix              # the multi-tasking workload sweep instead of a halt (168)
 #   script/board-image --bench                # the microbenchmark suite instead of a halt, one hart (134)
 #   script/board-image --bench --extra-features fastpath_pad   # ...and E3's padded fastpath
 #   script/board-image --soak --reboot        # ...and the board cold-reboots every two minutes (249)
@@ -78,7 +78,7 @@ cd "$(dirname "$0")/.."
 # and `fs_throughput` skip on this card. See notes/footprint-perturbation.md.
 FEATURES=board
 SOAK=no
-JOBMIX=no
+JOB_MIX=no
 REBOOT=no
 BENCH=no
 EXTRA=""
@@ -92,7 +92,7 @@ SERVER=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --soak) SOAK=yes; shift ;;
-        --jobmix) JOBMIX=yes; shift ;;
+        --job-mix) JOB_MIX=yes; shift ;;
         --reboot) REBOOT=yes; shift ;;
         --bench) BENCH=yes; shift ;;
         --extra-features)
@@ -105,7 +105,7 @@ while [ $# -gt 0 ]; do
         --server)
             [ $# -ge 2 ] || { echo "board-image: --server needs an address" >&2; exit 2; }
             SERVER="$2"; shift 2 ;;
-        *) echo "board-image: unknown argument $1 (--soak, --jobmix, --reboot, --bench, --extra-features <list>, --card <dir>, --tftp, --server <ip>)" >&2; exit 2 ;;
+        *) echo "board-image: unknown argument $1 (--soak, --job-mix, --reboot, --bench, --extra-features <list>, --card <dir>, --tftp, --server <ip>)" >&2; exit 2 ;;
     esac
 done
 
@@ -130,19 +130,19 @@ fi
 # thing that must not be re-derived by hand. See notes/job-mix.md.
 # `--bench` replaces the end of the boot tour too, so it is exclusive with the other two for the
 # same reason and with the same refusal rather than a silent preference.
-if [ "$BENCH" = yes ] && { [ "$SOAK" = yes ] || [ "$JOBMIX" = yes ]; }; then
-    echo "board-image: --bench, --soak and --jobmix all replace the end of the boot tour; pick one" >&2
+if [ "$BENCH" = yes ] && { [ "$SOAK" = yes ] || [ "$JOB_MIX" = yes ]; }; then
+    echo "board-image: --bench, --soak and --job-mix all replace the end of the boot tour; pick one" >&2
     exit 2
 fi
-if [ "$SOAK" = yes ] && [ "$JOBMIX" = yes ]; then
+if [ "$SOAK" = yes ] && [ "$JOB_MIX" = yes ]; then
     # Both features replace the end of the boot tour, and the kernel would run the sweep and never
     # soak. Refused here rather than silently preferring one, because a card built from an ambiguous
     # command is a card nobody can reproduce.
-    echo "board-image: --soak and --jobmix both replace the end of the boot tour; pick one" >&2
+    echo "board-image: --soak and --job-mix both replace the end of the boot tour; pick one" >&2
     exit 2
 fi
 if [ "$SOAK" = yes ]; then FEATURES="board,soak"; fi
-if [ "$JOBMIX" = yes ]; then FEATURES="board,jobmix"; fi
+if [ "$JOB_MIX" = yes ]; then FEATURES="board,job_mix"; fi
 if [ "$BENCH" = yes ]; then FEATURES="board,bench,single_hart"; fi
 if [ "$REBOOT" = yes ]; then
     FEATURES="board,soak,reboot_soak"

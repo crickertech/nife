@@ -1244,7 +1244,13 @@ pub fn spawn_progenitor(
 // The soak boot (milestone 219) takes the place of this handoff rather than following it: a run
 // that also brought up a console, a line discipline and a shell would be soaking those too. So on
 // that build this function has no caller, which is a configuration rather than a mistake.
-#[cfg_attr(feature = "soak", allow(dead_code))]
+//
+// **The job-mix boot (milestone 168) does the same thing and was missing from this list**, which
+// made `--features job_mix` fail `-D warnings` on both ISAs. Found by milestone 296 while renaming
+// the feature, not by any gate: `script/lint`'s per-feature loop does not carry it, and
+// `script/job-mix`'s own BUGS says nothing else builds it either. The fix is this arm; what keeps
+// it fixed is nothing, and that is `design/roadmap/proposals/board-only-features-nothing-compiles.md`.
+#[cfg_attr(any(feature = "soak", feature = "job_mix"), allow(dead_code))]
 pub fn boot_via_progenitor(image: &'static [u8]) {
     let report = crate::sched::create_rendezvous();
     // The holding is dropped on purpose: on this path the progenitor **is** the system, and there
@@ -1816,10 +1822,10 @@ pub fn riscv_uart_driver_demo(
 #[cfg(target_arch = "riscv64")]
 // Two callers since milestone 268: the `shell` boot mode, and the default boot's own hand-off at
 // the end of the tour (`riscv_hand_over`), because nothing halts by default any more. The `allow`
-// is kept for the configurations that reach neither (a `soak` or `jobmix` build replaces the
+// is kept for the configurations that reach neither (a `soak` or `job_mix` build replaces the
 // hand-off with its own workload; `test` and `bench` park before it).
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak", feature = "jobmix"),
+    any(test, feature = "bench", feature = "soak", feature = "job_mix"),
     allow(dead_code)
 )]
 pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), LoadError> {

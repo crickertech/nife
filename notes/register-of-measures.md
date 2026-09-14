@@ -110,7 +110,7 @@ row pretending to be one.
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
 | E3: IPC fastpath footprint doubled, and the latency it costs | **2026-09-04 (radon, 6 boots); confounded, see below**; 2026-08-22 (dev Mac) | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
 | E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | **2026-09-04 (radon, 6 boots)**; 2026-08-23 (dev Mac) | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
-| multi-tasking throughput, jobs per minute against task count (milestone 168) | **no run on silicon** | `script/board-image --jobmix --card ...`, then `script/board-console`; the rehearsal is `script/job-mix` |
+| multi-tasking throughput, jobs per minute against task count (milestone 168) | **no run on silicon** | `script/board-image --job-mix --card ...`, then `script/board-console`; the rehearsal is `script/job-mix` |
 
 **E1, E3 and E4 re-taken on radon, 2026-09-04, which is the board all three were designed
 against.** Six boots on a `board,bench,single_hart` card, interleaved unpadded and padded, one

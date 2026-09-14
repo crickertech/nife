@@ -13,7 +13,7 @@ in the capture says which one booted. A session that writes the second card and 
 its log has compared a build against itself, and **the capture is indistinguishable from a correct
 one**.
 
-The same shape applies to every card this tree writes: `--soak`, `--jobmix`, `--reboot`, `--bench`,
+The same shape applies to every card this tree writes: `--soak`, `--job-mix`, `--reboot`, `--bench`,
 and the plain tour all produce `nife-vf2.img`.
 
 ## The mitigation today, and why it is not enough

@@ -54,7 +54,7 @@ test = false
 bench = false
 
 # The multi-tasking workload's task (milestone 168): one EL0 process running the job mix
-# `--features jobmix` sweeps. In every archive, because the instrument develops under QEMU and the
+# `--features job_mix` sweeps. In every archive, because the instrument develops under QEMU and the
 # number is taken on a board, and both have to run the same workload.
 [[bin]]
 name = "job_mix_task"

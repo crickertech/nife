@@ -854,7 +854,7 @@ pub fn steals_served() -> u64 {
 /// silicon is uninterpretable without the arrangement that produced it.
 ///
 /// Name provisional (milestone 240): calef names public items.
-#[cfg(any(feature = "soak", feature = "jobmix"))]
+#[cfg(any(feature = "soak", feature = "job_mix"))]
 pub fn spawn_reporting_placement<F: FnOnce() + Send + 'static>(f: F) -> Option<(ThreadId, usize)> {
     let target = pick_spawn_target();
     spawn_on(target, f).map(|id| (id, target))

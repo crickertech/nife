@@ -28,6 +28,6 @@ That is the design question and it is the whole of the work; the plumbing is a t
 
 **What it would buy beyond this one session.** Every future A/B on the board has the same shape, and
 this tree now has several build-time flags that select an experiment rather than a product:
-`soak`, `jobmix`, `reboot_soak`, `single_hart`, `fastpath_pad`. A proposal already records that
+`soak`, `job_mix`, `reboot_soak`, `single_hart`, `fastpath_pad`. A proposal already records that
 **nothing in CI compiles any of them** (`board-only-features-nothing-compiles.md`), which is the same
 brittleness from the other side.

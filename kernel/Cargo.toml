@@ -215,9 +215,9 @@ soak = []
 # EL0 tasks through a heterogeneous job mix and prints jobs-per-minute against task count, which is
 # the instrument design/decisions/96-process-kernel-or-event-kernel.md says it is missing. Off by
 # default. A feature rather than a `bench.rs` row because the number has to be taken on a board, and
-# the path a board takes is script/board-image plus script/board-console. See kernel/src/jobmix.rs
+# the path a board takes is script/board-image plus script/board-console. See kernel/src/job_mix.rs
 # and script/job-mix. Name provisional.
-jobmix = []
+job_mix = []
 # The rebooting soak (milestone 249): after a fixed window the soak asks SBI SRST for a **cold
 # reboot** instead of beating forever, so the boot-time thread-placement lottery can be drawn fifty
 # times unattended rather than nine times by a person walking to the board. riscv64 only, and

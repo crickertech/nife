@@ -24,7 +24,7 @@ nothing that runs on a pull request.
 | `script/bench --riscv --check` | `--features bench` | No. `bench::run()` parks before the tour. |
 | `script/icount` | `--features icount` | No, same shape. |
 | `script/soak --arch riscv64` | `--features soak` | **Yes**, whole tour, then the workload. Not in CI. |
-| `script/job-mix --arch riscv64` | `--features jobmix` | **Yes**, same shape. Not in CI. |
+| `script/job-mix --arch riscv64` | `--features job_mix` | **Yes**, same shape. Not in CI. |
 | `script/board-image` | `board` | **Yes**, on a board. Not in CI, and not in QEMU. |
 
 Both `bench::run()` and `icount::run()` are `-> !` and end in `arch::halt()`, so those two are not

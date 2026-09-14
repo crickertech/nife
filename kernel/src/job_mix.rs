@@ -19,7 +19,7 @@
 //! gate makes concrete: **this milestone's number has to be taken on radon**, and the bench boot
 //! has never run on a board. The path a board takes is `script/board-image` plus
 //! `script/board-console`, which is a kernel feature that prints to the serial console and a watcher
-//! that reads it. So this is shaped like `kernel/src/soak.rs`: `--features jobmix`, the tour ends
+//! that reads it. So this is shaped like `kernel/src/soak.rs`: `--features job_mix`, the tour ends
 //! here instead of halting, output is machine-readable lines on the console, and `script/job-mix` is
 //! the QEMU rehearsal that proves the mechanism before anybody carries a card to a desk.
 //!
@@ -82,20 +82,20 @@ use crate::user::{self, Spawn};
 use crate::{arch, println, sched, smp};
 
 /// The line that tells a reader, and a log, that a sweep has begun.
-const START_MARKER: &str = "jobmix: started";
+const START_MARKER: &str = "job-mix: started";
 
 /// The line that says the sweep is finished and the machine is about to park.
 ///
 /// `script/job-mix` watches for this the way `cargo xtask bench` watches for `bench: done`: the
 /// kernel halts rather than exiting, so the host side is what tears QEMU down.
-const DONE_MARKER: &str = "jobmix: done";
+const DONE_MARKER: &str = "job-mix: done";
 
 /// The prefix every placement-census line carries.
 ///
-/// Its own word rather than `jobmix:`, for the reason `kernel/src/soak.rs`'s own census marker
+/// Its own word rather than `job-mix:`, for the reason `kernel/src/soak.rs`'s own census marker
 /// gives: a census is neither the start of a run nor a result line, and a watcher matching on the
 /// result prefix should not have to be proven harmless against it.
-const CENSUS_MARKER: &str = "jobmix-census:";
+const CENSUS_MARKER: &str = "job-mix-census:";
 
 /// Run the sweep and never come back. The caller is the boot thread at the end of the tour, and
 /// this replaces its `arch::halt()`.
@@ -103,7 +103,9 @@ pub fn run() -> ! {
     let cores = smp::online_count();
 
     let Some(image) = user::program("job_mix_task") else {
-        println!("jobmix: FAILED: no 'job_mix_task' program in the initrd archive; nothing to run");
+        println!(
+            "job-mix: FAILED: no 'job_mix_task' program in the initrd archive; nothing to run"
+        );
         arch::halt();
     };
 
@@ -141,7 +143,7 @@ pub fn run() -> ! {
             )
         });
         let Some((_tid, cpu)) = started else {
-            println!("jobmix: FAILED: could not spawn echo server {i} of {ECHO_SERVERS}");
+            println!("job-mix: FAILED: could not spawn echo server {i} of {ECHO_SERVERS}");
             arch::halt();
         };
         placed[i] = u8::try_from(cpu).unwrap_or(u8::MAX);
@@ -175,7 +177,7 @@ pub fn run() -> ! {
             )
         });
         let Some((_tid, cpu)) = started else {
-            println!("jobmix: FAILED: could not spawn task {i} of {MAX_TASKS}");
+            println!("job-mix: FAILED: could not spawn task {i} of {MAX_TASKS}");
             arch::halt();
         };
         placed[ECHO_SERVERS + i] = u8::try_from(cpu).unwrap_or(u8::MAX);
@@ -188,14 +190,14 @@ pub fn run() -> ! {
          cntfrq={hz} Hz"
     );
     println!(
-        "jobmix: one job is one of {} kinds ({} per round, {} rounds per task per subrun); see \
+        "job-mix: one job is one of {} kinds ({} per round, {} rounds per task per subrun); see \
          crates/job_mix for the mix and what it deliberately leaves out",
         job_mix::JOB_KINDS,
         job_mix::MIX_LEN,
         job_mix::ROUNDS_PER_TASK
     );
     println!(
-        "jobmix: this measures THIS kernel under multi-tasking load; it compares nothing against an \
+        "job-mix: this measures THIS kernel under multi-tasking load; it compares nothing against an \
          event kernel and does not decide design/decisions/96-process-kernel-or-event-kernel.md"
     );
     print_census(&placed);
@@ -209,12 +211,12 @@ pub fn run() -> ! {
         let mut best = u64::MAX;
         for repeat in 0..REPEATS {
             let ticks = subrun(report, &go[..tasks]);
-            println!("jobmix-repeat: tasks={tasks} repeat={repeat} ticks={ticks}");
+            println!("job-mix-repeat: tasks={tasks} repeat={repeat} ticks={ticks}");
             best = best.min(ticks);
         }
         let jobs = tasks as u64 * job_mix::JOBS_PER_TASK;
         println!(
-            "jobmix: tasks={tasks} jobs={jobs} ticks={best} jpm={}",
+            "job-mix: tasks={tasks} jobs={jobs} ticks={best} jpm={}",
             job_mix::jobs_per_minute(jobs, best, hz)
         );
     }

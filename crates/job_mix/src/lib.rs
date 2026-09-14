@@ -123,6 +123,30 @@
 //! crate, `fixtures/src/job_mix_task.rs` and `script/job-mix`. Three members in three naming
 //! domains, each correct for its own, which is the domain table working rather than a coincidence.
 //!
+//! **That sentence counted three members and there were four, so the property it rests on was
+//! already false when it was written** (found and repaired by milestone 296). The fourth is the
+//! kernel-side supervisor of this same workload, and it was spelled `kernel/src/jobmix.rs`, with a
+//! `jobmix` Cargo feature and `jobmix:` console markers. A squish is exactly what a
+//! separator-insensitive grep cannot reach: `git grep -ie 'job[_-]mix'` returned 31 files and
+//! `git grep -ie jobmix` returned 26, and `kernel/src/user.rs` was in the second set and not the
+//! first. So the greppability the ratification was *made for* did not hold, and it did not hold
+//! because of the one member nobody had counted.
+//!
+//! **The repair is therefore not the hyphen rule being applied to a stray file. It is this
+//! ruling being carried out.** `job_mix` is the ratified name of this thing; `jobmix` was a
+//! misspelling of it. The module is `kernel/src/job_mix.rs`, the feature is `job_mix`, and
+//! `script/board-image`'s flag is `--job-mix`.
+//!
+//! **The console markers went to `job-mix:`, the command's spelling rather than this crate's, and
+//! that half is provisional.** A marker is neither a Rust identifier nor a shell command; it is a
+//! string a person reads on a serial console after typing `script/job-mix`, and the one recogniser
+//! that matches it sits beside `script/board-console`. `kernel/src/soak.rs` sets the precedent by
+//! accident rather than by argument, since `soak` is one word and cannot show a seam: its markers
+//! (`soak: `, `soak-census:`) match `script/soak` exactly. The deciding evidence was that
+//! `xtask`'s own line already read "job-mix: QEMU ended before printing `jobmix: done`", one
+//! sentence in two spellings. calef names what a reader meets, and this is a reader-facing string
+//! he has not ruled on.
+//!
 //! **The refusal of `aim7` was righter than this block knew**, and the reason is worth recording
 //! because it inverts the usual direction. It was refused for claiming somebody else's benchmark.
 //! A premise check on 2026-09-13 (`notes/job-mix.md`, and the correction in §96) found the

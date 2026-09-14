@@ -213,23 +213,23 @@ and repeating it here would give it somewhere to drift to.
 ### 1. Build the card
 
 ```sh
-script/board-image --jobmix --card /Volumes/NIFE
+script/board-image --job-mix --card /Volumes/NIFE
 ```
 
 **The archive is not optional** and a mismatched pair halts at `MEASURED BOOT REFUSED`, which cost a
 boot on 2026-09-01; `--card` copies all three files as a set for that reason (milestone 217).
 
-`--jobmix` and `--soak` are refused together: both replace the end of the boot tour, and a card built
+`--job-mix` and `--soak` are refused together: both replace the end of the boot tour, and a card built
 from an ambiguous command is a card nobody can reproduce.
 
 ### 2. Attach the console before power
 
 ```sh
-script/board-console --for 30m --until none --log target/radon-jobmix-$(date +%s).log
+script/board-console --for 30m --until none --log target/radon-job-mix-$(date +%s).log
 ```
 
 115200 8N1, a WCH CH343 at `/dev/cu.usbmodem*` on patagonia. `--until none` because this run ends by
-halting rather than by reaching a stage the console recognises: read the log for `jobmix: done`.
+halting rather than by reaching a stage the console recognises: read the log for `job-mix: done`.
 
 **The console has no recogniser for this run**, which is a deliberate limitation and not an
 oversight; see this page's `BUGS`.
@@ -239,8 +239,8 @@ oversight; see this page's `BUGS`.
 The first thing worth looking at is not a number, it is the arrangement:
 
 ```text
-jobmix-census: core=0 threads=8 T2 T11 T13 ...
-jobmix-census: core=1 threads=10 S1 T0 T7 ...
+job-mix-census: core=0 threads=8 T2 T11 T13 ...
+job-mix-census: core=1 threads=10 S1 T0 T7 ...
 ```
 
 **This is the load-bearing step of the whole procedure.** `notes/soak.md` records four runs on this
@@ -253,12 +253,12 @@ that produced it is not a measurement, it is a draw.
 Six lines, one per subrun:
 
 ```text
-jobmix: tasks=1 jobs=128 ticks=... jpm=...
+job-mix: tasks=1 jobs=128 ticks=... jpm=...
 ...
-jobmix: tasks=32 jobs=4096 ticks=... jpm=...
+job-mix: tasks=32 jobs=4096 ticks=... jpm=...
 ```
 
-Record all six, plus the `jobmix-repeat:` lines behind them (the spread between repeats is
+Record all six, plus the `job-mix-repeat:` lines behind them (the spread between repeats is
 information on a board where nothing else is running, and the summary throws it away), plus the
 census, plus the `cntfrq` from the started line.
 
@@ -275,13 +275,13 @@ invisible to ARP from both patagonia and cordoba, so this is a person at the ben
 
 | What the log shows | What it means | Where it routes |
 |---|---|---|
-| `jobmix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --jobmix --card ...`, which packs the archive before the kernel for exactly this reason |
-| `jobmix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
+| `job-mix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --job-mix --card ...`, which packs the archive before the kernel for exactly this reason |
+| `job-mix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
 | the census, then nothing, ever | a task or a server wedged before the first subrun finished | the hang case. `crates/job_mix`'s `ROUND_TRIP` job is the only one that blocks on another process; a wedged echo server looks exactly like this |
 | `jpm` roughly flat across the whole sweep | this machine's scheduling is not the bottleneck at 32 tasks | **the honest negative**, and it is a result: §96's performance argument does not bite at this scale on this silicon |
 | `jpm` rising and then falling, with a knee | throughput collapsing under task count | the positive result. Record where the knee is and compare it against milestone 134's E1 knee (8 to 11% by 64 to 96 threads on the dev Mac) |
 | `jpm` varying more between boots than across the sweep | the placement lottery dominates | not a result about §96 at all. More boots, and read `notes/soak.md`'s milestone 240 section |
-| `jobmix: done` and six clean points | the sweep ran | record it in this page's own table, below, and in `notes/register-of-measures.md`'s dated row |
+| `job-mix: done` and six clean points | the sweep ran | record it in this page's own table, below, and in `notes/register-of-measures.md`'s dated row |
 
 ## Results
 
@@ -319,7 +319,7 @@ path rather than the whole kernel.
   measurement that says how far it can go on a given board.
 - **The pool is built once and released in slices**, where AIM7 forks a fresh set per subrun, so the
   parked tasks' kernel stacks exist during every subrun even though nothing touches them.
-  `kernel/src/jobmix.rs`'s own header argues why that is the right choice for §96's question and why
+  `kernel/src/job_mix.rs`'s own header argues why that is the right choice for §96's question and why
   it is still a departure from AIM7.
 - **The mix proportions are chosen, not derived.** AIM7 ships workfiles for four machine roles and
   nobody here has one for a capability microkernel. A different mix gives a different number, and no

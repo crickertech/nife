@@ -3486,7 +3486,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
+        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
         ("job_mix_task", "job_mix_task"),
@@ -4423,7 +4423,7 @@ fn initrd_aarch64() -> bool {
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
+        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
         ("job_mix_task", "job_mix_task"),
@@ -9724,7 +9724,7 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
 }
 
 /// **The QEMU rehearsal of milestone 168's multi-tasking workload sweep.** Boot a
-/// `--features jobmix` kernel, echo its lines, stop when it says it is done, and kill it.
+/// `--features job_mix` kernel, echo its lines, stop when it says it is done, and kill it.
 ///
 /// **This is a rehearsal and not the measurement**, and the distinction is the milestone's whole
 /// gate. Under TCG the magnitudes are fiction (no caches are modelled) and under HVF the host
@@ -9804,7 +9804,7 @@ fn job_mix_sweep() -> ExitCode {
         "-p",
         "kernel",
         "--features",
-        "jobmix",
+        "job_mix",
         "--target",
         target,
     ]) {
@@ -9847,16 +9847,16 @@ fn job_mix_sweep() -> ExitCode {
     let mut failed = false;
     for line in std::io::BufReader::new(stdout).lines() {
         let Ok(line) = line else { break };
-        if line.starts_with("jobmix") {
+        if line.starts_with("job-mix") {
             println!("{line}");
         }
-        if line.contains("jobmix: FAILED") {
+        if line.contains("job-mix: FAILED") {
             failed = true;
         }
-        if line.starts_with("jobmix: tasks=") {
+        if line.starts_with("job-mix: tasks=") {
             points += 1;
         }
-        if line.trim_end() == "jobmix: done" {
+        if line.trim_end() == "job-mix: done" {
             done = true;
             break;
         }
@@ -9874,7 +9874,7 @@ fn job_mix_sweep() -> ExitCode {
         return ExitCode::from(1);
     }
     if !done {
-        eprintln!("job-mix: QEMU ended before printing `jobmix: done`; {points} point(s) printed");
+        eprintln!("job-mix: QEMU ended before printing `job-mix: done`; {points} point(s) printed");
         return ExitCode::from(3);
     }
     eprintln!();

@@ -9,7 +9,7 @@ somewhere) is deliberately left out of it.
 ## In brief
 
 `kernel/Cargo.toml` carries feature flags whose only consumer is a microSD card:
-`board`, `soak`, `jobmix`, `reboot_soak`, `single_hart`, and `fastpath_pad` beside them. **Nothing
+`board`, `soak`, `job_mix`, `reboot_soak`, `single_hart`, and `fastpath_pad` beside them. **Nothing
 in CI compiles any of them.** `script/lint`, `script/test`, `script/bench` and every workflow build
 the default and test kernels; a card build happens when a person runs `script/board-image`, which is
 minutes before they walk to the bench.
@@ -29,7 +29,7 @@ riscv64imac-unknown-none-elf` once per feature set the tree actually writes to a
 board
 board,soak
 board,soak,reboot_soak
-board,jobmix
+board,job_mix
 board,bench,single_hart
 board,bench,single_hart,fastpath_pad
 ```
@@ -40,7 +40,7 @@ the cheap half, and it catches the failure that costs the most.
 ## What it is not
 
 **It is not "run the soak in CI".** These features exist because their workloads need a board;
-`reboot_soak` will not even compile off riscv64 by deliberate design, and a `jobmix` sweep under TCG
+`reboot_soak` will not even compile off riscv64 by deliberate design, and a `job_mix` sweep under TCG
 is the rehearsal `script/job-mix` already provides. Compiling is the part that generalizes.
 
 **And it is not a fourth architecture's problem.** `fastpath_pad` has no x86_64 module and that is
