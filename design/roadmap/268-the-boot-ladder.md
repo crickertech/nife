@@ -213,10 +213,23 @@ $ echo $?
 1
 ```
 
-Exit 1 is what fails CI: `script/boot-check` is appended to `script/ci-build`, which is the test
-job's command, as a `local` row in its enumeration. **The verdict has been seen red on all three**,
-which is the
-half of a gate that usually never gets checked.
+Exit 1 is what fails CI: `boot-check` is a `local` row in `script/ci-build`'s table (milestone 286's
+one enumeration), and CI's test job names it beside `test` and `shell-check`. **The verdict has been
+seen red on all three**, which is the half of a gate that usually never gets checked.
+
+**And through the other reader too.** The proof condition names `--until`, which is the bench tool
+rather than the gate, so it was checked there as well: `cargo xtask board-console --until selftest`
+reaches the verdict on all three captures and exits 0, and on the three injected captures it reports
+
+```
+board-console: failed: the kernel's boot self-test failed on this machine: exceptions. The boot
+continued to userspace anyway (it reports, it does not gate), so the board is up and degraded
+rather than dead
+board-console: self-test: nife self-test: 4 of 5 passed, 1 FAILED: exceptions
+```
+
+and exits 1. The two readers are the same recogniser, which is the point: a gate that used a second
+reader would be gating something a bench run does not measure.
 
 ### The six items
 
