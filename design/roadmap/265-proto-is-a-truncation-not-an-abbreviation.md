@@ -41,6 +41,10 @@ suffix. So this milestone grew by five names and the tree grew by none.
 | `mdns_config` | `multicast_dns_config` | 2026-09-13 |
 | `mdns_responder` | `multicast_dns_responder` | 2026-09-13 |
 
+**The last two rows carry no `_proto` suffix and are here because they carry the same stem**:
+renaming the protocol crate and leaving its config and its responder spelled the short way would
+split one protocol across two spellings, which is the state this milestone exists to end.
+
 **The third row was missing from this block and is the reason to enumerate rather than trust a
 list.** It said four stems; there were five. `timebase_proto`'s own provenance records calef ruling
 **`counter_frequency_proto`** on 2026-09-13, the same day and the same worklist as the other four,
@@ -53,10 +57,6 @@ itself, twice, and only enumerating found it.
 The crate this milestone was minted over is therefore `counter_frequency_protocol`, not
 `timebase_protocol`. The stem is calef's and the suffix is this block's, applied in one pass for the
 same reason the `mdns` and `ntp` rows exist.
-
-The last two carry no `_proto` suffix and are here because they carry the same **stem**: renaming the
-protocol crate and leaving its config and its responder spelled the short way would split one
-protocol across two spellings, which is the state this milestone exists to end.
 
 **`network_time_protocol` is also the answer to a stutter.** Expanding the stem alone gives
 `network_time_protocol_proto`, which says protocol twice. The suffix change removes the duplication
