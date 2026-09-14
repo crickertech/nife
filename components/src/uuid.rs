@@ -35,7 +35,7 @@
 //! # The refusal is the interesting half
 //!
 //! A program spawned without [`grant_plan::Manifest::entropy`] holds an empty slot 9. Its first
-//! `CALL` comes back as `abi::Error::NoSuchSlot`, which `entropy_proto::delivered` reports as
+//! `CALL` comes back as `abi::Error::NoSuchSlot`, which `entropy_protocol::delivered` reports as
 //! `None` rather than as a short reply, and this program then prints **nothing at all** and says
 //! why on its second stream.
 //!
@@ -71,7 +71,7 @@
 //!   the entropy service delivers, and on QEMU that is a virtio-rng backed by the host
 //!   (DECISIONS §120's stopgap). Whether a real board's TRNG is sound is
 //!   `notes/entropy.md`'s open question and endowing a grant does not settle it.
-//! - **A short draw is treated as a failure.** `entropy_proto` delivers at most eight bytes a round
+//! - **A short draw is treated as a failure.** `entropy_protocol` delivers at most eight bytes a round
 //!   trip and this program needs sixteen, so it makes two calls and refuses if either answers with
 //!   fewer than eight. It does not retry. `disk_partitioner::random16` makes exactly the same call.
 //!
@@ -105,7 +105,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use entropy_proto as entropy;
+use entropy_protocol as entropy;
 use gpt::guid::Guid;
 use user_mode_runtime::{call, exit, granted, send};
 
@@ -118,7 +118,7 @@ const DIAG_SLOT: u64 = grant_plan::DIAGNOSTICS_SLOT;
 
 /// Slot 9: the entropy service, `WRITE`. Its *presence* is what [`random16`] finds out about, and
 /// it finds out by asking rather than by probing: a `CALL` on an empty slot answers
-/// `abi::Error::NoSuchSlot`, which `entropy_proto::delivered` separates from every real count.
+/// `abi::Error::NoSuchSlot`, which `entropy_protocol::delivered` separates from every real count.
 const ENTROPY_SLOT: u64 = grant_plan::ENTROPY_SLOT;
 
 #[unsafe(no_mangle)]
@@ -139,7 +139,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
         );
     }
     if has_diag {
-        send(DIAG_SLOT, byte_sink_proto::eof(), 0, 0);
+        send(DIAG_SLOT, byte_sink_protocol::eof(), 0, 0);
     }
 
     if let Some(bytes) = drawn {
@@ -148,16 +148,16 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
         write_on(REPORT, &line);
     }
 
-    send(REPORT, byte_sink_proto::eof(), 0, 0);
+    send(REPORT, byte_sink_protocol::eof(), 0, 0);
     exit();
 }
 
 /// Sixteen random bytes from the entropy service, or `None` if this process holds no entropy
 /// capability or the service has none to give.
 ///
-/// Two round trips, because a reply carries one word (`entropy_proto::MAX_BYTES` is 8; DECISIONS
+/// Two round trips, because a reply carries one word (`entropy_protocol::MAX_BYTES` is 8; DECISIONS
 /// §44 spends the round trip rather than putting random bytes in a page a second party maps).
-/// `entropy_proto::delivered` is what separates "no capability" (a kernel error in the register a
+/// `entropy_protocol::delivered` is what separates "no capability" (a kernel error in the register a
 /// count would have arrived in) from "the service has none" (a real count of zero) from a real
 /// draw, and this program treats the first two the same: nothing is written either way.
 ///
@@ -186,7 +186,7 @@ fn random16() -> Option<[u8; 16]> {
 fn write_on(slot: u64, bytes: &[u8]) {
     let mut rest = bytes;
     while !rest.is_empty() {
-        let (w0, w1, w2, n) = byte_sink_proto::pack(rest);
+        let (w0, w1, w2, n) = byte_sink_protocol::pack(rest);
         send(slot, w0, w1, w2);
         rest = &rest[n..];
     }

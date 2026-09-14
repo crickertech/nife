@@ -164,11 +164,11 @@ bench = false
 
 # The mDNS responder (milestone 55): what makes this machine appear in a Mac's Time Machine list.
 # A client of the socket contract holding one fixed UDP port and nothing else; every decision it
-# makes is `mdns_proto`'s and everything it says is the document in `components/mdns_responder.conf`.
+# makes is `multicast_dns_protocol`'s and everything it says is the document in `components/multicast_dns_responder.conf`.
 # Provisional name.
 [[bin]]
-name = "mdns_responder"
-path = "src/mdns_responder.rs"
+name = "multicast_dns_responder"
+path = "src/multicast_dns_responder.rs"
 test = false
 bench = false
 
@@ -312,7 +312,7 @@ path = "src/entropy.rs"
 test = false
 bench = false
 
-# The JH7110 TRNG driver (milestone 159): an alternate entropy_proto backend for real riscv64
+# The JH7110 TRNG driver (milestone 159): an alternate entropy_protocol backend for real riscv64
 # hardware (the VisionFive 2), beside "entropy"'s virtio-rng one. Wired since 2026-09-01: the
 # riscv64 boot tour spawns it through entropy_service's Jh7110 bus when this machine's device tree
 # describes the device, which on every machine CI boots it does not. It ran on radon for the first
@@ -487,7 +487,7 @@ workspace = true
 # makes the strings a crate rather than copies. `no_std`, no dependencies of its own.
 boot_ladder = { version = "0.1.0", path = "../crates/boot_ladder" }
 abi = { version = "0.1.0", path = "../crates/abi" }
-supervision_proto = { version = "0.1.0", path = "../crates/supervision_proto" }
+supervision_protocol = { version = "0.1.0", path = "../crates/supervision_protocol" }
 # The interactive system, built once (milestone 96). Both inits are a table of the slot numbers
 # their own kernel granted plus a call into this.
 system_initializer = { version = "0.1.0", path = "../crates/system_initializer" }
@@ -495,21 +495,21 @@ system_initializer = { version = "0.1.0", path = "../crates/system_initializer" 
 # its declaration rather than from literals, and `chatty` and `broker` derive their own slot
 # numbers from the declarations they are built against.
 component_plan = { version = "0.1.0", path = "../crates/component_plan" }
-swap_proto = { version = "0.1.0", path = "../crates/swap_proto" }
+swap_protocol = { version = "0.1.0", path = "../crates/swap_protocol" }
 virtio = { version = "0.1.0", path = "../crates/virtio" }
-socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
-mdns_proto = { version = "0.1.0", path = "../crates/mdns_proto" }
-mdns_config = { version = "0.1.0", path = "../crates/mdns_config" }
+socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
+multicast_dns_protocol = { version = "0.1.0", path = "../crates/multicast_dns_protocol" }
+multicast_dns_config = { version = "0.1.0", path = "../crates/multicast_dns_config" }
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
 gpt = { version = "0.1.0", path = "../crates/gpt" }
 calendar = { version = "0.1.0", path = "../crates/calendar" }
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
-clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
-environment_proto = { version = "0.1.0", path = "../crates/environment_proto" }
+clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }
+environment_protocol = { version = "0.1.0", path = "../crates/environment_protocol" }
 credentialer = { version = "0.1.0", path = "../crates/credentialer" }
-credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
-login_proto = { version = "0.1.0", path = "../crates/login_proto" }
+credential_protocol = { version = "0.1.0", path = "../crates/credential_protocol" }
+login_protocol = { version = "0.1.0", path = "../crates/login_protocol" }
 compositor = { version = "0.1.0", path = "../crates/compositor" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 pgrep = { version = "0.1.0", path = "../crates/pgrep" }
@@ -517,19 +517,19 @@ pmap = { version = "0.1.0", path = "../crates/pmap" }
 ps = { version = "0.1.0", path = "../crates/ps" }
 uptime = { version = "0.1.0", path = "../crates/uptime" }
 elf = { version = "0.1.0", path = "../crates/elf" }
-entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
+entropy_protocol = { version = "0.1.0", path = "../crates/entropy_protocol" }
 # The JH7110 TRNG's register logic, DTB discovery and byte pool (milestone 159), host-tested in
 # the crate itself; jh7110_entropy.rs is the volatile shell of register writes over it.
 jh7110_entropy = { version = "0.1.0", path = "../crates/jh7110_entropy" }
 # login's own measured-boot consultation before it will build a caretaker from an archive entry
 # (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
-filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
-graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
+filesystem_protocol = { version = "0.1.0", path = "../crates/filesystem_protocol" }
+graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
-ntp_proto = { version = "0.1.0", path = "../crates/ntp_proto" }
+network_time_protocol = { version = "0.1.0", path = "../crates/network_time_protocol" }
 documentation = { version = "0.1.0", path = "../crates/documentation" }
-byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
+byte_sink_protocol = { version = "0.1.0", path = "../crates/byte_sink_protocol" }
 # The shell's own logic (milestone 70): the routing of a typed line, the pattern-versus-text
 # question, and every sentence the prompt prints. `components/src/swish.rs` is the same program it was and
 # keeps all the IO; what moved is what a host test can reach. `glob` left this manifest in the same
@@ -541,7 +541,7 @@ swish = { version = "0.1.0", path = "../crates/swish" }
 timetable = { version = "0.1.0", path = "../crates/timetable" }
 # The durable schedule store's shared names (milestone 152, DECISIONS §122/§125): the fixed file
 # names `session_reviver.rs` and `fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` both depend on, and the
-# manifest format neither `timetable` nor `filesystem_proto` already owns.
+# manifest format neither `timetable` nor `filesystem_protocol` already owns.
 schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
 user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }

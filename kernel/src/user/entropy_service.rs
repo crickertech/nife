@@ -423,7 +423,7 @@ impl Wiring {
     ///
     /// Three words, and the JH7110 backend's meanings changed in milestone 159:
     ///
-    /// - `[0]` the readiness verdict: [`entropy_proto::READY`], or a `0xDEAD_..` word whose low
+    /// - `[0]` the readiness verdict: [`entropy_protocol::READY`], or a `0xDEAD_..` word whose low
     ///   byte names the bring-up step that failed.
     /// - `[1]` `(STAT-after-init << 32) | bytes_in_hand`. The high half is what the device's
     ///   status register read once the driver had programmed it, which is the only place
@@ -443,10 +443,12 @@ impl Wiring {
     /// the kernel deliberately exercises it through the same endpoint a userspace client would
     /// hold rather than reaching into the service.
     pub fn get(&self, n: u64, out: &mut [u8]) -> usize {
-        let r =
-            crate::sched::ipc_call(self.request, [entropy_proto::req(entropy_proto::GET, n), 0]);
-        match entropy_proto::delivered(r[0]) {
-            Some(count) => entropy_proto::take(count, r[1], out),
+        let r = crate::sched::ipc_call(
+            self.request,
+            [entropy_protocol::req(entropy_protocol::GET, n), 0],
+        );
+        match entropy_protocol::delivered(r[0]) {
+            Some(count) => entropy_protocol::take(count, r[1], out),
             None => 0,
         }
     }
@@ -455,8 +457,8 @@ impl Wiring {
     /// landed. Stops early the moment a reply is short, because a service that answered with fewer
     /// bytes than asked has told the caller it is out; asking again would spin on a dry device.
     ///
-    /// This exists because [`get`](Wiring::get) is **one** exchange and `entropy_proto` carries
-    /// [`MAX_BYTES`](entropy_proto::MAX_BYTES) bytes per exchange, so `get(32, ..)` returns 8, not
+    /// This exists because [`get`](Wiring::get) is **one** exchange and `entropy_protocol` carries
+    /// [`MAX_BYTES`](entropy_protocol::MAX_BYTES) bytes per exchange, so `get(32, ..)` returns 8, not
     /// 32. Every caller that wants more than one word's worth has to loop, and the boot tour did
     /// not: it asked for 32, compared the answer against 32, and printed FAILED on a working
     /// device for three days (milestone 159; radon, 2026-09-04). Naming the loop here means the
@@ -465,9 +467,9 @@ impl Wiring {
     pub fn fill(&self, out: &mut [u8]) -> usize {
         let mut got = 0;
         while got < out.len() {
-            let n = self.get(entropy_proto::MAX_BYTES, &mut out[got..]);
+            let n = self.get(entropy_protocol::MAX_BYTES, &mut out[got..]);
             got += n;
-            if n == 0 || (n as u64) < entropy_proto::MAX_BYTES {
+            if n == 0 || (n as u64) < entropy_protocol::MAX_BYTES {
                 break;
             }
         }

@@ -150,17 +150,17 @@ const NET_TEST_TCP_ACCEPT: u64 = 5;
 /// exactly this one, and the client asks for `fixture::DENIED_PORT` as well to prove the grant
 /// refuses. Named here because the *spawn service* is what grants it, which is the point.
 ///
-/// Taken from `socket_proto::fixture` rather than spelled again (milestone 64): three binaries and
+/// Taken from `socket_protocol::fixture` rather than spelled again (milestone 64): three binaries and
 /// this test have to agree on the number, and a literal repeated per call site is the shape rule 7
 /// exists to retire. The runners' `hostfwd` spells it a second time because a shell script cannot
 /// read a Rust crate, and that drift is loud (the prober reports the guest served none).
 #[cfg(target_arch = "aarch64")]
-const NET_LISTEN_PORT: u16 = socket_proto::fixture::LISTEN_PORT;
+const NET_LISTEN_PORT: u16 = socket_protocol::fixture::LISTEN_PORT;
 /// The fixed UDP ports the mDNS gate is granted (milestone 55), RFC 6762's 5353 and its
 /// neighbour. Named here for the same reason as the listen port: the spawn service grants them,
 /// and a program cannot ask for what it was not given.
 ///
-/// **Two ports, for two clients with two different jobs.** `mdns_responder` holds 5353 and answers
+/// **Two ports, for two clients with two different jobs.** `multicast_dns_responder` holds 5353 and answers
 /// real queries on it for the whole run. `socket_test_client` cannot then use 5353 to prove that a
 /// *granted* port binds and is exclusive, so it uses 5354; the port outside the range (4444) is
 /// what proves the refusal, and that is the check the responder cannot make about itself.
@@ -168,19 +168,20 @@ const NET_LISTEN_PORT: u16 = socket_proto::fixture::LISTEN_PORT;
 const NET_MDNS_PORT: u16 = 5353;
 #[cfg(target_arch = "aarch64")]
 const NET_MDNS_GRANT_TOP: u16 = 5354;
-/// Queries `mdns_responder` must answer before reporting OK, matching xtask's multicast prober:
+/// Queries `multicast_dns_responder` must answer before reporting OK, matching xtask's multicast prober:
 /// one multicast browse and one legacy-unicast query, which are the two shapes RFC 6762 §6.7
 /// splits a responder's behaviour on.
 #[cfg(target_arch = "aarch64")]
 const MDNS_QUERIES: u64 = 2;
 
-/// The `mdns_responder` program's ELF bytes (milestone 55): the discovery half, spawned as a third
+/// The `multicast_dns_responder` program's ELF bytes (milestone 55): the discovery half, spawned as a third
 /// client of the same stack. A separate binary rather than a role of `net_stack`, because it is a
 /// separate authority: it holds one UDP port and nothing else. When it was written the SMB adapter
 /// beside it held the share and no discovery, which was the demonstration; notes/smb.md.
 #[cfg(target_arch = "aarch64")]
-fn mdns_responder_image() -> &'static [u8] {
-    program("mdns_responder").expect("no mdns_responder program in the initrd archive")
+fn multicast_dns_responder_image() -> &'static [u8] {
+    program("multicast_dns_responder")
+        .expect("no multicast_dns_responder program in the initrd archive")
 }
 #[cfg(target_arch = "aarch64")]
 const NET_CLIENT_OK: u64 = 1;
@@ -1171,12 +1172,12 @@ fn the_redoxfs_server_serves_redoxfs_over_a_capability_contract() {
     let [head, status, attrs, ..] = sched::ipc_recv(report);
     assert_eq!(
         status,
-        filesystem_proto::fixture::SUCCESS,
+        filesystem_protocol::fixture::SUCCESS,
         "the client did not report success: a check in the read or write path failed",
     );
     assert_eq!(
         &head.to_le_bytes()[..],
-        &filesystem_proto::fixture::MOTD[..8],
+        &filesystem_protocol::fixture::MOTD[..8],
         "the client read the wrong motd bytes off the RedoxFS image",
     );
     assert_attrs(attrs);
@@ -1208,7 +1209,7 @@ fn a_read_only_per_file_grant_survives_an_attacker() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
-    let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
+    let Some(verdict) = attack_a_grant(filesystem_protocol::grant::READ, false) else {
         crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(
@@ -1237,8 +1238,8 @@ fn a_read_only_per_file_grant_reads_its_files_attributes_and_writes_none() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
-    use filesystem_proto::fixture::escape;
-    let Some(verdict) = attack_a_grant(filesystem_proto::grant::READ, false) else {
+    use filesystem_protocol::fixture::escape;
+    let Some(verdict) = attack_a_grant(filesystem_protocol::grant::READ, false) else {
         crate::testing::skip!("no RedoxFS disk attached");
     };
     assert_eq!(
@@ -1277,9 +1278,9 @@ fn a_writable_per_file_grant_writes_that_file_and_still_only_that_file() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
-    use filesystem_proto::fixture::escape;
+    use filesystem_protocol::fixture::escape;
     let Some(verdict) = attack_a_grant(
-        filesystem_proto::grant::READ | filesystem_proto::grant::WRITE,
+        filesystem_protocol::grant::READ | filesystem_protocol::grant::WRITE,
         true,
     ) else {
         crate::testing::skip!("no RedoxFS disk attached");
@@ -1310,9 +1311,9 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
             // The writable run damages what it is granted, so it is granted the file the fixture
             // discipline already covers; see the attacker's own note.
             name: if writable {
-                filesystem_proto::fixture::SCRATCH_NAME
+                filesystem_protocol::fixture::SCRATCH_NAME
             } else {
-                filesystem_proto::fixture::MOTD_NAME
+                filesystem_protocol::fixture::MOTD_NAME
             },
             rights,
             role: 2, // ROLE_ATTACKER
@@ -1329,7 +1330,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
     let [tag, verdict, ..] = sched::ipc_recv(report);
     assert_eq!(
         tag,
-        filesystem_proto::fixture::VERDICT,
+        filesystem_protocol::fixture::VERDICT,
         "the attacker's report is not a verdict word",
     );
     Some(verdict)
@@ -1338,7 +1339,7 @@ fn attack_a_grant(rights: u64, writable: bool) -> Option<u64> {
 /// Name the bits an escape verdict set, so a failure reads as a sentence instead of a bitmap.
 #[cfg(target_arch = "aarch64")]
 fn describe_escape(v: u64) -> &'static str {
-    use filesystem_proto::fixture::escape;
+    use filesystem_protocol::fixture::escape;
     if v & escape::SECOND_FILE != 0 {
         "it opened a file the grant does not designate"
     } else if v & escape::WROTE != 0 {
@@ -1564,7 +1565,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract() {
         net_stack_image(),
         NET_TEST_UDP_TFTP,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -1590,7 +1591,7 @@ fn a_client_completes_a_udp_round_trip_through_the_socket_contract_pci() {
         net_stack_image(),
         NET_TEST_UDP_TFTP,
         true,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net-pci device attached");
     };
@@ -1622,7 +1623,7 @@ fn a_client_resolves_a_real_dns_name_when_the_host_resolver_answers() {
         net_stack_image(),
         NET_TEST_UDP_DNS,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -1662,7 +1663,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract() {
         net_stack_image(),
         NET_TEST_TCP_ECHO,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -1688,7 +1689,7 @@ fn a_client_echoes_over_tcp_through_the_socket_contract_pci() {
         net_stack_image(),
         NET_TEST_TCP_ECHO,
         true,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net-pci device attached");
     };
@@ -1718,7 +1719,7 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
         net_stack_image(),
         NET_TEST_TCP_REOPEN,
         false,
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -1789,11 +1790,11 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     let e2_baseline_threads = sched::thread_count();
     let Some((report, mdns_report, net)) = virtio_service::start_shared_net_stack(
         net_stack_image(),
-        mdns_responder_image(),
+        multicast_dns_responder_image(),
         NET_TEST_TCP_ACCEPT,
         NET_LISTEN_PORT,
         MDNS_QUERIES,
-        socket_proto::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
+        socket_protocol::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -1852,7 +1853,7 @@ fn std_exerciser_image() -> &'static [u8] {
 /// rather than a mystery.
 ///
 /// `listen refused` is milestone 64's negative control and it costs this boot nothing: the stack
-/// this program is spawned with carries `socket_proto::NO_LISTEN_GRANT`, so
+/// this program is spawned with carries `socket_protocol::NO_LISTEN_GRANT`, so
 /// `std::net::TcpListener::bind` answers `PermissionDenied`, and the program says so on its way
 /// past rather than quietly running a smaller demo. A lane that broke the grant check open would
 /// turn this line into `listen ok` and fail here, in a transcript comparison, rather than passing
@@ -1863,7 +1864,7 @@ const STD_NET_EXPECTED: &[u8] = b"std net on nife\nlisten refused\nudp ok\ntcp e
 /// The exact transcript the same binary prints when its stack **is** granted the listening port
 /// (milestone 64's inbound half). Four lines, and each is a separate claim: the granted port binds,
 /// a port outside the grant is refused as a matter of authority, the granted port is exclusive, and
-/// the listener served `socket_proto::fixture::ROUNDS` connections one after another.
+/// the listener served `socket_protocol::fixture::ROUNDS` connections one after another.
 #[cfg(target_arch = "aarch64")]
 const STD_LISTEN_EXPECTED: &[u8] =
     b"std net on nife\nlisten ok\ndenied refused\nin use refused\nserved 2\n";
@@ -1890,7 +1891,7 @@ fn std_net_runs_over_the_socket_contract() {
     let Some((report, net)) = virtio_service::start_net_std(
         net_stack_image(),
         std_exerciser_image(),
-        socket_proto::NO_LISTEN_GRANT,
+        socket_protocol::NO_LISTEN_GRANT,
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -1916,7 +1917,7 @@ fn std_net_runs_over_the_socket_contract() {
 /// **The refusals ride in this same spawn rather than in a test of their own**, which is the
 /// machine's call and not a preference: a net test spends minutes in `net_stack`'s userspace
 /// smoltcp poll, so a boot is the expensive unit. `denied refused` is
-/// `socket_proto::fixture::DENIED_PORT`, outside the grant this stack carries, answered
+/// `socket_protocol::fixture::DENIED_PORT`, outside the grant this stack carries, answered
 /// `PermissionDenied`; `in use refused` is the granted port asked for twice, answered `AddrInUse`.
 /// The **whole-stack** refusal is the sibling test above, whose stack carries no grant at all.
 ///
@@ -1933,7 +1934,7 @@ fn a_std_program_serves_a_granted_listening_port() {
     let Some((report, net)) = virtio_service::start_net_std(
         net_stack_image(),
         std_exerciser_image(),
-        socket_proto::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
+        socket_protocol::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
@@ -2663,7 +2664,7 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     let message = sched::ipc_recv(result);
     assert_eq!(
         message[0],
-        capability_demo_proto::CYCLE_COUNTER_WORD,
+        capability_demo_protocol::CYCLE_COUNTER_WORD,
         "the granted thread did not report: it was killed reading a counter it was granted",
     );
     assert_eq!(

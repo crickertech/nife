@@ -341,7 +341,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 ///   1664.
 /// - **+104, `login_service.rs`'s `CLIENT_SCRATCH_UT_PAGES`.** Every spawned `login_test_client`
 ///   role now needs a four-page region of its own to pay for mapping the staging page
-///   `login_proto::CONNECT` delegates it, and nothing reclaims it when the role exits. Twenty-six
+///   `login_protocol::CONNECT` delegates it, and nothing reclaims it when the role exits. Twenty-six
 ///   roles run across this suite. This is the one part of the raise that is scaffolding rather than
 ///   a property under test, and it is recorded at that constant as work someone could take.
 /// - **The remaining ~0 to 40 frames are not attributed**, and the per-test diff says why: nine
@@ -380,7 +380,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// same shape one level up):
 ///
 /// - **Four `kernel_display()` calls** (`compositor_tests.rs`), each a fresh
-///   `graphics_proto::SURFACE_PAGE_FRAMES`-frame region: 900 now, 8 before. +892 each, +3568 total.
+///   `graphics_protocol::SURFACE_PAGE_FRAMES`-frame region: 900 now, 8 before. +892 each, +3568 total.
 /// - **Four real-driver wirings** (`display_service::start`, `start_backing_escape`,
 ///   `start_terminal`, `start_driver`, one call site each across `display_tests.rs` and
 ///   `compositor_tests.rs`), each allocating `DMA_PAGE_FRAMES` (`1 + SURFACE_PAGE_FRAMES`): 901 now,
@@ -402,7 +402,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 ///
 /// **Lowered, 2026-08-27, milestone 142's scanout retarget (1280x720 -> 924x344, 132x43 grid at the
 /// shipped 7x8 cell instead of 182x90 arithmetic against an unbuilt future cell;
-/// `crates/graphics_proto/src/lib.rs`'s `WIDTH` has the reasoning).** This is the first entry in
+/// `crates/graphics_protocol/src/lib.rs`'s `WIDTH` has the reasoning).** This is the first entry in
 /// this ledger's history that lowers the budget rather than raising it, for the reason the raise
 /// above already gives in reverse: the scanout-sized region every one of the eight call sites above
 /// allocates is smaller now, so the whole 7136-frame direct cost that raise priced shrinks with it,
@@ -420,7 +420,7 @@ const PAGE_FRAME_REPORT_MIN: usize = 16;
 /// number each time, and never on the same run twice); it did not recur in any of the four counted
 /// runs this entry's numbers come from.)
 ///
-/// `SURFACE_PAGE_FRAMES` fell from 900 to 311 (`graphics_proto::WIDTH`'s doc comment has the
+/// `SURFACE_PAGE_FRAMES` fell from 900 to 311 (`graphics_protocol::WIDTH`'s doc comment has the
 /// pixel arithmetic), so each of the four `kernel_display()` calls and four real-driver wirings
 /// costs roughly a third of what it did, and the surface now fits one 2 MiB page-table window
 /// instead of two (`display_service::MAP_BUDGET_PAGES`'s own comment), removing the "more than one

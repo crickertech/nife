@@ -1,5 +1,5 @@
 #![no_std]
-// `Result<_, ()>` throughout the build path, for `supervision_proto`'s reason: every failure here is
+// `Result<_, ()>` throughout the build path, for `supervision_protocol`'s reason: every failure here is
 // a syscall that already returned its own error through the ABI, and a second, richer error would be
 // inventing detail the kernel did not provide. See that crate's head comment.
 #![allow(clippy::result_unit_err)]
@@ -311,7 +311,7 @@ use grant_plan::{Prog, spawnproto};
 use line_editor::proto;
 // The loader, and the tree's only one since milestone 96. Named here rather than qualified at every
 // call, because the point of the crate is that there is one of these.
-use supervision_proto::{
+use supervision_protocol::{
     ChildEndowment, Retention, build_child, retype_obj_from as retype_obj,
     retype_page_frame_from as retype_page_frame, start_child,
 };
@@ -336,7 +336,7 @@ pub struct BootEndowment {
     /// **The wall clock** (milestone 51's wiring): a `PageFrame` capability with `READ` and nothing
     /// else, granted ahead of the filesystem pair so its slot is the same on every boot, whether or
     /// not a disk was attached, and granted **unconditionally**: a boot with no clock service hands
-    /// us a zeroed page, which reads as `clock_proto::state::UNKNOWN` and is the honest answer for a
+    /// us a zeroed page, which reads as `clock_protocol::state::UNKNOWN` and is the honest answer for a
     /// machine that does not know the time. The progenitor hands it on only to a child whose manifest declares
     /// a clock, and hands on `READ`, so nothing spawned from this prompt can set the time
     /// (DECISIONS §43).
@@ -446,14 +446,14 @@ pub struct BootEndowment {
 pub struct SecondDirGrant {
     /// One component under the image root, the same shape a `DirGrant`'s `name` already takes.
     pub name: &'static str,
-    /// The `filesystem_proto::dir` rights the caretaker asks for on its descent.
+    /// The `filesystem_protocol::dir` rights the caretaker asks for on its descent.
     pub rights: u64,
 }
 
 /// Where the kernel maps the initrd archive, read-only. Must match `kernel::user::INITRD_VA`.
 const INITRD_VA: u64 = 0x2000_0000;
 
-/// Stack pages every child the progenitor builds gets, mapped down from `supervision_proto::CHILD_STACK_VA`.
+/// Stack pages every child the progenitor builds gets, mapped down from `supervision_protocol::CHILD_STACK_VA`.
 ///
 /// **Twelve since DECISIONS §67**, and every step of that number was measured rather than chosen.
 /// Four overflowed at the first `ls > out.txt`; eight held until `2>` put a **second** `FileOut` on
@@ -679,7 +679,7 @@ const PASSWORD_BYTES: usize = 12;
 const PASSWORD_HEX_LEN: usize = PASSWORD_BYTES * 2;
 
 /// Draw `out.len()` bytes from the entropy service through `request`
-/// ([`entropy_proto::MAX_BYTES`] at a time), the identical loop `components/src/credentialer.rs`'s own
+/// ([`entropy_protocol::MAX_BYTES`] at a time), the identical loop `components/src/credentialer.rs`'s own
 /// `fill` performs as a *client* of that same service (this process is, briefly, one too: it draws
 /// the generated password's own raw bytes before `credentialer` ever exists). `false` when the
 /// service could not supply them, which the caller treats as fatal to generating a password at all
@@ -688,21 +688,21 @@ const PASSWORD_HEX_LEN: usize = PASSWORD_BYTES * 2;
 fn fill_entropy(request: u64, out: &mut [u8]) -> bool {
     let mut done = 0;
     while done < out.len() {
-        let want = (out.len() - done).min(entropy_proto::MAX_BYTES as usize);
+        let want = (out.len() - done).min(entropy_protocol::MAX_BYTES as usize);
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
         // before acting.
         let (r0, r1) = call(
             request,
-            entropy_proto::req(entropy_proto::GET, want as u64),
+            entropy_protocol::req(entropy_protocol::GET, want as u64),
             0,
         );
-        let Some(n) = entropy_proto::delivered(r0) else {
+        let Some(n) = entropy_protocol::delivered(r0) else {
             return false;
         };
         if n < want {
             return false;
         }
-        done += entropy_proto::take(n, r1, &mut out[done..]);
+        done += entropy_protocol::take(n, r1, &mut out[done..]);
     }
     true
 }
@@ -721,7 +721,7 @@ fn hex_password(bytes: &[u8], out: &mut [u8]) {
 /// **Build the interactive system and become its spawn service.** Never returns: the last thing it
 /// does is park in `RECV` on the shell's spawn channel for the life of the boot.
 ///
-/// `initrd_len` is the archive length the kernel passed at entry; `fs_rights` is the `filesystem_proto::dir`
+/// `initrd_len` is the archive length the kernel passed at entry; `fs_rights` is the `filesystem_protocol::dir`
 /// rights the file-service endpoint carries, and 0 means this boot attached no disk. `second_dir`
 /// is milestone 154's addition: `Some` hands the shell a second, disjoint directory capability
 /// (see [`SecondDirGrant`] for what this does and does not decide); every real entry point passes
@@ -806,7 +806,7 @@ pub fn boot(
     // it, and the archive is reserved RAM the frame allocator does not own and no capability names.
     // So the real boot started `login` with no archive at all and it died at `_start` on every
     // boot. It is handed a copy of exactly the one program it needs instead, as a blob (see the
-    // login block far below, and `login_proto::CARETAKER_ELF_VA` for the whole account).
+    // login block far below, and `login_protocol::CARETAKER_ELF_VA` for the whole account).
     //
     // Empty when this process would not vouch for the bytes, which is the same answer `care_elf`
     // above already gives the spawn service: `login` then comes up and denies every login rather
@@ -1001,7 +1001,7 @@ pub fn boot(
                 // doc).
                 let (verdict, _, _) = recv(ready);
                 cap_delete(ready);
-                entropy_ready = verdict == entropy_proto::READY;
+                entropy_ready = verdict == entropy_protocol::READY;
                 if entropy_ready {
                     // Kept for the login stack below (`credentialer`'s own client view) and, since
                     // milestone 111, for the spawn service after it; see `entropy_client`'s own
@@ -1293,13 +1293,13 @@ pub fn boot(
     // before trusting this path.
     let second_dir_ep: Option<u64> = second_dir.filter(|_| with_fs).and_then(|sd| {
         assert!(
-            filesystem_proto::grant::fits(sd.name.as_bytes()),
+            filesystem_protocol::grant::fits(sd.name.as_bytes()),
             "a granted directory's name rides in two argument words; this one does not fit",
         );
         let region = memory_region_split(ut, SECOND_DIR_CARETAKER_PAGES).ok()?;
         let care = care_elf.as_ref()?;
-        let (lo, hi) = filesystem_proto::grant::pack_name(sd.name.as_bytes());
-        let spec = filesystem_proto::grant::spec(sd.name.len(), sd.rights);
+        let (lo, hi) = filesystem_protocol::grant::pack_name(sd.name.as_bytes());
+        let spec = filesystem_protocol::grant::spec(sd.name.len(), sd.rights);
         build_caretaker(
             ut,
             region,
@@ -1563,18 +1563,18 @@ pub fn boot(
                 let req_slice = unsafe {
                     core::slice::from_raw_parts_mut(
                         PROVISION_SCRATCH_VA as *mut u8,
-                        credential_proto::PAGE,
+                        credential_protocol::PAGE,
                     )
                 };
                 req_slice.fill(0);
-                let placed = credential_proto::place(
+                let placed = credential_protocol::place(
                     req_slice,
                     DEMO_IDENTITY,
                     &login_password,
-                    credential_proto::provision::PUT,
+                    credential_protocol::provision::PUT,
                 );
                 placed.expect(
-                    "DEMO_IDENTITY and login_password are both well within credential_proto's \
+                    "DEMO_IDENTITY and login_password are both well within credential_protocol's \
                      bounds by construction; a None here is a logic bug in this file, not a \
                      runtime condition",
                 );
@@ -1620,10 +1620,10 @@ pub fn boot(
                 let req_slice = unsafe {
                     core::slice::from_raw_parts_mut(
                         PROVISION_SCRATCH_VA as *mut u8,
-                        credential_proto::PAGE,
+                        credential_protocol::PAGE,
                     )
                 };
-                credential_proto::wipe(req_slice);
+                credential_protocol::wipe(req_slice);
             }
             // Ours no further either way: `identity_provisioner` holds its own copy when it was
             // built at all, and this process never maps this page again.
@@ -1636,7 +1636,7 @@ pub fn boot(
             // hanging with a service that can never be asked a real question.
             call(
                 prov,
-                credential_proto::req(credential_proto::provision::SEAL, 0, 0),
+                credential_protocol::req(credential_protocol::provision::SEAL, 0, 0),
                 0,
             );
             cap_delete(prov);
@@ -1712,14 +1712,14 @@ pub fn boot(
                         // `login` needs one program's bytes and a table to check them against; it
                         // used to read the whole archive, which this process cannot delegate
                         // (reserved RAM, no capability names it) and so never did. `blobs` copies
-                        // through `supervision_proto`'s `fill_and_map`, which holds one frame
+                        // through `supervision_protocol`'s `fill_and_map`, which holds one frame
                         // capability at a time and deletes it, so this adds nothing to the
                         // 21-of-24 peak `kernel::cap::CAPABILITY_TABLE_PEAK_MEASURED` records:
                         // `build_child` already reaches that same transient peak copying `login`'s
                         // own segments.
                         blobs: &[
-                            (login_proto::CARETAKER_ELF_VA, care_blob),
-                            (login_proto::PROGRAM_MEASUREMENTS_VA, table.as_bytes()),
+                            (login_protocol::CARETAKER_ELF_VA, care_blob),
+                            (login_protocol::PROGRAM_MEASUREMENTS_VA, table.as_bytes()),
                         ],
                         stack_pages: LOGIN_STACK_PAGES,
                         ..ChildEndowment::new(Retention::Nothing)
@@ -2386,7 +2386,7 @@ fn spawn_service(
                 Some(child) => {
                     // **A program behind a directory grant is started with the grant's own three
                     // words** rather than with an integer, which is `rm`'s shape: a spec carrying
-                    // the options and two words of name (`filesystem_proto::grant`). The progenitor forwards what the
+                    // the options and two words of name (`filesystem_protocol::grant`). The progenitor forwards what the
                     // shell packed and reads none of it; see `spawnproto::GRANT_WORDS`.
                     let (a0, a1, a2) = match grant {
                         Some((_, child)) => child,
@@ -2441,7 +2441,7 @@ fn spawn_service(
             // come back. The progenitor closes it on the child's behalf. It is the same hole `SPAWN_OK`
             // closed for the output side, one stream over.
             if !ok && let Some(ep) = diagnostics {
-                send(ep, byte_sink_proto::eof(), 0, 0);
+                send(ep, byte_sink_protocol::eof(), 0, 0);
             }
         }
 
@@ -2459,7 +2459,7 @@ fn spawn_service(
 }
 
 // -------------------------------------------------------------------------------------------
-// The thin shapes over the ABI. The loader itself is `supervision_proto`'s, which is the tree's
+// The thin shapes over the ABI. The loader itself is `supervision_protocol`'s, which is the tree's
 // only one since milestone 96.
 // -------------------------------------------------------------------------------------------
 
@@ -2536,7 +2536,7 @@ fn build_caretaker(
     // it will reach through the handle that one request minted.
     let (verdict, _, _) = recv(ready);
     cap_delete(ready);
-    if verdict == filesystem_proto::fixture::READY {
+    if verdict == filesystem_protocol::fixture::READY {
         Some(narrow_ep)
     } else {
         // A refused descent. The caretaker has already exited; the endpoint goes back, and the
@@ -2563,7 +2563,7 @@ fn build_caretaker(
 /// this could not reclaim costs later commands and does not end them.
 fn reclaim(region: u64) {
     for _ in 0..RECLAIM_ATTEMPTS {
-        if supervision_proto::memory_region_destroy(region) {
+        if supervision_protocol::memory_region_destroy(region) {
             return;
         }
         user_mode_runtime::yield_now();
@@ -2592,10 +2592,10 @@ const RECLAIM_ATTEMPTS: usize = 64;
 
 /// Carve `pages` off `ut` into a new child untyped we can delegate (milestone 31). The SPLIT grants
 /// full rights on the child, including GRANT, so a memory budget can be handed on. The error code
-/// `supervision_proto` returns is for the dropped-authority proof, which this crate takes from the
+/// `supervision_protocol` returns is for the dropped-authority proof, which this crate takes from the
 /// raw `invoke` instead, so it is dropped here.
 fn memory_region_split(ut: u64, pages: u64) -> Result<u64, ()> {
-    supervision_proto::memory_region_split(ut, pages).map_err(|_| ())
+    supervision_protocol::memory_region_split(ut, pages).map_err(|_| ())
 }
 
 /// **Say one sentence at the terminal**, through the line discipline, the way the shell does: stage
@@ -2689,5 +2689,5 @@ fn must_ok(ok: bool) {
 /// Trap. The kernel prints the pc and kills the process, which is the legible way for a builder to
 /// say that the system it was asked to build cannot exist.
 fn fail() -> ! {
-    supervision_proto::fail()
+    supervision_protocol::fail()
 }

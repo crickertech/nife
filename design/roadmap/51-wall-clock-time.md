@@ -213,7 +213,8 @@ NTP), noting estimates for unbuilt work are guesses on a history-calibrated scal
 - **Recorded.** In `design/decisions/43-clock-authority.md`, as a limit rather than a win:
   `SystemTime::now()` has no error channel, so an unknown clock is a panic and std gives a program
   no way to ask before it asks. `date` has an error channel and prints the two causes apart.
-- **Recorded.** In `notes/ntp.md`: `crates/ntp_proto` is unauthenticated NTPv4 and says so in its
+- **Recorded.** In `notes/ntp.md`: `crates/network_time_protocol` (spelled ntp_proto when this was
+  written; milestone 265 renamed it) is unauthenticated NTPv4 and says so in its
   own documentation. NTS (RFC 8915) needs TLS, which needs certificate validation, which needs a
   roughly correct clock; the crate deliberately does not implement half of it.
 - **Refused.** The IANA tzdata is out and a fixed UTC offset is in, recorded in `notes/calendar.md`:

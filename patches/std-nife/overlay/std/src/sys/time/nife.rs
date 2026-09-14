@@ -30,7 +30,7 @@
 //! `SystemTime::now()` has no error channel, so the only loud refusal available is a **panic**, and
 //! that is what an unknown clock gets. A program that never asks the time is unaffected; a program
 //! that asks gets told, with the reason, instead of quietly stamping a log with 1970. The readable
-//! form of the same state lives one level down in `clock_proto::state`, for anything that wants to
+//! form of the same state lives one level down in `clock_protocol::state`, for anything that wants to
 //! check before asking. See notes/std.md.
 
 use crate::sync::atomic::{AtomicU8, Ordering};

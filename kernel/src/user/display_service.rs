@@ -18,8 +18,8 @@
 //! grew from, that was 9 capabilities in 9 consecutive slots of a sixteen-slot capability table,
 //! with one slot spare and no room for anything larger. §102 gave `PageFrame` a page count, so a
 //! whole run is now **one capability and one `MAP` call**, however many pages it holds. That is
-//! what makes the grown scanout ([`graphics_proto::WIDTH`] x [`graphics_proto::HEIGHT`],
-//! [`graphics_proto::SURFACE_PAGE_FRAMES`] page frames) fit at all: that many one-page capabilities
+//! what makes the grown scanout ([`graphics_protocol::WIDTH`] x [`graphics_protocol::HEIGHT`],
+//! [`graphics_protocol::SURFACE_PAGE_FRAMES`] page frames) fit at all: that many one-page capabilities
 //! never would have, whether the surface is the 900-frame 1280x720 this milestone first grew to or
 //! the 311-frame 924x344 it was retargeted to on 2026-08-27. See notes/frames.md.
 //!
@@ -36,7 +36,7 @@ use crate::cap::{
 use crate::sched::RendezvousId;
 
 /// The DMA region, in frames: one for the rings and control buffers, then the surface.
-const DMA_PAGE_FRAMES: u64 = 1 + graphics_proto::SURFACE_PAGE_FRAMES as u64;
+const DMA_PAGE_FRAMES: u64 = 1 + graphics_protocol::SURFACE_PAGE_FRAMES as u64;
 
 /// The three run lengths this file grants, as run lengths.
 ///
@@ -44,7 +44,7 @@ const DMA_PAGE_FRAMES: u64 = 1 + graphics_proto::SURFACE_PAGE_FRAMES as u64;
 /// [`crate::cap::page_frame_run_len`]'s refusal of a zero-page run happens **while this file is
 /// compiled**: a geometry change that took `SURFACE_PAGE_FRAMES` to zero would fail the build here
 /// rather than panic a driver at boot. (Provisional names; a lane does not settle a name.)
-const SURFACE_RUN: NonZeroU64 = page_frame_run_len(graphics_proto::SURFACE_PAGE_FRAMES as u64);
+const SURFACE_RUN: NonZeroU64 = page_frame_run_len(graphics_protocol::SURFACE_PAGE_FRAMES as u64);
 const DMA_RUN: NonZeroU64 = page_frame_run_len(DMA_PAGE_FRAMES);
 const ONE_PAGE_RUN: NonZeroU64 = NonZeroU64::MIN;
 
@@ -57,7 +57,7 @@ const ROLE_BACKING_ESCAPE: u64 = 1;
 /// table); at 1280x720 the 900-page surface alone spanned two windows, and the terminal's separate
 /// output page a third, so more than one L3 was briefly the ordinary case rather than the edge case
 /// notes/frames.md recorded at 800x608. **At 924x344 (retargeted 2026-08-27) the surface is back
-/// under 512 pages** (311, [`graphics_proto::SURFACE_PAGE_FRAMES`]), one 2 MiB window again, the
+/// under 512 pages** (311, [`graphics_protocol::SURFACE_PAGE_FRAMES`]), one 2 MiB window again, the
 /// same shape 128x64 had. Twenty-four pages is more headroom than that now strictly needs, kept
 /// rather than re-tuned down: still under one percent of the free pool, and a budget this path has
 /// already exercised at the larger size is the safer one to keep than a smaller number nobody has
@@ -326,15 +326,15 @@ pub fn start_terminal(
     // frame (see `components/src/display_terminal.rs`) and that `Vt::pixel` answers for, which is what
     // keeps the picture a total function of the state.
     const _: () = assert!(
-        graphics_proto::WIDTH >= bitmap_font::GLYPH_W
-            && graphics_proto::HEIGHT >= bitmap_font::GLYPH_H,
+        graphics_protocol::WIDTH >= bitmap_font::GLYPH_W
+            && graphics_protocol::HEIGHT >= bitmap_font::GLYPH_H,
         "the scanout is too small for one character cell",
     );
     // And the script's geometry is the scanout's, checked here rather than trusted, because the
     // script is what three independent parties predict the picture from.
     const _: () = assert!(
-        graphics_proto::WIDTH / bitmap_font::GLYPH_W == video_terminal::script::COLS
-            && graphics_proto::HEIGHT / bitmap_font::GLYPH_H == video_terminal::script::ROWS,
+        graphics_protocol::WIDTH / bitmap_font::GLYPH_W == video_terminal::script::COLS
+            && graphics_protocol::HEIGHT / bitmap_font::GLYPH_H == video_terminal::script::ROWS,
         "video_terminal::script's geometry and the scanout's have drifted apart",
     );
 
@@ -424,7 +424,7 @@ impl TerminalWiring {
     /// A scanout pixel, read by the **kernel** through the direct map: a witness that belongs to
     /// no process in userspace.
     pub fn screen_pixel(&self, x: u32, y: u32) -> u32 {
-        let at = mmu::phys_to_virt(self.surface) + (y * graphics_proto::WIDTH + x) as u64 * 4;
+        let at = mmu::phys_to_virt(self.surface) + (y * graphics_protocol::WIDTH + x) as u64 * 4;
         // SAFETY: inside the scanout frames this kernel allocated.
         unsafe { core::ptr::read_volatile(at as *const u32) }
     }
@@ -432,8 +432,8 @@ impl TerminalWiring {
     /// **The scanout holds exactly the picture `expect` describes.** Compared pixel for pixel
     /// rather than by digest, so a failure names a coordinate.
     pub fn assert_screen_is(&self, expect: &video_terminal::Vt, what: &str) {
-        for y in 0..graphics_proto::HEIGHT {
-            for x in 0..graphics_proto::WIDTH {
+        for y in 0..graphics_protocol::HEIGHT {
+            for x in 0..graphics_protocol::WIDTH {
                 let (got, want) = (self.screen_pixel(x, y), expect.pixel(x, y));
                 assert_eq!(
                     got,

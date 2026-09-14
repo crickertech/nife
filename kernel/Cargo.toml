@@ -43,17 +43,17 @@ grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # The wall-clock contract (milestone 51, DECISIONS §43). The kernel discovers the RTC by
 # `compatible` and names the binding with these constants, and its clock tests read the shared page
 # through the same seqlock the service publishes with, so no party has its own copy of the layout.
-clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
+clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }
 # The inert-configuration contract (milestone 47's environment-variable fork, DECISIONS §111). The
 # kernel-side std program wiring assembles the page (`PageBuilder`) and maps it read-only into a
 # std program the same way it does the clock page, so no party has its own copy of the layout or
 # the validated domains.
-environment_proto = { version = "0.1.0", path = "../crates/environment_proto" }
+environment_protocol = { version = "0.1.0", path = "../crates/environment_protocol" }
 # The x86_64 timebase page (milestone 161's `cntfrq` follow-up). The kernel writes the calibrated
 # TSC rate into a frame once, at boot, and `kernel::user::load` maps it read-only into every
 # x86_64 process; `user_mode_runtime::cntfrq` is the reader, through this same crate, so neither side keeps
 # its own copy of the page's layout or its fixed address.
-timebase_proto = { version = "0.1.0", path = "../crates/timebase_proto" }
+counter_frequency_protocol = { version = "0.1.0", path = "../crates/counter_frequency_protocol" }
 # The block-device roster (milestone 57). The kernel writes the page and the surveyor reads it, and
 # the kernel's own tests read it back through this crate rather than by trusting the count the
 # program sent home, so no party has its own copy of the layout.
@@ -79,24 +79,24 @@ cpu_set = { version = "0.1.0", path = "../crates/cpu_set" }
 # The credential contract (milestone 56, the credential half). The kernel wires the credential
 # service and its provisioner, and its tests read the reply codes the userspace clients report, so
 # no party has its own copy of what a verdict means.
-credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
+credential_protocol = { version = "0.1.0", path = "../crates/credential_protocol" }
 # The login contract (milestone 49). The kernel wires the login service and `login_test_client`'s
 # roles, and the tests read the same reply and attribution codes the service sends, so no party has
 # its own copy of what a verdict or an attribution record means.
-login_proto = { version = "0.1.0", path = "../crates/login_proto" }
+login_protocol = { version = "0.1.0", path = "../crates/login_protocol" }
 coremark = { version = "0.1.0", path = "../crates/coremark" }
 # The words the milestone 7-19 capability demonstrations agree on (milestone 291). The kernel
 # wires those programs and its tests assert on what they report, so the two ends of each
 # sentinel have one definition rather than a literal apiece with a "must match" comment.
-capability_demo_proto = { version = "0.1.0", path = "../crates/capability_demo_proto" }
+capability_demo_protocol = { version = "0.1.0", path = "../crates/capability_demo_protocol" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 dma_validator = { version = "0.1.0", path = "../crates/dma_validator" }
-filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
-graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
+filesystem_protocol = { version = "0.1.0", path = "../crates/filesystem_protocol" }
+graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
 # The entropy contract (milestone 56, DECISIONS §44). The kernel wires the entropy service and its
 # tests are its clients, speaking the same request/reply the std PAL does, so no party has its own
 # copy of the wire format.
-entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
+entropy_protocol = { version = "0.1.0", path = "../crates/entropy_protocol" }
 # The JH7110 TRNG's register logic and DTB discovery (milestone 159), the same
 # pure-logic/volatile-shell split `pci` and `nvme` below already use. The kernel takes it for one
 # thing only: `discover`, the device-tree query that says whether this machine has a TRNG at all,
@@ -136,12 +136,12 @@ screen_console = { version = "0.1.0", path = "../crates/screen_console" }
 # The NTPv4 wire format (milestone 51). The kernel's NTP tests read the request the client actually
 # put on the wire, so the version, mode and port they assert on come from the same definition the
 # client serialised from rather than from three copies of RFC 5905 §7.3.
-ntp_proto = { version = "0.1.0", path = "../crates/ntp_proto" }
+network_time_protocol = { version = "0.1.0", path = "../crates/network_time_protocol" }
 paging = { version = "0.1.0", path = "../crates/paging" }
 # The process listing (milestone 126). The kernel's survey tests drive `ps::collect`, the real
 # program's real loop, against the real `endpoint::SURVEY`, so the cursor protocol is proved end to
 # end rather than by a second copy of the walk written in a test. Same rule as `grant_plan`,
-# `byte_sink_proto` and `calendar` above: no party has its own copy of a shared definition.
+# `byte_sink_protocol` and `calendar` above: no party has its own copy of a shared definition.
 ps = { version = "0.1.0", path = "../crates/ps" }
 # The filter over that listing (milestone 126). Driven by the same tests for the same reason, and for
 # one more: at the prompt `pgrep`'s selector cannot be typed, so the kernel test is the only thing in
@@ -155,11 +155,11 @@ memory_regions = { version = "0.1.0", path = "../crates/memory_regions" }
 # The byte-sink contract (milestone 50). The kernel's tests are a *sink* for every std program they
 # spawn, so the framing they decode comes from the same definition the PAL packs with rather than
 # from a second copy of it in a test helper, which is what it was before this milestone.
-byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
+byte_sink_protocol = { version = "0.1.0", path = "../crates/byte_sink_protocol" }
 # The socket contract (milestone 30, and 107's inbound half). The kernel's spawn service is what
 # *grants* a net server its listen ports, so it packs the grant with the same `listen_grant` the
 # server checks against rather than open-coding the layout of a word two programs must agree on.
-socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
+socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
 generational_table = { version = "0.1.0", path = "../crates/generational_table" }
 spin = { version = "0.12", default-features = false, features = ["spin_mutex"] }
 # The work-steal handshake (milestone 80): the one lock-free cross-core protocol in the scheduler,

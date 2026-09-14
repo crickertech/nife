@@ -194,7 +194,7 @@
 //! two drivers apart). **The argument that lost**, when the stem was decided, was the
 //! external-standard exemption, that `trng` follows `nvme` and `pci` as a spec-named device; the
 //! 2026-09-13 amendment to decision 113 ends that exemption for acronym crates. The name joins
-//! `entropy` and `entropy_proto` rather than colliding with them: the service, the wire contract,
+//! `entropy` and `entropy_protocol` rather than colliding with them: the service, the wire contract,
 //! and this, the hardware behind them.
 //!
 //! [binding]: https://github.com/torvalds/linux/blob/master/Documentation/devicetree/bindings/rng/starfive%2Cjh7110-trng.yaml
@@ -621,7 +621,7 @@ pub fn assemble(rand: [u32; 8]) -> [u8; 32] {
 }
 
 /// How many bytes fit in the one word [`Pool::take`] answers with. The same 8 as
-/// `entropy_proto::MAX_BYTES`, stated here rather than depended on: this crate is the device's
+/// `entropy_protocol::MAX_BYTES`, stated here rather than depended on: this crate is the device's
 /// logic and knows nothing about the wire format, and the two agreeing is a fact the driver
 /// program (which depends on both) is where a reader can check.
 pub const WORD_BYTES: u64 = 8;
@@ -705,7 +705,7 @@ impl Pool {
     /// a **short count** rather than zeros when the device stops answering mid-gather.
     ///
     /// **`n` is clamped to [`WORD_BYTES`]**, because the answer is one 64-bit word and there is
-    /// nowhere to put a ninth byte. `entropy_proto::want` already clamps to the same 8 before the
+    /// nowhere to put a ninth byte. `entropy_protocol::want` already clamps to the same 8 before the
     /// driver ever calls this, so in the program the clamp is unreachable; it is here because a
     /// public function that shifts by `8 * n` must not be callable into an overflow, and the first
     /// host test written against this API found exactly that edge.
@@ -946,7 +946,7 @@ mod tests {
     }
 
     /// **A device that stops answering produces a short count, not zeros.** The distinction is the
-    /// whole of `entropy_proto`'s honesty: a client that asked for eight bytes and got four must
+    /// whole of `entropy_protocol`'s honesty: a client that asked for eight bytes and got four must
     /// be told four, or it will treat four zeros as entropy.
     #[test]
     fn a_dry_device_shortens_the_count_rather_than_padding() {

@@ -18,9 +18,9 @@
 //!
 //! # The directory capability (milestone 47)
 //!
-//! The bound directory is [`filesystem_proto::fs::ROOT`], handle 0, an ordinary entry in the same table, so
+//! The bound directory is [`filesystem_protocol::fs::ROOT`], handle 0, an ordinary entry in the same table, so
 //! every name-taking verb names a directory rather than resolving against a hidden field. A
-//! directory handle carries a [`filesystem_proto::dir::Rights`] set, [`Server::open_dir`] hands back a
+//! directory handle carries a [`filesystem_protocol::dir::Rights`] set, [`Server::open_dir`] hands back a
 //! handle to a child, and a child's rights are the parent's intersected with what was asked for.
 //! **That intersection is the only constructor for a non-root rights set**, so no descendant can
 //! carry a right its ancestor lacked, at any depth, without a check anyone could forget. A file
@@ -36,7 +36,7 @@
 //! # The error boundary
 //!
 //! Every method here returns `syscall::error::Result`, RedoxFS's own error type, unmapped. The
-//! translation to the wire (a negated errno, `filesystem_proto::reply_err`) happens once, in the serve loop
+//! translation to the wire (a negated errno, `filesystem_protocol::reply_err`) happens once, in the serve loop
 //! at the process boundary, and nowhere else. Keeping the core in RedoxFS's error vocabulary is what
 //! makes that rule enforceable: there is no ABI type in here to leak.
 
@@ -52,8 +52,8 @@ pub mod crash;
 
 use alloc::vec::Vec;
 
-use filesystem_proto::dir::{self, Rights};
-use filesystem_proto::xattr;
+use filesystem_protocol::dir::{self, Rights};
+use filesystem_protocol::xattr;
 use redoxfs::{Disk, FileSystem, Node, Transaction, TreePtr};
 use syscall::error::{
     EBADF, EEXIST, EINVAL, EIO, EISDIR, ENOENT, ENOTDIR, ENOTEMPTY, EPERM, EROFS, Error, Result,
@@ -82,7 +82,7 @@ pub struct Server<D: Disk> {
     /// The open-handle table. `handles[h]` is what a handle names, or `None` for a freed slot; the
     /// index is the handle. A capability the server issues and checks, never trusts.
     ///
-    /// **Slot 0 is the bound directory** ([`filesystem_proto::fs::ROOT`]), installed by [`Server::open`]
+    /// **Slot 0 is the bound directory** ([`filesystem_protocol::fs::ROOT`]), installed by [`Server::open`]
     /// before anything is served and never closeable. It exists so the directory an endpoint
     /// designates is an ordinary handle: every name resolves under a handle, and there is no
     /// separate "the current directory" field for a verb to forget to consult.
@@ -125,10 +125,10 @@ impl<D: Disk> Server<D> {
     }
 
     /// Resolve `name` under the **bound directory** and return a handle for it: the shorthand for
-    /// [`Server::open_file_at`] with [`filesystem_proto::fs::ROOT`], which is what every caller that predates
+    /// [`Server::open_file_at`] with [`filesystem_protocol::fs::ROOT`], which is what every caller that predates
     /// directory handles means.
     pub fn open_file(&mut self, name: &str) -> Result<u32> {
-        self.open_file_at(filesystem_proto::fs::ROOT as u32, name)
+        self.open_file_at(filesystem_protocol::fs::ROOT as u32, name)
     }
 
     /// Resolve `name` under the directory `handle` names and return a file handle for it.
@@ -214,7 +214,7 @@ impl<D: Disk> Server<D> {
         Ok(self.install(Entry::Dir(node.ptr(), granted)))
     }
 
-    /// **Enumerate the directory `handle` names**, filling `out` with [`filesystem_proto::dirent`] records
+    /// **Enumerate the directory `handle` names**, filling `out` with [`filesystem_protocol::dirent`] records
     /// and returning how many bytes were used. `cursor` is the index of the first entry to return;
     /// 0 bytes back means the cursor is past the end.
     ///
@@ -247,7 +247,7 @@ impl<D: Disk> Server<D> {
             for entry in children.iter().skip(cursor as usize) {
                 let Some(name) = entry.name() else { continue };
                 let child: redoxfs::TreeData<Node> = tx.read_tree(entry.node_ptr())?;
-                match filesystem_proto::dirent::encode(
+                match filesystem_protocol::dirent::encode(
                     &mut out[used..],
                     name.as_bytes(),
                     child.data().is_dir(),
@@ -305,7 +305,7 @@ impl<D: Disk> Server<D> {
     /// Resolved under the bound directory like every other name, so this cannot create outside the
     /// granted subtree, and `check_component` rejects a path rather than walking one.
     pub fn create_file(&mut self, name: &str) -> Result<u32> {
-        self.create_file_at(filesystem_proto::fs::ROOT as u32, name)
+        self.create_file_at(filesystem_protocol::fs::ROOT as u32, name)
     }
 
     /// [`Server::create_file`], under the directory `handle` names. Needs [`dir::CREATE`] on it;
@@ -384,7 +384,7 @@ impl<D: Disk> Server<D> {
     /// # What it refuses, and why each refusal is the contract's rather than the backend's
     ///
     /// - A **directory** may be renamed in place but not moved between directories: `EINVAL`. See
-    ///   [`filesystem_proto::fs::RENAME`] for the cycle argument. Keeping the parent unchanged is what makes
+    ///   [`filesystem_protocol::fs::RENAME`] for the cycle argument. Keeping the parent unchanged is what makes
     ///   the in-place case provably safe without an ancestry walk.
     /// - Replacing a destination of a **different kind** is `EISDIR` (file over directory) or
     ///   `ENOTDIR` (directory over file). RedoxFS's own `rename_node` allows both, because it passes
@@ -450,7 +450,7 @@ impl<D: Disk> Server<D> {
     /// whether a name is there. `ENOENT` if there is no such entry, `EINVAL` if it is not a single
     /// component, and [`dir::EISDIR`] for a directory: `rm` takes a name of a file away, and this
     /// contract has no `RMDIR`, which is stated where a caller meets it
-    /// ([`filesystem_proto::fs::UNLINK`]) rather than approximated by removing whatever is found.
+    /// ([`filesystem_protocol::fs::UNLINK`]) rather than approximated by removing whatever is found.
     ///
     /// # What "unlink, not revoke" costs, and where it is paid
     ///
@@ -543,7 +543,7 @@ impl<D: Disk> Server<D> {
 
     // --- mtime (milestone 47's `touch`, DECISIONS §112) ---
     //
-    // Three methods, one per `filesystem_proto::fs` verb, and all three resolve `name` directly
+    // Three methods, one per `filesystem_protocol::fs` verb, and all three resolve `name` directly
     // under the directory `handle` names rather than taking an already-open file handle: `touch`
     // never opens what it acts on ([`Server::unlink`]'s shape, not [`Server::write`]'s). That also
     // sidesteps a real constraint rather than a stylistic one: a **file** handle's `Rights` are
@@ -552,7 +552,7 @@ impl<D: Disk> Server<D> {
     // Only a directory handle's rights carry the full seven-rung ladder, so these three check the
     // *parent's* rights, exactly as [`Server::unlink`] and [`Server::rmdir`] do.
 
-    /// **The modification time of `name`, in Unix seconds** (`filesystem_proto::fs::GETMTIME`).
+    /// **The modification time of `name`, in Unix seconds** (`filesystem_protocol::fs::GETMTIME`).
     ///
     /// Needs [`dir::READ`], and its absence is `ENOENT` rather than a mutating-right's `EROFS`:
     /// this is a naming right, [`Server::open_file_at`]'s own rule, checked before the name is
@@ -568,7 +568,7 @@ impl<D: Disk> Server<D> {
         Ok(node.data().mtime().0)
     }
 
-    /// **Set `name`'s modification time to now** (`filesystem_proto::fs::SETMTIME`, bare `touch`).
+    /// **Set `name`'s modification time to now** (`filesystem_protocol::fs::SETMTIME`, bare `touch`).
     ///
     /// "Now" is this server's own advancing logical clock, the exact value every mutating verb
     /// already stamps a node with ([`Server::write`], [`Server::create_file_at`],
@@ -577,7 +577,7 @@ impl<D: Disk> Server<D> {
     /// sequence is guaranteed to
     /// observe the second mtime greater than the first, which is what a staleness check actually
     /// depends on; it is not guaranteed to agree with a wall-clock reading taken at the same
-    /// instant. See `filesystem_proto::fs::SETMTIME`'s doc and notes/touch.md's `BUGS`.
+    /// instant. See `filesystem_protocol::fs::SETMTIME`'s doc and notes/touch.md's `BUGS`.
     ///
     /// Needs [`dir::WRITE`], refused with [`dir::EROFS`], checked before the name is resolved for
     /// [`Server::unlink`]'s reason. No more than [`dir::WRITE`], because the value recorded is one
@@ -598,7 +598,7 @@ impl<D: Disk> Server<D> {
     }
 
     /// **Set `name`'s modification time to a caller-supplied Unix-seconds value**
-    /// (`filesystem_proto::fs::SETMTIME_AT`, `touch -t`; DECISIONS §112: the ability to *lie about
+    /// (`filesystem_protocol::fs::SETMTIME_AT`, `touch -t`; DECISIONS §112: the ability to *lie about
     /// history*).
     ///
     /// Needs [`dir::WRITE`] **and** [`dir::SETTIME`], refused with [`dir::EROFS`] for either
@@ -623,9 +623,9 @@ impl<D: Disk> Server<D> {
     // --- Extended attributes (milestone 57, DECISIONS §34's 2026-07-31 amendment) ---
     //
     // The engine has none of this. The four methods below are a **layer**: a store the server keeps
-    // in the image, keyed on the node's `TreePtr` id, published as `filesystem_proto::xattr::store`. What
+    // in the image, keyed on the node's `TreePtr` id, published as `filesystem_protocol::xattr::store`. What
     // makes the layer legitimate here and worthless on Linux is that nothing can bypass it, because
-    // every path to these bytes goes through `filesystem_proto`. See notes/xattr.md.
+    // every path to these bytes goes through `filesystem_protocol`. See notes/xattr.md.
 
     /// **Read one extended attribute of the node `handle` names**, returning its type code and the
     /// number of bytes written into `out`.
@@ -655,7 +655,7 @@ impl<D: Disk> Server<D> {
     }
 
     /// **Set one extended attribute on the node `handle` names.** Creating and replacing are one
-    /// operation ([`filesystem_proto::fs::SETXATTR`] says why).
+    /// operation ([`filesystem_protocol::fs::SETXATTR`] says why).
     ///
     /// Needs [`dir::WRITE`], refused with [`dir::EROFS`], which is what [`Server::write`] needs and
     /// answers. The three ceilings answer their own words ([`xattr::ERANGE`], [`xattr::E2BIG`],
@@ -739,7 +739,7 @@ impl<D: Disk> Server<D> {
     /// while this handle was open (see [`Server::unlink`]). Nothing else collects it, so a close is
     /// not merely bookkeeping in a table this server owns.
     pub fn close(&mut self, handle: u32) -> Result<()> {
-        if handle as u64 == filesystem_proto::fs::ROOT {
+        if handle as u64 == filesystem_protocol::fs::ROOT {
             return Err(Error::new(EINVAL));
         }
         let entry = self.entry(handle)?;
@@ -750,14 +750,14 @@ impl<D: Disk> Server<D> {
         Ok(())
     }
 
-    /// **How much room the image has** ([`filesystem_proto::fs::STATFS`], milestone 54), as
+    /// **How much room the image has** ([`filesystem_protocol::fs::STATFS`], milestone 54), as
     /// `(block_size, total_blocks, free_blocks)`.
     ///
     /// The handle is validated and then not used, which looks odd and is the point: it is the
     /// qualification rather than the subject. Holding any handle this server minted is what
     /// entitles a caller to ask, and the answer is about the one image behind all of them, so
     /// `EBADF` for a handle that was never minted is the whole of the check. No right is demanded;
-    /// [`filesystem_proto::fs::STATFS`] argues that at length.
+    /// [`filesystem_protocol::fs::STATFS`] argues that at length.
     ///
     /// **Where the two numbers come from, and why one is not read inside a transaction.**
     /// `header.size()` is the filesystem's size in bytes as the newest committed header records it,
@@ -768,7 +768,7 @@ impl<D: Disk> Server<D> {
     ///
     /// A transaction in flight elsewhere would move `free`, and there is none: this server runs one
     /// request to completion before it receives the next, which is the same property
-    /// [`filesystem_proto::fs::RENAME`]'s concurrency atomicity rests on.
+    /// [`filesystem_protocol::fs::RENAME`]'s concurrency atomicity rests on.
     pub fn statfs(&mut self, handle: u32) -> Result<(u64, u64, u64)> {
         self.entry(handle)?;
         let block = redoxfs::BLOCK_SIZE;
@@ -784,8 +784,8 @@ impl<D: Disk> Server<D> {
     /// **May this handle ask for the storage to be made durable?** (milestone 55). `Ok(())` when it
     /// may; the caller then does the IO.
     ///
-    /// This is the permission half of `filesystem_proto::fs::SYNC` and **it performs no flush**, which the
-    /// name is chosen to say. The flush is a `filesystem_proto::blk::FLUSH` to the block server, so it lives
+    /// This is the permission half of `filesystem_protocol::fs::SYNC` and **it performs no flush**, which the
+    /// name is chosen to say. The flush is a `filesystem_protocol::blk::FLUSH` to the block server, so it lives
     /// in the binary with the rest of the IO; RedoxFS's `Disk` trait has no sync method and this
     /// crate does not modify vendored code to add one. A method here called `sync` would be the
     /// exact kind of claim-beyond-the-mechanism milestone 55 exists to remove.
@@ -793,7 +793,7 @@ impl<D: Disk> Server<D> {
     /// `node_at` with [`dir::WRITE`], so it takes a handle of **either kind** the
     /// way `STATFS` does (the answer is about the storage, not about the node), and refuses with
     /// [`dir::EROFS`] the way every mutating verb does. The rights argument is in
-    /// `filesystem_proto::fs::SYNC`'s own documentation: a sync is an action on the device rather than a
+    /// `filesystem_protocol::fs::SYNC`'s own documentation: a sync is an action on the device rather than a
     /// fact about it, and a read-only holder has nothing outstanding to make durable.
     ///
     /// Name: provisional, minted by milestone 55's durability lane on 2026-08-18.
@@ -1069,9 +1069,9 @@ fn drop_store_if_empty<D: Disk>(tx: &mut Transaction<D>) -> Result<()> {
 pub const BLOCK: usize = 4096;
 
 /// **The one place in this tree that sees both the wire protocol and the store**, which is what
-/// makes the two assertions below possible at all: `filesystem_proto` deliberately depends on nothing, and
+/// makes the two assertions below possible at all: `filesystem_protocol` deliberately depends on nothing, and
 /// the vendored engine has never heard of it. Milestone 138 wrote them because it moved the record
-/// level, and `filesystem_proto::fixture::throughput::RECORD`'s own comment named itself the soft spot a
+/// level, and `filesystem_protocol::fixture::throughput::RECORD`'s own comment named itself the soft spot a
 /// change like that would break silently.
 ///
 /// They are `const` assertions rather than tests so that they fire in the EL0 build too, where no
@@ -1084,7 +1084,7 @@ const _: () = {
     // The record-aligned throughput phase reads at multiples of `RECORD`, and that means what it
     // claims only while every such multiple is also a record boundary. See that constant's comment.
     assert!(
-        filesystem_proto::fixture::throughput::RECORD
+        filesystem_protocol::fixture::throughput::RECORD
             .is_multiple_of(redoxfs::BLOCK_SIZE << redoxfs::RECORD_LEVEL)
     );
 
@@ -1097,10 +1097,10 @@ const _: () = {
     // now carries up to `fs::TRANSFER_MAX` bytes straight into the shared region, and RedoxFS reads
     // and writes it a record at a time from there; a channel that ended part way through a block
     // would make the last chunk of every full-channel request a partial one, which is the shape the
-    // repeat-write bug had. Nothing else in the tree can check this: `filesystem_proto` has never heard of
-    // the store and the store has never heard of `filesystem_proto`.
-    assert!(filesystem_proto::fs::TRANSFER_MAX.is_multiple_of(BLOCK));
-    assert!(filesystem_proto::fs::TRANSFER_MAX >= BLOCK);
+    // repeat-write bug had. Nothing else in the tree can check this: `filesystem_protocol` has never heard of
+    // the store and the store has never heard of `filesystem_protocol`.
+    assert!(filesystem_protocol::fs::TRANSFER_MAX.is_multiple_of(BLOCK));
+    assert!(filesystem_protocol::fs::TRANSFER_MAX >= BLOCK);
 };
 
 /// A block-granular transport: read or write one whole filesystem block, or report the disk size.
@@ -1338,7 +1338,7 @@ mod tests {
     /// **A sync is a write-side authority, and a read-only capability may not ask for one**
     /// (milestone 55).
     ///
-    /// The rights question here is not obvious and the answer is argued at `filesystem_proto::fs::SYNC`,
+    /// The rights question here is not obvious and the answer is argued at `filesystem_protocol::fs::SYNC`,
     /// so what this pins is the choice rather than a mechanism: a sync is an *action on the
     /// device*, and a device flush stalls the queue for every client of the image. Letting a
     /// read-only holder ask would hand it a lever on everybody else's write latency for no
@@ -1362,7 +1362,7 @@ mod tests {
 
         // The bound directory carries every right, so it may ask.
         assert!(
-            srv.sync_permitted(filesystem_proto::fs::ROOT as u32)
+            srv.sync_permitted(filesystem_protocol::fs::ROOT as u32)
                 .is_ok()
         );
 
@@ -1376,7 +1376,7 @@ mod tests {
         // have said yes.
         let ro = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::ENUMERATE | dir::READ | dir::DESCEND,
             )
@@ -1399,7 +1399,7 @@ mod tests {
     #[test]
     fn setting_mtime_to_now_twice_observes_two_different_times_and_neither_is_the_callers_choice() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
 
         let before = srv.mtime(root, "motd").expect("read the seeded mtime");
         srv.set_mtime_now(root, "motd").expect("touch, bare");
@@ -1426,15 +1426,15 @@ mod tests {
     #[test]
     fn setting_an_arbitrary_mtime_round_trips_exactly_and_is_not_now() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
 
         // The same instant the kernel-booted witness asserts with a real `touch -t` command line
-        // (`filesystem_proto::fixture::tree::NAV_TOUCH_AT_UNIX`), reused here rather than a second
+        // (`filesystem_protocol::fixture::tree::NAV_TOUCH_AT_UNIX`), reused here rather than a second
         // literal so the two round-trip checks (this one in-process, that one over the real wire)
         // are provably checking the same claim. Nowhere near this server's own advancing clock
         // (which starts at 1 and has moved by single digits by the time this test runs), so a
         // fallback to "now" cannot coincidentally pass.
-        const ASSERTED: u64 = filesystem_proto::fixture::tree::NAV_TOUCH_AT_UNIX;
+        const ASSERTED: u64 = filesystem_protocol::fixture::tree::NAV_TOUCH_AT_UNIX;
         srv.set_mtime_at(root, "motd", ASSERTED)
             .expect("write an arbitrary mtime with full rights");
         assert_eq!(
@@ -1582,7 +1582,7 @@ mod tests {
     /// The payload for pass `n` of the repeat-write test: a fixed 64 bytes, tagged with the pass and
     /// position-dependent after that, so every pass has the same length (no truncation confusion) and
     /// a stale or shifted read cannot match. Shared with the on-device client through
-    /// `filesystem_proto::fixture` where that matters.
+    /// `filesystem_protocol::fixture` where that matters.
     fn repeat_write_payload(pass: u8) -> [u8; 64] {
         let mut p = [0u8; 64];
         p[..8].copy_from_slice(b"CRKRPT__");
@@ -1741,7 +1741,7 @@ mod tests {
     // --- The directory capability (milestone 47) ---
 
     /// Build an image with a subtree: files in the root, then `sub/` holding `inner` and `deeper/`,
-    /// and a sibling `other/` holding `secret`. The same shape `filesystem_proto::fixture::tree` describes
+    /// and a sibling `other/` holding `secret`. The same shape `filesystem_protocol::fixture::tree` describes
     /// and the device fixture carries, so the host tests and the guest tests attack one geometry.
     fn image_with_tree() -> DiskMemory {
         let disk = DiskMemory::new(16 * 1024 * 1024);
@@ -1796,7 +1796,7 @@ mod tests {
             if n == 0 {
                 return Ok(out);
             }
-            for (name, is_dir) in filesystem_proto::dirent::iter(&buf[..n]) {
+            for (name, is_dir) in filesystem_protocol::dirent::iter(&buf[..n]) {
                 out.push((String::from_utf8(name.to_vec()).unwrap(), is_dir));
                 cursor += 1;
             }
@@ -1812,7 +1812,7 @@ mod tests {
     fn a_child_directory_handle_names_only_what_is_in_it() {
         let mut srv = server_with_tree();
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
 
         let inner = srv.open_file_at(sub, "inner").expect("its own file opens");
@@ -1848,7 +1848,7 @@ mod tests {
         // A parent that may descend and read, and may not create, write or remove.
         let narrow = dir::DESCEND | dir::READ | dir::ENUMERATE;
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", narrow)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", narrow)
             .unwrap();
 
         assert_eq!(
@@ -1925,13 +1925,17 @@ mod tests {
             // when it should fail.
             let without = srv
                 .open_dir(
-                    filesystem_proto::fs::ROOT as u32,
+                    filesystem_protocol::fs::ROOT as u32,
                     "sub",
                     dir::ALL & !withheld,
                 )
                 .unwrap();
             let with = srv
-                .open_dir(filesystem_proto::fs::ROOT as u32, "sub", needed | dir::READ)
+                .open_dir(
+                    filesystem_protocol::fs::ROOT as u32,
+                    "sub",
+                    needed | dir::READ,
+                )
                 .unwrap();
 
             let attempt = |srv: &mut Server<DiskMemory>, h: u32| -> Result<()> {
@@ -1971,7 +1975,7 @@ mod tests {
     fn unlink_takes_the_name_and_leaves_the_object_for_whoever_holds_it() {
         let mut srv = server_with_tree();
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
 
         let h = srv.create_file_at(sub, "doomed").unwrap();
@@ -2031,7 +2035,7 @@ mod tests {
     fn rmdir_removes_an_empty_directory_and_refuses_one_with_a_name_in_it() {
         let mut srv = server_with_tree();
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
 
         // `deeper` holds `leaf`, so this is exactly the subtree-in-one-word case.
@@ -2079,7 +2083,7 @@ mod tests {
     fn rmdir_refuses_a_file_a_missing_name_a_path_and_a_capability_without_remove() {
         let mut srv = server_with_tree();
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
 
         assert_eq!(
@@ -2101,7 +2105,7 @@ mod tests {
 
         let ro = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::ALL & !dir::REMOVE,
             )
@@ -2125,7 +2129,7 @@ mod tests {
     #[test]
     fn a_recursive_removal_is_a_loop_of_individually_safe_steps() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
 
         assert_eq!(
             srv.rmdir(root, "sub").err().map(|e| e.errno),
@@ -2168,7 +2172,7 @@ mod tests {
     fn unlink_refuses_a_directory_a_missing_name_and_a_path() {
         let mut srv = server_with_tree();
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
 
         assert_eq!(
@@ -2192,7 +2196,7 @@ mod tests {
         // must answer the same word.
         let ro = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::ALL & !dir::REMOVE,
             )
@@ -2213,7 +2217,7 @@ mod tests {
 
         let ro = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::DESCEND | dir::READ,
             )
@@ -2234,7 +2238,7 @@ mod tests {
 
         let wo = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::DESCEND | dir::WRITE,
             )
@@ -2256,7 +2260,7 @@ mod tests {
     fn a_listing_holds_exactly_the_names_in_that_directory() {
         let mut srv = server_with_tree();
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
 
         let mut got = list(&mut srv, sub, 256).expect("enumerate");
@@ -2270,7 +2274,7 @@ mod tests {
         // The root's own listing has the sibling in it, which is what makes the assertion above a
         // statement about the capability rather than about an empty directory.
         let mut root =
-            list(&mut srv, filesystem_proto::fs::ROOT as u32, 256).expect("enumerate the root");
+            list(&mut srv, filesystem_protocol::fs::ROOT as u32, 256).expect("enumerate the root");
         root.sort();
         assert!(root.iter().any(|(n, d)| n == "other" && *d));
     }
@@ -2281,7 +2285,7 @@ mod tests {
     #[test]
     fn a_listing_larger_than_the_buffer_is_paged_without_tearing_a_name() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         for i in 0..12 {
             srv.create_file_at(root, &format!("entry-{i:02}-with-a-longish-name"))
                 .unwrap();
@@ -2302,7 +2306,7 @@ mod tests {
         // No REMOVE, so nothing made below may remove either.
         let held = dir::DESCEND | dir::CREATE | dir::READ | dir::WRITE | dir::ENUMERATE;
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", held)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", held)
             .unwrap();
 
         let made = srv.make_dir(sub, "logs", held).expect("mkdir");
@@ -2333,7 +2337,7 @@ mod tests {
         let mut srv = server_with_tree();
         let logs = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::DESCEND | dir::READ | dir::WRITE,
             )
@@ -2355,7 +2359,7 @@ mod tests {
     #[test]
     fn a_directory_handle_and_a_file_handle_refuse_each_others_verbs() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let sub = srv.open_dir(root, "sub", dir::ALL).unwrap();
         let file = srv.open_file_at(sub, "inner").unwrap();
         let mut buf = [0u8; 32];
@@ -2409,7 +2413,7 @@ mod tests {
     #[test]
     fn a_rename_moves_a_name_within_a_directory_and_between_two() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let sub = srv.open_dir(root, "sub", dir::ALL).unwrap();
         let deeper = srv.open_dir(sub, "deeper", dir::ALL).unwrap();
 
@@ -2447,7 +2451,7 @@ mod tests {
     #[test]
     fn a_rename_needs_remove_where_it_takes_from_and_create_where_it_puts() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         // Everything but REMOVE: milestone 47's motivating sentence, "add to this, destroy nothing".
         let append = srv.open_dir(root, "sub", dir::ALL & !dir::REMOVE).unwrap();
         assert_eq!(
@@ -2490,7 +2494,7 @@ mod tests {
     #[test]
     fn a_cross_directory_rename_consults_both_directories_rights() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let src = srv.open_dir(root, "sub", dir::ALL).unwrap();
         // A destination with no CREATE. Reached by descending twice so it is a genuinely different
         // capability rather than the same handle spelled differently.
@@ -2518,7 +2522,7 @@ mod tests {
     #[test]
     fn a_rename_replaces_a_file_and_refuses_to_cross_kinds() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let sub = srv.open_dir(root, "sub", dir::ALL).unwrap();
         let tmp = srv.create_file_at(sub, "tmp").unwrap();
         srv.write(tmp, 0, b"the new contents").unwrap();
@@ -2571,7 +2575,7 @@ mod tests {
     #[test]
     fn a_directory_renames_in_place_and_refuses_to_move_between_directories() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let sub = srv.open_dir(root, "sub", dir::ALL).unwrap();
 
         srv.rename(sub, "deeper", sub, "renamed-dir")
@@ -2603,7 +2607,7 @@ mod tests {
     #[test]
     fn a_rename_refuses_what_every_other_name_taking_verb_refuses() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let sub = srv.open_dir(root, "sub", dir::ALL).unwrap();
 
         for bad in ["..", ".", "", "a/b", "/abs", "with:colon"] {
@@ -2647,14 +2651,14 @@ mod tests {
         {
             let mut srv = Server::open(disk).expect("open");
             let sub = srv
-                .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+                .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
                 .unwrap();
             srv.rename(sub, "inner", sub, "survivor").unwrap();
             disk = srv.fs.disk;
         }
         let mut srv = Server::open(disk).expect("reopen");
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
         assert_eq!(
             srv.open_file_at(sub, "inner").err().map(|e| e.errno),
@@ -2674,7 +2678,7 @@ mod tests {
         {
             let mut srv = Server::open(disk).expect("open");
             let sub = srv
-                .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+                .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
                 .unwrap();
             let made = srv.make_dir(sub, "made", dir::ALL).unwrap();
             let f = srv.create_file_at(made, "note").unwrap();
@@ -2683,7 +2687,7 @@ mod tests {
         }
         let mut srv = Server::open(disk).expect("reopen");
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
         let made = srv
             .open_dir(sub, "made", dir::ALL)
@@ -2705,7 +2709,7 @@ mod tests {
     fn statfs_reports_the_image_and_a_write_takes_space_out_of_it() {
         let mut srv = server_with(&[("small", b"x")]);
 
-        let (block, total, free) = srv.statfs(filesystem_proto::fs::ROOT as u32).unwrap();
+        let (block, total, free) = srv.statfs(filesystem_protocol::fs::ROOT as u32).unwrap();
         assert_eq!(
             block,
             redoxfs::BLOCK_SIZE,
@@ -2713,7 +2717,7 @@ mod tests {
         );
         // `server_with` builds a 16 MiB DiskMemory; the filesystem is that minus the reservation
         // RedoxFS makes at the front, so the assertion is a range rather than an equality.
-        let bytes = filesystem_proto::statfs::total_bytes(block, total);
+        let bytes = filesystem_protocol::statfs::total_bytes(block, total);
         assert!(
             (8 * 1024 * 1024..=16 * 1024 * 1024).contains(&bytes),
             "a 16 MiB image reported {bytes} bytes",
@@ -2722,7 +2726,8 @@ mod tests {
 
         let h = srv.create_file("big").unwrap();
         srv.write(h, 0, &[7u8; 1024 * 1024]).unwrap();
-        let (_, after_total, after_free) = srv.statfs(filesystem_proto::fs::ROOT as u32).unwrap();
+        let (_, after_total, after_free) =
+            srv.statfs(filesystem_protocol::fs::ROOT as u32).unwrap();
         assert_eq!(after_total, total, "the image did not change size");
         assert!(
             after_free < free,
@@ -2735,13 +2740,13 @@ mod tests {
         assert_eq!(srv.statfs(9999).err().map(|e| e.errno), Some(EBADF));
     }
 
-    /// **No right is demanded**, which is the row `filesystem_proto::verb::TABLE` carries and the thing a
+    /// **No right is demanded**, which is the row `filesystem_protocol::verb::TABLE` carries and the thing a
     /// narrowed capability depends on: a grant that may write but not read still has to be able to
     /// find out whether its next write fits.
     #[test]
     fn statfs_answers_through_a_capability_that_carries_nothing() {
         let mut srv = server_with_tree();
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         // A child directory holding one right, and not one of the ones a read would need.
         let narrow = srv.open_dir(root, "sub", dir::DESCEND).unwrap();
         assert!(
@@ -2751,7 +2756,7 @@ mod tests {
         assert_eq!(
             srv.statfs(narrow).unwrap().0,
             redoxfs::BLOCK_SIZE,
-            "STATFS asks for no right; see filesystem_proto::fs::STATFS",
+            "STATFS asks for no right; see filesystem_protocol::fs::STATFS",
         );
     }
 
@@ -3115,7 +3120,7 @@ mod tests {
     fn attr_names(srv: &mut Server<DiskMemory>, handle: u32) -> Vec<Vec<u8>> {
         let mut page = [0u8; 4096];
         let n = srv.list_xattr(handle, &mut page).expect("list");
-        filesystem_proto::xattr::list::iter(&page[..n])
+        filesystem_protocol::xattr::list::iter(&page[..n])
             .map(|s| s.to_vec())
             .collect()
     }
@@ -3178,16 +3183,16 @@ mod tests {
 
         // Rename within the root, then into a subdirectory: neither touches the node.
         srv.rename(
-            filesystem_proto::fs::ROOT as u32,
+            filesystem_protocol::fs::ROOT as u32,
             "motd",
-            filesystem_proto::fs::ROOT as u32,
+            filesystem_protocol::fs::ROOT as u32,
             "motd2",
         )
         .expect("rename in place");
         let sub = srv
-            .open_dir(filesystem_proto::fs::ROOT as u32, "sub", dir::ALL)
+            .open_dir(filesystem_protocol::fs::ROOT as u32, "sub", dir::ALL)
             .unwrap();
-        srv.rename(filesystem_proto::fs::ROOT as u32, "motd2", sub, "moved")
+        srv.rename(filesystem_protocol::fs::ROOT as u32, "motd2", sub, "moved")
             .expect("rename across directories");
 
         let after = node_id_of(&mut srv, TreePtr::root(), "sub");
@@ -3226,7 +3231,7 @@ mod tests {
         assert!(store_holds(&mut srv, doomed));
 
         srv.close(h).unwrap(); // an open handle pins the node; close first so the id is really freed
-        srv.unlink(filesystem_proto::fs::ROOT as u32, "doomed")
+        srv.unlink(filesystem_protocol::fs::ROOT as u32, "doomed")
             .unwrap();
         assert!(
             !store_holds(&mut srv, doomed),
@@ -3278,9 +3283,9 @@ mod tests {
         let winner_id = node_id_of(&mut srv, TreePtr::root(), "winner");
 
         srv.rename(
-            filesystem_proto::fs::ROOT as u32,
+            filesystem_protocol::fs::ROOT as u32,
             "winner",
-            filesystem_proto::fs::ROOT as u32,
+            filesystem_protocol::fs::ROOT as u32,
             "victim",
         )
         .expect("replace");
@@ -3304,7 +3309,7 @@ mod tests {
     fn a_directory_carries_attributes_and_rmdir_takes_them_with_it() {
         let mut srv = server_with_tree();
         let d = srv
-            .make_dir(filesystem_proto::fs::ROOT as u32, "attrdir", dir::ALL)
+            .make_dir(filesystem_protocol::fs::ROOT as u32, "attrdir", dir::ALL)
             .unwrap();
         srv.set_xattr(d, b"user.on-a-directory", 3, b"yes").unwrap();
         let id = node_id_of(&mut srv, TreePtr::root(), "attrdir");
@@ -3313,7 +3318,7 @@ mod tests {
             (3, b"yes".to_vec()),
         );
 
-        srv.rmdir(filesystem_proto::fs::ROOT as u32, "attrdir")
+        srv.rmdir(filesystem_protocol::fs::ROOT as u32, "attrdir")
             .unwrap();
         assert!(
             !store_holds(&mut srv, id),
@@ -3370,7 +3375,7 @@ mod tests {
         // so the two paths need separate evidence.
         srv.set_xattr(motd, b"user.c", xattr::RAW, b"3").unwrap();
         assert!(store_exists(&mut srv));
-        srv.unlink(filesystem_proto::fs::ROOT as u32, "motd")
+        srv.unlink(filesystem_protocol::fs::ROOT as u32, "motd")
             .unwrap();
         srv.close(motd).unwrap();
         assert!(
@@ -3394,7 +3399,7 @@ mod tests {
             "nothing was created, so nothing is being hidden",
         );
 
-        let root = filesystem_proto::fs::ROOT as u32;
+        let root = filesystem_protocol::fs::ROOT as u32;
         let listed = list(&mut srv, root, 4096).unwrap();
         assert!(
             !listed.iter().any(|(n, _)| n == xattr::STORE_DIR),
@@ -3454,7 +3459,7 @@ mod tests {
         // A read-only directory, so the file handle under it inherits read and not write.
         let ro = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::READ | dir::DESCEND,
             )
@@ -3479,7 +3484,7 @@ mod tests {
         // `EBADF` because it is a fact about the handle rather than about the capability.
         let wo = srv
             .open_dir(
-                filesystem_proto::fs::ROOT as u32,
+                filesystem_protocol::fs::ROOT as u32,
                 "sub",
                 dir::WRITE | dir::DESCEND,
             )

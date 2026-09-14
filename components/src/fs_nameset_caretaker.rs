@@ -23,11 +23,11 @@
 //!    caretaker, it is writing a subtree caretaker and calling it one.
 //! 3. **The grants have different shapes.** A single name rides in two `START` argument words; a
 //!    set does not fit in any number of registers, so this program is started with a **frame** as
-//!    well (`filesystem_proto::nameset`). Bolting that onto `fs_subtree_caretaker` would make every subtree
+//!    well (`filesystem_protocol::nameset`). Bolting that onto `fs_subtree_caretaker` would make every subtree
 //!    grant carry machinery it does not use.
 //!
 //! What *is* the roadmap's finding, and holds exactly: this is the same caretaker, speaking the
-//! same `filesystem_proto` protocol above and below, over a wider namespace. **Nothing new in the kernel.**
+//! same `filesystem_protocol` protocol above and below, over a wider namespace. **Nothing new in the kernel.**
 //!
 //! # The rule, and the fact that there is only one
 //!
@@ -68,7 +68,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use filesystem_proto::{dirent, fs, grant, nameset, op, reply_err, reply_errno, verb};
+use filesystem_protocol::{dirent, fs, grant, nameset, op, reply_err, reply_errno, verb};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, recv_cap, send};
 
@@ -85,7 +85,7 @@ const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 /// grant machinery that needs one: a set is the first thing a grant carries that registers cannot.
 const SET_VA: u64 = 0x0000_0000_0070_0000;
 /// The shared page's size, the contract's transfer unit.
-const PAGE: usize = filesystem_proto::PAGE;
+const PAGE: usize = filesystem_protocol::PAGE;
 
 // SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
 // round 2; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled read_volatile/
@@ -172,7 +172,7 @@ fn name_at(off: usize, len: usize, buf: &mut [u8; grant::MAX_NAME]) -> usize {
 /// Which verbs get asked the question used to be a list of match arms here, and the failure mode was
 /// the sharp one: a name-taking verb added to the contract would arrive **unfiltered**, so a set
 /// capability would quietly reach a name the pattern never matched. It is now
-/// [`verb::Verb::takes_name`], a row in `filesystem_proto`'s verb table, so the filter covers a new verb
+/// [`verb::Verb::takes_name`], a row in `filesystem_protocol`'s verb table, so the filter covers a new verb
 /// from the moment its row exists.
 ///
 /// The distinction that makes this safe is a variant of [`verb::Operand`]. An **attribute** name is
@@ -345,7 +345,7 @@ pub extern "C" fn _start(name_lo: u64, name_hi: u64, spec: u64) -> ! {
         panic!();
     }
 
-    send(REPORT, filesystem_proto::fixture::READY, 0, 0);
+    send(REPORT, filesystem_protocol::fixture::READY, 0, 0);
     serve(r0, &set);
 }
 

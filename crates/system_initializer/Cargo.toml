@@ -17,8 +17,8 @@ grant_plan = { version = "0.1.0", path = "../grant_plan" }
 # The filesystem contract, for exactly one word: the readiness sentinel a `fs_subtree_caretaker`
 # answers a directory grant's descent with (milestone 31 phase 3). An in-tree protocol crate rather
 # than a constant copied here, which is rule 7: what two binaries agree on is a crate. It brings
-# nothing with it (filesystem_proto has no non-dev dependencies of its own).
-filesystem_proto = { version = "0.1.0", path = "../filesystem_proto" }
+# nothing with it (filesystem_protocol has no non-dev dependencies of its own).
+filesystem_protocol = { version = "0.1.0", path = "../filesystem_protocol" }
 # The terminal contract's framing, for the one sentence init prints (`proto::OP_WRITE`).
 line_editor = { version = "0.1.0", path = "../line_editor" }
 # The hash and the manifest format the kernel measures init with (milestone 104). This crate is the
@@ -26,22 +26,22 @@ line_editor = { version = "0.1.0", path = "../line_editor" }
 measured_boot = { version = "0.1.0", path = "../measured_boot" }
 # The sink contract, for the end-of-stream init sends on a child's behalf when the child was never
 # built and therefore cannot end its own second stream.
-byte_sink_proto = { version = "0.1.0", path = "../byte_sink_proto" }
+byte_sink_protocol = { version = "0.1.0", path = "../byte_sink_protocol" }
 # The userspace ELF loader, and the fault slot that makes a child born supervised. One loader in the
 # tree since milestone 96; this crate is one of its two callers.
-supervision_proto = { version = "0.1.0", path = "../supervision_proto" }
+supervision_protocol = { version = "0.1.0", path = "../supervision_protocol" }
 user_mode_runtime = { version = "0.1.0", path = "../user_mode_runtime" }
 # The login service's spawn contract (milestone 233), for exactly two constants: the addresses this
 # crate maps `fs_subtree_caretaker`'s image and the measurement table at before starting `login`.
 # Rule 7 (what two binaries agree on is a crate) leaves nowhere else to put them. Pure logic, and it
-# brings only `credential_proto`, which this crate already depends on directly.
-login_proto = { version = "0.1.0", path = "../login_proto" }
+# brings only `credential_protocol`, which this crate already depends on directly.
+login_protocol = { version = "0.1.0", path = "../login_protocol" }
 # The entropy contract (DECISIONS §120's 2026-08-26 amendment), for the one message this crate
 # reads: the readiness sentinel an entropy service answers once it has drawn its first bufferful
 # from a real device. Pure logic, no non-dev dependencies of its own.
-entropy_proto = { version = "0.1.0", path = "../entropy_proto" }
+entropy_protocol = { version = "0.1.0", path = "../entropy_protocol" }
 # The credential contract (milestone 49's boot-wiring update), for the request word `identity_provisioner`
 # needs staged and the provision opcodes (`PUT`, `SEAL`) this crate sends directly. Pure logic, no
-# non-dev dependencies of its own; `login_proto` itself re-exports the same functions rather than
+# non-dev dependencies of its own; `login_protocol` itself re-exports the same functions rather than
 # duplicating them, so this is the one crate both `login.rs` and this file ultimately share.
-credential_proto = { version = "0.1.0", path = "../credential_proto" }
+credential_protocol = { version = "0.1.0", path = "../credential_protocol" }

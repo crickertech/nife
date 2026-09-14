@@ -123,7 +123,7 @@ on this design.
 networking is a userspace component (CAmkES/lwIP, later Rust). Whatever a net server implements *is*
 the policy. So there is no seL4 answer to diverge from here, and any claim that "seL4 does X" means
 "some unverified seL4 component does X", since seL4's proofs cover the kernel and a port policy is
-outside them. **The same is true of us**: nothing in `crates/socket_proto` is machine-checked, and
+outside them. **The same is true of us**: nothing in `crates/socket_protocol` is machine-checked, and
 this grant is ordinary code.
 
 **Plan 9: authority by namespace.** You write `announce 80` into `/net/tcp/clone`, and what
@@ -271,7 +271,7 @@ not yet built is the client-facing socket contract that lets *other* processes u
 
 The §25 contract, so a process other than net_stack can open sockets. net_stack, after DHCP, serves requests
 on a `Stack` endpoint; a client holds `WRITE` on it plus its own untyped budget. Files:
-`crates/socket_proto/src/lib.rs` (the wire format), the serve loop in `components/src/net_stack.rs`, and the client in
+`crates/socket_protocol/src/lib.rs` (the wire format), the serve loop in `components/src/net_stack.rs`, and the client in
 `components/src/socket_test_client.rs` (a module of the net_stack binary, dispatched by the entry role, see the archive
 note below).
 
@@ -442,7 +442,7 @@ Everything above is the guest as a client. The TCP gate connects out to a slirp 
 UDP gate sends a request, DHCP is a client protocol. nife could reach the network and could not
 be reached, and the contract had no listen verb to fix that with.
 
-Milestone 107 adds `LISTEN` and `ACCEPT` (`crates/socket_proto`, opcodes 9 and 10, **names
+Milestone 107 adds `LISTEN` and `ACCEPT` (`crates/socket_protocol`, opcodes 9 and 10, **names
 provisional**), the smoltcp side in `components/src/net_stack.rs`, and a gate in which a **host process
 connects into the guest** and gets an answer the guest composed. Two design questions came with the
 verbs, and neither was copied from POSIX.
@@ -486,7 +486,7 @@ name in a shared namespace, which is the same property that makes a directory a 
 rather than a path (milestone 32's FS server) and the same reason `bind` (§50) is a grant.
 
 So the port is not the client's to pick. `wire_net_server` spawns `net_stack` with a **listen
-grant**, an inclusive range packed by `socket_proto::listen_grant` and carried in the spawn's `arg2`;
+grant**, an inclusive range packed by `socket_protocol::listen_grant` and carried in the spawn's `arg2`;
 `LISTEN` outside it replies `LISTEN_DENIED`. Every outbound test passes `NO_LISTEN_GRANT`, which is
 also the default, so **a net server that was never told which ports it may serve refuses all of
 them**: inbound authority is granted, never assumed. `LISTEN_DENIED` is deliberately a different
@@ -533,7 +533,7 @@ step is real concurrency (userspace threads, or a select-shaped wait), not anoth
 ### EXAMPLES: serving a port, end to end
 
 **Spawn side.** Whoever wires the pair decides the inbound authority, and the client never asks for
-it. `socket_proto::listen_grant(lo, hi)` packs an inclusive range into the one word `arg2` carries:
+it. `socket_protocol::listen_grant(lo, hi)` packs an inclusive range into the one word `arg2` carries:
 
 ```rust
 // A stack whose client may listen on 7778 and nothing else.
@@ -541,12 +541,12 @@ let report = virtio_service::start_net_stack(
     image,
     NET_TEST_TCP_ACCEPT,                                    // which exchange the client drives
     false,                                                  // mmio, not PCIe
-    socket_proto::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
+    socket_protocol::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT),
 )?;
 
 // A stack that serves nobody inbound, which is every other net test in the tree.
 let report = virtio_service::start_net_stack(image, NET_TEST_TCP_ECHO, false,
-                                             socket_proto::NO_LISTEN_GRANT)?;
+                                             socket_protocol::NO_LISTEN_GRANT)?;
 ```
 
 **Client side.** Bind the port, then accept into a *different* socket id that already has a frame.
@@ -980,7 +980,7 @@ Two things this does **not** fix, both recorded rather than papered over:
 - **Inbound UDP is now built, and it is a grant of its own** (milestone 55's mDNS stack half; this
   bullet used to say "not built"). `BIND_UDP` claims a fixed UDP port the way `LISTEN` claims a TCP
   one, checked against a **UDP bind grant** the spawn site packs into the high half of the same
-  spawn word the listen grant rides in (`socket_proto::udp_bind_grant`; the halves are independent
+  spawn word the listen grant rides in (`socket_protocol::udp_bind_grant`; the halves are independent
   authorities, and the zero word still grants nothing anywhere). It answers with `LISTEN`'s own
   vocabulary because the three outcomes are properties of claiming a port, not of TCP. In the same
   change, a UDP `RECV` reply now carries the datagram's **source endpoint** in the frame's dst

@@ -99,10 +99,10 @@ user_mode_heap = { version = "0.1.0", path = "../crates/user_mode_heap" }
 redox_syscall = { version = "0.9.0", default-features = false }
 
 # The wire protocols. NOT optional since milestone 47: the rights ladder a directory capability
-# carries (`filesystem_proto::dir`) is the sans-IO core's own vocabulary rather than something the serve loop
+# carries (`filesystem_protocol::dir`) is the sans-IO core's own vocabulary rather than something the serve loop
 # bolts on at the boundary, which is what makes the attenuation impossible to forget. Pure no_std
 # logic with no dependencies of its own, so it costs the host build nothing.
-filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
+filesystem_protocol = { version = "0.1.0", path = "../crates/filesystem_protocol" }
 
 # The partition table (milestone 57): `mkfs` finds the partition it is to format by reading the
 # GPT off the disk it holds, with the same parser `disk_surveyor` uses. Pure no_std logic with no
@@ -111,7 +111,7 @@ filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
 gpt = { version = "0.1.0", path = "../crates/gpt" }
 # The entropy contract (milestone 56): `mkfs`'s uuid comes over this wire, from a service, and
 # never from inside the engine.
-entropy_proto = { version = "0.1.0", path = "../crates/entropy_proto" }
+entropy_protocol = { version = "0.1.0", path = "../crates/entropy_protocol" }
 
 # EL0-only, optional (behind `el0`): the syscall runtime and the ABI numbers. Neither compiles for
 # the host, so they are absent from the host test build.

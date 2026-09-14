@@ -44,9 +44,9 @@
 /// channel wants it to do.
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(device: u64, log_base: u64, wedge: u64) -> ! {
-    swap_proto::serve(
-        swap_proto::V1,
-        swap_proto::digest,
+    swap_protocol::serve(
+        swap_protocol::V1,
+        swap_protocol::digest,
         log_base,
         device != 0,
         wedge,

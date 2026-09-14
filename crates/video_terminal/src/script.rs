@@ -7,10 +7,10 @@
 //! actually displaying. Neither reads the other's answer, and the terminal component that draws
 //! holds none of this: it renders whatever arrives.
 //!
-//! This is the same move `graphics_proto::pixel` makes for rung one's test pattern and `compositor::SCENE`
+//! This is the same move `graphics_protocol::pixel` makes for rung one's test pattern and `compositor::SCENE`
 //! for rung two's scene: the test's content lives in the contract crate, not in the test.
 
-/// The columns of a terminal that owns the whole scanout: `graphics_proto::WIDTH / bitmap_font::GLYPH_W`.
+/// The columns of a terminal that owns the whole scanout: `graphics_protocol::WIDTH / bitmap_font::GLYPH_W`.
 ///
 /// Spelled as a literal here rather than computed, because this crate deliberately does not depend
 /// on the framebuffer contract (a VT engine that knew about a scanout would be the wrong shape).
@@ -21,7 +21,7 @@
 /// 7's two).
 ///
 /// **Grown from 18 to 182 at milestone 142's increment 1, then retargeted to 132 on 2026-08-27**
-/// (`graphics_proto::WIDTH`'s doc comment has the full story: 182 was arithmetic against a *future*
+/// (`graphics_protocol::WIDTH`'s doc comment has the full story: 182 was arithmetic against a *future*
 /// 14-pixel cell that never shipped in this increment, applied by mistake to the 7x8 cell that did,
 /// producing a grid nearly double any terminal anyone runs). 132 columns is the classic VT100/VT220
 /// "wide mode" size at today's 7x8 bitmap font (`bitmap_font::GLYPH_W`/`GLYPH_H`, unchanged by this

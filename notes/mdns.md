@@ -10,18 +10,18 @@ backup system (design/roadmap/55-time-machine.md, "mDNS is required after all").
 
 Four pieces, all built:
 
-- **`crates/mdns_proto`**: the DNS wire format, compression handling, the DNS-SD PTR/SRV/TXT
+- **`crates/multicast_dns_protocol`**: the DNS wire format, compression handling, the DNS-SD PTR/SRV/TXT
   structuring, the probe-before-claim wire halves, `respond()` (the responder's entire decision as a
   pure function) and `announcement()` (RFC 6762 §8.3's unsolicited response). Host-tested against
   real captured router packets; Kani harnesses cover the parser's termination and bounds.
 - **The stack half** (both ISAs): smoltcp's `multicast` feature is on and `net_stack` joins
   224.0.0.251 at startup; `BIND_UDP` claims a fixed port against a granted range
-  (`socket_proto::udp_bind_grant`, the UDP twin of milestone 107's listen grant, riding the high
+  (`socket_protocol::udp_bind_grant`, the UDP twin of milestone 107's listen grant, riding the high
   half of the same spawn word); a UDP `RECV` reply carries the datagram's source endpoint in the
   frame's dst fields.
-- **`crates/mdns_config` and `components/mdns_responder.conf`**: what this machine advertises, as a
+- **`crates/multicast_dns_config` and `components/multicast_dns_responder.conf`**: what this machine advertises, as a
   document a person edits rather than constants in a program. See "The configuration" below.
-- **`components/src/mdns_responder.rs`**: the program. Binds 5353 through the grant, announces, then
+- **`components/src/multicast_dns_responder.rs`**: the program. Binds 5353 through the grant, announces, then
   answers queries with `respond()` until it has served its rounds. **One authority and nothing
   else**: it holds no share, no file, no TCP port, so the process that tells a Mac a backup target
   exists cannot serve a byte of it, and the process that serves the bytes (`smb_server`) cannot be
@@ -32,7 +32,7 @@ Four pieces, all built:
 All three service types were captured from calef's router (GL.iNet GL-BE9300 running OpenWrt,
 Samba with `vfs_fruit`, the working family Time Machine server) by sending one-shot PTR queries
 from the dev machine. The router answered from `192.168.8.1:5353`; the full hex is in
-`crates/mdns_proto/src/tests.rs` as the primary test vectors. Decoded:
+`crates/multicast_dns_protocol/src/tests.rs` as the primary test vectors. Decoded:
 
 | Record | `_smb._tcp` | `_adisk._tcp` | `_device-info._tcp` |
 |---|---|---|---|
@@ -89,7 +89,7 @@ note), the shapes the sizing proposed:
    state, so the join is unconditional; what is granted per client is the port.
 3. **Socket surface.** The three gaps, closed:
    - `OP_BIND_UDP` (name provisional) binds a **fixed** UDP port, checked against a **UDP bind
-     grant** the spawn site packs with `socket_proto::udp_bind_grant` into the high half of the
+     grant** the spawn site packs with `socket_protocol::udp_bind_grant` into the high half of the
      same spawn word milestone 107's listen grant occupies. The halves are independent
      authorities; the zero word still grants nothing anywhere. The reply vocabulary is `LISTEN`'s
      three outcomes, which are properties of claiming a port, not of TCP.
@@ -103,7 +103,7 @@ What was *not* needed is any change to smoltcp itself.
 
 ## The configuration: what a person edits
 
-**`components/mdns_responder.conf`**, parsed by `crates/mdns_config`, host-tested, and the responder's
+**`components/multicast_dns_responder.conf`**, parsed by `crates/multicast_dns_config`, host-tested, and the responder's
 only source for what it says:
 
 ```
@@ -127,13 +127,13 @@ record is worse than one with none: a Mac caches it and then cannot connect.
 file needs a file capability wired through the spawn and a fixture the QEMU gate cannot seed today.
 That is a delivery limitation and not a design one: the format, the parser, the line-numbered errors
 and every test are unaffected by where the bytes come from. The fix is a `FileSpec` grant plus an
-`filesystem_proto` open-and-read at startup, and it is the shortest remaining piece of milestone 55's
+`filesystem_protocol` open-and-read at startup, and it is the shortest remaining piece of milestone 55's
 discovery half.
 
-The gate reads the same document (`xtask` depends on `mdns_config`) and derives its expectations
+The gate reads the same document (`xtask` depends on `multicast_dns_config`) and derives its expectations
 from it, so editing what this machine advertises moves the assertion with it. What the gate does
 **not** share is the wire format: it decodes the guest's answers with a parser of its own, because a
-check that decoded them with `mdns_proto` would agree with `mdns_proto` about anything wrong.
+check that decoded them with `multicast_dns_protocol` would agree with `multicast_dns_protocol` about anything wrong.
 
 ## The QEMU gate: what it proves, and how
 
@@ -150,7 +150,7 @@ The exchange rides **inside milestone 107's accept test**
 than in a spawn of its own: a net server's spawn is ~154 frames nothing ever reclaims, and a
 twelfth one died as `Unmappable(OutOfFrames)` in an unrelated later test, the exact failure
 notes/net.md's memory receipt predicted. So that one spawn now carries three clients on one `Stack`
-endpoint: `socket_test_client` (socket ids 0 and 1), `smb_server` (2 and 3), and `mdns_responder`
+endpoint: `socket_test_client` (socket ids 0 and 1), `smb_server` (2 and 3), and `multicast_dns_responder`
 (4). Its grant word is `listen_grant(7778, 7779) | udp_bind_grant(5353, 5354)`, so the *composed*
 packing is what the machine exercises, not one half alone.
 
@@ -161,7 +161,7 @@ holding a granted port cannot demonstrate about itself: 4444 is outside the gran
 `LISTEN_DENIED` (authority, a different answer from "in use" and calling for a different response),
 5354 is inside it and binds, and asking for 5354 again on a second socket id collides.
 
-`mdns_responder` does the rest, with real DNS:
+`multicast_dns_responder` does the rest, with real DNS:
 
 1. It binds 5353 (its whole authority), then **announces** all three service types to the group. The
    announcement's arrival at the prober, off the raw wire, is the proof that a multicast `SENDTO`
@@ -173,7 +173,7 @@ holding a granted port cannot demonstrate about itself: 4444 is outside the gran
    the group rather than to the guest, from a spoofed source nothing on the virtual network holds.
    The guest's answer must come back to the group with the PTR in the answer section, the instance's
    SRV, TXT and the host's A as **additionals** (RFC 6763 §12.1), cache-flush set on the three the
-   responder owns and clear on the shared PTR, and every value matching `components/mdns_responder.conf`.
+   responder owns and clear on the shared PTR, and every value matching `components/multicast_dns_responder.conf`.
    That the injected datagram is accepted at all is the RX-acceptance proof the `multicast` feature
    exists for: without the join, the IPv4 input path drops it before UDP sees it.
 4. The prober then asks the **same question as a legacy one-shot**, from source port 5399 with
@@ -249,7 +249,7 @@ It prints the DHCP lease, the mount line for the SMB share, and then:
 ```
 smb-serve: the mDNS responder is advertising _smb._tcp, _adisk._tcp and _device-info._tcp on 5353.
 smb-serve:   on a Mac on the SAME SEGMENT: dns-sd -B _adisk._tcp
-smb-serve:   what it advertises is components/mdns_responder.conf, not compiled-in.
+smb-serve:   what it advertises is components/multicast_dns_responder.conf, not compiled-in.
 ```
 
 **That `dns-sd` will find nothing under QEMU**, and the reason is the same one the gate exists for:
@@ -261,8 +261,8 @@ and the first place a Mac's Time Machine UI could list this share.
 **Changing what it advertises** is one file and a rebuild:
 
 ```sh
-$EDITOR components/mdns_responder.conf
-cargo test -p mdns_config     # the shipped document must parse, and the disks must reach the TXT
+$EDITOR components/multicast_dns_responder.conf
+cargo test -p multicast_dns_config     # the shipped document must parse, and the disks must reach the TXT
 cargo xtask build
 ```
 
@@ -283,7 +283,7 @@ refuses to start and reports `0xE20L`, where `L` is the line number.
   Machine UI has listed this share. The bench on hardware, on the family network, with `dns-sd -B`
   and then with System Settings, is where those claims get proven; the gate's job is that the
   stack's filters, grants, headers and **records** are right.
-- **No probing before claiming the name** (RFC 6762 §8.1). `mdns_proto` has the wire halves
+- **No probing before claiming the name** (RFC 6762 §8.1). `multicast_dns_protocol` has the wire halves
   (`probe_query`, `conflicts`, `tiebreak`) and the responder does not use them: it announces
   straight away. Two nife machines with the same `host` in their configuration would both claim it
   and neither would notice. The missing part is a timer and a state machine, not bytes.
@@ -291,10 +291,10 @@ refuses to start and reports `0xE20L`, where `L` is the line number.
   Both need the same timer. A Mac that misses the announcement finds us at its next browse, which is
   frequent; a Mac that was watching keeps a dead server in its list until the TTL runs out.
 - **A response that would exceed the MTU is not sent.** The virtio transport carries 576 bytes (a
-  single-page DMA region), so `mdns_proto` composes at most 548 and the responder stays silent
+  single-page DMA region), so `multicast_dns_protocol` composes at most 548 and the responder stays silent
   rather than handing smoltcp a datagram it will not fragment. `announcement()` emits one service
   type per call for the same reason, and a host test pins that all three fit, including at
-  `mdns_config`'s eight-disk ceiling. RFC 6762's own answer is the TC bit and a follow-up message,
+  `multicast_dns_config`'s eight-disk ceiling. RFC 6762's own answer is the TC bit and a follow-up message,
   which nothing here implements.
 - **The configuration is compiled in.** See "The configuration" above; the fix is a file capability.
 - **The prober holds one TCP connection and never reconnects.** If QEMU drops the frame socket
@@ -313,7 +313,7 @@ refuses to start and reports `0xE20L`, where `L` is the line number.
   way is always legal, just occasionally chattier).
 - **Known-answer suppression is PTR-only**, and the responder inherits that: a querier that already
   holds our SRV or TXT is told again. Chatty, not wrong.
-- The crate's own BUGS section (`crates/mdns_proto/src/lib.rs`) records the remaining wire-level
+- The crate's own BUGS section (`crates/multicast_dns_protocol/src/lib.rs`) records the remaining wire-level
   limits: uncompressed emission, probe and announce timing left to the caller, no TC-bit delay.
 - **smoltcp's `socket-mdns` feature was not evaluated.** It exists in 0.13.1 for *client-side*
   DNS-over-multicast lookups (a `socket-dns` variant), not for a responder, so it does not change

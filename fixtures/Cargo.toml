@@ -178,7 +178,7 @@ test = false
 bench = false
 
 # The login service's test client (milestone 49, provisional name): presents an identity and a
-# secret, and on `login_proto::OK` receives the caretaker's endpoint, the file service's shared
+# secret, and on `login_protocol::OK` receives the caretaker's endpoint, the file service's shared
 # frame, and a budget, then uses all three to prove they work rather than merely that they arrived.
 # `initrd_aarch64` packs it as "login_test_client" for both ISAs.
 [[bin]]
@@ -355,12 +355,12 @@ bench = false
 abi = { version = "0.1.0", path = "../crates/abi" }
 # The words the milestone 7-19 capability demonstrations agree on, now that each is its own
 # binary (milestone 291). AGENTS.md rule 7: what two binaries must agree on is a crate.
-capability_demo_proto = { version = "0.1.0", path = "../crates/capability_demo_proto" }
+capability_demo_protocol = { version = "0.1.0", path = "../crates/capability_demo_protocol" }
 # A program's check that its own ELF image was loaded correctly (milestone 291). Two fixtures
 # need it, so it is a crate rather than a second copy.
 loaded_image_check = { version = "0.1.0", path = "../crates/loaded_image_check" }
 c_seam = { version = "0.1.0", path = "../crates/c_seam" }
-supervision_proto = { version = "0.1.0", path = "../crates/supervision_proto" }
+supervision_protocol = { version = "0.1.0", path = "../crates/supervision_protocol" }
 # The interactive system, built once (milestone 96). Both inits are a table of the slot numbers
 # their own kernel granted plus a call into this.
 system_initializer = { version = "0.1.0", path = "../crates/system_initializer" }
@@ -368,7 +368,7 @@ system_initializer = { version = "0.1.0", path = "../crates/system_initializer" 
 # its declaration rather than from literals, and `chatty` and `broker` derive their own slot
 # numbers from the declarations they are built against.
 component_plan = { version = "0.1.0", path = "../crates/component_plan" }
-swap_proto = { version = "0.1.0", path = "../crates/swap_proto" }
+swap_protocol = { version = "0.1.0", path = "../crates/swap_protocol" }
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # The soak workload's shared page (milestone 219). The kernel reads what the soaker writes, so the
 # layout and the reply transform live in one crate rather than in two copies.
@@ -376,24 +376,24 @@ soak_page = { version = "0.1.0", path = "../crates/soak_page" }
 # The multi-tasking workload's definition (milestone 168). The task runs what the kernel-side
 # supervisor times, from one description of the mix rather than two copies.
 job_mix = { version = "0.1.0", path = "../crates/job_mix" }
-credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
-login_proto = { version = "0.1.0", path = "../crates/login_proto" }
+credential_protocol = { version = "0.1.0", path = "../crates/credential_protocol" }
+login_protocol = { version = "0.1.0", path = "../crates/login_protocol" }
 compositor = { version = "0.1.0", path = "../crates/compositor" }
 coremark = { version = "0.1.0", path = "../crates/coremark" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 elf = { version = "0.1.0", path = "../crates/elf" }
-filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
-graphics_proto = { version = "0.1.0", path = "../crates/graphics_proto" }
+filesystem_protocol = { version = "0.1.0", path = "../crates/filesystem_protocol" }
+graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
-byte_sink_proto = { version = "0.1.0", path = "../crates/byte_sink_proto" }
+byte_sink_protocol = { version = "0.1.0", path = "../crates/byte_sink_protocol" }
 # The durable schedule store's shared names (milestone 152, DECISIONS §122/§125): the fixed file
 # names `session_reviver.rs` and `fs_test_client.rs`'s `ROLE_SCHEDULE_SEED` both depend on, and the
-# manifest format neither `timetable` nor `filesystem_proto` already owns.
+# manifest format neither `timetable` nor `filesystem_protocol` already owns.
 schedule_store = { version = "0.1.0", path = "../crates/schedule_store" }
 user_mode_runtime = { version = "0.1.0", path = "../crates/user_mode_runtime" }
 # The three crates `network_time_test_server` and `unwritable_clock_witness` need (milestone 290),
 # which arrived with them when the `ntp` binary's test-only roles moved out of `components/`. All
 # three are already in the shipping graph through `components`; nothing external was taken.
-ntp_proto = { version = "0.1.0", path = "../crates/ntp_proto" }
-socket_proto = { version = "0.1.0", path = "../crates/socket_proto" }
-clock_proto = { version = "0.1.0", path = "../crates/clock_proto" }
+network_time_protocol = { version = "0.1.0", path = "../crates/network_time_protocol" }
+socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
+clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }

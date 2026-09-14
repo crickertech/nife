@@ -7,7 +7,7 @@
 //! - a **`READ`-only capability on the roster page**, which says what block devices exist
 //!   (`block_roster`); and
 //! - a **block-service endpoint**, which lets it read and write the blocks of **one** device
-//!   (`filesystem_proto::blk`).
+//!   (`filesystem_protocol::blk`).
 //!
 //! Since milestone 108 the roster is a `PageFrame` this program holds and maps itself, rather than a
 //! page the kernel wired into its address space before it started. The practical difference is at
@@ -62,7 +62,7 @@
 //!   `crates/gpt` handles 4096 and is tested at it, and the block service does not carry the
 //!   device's logical block size on the wire, so there is nothing here to read it from. A 4Kn disk
 //!   would be read as though its LBA 1 were at byte 512, which is a wrong answer rather than an
-//!   error. The fix is a field in `filesystem_proto::blk`, not a change here.
+//!   error. The fix is a field in `filesystem_protocol::blk`, not a change here.
 //! - **It does not write.** Partitioning a disk from nife needs a unique GUID per partition,
 //!   which needs randomness, which this program is not endowed with. `crates/gpt` refuses to invent
 //!   one and notes/gpt.md says why. That is milestone 57's remaining half and it is a decision
@@ -82,7 +82,7 @@
 #![no_main]
 
 use block_roster::{Roster, TRANSPORT_MMIO, TRANSPORT_PCI};
-use filesystem_proto::{blk, req};
+use filesystem_protocol::{blk, req};
 use gpt::Gpt;
 use gpt::guid::types;
 use gpt::span::Span;
@@ -193,7 +193,7 @@ fn holder() -> ! {
     // SAFETY: ROSTER_VA is mapped read-only from the frame in slot 4, on the line above: the
     // program's own `PageFrame::MAP` succeeded first, which is exactly the case
     // `user_mode_runtime::mapped_window::MappedWindow::new`'s own doc names (milestone 139 round 3).
-    let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };
+    let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_protocol::PAGE as u64) };
     let word = roster.read::<u64>(0);
     send(REPORT, R_HOLDING, word, 0);
 
@@ -382,7 +382,7 @@ fn probe() -> ! {
     // `PageFrame::MAP` succeeded). Not safe to write through, and that is the test: as in `holder`'s
     // second read, `MappedWindow`'s bounds check passes (offset 0 is inside the window) and the
     // kernel refuses the write itself, at the same volatile access the hand-written version made.
-    let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_proto::PAGE as u64) };
+    let roster = unsafe { MappedWindow::new(ROSTER_VA, filesystem_protocol::PAGE as u64) };
     roster.write(0u64, 0u64);
     // Unreachable in a working kernel; if we get here the write was allowed and the test's
     // fault-count assertion is what says so.
@@ -393,9 +393,9 @@ fn probe() -> ! {
 /// refuses a page nobody wrote and a count larger than the page can hold.
 fn roster_page() -> &'static [u8] {
     // SAFETY: a page this program mapped read-only from a frame it holds `READ` on, of exactly
-    // `filesystem_proto::PAGE` bytes, and never written by anybody after that (the roster is built once at
+    // `filesystem_protocol::PAGE` bytes, and never written by anybody after that (the roster is built once at
     // wiring time).
-    unsafe { core::slice::from_raw_parts(ROSTER_VA as *const u8, filesystem_proto::PAGE) }
+    unsafe { core::slice::from_raw_parts(ROSTER_VA as *const u8, filesystem_protocol::PAGE) }
 }
 
 /// The primary table buffer.

@@ -47,7 +47,7 @@ pub mod srv {
     pub const SHORT: u64 = 3;
 }
 
-/// The small integers the client reports a `ntp_proto::Reject` as. Must match
+/// The small integers the client reports a `network_time_protocol::Reject` as. Must match
 /// `components/src/network_time_client.rs`'s `reject_code`; kept as distinct values rather than a
 /// bool because which check refused a packet is the difference between a broken server and an
 /// attack.

@@ -59,7 +59,7 @@ future cost rather than by an actual bug. There is now an actual bug, and it is 
 evidence that decision asked for rather than as a request to reverse it (that is calef's call).
 
 Milestone 49's channel-per-client lane spent two days on a `login` service that answered
-`login_proto::DENIED` to a correct password on its second login after start-up. The failing call was
+`login_protocol::DENIED` to a correct password on its second login after start-up. The failing call was
 `MemoryRegion::RETYPE`, and the kernel's own implementation is four lines:
 
 ```rust
@@ -71,7 +71,7 @@ let slot = sched::grant(crate::cap::page_frame_cap(phys, Rights::ALL))
 The region was fine. The **capability table** was full, because `MemoryRegion::DESTROY` frees a
 region but never the destroyer's own table slot naming it, and the service leaked two slots per
 request. Both facts read as one `Error::OutOfMemory` at the call site, and the userspace helper
-(`supervision_proto::retype_page_frame_from`) narrows even that to `Err(())`.
+(`supervision_protocol::retype_page_frame_from`) narrows even that to `Err(())`.
 
 What the collapse actually cost, which is the part worth quoting to whoever picks this up:
 

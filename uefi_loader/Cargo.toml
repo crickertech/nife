@@ -59,7 +59,7 @@ elf = { version = "0.1.0", path = "../crates/elf" }
 # dependency (`dtb`) is ours and has none.
 # Every encoder in `handoff` is tested by decoding its output with the crate the KERNEL decodes
 # with, so the two cannot drift apart without a host test failing in milliseconds. This is the same
-# rule `byte_sink_proto`, `grant_plan` and `clock_proto` are held to: no party keeps its own copy of
+# rule `byte_sink_protocol`, `grant_plan` and `clock_protocol` are held to: no party keeps its own copy of
 # a layout two programs agree on. It was a `[dev-dependencies]` entry until milestone 243 made it a
 # real one; nothing about the test relationship changed.
 machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }

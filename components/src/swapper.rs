@@ -9,13 +9,13 @@
 //!
 //! # Three roles: two rungs of the latency ladder, and one component that stops answering
 //!
-//! - [`ROLE_DIRECT`](swap_proto::ROLE_DIRECT): the default rung. The stable name a client holds is the
+//! - [`ROLE_DIRECT`](swap_protocol::ROLE_DIRECT): the default rung. The stable name a client holds is the
 //!   endpoint object itself, and the swap changes who is parked in `RECV_CAP` on it. **No process
 //!   sits in the data path**, so the steady state costs exactly what an unbrokered call costs.
-//! - [`ROLE_QUEUED`](swap_proto::ROLE_QUEUED): the opt-in rung. A `broker` stands between producer and
+//! - [`ROLE_QUEUED`](swap_protocol::ROLE_QUEUED): the opt-in rung. A `broker` stands between producer and
 //!   backend so the producer never blocks on an absent consumer. One extra hop, priced by the
 //!   `broker_rtt` benchmark, and chosen per channel rather than imposed on every IPC.
-//! - [`ROLE_HUNG`](swap_proto::ROLE_HUNG): the same system as the direct rung, against an incumbent
+//! - [`ROLE_HUNG`](swap_protocol::ROLE_HUNG): the same system as the direct rung, against an incumbent
 //!   that **stops answering without dying** (milestone 23's third residual). Step 2 of the four is
 //!   unavailable, because draining needs the incumbent's cooperation and that is exactly what is
 //!   missing; the interesting result is that the other three steps do not. See
@@ -57,8 +57,8 @@
 // Two shared modules: the swap system's protocol and the supervision tree's loader. Each binary
 // uses a different slice of both, so the unused halves are expected (§38).
 use component_plan::Provisions;
-use supervision_proto::{ChildEndowment, Retention};
-use swap_proto::log_checks as lc;
+use supervision_protocol::{ChildEndowment, Retention};
+use swap_protocol::log_checks as lc;
 use user_mode_runtime::{
     cap_delete, map_into, map_page_frame, recv, recv_fault, revoke_frame, send,
 };
@@ -68,7 +68,7 @@ const ROOT_UT: u64 = 0; // the construction budget: what every process here is b
 const REPORT: u64 = 1; // WRITE|GRANT, so each child gets its own narrowed view
 const DEVICE: u64 = 2; // the UART's registers, WRITE|GRANT: ours to lend, and ours to take back
 
-// Pages per process we build is NOT here any more. It is `swap_proto::INSTANCE_PAGES`, declared by
+// Pages per process we build is NOT here any more. It is `swap_protocol::INSTANCE_PAGES`, declared by
 // each contract, and it reaches this program through `component_plan::Plan::pages`. It is a **peak**,
 // because this operator never destroys a region: all five splits are live at once and the budget has
 // to cover them together.
@@ -104,17 +104,17 @@ pub extern "C" fn _start(role: u64, initrd_len: u64, _a2: u64) -> ! {
         poke: obj(abi::objtype::RENDEZVOUS, 8),
         log_page_frame: page_frame(9),
     };
-    if !map_page_frame(w.log_page_frame, swap_proto::LOG_VA, true, ROOT_UT) {
+    if !map_page_frame(w.log_page_frame, swap_protocol::LOG_VA, true, ROOT_UT) {
         bail(10)
     }
-    for i in 0..swap_proto::PAGE {
+    for i in 0..swap_protocol::PAGE {
         // SAFETY: a page we just mapped read/write into our own address space.
-        unsafe { core::ptr::write_volatile((swap_proto::LOG_VA as *mut u8).add(i as usize), 0) };
+        unsafe { core::ptr::write_volatile((swap_protocol::LOG_VA as *mut u8).add(i as usize), 0) };
     }
 
     match role {
-        swap_proto::ROLE_QUEUED => queued(&fs, &w),
-        swap_proto::ROLE_HUNG => hung(&fs, &w),
+        swap_protocol::ROLE_QUEUED => queued(&fs, &w),
+        swap_protocol::ROLE_HUNG => hung(&fs, &w),
         _ => direct(&fs, &w),
     }
 }
@@ -162,15 +162,15 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // instance's post-revoke probe surviving is.
     // ------------------------------------------------------------------------------------------
 
-    match component_plan::plan(&swap_proto::BROKER, &to_component) {
+    match component_plan::plan(&swap_protocol::BROKER, &to_component) {
         Ok(_) => bail(60),
-        Err(refusal) => send(REPORT, swap_proto::RPT_REFUSED, refusal.code(), 0),
+        Err(refusal) => send(REPORT, swap_protocol::RPT_REFUSED, refusal.code(), 0),
     };
 
-    let Ok(component) = component_plan::plan(&swap_proto::CONSOLE, &to_component) else {
+    let Ok(component) = component_plan::plan(&swap_protocol::CONSOLE, &to_component) else {
         bail(61)
     };
-    let Ok(client) = component_plan::plan(&swap_proto::CLIENT, &to_client) else {
+    let Ok(client) = component_plan::plan(&swap_protocol::CLIENT, &to_client) else {
         bail(62)
     };
 
@@ -195,10 +195,10 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // authority: `maps_without_devices` is the declaration minus what a revoke is about to take, and
     // `devices` below is the rest of it. `component_plan` sorts device mappings last so both halves
     // are slices of one plan and neither can be built by hand.
-    let Ok(b_region) = supervision_proto::memory_region_split(ROOT_UT, component.pages()) else {
+    let Ok(b_region) = supervision_protocol::memory_region_split(ROOT_UT, component.pages()) else {
         bail(20)
     };
-    let Ok((b_child, b_aspace)) = supervision_proto::build_child_space(
+    let Ok((b_child, b_aspace)) = supervision_protocol::build_child_space(
         ROOT_UT,
         b_region,
         &v2,
@@ -214,9 +214,9 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     };
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::BUILT,
-        swap_proto::V2,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::BUILT,
+        swap_protocol::V2,
     );
 
     // ------------------------------------------------------------------------------------------
@@ -230,10 +230,10 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
         &client_img,
         &client,
         w.faultep,
-        [swap_proto::ROLE_CLIENT, 0, 0],
+        [swap_protocol::ROLE_CLIENT, 0, 0],
         14,
     );
-    expect_note(w.note, swap_proto::NOTE_SWAP_NOW, 17);
+    expect_note(w.note, swap_protocol::NOTE_SWAP_NOW, 17);
 
     // ------------------------------------------------------------------------------------------
     // **Dependency-aware orchestration's own question, asked and answered before step 2 acts.**
@@ -247,7 +247,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
 
     let live = [component_plan::LiveInstance {
         id: 1,
-        reqs: &swap_proto::CONSOLE,
+        reqs: &swap_protocol::CONSOLE,
     }];
     let Ok(deps) = component_plan::dependents("console", &live) else {
         bail(64)
@@ -255,7 +255,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     let order = deps.quiesce_order();
     send(
         REPORT,
-        swap_proto::RPT_DEPENDENTS,
+        swap_protocol::RPT_DEPENDENTS,
         order.len() as u64,
         order.first().copied().unwrap_or(0),
     );
@@ -265,14 +265,14 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // does the waiting for us.
     // ------------------------------------------------------------------------------------------
 
-    let (verdict, served) = user_mode_runtime::call(w.svc, swap_proto::OP_QUIESCE, 0);
-    if verdict != swap_proto::QUIESCED {
+    let (verdict, served) = user_mode_runtime::call(w.svc, swap_protocol::OP_QUIESCE, 0);
+    if verdict != swap_protocol::QUIESCED {
         bail(22)
     }
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::DRAINED,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::DRAINED,
         served,
     );
 
@@ -284,7 +284,12 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     if revoke_frame(DEVICE) != 0 {
         bail(23)
     }
-    send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
+    send(
+        REPORT,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::REVOKED,
+        0,
+    );
 
     // ------------------------------------------------------------------------------------------
     // Step 4: endow the replacement with the registers and start it. It drains whatever parked on
@@ -296,18 +301,18 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
             bail(24)
         }
     }
-    if supervision_proto::configure_child(b_child.tcb, b_aspace, v2.entry()).is_err() {
+    if supervision_protocol::configure_child(b_child.tcb, b_aspace, v2.entry()).is_err() {
         bail(25)
     }
-    if !supervision_proto::start_child(b_child, 1, 0, 0) {
+    if !supervision_protocol::start_child(b_child, 1, 0, 0) {
         bail(26)
     }
     cap_delete(b_region);
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::STARTED,
-        swap_proto::V2,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::STARTED,
+        swap_protocol::V2,
     );
 
     // ------------------------------------------------------------------------------------------
@@ -317,14 +322,14 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // it to read one register. If step 3 was real it faults, and the kernel tells us where.
     // ------------------------------------------------------------------------------------------
 
-    send(w.poke, swap_proto::POKE_PROBE, 0, 0);
+    send(w.poke, swap_protocol::POKE_PROBE, 0, 0);
     let mut corpses = 0u64;
-    let revoke_enforced = wait_for_fault(w.faultep, &mut corpses, swap_proto::DEV_VA);
+    let revoke_enforced = wait_for_fault(w.faultep, &mut corpses, swap_protocol::DEV_VA);
 
     // The conversation is still running: the client is somewhere in its sixties, being served by the
     // replacement. Wait for it to finish before reading the witness page, or the requests it has not
     // made yet would read as requests nobody served.
-    expect_note(w.note, swap_proto::NOTE_CLIENT_DONE, 28);
+    expect_note(w.note, swap_protocol::NOTE_CLIENT_DONE, 28);
     reap_to(w.faultep, &mut corpses, 2); // the incumbent and the client
 
     // ------------------------------------------------------------------------------------------
@@ -339,10 +344,10 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
         &client_img,
         &client,
         w.faultep,
-        [swap_proto::ROLE_USURPER, 0, 0],
+        [swap_protocol::ROLE_USURPER, 0, 0],
         30,
     );
-    expect_note(w.note, swap_proto::NOTE_ATTACK_DONE, 33);
+    expect_note(w.note, swap_protocol::NOTE_ATTACK_DONE, 33);
     reap_to(w.faultep, &mut corpses, 3); // and the attacker
 
     // Retire the replacement and collect it too, so the run ends with every region back in this
@@ -355,7 +360,7 @@ fn direct(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // space and reaches the test on its own.
     send(
         REPORT,
-        swap_proto::RPT_LOG,
+        swap_protocol::RPT_LOG,
         verdict_from_log(0, revoke_enforced),
         changed_at(0),
     );
@@ -376,10 +381,10 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // `svc` is the *back* endpoint here: what the broker forwards to and what a backend receives
     // on. `front` is what the producer holds, and it is the stable name on this channel.
     let front = obj(abi::objtype::RENDEZVOUS, 41);
-    let base = swap_proto::BROKER_LOG_BASE;
+    let base = swap_protocol::BROKER_LOG_BASE;
 
     // **Three routing tables, and the interesting thing about them is `service`.** The producer's
-    // declaration is `swap_proto::CLIENT`, byte for byte the one the direct channel's client is
+    // declaration is `swap_protocol::CLIENT`, byte for byte the one the direct channel's client is
     // wired from, and it asks to use an endpoint it calls `service`. Here that name resolves to the
     // broker's front endpoint instead of to the component's. One declaration, two routings, and the
     // program cannot tell which it got: that is the indirection the manifest buys, and it is what
@@ -410,20 +415,20 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // before anything is built. This is the same refusal from the other side, which is why both
     // roles report it: a mechanism that only worked for the one component it was written against
     // would not be a mechanism.
-    match component_plan::plan(&swap_proto::CONSOLE, &to_backend) {
+    match component_plan::plan(&swap_protocol::CONSOLE, &to_backend) {
         Ok(_) => bail(60),
-        Err(refusal) => send(REPORT, swap_proto::RPT_REFUSED, refusal.code(), 0),
+        Err(refusal) => send(REPORT, swap_protocol::RPT_REFUSED, refusal.code(), 0),
     };
 
     // No device on this channel: the backend behind a broker is a plain service, and mixing the
     // device story into the queue story would make it unclear which mechanism carried which claim.
-    let Ok(backend) = component_plan::plan(&swap_proto::BACKEND, &to_backend) else {
+    let Ok(backend) = component_plan::plan(&swap_protocol::BACKEND, &to_backend) else {
         bail(61)
     };
-    let Ok(broker) = component_plan::plan(&swap_proto::BROKER, &to_broker) else {
+    let Ok(broker) = component_plan::plan(&swap_protocol::BROKER, &to_broker) else {
         bail(62)
     };
-    let Ok(producer) = component_plan::plan(&swap_proto::CLIENT, &to_producer) else {
+    let Ok(producer) = component_plan::plan(&swap_protocol::CLIENT, &to_producer) else {
         bail(63)
     };
 
@@ -433,18 +438,18 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
         &client_img,
         &producer,
         w.faultep,
-        [swap_proto::ROLE_PRODUCER, 0, 0],
+        [swap_protocol::ROLE_PRODUCER, 0, 0],
         44,
     );
 
-    expect_note(w.note, swap_proto::NOTE_SWAP_NOW, 45);
+    expect_note(w.note, swap_protocol::NOTE_SWAP_NOW, 45);
 
     // ------------------------------------------------------------------------------------------
     // **Dependency-aware orchestration, for real this time.** `BOP_DOWN` below used to be
     // unconditional: every system on this channel happens to have exactly one component
     // (`broker`) that forwards synchronously to the backend, so "always warn it" and "warn
     // whoever the graph names" have always produced the same four syscalls. What changed is which
-    // one this operator actually asked. `broker`'s own manifest (`swap_proto::BROKER`) declares
+    // one this operator actually asked. `broker`'s own manifest (`swap_protocol::BROKER`) declares
     // `depends_on: &["backend"]`, so a two-instance live registry naming this system's broker and
     // backend, checked against `component_plan::dependents`, is what decides whether `BOP_DOWN` is
     // sent at all -- not this function's own memory of what it built five lines up.
@@ -453,11 +458,11 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     let live = [
         component_plan::LiveInstance {
             id: 1,
-            reqs: &swap_proto::BACKEND,
+            reqs: &swap_protocol::BACKEND,
         },
         component_plan::LiveInstance {
             id: 2,
-            reqs: &swap_proto::BROKER,
+            reqs: &swap_protocol::BROKER,
         },
     ];
     let Ok(deps) = component_plan::dependents("backend", &live) else {
@@ -466,7 +471,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     let order = deps.quiesce_order();
     send(
         REPORT,
-        swap_proto::RPT_DEPENDENTS,
+        swap_protocol::RPT_DEPENDENTS,
         order.len() as u64,
         order.first().copied().unwrap_or(0),
     );
@@ -478,7 +483,7 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // it to each one the graph named, in the order the graph returned them.
     for &id in order {
         if id == 2 {
-            let (r, _) = user_mode_runtime::call(front, swap_proto::BOP_DOWN, 0);
+            let (r, _) = user_mode_runtime::call(front, swap_protocol::BOP_DOWN, 0);
             if r != 0 {
                 bail(46)
             }
@@ -486,17 +491,17 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     }
 
     // Quiesce the backend and let it die, exactly as on the direct channel, minus the device.
-    let (verdict, served) = user_mode_runtime::call(w.svc, swap_proto::OP_QUIESCE, 0);
-    if verdict != swap_proto::QUIESCED {
+    let (verdict, served) = user_mode_runtime::call(w.svc, swap_protocol::OP_QUIESCE, 0);
+    if verdict != swap_protocol::QUIESCED {
         bail(47)
     }
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::DRAINED,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::DRAINED,
         served,
     );
-    send(w.poke, swap_proto::POKE_QUIT, 0, 0);
+    send(w.poke, swap_protocol::POKE_QUIT, 0, 0);
     let mut corpses = 0u64;
     reap_to(w.faultep, &mut corpses, 1);
 
@@ -505,9 +510,9 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     start_child(&v2, &backend, w.faultep, [0, base, 0], 48);
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::STARTED,
-        swap_proto::V2,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::STARTED,
+        swap_protocol::V2,
     );
 
     // Release the backlog, one dependent at a time, in the reverse of the order they were warned:
@@ -515,26 +520,26 @@ fn queued(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // call returning means every buffered item has reached the new backend.
     for &id in order.iter().rev() {
         if id == 2 {
-            let (r, _drained) = user_mode_runtime::call(front, swap_proto::BOP_UP, 0);
+            let (r, _drained) = user_mode_runtime::call(front, swap_protocol::BOP_UP, 0);
             if r != 0 {
                 bail(49)
             }
         }
     }
 
-    expect_note(w.note, swap_proto::NOTE_CLIENT_DONE, 50);
+    expect_note(w.note, swap_protocol::NOTE_CLIENT_DONE, 50);
     reap_to(w.faultep, &mut corpses, 2); // and the producer
 
     // Shut the channel down so the run leaves nothing running and nothing spent: the broker exits,
     // then the backend quiesces and exits, and both corpses are collected.
-    let _ = user_mode_runtime::call(front, swap_proto::OP_QUIESCE, 0);
-    expect_note(w.note, swap_proto::NOTE_BROKER_DONE, 51);
+    let _ = user_mode_runtime::call(front, swap_protocol::OP_QUIESCE, 0);
+    expect_note(w.note, swap_protocol::NOTE_BROKER_DONE, 51);
     reap_to(w.faultep, &mut corpses, 3); // and the broker
     retire(w, &mut corpses, 4, 52); // and the replacement backend
 
     send(
         REPORT,
-        swap_proto::RPT_LOG,
+        swap_protocol::RPT_LOG,
         verdict_from_log(base, false),
         changed_at(base),
     );
@@ -578,10 +583,10 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     let to_client = Provisions {
         held: &[("service", w.svc), ("report", REPORT), ("operator", w.note)],
     };
-    let Ok(component) = component_plan::plan(&swap_proto::CONSOLE, &to_component) else {
+    let Ok(component) = component_plan::plan(&swap_protocol::CONSOLE, &to_component) else {
         bail(70)
     };
-    let Ok(client) = component_plan::plan(&swap_proto::CLIENT, &to_client) else {
+    let Ok(client) = component_plan::plan(&swap_protocol::CLIENT, &to_client) else {
         bail(71)
     };
 
@@ -590,7 +595,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
         &v1,
         &component,
         w.faultep,
-        [1, 0, swap_proto::WEDGE_SEQ],
+        [1, 0, swap_protocol::WEDGE_SEQ],
         72,
     );
 
@@ -599,10 +604,10 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // syscalls, and doing it after the trigger loses the race against a conversation already in
     // flight. Here it matters more, not less: a hung component gives the operator no drain to hide
     // the build behind.
-    let Ok(b_region) = supervision_proto::memory_region_split(ROOT_UT, component.pages()) else {
+    let Ok(b_region) = supervision_protocol::memory_region_split(ROOT_UT, component.pages()) else {
         bail(75)
     };
-    let Ok((b_child, b_aspace)) = supervision_proto::build_child_space(
+    let Ok((b_child, b_aspace)) = supervision_protocol::build_child_space(
         ROOT_UT,
         b_region,
         &v2,
@@ -618,19 +623,19 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     };
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::BUILT,
-        swap_proto::V2,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::BUILT,
+        swap_protocol::V2,
     );
 
     start_child(
         &client_img,
         &client,
         w.faultep,
-        [swap_proto::ROLE_CLIENT, 0, 0],
+        [swap_protocol::ROLE_CLIENT, 0, 0],
         77,
     );
-    expect_note(w.note, swap_proto::NOTE_SWAP_NOW, 80);
+    expect_note(w.note, swap_protocol::NOTE_SWAP_NOW, 80);
 
     // ------------------------------------------------------------------------------------------
     // The hang. Served with `RECV_CAP` rather than `RECV`, because the incumbent announced it with a
@@ -639,10 +644,10 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     let (kind, release, served) = user_mode_runtime::recv_cap(w.note);
-    if kind != swap_proto::NOTE_WEDGED || release == abi::rendezvous::NO_CAP {
+    if kind != swap_protocol::NOTE_WEDGED || release == abi::rendezvous::NO_CAP {
         bail(81)
     }
-    send(REPORT, swap_proto::RPT_WEDGED, swap_proto::V1, served);
+    send(REPORT, swap_protocol::RPT_WEDGED, swap_protocol::V1, served);
 
     // ------------------------------------------------------------------------------------------
     // **What the supervisor can see.** Two reports, and both of them are negative results.
@@ -658,9 +663,9 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // ------------------------------------------------------------------------------------------
 
     let (members, states) = survey_domain(w.faultep);
-    send(REPORT, swap_proto::RPT_SURVEY, members, states);
+    send(REPORT, swap_protocol::RPT_SURVEY, members, states);
     let (asked, refused) = ask_the_domain_to_be_collected(w.faultep);
-    send(REPORT, swap_proto::RPT_UNCOLLECTABLE, asked, refused);
+    send(REPORT, swap_protocol::RPT_UNCOLLECTABLE, asked, refused);
 
     // ------------------------------------------------------------------------------------------
     // **Recovery, with no authority this operator did not already hold.** DECISIONS §32 records that
@@ -686,25 +691,30 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     if revoke_frame(DEVICE) != 0 {
         bail(82)
     }
-    send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REVOKED, 0);
+    send(
+        REPORT,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::REVOKED,
+        0,
+    );
 
     for &(va, slot, mode) in component.devices() {
         if map_into(b_aspace, va, slot, mode) != 0 {
             bail(83)
         }
     }
-    if supervision_proto::configure_child(b_child.tcb, b_aspace, v2.entry()).is_err() {
+    if supervision_protocol::configure_child(b_child.tcb, b_aspace, v2.entry()).is_err() {
         bail(84)
     }
-    if !supervision_proto::start_child(b_child, 1, 0, 0) {
+    if !supervision_protocol::start_child(b_child, 1, 0, 0) {
         bail(85)
     }
     cap_delete(b_region);
     send(
         REPORT,
-        swap_proto::RPT_STEP,
-        swap_proto::step::STARTED,
-        swap_proto::V2,
+        swap_protocol::RPT_STEP,
+        swap_protocol::step::STARTED,
+        swap_protocol::V2,
     );
 
     // ------------------------------------------------------------------------------------------
@@ -719,17 +729,17 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
     // which is what makes this line the shape of the gap rather than its cure.
     // ------------------------------------------------------------------------------------------
 
-    user_mode_runtime::reply(release, swap_proto::NOTE_RELEASE, 0);
+    user_mode_runtime::reply(release, swap_protocol::NOTE_RELEASE, 0);
 
     let mut corpses = 0u64;
-    let revoke_enforced = wait_for_fault(w.faultep, &mut corpses, swap_proto::DEV_VA);
-    expect_note(w.note, swap_proto::NOTE_CLIENT_DONE, 86);
+    let revoke_enforced = wait_for_fault(w.faultep, &mut corpses, swap_protocol::DEV_VA);
+    expect_note(w.note, swap_protocol::NOTE_CLIENT_DONE, 86);
     reap_to(w.faultep, &mut corpses, 2); // the incumbent and the client
     retire(w, &mut corpses, 3, 87); // and the replacement
 
     send(
         REPORT,
-        swap_proto::RPT_LOG,
+        swap_protocol::RPT_LOG,
         verdict_from_log(0, revoke_enforced),
         changed_at(0),
     );
@@ -738,7 +748,7 @@ fn hung(fs: &nifefs::Fs, w: &Wiring) -> ! {
 
 /// **Walk the supervision domain and count what state its members are in** (milestone 126's
 /// `abi::rendezvous::SURVEY`). Returns `(members, states)`, the second packed by
-/// `swap_proto::survey_counts`.
+/// `swap_protocol::survey_counts`.
 ///
 /// A refusal is reported as `(u64::MAX, error)` rather than as an empty domain, for the reason
 /// milestone 126 built the method with: a monitor that reports nothing because it could not look is
@@ -770,7 +780,7 @@ fn survey_domain(faultep: u64) -> (u64, u64) {
     }
     (
         members,
-        swap_proto::survey_counts(
+        swap_protocol::survey_counts(
             counts[abi::survey::READY as usize],
             counts[abi::survey::RUNNING as usize],
             counts[abi::survey::BLOCKED as usize],
@@ -838,7 +848,7 @@ fn start_child(
     args: [u64; 3],
     stage: u64,
 ) {
-    let Ok(region) = supervision_proto::memory_region_split(ROOT_UT, plan.pages()) else {
+    let Ok(region) = supervision_protocol::memory_region_split(ROOT_UT, plan.pages()) else {
         bail(stage)
     };
     let endow = ChildEndowment {
@@ -848,10 +858,10 @@ fn start_child(
         fault: Some(faultep),
         ..ChildEndowment::new(Retention::Nothing)
     };
-    let Ok(child) = supervision_proto::build_child(ROOT_UT, region, elf, &endow) else {
+    let Ok(child) = supervision_protocol::build_child(ROOT_UT, region, elf, &endow) else {
         bail(stage + 1)
     };
-    if !supervision_proto::start_child(child, args[0], args[1], args[2]) {
+    if !supervision_protocol::start_child(child, args[0], args[1], args[2]) {
         bail(stage + 2)
     }
     cap_delete(region);
@@ -865,7 +875,7 @@ fn start_child(
 /// below; the rest are here so the test can assert that a swap system reclaims itself.
 fn collect_corpse(faultep: u64, collected: &mut u64) -> (u64, u64) {
     let (event, tid, _pc, addr, _) = recv_fault(faultep);
-    send(REPORT, swap_proto::RPT_DEATH, tid, event);
+    send(REPORT, swap_protocol::RPT_DEATH, tid, event);
     // We hold no capability to that region: we deleted it the moment the child was started, and the
     // authority for this is the supervision relationship, not the memory.
     if user_mode_runtime::reap(faultep, tid) != 0 {
@@ -901,9 +911,14 @@ fn wait_for_fault(faultep: u64, collected: &mut u64, expect_addr: u64) -> bool {
     loop {
         let (event, addr) = collect_corpse(faultep, collected);
         if event == abi::fault::EVENT_FAULT {
-            send(REPORT, swap_proto::RPT_SITE, addr, expect_addr);
-            send(REPORT, swap_proto::RPT_STEP, swap_proto::step::REAPED, 0);
-            return addr & !(swap_proto::PAGE - 1) == expect_addr;
+            send(REPORT, swap_protocol::RPT_SITE, addr, expect_addr);
+            send(
+                REPORT,
+                swap_protocol::RPT_STEP,
+                swap_protocol::step::REAPED,
+                0,
+            );
+            return addr & !(swap_protocol::PAGE - 1) == expect_addr;
         }
     }
 }
@@ -911,11 +926,11 @@ fn wait_for_fault(faultep: u64, collected: &mut u64, expect_addr: u64) -> bool {
 /// Retire the last live instance on a channel: quiesce it, tell it to go, collect its corpse. The
 /// swap's own machinery, run once more with nothing to replace.
 fn retire(w: &Wiring, collected: &mut u64, target: u64, stage: u64) {
-    let (verdict, _) = user_mode_runtime::call(w.svc, swap_proto::OP_QUIESCE, 0);
-    if verdict != swap_proto::QUIESCED {
+    let (verdict, _) = user_mode_runtime::call(w.svc, swap_protocol::OP_QUIESCE, 0);
+    if verdict != swap_protocol::QUIESCED {
         bail(stage)
     }
-    send(w.poke, swap_proto::POKE_QUIT, 0, 0);
+    send(w.poke, swap_protocol::POKE_QUIT, 0, 0);
     reap_to(w.faultep, collected, target);
 }
 
@@ -934,14 +949,14 @@ fn image<'a>(fs: &nifefs::Fs<'a>, name: &str, stage: u64) -> elf::Elf<'a> {
 }
 
 fn obj(objtype: u64, stage: u64) -> u64 {
-    match supervision_proto::retype_obj_from(ROOT_UT, objtype) {
+    match supervision_protocol::retype_obj_from(ROOT_UT, objtype) {
         Ok(s) => s,
         Err(()) => bail(stage),
     }
 }
 
 fn page_frame(stage: u64) -> u64 {
-    match supervision_proto::retype_page_frame_from(ROOT_UT) {
+    match supervision_protocol::retype_page_frame_from(ROOT_UT) {
         Ok(s) => s,
         Err(()) => bail(stage),
     }
@@ -953,18 +968,18 @@ fn verdict_from_log(base: u64, revoke_enforced: bool) -> u64 {
     let mut seen_v1 = false;
     let mut seen_v2 = false;
     let mut last = 0u64;
-    for seq in 0..swap_proto::REQUESTS {
-        let v = swap_proto::log_get(base + seq);
+    for seq in 0..swap_protocol::REQUESTS {
+        let v = swap_protocol::log_get(base + seq);
         if v == 0 {
             bits &= !lc::NO_GAP; // a request nobody served: lost in the down window
         }
         if v < last {
             bits &= !lc::MONOTONE; // the old instance answered after the new one: two owners
         }
-        if v == swap_proto::V1 {
+        if v == swap_protocol::V1 {
             seen_v1 = true;
         }
-        if v == swap_proto::V2 {
+        if v == swap_protocol::V2 {
             seen_v2 = true;
         }
         last = v;
@@ -982,8 +997,8 @@ fn verdict_from_log(base: u64, revoke_enforced: bool) -> u64 {
 /// conversation rather than at one of its ends.
 fn changed_at(base: u64) -> u64 {
     let mut last = 0u64;
-    for seq in 0..swap_proto::REQUESTS {
-        let v = swap_proto::log_get(base + seq);
+    for seq in 0..swap_protocol::REQUESTS {
+        let v = swap_protocol::log_get(base + seq);
         if last != 0 && v != last {
             return seq;
         }
@@ -995,8 +1010,8 @@ fn changed_at(base: u64) -> u64 {
 /// Report which stage failed, then trap. A half-built system is not worth limping along, and the
 /// stage code turns "nothing happened" into a legible failure.
 fn bail(stage: u64) -> ! {
-    send(REPORT, swap_proto::RPT_FAILED, stage, 0);
-    swap_proto::fail()
+    send(REPORT, swap_protocol::RPT_FAILED, stage, 0);
+    swap_protocol::fail()
 }
 
 user_mode_runtime::panic_handler!();

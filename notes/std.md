@@ -74,7 +74,7 @@ The syscall glue (`sys/pal/nife/rt.rs`) is a deliberate twin of `crates/user_mod
 `svc`/`ecall` wrappers, restated because std cannot depend on the crate. The ABI **constants** are
 not restated: `abi.rs` is generated verbatim from `crates/abi` by `std-src`, so the numbers cannot
 drift. Likewise `user_mode_heap.rs` from `crates/user_mode_heap` (the host-tested heap algorithm is the only heap
-algorithm), `netproto.rs` from `crates/socket_proto/src/lib.rs`, and `fsproto.rs` from `crates/filesystem_proto`: every
+algorithm), `netproto.rs` from `crates/socket_protocol/src/lib.rs`, and `fsproto.rs` from `crates/filesystem_protocol`: every
 wire format the PAL speaks has exactly one definition, and it lives with the server that answers it.
 
 ## The toolchain: build-std against a patched rust-src
@@ -153,14 +153,14 @@ the bare target.
 ## `std::net` over the socket contract (milestone 27 phase two)
 
 `sys/net/connection/nife.rs` binds std's `TcpStream` and outbound `UdpSocket` to net_stack's socket
-contract (DECISIONS §25, notes/net.md, `crates/socket_proto/src/lib.rs`). The PAL is a **client** of the
+contract (DECISIONS §25, notes/net.md, `crates/socket_protocol/src/lib.rs`). The PAL is a **client** of the
 frozen contract, nothing more: it holds the `Stack` endpoint (slot 2) and a frame untyped (slot 3),
 and for each socket it mints a shared `Frame`, maps it, delegates it to net_stack (`SEND_CAP`,
 `OP_ATTACH_FRAME`), and then drives the socket with `CALL`s carrying a socket id. Control words ride
 the message; bytes sit in the shared frame. This is the exact path the hand-written `socket_test_client` client
 walks, reached through std's blocking API instead.
 
-The wire constants are not restated: `netproto.rs` is generated verbatim from `crates/socket_proto/src/lib.rs`
+The wire constants are not restated: `netproto.rs` is generated verbatim from `crates/socket_protocol/src/lib.rs`
 into `sys/pal/nife/netproto.rs` by `std-src`, the same anti-drift discipline as `abi.rs` and
 `user_mode_heap.rs`. If the contract changes, the PAL's numbers change with it, because there is one source.
 
@@ -219,8 +219,8 @@ sidesteps it by keeping its UDP and TCP sockets on distinct ids at once.
 ## `std::fs` over the FS-service contract (milestone 27 phase two)
 
 `sys/fs/nife.rs` binds std's `File` to the FS server's file contract (DECISIONS §27,
-notes/fs-server.md, `crates/filesystem_proto`). Like the net PAL it is a **client** of a frozen contract and
-nothing more, and like the net PAL its wire constants are generated verbatim (`filesystem_proto` becomes
+notes/fs-server.md, `crates/filesystem_protocol`). Like the net PAL it is a **client** of a frozen contract and
+nothing more, and like the net PAL its wire constants are generated verbatim (`filesystem_protocol` becomes
 `sys/pal/nife/fsproto.rs` by `std-src`), so the PAL's numbers cannot drift from the server's.
 
 ### The interesting part: `File::open` takes a path, and there is no global namespace
@@ -292,7 +292,7 @@ reachability first, so a kernel `NoSuchSlot` cannot follow a reply. The cost of 
 made deliberately, because `EPERM` is reachable every day and revoking the FS endpoint is milestone
 108's open question. `-3` still reads as the kernel's, because `ESRCH` really is not in the server's
 vocabulary. The clean fix is a tag or an offset in the reply word, which is a contract change
-(`filesystem_proto`, the FS server, and `fs_test_client`), reported up rather than papered over here.
+(`filesystem_protocol`, the FS server, and `fs_test_client`), reported up rather than papered over here.
 
 ### What binds, and what stays Unsupported
 
@@ -424,7 +424,7 @@ is one place to be wrong.
 
 **The rights it asks for are the design**, and they look like a widening until you do the
 arithmetic. Each hop asks for `DESCEND | needs`, where `needs` is what the *final* verb requires on
-the directory it lands in (`filesystem_proto::verb::TABLE` is the list; `OPEN`'s "READ or WRITE" is the one
+the directory it lands in (`filesystem_protocol::verb::TABLE` is the list; `OPEN`'s "READ or WRITE" is the one
 row a caller has to resolve from its own `OpenOptions`). Carrying `needs` down the whole chain rather
 than asking for it only at the end costs nothing that was ever available, because a child's rights
 are its parent's *intersected* with the request: a right an ancestor lacks is a right no descendant
@@ -575,7 +575,7 @@ completes, not why the poll path did not.
   leaves the process.
 
   **`TZ`, `LANG` and `TERM` are seeded from a grant** (milestone 47's environment-variable fork,
-  DECISIONS §111, `environment_proto`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
+  DECISIONS §111, `environment_protocol`). A process granted an inert-configuration page (`rt::CONFIG_SLOT`,
   a `Frame` with `READ`, the same rights-ladder shape as the clock) has those three keys in its
   table from the first line of `main` onward, read by `pal::nife::init` before the program's own
   code runs; a process granted no such page is seeded with nothing. This is the *inert
@@ -684,7 +684,7 @@ completes, not why the poll path did not.
   clean win: `SystemTime::now()` has no error channel, so the only loud refusal available is a
   panic, and std has no way to represent "I do not know", which means a program cannot ask whether
   it *can* ask. The `Unsupported` shape `fs` and `net` use is not available here. Anything that
-  needs to check first reads `clock_proto::state` off the page directly, which is what a `no_std`
+  needs to check first reads `clock_protocol::state` off the page directly, which is what a `no_std`
   component does. The alternative considered and rejected was returning a frozen `UNIX_EPOCH`, which
   is still reporting 1970 and is exactly the confusion §42 forbids.
 - **`std::random` is a granted capability, and refuses loudly without it** (milestone 56, §44). It

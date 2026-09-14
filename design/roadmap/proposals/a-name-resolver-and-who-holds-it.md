@@ -50,7 +50,7 @@ stated at the scale of a whole operating system.
 ## What it would take
 
 - Enable `socket-dns` in `smoltcp`, which already implements the client.
-- Decide where the resolver lives: inside `net_stack` behind a verb on `socket_proto`, or as its own
+- Decide where the resolver lives: inside `net_stack` behind a verb on `socket_protocol`, or as its own
   confined program that holds a socket grant. **The second is more in keeping with the tree**
   (`net_stack` is already a userspace server and this would be a client of it), and it is the more
   expensive one, so it should be argued rather than assumed.
@@ -64,7 +64,7 @@ stated at the scale of a whole operating system.
 **It is not `curl`.** A resolver plus HTTP plus TLS is three pieces and this is the first. There is
 no consumer today for any of them, which is why this is a proposal.
 
-**And it does not need mDNS.** `mdns_responder` exists and answers for names on the local link; that
+**And it does not need mDNS.** `multicast_dns_responder` exists and answers for names on the local link; that
 is a different protocol solving a different problem, and reusing it here would be a category error.
 
 ## BUGS

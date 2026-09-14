@@ -1,0 +1,17 @@
+[package]
+name = "network_time_protocol"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+# The NTPv4 wire format (RFC 5905): the 48-byte packet, the 1900-epoch fixed-point timestamp, the
+# offset/delay computation, and the response checks that are the whole of plain NTP's spoofing
+# resistance. Pure computation, so it compiles for the host and its tests run in milliseconds, the
+# same split `filesystem_protocol` and `graphics_protocol` make for their contracts. It owns no socket, no clock and no
+# policy: milestone 51's clock service owns the offset and the authority to set it, and the client
+# that carries these bytes over `net_stack` is a later phase. See notes/ntp.md.
+
+[lints]
+workspace = true
+
+[dependencies]

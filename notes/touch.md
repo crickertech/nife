@@ -1,7 +1,7 @@
 # `touch`: create if absent, and now the mtime half
 
 Milestone 47. The create half built 2026-08-22; the mtime half built 2026-08-24 (DECISIONS §112).
-The contract side is `filesystem_proto::fs::CREATE` (milestone 31 phase 2), `GETMTIME`, `SETMTIME`
+The contract side is `filesystem_protocol::fs::CREATE` (milestone 31 phase 2), `GETMTIME`, `SETMTIME`
 and `SETMTIME_AT` (milestone 47's mtime lane, all four names provisional except `CREATE`); the
 builtin is `Nav::touch` in `components/src/swish.rs`, parsed by `grant_plan::Command::Touch` into a
 `TouchArgs`.
@@ -64,7 +64,7 @@ below), not a difference in what `SETMTIME` promises today.
 
 ## The wire: three verbs, and why not one
 
-`filesystem_proto::fs`:
+`filesystem_protocol::fs`:
 
 - `GETMTIME` (name-taking, needs `dir::READ`): reads a name's mtime in Unix seconds. Resolved
   directly under a directory handle, like `UNLINK`, because `touch` never opens what it acts on and
@@ -76,7 +76,7 @@ below), not a difference in what `SETMTIME` promises today.
   than the length field for an offset-shaped quantity.
 
 Three verbs rather than one with a "now or arbitrary" flag, because the rights differ per verb and
-`filesystem_proto::verb::TABLE` (the table every caretaker's dispatch is built from) encodes one
+`filesystem_protocol::verb::TABLE` (the table every caretaker's dispatch is built from) encodes one
 fixed `needs_all` per opcode; a single opcode would need dynamic, per-call rights outside that
 table's model. This is the same reasoning that gave `rm` (`UNLINK`) and the structural bound
 (`RMDIR`) two verbs instead of one that tries to do both.
@@ -166,7 +166,7 @@ a real `fs_subtree_caretaker` in front of a real `redoxfs_server`):
   mints with a raw `MKDIR` carrying `dir::ALL & !dir::SETTIME` (deliberately narrower than every
   other grant this script runs under), against which a bare `SETMTIME` succeeds and `SETMTIME_AT`
   is refused. This is what makes DECISIONS §112's split provable over the real wire rather than
-  only in `redoxfs_server`'s in-process host tests: a wrong row in `filesystem_proto::verb::TABLE`, or a
+  only in `redoxfs_server`'s in-process host tests: a wrong row in `filesystem_protocol::verb::TABLE`, or a
   caretaker that forwarded rights incorrectly, would not be caught by a test that calls
   `Server::set_mtime_at` directly.
 
@@ -176,7 +176,7 @@ mtime probes are not (yet) independently witnessed from the host, see `BUGS`.
 ## BUGS
 
 - **"Now" is this server's own advancing logical clock, not a reading of the real wall clock**
-  milestone 51 landed (`clock_proto`, DECISIONS §43). Two bare touches in sequence are guaranteed to
+  milestone 51 landed (`clock_protocol`, DECISIONS §43). Two bare touches in sequence are guaranteed to
   observe strictly increasing mtimes; a bare touch is not guaranteed to observe a mtime close to
   what `date` reports at the same instant. Wiring the FS server with a read-only mapping of the
   clock page (the same authority `date` itself holds) so `SETMTIME` records a real wall-clock second

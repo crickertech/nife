@@ -469,7 +469,7 @@ went), and the difference is accounted rather than shrugged at:
   (`user_mode_runtime::mapped_window::MappedWindow`). It is recorded because a capability that names more
   than the thing it stands for is exactly the kind of fact this convention exists to write down,
   and because the `SURFACE_BYTES % 4096 == 0` assertion that used to hide the question by
-  construction was deleted this milestone (`crates/graphics_proto/src/lib.rs` has the search that
+  construction was deleted this milestone (`crates/graphics_protocol/src/lib.rs` has the search that
   justified deleting it).
 
 - **RESOLVED 2026-08-26 (DECISIONS §102, built by milestone 142's terminal-size lane).** `Object::
@@ -479,7 +479,7 @@ went), and the difference is accounted rather than shrugged at:
   client's and display terminal's surface grant, and the compositor's screen (plus a capture
   client's read-only mirror of it) all moved to this, which is what makes the grown scanout (900
   page frames at the 1280x720 this was first built and measured against; 311 frames at the 924x344
-  the scanout was retargeted to on 2026-08-27, `crates/graphics_proto/src/lib.rs`'s `WIDTH` has the
+  the scanout was retargeted to on 2026-08-27, `crates/graphics_protocol/src/lib.rs`'s `WIDTH` has the
   reasoning) fit a sixteen-slot capability table at all: at one capability per page neither size
   would have. `display_service::DRIVER_SLOT_DMA`'s `const` assertion (below, and the error it
   used to produce) is retired along with the pressure it guarded against, and **replaced rather
@@ -588,7 +588,7 @@ went), and the difference is accounted rather than shrugged at:
   second L3, still inside the eight-page budget.
 
   **One more arithmetic trap in the chosen size.** 800 x 600 x 4 is 1,920,000 bytes, which is
-  **468.75 pages**, so the surface does not fill whole page frames and `graphics_proto`'s build-time
+  **468.75 pages**, so the surface does not fill whole page frames and `graphics_protocol`'s build-time
   assertion that it must (`SURFACE_BYTES.is_multiple_of(4096)`) fails. With an 800-pixel width the
   height must be a multiple of 32 for the surface to be a whole number of page frames; 608 is the
   nearest, giving 475 page frames exactly and a 100x43 grid. The alternative is to grant `div_ceil`

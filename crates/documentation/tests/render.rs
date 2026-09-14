@@ -87,7 +87,7 @@ fn underscores_are_never_emphasis() {
     // `__rust_alloc` as an opened strong span; here it is text, and that is a deliberate narrowing
     // recorded in the renderer's BUGS.
     let out = render(
-        "the __rust_alloc symbol and filesystem_proto\n",
+        "the __rust_alloc symbol and filesystem_protocol\n",
         Style {
             width: 80,
             color: true,
@@ -286,7 +286,7 @@ fn is_fence(line: &str) -> bool {
 /// breadth, which is a documentation claim rather than a soundness one.
 ///
 /// So this is the `cfg(miri)` sampling convention the other suites use (`gpt`'s corruption sweeps,
-/// `glob`'s strides, `ntp_proto`'s 10^9-value sweep), taken to its limit: the sampled paths here are
+/// `glob`'s strides, `network_time_protocol`'s 10^9-value sweep), taken to its limit: the sampled paths here are
 /// the nineteen unit tests, and the corpus stays native-only. See notes/undefined-behavior.md.
 ///
 /// This is also the whole content of the three weeks the weekly `undefined-behavior check` spent
