@@ -71,9 +71,13 @@
 //! - **IPv4 only.** No AAAA, so a Mac on an IPv6-only segment finds nothing. `mdns_proto`'s
 //!   `Advertisement` carries no IPv6 address yet.
 //!
-//! Name: provisional, and the stem is ruled: calef ruled **`multicast_dns`** on 2026-09-13. Unlike
-//! the `ntp` program, which stays short because it is what a person types at a prompt, this is not
-//! typed in ordinary use and follows its crates. The name this becomes is
+//! Name: provisional, and the stem is ruled: calef ruled **`multicast_dns`** on 2026-09-13. The
+//! reason given that day was a contrast with the `ntp` program, which was to stay short because it
+//! is what a person types at a prompt, where this is not typed in ordinary use and follows its
+//! crates. **The contrast is gone and the conclusion is not**: milestone 290 found nothing types
+//! `ntp` either (the kernel's wiring loads it from the archive by name) and split it into
+//! `network_time_client`, `network_time_test_server` and `unwritable_clock_witness`. So both sides
+//! of that sentence now follow their crates, for the same reason. The name this becomes is
 //! `multicast_dns_responder`, with milestone 265.
 
 #![no_std]

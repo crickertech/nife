@@ -2902,12 +2902,14 @@ mod session_reviver_tests;
 /// the clock page, in either direction, which is the whole difference between this and a Unix
 /// `ntpd` running as root.
 ///
-/// The test server is a role of the same binary holding `READ` on the endpoint the client holds
-/// `WRITE` on. Substituting the peer at a capability boundary is how a capability system tests a
-/// client: the client's code does not change and cannot tell. See components/src/ntp.rs for what that
-/// proves and what it leaves to milestone 30's socket-contract tests.
+/// The test server is a separate program holding `READ` on the endpoint the client holds `WRITE`
+/// on. Substituting the peer at a capability boundary is how a capability system tests a client:
+/// the client's code does not change and cannot tell. See
+/// components/src/network_time_client.rs for what that proves and what it leaves to milestone 30's
+/// socket-contract tests. It was a role of the client's own binary until milestone 290, and nothing
+/// about the substitution depended on that: the boundary is the capability.
 ///
-/// Arch-neutral: one portable binary, both ISAs (DECISIONS §19).
+/// Arch-neutral: three portable binaries, both ISAs (DECISIONS §19).
 #[cfg_attr(not(test), allow(dead_code))] // the tests are its callers
 pub mod ntp_service;
 
@@ -2920,7 +2922,8 @@ pub mod ntp_service;
 /// proposal outside the policy's bounds is refused **by the service**, and a write aimed straight at
 /// the clock page kills the process.
 ///
-/// Not arch-gated: one portable binary, the same assertions on aarch64 and riscv64 (DECISIONS §19).
+/// Not arch-gated: three portable binaries, the same assertions on aarch64 and riscv64
+/// (DECISIONS §19).
 #[cfg(all(test, initrd))]
 mod ntp_tests;
 

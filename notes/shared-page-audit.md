@@ -55,7 +55,7 @@ against one.
 | the wall clock | `kernel/src/user/clock_service.rs` | The progenitor, the shell, `date` | `crates/clock_proto` |
 | the C seam | `fixtures/src/c_shim.rs` (C) | `fixtures/src/c_confiner.rs` | `crates/c_seam`, `fixtures/c/c_seam.c` |
 | the input ring | the compositor | the keyboard driver | `crates/compositor` (`proto::ring`) |
-| sockets | `components/src/net_stack.rs` | a client, `std::net`, `ntp` | `crates/socket_proto` |
+| sockets | `components/src/net_stack.rs` | a client, `std::net`, `network_time_client` | `crates/socket_proto` |
 | the virtio DMA regions | four userspace drivers | the **device** | `components/src/net_transport.rs`, `kbd.rs`, `entropy.rs`, `display.rs` |
 
 The last row is not a process pair and is in the table on purpose: a DMA region is a page one party
@@ -512,7 +512,7 @@ audit's lens, stated in the tree, and it is the model the file page should follo
 **The socket contract's decode.** Opcode and socket id from the request word, the id refused above
 `MAX_SOCKETS` before it indexes anything; every payload length refused above `DATA_MAX`; receives
 staged through a `[0u8; DATA_MAX]` stack buffer and then copied into the page. No slice is ever
-formed over the shared mapping, in the server, in `std::net`'s PAL, or in `ntp`, so a concurrent
+formed over the shared mapping, in the server, in `std::net`'s PAL, or in `network_time_client`, so a concurrent
 writer can change the bytes that go out and can corrupt nothing. The PAL's half is **generated** from
 `crates/socket_proto` by `xtask`, so the offsets cannot drift.
 

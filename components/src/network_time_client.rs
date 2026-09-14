@@ -1,14 +1,18 @@
-//! **The NTP client, and the test server that answers it** (milestone 51; DECISIONS §43 and §44,
-//! notes/ntp.md).
+//! **The network time client** (milestone 51, split out of one binary by milestone 290;
+//! DECISIONS §43 and §44, notes/ntp.md).
 //!
 //! The component that turns `ntp_proto`'s wire format into an actual clock correction. It holds a
 //! **network capability** and a capability to **propose** a time. It does not hold the clock.
+//!
+//! Its test server is `fixtures/src/network_time_test_server.rs` and the witness that proves the
+//! missing slot is `fixtures/src/unwritable_clock_witness.rs`. Until milestone 290 all three were
+//! roles of this one binary, dispatched on `arg0`.
 //!
 //! # The endowment is the argument
 //!
 //! ```text
 //!   entropy ──an endpoint──►┌──────────────┐──an endpoint──► net_stack ──► the network
-//!   (8 random bytes,        │  ntp client  │ (the socket contract, UDP 123)
+//!   (8 random bytes,        │  this client │ (the socket contract, UDP 123)
 //!    the nonce)             └──────┬───────┘
 //!                                  │ an endpoint: PROPOSE
 //!                          ┌───────▼────────┐
@@ -22,9 +26,22 @@
 //! it can do with the wall clock is ask, and `clock_proto::policy` answers. **A compromised NTP
 //! client can lie inside the service's bounds and can do nothing else.** In Unix `ntpd` runs as root
 //! and may set the clock to anything at all. `an_ntp_client_holds_no_writable_clock_page` in
-//! `kernel/src/user.rs` proves the claim the way the machine proves things: the same binary, given
-//! the same five slots plus the address at which a *setter* maps the clock page, writes there and
-//! dies of a fault.
+//! `kernel/src/user/ntp_tests.rs` proves the claim the way the machine proves things: a process
+//! given **these five slots and nothing else**, plus the address at which a *setter* maps the clock
+//! page, writes there and dies of a fault.
+//!
+//! **What keeps that proof honest is the endowment, not the binary.** Until milestone 290 the
+//! witness was a role of this file, and this header said the proof rested on it being *the same
+//! binary*. It does not, and the correction is worth having because it was believed: the fault is
+//! caused by the capability set, so any process holding this endowment faults at that address
+//! whatever code it runs. What stops the witness drifting is that both processes are endowed by
+//! **one function** (`spawn_with_client_endowment` in `kernel/src/user/ntp_service.rs`), which takes
+//! the image as a parameter. A sixth slot added to the client is a sixth slot the witness gets, and
+//! there is no second capability list anywhere to forget to update. See milestone 290's block.
+//!
+//! **There is no test-only branch in this program**, and since milestone 290 that sentence needs no
+//! qualification. It used to sit on the same screen as `ROLE_PROBE_CLOCK`, a test-only branch in
+//! this binary, which is the contradiction 290 was minted to end.
 //!
 //! # The nonce comes from the entropy service, or the client stops
 //!
@@ -55,24 +72,15 @@
 //! back off, `DENY` means go away), and a client that retries into one is the abusive client the
 //! packet exists to stop.
 //!
-//! # Roles
+//! # What the pair proves, and what it does not
 //!
-//! One binary, three roles selected by `arg0`, which is how every other multi-part program here is
-//! packed and keeps the initrd's directory small:
-//!
-//! | role | what it is | `arg1` | `arg2` |
-//! |---|---|---|---|
-//! | [`ROLE_CLIENT`] | the client above | the server's IPv4, packed big-endian | the server's UDP port |
-//! | [`ROLE_SERVER`] | the test server (below) | one of the `SRV_*` variants | the wall-clock nanoseconds it claims |
-//! | [`ROLE_PROBE_CLOCK`] | the client's endowment, pointed at the clock page | the address to write | unused |
-//!
-//! # The test server, and what it does and does not prove
-//!
-//! [`ROLE_SERVER`] is **both an NTP server and the network**: it holds `READ` on an endpoint the
-//! client was given `WRITE` on, and it speaks the same socket contract (`crates/socket_proto/src/lib.rs`)
-//! `net_stack` does. The client cannot tell, and that is the point rather than a convenience: the
-//! client's network path is one endpoint capability, so substituting the peer at that boundary runs
-//! the client's **real, unmodified code**. There is no test-only branch anywhere in the client.
+//! The test server is **both an NTP server and the network**: it holds `READ` on the endpoint this
+//! client was given `WRITE` on, and it speaks the same socket contract
+//! (`crates/socket_proto/src/lib.rs`) `net_stack` does. The client cannot tell, and that is the
+//! point rather than a convenience: its network path is one endpoint capability, so substituting
+//! the peer at that boundary runs the client's **real, unmodified code**. That property comes from
+//! the capability boundary and not from co-location, which is exactly why splitting the two
+//! binaries in milestone 290 cost nothing.
 //!
 //! What that proves: the socket-contract glue (minting a frame, delegating it, the destination
 //! header, `SENDTO`/`RECV` framing), that the 48 bytes on the wire are a well-formed NTPv4 client
@@ -81,21 +89,25 @@
 //! judges.
 //!
 //! What it does not prove: that smoltcp, UDP, IPv4 and the NIC carry those bytes. Milestone 30's
-//! socket-contract tests prove that path with a real datagram, and this lane deliberately does not
+//! socket-contract tests prove that path with a real datagram, and milestone 51 deliberately did not
 //! re-prove it. Nor does it prove anything about a real internet time server: nothing in QEMU's
 //! slirp answers UDP 123, and pointing the gate at a public server would make it depend on somebody
 //! else's network. The honest summary is that the client is proven against a server we wrote, over a
 //! network we wrote, and the parts we did not write are proven elsewhere.
 //!
-//! Name: recorded (crate `ntp_proto`, ratified 2026-08-23 by calef in a kernel-dependency crate
-//! naming review). Introduced 2026-07-31 with milestone 55. The protocol's own name, and the stem
-//! of a crate name calef signed, which is the strongest evidence available short of a ruling on
-//! this string. The acronym test set on 2026-09-05 was not available to that ratification and it
-//! does reach this name: network time protocol expands into something more informative than
-//! itself, which is the class `dtb`, `gpt` and `asid` were deratified into. That is deliberately
-//! left open here rather than settled, because notes/naming.md puts the acronym sweep in a
-//! milestone of its own, and one lane spelling one acronym out ahead of it would leave the
-//! program and its ratified crate disagreeing.
+//! Name: ratified 2026-09-14 (calef, milestone 290), his own words, replacing `ntp`. The old binary
+//! was three programs dispatched on `arg0` and the header justified that shape as "how every other
+//! multi-part program here is packed and keeps the initrd's directory small", which is an argument
+//! from implementation convenience and AGENTS.md ranks it below everything else. Refused keeping
+//! `ntp` for the typed-command latitude: nothing types this name, it is loaded from the archive by
+//! the kernel's wiring, so the latitude that produced `mdr` does not reach it. `network_time`
+//! carries the stem calef ruled on 2026-09-13 for `ntp_proto`, so these three names are already
+//! spelled the way milestone 265 will spell the crate, and 265 never has to rename them. That also
+//! **overtakes 265's "the `ntp` program stays `ntp`" exception**, which was written when there was
+//! one program to keep the short name: after 290 there is no `ntp` program, the client's name is
+//! expanded, and the pair `network_time_protocol`/`network_time_client` does not disagree.
+//! `client` rather than `synchroniser` because a client is what NTP's own mode field calls it, and
+//! the reader who knows the protocol meets the word it uses.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -104,10 +116,10 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use abi::{rendezvous, rights};
+use abi::rights;
 use clock_proto::propose;
-use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
-// The socket contract, verbatim from the file `net_stack` compiles, so the client and the test
+use ntp_proto::{Query, Reject, Timestamp};
+// The socket contract, verbatim from the file `net_stack` compiles, so this client and the test
 // server cannot drift from the real server's idea of the wire format.
 // An NTP client speaks the UDP half of the contract and never the TCP half, so the rest of the
 // file is dead here. Allowed rather than trimmed: the value of compiling the *same file* net_stack
@@ -116,25 +128,21 @@ use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 use socket_proto::*;
 use user_rt::mapped_window::{MappedWindow, PAGE};
 use user_rt::{
-    call, cap_delete, cntfrq, exit, map_page_frame, now, recv_cap, reply, retype_page_frame, send,
-    send_cap, yield_now,
+    call, cntfrq, exit, map_page_frame, now, retype_page_frame, send, send_cap, yield_now,
 };
 
 // =================================================================================================
-// The roles, the slots, and the words this program reports.
+// The slots, and the words this program reports.
+//
+// The report vocabulary is one numbering space across all three programs milestone 290 split this
+// file into, and each declares only the words it sends. The numbers did not move in that split, so
+// a boot log from before it still reads. `kernel/src/user/ntp_service.rs`'s `rpt` module is the
+// whole vocabulary in one place, as the kernel side of a wiring always is here.
 // =================================================================================================
 
-/// The NTP client. `arg1` is the server's IPv4 packed big-endian, `arg2` its UDP port.
-pub const ROLE_CLIENT: u64 = 0;
-/// The test server and stub network. `arg1` selects an `SRV_*` variant, `arg2` is the wall-clock
-/// time in nanoseconds it claims to have.
-pub const ROLE_SERVER: u64 = 1;
-/// The client's endowment, pointed at the clock page. `arg1` is the address to write.
-pub const ROLE_PROBE_CLOCK: u64 = 2;
-
-/// Slot 0: the report endpoint (WRITE). Every role has one.
+/// Slot 0: the report endpoint (WRITE).
 const REPORT: u64 = 0;
-/// Slot 1: the socket contract's endpoint. **The client's whole network authority.** The client
+/// Slot 1: the socket contract's endpoint. **This client's whole network authority.** The client
 /// holds `WRITE`, the test server `READ`.
 const STACK: u64 = 1;
 /// Slot 2: an untyped budget, to mint and map the one shared frame.
@@ -158,27 +166,8 @@ pub const RPT_NO_REPLY: u64 = 3;
 pub const RPT_NO_ENTROPY: u64 = 4;
 /// The socket contract refused us. `w1` names the step, so a wiring mistake is not a mystery.
 pub const RPT_NET_ERROR: u64 = 5;
-/// [`ROLE_PROBE_CLOCK`], about to write the clock page at `w1`. The next thing this process does is
-/// fault; anything after this report means it did not.
-pub const RPT_PROBING: u64 = 6;
-/// The test server saw its first request. `w1` is the request's transmit field (the nonce), `w2` is
-/// `(dst_port << 32) | (version << 8) | mode`.
-pub const RPT_SERVED: u64 = 7;
 /// The local wall clock is outside the range an NTP timestamp can hold, so no exchange is possible.
 pub const RPT_BAD_LOCAL_TIME: u64 = 8;
-
-/// Which reply the test server sends.
-pub mod srv {
-    /// A correct, acceptable reply at the claimed time.
-    pub const GOOD: u64 = 0;
-    /// The origin field is the nonce with its low bit flipped: the reply of an off-path attacker
-    /// who guessed wrong, and the check the whole of plain NTP's spoofing resistance rests on.
-    pub const BAD_ORIGIN: u64 = 1;
-    /// Stratum 0 with the kiss code `RATE`. An instruction to back off, not a time.
-    pub const KISS_OF_DEATH: u64 = 2;
-    /// Twenty bytes: something that is not an NTP packet arriving on our socket.
-    pub const SHORT: u64 = 3;
-}
 
 /// How many requests one synchronisation makes before giving up. Three is a client's ordinary
 /// behaviour on a lossy path, not a widened timeout; the DNS check in `socket_test_client` settled on the same
@@ -190,34 +179,25 @@ pub const ATTEMPTS: u32 = 3;
 /// thing this kernel cannot yet express without keeping a thread runnable for the whole of it.
 const RETRY_GAP_NANOS: u64 = 2 * 1_000_000;
 
-/// The server's turnaround in the test server's reply: T3 - T2. Small but not zero, so the delay
-/// arithmetic is exercised on a value that has to be subtracted rather than one that cannot go
-/// wrong. Far under the client's own round trip, which is two IPC exchanges.
-const SERVER_TURNAROUND_NANOS: u64 = 1_000;
-
-/// Where both roles map the shared socket frame in their own address spaces. Above the program's
-/// segments; the same address `socket_test_client` uses, and each address space is its own.
+/// Where this client maps the shared socket frame in its own address space. Above the program's
+/// segments; the same address `socket_test_client` uses, and each address space is its own. The
+/// test server picks its own, and the two do not have to agree: what they share is the frame's
+/// *layout*, which is `socket_proto`'s.
 const PAGE_FRAME_VA: u64 = 0x0000_0000_00A0_0000;
 
-// SAFETY: this program's own `PageFrame::MAP` (both roles do it before touching the frame) mapped one
-// page read/write at PAGE_FRAME_VA before any of `WINDOW`'s accessors are called (milestone 139).
+// SAFETY: this program's own `PageFrame::MAP` (in `attach_page_frame`, before the frame is touched)
+// mapped one page read/write at PAGE_FRAME_VA before any of `WINDOW`'s accessors are called
+// (milestone 139).
 const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_FRAME_VA, PAGE) };
 
 /// The one socket id this client uses.
 const SID: u64 = 0;
 
+/// `a0` is the server's IPv4 packed big-endian, `a1` its UDP port.
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(role: u64, a1: u64, a2: u64) -> ! {
-    match role {
-        ROLE_SERVER => server(a1, a2),
-        ROLE_PROBE_CLOCK => probe_clock(a1),
-        _ => client(a1, a2),
-    }
+pub extern "C" fn _start(server_ip: u64, server_port: u64) -> ! {
+    client(server_ip, server_port)
 }
-
-// =================================================================================================
-// The client
-// =================================================================================================
 
 /// Report and stop. One-shot, so it **exits** rather than parking: a role left spinning on a run
 /// queue starves later tests on the same core, which is the finding `socket_test_client`'s `done` records.
@@ -438,7 +418,7 @@ fn attach_page_frame() {
 
 // =================================================================================================
 // The shared frame. Absolute-VA volatile access through `WINDOW` (milestone 139), the same
-// abstraction mdns_responder, socket_test_client, smb_server, keyboard_driver, entropy and net_transport share.
+// abstraction mdns_responder, socket_test_client, network_time_test_server, keyboard_driver, entropy and net_transport share.
 // `va` is always `PAGE_FRAME_VA + <an offset constant>`, so subtracting PAGE_FRAME_VA recovers the offset
 // `WINDOW` bounds-checks against.
 // =================================================================================================
@@ -448,9 +428,6 @@ fn r8(va: u64) -> u8 {
 }
 fn w8(va: u64, v: u8) {
     WINDOW.w8(va - PAGE_FRAME_VA, v);
-}
-fn r16le(va: u64) -> u16 {
-    WINDOW.r16(va - PAGE_FRAME_VA)
 }
 fn w16le(va: u64, v: u16) {
     WINDOW.w16(va - PAGE_FRAME_VA, v);
@@ -477,131 +454,6 @@ fn read_payload(n: usize, out: &mut [u8]) -> usize {
         *b = r8(PAGE_FRAME_VA + OFF_PAYLOAD + i as u64);
     }
     n
-}
-
-// =================================================================================================
-// The probe: the client's endowment, pointed at the clock page.
-// =================================================================================================
-
-/// **Everything an NTP client holds, and the clock page is still not reachable.**
-///
-/// Spawned with the client's five slots and told the address at which a process holding the *set*
-/// authority maps the clock page. It reports the address, writes there, and faults, because its
-/// address space has no mapping of that frame at any address. The boundary is the mapping, not the
-/// layout, and knowing where to look buys nothing.
-fn probe_clock(va: u64) -> ! {
-    send(REPORT, RPT_PROBING, va, 0);
-    // SAFETY: deliberately not safe. This is the assertion: the write must fault. If it does not,
-    // the process survives to send the report below, and the test fails on that.
-    unsafe {
-        core::ptr::write_volatile(va as *mut u64, clock_proto::state::SET);
-    }
-    done(RPT_PROBING, va, 1)
-}
-
-// =================================================================================================
-// The test server: an NTP server and the network under it, in one process.
-// =================================================================================================
-
-/// Serve the socket contract on [`STACK`], answering each request with an NTP reply built from
-/// `variant` at `claimed_nanos`. See the module docs for what this does and does not prove.
-///
-/// It reports **once**, after the first request it sees, and the report blocks until the test drains
-/// it: a report per request would deadlock the exchange the moment nobody was draining, and one is
-/// all the assertions need.
-fn server(variant: u64, claimed_nanos: u64) -> ! {
-    let mut pending = [0u8; ntp_proto::PACKET_LEN];
-    let mut pending_len = 0usize;
-    let mut reported = false;
-
-    loop {
-        let (w0, cap, w1) = recv_cap(STACK);
-        match req_op(w0) {
-            // A SEND_CAP: the client's shared frame, which we map for ourselves and then drop the
-            // capability for, because the mapping outlives it. No reply; nobody is waiting.
-            OP_ATTACH_PAGE_FRAME => {
-                map_page_frame(cap, PAGE_FRAME_VA, true, MEMORY_REGION);
-                cap_delete(cap);
-            }
-            OP_OPEN_UDP | OP_OPEN_TCP => {
-                reply(cap, REP_OK, 0);
-            }
-            OP_SENDTO => {
-                // The length the client declared, which is how the real server learns it too.
-                let mut wire = [0u8; ntp_proto::PACKET_LEN];
-                let n = read_payload((w1 as usize).min(ntp_proto::PACKET_LEN), &mut wire);
-                let request = Packet::parse(&wire[..n]).unwrap_or_default();
-                pending_len = build_reply(&request, variant, claimed_nanos, &mut pending);
-                reply(cap, REP_OK, 0);
-                if !reported {
-                    reported = true;
-                    let dst_port = r16le(PAGE_FRAME_VA + OFF_DST_PORT) as u64;
-                    send(
-                        REPORT,
-                        RPT_SERVED,
-                        request.transmit.bits(),
-                        (dst_port << 32) | ((request.version as u64) << 8) | request.mode as u64,
-                    );
-                }
-            }
-            OP_RECV => {
-                write_payload(&pending[..pending_len]);
-                w16le(PAGE_FRAME_VA + OFF_LEN, pending_len as u16);
-                reply(cap, pending_len as u64, 0);
-            }
-            OP_CLOSE => {
-                reply(cap, REP_OK, 0);
-            }
-            _ => {
-                if cap != rendezvous::NO_CAP {
-                    reply(cap, REP_ERR, 0);
-                }
-            }
-        }
-    }
-}
-
-/// Build the reply for `variant`. Returns how many bytes of `out` are the reply.
-fn build_reply(request: &Packet, variant: u64, claimed_nanos: u64, out: &mut [u8]) -> usize {
-    let t2 = stamp(claimed_nanos).unwrap_or(Timestamp::ZERO);
-    let t3 = stamp(claimed_nanos + SERVER_TURNAROUND_NANOS).unwrap_or(Timestamp::ZERO);
-
-    let mut p = Packet {
-        leap: leap::NONE,
-        version: ntp_proto::VERSION,
-        mode: mode::SERVER,
-        stratum: 2,
-        poll: request.poll,
-        precision: -20,
-        root_delay: Short(0x0000_1000),      // ~62 ms
-        root_dispersion: Short(0x0000_2000), // ~125 ms
-        reference_id: *b"TEST",
-        reference: t2,
-        // A server echoes the client's transmit field into origin and interprets it no further.
-        // That is what makes a random nonce free, and it is what BAD_ORIGIN below breaks.
-        origin: request.transmit,
-        receive: t2,
-        transmit: t3,
-    };
-
-    match variant {
-        srv::BAD_ORIGIN => {
-            p.origin = Timestamp::from_bits(request.transmit.bits() ^ 1);
-        }
-        srv::KISS_OF_DEATH => {
-            p.stratum = 0;
-            p.reference_id = *b"RATE";
-        }
-        srv::SHORT => {
-            let bytes = p.to_bytes();
-            out[..20].copy_from_slice(&bytes[..20]);
-            return 20;
-        }
-        _ => {}
-    }
-
-    out[..ntp_proto::PACKET_LEN].copy_from_slice(&p.to_bytes());
-    ntp_proto::PACKET_LEN
 }
 
 user_rt::panic_handler!();
