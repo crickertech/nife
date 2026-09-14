@@ -639,10 +639,11 @@ pub fn initrd() -> Option<&'static [u8]> {
 
 /// The bytes of the program named `name` inside the initrd archive (milestone 19f). The initrd is a
 /// nifefs image carrying the progenitor plus the programs it loads. The milestone tour and the
-/// kernel-side service demos still run a role of the one `hello` binary, so they ask for
-/// [`HELLO_ENTRY`]; `spawn_progenitor` and `boot_via_progenitor` instead take the whole archive,
-/// because the progenitor parses the rest itself. Returns `None` if there is no initrd, it will not
-/// parse, or it holds no such program.
+/// kernel-side service demos ask for whichever program they wire, by name; since milestone 291
+/// that is one program per demo rather than one role of [`HELLO_ENTRY`].
+/// `spawn_progenitor` and `boot_via_progenitor` instead take the whole archive, because the
+/// progenitor parses the rest itself. Returns `None` if there is no initrd, it will not parse, or
+/// it holds no such program.
 // Used by the milestone tour, the kernel-wired virtio/console/shell demos, and the tests that load
 // a user program; dead only in the bench boot, which runs no user programs.
 #[cfg_attr(feature = "bench", allow(dead_code))]
@@ -805,17 +806,24 @@ pub const NO_UART_PAGE: &str = "this machine's console UART is in the I/O port s
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PROGENITOR_ENTRY: &str = "progenitor";
 
-/// The archive entry holding the milestone 7-19 **role catalogue**: the one binary the kernel
-/// re-enters at a chosen role to play a client or a server.
+/// The archive entry holding milestone 19d's and 19e's **init roles**: the one binary the kernel
+/// still re-enters at a chosen role, to play a userspace parent that builds a child out of an ELF
+/// it parsed.
 ///
 /// One name on all three architectures since milestone 266. aarch64 used to pack it as `init`,
-/// because there it carried the boot role as well as the catalogue; that role is
-/// [`PROGENITOR_ENTRY`]'s own program now, and `hello` is packed as `hello` everywhere. The kernel
-/// still enters it directly for milestone 19d's test roles, which is why it is in `boot_programs`
-/// and measured.
+/// because there it carried the boot role as well; that role is [`PROGENITOR_ENTRY`]'s own program
+/// now, and `hello` is packed as `hello` everywhere. The kernel still enters it directly for those
+/// init roles, which is why it is in `boot_programs` and measured.
+///
+/// **It was the whole milestone 7-19 role catalogue until milestone 291**, thirty-one roles in one
+/// binary. Twenty-two of them are their own programs or `block_driver`'s roles now; nine are left,
+/// and `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md` is what would
+/// take them, since splitting them is a change to [`spawn_progenitor`]'s choice of entry rather
+/// than to `fixtures/`.
 ///
 /// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
-/// reader meets at eight call sites, and `kernel::user::tests` already spelled it this way.
+/// reader meets at eight call sites, and `kernel::user::tests` already spelled it this way. The
+/// program's own name is overdue and is calef's; see that file's `BUGS`.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const HELLO_ENTRY: &str = "hello";
 
@@ -843,6 +851,13 @@ pub const PROGENITOR_ROLE: u64 = 27;
 /// other role it is [`HELLO_ENTRY`], entered at one of milestone 19d's test roles, which share this
 /// path and this slot numbering; that sharing is why the aarch64 endowment carries two
 /// capabilities the interactive system has no use for, and why its slots are not riscv64's.
+///
+/// **That `if` is the reason `hello` still has nine roles**, and is the thing a follow-on to
+/// milestone 291 would change: six of those roles are separate programs waiting to happen, and
+/// each would need its own archive entry named here instead of one name standing for all of them.
+/// See `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`. It is written
+/// here rather than only in the proposal because this is where the next person to touch the entry
+/// choice is already reading.
 ///
 /// Returns a [`holding::Holding`] over the thread and its building budget, so a test that is
 /// finished with it can hand **2048 frames** back. That number is not incidental: six
@@ -1937,7 +1952,14 @@ pub fn riscv_uart_driver_demo(
 /// none of it. Unlike the other demos this
 /// does not block: `system_initializer` and its children run on the scheduler while the boot thread parks.
 #[cfg(target_arch = "riscv64")]
-#[cfg_attr(not(feature = "shell"), allow(dead_code))] // the `shell` boot mode is the only caller
+// Two callers since milestone 268: the `shell` boot mode, and the default boot's own hand-off at
+// the end of the tour (`riscv_hand_over`), because nothing halts by default any more. The `allow`
+// is kept for the configurations that reach neither (a `soak` or `jobmix` build replaces the
+// hand-off with its own workload; `test` and `bench` park before it).
+#[cfg_attr(
+    any(test, feature = "bench", feature = "soak", feature = "jobmix"),
+    allow(dead_code)
+)]
 pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), LoadError> {
     use crate::cap::Rights;
     const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt

@@ -1,6 +1,6 @@
 # 268. Every architecture boots the same way: describe the machine, test yourself, hand over
 
-**Status: NOT-STARTED.** Minted 2026-09-09 by calef, from milestone 267's measurement and the parity
+**Status: PARTIAL.** Minted 2026-09-09 by calef, from milestone 267's measurement and the parity
 review that followed it. *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION, MILESTONE 182.** The ladder itself is decided (calef, 2026-09-09, in
@@ -136,3 +136,223 @@ prints, and not a marker that exists on one architecture, which is the defect be
 - **Milestone 269.** `machine` as a program that can be run from the prompt.
 - **Recorded.** The `attach_screen` asymmetry is named in BUGS above rather than left for a lane to
   rediscover, because the wrong move is the obvious one.
+- **Outstanding.** The ladder's **top rung on `x86_64`**: a default boot there still ends in
+  `nife x86_64: boot complete, halting.` after a green verdict, because the architecture has no
+  entry point that hands the machine to a shell. Still this block's scope and still gated on the two
+  things named above it; checked 2026-09-14 by booting it.
+- **Proposed.** `design/roadmap/proposals/retire-the-builder-program.md`. **Retire
+  `components/src/builder.rs`.** calef ruled on 2026-09-14 that it should go
+  away as a result of this milestone, because the claim it carries (*userspace, not the kernel,
+  composes a process*) becomes one of item 2's collected self-tests on all three architectures. Its
+  name is parked for that reason (*"Skip this one because it will go away with parity"*), so the
+  provisional `process_builder` in its provenance block is not settled and was not touched. This lane
+  did not perform the removal: the ladder subsumes the claim **on riscv64** and can show it (item 4
+  made that boot hand over, so the same boot now watches the progenitor compose the whole system from
+  its own budget), but a compose-a-process self-test on **all three** needs a compiled ELF to run at
+  user level and `x86_64` has none (`user_rt` has no `x86_64` arms). So the retirement waits on
+  either that leg or a one-sentence ruling that the progenitor carrying the claim wherever a
+  progenitor runs is enough. The work when it happens: drop the tour's `init/build` step and
+  `kernel::user::riscv_initrd_demo`, drop `builder` from `xtask`'s `boot_programs` and the archive
+  table, delete the program, and give `crates/board_console` a live marker in place of
+  `userspace_ran`'s `init/build` (the captured board transcript keeps needing the old one).
+- **Proposed.** `design/roadmap/proposals/one-machine-description-not-two.md`. **Trim the
+  duplicated bring-up narrative on riscv64 and `x86_64`**, now that the
+  machine description answers the same questions in one block on every architecture. The constraint
+  to respect is the one that put those lines there: a `test` or `bench` boot compiles the description
+  out and still has to say what machine it ran on.
+- **Proposed.**
+  `design/roadmap/proposals/the-machine-description-should-say-the-screen-geometry.md`. **A
+  machine-description line for the framebuffer's geometry.**
+  `console::print_summary` reports a screen's address and length, which is what the kernel holds; the
+  width, height and pixel order arrive in the handoff and are printed by the `x86_64` arm alone. A
+  board with a monitor and no serial port is exactly the machine this block was written for.
+
+---
+
+## What was built (2026-09-14)
+
+**PARTIAL and not BUILT, deliberately.** Every rung below the last one landed on all three
+architectures on 2026-09-14. The last rung is reached on aarch64 and riscv64 and is still gated on
+`x86_64`, which is exactly what this block's own gate line said would happen, so the gate is live
+rather than stale and the status has to admit it. See "What `x86_64` could not reach".
+
+### The proof condition, answered
+
+> *`--until` reaches the self-test verdict on all three architectures, and the same failure injected
+> into any one of them turns the verdict red on all three and fails CI.*
+
+Both halves, measured on 2026-09-14:
+
+```
+$ script/boot-check
+boot-check (aarch64): reached self-test verdict (2404 bytes in 2.4s)
+boot-check (aarch64): nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz
+boot-check (aarch64): nife self-test: 5 of 5 passed
+boot-check (riscv64): reached boot tour complete (6862 bytes in 2.8s)
+boot-check (riscv64): nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz
+boot-check (riscv64): nife self-test: 5 of 5 passed
+boot-check (x86_64): reached self-test verdict (6182 bytes in 2.9s)
+boot-check (x86_64): nife machine: x86_64, 1 processor(s), 254 MiB, 100 Hz
+boot-check (x86_64): nife self-test: 5 of 5 passed
+boot-check: every architecture reached the self-test verdict and it was green
+$ echo $?
+0
+```
+
+And red, with `self_test_injection` made a *default* feature so that the ordinary gate met it
+(rather than the `--inject` mode, which expects red and would have proved only itself):
+
+```
+boot-check (aarch64): nife self-test: 4 of 5 passed, 1 FAILED: exceptions
+boot-check (aarch64): FAILED. The default boot did not reach a green self-test verdict. ...
+boot-check (riscv64): nife self-test: 4 of 5 passed, 1 FAILED: exceptions
+boot-check (riscv64): FAILED. ...
+boot-check (x86_64): nife self-test: 4 of 5 passed, 1 FAILED: exceptions
+boot-check (x86_64): FAILED. ...
+$ echo $?
+1
+```
+
+Exit 1 is what fails CI: `boot-check` is a `local` row in `script/ci-build`'s table (milestone 286's
+one enumeration), and CI's test job names it beside `test` and `shell-check`. **The verdict has been
+seen red on all three**, which is the half of a gate that usually never gets checked.
+
+**And through the other reader too.** The proof condition names `--until`, which is the bench tool
+rather than the gate, so it was checked there as well: `cargo xtask board-console --until selftest`
+reaches the verdict on all three captures and exits 0, and on the three injected captures it reports
+
+```
+board-console: failed: the kernel's boot self-test failed on this machine: exceptions. The boot
+continued to userspace anyway (it reports, it does not gate), so the board is up and degraded
+rather than dead
+board-console: self-test: nife self-test: 4 of 5 passed, 1 FAILED: exceptions
+```
+
+and exits 1. The two readers are the same recogniser, which is the point: a gate that used a second
+reader would be gating something a bench run does not measure.
+
+### The six items
+
+1. **The machine description answers the eight questions on all three.** `print_machine_description`
+   stays in `kernel/src/main.rs` (milestone 267's lint reads it there by name) and is now called
+   from every architecture's arm rather than only from the shared aarch64 path. Processors, memory,
+   console, interrupt controller, timer rate, initrd, PCIe window, IOMMU, each in its own
+   vocabulary: a GICv2's two register blocks on aarch64, a PLIC and its S-mode context on riscv64,
+   the local-APIC/IO-APIC pair on `x86_64`; SMMUv3, riscv-iommu and VT-d for the last question.
+   Four new per-architecture summaries were written for it (`arch::irq::print_summary`,
+   `arch::iommu::print_summary`) plus one portable one (`console::print_summary`).
+2. **`self_test` collects the set and runs it on all three.** `kernel/src/self_test.rs`, five
+   checks: `exceptions`, `mapping`, `frames`, `timer`, `scheduler`. Two of them were already here
+   and uncollected, exactly as this block said: `arch::exceptions::self_test` (riscv64 and
+   `x86_64` had it, aarch64 now does) and the RISC-V tour's unnamed `kmap test`. Both were removed
+   from the tour and gained two architectures.
+3. **One verdict line**, `nife self-test: 5 of 5 passed` / `..., 1 FAILED: <names>`. **Wording
+   provisional**, as this block's `BUGS` instructed.
+4. **Nothing halts by default on riscv64 either.** Its tour used to end in `arch::halt()`; it now
+   ends in `riscv_hand_over`, the same call `--features shell` makes, so the default boot ends at a
+   `swish` prompt. aarch64 already did this. Transcript of a riscv64 default boot with an archive:
+   `nife: the capability core runs on RISC-V.` then `nife: handing the system to the userspace
+   progenitor.` then `nife capability shell.` and a `$ ` prompt.
+5. **`board_console` learned the ladder.** Three new stages, `Machine` -> `SelfTest` -> `Prompt`,
+   and a **failed verdict is `Failure::SelfTestFailed`, not a stage**, so a degraded board does not
+   read as a good one. `cargo xtask board-console --until machine|selftest|prompt`. Eight new host
+   tests.
+6. **CI fails on a red verdict**: `script/boot-check`, a `local` row in `script/ci-build`'s table
+   (milestone 286's one enumeration), named by CI's test job beside `test` and `shell-check`.
+
+### `crates/boot_ladder`, which was not in the plan
+
+The rungs are strings two binaries agree on, so AGENTS.md rule 7 makes them a crate. That is not a
+formality here: **the one marker that existed before was a literal inside the RISC-V arm of
+`main.rs` and a second copy of it inside the recogniser**, which is finding 3's mechanism. Three
+binaries now read one definition: the kernel, `swish`, and `board_console`. Name provisional.
+
+### A fifth finding, the same shape as finding 3
+
+**`Stage::Banner` was unreachable on aarch64.** It matches `nife on `, deliberately generic so that
+"a recogniser that only knew the VisionFive 2's would report a healthy aarch64 or x86_64 board as
+never having booted" (`progress.rs`, written in anticipation). aarch64 printed no such line at all:
+its description opened with a bare `nife`. So the rung below the one this milestone was written
+about had the same defect, found the same way, by looking for the marker rather than by anything
+failing. aarch64 now prints `nife on aarch64 (EL1, MMU off: physical addresses until mmu::init)` as
+the first line after `console::init`, which is where the other two have always printed theirs.
+
+Two smaller ones, both fixed:
+
+- **`arch::riscv64::mmu::print_summary` was `unimplemented!()`** and had never had a caller. Calling
+  the same name on all three architectures found it on the first run, as a `[PANIC]` in the middle
+  of the block it had just printed.
+- **`arch::x86_64::exceptions::self_test` returned the cumulative breakpoint count** where the other
+  two return a delta. Harmless while it had one caller; the second caller reported `2`.
+
+### What `x86_64` could not reach, and why
+
+**The prompt.** This block gated exactly that and nothing else, and the gate held: `x86_64` has no
+entry point that hands the machine to a shell, so its boot still ends in `nife x86_64: boot
+complete, halting.` after the self-test verdict. Both halves are needed and neither is this
+milestone's: DECISIONS §149 for how `swish` reaches a console where §121 leaves no userspace holder,
+and milestone 182 for the entry point. `crates/board_console`'s `Stage::Prompt` says so in its own
+doc rather than leaving a reader to discover it from a watch that times out, and `script/boot-check`
+says so in its `BUGS`.
+
+Every rung below it landed on `x86_64` on the same terms as the other two.
+
+### calef's ruling on `components/src/builder.rs` (2026-09-14), and what this lane did with it
+
+calef, mid-lane: he expects `builder` to **go away** as a result of this milestone, because the claim
+it carries (*userspace, not the kernel, composes a process*) becomes one of item 2's collected
+self-tests, running on all three architectures instead of one. Its name is parked for that reason:
+*"Skip this one because it will go away with parity"*, so the provisional `process_builder` in its
+provenance block is not settled and was not touched.
+
+**This lane did not remove it, and the reason is the ruling's own condition rather than scope.** The
+ladder subsumes `builder`'s claim on riscv64 and can show it: item 4 made that architecture's
+default boot hand over, so the same boot that runs `builder`'s `init/build` step now also watches
+the progenitor load, measure and compose the console, the line discipline, the input driver and
+`swish` out of its own budget, and offer a prompt. That is the same claim at a larger scale, on the
+only architecture that ever ran `builder`.
+
+**What is not true yet is "on all three".** A compose-a-process self-test needs a compiled ELF to run
+at user level, and `x86_64` has none: `user_rt` has no `x86_64` arms, so that architecture runs
+hand-assembled children and cannot load a program by name. Removing `builder` today would relocate
+the claim on riscv64 and leave `x86_64` where it already is, which is *not* a loss, but it would also
+close the door on the version calef actually described. And it is not free: the trust root
+(`kernel/src/trust.rs`), the measured-boot manifest (`xtask`'s `boot_programs`), the archive table,
+and `board_console`'s `userspace_ran` with its captured board transcript all name it.
+
+So it is proposed rather than performed:
+`design/roadmap/proposals/retire-the-builder-program.md`, listed under Follow-on above. The
+one-sentence decision calef
+can make: whether the retirement waits for an `x86_64` leg that can run a compiled ELF, or goes
+ahead now on the strength of the progenitor carrying the claim wherever a progenitor runs.
+
+## BUGS (as built)
+
+- **The machine description is printed twice-over on riscv64 and `x86_64`.** Both arms print their
+  own bring-up narrative as each piece comes up (`isa`, `firmware`, `memory`, `pci`, `apic`), and
+  the description then answers the same questions again in one block. The duplication is noise
+  rather than a defect, and trimming the arms' copies is not free: the riscv64 arm's `isa` and
+  `firmware` lines exist so that `test` and `bench` boots, which compile the description out, still
+  report what machine they ran on. Proposed in
+  `design/roadmap/proposals/one-machine-description-not-two.md`, which is listed under Follow-on
+  above.
+- **Nothing proves an architecture ran the right five checks.** The verdict says five of five passed
+  on a kernel that ran five; a check deleted from the list takes its own evidence with it. The count
+  is the partial defence and review is the rest. `kernel/src/self_test.rs`'s own `BUGS` says this
+  where a reader meets it.
+- **The self-test can hang the boot.** `timer` and `scheduler` both wait, bounded by the
+  free-running counter rather than by an iteration count, so a machine whose counter never advances
+  sits in `timer` forever. Same exposure `arch::timer::spin_for` already has, recorded beside the
+  code.
+- **`script/boot-check` does not check the prompt**, for the reason in "What `x86_64` could not
+  reach": asserting the top rung on two of three architectures would be the shape of defect this
+  milestone exists to fix. `script/shell-check` reaches a prompt on the two that can.
+- **The injected leg is not in CI.** `script/boot-check --inject` rebuilds three kernels for one
+  boolean, and what it proves is a property of the gate rather than of the change under test. It is
+  run by hand when the self-test or the recogniser changes; the transcript above is from the run
+  that proved it. A gate for the gate, left at rung four deliberately and said out loud.
+- **`Stage::Tour` is still one architecture's rung**, and is now documented as one rather than
+  quietly left in the ladder. Levelling it up would mean giving aarch64 and `x86_64` a marker for a
+  demonstration tour they do not have; levelling it down would delete riscv64's, which is the trap
+  this block warns about. The portable rungs that replace it for every tool are `Machine` and
+  `SelfTest`.

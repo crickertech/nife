@@ -279,12 +279,19 @@ where
         // quiet because we asked it to be. A board that finished its tour is quiet because the
         // kernel halted in `wfi`, which is how a good boot ends.
         //
-        // `!= Tour` rather than `< Tour` (milestone 219): the exemption belongs to that one stage
-        // and not to everything past it. A soak has started and is under contract to keep speaking,
-        // so its silence is the hang this tool exists to name.
+        // Named stages rather than `< Tour` (milestone 219): the exemption belongs to the stages
+        // where quiet is the correct end state and not to everything past them. A soak has started
+        // and is under contract to keep speaking, so its silence is the hang this tool exists to
+        // name.
+        //
+        // **[`Stage::Prompt`] joined the exemption at milestone 268**, and for a different reason
+        // from `Tour`'s: a kernel that finished its tour is quiet because it halted, and a system
+        // sitting at a `swish` prompt is quiet because it is *waiting for somebody to type*. Both
+        // are correct terminal states of a boot, and since that milestone the prompt is the one a
+        // default boot is supposed to reach.
         if let (Some(limit), Some(last)) = (policy.quiet_after, spoke_at)
             && settling.is_none()
-            && progress.reached() != Stage::Tour
+            && !matches!(progress.reached(), Stage::Tour | Stage::Prompt)
             && last.elapsed() >= limit
         {
             outcome = Outcome::WentQuiet;

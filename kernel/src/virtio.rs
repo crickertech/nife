@@ -2,8 +2,9 @@
 //!
 //! This module reads the standardized identity registers of each virtio-mmio slot to find the
 //! block device and route it to a userspace driver. It does not set up a queue, negotiate a
-//! feature, or move a byte of data. That is all the driver's job, at EL0 (see the `virtio_blk`
-//! role in fixtures/src/hello.rs).
+//! feature, or move a byte of data. That is all the driver's job, at EL0 (see
+//! `components/src/block_driver.rs`, which is that driver on every architecture since milestone
+//! 291; it was a role of `fixtures/src/hello.rs` on aarch64 until then).
 //!
 //! **Why this much lives in the kernel.** Discovering which device is in which slot is bus
 //! enumeration, the way firmware walks PCI: you read a device-independent ID register and hand

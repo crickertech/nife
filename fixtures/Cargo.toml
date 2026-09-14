@@ -214,8 +214,130 @@ bench = false
 [lints]
 workspace = true
 
+# **Milestone 291 split `hello` into programs.** Each of these was a role of one binary chosen by
+# the word the kernel put in `x0`; every one of them now ignores that word and does one thing. All
+# fourteen names are PROVISIONAL: calef names programs, and each file's header carries what it does
+# and which alternatives were refused.
+
+# The self-checker (milestone 7): a real ELF that verifies its own loaded image
+# and makes one capability-free syscall. `hello`'s SELF_CHECK role until milestone 291.
+[[bin]]
+name = "image_self_checker"
+path = "src/image_self_checker.rs"
+test = false
+bench = false
+
+# The console's test client (milestone 8): writes text into a page it shares with the
+# console server and sends the length. `hello`'s PRINTING role until milestone 291.
+[[bin]]
+name = "console_test_client"
+path = "src/console_test_client.rs"
+test = false
+bench = false
+
+# The memory-region depleter (milestone 11): maps pages out of its own region until
+# the region is spent, while the kernel allocates nothing. `hello`'s UNTYPED_DEMO role until 291.
+[[bin]]
+name = "memory_region_depleter"
+path = "src/memory_region_depleter.rs"
+test = false
+bench = false
+
+# The delegation pair's giving half (milestone 10): hands a capability on, narrowed.
+# `hello`'s GRANTER role until milestone 291.
+[[bin]]
+name = "delegation_granter"
+path = "src/delegation_granter.rs"
+test = false
+bench = false
+
+# The delegation pair's taking half (milestone 10): uses what it was handed and proves
+# it cannot pass it on. `hello`'s RECEIVER role until milestone 291.
+[[bin]]
+name = "delegation_receiver"
+path = "src/delegation_receiver.rs"
+test = false
+bench = false
+
+# The frame pair's sharing half (milestone 19): writes a sentinel into a page it owns
+# and delegates a read-only view. `hello`'s PAGE_FRAME_PRODUCER role until milestone 291.
+[[bin]]
+name = "page_frame_producer"
+path = "src/page_frame_producer.rs"
+test = false
+bench = false
+
+# The frame pair's receiving half (milestone 19): reads the sentinel through its own
+# mapping and is refused a writable one. `hello`'s PAGE_FRAME_CONSUMER role until milestone 291.
+[[bin]]
+name = "page_frame_consumer"
+path = "src/page_frame_consumer.rs"
+test = false
+bench = false
+
+# The Call/Reply server (milestone 12): answers a caller it was never wired to and
+# proves the reply capability is one-shot. `hello`'s CALL_SERVER role until milestone 291.
+[[bin]]
+name = "call_server"
+path = "src/call_server.rs"
+test = false
+bench = false
+
+# The Call/Reply client (milestone 12). `hello`'s CALL_CLIENT role until milestone 291.
+[[bin]]
+name = "call_client"
+path = "src/call_client.rs"
+test = false
+bench = false
+
+# The revoker (milestone 13): revokes a frame it mapped and finds its own capability
+# gone. `hello`'s REVOKE_DEMO role until milestone 291.
+[[bin]]
+name = "frame_revoker"
+path = "src/frame_revoker.rs"
+test = false
+bench = false
+
+# The rendezvous minter (milestone 19a): retypes a page of its own budget into an IPC
+# object no kernel wiring created. `hello`'s EP_MAKER role until milestone 291.
+[[bin]]
+name = "rendezvous_minter"
+path = "src/rendezvous_minter.rs"
+test = false
+bench = false
+
+# The minted rendezvous's peer (milestone 19a): receives the delegation and listens.
+# `hello`'s EP_USER role until milestone 291.
+[[bin]]
+name = "rendezvous_peer"
+path = "src/rendezvous_peer.rs"
+test = false
+bench = false
+
+# The address-space builder (milestone 19b): constructs an address space from EL0 and
+# finds break-before-make enforced inside it. `hello`'s ADDRESS_SPACE_BUILDER role until 291.
+[[bin]]
+name = "address_space_builder"
+path = "src/address_space_builder.rs"
+test = false
+bench = false
+
+# The granted cycle-counter reader (milestone 229): reads the counter twice across a
+# yield and reports. `hello`'s CYCLE_COUNTER_CHILD role until milestone 291.
+[[bin]]
+name = "cycle_counter_reader"
+path = "src/cycle_counter_reader.rs"
+test = false
+bench = false
+
 [dependencies]
 abi = { version = "0.1.0", path = "../crates/abi" }
+# The words the milestone 7-19 capability demonstrations agree on, now that each is its own
+# binary (milestone 291). AGENTS.md rule 7: what two binaries must agree on is a crate.
+capability_demo_proto = { version = "0.1.0", path = "../crates/capability_demo_proto" }
+# A program's check that its own ELF image was loaded correctly (milestone 291). Two fixtures
+# need it, so it is a crate rather than a second copy.
+loaded_image_check = { version = "0.1.0", path = "../crates/loaded_image_check" }
 c_seam = { version = "0.1.0", path = "../crates/c_seam" }
 supervision_proto = { version = "0.1.0", path = "../crates/supervision_proto" }
 # The interactive system, built once (milestone 96). Both inits are a table of the slot numbers
@@ -226,7 +348,6 @@ system_initializer = { version = "0.1.0", path = "../crates/system_initializer" 
 # numbers from the declarations they are built against.
 component_plan = { version = "0.1.0", path = "../crates/component_plan" }
 swap_proto = { version = "0.1.0", path = "../crates/swap_proto" }
-virtio = { version = "0.1.0", path = "../crates/virtio" }
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 # The soak workload's shared page (milestone 219). The kernel reads what the soaker writes, so the
 # layout and the reply transform live in one crate rather than in two copies.

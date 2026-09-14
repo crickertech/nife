@@ -2,10 +2,12 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-const ROLE_BUILDER: u64 = 19;
-
 /// Spawn the builder; returns the report endpoint carrying its verdict bits.
-pub fn wire(image: &'static [u8]) -> RendezvousId {
+///
+/// It was role 19 of the `hello` multiplexer until milestone 291 and is
+/// `fixtures/src/address_space_builder.rs` now, which reads nothing from `x0`.
+pub fn wire() -> RendezvousId {
+    let image = program("address_space_builder").expect("no address_space_builder in the archive");
     let report = crate::sched::create_rendezvous();
     let region = crate::memory_region::create(8).expect("no region for the builder");
 
@@ -13,7 +15,7 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
         run(
             image,
             Spawn {
-                arg0: ROLE_BUILDER,
+                arg0: 0, // one job, no role selector
                 arg1: 0,
                 arg2: 0,
                 grants: &[
