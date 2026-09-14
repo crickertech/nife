@@ -156,7 +156,7 @@ Listed so the next reader does not count them twice.
 
 `script/board-image` (riscv64 only; it builds a U-Boot `booti` image for a StarFive board).
 `script/cpu-matrix` (riscv64 only, and its first line says so; it sweeps QEMU's riscv CPU models).
-`script/gates`'s `--hvf` leg (aarch64 only by construction: Hypervisor.framework runs the host's own
+`script/ci-build`'s `hvf` check (aarch64 only by construction: Hypervisor.framework runs the host's own
 ISA). `crates/dtb/tests/qemu_aarch64_virt.rs` and `qemu_riscv64_virt.rs` with their `.dtb` fixtures
 (q35 has ACPI and no device tree). `notes/riscv-tlb-shootdown.md` and `notes/x86-tlb-shootdown.md`
 with no aarch64 twin (aarch64 broadcasts `TLBI` in hardware, so there is no software shootdown to

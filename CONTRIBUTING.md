@@ -101,19 +101,29 @@ them costs more than getting them wrong.
 git checkout -b fix/short-description        # or milestone/, feature/, roadmap/, decisions/,
                                              # toolchain/, ci/, bench/, integration/, audit/
 # ...work, committing as pieces prove out...
-script/gates                                 # the five checks a PR must pass
+script/ci-build                              # every check a PR must pass, cheapest first
 git push -u origin HEAD
-gh pr create --draft                         # then mark it ready when the gates are green
+gh pr create --draft                         # then mark it ready when the checks are green
 ```
 
 `script/lint` refuses a branch prefix outside that set, so the first line saves you a red check.
-**`script/gates` is the one command to remember**: it runs every gate a pull request must pass,
-cheapest first, so a formatting slip costs twenty seconds rather than the whole run. The stages are
-listed in the script itself rather than repeated here, because this sentence has now been corrected
-by hand twice as stages were added (three to five on 2026-08-22, five to seven on 2026-09-03) and a
-list in two places rots in one of them. `--hvf` (the aarch64 suite on the
-physical core) is the slowest stage and the one most likely to flake on a contended host; see
-notes/load-sensitive-assertions.md if it does.
+**`script/ci-build` is the one command to remember**: with no arguments it runs every check a pull
+request must pass, cheapest first, so a formatting slip costs twenty seconds rather than the whole
+run. It provisions first (`script/bootstrap`, which does nothing on a machine that already has
+what it needs), so it works on a cold checkout.
+
+`script/ci-build --list` prints the checks. They are **not** repeated here, and that is the point of
+milestone 286: this sentence had been corrected by hand twice as checks were added (three to five on
+2026-08-22, five to seven on 2026-09-03) and was wrong again by 2026-09-13, because a set written
+down twice rots in one of the two copies. The list now lives in exactly one place, the table at the
+top of `script/ci-build`, and CI names checks out of that same table.
+
+The `--list` output also carries a **tier**. `local` is what the no-argument run does; `ci` is a
+check only a runner waits for (Kani, the CPU matrix, coverage, fuzzing, the supply-chain audit), and
+you can still run one by name: `script/ci-build coverage`. `hvf` (the aarch64 suite on the physical
+Apple Silicon core) is the slowest local check and the one most likely to flake on a contended host;
+it skips loudly, saying so, on any machine that cannot supply Hypervisor.framework. See
+notes/load-sensitive-assertions.md if it flakes.
 
 Pull requests land through GitHub's merge queue, which batches and rebases them, so you do not need
 to keep your branch current by hand.
