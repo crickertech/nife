@@ -102,6 +102,20 @@ echo
 echo "==> script/shell-check"
 script/shell-check
 
+# **The boot ladder's gate** (milestone 268). The kernel describes the machine, self-tests, and
+# hands over, and the self-test *reports* rather than gating, because a machine you cannot log into
+# is a machine you cannot fix. Something has to read the verdict, or the milestone ships the defect
+# it fixed: the boot tour's own checks have printed `FAILED:` and carried on since they were
+# written, and nothing ever read those.
+#
+# Here for `shell-check`'s reason and with a smaller bill: **about a minute for all three
+# architectures** against the target directory `script/test` has just warmed, and it is the only
+# thing in this tree that boots the DEFAULT riscv64 and x86_64 kernels at all. It also runs in CI,
+# appended to `script/ci-build`.
+echo
+echo "==> script/boot-check"
+script/boot-check
+
 # The silicon leg (milestone 81). Everything above ran under TCG, which emulates every instruction:
 # a machine with no real caches, no real reordering, and a scheduler QEMU round-robins between
 # vCPUs. Hypervisor.framework runs the same kernel at guest EL1 on the physical Apple Silicon core,
@@ -148,7 +162,7 @@ fi
 
 echo
 if [ -n "$hvf_missing" ]; then
-    echo "gates: fmt, lint, image-permissions, icount, test and shell-check all pass (TCG only; the HVF leg was skipped)"
+    echo "gates: fmt, lint, image-permissions, icount, test, shell-check and boot-check all pass (TCG only; the HVF leg was skipped)"
 else
-    echo "gates: fmt, lint, image-permissions, icount, test and shell-check all pass, the aarch64 suite twice (TCG and the physical core)"
+    echo "gates: fmt, lint, image-permissions, icount, test, shell-check and boot-check all pass, the aarch64 suite twice (TCG and the physical core)"
 fi

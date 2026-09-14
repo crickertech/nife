@@ -47,3 +47,25 @@ cargo xtask test
 # After `cargo xtask test` rather than before it: the suite is the broader signal and should be what
 # fails first when both would.
 cargo xtask shell-check
+
+# **The boot ladder's gate, in the same job and for the same reasons** (milestone 268). It boots the
+# default kernel on all three architectures and fails if the boot self-test's verdict is not green.
+#
+# **It is the only thing on a pull request that boots the default riscv64 or x86_64 kernel at all.**
+# `cargo xtask test` above boots a `#[cfg(test)]` build that exits through semihosting before the
+# tour, and `shell-check` boots `--features shell` on two architectures; the boot a person gets by
+# typing `cargo xtask run` was unasserted. That is not a theoretical gap: milestone 268's finding 3
+# is a checkpoint that could never fire on two of three architectures, and it hid for months because
+# nothing read the channel it was supposed to appear on.
+#
+# Appended here rather than given a job, on `shell-check`'s measurement: three debug kernels against
+# a warm target directory is about a minute, where a job of its own would pay this job's ten-minute
+# build again plus a runner slot and a QEMU cache restore. Runner concurrency is a real ceiling on
+# this project (AGENTS.md's lane-count section).
+#
+# **The injected leg (`--inject`) is deliberately NOT here**, and that is a stated cost rather than
+# an oversight. It rebuilds all three kernels with a feature flipped, which is the whole build again
+# for one boolean, and what it proves is a property of this gate rather than of the change under
+# test. It is run by hand when the self-test or the recogniser changes; the milestone block records
+# the transcript from the run that proved it.
+cargo xtask boot-check
