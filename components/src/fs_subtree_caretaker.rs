@@ -265,7 +265,7 @@ pub extern "C" fn _start(name_lo: u64, name_hi: u64, spec: u64) -> ! {
     // **A refused descent is answered, not trapped** (2026-08-17, milestone 31 phase 3). It used to
     // `panic!()`, which was survivable while the only thing waiting for the handshake was a kernel
     // test: the test hit its watchdog and named the caretaker. Since `system_initializer` builds one
-    // of these per directory grant, the waiter is **init**, which serves every command the prompt
+    // of these per directory grant, the waiter is **The progenitor**, which serves every command the prompt
     // ever runs and has no second thread, so a caretaker that died before answering would park the
     // whole machine in `RECV`. `rm nosuchdir/x` is an ordinary thing to type.
     //

@@ -125,7 +125,7 @@ pub const SYS_INVOKE: u64 = 2;
 
 /// `cap_delete(slot)`: drop a capability from the caller's own capability table, freeing the slot
 /// (milestone 19d). The one capability-management operation the surface needs beyond `invoke`:
-/// a loader (init) retypes hundreds of frames through a 16-slot capability table and must recycle slots.
+/// a loader (the progenitor) retypes hundreds of frames through a 16-slot capability table and must recycle slots.
 /// Dropping a capability is authority over your *own* table, so like `exit` and `yield` it is a
 /// bare syscall, not an invocation on some object. Deleting an empty slot is a harmless no-op.
 pub const SYS_CAP_DELETE: u64 = 3;
@@ -145,7 +145,7 @@ pub type CapSlot = u64;
 ///
 /// **Raised 17 -> 24, milestone 230** (2026-09-02), after milestone 49's login stack turned out to
 /// have been built against a temporary value of 28 that a later cleanup reverted to 17. Same place
-/// as ever for the measurement and the account: init's boot peaks at 21 simultaneous slots, and
+/// as ever for the measurement and the account: the progenitor's boot peaks at 21 simultaneous slots, and
 /// three of the seven added here are headroom rather than need.
 pub const CAPABILITY_TABLE_SLOTS: u64 = 24;
 

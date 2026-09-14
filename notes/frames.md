@@ -276,14 +276,14 @@ missing was a handle and an ordering.
 - **The region's endpoints are now swept before the refusal, not after** (`sched::reap_region_objects`).
   This is the load-bearing half. A blocked thread never reaches `schedule()`, so it never spends the
   armed kill, so a region holding a server parked in `RECV` was refused **forever**:
-  `userspace_init_brings_up_the_console_server` builds exactly such a server out of init's budget, and
+  `userspace_init_brings_up_the_console_server` builds exactly such a server out of the progenitor's budget, and
   its 2048 page frames were unreclaimable by construction. Sweeping first fixes it because the wake was
   already there: removing an endpoint drains its wait queues, aborts each waiter's IPC and wakes it,
   which is precisely the transition the doomed resident needs. A refused reclaim was already
   destructive (it arms kills; see `reclaim_region`'s BUGS), so this is the same commitment one object
   over.
 
-- **`spawn_progenitor` carves init's building budget outside the spawned thread** and hands the caller a
+- **`spawn_progenitor` carves the progenitor's building budget outside the spawned thread** and hands the caller a
   holding over it. The region is unchanged; who can name it is not, and that is the whole difference
   between 8 MiB spent and 8 MiB lent.
 
@@ -546,7 +546,7 @@ went), and the difference is accounted rather than shrugged at:
   a boot, which is the difference between a fork priced against a guess and one priced against a
   measurement. See design/roadmap/231-capability-slot-high-water-mark.md.
 
-  It was 21 until 2026-09-05, when milestone 111 gave init a reason to hold the entropy service's
+  It was 21 until 2026-09-05, when milestone 111 gave the progenitor a reason to hold the entropy service's
   request endpoint for the whole boot rather than release it after the login block, and the gate
   caught the move on the first run rather than at the next silent halt. Two of the three slots of
   headroom are left.

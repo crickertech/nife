@@ -83,9 +83,24 @@
 //! No deprovisioning. Named as out of scope by the milestone's own text and sequenced against
 //! `login.rs`'s reclamation bound instead of invented here.
 //!
-//! Name: provisional, minted with this milestone and not yet put to calef. `identity_provisioner`
-//! rather than `provisioner` (already spent, as a role name inside `credentialer_test_client.rs`) or
-//! `useradd` (Unix's own name for the shape, not a term of art this tree has adopted elsewhere).
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Minted with milestone 155.
+//! Qualifier plus agent noun, the shape ratified nine times that day, and the qualifier is not
+//! decoration: `provisioner` alone is already spent as a role name inside
+//! `credentialer_test_client.rs`.
+//!
+//! **`identity` is the load-bearing half, and it is the same argument that gave `user_mode_` its
+//! prefix the same day.** In this tree `user` means a person about 342 times, so it is overloaded
+//! against the privilege level; `identity` is the word the capability model actually manipulates,
+//! and this program is where that shows: `credential_proto::provision::PUT` takes an identity, and
+//! DECISIONS §117 names the home subtree by the identity string itself. Where the tree means the
+//! person's record it says identity, and this name keeps that consistent.
+//!
+//! Refused `useradd`, Unix's name for the shape: not a term of art this tree has adopted, it would
+//! import the `user` ambiguity ruled against the same day, and it promises a command a person
+//! types where this is spawned by a holder of two administrative capabilities. Refused
+//! `provisioner`, spent and generic. Refused `identity_creator`, narrower than the act: the home
+//! subtree is the other half and doing both as one act is the milestone's point. Refused
+//! `account_provisioner`, which introduces a third word for what `identity` already names.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

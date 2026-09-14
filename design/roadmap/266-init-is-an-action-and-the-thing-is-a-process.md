@@ -284,11 +284,23 @@ applied, stated so it can be disagreed with:
   thing you get rather than for the program that builds it. So `handoff` / `handoff` / `handoff` is
   worth calef's consideration beside `progenitor-boot`. Either way it is his call, and `jobmix` has
   the same unratified-squish defect beside it.
-- **Proposed.** `design/roadmap/proposals/the-crate-behind-the-progenitor.md`. `crates/system_initializer` is this
-  program's logic lifted out, which AGENTS.md says is exactly the relationship a shared name records,
-  and the program is `progenitor` now. calef's own argument for the rename (`init` names an action,
-  the thing is a process) applies unchanged to `initializer`. Not performed here: `system_initializer`
-  was ratified 2026-08-01 and only `progenitor` was ratified for this milestone.
+- **Refused.** **`crates/system_initializer` keeps its name.** calef, 2026-09-13, asked whether the
+  crate should follow the program: *"init is the issue not initializer."* The proposal that raised
+  it is deleted rather than kept, because a proposal whose question has been answered is a second
+  reading of the tree that disagrees with it.
+
+  **The premise this block put in that proposal was wrong, and the correction is the part worth
+  keeping.** It said calef's argument for `progenitor` *"applies unchanged to `initializer`"*. It
+  does not. `init` is a truncated **verb**; `initializer` is an **agent noun**, the thing that
+  initialises, which is precisely what *name things with nouns* asks for. This block's own
+  house-style list names `initializer` in the same breath as `builder`, `spawner`, `supervisor` and
+  `provisioner`, so the block argued against itself one section later and nobody noticed for five
+  days.
+
+  The proposal's own *argument against* had already reached the same place without the vocabulary
+  for it: *"the crate genuinely is the initialisation, as distinct from the process that runs it:
+  the crate does not descend anything, so `progenitor` would be a worse fit for it than for the
+  program."* That is now the recorded reason.
 - **Recorded.** *`HELLO_ENTRY` and `PROGENITOR_ROLE` are provisional*, marked as such at their
   definitions. `HELLO_ENTRY` was already the spelling `kernel::user::tests` used.
 - **Recorded.** *`notes/trusted-init.md` keeps its name.* Its subject is milestone 22, whose title is

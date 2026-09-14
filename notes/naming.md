@@ -359,8 +359,8 @@ most needs it is the person about to propose it again.
 That is not hypothetical. A lane proposed `system_builder` for the crate milestone 96 extracted, the
 maintainer endorsed it, and calef overruled it to `system_initializer`. Only afterwards did anyone
 find that **milestone 63 had already refused `system_builder`**, for a reason still true:
-`components/src/builder.rs` calls itself "a minimal init: the system builder", so two programs would claim
-one phrase. The refusal existed, in one table cell inside one milestone block, invisible at the
+`components/src/builder.rs` called itself "a minimal init: the system builder" then, so two
+programs would claim one phrase. The refusal existed, in one table cell inside one milestone block, invisible at the
 moment it was needed. A blind rename then swept the old name out of that very row, and the record of
 the refusal was nearly destroyed by the rename it should have prevented.
 
@@ -806,6 +806,27 @@ which is the ordinary way a hand-kept count drifts; take it from the script.)
    carries a citation, and it **never checks that the state is `ratified`**, so a name waiting on
    calef does not fail anybody's build. `script/names --unratified` is how that queue gets worked.
 
+   **And exactly one such block per file, in the spelling the parse reads** (milestone 283). That
+   was a convention 205 files happened to follow until two did not, and the two ways of breaking it
+   compound into silence: the parse stops at the **first** `Name:` line, so a stale proposal block
+   above a ratified one is what gets read, and the parse matches `^<prefix> ?Name:`, so a header
+   wearing markdown (`//! **Name: ratified ...**`) is invisible even when it is the only one. Both
+   at once is how two of calef's ratifications sat on the worklist for a week while the gate
+   reported `provisional`, which is a legitimate answer nothing disputes.
+
+   So the check asks the question a person asks by looking at the file: does anything here read as a
+   provenance header without being the one that was read. A comment line whose content, after the
+   marker and any leading markdown, begins `Name:` counts, at `///` and `//` as well as the
+   surface's own prefix, and the failure names the file, the line, and which of four things is wrong
+   with it (markup, indentation, a different comment marker, or a second block nothing reads past).
+   **Two things are deliberately not headers**: `` `Name:` `` in backticks is a *mention* of the
+   convention, which the scripts implementing it write constantly, and a line carrying an
+   angle-bracket placeholder (`Name: ratified <YYYY-MM-DD>`) is showing the *form*, which is how
+   `script/names`' own header documents the three spellings.
+
+   **The parse was not widened to admit bold**, deliberately: 205 files use the plain form, so
+   admitting a second spelling would make both legal, which is the opposite of the fix.
+
 Everything else here is prose because it needs judgement and no checker can supply it. In particular
 **a checker cannot catch the jargon half of §39**: `linedisc` would have passed all four rules above.
 It ends in `c`, contains no daemon, is not a proto crate, and had a perfectly good branch. What
@@ -817,6 +838,46 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
 
+## An abbreviation we receive rather than author
+
+calef, 2026-09-13, asking what it would take to rename `initrd` to `initial_ramdisk`. The answer is
+that it cannot complete, and the reason generalises past this one word.
+
+**The acronym rule points at it, correctly.** *An acronym is spelled out unless its expansion teaches
+nothing* (2026-09-05). *Initial ramdisk* teaches a great deal: it says the thing is RAM-resident and
+readable before storage exists, which is the entire point and is not recoverable from the five
+letters. By that test `initrd` should go, the same way `dma` went.
+
+**It cannot, because about ninety of its 1,302 occurrences are somebody else's spelling:**
+
+| what | count | whose |
+|---|---|---|
+| `"linux,initrd-start"` | 19 | the Devicetree spec's property name, in a blob QEMU generates |
+| `"linux,initrd-end"` | 8 | the same |
+| `-initrd` | 64 | QEMU's command-line flag |
+
+The kernel finds the region by parsing that property; every run passes that flag. Rename our 840
+identifiers and the tree says `initial_ramdisk` in the code and `initrd` at the two points where a
+reader most needs the words connected: where we read the property, and where we launch the machine.
+**A rename that cannot reach the boundary makes a newcomer learn two words instead of one**, which is
+the opposite of what the acronym rule is for.
+
+**This is the `Guid` case one level out.** `crates/gpt` keeps `Guid` rather than following
+`user/src/uuid.rs`'s ratification because the name is load-bearing at an interface boundary: a GUID
+is mixed-endian on disk where RFC 9562's UUID is big-endian, so the two words name different things
+and collapsing them would assert a byte order the code does not produce. `initrd` is the same shape
+with the authority reversed: not a distinction we are preserving, but a name we do not own.
+
+**So the rule this adds, stated so it can be disagreed with: the acronym test applies to names this
+tree authors.** Where a name arrives across an interface somebody else defines, the tree keeps their
+spelling and pays the cost at the reader's expense once, in an expansion written where the reader
+meets it. `crates/user_rt/src/initrd.rs` carries that expansion as of 2026-09-13.
+
+**And the defect the pricing found was not the name.** `initrd` appeared about 1,300 times and was
+expanded in full **exactly once**, in `crates/dtb`, a crate about device trees rather than the one
+named for the thing. The abbreviation was never the problem; an unexplained abbreviation was, and
+that is rung three rather than a sweep.
+
 ## A terminus that is structural, or one that is merely current
 
 calef, 2026-09-13, asking after ruling `audit_sink` -> `login_audit_receiver`: *"Are there other
@@ -826,7 +887,7 @@ what makes the distinction worth writing down rather than leaving in one block.
 **The test, in one question: does the name claim an end-of-stream that is a property of the design,
 or one that is an accident of what has not been built yet?**
 
-`user/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT` endpoint and
+`components/src/audit_sink.rs` receives one message per successful login on `login`'s `AUDIT` endpoint and
 discards it. "Sink" was accurate about today and wrong about the program: the discard exists because
 printing the record would need a `WRITE` view of the terminal, and handing that to a third process
 was refused *for now*. The moment somebody grants it, the program keeps records and its name says it
@@ -888,6 +949,22 @@ carried `manual` at 52% **in its title**, `colour-and-the-pager` was about `doc`
 page, and `fatal-risk-3-against-the-new-number` cited the crate in a score table. All three
 `PROPOSED`. The directory looked like history; the status said otherwise.
 
+**Status is a property of the passage, not of the file, and the `jh7110` rename found the other
+direction of the same error** (2026-09-13). `notes/model-attribution-review.md` announces itself as a
+**plan**, so by the table above it moves. Two of its tables do not: they count the crates and
+programs created inside one measured commit window, and a crate created in that window under the name
+`jh7110_trng` did not exist under any other. Sweeping them made a live plan carry a false
+measurement, which nothing checks and no reader can spot. The same shape hit
+`notes/proof-retrospective.md`, where a captured shell transcript reading `in no shard: jh7110_trng`
+was rewritten into output that command had never produced, and `notes/unsafe-obligations.md`, where a
+block count measured against a named base commit was restated under a file name that commit does not
+contain.
+
+So read the **paragraph**, not the heading: a live document routinely contains dated accounts, and a
+dated account routinely contains pointers that must still resolve. The repair in all three cases was
+the one this section already prescribes, which is to restore the measured name and put a sentence
+beside it saying what the thing is called now.
+
 ### A quotation never moves
 
 Put a note beside it saying the thing was named differently when it was measured, so a number stays
@@ -935,9 +1012,11 @@ Where it hides, from the two renames that found it:
 | Fixture strings in other crates | `crates/timetable`'s `"every 5s heeder"` |
 | A configuration file the tree ships | `components/timetable.conf`'s `at-boot budgeter --mem 4` |
 | Identifiers derived from the program's name | `saw_budgeter_grant`, `budgeter_reports`, four test function names |
+| A provenance block's "replacing" clause | `Name: ... replacing the provisional jh7110_trng` |
+| Another project's file name, URL or version string | `$NetBSD: jh7110_trng.c,v 1.2 ...` and the fetch URL beside it |
 
-**The last two rows were added by the `budgeter` rename on 2026-09-13, and both hide in a way the
-others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
+**The configuration-file and derived-identifier rows were added by the `budgeter` rename on
+2026-09-13, and both hide in a way the others do not.** A `.conf` is invisible to the habit that makes this technique cheap: `git grep`
 narrowed with `--include=*.rs --include=*.md --include=*.toml` is how most of these sweeps are
 scoped, and it misses a shipped configuration file entirely, while `crates/timetable` compiles that
 one in with `include_str!` and the kernel asserts on it firing. Derived identifiers hide for the
@@ -947,13 +1026,75 @@ the tree naming a program that no longer exists, in the one place a sweep's own 
 them. Neither is exotic; both were hit by the `worker` rename earlier the same day and recorded only
 in its commit message, which is rung four.
 
+**The last two rows, the provenance clause and the foreign citation, are the first that mark a site a
+sweep must *not* touch, and the table earns them anyway** (the `jh7110` rename's repair,
+2026-09-13). Every row above them is a false negative, a place the sweep missed. These two are false
+positives. They belong here because the technique that catches both is the same one, which is
+enumerating the matches and reading them rather than counting them.
+
+**The provenance sentence is the worst place in the tree to sweep blind, because it is the one
+occurrence of the old name the standard exists to protect.** `95db4a3e` renamed `jh7110_trng` to
+`jh7110_entropy_source` and `jh7110_crg` to `jh7110_clock_and_reset`, and in both crates it rewrote
+the clause naming the predecessor. Each block came out saying it replaced **itself**, and the old
+name was then unrecoverable from the block: it had to be read back out of `git log`.
+
+**The only reason that was caught is that the resulting sentence is self-referentially absurd.**
+"Replacing the provisional `jh7110_entropy_source`" inside `jh7110_entropy_source` reads as nonsense
+to anyone who looks at it. A rename between two less similar words produces a sentence that reads
+perfectly and is false, and nothing here would say so: `script/names` parses the block and prints it
+and has no opinion about whether the name inside is the one being replaced. So treat the `replacing`
+clause exactly as a quotation is treated above, because that is what it is. It quotes a decision.
+
+**A citation to another project is a quotation wearing a path.** The same commit rewrote
+`sys/arch/riscv/starfive/jh7110_trng.c` to `jh7110_entropy_source.c` in three places in one file: the
+source bullet, its `raw.githubusercontent.com` fetch URL, and the reference-link definition at the
+bottom. One of them carried NetBSD's own RCS keyword string, `$NetBSD: jh7110_trng.c,v 1.2 2025/02/09
+09:09:49 skrll Exp $`, which is a verbatim line out of somebody else's source file. The tree then
+cited a file that does not exist upstream and a version string nothing ever printed, which is the
+fabricated-quote failure this project has already carried once for twelve days. The seven questions
+say prior art is read rather than recalled; a swept citation is a citation recalled, with `sed` doing
+the recalling.
+
+The sibling that survived shows it was luck rather than care. `crates/jh7110_clock_and_reset` cites
+Linux's `starfive%2Cjh7110-crg.h` and is still right only because upstream spells that one with a
+hyphen where the sweep matched an underscore.
+
 **The evidence is one failure and one success, a commit apart.** Renaming `doc` to `mdr` left
 `grant_plan` still saying `doc`, so the shell could not spawn the binary and the archive did not hold
 what the gate looked for; `cargo check` passed and three CI jobs failed for that one cause. The
 `jh7110` rename the same day enumerated strings first, found all four sites, and pushed green.
+**That success was real and partial**, which is why the paragraphs above exist: the same commit
+broke four records, fabricated three external citations, and left a whole crate behind. Enumerating
+the *program* strings is one clause of this standard and not the standard.
 
 So: for a program, grep the **quoted** name as well as the identifier, and treat `cargo check`
 passing as no evidence at all.
+
+### A crate copied rather than moved is invisible to every gate but one
+
+`95db4a3e` moved `kernel/src/drivers/jh7110_crg.rs` and `user/src/jh7110_trng.rs` properly, and git
+records both as renames. `crates/jh7110_crg` it **copied**: the new directory was added and the old
+one was never deleted, leaving 757 lines of duplicate source behind with no `Cargo.toml` at all.
+
+**Nothing compiled it.** It was not in `Cargo.toml`'s workspace members, no manifest referenced it,
+and this tree's gates are compile-driven almost everywhere, so there was no clippy over it, no test,
+no coverage, no mutation sweep, and no `cargo check` that could notice the duplicate at all. A
+directory outside the workspace is outside all of them at once.
+
+The one gate that did see it is `script/names`, because it walks `crates/*/src/lib.rs` on disk rather
+than the package graph. So the defect surfaced as a **worklist entry**: `jh7110_crg` went on
+`script/names --unratified`, queueing a name nobody could compile into the one queue whose entire
+purpose is to spend calef's attention well. Nothing red happened anywhere. The cost of this failure
+was paid in the scarcest thing in the project rather than in a build.
+
+**The general fact is worth more than the incident: an on-disk walker and a package-graph walker
+disagree, and the disagreement is information.** `script/verify` and `script/falsifications` both
+moved to `cargo metadata` because a hand-kept list went stale silently. `script/names` walks the disk
+because a name exists whether or not it compiles. Neither is wrong, and a name present to one and
+absent to the other is a thing to go and look at rather than reconcile.
+
+So, after any rename that moves a directory: `git status` showing an **add** where you expected a
+rename is the whole tell, and `git diff --stat -M` on the commit says which it was.
 
 ### What is checked, and what is not
 

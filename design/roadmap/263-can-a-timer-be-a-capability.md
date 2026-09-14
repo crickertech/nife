@@ -148,12 +148,51 @@ syscall's meaning does. More importantly: **the fourth shape is not independentl
 which is 106's actual complaint. The fourth shape is 151 plus one object, and it should be priced that
 way.
 
+## The two prices the spike did not pay, measured 2026-09-13
+
+The table above left two things unpriced, and its own `BUGS` named the first. A second scaffold paid
+both: four kernels differing by one change each, built release on all three ISAs, measured with
+`llvm-nm --print-size`, and deleted. **The error bar is zero bytes** (a build was reverted and
+rebuilt from its patch and came out byte-identical). Full method in `notes/timer-capability.md`.
+
+| what | aarch64 | riscv64 | x86_64 |
+|---|---|---|---|
+| the holder dies with a timer armed | **+268 B** code, 0 data | +212 B, 0 | +276 B, 0 |
+| serving a kernel thread | **+312 B** code, 0 data | +282 B, 0 | +400 B, 0 |
+
+**The holder-death case is not bookkeeping, it is a use-after-free on the timer interrupt**, and
+that is the correction worth carrying: the expiry walk reads and writes a registry entry's page on
+every tick, so a timer page freed by `MemoryRegion::DESTROY` is read and written by `on_tick` on
+every core for the life of the machine. The fix is the sweep `reap_region_objects` already runs for
+`rendezvous_table`, one phase earlier, which is why it is 268 bytes. Three things it does **not**
+need, because the tree already has them: a stale signal target is dropped by `irq_notify`'s existing
+generational check; the cached earliest deadline may be early and never late, so it need not be
+recomputed; and the registry slot returns with the page, closing a spawn-and-die slot-exhaustion
+attack as a side effect.
+
+**And the kernel thread cannot be served by the fourth shape either**, which is the finding this
+block did not have on 2026-09-05 because milestone 106's consumer census had not been run. The
+reason is not architectural: a kernel thread runs at EL1 and **cannot issue a syscall at all**, so
+`Timer::ARM` is as unreachable to it as a userspace timer service is. Not for want of a cspace,
+which is the thing a reader expects to be missing and is not (`Thread::spawn_into` gives every
+kernel thread an empty `CapabilityTable`). What it needs is *smaller* than the fourth shape, because
+inside the kernel authority is not the question: a `sleep_until` that writes a deadline word on the
+TCB and parks, plus a second loop in the same expiry walk. The word is free (`size_of::<Thread>()`
+is 1,152 bytes in a 4,096-byte page, 2,944 spare), the walk shares the cached earliest, and an idle
+tick still costs one comparison. Applied to the real consumer, `soak.rs`'s six-line yield loop
+becomes one call and the kernel builds clean with `--features soak`.
+
+**Whether that consumer should be served is calef's**, under §101's carve-out and milestone 106's
+own "this stays owed against a kernel-side consumer appearing". This block only says what it costs.
+
 ## Follow-on
 
-- **Decision.** `design/decisions/147-a-timer-a-userspace-service-cannot-hold.md`, **Status: PROPOSED**, its section number provisional like every global name a lane touches. calef's call, and it is the one this spike was minted to force. His 2026-09-05 decision was
-  to serve the timed wait from a **userspace timer service**; that service cannot exist on riscv64, so
-  the decision needs re-making. Three options, no recommendation, because a syscall-surface change is
-  his under §10 and §16:
+- **Milestone 106.** `design/decisions/147-a-timer-a-userspace-service-cannot-hold.md` is
+  **Status: DECIDED** (calef, 2026-09-05: *"option 1, the new object. ... A deadline argument seems
+  like a work around to reduce effort."*), so the fork this spike was minted to force is closed and
+  the lines below are the history of how it was put rather than a live question. What remains owed
+  is the build, which is 106's, and the two prices above are part of what it costs. The options as
+  they were presented:
   1. **The fourth shape** (`Timer::ARM(deadline, notification)`), priced above and cheap. The kernel
      owns the comparator on every architecture, which is where two of three put it anyway, and the
      authority to wait on time stays a capability. Costs a syscall-surface addition and depends on
@@ -166,6 +205,25 @@ way.
 - **Milestone 151.** Unblocked in the sense that it is now on the critical path rather than beside it:
   every surviving option above composes with a notification object, so 151 is a prerequisite of the
   answer rather than an enhancement to it.
+- **Done.** **§147's text was damaged by its own `PROPOSED` -> `DECIDED` edit, and the maintainer
+  repaired it the same day this lane reported it (#830).** Kept here because what was found is worth more
+  than that it is fixed. Three things, all in the first thirty lines: a mangled clause, *"Milestone
+  151 (notification objects)built) must land first"*; an orphaned sentence fragment, *"invalidates
+  the premise of a decision calef made the same day."*, left behind when the `PROPOSED` preamble
+  above it was replaced; and, the substantive one, a `**No recommendation.**` paragraph and a whole
+  `## What this file does not do` section arguing that the file deliberately names no winner, still
+  standing underneath a header that names one, so a reader was told both that option 1 was chosen
+  and that choosing was not this file's job. That is the cheap-edit-destroys-the-expensive-record
+  shape AGENTS.md's *move fast on what can be undone* names, one file over from where it names it.
+  A lane may not repair a decision section, and this one correctly did not.
+- **Recorded.** **Adding a field to `IpcTables` costs riscv64 roughly the struct again**, and
+  nothing in this tree says so. Measured while pricing the registry above: growing `IpcTables` from
+  15,432 to 25,696 bytes made that ISA materialize a 25,680-byte anonymous `.rodata` template of
+  `EMPTY_TABLES` that it did not carry before and that aarch64 and x86_64 do not carry at all, so
+  the same source costs riscv64 +37,061 data bytes against aarch64's +10,980. It is a cliff rather
+  than a slope, it prices every future addition to the scheduler's tables rather than anything about
+  timers, and it is left unactioned because the right response may be a smaller registry rather than
+  a fight with the backend. `notes/timer-capability.md` has the symbol-level working.
 - **Recorded.** `design/decisions/139-cycle-counter-authority.md` says *"There is no precedent in this
   tree for a per-thread system-register bit maintained across a context switch."* Milestones 229 and
   237 built one, so that sentence is stale inside its own decision, in the same way §102's per-slot

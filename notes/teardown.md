@@ -35,7 +35,7 @@ is nothing for it to do that this doesn't already do better.
 **Recorded-accepted by milestone 94's sweep** (2026-08-04): this is a decision with its reason
 attached, not an unbuilt feature, and an audit may pass over it. Read it narrowly. It says a
 reclaiming `unmap` buys teardown nothing; it does not say the ABI needs no unmap at all. Milestone
-95 (an unmap primitive, and the mappings init never lets go) is the other question, where init
+95 (an unmap primitive, and the mappings the progenitor never lets go) is the other question, where the progenitor
 holds a writable window on every server it built and there is no way to give one up. See
 notes/untracked-work-sweep.md.
 

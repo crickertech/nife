@@ -23,7 +23,7 @@
 #![test_runner(crate::testing::runner)]
 #![reexport_test_harness_main = "test_main"]
 // The RISC-V boot runs a self-contained tour (in `kernel_main` below) that ends in `arch::halt()`,
-// before the shared, still-aarch64-shaped full boot (userspace init as the boot process, the shell,
+// before the shared, still-aarch64-shaped full boot (userspace progenitor as the boot process, the shell,
 // the virtio service). That full-boot code and its helpers are therefore unreferenced from a riscv64
 // build and look like dead code, even though the `arch` layer itself is fully implemented. Allow it
 // *only* on riscv64, so the aarch64 build keeps full dead-code checking; it goes away if the RISC-V
@@ -664,9 +664,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // rather than falling through to the shared boot path below. From OpenSBI's S-mode handoff it
     // brings up its own arch (traps, the Sv39 MMU, the SBI timer) and then demonstrates the whole
     // capability core on RISC-V: the scheduler and preemption, U-mode programs and syscalls,
-    // capability invocation, userspace init building a child out of the initrd, and a userspace
+    // capability invocation, userspace progenitor building a child out of the initrd, and a userspace
     // driver servicing a device interrupt through the PLIC. It stops before the shared full boot
-    // (userspace init as the boot process, the shell, the virtio service), which is still
+    // (userspace progenitor as the boot process, the shell, the virtio service), which is still
     // aarch64-shaped; making those portable is what would let RISC-V join the shared path instead of
     // halting here. See notes/riscv-port.md.
     #[cfg(target_arch = "riscv64")]
@@ -803,7 +803,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         #[cfg(feature = "bench")]
         bench::run();
 
-        // A `shell` build hands the machine to userspace init here and parks, instead of the tour.
+        // A `shell` build hands the machine to userspace progenitor here and parks, instead of the tour.
         // The kernel loads `system_initializer` from the initrd, grants it the NS16550 and the UART interrupt,
         // and it builds the console server, input driver, and shell out of its own budget; the shell
         // is interactive over the serial. This is the RISC-V equivalent of the aarch64 `initboot`
@@ -832,7 +832,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                         println!("  shell boot failed: {e:?}");
                     } else {
                         println!(
-                            "  shell: userspace init is building the console, input, and shell."
+                            "  shell: the userspace progenitor is building the console, input, and shell."
                         );
                         println!();
                     }
@@ -1029,10 +1029,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                 sched::note_boot_stage(4);
                 match user::riscv_initrd_demo(initrd) {
                     Ok(sq) => println!(
-                        "  init/build  : userspace init loaded 'least_authority_demo' from a {}-byte archive and built it as a child; the child sent {sq} (expected 81)",
+                        "  init/build  : the userspace builder loaded 'least_authority_demo' from a {}-byte archive and built it as a child; the child sent {sq} (expected 81)",
                         initrd.len(),
                     ),
-                    Err(e) => println!("  init/build  : init failed: {e:?}"),
+                    Err(e) => println!("  init/build  : the builder failed: {e:?}"),
                 }
             } else {
                 const N: u64 = 7;
@@ -1869,8 +1869,8 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             }
         } // end of the milestone tour (#[cfg(not(feature = "shell"))])
 
-        // **Milestone 19d.2c, completed at 28: userspace init is the boot path.** The kernel stops
-        // wiring services itself. It hands off to init, which brings up the console server, the line
+        // **Milestone 19d.2c, completed at 28: userspace progenitor is the boot path.** The kernel stops
+        // wiring services itself. It hands off to the progenitor, which brings up the console server, the line
         // discipline (`line_editor`, milestone 28), the input driver, and the shell out of its own budget
         // through the granular verbs. This is the line that retires the kernel as the system's
         // builder. Every aarch64 interactive build reaches it: `--features shell` and the milestone
@@ -1880,7 +1880,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // milestone-28 shell, which speaks the terminal contract, not the raw console protocol) and
         // is kept only as dead code for reference.
         // **The tour ends and the soak begins** (milestone 219), and on this architecture it takes
-        // the place of the init handoff rather than of the halt below it. A soak boot that also
+        // the place of the progenitor handoff rather than of the halt below it. A soak boot that also
         // brought up a console, a line discipline and a shell would be soaking those too, and the
         // point of this workload is that what it stresses is decided rather than incidental.
         // **The sweep, when this build asked for one** (milestone 168). Before the soak arm and
@@ -1896,9 +1896,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         #[cfg(not(any(feature = "soak", feature = "jobmix")))]
         if let Some(image) = user::initrd() {
             println!();
-            println!("nife: handing the system to userspace init.");
+            println!("nife: handing the system to the userspace progenitor.");
             user::boot_via_progenitor(image);
-            // The boot thread's work is done; init and the services it builds run until halt.
+            // The boot thread's work is done; the progenitor and the services it builds run until halt.
         }
     }
 

@@ -94,7 +94,7 @@ which is honest rather than reckless precisely because the hot-swap story is wha
 
 ## Where it runs
 
-The interactive system is built by userspace init out of its own budget, on both architectures:
+The interactive system is built by userspace progenitor out of its own budget, on both architectures:
 aarch64 through `hello`'s init role (the `initboot` path, and now the `shell` feature and the
 default tour hand off to it too, since the kernel-wired `shell_service` cannot host a
 contract-speaking shell), and RISC-V through the portable `system_initializer` builder (`riscv_shell_boot`).

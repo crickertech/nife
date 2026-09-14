@@ -12,6 +12,11 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# The project's own QEMU, if a previous run built one. This has to happen BEFORE the `command -v`
+# checks below, or a second bootstrap on a Linux box re-runs the whole apt branch against a prefix
+# that already holds exactly what is wanted. See scripts/qemu-path.sh for why PATH is the mechanism.
+. scripts/qemu-path.sh
+
 os="$(uname -s)"
 
 # --- Rust toolchain -----------------------------------------------------------------------
@@ -151,23 +156,48 @@ fi
 # reader was told to run a script that told them not to. Nothing was wrong except that nobody had
 # started from cold on Linux in weeks.
 #
-# The fix is to say the whole sequence rather than to reorder: the check must stay ahead of the rest,
-# because a bootstrap that installs a compiler and then tells you the emulator is unusable has wasted
-# your time in the other direction.
+# **That fix printed a two-command remedy, and milestone 287 replaced it with doing the thing.** The
+# printed version failed in three separate ways, each of which hid the next:
+#
+#   1. `[ "$os" = linux ]` never matched, because `uname -s` says `Linux`. The message milestone 117
+#      wrote had never once reached a reader; bootstrap simply exited 1 with no Linux advice at all.
+#   2. Even printed, it is rung four of AGENTS.md's ladder. A script that knows the next two commands
+#      and asks a human to type them is describing a mechanism instead of being one.
+#   3. **The remedy looped.** `script/ci-qemu` installs into `$HOME/.cache/nife-qemu`, and until
+#      `scripts/qemu-path.sh` nothing outside `.github/workflows/ci.yml` ever put that on PATH. So
+#      following the instructions verbatim spent twelve minutes building the right QEMU and then
+#      found `/usr/bin`'s 8.2.2 again, forever.
+#
+# The check stays ahead of the clang step rather than being reordered behind it, because a bootstrap
+# that installs a compiler and then tells you the emulator is unusable has wasted your time in the
+# other direction.
 if ! script/qemu-check; then
-    if [ "$os" = linux ]; then
-        echo >&2
-        echo "bootstrap: this is expected on Linux, and it is not the end of the road." >&2
-        echo "  No Ubuntu release ships a QEMU new enough for -device riscv-iommu-pci." >&2
-        echo "  Build the pinned one, then start over:" >&2
-        echo >&2
-        echo "      script/ci-qemu     # ~12 minutes, builds and installs the pinned QEMU" >&2
-        echo "      script/setup       # picks up where this stopped" >&2
-        echo >&2
-        echo "  script/ci-qemu is named for CI and is not only for CI; a Linux developer needs" >&2
-        echo "  it too, for exactly the reason above." >&2
+    if [ "$os" != Linux ]; then
+        # macOS and everything else: qemu-check has already named the remedy (`brew upgrade qemu`),
+        # and there is no source build to fall back on. `script/ci-qemu` refuses to run off Linux.
+        exit 1
     fi
-    exit 1
+
+    # **Say what this is about to cost, loudly, before it costs it.** A package-install step that
+    # silently turns into a twelve-minute source build is its own surprise, and the reader pays those
+    # minutes either way: before milestone 287 they paid them after a failed run and a re-read.
+    echo >&2
+    echo "==> No packaged QEMU on Linux can satisfy this project, so bootstrap will build one." >&2
+    echo "    No Ubuntu release ships a QEMU with -device riscv-iommu-pci (milestone 16b," >&2
+    echo "    DECISIONS §20), and apt-get already fetches the newest package for the release," >&2
+    echo "    so there is nothing better for apt to get." >&2
+    echo "    script/ci-qemu builds and installs the pinned version. THIS TAKES ABOUT 12 MINUTES" >&2
+    echo "    the first time; it is cached afterwards and re-runs in under a second." >&2
+    echo >&2
+
+    script/ci-qemu
+
+    # ci-qemu installed into the prefix; this is what makes the build count for anything at all.
+    # Without it bootstrap would re-run qemu-check against the same /usr/bin QEMU it just failed on,
+    # which is precisely the loop described above.
+    . scripts/qemu-path.sh
+
+    script/qemu-check
 fi
 
 # --- A bare-metal C compiler ----------------------------------------------------------------
