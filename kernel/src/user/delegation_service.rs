@@ -1,19 +1,23 @@
+/// The word the receiver sends back through the delegated capability, so a test can confirm a
+/// capability minted by one process works when invoked by another.
+///
+/// **One definition, in `capability_demo_proto`.** This was a `pub const` here with a matching
+/// literal in `fixtures/src/hello.rs` and a "must match" comment beside it, which is the shape
+/// AGENTS.md rule 7 exists to remove; milestone 291 split the receiver into its own binary and the
+/// duplicate became a crate.
+pub use capability_demo_proto::USED_WORD;
+
 use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
-
-const ROLE_GRANTER: u64 = 9;
-const ROLE_RECEIVER: u64 = 10;
-
-/// The word the receiver sends back through the delegated capability, so a test can confirm a
-/// capability minted by one process works when invoked by another.
-pub const USED_WORD: u64 = 0x5A;
 
 /// Spawn the pair and return `(resource endpoint, report endpoint)`. The granter delegates its
 /// `resource` capability (held `WRITE | GRANT`) to the receiver, narrowed to `WRITE`. The
 /// receiver `SEND`s [`USED_WORD`] on the received capability (a `RECV` on `resource` collects
 /// it) and reports a two-bit verdict on `report`.
-pub fn wire(image: &'static [u8]) -> (RendezvousId, RendezvousId) {
+pub fn wire() -> (RendezvousId, RendezvousId) {
+    let granter = program("delegation_granter").expect("no delegation_granter in the archive");
+    let receiver = program("delegation_receiver").expect("no delegation_receiver in the archive");
     let channel = crate::sched::create_rendezvous(); // granter SEND_CAP -> receiver RECV_CAP
     let resource = crate::sched::create_rendezvous(); // the capability being delegated
     let loopback = crate::sched::create_rendezvous(); // the receiver's refused re-delegation target
@@ -21,9 +25,9 @@ pub fn wire(image: &'static [u8]) -> (RendezvousId, RendezvousId) {
 
     crate::sched::spawn(move || {
         run(
-            image,
+            granter,
             Spawn {
-                arg0: ROLE_GRANTER,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -38,9 +42,9 @@ pub fn wire(image: &'static [u8]) -> (RendezvousId, RendezvousId) {
 
     crate::sched::spawn(move || {
         run(
-            image,
+            receiver,
             Spawn {
-                arg0: ROLE_RECEIVER,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[

@@ -85,6 +85,10 @@ credential_proto = { version = "0.1.0", path = "../crates/credential_proto" }
 # its own copy of what a verdict or an attribution record means.
 login_proto = { version = "0.1.0", path = "../crates/login_proto" }
 coremark = { version = "0.1.0", path = "../crates/coremark" }
+# The words the milestone 7-19 capability demonstrations agree on (milestone 291). The kernel
+# wires those programs and its tests assert on what they report, so the two ends of each
+# sentinel have one definition rather than a literal apiece with a "must match" comment.
+capability_demo_proto = { version = "0.1.0", path = "../crates/capability_demo_proto" }
 nifefs = { version = "0.1.0", path = "../crates/nifefs" }
 dma_validator = { version = "0.1.0", path = "../crates/dma_validator" }
 filesystem_proto = { version = "0.1.0", path = "../crates/filesystem_proto" }
