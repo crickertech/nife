@@ -216,10 +216,11 @@ needs a file of its own; what is listed here is where to read it and what happen
 - **Recorded.** **`fixtures/src/hello.rs` carries the `init_boot` role on aarch64 and the name does not
   say so**, in that program's own block. Not proposed as a rename: `hello` is right for what it was
   and the gap is that the thing grew, which is a fact to record rather than a naming error.
-- **Recorded.** **`script/gates` is DECISIONS §134's one clear exception**, a noun that acts where
-  the family's rule gives nouns to things that report. Stated in its header rather than resolved,
-  because both verb forms are worse: `check` collides with the `-check` suffix eight scripts already
-  carry, and `gate` singular would name one of three.
+- **Recorded.** **The retired `gates` script was DECISIONS §134's one clear exception**, a noun that
+  acts where the family's rule gives nouns to things that report. Stated in its header rather than
+  resolved, because both verb forms were worse: `check` collides with the `-check` suffix eight
+  scripts already carry, and `gate` singular would have named one of three. Closed by milestone 286,
+  which retired the script into `script/ci-build` rather than ruling its name.
 - **Recorded.** **`flaky` borrows a word it then contradicts**, in its own block. The field's term
   means a test that fails intermittently; this program fails deterministically, once, by attempt
   number, so a reader who knows the word arrives with the wrong model. No rename proposed, because

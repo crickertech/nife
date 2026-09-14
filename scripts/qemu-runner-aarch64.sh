@@ -115,7 +115,7 @@ fi
 # would have to keep current. It costs about fifty milliseconds.
 #
 # QEMU's words go to STDOUT on failure and the explanation goes to STDERR, and the split is what
-# lets one probe serve two readers. `script/gates` captures stdout for its one-line skip message and
+# lets one probe serve two readers. `script/ci-build` captures stdout for its one-line skip message and
 # discards stderr; a person, and `cargo xtask test --hvf`, get the paragraph. A refusal we
 # paraphrased would go stale the first time QEMU reworded it, so the one-line half is never ours.
 probe_machine() {
@@ -135,12 +135,12 @@ explain_probe_failure() {
     echo "qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. HVF and the GIC version this kernel drives" >&2
     echo "  are not compatible in this QEMU: kernel/src/drivers/gic.rs speaks GICv2 only, HVF wants" >&2
     echo "  GICv3. See the BUGS section of notes/interrupts.md, which carries the measurement and" >&2
-    echo "  what a GICv3 driver would be. script/gates skips this leg out loud rather than failing;" >&2
+    echo "  what a GICv3 driver would be. script/ci-build skips this leg out loud rather than failing;" >&2
     echo "  run it if you want the rest of the suite." >&2
 }
 
 # NIFE_PROBE asks the question and answers nothing else: exit 0 if this machine starts, non-zero
-# otherwise. `script/gates` uses it to decide whether to run the HVF leg or to skip it out loud, and
+# otherwise. `script/ci-build` uses it to decide whether to run the HVF leg or to skip it out loud, and
 # `xtask`'s `--hvf` leg uses it to fail before it stands up a scanout referee and two network
 # probers, each of which would otherwise report its own failure about a QEMU that never started.
 # That cascade is the ambiguity milestone 222 exists to remove, one level up.

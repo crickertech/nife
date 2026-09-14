@@ -335,7 +335,7 @@ assertions) but how many are mechanical and how many need a rethink is not.
   predict the new number.
 - **Recorded.** `design/roadmap/62-time-sensitive-tests.md`: with the handler-latency assertion
   deleted, the suite claims nothing at all about handler latency and `script/icount` is the only
-  grader left, which is why `script/gates` runs it.
+  grader left, which is why `script/ci-build` runs it.
 - **Recorded.** `kernel/src/testing.rs` records that the progress heartbeat credits work by any
   thread rather than per test, and that this blinded it once for real.
 - **Refused.** Shortening the quarter-second measurement window to cut the `UNMEASURED` rate. The
