@@ -43,13 +43,17 @@
 //! have the same property and it has never bitten; recorded here rather than defended.
 //! Name: provisional (milestone 291). The words the milestone 7-19 capability demonstrations agree
 //! on, now that each demonstration is its own binary rather than a role of one. Follows the tree's
-//! `*_proto` shape (`filesystem_protocol`, `supervision_protocol`, `graphics_protocol`): what two
+//! `*_proto` shape (`filesystem_proto`, `supervision_proto`, `graphics_proto`): what two
 //! compilation units must agree on has exactly one definition, which is AGENTS.md rule 7. Refused
 //! `demo_words` ("words" names the representation rather than the agreement, and `_proto` is the
 //! shape a reader of this tree already recognises). Refused folding these into `crates/abi` (abi is
 //! the kernel's syscall surface, which every program depends on, and three fixture constants have
 //! no business widening it). Refused `capability_demo` unsuffixed (it would read as the demo itself
 //! rather than as what the demos agree on, and there is no single demo to be).
+//!
+//! The suffix became `_protocol` at milestone 265, three weeks after this block was written and
+//! together with the crates it cites; the `_proto` spellings above are what they were called when
+//! this name was argued, and are left standing because the argument was about that spelling.
 
 #![no_std]
 

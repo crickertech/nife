@@ -62,8 +62,10 @@
 //! kernel's fault message is the receipt.
 //!
 //! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`filesystem_protocol`, `graphics_protocol`, `netproto`, `line_editor::proto`) for one concept;
-//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
+//! spelled four ways (`filesystem_proto`, `graphics_proto`, `netproto`, `line_editor::proto`) for one concept;
+//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since; the
+//! suffix became `_protocol` at milestone 265 (calef, 2026-09-05) and the 2026-07-30 spellings are
+//! kept above because that sentence is an account of what was decided then. That
 //! rule plus the service the stem names produces this name, which is the whole of what `recorded`
 //! claims: calef ruled on the rule, and never on this crate.
 //! The stem is milestone 23's word for live replacement, which no record weighs against another.

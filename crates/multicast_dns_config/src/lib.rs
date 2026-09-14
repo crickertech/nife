@@ -68,9 +68,10 @@
 //!   `multicast_dns_protocol::Advertisement` carries one; the reference emits AAAA as well.
 //!
 //! Name: provisional, and the stem is ruled: calef ruled **`multicast_dns`** on 2026-09-13. This
-//! carries no `_proto` suffix and still travels with milestone 265, because leaving the config
-//! spelled `mdns` while its protocol crate reads `multicast_dns` would split one protocol across
-//! two spellings. The name this becomes is `multicast_dns_config`.
+//! carries no `_proto` suffix and travelled with milestone 265 anyway, on 2026-09-14, because
+//! leaving the config spelled `mdns` while its protocol crate read `multicast_dns` would split one
+//! protocol across two spellings. `mdns_config` is `multicast_dns_config`. The block stays
+//! **provisional** because calef ruled the stem and has not been shown the whole name.
 
 use multicast_dns_protocol::{Advertisement, Disk};
 

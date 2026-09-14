@@ -22,4 +22,4 @@ user_mode_heap = { version = "0.1.0", path = "../user_mode_heap" }
 # read from the fixed page `kernel::user::load` maps read-only into every x86_64 process. Only
 # `cntfrq`'s x86_64 arm reads it, but the dependency is unconditional the way clock_protocol's and
 # environment_protocol's kernel-side deps are, since it is tiny, no_std, and dependency-free.
-timebase_protocol = { version = "0.1.0", path = "../timebase_protocol" }
+counter_frequency_protocol = { version = "0.1.0", path = "../counter_frequency_protocol" }

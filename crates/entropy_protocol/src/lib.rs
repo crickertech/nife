@@ -106,9 +106,13 @@
 //! device's bytes**, and the device is named in the notes.
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review, confirming
-//! milestone 46's own reasoning). The wire contract was spelled four ways (`filesystem_protocol`,
-//! `graphics_protocol`, `netproto`, `line_editor::proto`) for one concept; `*_proto` won on
-//! 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since.
+//! milestone 46's own reasoning). The wire contract was spelled four ways (`filesystem_proto`,
+//! `graphics_proto`, `netproto`, `line_editor::proto`) for one concept; `*_proto` won on
+//! 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. **Milestone 265
+//! reopened the suffix and not the rule**: `_proto` became `_protocol` on 2026-09-05 because it is
+//! a truncation that is equally short for `prototype`, so the two crates named above are
+//! `filesystem_protocol` and `graphics_protocol` today. The 2026-07-30 spellings are kept here
+//! because the sentence is an account of what was decided then.
 //! The stem is the service's own word (`entropy`, DECISIONS §44), which is itself unrecorded.
 
 #![cfg_attr(not(test), no_std)]

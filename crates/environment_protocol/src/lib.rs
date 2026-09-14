@@ -113,7 +113,9 @@
 //!   asks for, wait on a real customer the way `clock` waited on `date`.
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
-//! `env_proto`: spell out the contraction fully.
+//! `env_proto`: spell out the contraction fully. The suffix then became `_protocol` at milestone 265
+//! (calef, 2026-09-05), which spells out the other truncation in the same name; the stem and the
+//! 2026-08-23 ruling are untouched.
 
 #![cfg_attr(not(test), no_std)]
 

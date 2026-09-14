@@ -139,10 +139,14 @@
 //! thing is and the second is what it does. The boundary is drawn rather than derived and
 //! milestone 265's block carries the reasoning.
 //!
-//! Expanding the stem alone would give `network_time_protocol_proto`, which says protocol twice;
-//! 265's suffix change removes the duplication instead, so the name this becomes is
-//! `network_time_protocol`. The **program** `ntp` deliberately stays short, which is the
-//! typed-command latitude that produced `mdr` the same day, recorded as an exception in 265.
+//! Expanding the stem alone would have given `network_time_protocol_proto`, which says protocol
+//! twice; 265's suffix change removed the duplication instead, and the crate is
+//! `network_time_protocol` as of 2026-09-14. The **program** `ntp` deliberately stayed short, which
+//! is the typed-command latitude that produced `mdr` the same day, recorded as an exception in
+//! 265; milestone 290 has since split that program into `network_time_client`,
+//! `network_time_test_server` and `unwritable_clock_witness`, so the pair the exception was written
+//! about no longer disagrees. The block stays **provisional** because calef ruled the stem and has
+//! not been shown the whole name.
 
 #![no_std]
 

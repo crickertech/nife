@@ -82,11 +82,14 @@
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Renamed from
 //! `gfx_proto`: spell out the `gfx` abbreviation fully, matching the pattern from
-//! `cred_proto` -> `credential_protocol` and `env_proto` -> `environment_protocol` in a parallel lane.
+//! `cred_proto` -> `credential_proto` and `env_proto` -> `environment_proto` in a parallel lane.
 //! `gfx_proto` was one of two `*_proto` crates whose name was unrecorded (introduced 2026-07-29
 //! with virtio-gpu enumeration); `gfx` was an abbreviation, which is the first of the three
 //! failure modes the naming tenet lists for crate names, and `graphics` is the word its seven
-//! siblings' rule was already missing a decision on.
+//! siblings' rule was already missing a decision on. The suffix became `_protocol` at milestone
+//! 265 (calef, 2026-09-05), which is why all three crates named in this paragraph read
+//! `_protocol` today; the arrows above record what those renames produced on 2026-08-23 and keep
+//! that day's spelling.
 
 #![no_std]
 

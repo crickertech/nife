@@ -634,7 +634,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "timebase_protocol"
+name = "counter_frequency_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -658,7 +658,7 @@ name = "user_mode_runtime"
 version = "0.1.0"
 dependencies = [
  "abi",
- "timebase_protocol",
+ "counter_frequency_protocol",
  "user_mode_heap",
 ]
 

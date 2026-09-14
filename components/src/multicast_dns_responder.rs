@@ -77,8 +77,15 @@
 //! crates. **The contrast is gone and the conclusion is not**: milestone 290 found nothing types
 //! `ntp` either (the kernel's wiring loads it from the archive by name) and split it into
 //! `network_time_client`, `network_time_test_server` and `unwritable_clock_witness`. So both sides
-//! of that sentence now follow their crates, for the same reason. The name this becomes is
-//! `multicast_dns_responder`, with milestone 265.
+//! of that sentence now follow their crates, for the same reason. Performed with milestone 265 on
+//! 2026-09-14: `mdns_responder` is `multicast_dns_responder`, and the shipped
+//! `components/multicast_dns_responder.conf` moved with it. **A program's name is not
+//! compiler-checked** (notes/naming.md), so the string sites were enumerated rather than swept: the
+//! `[[bin]]` name and path, the archive tuples in `xtask` once per architecture, the kernel's
+//! `program(...)` lookups and test expectations, `crates/timetable`'s fixture strings, the
+//! configuration file compiled in with `include_str!`, and the one derived identifier
+//! (`mdns_responder_image`). The block stays **provisional** because calef ruled the stem and has
+//! not been shown the whole name.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

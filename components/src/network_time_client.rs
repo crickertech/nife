@@ -101,8 +101,8 @@
 //! from implementation convenience and AGENTS.md ranks it below everything else. Refused keeping
 //! `ntp` for the typed-command latitude: nothing types this name, it is loaded from the archive by
 //! the kernel's wiring, so the latitude that produced `mdr` does not reach it. `network_time`
-//! carries the stem calef ruled on 2026-09-13 for `network_time_protocol`, so these three names are already
-//! spelled the way milestone 265 will spell the crate, and 265 never has to rename them. That also
+//! carries the stem calef ruled on 2026-09-13 for `ntp_proto`, so these three names were already
+//! spelled the way milestone 265 would spell the crate, and 265 did not have to rename them. That also
 //! **overtakes 265's "the `ntp` program stays `ntp`" exception**, which was written when there was
 //! one program to keep the short name: after 290 there is no `ntp` program, the client's name is
 //! expanded, and the pair `network_time_protocol`/`network_time_client` does not disagree.

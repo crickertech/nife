@@ -162,9 +162,11 @@
 //! `pci` case one level down, domain name system teaching a reader nothing they did not have,
 //! while multicast DNS says what the protocol does to someone who has not met the acronym.
 //!
-//! **Still provisional because the rename has not happened.** Milestone 265 turns `_proto` into
-//! `_protocol` across 14 crates and 349 files; performing the stem now would rename these files
-//! twice. The name this becomes is `multicast_dns_protocol`.
+//! **The rename has now happened**, at milestone 265 on 2026-09-14: `_proto` became `_protocol`
+//! across 15 crates and 424 files, and this crate's stem travelled with it in the same pass, which
+//! is why the 2026-09-13 ruling was recorded rather than performed. `mdns_proto` is
+//! `multicast_dns_protocol`. The block stays **provisional** because calef ruled the stem and has
+//! not been shown the whole name; the suffix half is 265's and is settled.
 
 use core::cmp::Ordering;
 

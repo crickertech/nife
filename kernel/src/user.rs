@@ -300,7 +300,7 @@ pub fn user_address_space_create(region: u64) -> Option<u64> {
     // belongs: see that crate's own x86_64-gated code for the targeted fix, which maps a zeroed
     // placeholder (this crate has no way to hand a child-builder the *real*, kernel-measured
     // number without a new syscall or capability plumbing well past this milestone's scope; see
-    // `timebase_protocol`'s and `user_mode_runtime::cntfrq`'s own `BUGS` sections) only into spaces the loader
+    // `counter_frequency_protocol`'s and `user_mode_runtime::cntfrq`'s own `BUGS` sections) only into spaces the loader
     // itself builds, so `user_mode_runtime::cntfrq` reads "unknown" there and falls back rather than
     // faulting on an unmapped read.
     let name = USER_SPACES.lock().insert_with(|_| space);
@@ -499,7 +499,11 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
     #[cfg(target_arch = "x86_64")]
     if let Some(phys) = x86_timebase_page_phys() {
         space
-            .map_physical(timebase_protocol::PAGE_VA, phys, Flags::user_rodata())
+            .map_physical(
+                counter_frequency_protocol::PAGE_VA,
+                phys,
+                Flags::user_rodata(),
+            )
             .map_err(LoadError::Unmappable)?;
     }
 
@@ -515,7 +519,7 @@ pub fn load(image: &[u8]) -> Result<(AddressSpace, u64), LoadError> {
 /// `OutOfFrames` a segment that would not fit reports; this is not a bad-program condition, so it
 /// is not a panic). If [`crate::arch::timer::frequency_checked`] has not resolved yet (never
 /// observed: `init_frequency` runs early in the `x86_64` boot tour, well before the first call to
-/// `load`), the frame is allocated anyway and left zeroed, which [`timebase_protocol::TimebasePage::hz`]
+/// `load`), the frame is allocated anyway and left zeroed, which [`counter_frequency_protocol::TimebasePage::hz`]
 /// reads as "unknown" rather than a fabricated rate; that keeps every `x86_64` process's layout
 /// identical regardless of boot order, the same reason `boot_clock_page` hands out a zeroed page
 /// when there is no `clock` program to ask.
@@ -536,7 +540,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
     let dst = mmu::phys_to_virt(phys) as *mut u8;
     match crate::arch::timer::frequency_checked() {
         Some(hz) => {
-            let bytes = timebase_protocol::build_page(hz);
+            let bytes = counter_frequency_protocol::build_page(hz);
             // SAFETY: `dst` names a freshly allocated frame, reachable through the direct map and
             // owned by nobody else yet; `bytes` is `PAGE_BYTES` (16) bytes, far under the frame's
             // `FRAME_SIZE`, so the copy does not run past it.
@@ -548,7 +552,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
         //
         // SAFETY: as the `Some` arm above: `dst` names a freshly allocated, exclusively owned
         // frame, and `PAGE_BYTES` is far under `FRAME_SIZE`.
-        None => unsafe { core::ptr::write_bytes(dst, 0, timebase_protocol::PAGE_BYTES) },
+        None => unsafe { core::ptr::write_bytes(dst, 0, counter_frequency_protocol::PAGE_BYTES) },
     }
 
     PAGE_PHYS.store(phys, Ordering::Release);
@@ -573,7 +577,11 @@ fn x86_timebase_page_phys() -> Option<u64> {
 #[cfg(target_arch = "x86_64")]
 fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
     if let Some(phys) = x86_timebase_page_phys() {
-        space.map_physical(timebase_protocol::PAGE_VA, phys, Flags::user_rodata())?;
+        space.map_physical(
+            counter_frequency_protocol::PAGE_VA,
+            phys,
+            Flags::user_rodata(),
+        )?;
     }
     Ok(())
 }

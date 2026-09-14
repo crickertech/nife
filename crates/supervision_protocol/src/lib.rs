@@ -94,8 +94,10 @@
 //! ```
 //!
 //! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
-//! spelled four ways (`filesystem_protocol`, `graphics_protocol`, `netproto`, `line_editor::proto`) for one concept;
-//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since. That
+//! spelled four ways (`filesystem_proto`, `graphics_proto`, `netproto`, `line_editor::proto`) for one concept;
+//! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since; the
+//! suffix became `_protocol` at milestone 265 (calef, 2026-09-05) and the 2026-07-30 spellings are
+//! kept above because that sentence is an account of what was decided then. That
 //! rule plus the service the stem names produces this name, which is the whole of what `recorded`
 //! claims: calef ruled on the rule, and never on this crate.
 //! The stem is the tree's word for the restart discipline. The type it exports as `ChildEndowment` is an
@@ -405,7 +407,7 @@ pub fn build_child_space(
     // **This maps a freshly retyped, zeroed placeholder, not the real page.** `retype_page_frame_from`
     // gives back memory out of `build_ut` (the child's own budget, exactly like the stack pages
     // just above), which this process can always afford and which carries no capability from the
-    // kernel to forward. A zeroed page fails `timebase_protocol::TimebasePage`'s magic check and
+    // kernel to forward. A zeroed page fails `counter_frequency_protocol::TimebasePage`'s magic check and
     // reads as "unknown," so `user_mode_runtime::cntfrq` here falls back to its own constant instead of
     // faulting on an unmapped read, which is what happened before this existed: `coremark`, built
     // this way by `hello`'s `init_coremark` role, paged-faulted reading a VA `kernel::user::load`
@@ -422,7 +424,7 @@ pub fn build_child_space(
             invoke(
                 aspace,
                 abi::address_space::MAP_INTO,
-                timebase_protocol::PAGE_VA,
+                counter_frequency_protocol::PAGE_VA,
                 timebase_frame,
                 abi::address_space::MAP_RO,
             )

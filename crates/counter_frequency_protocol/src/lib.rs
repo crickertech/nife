@@ -45,7 +45,7 @@
 //! # Examples
 //!
 //! ```
-//! use timebase_protocol::{TimebasePage, build_page};
+//! use counter_frequency_protocol::{TimebasePage, build_page};
 //!
 //! let bytes = build_page(1_000_000_000);
 //! // SAFETY: `bytes` is a live, aligned buffer of exactly `PAGE_BYTES` for this block.
@@ -57,9 +57,9 @@
 //! rate:
 //!
 //! ```
-//! use timebase_protocol::TimebasePage;
+//! use counter_frequency_protocol::TimebasePage;
 //!
-//! let zeroed = [0u8; timebase_protocol::PAGE_BYTES];
+//! let zeroed = [0u8; counter_frequency_protocol::PAGE_BYTES];
 //! // SAFETY: as above.
 //! let page = unsafe { TimebasePage::new(zeroed.as_ptr() as u64) };
 //! assert_eq!(page.hz(), None);
@@ -88,8 +88,15 @@
 //!   page too (real or placeholder), or must not link anything that calls `cntfrq`.
 //!
 //! Name: provisional, and ruled: calef ruled **`counter_frequency_proto`** on 2026-09-13, working
-//! the unratified worklist. The block stays `provisional` because the ratified name is not this
-//! crate's until the rename is performed. Minted by milestone 161's `cntfrq` follow-up lane.
+//! the unratified worklist. Minted by milestone 161's `cntfrq` follow-up lane as `timebase_proto`.
+//!
+//! **Performed at milestone 265 on 2026-09-14, and the name landed is `counter_frequency_protocol`**,
+//! not `counter_frequency_proto`: the stem is calef's 2026-09-13 ruling and the suffix is 265's
+//! 2026-09-05 one, and applying them separately would have renamed this crate twice for no reason.
+//! That is the same treatment `mdns_proto` and `ntp_proto` get, and **265's own block does not list
+//! this crate among them**, which is a gap in that block rather than a fourth rule: it names four
+//! stems ruled that day and there were five. The block stays `provisional` because calef ruled the
+//! stem and has not been shown the whole name.
 //!
 //! **The block this replaces was the thinnest in the tree**, and that is worth recording rather
 //! than quietly improving: it read *"Name: provisional (this lane, milestone 161's `cntfrq`
@@ -104,7 +111,7 @@
 //! exactly that number and a magic, which is the other half of the argument: `timebase` named the
 //! oscillator where the contents are the frequency.
 //!
-//! Refused `timebase_protocol`, above. Refused `tick_rate_proto`, accurate and plainer but dropping
+//! Refused `timebase_proto`, above. Refused `tick_rate_proto`, accurate and plainer but dropping
 //! the connection to `CNTFRQ_EL0` that explains the crate's existence. Refused `tsc_frequency_proto`
 //! for naming `x86_64`'s counter specifically, when the contract is architecture-neutral even
 //! though today's only consumer is not, and `TSC` would want expanding besides. Refused
@@ -113,9 +120,13 @@
 //! not in a register", and qualifying it by today's only caller would go stale the first time
 //! another architecture needed it.
 //!
-//! The `_proto` suffix is not reopened here: `clock_protocol` was ratified with it on 2026-08-23 and
-//! this page uses the same `MAGIC` shape, so it is an established family rather than an open
-//! question.
+//! **The `_proto` suffix was not reopened here and was reopened three weeks later**, which is
+//! worth leaving standing rather than editing away. This block said the suffix was settled because
+//! `clock_proto` had been ratified with it on 2026-08-23 and this page uses the same `MAGIC` shape,
+//! so it was an established family rather than an open question. calef reopened it himself on
+//! 2026-09-05, on being shown this very crate: *"I think `_proto` was lazy on my part. It should
+//! have been `_protocol` globally to differentiate from prototype."* An established family is
+//! evidence about consistency and not about whether the thing being copied was right.
 
 #![cfg_attr(not(test), no_std)]
 

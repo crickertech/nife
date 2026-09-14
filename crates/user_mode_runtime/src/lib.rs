@@ -125,8 +125,8 @@
 //! Name: ratified 2026-09-13 (calef, milestone 285), replacing `user_rt`. Two halves, argued
 //! separately. **`rt`** was an **abbreviation that needs a decoder**, the first of the three
 //! failure modes AGENTS.md names, and this crate's own first line had always spelled it out; the
-//! precedent is `cred_proto` to `credential_protocol`, ratified 2026-08-23 for "spell out the
-//! contraction fully". Nothing outside the tree owns the spelling (no specification, no wire
+//! precedent is `cred_proto` to `credential_proto`, ratified 2026-08-23 for "spell out the
+//! contraction fully" (milestone 265 has since taken that crate to `credential_protocol`). Nothing outside the tree owns the spelling (no specification, no wire
 //! format, no command-line flag), so the acronym test applies at full force here in a way it did
 //! not to `initrd`. **`user_`** expanded to **`user_mode_`** because in this tree `user` means *a
 //! person* several hundred times over: milestone 49 is users and attribution, `identity_provisioner`
@@ -771,7 +771,7 @@ pub fn now() -> u64 {
 }
 
 /// The counter frequency in Hz (`x86_64`), read from the **timebase page** the kernel maps
-/// read-only into every process at [`timebase_protocol::PAGE_VA`] (milestone 161's `cntfrq`
+/// read-only into every process at [`counter_frequency_protocol::PAGE_VA`] (milestone 161's `cntfrq`
 /// follow-up).
 ///
 /// aarch64 has `CNTFRQ_EL0`, which states the rate. RISC-V has none, but the device tree does,
@@ -829,8 +829,10 @@ pub fn now() -> u64 {
 pub fn cntfrq() -> u64 {
     // SAFETY: every kernel-side space-building function this crate's own docs list maps a page
     // (real, or a zeroed placeholder; see this function's own `BUGS` section) read-only at
-    // `timebase_protocol::PAGE_VA` into every x86_64 process before it ever runs.
-    let page = unsafe { timebase_protocol::TimebasePage::new(timebase_protocol::PAGE_VA) };
+    // `counter_frequency_protocol::PAGE_VA` into every x86_64 process before it ever runs.
+    let page = unsafe {
+        counter_frequency_protocol::TimebasePage::new(counter_frequency_protocol::PAGE_VA)
+    };
     page.hz().unwrap_or(1_000_000_000)
 }
 

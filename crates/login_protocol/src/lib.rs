@@ -139,8 +139,16 @@
 //! assertions exist to catch for `cred`/`credential_protocol`.
 //!
 //! Name: ratified 2026-08-23 (calef, a kernel-dependency crate naming review). Minted 2026-08-22
-//! for milestone 49, following the tree's existing `<subject>_proto` pattern (`credential_protocol`,
-//! `clock_protocol`, `entropy_protocol`).
+//! for milestone 49, following the tree's existing `<subject>_proto` pattern (`credential_proto`,
+//! `clock_proto`, `entropy_proto`), which is what those three were called that day.
+//!
+//! **The suffix became `_protocol` at milestone 265** (calef, 2026-09-05). **The stem did not, and
+//! that is a cost taken knowingly rather than an oversight.** calef parked the whole `login`
+//! family on 2026-09-14 without ruling on what it is named for, so this crate keeps a stem that is
+//! still open; when that ruling comes, these files move a second time. Milestone 265 took the
+//! second rename over leaving one crate spelled `_proto` while fourteen siblings read `_protocol`,
+//! because a uniform suffix is the whole of what the milestone is for and a split state is what it
+//! exists to end.
 
 pub use credential_protocol::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
 

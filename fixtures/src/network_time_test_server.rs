@@ -44,7 +44,8 @@
 //! `components/` (what a distribution ships because somebody wants its function) and `fixtures/`
 //! (what exists to exercise the system), and a test server sitting in `components/` was the defect
 //! that line exists to prevent. `network_time` carries the stem calef ruled on 2026-09-13 for
-//! `network_time_protocol`, so this name is already spelled the way milestone 265 will spell the crate. Refused
+//! `ntp_proto`, so this name was already spelled the way milestone 265 would spell the crate
+//! (`network_time_protocol`, landed 2026-09-14). Refused
 //! `ntp_test_server`: the acronym rule set 2026-09-05 asks whether the expansion teaches, and
 //! network time does where `pci` does not, which is the same ruling that moved the crate's stem.
 //! Refused `fake_stack` and `stub_net_stack`, which name what it *stands in for* rather than what
