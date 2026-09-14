@@ -66,6 +66,13 @@
 #   backstop eventually catches it.
 # - **It validates the baseline cells as integers, never as true.** Nothing re-derives them at the
 #   commit they claim, so a mistyped baseline silently moves a trigger.
+# - **This script has not run since milestone 175 and nothing noticed.** It crashes in `current()`
+#   with `FileNotFoundError: user/Cargo.toml`, because 175 split `user/` into `components/` and
+#   `fixtures/` and the program count still reads the old path. Found 2026-09-14 while ratifying the
+#   name, by running it: the audit-cadence tripwire has been reporting nothing, not reporting green.
+#   `script/lint` does not invoke it, so no gate saw it either. Deliberately not fixed in the
+#   ratification commit, because a naming change should not carry a functional one; it wants a lane,
+#   and the interesting half is not the path but that a tripwire can fail silently for three weeks.
 # - **It cannot tell a report that says nothing from one that found nothing.** `fixed 0, minted 0,
 #   accepted 0` parses and passes.
 # - **`--worklist` ranks documents it can parse a citation out of, and says nothing about the rest.**
@@ -85,14 +92,31 @@
 # the verb this tree already uses for what the integrator does with a number, so the vocabulary got
 # closer to the tree's own while it was being moved out of the way.
 #
-# Name: provisional. Minted by milestone 92's lane on 2026-08-16. Refused `audit` (singular reads
+# Name: ratified 2026-09-14 (calef, working the unratified worklist). Minted by milestone 92's lane
+# on 2026-08-16. Refused `audit` (singular reads
 # as a command that performs one, which is exactly the "an automation ran it for you" misreading
 # the mechanism must not invite), `tripwire` (names the mechanism rather than the record, where
 # this tree's family of report scripts is named for what it reads), and `audit-cadence` (names the
 # policy, while this also validates the index, which is not cadence). `audits` over
 # `audit-reports` because the script answers about the audits and the directory holds the reports.
-# DECISIONS §134 has since written down the family rule this was reaching for, that a `script/`
-# entry point which reports takes a noun. calef has not ratified it.
+# **The plural is what keeps this a noun, and that is worth saying against the rule it appears to
+# break.** AGENTS.md says name things with nouns; `audits` is plural, which reads at a glance like an
+# oversight. It is not: the singular `audit` was refused above precisely because it reads as an
+# imperative, a command that performs one. The plural is the form in which this name stays a noun.
+#
+# **A citation here was wrong and is corrected rather than dropped.** This block claimed DECISIONS
+# §134 had "since written down the family rule this was reaching for, that a `script/` entry point
+# which reports takes a noun". §134 is the harness falsification record and says nothing about entry
+# points or nouns; §39 is about component names and daemons; **no section states that rule.** Checked
+# 2026-09-14 while ratifying. `script/citations` did not catch it because it verifies that a cited
+# section exists, not that it says what the citer claims, which is the same gap that let a fabricated
+# block quote survive twelve days.
+#
+# **The practice is real even though the rule is not written**: every reporting entry point in this
+# tree takes a noun (`metrics`, `citations`, `decisions`, `names`, `roadmap`, `journeys`, `coverage`,
+# `drift`, `falsifications`, `rule-violations`, `fatal-risks`, `crate-probes`). So this name sits in
+# an observable family rather than under a codified rule, and whether that family earns a section is
+# calef's call, not this block's to assert.
 #
 # See notes/scripts.md, design/audit-reports/README.md, and design/decisions/74-audit-cadence.md.
 
