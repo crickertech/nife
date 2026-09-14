@@ -16,8 +16,11 @@
 //! `segments()` iterator a caller drives after `parse` returns.
 //!
 //! **The machine check is a compile-time constant** (`EXPECTED_MACHINE`), so a host fuzz build
-//! accepts aarch64 ELFs, which is what the aarch64 kernel accepts. The riscv build of the same code
-//! differs in exactly that one `u16`, so the paths past it are the same paths.
+//! accepts ELFs for the host's own machine, which is what that machine's kernel accepts. The builds
+//! for the other two differ in exactly that one `u16`, so the paths past it are the same paths.
+//! `fuzz/seeds/elf_parse/` therefore holds one seed per machine and this build gets past the check
+//! on exactly one of them; see `crates/elf/tests/fuzz_seed.rs`, which fails if that count is ever
+//! zero.
 
 #![no_main]
 
