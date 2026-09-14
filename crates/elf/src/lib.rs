@@ -4,8 +4,8 @@
 //! emulator (DECISIONS §7). Nothing in here knows what a page table is. It answers one
 //! question: *what does this file want me to put where, and with what permissions?*
 //!
-//! Deliberately narrow. We parse **static, little-endian, aarch64, `ET_EXEC`** binaries and
-//! nothing else. No dynamic linking, no relocations, no interpreter, no PIE. Every one of those
+//! Deliberately narrow. We parse **static, little-endian, `ET_EXEC`** binaries for **this build's
+//! own machine** and nothing else. No dynamic linking, no relocations, no interpreter, no PIE. Every one of those
 //! is a real feature and every one of them is also a way for a file to ask us to do something
 //! surprising, and we would rather say "no" in eleven lines than "maybe" in a thousand.
 //!
@@ -19,7 +19,7 @@
 //! a day's work and a slower test.
 //!
 //! ```
-//! use elf::{Elf, Error, NATIVE_MACHINE, PF_R, PF_W, PF_X};
+//! use elf::{Elf, Error, FOREIGN_MACHINES, NATIVE_MACHINE, PF_R, PF_W, PF_X};
 //!
 //! /// One `PT_LOAD` segment at 0x40_0000, four kilobytes of it, with whatever flags you like.
 //! fn image(flags: u32, entry: u64) -> Vec<u8> {
@@ -71,8 +71,10 @@
 //! assert!(matches!(Elf::parse(&nowhere), Err(Error::EntryNotExecutable)));
 //!
 //! // And a foreign binary is caught here rather than as a mystery illegal instruction later.
+//! // `FOREIGN_MACHINES`, not a literal: which numbers are foreign depends on the build, and this
+//! // line said `62` (`x86_64`) until milestone 288 ran it on an `x86_64` host and watched it fail.
 //! let mut foreign = image(PF_R | PF_X, 0x40_0000);
-//! foreign[18..20].copy_from_slice(&62u16.to_le_bytes()); // EM_X86_64
+//! foreign[18..20].copy_from_slice(&FOREIGN_MACHINES[0].to_le_bytes());
 //! assert!(matches!(Elf::parse(&foreign), Err(Error::WrongMachine)));
 //! ```
 //!
@@ -95,26 +97,37 @@ const ET_EXEC: u16 = 2;
 /// `e_type` for a PIE / shared object. Needs relocation, which we do not do.
 const ET_DYN: u16 = 3;
 
-/// `e_machine` for the three architectures nife runs on. Any one build uses exactly one of these as
-/// `EXPECTED_MACHINE` and compiles the others' branches out, so from that build's point of view the
-/// rest are unused; we keep all three named because the crate documents every machine it knows, and
-/// the tests check rejection of the non-native ones.
-#[cfg_attr(any(target_arch = "riscv64", target_arch = "x86_64"), allow(dead_code))]
+/// `e_machine` for the three architectures nife runs on.
+///
+/// **No `allow(dead_code)` any more, and that is the tell that this got better.** Each of these used
+/// to carry a `cfg_attr` silencing the two builds that did not name it, because a build could see
+/// only its own. They are all live in every build now: [`KNOWN_MACHINES`] reads all three, and
+/// everything host-dependent below is derived from that one list rather than written out per `cfg`.
 const EM_AARCH64: u16 = 183;
-#[cfg_attr(not(target_arch = "riscv64"), allow(dead_code))]
 const EM_RISCV: u16 = 243;
-#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
 const EM_X86_64: u16 = 62;
+
+/// Every `e_machine` nife has an opinion about, in one place. **This list is the single definition
+/// the host-dependent constants below are computed from**, so adding a fourth architecture is one
+/// edit here and one arm of `EXPECTED_MACHINE`, and forgetting either one fails the build rather
+/// than the tests (see [`FOREIGN_MACHINES`]).
+///
+/// Exported because a caller can have a per-machine obligation of its own that this crate cannot
+/// see. `crates/elf/tests/fuzz_seed.rs` is the one that exists: the fuzz corpus needs a seed for
+/// every machine some build accepts, and checking that against this list means a missing seed fails
+/// on **any** host rather than only on the host it is missing for.
+pub const KNOWN_MACHINES: [u16; 3] = [EM_AARCH64, EM_RISCV, EM_X86_64];
 
 /// The machine this build accepts. A kernel only ever loads binaries for its **own** architecture,
 /// so the expected machine is a compile-time fact, not a runtime parameter: each ISA's build accepts
-/// that ISA's ELFs, and the host that runs these tests accepts aarch64. This keeps the "catch a
+/// that ISA's ELFs, and **that includes the host build these tests run in**, whichever machine the
+/// developer is sitting at. This keeps the "catch a
 /// foreign binary" check without threading an expected-machine argument through every caller in the
 /// kernel and in userspace init, both of which would only ever pass their own architecture anyway.
 ///
 /// **This was a two-way split and the third architecture is why it is now three** (milestone 161,
 /// roadmap item 4). It read `#[cfg(not(target_arch = "riscv64"))] EM_AARCH64`, and `not(riscv64)`
-/// catches `x86_64`: the x86 kernel was compiled to accept **aarch64** binaries and to refuse its own.
+/// catches `x86_64`: the x86 kernel was compiled to accept **`aarch64`** binaries and to refuse its own.
 /// A default arm that names one architecture is a trap the moment a third exists, which is the
 /// general lesson worth taking from this line rather than the specific number.
 #[cfg(target_arch = "riscv64")]
@@ -130,6 +143,86 @@ const EXPECTED_MACHINE: u16 = EM_AARCH64;
 /// here rather than repeating 183/243 behind a `cfg` at each such test keeps one definition of
 /// "which machine is this build".
 pub const NATIVE_MACHINE: u16 = EXPECTED_MACHINE;
+
+/// **The machines nife runs that this build does not**, derived by subtracting [`NATIVE_MACHINE`]
+/// from [`KNOWN_MACHINES`] rather than listed.
+///
+/// The spelling is **provisional**, minted by milestone 288's lane on 2026-09-14, as are
+/// [`KNOWN_MACHINES`] and [`machine_no_nife_build_accepts`]. calef names public items and has not
+/// ruled on these three. `script/names` does not enumerate this surface (see notes/naming.md's
+/// `BUGS`), so this paragraph is the record rather than a `Name:` block.
+///
+/// The other half of what [`NATIVE_MACHINE`] is for. A test that forges a header and expects it to
+/// be **refused** has the same problem as one that expects it to be accepted, in mirror image: it
+/// has to write some machine number, and which numbers are foreign depends on the build. Writing
+/// them out is the bug this exists to remove, because a hand-written pair is a statement about the
+/// author's laptop (milestone 288).
+///
+/// Iterating this proves the property the test actually means: the machine check is **symmetric**,
+/// refusing every nife architecture that is not this build's, rather than privileging one. That
+/// sentence is now true on all three hosts instead of on the one the author had.
+///
+/// The length is `KNOWN_MACHINES.len() - 1`, and the two `assert!`s in the const initialiser are
+/// what make that a fact rather than a hope. **A new architecture that reaches `EXPECTED_MACHINE`
+/// without reaching [`KNOWN_MACHINES`] fails the build**, on the host that added it, because
+/// nothing gets subtracted and the array overflows. That is milestone 161's trap (`not(riscv64)`
+/// silently catching `x86_64`) closed by the compiler instead of by remembering.
+///
+/// **The mirror case is deliberately not an error**, and the asymmetry is the honest half: a
+/// machine added to `KNOWN_MACHINES` with no `EXPECTED_MACHINE` arm compiles, because such a build
+/// accepts `aarch64` and is right to list the newcomer as foreign. It is only wrong once someone
+/// tries to *run* on it, which is the arm they will be writing at the time.
+pub const FOREIGN_MACHINES: [u16; KNOWN_MACHINES.len() - 1] = foreign_machines();
+
+const fn foreign_machines() -> [u16; KNOWN_MACHINES.len() - 1] {
+    let mut out = [0u16; KNOWN_MACHINES.len() - 1];
+    let mut read = 0;
+    let mut written = 0;
+    while read < KNOWN_MACHINES.len() {
+        if KNOWN_MACHINES[read] != EXPECTED_MACHINE {
+            // Before the write, so the build error names the cause rather than an array index.
+            assert!(
+                written < out.len(),
+                "EXPECTED_MACHINE is not in KNOWN_MACHINES: an architecture reached the accept check \
+                 without reaching the list it is derived from"
+            );
+            out[written] = KNOWN_MACHINES[read];
+            written += 1;
+        }
+        read += 1;
+    }
+    assert!(
+        written == out.len(),
+        "KNOWN_MACHINES names EXPECTED_MACHINE more than once"
+    );
+    out
+}
+
+/// **A machine number no nife build accepts, checked at compile time.** Hands back the number it is
+/// given, having proved it is in none of [`KNOWN_MACHINES`]; used in a `const` it is a build error
+/// rather than a test that quietly stops testing.
+///
+/// This exists because the tree has already paid for its absence. A test asserting "a binary for
+/// another machine is refused" used `EM_X86_64`, which was foreign until the day `x86_64` became a
+/// target and then was not (milestone 161). The number had to move, and nothing but a reader
+/// noticing would have moved it.
+///
+/// **It is deliberately stronger than "not this build's machine".** Checking against
+/// `EXPECTED_MACHINE` alone would fail only on an `x86_64` build, which is to say on a machine
+/// nobody working on this had; checking against all three fails on **every** host, including the
+/// `aarch64` laptop where the mistake was made. A gate that fires only where nobody is standing is
+/// not a gate.
+pub const fn machine_no_nife_build_accepts(machine: u16) -> u16 {
+    let mut i = 0;
+    while i < KNOWN_MACHINES.len() {
+        assert!(
+            KNOWN_MACHINES[i] != machine,
+            "this is one of the machines nife runs, so some build accepts it"
+        );
+        i += 1;
+    }
+    machine
+}
 
 /// `p_type`: a segment the loader must actually put in memory. The only one we care about.
 const PT_LOAD: u32 = 1;
@@ -154,13 +247,13 @@ pub enum Error {
     BadMagic,
     /// 32-bit. We do not have a 32-bit anything.
     Not64Bit,
-    /// Big-endian. aarch64 can be, and ours is not.
+    /// Big-endian. `aarch64` can be, and ours is not.
     NotLittleEndian,
     /// `e_version` is not 1.
     BadVersion,
     /// Compiled for a machine this kernel does not run (`e_machine` is neither our own architecture
     /// nor is it the one we were built to accept). **This is the one that catches a riscv binary
-    /// handed to the aarch64 kernel, or an aarch64 binary handed to the x86 one**, and it catches it
+    /// handed to the `aarch64` kernel, or an `aarch64` binary handed to the x86 one**, and it catches it
     /// *here* rather than as a mystery illegal-instruction fault the instant the program starts.
     WrongMachine,
     /// A PIE or shared object. It expects a dynamic linker to relocate it. We are not one.
@@ -619,7 +712,11 @@ mod tests {
         fn new() -> Self {
             Builder {
                 e_type: ET_EXEC,
-                e_machine: EM_AARCH64,
+                // `NATIVE_MACHINE`, not `EM_AARCH64`. Every forgery here is trying to reach some
+                // property past the machine check, so the header has to claim the machine this
+                // build accepts, whichever that is. It read `EM_AARCH64` until milestone 288, which
+                // cost twenty of this module's twenty-five tests on an x86_64 host.
+                e_machine: NATIVE_MACHINE,
                 class: ELFCLASS64,
                 data: ELFDATA2LSB,
                 version: EV_CURRENT,
@@ -792,20 +889,31 @@ mod tests {
     /// instruction at EL0.** SPARC (2), chosen because it is a real `e_machine` value that no arm of
     /// `EXPECTED_MACHINE` will ever take: the number this test used to use was `x86_64`'s, which
     /// stopped being foreign the day `x86_64` became a target (milestone 161).
+    ///
+    /// The number now goes through [`machine_no_nife_build_accepts`] in a `const`, so if SPARC ever
+    /// joins `KNOWN_MACHINES` this **fails to compile** instead of asserting something false. That
+    /// is milestone 161's repair done by the compiler rather than by the next reader (milestone
+    /// 288).
     #[test]
     fn a_binary_for_another_machine_is_refused() {
+        const EM_SPARC: u16 = machine_no_nife_build_accepts(2);
         let mut b = Builder::new().seg(PF_R | PF_X, 0x40_0000, &[0xaa; 16], 16);
-        b.e_machine = 2; // EM_SPARC
+        b.e_machine = EM_SPARC;
         assert_eq!(Elf::parse(&b.build()).err(), Some(Error::WrongMachine));
     }
 
-    /// **A binary for one of the *other* nife architectures is refused too.** These host tests build
-    /// with `EXPECTED_MACHINE == EM_AARCH64`, so a riscv ELF (243) and an `x86_64` one (62) are both
-    /// foreign here, exactly as an aarch64 ELF would be to either of those kernels. The check is
-    /// symmetric, not aarch64-privileged.
+    /// **A binary for either of the *other* nife architectures is refused too.** The check is
+    /// symmetric: whichever machine this build accepts, the two it does not are turned away exactly
+    /// as an `aarch64` ELF would be by a riscv kernel.
+    ///
+    /// [`FOREIGN_MACHINES`] rather than a written-out pair, and that is the whole point of the test
+    /// rather than tidiness. It read `[EM_RISCV, EM_X86_64]` under a doc comment announcing *"these
+    /// host tests build with `EXPECTED_MACHINE == EM_AARCH64`"*, which was a statement about one
+    /// laptop: on an `x86_64` host it asserted that an `x86_64` binary is refused, the opposite of what
+    /// this crate does and must do (milestone 288).
     #[test]
     fn a_binary_for_the_other_supported_machine_is_refused() {
-        for machine in [EM_RISCV, EM_X86_64] {
+        for machine in FOREIGN_MACHINES {
             let mut b = Builder::new().seg(PF_R | PF_X, 0x40_0000, &[0xaa; 16], 16);
             b.e_machine = machine;
             assert_eq!(Elf::parse(&b.build()).err(), Some(Error::WrongMachine));

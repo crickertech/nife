@@ -937,7 +937,6 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
         | Prog::Mdr
         | Prog::Ps
         | Prog::Pgrep
-        | Prog::Watch
         | Prog::Uptime
         | Prog::Printenv
         | Prog::Uuid => {}

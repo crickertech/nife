@@ -282,30 +282,30 @@ fn start_instruction(image: &'static [u8]) -> Option<Wiring> {
     })
 }
 
-/// Where the service maps the TRNG's register page. **Must match `components/src/jh7110_entropy_source.rs`'s
+/// Where the service maps the TRNG's register page. **Must match `components/src/jh7110_entropy.rs`'s
 /// `TRNG_VA`**, and deliberately distinct from [`DMA_VA`] so the two entropy backends could be
 /// mapped into different processes at once without either constant meaning two things.
 const TRNG_VA: u64 = 0x0000_0000_0094_0000;
 
 /// **Does this machine have a JH7110 TRNG?** The device tree's answer, decoded by
-/// `jh7110_entropy_source::discover` (the crate that owns the `compatible` string and the `reg` decode, so
+/// `jh7110_entropy::discover` (the crate that owns the `compatible` string and the `reg` decode, so
 /// this file keeps no second copy of either).
 ///
 /// riscv64 only, and that is a statement rather than a shortcut: the JH7110 is a RISC-V `SoC`, so
 /// on the other two architectures the honest answer is "no" without reading anything. On riscv64
 /// it is "no" too under QEMU's `virt` board, which carries no such node; that is the skip path
-/// this tree's whole CI runs through, and `crates/jh7110_entropy_source`'s own
+/// this tree's whole CI runs through, and `crates/jh7110_entropy`'s own
 /// `discover_finds_nothing_on_qemus_virt_board` test pins it against the same blob.
 #[cfg(target_arch = "riscv64")]
-pub fn jh7110_trng_device() -> Option<jh7110_entropy_source::Discovered> {
-    jh7110_entropy_source::discover(&crate::device_tree().ok()?)
+pub fn jh7110_trng_device() -> Option<jh7110_entropy::Discovered> {
+    jh7110_entropy::discover(&crate::device_tree().ok()?)
         .ok()
         .flatten()
 }
 
 /// See the riscv64 arm: no JH7110 anywhere but a JH7110.
 #[cfg(not(target_arch = "riscv64"))]
-pub fn jh7110_trng_device() -> Option<jh7110_entropy_source::Discovered> {
+pub fn jh7110_trng_device() -> Option<jh7110_entropy::Discovered> {
     None
 }
 
@@ -317,9 +317,9 @@ pub fn jh7110_trng_device() -> Option<jh7110_entropy_source::Discovered> {
 /// driver is granted two rendezvous capabilities (a request endpoint it RECVs on, a readiness
 /// endpoint it SENDs once) and **one page of device memory**: the TRNG's register block, mapped
 /// user-device-typed at [`TRNG_VA`]. Not a DMA page, because the device writes nothing to memory;
-/// not an `Irq` capability, because the driver polls (`components/src/jh7110_entropy_source.rs` records why);
+/// not an `Irq` capability, because the driver polls (`components/src/jh7110_entropy.rs` records why);
 /// not a `Virtio` capability, because there is no transport. The binding's `reg` window is
-/// `0x4000` and this maps `0x1000` of it, since `jh7110_entropy_source::regs` reaches only `0x68`: a driver
+/// `0x4000` and this maps `0x1000` of it, since `jh7110_entropy::regs` reaches only `0x68`: a driver
 /// that cannot name a register cannot touch it.
 ///
 /// **Fatal risk 6's experiment is exactly this shape** (`design/fatal-risks.md`): an unprivileged

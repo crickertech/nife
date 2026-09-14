@@ -688,9 +688,10 @@ doc comments and macro invocations cost over the hand-written offsets and `SAFET
 replaced, the same denominator effect this round's own base-commit measurement already showed in
 isolation.
 
-*`jh7110_trng.rs` is `components/src/jh7110_entropy_source.rs` now (renamed 2026-09-13, once by
-milestone 175's split and once by calef's ratification). It is spelled here as it was when the
-blocks were counted, so the -1 stays checkable against base commit `757562a3`, and
+*`jh7110_trng.rs` is `components/src/jh7110_entropy.rs` now (renamed three times: milestone 175's
+split, then `jh7110_entropy_source` when calef ratified that on 2026-09-13, then `jh7110_entropy`
+when he replaced it later the same day, performed 2026-09-14). It is spelled here as it was when
+the blocks were counted, so the -1 stays checkable against base commit `757562a3`, and
 `design/roadmap/139-drive-down-unsafe.md`'s round 5 section spells it the same way.*
 
 **The ratchet does not move a fifth time.** With density unchanged at 87, the 7-point-headroom

@@ -132,8 +132,9 @@ header keeps saying so.
 - **Recorded.** The build is bounded by nothing; same `BUGS` section, beside it.
 - **Recorded.** That the weekly workflow has still never succeeded, in the `BUGS` header of
   `.github/workflows/mutation.yml`, which keeps saying so until a green scheduled run lands.
-- **Proposed.** `design/roadmap/proposals/elf-host-tests-assume-an-aarch64-host.md`. The test
-  `Builder` hardcodes `e_machine: EM_AARCH64` while `EXPECTED_MACHINE` follows `cfg(target_arch)`,
+- **Milestone 288.** Promoted 2026-09-14, which is what a `**Proposed.**` disposition becomes when
+  the proposal it names gets a number. The test
+  `Builder` hardcoded `e_machine: EM_AARCH64` while `EXPECTED_MACHINE` follows `cfg(target_arch)`,
   so 20 of 25 tests fail with `WrongMachine` on an x86_64 checkout. Invisible because CI is
   `ubuntu-24.04-arm` and the dev Mac is Apple Silicon. This is milestone 117's stranger-test class
   exactly, found here only because this lane measured every host test binary. Written up as its own
