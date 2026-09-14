@@ -9,7 +9,7 @@ anything left then we can consider a name for what remains."** It follows his ru
 day on `components/src/ntp.rs`, three roles to three programs, where the reason was: *"Part of the beauty of Unix
 that I think we want to retain is small programs with specific functions."*
 
-## The principle, which the tree had enacted three times and never written down
+## The principle, which the tree had enacted five times and never written down
 
 **A program does one thing, and a role is an exception that has to say why.**
 
@@ -118,7 +118,13 @@ sentence is what the split made false.
 it), and `CYCLE_COUNTER_WORD` (the reader and the kernel test, likewise duplicated).
 
 **`loaded_image_check`** holds the self-check and its `.rodata`/`.data`/`.bss` markers, which two
-fixtures need. Keeping it in one program and dropping it from the other was considered and refused:
+fixtures need. **It takes its `fail` as a `fn() -> !` parameter rather than calling `user_rt`**, and
+that is worth a sentence: a crate that reaches `user_rt` reaches EL0 syscall `asm!` and compiles for
+aarch64 or riscv64 only, which `script/lint` catches and which would have put this crate in four
+separate host-pass exclusion lists to buy one function call. As a parameter it costs the two callers
+one argument, stays host-buildable, and carries two host tests.
+
+Keeping it in one program and dropping it from the other was considered and refused:
 the printing client's self-check is load-bearing to
 `a_user_client_moves_data_through_shared_memory`, which asserts on the *absence of a fault* as well
 as on the bytes, and after a split no other test covers that binary's own image.
@@ -145,6 +151,13 @@ cost and the number should be re-taken if anyone ever measures boot time against
 
 `initrd_aarch64` now prints *why* a pack failed, which `initrd_riscv` has done since somebody lost
 an afternoon to the silent version. This milestone lost a shorter one to the same message.
+
+**The one cost of the move that is not 2 KB is unmeasured.** `a_short_image_is_refused_not_indexed`
+proves its boundary with a `kani::any()` array of `DIR_BLOCKS * BLOCK - 1` bytes, so that symbolic
+input grew from 3071 to 5119. The path under it is trivial (`parse` compares the length and returns
+before touching a byte), so the solver should not care, but nobody has checked: this lane's
+environment had no Kani in it, so `script/verify` was the one gate it could not run. The caveat is
+recorded beside the constant as well as here.
 
 ## What was not done, and why
 
@@ -182,6 +195,9 @@ See the proposal below.
   construction, which `hello` describes no better than it described thirty-one), and a caller that
   asks for a role it does not have now gets a trap rather than a message, which is deliberate and
   is still a spawner waiting on its watchdog.
+- **Recorded.** `crates/nifefs/src/lib.rs`'s `DIR_BLOCKS` block carries the unmeasured cost of the
+  raise: a Kani harness's symbolic input grew from 3071 bytes to 5119, and this lane had no Kani to
+  time it with. Whoever runs `script/verify` next should look at that harness.
 - **Recorded.** `notes/adding-a-program.md` gained the principle and the archive ceiling, because
   that is the page the next person adding a fixture reads and a roadmap block is not.
 - **Done.** The archive-size and directory-ceiling costs are measured and stated in this block
