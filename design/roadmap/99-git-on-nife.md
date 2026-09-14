@@ -13,8 +13,10 @@ cheap version of this milestone's first week.
 **Why this is a better *first* real workload than Vaultwarden**, which the roadmap already calls
 the largest single item on it. Local git needs **no network, no threads, no async runtime, and no
 SQLite**: `init`, `add`, `commit`, `log`, `status`, `diff` are a filesystem, a hash, a compressor,
-a clock, and a place to put bytes. Every one of those is something this tree either has or is
-building, and the filesystem half is precisely what milestone 57's write-half just finished. Where
+a clock, and a place to put bytes. **Every one of those but the compressor** is something this tree
+either has or is building. Nothing in the tree compresses, and milestone 258 (archive and compression)
+is `NOT-STARTED` (corrected 2026-09-14; this sentence had said all five since it was written). The
+filesystem half is precisely what milestone 57's write-half just finished. Where
 Vaultwarden's gap list names five subsystems that do not exist, this one's names mostly widths of
 things that do.
 
