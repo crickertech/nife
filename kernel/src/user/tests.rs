@@ -98,7 +98,7 @@ fn reap_bare(tid: crate::thread::ThreadId) -> bool {
 }
 
 /// The `least_authority_demo` program's ELF bytes (milestone 19f.2), a distinct binary in the archive, not a
-/// role of the init/hello binary. `_start(x0, x1, x2)` reads its input in `x1` and needs no
+/// role of the `hello` binary. `_start(x0, x1, x2)` reads its input in `x1` and needs no
 /// role selector.
 fn least_authority_demo_image() -> &'static [u8] {
     program("least_authority_demo").expect("no least_authority_demo program in the initrd archive")
@@ -2638,7 +2638,7 @@ fn init_runs_the_coremark_workload_and_it_checks_out() {
 }
 
 /// **Milestone 19c.3, the whole point: one process builds and starts another, and it runs.**
-/// The kernel drives the four verbs the way init eventually will: retype an address space and
+/// The kernel drives the four verbs the way the progenitor eventually will: retype an address space and
 /// a TCB, map a code page (containing a hand-assembled EL0 stub) and a stack into the space,
 /// insert a report rendezvous into the child's capability table, configure the TCB (entry, stack, space),
 /// and START it. The child, code no wiring wrote and a thread no `spawn` created, drops to

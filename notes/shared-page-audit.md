@@ -52,7 +52,7 @@ against one.
 | the compositor | `components/src/compositor.rs` | window clients, the input source | `crates/compositor` |
 | the display terminal | `components/src/display_terminal.rs` | an application | `crates/video_terminal` |
 | credentials | `components/src/credentialer.rs` | provisioner, verifier | `crates/credential_proto` |
-| the wall clock | `kernel/src/user/clock_service.rs` | init, the shell, `date` | `crates/clock_proto` |
+| the wall clock | `kernel/src/user/clock_service.rs` | The progenitor, the shell, `date` | `crates/clock_proto` |
 | the C seam | `fixtures/src/c_shim.rs` (C) | `fixtures/src/c_confiner.rs` | `crates/c_seam`, `fixtures/c/c_seam.c` |
 | the input ring | the compositor | the keyboard driver | `crates/compositor` (`proto::ring`) |
 | sockets | `components/src/net_stack.rs` | a client, `std::net`, `ntp` | `crates/socket_proto` |
@@ -77,8 +77,8 @@ Stated because a scope nobody wrote down is a scope nobody can check.
   would add nothing a prover has not already said for every input.
 - **The Kani bounds.** Whether a proof's chosen bound is the right bound is
   [verification.md](verification.md)'s question, not this one's.
-- **Anything that requires already being init.** SECURITY.md puts it out of scope and this audit
-  honours that: init is unverified and privileged by design.
+- **Anything that requires already being the progenitor.** SECURITY.md puts it out of scope and this audit
+  honours that: the progenitor is unverified and privileged by design.
 
 ### And three things that moved under this audit
 
@@ -501,7 +501,7 @@ The seam also turned out to be **better than its reputation**. `crates/c_seam` n
 with nothing checking that the two agree" warning in `CLAUDE.md` is stale. Correcting that file is
 the maintainer's; it is reported rather than edited here.
 
-**The clock page.** Mapped `user_rodata` into init, the shell and any child whose manifest declares
+**The clock page.** Mapped `user_rodata` into the progenitor, the shell and any child whose manifest declares
 one. A holder can read the wall clock and cannot set it, which is the point, and read-only is what
 makes it a fact about the mapping instead of about the code.
 
@@ -584,7 +584,7 @@ chain. **The witness is the deliverable**, not the wiring: two live confined pro
 service, one of them substituting the other's name mid-request, failing before the change and
 passing after. Severity is what makes it worth a lane rather than a note: it is a confinement escape
 in the exact terms SECURITY.md puts in scope, and it moves from latent to live the day the shell can
-ask init to build a caretaker, which `swish.rs` already names as the next step.
+ask the progenitor to build a caretaker, which `swish.rs` already names as the next step.
 
 **B. A harness that can make a virtio device misbehave.** The case is finding 6 and the honesty gap
 under it. This tree tests DMA confinement by making the *driver* attack (`crates/virtio`'s

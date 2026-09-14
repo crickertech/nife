@@ -512,7 +512,7 @@ fn memory_region_retype_obj(region: u64, kind: u64) -> Result<i64, Error> {
             let ep = sched::create_rendezvous_from(region).ok_or(Error::OutOfMemory)?;
             // `Rights::ALL`, not a list. The comment above has always said the creator gets full
             // rights on its own object; spelling the set out meant "full" silently stopped being
-            // full the day `ENUMERATE` was added, and the symptom was three steps away: init
+            // full the day `ENUMERATE` was added, and the symptom was three steps away: the progenitor
             // could not narrow `deaths` to a right it did not itself hold, `CAP_INSERT` refused
             // the widen, and the spawn surfaced as `OutOfMemory` at a prompt. A rights set that
             // must be updated by hand whenever a right is added is rung four; `ALL` is the
@@ -572,7 +572,7 @@ fn memory_region_split(cap: crate::cap::Cap, region: u64, count: u64) -> Result<
     // memory and manufacture the right its capability withheld. `Cap::mint_child` is that
     // inheriting mint, and `split_never_widens_rights` (crates/capability) proves it never widens,
     // at the one mint site outside `derive` the caps proofs otherwise miss (milestone 35). Rights
-    // narrow monotonically from the delegable root budget down; init holds that root with GRANT
+    // narrow monotonically from the delegable root budget down; the progenitor holds that root with GRANT
     // and hands narrowed budgets on. See DECISIONS §16.
     let slot = sched::grant(cap.mint_child(crate::cap::Object::MemoryRegion(child)))
         .map_err(|_| Error::OutOfMemory)?; // capability table full
@@ -613,7 +613,7 @@ fn address_space_map_into(
     let va = a0;
     let frame = sched::current_cap(a1).map_err(|_| Error::NoSuchSlot)?;
     // The mappable object is a PageFrame (normal memory) or a DeviceFrame (a device's
-    // MMIO, device-typed): the driver a userspace init builds gets its registers this
+    // MMIO, device-typed): the driver a userspace progenitor builds gets its registers this
     // way (19d.2). a2 chooses the shape for a PageFrame; a DeviceFrame is always
     // device-typed read/write and needs WRITE on the cap.
     let (phys, count, flags) = match frame.object {
@@ -1276,7 +1276,7 @@ mod tests {
             panic!("SPLIT must mint an untyped");
         };
 
-        // Contrast: the delegable root (READ|WRITE|GRANT, what init holds) passes GRANT to its
+        // Contrast: the delegable root (READ|WRITE|GRANT, what the progenitor holds) passes GRANT to its
         // children, so a spawner can hand a budget on. Inheritance, not a blanket deny.
         let root_region = crate::memory_region::create(8).expect("a root region");
         let root =

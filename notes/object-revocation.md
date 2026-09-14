@@ -130,7 +130,7 @@ owner retries and reclaims") was simply false for that case, and it is the ordin
 a thing that blocks.
 
 The aarch64 test boot is what made it visible. `userspace_init_brings_up_the_console_server` builds a
-console server out of init's 2048-frame budget, and that server blocks in its serve loop, so those
+console server out of the progenitor's 2048-frame budget, and that server blocks in its serve loop, so those
 2048 frames were unreclaimable **by construction**. Six such tests, and the boot finished with 216
 free frames of 29307 and no free run longer than 117, failing as `Unmappable(OutOfFrames)` in
 whichever unlucky later test asked for a long run. notes/frames.md is the full receipt.

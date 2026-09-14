@@ -1,6 +1,6 @@
 //! **The construction sub-server: process building, and nothing else** (milestone 22 phase B.2).
 //!
-//! Where init's process-construction authority went. It holds one untyped budget (WRITE only, so it
+//! Where the progenitor's process-construction authority went. It holds one untyped budget (WRITE only, so it
 //! may spend memory but never lend it), a request channel, and **one program image** copied into its
 //! address space by `root_supervisor`. It does not hold the initrd, so "build me program X" is not a thing that
 //! can be asked of it: the only program it can name is the one it was handed.

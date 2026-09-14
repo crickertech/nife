@@ -413,7 +413,7 @@ Known limitations, next to the feature rather than only in a tracker.
   every client a boot wires, so any other holder can still land between the caretaker's store and
   the server's load. Nothing can reach it on `main` today, because in the interactive boot the shell
   is the only holder and confined programs hold no budget with which to start a second thread. It
-  becomes live the day the shell can ask init to build a caretaker, which is the next step this note
+  becomes live the day the shell can ask the progenitor to build a caretaker, which is the next step this note
   already anticipates. A frame per client channel is the fix and is proposed as its own milestone.
 
 - **The bound is eight names, and an unbatched line over it is still refused.** A directory with nine

@@ -267,7 +267,7 @@ L4/seL4 papers compare to Linux. Our own microbenchmarks above are the nife side
 19e's real workload is CoreMark, the three work items of a CoreMark iteration (a linked-list sort, a
 small-matrix multiply, a state machine over a byte buffer), each folded into a CRC so the compiler
 cannot delete the work and a run self-validates. It runs as a spawned EL0 program against the native
-ABI: init builds the `"coremark"` binary, grants it one endpoint, and it computes and SENDs the run's
+ABI: the progenitor builds the `"coremark"` binary, grants it one endpoint, and it computes and SENDs the run's
 CRC home. `coremark::PINNED_CRC_64` (`0x7954` for 64 iterations) is asserted by both the host crate
 test and the kernel test, so the same computation gives the same answer on the host and on the
 kernel's target, which is the property a cross-OS comparison rests on.
@@ -855,7 +855,7 @@ what the *correct* version of that path always cost, and the previous numbers we
 that could return a new process to its entry point at the wrong exception level.
 
 Measured-boot (phase B.1) moved nothing on either ISA, which is expected: the bench boot enters no boot
-program, so the SHA-256 over init never runs there.
+program, so the SHA-256 over the progenitor never runs there.
 
 ## 2026-08-04: the RISC-V baseline re-saved for a win this instrument cannot see
 

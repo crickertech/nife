@@ -16,7 +16,7 @@ const TIMETABLE_BUDGET_PAGES: u64 = 768;
 /// red, which is the property milestone 62 spent a week putting back into this tree.
 const FIRES: u64 = 4;
 
-/// Stack pages for the timetable, four times what `INIT_STACK_PAGES` gives a boot's init.
+/// Stack pages for the timetable, four times what `INIT_STACK_PAGES` gives a boot's the progenitor.
 ///
 /// A number a spawn site **states** rather than inherits, which is `supervision_proto`'s own rule
 /// (`CHILD_STACK_PAGES`: "a builder that silently inherits somebody else's stack size finds faults

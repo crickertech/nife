@@ -1,11 +1,11 @@
-//! **A minimal init: the system builder** (milestone 20, the richer-initrd step).
+//! **A minimal first process: the system builder** (milestone 20, the richer-initrd step).
 //!
 //! This is the RISC-V counterpart of the init role in `hello` (which is aarch64-wired: PL011,
 //! `svc`, the shell/console/input system). It is deliberately small and fully portable: it does the
 //! one thing that matters for the demonstrator's thesis on a second ISA, which is that **userspace,
 //! not the kernel, composes the system.**
 //!
-//! The kernel loads this program from the initrd's `init` entry, maps the whole nifefs archive
+//! The kernel loads this program from the initrd's `builder` entry, maps the whole nifefs archive
 //! read-only, and grants it two capabilities: a large untyped budget (slot 0) and a report endpoint
 //! (slot 1). From those, and nothing else, this program:
 //!
@@ -18,19 +18,19 @@
 //!
 //! The child (the `least_authority_demo`) squares the input and SENDs the answer straight to the report endpoint,
 //! which the kernel is waiting on. The kernel never touches the `least_authority_demo`'s bytes: this program loaded
-//! it, built its address space, and started it. That is the init-as-system-builder model, proven on
+//! it, built its address space, and started it. That is the userspace-as-system-builder model, proven on
 //! RISC-V. It shares the `user` crate's `link.ld` and the `user_mode_runtime` syscall runtime; every syscall
 //! it makes (retype, map, configure, start) crosses the same `ecall` ABI the `least_authority_demo` uses.
 //!
 //! Name: recorded (crate `system_initializer`, ratified 2026-08-04 by calef, and milestone 63's
 //! name table before it). Never argued for directly and argued around twice, which is stronger
-//! than it sounds. `builder.rs`'s own first line calls it "a minimal init: the system builder",
-//! and that phrase is why `system_builder` was turned down for a crate on 2026-08-01 and again on
-//! 2026-08-04, both times to stop two programs claiming one phrase. A name the tree has twice
-//! declined to give away is a name the tree has reasoned about. Its archive entry is `init`, the
-//! one deliberate exception to "the binary, the source file and the archive entry are the same
-//! string" (notes/naming.md), because `init` is the entry the kernel loads by name. calef has not
-//! ratified it.
+//! than it sounds. `builder.rs`'s own first line called it "a minimal init: the system builder"
+//! when those refusals were recorded, and that phrase is why `system_builder` was turned down for a
+//! crate on 2026-08-01 and again on 2026-08-04, both times to stop two programs claiming one
+//! phrase. A name the tree has twice declined to give away is a name the tree has reasoned about.
+//! Its archive entry is `builder` since milestone 266, so it is no longer the exception to "the
+//! binary, the source file and the archive entry are the same string" (notes/naming.md) that it was
+//! while the kernel loaded it under the entry `init`. calef has not ratified it.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

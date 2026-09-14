@@ -15,7 +15,7 @@ The decision here is to **write down and commit the convention we already run**,
 self-describing environment (a BootInfo page). Hardcoded, out-of-band agreement on the initial
 capability layout between a parent and the children it builds is the normal microkernel pattern
 (seL4 hands a BootInfo only to its *root* task; every other task gets caps placed by its parent per
-a private layout). Our init is that parent. A BootInfo mechanism earns its keep when a loader must
+a private layout). Our progenitor is that parent. A BootInfo mechanism earns its keep when a loader must
 start programs whose layout it cannot know in advance, which is milestone 23 (live component replacement), with competing
 vendors, not now. See "What is deliberately deferred".
 
@@ -87,8 +87,8 @@ reserved case:
 
 - For most programs, `x0`/`x1`/`x2` are plain arguments. A least_authority_demo takes its input `n` in `x1`. A
   standalone binary that needs no argument ignores all three.
-- **init** is the exception the loader knows about: the kernel starts init with the initrd length in
-  `x1`, because init must find the archive it loads everything else from (notes/progenitor-and-loading.md).
+- **The progenitor** is the exception the loader knows about: the kernel starts the progenitor with the initrd length in
+  `x1`, because the progenitor must find the archive it loads everything else from (notes/progenitor-and-loading.md).
 - Historically `x0` was a *role selector* for the one multi-tool `hello` binary. After the 19f split
   every program is its own binary, so `x0` is a free argument again, not a dispatch key.
 
@@ -103,7 +103,7 @@ frame).
 
 ## 4. How a program meets its capabilities
 
-Before `START`, the program's loader (init, or the kernel's own service wiring) has placed the
+Before `START`, the program's loader (the progenitor, or the kernel's own service wiring) has placed the
 capabilities the program needs into low capability table slots, and mapped any shared pages it needs at agreed
 virtual addresses. The program hardcodes which slot holds what and which VA is which. That agreement
 is the contract, and it is **per program**, published in that program's own source:
@@ -284,7 +284,7 @@ roadmap row.
 - **A BootInfo / self-describing environment.** A structured block the loader hands the program that
   lists its initial capabilities, their rights, and its arguments, so a program can *discover* its
   world instead of assuming a layout. This is what a generic loader needs when it starts programs it
-  did not build and whose layout it cannot know. We do not have that situation yet (init builds every
+  did not build and whose layout it cannot know. We do not have that situation yet (the progenitor builds every
   program and knows every layout), so a BootInfo would be a mechanism without a requirement. It lands
   when milestone 23 (live component replacement) creates the requirement.
 - **A POSIX shim.** §10 records why this is *additive* and can come later without a rewrite: `open`

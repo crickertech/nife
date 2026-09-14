@@ -61,9 +61,9 @@
 //!   with [driver] everywhere the two overlap. **Caveat, stated because it changes what can be
 //!   claimed**: the bit *positions* live in the page's figures, which are images, so the numbering
 //!   in this file comes from [driver] and [netbsd] and the TRM supplies the names and meanings.
-//! - **[netbsd]** `NetBSD`, `sys/arch/riscv/starfive/jh7110_entropy_source.c`, `$NetBSD: jh7110_entropy_source.c,v 1.2
+//! - **[netbsd]** `NetBSD`, `sys/arch/riscv/starfive/jh7110_trng.c`, `$NetBSD: jh7110_trng.c,v 1.2
 //!   2025/02/09 09:09:49 skrll Exp $`, fetched 2026-09-04 from
-//!   `raw.githubusercontent.com/NetBSD/src/trunk/sys/arch/riscv/starfive/jh7110_entropy_source.c`. A third,
+//!   `raw.githubusercontent.com/NetBSD/src/trunk/sys/arch/riscv/starfive/jh7110_trng.c`. A third,
 //!   independent driver for the same block, and the most useful one here because **it is the only
 //!   one that polls**. It supplies the bit positions mainline omits
 //!   (`IENABLE`/`ISTATUS`: `RAND_RDY` 0, `SEED_DONE` 1, `AGE_ALARM` 2, `RQST_LOCKUP` 3,
@@ -169,8 +169,8 @@
 //! See the roadmap doc for exactly what is and is not ready for a customer to pick up.
 //!
 //! Name: ratified 2026-09-13 (calef, working the unratified worklist), replacing the provisional
-//! `jh7110_entropy_source`. TRNG expands to true random number generator and the expansion teaches, which the
-//! old block already conceded: "the acronym is not one a reader outside hardware carries". Refused
+//! `jh7110_trng`. TRNG expands to true random number generator and the expansion teaches, which
+//! the old block already conceded: "the acronym is not one a reader outside hardware carries". Refused
 //! `jh7110_true_random_number_generator` (35 characters, and the spec's full name buys nothing over
 //! `entropy_source`, the reasoning that also gave `executable_format` its name rather than ELF's),
 //! and bare `entropy_source` (this tree will have a second system on a chip, and the chip qualifier
@@ -184,7 +184,7 @@
 //! [driver]: https://github.com/torvalds/linux/blob/master/drivers/char/hw_random/jh7110-trng.c
 //! [ds]: https://doc-en.rvspace.org/JH7110/PDF/JH7110_DS.pdf
 //! [trm]: https://doc-en.rvspace.org/JH7110/TRM/JH7110_TRM/control_registers_trng.html
-//! [netbsd]: https://github.com/NetBSD/src/blob/trunk/sys/arch/riscv/starfive/jh7110_entropy_source.c
+//! [netbsd]: https://github.com/NetBSD/src/blob/trunk/sys/arch/riscv/starfive/jh7110_trng.c
 
 /// Register byte offsets from the device's base, transcribed from `jh7110-trng.c`'s `#define`s
 /// (\[driver\]). `RAND0..RAND7` are the eight 32-bit words a completed generation leaves behind;

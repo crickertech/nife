@@ -106,7 +106,7 @@ previous version of this section did repeat them, and drifted twice inside three
   [notes/verification.md](notes/verification.md); the count is whatever the gate prints.
 - **The kernel does not allocate.** There is no kernel heap. Page tables, TCBs, endpoints, and
   address spaces are all retyped out of untyped memory that userspace owns and pays for.
-- **Processes come and go.** A userspace init builds the whole system through granular
+- **Processes come and go.** A userspace progenitor builds the whole system through granular
   capability verbs (retype, configure, insert, start), and object revocation tears a process
   back down: its TCBs, address spaces, endpoints, and the memory behind them, reclaimed safely.
 - **It runs real workloads.** A CoreMark-derived compute program against the written native ABI
@@ -184,7 +184,7 @@ kernel/
   src/arch/x86_64/     and by a third (PVH and UEFI boot, IA-32e paging, APIC, VT-d)
   src/drivers/         pl011, ns16550: a driver gets a base address and nothing else
   src/                 capabilities, scheduler, IPC, untyped, revocation, the syscall surface
-user/                  EL0: init, the shell, the console/input/block drivers, servers
+user/                  EL0: the progenitor, the shell, the console/input/block drivers, servers
 crates/                pure logic, host-tested in milliseconds: caps, ipc, paging, elf,
                        dtb, pci, frames, slots, nifefs, intrusive, asid, ...
 bench/                 the benchmark suite and committed baselines (all three ISAs)

@@ -201,7 +201,7 @@
 //!   authenticated principal (see the module docs on why one frame serves every hop).
 //! - slot [`CONSTRUCTION_UT`]: `WRITE | GRANT`. Everything a connecting client's own private channel,
 //!   a caretaker, and a client budget are all built from. Never given away, unlike
-//!   `root_supervisor`'s: this process keeps serving logins for its whole life, so unlike an init
+//!   `root_supervisor`'s: this process keeps serving logins for its whole life, so unlike a progenitor
 //!   that hands its authority away once, it must keep some.
 //! - slot [`AUDIT`]: `WRITE`. One [`login_proto::ATTRIBUTED`] message per successful login, so the
 //!   property DECISIONS §109 names (a server logging which channel it just established, and for
@@ -251,7 +251,7 @@
 //! `user_mode_runtime::initrd::INITRD_VA`. That is what `kernel::user::login_service::start` handed it, and it
 //! is what `crates/system_initializer` could never hand it: `supervision_proto::build_child` maps
 //! only pages the spawner holds a `PageFrame` capability for, and the archive is reserved RAM the
-//! frame allocator does not own and no capability names. So init started this process with
+//! frame allocator does not own and no capability names. So the progenitor started this process with
 //! `start_child(login_child, 0, 0, 0)` and no archive, `initrd_bytes` yielded a
 //! zero-length slice, `nifefs::Fs::parse` refused it, and this process took `fail(1)` before serving
 //! anything, while the boot went on printing `init: login ready` with a generated password.
@@ -277,8 +277,8 @@
 //! time and deletes it.
 //!
 //! **The measurement check's trust root moved and is weaker.** When this process read the initrd it
-//! read the same physical archive the kernel maps for init, so the check was independent of whoever
-//! spawned it. Under `crates/system_initializer` both the bytes and the table now arrive from init,
+//! read the same physical archive the kernel maps for the progenitor, so the check was independent of whoever
+//! spawned it. Under `crates/system_initializer` both the bytes and the table now arrive from the progenitor,
 //! which has already run the identical `measured_boot::verify_in_manifest` over them, so what
 //! remains is a consistency check on the hand-over rather than an independent verification. It is
 //! kept because it costs one hash and catches a spawner that pairs the wrong two blobs.
@@ -427,7 +427,7 @@
 //! board is not). `kernel::user::spawn_init` (aarch64) and `kernel::user::riscv_shell_boot`
 //! (riscv64) now discover a real virtio-rng device (MMIO only; the PCIe transport
 //! `kernel::user::entropy_service::start` also offers is real follow-on, not built here) and grant
-//! it to init as three capabilities (`BootEndowment::virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`),
+//! it to the progenitor as three capabilities (`BootEndowment::virtio_rng`/`virtio_rng_irq`/`virtio_rng_dma`),
 //! and the interactive boot's own QEMU invocation now attaches one (`xtask`'s `shell_check_leg` and
 //! `"shell"` command both set `NIFE_RNG`, where before it was a test-leg-only flag). `crates/
 //! system_initializer::boot` builds a real entropy service from that grant, at the very top of the
@@ -439,14 +439,14 @@
 //! assumed now genuinely exists under a real boot.
 //!
 //! **Why entropy had to be built before the console, and that ordering is load-bearing rather than
-//! tidy**: the virtio-rng trio is granted by the kernel, at spawn, so it inflates init's resting
+//! tidy**: the virtio-rng trio is granted by the kernel, at spawn, so it inflates the progenitor's resting
 //! capability-table baseline for the *whole* function, and the earliest peak `boot` ever reaches
 //! (retyping the terminal's six capabilities, before the console is even built) was already close to
 //! the wall on its own account. Building entropy anywhere after that peak, including in the
 //! reasonable-looking gap the console's own three capabilities free, pushes it over and boots in
 //! total silence; building it first, and releasing its three slots before the terminal plumbing ever
 //! runs, restores every peak downstream to exactly what it was before this landed. Found by
-//! bisection: an isolated test granted init one single harmless extra capability, unused by any
+//! bisection: an isolated test granted the progenitor one single harmless extra capability, unused by any
 //! code, and the identical silent fault reproduced. See `crates/system_initializer::boot`'s own
 //! comment on this block for the full account.
 //!
@@ -486,13 +486,13 @@
 //!
 //! **Resolved, 2026-08-24.** This process used to load `fs_subtree_caretaker` by name with no check
 //! at all, inconsistent with `crates/system_initializer`'s own discipline (milestone 104: refuse a
-//! program whose bytes do not match the archive's measurement table). Investigating "how a non-init
+//! program whose bytes do not match the archive's measurement table). Investigating "how a non-progenitor
 //! loader joins that chain" (the open question this BUGS entry used to leave unanswered) found the
 //! premise did not hold: this process maps the *same physical archive* the kernel already maps for
 //! `system_initializer`, the same read-only way, at the same address (`kernel::user::spawn_init` for
-//! aarch64's init, `kernel::user::login_service`'s own `start` for this process, both taking the
+//! aarch64's the progenitor, `kernel::user::login_service`'s own `start` for this process, both taking the
 //! physical range from `memory::initrd_region()`), so the kernel's boot already vouches for this
-//! process's copy exactly as much as it vouches for init's. There is no new trust boundary to cross:
+//! process's copy exactly as much as it vouches for the progenitor's. There is no new trust boundary to cross:
 //! `_start` now reads
 //! [`measured_boot::PROGRAM_MEASUREMENTS`] out of that same archive and calls
 //! [`measured_boot::verify_in_manifest`] against `fs_subtree_caretaker`'s bytes, the identical
@@ -756,9 +756,9 @@ pub extern "C" fn _start(caretaker_len: u64, table_len: u64, _a2: u64) -> ! {
     // not the same anti-oracle reasoning a wrong password gets, and is the considered answer anyway.
     //
     // **This check's trust root moved with the blob and the docs have to say so.** When this
-    // program read the initrd it was reading the same physical archive the kernel maps for init, so
+    // program read the initrd it was reading the same physical archive the kernel maps for the progenitor, so
     // the check was independent of whoever spawned this process. It is not any more: under
-    // `crates/system_initializer` both the bytes and the table arrive from init, which has already
+    // `crates/system_initializer` both the bytes and the table arrive from the progenitor, which has already
     // run the identical `verify_in_manifest` over them. What survives is a consistency check on the
     // hand-over rather than an independent verification, and it is kept because it costs one hash
     // and catches a spawner that pairs the wrong two blobs. This program's BUGS records the loss.
@@ -978,7 +978,7 @@ fn serve_login(
             // *capability* only gates a *read-only* mapping, which this frame's protocol never
             // asks for. This matters beyond tidiness: `crates/system_initializer::boot` itself
             // holds only `WRITE | GRANT` on the real file service's shared page (the kernel's own
-            // grant to init, `kernel::user::boot_file_service` or equivalent), so a real boot
+            // grant to the progenitor, `kernel::user::boot_file_service` or equivalent), so a real boot
             // could never have delegated `READ` here at all. Asking for it was over-specifying a
             // right this protocol never needed, harmless under the kernel test harness (which
             // mints capabilities directly, unconstrained by what a real boot could pass on) and

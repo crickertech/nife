@@ -47,7 +47,7 @@ mechanism at reduced scope.
 
 **Process spawn already does exactly the RETYPE/CONFIGURE/CAP_INSERT/START sequence Option B
 would reuse**, unprivileged, from userspace: `kernel/src/user.rs`'s `Spawn` struct documents a
-process's entire authority as "a function of `arg0`, `grants`, and `maps`", and init itself
+process's entire authority as "a function of `arg0`, `grants`, and `maps`", and the progenitor itself
 becomes "the spawn service" after boot (`PROGENITOR_ROLE`'s doc comment) and spawns every other
 process the same way a std program's PAL would spawn a thread. So Option B needs no new
 mechanism at the kernel boundary at all; it is a userspace consumer of machinery that has
@@ -140,7 +140,7 @@ scratch:
 - `crates/abi/src/lib.rs`: `tcb::CONFIGURE`'s contract changes from "the aspace cap is consumed"
   to "the aspace cap may be bound without consuming it" (or a `SHARE`-shaped rights bit
   distinguishes the two calls). This is the syscall-surface line: every existing caller of
-  `CONFIGURE` (init, every service spawn today) is written against the consuming contract, and
+  `CONFIGURE` (the progenitor, every service spawn today) is written against the consuming contract, and
   `design/decisions/` would owe a section under §10/§16's existing surface, not a new syscall number.
 - `kernel/src/thread.rs`: `Thread.space` stops being uniquely owned; needs the same
   liveness-tracking shape `Endpoint` already has (§16's "region... an endpoint in it has a

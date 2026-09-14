@@ -352,7 +352,7 @@ builds a process from it** (`RETYPE`, `RETYPE_OBJ`, `SPLIT`). There is no narrow
 - **The alternative that exists today**, and why this milestone did not use it: milestone 22 phase
   B.2's proxy. Its supervisor (`sub_server_supervisor`) holds no memory at all and asks a construction sub-server
   (`spawner`) to reap on its behalf, so policy and authority sit either side of an IPC boundary. That
-  is the right answer for a system's init, where the whole point is that init can no longer build. It
+  is the right answer for a system's the progenitor, where the whole point is that progenitor can no longer build. It
   is the wrong answer *here*, because it moves the requirement behind an IPC hop and the requirement is
   the interesting part. A spike should make its requirements visible.
 

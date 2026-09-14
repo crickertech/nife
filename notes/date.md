@@ -138,8 +138,8 @@ Named here rather than in a tracker, next to the feature.
   deferral carries its own trigger, and a manifest grammar grown ahead of a program that needs it
   would be a mechanism with no requirement. An audit may pass over it; see
   notes/untracked-work-sweep.md.
-- **The clock is init's to endow, and the shell cannot hand one on.** The interactive boot starts the
-  clock service and hands *init* the page read-only, so `date` at the prompt prints a real time; but
+- **The clock is the progenitor's to endow, and the shell cannot hand one on.** The interactive boot starts the
+  clock service and hands *the progenitor* the page read-only, so `date` at the prompt prints a real time; but
   the grant comes from `Prog::Date`'s manifest rather than from the command line, because there is no
   token a person could type that designates a clock. `caps date` prints the row anyway (a preview
   showing only what the line designates would be off by one capability), and that is the honest shape
@@ -148,16 +148,16 @@ Named here rather than in a tracker, next to the feature.
   Since milestone 86 the shell holds a clock **of its own**, which it reads to time a command, and it
   holds it with `READ` and no `GRANT`. So the sentence that matters is unchanged: the shell cannot
   put a clock in a child's hands, and which processes can read the time is still decided by manifests
-  init reads. See notes/time-command.md.
+  the progenitor reads. See notes/time-command.md.
 - **The clock service is parked in its startup announcement for the whole interactive boot.** It
   publishes the RTC reading and *then* announces, with a blocking send, so the page is right before
   anybody could read it; the boot spawns one thread whose only job is to take that message, which
   leaves the propose endpoint live. Nothing at the prompt proposes a time, so nothing exercises it,
   and the first `date` after a boot with a broken RTC would read `UNKNOWN` rather than block.
 - **Nothing at the prompt can set or propose a time**, and `date -s` is still not a missing flag. The
-  boot grants init `READ` on the frame, so there is no writable mapping anywhere on the path from the
+  boot grants the progenitor `READ` on the frame, so there is no writable mapping anywhere on the path from the
   kernel to a spawned child. A setter would be a different program holding a different capability,
-  and init would have to be handed one to hand on.
+  and the progenitor would have to be handed one to hand on.
 - **A fixed UTC offset is not a time zone.** See above, and notes/calendar.md.
 - **No `strftime`.** Five named formats. A format-string interpreter is a second parser with runtime
   errors in a program that has no allocator, for combinations nothing here asks for.

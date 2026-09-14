@@ -1,18 +1,18 @@
 //! **The interactive boot's undertaker** (milestone 22 phase B.2, the interactive increment).
 //!
-//! The prompt's init builds a fresh process for every command a person runs. Before this program
+//! The prompt's the progenitor builds a fresh process for every command a person runs. Before this program
 //! existed, each of those processes stayed dead-but-uncollected forever and its region stayed spent,
-//! so init's budget only ever went one way: a long session ran out of memory and the shell started
-//! answering "could not spawn (init is out of memory)". Init could not collect them itself, because
-//! there is no non-blocking receive and init is parked in `RECV` on the shell's spawn channel for its
+//! so the progenitor's budget only ever went one way: a long session ran out of memory and the shell started
+//! answering "could not spawn (the progenitor is out of memory)". The progenitor could not collect them itself, because
+//! there is no non-blocking receive and the progenitor is parked in `RECV` on the shell's spawn channel for its
 //! whole life. So the collecting is a second process, and this is it.
 //!
-//! **Its authority is two endpoint capabilities and nothing else.** `READ` on init's supervision
-//! endpoint, and `WRITE` on init's result endpoint so it can say one word to whoever is waiting
+//! **Its authority is two endpoint capabilities and nothing else.** `READ` on the progenitor's supervision
+//! endpoint, and `WRITE` on the progenitor's result endpoint so it can say one word to whoever is waiting
 //! there. No untyped, no frame, no TCB, no address space. It cannot build a process, allocate a
 //! page, or reach any child's memory; `Rendezvous::REAP` (DECISIONS §32) is authorized by the
 //! supervision relationship the kernel already records, not by holding the region. The pages
-//! therefore go back to **init's** job budget, because init split the region and §13 says a region
+//! therefore go back to **The progenitor's** job budget, because the progenitor split the region and §13 says a region
 //! belongs to whoever owns it. This process can free a job's memory and can never spend it.
 //!
 //! **The second capability is milestone 235's whole fix**
@@ -30,14 +30,14 @@
 //!
 //! **It can say one word and no more.** A refused reap is still taken as the kernel contradicting
 //! itself (it named a thread dead and then refused to collect it) and trapped on, which at least
-//! dies loudly at the pc of the mistake. The visible symptom of this process dying is that init's
+//! dies loudly at the pc of the mistake. The visible symptom of this process dying is that progenitor's
 //! job budget stops coming back and the prompt eventually answers "could not spawn". Milestone 235
 //! gave this program a channel for the one thing a person at a prompt has to be told; it did not
 //! make it a reporter.
 //!
 //! **A fault report can park, and then it wedges this loop** (milestone 235, recorded rather than
 //! solved). [`report`]'s `SEND` is a rendezvous and the ABI has no non-blocking send, so it
-//! completes only when someone reads init's result endpoint. Every ordinary job leaves the shell
+//! completes only when someone reads the progenitor's result endpoint. Every ordinary job leaves the shell
 //! with a read outstanding there, so the common case rendezvous immediately. The exception is a
 //! **screen-narrowed line** (DECISIONS §106, the shell watches its tail's own fault endpoint
 //! instead): if a *non-tail* stage of such a line faults, nobody is reading the result endpoint,
@@ -60,7 +60,7 @@
 //! escalates. That is §32's recorded watchdog case and it belongs to milestone 23, not here. At the
 //! prompt the forcible tier already exists for the case a person can see: `^C` twice tears the job's
 //! region down through the shell (DECISIONS §24), and those jobs are built from the shell's own
-//! untyped rather than init's, so they never reach this program at all.
+//! untyped rather than the progenitor's, so they never reach this program at all.
 //!
 //! Name: ratified 2026-08-03 (calef), replacing `job_reaper`. Refused `job_reaper` (named for what
 //! it does to jobs, while its siblings are named for what they serve, and "reaper" carries a faint
@@ -78,11 +78,11 @@
 
 use user_mode_runtime::{reap, recv_fault, send, yield_now};
 
-/// The supervision endpoint init endows every job with, held `READ`: the right to receive deaths
+/// The supervision endpoint the progenitor endows every job with, held `READ`: the right to receive deaths
 /// here, which is the same right §32 makes the right to collect them.
 const DEATHS: u64 = 0;
 
-/// **Init's result endpoint, held `WRITE`** (milestone 235): the one the shell reads a job's answer
+/// **The progenitor's result endpoint, held `WRITE`** (milestone 235): the one the shell reads a job's answer
 /// off, and therefore the one a job's *absence* of an answer has to arrive on. Nothing else in this
 /// process may be said here, and nothing else is: [`report`] sends one constant.
 const REPORT: u64 = 1;
@@ -124,14 +124,14 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     }
 }
 
-/// Tell whoever is waiting on init's result endpoint that the job they are waiting for is dead.
+/// Tell whoever is waiting on the progenitor's result endpoint that the job they are waiting for is dead.
 ///
 /// **After [`collect`], deliberately.** This `SEND` is a rendezvous with no non-blocking form, so it
 /// can park (this module's `BUGS` says exactly when); a parked report must not be able to cost the
 /// reclamation that keeps the prompt's memory coming back, and putting the collect first is what
 /// makes that true rather than hoped.
 ///
-/// The return value is dropped on purpose. The endpoint is init's and outlives this process, so the
+/// The return value is dropped on purpose. The endpoint is the progenitor's and outlives this process, so the
 /// only failure the kernel could return here is one this program has no second channel to report on
 /// and no authority to do anything about.
 fn report() {

@@ -1,11 +1,11 @@
-//! **The root supervisor: an init that gives its authority away** (milestone 22 phase B.2).
+//! **The root supervisor: a first process that gives its authority away** (milestone 22 phase B.2).
 //!
-//! init is the unverified component that builds every other process, and phase B.1 closed the
+//! The progenitor is the unverified component that builds every other process, and phase B.1 closed the
 //! question of *what bytes it is*. This closes the other half: **what a broken one can still do.**
 //!
-//! The pre-B.2 init (`system_initializer`, `hello`'s init role) holds a large untyped budget for its entire life,
+//! The pre-B.2 first process (`system_initializer`, `hello`'s init role) holds a large untyped budget for its entire life,
 //! because it stays the system's process builder. Every process in the system is therefore one bug in
-//! init away from being built wrong. This program instead holds full construction authority for
+//! the progenitor away from being built wrong. This program instead holds full construction authority for
 //! exactly as long as it takes to build two servers, and then **deletes it**:
 //!
 //! ```text

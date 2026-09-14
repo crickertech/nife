@@ -31,7 +31,7 @@ tree); until it exists the argument is here and in `design/roadmap/86-time-comma
 
 The consequence in the wiring is one bit. The shell holds the clock page with **`READ` and not
 `GRANT`**, so it can read the time and cannot hand a clock to anything it spawns. Which processes
-can read the time is still decided by the manifests init reads (`Manifest::clock`, today `date` and
+can read the time is still decided by the manifests the progenitor reads (`Manifest::clock`, today `date` and
 nothing else); the shell's own reading authority does not widen that set by one. `caps` prints the
 row, with the rights, because a reader who saw "clock" in that table and assumed it could be passed
 on would be wrong about the one thing the table exists to answer:
@@ -115,14 +115,14 @@ an object is proof one is there.
 
 ## The wiring, and the slot that moves
 
-The init grants the shell the clock **last**, after the filesystem pair, so a boot with no disk
+The progenitor grants the shell the clock **last**, after the filesystem pair, so a boot with no disk
 attached takes exactly the path it took before this existed. That means the slot is **4 on a boot
 with no filesystem and 5 on a boot with one**, and the shell is *told* the number in `x2` at
 `_start` rather than assuming it.
 
 This was written twice when milestone 86 landed, once in each of the two inits, because milestone 96
 had not merged yet. It is written once now, in `crates/system_initializer`, and the frame it hands
-over is `BootEndowment::clock_page`: the same capability the kernel granted init, handed on with
+over is `BootEndowment::clock_page`: the same capability the kernel granted the progenitor, handed on with
 `READ` and no `GRANT`. There is deliberately no second endowment field for the shell's copy, because
 the shell's clock is not a separate kernel grant, and a field would ask each board to state the same
 slot number twice with nothing checking that the two agree.
@@ -161,7 +161,7 @@ spaces may agree on an address; one may not.
 
 **At a real prompt** (`script/shell-check`, both ISAs), because only that gate runs the real inits:
 `time wc gate.txt` answers the same three numbers `wc gate.txt` answered, `time date` prints a
-`time: real` line, and `caps` shows the clock row with its rights. A boot where init never handed the
+`time: real` line, and `caps` shows the clock row with its rights. A boot where the progenitor never handed the
 shell a clock passes every guest test and fails here.
 
 ## BUGS

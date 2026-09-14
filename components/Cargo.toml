@@ -6,7 +6,7 @@
 # and notes/naming.md where the case for rejecting it lives.
 #
 # The package holds every EL0 program a distribution would ship because somebody wants its function:
-# the services and drivers, the init and supervision spine, and the tools a person invokes at the
+# the services and drivers, the progenitor and supervision spine, and the tools a person invokes at the
 # prompt. What it is not is in `fixtures/`, and the dividing question is what a program IS rather
 # than who runs it, since nearly everything here is reached only from a kernel test. Nobody has put
 # either name to calef, which is what `recorded` claims and all it claims.
@@ -17,7 +17,7 @@ edition = "2024"
 license.workspace = true
 
 # The console server (milestone 19f.3): the second program lifted out of `hello`. `initrd_aarch64` packs
-# it under "console"; init loads it by name.
+# it under "console"; the progenitor loads it by name.
 [[bin]]
 name = "console"
 path = "src/console.rs"
@@ -133,7 +133,7 @@ test = false
 bench = false
 
 # The authority-shrinking supervision tree (milestone 22 phase B.2). Four programs, one shared module
-# (src/suptree.rs): `root_supervisor` is an init that hands its construction authority to `spawner` and its
+# (src/suptree.rs): `root_supervisor` is a progenitor that hands its construction authority to `spawner` and its
 # restart policy to `sub_server_supervisor` and then DELETES its budget; `flaky` is the supervised sub-server that
 # crashes once so the tree has something real to keep alive. Portable, both ISAs; the kernel's
 # authority_tests drive them.
@@ -156,8 +156,8 @@ test = false
 bench = false
 
 # The interactive boot's corpse collector (milestone 22, the interactive increment). Holds one
-# endpoint capability with READ and nothing else; init endows every job it builds with the same
-# endpoint, and the pages come back to init's budget when this collects the corpse.
+# endpoint capability with READ and nothing else; the progenitor endows every job it builds with the same
+# endpoint, and the pages come back to the progenitor's budget when this collects the corpse.
 [[bin]]
 name = "job_undertaker"
 path = "src/job_undertaker.rs"
@@ -253,7 +253,7 @@ test = false
 bench = false
 
 # `printenv` (milestone 47's environment-variable fork, DECISIONS §111): reads the inert-
-# configuration page init endows and prints TZ/LANG/TERM. `date`'s own shape, one manifest field
+# configuration page the progenitor endows and prints TZ/LANG/TERM. `date`'s own shape, one manifest field
 # over: a read-only mapping and nothing else, so there is no way for this program to change what a
 # shell hands its own children. `initrd_aarch64` packs it as "printenv" for both ISAs.
 [[bin]]
@@ -413,7 +413,7 @@ test = false
 bench = false
 
 # `ps` (milestone 126): the process listing, over a supervision domain rather than over /proc. Its
-# whole authority is one endpoint init endows and the command line cannot name; the listing itself
+# whole authority is one endpoint the progenitor endows and the command line cannot name; the listing itself
 # is crates/ps, host-tested. Portable, so both ISAs' archives carry it: the confinement claim is
 # about the capability model and would not be a claim if it held on one instruction set.
 [[bin]]
@@ -474,7 +474,7 @@ bench = false
 # person can type that needs randomness: before it, the entropy grant reached only what the system
 # spawned (`credentialer` at boot, `disk_partitioner` under the kernel's test harness), so a
 # program's dependence on unpredictable bytes was real and unreachable from a prompt. Its whole
-# authority is `grant_plan::Manifest::entropy`, which init endows and no token on the command line
+# authority is `grant_plan::Manifest::entropy`, which the progenitor endows and no token on the command line
 # can name. Portable, so both ISAs' archives carry it. **Provisional name.**
 [[bin]]
 name = "uuid"

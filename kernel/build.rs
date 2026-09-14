@@ -83,9 +83,9 @@ fn declare_initrd_cfg(arch: &str) {
 /// **Compile the boot program's measurement into the kernel image** (milestone 22 phase B.1).
 ///
 /// The build packs the initrd archive first (`xtask::initrd_aarch64` / `initrd_riscv` / `initrd_x86`), hashes the entries
-/// the kernel may enter as init, and writes `target/init-measure-<arch>.txt`. Here we turn that
+/// the kernel may enter as the progenitor, and writes `target/init-measure-<arch>.txt`. Here we turn that
 /// manifest into `TRUST_ROOT`, a `&[measured_boot::Measurement]` in the kernel's own `.rodata`. That is
-/// what makes the check mean "this kernel image runs exactly this init" with no key management: the
+/// what makes the check mean "this kernel image runs exactly this progenitor" with no key management: the
 /// expected digest is part of the thing doing the checking.
 ///
 /// **The ordering, and why it is not circular.** The kernel image contains the hash of a
@@ -108,14 +108,14 @@ fn generate_trust_root(manifest_dir: &str, arch: &str) {
         .join(format!("target/init-measure-{arch}.txt"));
 
     // Rebuild the kernel whenever the measurement changes, which is to say whenever userspace
-    // changes. That relink is the honest cost of "this kernel runs exactly this init."
+    // changes. That relink is the honest cost of "this kernel runs exactly this progenitor."
     println!("cargo::rerun-if-changed={}", manifest.display());
 
     let text = std::fs::read_to_string(&manifest).unwrap_or_default();
     let mut entries = String::new();
-    // The format has one definition (`measured_boot::manifest_entries`), shared with init, which
+    // The format has one definition (`measured_boot::manifest_entries`), shared with the progenitor, which
     // reads the same shape out of the archive at boot (milestone 104). This side turns an
-    // unparseable line into a hard error where init treats it as a refusal, and the asymmetry is
+    // unparseable line into a hard error where the progenitor treats it as a refusal, and the asymmetry is
     // deliberate: at build time we can still stop, and a manifest we cannot read means the build
     // wrote something we cannot read.
     for entry in measured_boot::manifest_entries(&text) {

@@ -146,7 +146,7 @@ pub enum Say {
 ///   capability", `Refusal::TooManyNames`, a pattern that matched nothing, a name that is not a
 ///   name.
 /// - [`Failed`](Status::Failed) is **something was attempted and did not work**: the filesystem
-///   answered with an errno, init had no memory to spawn with, a job was interrupted.
+///   answered with an errno, the progenitor had no memory to spawn with, a job was interrupted.
 ///
 /// Separating them is the answer to "what does a status mean when the thing that failed was a
 /// refusal", and it is worth a number because the two answer different questions. "Did my command
@@ -896,7 +896,7 @@ pub const FAULTED_SENTENCE: &[u8] = b"  that command faulted and was killed befo
 /// Report what the spawned program did, in terms of the grant it was given.
 pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
     if answer == spawnproto::SPAWN_FAILED {
-        out(b"  could not spawn (init is out of memory)\n");
+        out(b"  could not spawn (the progenitor is out of memory)\n");
         return;
     }
     // **The job ran and the kernel killed it** (milestone 235). A different fact from the line
@@ -947,7 +947,7 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
 /// **Write the shell's whole endowment**: the introspection that makes "reading one literal tells
 /// you a process's authority" real, pointed at the shell itself.
 ///
-/// `budget_pages` is what init granted at boot rather than what is left, because there is no syscall
+/// `budget_pages` is what the progenitor granted at boot rather than what is left, because there is no syscall
 /// that reports the remainder. The caller passes its own constant and the row says "(initial)".
 ///
 /// `clock` is the slot holding this shell's read-only clock page, or `None` for a wiring that
@@ -962,7 +962,7 @@ pub fn write_holdings(
 ) {
     out(b"  this shell holds, and nothing else:\n");
     out(b"    cap 0  endpoint  terminal   read lines, write text\n");
-    out(b"    cap 1  endpoint  spawn      direct init to start a program\n");
+    out(b"    cap 1  endpoint  spawn      direct the progenitor to start a program\n");
     out(b"    cap 2  endpoint  result     read a spawned program's answer\n");
     out(b"    cap 3  untyped   ");
     write_num(budget_pages, out);
@@ -1016,7 +1016,7 @@ pub fn write_holdings(
     }
     // **The clock, and the rights row is the whole of it** (milestone 86). This shell reads the page
     // and holds no `GRANT` on it, so `time` can measure a command and nothing typed here can hand a
-    // clock to a child: which processes can read the time is still decided by the manifests init
+    // clock to a child: which processes can read the time is still decided by the manifests the progenitor
     // reads (DECISIONS §43), and the shell's own reading authority does not widen that set by one.
     //
     // That distinction is why the row prints the rights rather than just the object. A reader who
@@ -1030,7 +1030,7 @@ pub fn write_holdings(
             out(b"                                  it and no command can be handed it\n");
         }
         None => {
-            out(b"    (no clock here: init endows 'date' a read-only clock page, this shell was\n");
+            out(b"    (no clock here: the progenitor endows 'date' a read-only clock page, this shell was\n");
             out(b"     granted none, so 'time' has nothing to measure with)\n");
         }
     }
@@ -1206,7 +1206,7 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
             out(b"           ...and nothing under it: no -r, so it cannot even look\n");
         }
     }
-    // **The clock, which no token on the line designates.** It is init's to endow rather than the
+    // **The clock, which no token on the line designates.** It is the progenitor's to endow rather than the
     // shell's, and it is still part of this child's complete authority, so `caps` prints it: a
     // reader who took the command line for the whole story would be wrong by exactly one capability.
     // The row says *read-only* because that is the entire reason `date` cannot set the time
@@ -1216,11 +1216,11 @@ pub fn write_preview(e: &Endowment, out: &mut dyn FnMut(&[u8])) {
         out(b"                              and no token on the line could have asked for more\n");
     }
     // **The inert-configuration page, `clock`'s twin** (milestone 47, DECISIONS §111). No token on
-    // the line could designate it either, so it is init's to endow and this is where a reader
+    // the line could designate it either, so it is the progenitor's to endow and this is where a reader
     // learns the authority exists at all. Presence only, not values: this shell holds no default
     // config set of its own to preview a value from yet (the "inheritance with visibility" middle
     // ground the roadmap names is unbuilt), so printing a literal here would either duplicate
-    // init's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
+    // the progenitor's default by coincidence or drift from it silently. See design/roadmap/47-navigation-
     // and-naming.md's environment section for what remains.
     if e.prog.manifest().config {
         out(b"    cap 1  frame     config   read-only. TZ, LANG and TERM as this boot's inert\n");
@@ -1986,7 +1986,7 @@ mod tests {
     #[test]
     fn date_says_the_clock_is_not_on_the_line() {
         // The preview must not let a reader believe the command line is the whole story: `date`'s
-        // clock is init's to endow, no token could designate it, and it is still a capability the
+        // clock is the progenitor's to endow, no token could designate it, and it is still a capability the
         // child holds. So it is printed, and it is printed as read-only, which is the whole of why
         // there is no `date -s`.
         let s = shown(|o| write_preview(&endowment(Prog::Date), o));
@@ -1999,7 +1999,7 @@ mod tests {
     #[test]
     fn printenv_says_the_config_page_is_not_on_the_line() {
         // `clock`'s twin: the same preview claim for the same reason. `printenv`'s config page is
-        // init's to endow, no token on the line could designate it, and the preview says so before
+        // the progenitor's to endow, no token on the line could designate it, and the preview says so before
         // anything is spawned.
         let s = shown(|o| write_preview(&endowment(Prog::Printenv), o));
         assert!(s.contains("cap 1  frame     config"), "{s}");

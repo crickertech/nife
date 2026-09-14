@@ -53,11 +53,28 @@
 //! budget, reads the counter and builds the children is `components/src/timetable.rs`; everything here is
 //! the decision it makes, lifted out so it can be tested and Kani-reached.
 //!
-//! Name: provisional. `timetable` is a noun naming the thing this crate holds (a table of scheduled
-//! entries) and avoids `scheduler`, which in this tree already means `kernel/src/sched.rs` and would
-//! make two unrelated things share a word. Milestone 129's own block declines to propose a name and
-//! says the eventual one is calef's (AGENTS.md); this is the placeholder, and it is expected to
-//! change. Refused `cron` (the roadmap block calls it "a placeholder in the oldest tradition", and
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), for this crate, the program
+//! `components/src/timetable.rs` and `components/timetable.conf` together. Milestone 129's block
+//! declined to propose a name and said the eventual one was calef's; this was the placeholder, and
+//! it is the placeholder that won.
+//!
+//! `timetable` is a noun naming the thing this crate holds, a table of scheduled entries, and it
+//! **avoids `scheduler`, which in this tree already means `kernel/src/sched.rs`** and would make two
+//! unrelated things share a word.
+//!
+//! **That avoidance turned out to be the load-bearing half**, and it decided a second name the same
+//! day. `crates/schedule_store` had taken the adjacent inflection, and calef asked the question a
+//! reader scanning `crates/` would ask: *"What kind of schedule? Is this the thread scheduler?"* It
+//! is not, and one inflection is not enough distance, so that crate becomes `timetable_store`. A
+//! word this tree stepped around once is a word it should keep stepping around.
+//!
+//! Refused `cron`, which milestone 129's block calls "a placeholder in the oldest tradition" and
+//! which names the model this milestone inverts: cron runs arbitrary commands as ambient authority
+//! made periodic, where here every entry is a grant checked at parse time by `grant_plan`. Refused
+//! `almanac`, a book of astronomical dates, promising calendar scheduling this does not do, and
+//! `metronome`, which names the tick and says nothing about the grant, the half that matters.
+//! Refused `grant_schedule`, which puts the inversion in the name and is worse as a word a person
+//! types at a prompt. Refused `cron` (the roadmap block calls it "a placeholder in the oldest tradition", and
 //! the whole point of the milestone is that this is *not* cron's model), `almanac` (a book of
 //! astronomical dates, which promises calendar scheduling this deliberately does not do), and
 //! `metronome` (names the tick and says nothing about the grant, which is the half that matters).

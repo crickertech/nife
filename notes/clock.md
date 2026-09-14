@@ -158,9 +158,9 @@ garbage on the first real board.
 
 ## Where the interactive boot puts it (milestone 51's wiring)
 
-Both ISAs' `--features shell` boots start the clock service before init exists and grant **init** the
+Both ISAs' `--features shell` boots start the clock service before the progenitor exists and grant **the progenitor** the
 page with `READ` and `GRANT`: slot 3 on RISC-V (`riscv_shell_boot`), slot 5 on aarch64 (`spawn_progenitor`,
-boot role only). init hands a read-only copy plus a read-only mapping at `0x00c0_0000` to any child
+boot role only). The progenitor hands a read-only copy plus a read-only mapping at `0x00c0_0000` to any child
 whose `grant_plan` manifest declares `clock`, which today is `date` and nothing else.
 
 Three things about that shape are deliberate:
@@ -171,7 +171,7 @@ Three things about that shape are deliberate:
 - **The shell cannot put a clock on the path.** It was granted none at all until milestone 86; since
   then it holds one with **`READ` and no `GRANT`**, which it reads to time a command (`time
   <command>`, notes/time-command.md) and cannot hand to anything it spawns. Either way the set of
-  processes that can read the time is decided by manifests init reads rather than by anything typed
+  processes that can read the time is decided by manifests the progenitor reads rather than by anything typed
   at a prompt. `caps date` prints the child's row and `caps` prints the shell's, rights included, so
   a person can see both (notes/date.md).
 - **`READ` all the way down.** Nothing between the kernel and a spawned child ever holds the writable

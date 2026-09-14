@@ -45,7 +45,7 @@ themselves. The last column is this milestone's result.
 | 20 | A memory-unsafe C component faults on an out-of-bounds write and changes nothing outside its grant | §31 | `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant` | **yes, by hand** |
 | 21 | A user program cannot read a kernel address, on every ISA | §19 | `kernel::user::tests::a_user_program_cannot_read_a_kernel_address`, `the_hardware_says_el0_cannot_read_the_kernels_memory`, `riscv_virtio_tests::the_page_tables_say_u_mode_cannot_read_the_kernels_memory` | **no** |
 | 22 | An ELF cannot ask to be loaded over the kernel, or for a writable executable page | §15 | `kernel::user::tests::an_elf_that_asks_to_be_loaded_over_the_kernel_is_refused`, `..._for_a_writable_executable_page_is_refused` | **no** |
-| 23 | init cannot rebuild after dropping its construction authority | §26 | `kernel::user::authority_tests::init_drops_its_construction_authority_and_cannot_build_again` | **no** |
+| 23 | The progenitor cannot rebuild after dropping its construction authority | §26 | `kernel::user::authority_tests::init_drops_its_construction_authority_and_cannot_build_again` | **no** |
 | 24 | Two shells with different roots cannot name each other's files | §50 | `kernel::user::shell_navigation_tests::two_shells_with_different_roots_cannot_name_each_others_files` | **no** |
 | 25 | A client cannot reach its neighbour's pixels or read the screen | §66 | `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen` | **no** |
 | 26 | A client of a rendezvous cannot become its server | §41 | `kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server` | **no** |
@@ -107,7 +107,7 @@ whether this boot path survives the hardware being present at all. The hazard is
 §31's headline assertion: green after turning the flags on proves nothing by itself, and the
 falsification has to be a driver aiming an interrupt where it was not given one, coming back red.
 
-**init's bytes are unsigned.**
+**The progenitor's bytes are unsigned.**
 §14 says so plainly in its own honest caveat and it is not in the table because it is not a
 confinement claim; it is the reason the confinement has an unverified component inside it.
 

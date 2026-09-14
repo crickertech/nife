@@ -200,7 +200,7 @@ cargo clippy -p components -p fixtures -p user_mode_runtime --target x86_64-unkn
 # `initboot` and `shell` drop the milestone tour, `bench` diverges before the boot entirely, and
 # `icount` (milestone 78) parks before `bench` does, which is the one configuration where
 # `bench::run` and everything after it is unreachable, and `soak` (milestone 219) takes the place of
-# the init handoff and is the ONLY configuration in which the scheduler's event counters and
+# the progenitor handoff and is the ONLY configuration in which the scheduler's event counters and
 # `Thread::last_cpu` exist at all: those are `cfg`-gated rather than `allow(dead_code)` because
 # their increments sit on the IPC fastpath and shipping them everywhere put `ipc_fastpath` 5.7% over
 # milestone 132's bound, so this loop is the only thing that keeps them under clippy's eye. So a

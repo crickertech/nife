@@ -161,14 +161,14 @@ without saying so.
 
 `Manifest::domain` is a declaration, `Manifest::clock`'s twin: a process domain is not a name a
 person types, so there is no token to place and no refusal to write. What the field does is tell
-**init** which children to endow, and tell a person reading `caps ps` that the authority exists.
+**The progenitor** which children to endow, and tell a person reading `caps ps` that the authority exists.
 
 Init places the endpoint in `grant_plan::DOMAIN_SLOT` (seven) with `ENUMERATE`, using the same named-slot
 mechanism §67 gave the diagnostics stream, for the same reason: how many low slots a child gets
 depends on what else the line granted it, and a program that probes a fixed number needs that number
 not to move.
 
-The endpoint it places is `deaths`, which is what supervises **every job init spawns for the shell**.
+The endpoint it places is `deaths`, which is what supervises **every job the progenitor spawns for the shell**.
 So `ps` at the prompt lists this shell's jobs, including itself, and nothing else. Init, the shell,
 the terminal, the filesystem server, the compositor, the net stack and every driver are outside it,
 which is why `ps | wc` at the boot gate counts a handful of lines where a `/proc`-shaped listing
@@ -397,7 +397,7 @@ regular expression is not a designation of anything.
   is worth reading when somebody needs one.
 
 - **A child that is built but not yet started is not in its domain.** Supervision is recorded at
-  `START`, so an embryo has no endpoint to match. That is invisible at the prompt (init starts a job
+  `START`, so an embryo has no endpoint to match. That is invisible at the prompt (the progenitor starts a job
   in the same breath as building it) and would matter to a builder watching its own construction.
 
 - **The survey cursor leaks the thread table's density, and a proposed milestone covers it.**

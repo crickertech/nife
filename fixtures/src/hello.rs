@@ -58,8 +58,8 @@ const PRINTING: u64 = 2;
 const VIRTIO_BLK: u64 = 3;
 // Role 4 was the input driver; it is its own binary now (`components/src/input.rs`, 19f.4).
 // Role 5 was the shell; it is its own binary now (`components/src/swish.rs`, 19f.5).
-// Role 6 was the least_authority_demo; it is its own binary now (`components/src/least_authority_demo.rs`, 19f.2). init loads each of
-// these from the archive by name; hello keeps only the milestone-tour demo roles below.
+// Role 6 was the least_authority_demo; it is its own binary now (`components/src/least_authority_demo.rs`, 19f.2). The progenitor loads
+// each of these from the archive by name; hello keeps only the milestone-tour demo roles below.
 const UNTYPED_DEMO: u64 = 7;
 const VIRTIO_ATTACK: u64 = 8;
 const GRANTER: u64 = 9;
@@ -304,8 +304,8 @@ fn revoke_demo() -> ! {
 /// rather than treating the whole blob as a single ELF. `initrd_len` (the archive length) arrives
 /// in `x1` at entry. Returns `None` if the archive will not parse or holds no such program.
 ///
-/// Through 19f.1 every program is still a role of *this* binary, so callers look up `"init"` (the
-/// binary the kernel loaded) and enter it at a different role; 19f.2 adds distinct entries a caller
+/// Through 19f.1 every program was a role of *this* binary, so callers looked up the one entry the
+/// kernel had loaded and re-entered it at a different role; 19f.2 added distinct entries a caller
 /// can name directly (`"least_authority_demo"` and so on).
 fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
     // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
@@ -359,8 +359,10 @@ const CYCLE_COUNTER_CHILD: u64 = 42;
 /// often you ask it.
 const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;
 
-/// **The init task, milestone 19d.** The first program the kernel starts, and the one that
-/// starts the others: the ELF parser lives here, in userspace, not in the kernel. init holds a
+/// **The init role, milestone 19d.** The role in which this binary is the parent: it parses an ELF
+/// and starts a child, with the loader in userspace rather than in the kernel. It is **not** the
+/// first process; since milestone 266 that is `progenitor`, and this role's name has not followed
+/// it (the constants below are unratified, and a rename of them is calef's). init holds a
 /// building untyped (slot 0) and a report endpoint (slot 1, `WRITE|GRANT`); the initrd is mapped
 /// read-only at [`user_mode_runtime::initrd::INITRD_VA`], and its length arrives in `x1`.
 ///

@@ -7,7 +7,7 @@
 //! touches the bytes: a driver at EL0, confined by the same capability walls as any workload. A bad
 //! length faults the *server* (a read out of its own mapping), not the kernel.
 //!
-//! Its whole authority is three things init hands it: the request endpoint (slot 0, RECV), the reply
+//! Its whole authority is three things the progenitor hands it: the request endpoint (slot 0, RECV), the reply
 //! endpoint (slot 1, SEND), and the UART registers, plus the shared page mapped read-only. It has no
 //! role selector; a standalone binary needs none. It shares the `user` package's `link.ld` but not a
 //! line of hello's code.
@@ -69,15 +69,15 @@ const REQUEST: u64 = 0;
 const REPLY: u64 = 1;
 
 /// The page the client writes text into, mapped read-only in the server's space. Must match what
-/// the client (init, or the shell) maps and what init hands the server (`CON_SHARED_VA`).
+/// the client (the progenitor, or the shell) maps and what the progenitor hands the server (`CON_SHARED_VA`).
 const SHARED_VA: u64 = 0x0060_0000;
 /// How much of it there is. One frame, which is what `console_service` maps, and the bound every
 /// byte count from a client is clamped to.
 const PAGE: u64 = 4096;
-/// The server's device mapping of the UART registers. Must match init's `CON_UART_VA`.
+/// The server's device mapping of the UART registers. Must match the progenitor's `CON_UART_VA`.
 // Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
 // so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
-// address is the wiring's fact, agreed with init, and hiding it on one architecture would make the
+// address is the wiring's fact, agreed with the progenitor, and hiding it on one architecture would make the
 // two sides of that agreement look like two different constants.
 #[cfg_attr(target_arch = "x86_64", allow(dead_code))]
 const UART_VA: u64 = 0x0070_0000;

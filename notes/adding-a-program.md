@@ -13,7 +13,7 @@ A program is a `[[bin]]` in one of two packages, running at EL0, linked against 
 Milestone 175 split `user/` on 2026-09-13, and the question it answers is *would a distribution ship
 this because somebody wants its function?*
 
-- **`components/`** if yes: a service, a driver, the init and supervision spine, or a tool a person
+- **`components/`** if yes: a service, a driver, the progenitor and supervision spine, or a tool a person
   invokes at the prompt. `net_stack`, `gpu_driver`, `progenitor`, `wc`, `rm`, `date`.
 - **`fixtures/`** if no: the program exists to exercise or measure the system. Test clients,
   attackers that share the honest path, stand-in servers, workloads, benchmarks. `chatty`,
@@ -114,7 +114,7 @@ them with the one table and one loop `initrd_riscv()`'s packaging step had alway
 finding rather than the accident); the `--bin` list itself is now gone (2026-08-27), which is the
 first time this section has shrunk instead of just moved.
 
-**You do not touch the measurement table.** init refuses to spawn a program its measurement manifest
+**You do not touch the measurement table.** The progenitor refuses to spawn a program its measurement manifest
 does not vouch for, and a reader who meets that refusal reasonably wonders where to register a new
 one. Nowhere: `xtask` hashes every entry of the archive it just packed and writes the manifest from
 that (`write_measure_manifest`), so the table follows the archive by construction.
@@ -144,7 +144,7 @@ nothing forces, and doing them first is what makes the last three fall out of a 
    and what it must refuse it. See "What you declare" below.
 
 **The wire id is the expensive part.** It is a thing two programs agree on, which CLAUDE.md classes
-as hard to reverse: the shell sends it and init decodes it, so changing one later is a flag day. The
+as hard to reverse: the shell sends it and the progenitor decodes it, so changing one later is a flag day. The
 code around it is cheap; the number is not.
 
 **Then expect the build to fail in a crate you did not edit**, and expect that to be the design
@@ -166,7 +166,7 @@ tells you what to do says nothing about what happens if you do not.
 |---|---|
 | `name()`, `id()`, `manifest()` | **compile error**, all three at once, `E0004` in `grant_plan` itself |
 | the `swish` render arm | **compile error**, `E0004` in a crate you did not edit |
-| `from_id()` | a host test fails, `init indexes slot N and no program claims it`, **but only if `PROG_COUNT` moved** |
+| `from_id()` | a host test fails, `the progenitor indexes slot N and no program claims it`, **but only if `PROG_COUNT` moved** |
 | `from_name()` | a host test fails, `left: None, right: Some(YourProg)`, **same condition** |
 | `PROG_COUNT` | **nothing at all** |
 
@@ -253,7 +253,7 @@ $ triple 21
   archive now packs one `progenitor`, and every row in both tables is a name repeated.
 - **Removal is the same eight places and has no page.** Taking a program out is clean only while
   you can still name every file you touched; a half-removed program is a `PROG_COUNT` too large
-  and an init table slot no variant claims, which is the same silent failure as a forgotten
+  and a progenitor table slot no variant claims, which is the same silent failure as a forgotten
   `PROG_COUNT`, reached from the other side. There is no `removing-a-program.md` and this page is
   about adding. Run 4 reverted `tally` to a byte-identical tree and noted that it worked first
   time only because the eight edits were still in its head.

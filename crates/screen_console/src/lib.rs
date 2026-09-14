@@ -85,14 +85,30 @@
 //!   six pixels of whatever the firmware last drew. The same is true of `display_terminal`'s
 //!   scanout wiring and for the same reason.
 //!
-//! Name: provisional (milestone 243, this lane's coinage). A noun, `snake_case`, naming
-//! what the thing is rather than how it works: a console on a screen. Refused `framebuffer_console`,
-//! because "framebuffer" already names the thing this writes *into*
-//! (`machine_discovery::framebuffer`) and a reader meeting both would have to hold two senses of one
-//! word. Refused `pixel_console`, which names the unit rather than the surface. Refused
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), and ruled as half of a pair:
+//! `serial_console` and `screen_console` are two consoles over two wires, named for where the text
+//! comes out. Coined by milestone 243's lane. The other half is `crates/board_console`, whose
+//! rename to `serial_console` is recorded there and not yet performed.
+//!
+//! A noun, `snake_case`, naming what the thing is rather than how it works: a console on a screen.
+//!
+//! Refused `framebuffer_console`, because "framebuffer" already names the thing this writes *into*
+//! (`machine_discovery::framebuffer`) and a reader meeting both would have to hold two senses of
+//! one word. Refused `pixel_console`, which names the unit rather than the surface. Refused
 //! `early_console`, which says when it runs rather than what it is, and is wrong about that too:
-//! nothing here is early-only. `video_terminal` is taken, by the crate this one deliberately is not.
-//! calef names crates (AGENTS.md); this expects to change.
+//! nothing here is early-only.
+//!
+//! **Refused `video_terminal`, and this is the explanation behind a standing gate NOTE.** That name
+//! is taken by the crate this one deliberately is not: `video_terminal` is the terminal *emulator*,
+//! holding escape sequences, a cursor and scrollback, where this is a place to put text. Until
+//! 2026-09-13 the distinction sat here as a parenthetical rather than a refusal, so
+//! `script/names` reported `video_terminal` as recorded-refused-and-also-live with nothing anywhere
+//! saying why both are correct.
+//!
+//! **The NOTE stays, and should.** It flags a word that is refused in one block and live in
+//! another, which is exactly true here and is the co-existence a reader should be told about; it
+//! is not a complaint that the reason is missing. Checked rather than assumed: the NOTE is still
+//! reported after this paragraph was written.
 
 #![no_std]
 

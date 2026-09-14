@@ -668,7 +668,7 @@ headroom the 100-vs-93, 97-vs-90, 96-vs-89 and 95-vs-88 ceilings all carried, no
 round reached.
 
 **Lowered a fifth time, by milestone 139 round 5 (2026-08-24).** `console.rs`'s and `input.rs`'s
-aarch64 (PL011) halves and `jh7110_entropy_source.rs` migrated onto `tock_registers::register_structs!`/
+aarch64 (PL011) halves and `jh7110_trng.rs` migrated onto `tock_registers::register_structs!`/
 `register_bitfields!`, matching `kernel/src/drivers/pl011.rs`'s own idiom (calef, in conversation:
 "Take the dependency for user, launch the lane," taking `tock-registers` as a `user` crate
 dependency for the first time). `console.rs`'s and `input.rs`'s riscv64 (NS16550) halves were
@@ -682,13 +682,18 @@ per-file reasoning in `design/roadmap/139-drive-down-unsafe.md`'s round 5 sectio
 **Round 5 was measured against its own base commit (`757562a3`, the same one round 4 branched
 from), independently of round 4: 5 `unsafe {` blocks removed, 3 added, net -2** (`console.rs` flat,
 1 before and 1 after, still real by criterion 2; `input.rs` 2 removed 1 added, net -1;
-`jh7110_entropy_source.rs` 2 removed 1 added, net -1). Round 4 landed first, so this section's own arithmetic
+`jh7110_trng.rs` 2 removed 1 added, net -1). Round 4 landed first, so this section's own arithmetic
 is restated here from the merged tree rather than the stale shared base: 779 blocks (round 4's own
 landed count) to 777, in 88,853 lines. Density: 87 per 10,000, unchanged from round 4's own final
 reading, truncated -- the two fewer blocks are offset by the lines the compile-time-checked layout's
 doc comments and macro invocations cost over the hand-written offsets and `SAFETY` comments they
 replaced, the same denominator effect this round's own base-commit measurement already showed in
 isolation.
+
+*`jh7110_trng.rs` is `components/src/jh7110_entropy_source.rs` now (renamed 2026-09-13, once by
+milestone 175's split and once by calef's ratification). It is spelled here as it was when the
+blocks were counted, so the -1 stays checkable against base commit `757562a3`, and
+`design/roadmap/139-drive-down-unsafe.md`'s round 5 section spells it the same way.*
 
 **The ratchet does not move a fifth time.** With density unchanged at 87, the 7-point-headroom
 ceiling stays 94: there is nothing to cinch that round 4 had not already cinched. The block count

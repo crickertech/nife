@@ -144,13 +144,30 @@
 
 //! # Name
 //!
-//! Name: provisional, this lane's coinage (2026-09-01, milestone 216). Two nouns for what it is,
-//! a console for a board, in the `snake_case` the crate rule asks for. `serial` was refused as a
-//! generic word that names a wire rather than this thing, and because the tree already spends
-//! `console` on the kernel's own (`kernel/src/console.rs`) and on `script/console`, which makes
-//! the qualifier the load-bearing half. `board_serial` was refused for the same reason in
-//! reverse: it names the transport, and the transport is the least interesting part. `bench` was
-//! refused as a place rather than a thing.
+//! Name: provisional, and ruled: calef ruled **`serial_console`** on 2026-09-13, pairing it with
+//! `screen_console`. The block stays `provisional` because the ratified name is not this crate's
+//! until the rename is performed, and until then `board_console` belongs on the worklist rather
+//! than off it. Coined by milestone 216's lane on 2026-09-01.
+//!
+//! **The ruling is that a console is named for where its text comes out.** `serial_console` and
+//! `screen_console` are two consoles over two wires, and that is the scheme a reader holds: not
+//! who the console is for, and not where the code runs. The maintainer argued the other way twice
+//! and was wrong both times, which is worth recording because the wrong axis is the tempting one.
+//!
+//! **The argument that lost**, so the next reader can weigh it rather than rediscover it: this
+//! crate uses `std` and runs on the developer's machine, while `screen_console` is `#![no_std]`
+//! and the kernel depends on it, so the two are a development tool and a shipped component rather
+//! than siblings. calef's answer is that the distinction is real and is not what a *console* is
+//! named for. It belongs in this header, not in the name.
+//!
+//! **One consequence to record rather than discover.** `components/src/serial_driver.rs` is
+//! `#![no_std]` and drives the UART from EL0 inside nife; this crate reads the far end of the same
+//! physical cable from the host. They are two ends of one wire on two machines, and the names now
+//! look like a matched pair. That is a cost of the scheme, accepted: a reader meeting both should
+//! know the driver ships and the console does not.
+//!
+//! Refused `board_console`, above. Refused `board_serial`, which names the transport where the
+//! transport is the least interesting part, and `bench`, a place rather than a thing.
 //!
 //! **The open question is not the word, it is the scope**, and milestone 216's block names it:
 //! whether this stays one crate that learns a board profile, or becomes one per board. A name

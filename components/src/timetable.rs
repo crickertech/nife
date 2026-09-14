@@ -63,9 +63,10 @@
 //! which matters because **this kernel has exactly one wait point per process and no timed wait at
 //! all** (milestone 106 is `NOT-STARTED` and gated on a decision). See `BUGS`.
 //!
-//! Name: provisional, along with `crates/timetable` and `components/timetable.conf`. Milestone 129's own
-//! block declines to propose a name and says the eventual one is calef's; see the crate's module
-//! doc for what was refused and why.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist), with `crates/timetable` and
+//! `components/timetable.conf` in one ruling, which is what a crate-and-program pair means. See the
+//! crate's module docs for the argument and the refusals. Milestone 129's own block declined to
+//! propose a name and said the eventual one was calef's.
 //!
 //! # BUGS
 //!

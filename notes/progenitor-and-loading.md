@@ -132,7 +132,8 @@ MB** archive out of well under a megabyte of code, on a 128 MB machine. Mileston
 programs, the archive went to 30.7 MB, and a *later, unrelated* test stopped being able to find a
 contiguous eight-megabyte run for init's building budget: `no building budget for init`, in a test
 that had nothing to do with the change, which is the usual signature of a resource the whole suite
-shares.
+shares. (That message reads `no building budget for the progenitor` today; it is quoted here as it
+read on the day.)
 
 So `initrd_aarch64` (`mkinitrd` before 2026-08-27) now strips each ELF (`llvm-objcopy --strip-debug`) before packing, and the archive is
 **4.3 MB**. Nothing lost anything: `crates/elf` parses **program headers only** and has no

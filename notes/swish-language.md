@@ -169,7 +169,7 @@ Here the two are genuinely different events and the shell knows which:
 | `$?` | | |
 |---|---|---|
 | `0` | **Ran** | the line ran and the shell has nothing to report |
-| `1` | **Failed** | something was attempted and did not work: the filesystem answered with an errno, init had no memory to spawn with, a job was interrupted or torn down |
+| `1` | **Failed** | something was attempted and did not work: the filesystem answered with an errno, the progenitor had no memory to spawn with, a job was interrupted or torn down |
 | `2` | **Refused** | the shell declined, decided at the prompt from what it *holds* and what a manifest says, with **nothing spawned, nothing opened and no authority moved** |
 
 Separating the last two is the answer, and it is worth a number because they answer different
@@ -334,7 +334,7 @@ line proving "it printed something" would pass on a shell that ignored quoting e
 - **A sequence is at most eight commands and a pipeline at most four stages.** Past either the line
   is refused rather than truncated, which is the same posture `line::MAX_STAGES` already took.
 - **`xargs <program>` still stops after planning batch one**, unchanged by this milestone: the shell
-  cannot yet ask init to mint a per-batch caretaker, which is milestone 47's delegation chain. A
+  cannot yet ask the progenitor to mint a per-batch caretaker, which is milestone 47's delegation chain. A
   sweep that stops is a segment that did not succeed, so `xargs rm *.txt && echo done` will not print
   `done`, which is the right answer for the wrong reason.
 - **A `Failed` and a `Refused` are indistinguishable to `&&`.** That is deliberate (one question, one

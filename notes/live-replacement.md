@@ -172,7 +172,7 @@ whose children are still carved out of it.
 That is an assertion rather than housekeeping, for a reason with nothing to do with tidiness.
 `untyped::create` takes a **contiguous** run of frames; the first version of these tests leaked all
 three systems, which fragmented the frame allocator badly enough that a *later, unrelated* test could
-not get init's own eight-megabyte region. The failure surfaced nowhere near its cause, which is the
+not get the progenitor's own eight-megabyte region. The failure surfaced nowhere near its cause, which is the
 usual signature of a leak.
 
 ### BUGS: the frame-hygiene `debug_assert!` was a race, and it fired on CI

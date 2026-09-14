@@ -40,7 +40,7 @@
 //!
 //! The name and the options ride in the three `START` argument words, packed by
 //! [`filesystem_proto::grant`] exactly as a per-file grant's name is, so this program costs no extra frame
-//! and holds nothing that names an init, a terminal, or the filesystem above its grant.
+//! and holds nothing that names a progenitor, a terminal, or the filesystem above its grant.
 //!
 //! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
 //! outside"). Introduced 2026-07-31. The Unix command's own name, so the protected class keeps it

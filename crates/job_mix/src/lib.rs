@@ -14,6 +14,11 @@
 //! the kernel-side supervisor and the EL0 task read one description of what a job is rather than
 //! two copies that drift. AGENTS.md rule 7 is why it is a crate and not a `#[path]` module.
 //!
+//! **What that sentence does not license is a comparison against the 20% itself**, and the first
+//! two entries in [`BUGS`](self#bugs) say why: Warton's AIM7 ran on Wombat, a hosted Linux, and the
+//! 20% is a ratio between two kernel models where this tree has one. This instrument is for finding
+//! out whether the *mechanism* behind that number is live here.
+//!
 //! # What AIM7 actually is, since the name is not self-explanatory
 //!
 //! Read rather than recalled, on 2026-09-04, from the benchmark's own README
@@ -61,6 +66,28 @@
 //!
 //! # BUGS
 //!
+//! - **No number from this instrument is comparable with Warton's 20%, and the missing categories
+//!   below are not what stops it.** Checked on 2026-09-13 against both sources. The retrospective
+//!   names only "the Pistachio process kernel vs an event-based (single-stack) kernel with
+//!   continuations on an ARMv5 processor" (section 4.1, page 1:16) and never says what userland
+//!   AIM7 ran under. Warton's own thesis does
+//!   (<https://trustworthy.systems/publications/theses_public/05/Warton%3Abe.pdf>, section 5.4):
+//!   **AIM7 ran on Wombat**, the paravirtualised ARM Linux, so the 20% is a delta between two
+//!   microkernels measured through a hosted Linux's syscall path, where this is a native workload.
+//!   It is also a **ratio between two kernel models** and this tree has one, so the mix produces
+//!   one arm and no ratio, whatever jobs it contains. What the instrument can still do is show
+//!   whether the *mechanism* Warton offered as the only explanation (kernel cache and TLB
+//!   footprint) is live here, which is a knee in jobs-per-minute against task count and is a real
+//!   input to §96. See notes/job-mix.md.
+//! - **Two of the three categories below were disabled in the AIM7 run being cited, and that run
+//!   was two tasks with no sweep.** Warton's section 5.4 turned off the filesystem jobs (the
+//!   ramdisk was too small) and the network jobs (Wombat had no `GetHost`), and used "2 clients
+//!   with the normal workload file". So the disk-file gap below is not a gap against the number
+//!   this crate exists to chase, and [`TASK_SWEEP`] is this instrument's own good idea rather than
+//!   a reproduction of Warton's method. **Warton also doubted his own result**, calling it
+//!   something to treat "with scepticism until it can be satisfactorily explained" and never
+//!   running the cache simulation that would have explained it. Quote the 20% with that attached
+//!   or do not quote it.
 //! - **Three of AIM7's categories are absent: disk-file operations, process creation, and page
 //!   mapping.** Each was refused for a stated reason rather than overlooked. A filesystem job needs
 //!   a disk attached and would make the instrument's availability depend on the runner's storage,
@@ -70,7 +97,9 @@
 //!   allocator rather than the scheduler. A map job needs a per-task address-space capability that
 //!   the spawn path does not currently hand out. **All three are real gaps in fidelity**, and the
 //!   honest reading of a result from this mix is that it covers the compute, memory, trap,
-//!   scheduling and IPC categories and no others.
+//!   scheduling and IPC categories and no others. **Closing them would make a better likeness of
+//!   AIM7 in general and would not make a number from it comparable with Warton's**, for the two
+//!   reasons the bullets above give.
 //! - **The mix proportions are chosen, not derived.** AIM7 ships workfiles for four machine roles
 //!   (multiuser, compute server, large database, file server) and nobody here has one for a
 //!   capability microkernel. [`MIX`] is a flat-ish spread with the IPC job weighted up, on the
@@ -83,15 +112,30 @@
 //!   jobs, in a per-task order. That is what makes two tasks' work comparable, and it is a
 //!   simplification against AIM7, whose tasks draw independently.
 //!
-//! Name: provisional, this lane's coinage (2026-09-04, milestone 168), and calef's call. A noun
-//! pair naming the thing the crate defines, in the `snake_case` this tree's crates use, and it is
-//! the phrase the source itself uses: AIM7's workfile is a *mix* of *jobs*. `aim7` was refused for
-//! claiming somebody else's benchmark, which this is not (see the BUGS above: none of AIM7's 53
-//! jobs is here, and no number from this is comparable with an AIM7 number). `workload` was refused
-//! as too general for a tree that already has a soak workload and a compute workload. `benchmark`
-//! was refused because this crate is the workload's *definition* and produces no measurement; the
-//! same distinction `os_primitives_benchmarker`'s own header draws between the agent and the
-//! output.
+//! Name: ratified 2026-09-13 (calef, working the unratified worklist). Coined by milestone 168's
+//! lane on 2026-09-04. A noun pair naming the thing the crate defines, in the `snake_case` this
+//! tree's crates use, and it is the phrase the source itself uses: AIM7's workfile is a *mix* of
+//! *jobs*.
+//!
+//! **The stem was settled a week before this ruling, while calef ratified something else.**
+//! `job_mix_task` was chosen over the maintainer's `mix_task` on 2026-09-05 for a reason the
+//! maintainer had not made: *the family stays greppable as one string*, so `job_mix` finds this
+//! crate, `fixtures/src/job_mix_task.rs` and `script/job-mix`. Three members in three naming
+//! domains, each correct for its own, which is the domain table working rather than a coincidence.
+//!
+//! **The refusal of `aim7` was righter than this block knew**, and the reason is worth recording
+//! because it inverts the usual direction. It was refused for claiming somebody else's benchmark.
+//! A premise check on 2026-09-13 (`notes/job-mix.md`, and the correction in §96) found the
+//! benchmark is not merely unclaimed but **unreachable in principle**: Warton ran AIM7 on Wombat,
+//! the paravirtualised ARM Linux, so the number this crate was built toward is a delta between two
+//! kernel models measured through a hosted Linux, and this tree has one kernel model and no hosted
+//! Linux. A name that had claimed AIM7 would now be claiming something that cannot be done here at
+//! all.
+//!
+//! Refused `workload`, too general for a tree that already has a soak workload and a compute
+//! workload. Refused `benchmark`, because this crate is the workload's *definition* and produces no
+//! measurement: the same distinction `os_primitives_benchmarker`'s own header draws between the
+//! agent and the output.
 
 #![no_std]
 #![deny(missing_docs)]
