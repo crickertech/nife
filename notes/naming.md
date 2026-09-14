@@ -364,6 +364,10 @@ programs would claim one phrase. The refusal existed, in one table cell inside o
 moment it was needed. A blind rename then swept the old name out of that very row, and the record of
 the refusal was nearly destroyed by the rename it should have prevented.
 
+That program was retired on 2026-09-14 (milestone 295) and the refusal stands unchanged, which is
+the same point one turn later: a refusal records why a name lost on the day it lost, and one
+rewritten every time the tree moves is one nobody can check.
+
 **The record is derived, not maintained.** The first draft of the fix was one ratified-names table,
 here in this file. calef rejected it on 2026-08-04 for scaling the way the original `DECISIONS.md`
 and `design/roadmap.md` scaled, and size is the smaller half of that argument. The **conflict shape**
@@ -526,8 +530,8 @@ nobody can justify comes before one whose reasoning merely lacks a signature.
 $ script/names --unratified
 UNRATIFIED (54 of 126), in the order worth working through
 ...
-  programs, unrecorded
-    builder                      components/src/builder.rs
+  programs, provisional
+    address_space_builder        fixtures/src/address_space_builder.rs
     ...
   crates, unrecorded
     abi                          crates/abi/src/lib.rs
@@ -925,6 +929,49 @@ thing it would change.
 **What this does not license.** It is not an argument against `sink`, which is this tree's word for
 the end of a stream nobody reads further and is right three times out of four. It is an argument
 against naming a program after a state that a single capability grant would end.
+
+## An identity is what you present; a principal is what you become
+
+**`principal` is ratified** (calef, 2026-09-14) as this tree's term of art for an authenticated
+actor holding a capability set. It was the last word in the login vocabulary with no ruling, and it
+is ratified as a **term**, not as a filename: `script/names` walks crates, programs and modules, so
+nothing gates this and the record is the gate.
+
+**Why it needed settling at all.** `components/src/login.rs` could not be named until the words it
+operates on were. Asked what that program authenticates, the honest answer turned out to be
+*nothing*: it holds `WRITE` on the credential service's verify endpoint and **relays**, and
+`components/src/credentialer.rs` is what checks the secret. What `login` does is mint a session's
+worth of capabilities on the answer. So the sentence the program needs a name for is *turns an
+identity into a principal*, and two of those three words were unsettled.
+
+**The four words, and why only one was open.** Measured on 2026-09-14, tree-wide:
+
+| word | code | prose | already names |
+|---|---|---|---|
+| `identity` | 546 | 362 | `identity_provisioner`, `MAX_IDENTITY`, `identity_hint` |
+| `session` | 256 | 472 | `session_reviver` |
+| `credential` | 163 | 129 | `credential_proto`, `credentialer`, `credentialer_test_client` |
+| `principal` | 36 | 46 | **nothing** |
+
+`identity` is fixed by an interface rather than by taste: DECISIONS §117 names a principal's subtree
+by the identity string **used directly**, with no lookup table, and `MAX_IDENTITY` caps it on the
+wire. `credential` was ratified with `credentialer` on 2026-08-01. `user` means **a person**, which
+calef settled when the `user_` prefix became `user_mode_`, and is otherwise spoken for: 1079 occurrences in code, essentially all of them the
+kernel's `user::` module or the `user_mode_` prefix. That left `principal`, which the tree leans on
+for the thing that matters most and had never given a name to.
+
+**The distinction the ratification keeps.** An **identity** is the string a client presents
+(`chris`, `corinne`). A **principal** is the authenticated actor that results, holding a fresh
+capability set. Collapsing them into one word was considered and refused: it is cheaper to read and
+it loses exactly the difference `login` exists to perform, which is the difference between what you
+present and what you become. §109's attribution model is written in the second word, not the first
+("nameable only by the principal that established it"), and two successful logins are two different
+endpoint *objects* rather than two views of one.
+
+**One ambiguity recorded rather than fixed.** `session` carries two senses in this repository: a
+login session, and an **agent** session in AGENTS.md and the process notes. The prose count above is
+mostly the second. Nothing in code confuses them, and no rename is proposed here; a reader of the
+process docs should know the word is doing two jobs.
 
 ## Performing a ratified rename
 

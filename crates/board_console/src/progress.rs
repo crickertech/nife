@@ -298,10 +298,24 @@ impl BootProgress {
         self.failure.as_ref()
     }
 
-    /// Whether userspace init built its child (`init/build  : ...`, `kernel/src/main.rs`).
+    /// Whether a **pre-milestone-295** kernel's userspace init built its child
+    /// (`init/build  : ...`, which `kernel/src/main.rs` printed until 2026-09-14).
+    ///
+    /// **This answers a question about captured logs, not about a live board**, and that is the
+    /// whole of what milestone 295 changed here. calef retired `components/src/builder.rs` on
+    /// 2026-09-14, so no kernel this tree builds prints `init/build` any more and this is `false`
+    /// on every live boot. The matcher stays because
+    /// `tests/fixtures/captured/vf2-2026-09-01-userspace.log` carries the line: that is evidence
+    /// off real VisionFive 2 silicon and cannot be re-taken with a different kernel, and a
+    /// recogniser that could no longer read it would throw the evidence away to tidy the code.
+    ///
+    /// **The live rung that replaced it is [`Stage::Prompt`]** (`boot_ladder::PROMPT`), and it says
+    /// more: `init/build` meant userspace built one child from two capabilities, where a prompt
+    /// cannot appear unless userspace built the console server, the line discipline, the input
+    /// driver and the shell. Ask `reached() >= Stage::Prompt` of a board booted today.
     ///
     /// Not a stage, and deliberately, because the ladder has to stay a ladder: a kernel with no
-    /// archive on the card runs its whole tour and never reaches this, so putting it below
+    /// archive on the card ran its whole tour and never reached this, so putting it below
     /// [`Stage::Tour`] would make reaching the tour imply something that did not happen. It is a
     /// detail of a successful boot, like [`Self::relocated`], and it is the difference between the
     /// two successful captures.
@@ -446,6 +460,9 @@ impl BootProgress {
         if line.contains("Moving Image from") {
             self.relocated = true;
         }
+        // A captured-log marker rather than a live one since milestone 295: no kernel prints
+        // `init/build` after `components/src/builder.rs` was retired on 2026-09-14. Kept because
+        // the VisionFive 2 capture carries it; see [`BootProgress::userspace_ran`].
         if line.contains("init/build") {
             self.userspace_ran = true;
         }
