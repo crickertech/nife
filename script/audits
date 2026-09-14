@@ -39,7 +39,7 @@
 # claim rather than evidence:
 #
 #   milestones built     BUILT rows from `script/roadmap --index`, generated from the blocks
-#   components           crates/*/ plus [[bin]] targets in components/ and fixtures/Cargo.toml
+#   components           crates/*/ plus [[bin]] targets in components/Cargo.toml and fixtures/Cargo.toml
 #   ABI constants        the `pub const NAME: u64` surface of crates/abi (see BUGS)
 #   external packages    distinct registry packages across every committed Cargo.lock but vendor's
 #
@@ -66,13 +66,15 @@
 #   backstop eventually catches it.
 # - **It validates the baseline cells as integers, never as true.** Nothing re-derives them at the
 #   commit they claim, so a mistyped baseline silently moves a trigger.
-# - **This script has not run since milestone 175 and nothing noticed.** It crashes in `current()`
-#   with `FileNotFoundError: user/Cargo.toml`, because 175 split `user/` into `components/` and
-#   `fixtures/` and the program count still reads the old path. Found 2026-09-14 while ratifying the
-#   name, by running it: the audit-cadence tripwire has been reporting nothing, not reporting green.
-#   `script/lint` does not invoke it, so no gate saw it either. Deliberately not fixed in the
-#   ratification commit, because a naming change should not carry a functional one; it wants a lane,
-#   and the interesting half is not the path but that a tripwire can fail silently for three weeks.
+# - **Nothing runs this script, which is how it stayed broken for three weeks.** It crashed in
+#   `current()` with `FileNotFoundError: user/Cargo.toml` from milestone 175 (split `user/`:
+#   `components/` for services, `fixtures/` for test programs) until 2026-09-14, when running it during a name ratification
+#   found it. The path is fixed; **the reason it went unnoticed is not.** `script/lint` does not
+#   invoke this, no CI job does, and a tripwire nobody runs reports nothing rather than reporting
+#   green. That is the same shape as milestone 265's gate that passed by checking zero crates and
+#   the `job_mix` feature that had never once been compiled: a check that stops checking does not
+#   go red. Wiring this into a gate is a real decision (it is a *cadence* signal, so a hard failure
+#   would block every PR the moment an audit came due) and is left to calef rather than assumed.
 # - **It cannot tell a report that says nothing from one that found nothing.** `fixed 0, minted 0,
 #   accepted 0` parses and passes.
 # - **`--worklist` ranks documents it can parse a citation out of, and says nothing about the rest.**
@@ -108,9 +110,13 @@
 # §134 had "since written down the family rule this was reaching for, that a `script/` entry point
 # which reports takes a noun". §134 is the harness falsification record and says nothing about entry
 # points or nouns; §39 is about component names and daemons; **no section states that rule.** Checked
-# 2026-09-14 while ratifying. `script/citations` did not catch it because it verifies that a cited
-# section exists, not that it says what the citer claims, which is the same gap that let a fabricated
-# block quote survive twelve days.
+# 2026-09-14 while ratifying.
+#
+# **The gate's gap here is narrow and worth stating precisely**, because the obvious generalisation
+# is wrong: `script/citations` *does* check glosses, and it proved that by rejecting this very
+# commit's first draft when a parenthetical about milestone 175 did not match its title. What it
+# checks is `milestone N`. A `DECISIONS §N` reference is resolved but its gloss is not compared,
+# which is the hole the claim above sat in.
 #
 # **The practice is real even though the rule is not written**: every reporting entry point in this
 # tree takes a noun (`metrics`, `citations`, `decisions`, `names`, `roadmap`, `journeys`, `coverage`,
@@ -212,9 +218,21 @@ def current():
     # The trigger would under-report by forty, which is the one direction an audit signal must not
     # err in. The split moved no program (72 targets before, 73 after), so counting both is what
     # keeps the number continuous across it, which is the only property a delta needs.
+    #
+    # **Listed rather than discovered, deliberately**, against this file's own "discovered, not
+    # listed" rule below: globbing every manifest with a `[[bin]]` would also count `fuzz/` (4),
+    # `redoxfs_server/` (3) and `uefi_loader/` (1), which are fuzz targets, a vendored server and a
+    # boot shim rather than programs this tree writes. The list is a claim about *meaning*, which is
+    # why it is here and not derived; a new program directory must be added, and if one is not, the
+    # loud failure below is what says so.
     programs = 0
     for pkg in ("components", "fixtures"):
-        with open(os.path.join(root, pkg, "Cargo.toml"), errors="replace") as f:
+        path = os.path.join(root, pkg, "Cargo.toml")
+        if not os.path.exists(path):
+            sys.exit("script/audits: %s is gone. If a directory of programs was renamed or split, "
+                     "this count has to be told; it cannot discover the difference between a "
+                     "program and a fuzz target. See the comment above." % path)
+        with open(path, errors="replace") as f:
             programs += f.read().count("[[bin]]")
 
     with open(os.path.join(root, "crates", "abi", "src", "lib.rs"), errors="replace") as f:
