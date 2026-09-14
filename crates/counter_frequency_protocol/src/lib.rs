@@ -93,10 +93,16 @@
 //! **Performed at milestone 265 on 2026-09-14, and the name landed is `counter_frequency_protocol`**,
 //! not `counter_frequency_proto`: the stem is calef's 2026-09-13 ruling and the suffix is 265's
 //! 2026-09-05 one, and applying them separately would have renamed this crate twice for no reason.
-//! That is the same treatment `mdns_proto` and `ntp_proto` get, and **265's own block does not list
-//! this crate among them**, which is a gap in that block rather than a fourth rule: it names four
-//! stems ruled that day and there were five. The block stays `provisional` because calef ruled the
-//! stem and has not been shown the whole name.
+//! That is the same treatment `mdns_proto` and `ntp_proto` got, and **265's own block did not list
+//! this crate among them**: it named four stems ruled that day and there were five. The block now
+//! lists five. The name stays `provisional` because calef ruled the stem and has not been shown the
+//! whole name.
+//!
+//! **What `Refused` above says, exactly**: `timebase_proto`, the stem and suffix together. Applying
+//! 265's suffix rule to that name mechanically gives `timebase_protocol`, which is **not** on record
+//! as refused, so `script/names --check` would not have caught it: that check matches a refused name
+//! against a live one, and these differ by three letters. The refusal is of the stem. Nothing
+//! mechanical stood between this crate and a refused stem; reading this block did.
 //!
 //! **The block this replaces was the thinnest in the tree**, and that is worth recording rather
 //! than quietly improving: it read *"Name: provisional (this lane, milestone 161's `cntfrq`

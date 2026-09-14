@@ -48,11 +48,20 @@ split one protocol across two spellings, which is the state this milestone exist
 **The third row was missing from this block and is the reason to enumerate rather than trust a
 list.** It said four stems; there were five. `timebase_proto`'s own provenance records calef ruling
 **`counter_frequency_proto`** on 2026-09-13, the same day and the same worklist as the other four,
-and it records **`timebase_protocol` as refused** in the same breath. A lane working from this
-block's table alone would have created a name the tree already says no to, and would have done it
-inside the file that says so. That is the blind-`sed` scar in its purest form, and it happened here
-before being caught: the sweep rewrote *"Refused `timebase_proto`, above"* into a name refusing
-itself, twice, and only enumerating found it.
+and it records **`timebase_proto` as refused** in the same breath. A lane working from this block's
+table alone would have applied the suffix rule to a stem the tree had already said no to, and
+produced `timebase_protocol`.
+
+**That is a narrower claim than it first looked and is worth stating precisely**, because the first
+draft of this paragraph overstated it. `timebase_protocol` is not itself on record as refused;
+`timebase_proto` is. So `script/names --check`, which catches a name recorded as refused that is also
+live, **would not have fired**: it matches the refused string, and the string a suffix sweep produces
+is one letter different. The refusal is of the stem and the gate can only see the whole name. Nothing
+mechanical stood between this milestone and a crate carrying a refused stem; reading the block did.
+
+The sweep then did the other half of the same failure, and it is the blind-`sed` scar in its purest
+form: it rewrote *"Refused `timebase_proto`, above"* into a name refusing itself, twice, and only
+enumerating the diff found it.
 
 The crate this milestone was minted over is therefore `counter_frequency_protocol`, not
 `timebase_protocol`. The stem is calef's and the suffix is this block's, applied in one pass for the
