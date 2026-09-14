@@ -187,12 +187,27 @@ path = "src/login_test_client.rs"
 test = false
 bench = false
 
-# The sink contract's ends (milestone 50): a program that writes to whatever is in its output slot,
-# a caretaker that puts a file behind that slot, and the read-back that proves the bytes went
-# through a real filesystem. One binary, three roles. `initrd_aarch64` packs it as "sink" for both ISAs.
+# The sink contract's ends (milestone 50), three programs since milestone 292: a program that
+# writes to whatever is in its output slot, the sink that puts a real file behind that slot, and the
+# read-back that streams the file out over the same contract. They were one binary picking a role
+# out of `arg0` until the role numbers turned out to be three hand-maintained copies of a fact two
+# binaries had to agree on; splitting them deleted the numbers. `initrd_aarch64` packs all three
+# under their own names for both ISAs.
 [[bin]]
-name = "sink"
-path = "src/sink.rs"
+name = "sink_transcript_writer"
+path = "src/sink_transcript_writer.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "file_sink"
+path = "src/file_sink.rs"
+test = false
+bench = false
+
+[[bin]]
+name = "file_source"
+path = "src/file_source.rs"
 test = false
 bench = false
 

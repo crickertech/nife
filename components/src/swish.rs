@@ -2511,7 +2511,7 @@ fn feed(nav: &mut Nav, stage: &[u8], w: &mut dyn ByteOut) {
 
 /// A byte-at-a-time writer onto a sink rendezvous, buffering into the contract's sixteen-byte
 /// messages. The seam between a callback that hands over arbitrary slices and a wire that carries
-/// two words at a time; `fixtures/src/sink.rs`'s verify role is the same loop from the other side.
+/// two words at a time; `fixtures/src/file_source.rs` is the same loop from the other side.
 struct SinkWriter {
     slot: u64,
     buf: [u8; byte_sink_proto::INLINE_MAX],
@@ -2605,7 +2605,7 @@ fn open_at(nav: &Nav, at: Cwd, tmp: &mut [u64; nav::MAX_DEPTH]) -> Result<(u64, 
 /// **Open the file behind a `>` or a `>>`**, creating it if it is not there.
 ///
 /// `CREATE` is create, not create-or-open (DECISIONS §27), so the fallback is explicit and is the
-/// same one `fixtures/src/sink.rs` makes: on any refusal, open the existing name. What happens next is
+/// same one `fixtures/src/file_sink.rs` makes: on any refusal, open the existing name. What happens next is
 /// the whole of `>` versus `>>`, and it happens **here, in the shell**, because the shell is what
 /// backs the file (DECISIONS §55). The child is wired identically either way and has no message it
 /// could send to find out which.
