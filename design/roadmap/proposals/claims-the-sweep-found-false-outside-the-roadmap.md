@@ -20,7 +20,7 @@ This is the list, so that fixing the roadmap does not leave the tree quietly dis
 - **`notes/process-view.md`** still records the display-name authority question as undecided, which
   milestone 126's block answered on 2026-08-26.
 - **`notes/crates-io-on-nife.md`** rows 19 and 28 still say no verb reports or sets an mtime.
-  `crates/filesystem_proto` has carried all three verbs since §112 was decided on 2026-08-23, and the
+  `crates/filesystem_protocol` has carried all three verbs since §112 was decided on 2026-08-23, and the
   PAL's own comments under `patches/std-nife/overlay/` repeat the dead claim a third time.
 - **`crates/abi`'s start invocation** is documented as ignoring its three arguments, which both the
   kernel's own arm and the builder's call contradict. Found by milestone 139's round 7 and left for

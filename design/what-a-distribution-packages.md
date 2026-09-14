@@ -124,7 +124,7 @@ connect-time handshake. The handshake is almost certainly right, since a version
 per connection rather than restated on every request, and that makes this **a protocol design question
 rather than a mechanical bump**. Ten contracts, `fs_proto` alone at 3,539 lines, each with tests.
 
-The one existing precedent points the same way and is not ours: `ntp_proto` has `VERSION: u8 = 4`,
+The one existing precedent points the same way and is not ours: `network_time_protocol` has `VERSION: u8 = 4`,
 which is NTP's own wire version inherited from the RFC.
 
 **And neither has a consumer.** Every component in this tree compiles together from one source, so a

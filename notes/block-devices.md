@@ -47,7 +47,7 @@ On the 64 MiB test disk the three reads work out as:
 
 ### The 512 assumption, stated where a reader meets it
 
-The block protocol (`filesystem_proto::blk`) carries **no logical block size**. There is nowhere for the
+The block protocol (`filesystem_protocol::blk`) carries **no logical block size**. There is nowhere for the
 surveyor to read the device's from, so it assumes 512. `crates/gpt` handles 4096 and has a test at
 it; a 4Kn disk would be read here as though its LBA 1 were at byte 512, which is a wrong answer
 rather than an error. The fix is a field on the wire, not a change in the program.
@@ -82,7 +82,7 @@ at read time, because the authorization happened when the mapping was made.
 An entry is an ordinal and a transport. That is all. Two reasons, and the first is the interesting
 one:
 
-- **A size is a fact about a device you hold.** You learn it by asking (`filesystem_proto::blk::SIZE`),
+- **A size is a fact about a device you hold.** You learn it by asking (`filesystem_protocol::blk::SIZE`),
   which takes the endpoint. An enumerator that answered "how big" would be answering a question only
   a holder should be able to ask, which quietly makes the listing the more powerful of the two
   authorities.
@@ -162,7 +162,7 @@ virtio-mmio device past the last transport silently, and the symptom is a test *
 ## What this lane deliberately did not do
 
 - **No hot plug.** The roster is written once and never again. A hot-plug story would change
-  `block_roster` (a published-page discipline, the way `clock_proto` has one) rather than its
+  `block_roster` (a published-page discipline, the way `clock_protocol` has one) rather than its
   readers.
 - **No partition-aware mount.** Nothing yet opens a filesystem *at* a partition's offset. The blk
   wire protocol has no base-block field, so a partition capability (an endpoint bound to a window of

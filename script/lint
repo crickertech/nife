@@ -1851,13 +1851,22 @@ if git -C "$(dirname "$0")/.." grep -Iilnw daemon -- \
 fi
 
 # 3. One spelling for contract crates. The tree had four spellings of "the wire contract" when this
-#    was written (`filesystem_protocol`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` wins for CRATES
+#    was written (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`); `*_proto` won for CRATES
 #    because it is what both of them already were, and a second habit is how the first one rots.
-for dir in "$(dirname "$0")"/../crates/*proto; do
+#
+#    **The suffix became `_protocol` at milestone 265** (calef, 2026-09-05: `_proto` is a truncation,
+#    and it is equally short for `prototype`, a word this tree uses for a real thing). The check is
+#    the same check; only the string moved.
+#
+#    **The glob is the whole hazard here and is why it is `*protocol` and not `*proto*`.** This loop
+#    selects the crates it then judges, so a glob that matches nothing passes by checking nothing,
+#    which is the `--exclude`-goes-stale failure notes/naming.md lists. `crates/*proto` stopped
+#    matching any directory the moment 265 landed and would have reported clean forever.
+for dir in "$(dirname "$0")"/../crates/*protocol; do
     name="$(basename "$dir")"
     case "$name" in
-        *_proto) ;;
-        *) echo "lint: contract crate $name should be spelled *_proto (notes/naming.md)" >&2; exit 1 ;;
+        *_protocol) ;;
+        *) echo "lint: contract crate $name should be spelled *_protocol (notes/naming.md)" >&2; exit 1 ;;
     esac
 done
 

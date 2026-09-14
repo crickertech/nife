@@ -25,14 +25,14 @@ untrusted source for the first time.
 Two things make it the right lens for today's tree rather than a re-run of
 [security.md](security.md)'s general review:
 
-- **The counterparty is now genuinely outside the machine.** `crates/mdns_proto` decodes datagrams
+- **The counterparty is now genuinely outside the machine.** `crates/multicast_dns_protocol` decodes datagrams
   that arrive from the local network, including the DNS name-compression pointers that are the
   canonical decompression-bomb and pointer-loop vector. `crates/nvme` is a kernel driver that reads
   16-byte completions a PCIe device writes into memory. Neither existed when the shared-page audit
   read the tree, and both take input from a party the threat model (DECISIONS §20, §23, §30, and
   SECURITY.md) declares untrusted.
 - **The secret-material crates were explicitly out of the previous scope.** The shared-page audit
-  recorded that `crates/credential_proto` and `components/src/credentialer.rs` were "being substantially
+  recorded that `crates/credential_protocol` and `components/src/credentialer.rs` were "being substantially
   rewritten with an NTLM path" and that "the clearance recorded below is of the version on `main` and
   does not transfer." That rewrite has landed (`crates/ntlm`, `crates/credentialer`), so §79's secret-material
   rules want a fresh read.
@@ -53,7 +53,7 @@ added or rewritten after the shared-page audit read the tree (it read `313a055` 
 
 | Crate / driver | Untrusted source | First landed |
 |---|---|---|
-| `crates/mdns_proto` | a datagram from a network peer | 2026-08-15 |
+| `crates/multicast_dns_protocol` | a datagram from a network peer | 2026-08-15 |
 | `crates/nvme` + `kernel/src/nvme.rs` | a PCIe device's completions and identify data | 2026-08-14 |
 | `crates/ntlm`, `crates/credentialer` | a presented secret and an NTLM client blob | 2026-08-04 |
 
@@ -62,7 +62,7 @@ added or rewritten after the shared-page audit read the tree (it read `313a055` 
 Stated because a scope nobody wrote down is a scope nobody can check.
 
 - **The SMB server, `smb_proto`, and the mDNS *wiring*.** None is on `main` at the audited commit;
-  all are in lanes in flight this session. `mdns_proto` is audited here as a crate, with the
+  all are in lanes in flight this session. `multicast_dns_protocol` is audited here as a crate, with the
   reachability caveat below, but the responder that will feed it live datagrams is not on the base and
   is not read. The SMB request parser, which will be the first hand-written parser of attacker bytes
   actually reachable at runtime, is a lane of its own the day it merges, and this note does not claim
@@ -151,7 +151,7 @@ an assert.
 Recorded because "we looked and it is fine" is the other half of an audit, and because each is a
 place a future change could break something.
 
-**`crates/mdns_proto`'s name decoder, `decode_name_into`.** This is the classic DNS parser
+**`crates/multicast_dns_protocol`'s name decoder, `decode_name_into`.** This is the classic DNS parser
 vulnerability surface (a compression pointer that loops, or a name that expands without bound), and
 it is written to close both by construction:
 
@@ -168,7 +168,7 @@ it is written to close both by construction:
   bounds-checked against the output length before it happens. There is no raw index on the decode
   path. `Reader::record` bounds RDATA with `.get(rdata_off..rdata_off + rdlen)`, and `rdlen` is a
   `u16`, so the sum cannot overflow a `usize` on this kernel's 64-bit targets.
-- **Reachability caveat.** No program on `main` at the audited commit calls `mdns_proto`. It is a
+- **Reachability caveat.** No program on `main` at the audited commit calls `multicast_dns_protocol`. It is a
   protocol crate whose responder is in a lane not yet merged, so the decoder is *not reachable at
   runtime today*. It is cleared as a crate, on the reading above and its own proof; the wiring that
   will feed it real datagrams is a separate read the day it lands.
@@ -228,7 +228,7 @@ thing this pass hands forward:
 > its *reach*.
 
 The limit is the one every audit-by-reading carries and this one carries twice over: it reads one
-commit, and two of its three subjects are half-built. `mdns_proto`'s decoder is proven and its wiring
+commit, and two of its three subjects are half-built. `multicast_dns_protocol`'s decoder is proven and its wiring
 is not here; the SMB parser that will be the first attacker-reachable hand-written parser is not on
 the base at all. The clearances above are of the crates as they stand, and the responder and the SMB
 server each want their own read the day they land.

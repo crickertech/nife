@@ -187,7 +187,7 @@ the progenitor away from being built wrong. The answer is not to make the progen
 ### The tree
 
 Four small portable programs (`components/src/root_supervisor.rs`, `spawner.rs`, `sub_server_supervisor.rs`, `flaky.rs`, sharing
-`crates/supervision_proto`):
+`crates/supervision_protocol`):
 
 ```text
   root_supervisor   the root untyped + the initrd + a report endpoint       (briefly)
@@ -390,11 +390,11 @@ disagree about: aarch64's boot path is shared with milestone 19d's test roles, s
 endpoint and a test SGI the interactive system never uses and numbers everything after them
 differently. That is data the crate takes (`BootEndowment::unused`), not code it repeats.
 
-The smaller one was **the loader**. `crates/supervision_proto`'s child builder was a generalization of
+The smaller one was **the loader**. `crates/supervision_protocol`'s child builder was a generalization of
 the two inits' `build_child`, so the logic existed three times, and this increment added the fault
 slot to all three rather than unifying them, because unifying loaders and migrating the boot path in
 one pass would have made a boot failure ambiguous. Milestone 96 did both, in that order, with
-`script/shell-check` between them. `supervision_proto`'s is the tree's only loader now; what it grew
+`script/shell-check` between them. `supervision_protocol`'s is the tree's only loader now; what it grew
 is what the inits needed, a capability placed at a **named** slot (§67's diagnostic stream) and a
 stack size the caller states. The stack is a field rather than a constant because the two callers
 honestly differ: four pages is enough for the supervision tree, and a child at the prompt gets twelve
@@ -589,7 +589,7 @@ load unmeasured bytes, all of them test or demo programs rather than the shipped
   measuring the blob at the point `root_supervisor` reads it.
 - **`c_confiner`**, which builds `c_shim`.
 
-All three run through `supervision_proto::build_child`, the tree's only loader since milestone 96,
+All three run through `supervision_protocol::build_child`, the tree's only loader since milestone 96,
 and all three could read the same table; none of them does today. The table already carries their
 programs' digests, so the remaining work is the call, not the data.
 

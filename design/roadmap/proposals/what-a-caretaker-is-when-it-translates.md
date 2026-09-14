@@ -15,7 +15,7 @@ takes away is authority rather than vocabulary. `fixtures/src/sink.rs` stated it
 before milestone 292 removed the file:
 
 > The `fs_file_caretaker` shape, one contract further out. `fs_file_caretaker` is a caretaker
-> because it "serves the same `filesystem_proto` protocol its own client speaks"; this one serves a
+> because it "serves the same `filesystem_protocol` protocol its own client speaks"; this one serves a
 > *different* and much smaller protocol than it speaks, and that asymmetry is the point.
 
 `fs_file_caretaker`, `fs_subtree_caretaker` and `fs_nameset_caretaker` are all definition A. So is
@@ -23,7 +23,7 @@ before milestone 292 removed the file:
 
 **Definition B, translating.** `components/src/terminal_sink_caretaker.rs` holds a terminal endpoint
 that carries `OP_READLINE` and hands out a byte sink that cannot read. It speaks
-`line_editor::proto` on one side and `byte_sink_proto` on the other, which is definition A's
+`line_editor::proto` on one side and `byte_sink_protocol` on the other, which is definition A's
 explicit counter-example, and `kernel/src/user/sink_tests.rs` says so while calling it a caretaker:
 
 > the terminal's sink is a **separate endpoint served by an adapter**, which is
@@ -56,6 +56,6 @@ becomes the honest name and the collision is a cost to accept rather than a reas
 
 ## What it does not decide
 
-Anything about `byte_sink_proto`, which is a wire contract named for what it carries and survived the
+Anything about `byte_sink_protocol`, which is a wire contract named for what it carries and survived the
 2026-09-13 structural-versus-current sweep on its own terms. Nor about `fs_subtree_caretaker` and
 `fs_nameset_caretaker`, which are definition A under either answer.

@@ -36,7 +36,7 @@ expensive underneath. See the section on what three weeks of red hid.
 The sequential per-crate triage sweep took about 31 minutes, of which
 five packages are 79% (`xtask` 473 s, `cred` 452 s, `measured_boot` 334 s, `coremark` 190 s, `gpt`
 127 s); 30 of the 41 finish in under 10 s. The interpreter tax measured about three orders of
-magnitude where it was visible (`ntp_proto`'s 10^9-value sweep: 0.6 s native, a projected day-plus
+magnitude where it was visible (`network_time_protocol`'s 10^9-value sweep: 0.6 s native, a projected day-plus
 interpreted; `calendar`'s 315,000 round trips: about a second native, still running at 11 minutes
 when it was killed and sampled instead).
 
@@ -86,7 +86,7 @@ written next to the test:
 
 | Site | Native | Under Miri |
 |---|---|---|
-| `ntp_proto` `every_nanosecond_survives_the_round_trip` | all 10^9 nanoseconds, 0.6 s | strided sample (stride 999,983, prime) plus the edges |
+| `network_time_protocol` `every_nanosecond_survives_the_round_trip` | all 10^9 nanoseconds, 0.6 s | strided sample (stride 999,983, prime) plus the edges |
 | `calendar` `format_and_parse_round_trip_across_the_range` | ~315,000 round trips | ~300, stride widened 1000x |
 | `glob` `greedy_agrees_with_exhaustive_search_over_every_short_pattern` | all 2,657,200 pattern/name pairs | every 61st pattern, 43,720 pairs, the completeness pin adjusted to the exact sample |
 | `glob` `the_worst_case_over_the_proof_domain_is_what_the_unwind_bounds_are_set_from` | ~1.8M runs, pins the exact argmax | skipped: a sample that misses the argmax fails against correct code |

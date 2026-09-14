@@ -1,6 +1,6 @@
 # NTLMv2, and the operation a secret exposes (removed 2026-08-30)
 
-**`crates/ntlm` and the NTLM path through `crates/credentialer` and `crates/credential_proto` were removed
+**`crates/ntlm` and the NTLM path through `crates/credentialer` and `crates/credential_protocol` were removed
 from the tree on 2026-08-30**, with the SMB implementation that was their only consumer. Read
 everything below in the past tense; none of it can be built from `main`. `685900ec` is the last
 commit that holds the code.
@@ -28,7 +28,7 @@ service that lets an SMB server authenticate a Mac without ever holding the thin
 authenticates it.
 
 The arithmetic is `crates/ntlm`, the store is `crates/credentialer`, the wire contract is
-`crates/credential_proto`, and the service is `components/src/credentialer.rs`. The password half of the same
+`crates/credential_protocol`, and the service is `components/src/credentialer.rs`. The password half of the same
 store is [credentials](credentials.md), and every salt in it comes from [entropy](entropy.md).
 
 ## The observation that made this a milestone
@@ -245,7 +245,7 @@ no way to ask the store for a key. `crates/ntlm` is a function of inputs a calle
 
 ## What is proven, and where
 
-Host tests (`cargo test -p ntlm -p credentialer -p credential_proto`, milliseconds, no emulator):
+Host tests (`cargo test -p ntlm -p credentialer -p credential_protocol`, milliseconds, no emulator):
 
 - The **published vectors** above, through the same entry points the service uses.
 - A different challenge, an edited blob, or a proof with any single byte flipped is a mismatch, and

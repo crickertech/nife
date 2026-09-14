@@ -3,7 +3,7 @@
 Authentication that produces capabilities instead of mutating an identity. Milestone 49's login
 half; the attribution half is [DECISIONS §109](../design/decisions/109-attribution-is-a-channel-property.md).
 
-The contract is `crates/login_proto`, the service is `components/src/login.rs`, and its test client is
+The contract is `crates/login_protocol`, the service is `components/src/login.rs`, and its test client is
 `fixtures/src/login_test_client.rs`. All three names are **provisional**, minted for this milestone and
 not yet ratified by calef.
 
@@ -22,7 +22,7 @@ the same trade the credential service (milestone 56) already made for the secret
 ## The shape
 
 ```text
-   a client ──login_proto::LOGIN, identity+secret──► login ──credential_proto::VERIFY──► credentialer
+   a client ──login_protocol::LOGIN, identity+secret──► login ──credential_protocol::VERIFY──► credentialer
                                                        │        (unmodified;
                                                        │         milestone 56)
                                                        │
@@ -35,7 +35,7 @@ the same trade the credential service (milestone 56) already made for the secret
 ```
 
 `login` relays the presented identity and secret to the credential service's `VERIFY` unchanged: it
-never touches `credential_proto`'s protocol or `credentialer.rs`. On a match it **builds**, rather than
+never touches `credential_protocol`'s protocol or `credentialer.rs`. On a match it **builds**, rather than
 narrows, a capability set: a fresh `fs_subtree_caretaker` (the same construction
 `crates/system_initializer` performs for a directory-granted spawn) and a fresh budget split off its
 own construction untyped. Two different successful logins therefore hold two different endpoint
@@ -53,7 +53,7 @@ independently revocable object per principal.
 
 ### Why the same subtree for everyone, in this slice
 
-Every login is attenuated to `filesystem_proto::fixture::tree::SUB` with the same rights. Wiring a specific
+Every login is attenuated to `filesystem_protocol::fixture::tree::SUB` with the same rights. Wiring a specific
 identity to a specific subtree needs a lookup this milestone does not build (a table, a naming
 convention, a directory layout), and guessing at its shape would be scope invented rather than found.
 Milestone 47's per-shell root is already the isolation mechanism; what is missing is only the wiring
@@ -90,7 +90,7 @@ From a client holding the request endpoint (`WRITE`) in slot 0 and the result en
 slot 1, with the shared page mapped:
 
 ```rust
-use login_proto as proto;
+use login_protocol as proto;
 
 let w0 = proto::place(page, b"chris", b"correct horse battery staple", proto::LOGIN).unwrap();
 send(REQUEST, w0, 0, 0);
@@ -103,7 +103,7 @@ let (_, fs_frame, _) = recv_cap(RESULT);
 let (_, budget, _) = recv_cap(RESULT);
 
 map_frame(fs_frame, FS_VA, true, budget);
-let (bytes, _) = call(dir_ep, filesystem_proto::fs::req(filesystem_proto::fs::READDIR, filesystem_proto::fs::ROOT, 0), 0);
+let (bytes, _) = call(dir_ep, filesystem_protocol::fs::req(filesystem_protocol::fs::READDIR, filesystem_protocol::fs::ROOT, 0), 0);
 ```
 
 ### A refusal sends nothing further
@@ -120,8 +120,8 @@ assert_eq!(verdict, proto::DENIED);
 
 ## What is proven, and where
 
-Host tests (`cargo test -p login_proto`, milliseconds, no emulator): the request page's encoding
-round-trips through the same `credential_proto` helpers the credential service uses, and the attribution
+Host tests (`cargo test -p login_protocol`, milliseconds, no emulator): the request page's encoding
+round-trips through the same `credential_protocol` helpers the credential service uses, and the attribution
 hint is stable per identity and distinct across identities.
 
 Guest tests (`kernel::user::login_tests`, both aarch64 and riscv64):

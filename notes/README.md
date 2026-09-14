@@ -415,7 +415,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   reader into `Gone` for a live writer. A builtin can lead a pipeline because the shell can be a
   writer. Both directions are proven the same way, one binary against two sources or two
   destinations. And the finding that finished it: the file behind a `>` is **the shell's own
-  filesystem session**, not a sink process, because `filesystem_proto` shares one page between the FS server
+  filesystem session**, not a sink process, because `filesystem_protocol` shares one page between the FS server
   and its clients and `ls > out.txt` is a line where the shell must read the filesystem while the
   redirection is being written. Since 2026-08-04 it also holds the constraint the second reader
   found: **a process has one wait point**, so a shell that feeds a stage cannot also receive from
@@ -556,7 +556,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   the first thing to put the clock service and the calendar crate in one process. It reads and
   cannot set, which is a fact about its wiring (a read-only mapping) rather than a missing flag, so
   there is no `date -s` and its absence is not a `TODO`. Also the provenance line, which renders
-  `clock_proto`'s four states for a person and is a distinction no Unix `date` can print; why the
+  `clock_protocol`'s four states for a person and is a distinction no Unix `date` can print; why the
   unknown clock is a sentence rather than a panic or a 1970; why the "have I got a clock" probe must
   not touch the page; and the guest test that closes DECISIONS §43's "the unknown-clock path is not
   proven in the guest", because a frame nobody published to *is* that machine.
@@ -684,7 +684,7 @@ in the code or the conversation doesn't make sense, it belongs here.
 - [mDNS/DNS-SD: the Time Machine advertisement](mdns.md): milestone 55's second protocol. The
   reference router's actual `_smb`/`_adisk`/`_device-info` records, captured 2026-08-15 and decoded
   (one `_adisk` instance with the disks inside its TXT, SRV port 0 on the flag services, and a
-  measured `model=MacSamba` against a config that says TimeCapsule), which are `mdns_proto`'s test
+  measured `model=MacSamba` against a config that says TimeCapsule), which are `multicast_dns_protocol`'s test
   vectors. Then the smoltcp 0.13.1 multicast verdict: the `multicast` feature exists and the tree
   has it off, so receiving on 224.0.0.251 needs a feature line, a join call, and the three pieces
   of socket surface the note lists; the responder program waits on those.
@@ -715,7 +715,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   that landed after the shared-page pass. The question is whether a value a hostile counterparty
   supplies in one message or completion is bounded before it is believed. One finding: the NVMe kernel
   driver panics on two device-written completion fields, the reciprocal of shared-page-audit.md's
-  finding 6 one layer down (the IOMMU confines placement, not values). `mdns_proto`'s decoder and the
+  finding 6 one layer down (the IOMMU confines placement, not values). `multicast_dns_protocol`'s decoder and the
   credentialer/ntlm secret handling are cleared, with the reachability and scope caveats attached.
 - [A security audit](security.md): an adversarial four-part review of the whole kernel. The
   MMU and capability confinement held up and two panics on untrusted input were fixed. Read as a
@@ -825,7 +825,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   **would any test notice if this line were wrong?** cargo-mutants (pinned in
   `.cargo-mutants-version`, exclusions with reasons in `.cargo/mutants.toml`) rewrites one function
   at a time and reruns the tests; the survivors are the product. The per-crate baseline, the
-  calibration verdict on the exhaustive crates (`ntp_proto`, `gpt`), the three-way triage rule
+  calibration verdict on the exhaustive crates (`network_time_protocol`, `gpt`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
 - [Falsification records](falsification.md): milestone 194, building DECISIONS §134, and the answer
@@ -869,7 +869,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   that could plausibly have been false, and the one that provably could not), three near-misses in
   crates that already had harnesses, the counts re-derived from the merged tree because the roadmap's
   "112+" is now 145, a live hole found while counting (three harnesses in no shard of `script/verify`,
-  the `mdns_proto` defect recurred), and a nine-item worklist. Name provisional.
+  the `multicast_dns_protocol` defect recurred), and a nine-item worklist. Name provisional.
 - [Where an unsafe obligation is written, and where it is only implied](unsafe-obligations.md):
   milestone 82, and the two lints that are meant to compose into "every unsafe operation sits next
   to the written invariant that makes it sound". The survey found **zero violations before anything
@@ -1022,7 +1022,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   device that lies about persistence, plus the controls that prove the injector bites (with the header
   ring's history removed, 92 of 93 fault points stop mounting) and the honest limit (a lying device is
   never survivable and never silent). Milestone 61 added the **verb table**: one row per opcode in
-  `filesystem_proto::verb`, saying what a request's words mean and which rights the server demands, so the
+  `filesystem_protocol::verb`, saying what a request's words mean and which rights the server demands, so the
   three caretakers that proxy this contract dispatch off the contract instead of off three
   hand-written matches, and a verb with no row is a compile error rather than a capability that is
   quietly missing. Milestone 57's write half added `mkfs`, the server's opposite (it creates a
@@ -1054,11 +1054,11 @@ in the code or the conversation doesn't make sense, it belongs here.
   at the interactive prompt for a name one directory down, and the shape it still cannot be given is
   a grant on the root of the shell's own namespace.
 - [`touch`: create if absent](touch.md): milestone 47's other builtin split by what needs a
-  decision and what does not. The create half needed nothing new (`filesystem_proto::fs::CREATE`, already
+  decision and what does not. The create half needed nothing new (`filesystem_protocol::fs::CREATE`, already
   built for milestone 31 phase 2) and is a builtin in `mkdir`'s category rather than `rm`'s, since it
   takes no more than the directory capability the shell already holds. The mtime half (bumping an
   existing name's timestamp, and `-t`'s sharper ability to lie about history) is not built, because
-  `filesystem_proto` carries no verb for it and whether "set to now" is the write right already held or a
+  `filesystem_protocol` carries no verb for it and whether "set to now" is the write right already held or a
   separate authority is an open question the roadmap block names rather than answers.
 
 - [The inert-configuration page](env-config.md): milestone 47's environment-variable fork
@@ -1069,7 +1069,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   not parse as a real timezone/locale/terminal type is refused at assembly time rather than
   carried through disguised as configuration. No seqlock, unlike the clock: the page has exactly
   one writer and it finishes before the page has a second reader. Built end to end for a std
-  program (`environment_proto`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
+  program (`environment_protocol`, kernel wiring, the `std` PAL's `sys/env::seed`), proven by `std_exerciser`
   on both ISAs; no shell-facing program declares wanting it yet, the same position `clock` was in
   before `date` existed.
 

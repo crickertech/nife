@@ -78,7 +78,7 @@ one line and includes the shell's own planning, spawning and draining, because t
 vantage point from which the question has an answer.
 
 **It is not a promise that the clock stood still.** A wall clock can be stepped by an authority the
-shell does not hold. The shell reads `clock_proto`'s **generation** at both ends, and when it changed
+shell does not hold. The shell reads `clock_protocol`'s **generation** at both ends, and when it changed
 it says so rather than printing a number it cannot stand behind:
 
 ```text

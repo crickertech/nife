@@ -237,7 +237,7 @@ The directory rows are that same principle one level out rather than a new tier,
 directories that violated them are in [Directories](#directories-milestone-63) below.
 
 **Standard terms are already right and must not be touched.** `elf`, `pci`, `paging`, `glob`,
-`socket_proto` are names a reader knows from outside this project, so they cost nothing to learn.
+`socket_protocol` are names a reader knows from outside this project, so they cost nothing to learn.
 This tenet is a naming authority, not a renaming mandate, and renaming `elf` would destroy the
 recognition the whole thing exists to buy.
 
@@ -281,10 +281,18 @@ is a known gap rather than a decision.
 
 - **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `frames`, `regions`,
   `slots`, `asid`, `intrusive`, `ipc`, `dma_validator`, `measured_boot`, `user_mode_heap`.
-- **Wire contracts**, spelled `*_proto` and checked for it by `script/lint`: `fs_proto`,
-  `socket_proto`, `sink_proto`, `cred_proto`, `clock_proto`, `entropy_proto`, `graphics_proto`,
-  `ntp_proto`, `supervision_proto`, `swap_proto`. Plus `abi`, which is the syscall boundary and
-  predates the suffix.
+- **Wire contracts**, spelled `*_protocol` and checked for it by `script/lint`:
+  `filesystem_protocol`, `socket_protocol`, `byte_sink_protocol`, `credential_protocol`,
+  `clock_protocol`, `entropy_protocol`, `graphics_protocol`, `environment_protocol`,
+  `login_protocol`, `multicast_dns_protocol`, `network_time_protocol`, `supervision_protocol`,
+  `swap_protocol`, `counter_frequency_protocol`, `capability_demo_protocol`. Plus `abi`, which is
+  the syscall boundary and predates the suffix.
+
+  **The suffix was `_proto` until milestone 265** (calef, 2026-09-05, on being shown
+  `timebase_proto`: *"I think `_proto` was lazy on my part. It should have been `_protocol` globally
+  to differentiate from prototype."*). `proto` is a truncation rather than an abbreviation, and it
+  is equally short for `prototype`, which this tree uses for a real thing. Wherever a dated passage
+  below spells a crate `_proto`, that is what it was called then and the passage is left alone.
 - **Format and hardware parsers**: `elf`, `dtb`, `pci`, `gpt`, `nifefs`.
 - **Userspace libraries**: `user_mode_runtime`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
   `bitmap_font`, `glob`, `calendar`, `credentialer`, `compositor`, `coremark`, `c_seam`.
@@ -301,8 +309,8 @@ What the names actually do, over the 39 directories under `crates/`:
 - **One word where one word will do**, which is 21 of the 39: `abi`, `capability`, `compositor`,
   `elf`, `frames`, `ipc`, `paging`, `regions`, `slots`, `virtio`.
 - **Underscore when the two halves are separate concepts** and the name reads as a qualifier applied
-  to a thing, which is the other 18: `fs_proto` is the proto *for* fs, `graphics_proto` the proto *for*
-  graphics, `dma_validator` the validation *of* DMA, `user_mode_runtime` the runtime *for* user mode,
+  to a thing, which is the other 18: `filesystem_protocol` is the protocol *for* the filesystem,
+  `graphics_protocol` the protocol *for* graphics, `dma_validator` the validation *of* DMA, `user_mode_runtime` the runtime *for* user mode,
   `user_mode_heap` the heap *for* user mode, `measured_boot` the measurement *of* boot.
 
 **Milestone 63 deleted the third bullet, which used to read "run together when the result is one
@@ -318,9 +326,11 @@ its standard spelling** (see above).
 
 The one place it became a real inconsistency is worth fixing and is checked: **the wire contract was
 spelled four ways** (`fs_proto`, `gfx_proto`, `netproto`, `line_editor::proto`) for one concept,
-`gfx_proto` at the time; it is `graphics_proto` since the same 2026-08-23 review.
-`*_proto` wins for crates, because it is what the actual crates already were, and `socket_proto` has
-since graduated from a module inside `net_stack` into a crate under that name.
+`gfx_proto` at the time; the 2026-08-23 review made that one `graphics_proto`, and milestone 265
+made it `graphics_protocol` on 2026-09-14.
+`*_proto` won for crates, because it is what the actual crates already were, and `socket_proto` has
+since graduated from a module inside `net_stack` into a crate under that name. The suffix itself
+then lost, three weeks later and to its own author: see the `_protocol` note above.
 
 **A crate that is a component's engine takes the component's name** (`line_editor` the sans-IO
 editing crate, `line_editor` the binary that wires it to endpoints; `compositor` and `coremark` are
@@ -533,7 +543,7 @@ UNRATIFIED (54 of 126), in the order worth working through
     abi                          crates/abi/src/lib.rs
     ...
   crates, recorded
-    clock_proto                  crates/clock_proto/src/lib.rs
+    clock_protocol               crates/clock_protocol/src/lib.rs
     ...
   scripts, recorded
     fmt                          script/fmt
@@ -635,7 +645,7 @@ people learn to skip.
   this milestone exists to prevent, still happening one directory over.
 - **A type's name is a naming decision the mechanism does not see.** `BootEndowment` was ratified on
   2026-08-04 (replacing `Grants`) and is mentioned inside `system_initializer`'s block only because
-  its crate happens to export it. `supervision_proto::Endow` is an open naming question (§69) and
+  its crate happens to export it. `supervision_protocol::Endow` is an open naming question (§69) and
   appears nowhere in this record.
 - **The `Name:` marker is a string in a comment**, so a header that never had one is caught by the
   gate while a header that loses one to an edit is caught only if the edit removes the whole line.
@@ -898,7 +908,7 @@ The three that survived the same question, and each for its own reason:
 
 | Name | Why the terminus is structural |
 |---|---|
-| `byte_sink_proto` | A wire contract named for what it carries. It makes no disposal claim at all |
+| `byte_sink_protocol` | A wire contract named for what it carries. It makes no disposal claim at all |
 | `terminal_sink_caretaker` | It holds the terminal endpoint, which also carries `OP_READLINE`, and hands out a sink that **cannot read**. `sink` names what it hands out, `caretaker` names what it is. calef already caught this class once here, ratifying the longer form over `terminal_sink` on 2026-08-03 |
 | `sink` (the program) | Not a terminus at all. Three roles, and `ROLE_FILE` is a real file behind a sink: the process can open, read, write at offsets, truncate and stat, while its client can only say *here are sixteen bytes, append them*. Renaming it `receiver` would name one end of a three-role program |
 

@@ -14,16 +14,16 @@ what this system did.
 | date | what a machine did, not what a test asserted |
 |---|---|
 | 2026-08-15 | **A real Mac mounted it.** macOS 26's own `mount_smbfs` against the QEMU guest: the share mounted, `ls` listed it, both fixture files read back byte-correct, the volume arrived read-only (macOS honoured `READ_ONLY_VOLUME` and refused a write client-side), a clean unmount worked, and a second mount proved the listener re-armed for a real client rather than only for the test prober. |
-| 2026-08-15 | The `filesystem_proto`-backed share: bytes a *different in-guest process* had put on RedoxFS came back over TCP, so the chain RedoxFS -> `filesystem_proto` -> `Share` -> SMB2 -> TCP was checkable rather than asserted. |
+| 2026-08-15 | The `filesystem_protocol`-backed share: bytes a *different in-guest process* had put on RedoxFS came back over TCP, so the chain RedoxFS -> `filesystem_protocol` -> `Share` -> SMB2 -> TCP was checkable rather than asserted. |
 | 2026-08-16 | The write path, gated on both ISAs by a file the host wrote over SMB2 and a different in-guest process read back through the FS server. Never met a real Mac (see BUGS). |
-| 2026-08-16 | `filesystem_proto` grew `STATFS` (op 18); subdirectories, with `smb_proto::path` parsing a share-relative path once at the wire's edge. |
+| 2026-08-16 | `filesystem_protocol` grew `STATFS` (op 18); subdirectories, with `smb_proto::path` parsing a share-relative path once at the wire's edge. |
 | 2026-08-17 | The `AAPL` create context and the `FULL_SYNC` Time Machine flag. Never met a real Mac. |
 | 2026-08-17 | **Identity**: an NTLMv2 proof verified against milestone 65's credential service, with the kernel reading the shared frame through the direct map afterwards and requiring the key to be absent. |
 | 2026-08-19 | Throughput measured through a real SMB client: **write 4.8x, read 2.4x** from raising the file transfer from 4 KiB to 64 KiB. See the throughput section. |
 | 2026-08-24 | The session/connection split (milestone 152's first buildable piece), the shape `session_reviver` still carries. |
 
 **The one number that survives the removal**, because it was measured rather than argued: raising
-`filesystem_proto`'s transfer from one page to sixteen took an SMB write from **0.065 to 0.31 MiB/s**
+`filesystem_protocol`'s transfer from one page to sixteen took an SMB write from **0.065 to 0.31 MiB/s**
 and a read from **0.15 to 0.36 MiB/s**, debug build under QEMU. The ratio transfers; the rate does
 not, and the note refused to convert it into a backup's wall clock for that reason. That refusal is
 still the right call and is worth copying.
@@ -58,14 +58,14 @@ where the record of what it proved costs a file.
 
 **What was deliberately kept, and why**, because the boundary is the interesting part of a removal:
 
-- **`crates/mdns_proto` and `components/src/mdns_responder.rs`.** Service discovery is a standalone service
+- **`crates/multicast_dns_protocol` and `components/src/multicast_dns_responder.rs`.** Service discovery is a standalone service
   and is useful without a share to advertise.
 - **`crates/credentialer`, `credentialer`, `session_reviver`**, and milestone 49's and 65's identity work,
   minus the NTLM half (see the section below). The credential service's headline property (a server
   answers an authentication without ever holding the key) is proven by `credentialer_test_client`
   against the password verifier and never needed the SMB adapter.
 - **Milestone 107's socket work**, which is what lets anything accept a connection.
-- **`filesystem_proto`'s `STATFS`, `SYNC` and `RENAME`**, and the block server's
+- **`filesystem_protocol`'s `STATFS`, `SYNC` and `RENAME`**, and the block server's
   `VIRTIO_BLK_T_FLUSH`. SMB is what motivated them; they are file-service verbs and stand on their
   own.
 
@@ -74,7 +74,7 @@ where the record of what it proved costs a file.
 **Removed in the same pass, 2026-08-30**: `crates/ntlm` entirely, the NTLM path through
 `crates/credentialer` (`Record`'s `nt` field and `has_ntlm` flag, `derive_ntlm`, `put_ntlm`, `ntlm_proof`
 and the `NTLM_CHALLENGE_LEN`/`NTLM_KEY_LEN` re-exports), the `provision::PUT_NTLM` and
-`verify::NTLM_PROOF` opcodes in `crates/credential_proto` with their request accessors, and the
+`verify::NTLM_PROOF` opcodes in `crates/credential_protocol` with their request accessors, and the
 four dependency crates that existed only underneath them: `md4`, `md-5`, `hmac` and `digest`.
 
 **Why this is worth a section rather than a line in a commit message.** DECISIONS §79 approved
@@ -107,7 +107,7 @@ now stale and needs amending, and the amendment is calef's.
   nothing. It is still a change to a wire contract two programs agree on (AGENTS.md rule 7), and it
   was only safe because both programs are in this tree and nothing outside speaks it.
 
-One casualty worth naming, because it was a good piece of writing: `credential_proto`'s module docs
+One casualty worth naming, because it was a good piece of writing: `credential_protocol`'s module docs
 argued "an opcode is not an authority" using the *collision* between `provision::SEAL` and
 `verify::NTLM_PROOF` at opcode 2 as its worked example, and recorded that milestone 65 demonstrated
 the principle by breaking a kernel test when the collision appeared. The principle is unchanged and
@@ -468,7 +468,7 @@ the ratios above are taken from the means.
 
 ### Where the rest went, and it is one number in a different contract
 
-**The socket contract chunks at 4080 bytes.** `socket_proto::DATA_MAX` is `4096 - OFF_PAYLOAD`,
+**The socket contract chunks at 4080 bytes.** `socket_protocol::DATA_MAX` is `4096 - OFF_PAYLOAD`,
 because a client and `net_stack` share exactly one frame, so `send_all` and `recv_into` in
 `smb_server` cross that contract about **seventeen times in each direction per 64 KiB SMB message**.
 That did not change and is now what a transfer costs: a 64 KiB write went from ~985 ms to ~206 ms
@@ -611,12 +611,12 @@ should start from if anyone ever decides to build a Mac-mountable share here aga
 last attempt knew it had not solved, written while the code was in front of someone.*
 
 - **A 64 KiB SMB message still crosses the socket contract seventeen times in each direction.**
-  `socket_proto::DATA_MAX` is 4080 bytes, because a client and `net_stack` share one frame, so
+  `socket_protocol::DATA_MAX` is 4080 bytes, because a client and `net_stack` share one frame, so
   `smb_server`'s `send_all` and `recv_into` chunk every message through it. Since milestone 55 put
   the file transfer at 64 KiB, this is **the dominant cost of a transfer**: an SMB write went from
   ~985 ms to ~206 ms per 64 KiB message and the filesystem is no longer what is left. It is
   milestone 138 step 3's defect one contract over, and its fix is demonstrated: the shared region is
-  one page because nobody declared it otherwise, `socket_proto`'s request word already carries a
+  one page because nobody declared it otherwise, `socket_protocol`'s request word already carries a
   length, and growing the region is the whole change. **Promotion trigger (§71): this becomes a
   roadmap row the moment anyone measures the SMB path on hardware**, because it is the number that
   will be in the way there and this entry is the evidence that it is known rather than discovered.

@@ -186,7 +186,7 @@ touch a disk, cannot open a socket, and cannot give any of those to a child, bec
 ambient authority anywhere for a child to fall back on.
 
 **Who may register is answered by where the document lives**, and for the first deliverable that is
-`include_str!`: the document is compiled into the binary, exactly as `components/mdns_responder.conf` is
+`include_str!`: the document is compiled into the binary, exactly as `components/multicast_dns_responder.conf` is
 compiled into the responder and for the same recorded reason (reading a file needs a file capability
 wired through the spawn; see notes/mdns.md and milestone 131). So today the authority to register is
 the authority to rebuild the image, which is the strongest possible answer and also the least useful
@@ -300,7 +300,7 @@ its own separate capability.
 
 The nesting is still the right shape, for a reason the block did not state. **A refused reap would
 be the only thing in this system that pairs a death with a grant**, because a supervisor learns a
-tid and nothing else: `supervision_proto::build_child` hands back a TCB capability, `abi::tcb` has
+tid and nothing else: `supervision_protocol::build_child` hands back a TCB capability, `abi::tcb` has
 no method that reads a tid out of one, and `abi::fault`'s five-word message carries no
 builder-chosen tag. `components/src/timetable.rs` does not lean on that ambiguous signal, though: it
 sidesteps the need to interpret a refusal at all by making the pairing structural. `fire_with_grant`
@@ -338,13 +338,13 @@ document whose `--mem` entry shared the clock with a fast interval would.
   gives services durable configuration at all, which does not exist yet.
 
 - **The document is compiled in, not read from disk**, which is also what decides who may register
-  (see above). `mdns_responder` carries the same limitation for the same reason; milestone 131 is
+  (see above). `multicast_dns_responder` carries the same limitation for the same reason; milestone 131 is
   where the runtime-read shape lands, and nothing about the format, the parser, the line-numbered
   errors or the tests changes when it does.
 
 - **The schedule vocabulary is two words.** `every <interval>` and `at-boot`, with `ms`, `s` and `m`.
   No calendar syntax, deliberately: what a `0 2 * * *` entry should do when the wall clock steps an
-  hour is a question this system has vocabulary for (`ntp_proto`'s era pivot, notes/ntp.md) and no
+  hour is a question this system has vocabulary for (`network_time_protocol`'s era pivot, notes/ntp.md) and no
   answer to yet, and a default drifted into is worse than a decision deferred. Milestone 129's block
   scopes it the same way.
 

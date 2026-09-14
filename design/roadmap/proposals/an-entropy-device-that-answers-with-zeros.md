@@ -6,9 +6,9 @@ fixed the defect that needed exactly this test and could not write it.
 **Gate: NONE.** QEMU already has the device (`-object rng-random,filename=/dev/zero`), the service
 already has the check, and the only new thinking is how a wiring names *which* virtio-rng it wants.
 
-**What the work is.** `entropy_proto::readiness` decides the readiness word from the first bufferful,
+**What the work is.** `entropy_protocol::readiness` decides the readiness word from the first bufferful,
 and refuses `READY` when every byte of it is zero (milestone 159's block, "Fixed 2026-09-04"). That
-decision is host-tested in `crates/entropy_proto`, and the drivers' three calls to it are not tested
+decision is host-tested in `crates/entropy_protocol`, and the drivers' three calls to it are not tested
 anywhere: no machine this repository boots can produce a device that answers with zeros. The one that
 did was radon, whose TRNG has a gated clock, and it is not a machine CI can run.
 

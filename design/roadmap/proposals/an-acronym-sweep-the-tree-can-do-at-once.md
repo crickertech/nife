@@ -5,12 +5,25 @@ names and deliberately answered none of them, because answering one at a time is
 
 **Gate: DECISION.** calef names things, and this is a list of names.
 
-**Two of the four rows are answered, both by calef on 2026-09-13**, working the unratified
-worklist: `jh7110_crg` is `jh7110_clock_and_reset`, and `jh7110_trng` (crate and program) is
+**All four rows are now answered, every one of them by calef on 2026-09-13**, working the
+unratified worklist: `jh7110_crg` is `jh7110_clock_and_reset`, `jh7110_trng` (crate and program) is
 `jh7110_entropy`, by way of `jh7110_entropy_source`, which he ratified first and replaced later the
-same day. The rows stay in the table below with their answers beside them, because the question
-each one asked is the half a future proposer needs. `ntp`/`ntp_proto` and the nested `mdns` case
-are still open, and the gate stands for them.
+same day, and he ruled the `ntp` and `mdns` stems the same day. The rows stay in the table below
+with their answers beside them, because the question each one asked is the half a future proposer
+needs.
+
+**The two stem rulings were recorded and not performed**, deliberately, and milestone 265 performed
+them on 2026-09-14 along with its own suffix change, so that one crate was not renamed twice.
+`ntp_proto` is `network_time_protocol`, `mdns_proto` is `multicast_dns_protocol`, and the two
+siblings carrying the same stem moved with it. **The nested `mdns` question this proposal called the
+interesting one was answered rather than dissolved**: calef ruled that DNS stops because it is the
+`pci` case one level down, so `multicast_dns` is the whole expansion and
+`multicast_domain_name_system` is not. The `ntp` **program** was to stay short and no longer exists
+to: milestone 290 split it into `network_time_client`, `network_time_test_server` and
+`unwritable_clock_witness` on 2026-09-14.
+
+**The gate no longer stands for the four names in the table.** It stands for the BUGS below, which
+are the larger half and were never in it.
 
 ## Why it cannot be done a name at a time
 
@@ -19,7 +32,7 @@ deratified `dma`, `dtb`, `gpt`, `ipc` and `asid` in the sentence that set it, an
 already says the sweep is its own milestone because `ipc` is load-bearing across the tree.
 
 Milestone 264 found the second reason, which is smaller and sharper. **Several of these names exist
-in matched pairs that a partial sweep would break.** The program `ntp` and the crate `ntp_proto` are
+in matched pairs that a partial sweep would break.** The program `ntp` and the crate `ntp_proto` were
 one word twice, and calef ratified the crate on 2026-08-23. Spelling out the program alone leaves the
 pair disagreeing; spelling out the crate alone overturns a ratification as a side effect of tidying a
 program. The same holds for `jh7110_trng`, which is a crate and the program built from it, a pairing
@@ -38,8 +51,8 @@ guessed at.
 
 | Name | Expansion | The tension |
 |---|---|---|
-| `ntp`, `ntp_proto` | network time protocol | Expands into something more informative than itself, which is the deratified class. Against: it is the protocol's registered name and `ntp_proto` is ratified. |
-| `mdns_proto`, `mdns_config`, `mdns_responder` | multicast DNS | The expansion contains a second acronym. A full spelling runs to `multicast_domain_name_system_proto` and has stopped teaching before it ends. |
+| ~~`ntp`, `ntp_proto`~~ | network time protocol | Expands into something more informative than itself, which is the deratified class. Against: it is the protocol's registered name and `ntp_proto` was ratified 2026-08-23. **Answered 2026-09-13: the stem is `network_time`**, deratifying that ruling; the crate is `network_time_protocol` since milestone 265 and the program was split away by milestone 290. |
+| ~~`mdns_proto`, `mdns_config`, `mdns_responder`~~ | multicast DNS | The expansion contains a second acronym. A full spelling runs to `multicast_domain_name_system_proto` and has stopped teaching before it ends. **Answered 2026-09-13: `multicast_dns`**, DNS staying whole as the `pci` case one level down. Performed by milestone 265: `multicast_dns_protocol`, `multicast_dns_config`, `multicast_dns_responder`. |
 | ~~`jh7110_trng`~~ (crate and program) | true random number generator | Expansion teaches, and the acronym is not one a reader outside hardware carries. **Answered 2026-09-13: `jh7110_entropy`**, via `jh7110_entropy_source` the same day. |
 | ~~`jh7110_crg`~~ | clock and reset generator | Expansion teaches. Against: both device trees for this chip spell the blocks `syscrg`, `stgcrg` and `aoncrg`, so the acronym is the hardware documentation's own. **Answered 2026-09-13: `jh7110_clock_and_reset`**, the against-case overruled by the same-day amendment to decision 113, which ends the external-standard exemption for acronym crates. |
 
@@ -49,10 +62,15 @@ accepts.
 
 ## What settling it needs
 
-A ruling per name, and one decision on the nested case (`mdns`), where the rule's own asymmetry
-argument runs out: spelling out the outer acronym exposes an inner one, so the expansion does not
-reach a word the newcomer knows either way. That is the interesting question in this list and it is
-not answerable by applying the rule harder.
+**Settled for the four names in the table**, including the nested case (`mdns`), where the rule's own
+asymmetry argument ran out: spelling out the outer acronym exposes an inner one, so the expansion
+does not reach a word the newcomer knows either way. calef did not apply the rule harder; he drew a
+line, and the reasoning is in milestone 265's block and in
+`crates/multicast_dns_protocol/src/lib.rs`'s provenance.
+
+What is left is the BUGS below: the five names the rule deratified by name, and the two kernel
+function names. Both want a ruling per name, and `ipc` is the reason this is still a milestone
+rather than an afternoon.
 
 ## BUGS
 

@@ -3,7 +3,7 @@
 **Status: PROPOSED 2026-09-05.** Written by milestone 111's lane, which hit it and worked around it.
 
 **Gate: NONE.** The mechanism already exists one layer up
-(`supervision_proto::ChildEndowment::placed`) and the kernel side is a field and a loop. What needs
+(`supervision_protocol::ChildEndowment::placed`) and the kernel side is a field and a loop. What needs
 deciding is whether the 91 `Spawn { .. }` literals get a `..Spawn::new()` idiom or an added field,
 which is a taste call inside the kernel and not a design fork.
 
@@ -11,7 +11,7 @@ which is a taste call inside the kernel and not a design fork.
 order, and offers no way to place one at a slot the caller names. Three named slots now exist
 (`grant_plan::DOMAIN_SLOT` at 7, `DIAGNOSTICS_SLOT` at 8, `ENTROPY_SLOT` at 9), and **no test under
 `script/test` can spawn a program holding any of them**, because the only builder that can place at a
-named slot is `supervision_proto::build_child`, which runs in userspace inside
+named slot is `supervision_protocol::build_child`, which runs in userspace inside
 `crates/system_initializer`. So every claim about a named slot's *endowed* direction is proven only
 by `script/shell-check`, which boots the real init twice and is one gate rather than the suite.
 
@@ -47,7 +47,7 @@ caught it.
 
 `Spawn` grows a `placed: &'a [(u64, crate::cap::Cap)]` beside `grants`, and `run` inserts each one
 at the slot named after the positional grants are laid down, which is exactly what
-`supervision_proto::build_child` already does for the userspace path. The two loops should read the
+`supervision_protocol::build_child` already does for the userspace path. The two loops should read the
 same, because they are the same operation on the same table.
 
 The only real work is the 91 existing `Spawn { .. }` literals. Two options and neither is

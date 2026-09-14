@@ -8,7 +8,7 @@
 text by matching 7x8 cells against `bitmap_font`:
 
 - `xtask/src/main.rs`: `parse_ppm`, `decode_cell`, `scanout_rows`, written by milestone 177 for the
-  graphical `shell-check` leg. Hardcoded to `graphics_proto`'s surface geometry and to
+  graphical `shell-check` leg. Hardcoded to `graphics_protocol`'s surface geometry and to
   `video_terminal::Attr::DEFAULT`'s colours, and it takes an explicit alphabet.
 - `crates/board_console/src/screen.rs`, written by milestone 243 for the framebuffer console's gate.
   Any geometry, any 24-bit PPM, `screen_console`'s colours, the whole printable alphabet, and its own

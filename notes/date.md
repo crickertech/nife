@@ -40,7 +40,7 @@ person typing `date` wants; a manifest that could express the selectors needs po
 
 ## The provenance line, and why it is worth a line
 
-`clock_proto::state` has four values and they are not a boolean. `rtc` means the machine read its
+`clock_protocol::state` has four values and they are not a boolean. `rtc` means the machine read its
 hardware clock at startup; `set` means somebody holding the page read/write wrote the offset;
 `synced` means the service accepted a proposal it bounded. "A human told me" and "an external source
 I checked" are different claims, and the difference is what a caller weighing a certificate expiry
@@ -70,7 +70,7 @@ reduced to a command anyone can type.
 
 ## The unknown clock, which is the part that is easy to get wrong
 
-`clock_proto::state::UNKNOWN` is a real state and it is the **default**: a frame nobody has
+`clock_protocol::state::UNKNOWN` is a real state and it is the **default**: a frame nobody has
 published to is zero, and zero reads as unknown. A machine with no RTC, or one whose RTC read a time
 the clock service did not believe, leaves its readers holding exactly that.
 
