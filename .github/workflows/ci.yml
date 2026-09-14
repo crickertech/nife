@@ -249,9 +249,18 @@ jobs:
       # dying while the progenitor prints shuffles the two lines together at byte granularity.
       # Local-only would have kept it invisible.
       #
+      # `boot-check` rides here on exactly the same argument (milestone 268), and it is the only
+      # thing on a pull request that boots the DEFAULT riscv64 or `x86_64` kernel at all: `test`
+      # boots a `cfg(test)` build that exits through semihosting before the tour, and `shell-check`
+      # boots `--features shell` on two architectures. The boot a person gets by typing `cargo xtask
+      # run` was unasserted, which is not theoretical: milestone 268's finding 3 is a checkpoint that
+      # could never fire on two of three architectures, and it hid for months because nothing read
+      # the channel it was supposed to appear on. Three debug kernels against this job's warm target
+      # directory is about a minute.
+      #
       # The suite first, because it is the broader signal and should be what fails first when both
       # would.
-      - run: script/ci-build test shell-check
+      - run: script/ci-build test shell-check boot-check
         if: steps.scope.outputs.needed == 'true'
 
   cpu-matrix:

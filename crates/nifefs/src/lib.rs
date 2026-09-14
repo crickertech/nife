@@ -98,7 +98,34 @@ pub const BLOCK: usize = 512;
 pub const MAGIC: [u8; 8] = *b"CRKR0002";
 
 /// How many blocks the superblock-and-directory occupies. File data starts after it.
-pub const DIR_BLOCKS: usize = 6;
+///
+/// **10 since milestone 291, up from 6.** 291 split `fixtures/src/hello.rs`'s role multiplexer
+/// into fourteen programs and packed `block_driver` on aarch64 as well, which is fifteen more
+/// archive entries on one board and fourteen on the other two; at 6 blocks the ceiling was 76 and
+/// both archives went over it on the same commit. The build failed loudly, which is the mechanism
+/// working: [`write_image`] refuses rather than truncating the directory.
+///
+/// **No magic bump**, following the rule [`MAGIC`] records for milestone 24's 4-to-6 move rather
+/// than the one it records for the wider entry: `start_block` is absolute, every reader finds the
+/// same data at the same offsets, and `ENTRIES_IN_FIRST_BLOCK` (the one bound a reader with a
+/// single buffered block cares about) is a function of [`NAME_LEN`] and does not move. Nothing can
+/// tell, so bumping would break the blk driver's hardcoded magic check for nothing.
+///
+/// **10 rather than 8, which would also have fit.** [`MAX_FILES`]'s own note says this ceiling gets
+/// crossed by lanes that cannot see each other, and it was crossed that way twice. The cost of the
+/// headroom is 2 KB, once, in an image that is nine megabytes; the cost of running out again is a
+/// lane's build failing on a change that has nothing to do with archives.
+///
+/// **The one cost that is not 2 KB, and it was measured by CI rather than by the lane that caused
+/// it**: `a_short_image_is_refused_not_indexed` proves the boundary with a `kani::any()` array of
+/// `DIR_BLOCKS * BLOCK - 1` bytes, so this move grew that symbolic input from 3071 bytes to 5119.
+/// The prediction was that the solver would not care, because the path under it is trivial
+/// (`parse` compares the length and returns before touching a byte). Both `prove` shards passed on
+/// the tree that made the change, in 14:59 and 15:20, which is the suite's ordinary shape. The
+/// prediction is not *proven* by that (a shard's total says nothing about one harness's share), so
+/// the number to watch if this constant is raised again is that harness's own time, not the
+/// shard's.
+pub const DIR_BLOCKS: usize = 10;
 
 /// The magic plus the count, before the first entry.
 pub const HEADER_LEN: usize = 12;
@@ -131,7 +158,7 @@ pub const ENTRY_LEN: usize = NAME_LEN + 8;
 pub const ENTRIES_IN_FIRST_BLOCK: usize = (BLOCK - HEADER_LEN) / ENTRY_LEN;
 
 /// The most files an archive can hold: the directory blocks, past the header, in whole entries.
-/// **76 at `DIR_BLOCKS = 6` and `ENTRY_LEN = 40`.**
+/// **127 at `DIR_BLOCKS = 10` and `ENTRY_LEN = 40`.**
 ///
 /// **`DIR_BLOCKS` moved from 4 to 6 with the wider entry, on purpose.** Widening alone would have
 /// dropped the ceiling from 63 files to 50, and the riscv64 initrd holds **exactly 50 files today**,
@@ -420,9 +447,11 @@ mod tests {
     #[test]
     fn the_capacity_constants_are_the_documented_values() {
         // (BLOCK - HEADER_LEN) / ENTRY_LEN = (512 - 12) / 40 = 12. The doc comment says 12.
+        // This one is a function of NAME_LEN alone and did not move when DIR_BLOCKS did.
         assert_eq!(ENTRIES_IN_FIRST_BLOCK, 12);
-        // (DIR_BLOCKS * BLOCK - HEADER_LEN) / ENTRY_LEN = (3072 - 12) / 40 = 3060 / 40 = 76.
-        assert_eq!(MAX_FILES, 76);
+        // (DIR_BLOCKS * BLOCK - HEADER_LEN) / ENTRY_LEN = (5120 - 12) / 40 = 5108 / 40 = 127.
+        // 76 at DIR_BLOCKS = 6, until milestone 291 raised it to 10.
+        assert_eq!(MAX_FILES, 127);
     }
 
     #[test]
@@ -438,9 +467,9 @@ mod tests {
     }
 
     /// **One byte under the directory span is `Truncated`, at the exact boundary.** The guard must
-    /// compare against the full `DIR_BLOCKS * BLOCK` = 3072 bytes; the 10-byte test above is under
-    /// every plausible mis-computation of that span (a `+` slip gives 518), so only a
-    /// just-under-the-line image proves the multiplication. A guard that let 3071 bytes through
+    /// compare against the full `DIR_BLOCKS * BLOCK` = 5120 bytes; the 10-byte test above is under
+    /// every plausible mis-computation of that span (a `+` slip gives 522), so only a
+    /// just-under-the-line image proves the multiplication. A guard that let 5119 bytes through
     /// would report `BadMagic` here instead, and would let entry reads run off a short image.
     #[test]
     fn an_image_one_byte_under_the_directory_span_is_truncated() {
@@ -705,7 +734,8 @@ mod verification {
 
     /// **A short image is always `Truncated`, never indexed**: for any image under the directory
     /// span, parse refuses before touching a byte past the length check (which is what keeps the
-    /// entry reads, up to offset 12 + `MAX_FILES`*32 inside `DIR_BLOCKS`, in bounds).
+    /// entry reads, up to offset [`HEADER_LEN`] + [`MAX_FILES`] * [`ENTRY_LEN`] inside
+    /// [`DIR_BLOCKS`], in bounds).
     /// Falsification: unfalsified
     #[kani::proof]
     fn a_short_image_is_refused_not_indexed() {

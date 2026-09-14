@@ -2,21 +2,21 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-const ROLE_MAKER: u64 = 17;
-const ROLE_USER: u64 = 18;
-
 /// Spawn the pair; returns the report endpoint carrying the word that crossed the minted
 /// endpoint.
-pub fn wire(image: &'static [u8]) -> RendezvousId {
+pub fn wire() -> RendezvousId {
+    // Roles 17 and 18 of the `hello` multiplexer until milestone 291; two binaries now.
+    let minter = program("rendezvous_minter").expect("no rendezvous_minter in the archive");
+    let peer = program("rendezvous_peer").expect("no rendezvous_peer in the archive");
     let channel = crate::sched::create_rendezvous();
     let report = crate::sched::create_rendezvous();
     let region = crate::memory_region::create(4).expect("no region for the maker's budget");
 
     crate::sched::spawn(move || {
         run(
-            image,
+            minter,
             Spawn {
-                arg0: ROLE_MAKER,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[
@@ -31,9 +31,9 @@ pub fn wire(image: &'static [u8]) -> RendezvousId {
 
     crate::sched::spawn(move || {
         run(
-            image,
+            peer,
             Spawn {
-                arg0: ROLE_USER,
+                arg0: 0,
                 arg1: 0,
                 arg2: 0,
                 grants: &[

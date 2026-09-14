@@ -36,9 +36,32 @@ pub enum Stage {
     UBoot,
     /// `Starting kernel ...`. U-Boot has handed over and everything after this is ours.
     Handoff,
-    /// Our own banner. The kernel's console works, which on this board is not a given: the runbook
-    /// is explicit that this line is the *second* target, after the DW-8250 driver work.
+    /// Our own banner (`boot_ladder::BANNER`). The kernel's console works, which on this board is
+    /// not a given: the runbook is explicit that this line is the *second* target, after the
+    /// DW-8250 driver work.
+    ///
+    /// **Reachable on all three architectures since milestone 268.** It was not before: aarch64
+    /// printed no opening line at all, so a healthy aarch64 board reported as never having booted,
+    /// which is the same defect [`Stage::Tour`] carries and is why that one is documented as one
+    /// architecture's rather than quietly left in the ladder.
     Banner,
+    /// The machine described itself and finished (`boot_ladder::MACHINE`), so the boot has read the
+    /// device tree or the ACPI tables, counted the processors, found the console's interrupt line,
+    /// the PCIe window and the IOMMU, and printed all of it.
+    ///
+    /// **A stronger claim than the banner and a weaker one than the self-test**, which is exactly
+    /// what a rung is for: the banner says the console works, this says discovery worked, and the
+    /// verdict below says the kernel works. A board that reaches the banner and stops here has a
+    /// console and a machine it cannot read.
+    Machine,
+    /// The boot self-test printed its verdict (`boot_ladder::SELF_TEST`).
+    ///
+    /// **This is the stage to wait for**, and it is the one milestone 268 built: it is reachable on
+    /// every architecture, it means paging, traps, the frame allocator, the timer with its
+    /// interrupt, and the scheduler all came up, and the line it matches carries counts rather than
+    /// a claim. A *failed* verdict is not this stage: it is [`Failure::SelfTestFailed`], so a
+    /// degraded board on the bench does not read as a good one.
+    SelfTest,
     /// The boot tour ran to its end (`nife: the capability core runs on ...`).
     ///
     /// A stronger signal than the banner and a different claim: the banner is printed before the
@@ -46,7 +69,24 @@ pub enum Stage {
     /// paging, traps, the timer, the frame allocator, SMP and the scheduler all came up. It is
     /// **not** the default to wait for, because only the milestone-tour build prints it; a shell
     /// or a test build reaches its banner and then does something else entirely.
+    ///
+    /// **It is one architecture's rung and it is kept as one** (milestone 268). The other two never
+    /// print it and are not expected to; what they print instead is [`Stage::Machine`] and
+    /// [`Stage::SelfTest`], which every architecture reaches. Waiting for this on aarch64 or
+    /// `x86_64` is waiting for something that does not happen, and that was invisible until
+    /// milestone 268's finding 3 named it.
     Tour,
+    /// Userspace is up and the shell is offering a prompt (`boot_ladder::PROMPT`).
+    ///
+    /// **The terminal state of a default boot** since milestone 268: nothing halts, and the prompt
+    /// rather than a halt is the signal that the boot finished. Above [`Stage::Tour`] because a
+    /// boot that reaches a prompt has gone past any demonstration on the way.
+    ///
+    /// Reachable today on aarch64's default boot and on riscv64's `--features shell` boot. **Not on
+    /// `x86_64`**, which has no entry point that hands the machine to a shell until DECISIONS §149
+    /// and milestone 182; that is stated here rather than left for a reader to discover from a
+    /// watch that times out.
+    Prompt,
     /// A sustained workload announced itself and is expected to keep speaking (milestone 219).
     ///
     /// **This is the only stage after which silence is a failure again.** Every stage below it is
@@ -69,7 +109,10 @@ impl Stage {
             Stage::UBoot => "U-Boot",
             Stage::Handoff => "kernel handoff",
             Stage::Banner => "kernel banner",
+            Stage::Machine => "machine described",
+            Stage::SelfTest => "self-test verdict",
             Stage::Tour => "boot tour complete",
+            Stage::Prompt => "shell prompt",
             Stage::Soak => "soak running",
         }
     }
@@ -108,6 +151,19 @@ pub enum Failure {
     /// board is sitting at a firmware error waiting to be reset, and saying so is the difference
     /// between resetting it and going looking for a multicore bug.
     UBootRefused(String),
+    /// **`nife self-test: 4 of 5 passed, 1 FAILED: <names>`**: the kernel tested itself on this
+    /// machine and one of the checks did not pass, carrying the names of the ones that did not.
+    ///
+    /// **This is a failure and not a stage**, which is milestone 268's item 5: a degraded board on
+    /// the bench must not read as a good one, and a boot that reaches the verdict red has reached
+    /// something different from a boot that reaches it green.
+    ///
+    /// **The boot did not stop**, and that is the one thing about this variant a reader has to
+    /// know. The self-test reports and does not gate (calef, 2026-09-09: a machine you cannot log
+    /// into is a machine you cannot fix), so the kernel carried on to userspace and a prompt may
+    /// well be waiting. What this says is that something the kernel needs is broken, and the board
+    /// is worth looking at rather than worth using.
+    SelfTestFailed(String),
 }
 
 impl Failure {
@@ -135,6 +191,14 @@ impl Failure {
             Failure::UBootRefused(reason) => {
                 format!("U-Boot gave up before the kernel ran and wants the board reset: {reason}")
             }
+            // Worded to say what happened next, because the obvious reading of "a self-test
+            // failed" is that the machine stopped, and it did not. Someone acting on this report
+            // needs to know the board is still up and is worth logging into.
+            Failure::SelfTestFailed(names) => format!(
+                "the kernel's boot self-test failed on this machine: {names}. The boot continued to \
+                 userspace anyway (it reports, it does not gate), so the board is up and degraded \
+                 rather than dead"
+            ),
         }
     }
 }
@@ -198,6 +262,13 @@ pub struct BootProgress {
     relocated: bool,
     userspace_ran: bool,
     banner_line: Option<String>,
+    /// The machine description's summary line (milestone 268), so a report can say what machine
+    /// answered without a reader going back to the log. `None` until [`Stage::Machine`].
+    machine_line: Option<String>,
+    /// The self-test verdict exactly as it arrived (milestone 268), counts and all. Kept even when
+    /// it is green, because "five of five" and "one of one" are different facts about a build and
+    /// the difference is what a vacuous pass looks like.
+    self_test_line: Option<String>,
     /// The most recent soak heartbeat's numbers (milestone 219), so the tool can put the run's own
     /// figure in its summary instead of making a reader go back to a log for it. `None` until a
     /// heartbeat has been seen and parsed.
@@ -266,6 +337,25 @@ impl BootProgress {
         self.banner_line.as_deref()
     }
 
+    /// The machine description's summary line, if this session saw one (milestone 268). It names
+    /// the architecture, the processor count, the memory size and the tick rate, which is the
+    /// shortest honest answer to "what did I just boot".
+    #[must_use]
+    pub fn machine_line(&self) -> Option<&str> {
+        self.machine_line.as_deref()
+    }
+
+    /// The self-test verdict exactly as the kernel printed it, if this session saw one (milestone
+    /// 268), whether it was green or red.
+    ///
+    /// **Kept on a green boot too**, deliberately: the counts are the only defence against a
+    /// vacuous pass, and a reader comparing two runs needs to see that both ran the same number of
+    /// checks. A red verdict also appears as [`Failure::SelfTestFailed`]; this is the raw line.
+    #[must_use]
+    pub fn self_test_line(&self) -> Option<&str> {
+        self.self_test_line.as_deref()
+    }
+
     /// Offer a line that ended with a line terminator.
     ///
     /// Idempotent: stages ratchet and the failure is recorded once, so the same text may be
@@ -314,15 +404,43 @@ impl BootProgress {
         if line.contains("Starting kernel ...") {
             self.reach(Stage::Handoff);
         }
+        // **Every marker below is `boot_ladder`'s rather than a literal** (milestone 268), so this
+        // recogniser and the kernel cannot hold two copies of one contract. Before that crate the
+        // only marker that existed was a string literal in one architecture's arm of
+        // `kernel/src/main.rs` and a second copy of it here, which is exactly how finding 3 hid.
+        //
         // `nife on ` rather than the RISC-V line specifically: `kernel/src/main.rs` prints one of
         // these per architecture, and a recogniser that only knew the VisionFive 2's would report
         // a healthy aarch64 or x86_64 board as never having booted. The full line is kept so the
         // reader sees which one answered, and only from a complete line, or it is kept truncated.
-        if let Some(at) = line.find("nife on ") {
+        if let Some(at) = line.find(boot_ladder::BANNER) {
             self.reach(Stage::Banner);
             if complete && self.banner_line.is_none() {
                 self.banner_line = Some(line[at..].to_string());
             }
+        }
+        // The machine description's closing summary (milestone 268). Its *last* line rather than
+        // its first, so reaching this rung means the whole block printed.
+        if let Some(at) = line.find(boot_ladder::MACHINE) {
+            self.reach(Stage::Machine);
+            if complete && self.machine_line.is_none() {
+                self.machine_line = Some(line[at..].to_string());
+            }
+        }
+        // The self-test verdict (milestone 268). The stage ratchets on a partial line, because a
+        // substring match is monotone and more bytes cannot unmake it; the *text* is only captured
+        // from a complete line, and so is the failure below, because a truncated verdict would
+        // record a count that has not finished arriving.
+        if let Some(at) = line.find(boot_ladder::SELF_TEST) {
+            self.reach(Stage::SelfTest);
+            if complete && self.self_test_line.is_none() {
+                self.self_test_line = Some(line[at..].to_string());
+            }
+        }
+        // The shell's banner, which is the top rung: userspace is up and a prompt is coming. See
+        // `boot_ladder::PROMPT`'s own BUGS for why the banner rather than the `$ ` itself.
+        if line.contains(boot_ladder::PROMPT) {
+            self.reach(Stage::Prompt);
         }
 
         if line.contains("Moving Image from") {
@@ -331,7 +449,7 @@ impl BootProgress {
         if line.contains("init/build") {
             self.userspace_ran = true;
         }
-        if let Some(at) = line.find("nife: the capability core runs on ") {
+        if let Some(at) = line.find(boot_ladder::TOUR) {
             self.reach(Stage::Tour);
             if complete && self.banner_line.is_none() {
                 self.banner_line = Some(line[at..].to_string());
@@ -364,6 +482,16 @@ impl BootProgress {
                 self.failure = Some(Failure::KernelPanic(
                     line[at + "[PANIC] ".len()..].to_string(),
                 ));
+            } else if complete
+                && let Some(at) = line.find(boot_ladder::SELF_TEST)
+                && let Some(failed) = line[at..].find(boot_ladder::SELF_TEST_FAILED)
+            {
+                // **Both markers, on one complete line.** `FAILED:` on its own is a word the boot
+                // tour has used since milestone 267 for its preemption check, so matching it alone
+                // would report that unrelated line as a self-test failure; and the verdict prefix
+                // alone is every green boot. The names are what follows the token.
+                let names = line[at + failed + boot_ladder::SELF_TEST_FAILED.len()..].trim();
+                self.failure = Some(Failure::SelfTestFailed(names.to_string()));
             }
         }
 
@@ -557,6 +685,144 @@ mod tests {
             )),
             "the reason is the line before the ERROR, and a reader needs it"
         );
+    }
+
+    /// **The whole portable ladder, in order** (milestone 268), and this is the test that says the
+    /// three rungs a boot climbs on every architecture are recognised in the order they arrive.
+    ///
+    /// The lines are the kernel's own markers plus the tails it actually prints, rather than
+    /// invented text: a recogniser matching text no board ever prints fails in the direction that
+    /// looks like success.
+    #[test]
+    fn the_ladder_climbs_banner_machine_self_test_prompt() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("nife on aarch64 (EL1, MMU off: physical addresses until mmu::init)");
+        assert_eq!(progress.reached(), Stage::Banner);
+        progress.observe_line("nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz");
+        assert_eq!(progress.reached(), Stage::Machine);
+        progress.observe_line("nife self-test: 5 of 5 passed");
+        assert_eq!(progress.reached(), Stage::SelfTest);
+        assert_eq!(progress.failure(), None, "a green verdict is not a failure");
+        progress
+            .observe_line("nife capability shell. naming a resource in a command IS granting it.");
+        assert_eq!(progress.reached(), Stage::Prompt);
+    }
+
+    /// **Every architecture reaches the verdict, and that is the point of the milestone.** The
+    /// same three assertions against the three banners this tree prints, because finding 3 was
+    /// exactly a marker that only one architecture's arm produced.
+    #[test]
+    fn every_architecture_reaches_the_self_test_verdict() {
+        for (banner, machine) in [
+            (
+                "nife on aarch64 (EL1, MMU off: physical addresses until mmu::init)",
+                "nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz",
+            ),
+            (
+                "nife on RISC-V (rv64, S-mode, Sv39)",
+                "nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz",
+            ),
+            (
+                "nife on x86_64 (long mode, ring 0, 4-level paging)",
+                "nife machine: x86_64, 1 processor(s), 254 MiB, 100 Hz",
+            ),
+        ] {
+            let mut progress = BootProgress::new();
+            progress.observe_line(banner);
+            progress.observe_line(machine);
+            progress.observe_line("nife self-test: 5 of 5 passed");
+            assert_eq!(
+                progress.reached(),
+                Stage::SelfTest,
+                "{banner} did not climb the ladder"
+            );
+            assert_eq!(progress.machine_line(), Some(machine));
+        }
+    }
+
+    /// **A red verdict is a failure and not a stage.** Milestone 268's item 5: a degraded board on
+    /// the bench must not read as a good one, and this is the assertion that says so.
+    #[test]
+    fn a_failed_verdict_is_announced_with_the_names() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz");
+        progress.observe_line("nife self-test: 4 of 5 passed, 1 FAILED: exceptions");
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::SelfTestFailed("exceptions".to_string())),
+        );
+        // And the stage still ratchets: the verdict *did* arrive, which is a different fact from
+        // whether it was green, and a report that lost it would say the board never self-tested.
+        assert_eq!(progress.reached(), Stage::SelfTest);
+        assert_eq!(
+            progress.self_test_line(),
+            Some("nife self-test: 4 of 5 passed, 1 FAILED: exceptions"),
+        );
+    }
+
+    /// More than one failed check, because the verdict names them all and a reader needs all of
+    /// them: fixing the first and re-running to discover the second is the loop this avoids.
+    #[test]
+    fn a_failed_verdict_carries_every_name() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("nife self-test: 3 of 5 passed, 2 FAILED: mapping scheduler");
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::SelfTestFailed("mapping scheduler".to_string())),
+        );
+    }
+
+    /// **`FAILED:` on its own is not a self-test failure**, and this is the regression that says
+    /// so. The boot tour has printed that token since milestone 267 for its preemption check, so a
+    /// recogniser keying on the word alone would report every such line as a broken self-test.
+    #[test]
+    fn the_tours_own_failed_token_is_not_a_self_test_failure() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("  FAILED: a spinner did not run, or nothing was preempted.");
+        assert_eq!(progress.failure(), None);
+    }
+
+    /// A green verdict's counts are kept, because they are the only defence this tree has against
+    /// a self-test that quietly stopped running anything. "0 of 0 passed" is a *passing* verdict
+    /// and a broken build, and a reader can only see that if the numbers survive.
+    #[test]
+    fn a_green_verdict_keeps_its_counts() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("nife self-test: 0 of 0 passed");
+        assert_eq!(progress.failure(), None);
+        assert_eq!(
+            progress.self_test_line(),
+            Some("nife self-test: 0 of 0 passed")
+        );
+    }
+
+    /// A partial verdict ratchets the stage and captures nothing, which is `observe_partial`'s
+    /// contract: a substring match is monotone, so more bytes cannot unmake the rung, but a
+    /// truncated line would record a count that has not finished arriving.
+    #[test]
+    fn a_partial_verdict_ratchets_but_does_not_capture() {
+        let mut progress = BootProgress::new();
+        progress.observe_partial("nife self-test: 4 of 5 pas");
+        assert_eq!(progress.reached(), Stage::SelfTest);
+        assert_eq!(progress.self_test_line(), None);
+        assert_eq!(
+            progress.failure(),
+            None,
+            "the FAILED token has not arrived yet, and half a verdict is not a verdict"
+        );
+    }
+
+    /// The ladder is an order, and these are the two comparisons the tools actually make.
+    #[test]
+    fn the_new_rungs_sit_where_the_milestone_put_them() {
+        assert!(Stage::Machine > Stage::Banner);
+        assert!(Stage::SelfTest > Stage::Machine);
+        assert!(
+            Stage::Tour > Stage::SelfTest,
+            "the riscv tour runs after it"
+        );
+        assert!(Stage::Prompt > Stage::Tour, "a prompt is past any tour");
+        assert!(Stage::Soak > Stage::Prompt, "a soak replaces the handoff");
     }
 
     /// The banner is not the end of the story, and the two captures differ by exactly this: both

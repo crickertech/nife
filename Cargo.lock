@@ -83,9 +83,14 @@ name = "board_console"
 version = "0.1.0"
 dependencies = [
  "bitmap_font",
+ "boot_ladder",
  "machine_discovery",
  "screen_console",
 ]
+
+[[package]]
+name = "boot_ladder"
+version = "0.1.0"
 
 [[package]]
 name = "byte_sink_proto"
@@ -110,6 +115,10 @@ version = "0.1.0"
 
 [[package]]
 name = "capability"
+version = "0.1.0"
+
+[[package]]
+name = "capability_demo_proto"
 version = "0.1.0"
 
 [[package]]
@@ -155,6 +164,7 @@ dependencies = [
  "abi",
  "bitmap_font",
  "block_roster",
+ "boot_ladder",
  "byte_sink_proto",
  "calendar",
  "clock_proto",
@@ -339,6 +349,7 @@ dependencies = [
  "abi",
  "byte_sink_proto",
  "c_seam",
+ "capability_demo_proto",
  "clock_proto",
  "component_plan",
  "compositor",
@@ -350,6 +361,7 @@ dependencies = [
  "graphics_proto",
  "job_mix",
  "line_editor",
+ "loaded_image_check",
  "login_proto",
  "nifefs",
  "ntp_proto",
@@ -360,7 +372,6 @@ dependencies = [
  "swap_proto",
  "system_initializer",
  "user_mode_runtime",
- "virtio",
 ]
 
 [[package]]
@@ -468,9 +479,11 @@ dependencies = [
  "asid",
  "bitmap_font",
  "block_roster",
+ "boot_ladder",
  "byte_sink_proto",
  "calendar",
  "capability",
+ "capability_demo_proto",
  "clock_proto",
  "compositor",
  "coremark",
@@ -530,6 +543,10 @@ checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
 name = "line_editor"
+version = "0.1.0"
+
+[[package]]
+name = "loaded_image_check"
 version = "0.1.0"
 
 [[package]]

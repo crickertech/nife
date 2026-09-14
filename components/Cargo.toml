@@ -492,6 +492,10 @@ bench = false
 workspace = true
 
 [dependencies]
+# The boot ladder's console markers (milestone 268). `swish` prints the last rung; the kernel
+# prints the ones below it and `crates/board_console` matches all of them, so AGENTS.md rule 7
+# makes the strings a crate rather than copies. `no_std`, no dependencies of its own.
+boot_ladder = { version = "0.1.0", path = "../crates/boot_ladder" }
 abi = { version = "0.1.0", path = "../crates/abi" }
 supervision_proto = { version = "0.1.0", path = "../crates/supervision_proto" }
 # The interactive system, built once (milestone 96). Both inits are a table of the slot numbers

@@ -428,16 +428,23 @@ pub fn init() {
 
 /// **Prove the trap path round-trips**, by taking a breakpoint and returning from it.
 ///
-/// Returns the breakpoint count after the round trip, which the boot tour prints. The same shape as
-/// the RISC-V twin, and it earns its place for the same reason: an IDT that is installed but whose
-/// return path is wrong produces a kernel that runs fine until the first real fault and then
-/// vanishes, and there is no other cheap moment to find that out.
+/// Returns how many breakpoints were caught **during this call**, which the boot tour prints. The
+/// same shape as the RISC-V and aarch64 twins, and it earns its place for the same reason: an IDT
+/// that is installed but whose return path is wrong produces a kernel that runs fine until the
+/// first real fault and then vanishes, and there is no other cheap moment to find that out.
+///
+/// **It returned the cumulative count until milestone 268**, which read the same as the other two
+/// right up until something called it twice: the tour calls it once during bring-up and
+/// `self_test::run` calls it again a few hundred lines later, and the second call reported `2`.
+/// Harmless here (both tests are `>= 1`) and exactly the shape of bug that is not harmless in a
+/// counter somebody later compares for equality, so the three now answer the same question.
 pub fn self_test() -> usize {
+    let before = BRK_COUNT.load(Ordering::Relaxed);
     // SAFETY: `int3` raises vector 3, which the IDT above routes to the common handler. The handler
     // treats a breakpoint as an event to count and step over, so this returns to the next
     // instruction.
     unsafe { core::arch::asm!("int3", options(nomem, nostack)) };
-    BRK_COUNT.load(Ordering::Relaxed)
+    BRK_COUNT.load(Ordering::Relaxed) - before
 }
 
 // ---------------------------------------------------------------------------------------------

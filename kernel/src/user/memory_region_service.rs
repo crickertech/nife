@@ -2,7 +2,12 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-const ROLE_MEMORY_REGION_DEMO: u64 = 7;
+/// **The program this wires**, `fixtures/src/memory_region_depleter.rs`. It was role 7 of the
+/// `hello` multiplexer until milestone 291 and took its role selector in `x0`; it is its own
+/// binary now and reads nothing from `x0` at all.
+pub fn depleter_image() -> &'static [u8] {
+    program("memory_region_depleter").expect("no memory_region_depleter program in the archive")
+}
 
 /// Carve `pages` of memory into an untyped region, hand it to a fresh process, and return the
 /// region id, the endpoint the process reports on, and the thread it runs as. The kernel's ONE
@@ -24,7 +29,7 @@ pub fn start(
         run(
             image,
             Spawn {
-                arg0: ROLE_MEMORY_REGION_DEMO,
+                arg0: 0, // one job, no role selector
                 arg1: 0,
                 arg2: 0,
                 grants: &[

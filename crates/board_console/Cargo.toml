@@ -33,6 +33,13 @@ workspace = true
 # one property a gate has to have. It is ours, in this workspace, has no dependencies of its own,
 # and contains no `unsafe`; §46's concern is external code and this is none.
 bitmap_font = { version = "0.1.0", path = "../bitmap_font" }
+# **The second dependency, and the same argument as the first** (milestone 268). The recogniser
+# below keys on the lines the kernel prints at each rung of the boot. A second copy of those strings
+# here would be a gate that cannot disagree with the thing it gates, which is the one property a
+# gate has to have; milestone 268's finding 3 is what the second copy actually costs. Ours, in this
+# workspace, `no_std`, no dependencies of its own, no `unsafe`: §46's concern is external code and
+# this is none.
+boot_ladder = { version = "0.1.0", path = "../boot_ladder" }
 
 [dev-dependencies]
 # The *writer* the `screen` tests read back from, so that "what the kernel draws is what this
