@@ -3607,10 +3607,12 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // `spawn_progenitor` enters on aarch64. aarch64 used to pack it as `init` because there it
         // also carried the boot role; that role is `progenitor` now, and the alias went with it.
         ("hello", "hello"),
-        // The sink contract's ends (milestone 50). Portable, so both archives carry it: the claim
-        // is that a program cannot tell what its output slot holds, and that has to hold on either
-        // instruction set or it is not a claim.
-        ("sink", "sink"),
+        // The sink contract's ends (milestone 50), three programs since milestone 292. Portable, so
+        // both archives carry them: the claim is that a program cannot tell what its output slot
+        // holds, and that has to hold on either instruction set or it is not a claim.
+        ("sink_transcript_writer", "sink_transcript_writer"),
+        ("file_sink", "file_sink"),
+        ("file_source", "file_source"),
         // The consumer (milestone 50). Both archives, for the sink's reason: `date | wc` has to
         // compose on either instruction set or it is not a claim about the system.
         ("wc", "wc"),
@@ -4513,8 +4515,11 @@ fn initrd_aarch64() -> bool {
         // The outlaw (milestone 19's user-test port): the privilege-boundary programs
         // kernel::user::tests used to hand-assemble.
         ("outlaw", "outlaw"),
-        // The sink contract's ends (milestone 50): the indifferent writer and the read-back.
-        ("sink", "sink"),
+        // The sink contract's ends (milestone 50): the writer that cannot tell what it is writing
+        // to, the file behind the slot, and the read-back. Three programs since milestone 292.
+        ("sink_transcript_writer", "sink_transcript_writer"),
+        ("file_sink", "file_sink"),
+        ("file_source", "file_source"),
         // `wc` (milestone 50): the right-hand side of a pipe, and the first program that reads a
         // stream.
         ("wc", "wc"),

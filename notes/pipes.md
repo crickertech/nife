@@ -121,8 +121,8 @@ No new protocol, no new opcodes, no reply. Three consequences fall out and all t
    side of `|` are. A program that can be piped into can be redirected into, with no second code
    path.
 2. **A source's producer is an ordinary writer.** A file behind a `<` is a process that opens the
-   file and writes the sink contract at it, which is what `fixtures/src/sink.rs`'s verify role already
-   was. The shell itself is a producer when a builtin leads a pipeline.
+   file and writes the sink contract at it, which is what `fixtures/src/file_source.rs` already
+   was (`fixtures/src/sink.rs`'s verify role, until milestone 292 gave it its own name). The shell itself is a producer when a builtin leads a pipeline.
 3. **`OP_EOF` becomes load-bearing rather than tidy.** A reader has to be told the producer is
    finished; inferring it from a death notification would be a fact about process supervision
    standing in for a fact about a stream. This is why `date` gained an end-of-stream message.
@@ -1297,10 +1297,10 @@ reader would look. The symptom is always a data abort one word below the lowest 
   (both of them) and nothing runs it automatically, which is a weaker version of the gap it closed.
   It has now caught two boots that printed nothing, which is two more than any automatic gate did.
   Wiring it into the CI test job is a one-line change and is deliberately still not taken here.
-- **`fixtures/src/sink.rs`'s file and source roles are no longer on the shell's path.** They are still
+- **`fixtures/src/file_sink.rs` and `fixtures/src/file_source.rs` are no longer on the shell's path.** They are still
   the right shape for an adapter whose client is not the shell, and `sink_tests` still proves them
   against a real image, but nothing at the prompt builds one. (`components/src/terminal_sink_caretaker.rs` is that
-  shape with a client the prompt does build, which is the closest this has come to being used.) The source role also still opens the
+  shape with a client the prompt does build, which is the closest this has come to being used.) `file_source` also still opens the
   one name in `byte_sink_proto::fixture` and cannot be told another; the shell would have had to hand it
   a name the way `fs_file_caretaker` is handed one, and it turned out not to need to.
 - **The interactive prompt holds the image root, unnarrowed.** A `fs_subtree_caretaker` between it

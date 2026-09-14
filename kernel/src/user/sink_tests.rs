@@ -4,11 +4,10 @@ use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// `fixtures/src/sink.rs`'s writer role. Its `arg1` is how many times to write the transcript, with
-/// 0 meaning "until the sink stops taking it".
-const ROLE_WRITER: u64 = 0;
-
-/// Spawn the writer against `sink`, and return the endpoint it reports its classification on.
+/// Spawn `fixtures/src/sink_transcript_writer.rs` against `sink`, and return the endpoint it
+/// reports its classification on. `repeat` is how many times to write the transcript, with 0
+/// meaning "until the sink stops taking it", and it is the program's `a0` because the program has
+/// no other argument: there used to be a role number in front of it.
 ///
 /// `None` is the case that has no sink, and the wiring says so by **leaving slot 0 empty**
 /// rather than by passing a flag: an empty capability table slot is how this kernel spells "you were
@@ -21,8 +20,8 @@ fn spawn_writer(image: &'static [u8], sink: Option<RendezvousId>, repeat: u64) -
         Some(ep) => run(
             image,
             Spawn {
-                arg0: ROLE_WRITER,
-                arg1: repeat,
+                arg0: repeat,
+                arg1: 0,
                 arg2: 0,
                 grants: &[
                     rendezvous_cap(ep, Rights::WRITE),     // slot 0: the byte sink
@@ -37,8 +36,8 @@ fn spawn_writer(image: &'static [u8], sink: Option<RendezvousId>, repeat: u64) -
             run(
                 image,
                 Spawn {
-                    arg0: ROLE_WRITER,
-                    arg1: repeat,
+                    arg0: repeat,
+                    arg1: 0,
                     arg2: 0,
                     grants: &[],
                     maps: &[],
@@ -105,8 +104,8 @@ fn wc_counts(out: RendezvousId, what: &str) -> (u64, u64, u64) {
 /// - **a pipe**: this test sends the transcript on an endpoint itself, sixteen bytes at a time,
 ///   then `OP_EOF`. That is exactly what a program on the left of a `|` does.
 /// - **a file**: the transcript is written into a real file on the real RedoxFS image by
-///   `sink`'s file role, and read back out by its source role, which streams it over the same
-///   contract. That is `wc < report.txt`, minus the shell that would name the file.
+///   `file_sink`, and read back out by `file_source`, which streams it over the same contract.
+///   That is `wc < report.txt`, minus the shell that would name the file.
 ///
 /// The two arms share nothing but the framing. The second crosses two userspace processes, an
 /// FS server, a block server and a virtio disk; the first does not leave this address space.
@@ -119,7 +118,10 @@ fn one_reader_two_sources_and_the_same_answer() {
     if fs_service::fs_server_image().is_none() {
         crate::testing::skip!(fs_service::NO_FS_SERVER);
     }
-    let sink_image = program("sink").expect("no sink program in the initrd archive");
+    let writer_image =
+        program("sink_transcript_writer").expect("no sink_transcript_writer in the initrd archive");
+    let file_sink_image = program("file_sink").expect("no file_sink in the initrd archive");
+    let file_source_image = program("file_source").expect("no file_source in the initrd archive");
     // **The block server, whichever binary carries it here.** This named `"init"` outright, which
     // was the aarch64 convention: there `init` *was* the hello binary and hello carried the role. On
     // both other architectures `init` was the portable `builder` demo, which has no such role, so
@@ -159,7 +161,7 @@ fn one_reader_two_sources_and_the_same_answer() {
     );
 
     // Arm two: the same bytes, through a real filesystem. Write them first.
-    let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
+    let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, file_sink_image) else {
         // **The pipe arm above ran and asserted; the file arm is what is missing.** This is
         // reported as a skip rather than as a pass because the claim in this test's *name* is that
         // two sources agree, and one source cannot agree with anything. The reason says which half
@@ -177,7 +179,7 @@ fn one_reader_two_sources_and_the_same_answer() {
         fixture::READY,
         "the file sink could not open its file",
     );
-    let wrote = spawn_writer(sink_image, Some(file_sink.sink), 1);
+    let wrote = spawn_writer(writer_image, Some(file_sink.sink), 1);
     let [code, total, ..] = crate::sched::ipc_recv(wrote);
     assert_eq!(
         code,
@@ -193,7 +195,7 @@ fn one_reader_two_sources_and_the_same_answer() {
 
     // Then read them back into `wc`, which is `<`.
     let Some((source, verify_report)) =
-        fs_service::start_sink_verify(blk, redoxfs_server, sink_image)
+        fs_service::start_file_source(blk, redoxfs_server, file_source_image)
     else {
         panic!("the FS service vanished between the file sink and its source");
     };
@@ -221,7 +223,7 @@ fn one_reader_two_sources_and_the_same_answer() {
 ///
 /// `std_exerciser` is spawned twice with **identical grants except for what is behind slot 1**: once
 /// with an endpoint this test receives on, which is the pipe shape (an ordinary receiver, no
-/// page, no reply), and once with an endpoint served by `sink` in its file role, which appends
+/// page, no reply), and once with an endpoint served by `file_sink`, which appends
 /// every message into a file on the real RedoxFS image through the real FS server. The file is
 /// then read back by a **third** process with its own FS session and streamed home over the
 /// sink contract.
@@ -248,7 +250,8 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
         program("std_exerciser").expect("no std_exerciser program in the initrd archive");
     let clock = program("clock").expect("no clock program in the initrd archive");
     let entropy = program("entropy").expect("no entropy program in the initrd archive");
-    let sink_image = program("sink").expect("no sink program in the initrd archive");
+    let file_sink_image = program("file_sink").expect("no file_sink in the initrd archive");
+    let file_source_image = program("file_source").expect("no file_source in the initrd archive");
     let Some(redoxfs_server) = program("redoxfs_server") else {
         crate::testing::skip!("no redoxfs_server program in this archive");
     };
@@ -277,7 +280,7 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
     // architectures attaches one to a leg that reaches here; `fs_service::blk_server_image()` is
     // the one place that disagreement is written down, and now this goes through it.
     let blk = fs_service::blk_server_image();
-    let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, sink_image) else {
+    let Some(file_sink) = fs_service::start_file_sink(blk, redoxfs_server, file_sink_image) else {
         crate::testing::skip!("no RedoxFS disk attached");
     };
     let (sink_ep, sink_report) = (file_sink.sink, file_sink.report);
@@ -303,7 +306,8 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
 
     // The read-back, in a third process with its own FS session, and only now that the sink has
     // closed the file: the two share the FS server's one file page.
-    let Some((out, verify_report)) = fs_service::start_sink_verify(blk, redoxfs_server, sink_image)
+    let Some((out, verify_report)) =
+        fs_service::start_file_source(blk, redoxfs_server, file_source_image)
     else {
         panic!("the FS service vanished between the file sink and its verifier");
     };
@@ -348,7 +352,8 @@ fn a_program_cannot_tell_what_its_output_slot_holds() {
 /// never given a console.
 #[test_case]
 fn a_destroyed_sink_ends_the_writer_and_an_absent_one_does_not() {
-    let image = program("sink").expect("no sink program in the initrd archive");
+    let image =
+        program("sink_transcript_writer").expect("no sink_transcript_writer in the initrd archive");
 
     // 1. A sink that stays.
     let live = crate::sched::create_rendezvous();
@@ -418,7 +423,7 @@ fn a_destroyed_sink_ends_the_writer_and_an_absent_one_does_not() {
 /// `OP_READLINE`, and `WRITE` on an endpoint is the right to `CALL`, so a child handed it as its
 /// output slot would hold the keyboard. A sink capability that can read the keyboard is not a sink
 /// capability. So the terminal's sink is a **separate endpoint served by an adapter**, which is
-/// `fs_file_caretaker`'s shape and exactly what `sink`'s own file role already was for a file.
+/// `fs_file_caretaker`'s shape and exactly what `file_sink` already is for a file.
 ///
 /// The wiring is the real one with the terminal replaced by this test: `terminal_sink_caretaker` holds the
 /// sink endpoint `READ` and a terminal endpoint `WRITE`, and the kernel serves the terminal contract
@@ -432,7 +437,8 @@ fn a_destroyed_sink_ends_the_writer_and_an_absent_one_does_not() {
 fn the_terminal_is_a_sink_like_any_other_and_the_writer_cannot_tell() {
     let adapter = program("terminal_sink_caretaker")
         .expect("no terminal_sink_caretaker program in the initrd");
-    let writer = program("sink").expect("no sink program in the initrd archive");
+    let writer =
+        program("sink_transcript_writer").expect("no sink_transcript_writer in the initrd archive");
 
     let sink_ep = crate::sched::create_rendezvous();
     let term_ep = crate::sched::create_rendezvous();

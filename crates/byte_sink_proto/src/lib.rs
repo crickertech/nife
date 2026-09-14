@@ -281,13 +281,13 @@ pub const fn classify(ret: i64) -> Sent {
 pub mod fixture {
     use super::Sent;
 
-    /// What `fixtures/src/sink.rs`'s writer role writes. Long enough to span several messages and to
+    /// What `fixtures/src/sink_transcript_writer.rs` writes. Long enough to span several messages and to
     /// end mid-message, so a decoder that only ever sees full 16-byte chunks is not being flattered
     /// by the fixture.
     pub const TRANSCRIPT: &[u8] =
         b"a program does not know what its output slot holds, and that is the point.\n";
 
-    /// The name the file-sink role writes into. Created on first use rather than shipped in the
+    /// The name `fixtures/src/file_sink.rs` writes into. Created on first use rather than shipped in the
     /// image, because the file's existence is part of what the test proves.
     pub const SINK_NAME: &str = "sinkout";
 
