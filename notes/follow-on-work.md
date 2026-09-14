@@ -148,7 +148,7 @@ of it, and leaving it unpromoted costs more than tidiness, because **a claim thi
 on it or a record in the tree is now known to be wrong**.
 
 1. **The three instruments nothing runs.** `script/interleaving-check`, `script/crate-probes` and
-   `script/rule-violations --check` are referenced by neither CI nor `script/gates`. `crate-probes`
+   `script/rule-violations --check` are referenced by neither CI nor `script/ci-build`. `crate-probes`
    is the instrument behind **fatal risk 1, which is recorded GREEN on whatever somebody saw when
    they last ran it by hand**. Named by milestone 232.
 2. **Replay the kernel falsification records.** Six of milestone 202's confinement claims have no

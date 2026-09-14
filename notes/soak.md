@@ -332,7 +332,7 @@ where risk 5's one observed defect lived, on radon, and it had **exactly one cal
 **Four properties, each of which was a requirement rather than a bonus:**
 
 - **No syscall is added.** The userspace half already existed: `abi::irq::WAIT` is a method on an
-  `Irq` capability and `user_rt::irq_wait` calls it. Only the *raise* was missing, and the kernel is
+  `Irq` capability and `user_mode_runtime::irq_wait` calls it. Only the *raise* was missing, and the kernel is
   already the thing that raises interrupts.
 - **Nothing exists in a production build.** Proved above, not asserted.
 - **It is architecture-neutral, and that is load-bearing.** riscv64 has no software-raisable line

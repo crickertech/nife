@@ -85,7 +85,7 @@ sink_proto          43       2        0         2      47    95.6
 slots               26       5        0        13      44    83.9
 socket_proto        15       2        0         0      17    88.2
 swish               44       3        9         2      58    94.6
-user_heap           20       3        5         7      35    89.3
+user_mode_heap           20       3        5         7      35    89.3
 video_terminal     211      79        0        11     301    72.8
 TOTAL             4654     391       96       410    5551    92.4
 ```
@@ -193,7 +193,7 @@ baseline:
   **Retracted on 2026-09-03 by milestone 244, which is what this bullet asked for.** That crate was
   never in `.cargo/mutants.toml`, though the other three in its position are and
   that file's own head comment says its list mirrors `script/coverage`'s and asks the next person to
-  keep the two in step. It reaches `user_rt`, so the host suite
+  keep the two in step. It reaches `user_mode_runtime`, so the host suite
   cannot compile a line of it, and both numbers above are a crate scored against a suite that could
   not have killed anything. It is excluded now, and `script/lint`'s bare-metal gate derives the four
   places that have to agree rather than asking anyone to keep them in step. See the corrected rates
@@ -597,7 +597,7 @@ input that also trips check A.
   length masked to bits 31:0. And `pack`'s `bytes.len() < INLINE_MAX` to `<=` is the boundary where
   both arms return the same number: at exactly sixteen bytes `bytes.len()` *is* `INLINE_MAX`, so no
   slice length distinguishes them.
-- **user_heap** (6): three real, all in the split arithmetic, and the reason nothing saw them is
+- **user_mode_heap** (6): three real, all in the split arithmetic, and the reason nothing saw them is
   that a block's *size* is never readable. `free_bytes` is an independent counter a wrong split does
   not touch, and every test asked only for the block **count**, which the coalescing invariant
   expects to be 1. So `block_count` could return the constant 1 and pass everything; `alloc`'s
@@ -646,7 +646,7 @@ loop rather than an undetected bug.
 | swish | 12 | 2 | 1 | 9 | 0 |
 | calendar | 10 | 2 | 5 | 3 | 0 |
 | clock_proto | 9 | 0 | 2 | 7 | 0 |
-| user_heap | 8 | 3 | 0 | 5 | 0 |
+| user_mode_heap | 8 | 3 | 0 | 5 | 0 |
 | gpt | 6 | 1 | 4 | 1 | 0 |
 | graphics_proto | 6 | 0 | 6 | 0 | 0 |
 | slots | 5 | 4 | 1 | 0 | 0 |

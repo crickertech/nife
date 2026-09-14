@@ -128,9 +128,11 @@
 
 use abi::rendezvous;
 use entropy_proto as proto;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
-use user_rt::{exit, irq_ack, irq_wait, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::virtio::{
+    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+};
+use user_mode_runtime::{exit, irq_ack, irq_wait, recv_cap, reply, send};
 
 /// Capability slots for the virtio backend, by convention with `kernel/src/user/entropy_service.rs`.
 const REQ: u64 = 0;
@@ -155,7 +157,7 @@ const I_READY: u64 = 1;
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
 
 // SAFETY: the wiring maps one page read/write at DMA_VA before this program runs (milestone 139;
-// see `user_rt::mapped_window`, which is what collapsed the hand-rolled r8/w8/r16/w16/r32 below).
+// see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled r8/w8/r16/w16/r32 below).
 const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, PAGE) };
 
 // virtio-mmio register offsets. The §18 transport seam speaks this vocabulary on both buses, so
@@ -517,7 +519,7 @@ fn serve(mut pool: Pool, refuse: bool) -> ! {
 /// **The instruction backend** (milestone 162): RDSEED on `x86_64`, RNDRRS on aarch64. Confined here
 /// rather than lifted into a shared userspace arch-abstraction crate: nothing in `components/src/`
 /// has
-/// needed one before this (the precedent, `crates/user_rt`, is the syscall ABI itself, one crate
+/// needed one before this (the precedent, `crates/user_mode_runtime`, is the syscall ABI itself, one crate
 /// *every* program depends on, not a single-consumer helper), so a module inside the one program
 /// that uses it is the smaller thing to build. **Provisional**, flagged for calef: if a second
 /// userspace program ever needs per-architecture `asm!` of its own, this is the first candidate to
@@ -648,4 +650,4 @@ fn serve_instruction() -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

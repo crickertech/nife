@@ -69,8 +69,8 @@
 #![no_main]
 
 use filesystem_proto::{fs, grant, op, reply_err, reply_errno, verb};
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, recv_cap, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, recv_cap, send};
 
 /// The FS-service endpoint: the directory capability this process attenuates.
 const FS: u64 = 0;
@@ -85,7 +85,7 @@ const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 const PAGE: usize = filesystem_proto::PAGE;
 
 // SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
-// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled write_volatile
+// round 2; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled write_volatile
 // loop below).
 const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, PAGE as u64) };
 
@@ -121,7 +121,7 @@ fn forward(w0: u64, w1: u64) -> i64 {
 
 /// Answer the blocked caller through the one-shot Reply the kernel minted.
 fn reply(slot: u64, r0: i64) {
-    user_rt::reply(slot, r0 as u64, 0);
+    user_mode_runtime::reply(slot, r0 as u64, 0);
 }
 
 /// The client's handle namespace: `table[i]` is the FS server's handle for the client's handle `i`,
@@ -286,4 +286,4 @@ pub extern "C" fn _start(name_lo: u64, name_hi: u64, spec: u64) -> ! {
     serve(r0);
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

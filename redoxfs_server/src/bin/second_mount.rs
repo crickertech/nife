@@ -3,7 +3,7 @@
 //! A second mount of a *used* RedoxFS image fails its write on device. The open question is why, and
 //! the recorded hypothesis is accumulated mount state driving the FS server past its 8 MiB heap cap.
 //! This binary settles it without an emulator: it runs the real engine under the **same allocator the
-//! FS server uses** (`user_heap`, the algorithm behind `user_rt::heap::MemoryRegionHeap`), grown incrementally
+//! FS server uses** (`user_mode_heap`, the algorithm behind `user_mode_runtime::heap::MemoryRegionHeap`), grown incrementally
 //! and capped exactly the way `redoxfs_server.rs` caps it, and it does the two mounts in one process:
 //!
 //! 1. create the fixture image, then mount it and write (this is what makes the image *used*),
@@ -37,7 +37,7 @@ const POOL_SIZE: usize = 512 * 1024 * 1024;
 static mut POOL: [u8; POOL_SIZE] = [0; POOL_SIZE];
 
 const PAGE: usize = 4096;
-/// The FS server's growth floor (`user_rt::heap::MIN_GROW_PAGES`).
+/// The FS server's growth floor (`user_mode_runtime::heap::MIN_GROW_PAGES`).
 const MIN_GROW_PAGES: usize = 8;
 
 /// The heap cap in bytes, from `NIFE_HEAP_MIB`, defaulting to the FS server's 8 MiB
@@ -58,7 +58,7 @@ static COMMITTED: AtomicUsize = AtomicUsize::new(0);
 static HIT_CAP: AtomicBool = AtomicBool::new(false);
 
 struct Inner {
-    heap: user_heap::Heap,
+    heap: user_mode_heap::Heap,
     base: usize,
     committed: usize,
     cap: usize,
@@ -66,10 +66,10 @@ struct Inner {
 
 impl Inner {
     /// Grow by at least `need` bytes, geometrically, bounded by the cap. A faithful copy of
-    /// `user_rt::heap::MemoryRegionHeap::grow`, so exhaustion happens here for the same reasons.
+    /// `user_mode_runtime::heap::MemoryRegionHeap::grow`, so exhaustion happens here for the same reasons.
     fn grow(&mut self, need: usize) -> bool {
         if self.base == 0 {
-            // user_heap requires 16-aligned donations; a static [u8; N] is only byte-aligned.
+            // user_mode_heap requires 16-aligned donations; a static [u8; N] is only byte-aligned.
             let raw = &raw mut POOL as *mut u8 as usize;
             self.base = (raw + 15) & !15;
             self.cap = heap_cap();
@@ -104,7 +104,7 @@ impl CappedHeap {
         CappedHeap {
             locked: AtomicBool::new(false),
             inner: UnsafeCell::new(Inner {
-                heap: user_heap::Heap::new(),
+                heap: user_mode_heap::Heap::new(),
                 base: 0,
                 committed: 0,
                 cap: 0,
@@ -125,7 +125,7 @@ impl CappedHeap {
     }
 }
 
-// SAFETY: forwards the GlobalAlloc contract to user_heap under the lock; the pool never moves.
+// SAFETY: forwards the GlobalAlloc contract to user_mode_heap under the lock; the pool never moves.
 unsafe impl GlobalAlloc for CappedHeap {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         self.lock();
@@ -136,7 +136,7 @@ unsafe impl GlobalAlloc for CappedHeap {
                 break p.as_ptr();
             }
             let slack = layout.align().saturating_sub(PAGE);
-            let need = user_heap::effective_size(layout) + slack;
+            let need = user_mode_heap::effective_size(layout) + slack;
             if !inner.grow(need) {
                 break std::ptr::null_mut(); // OOM: std's handler aborts, as on device
             }

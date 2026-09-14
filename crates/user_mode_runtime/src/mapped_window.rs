@@ -35,7 +35,7 @@
 //! are `no_run`).
 //!
 //! ```no_run
-//! use user_rt::mapped_window::{MappedWindow, PAGE};
+//! use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 //!
 //! // Constructed once, at the top of the file, the same VA and length every copy hard-coded.
 //! const DMA_VA: u64 = 0x0000_0000_0090_0000;
@@ -51,7 +51,7 @@
 //! it, which is the property no hand-written copy had:
 //!
 //! ```should_panic
-//! # use user_rt::mapped_window::{MappedWindow, PAGE};
+//! # use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 //! # const WINDOW: MappedWindow = unsafe { MappedWindow::new(0x0090_0000, PAGE) };
 //! WINDOW.r32(PAGE); // one past the last valid u32, deliberately
 //! ```

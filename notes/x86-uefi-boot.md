@@ -590,7 +590,7 @@ Two things are then worth doing, in this order, and neither is in this lane's sc
 
 1. **Record the numbers**, the way `notes/visionfive2.md` does for the VisionFive 2: the memory map
    the firmware reports, the ACPI tables it carries, the measured TSC rate against the PIT (this
-   will *not* be QEMU's 1001 MHz; it is an i5-7500T, and `user_rt::cntfrq`'s hardcoded constant will
+   will *not* be QEMU's 1001 MHz; it is an i5-7500T, and `user_mode_runtime::cntfrq`'s hardcoded constant will
    be wrong with no way for a caller to tell, which `notes/x86-port.md` already records), and
    whether the DMAR is present so VT-d can come up.
 2. **Flip milestone 87's status** and open the two follow-ups the bench will inevitably produce.

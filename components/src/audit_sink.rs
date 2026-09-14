@@ -65,7 +65,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::recv;
+use user_mode_runtime::recv;
 
 /// `login`'s own `AUDIT` endpoint, `READ`.
 const AUDIT: u64 = 0;
@@ -77,4 +77,4 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

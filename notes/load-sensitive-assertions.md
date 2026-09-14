@@ -440,7 +440,7 @@ is not an obstacle. Recommended here, not built here.
   why.** ***Closed 2026-08-18 (milestone 62): both assertions are deleted.*** The taxonomy did not
   merely leave a window, it inverted with severity: a handler slow by 2.5 tick periods passed it
   while printing "not this kernel's bug, not failed". The injections are in "The disposition,
-  2026-08-18" below, and the claim is `script/icount`'s alone now, which `script/gates` runs.
+  2026-08-18" below, and the claim is `script/icount`'s alone now, which `script/ci-build` runs.
 - **The taxonomy's threshold leaves a window, on both ISAs, and it is one tick period wide.**
   `miss_detail` reports `now - next`, which is the lateness *beyond* the period already missed, so
   the cut at one interval classifies "one to two periods late" as a slow handler (red) and "two or
@@ -1334,7 +1334,7 @@ printing the UNMEASURED line above, where before this change it went red at the 
 suite has stopped making any claim about handler latency at all.
 
 That is the honest cost and it is only defensible because the instrument that does catch it is
-actually run, so **`script/gates` now runs `script/icount`**: about seven seconds for both ISAs,
+actually run, so **the command a person runs before pushing now runs `script/icount`** (`script/gates` then, `script/ci-build` since milestone 286): about seven seconds for both ISAs,
 placed above `script/test` on that script's own cheapest-first rule. CI already ran it on every
 change that is not documentation only. The claim did not weaken; it moved to a boot where the host
 is not a term, and the two gates that a change passes both exercise it.
@@ -1719,7 +1719,7 @@ being wrong.
 **The unit is wall clock, which is the unit the migration-drain section above argues against, and
 that is a limitation rather than a disagreement.** Milestone 62 re-denominated `smp.rs`'s drain in
 *delivered timer ticks* precisely because a counter deadline keeps running while the guest is
-descheduled. A process cannot do that: `user_rt::now` is the raw counter, and nothing publishes the
+descheduled. A process cannot do that: `user_mode_runtime::now` is the raw counter, and nothing publishes the
 kernel's per-core tick count to userspace. So what makes this safe is the margin and not the unit,
 and the margin is what would have to be re-measured if the wait ever grew. Giving a process a
 delivered-tick reading is an ABI addition, which is calef's call rather than a lane's; it is written
@@ -1800,8 +1800,8 @@ refusal, and none has a clock in it:
 | `crates/system_initializer::reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
 | `components/src/login.rs`'s `reclaim` (`RECLAIM_ATTEMPTS`) | returns; a stranded region |
 | `components/src/swish.rs`'s `await_screen` (`SCREEN_REAP_ATTEMPTS`) | returns; leaks one job's pool |
-| `components/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_rt::trap()`** |
-| `components/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_rt::trap()`** |
+| `components/src/job_undertaker.rs`'s `collect` (`MAX_ATTEMPTS`) | **`user_mode_runtime::trap()`** |
+| `components/src/timetable.rs`'s `collect` (`REAP_ATTEMPTS`) | **`user_mode_runtime::trap()`** |
 
 That is the reading order's fourth grep, and it is the first one that leaves this repository's
 kernel: **a bounded retry count in a user program, over a syscall that a timer tick has to clear.**

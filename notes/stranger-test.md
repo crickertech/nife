@@ -412,7 +412,7 @@ and how you would add a new user program to it." No brief, no pointers, no answe
 
 **The headline finding is the one nobody in the tree could see.** The workspace had not built on an
 x86_64 host since 2026-08-03. `--exclude` removes a package from the test *selection*, not from the
-dependency graph, so excluding `user_rt` while four crates depended on it unconditionally left it in
+dependency graph, so excluding `user_mode_runtime` while four crates depended on it unconditionally left it in
 the build. **CI moved to `ubuntu-24.04-arm` the same day those dependencies landed**, where the EL0
 assembly compiles by accident, so the one gate that would have caught it ran on the only architecture
 where the bug is invisible. `script/lint`'s comment asserted the opposite and was wrong in both
@@ -741,6 +741,8 @@ toolchain, and the kernel under QEMU on both ISAs. About 25 minutes wall clock, 
 emulated legs.
 
 **It then ran the rest of `script/gates` unprompted, on its own reading of the tree's vocabulary**,
+(that command was retired into `script/ci-build`'s table by milestone 286 on 2026-09-13; this run
+and the quotation below are from 2026-09-06 and keep the name they happened under)
 which is the run's best unforced result and belongs to `CONTRIBUTING.md`: *"'tests passing' in this
 project's own vocabulary is `script/gates`, not `script/test`. I ran one of the three."*
 `script/fmt --check` and `script/lint` both exit 0. It then named what it had not run rather than

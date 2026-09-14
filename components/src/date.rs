@@ -106,7 +106,7 @@ use core::sync::atomic::{AtomicBool, Ordering};
 
 use calendar::{DateTime, Format, UtcOffset};
 use clock_proto::{ClockPage, state};
-use user_rt::{exit, granted, monotonic_nanos, send};
+use user_mode_runtime::{exit, granted, monotonic_nanos, send};
 
 /// Slot 0: where the output goes. An endpoint with `WRITE`, and the same 16-bytes-per-message
 /// framing the std PAL's stdout uses (`w0` = the byte count, `w1`|`w2` = the bytes, little-endian),
@@ -351,4 +351,4 @@ fn line_on(slot: u64, bytes: &[u8]) {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

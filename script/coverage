@@ -25,11 +25,12 @@ fi
 
 # Run the host tests once under instrumentation (--no-report keeps the raw data), then render the
 # summary, an lcov file, and a browsable HTML report from that same data.
-# `user_rt` is excluded like kernel/user: it is aarch64-only inline asm (the EL0 syscall runtime), so
-# it does not build for the host at all, let alone run under host instrumentation. There is no host
-# logic to measure in it.
+# `user_mode_runtime` is excluded like kernel/user: it is aarch64-only inline asm (the user-mode
+# syscall runtime), so it does not build for the host at all, let alone run under host
+# instrumentation. There is no host logic to measure in it.
 # `supervision_proto` and `swap_proto` join that exclusion for the same reason, and only that
-# reason: both are thin wrappers over `user_rt`'s syscalls (build a child, quiesce a component),
+# reason: both are thin wrappers over `user_mode_runtime`'s syscalls (build a child, quiesce a
+# component),
 # so every line needs a kernel underneath and none can execute on the host. They were invisible
 # to this gate until 2026-08-01, when rule 7 made them crates; the exclusion is deliberate and
 # narrow, not a way to keep the number green.
@@ -66,7 +67,7 @@ fi
 # That is a line of maintenance per featured crate, and it buys back the limitation `--all-features`
 # had anyway, which is that a union-of-all-features run can carry an undertested default build.
 cargo llvm-cov --workspace --features documentation/builder \
-    --exclude kernel --exclude components --exclude fixtures --exclude xtask --exclude user_rt \
+    --exclude kernel --exclude components --exclude fixtures --exclude xtask --exclude user_mode_runtime \
     --exclude supervision_proto --exclude swap_proto --exclude system_initializer --no-report
 cargo llvm-cov report --summary-only
 mkdir -p target/llvm-cov # the lcov --output-path parent must exist; --html creates its own
@@ -100,7 +101,7 @@ awk -F: -v floor="$floor" '
         # so the flags on the run above keep them out of the RUN but not out of this report; the
         # exemption has to be stated here to have any effect.
         #
-        # All three need a kernel underneath. Two are thin wrappers over the user_rt syscalls (build a
+        # All three need a kernel underneath. Two are thin wrappers over the user_mode_runtime syscalls (build a
         # child, quiesce a component); virtio is a driver whose seven entry points each orchestrate a
         # live device. Its security-critical part is already elsewhere and already tested: the
         # descriptor-ring validation is crates/dma_validator (milestone 35), which is why this file is

@@ -58,7 +58,7 @@
 #![no_main]
 
 use clock_proto::{ClockPage, policy, propose, rtc, state, status};
-use user_rt::{cntfrq, now, recv_cap, reply, send};
+use user_mode_runtime::{cntfrq, now, recv_cap, reply, send};
 
 /// The propose endpoint (slot 0): the service RECVs proposals on it. Everything that arrives here
 /// is a request, never a command.
@@ -216,4 +216,4 @@ fn goldfish_unix_nanos(base: u64) -> u64 {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

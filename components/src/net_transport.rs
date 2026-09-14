@@ -22,15 +22,17 @@ use alloc::vec::Vec;
 
 use smoltcp::phy::{self, Device, DeviceCapabilities, Medium};
 use smoltcp::time::Instant;
-use user_rt::irq_ack;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
+use user_mode_runtime::irq_ack;
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::virtio::{
+    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+};
 
 /// The DMA page's virtual address, matching the kernel's `net_server` mapping.
 const DMA_VA: u64 = 0x0000_0000_0090_0000;
 
 // SAFETY: the spawn service maps one page read/write at DMA_VA before this program runs
-// (milestone 139; see `user_rt::mapped_window`, which is what collapsed the hand-rolled
+// (milestone 139; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled
 // r8/r16/r32/w8/w16 and `write_desc` below -- including the stray comment milestone 112 found
 // pasted onto one of them, describing `invoke` and capability validation over a plain DMA write).
 const WINDOW: MappedWindow = unsafe { MappedWindow::new(DMA_VA, PAGE) };

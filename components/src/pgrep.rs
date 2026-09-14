@@ -83,7 +83,7 @@
 
 use core::sync::atomic::{AtomicBool, Ordering};
 
-use user_rt::{exit, granted, send, survey};
+use user_mode_runtime::{exit, granted, send, survey};
 
 /// The output sink: where the tids go. Slot 0 is where every spawned program's output lands.
 const REPORT: u64 = 0;
@@ -164,7 +164,7 @@ fn write_on(slot: u64, bytes: &[u8]) {
 // **This was hand-rolled with two architecture arms and lost that signal on the third.** Neither
 // `cfg` matched on x86_64, so control fell to a spin loop and a panicking `pgrep` burned a thread
 // forever instead of dying, which is the opposite of what the paragraph above promises. The macro
-// expands to a handler over `user_rt::trap`, whose arms cover all three ISAs and whose x86_64 one
+// expands to a handler over `user_mode_runtime::trap`, whose arms cover all three ISAs and whose x86_64 one
 // carries the measured argument for `ud2` over `int3`. This was the last hand-rolled handler left
-// outside `user_rt` after milestone 130 swept forty-eight of them.
-user_rt::panic_handler!();
+// outside `user_mode_runtime` after milestone 130 swept forty-eight of them.
+user_mode_runtime::panic_handler!();

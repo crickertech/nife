@@ -1,4 +1,7 @@
-//! **`user_rt`**: the tiny EL0 runtime shared by nife userspace programs (milestone 19f.6).
+//! **`user_mode_runtime`**: the tiny user-mode runtime shared by nife userspace programs (milestone
+//! 19f.6). It ships on all three architectures, so the level it runs at is named the way the tree
+//! names it everywhere a single ISA is not in view: `EL0` on aarch64, `U-mode` on riscv64, `ring 3`
+//! on `x86_64`, and "user mode" when the sentence covers all three.
 //!
 //! One syscall wrapper (`invoke`) and the three things every program builds on it: `send`, `recv`,
 //! and `exit`. That is the whole crate. It exists because milestones 19f.2-5 split the userspace
@@ -65,7 +68,7 @@
 //! no `open`, no path, and no way to name anything that was not handed over.
 //!
 //! ```no_run
-//! use user_rt::{exit, recv, send};
+//! use user_mode_runtime::{exit, recv, send};
 //!
 //! /// A pipeline stage: read three words off the endpoint in slot 0, pass them to slot 1.
 //! fn relay() -> ! {
@@ -89,7 +92,7 @@
 //! names the client:
 //!
 //! ```no_run
-//! use user_rt::call;
+//! use user_mode_runtime::call;
 //!
 //! # fn ask() {
 //! const SERVICE: u64 = 2;
@@ -119,18 +122,28 @@
 //! counter frequency at all**, which is why [`cntfrq`] carries a `BUGS` section rather than a number
 //! with a comment. Everything else is the same three instructions in a different spelling.
 //!
-//! Name: provisional, and this lane proposes a rename to `user_runtime`. Introduced 2026-07-25
-//! when the shared EL0 runtime was lifted out of five binaries that had copied it verbatim. It is
-//! half-argued in a way that keeps it unargued: milestone 63 ratified `user_heap` over `uheap` on
-//! the ground that "`user_rt` already establishes `user_` as the prefix", so the prefix is on the
-//! record because this crate established it, which is a circle rather than a reason. The prefix
-//! is fine on its own merits and is not what is at issue. The `rt` half is, and nothing in the
-//! tree has ever weighed it against `runtime`: it is an **abbreviation that needs a decoder**,
-//! the first of the three failure modes AGENTS.md lists, and the crate's own first line spells it
-//! out ("the tiny EL0 runtime shared by nife userspace programs"). The precedent is `cred_proto`
-//! to `credential_proto`, ratified 2026-08-23 for "spell out the contraction fully". This
-//! decision is worth more than one name, because half a naming convention rests on it. Proposed,
-//! not performed.
+//! Name: ratified 2026-09-13 (calef, milestone 285), replacing `user_rt`. Two halves, argued
+//! separately. **`rt`** was an **abbreviation that needs a decoder**, the first of the three
+//! failure modes AGENTS.md names, and this crate's own first line had always spelled it out; the
+//! precedent is `cred_proto` to `credential_proto`, ratified 2026-08-23 for "spell out the
+//! contraction fully". Nothing outside the tree owns the spelling (no specification, no wire
+//! format, no command-line flag), so the acronym test applies at full force here in a way it did
+//! not to `initrd`. **`user_`** expanded to **`user_mode_`** because in this tree `user` means *a
+//! person* several hundred times over: milestone 49 is users and attribution, `identity_provisioner`
+//! creates them, `login` authenticates them, and `schedule_store` calls itself the per-user
+//! schedule store. `user_runtime` would have kept reading as "the runtime belonging to a user".
+//! "User mode" is this tree's architecture-neutral phrase for the unprivileged level, where `EL0`
+//! is aarch64's word for it and `U-mode` and `ring 3` are the other two architectures'. Refused
+//! `user_runtime` (leaves the prefix ambiguous between a person and a privilege level) and
+//! `el0_runtime` (a crate name correct on one architecture and wrong on the two others, which is
+//! what AGENTS.md rule 5 exists to catch).
+//!
+//! Introduced 2026-07-25 as `user_rt`, when the shared runtime was lifted out of five binaries that
+//! had copied it verbatim, and provisional from then until milestone 285. It was half-argued in a
+//! way that kept it unargued: milestone 63 ratified `user_heap` over `uheap` in part on the ground
+//! that "`user_rt` already establishes `user_` as the prefix", so the prefix was on the record
+//! because this crate had established it, which is a circle rather than a reason. Milestone 285
+//! closed the circle by ruling on the prefix itself rather than by citing either crate.
 
 #![no_std]
 
@@ -955,7 +968,7 @@ pub fn trap() -> ! {
 
 /// **The panic handler every nife program wants**, as a macro so it stays per-final-binary.
 ///
-/// Write `user_rt::panic_handler!();` once at the top level of a binary and it expands to a
+/// Write `user_mode_runtime::panic_handler!();` once at the top level of a binary and it expands to a
 /// `#[panic_handler]` that calls [`trap`].
 ///
 /// # Why a macro and not a plain item in this crate
@@ -985,11 +998,11 @@ pub fn trap() -> ! {
 /// #![no_std]
 /// #![no_main]
 ///
-/// user_rt::panic_handler!();
+/// user_mode_runtime::panic_handler!();
 ///
 /// #[unsafe(no_mangle)]
 /// pub extern "C" fn _start() -> ! {
-///     user_rt::exit()
+///     user_mode_runtime::exit()
 /// }
 /// ```
 ///

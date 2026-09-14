@@ -1,10 +1,10 @@
 //! The std runtime contract, and the syscall glue that meets it.
 //!
-//! This is the PAL's twin of `crates/user_rt`: the same `svc #0` / `ecall` instructions, the
+//! This is the PAL's twin of `crates/user_mode_runtime`: the same `svc #0` / `ecall` instructions, the
 //! same register convention, deliberately re-stated here because std cannot depend on an
 //! out-of-tree crate. The ABI *constants* are not re-stated: `abi.rs` next door is generated
 //! verbatim from `crates/abi/src/lib.rs` by `cargo xtask std-src`, so the numbers cannot drift.
-//! Only these few asm wrappers are hand-copied; if `user_rt`'s change, change these.
+//! Only these few asm wrappers are hand-copied; if `user_mode_runtime`'s change, change these.
 //!
 //! # The std slot convention
 //!
@@ -103,7 +103,7 @@ pub const CONFIG_PAGE: u64 = 0x1300_0000;
 pub const FS_PAGE: u64 = 0x1100_0000;
 
 /// Where the heap lives: 1 GiB, clear of the program image (0x40_0000), stacks, shared pages,
-/// and the initrd window (0x2000_0000). Same value as `user_rt::heap::DEFAULT_BASE`.
+/// and the initrd window (0x2000_0000). Same value as `user_mode_runtime::heap::DEFAULT_BASE`.
 pub const HEAP_BASE: u64 = 0x4000_0000;
 
 /// The heap's growth cap. Generous because the untyped budget is the real, per-program limit
@@ -112,7 +112,7 @@ pub const HEAP_MAX: u64 = 256 * 1024 * 1024;
 
 use super::abi;
 
-/// Invoke a capability. See `crates/user_rt::invoke`, of which this is a verbatim twin.
+/// Invoke a capability. See `crates/user_mode_runtime::invoke`, of which this is a verbatim twin.
 #[cfg(target_arch = "aarch64")]
 pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
     let ret: i64;
@@ -157,7 +157,7 @@ pub fn send(slot: u64, w0: u64, w1: u64, w2: u64) -> i64 {
 
 /// `CALL` the endpoint in `slot`: send two words and block until the server replies through the
 /// one-shot Reply capability the kernel mints. Returns the two reply words. A verbatim twin of
-/// `user_rt::call`; the net PAL (`sys/net`) drives the socket contract with it.
+/// `user_mode_runtime::call`; the net PAL (`sys/net`) drives the socket contract with it.
 ///
 /// On a syscall-level failure (an empty slot, wrong rights) the kernel returns a negative value
 /// in the first result register, which a caller distinguishes from a server reply by reading it
@@ -278,7 +278,7 @@ pub fn now() -> u64 {
 }
 
 /// Ticks per second. aarch64 reports it in `CNTFRQ_EL0`; RISC-V has no architectural register
-/// for the timebase, so this is the QEMU `virt` constant, the same honest gap `user_rt::cntfrq`
+/// for the timebase, so this is the QEMU `virt` constant, the same honest gap `user_mode_runtime::cntfrq`
 /// records (10 MHz until the ABI grows an aux-vector-style handoff).
 pub fn cntfrq() -> u64 {
     #[cfg(target_arch = "aarch64")]

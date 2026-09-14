@@ -175,13 +175,14 @@ needs a file of its own; what is listed here is where to read it and what happen
   named for the actor, with nothing saying they are one thing lifted apart. `credential_proto` is
   untouched, because the wire is about credentials rather than about the servicer, the same shape as
   `fs_proto` beside a server.
-- **Recorded.** **`crates/user_rt` wants its name spelled out, as `user_runtime`**, in that crate's header. The
-  `rt` half has never been weighed against `runtime` by anyone, and the crate's own first line spells
-  it out. The `user_` half is on the record only because `user_heap`'s ratification cites *this crate*
-  as establishing the prefix, which is a circle rather than a reason, so ruling here settles half a
-  convention rather than one name. Same precedent as `cred`. If he says no that is cheap, but the
-  circle wants breaking out loud, because the next lane to reach for a `user_` prefix will cite
-  `user_heap` citing `user_rt`.
+- **Milestone 285.** **`crates/user_rt` is `crates/user_mode_runtime`**, ratified by calef
+  2026-09-13, and `crates/user_heap` is `crates/user_mode_heap` with it. This entry asked only that
+  the `rt` half be spelled out, as `user_runtime`, and named the circle underneath it: the `user_`
+  half was on the record only because `user_heap`'s ratification cited *this crate* as establishing
+  the prefix. **calef broke the circle rather than the contraction**, ruling on the prefix itself,
+  which this entry had said was worth more than one name and was right about. `user_runtime` lost to
+  the measurement: `user` means *a person* several hundred times in this tree, so the shorter prefix
+  would have fixed the abbreviation and kept the ambiguity.
 - **Done.** **`user/src/driver.rs` is `serial_driver`**, ratified by calef 2026-09-08. It was the
   fourth driver in that directory and the only unqualified one, beside `block_driver`, `gpu_driver`
   and `keyboard_driver`, and `keyboard_driver` was the precedent since it was `kbd` until
@@ -216,10 +217,11 @@ needs a file of its own; what is listed here is where to read it and what happen
 - **Recorded.** **`fixtures/src/hello.rs` carries the `init_boot` role on aarch64 and the name does not
   say so**, in that program's own block. Not proposed as a rename: `hello` is right for what it was
   and the gap is that the thing grew, which is a fact to record rather than a naming error.
-- **Recorded.** **`script/gates` is DECISIONS §134's one clear exception**, a noun that acts where
-  the family's rule gives nouns to things that report. Stated in its header rather than resolved,
-  because both verb forms are worse: `check` collides with the `-check` suffix eight scripts already
-  carry, and `gate` singular would name one of three.
+- **Recorded.** **The retired `gates` script was DECISIONS §134's one clear exception**, a noun that
+  acts where the family's rule gives nouns to things that report. Stated in its header rather than
+  resolved, because both verb forms were worse: `check` collides with the `-check` suffix eight
+  scripts already carry, and `gate` singular would have named one of three. Closed by milestone 286,
+  which retired the script into `script/ci-build` rather than ruling its name.
 - **Recorded.** **`flaky` borrows a word it then contradicts**, in its own block. The field's term
   means a test that fails intermittently; this program fails deterministically, once, by attempt
   number, so a reader who knows the word arrives with the wrong model. No rename proposed, because

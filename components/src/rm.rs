@@ -61,8 +61,8 @@
 #![no_main]
 
 use filesystem_proto::{dir, dirent, fixture, fs, grant};
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, send};
 
 /// The granted directory capability: this program's whole authority.
 const DIR: u64 = 0;
@@ -72,7 +72,7 @@ const REPORT: u64 = 1;
 const PAGE_VA: u64 = 0x0000_0000_0060_0000;
 
 // SAFETY: the wiring maps one page read/write at PAGE_VA before this program runs (milestone 139
-// round 2; see `user_rt::mapped_window`, which is what collapsed the hand-rolled read_volatile/
+// round 2; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled read_volatile/
 // write_volatile loops below).
 const WINDOW: MappedWindow = unsafe { MappedWindow::new(PAGE_VA, filesystem_proto::PAGE as u64) };
 
@@ -401,4 +401,4 @@ pub extern "C" fn _start(spec: u64, name_lo: u64, name_hi: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

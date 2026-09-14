@@ -6,7 +6,7 @@
 #
 # **The failure this exists to catch is a check that runs, fails, and tells nobody.** A scheduled
 # workflow's red is an entry in the Actions tab with no badge, no notification, and no pull request
-# to hang it on. Nothing in `script/gates` or CI turns red when one has been failing for a month, so
+# to hang it on. Nothing in `script/ci-build` or CI turns red when one has been failing for a month, so
 # the only thing between a dead cadence and a stale claim is somebody happening to look.
 #
 # Milestone 232 (audit every check against two questions: does anything run it, and does it block)
@@ -29,7 +29,7 @@
 # and a maintainer session is already told to confirm it is alive. That is one rung up from prose and
 # it reuses machinery that exists rather than adding a cadence that can itself lapse.
 #
-# **And it is deliberately not in `script/lint` or `script/gates`**, for the reason `script/audits`
+# **And it is deliberately not in `script/lint` or `script/ci-build`'s table**, for the reason `script/audits`
 # already wrote down about audits coming due: a dead cadence is not a defect in the commit that
 # happens to trip it, and a gate that blocked every unrelated lane behind a workflow nobody can hurry
 # is how this tree acquired three lints it later deleted for only ever rejecting legitimate work.

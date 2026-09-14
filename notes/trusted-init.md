@@ -593,6 +593,14 @@ All three run through `supervision_proto::build_child`, the tree's only loader s
 and all three could read the same table; none of them does today. The table already carries their
 programs' digests, so the remaining work is the call, not the data.
 
+**One caveat on "rather than the shipped system", added by milestone 289.** That phrase is right
+about what these three loaders *are* and understates where the first one *runs*. `builder` is the
+program the kernel loads and measures on the default riscv64 build, which is the build
+`script/board-image` writes to a card, so on that architecture the gap is on the boot a board
+actually performs rather than on a demo somebody runs in QEMU. It does not change the remedy (the
+call, not the data) and it does change how the gap should be priced: the chain reaches the first
+process there and stops one link short of the only child it builds.
+
 ## The alternative that was rejected, and stays rejected
 
 Hashing the whole archive in the kernel covers everything with one value. It puts a 14 MB hash at

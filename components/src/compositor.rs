@@ -49,7 +49,7 @@
 use compositor::proto::{ctl, ring, wlist};
 use compositor::{Rect, SCENE};
 use graphics_proto as gfx;
-use user_rt::{call, map_page_frame, recv_cap, reply, send};
+use user_mode_runtime::{call, map_page_frame, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/compositor_service.rs`.
 const REPORT: u64 = 0;
@@ -125,7 +125,7 @@ fn source(i: usize) -> &'static [u32] {
 
 fn die(code: u64) -> ! {
     send(REPORT, 0xDEAD_0000_0000_0000 | code, 0, 0);
-    user_rt::exit();
+    user_mode_runtime::exit();
 }
 
 /// **Publish every client's control page and the window list.** After this a client may read its own
@@ -375,4 +375,4 @@ pub extern "C" fn _start(windows: u64, focusable: u64, _arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

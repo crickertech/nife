@@ -181,7 +181,7 @@ pub fn init() {
 /// # Why writing zero is not a policy change
 ///
 /// Zero is what the rest of the tree already believes the value is. Nothing here grants or revokes
-/// anything a program was using: `crates/user_rt`'s `now()` reads `CNTVCT_EL0`, which the line above
+/// anything a program was using: `crates/user_mode_runtime`'s `now()` reads `CNTVCT_EL0`, which the line above
 /// opens, and nothing in this tree reads `PMCCNTR_EL0` from EL0 at all. What changes is that the
 /// belief stops being firmware's to confirm.
 ///
@@ -709,7 +709,7 @@ mod tests {
         // asserts with no host term in it (claim 2, the handler bounded at 2,500 instructions
         // against a measured 1,056, and claim 3, zero missed ticks) and with the law itself
         // beside them (claim 4, added by this milestone after an injection showed the instrument
-        // was blind to the very defect this test catches). `script/gates` and CI both run it. See
+        // was blind to the very defect this test catches). `script/ci-build` and CI both run it. See
         // notes/load-sensitive-assertions.md.
         const ATTEMPTS: u32 = 8;
         let mut attempts = 0;
