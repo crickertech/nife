@@ -114,8 +114,8 @@ use ntp_proto::{Packet, Query, Reject, Short, Timestamp, leap, mode};
 // does is that the two cannot drift, and a per-consumer subset would throw that away.
 #[allow(dead_code)]
 use socket_proto::*;
-use user_rt::mapped_window::{MappedWindow, PAGE};
-use user_rt::{
+use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
+use user_mode_runtime::{
     call, cap_delete, cntfrq, exit, map_page_frame, now, recv_cap, reply, retype_page_frame, send,
     send_cap, yield_now,
 };
@@ -604,4 +604,4 @@ fn build_reply(request: &Packet, variant: u64, claimed_nanos: u64, out: &mut [u8
     ntp_proto::PACKET_LEN
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

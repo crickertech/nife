@@ -28,7 +28,7 @@ use crate::sched;
 /// written, which is why it is there.
 ///
 /// **`x86_64` packs no initrd at all**, because no user program is built for
-/// `x86_64-unknown-none` (`crates/user_rt` has no arms for this ISA; see notes/x86-port.md). Every
+/// `x86_64-unknown-none` (`crates/user_mode_runtime` has no arms for this ISA; see notes/x86-port.md). Every
 /// test that reaches for this skips instead.
 fn loader_subject_image() -> &'static [u8] {
     program("image_self_checker").expect("no image_self_checker program in the initrd archive")

@@ -66,7 +66,7 @@
 /// interactive boot's own use of it is in `crates/system_initializer`; what is left here is milestone
 /// 19d's test roles, which build a child out of one budget and hand it two or three capabilities.
 use supervision_proto::{Child, ChildEndowment, Retention};
-use user_rt::{exit, irq_wait, map_page_frame, recv, send};
+use user_mode_runtime::{exit, irq_wait, map_page_frame, recv, send};
 
 /// Roles, as passed in `x0` by the kernel.
 // Roles 0, 2, 7, 9 to 19 and 42 were the milestone 7-19 capability demonstrations and the granted
@@ -113,12 +113,12 @@ pub extern "C" fn _start(role: u64, initrd_len: u64, _arg2: u64) -> ! {
         // role this program had never heard of got a program that checked its own image, made one
         // syscall and exited cleanly. Every spawner in the tree would read that as success.
         // `block_driver` and `builder` both trap on an unknown role; this now matches them.
-        _ => user_rt::trap(),
+        _ => user_mode_runtime::trap(),
     }
 }
 
 /// The bytes of the program named `name` in the initrd (milestone 19f). The initrd is a nifefs
-/// archive the kernel maps read-only at [`user_rt::initrd::INITRD_VA`]; init indexes it by name
+/// archive the kernel maps read-only at [`user_mode_runtime::initrd::INITRD_VA`]; init indexes it by name
 /// rather than treating the whole blob as a single ELF. `initrd_len` (the archive length) arrives
 /// in `x1` at entry. Returns `None` if the archive will not parse or holds no such program.
 ///
@@ -126,8 +126,8 @@ pub extern "C" fn _start(role: u64, initrd_len: u64, _arg2: u64) -> ! {
 /// kernel had loaded and re-entered it at a different role; 19f.2 added distinct entries a caller
 /// can name directly (`"least_authority_demo"` and so on).
 fn program(initrd_len: u64, name: &str) -> Option<&'static [u8]> {
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
     nifefs::Fs::parse(archive).ok()?.read(name)
 }
 
@@ -169,7 +169,7 @@ const CHILD_WORD: u64 = 0xC0FFEE;
 /// first process; since milestone 266 that is `progenitor`, and this role's name has not followed
 /// it (the constants below are unratified, and a rename of them is calef's). init holds a
 /// building untyped (slot 0) and a report endpoint (slot 1, `WRITE|GRANT`); the initrd is mapped
-/// read-only at [`user_rt::initrd::INITRD_VA`], and its length arrives in `x1`.
+/// read-only at [`user_mode_runtime::initrd::INITRD_VA`], and its length arrives in `x1`.
 ///
 /// It parses that ELF (the `elf` crate, linked into userspace) and loads it as a **child**: a
 /// second instance of this same program, entered at role [`CHILD`], built entirely by init out
@@ -495,10 +495,10 @@ fn check(ok: bool) {
 
 /// Trap, killing this program where the mistake was. Kept as a local name because the call sites
 /// above read as "this build step failed", not as "execute a breakpoint"; the instruction itself
-/// is `user_rt`'s since milestone 130. The comment this replaces called it "the one arch-specific
+/// is `user_mode_runtime`'s since milestone 130. The comment this replaces called it "the one arch-specific
 /// line in the program", which was true of `hello` and false of the tree: there were forty-eight.
 fn fail() -> ! {
-    user_rt::trap()
+    user_mode_runtime::trap()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

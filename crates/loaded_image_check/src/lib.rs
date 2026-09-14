@@ -30,13 +30,13 @@
 //! ```ignore
 //! #[unsafe(no_mangle)]
 //! pub extern "C" fn _start(_a: u64, _b: u64, _c: u64) -> ! {
-//!     loaded_image_check::verify(user_rt::trap);
-//!     user_rt::exit();
+//!     loaded_image_check::verify(user_mode_runtime::trap);
+//!     user_mode_runtime::exit();
 //! }
 //! ```
 //!
-//! **`fail` is a parameter rather than a call into `user_rt`**, and that is what keeps this crate
-//! host-buildable. A crate that reaches `user_rt` reaches EL0 syscall `asm!` and compiles for
+//! **`fail` is a parameter rather than a call into `user_mode_runtime`**, and that is what keeps this crate
+//! host-buildable. A crate that reaches `user_mode_runtime` reaches EL0 syscall `asm!` and compiles for
 //! aarch64 or riscv64 only, which would put this in four separate host-pass exclusion lists to buy
 //! one function call. The caller already has the right way for *it* to die, and hands it over.
 //!
@@ -57,7 +57,7 @@
 //! roles of one binary. Refused `self_check` (a verb phrase, and `self` names the caller rather
 //! than the thing checked, which reads oddly at `self_check::verify()`). Refused `image_check`
 //! ("image" is this tree's word for a disk image as often as for a loaded program:
-//! `target/nifefs.img`, `uefi-image`). Refused putting it in `crates/user_rt` (`user_rt` is what
+//! `target/nifefs.img`, `uefi-image`). Refused putting it in `crates/user_mode_runtime` (`user_mode_runtime` is what
 //! every program links to reach the kernel, and a diagnostic nothing in a running system calls does
 //! not belong in that surface; and a crate that depends on it cannot build for the host).
 

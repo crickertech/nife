@@ -16,7 +16,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{call, exit, send};
+use user_mode_runtime::{call, exit, send};
 
 const ENDPOINT: u64 = 0;
 const REPORT: u64 = 1;
@@ -28,4 +28,4 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

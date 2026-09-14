@@ -5,7 +5,7 @@ reconstructed the steps from `xtask`, the program package's `Cargo.toml` and `gr
 expected to have got one wrong, and was right to expect that: the two initrd lists are easy to
 half-do.
 
-A program is a `[[bin]]` in one of two packages, running at EL0, linked against `user_rt`.
+A program is a `[[bin]]` in one of two packages, running at EL0, linked against `user_mode_runtime`.
 
 ## Which package: `components/` or `fixtures/`?
 
@@ -53,7 +53,7 @@ a relationship rather than a convenience.
 ### 1. The source
 
 `components/src/<name>.rs` or `fixtures/src/<name>.rs`, `snake_case` (DECISIONS §39, and the
-convention table in [naming.md](naming.md)). `no_std`, against `user_rt`.
+convention table in [naming.md](naming.md)). `no_std`, against `user_mode_runtime`.
 
 ### 2. A provenance block in its module doc
 

@@ -19,7 +19,7 @@
 #![no_main]
 
 use abi::rendezvous;
-use user_rt::{exit, map_page_frame, recv_cap, send};
+use user_mode_runtime::{exit, map_page_frame, recv_cap, send};
 
 const CHANNEL: u64 = 0; // RECV_CAP the frame here
 const MEMORY_REGION: u64 = 1; // page tables for our own mappings come from here
@@ -53,4 +53,4 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

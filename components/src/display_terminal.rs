@@ -69,8 +69,8 @@
 use compositor::proto::ctl;
 use graphics_proto as gfx;
 use line_editor::proto;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, recv_cap, reply, send};
 use video_terminal::status::{MODE_DISPLAY, MODE_WINDOW};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs` and
@@ -159,7 +159,7 @@ fn out_byte(i: usize) -> u8 {
 
 fn die(code: u64) -> ! {
     send(REPORT, 0xDEAD_0000_0000_0000 | code, 0, 0);
-    user_rt::exit();
+    user_mode_runtime::exit();
 }
 
 /// **Paint a rectangle of the surface** from the engine's picture.
@@ -331,10 +331,10 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
             // maps them itself out of its own budget (milestone 108). Before the `INFO` call,
             // because a terminal with nowhere to paint has no use for the geometry. One `MAP` call
             // for the whole scanout run (DECISIONS §102), not one per page.
-            if !user_rt::map_page_frame(SURFACE_FRAME, SURFACE_VA, true, BUDGET) {
+            if !user_mode_runtime::map_page_frame(SURFACE_FRAME, SURFACE_VA, true, BUDGET) {
                 die(E_SURFACE);
             }
-            if !user_rt::map_page_frame(OUT_PAGE_FRAME, OUT_VA, true, BUDGET) {
+            if !user_mode_runtime::map_page_frame(OUT_PAGE_FRAME, OUT_VA, true, BUDGET) {
                 die(E_SURFACE);
             }
             let (r0, geometry) = call(PRESENT, gfx::req(gfx::display::INFO, 0), 0);
@@ -473,4 +473,4 @@ pub extern "C" fn _start(mode: u64, _arg1: u64, _arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

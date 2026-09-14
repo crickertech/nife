@@ -19,7 +19,7 @@
 //! The child (the `least_authority_demo`) squares the input and SENDs the answer straight to the report endpoint,
 //! which the kernel is waiting on. The kernel never touches the `least_authority_demo`'s bytes: this program loaded
 //! it, built its address space, and started it. That is the userspace-as-system-builder model, proven on
-//! RISC-V. It shares the `user` crate's `link.ld` and the `user_rt` syscall runtime; every syscall
+//! RISC-V. It shares the `user` crate's `link.ld` and the `user_mode_runtime` syscall runtime; every syscall
 //! it makes (retype, map, configure, start) crosses the same `ecall` ABI the `least_authority_demo` uses.
 //!
 //! **Why this is still here in a world that boots to `swish`** (milestone 289, which was sent to
@@ -122,7 +122,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{
+use user_mode_runtime::{
     cap_delete, exit, map_into, map_page_frame, send, tcb_cap_insert, tcb_configure, tcb_start,
 };
 
@@ -140,8 +140,8 @@ const CHILD_STACK_TOP: u64 = 0x0050_0000; // one page of stack is plenty for the
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_x0: u64, initrd_len: u64, _x2: u64) -> ! {
     // The archive the kernel mapped read-only at INITRD_VA; its length arrived in a1.
-    // SAFETY: forwarded from user_rt::initrd::initrd_bytes's own contract.
-    let archive = unsafe { user_rt::initrd::initrd_bytes(initrd_len) };
+    // SAFETY: forwarded from user_mode_runtime::initrd::initrd_bytes's own contract.
+    let archive = unsafe { user_mode_runtime::initrd::initrd_bytes(initrd_len) };
 
     let Ok(fs) = nifefs::Fs::parse(archive) else {
         fail(0xE1);
@@ -248,13 +248,13 @@ fn build_and_start(elf: &elf::Elf, n: u64) -> Result<(), ()> {
 
 /// Retype a kernel object out of our untyped budget; returns the slot its capability landed in.
 fn retype_obj(objtype: u64) -> Result<u64, ()> {
-    let r = user_rt::retype_object(MEMORY_REGION, objtype);
+    let r = user_mode_runtime::retype_object(MEMORY_REGION, objtype);
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
 /// Retype a page of our budget into a `PageFrame` capability; returns its cap slot.
 fn retype_page_frame() -> Result<u64, ()> {
-    let r = user_rt::retype_page_frame(MEMORY_REGION);
+    let r = user_mode_runtime::retype_page_frame(MEMORY_REGION);
     if r < 0 { Err(()) } else { Ok(r as u64) }
 }
 
@@ -265,4 +265,4 @@ fn fail(code: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

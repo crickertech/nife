@@ -64,9 +64,11 @@
 #![no_main]
 
 use graphics_proto as gfx;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::virtio::{virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg};
-use user_rt::{exit, irq_ack, irq_wait, recv_cap, reply, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::virtio::{
+    virtio_notify, virtio_read_reg, virtio_setup_queue, virtio_write_reg,
+};
+use user_mode_runtime::{exit, irq_ack, irq_wait, recv_cap, reply, send};
 
 /// Capability slots, by convention with `kernel/src/user/display_service.rs`.
 const REPORT: u64 = 0;
@@ -526,7 +528,7 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
     // whole [`DMA_PAGE_FRAMES`]-page run (DECISIONS §102), mapped read/write out of our own budget
     // in one `MAP` call. Before either role, because the rings live in the first page of it and the
     // escape attempt writes a descriptor too.
-    if !user_rt::map_page_frame(DMA_FRAME, DMA_VA, true, BUDGET) {
+    if !user_mode_runtime::map_page_frame(DMA_FRAME, DMA_VA, true, BUDGET) {
         // Nothing to report: `gfx::status` has no code for "I never reached my own rings", and
         // inventing one would be a protocol change to say what the missing `UP` already says. A
         // spawner that never sees `UP` knows bring-up failed.
@@ -593,4 +595,4 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

@@ -35,7 +35,7 @@
 #![no_main]
 
 use abi::Error;
-use user_rt::{map_region_page, send};
+use user_mode_runtime::{map_region_page, send};
 
 const MEMORY_REGION: u64 = 0;
 const REPORT: u64 = 1;
@@ -55,7 +55,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
         if let Some(e) = Error::from_ret(r) {
             // OutOfMemory means our budget is spent. Any other error is a real bug.
             if e != Error::OutOfMemory {
-                user_rt::trap();
+                user_mode_runtime::trap();
             }
             break;
         }
@@ -66,13 +66,13 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
         unsafe {
             core::ptr::write_volatile(va as *mut u64, marker);
             if core::ptr::read_volatile(va as *const u64) != marker {
-                user_rt::trap();
+                user_mode_runtime::trap();
             }
         }
 
         mapped += 1;
         if mapped > 100_000 {
-            user_rt::trap(); // a bump allocator that never exhausts is a bug
+            user_mode_runtime::trap(); // a bump allocator that never exhausts is a bug
         }
     }
 
@@ -83,4 +83,4 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

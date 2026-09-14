@@ -157,7 +157,7 @@ difference between a claim and a fact on argon, whose firmware nobody has read.
   no policy. It made the default a fact rather than a firmware assumption, so that a grant means
   something when the decision lands.
 - **Recorded.** In `notes/x86-port.md`, and in a BUGS section on `now()` itself: x86_64's `rdtsc`
-  stays ambient. `CR4.TSD` was left clear because `crates/user_rt`'s `now()` on that architecture is
+  stays ambient. `CR4.TSD` was left clear because `crates/user_mode_runtime`'s `now()` on that architecture is
   `rdtsc` and there is no coarse alternative, so closing it today would break `Instant`,
   `thread::sleep`, the random seed, smoltcp's timestamps and the benchmark harness at once.
 - **Refused.** A boot-time assertion that the bits stay closed. Reading `PMUSERENR_EL0` back proves

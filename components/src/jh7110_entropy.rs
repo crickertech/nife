@@ -127,7 +127,7 @@ use jh7110_entropy::{
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::register_structs;
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
-use user_rt::{recv_cap, reply, send};
+use user_mode_runtime::{recv_cap, reply, send};
 
 register_structs! {
     /// The JH7110 TRNG's register block, migrated onto `tock_registers` (milestone 139 round 5):
@@ -393,7 +393,7 @@ fn serve(mut pool: Pool, refuse: bool) -> ! {
 /// rather than remembered.
 const _: () = assert!(jh7110_entropy::WORD_BYTES == proto::MAX_BYTES);
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();
 
 // There is no capability slot for the registers, and that is worth a sentence rather than a
 // silence: this driver reaches them by direct volatile access at `TRNG_VA`, the same way

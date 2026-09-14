@@ -32,9 +32,9 @@
 #![allow(missing_docs)]
 #![no_main]
 
-// The virtio module names `crate::{check, invoke, send}`; here they are `user_rt`'s (same
+// The virtio module names `crate::{check, invoke, send}`; here they are `user_mode_runtime`'s (same
 // signatures) plus the local `check`.
-pub use user_rt::{invoke, send};
+pub use user_mode_runtime::{invoke, send};
 
 /// Role numbers, matching `kernel/src/user/virtio_service.rs`. This binary is the only thing that
 /// dispatches on them since milestone 291.
@@ -68,4 +68,4 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

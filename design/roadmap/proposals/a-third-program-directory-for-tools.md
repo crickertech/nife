@@ -46,7 +46,7 @@ without the person who owns names.
 
 **And the cost of a third directory is real but bounded**, which is the other half of the argument:
 sixteen `git mv`s, sixteen `[[bin]]` blocks moved between manifests, one more dependency set to
-prune, a third `build.rs` (four lines, pointing at `crates/user_rt/link.ld` like the other two), and
+prune, a third `build.rs` (four lines, pointing at `crates/user_mode_runtime/link.ld` like the other two), and
 roughly 150 path citations to repoint. 175 measured that cost by doing the same work at four times
 the scale, and it is about an hour.
 

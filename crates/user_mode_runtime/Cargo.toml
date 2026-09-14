@@ -1,5 +1,5 @@
 [package]
-name = "user_rt"
+name = "user_mode_runtime"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
@@ -17,7 +17,7 @@ workspace = true
 
 [dependencies]
 abi = { version = "0.1.0", path = "../abi" }
-user_heap = { version = "0.1.0", path = "../user_heap" }
+user_mode_heap = { version = "0.1.0", path = "../user_mode_heap" }
 # The x86_64 timebase page (milestone 161's `cntfrq` follow-up): the kernel's calibrated TSC rate,
 # read from the fixed page `kernel::user::load` maps read-only into every x86_64 process. Only
 # `cntfrq`'s x86_64 arm reads it, but the dependency is unconditional the way clock_proto's and

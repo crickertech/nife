@@ -38,7 +38,7 @@
 //! - **The touch job walks this task's own `.bss`.** It is not a fresh mapping per iteration, so it
 //!   measures cache displacement and not the page-table work AIM7's virtual-memory jobs also do.
 //!   `crates/job_mix`'s own `BUGS` records the missing map job and why.
-//! - **A mixer whose `CALL` is refused keeps counting the job as done.** `user_rt::call` returns two
+//! - **A mixer whose `CALL` is refused keeps counting the job as done.** `user_mode_runtime::call` returns two
 //!   words and no status this program can distinguish from a legitimate reply, so a wedged echo
 //!   server shows up as a subrun that never completes rather than as an error. The supervisor's
 //!   own stall is what says so.
@@ -69,7 +69,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{call, now, recv, recv_cap, reply, send, yield_now};
+use user_mode_runtime::{call, now, recv, recv_cap, reply, send, yield_now};
 
 /// The working set the [`job_mix::TOUCH`] job walks: this task's own memory, sized in
 /// `crates/job_mix` against the smallest L1d this project targets.
@@ -136,7 +136,7 @@ fn run_job(job: u8, seed: u64) -> u64 {
                 // object work between them. `now()` was refused for this job because it is *not* a
                 // syscall on two of the three architectures (an EL0 counter read on aarch64 and
                 // riscv64), so a job named for the trap would have measured a loop.
-                core::hint::black_box(user_rt::granted(EMPTY_SLOT));
+                core::hint::black_box(user_mode_runtime::granted(EMPTY_SLOT));
                 i += 1;
             }
             seed
@@ -208,4 +208,4 @@ pub extern "C" fn _start(role: u64, index: u64, seed: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

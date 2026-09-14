@@ -23,7 +23,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, map_page_frame, retype_page_frame, revoke_frame, send};
+use user_mode_runtime::{exit, map_page_frame, retype_page_frame, revoke_frame, send};
 
 const MEMORY_REGION: u64 = 0; // retype + page tables
 const REPORT: u64 = 1;
@@ -58,8 +58,8 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
 /// for. A failed check must be indistinguishable from a broken program, because it is one.
 fn check(ok: bool) {
     if !ok {
-        user_rt::trap()
+        user_mode_runtime::trap()
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

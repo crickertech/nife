@@ -159,10 +159,10 @@ pub fn init() {
     unsafe { asm!("csrs sie, {}", in(reg) STIE, options(nomem, nostack, preserves_flags)) };
 
     // Let U-mode read the `time` CSR (`rdtime`), the RISC-V twin of aarch64 opening
-    // `CNTKCTL_EL1.EL0VCTEN` in the arch/aarch64 timer. `crates/user_rt`'s `now()` needs it, and
+    // `CNTKCTL_EL1.EL0VCTEN` in the arch/aarch64 timer. `crates/user_mode_runtime`'s `now()` needs it, and
     // through it so do std's `Instant`, `thread::sleep` and the random seed.
     //
-    // **This was a latent board bug, not a new feature.** `user_rt` documented U-mode `rdtime` as
+    // **This was a latent board bug, not a new feature.** `user_mode_runtime` documented U-mode `rdtime` as
     // working "because the kernel sets scounteren.TM"; the kernel never set it. It worked anyway
     // because QEMU's OpenSBI leaves the bit permitted, so the whole riscv std stack (smoltcp's
     // timestamps in std_net, for one) has been riding firmware default rather than anything we
@@ -249,7 +249,7 @@ pub fn cycle_counter_grantable() -> bool {
 /// Because it can, and because it must not clobber. `scounteren` always exists on this ISA, so a
 /// `csrr` is available where an `mrs` from `PMUSERENR_EL0` would be UNDEFINED on a part without
 /// `FEAT_PMUv3`. And this one CSR carries two independent policies: `TM` is open for every thread by
-/// design (`init` above says why, and `crates/user_rt`'s `now()` depends on it), while `CY` is
+/// design (`init` above says why, and `crates/user_mode_runtime`'s `now()` depends on it), while `CY` is
 /// per-thread. A cached "what I last wrote" would have to model `TM` too; reading the live value
 /// and changing one bit cannot get `TM` wrong. That is the whole of the aarch64/riscv64 asymmetry
 /// DECISIONS 139 left open, and it is two honest implementations rather than one abstraction
@@ -531,7 +531,7 @@ mod tests {
     ///
     /// `TM` is the assertion that carries this milestone's aarch64/riscv64 asymmetry argument. One
     /// CSR holds both permissions here: `CY` is per-thread and `TM` is open for every thread by
-    /// design, because `crates/user_rt`'s `now()` is `rdtime` on this ISA. An implementation that
+    /// design, because `crates/user_mode_runtime`'s `now()` is `rdtime` on this ISA. An implementation that
     /// cached what it last wrote would have had to model `TM` as well; reading the register back
     /// and changing one bit cannot get it wrong, and this is what says so.
     ///

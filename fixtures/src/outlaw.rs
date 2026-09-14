@@ -58,7 +58,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, yield_now};
+use user_mode_runtime::{exit, yield_now};
 
 /// **Leave user mode and come back, twice.** The kernel counts syscalls from user mode; two of them
 /// is the assertion, because the second can only happen if the return from the first genuinely put
@@ -105,4 +105,4 @@ fn read_kernel(addr: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

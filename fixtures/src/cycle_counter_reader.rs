@@ -37,7 +37,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, send, yield_now};
+use user_mode_runtime::{exit, send, yield_now};
 
 const REPORT: u64 = 0;
 
@@ -58,7 +58,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
 /// Read the CPU's cycle counter from user mode: one instruction on every architecture, which is
 /// the property DECISIONS 139 chose option 4 to keep.
 ///
-/// **Deliberately not in `crates/user_rt`.** A portable userspace cycle-counter API is milestone
+/// **Deliberately not in `crates/user_mode_runtime`.** A portable userspace cycle-counter API is milestone
 /// 74's deliverable, and it will want to say what the number means (a frequency, a scaling, a
 /// story about what a "cycle" is on a big.LITTLE part). This is the raw read, in the one program
 /// that needs it today, so that 74 designs the API rather than inheriting one from a test vehicle.
@@ -101,4 +101,4 @@ fn read_cycle_counter() -> u64 {
     value
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

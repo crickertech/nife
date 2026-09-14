@@ -17,7 +17,7 @@
 //!    (kernel side: `arch::irq::enable`, the PLIC on RISC-V, the GIC on aarch64) now that the device
 //!    is quiet. Without this, the level-triggered UART would re-fire forever.
 //!
-//! Fully portable: it names no architecture. `user_rt` supplies the `ecall`/`svc` ABI, and the one
+//! Fully portable: it names no architecture. `user_mode_runtime` supplies the `ecall`/`svc` ABI, and the one
 //! device-specific fact (the NS16550 register layout) is the driver's own knowledge, which is exactly
 //! what a driver is for.
 //!
@@ -48,7 +48,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{irq_ack, irq_wait, send};
+use user_mode_runtime::{irq_ack, irq_wait, send};
 
 /// The `Irq` capability for the UART interrupt (slot 0), and the report endpoint (slot 1).
 const IRQ: u64 = 0;
@@ -93,4 +93,4 @@ fn read_uart() -> u8 {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

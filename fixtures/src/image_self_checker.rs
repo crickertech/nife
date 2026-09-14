@@ -31,12 +31,12 @@
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
-    loaded_image_check::verify(user_rt::trap);
+    loaded_image_check::verify(user_mode_runtime::trap);
 
     // One syscall that needs no capability at all, to prove we reached EL0 and can trap back in.
-    user_rt::yield_now();
+    user_mode_runtime::yield_now();
 
-    user_rt::exit();
+    user_mode_runtime::exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

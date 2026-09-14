@@ -22,7 +22,7 @@
 #![no_main]
 
 use abi::rendezvous;
-use user_rt::{exit, recv_cap, send, send_cap};
+use user_mode_runtime::{exit, recv_cap, send, send_cap};
 
 const CHANNEL: u64 = 0;
 const REPORT: u64 = 1;
@@ -54,4 +54,4 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     exit() // one-shot: reported, so we leave and the kernel reaps us
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

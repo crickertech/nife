@@ -69,7 +69,7 @@
 // A source file shared by several binaries through `#[path]`, and each uses a different slice of it,
 // so the unused halves are expected (§38).
 use swap_proto::client_checks as ck;
-use user_rt::{call, send};
+use user_mode_runtime::{call, send};
 
 /// What `swapper` endowed us with, **derived from our own declaration** (`swap_proto::CLIENT`,
 /// milestone 23's manifest). The attacker gets the same three, deliberately, and now that is a fact
@@ -159,7 +159,7 @@ fn converse() -> ! {
     // Tell the operator the conversation is over, so it reads the witness page after the last
     // request rather than in the middle of one.
     send(NOTE, swap_proto::NOTE_CLIENT_DONE, changed_at, 0);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// **The producer, one rung up the ladder.** The same conversation, on a channel whose front end is
@@ -200,7 +200,7 @@ fn produce() -> ! {
     }
     send(RPT, swap_proto::RPT_CLIENT, bits, buffered);
     send(NOTE, swap_proto::NOTE_CLIENT_DONE, buffered, 0);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 /// **The attacker.** It tries to become the server on the endpoint it is a client of.
@@ -218,7 +218,7 @@ fn usurp() -> ! {
     // Also say so on the operator's channel, so the operator knows the attack has been made and the
     // run is not simply missing a report.
     send(NOTE, swap_proto::NOTE_ATTACK_DONE, 0, 0);
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

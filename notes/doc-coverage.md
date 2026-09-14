@@ -46,7 +46,7 @@ recorded limitation rather than a pass:
    that break-before-make is forced, `smb_proto` performed a whole SMB2 mount, and `ntp_proto` shows an
    off-path spoof failing the origin check before any of the packet is believed.
 
-2. **`no_run`, with the reason stated in the prose** (`user_rt`, `virtio`, `system_initializer`).
+2. **`no_run`, with the reason stated in the prose** (`user_mode_runtime`, `virtio`, `system_initializer`).
    These have nothing to assert: every entry point is a syscall from EL0 or returns `!`. `svc` on a
    machine with no nife kernel under it is a fault, not a syscall. The examples are type-checked
    against the real signatures and executed by the QEMU boot and `script/shell-check`.
@@ -56,8 +56,8 @@ recorded limitation rather than a pass:
 
 ## BUGS
 
-- **Five crates' doctests are never run by `script/test`.** `user_rt`, `swap_proto`, `virtio`,
-  `supervision_proto` and `system_initializer` take unconditional `user_rt` dependencies, so the host
+- **Five crates' doctests are never run by `script/test`.** `user_mode_runtime`, `swap_proto`, `virtio`,
+  `supervision_proto` and `system_initializer` take unconditional `user_mode_runtime` dependencies, so the host
   test selection excludes them (the list is in `xtask/src/main.rs`, derived and checked by
   `script/lint`). Their examples run under `cargo test --doc -p <crate>` **on an aarch64 host** and
   are checked by nothing in CI. On an x86_64 host they do not even compile, which is a property of the
@@ -97,7 +97,7 @@ a hard gate, so those crates cannot regress:
 `elf`, `entropy_proto`, `page_frames`, `filesystem_proto`, `graphics_proto`, `glob`, `intrusive_fifo`, `ipc`, `line_editor`,
 `manual`, `mdns_config`, `measured_boot`, `nifefs`, `ntp_proto`, `nvme`, `paging`, `pgrep`,
 `ps`, `memory_regions`, `byte_sink_proto`, `generational_table`, `socket_proto`, `work_steal_slot`, `supervision_proto`,
-`swap_proto`, `swish`, `system_initializer`, `timetable`, `user_heap`, `user_rt`, `video_terminal`,
+`swap_proto`, `swish`, `system_initializer`, `timetable`, `user_mode_heap`, `user_mode_runtime`, `video_terminal`,
 `virtio`, `thread_wake_handshake`.
 
 The worklist, largest first, so the next person can take one crate and turn its line on:

@@ -12,7 +12,7 @@
 //!
 //! Name: provisional (milestone 291). This was `hello`'s `CALL_SERVER` role, number 14, and
 //! matches the kernel-side module that wires it. "Call" here is the IPC operation's own name
-//! (`user_rt::call`, `abi`'s `CALL`), which is the "standard term a reader already knows" case
+//! (`user_mode_runtime::call`, `abi`'s `CALL`), which is the "standard term a reader already knows" case
 //! AGENTS.md's naming section protects rather than a generic verb.
 
 #![no_std]
@@ -22,7 +22,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, recv_cap, reply, send};
+use user_mode_runtime::{exit, recv_cap, reply, send};
 
 const ENDPOINT: u64 = 0;
 const REPORT: u64 = 1;
@@ -42,8 +42,8 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
 /// for. A failed check must be indistinguishable from a broken program, because it is one.
 fn check(ok: bool) {
     if !ok {
-        user_rt::trap()
+        user_mode_runtime::trap()
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

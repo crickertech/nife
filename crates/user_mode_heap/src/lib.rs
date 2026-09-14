@@ -1,4 +1,4 @@
-//! **`user_heap`**: the userspace heap algorithm, as pure logic (milestone 27).
+//! **`user_mode_heap`**: the userspace heap algorithm, as pure logic (milestone 27).
 //!
 //! A first-fit, address-sorted free list with coalescing, the same shape the kernel's original
 //! milestone-4 heap had (notes/heap.md) and for the same reason: zero overhead on allocated
@@ -7,9 +7,9 @@
 //!
 //! This crate is deliberately just the algorithm: it manages address ranges someone else hands it
 //! (`add_region`) and never maps a page or makes a syscall. The syscall half (growing the heap out
-//! of the process's own untyped via `memory_region::MAP`) lives in `user_rt::heap`, which wraps this in
+//! of the process's own untyped via `memory_region::MAP`) lives in `user_mode_runtime::heap`, which wraps this in
 //! a lock and a grow-on-demand policy. The split is the project's standing rule: pure logic
-//! compiles for the host, so these invariants are proven in milliseconds by `cargo test -p user_heap`,
+//! compiles for the host, so these invariants are proven in milliseconds by `cargo test -p user_mode_heap`,
 //! not in QEMU.
 //!
 //! # The one invariant that makes it headerless
@@ -28,7 +28,7 @@
 //!
 //! ```
 //! use core::alloc::Layout;
-//! use user_heap::{Heap, MIN_ALIGN, effective_size};
+//! use user_mode_heap::{Heap, MIN_ALIGN, effective_size};
 //!
 //! // A 16-aligned arena. On a real process this would be pages mapped out of the untyped budget.
 //! #[repr(align(4096))]
@@ -58,16 +58,27 @@
 //!
 //! ```
 //! use core::alloc::Layout;
-//! use user_heap::{MIN_ALIGN, effective_size};
+//! use user_mode_heap::{MIN_ALIGN, effective_size};
 //!
 //! assert_eq!(effective_size(Layout::from_size_align(1, 1).unwrap()), MIN_ALIGN);
 //! assert_eq!(effective_size(Layout::from_size_align(16, 1).unwrap()), 16);
 //! assert_eq!(effective_size(Layout::from_size_align(17, 1).unwrap()), 32);
 //! ```
 //!
-//! Name: ratified 2026-08-01 (calef, milestone 63), replacing `uheap`. Refused `uheap` (the `u` was
-//! "userspace" and had to be decoded, while `user_rt` already establishes `user_` as this tree's
-//! prefix for it).
+//! Name: ratified 2026-09-13 (calef, milestone 285), replacing `user_heap`. The prefix moved with
+//! it: `user_` became `user_mode_`, because in this tree `user` means *a person* in several hundred
+//! places (milestone 49 is users and attribution, `identity_provisioner` creates them, `login`
+//! authenticates them), so `user_heap` read as "the heap belonging to a user" rather than "the heap
+//! a program gets at the unprivileged level". "User mode" is the tree's architecture-neutral phrase
+//! for that level, where `EL0`, `U-mode` and `ring 3` are one ISA's each; `el0_heap` was refused for
+//! being correct on one architecture and wrong on two (AGENTS.md rule 5). Refused `el0_heap` (names
+//! one architecture's privilege level for a crate that ships on three).
+//!
+//! It was ratified once before, on 2026-08-01 (calef, milestone 63), as `user_heap` replacing
+//! `uheap`. That record stands and its reasoning is not restated here in today's spelling: the `u`
+//! was "userspace" and had to be decoded, while `user_rt` already established `user_` as this
+//! tree's prefix for it. Milestone 285 is what closed that circle, since the prefix rested on a
+//! crate whose own name had never been argued.
 
 #![no_std]
 
@@ -102,7 +113,7 @@ pub struct Heap {
 }
 
 // SAFETY: the raw pointers are to memory the heap exclusively manages; the caller provides the
-// locking (user_rt::heap wraps this in a spinlock). Same contract as any allocator core.
+// locking (user_mode_runtime::heap wraps this in a spinlock). Same contract as any allocator core.
 unsafe impl Send for Heap {}
 
 impl Heap {
@@ -134,7 +145,7 @@ impl Heap {
 
     /// Donate `[start, start + size)` to the heap. The range must be 16-aligned at both ends,
     /// unused, and disjoint from everything donated before. Adjacent donations coalesce, which is
-    /// what lets `user_rt::heap` grow the committed range page by page and still end up with one
+    /// what lets `user_mode_runtime::heap` grow the committed range page by page and still end up with one
     /// big block.
     ///
     /// # Safety

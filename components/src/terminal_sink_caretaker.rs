@@ -63,7 +63,7 @@
 #![no_main]
 
 use line_editor::proto;
-use user_rt::{call, recv};
+use user_mode_runtime::{call, recv};
 
 /// Slot 0: the sink endpoint, held `READ`. Its clients hold `WRITE` on the same object and nothing
 /// else, which is the whole point: what they can reach is this process, and this process only ever
@@ -104,4 +104,4 @@ fn print(bytes: &[u8]) {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

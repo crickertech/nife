@@ -768,7 +768,7 @@ being reclaimed.
 
 Item 4's hand-off, 2026-08-24. Five pieces, and only one of them was interesting.
 
-### `user_rt` needed five transliterations and two decisions
+### `user_mode_runtime` needed five transliterations and two decisions
 
 The five are mechanical once DECISIONS §124 is read: `syscall` where aarch64 writes `svc` and
 RISC-V writes `ecall`, the number in `rax`, the arguments in `rdi`/`rsi`/`rdx`/`r10`/`r8`/`r9`.
@@ -834,7 +834,7 @@ five bits this kernel never wrote were already set by firmware before any of our
 
 **Why it was not closed with them.** `CR4.TSD` is one instruction away, and setting it today would
 break `Instant`, `thread::sleep`, the random seed, smoltcp's timestamps in `std_net` and the
-benchmark harness simultaneously, because `user_rt`'s `now()` on this architecture **is** `rdtsc` and
+benchmark harness simultaneously, because `user_mode_runtime`'s `now()` on this architecture **is** `rdtsc` and
 there is no coarse alternative to fall back to. Closing it needs a second time source first: a coarse
 monotonic value published in a page, the same move DECISIONS §43 (reading the clock is a page) already
 made for the wall clock, one axis over. Nothing proposes building that here; it is named so this row
@@ -958,7 +958,7 @@ the argument for doing item 4's hand-off rather than deferring it.
    documented as disjoint in `GSI_VECTOR_BASE`'s own doc comment; nothing above the arch layer had
    ever called `enable` before.
 
-2. **`user_rt::trap()` cannot use `int3` from ring 3.** A *software* interrupt is refused unless the
+2. **`user_mode_runtime::trap()` cannot use `int3` from ring 3.** A *software* interrupt is refused unless the
    IDT gate's DPL admits the caller's privilege, and every gate here is DPL 0, so `int3` from a
    process raises **#GP with error code 0x1a** (`(3 << 3) | 2`: the vector it was refused, tagged as
    an IDT selector) rather than #BP. The process died either way, so the first version looked like
@@ -1006,7 +1006,7 @@ needs no initrd is what lets the userspace demo run on a `cargo run` with no `-i
 ### What a userspace still does not have here
 
 The bound on everything above, listed because it is the next lane's brief rather than a caveat.
-Every item is a device or a toolchain, and none is `user_rt` any more.
+Every item is a device or a toolchain, and none is `user_mode_runtime` any more.
 
 - **No device a ring-3 process can reach.** The console UART is in the I/O port space, so
   `user::UART_PHYS` is zero and `console`, `input`, `keyboard_driver` and `swapper` are packed but cannot run;
@@ -1283,7 +1283,7 @@ nife on x86_64 (long mode, ring 0, 4-level paging)
                 thread 8589934594 died at pc 0x400005 on addr 0xa50000, delivered to its supervisor
                 two children cost 0 frames the first round and 0 the second (steady state)
 
-  next        : real ELF user programs (user_rt has no x86_64 arms), then SMP.
+  next        : real ELF user programs (user_mode_runtime has no x86_64 arms), then SMP.
 nife x86_64: boot complete, halting.
 ```
 
