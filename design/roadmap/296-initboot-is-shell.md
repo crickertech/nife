@@ -6,9 +6,10 @@ lane on 2026-09-09 and carrying this block's measurement in its git history. Min
 maintainer on **calef's ruling of 2026-09-14: delete `initboot`.**
 *(Number provisional until the merge queue lands it.)*
 
-The question arrived sideways. `script/initboot` was the **only one of fifty-four `script/` entry
-points that ran two words together**, against the hyphen rule for shell commands that milestone 63
-swept the tree for on 2026-08-01; this one survived that sweep rather than being exempted by it, and
+The question arrived sideways. `script/initboot` was the **only one of fifty-five `script/` entry
+points that ran two words together** (fifty-four now that it is gone), against the hyphen rule for
+shell commands that milestone 63 swept the tree for on 2026-08-01; this one survived that sweep
+rather than being exempted by it, and
 `design/roadmap/proposals/what-the-boot-path-is-called.md` had been holding a rename since
 2026-09-08. Asked to rule on `progenitor-boot` or `handoff`, calef asked what the thing does, and the
 answer was *nothing its sibling does not*. A naming question was answered by deletion.
