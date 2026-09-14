@@ -74,7 +74,7 @@
 //! the work.
 //!
 //! **Ratified on the name, not on the shape.** calef ruled the same day that this binary's eleven
-//! roles are the wrong shape (milestone 293): four of them differ only in which identity and secret
+//! roles are the wrong shape, and minted a milestone for it: four of them differ only in which identity and secret
 //! they carry, which wants arguments rather than a dispatch table. The name survives that change
 //! and is expected to; what it names is one test client either way.
 
