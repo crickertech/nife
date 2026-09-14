@@ -49,14 +49,14 @@
 
 use core::alloc::{GlobalAlloc, Layout};
 
-use user_rt::heap::MemoryRegionHeap;
-use user_rt::send;
+use user_mode_runtime::heap::MemoryRegionHeap;
+use user_mode_runtime::send;
 
 /// What the confiner endowed us with, in order.
 const REPORT: u64 = 0; // WRITE: say what happened
 const HEAP_UT: u64 = 1; // WRITE: the region we were built in, which also pays for malloc
 
-/// The heap's ceiling. Eight pages is one growth step (`user_rt::heap::MIN_GROW_PAGES`) and far more
+/// The heap's ceiling. Eight pages is one growth step (`user_mode_runtime::heap::MIN_GROW_PAGES`) and far more
 /// than the component's single scratch allocation needs; small on purpose, so a runaway C `malloc`
 /// loop hits a bounded wall inside its own budget.
 const HEAP_MAX: u64 = 8 * c_seam::PAGE;
@@ -75,7 +75,7 @@ unsafe extern "C" {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, attempt: u64, _a2: u64) -> ! {
-    HEAP.init(HEAP_UT, user_rt::heap::DEFAULT_BASE, HEAP_MAX);
+    HEAP.init(HEAP_UT, user_mode_runtime::heap::DEFAULT_BASE, HEAP_MAX);
 
     // Report *before* the call, because two of the three attempts never return from it. This is how
     // the test knows a restarted instance reached its work at all.
@@ -101,7 +101,7 @@ pub extern "C" fn _start(_a0: u64, attempt: u64, _a2: u64) -> ! {
 
     // Only the honest attempt gets here. A clean exit is what the supervisor must read as "finished"
     // rather than "crashed" (DECISIONS §26.3), and it is what ends the run.
-    user_rt::exit()
+    user_mode_runtime::exit()
 }
 
 // ===========================================================================================
@@ -195,4 +195,4 @@ pub unsafe extern "C" fn free(p: *mut u8) {
 
 // A panic here is a bug in the shell, not in the C. Trap, so the kernel prints the pc and this
 // process's supervisor sees a fault rather than a silent hang.
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

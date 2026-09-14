@@ -128,7 +128,7 @@
 //!   not a filesystem.
 //! - **There is no exit status to report with**, so "nothing matched" is a sentence on diagnostics
 //!   rather than upstream's exit 1. A caller that wanted to branch on the answer would have to count
-//!   the lines. `user_rt::exit` takes no code and giving it one is a syscall-surface change.
+//!   the lines. `user_mode_runtime::exit` takes no code and giving it one is a syscall-surface change.
 //! - **The count in "none of the N processes" is the domain as this walk saw it**, which is a
 //!   sequence of snapshots (notes/process-view.md). A member born mid-walk is not in it.
 //! - **The cursor is not exposed here and must not become so.** `ps`'s rows carry tids and states

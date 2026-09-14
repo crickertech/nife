@@ -275,7 +275,7 @@ problems, and only the first was large.
 **The third thing, which the plan did not anticipate.** The module was blocked on a stale comment as
 much as on machine code. `hello` carries the milestone 7-19 role catalogue and xtask called it
 "aarch64-wired"; three quarters of that sentence had been false for some time, and the last quarter
-was six syscalls hand-rolled in aarch64 `asm!` that `user_rt` had had portable versions of since
+was six syscalls hand-rolled in aarch64 `asm!` that `user_mode_runtime` had had portable versions of since
 19f.6. Deleting the duplicates was the whole port for roughly twenty of the tests. Sizing a job from
 what the comments say it needs is how an afternoon's work stays undone for a year.
 

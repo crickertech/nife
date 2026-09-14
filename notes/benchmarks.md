@@ -291,11 +291,11 @@ kernel-side benchmark skips entirely.
 
 So the cross-OS primitive numbers have to be measured **from EL0**, a userspace program that self-
 times a loop of real `svc` syscalls, to be comparable to lmbench. That is why milestone 19e opened
-EL0 access to the virtual counter (`CNTKCTL_EL1.EL0VCTEN`; `user_rt::now`/`cntfrq`; notes/abi.md):
+EL0 access to the virtual counter (`CNTKCTL_EL1.EL0VCTEN`; `user_mode_runtime::now`/`cntfrq`; notes/abi.md):
 userspace self-timing is the prerequisite for a fair comparison. The CoreMark workload is the first
 program to use it, self-timing its run and reporting `[crc, ticks, freq]`; the EL0 primitive
 benchmarks (null syscall, context switch, IPC round-trip, page map, all measured the lmbench way)
-build on the same `user_rt::now`. The existing kernel-side suite stays, for gating; the EL0 suite is additive, for
+build on the same `user_mode_runtime::now`. The existing kernel-side suite stays, for gating; the EL0 suite is additive, for
 cross-OS honesty. The two will differ by roughly the trap cost, and that difference is itself a
 number worth having.
 
@@ -2526,7 +2526,7 @@ needed no change to run on this ISA. What is missing is everything *around* it:
 
 Every EL0-plane bench (`null_syscall_el0`, `ctx_switch_el0`, `ipc_rtt_el0`, `sink_throughput`,
 `map_el0`, `spawn_el0`) self-skips on this leg through the mechanism they already had (`crate::
-user::program` finds nothing, because `crates/user_rt` has no `x86_64` arms yet): no new gating was
+user::program` finds nothing, because `crates/user_mode_runtime` has no `x86_64` arms yet): no new gating was
 needed for them. `fs_read`, `fs_throughput` and `smp_throughput` self-skip the same way they do on a
 single-hart `--real` run elsewhere. What is left, and what runs cleanly, is the kernel-thread plane:
 `yield_switch`, `ipc_rtt`, `relay_rtt`, `call_reply`, `broker_rtt`, `spawn_reap`, `map_new`,

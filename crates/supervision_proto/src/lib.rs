@@ -37,7 +37,7 @@
 //! # Examples
 //!
 //! **A caveat first, because it is a limitation rather than a footnote.** This crate takes an
-//! unconditional `user_rt` dependency, so `script/test`'s host pass excludes it (the exclusion list
+//! unconditional `user_mode_runtime` dependency, so `script/test`'s host pass excludes it (the exclusion list
 //! is in `xtask` and is derived and checked by `script/lint`). The examples below run under
 //! `cargo test --doc -p supervision_proto` on an aarch64 host and **are not checked by the gate**.
 //!
@@ -102,7 +102,7 @@
 //! open naming question of its own (DECISIONS §69): a verb where the tenet says noun, naming the
 //! same idea as `grant_plan::Endowment` one construction step apart.
 
-use user_rt::{cap_delete, invoke};
+use user_mode_runtime::{cap_delete, invoke};
 
 // ===========================================================================================
 // The report protocol. Every process in the tree holds a WRITE view of one report endpoint and
@@ -380,7 +380,7 @@ pub fn build_child_space(
         let stack_frame = retype_page_frame_from(build_ut)?;
         let va = CHILD_STACK_VA - k * PAGE;
         // SAFETY: `invoke` traps to the kernel, which validates the capability and the method
-        // before acting (user_rt's contract). A caller cannot break an invariant by passing a
+        // before acting (user_mode_runtime's contract). A caller cannot break an invariant by passing a
         // bad slot or method; it gets an error back.
         if unsafe {
             invoke(
@@ -406,11 +406,11 @@ pub fn build_child_space(
     // gives back memory out of `build_ut` (the child's own budget, exactly like the stack pages
     // just above), which this process can always afford and which carries no capability from the
     // kernel to forward. A zeroed page fails `timebase_proto::TimebasePage`'s magic check and
-    // reads as "unknown," so `user_rt::cntfrq` here falls back to its own constant instead of
+    // reads as "unknown," so `user_mode_runtime::cntfrq` here falls back to its own constant instead of
     // faulting on an unmapped read, which is what happened before this existed: `coremark`, built
     // this way by `hello`'s `init_coremark` role, paged-faulted reading a VA `kernel::user::load`
     // never had reason to map into it. The kernel-computed *real* number only reaches a process
-    // `kernel::user::load` builds directly; see `user_rt::cntfrq`'s own `BUGS` section for the
+    // `kernel::user::load` builds directly; see `user_mode_runtime::cntfrq`'s own `BUGS` section for the
     // honest gap this leaves and why closing it needs more than this crate can do on its own
     // (the real number would have to ride a capability from whoever built *us*, and nothing here
     // is handed one).
@@ -597,7 +597,7 @@ pub fn memory_region_split(ut: u64, pages: u64) -> Result<u64, i64> {
 /// §16 object revocation: reclaim a region and every object retyped from it, by its **owner**. The
 /// stronger of the two reaps, because `WRITE` on a region is also what builds a process out of it,
 /// and the only one that can tear down a *live* thread (§16's amendment arms the kill). A supervisor
-/// collecting a dead child wants `user_rt::reap` instead (§32).
+/// collecting a dead child wants `user_mode_runtime::reap` instead (§32).
 pub fn memory_region_destroy(ut: u64) -> bool {
     // SAFETY: as above: the kernel validates the capability and the method.
     unsafe { invoke(ut, abi::memory_region::DESTROY, 0, 0, 0) == 0 }
@@ -636,7 +636,7 @@ pub fn memory_region_destroy(ut: u64) -> bool {
 /// **The retaining branch has no caller and therefore no test.** Every spawn site in the tree
 /// declares [`Retention::Nothing`] (DECISIONS §142 chose R4 declaring R0), so the arm that keeps
 /// the capability is reached by nothing that runs, and this crate is excluded from `script/test`'s
-/// host pass anyway for its unconditional `user_rt` dependency. The arm is three lines and does
+/// host pass anyway for its unconditional `user_mode_runtime` dependency. The arm is three lines and does
 /// nothing, which is the only reason that is tolerable; the first site that declares
 /// [`Retention::ThreadControlBlock`] is exercising it for the first time and should say so.
 pub fn start_child(child: Child, a0: u64, a1: u64, a2: u64) -> bool {
@@ -653,11 +653,11 @@ pub fn start_child(child: Child, a0: u64, a1: u64, a2: u64) -> bool {
 /// Trap. A half-built system is not worth limping along, and a fault is legible: the kernel prints
 /// the pc and the process dies where the mistake was.
 ///
-/// The instruction moved to [`user_rt::trap`] in milestone 130; this stays because callers here
+/// The instruction moved to [`user_mode_runtime::trap`] in milestone 130; this stays because callers here
 /// mean something more specific than "trap" (a supervision-protocol step failed, and limping on
 /// would build half a system), and that reason is worth a name. What it no longer does is spell
 /// the asm out: this body and `swap_proto::fail`'s were byte-identical copies of each other and of
 /// forty-six other sites.
 pub fn fail() -> ! {
-    user_rt::trap()
+    user_mode_runtime::trap()
 }

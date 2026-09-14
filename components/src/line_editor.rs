@@ -57,7 +57,7 @@
 #![no_main]
 
 use line_editor::{Event, LINE_MAX, LineDisc, PROMPT_MAX, RawQueue, Sink, proto};
-use user_rt::{call, recv, recv_cap, reply, send};
+use user_mode_runtime::{call, recv, recv_cap, reply, send};
 
 /// The terminal endpoint (slot 0): clients CALL requests here; we serve it with `RECV_CAP`. Its
 /// clients differ by [`MODE_CONSOLE`]/[`MODE_DISPLAY`] (`input` or `keyboard_driver`, directly, for the
@@ -424,4 +424,4 @@ impl LineQueue {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

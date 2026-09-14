@@ -1,7 +1,7 @@
 /*
  * c_seam.c -- the foreign component (milestone 36, DECISIONS §31).
  *
- * Memory-unsafe C, compiled by bare-metal clang, linked into a Rust user_rt shell
+ * Memory-unsafe C, compiled by bare-metal clang, linked into a Rust user_mode_runtime shell
  * (fixtures/src/c_shim.rs) and confined by the kernel like any other process. It is the
  * smallest thing that can prove the seam: one honest function that does real work
  * over a granted buffer, and two functions that misbehave on purpose.

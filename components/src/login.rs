@@ -248,7 +248,7 @@
 //! **Resolved, milestone 233 (2026-09-02): this program used to die at `_start` on every real
 //! interactive boot, on both architectures.** `_start` read the boot archive to find
 //! `fs_subtree_caretaker`, from `initrd_len` in `a1` and the kernel's mapping at
-//! `user_rt::initrd::INITRD_VA`. That is what `kernel::user::login_service::start` handed it, and it
+//! `user_mode_runtime::initrd::INITRD_VA`. That is what `kernel::user::login_service::start` handed it, and it
 //! is what `crates/system_initializer` could never hand it: `supervision_proto::build_child` maps
 //! only pages the spawner holds a `PageFrame` capability for, and the archive is reserved RAM the
 //! frame allocator does not own and no capability names. So the progenitor started this process with
@@ -607,7 +607,7 @@ use supervision_proto::{
     ChildEndowment, Retention, build_child, memory_region_destroy, memory_region_split,
     retype_obj_from as retype_obj, retype_page_frame_from, start_child,
 };
-use user_rt::{call, cap_delete, map_page_frame, recv, send, send_cap, yield_now};
+use user_mode_runtime::{call, cap_delete, map_page_frame, recv, send, send_cap, yield_now};
 
 /// The front door: a bare [`login_proto::CONNECT`], `RECV` (milestone 49).
 const REQUEST: u64 = 0;
@@ -973,7 +973,7 @@ fn serve_login(
             // **`WRITE` alone, not `READ | WRITE`** (resolved, milestone 49's boot-wiring
             // update): the kernel's own `page_frame_map` checks only `Rights::WRITE` for a
             // writable mapping (`PageFrame::MAP` with `writable=true`, what
-            // `user_rt::map_page_frame`'s callers on both ends of this frame always request) and
+            // `user_mode_runtime::map_page_frame`'s callers on both ends of this frame always request) and
             // grants a fully read+write page table entry either way -- `Rights::READ` on the
             // *capability* only gates a *read-only* mapping, which this frame's protocol never
             // asks for. This matters beyond tidiness: `crates/system_initializer::boot` itself
@@ -1314,4 +1314,4 @@ fn fail(step: u64) -> ! {
     supervision_proto::fail()
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

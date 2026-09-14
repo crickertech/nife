@@ -6,7 +6,7 @@
 //! measure from **here**, at EL0, self-timing a loop of real `svc` syscalls. That is this program.
 //!
 //! It is spawned by the bench boot (`kernel/src/bench.rs`), self-times each primitive with
-//! `user_rt::now` (the virtual counter, EL0-readable since milestone 19e), and SENDs `[ticks, iters]`
+//! `user_mode_runtime::now` (the virtual counter, EL0-readable since milestone 19e), and SENDs `[ticks, iters]`
 //! home on the one endpoint it was granted (slot 0). The bench boot prints it in the same
 //! machine-readable line the rest of the harness uses, so the icount baseline gates it and `--real`
 //! gives its true magnitude. Five primitives: null syscall, context switch, IPC round trip, page
@@ -28,7 +28,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{
+use user_mode_runtime::{
     cap_delete, destroy_region, exit, map_into, map_page_frame, now, recv, retype_object,
     retype_page_frame, send, split_region, tcb_cap_insert, tcb_configure, tcb_start, yield_now,
 };
@@ -470,7 +470,7 @@ fn null_syscall() {
     // SAFETY: `syscall` with the benchmark's null-syscall number: it traps to the kernel, which
     // returns immediately. This is the measurement, and the options promise it touches neither
     // memory nor the stack. `rcx` and `r11` are the instruction's own clobbers, declared here for
-    // the same reason every other `syscall` site declares them (crates/user_rt).
+    // the same reason every other `syscall` site declares them (crates/user_mode_runtime).
     unsafe {
         core::arch::asm!(
             "syscall",
@@ -483,4 +483,4 @@ fn null_syscall() {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

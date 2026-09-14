@@ -49,7 +49,7 @@
 //! - slot 3: an untyped budget, the memory it grants with `--mem`.
 //!
 //! and two pages shared with the terminal: `OUT_VA` (we write text and prompts) and `LINE_VA`
-//! (completed lines arrive). No role selector; the syscall runtime comes from `user_rt`.
+//! (completed lines arrive). No role selector; the syscall runtime comes from `user_mode_runtime`.
 //!
 //! Two more slots are **wiring-dependent** and their numbers are therefore not constants here: the
 //! directory ([`DIR_TERMINAL`], slot 4, when this boot has a filesystem) and the clock page, whose
@@ -104,8 +104,8 @@ use grant_plan::{
 };
 use line_editor::proto;
 use swish::{Route, Say, Status, Untimed, sequence};
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{
     call, cap_delete, destroy_region, exit, monotonic_nanos, reap, recv, recv_fault, retype_object,
     send, split_region, yield_now,
 };
@@ -122,14 +122,15 @@ const LINE_VA: u64 = 0x0000_0000_00b0_0000; // the terminal writes; we read
 
 // SAFETY: the wiring (`crates/system_initializer`'s `SH_OUT_VA` grant) maps one page read/write at
 // OUT_VA before this shell runs, in every wiring that has a terminal at all (milestone 139 round
-// 3; see `user_rt::mapped_window`, which is what collapsed the hand-rolled
+// 3; see `user_mode_runtime::mapped_window`, which is what collapsed the hand-rolled
 // read_volatile/write_volatile loop in `stage` below, the same way [`FS_WINDOW`] collapsed the FS
 // cluster's in round 2). Constructing a window touches no memory.
-const OUT_WINDOW: MappedWindow = unsafe { MappedWindow::new(OUT_VA, user_rt::mapped_window::PAGE) };
+const OUT_WINDOW: MappedWindow =
+    unsafe { MappedWindow::new(OUT_VA, user_mode_runtime::mapped_window::PAGE) };
 // SAFETY: as `OUT_WINDOW`'s, but the wiring's `LINE_VA` grant, mapped read-only, and this is what
 // collapsed the hand-rolled loop in `read_line` below.
 const LINE_WINDOW: MappedWindow =
-    unsafe { MappedWindow::new(LINE_VA, user_rt::mapped_window::PAGE) };
+    unsafe { MappedWindow::new(LINE_VA, user_mode_runtime::mapped_window::PAGE) };
 
 // Capability slots.
 const TERM: u64 = 0; // CALL requests on the terminal
@@ -195,7 +196,7 @@ fn holdings(nav: &Nav) -> grant_plan::Holdings {
 const FS_VA: u64 = 0x0000_0000_0060_0000;
 
 // SAFETY: the navigating wiring maps one page read/write at FS_VA before this shell runs, when it
-// has an FS_VA at all (milestone 139 round 2; see `user_rt::mapped_window`, which is what
+// has an FS_VA at all (milestone 139 round 2; see `user_mode_runtime::mapped_window`, which is what
 // collapsed the hand-rolled read_volatile/write_volatile loops below). Constructing the window
 // touches no memory; every caller of `put_page`/`get_page` already runs behind a `dir.is_some()`
 // check, which is only true in that wiring, matching the comment this replaces.
@@ -1459,7 +1460,7 @@ fn time_command(nav: &mut Nav, tail: &[u8]) {
     }
     // **A duration needs no clock** (§72). Wall time is an offset plus this counter; across a
     // command the offset cancels, so the subtraction below is the whole measurement, and
-    // `user_rt::monotonic_nanos` is ambient by the kernel's own choice (it opened the counter to
+    // `user_mode_runtime::monotonic_nanos` is ambient by the kernel's own choice (it opened the counter to
     // EL0). `time` therefore cannot be refused and has no clock wiring: what a capability gates
     // here is wall-clock *identity*, which is `date`'s business, not elapsed time.
     //
@@ -3156,13 +3157,13 @@ fn reclaim(job_ut: u64) -> bool {
 
 /// RETYPE one page of our budget into a `PageFrame` capability we hold. `None` when the budget is spent.
 fn retype_page_frame() -> Option<u64> {
-    let r = user_rt::retype_page_frame(BUDGET);
+    let r = user_mode_runtime::retype_page_frame(BUDGET);
     if r < 0 { None } else { Some(r as u64) }
 }
 
 /// Map the frame in `slot` read/write at `va` in our own space; page tables come from our budget.
 fn map_page_frame(slot: u64, va: u64) -> bool {
-    user_rt::map_page_frame(slot, va, true, BUDGET)
+    user_mode_runtime::map_page_frame(slot, va, true, BUDGET)
 }
 
 /// Delegate the capability in `slot` to the progenitor over the spawn rendezvous, narrowed to WRITE|GRANT (the progenitor
@@ -3179,7 +3180,7 @@ fn send_cap(slot: u64) {
 /// input**. A pipeline that granted both directions would be a two-way channel nobody asked for, and
 /// the narrowing is what stops it rather than a convention the programs are trusted to keep.
 fn delegate(slot: u64, rights: u64) {
-    user_rt::send_cap(SPAWN, slot, rights, spawnproto::CAP_TAG);
+    user_mode_runtime::send_cap(SPAWN, slot, rights, spawnproto::CAP_TAG);
 }
 
 /// Ask the terminal how many `^C` it has seen (a non-blocking poll; see `proto::OP_INTRCOUNT`).
@@ -3888,4 +3889,4 @@ fn bind_line<'a>(
     &buf[..n]
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

@@ -28,8 +28,8 @@
 #![no_main]
 
 // The virtio module names `crate::{check, invoke, send}`; in `hello` those are its helpers, here
-// they are `user_rt`'s (same signatures) plus the local `check`.
-pub use user_rt::{invoke, send};
+// they are `user_mode_runtime`'s (same signatures) plus the local `check`.
+pub use user_mode_runtime::{invoke, send};
 
 /// Role numbers, matching `kernel/src/user/virtio_service.rs` (and hello's dispatch).
 const VIRTIO_BLK: u64 = 3;
@@ -62,4 +62,4 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, _arg2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

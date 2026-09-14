@@ -68,7 +68,7 @@
 #![no_main]
 
 use byte_sink_proto::fixture;
-use user_rt::{exit, send};
+use user_mode_runtime::{exit, send};
 
 /// The byte sink, `WRITE`, and the whole of what this program holds towards its output: no page,
 /// no acknowledgement channel, nothing else. Empty is a legal state and a tested one.
@@ -111,4 +111,4 @@ pub extern "C" fn _start(repeat: u64, _a1: u64, _a2: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

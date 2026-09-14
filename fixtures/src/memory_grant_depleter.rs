@@ -46,7 +46,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{exit, map_region_page, send};
+use user_mode_runtime::{exit, map_region_page, send};
 
 /// The result endpoint init grants every spawned program (slot 0).
 const RESULT: u64 = 0;
@@ -82,4 +82,4 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     exit();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

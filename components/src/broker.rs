@@ -45,7 +45,7 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_rt::{call, recv_cap, reply, send};
+use user_mode_runtime::{call, recv_cap, reply, send};
 
 // A source file shared by several binaries through `#[path]`, and each uses a different slice of it,
 // so the unused halves are expected (§38).
@@ -153,7 +153,7 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
                 send(RPT, swap_proto::RPT_QUIESCED, 0, buffered);
                 reply(slot, swap_proto::QUIESCED, buffered);
                 send(NOTE, swap_proto::NOTE_BROKER_DONE, buffered, 0);
-                user_rt::exit()
+                user_mode_runtime::exit()
             }
             _ => {
                 reply(slot, swap_proto::BAD_REQUEST, 0);
@@ -162,4 +162,4 @@ pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
     }
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();

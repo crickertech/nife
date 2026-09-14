@@ -70,8 +70,8 @@
 
 use filesystem_proto::{fs, grant};
 use line_editor::proto;
-use user_rt::mapped_window::MappedWindow;
-use user_rt::{call, exit, send};
+use user_mode_runtime::mapped_window::MappedWindow;
+use user_mode_runtime::{call, exit, send};
 
 /// The terminal endpoint: `CALL` for `OP_RAWMODE` / `OP_READRAW` / `OP_WRITE`.
 const TERM: u64 = 0;
@@ -698,4 +698,4 @@ fn csi_final(ed: &mut Editor, b: u8, param: u16) {
     ed.clamp_cursor();
 }
 
-user_rt::panic_handler!();
+user_mode_runtime::panic_handler!();
