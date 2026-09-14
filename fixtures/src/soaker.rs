@@ -90,7 +90,7 @@
 //! word is the best name when it is true and the worst when it is not.
 //!
 //! It is also **this tree's own vocabulary already**, at 947 occurrences of the stem:
-//! `crates/soak_page`, `kernel/src/soak.rs`, `--features soak`, `board_console`'s soak census and
+//! `crates/soak_page`, `kernel/src/soak.rs`, `--features soak_test`, `board_console`'s soak census and
 //! the captured board logs. Renaming the program would leave it the odd member of a family it
 //! anchors.
 //!

@@ -1,10 +1,10 @@
 #!/bin/sh
-# script/soak: run the sustained multicore workload under QEMU and judge it the way a board is
+# script/soak-test: run the sustained multicore workload under QEMU and judge it the way a board is
 # judged (milestone 219).
 #
-#   script/soak                                  # aarch64, one minute
-#   script/soak --arch riscv64 --for 10m         # the architecture radon runs
-#   script/soak --arch x86_64 --smp 1            # xenon's architecture (see BUGS)
+#   script/soak-test                             # aarch64, one minute
+#   script/soak-test --arch riscv64 --for 10m    # the architecture radon runs
+#   script/soak-test --arch x86_64 --smp 1       # xenon's architecture (see BUGS)
 #
 # `design/fatal-risks.md`'s fifth entry ("it cannot be made reliable on multicore, and the bugs
 # appear only on silicon") names its decisive experiment as sustained multi-core stress with the
@@ -13,7 +13,7 @@
 # The real runs happen on radon, argon and xenon; this is what proves the mechanism before anyone
 # carries a board to a desk. See notes/soak.md.
 #
-# What it boots is `--features soak`, where the boot tour does not end in `arch::halt()` but in a
+# What it boots is `--features soak_test`, where the boot tour does not end in `arch::halt()` but in a
 # pool of user-mode IPC workers and a supervisor that prints a heartbeat every five seconds. See
 # kernel/src/soak.rs and fixtures/src/soaker.rs.
 #
@@ -38,7 +38,7 @@
 #   of this script: a green soak under emulation says the mechanism works, and says nothing about
 #   silicon.
 # - **A soak build is not a production build.** The counters and `Thread::last_cpu` exist only under
-#   `--features soak`, and they are not free: `ipc_fastpath` measures 1.05 to 1.06x its production
+#   `--features soak_test`, and they are not free: `ipc_fastpath` measures 1.05 to 1.06x its production
 #   size with them in. So these round-trip rates are soak-build rates, comparable with other soak
 #   runs and with nothing else. `script/bench` is the instrument for IPC cost. Milestone 221 added
 #   nothing to that figure, which was measured rather than assumed (notes/soak.md).
@@ -53,9 +53,32 @@
 #   to one and its SMP bring-up has two open bugs (`arch::x86_64::ap_boot`'s BUGS #1 and #3). A
 #   single-core soak is not a multicore soak, and `remote=0` in its report is how it says so.
 #
-# Name: provisional, this lane's coinage (2026-09-01, milestone 219). A noun, hyphen-free because it
-# is one word, and the word the risk's own text uses. `stress` was refused: `script/repeat-under-load`
-# already owns that word here, for induced HOST load, which points the other way.
+# Name: ratified 2026-09-14 (calef, shown `script/soak` for ratification; milestone 297 performed
+# the rename). Coined as `soak` by milestone 219's lane on 2026-09-01: a noun, hyphen-free because it
+# was one word, and the word the risk's own text uses. `stress` was refused then and stays refused:
+# `script/repeat-under-load` already owns that word here, for induced HOST load, which points the
+# other way.
+#
+# **The argument that lost is recorded because it was a real one**, and it is why this was a
+# milestone rather than a signature. The maintainer recommended keeping `soak`, on the grounds that
+# `soak` alone already names the activity where `stranger` alone names a person, so `stranger-test`
+# needs its suffix and this did not. Three costs were named with it: `soak` is the field's term as a
+# **noun**; it composes into a sibling cargo feature (`reboot_soak = ["soak", "board"]`) that a
+# suffix makes longer; and the rename reaches 36 `cfg` sites plus the console markers and everything
+# that reads them. calef ruled the other way, and the ruling accepts that cost.
+#
+# **The markers moved with the command, and that is a rule rather than a taste.** calef ratified it
+# hours earlier the same day: a console marker takes the spelling of the command a reader typed to
+# produce it, not of the module that implements it, because the reader's path to the string runs
+# through the command. So `kernel/src/soak.rs` prints `soak-test:`, `soak-test-census:` and
+# `soak-test-reboot:` where it printed `soak:`, `soak-census:` and `soak-reboot:`.
+#
+# **What deliberately did NOT move**, because these name the *workload* rather than the command, and
+# the workload is still a soak: the crate `soak_page` (ratified 2026-09-13 in its own right), the
+# program `soaker`, the kernel module `kernel/src/soak.rs`, `notes/soak.md`, `board_console`'s
+# `Stage::Soak` and its `--until soak` token, `BootProgress::soak`, and `script/board-image --soak`.
+# Each of those is calef's own call and none of them was put to him; milestone 297's report proposes
+# the sweep as its own piece of work rather than taking it here.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -64,4 +87,4 @@ cd "$(dirname "$0")/.."
 # PATH is the mechanism). A no-op on macOS and on any machine without that prefix.
 . scripts/qemu-path.sh
 
-exec cargo xtask soak "$@"
+exec cargo xtask soak-test "$@"

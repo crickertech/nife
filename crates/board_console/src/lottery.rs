@@ -40,7 +40,7 @@
 //!   kernel prints no census, and a boot truncated before its first one has none yet. Both are
 //!   counted in the series and excluded from the distribution, because dropping them would make a
 //!   log of forty good boots and ten wedged ones read as forty boots.
-//! - **A boot that never reaches `soak: started` is invisible except as an attempt.** The counts
+//! - **A boot that never reaches `soak-test: started` is invisible except as an attempt.** The counts
 //!   are printed side by side for exactly that reason: `attempts` above `draws` is the shape of
 //!   "three boots and then a wedge at 2am", which is the failure an unattended series is most
 //!   likely to suffer and the one nothing else here would report.
@@ -92,7 +92,7 @@ pub struct Draw {
 pub struct Series {
     /// U-Boot SPL banners seen: boots of the board, whether or not they reached the workload.
     pub attempts: usize,
-    /// One per `soak: started`, in the order they were captured.
+    /// One per `soak-test: started`, in the order they were captured.
     pub draws: Vec<Draw>,
 }
 
@@ -115,7 +115,7 @@ pub fn tally(log: &str) -> Series {
             series.attempts += 1;
         }
 
-        if line.contains("soak: started") {
+        if line.contains("soak-test: started") {
             // Close the previous draw before opening this one. A draw that reached here without an
             // ending was cut off by whatever produced this boot, which from inside the log is
             // indistinguishable from a truncation, and is reported as one.
@@ -131,7 +131,7 @@ pub fn tally(log: &str) -> Series {
         }
 
         let Some(draw) = series.draws.last_mut() else {
-            // Anything before the first `soak: started` is a boot that has not announced a workload
+            // Anything before the first `soak-test: started` is a boot that has not announced a workload
             // yet: U-Boot, the tour, or a boot that failed before either.
             continue;
         };
@@ -151,7 +151,7 @@ pub fn tally(log: &str) -> Series {
             continue;
         }
 
-        if line.contains("soak: t=") {
+        if line.contains("soak-test: t=") {
             if let Some(beat) = field(line, "beat=") {
                 draw.beats = beat;
             }
@@ -162,19 +162,19 @@ pub fn tally(log: &str) -> Series {
         }
 
         // **The endings are ranked rather than first-past-the-post**, and the rank was written
-        // after a test refused the first version. `soak-reboot: rebooting now` is printed *before*
+        // after a test refused the first version. `soak-test-reboot: rebooting now` is printed *before*
         // the `ecall`, because once the firmware starts a reset the UART stops draining; so a
         // refusal always arrives after an announcement that the board was about to reboot, and
         // taking the first line seen would report the one draw that proves the mechanism does not
         // work on this board as a draw that worked. A finding outranks the loop working.
-        if let Some(at) = line.find("soak: FAILED") {
+        if let Some(at) = line.find("soak-test: FAILED") {
             draw.ending = Ending::Failed(line[at..].to_string());
-        } else if line.contains("soak-reboot: FAILED") {
+        } else if line.contains("soak-test-reboot: FAILED") {
             draw.ending = Ending::Refused;
         } else if draw.ending == Ending::Truncated {
-            if line.contains("soak-reboot: DISARMED") {
+            if line.contains("soak-test-reboot: DISARMED") {
                 draw.ending = Ending::Disarmed;
-            } else if line.contains("soak-reboot: rebooting now") {
+            } else if line.contains("soak-test-reboot: rebooting now") {
                 draw.ending = Ending::Rebooted;
             }
         }
@@ -183,7 +183,7 @@ pub fn tally(log: &str) -> Series {
     series
 }
 
-/// One `soak-census: core=N threads=M ...` line, reduced to the two questions asked of it.
+/// One `soak-test-census: core=N threads=M ...` line, reduced to the two questions asked of it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct CoreLine {
     grinder: bool,
@@ -206,14 +206,14 @@ fn finish(series: &mut Series, settled: &mut Option<Vec<CoreLine>>, census: &mut
     *settled = None;
 }
 
-/// Parse `soak-census: core=1 threads=5 C0 W1 C2 R3 W3` into the two facts the count needs.
+/// Parse `soak-test-census: core=1 threads=5 C0 W1 C2 R3 W3` into the two facts the count needs.
 ///
-/// Returns `None` for every other `soak-census:` line, of which there are several: the legend, the
+/// Returns `None` for every other `soak-test-census:` line, of which there are several: the legend, the
 /// three explanatory sentences, and the `unplaced=` line. Keyed on `core=` and `threads=` together
 /// rather than on either alone, so a sentence that happens to contain one of the words is not
 /// mistaken for a core.
 fn parse_core_line(line: &str) -> Option<CoreLine> {
-    if !line.contains("soak-census:") {
+    if !line.contains("soak-test-census:") {
         return None;
     }
     let at = line.find(" threads=")?;
@@ -362,20 +362,22 @@ mod tests {
     /// **The clean-core count, against the arrangement radon actually printed.**
     ///
     /// This census is quoted from notes/soak.md's record of the 17:06 run's settled arrangement,
-    /// which is the only one this project has off a board. Three of the four grinders are on core
+    /// which is the only one this project has off a board. The placement is that run's, verbatim;
+    /// the marker prefix is today's, because this is a parser input rather than a record and a
+    /// board printed `soak-census:` before milestone 297 renamed it. Three of the four grinders are on core
     /// 3 and core 4 holds no grinder at all, so the count is: core 1 clean, core 2 has a grinder,
     /// core 3 has grinders, core 4 has callers and a responder and no grinder. Two clean cores,
     /// which is what a 188,687/s run is expected to look like.
     #[test]
     fn the_settled_arrangement_off_radon_counts_two_clean_cores() {
         let log = concat!(
-            "soak: started 4 groups\n",
-            "soak-census: where the workers are NOW: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=1 threads=7 C0 C1 W1 R2 C3 C3 W3\n",
-            "soak-census: core=2 threads=7 R0 C0 R1 C1 C2 C2 G3\n",
-            "soak-census: core=3 threads=6 C0 G0 C1 G1 G2 C3\n",
-            "soak-census: core=4 threads=4 W0 C2 W2 R3\n",
-            "soak: t=5s beat=1 rounds=943435 rate=188687/s workers=24\n",
+            "soak-test: started 4 groups\n",
+            "soak-test-census: where the workers are NOW: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=1 threads=7 C0 C1 W1 R2 C3 C3 W3\n",
+            "soak-test-census: core=2 threads=7 R0 C0 R1 C1 C2 C2 G3\n",
+            "soak-test-census: core=3 threads=6 C0 G0 C1 G1 G2 C3\n",
+            "soak-test-census: core=4 threads=4 W0 C2 W2 R3\n",
+            "soak-test: t=5s beat=1 rounds=943435 rate=188687/s workers=24\n",
         );
         let series = tally(log);
         assert_eq!(series.draws.len(), 1);
@@ -390,11 +392,11 @@ mod tests {
     #[test]
     fn a_core_with_only_tick_waiters_is_not_clean() {
         let log = concat!(
-            "soak: started\n",
-            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=2 W0 W1\n",
-            "soak-census: core=1 threads=3 R0 C0 C0\n",
-            "soak-census: core=2 threads=1 G0\n",
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 W0 W1\n",
+            "soak-test-census: core=1 threads=3 R0 C0 C0\n",
+            "soak-test-census: core=2 threads=1 G0\n",
         );
         let series = tally(log);
         assert_eq!(series.draws[0].clean_cores, Some(1));
@@ -409,15 +411,15 @@ mod tests {
     #[test]
     fn a_re_census_replaces_the_spawn_census() {
         let log = concat!(
-            "soak: started\n",
-            "soak-census: where the kernel placed each worker at spawn: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=2 R0 C0\n",
-            "soak-census: core=1 threads=2 R1 C1\n",
-            "soak: t=5s beat=1 rate=300000/s drifted=4\n",
-            "soak-census: where the workers are NOW: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=3 R0 C0 G0\n",
-            "soak-census: core=1 threads=3 R1 C1 G1\n",
-            "soak: t=10s beat=2 rate=23000/s drifted=0\n",
+            "soak-test: started\n",
+            "soak-test-census: where the kernel placed each worker at spawn: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 R0 C0\n",
+            "soak-test-census: core=1 threads=2 R1 C1\n",
+            "soak-test: t=5s beat=1 rate=300000/s drifted=4\n",
+            "soak-test-census: where the workers are NOW: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=3 R0 C0 G0\n",
+            "soak-test-census: core=1 threads=3 R1 C1 G1\n",
+            "soak-test: t=10s beat=2 rate=23000/s drifted=0\n",
         );
         let series = tally(log);
         assert_eq!(series.draws[0].clean_cores, Some(0));
@@ -431,26 +433,26 @@ mod tests {
     fn a_series_separates_boots_and_records_how_each_ended() {
         let log = concat!(
             "U-Boot SPL 2021.10\n",
-            "soak: started\n",
-            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=2 R0 C0\n",
-            "soak-census: core=1 threads=1 G0\n",
-            "soak: t=120s beat=24 rate=342000/s\n",
-            "soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 R0 C0\n",
+            "soak-test-census: core=1 threads=1 G0\n",
+            "soak-test: t=120s beat=24 rate=342000/s\n",
+            "soak-test-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
             "U-Boot SPL 2021.10\n",
-            "soak: started\n",
-            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=3 R0 C0 G0\n",
-            "soak-census: core=1 threads=1 C1\n",
-            "soak: t=120s beat=24 rate=184000/s\n",
-            "soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=3 R0 C0 G0\n",
+            "soak-test-census: core=1 threads=1 C1\n",
+            "soak-test: t=120s beat=24 rate=184000/s\n",
+            "soak-test-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
             "U-Boot SPL 2021.10\n",
-            "soak: started\n",
-            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=2 R0 C0\n",
-            "soak-census: core=1 threads=2 R1 C1\n",
-            "soak: t=15s beat=3 rate=347000/s\n",
-            "soak-reboot: DISARMED at t=15s: a byte arrived on this console.\n",
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 R0 C0\n",
+            "soak-test-census: core=1 threads=2 R1 C1\n",
+            "soak-test: t=15s beat=3 rate=347000/s\n",
+            "soak-test-reboot: DISARMED at t=15s: a byte arrived on this console.\n",
         );
         let series = tally(log);
         assert_eq!(series.attempts, 3);
@@ -474,11 +476,11 @@ mod tests {
     fn a_boot_that_never_soaked_is_visible_as_a_missing_draw() {
         let log = concat!(
             "U-Boot SPL 2021.10\n",
-            "soak: started\n",
-            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=2 R0 C0\n",
-            "soak: t=120s beat=24 rate=342000/s\n",
-            "soak-reboot: rebooting now\n",
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 R0 C0\n",
+            "soak-test: t=120s beat=24 rate=342000/s\n",
+            "soak-test-reboot: rebooting now\n",
             "U-Boot SPL 2021.10\n",
             "### ERROR ### Please RESET the board ###\n",
         );
@@ -498,9 +500,9 @@ mod tests {
     #[test]
     fn a_refused_reset_is_its_own_ending() {
         let log = concat!(
-            "soak: started\n",
-            "soak-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
-            "soak-reboot: FAILED: the firmware refused a cold reboot and returned sbiret.error=-2\n",
+            "soak-test: started\n",
+            "soak-test-reboot: rebooting now (SBI SRST system_reset, reset type 1, cold reboot).\n",
+            "soak-test-reboot: FAILED: the firmware refused a cold reboot and returned sbiret.error=-2\n",
         );
         let series = tally(log);
         // `rebooting now` is printed first and the refusal follows it, so the first ending seen is
@@ -515,13 +517,13 @@ mod tests {
     #[test]
     fn a_draw_with_no_census_is_excluded_from_the_distribution_and_not_from_the_series() {
         let log = concat!(
-            "soak: started\n",
-            "soak: t=5s beat=1 rate=100/s\n",
-            "soak-reboot: rebooting now\n",
-            "soak: started\n",
-            "soak-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
-            "soak-census: core=0 threads=2 R0 C0\n",
-            "soak: t=5s beat=1 rate=200/s\n",
+            "soak-test: started\n",
+            "soak-test: t=5s beat=1 rate=100/s\n",
+            "soak-test-reboot: rebooting now\n",
+            "soak-test: started\n",
+            "soak-test-census: R=responder, C=caller, G=grinder, W=tick waiter\n",
+            "soak-test-census: core=0 threads=2 R0 C0\n",
+            "soak-test: t=5s beat=1 rate=200/s\n",
         );
         let series = tally(log);
         assert_eq!(series.draws.len(), 2);
@@ -539,30 +541,59 @@ mod tests {
     /// its draw is unjudged, which is itself the case the bug above describes.
     #[test]
     fn the_captured_qemu_soak_reads_as_one_unjudged_draw() {
-        let log = include_str!("../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log");
+        // A pre-297 capture, respelled at read time and not on disk; see
+        // `crate::respell_pre_297_markers`.
+        let log = crate::respell_pre_297_markers(include_str!(
+            "../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log"
+        ));
+        let log = log.as_str();
         let series = tally(log);
         assert_eq!(series.draws.len(), 1, "one boot, one draw");
         assert!(series.draws[0].rate.is_some(), "its beats were read");
         assert_eq!(series.draws[0].ending, Ending::Truncated);
     }
 
-    /// **A capture with a real census in it**, which is the only one this tree has and is why the
-    /// clean-core count is not proved solely against text this file wrote.
+    /// **A capture with a real census in it**, so the clean-core count is not proved solely against
+    /// text this file wrote.
     ///
-    /// `script/soak --arch riscv64 --for 30s` on patagonia, 2026-09-03. Three of the four grinders
+    /// `script/soak --arch riscv64 --for 30s` on patagonia, 2026-09-03, under the command's name at
+    /// the time. Three of the four grinders
     /// land on one core and a fourth shares with the last group, so the settled arrangement has one
     /// clean core; the rate at the last beat is 18,963/s, which is the low end of the spread radon
     /// shows. The assertion is on the count rather than on the rate, because the rate is a property
     /// of a busy laptop and the count is a property of the log.
     #[test]
     fn the_captured_census_run_is_judged_and_reads_one_clean_core() {
-        let log =
-            include_str!("../tests/fixtures/captured/qemu-2026-09-03-riscv64-soak-census.log");
+        // A pre-297 capture, respelled at read time and not on disk; see
+        // `crate::respell_pre_297_markers`.
+        let log = crate::respell_pre_297_markers(include_str!(
+            "../tests/fixtures/captured/qemu-2026-09-03-riscv64-soak-census.log"
+        ));
+        let log = log.as_str();
         let series = tally(log);
         assert_eq!(series.draws.len(), 1);
         assert_eq!(series.draws[0].cores, Some(4), "four online cores");
         assert_eq!(series.draws[0].clean_cores, Some(1));
         assert_eq!(series.draws[0].rate, Some(18_963));
         assert!(series.report().contains("1/4"), "{}", series.report());
+    }
+
+    /// **The same judgement against a real census in the marker vocabulary the kernel prints
+    /// today** (milestone 297). `script/soak-test --arch riscv64 --for 30s`, taken the day the
+    /// rename landed, unedited. The spawn lottery and the settled arrangement differ in this one,
+    /// which the pre-221 capture above cannot show, so it is also the only real sample of a census
+    /// block being *replaced*.
+    #[test]
+    fn the_renamed_census_marker_is_tallied_from_a_real_run() {
+        let log = include_str!("../tests/fixtures/captured/qemu-2026-09-14-riscv64-soak-test.log");
+        let series = tally(log);
+        assert_eq!(series.draws.len(), 1, "one boot, one draw");
+        assert_eq!(series.draws[0].cores, Some(4), "four online cores");
+        assert!(
+            series.draws[0].clean_cores.is_some(),
+            "a census block was read: {}",
+            series.report()
+        );
+        assert_eq!(series.draws[0].ending, Ending::Truncated);
     }
 }

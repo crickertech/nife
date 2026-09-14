@@ -324,7 +324,7 @@ pub fn rx_enable() {
 ///
 /// riscv64 only, and so is the feature: the reset it is the escape from is SBI's, and the PL011 the
 /// aarch64 console drives has no equivalent method here.
-#[cfg(all(target_arch = "riscv64", feature = "reboot_soak"))]
+#[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]
 pub fn rx_waiting() -> bool {
     CONSOLE.lock().uart.rx_waiting()
 }
@@ -332,7 +332,7 @@ pub fn rx_waiting() -> bool {
 /// Throw away whatever is already in the console UART's receive buffer, so that [`rx_waiting`]
 /// answers about what arrives from now on. Called once, when a rebooting soak arms itself; see
 /// `Ns16550::discard_rx` for why U-Boot's leftovers are the thing being cleared.
-#[cfg(all(target_arch = "riscv64", feature = "reboot_soak"))]
+#[cfg(all(target_arch = "riscv64", feature = "reboot_soak_test"))]
 pub fn discard_rx() {
     CONSOLE.lock().uart.discard_rx();
 }

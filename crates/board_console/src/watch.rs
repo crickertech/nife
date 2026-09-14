@@ -49,7 +49,7 @@ pub struct Policy {
     ///
     /// **Suppressed once the boot tour completes, and re-armed if a soak starts** (milestone 219).
     /// The kernel halts in `wfi` after its last line, so quiet at exactly [`Stage::Tour`] is normal
-    /// termination and reporting it as a hang would fail every good boot. A `--features soak`
+    /// termination and reporting it as a hang would fail every good boot. A `--features soak_test`
     /// kernel does not halt: it prints a heartbeat on the wall clock every five seconds whatever
     /// the workload is doing, and reaching [`Stage::Soak`] says so, so from there silence means the
     /// thing that prints is wedged.
@@ -602,11 +602,15 @@ mod tests {
     }
 
     /// **A soak that keeps beating for the whole watch is a success**, and it hands back the number
-    /// the run exists to produce. Same fixture, uncut, which is what `script/soak` sees.
+    /// the run exists to produce. Same fixture, uncut, which is what `script/soak-test` sees.
     #[test]
     fn a_soak_that_keeps_beating_succeeds_and_reports_its_round_trip_total() {
-        let full =
-            include_bytes!("../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log").to_vec();
+        // A pre-297 capture, respelled at read time and not on disk; see
+        // `crate::respell_pre_297_markers`.
+        let full = crate::respell_pre_297_markers(include_str!(
+            "../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log"
+        ))
+        .into_bytes();
         let mut sink = Vec::new();
         // The whole capture arrives in one burst here, which a real board's 115200-baud trickle
         // does not, so the quiet window is set beyond the watch rather than inside it: what this
