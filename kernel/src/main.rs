@@ -1007,7 +1007,15 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         //   3 = the outlaw step finished        7 = the UART-driver step finished
         //   4 = the initrd demo was entered     8 = the virtio probe finished
         //   5 = the initrd demo returned        9 = the PCIe probe finished
-        //   6 = the preemption step finished   10 = the final banner printed; halting
+        //   6 = the preemption step finished   10 = the hardware-entropy step finished
+        //                                      11 = the banner printed; the tour is over
+        //
+        // **10 is not the end, and reading it as one is the mistake this table used to invite.**
+        // It said `10 = the final banner printed; halting` and stopped there, which was true until
+        // milestone 159 put the hardware-entropy step after what had been the last one and moved
+        // the meaning down a row. 11 is the number that means finished, and it is the one the hang
+        // watcher keys on (`user.rs`, `boot_stage() >= 11`), so a board log reporting 10 is a boot
+        // that got as far as the entropy step and then stopped, not a boot that completed.
         sched::note_boot_stage(3);
 
         // Running a real compiled ELF at U-mode, two ways, depending on the initrd.
