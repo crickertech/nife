@@ -103,6 +103,20 @@ UEFI firmware, from a staged EFI system partition. It is run by hand as well as 
 QEMU invocation of exactly their kind: it is not a cargo `runner` only because this boot path has no
 `-kernel` argument for cargo to pass it. See notes/x86-uefi-boot.md.
 
+**And one thing in `scripts/` is sourced rather than run.** `scripts/qemu-path.sh` (milestone 287,
+**name provisional**) puts this project's own QEMU on PATH when `script/ci-qemu` has built one. It
+has no shebang on purpose: it exists to edit the caller's PATH, which an executed script cannot do,
+so every `script/` entry point that can reach an emulator reads it with `. scripts/qemu-path.sh`
+immediately after the `cd` to the root. `script/lint`'s *the project's QEMU is on PATH* check is
+keyed on exactly that, so a new entry point cannot quietly skip it.
+
+**Why PATH and not the 38 call sites.** The emulator is named bare from 38 places across 16 files in
+three languages, including `exec qemu-system-aarch64` at the bottom of each `scripts/qemu-runner-*.sh`
+and a `subprocess` list in `script/netboot-rehearsal`. Exporting PATH once at the top of the process
+tree reaches every one of them, including the ones nobody has written yet, which is why the helpers
+under `scripts/` do not source it themselves: they are spawned by an entry point, or by the
+`cargo xtask` that entry point spawned, and have already inherited it.
+
 **And one thing in `scripts/` is not a script at all.** `scripts/rust_source.py` is a Python module
 nothing executes: it holds the derivations `script/lint` and `script/metrics` both need (the
 comment-and-literal strip that makes a code-line count a code-line count, the `unsafe` census, and
@@ -118,12 +132,22 @@ nothing can be imported into, but every one of these scripts `cd`s to the reposi
 runs python, so `sys.path.insert(0, 'scripts')` is all it takes. The alternative on the table was a
 host crate, which would have made three `script/` commands depend on a `cargo build`.
 
-**`bootstrap` installs system packages.** Running `script/bootstrap` will `brew install qemu` on
-macOS or `apt-get install` on Linux if QEMU is missing. That is the pattern's intent: a fresh
-clone should be one command from working, but it is also why `script/test` does *not* call
-`bootstrap` every time: re-checking a package manager on every inner-loop test run is a poor
-trade. `setup`/`update` do the heavy dependency work; `test` stays fast; `ci-build` provisions
-because CI has nothing to start with.
+**`bootstrap` installs system packages, and on Linux it also builds one.** Running
+`script/bootstrap` will `brew install qemu` on macOS or `apt-get install` on Linux if QEMU is
+missing. That is the pattern's intent: a fresh clone should be one command from working, but it is
+also why `script/test` does *not* call `bootstrap` every time: re-checking a package manager on
+every inner-loop test run is a poor trade. `setup`/`update` do the heavy dependency work; `test`
+stays fast; `ci-build` provisions because CI has nothing to start with.
+
+**On Linux the package manager cannot finish the job, so bootstrap runs `script/ci-qemu` itself**
+(milestone 287). No Ubuntu release ships a QEMU with `-device riscv-iommu-pci`, and `apt-get`
+already fetches the newest package for the release, so there is nothing better for apt to get.
+Bootstrap therefore says what it is about to cost and builds the pinned version, which takes about
+**twelve minutes** the first time and under a second on every run after it. Before that milestone it
+printed the two commands for a human to type, which is rung four of AGENTS.md's ladder; worse, the
+printed sequence looped, because nothing outside `.github/workflows/ci.yml` put the build's install
+prefix on PATH. See `scripts/qemu-path.sh` and
+design/roadmap/287-bootstrap-installs-a-working-qemu.md.
 
 ## Counted claims, one of `script/lint`'s checks
 
