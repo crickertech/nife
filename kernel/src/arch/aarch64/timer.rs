@@ -709,7 +709,7 @@ mod tests {
         // asserts with no host term in it (claim 2, the handler bounded at 2,500 instructions
         // against a measured 1,056, and claim 3, zero missed ticks) and with the law itself
         // beside them (claim 4, added by this milestone after an injection showed the instrument
-        // was blind to the very defect this test catches). `script/gates` and CI both run it. See
+        // was blind to the very defect this test catches). `script/ci-build` and CI both run it. See
         // notes/load-sensitive-assertions.md.
         const ATTEMPTS: u32 = 8;
         let mut attempts = 0;

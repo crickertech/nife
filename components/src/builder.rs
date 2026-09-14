@@ -22,6 +22,78 @@
 //! RISC-V. It shares the `user` crate's `link.ld` and the `user_mode_runtime` syscall runtime; every syscall
 //! it makes (retype, map, configure, start) crosses the same `ecall` ABI the `least_authority_demo` uses.
 //!
+//! **Why this is still here in a world that boots to `swish`** (milestone 289, which was sent to
+//! find out whether it was vestigial and found that it is not). The suspicion was fair: on aarch64
+//! the machine hands itself to `progenitor`, and on RISC-V `riscv_shell_boot` does the same thing
+//! harder, building the console server, the input driver, the line discipline, the shell, the
+//! terminal sink and the job undertaker out of one budget. If that ran where this runs, this file
+//! would be redundant and milestone 289 would have deleted it.
+//!
+//! It does not run where this runs. `riscv_shell_boot` is `#[cfg(feature = "shell")]`, and the only
+//! thing that builds that kernel is `script/shell-check`, in QEMU. The **default** riscv64 build is
+//! the boot tour, which is what `script/board-image` writes to a card, what `script/soak --arch
+//! riscv64` and `script/job-mix --arch riscv64` boot before their workloads, and the only riscv64
+//! build anything here produces a board payload from. So this program is the only demonstration on
+//! that ISA, outside a QEMU gate, that userspace and not the kernel composes the system.
+//!
+//! **And the trimming is why it can be.** `riscv_shell_boot` needs the PLIC initialised, the
+//! NS16550's registers delegated as a device frame, and the UART's interrupt routed, and that last
+//! one is board-specific: source 10 on QEMU `virt`, 32 on the JH7110 (notes/visionfive2.md, BUGS).
+//! This program takes a budget and a report endpoint. On a board that separates "the capability core
+//! can compose a process" from "this machine's interrupt wiring is right", and the tour's own
+//! history is that the second is the half that breaks.
+//!
+//! **One printed line is a machine-readable signal.** The kernel's `init/build` line
+//! (kernel/src/main.rs) is matched by substring in `crates/board_console`'s
+//! `Progress::userspace_ran`, asserted by four host tests, and present in three captured transcripts,
+//! one of them taken off the VisionFive 2 itself (`vf2-2026-09-01-userspace.log`, named for the fact
+//! that this program ran). notes/board-console.md calls it the only difference between the two
+//! successful board captures.
+//!
+//! **And it was the evidence that resolved a false alarm.** Three of the five identifications that overturned the VisionFive 2 "hang" (notes/visionfive2.md,
+//! fifth stop) are facts about this file: its exact syscall count (14 of that boot's 20 ecalls), the
+//! object kinds it retypes (ASPACE, FRAME and TCB, never ENDPOINT), and that it issues no receive of
+//! any kind.
+//!
+//! **Its category is unsettled and is calef's.** Milestones 39 and 175 both listed it as a
+//! `fixtures/` example, and 175 is explicit that those lists classified it "by repetition rather
+//! than by ruling"; it sits in `components/` today. The recommendation from 289 is that it stays
+//! there, on the ground that the kernel measures it against the trust root and enters it on the
+//! **default** riscv64 boot (`kernel/src/user.rs`, `trust::require("builder", ...)`), which is what
+//! it does for the first process and for nothing else. The objection to that argument is worth
+//! knowing: `boot_programs()` also names `hello`, which lives in `fixtures/`. `xtask`'s doc says
+//! why, and the reason is the distinction: `hello` is measured because `spawn_progenitor` enters it
+//! for milestone 19d's **test roles** and `trust::require` refuses an unnamed entry, so the trust
+//! root grew rather than the check shrinking. This program is entered on an ordinary boot.
+//! `notes/trusted-init.md` groups it with the demo loaders, correctly, about a different question:
+//! which loaders extend the measurement chain.
+//!
+//! # BUGS
+//!
+//! **Nothing that runs on a pull request executes this program.** `script/test`'s riscv64 leg and
+//! `script/cpu-matrix` both boot the `#[cfg(test)]` kernel, which runs its suite and exits by
+//! semihosting before the tour block; `script/shell-check` boots `--features shell`;
+//! `script/bench --riscv --check` and `script/icount` each park before the tour. The callers that do
+//! reach it are `script/soak --arch riscv64`, `script/job-mix --arch riscv64` and a board, and none
+//! of those runs on a branch. So this step is not unused, it is **unasserted**, and from a grep the
+//! two look the same: that is what got milestone 289 minted as a retirement. Proposed as
+//! design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md.
+//!
+//! **The child is loaded unmeasured.** The kernel measures this program against the trust root
+//! (kernel/src/trust.rs) and then this program reads `least_authority_demo` out of the archive and
+//! builds it without consulting `measured_boot::PROGRAM_MEASUREMENTS`, which the archive already
+//! carries and which `progenitor` does consult. notes/trusted-init.md's "Still not covered" lists
+//! this as one of three such loaders and prices the remaining work as the call rather than the data;
+//! what that note does not say, and what is worth knowing here, is that on the board path this
+//! program is the first process, so the gap is on the shipped boot for that ISA and not only on a
+//! demo.
+//!
+//! **It builds exactly one child, of one hardcoded name, with one hardcoded input.** There is no
+//! argument surface and there is not meant to be: the proof is that the verbs compose a process, not
+//! that this program is configurable. A second child, a different demo, or a failure injected partway
+//! through the build are all things it cannot express, and a reader looking for a general userspace
+//! loader wants `supervision_proto::build_child` and `progenitor`.
+//!
 //! Name: recorded (crate `system_initializer`, ratified 2026-08-04 by calef, and milestone 63's
 //! name table before it). Never argued for directly and argued around twice, which is stronger
 //! than it sounds. `builder.rs`'s own first line called it "a minimal init: the system builder"
@@ -31,6 +103,17 @@
 //! Its archive entry is `builder` since milestone 266, so it is no longer the exception to "the
 //! binary, the source file and the archive entry are the same string" (notes/naming.md) that it was
 //! while the kernel loaded it under the entry `init`. calef has not ratified it.
+//! Proposed provisionally by milestone 289's lane (2026-09-14), since the category above has to be
+//! settled first and this is the half a reader meets: `process_builder`, a noun for the thing it
+//! makes, which is one process and not a system. That is what the program actually does, and it is
+//! the claim `system_builder` overstated in both refusals: the system on this ISA is `progenitor`'s
+//! to build, and this builds one child out of one budget. Refused: `least_authority_builder` (it
+//! names the child rather than the act, and the child already carries that name);
+//! `riscv_process_builder` (the program is architecture-neutral and compiles for aarch64 too, so an
+//! ISA in the name would record where it is used rather than what it is); `boot_builder` (generic on
+//! the second word and wrong on the first, since this is not the boot program on two of three
+//! architectures). `builder` itself is the failure mode AGENTS.md names first, a generic word that
+//! could label almost anything in an operating system, and `NAME_LEN = 32` leaves room.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

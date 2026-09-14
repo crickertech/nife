@@ -5780,7 +5780,7 @@ impl ArchLegs {
 /// test result: ok. 1 passed
 /// ```
 ///
-/// `script/cpu_matrix` is the caller that needs the first two (notes/cpu-models.md); `script/gates`
+/// `script/cpu_matrix` is the caller that needs the first two (notes/cpu-models.md); `script/ci-build`
 /// is the caller that needs the third.
 fn test() -> bool {
     // Milestone 81. Read before `--arch`, because it constrains it: Hypervisor.framework runs the
@@ -6278,7 +6278,7 @@ fn hvf_kernel_leg() -> bool {
             eprint!("{}", String::from_utf8_lossy(&out.stdout));
             eprint!("{}", String::from_utf8_lossy(&out.stderr));
             eprintln!(
-                "test --hvf: nothing ran. `script/gates` skips this leg and says so; only an \
+                "test --hvf: nothing ran. `script/ci-build` skips this leg and says so; only an \
                  explicit --hvf fails."
             );
             return false;

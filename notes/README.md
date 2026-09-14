@@ -1277,7 +1277,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   preflight that proves `-cpu` is enforced rather than merely advertised, what the narrow models
   would have caught, and the one test written for the board that no CPU model can exercise.
 - [The HVF leg](hvf-leg.md): the aarch64 suite on the physical Apple Silicon core, added to
-  `script/gates` as its final step (and skipped loudly where HVF does not exist, so a Linux CI
+  `script/ci-build`'s local tier as its final check (and skipped loudly where HVF does not exist, so a Linux CI
   transcript cannot be misread as silicon coverage). What `--hvf` does and does not re-run, the
   measured cost against TCG, the exact behaviour of a semihosting trap nobody answers, the SMMU
   belief the machine overruled, and the two yield-count assertions a *fast* machine found for the

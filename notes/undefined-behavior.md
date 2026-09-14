@@ -2,7 +2,7 @@
 
 Milestone 79. `script/undefined-behavior-check` runs `cargo miri test` over the host-testable workspace members, the
 same crate selection as `script/test`'s host leg. Weekly in CI (`.github/workflows/undefined-behavior-check.yml`) plus
-on demand; not part of `script/test` or `script/gates`.
+on demand; not part of `script/test` or `script/ci-build`'s table.
 
 ## What Miri checks that nothing else here does
 
