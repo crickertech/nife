@@ -178,7 +178,7 @@ because each is a scheduler-policy or syscall-surface question and those are cal
   `design/decisions/138-cross-core-handoff-under-load.md` and 221 built the `sched::on_tick` hook.
 - **Milestone 225.** The second: run the soak on radon, argon and xenon, which is where its answer
   means anything. The procedure is written and the tooling is built; it needs a bench and an evening.
-- **Milestone 245.** The duration this block declined to set. Every counter `script/soak` prints is
+- **Milestone 245.** The duration this block declined to set. Every counter `script/soak-test` prints is
   a volume, so no beat can be compared with the one before it and a run that stopped learning looks
   exactly like one that has not.
 - **Refused.** A soak leg inside `script/test`. Twenty seconds per architecture would stop the
@@ -186,7 +186,7 @@ because each is a scheduler-policy or syscall-surface question and those are cal
   every push.
 - **Recorded.** `notes/soak.md`: a soak that finds nothing is weak evidence, and what a clean run
   licenses is one sentence about round trips completed without a refused wake, a wrong reply or a
-  stalled worker. `script/soak` prints that caveat on every green run.
+  stalled worker. `script/soak-test` prints that caveat on every green run.
 - **Recorded.** `notes/soak.md`: a soak build is not the binary that ships. Its IPC fast path is
   1.05 to 1.06x the production one, so no number here is a statement about how fast this kernel does
   IPC, and `script/bench` is the instrument for that.
