@@ -62,10 +62,33 @@ strand the device forever. No other method exists; `MAP` has no meaning for an o
   and delegated (`CAP_INSERT`), narrowing rights, exactly like `DeviceFrame`; there is no retype-into-
   a-port, because a program cannot conjure hardware it was not handed.
 
+## Names, ratified 2026-09-15
+
+calef ratified the names in one pass, walking them by exposure. Two are renames the lane's first draft
+carried and this section records as performed, so a reader meets the ratified name only:
+
+| name | what it is | note |
+|---|---|---|
+| `PortRange` | the object variant | twin of `PageFrame`/`DeviceFrame` |
+| `abi::port_range` | the ABI method module | `snake_case` of `PortRange`, mirrors `page_frame` |
+| `port_range::REVOKE` | the one method | matches `page_frame::REVOKE`'s take-back |
+| `port_range_grant` | the per-thread field | **renamed from `port_grant`**, for the shared `port_range` stem |
+| `set_port_range_grant` | the arch setter | **renamed from `set_port_grant`**, same reason |
+| `revoke_port_range` / `_from_others` | the revoke.rs functions | verb, matches the revoke family |
+| `X86_COM1_PORT_BASE` / `_COUNT` | COM1's ports (`0x3F8`, 8) | arch prefix, standard `COM1`, `PortRange`'s fields |
+| `outb` / `inb` | userspace byte port I/O | the universal x86 term, the `elf`/`pci` case |
+| `port_range_cap` | the capability constructor | shares the stem |
+| `port_out` / `recv_then_port_out` | hand-assembled test fixtures | describe what each tiny program does |
+
+The stem `port_range` was chosen to keep the family greppable as one string, the argument that renamed
+`port_grant`/`set_port_grant`: these are internal symbols nobody types, so brevity buys nothing and the
+shared stem buys a `git grep port_range` that finds the object, module, method, field, setter and
+constructor together.
+
 ## BUGS
 
 - **A thread caches one port range, not a set.** The grant the context switch reads
-  (`Thread::port_grant`) is set at the one choke point a `PortRange` enters a thread
+  (`Thread::port_range_grant`) is set at the one choke point a `PortRange` enters a thread
   (`thread_control_block_insert_cap`) and holds the *last* range inserted. Every real consumer holds
   exactly one (a console driver holds COM1), so this is within the design's pinned consumer, but a
   thread handed two disjoint ranges would reach only the second. Widening it to a small set is a

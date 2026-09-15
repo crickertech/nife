@@ -96,11 +96,11 @@ struct Tss {
     _reserved3: u16,
     /// Offset from the base of this TSS to the I/O permission bitmap ([`IOMAP_OFFSET`]) while a
     /// thread that owns ports runs, or [`IOMAP_BASE_DENY_ALL`] (past the limit, "no bitmap") while
-    /// none does. [`set_port_grant`] is the only writer after boot; the initial value denies all,
+    /// none does. [`set_port_range_grant`] is the only writer after boot; the initial value denies all,
     /// the only correct answer while no program has been granted a port. See DECISIONS §121.
     iomap_base: u16,
     /// The permission bitmap plus its guard byte. A **set** bit denies the port to ring 3; a
-    /// **clear** bit permits it. The invariant [`set_port_grant`] maintains is that this is entirely
+    /// **clear** bit permits it. The invariant [`set_port_range_grant`] maintains is that this is entirely
     /// ones (all denied) whenever no port grant is installed on this core, so installing one is a
     /// matter of clearing the grant's own bits and uninstalling is setting them back.
     iomap: [u8; IOMAP_BYTES + IOMAP_GUARD],
@@ -312,7 +312,7 @@ pub unsafe fn set_interrupt_stack(slot: u8, top: u64) {
 /// overwhelming majority of cores that never run a port-holding thread. Indexed by `cpu::id()`, the
 /// same per-core discipline the TSS and GDT arrays use.
 ///
-/// This is the state that makes the switch cheap: [`set_port_grant`] compares the incoming thread's
+/// This is the state that makes the switch cheap: [`set_port_range_grant`] compares the incoming thread's
 /// grant against it and does nothing when they match, which is every switch on a core where nothing
 /// holds a port (both sides `None`) and every switch that keeps the same holder running.
 static mut INSTALLED_PORT_GRANT: [Option<(u16, u16)>; crate::cpu::MAX_CPUS] =
@@ -374,7 +374,7 @@ unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
 /// fastpath's hot instruction footprint (`script/fastpath-footprint`, which follows non-cold calls
 /// out of `schedule()`'s switch), for the price of a call and a compare on the common switch.
 #[cold]
-pub fn set_port_grant(grant: Option<(u16, u16)>) {
+pub fn set_port_range_grant(grant: Option<(u16, u16)>) {
     let id = crate::cpu::id();
     // SAFETY: this core's own slot, read and written only here and only with interrupts masked on
     // the switch path; a different core touches a different index.
@@ -418,9 +418,9 @@ pub fn set_port_grant(grant: Option<(u16, u16)>) {
 /// what makes that generalization a broadcast rather than a redesign.
 pub fn revoke_installed_port_grant(base: u16, count: u16) {
     let id = crate::cpu::id();
-    // SAFETY: this core's own slot; see `set_port_grant`.
+    // SAFETY: this core's own slot; see `set_port_range_grant`.
     if unsafe { INSTALLED_PORT_GRANT[id] } == Some((base, count)) {
-        set_port_grant(None);
+        set_port_range_grant(None);
     }
 }
 

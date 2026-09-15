@@ -1800,7 +1800,7 @@ fn install_cycle_counter_grant(_granted: bool) {}
 /// `cycle_counter_grant_of` twin's own argument).
 #[cfg(target_arch = "x86_64")]
 fn port_grant_of(t: &crate::thread::Thread) -> Option<(u16, u16)> {
-    t.port_grant
+    t.port_range_grant
 }
 
 /// No port space, so no thread has a port grant. See the twin above.
@@ -1815,7 +1815,7 @@ fn port_grant_of(_t: &crate::thread::Thread) -> Option<(u16, u16)> {
 /// call and its argument fold away.
 #[cfg(target_arch = "x86_64")]
 fn install_port_grant(grant: Option<(u16, u16)>) {
-    crate::arch::segments::set_port_grant(grant);
+    crate::arch::segments::set_port_range_grant(grant);
 }
 
 /// No port space to enforce, so the switch installs nothing. See the twin above.
@@ -3177,8 +3177,8 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) 
             // Forget the cached grant if it named the revoked range, so switching to this thread
             // installs nothing. x86 only; the field exists nowhere else.
             #[cfg(target_arch = "x86_64")]
-            if t.port_grant == Some((base, count)) {
-                t.port_grant = None;
+            if t.port_range_grant == Some((base, count)) {
+                t.port_range_grant = None;
             }
         }
     }
@@ -3970,7 +3970,7 @@ pub fn thread_control_block_insert_cap(
     // same posture `cycle_counter_grant` takes.
     #[cfg(target_arch = "x86_64")]
     if let crate::cap::Object::PortRange(base, count) = cap.object {
-        t.port_grant = Some((base, count));
+        t.port_range_grant = Some((base, count));
     }
     Ok(landed)
 }

@@ -482,7 +482,7 @@ pub struct Thread {
     ///
     /// This is the per-thread "holds a port capability" fact the lazy TSS-bitmap enforcement is
     /// built on. `sched::schedule` reads it beside the incoming thread's address-space root and
-    /// hands it to `arch::segments::set_port_grant`, which writes the current CPU's TSS I/O bitmap
+    /// hands it to `arch::segments::set_port_range_grant`, which writes the current CPU's TSS I/O bitmap
     /// **only when it differs** from what that CPU already holds. On a machine where one process (the
     /// console driver) ever holds a port capability, that is `None` on both sides of nearly every
     /// switch and costs one compare, which is the whole point of the lazy form (§121's 2026-08-25
@@ -497,7 +497,7 @@ pub struct Thread {
     ///
     /// *(Field name provisional: names are calef's.)*
     #[cfg(target_arch = "x86_64")]
-    pub(crate) port_grant: Option<(u16, u16)>,
+    pub(crate) port_range_grant: Option<(u16, u16)>,
 
     /// **The child's initial `x0`, `x1`, `x2`** (milestone 19d/19e): the words `START` hands the
     /// new EL0 thread in its first registers, so a loader can pass a child its role plus data (a
@@ -588,7 +588,7 @@ impl Thread {
             #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
             #[cfg(target_arch = "x86_64")]
-            port_grant: None,
+            port_range_grant: None,
         }
     }
 
@@ -623,7 +623,7 @@ impl Thread {
             #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
             #[cfg(target_arch = "x86_64")]
-            port_grant: None,
+            port_range_grant: None,
         }
     }
 
@@ -732,7 +732,7 @@ impl Thread {
                 #[cfg(any(test, feature = "cycle_counter_grant"))]
                 cycle_counter_grant: false,
                 #[cfg(target_arch = "x86_64")]
-                port_grant: None,
+                port_range_grant: None,
             });
         }
         true
@@ -781,7 +781,7 @@ impl Thread {
             #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
             #[cfg(target_arch = "x86_64")]
-            port_grant: None,
+            port_range_grant: None,
         }
     }
 

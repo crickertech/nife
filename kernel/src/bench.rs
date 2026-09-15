@@ -173,7 +173,7 @@ fn tss_iomap_switch() {
 /// **What the LAZY TSS I/O-bitmap write costs on a switch that crosses a port holder** (`x86_64`
 /// only; milestone 299, the measurement DECISIONS §121's 2026-08-25 refinement asked for). This is
 /// **not** a second run of [`tss_iomap_switch`], which prices the naive always-write of the whole
-/// 8 KiB bitmap. This prices what milestone 299 actually ships: [`set_port_grant`], which checks the
+/// 8 KiB bitmap. This prices what milestone 299 actually ships: [`set_port_range_grant`], which checks the
 /// incoming grant against what the core already holds and writes only the bits that move.
 ///
 /// The same two-thread ping-pong as [`yield_switch`], but each thread sets its own port grant on
@@ -194,29 +194,29 @@ fn tss_iomap_lazy_switch() {
     sched::spawn(|| {
         while !DONE.load(Ordering::Relaxed) {
             sched::yield_now();
-            crate::arch::segments::set_port_grant(None); // the non-holder side
+            crate::arch::segments::set_port_range_grant(None); // the non-holder side
         }
     })
     .expect("bench: no peer thread");
 
     for _ in 0..WARMUP {
         sched::yield_now();
-        crate::arch::segments::set_port_grant(COM1);
+        crate::arch::segments::set_port_range_grant(COM1);
     }
     timed("tss_iomap_lazy_switch", YIELD_ITERS, || {
         for _ in 0..YIELD_ITERS {
             sched::yield_now();
-            crate::arch::segments::set_port_grant(COM1); // the holder side, every iteration a transition
+            crate::arch::segments::set_port_range_grant(COM1); // the holder side, every iteration a transition
         }
     });
     DONE.store(true, Ordering::Relaxed);
     sched::yield_now(); // let the peer see the flag and exit
-    crate::arch::segments::set_port_grant(None); // leave the TSS denying all ports
+    crate::arch::segments::set_port_range_grant(None); // leave the TSS denying all ports
 }
 
 /// **What the lazy write costs when nothing holds a port** (`x86_64` only; milestone 299), which is
 /// the case nearly every switch on nearly every machine actually takes. Both threads install `None`
-/// on resume, so [`set_port_grant`] finds the core already holds `None` and returns after one
+/// on resume, so [`set_port_range_grant`] finds the core already holds `None` and returns after one
 /// comparison, writing nothing. Read against `yield_switch`, the difference is the whole cost the
 /// lazy form imposes on a system where nobody holds a port: a load and a branch. That gap, not
 /// `tss_iomap_switch`'s ~2,682 ns, is what x86 pays for having the mechanism present.
@@ -227,19 +227,19 @@ fn tss_iomap_lazy_nop() {
     sched::spawn(|| {
         while !DONE.load(Ordering::Relaxed) {
             sched::yield_now();
-            crate::arch::segments::set_port_grant(None);
+            crate::arch::segments::set_port_range_grant(None);
         }
     })
     .expect("bench: no peer thread");
 
     for _ in 0..WARMUP {
         sched::yield_now();
-        crate::arch::segments::set_port_grant(None);
+        crate::arch::segments::set_port_range_grant(None);
     }
     timed("tss_iomap_lazy_nop", YIELD_ITERS, || {
         for _ in 0..YIELD_ITERS {
             sched::yield_now();
-            crate::arch::segments::set_port_grant(None);
+            crate::arch::segments::set_port_range_grant(None);
         }
     });
     DONE.store(true, Ordering::Relaxed);
