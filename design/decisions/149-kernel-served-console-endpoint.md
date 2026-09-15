@@ -1,8 +1,11 @@
 # 149. May the kernel answer on an endpoint, where §121 leaves no userspace holder?
 
-**Status: PROPOSED.** Raised 2026-09-09 by the maintainer, in conversation with calef, while working
-out what software parity across the three architectures actually requires. *(Number provisional
-until the merge queue lands it.)*
+**Status: DECIDED.** 2026-09-15, and the answer is no. Raised 2026-09-09 by the maintainer. Resolved
+not by picking one of its three options but by **dissolving its premise**: this section asked what to
+do *given that §121 leaves no userspace holder on x86*, and on 2026-09-15 calef reopened §121 to give
+x86 exactly that holder (the port-range capability). So the kernel does **not** answer on an endpoint;
+x86's console is a userspace driver like the other two. See the resolution at the end. *(Number
+provisional until the merge queue lands it.)*
 
 **What is blocked: x86_64 reaching an interactive shell at all**, and therefore milestone 182, and
 therefore the whole "every architecture boots to swish" half of the parity target.
@@ -118,3 +121,27 @@ rather than in the abstract.
   a design.
 - **This is the first kernel-resident IPC server in the tree**, so there is no in-tree precedent to
   follow and no second instance to check a convention against.
+
+
+## Resolved 2026-09-15: the premise was removed, not one of the options chosen
+
+This section's question was conditional: *given* that §121 keeps x86's serial driver in the kernel, is
+a kernel thread serving the console the least-bad way to reach a prompt? It listed a fourth path only
+implicitly, by citing §121: change §121 so there **is** a userspace holder. That is what calef did.
+
+**§121 was reopened and reversed to its own option 1** (the port-range capability); x86's console and
+input become userspace drivers holding a `(base, count)` port capability. So every option this section
+weighed is moot: there is no kernel-resident console driver to serve behind an endpoint, no console
+syscall, and no need to reach the shell through graphics. `swish` talks to a userspace console server
+on x86 exactly as it does on aarch64 and riscv64, and this section's recommended option 1 (the kernel
+thread) is **not** built.
+
+**Why the recommendation here lost, recorded because it was argued for.** This section recommended the
+kernel thread on the strength of the interface-does-not-diverge test, and it was right that the client
+stays identical. What it undervalued is that the kernel thread keeps a device driver in the kernel,
+which is the one thing §14's thesis says userspace should hold, and that the endpoint's ability to hide
+the driver's location is a reason to *migrate* later, not a reason to build the kernel version first.
+calef ruled straight to the userspace driver (DECISIONS §121, milestone 299), accepting a slower path
+to the x86 prompt in exchange for not shipping a kernel-resident driver at all. The BUGS below, about a
+kernel-resident IPC server's denial-of-service surface and its place in the trusted computing base, are
+retired by that choice rather than answered: there is no kernel-resident server.
