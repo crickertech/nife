@@ -1,10 +1,16 @@
 # 39. Repository structure for a loosely-coupled OS, and the road to a distribution
 
-**Status: RECORDED.**
+**Status: RECORDED.** The direction is now decided even though the work is not:
+**DECISIONS §151** (2026-09-15) rules the goal is independent release and third-party programs, which
+is this page's option C as the destination, reached through option B. What stays open is the *order*
+(§151 keeps that as its own ruling), so this block remains RECORDED analysis rather than a scheduled
+milestone.
 
-**Gate: DECISION, MILESTONE 23.** Recorded with no decision taken, deliberately. The recommendation
-on the page is monorepo now with the distribution as a separate manifest repo, executed as multiple
-workspaces, and explicitly not before milestone 23 forces it.
+**Gate: DECISION, MILESTONE 23.** The *goal* is no longer the open decision (§151 took it); the
+*timing* still is, and it still inherits milestone 23. The recommendation on the page held up: option
+B (multiple workspaces in one repo) now, the distribution as a separate manifest repo (`basalt`,
+milestone 120) later, and the split itself not before the strain justifies trading the
+single-command all-architecture gate for it.
 
 **Prior art to read before designing packaging:** `design/haiku-bfs-and-packages.md`. Haiku's `packagefs`
 **activates** packages rather than installing them, composing the filesystem view from a set of read-only
