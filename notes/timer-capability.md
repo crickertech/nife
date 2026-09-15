@@ -387,7 +387,8 @@ is sleeping.
 **And it was applied to the real consumer, which is what makes this a measurement rather than a
 sketch.** `soak.rs`'s beat loop (a `now()`/`wrapping_sub` deadline comparison wrapped around
 `sched::yield_now()`, six lines) becomes `sched::sleep_until(due)`, and the kernel builds clean with
-`--features soak`. That closes the `BUGS` entry quoted above rather than merely addressing it.
+`--features soak_test` (spelled `--features soak` when this was measured on 2026-09-13; milestone
+297 renamed it the following day). That closes the `BUGS` entry quoted above rather than merely addressing it.
 
 **What this does not tell you.** Nothing was run: the scaffold builds and is deleted, so there is no
 evidence the supervisor actually wakes on time, only that the code the wake would run compiles and
@@ -469,7 +470,7 @@ The fourth shape signals **a notification**, and notification objects are
 
 - **The 2026-09-13 scaffolds were never run, not even under QEMU.** The 2026-09-05 one was gated
   green with `script/test` before it was deleted; these three builds were only *compiled*, on all
-  three ISAs and with `--features soak`. So every figure here is a size, and nothing on this page is
+  three ISAs and with `--features soak_test`. So every figure here is a size, and nothing on this page is
   evidence that a timer fires, that a sleeping kernel thread wakes, or that the reap sweep runs at
   the right moment. A byte count is the cheapest half of a pricing and it is the half that was
   bought. Running them is perhaps an hour and would turn "it compiles" into "it works".

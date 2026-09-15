@@ -167,3 +167,10 @@ once, and by this file's own standard that is an attestation rather than evidenc
   blocks it.
 - **Proposed.** Risk 6's remaining half is one boot of radon against an instrument that now exists:
   `design/roadmap/proposals/time-the-hw-entropy-step.md`, gate `HARDWARE`.
+
+## Index row
+
+**Built:** 2026-09-11
+
+calef, 2026-09-11, from a 2026-09-10 review that found the same status-in-two-places defect four
+separate times in one file, one pass, nothing catching any of them.

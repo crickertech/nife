@@ -119,3 +119,9 @@ find it with a throwaway component rather than half way into a port.
   taken: RedoxFS is already a better filesystem, `no_std` Rust FAT crates exist so the FFI cost buys
   nothing, and its real value is host interoperability, which is a milestone 16a story to do in Rust
   when first silicon makes it concrete.
+
+## Index row
+
+**Built:** 2026-07-29
+
+the thesis in one assertion: unverified foreign code, confined and restarted

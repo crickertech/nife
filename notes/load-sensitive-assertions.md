@@ -1726,7 +1726,7 @@ delivered-tick reading is an ABI addition, which is calef's call rather than a l
 in that function's own BUGS section so the next reader meets it there and not only here.
 
 **The failure message now carries the observation the wait decided on.** The client reports its wait
-in the third report word (where every other role puts an identity hint, and `ROLE_LOGOUT` has no
+in the third report word (where every other behaviour puts an identity hint, and `LOGOUT` has no
 identity to report), and the assertion prints it beside the ceiling: a wait near the ceiling means
 the caretaker never died, which is a kernel bug, and one far under it means the client stopped
 waiting early, which is the defect this ceiling replaced. That is the fifth round's panic-message

@@ -50,3 +50,9 @@ instead.
   this block said to validate first was answered, and the answer was no. `hlt #0xf000` traps back to
   the guest under HVF, so the bench kernel never exits and the leg takes its verdict from the
   transcript instead.
+
+## Index row
+
+**Built:** 2026-07-23
+
+perf claims become measurements, and regressions surface next to their cause

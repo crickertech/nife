@@ -1250,7 +1250,7 @@ pub fn spawn_progenitor(
 // the feature, not by any gate: `script/lint`'s per-feature loop does not carry it, and
 // `script/job-mix`'s own BUGS says nothing else builds it either. The fix is this arm; what keeps
 // it fixed is nothing, and that is `design/roadmap/proposals/board-only-features-nothing-compiles.md`.
-#[cfg_attr(any(feature = "soak", feature = "job_mix"), allow(dead_code))]
+#[cfg_attr(any(feature = "soak_test", feature = "job_mix"), allow(dead_code))]
 pub fn boot_via_progenitor(image: &'static [u8]) {
     let report = crate::sched::create_rendezvous();
     // The holding is dropped on purpose: on this path the progenitor **is** the system, and there
@@ -1825,7 +1825,7 @@ pub fn riscv_uart_driver_demo(
 // is kept for the configurations that reach neither (a `soak` or `job_mix` build replaces the
 // hand-off with its own workload; `test` and `bench` park before it).
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak", feature = "job_mix"),
+    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
     allow(dead_code)
 )]
 pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), LoadError> {
@@ -2880,9 +2880,9 @@ pub mod std_service;
 mod std_tests;
 
 /// **Unmodified `ripgrep` from crates.io** (milestone 121), which skips unless somebody ran
-/// `scripts/build-ripgrep.sh`. Both ISAs the `std` port ships on, per DECISIONS §19; x86_64 has no
-/// `std` at all until milestone 184, so it has no `ripgrep` either.
-#[cfg(all(test, initrd, any(target_arch = "aarch64", target_arch = "riscv64")))]
+/// `scripts/build-ripgrep.sh`. Every ISA the `std` port ships on, per DECISIONS §19, which is all
+/// three since milestone 184 built `x86_64-unknown-nife`.
+#[cfg(all(test, initrd))]
 mod ripgrep_tests;
 
 /// **Capability delegation: authority moves between processes at runtime.**

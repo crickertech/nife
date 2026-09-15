@@ -93,3 +93,20 @@ quietly excludes them.
   including file calls it. `components/src` holds two such files and neither carries a harness
   today, and
   `--check` reports the mismatch rather than accepting it silently.
+
+## Index row
+
+**Built:** 2026-09-01
+
+Found by milestone 197's lane. §134 calls the `unfalsified` count the claim's honest denominator,
+and it is currently the wrong one: milestone 197's record under `user/` is uncounted, milestone
+193's two kernel harnesses carry no record at all, and milestone 202's `kernel/falsifications/` is
+swept by nothing. **The number is printed as a fraction of the tree and is a fraction of one
+directory.** The walk should come from `cargo metadata`, the way `script/lint`'s verify-table
+check already does, since a hand-kept list is the defect that hid `mdns_proto` and `jh7110_trng`.
+Built from `cargo metadata`: 141 harnesses in 24 crates became 145 in 26 packages and 25
+replayable (18%) became 27 (19%), so `crates/` held 97% of them and the defect was the unstated
+scope rather than the size of the omission. Module paths now come from the Cargo target (a `[[bin]]` root contributes no segment), `--sweep` derives `--bin` and `--ignore-global-asm` rather
+than listing them, and a record for something no sweep can run is told apart from rot
+mechanically. `script/lint`'s `kani-harnesses` and `harness-crates` had the same defect and were
+rescoped with it.

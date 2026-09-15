@@ -205,3 +205,9 @@ See the proposal below.
   that is the page the next person adding a fixture reads and a roadmap block is not.
 - **Done.** The archive-size and directory-ceiling costs are measured and stated in this block
   rather than left for somebody to rediscover.
+
+## Index row
+
+**Built:** 2026-09-14
+
+Minted 2026-09-14 by the maintainer on calef's ruling the same day (*"31 role binary is not the right shape. If there is anything left then we can consider a name for what remains"*), following his `components/src/ntp.rs` ruling that morning. Twenty-two of thirty-one roles gone. **Seven deleted outright**: `components/src/block_driver.rs` was already the identical virtio driver over the identical `crates/virtio`, used by the other two boards since parity C, and aarch64 reached the same code through `hello` only because its archive table never packed it; packing it collapsed three `cfg` forks to one line each and corrected 24 test comments. **Fourteen split into programs**, all names provisional, plus two crates (`capability_demo_proto`, `loaded_image_check`) because rule 7 admits no `#[path]` module for what a split pair must agree on. **Nine `INIT`/child roles kept**, proposed as a follow-on: splitting them changes `spawn_progenitor`'s role-to-entry choice, which is the boot path milestone 268 was rebuilding beside this lane. The principle the tree had enacted five times and never written down is now stated where a reader meets the last multiplexer: a program does one thing, and a role is an exception that has to say why. `hello`'s own block claimed the problem closed by 266, which had moved one role out of thirty-two. `nifefs::DIR_BLOCKS` 6 -> 10 (ceiling 76 -> 127) because both archives crossed `MAX_FILES` on the same commit.

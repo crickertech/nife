@@ -157,3 +157,16 @@ is missing.
   enforces it: `kernel/Cargo.toml` depends on `aarch64-cpu` unconditionally, and the row works only
   because every job in `verify.yml` runs on `ubuntu-24.04-arm`. A change to that runner label breaks
   the row, and the fix if it ever happens is putting the dependency behind a target `cfg`.
+
+## Index row
+
+**Built:** 2026-08-30
+
+Minted by calef on 2026-08-30 from milestone 191's finding: no Kani harness has ever caught a
+defect after the day it was written, because `script/verify`'s own header says `cargo kani` never
+compiles the kernel. 64,818 lines of `kernel/src` are out of reach by construction, and that is
+where every concurrency, hardware-contract and resource-accounting defect lived. Measured the same
+day: `cargo check -p kernel` against a host target fails with **three** shallow errors (a `panic =
+"abort"` profile setting and two ELF-style `link_section` names Mach-O rejects), because §4 rule 1
+held and `asm!` appears outside `arch/` at only three sites. The deliverable is one property
+proved over code that lives in `kernel/src` today.

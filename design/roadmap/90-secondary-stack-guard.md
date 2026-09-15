@@ -34,3 +34,12 @@ boot-stack guards are prior art in this tree; cite where the pattern lives when 
   puts the secondaries at 12% of their stacks (8.5 KiB of 64), so the missing guard was the finding
   and the sizing was not. Taking both at once would have made a stack-depth regression and a guard
   regression indistinguishable in one commit.
+
+## Index row
+
+**Built:** 2026-08-03
+
+Milestone 84's instrument found the asymmetry: the boot stack and every thread stack sit above a
+guard page, and the per-CPU secondaries sit above `.bss`, so a deep secondary silently corrupts
+kernel data. The high-water assertion is the only tripwire today, and it is `cfg(test)`: a release
+build has nothing. Move the stacks over a hole and prove the hole by walking the tables

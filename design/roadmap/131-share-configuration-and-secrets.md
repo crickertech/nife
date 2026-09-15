@@ -122,3 +122,17 @@ running system a real password.
 - **Nothing here fixes the fixed port.** `smb-serve` binds `127.0.0.1:10445`, so two serve boots on
   one machine still collide; the document is the natural place for it and this block does not require
   it.
+
+## Index row
+
+every fact about a share is a compile-time constant today: a `--features` flag picks one of four
+numbered behaviours, the whole image is the share, and the identity is four constants holding
+Microsoft's published test account. calef asked for a configuration document and a stored secret
+while ruling that `smb-serve` stays guest-writable for now; this tracks the lock-down he asked to
+keep. Four deliverables: the document (milestone 55's `mdns_responder.conf` is the shape), the
+provisioning path (the fork, four options recorded and none chosen), per-resource credential
+endpoints (which retire the request-carries-a-name authority and the one-verify-frame limit for
+free), and the boot that stops admitting guests. **Subject removed 2026-08-30** with the SMB
+implementation (notes/smb.md): there is no share to configure. The configuration half generalizes
+to any service and the provisioning fork is still unanswered for the credential store; the block
+needs re-aiming or retiring, which is calef's

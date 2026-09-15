@@ -70,7 +70,7 @@ mod smp;
 // must still halt: this module is the thing that makes a boot never end.
 #[cfg(feature = "job_mix")]
 mod job_mix;
-#[cfg(feature = "soak")]
+#[cfg(feature = "soak_test")]
 mod soak;
 mod stack;
 mod sync;
@@ -701,9 +701,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // only this one.
         #[cfg(feature = "job_mix")]
         job_mix::run();
-        #[cfg(feature = "soak")]
+        #[cfg(feature = "soak_test")]
         soak::run();
-        #[cfg(not(any(feature = "soak", feature = "job_mix")))]
+        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
         {
             println!("nife x86_64: boot complete, halting.");
             arch::halt();
@@ -1545,7 +1545,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // only this one.
         #[cfg(feature = "job_mix")]
         job_mix::run();
-        #[cfg(feature = "soak")]
+        #[cfg(feature = "soak_test")]
         soak::run();
         // **Nothing halts by default** (milestone 268, item 4). The tour used to end here in
         // `arch::halt()`, and that was the right thing to do while the arch layer beneath the
@@ -1567,7 +1567,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // `halt` afterwards, and it is not dead: the boot thread's own work is done and it parks in
         // a preemptible `wfi` loop so the progenitor and its children get scheduled. A boot with no
         // archive says so inside `riscv_hand_over` and parks the same way.
-        #[cfg(not(any(feature = "soak", feature = "job_mix")))]
+        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
         {
             riscv_hand_over();
             arch::halt();
@@ -1935,10 +1935,10 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // only this one.
         #[cfg(feature = "job_mix")]
         job_mix::run();
-        #[cfg(feature = "soak")]
+        #[cfg(feature = "soak_test")]
         soak::run();
 
-        #[cfg(not(any(feature = "soak", feature = "job_mix")))]
+        #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to the userspace progenitor.");
@@ -1949,7 +1949,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 
     // bench::run diverged above, and so does soak::run (milestone 219); this is everyone else's
     // parking.
-    #[cfg(not(any(feature = "bench", feature = "soak", feature = "job_mix")))]
+    #[cfg(not(any(feature = "bench", feature = "soak_test", feature = "job_mix")))]
     arch::halt()
 }
 
@@ -2113,7 +2113,7 @@ fn stack_top() -> usize {
 // rather than `cfg`-ed out, so the function still compiles in every configuration: a handoff that
 // only type-checks in the configurations that use it is one that rots in the others.
 #[cfg_attr(
-    any(test, feature = "bench", feature = "soak", feature = "job_mix"),
+    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
     allow(dead_code)
 )]
 fn riscv_hand_over() {

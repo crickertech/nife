@@ -34,3 +34,9 @@ code did. The real comparison is `/language:rust`: 2 results on `refs/heads/main
   aliasing in the intrusive queue remain inexpressible. `NonNull` made nullness structural and
   cleared both alerts, and what upholds the rest is the kernel's state machine rather than any type,
   which the crate says out loud rather than letting two green checkmarks imply safety.
+
+## Index row
+
+**Built:** 2026-07-30
+
+the alerts land on this project's most-used unsafe abstraction

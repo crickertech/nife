@@ -183,3 +183,8 @@ before moving anything**, and if it is small, say so and stop; the finding is wo
 lane.
 
 *(This is the clause that fired. See the verdict at the top.)*
+
+## Index row
+
+Measured: only 33 of 196 mutants are in pure logic, so nothing was lifted. The 0-of-191 score was
+a config gap (the crate was missing from `.cargo/mutants.toml`), now fixed and gated

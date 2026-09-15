@@ -34,7 +34,7 @@ separately built binaries.
 |---|---|---|
 | `aarch64-unknown-nife` | **built and run**, 4.7 MB ELF, 62-byte transcript | |
 | `riscv64-unknown-nife` | **built and run**, 10.7 MB ELF, same 62-byte transcript | |
-| x86_64 | **not built, and not buildable** | there is no `std` on x86_64. Milestone 27 shipped the PAL for aarch64 and riscv64 only; there is no `x86_64-unknown-nife` target spec and no farm. **Milestone 184** is the block that closes this, and until it lands there is no `ripgrep` on x86_64 to have. |
+| `x86_64-unknown-nife` | **built, not run**, 4.1 MB ELF | Milestone 184 built the target and its `std`, and `ripgrep` 14.1.1 builds for it with zero source changes. The test skips at "no RedoxFS disk attached": x86_64's FS service finds its disk over virtio-mmio only and `q35` has none, so `rg` has no directory to be handed. **Whether its transcript matches the other two is unknown.** |
 
 The RISC-V leg was worth running rather than assuming, and it produced one difference worth
 recording and one non-difference worth recording:
@@ -225,9 +225,10 @@ pass for everyone else.
   AGENTS.md's ladder. Gap B is the fix.
 - **One version.** `ripgrep` 14.1.1. No other version was tried, and no other program: one
   application building and running is evidence about this platform, not a survey of crates.io.
-- **x86_64 is a gap with a plan, not a result.** Nothing here was tried on it and nothing could be.
-  Milestone 184 is what closes it, and when it does, this experiment is one more triple in the build
-  script's loop.
+- **x86_64 builds and does not run.** Milestone 184 added the third triple to the build script's
+  loop and it builds, but the test needs a RedoxFS disk and no x86_64 runner can attach one the FS
+  service will find (design/roadmap/184-std-x86-64.md, Follow-on). A build is not a transcript, and
+  risk 1 is not green on x86_64 until one exists.
 - **`ripgrep` never allocated much**, because it stopped before searching. The 256-page heap was
   sized from `std_exerciser` and is untested against a real workload; a search may want far more, and
   what a std program does when its untyped budget is exhausted is not exercised here.

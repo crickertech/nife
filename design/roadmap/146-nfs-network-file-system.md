@@ -125,3 +125,10 @@ rule already priced. Each new adapter adds the wire format only.
 - **No estimate of effort**, because the adapter pattern is proven but the XDR encoder-decoder is
   an entire C-callable standard that this tree would own rather than vendor. The SMB adapter
   shipped in one lane per half; NFS's halves share more code and may need fewer.
+
+## Index row
+
+The other network file protocol milestone 54 left as an optional later adapter. A Mac's `mount_nfs` or Linux `mount -t nfs` against this board's IP reads and writes share contents
+through the same `fs_proto` seam the SMB adapter uses; and nife mounts a NAS over NFS. Two halves
+sharing one ONC RPC / XDR protocol crate (`nfs_proto`), the adapter pattern proven by milestone
+54, and decision 93's rule: ours on the inside, theirs at the edge.

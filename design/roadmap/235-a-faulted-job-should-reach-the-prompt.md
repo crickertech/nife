@@ -99,3 +99,9 @@ legs.
   68 programs can fault under a shell, so the exposure of this defect class is a number rather than
   a guess. Every program that can fault hit this path and nobody has looked, so there is no way to
   say whether the fix mattered to two programs or to forty.
+
+## Index row
+
+**Built:** 2026-09-03
+
+`spawnproto::JOB_FAULTED`: `job_undertaker` already held the death, and now has one word and one `WRITE` to say it with

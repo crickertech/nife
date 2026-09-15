@@ -30,3 +30,9 @@ enforced in `e85802d` rather than merely written down.
 - **Milestone 5.** The written-down locking discipline the commit demanded before a timer interrupt
   could land between any two instructions. It arrived as `IrqSafeMutex` and DECISIONS §9, and
   milestone 5 is where it stopped being a hypothesis.
+
+## Index row
+
+**Built:** 2026-07-13
+
+where RAM actually comes from, and the allocator allocates itself first

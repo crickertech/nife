@@ -33,3 +33,9 @@ counter-design. **Effort: 1 lane** (measured: it took one).
 - **Milestone 29.** The display terminal. This block is serial on purpose and says the two must not
   be confused: the terminal emulator stays on the host end of the wire here, and framebuffer output
   is 29's work.
+
+## Index row
+
+**Built:** 2026-07-28
+
+a terminal with real behaviour, which 27's stdio semantics need

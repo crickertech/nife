@@ -219,3 +219,11 @@ Do it here, with the numbers written down, rather than under pressure from a nam
 - **Recorded.** `notes/naming.md` keeps the argument against doing this at all, which is worth
   having after the fact: a hyphenated package name is ordinary in the wider ecosystem, Cargo
   normalises it, and nothing was broken. The case was internal consistency, 36 crates against 3.
+
+## Index row
+
+**Built:** 2026-08-01
+
+**built, both ISAs.** Eight crates, fourteen programs and modules, and the three violating
+directories renamed to the spellings settled in review; `fs-server` is `fs_server`, `user-std`/`hellostd` is `std_exerciser` twice, and the shell has a name (`swish`). Its tables
+keep the old spellings on purpose, because they are the record of the decision

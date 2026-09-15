@@ -101,3 +101,16 @@ three crates the noun rule settled, and the domain table's two arguments.
   name, so deduplicating it is calef's call rather than a lane's.
 - **Recorded.** The merge queue and the lane roles are stated twice in the milder shape, and the
   dependency rule is not; the reading is in the pull request body and the lane report.
+
+## Index row
+
+AGENTS.md's naming section is 132 lines, 12% of a file with a zero-headroom ceiling, and
+notes/naming.md is 760 more on the same subject. Both stated the rule that changed on 2026-09-05.
+The constitution should keep the tests a lane applies; the note should keep the argument. The note
+half is done: it opens by saying it is the case rather than a second authority, and it received
+the `dwarden`/`conx` evidence, the shared-module history, the milestone 160 extension, the noun
+rule's three settled crates and the domain table's two arguments. The `AGENTS.md` half is a **60-line** reclaim (137 lines to 77, 1,048 to 988) proposed as a diff, because a lane cannot edit
+that file. **Most of the reclaim was argument already written out in full in both files**, not
+argument being moved: the two-tier rejection, the `wc` example, "0 of 57", the standard-terms rail
+and the `NAME_LEN` history were each duplicated before this milestone, which is the same defect
+found four more times while fixing it once

@@ -64,3 +64,10 @@ task. The driver's own logic (register layout, initialization sequence) can like
 from a mainline Linux driver for the same controller the way `crates/jh7110_entropy` transcribed the
 JH7110 TRNG's from `drivers/char/hw_random/jh7110-trng.c`, and host-tested before any hardware is
 involved, but whether it actually enumerates real devices can only be verified on the board.
+
+## Index row
+
+Named as needing "its own milestone" in three places (milestone 53, notes/visionfive2.md,
+DECISIONS §86) without ever getting one until now. Gate: HARDWARE. What DECISIONS §86 holds itself
+PROPOSED pending: a real second data point beyond QEMU's fake ECAM device, so it can tell which
+parts of the NVMe capability contract are QEMU artifacts.

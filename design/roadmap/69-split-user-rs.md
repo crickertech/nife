@@ -64,3 +64,11 @@ leaving `user.rs` as the wiring that names them.
 ## Follow-on
 
 - **None.**
+
+## Index row
+
+**Built:** 2026-08-02
+
+15,499 lines and **46 top-level modules** in one file: a dozen `*_service` modules and ~34 test
+modules. The split is nearly free because the boundaries are already `mod` blocks, so moving one
+to its own file changes no visibility and no API

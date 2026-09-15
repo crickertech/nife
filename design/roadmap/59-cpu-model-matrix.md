@@ -79,3 +79,11 @@ lands (~2026-08-21).
 - **Recorded.** `design/roadmap/59-cpu-model-matrix.md`'s own BUGS: `sifive-u54` under QEMU is still
   QEMU and reproduces none of the JH7110's cache behaviour, memory map or errata, and a green matrix
   is the absence of one class of failure rather than a portable kernel.
+
+## Index row
+
+**Built:** 2026-08-01
+
+`-cpu rv64` enables nearly every ratified extension; the board is an RV64GC U74. `script/cpu-matrix` runs the riscv64 suite across five models and all 211 tests pass on every one,
+so we are already portable to the board's ISA. The ASID test written *for* the board is the gap no
+model can exercise

@@ -69,3 +69,13 @@ of two, and sequencing it after 96 is worth more than the wait costs.
   signature-verification code inside the trusted computing base, which is exactly what the digest
   approach avoids. This milestone extends the measurement's reach, not its mechanism, and DECISIONS
   §26's natural sequence still holds: signatures in addition to measurement, never instead of it.
+
+## Index row
+
+**Built:** 2026-08-05
+
+Init refuses to load what it cannot vouch for, which turned out to be the whole policy:
+spawn-and-record and halt are not rival policies but what a refusal *costs*, and init already
+answered that for an archive entry simply missing, so a refused program is treated as a missing
+one and no new category exists. The table is an archive entry rather than compiled in, because
+init is *in* the archive it measures; the kernel gains one digest and no policy

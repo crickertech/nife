@@ -3,19 +3,34 @@ use identity_provisioner_service as ips;
 
 use super::*;
 
-/// The identity this suite provisions, chosen to match `credentialer_test_client.rs`'s own
-/// `PEOPLE[0]` (`b"chris"`, `b"correct horse battery staple"`) so `ROLE_HONEST` can be reused
-/// unmodified as the verification half: its first check (the right password for `chris`) becomes a
-/// real proof that what this tool `PUT` is what a client can later verify, and its other three
-/// checks (a wrong password, an unknown identity, another identity's password against this one) are
-/// unaffected by which store they run against.
-const IDENTITY: &[u8] = b"chris";
-const IDENTITY_STR: &str = "chris";
-const SECRET: &[u8] = b"correct horse battery staple";
+/// The identity this suite provisions: the roster's first person, so `credentialer_test_client`'s
+/// `ROLE_HONEST` can be reused unmodified as the verification half. Its first check (the right
+/// password for that person) becomes a real proof that what this tool `PUT` is what a client can
+/// later verify, and its other three checks (a wrong password, an unknown identity, another
+/// identity's password against this one) are unaffected by which store they run against.
+///
+/// **Taken from `credential_protocol::fixture` rather than matched to it by hand** (milestone 293).
+/// The comment that used to sit here said this suite had *chosen* `chris`/`correct horse battery
+/// staple` to line up with a constant in a fixture program, which is a coupling with nothing holding
+/// it: the next person to edit either copy would have had no way to know the other existed.
+const IDENTITY: &[u8] =
+    credential_protocol::fixture::PEOPLE[credential_protocol::fixture::CHRIS as usize].0;
+/// The same identity as a `&str`, because `fs_service::narrow_dir` names a path component rather
+/// than a credential. **Derived rather than re-typed** (milestone 293): a second spelling of the
+/// same name is the exact shape this milestone spent its diff removing, and a `const` conversion
+/// means the two cannot be made to disagree at all rather than merely being checked.
+const IDENTITY_STR: &str = match core::str::from_utf8(IDENTITY) {
+    Ok(s) => s,
+    Err(_) => panic!("the roster's identity is not UTF-8, so it cannot name a directory"),
+};
+const SECRET: &[u8] =
+    credential_protocol::fixture::PEOPLE[credential_protocol::fixture::CHRIS as usize].1;
 
 /// A second `PUT` for the same identity, with a different secret, used only to provoke the refusal
-/// this suite's second test asks for. Never expected to be stored.
-const DUPLICATE_SECRET: &[u8] = b"a different secret entirely";
+/// this suite's second test asks for. Never expected to be stored. Another person's, which is what
+/// makes it certainly not this one's.
+const DUPLICATE_SECRET: &[u8] =
+    credential_protocol::fixture::PEOPLE[credential_protocol::fixture::CORINNE as usize].1;
 
 /// What [`wired`] hands each test: the sealed store's own wiring (for a real `VERIFY`) and both
 /// provisioning attempts' raw reports. The file service's root that both attempts were run against
@@ -163,8 +178,7 @@ fn wired() -> Option<Wired> {
 /// **The headline: a fresh identity gets a working credential and a real, descendable subtree, from
 /// one tool invocation.** Two independent proofs, neither of which the tool's own report could fake:
 /// a real `VERIFY` against what was `PUT` (`credentialer_test_client`'s `ROLE_HONEST`, reused
-/// unmodified because this suite chose `chris`/`correct horse battery staple` to match its own
-/// fixture), and a real subtree caretaker whose descent succeeds (`fs_service::narrow_dir`, which
+/// unmodified because this suite provisions the roster's first person), and a real subtree caretaker whose descent succeeds (`fs_service::narrow_dir`, which
 /// asserts rather than returning `None` on a refused descent, so a subtree that was not actually
 /// created fails this test loudly rather than silently).
 #[test_case]

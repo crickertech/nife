@@ -35,6 +35,13 @@ suite**: the file servers, the `std` farm, and the services that keep a session'
 rest of the boot. The tests that do not run on x86_64 are disproportionately the ones that keep
 memory.
 
+**Both named skip causes have since closed, and the 57 above is the 2026-08-28 count, kept as
+measured.** Milestone 164 made `redoxfs_server` build for x86_64 on 2026-09-01, and milestone 184 built
+`x86_64-unknown-nife` and its `std` farm on 2026-09-14, so `std_exerciser` now runs there. The file
+servers still mostly skip on x86_64, for a different reason: no disk the FS service can find
+(`design/roadmap/proposals/an-fs-service-with-no-disk-on-x86-64.md`). Re-count before relying on this
+block's premise that x86_64 undercounts the heaviest consumers.
+
 So x86_64 sits far under a ceiling it cannot approach, and the gate that reads green there is not
 reporting a healthy leg. It is reporting that a number fitted to a different, larger suite was not
 exceeded by a smaller one.
@@ -100,3 +107,11 @@ rather than only as a fix here.
 - **It cannot say whether today's x86_64 figure is already carrying a leak**, because there is no
   earlier reading to compare against. The first measurement establishes a baseline and blesses
   whatever is already there, which is the honest cost of having gone this long without one.
+
+## Index row
+
+`SUITE_PAGE_FRAME_BUDGET` is one number for three suites and was fitted to aarch64. x86_64 runs
+194 tests against aarch64's 306, and its 57 skips are disproportionately the heavy frame keepers
+(`NO_FS_SERVER`, `NO_STD_EXERCISER`), so it sits far under a ceiling it cannot approach. Measured
+2026-08-28: x86_64 keeps 7,514 frames against aarch64's 22,217, roughly 14,700 under a ceiling it
+is nominally gated by, so its retained frames could triple and still read green.

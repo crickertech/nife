@@ -1,6 +1,6 @@
 //! The std runtime contract, and the syscall glue that meets it.
 //!
-//! This is the PAL's twin of `crates/user_mode_runtime`: the same `svc #0` / `ecall` instructions, the
+//! This is the PAL's twin of `crates/user_mode_runtime`: the same `svc #0` / `ecall` / `syscall` instructions, the
 //! same register convention, deliberately re-stated here because std cannot depend on an
 //! out-of-tree crate. The ABI *constants* are not re-stated: `abi.rs` next door is generated
 //! verbatim from `crates/abi/src/lib.rs` by `cargo xtask std-src`, so the numbers cannot drift.
@@ -150,6 +150,32 @@ pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
     ret
 }
 
+/// Invoke a capability (`x86_64`): `syscall`, number in `rax`, args in `rdi, rsi, rdx, r10, r8`,
+/// result in `rdi` (DECISIONS §124). A twin of `user_mode_runtime::invoke5`'s register list, clobbers
+/// included: `syscall` itself overwrites `rcx` (return address) and `r11` (RFLAGS), and the kernel
+/// writes message words back into the argument registers, so every one of them is `inlateout`
+/// rather than `in`. Declaring an argument register as `in` here would promise LLVM the kernel
+/// preserves it, which a RECV-shaped reply does not.
+#[cfg(target_arch = "x86_64")]
+pub unsafe fn invoke(cap: u64, method: u64, a0: u64, a1: u64, a2: u64) -> i64 {
+    let ret: u64;
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_INVOKE,
+            inlateout("rdi") cap => ret,
+            inlateout("rsi") method => _,
+            inlateout("rdx") a0 => _,
+            inlateout("r10") a1 => _,
+            inlateout("r8") a2 => _,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack),
+        );
+    }
+    ret as i64
+}
+
 /// SEND three words on the endpoint in `slot`. Blocks until a receiver takes them.
 pub fn send(slot: u64, w0: u64, w1: u64, w2: u64) -> i64 {
     unsafe { invoke(slot, abi::rendezvous::SEND, w0, w1, w2) }
@@ -202,6 +228,29 @@ pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
     (r0, r1)
 }
 
+/// `CALL` (`x86_64`). See the aarch64 twin; `syscall`, the two reply words in `rdi`/`rsi`, and the
+/// same clobber list as [`invoke`] for the same reasons.
+#[cfg(target_arch = "x86_64")]
+pub fn call(slot: u64, w0: u64, w1: u64) -> (u64, u64) {
+    let (r0, r1): (u64, u64);
+    // SAFETY: `syscall`. CALL returns the two reply words in rdi/rsi.
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_INVOKE,
+            inlateout("rdi") slot => r0,
+            inlateout("rsi") abi::rendezvous::CALL => r1,
+            inlateout("rdx") w0 => _,
+            inlateout("r10") w1 => _,
+            inlateout("r8") 0u64 => _,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack),
+        );
+    }
+    (r0, r1)
+}
+
 /// Give up the CPU (`SYS_YIELD`); the timed sleep loop is built on this.
 pub fn yield_now() {
     #[cfg(target_arch = "aarch64")]
@@ -211,6 +260,16 @@ pub fn yield_now() {
     #[cfg(target_arch = "riscv64")]
     unsafe {
         core::arch::asm!("ecall", in("a7") abi::SYS_YIELD, options(nostack, nomem));
+    }
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_YIELD,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack, nomem),
+        );
     }
 }
 
@@ -234,12 +293,23 @@ pub fn exit(code: i64) -> ! {
             options(nostack, nomem),
         );
     }
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        core::arch::asm!(
+            "syscall",
+            in("rax") abi::SYS_EXIT,
+            in("rdi") code as u64,
+            lateout("rcx") _,
+            lateout("r11") _,
+            options(nostack, nomem),
+        );
+    }
     loop {
         core::hint::spin_loop();
     }
 }
 
-/// Fault on purpose (`brk` / `ebreak`): the kernel kills the process and reports where. This is
+/// Fault on purpose (`brk` / `ebreak` / `ud2`): the kernel kills the process and reports where. This is
 /// `abort()` on an OS whose failure story is "a fault the kernel attributes", and it is what
 /// `panic!` reaches after printing, since the target is panic=abort.
 pub fn abort() -> ! {
@@ -251,13 +321,22 @@ pub fn abort() -> ! {
     unsafe {
         core::arch::asm!("ebreak", options(nostack, nomem));
     }
+    // `ud2`, not `int3`, for the reason `user_mode_runtime::trap` measured: this kernel's IDT gates
+    // are all DPL 0, so `int3` from ring 3 is refused as a #GP that names neither the instruction
+    // nor the reason, where `ud2` is a fault the CPU raises with no gate involved.
+    #[cfg(target_arch = "x86_64")]
+    unsafe {
+        core::arch::asm!("ud2", options(nostack, nomem));
+    }
     loop {
         core::hint::spin_loop();
     }
 }
 
 /// The monotonic tick count: the one ambient readable this ABI grants (notes/abi.md, "the one
-/// ambient thing"). aarch64 `CNTVCT_EL0`; RISC-V `rdtime`.
+/// ambient thing"). aarch64 `CNTVCT_EL0`; RISC-V `rdtime`; `x86_64` `rdtsc`, which ring 3 may execute
+/// because the kernel leaves `CR4.TSD` clear (see `user_mode_runtime::now`'s `x86_64` arm for what that
+/// costs).
 pub fn now() -> u64 {
     #[cfg(target_arch = "aarch64")]
     {
@@ -275,11 +354,31 @@ pub fn now() -> u64 {
         }
         t
     }
+    #[cfg(target_arch = "x86_64")]
+    {
+        let (lo, hi): (u32, u32);
+        unsafe {
+            core::arch::asm!("rdtsc", out("eax") lo, out("edx") hi, options(nomem, nostack));
+        }
+        ((hi as u64) << 32) | (lo as u64)
+    }
 }
 
 /// Ticks per second. aarch64 reports it in `CNTFRQ_EL0`; RISC-V has no architectural register
 /// for the timebase, so this is the QEMU `virt` constant, the same honest gap `user_mode_runtime::cntfrq`
-/// records (10 MHz until the ABI grows an aux-vector-style handoff).
+/// records (10 MHz until the ABI grows an aux-vector-style handoff). `x86_64` has no register either,
+/// and no constant would be honest (a TSC's rate is per part), so the kernel calibrates once at boot
+/// and maps the answer read-only at `counter_frequency_protocol::PAGE_VA` into every process it loads;
+/// this reads that page, the same way `user_mode_runtime::cntfrq` does.
+///
+/// # BUGS
+///
+/// A zeroed timebase page reads as 1 GHz rather than as "unknown", matching `user_mode_runtime::cntfrq`
+/// exactly so a `no_std` program and a `std` program on the same machine agree on what a second is.
+/// Every std program today is spawned by the kernel's `load`, which maps the real page, so the
+/// fallback is unreached here; a std program built by `supervision_protocol::build_child_space` would
+/// read the placeholder and its `Instant` durations would be scaled wrong by the ratio of the true
+/// rate to 1 GHz. That gap is `counter_frequency_protocol`'s own recorded `BUGS` entry, not a new one.
 pub fn cntfrq() -> u64 {
     #[cfg(target_arch = "aarch64")]
     {
@@ -292,5 +391,15 @@ pub fn cntfrq() -> u64 {
     #[cfg(target_arch = "riscv64")]
     {
         10_000_000
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        // SAFETY: the kernel maps a page at `PAGE_VA` read-only into every process `load` builds,
+        // before the process runs; see the BUGS section above for the one path that maps a
+        // zeroed placeholder instead, which still reads safely.
+        let page = unsafe {
+            super::counterfreqproto::TimebasePage::new(super::counterfreqproto::PAGE_VA)
+        };
+        page.hz().unwrap_or(1_000_000_000)
     }
 }

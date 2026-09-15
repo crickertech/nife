@@ -59,3 +59,12 @@ gitoxide-style real workload (milestone 99) can serve anything.
   `ACCEPT` re-arms, so a listener serves connections one after another indefinitely, but the backlog
   is one connection deep and two connections cannot be served at once, because the client blocks in
   one call at a time. Serving several at once wants userspace threads or a select-shaped wait.
+
+## Index row
+
+**Built:** 2026-08-04
+
+The contract has no listen verb and the gate proves outbound only: nife can reach the network and
+cannot be reached. Milestones 54 and 55 are both servers and neither block mentions it, so the
+first lane on either would find it after designing everything above it. The concurrency model (one
+exchange at a time) is the larger half

@@ -70,3 +70,12 @@ That one is worth fixing and it is a different bug.
   behind it, thirteen undocumented blocks in the code that backs the verification claim; other
   cfg-gated code is already compiled by one of `script/lint`'s existing configurations, so a general
   rule would buy nothing and cost a configuration matrix nobody can read.
+
+## Index row
+
+**Built:** 2026-08-04
+
+`#[cfg(kani)]` is compiled by the model checker and by nothing else, so neither unsafe lint can
+fire there; 14 blocks live under it and eleven of `ipc`'s twelve are undocumented. Milestone 82's
+lane deliberately wrote no comments a gate would not check (§61's recorded failure mode). The fix
+is the gate, and which gate is a number to measure, not an argument

@@ -39,3 +39,10 @@ one-page-at-a-time loader boots.
 The proof, when it happens, is the shape milestone 22 already used: init writes to a boot server's
 page and faults, as a negative control, rather than an inventory of what init holds. Until then
 the residual is recorded where a reader meets it, in notes/trusted-init.md's BUGS.
+
+## Index row
+
+Milestone 22's largest residual: `build_child` maps every page it writes for a child and nothing
+in the ABI can unmap it, so init keeps a writable window onto every boot server for the life of
+the machine. A design fork before it is a task, and the cheapest fix may be a one-page loader
+rather than a new syscall

@@ -109,3 +109,12 @@ document.
 - **Refused.** Renumbering. 2,136 `§N` citations had to keep resolving, so content moved verbatim
   and the diff was made reviewable as a move rather than an edit, proved by a reassembly script
   that rebuilt the original file byte-for-byte from the split tree alone.
+
+## Index row
+
+**Built:** 2026-08-04
+
+The same case milestone 76 made, with nearly the same numbers: 5,320 lines, 71 sections, 2,017 `§N` citations, 126 commits in ten days, and three section-number collisions in one day already on
+the record. Adds two things the roadmap split did not need: a status, so supersession is a checked
+fact rather than prose nobody notices, and a home for `design/open-decisions.md`, which is the
+same object one lifecycle step earlier

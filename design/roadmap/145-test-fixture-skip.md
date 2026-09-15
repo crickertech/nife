@@ -90,3 +90,12 @@ never needed to be until a board existed to boot it on.
 - `crates/machine_discovery`'s device-tree readers (`CpuList`, `PlicContexts`) already model "the tree did not
   say" as `None`/empty rather than an error, which is the same shape one level up: a fixture the
   boot did not provide is not a machine that is broken, either.
+
+## Index row
+
+Minted provisionally on 2026-08-21 during milestone 16a's bench session. After six real
+hardware-assumption bugs were found and fixed, the board's boot hit `nvme.rs`'s end-to-end test
+correctly expecting a synthetic NVMe controller only `xtask` attaches; a survey found at least 31
+more `#[test_case]`s across 7 files with the same shape (virtio-rng, virtio-gpu, disk programs). `Testable` has no notion of skip, only pass or panic. The boot tour already has the pattern
+("skipped: no X in the initrd"); the test harness never needed it until a board existed to run it
+on.

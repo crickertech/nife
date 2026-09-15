@@ -147,3 +147,15 @@ answers**, in the same words the prose uses.
 - **Recorded.** `notes/counted-claims.md`: `AGENTS.md`'s block of method figures is still unmarked,
   including a Kani harness count that was wrong the day it was written, because a developer lane may
   not edit that file. The workaround and the next tranche are both in that note.
+
+## Index row
+
+**Built:** 2026-08-16
+
+Three claimed counts tested against the tree on 2026-08-14 and all three wrong: 23 shell scripts
+against 36, 107 harnesses against 110, and CLAUDE.md's 112 disagreeing with both. §39 says a name
+is a claim; so is a number, and unlike a name a machine can check it. Built as a `<!--count:NAME-->` marker, a registry of derivations in `script/lint` (`kani-harnesses`, `harness-crates`, `sh-scripts`), and a ratchet rather than a sweep; notes/counted-claims.md. Every
+claimed count in the tree was wrong again two days later (119 across 21, and 40 scripts), and the
+gate's own first run found `mdns_proto`'s three harnesses in no shard of `script/verify`.
+Deliberately NOT the prose-claims class (`notes/stack.md` said guard pages did not exist for
+months), which needs a reader and is milestone 117's

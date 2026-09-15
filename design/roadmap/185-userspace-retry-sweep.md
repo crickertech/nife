@@ -120,3 +120,11 @@ clock" was first established, in the kernel, with the stronger unit this milesto
 ## BUGS
 
 Not started; nothing built yet to carry its own BUGS section.
+
+## Index row
+
+Milestone 78's login-teardown fix (PR #562) found four siblings: a fixed attempt count, no clock,
+waiting out the same DECISIONS §16 refusal. Two return quietly on exhaustion (a stranded region);
+two call `user_rt::trap()`, killing the process under load instead of degrading. Fix is the same
+one already built once, ported four times; userspace has no delivered-tick counter, so the open
+question (an ABI addition) is recorded, not decided.

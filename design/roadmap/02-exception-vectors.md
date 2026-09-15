@@ -27,3 +27,9 @@ a flat arm64 Image and getting the device tree.
 - **Refused.** The EL2 to EL1 drop the original row promised alongside the vectors. QEMU's `virt`
   machine enters a flat Image at EL1, so there was nothing to drop from, and building the mechanism
   with no caller would have been guessing at what a later board needs.
+
+## Index row
+
+**Built:** 2026-07-13
+
+faults, interrupts, and syscalls are one mechanism; this is the plumbing for all three

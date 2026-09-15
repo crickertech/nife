@@ -65,3 +65,8 @@ child's recorded `fault_ep`, which nobody can satisfy once the supervisor's endp
 **Sequencing.** Phase one after milestone 47 (navigation and naming), because it wants `jobs` alongside
 the other builtins and the same shell surface. Phase two is gated on nothing but the SUSPEND decision. **Effort: 1 lane estimated per
 phase**, noting estimates for unbuilt work are guesses on a history-calibrated scale.
+
+## Index row
+
+**most of it needs no new kernel surface**, and the tty's most tangled feature turns out to be a
+capability transfer

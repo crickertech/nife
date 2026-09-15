@@ -64,3 +64,11 @@ as-is or needs extension once real `cargo`/`rustc` invocation patterns are tried
 LLVM is ported whole or some minimal subset targeted first; and the actual multi-year-or-shorter
 timeline, which this block deliberately does not estimate given how little of milestone 172 exists
 yet to measure against.
+
+## Index row
+
+The big one, sized rather than guessed at: not a JIT wall (LLVM's default codegen is
+ahead-of-time, not runtime), but fork/exec sitting at the center of cargo's build model and
+rustc's linking step. Redox OS, whose RedoxFS this tree already vendors, reached self-hosting in
+January 2026 from a far more POSIX-friendly starting point and it still took roughly a decade of
+project maturity, an honest scope signal rather than a discouragement.

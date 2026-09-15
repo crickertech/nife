@@ -31,6 +31,14 @@ in the code or the conversation doesn't make sense, it belongs here.
   risk 3 has never once succeeded, and Miri has been red for three weeks on a missing environment
   variable rather than on undefined behaviour. Name provisional.
 
+- [The roadmap index is generated](roadmap-index.md): `design/roadmap/README.md`'s milestone
+  table is derived from the block files and rewritten by `script/roadmap --write`, because it was
+  the tree's worst merge hotspot: eight conflicts in one session, every one of them in that table
+  and none anywhere else. How to add a milestone now, the measurement that refused the two cheaper
+  options (the summary scores 0.07 similarity against the block's opening paragraph; 129 of 288
+  blocks state no parseable Built date), and the reconstruction that proved the 288-file migration
+  lost nothing.
+
 - [The merge queue, and the three things that watch it](merge-queue.md): `scripts/merge-drain.sh`
   lands every pull request that does not need calef; `scripts/trunk-health.sh` says when `main` goes
   red and when it recovers; `scripts/lane-claim-check.sh` names a pushed lane branch that opened no

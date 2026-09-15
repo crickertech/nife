@@ -472,15 +472,15 @@ impl BootProgress {
                 self.banner_line = Some(line[at..].to_string());
             }
         }
-        // The soak (milestone 219). `soak: started` is `kernel/src/soak.rs`'s `START_MARKER`, and
+        // The soak (milestone 219). `soak-test: started` is `kernel/src/soak.rs`'s `START_MARKER`, and
         // the two agree by one of them being tested against the other's text rather than by both
         // being remembered. Ratcheting on the START line rather than on any `soak:` line is
-        // deliberate: a `soak: FAILED` line reaches the failure arm below and should not also be
+        // deliberate: a `soak-test: FAILED` line reaches the failure arm below and should not also be
         // read as the workload having got going.
-        if line.contains("soak: started") {
+        if line.contains("soak-test: started") {
             self.reach(Stage::Soak);
         }
-        if complete && line.contains("soak: t=") {
+        if complete && line.contains("soak-test: t=") {
             self.observe_soak_beat(line);
         }
 
@@ -519,7 +519,7 @@ impl BootProgress {
         }
     }
 
-    /// Pull the numbers out of one `soak: t=... beat=... rounds=...` line.
+    /// Pull the numbers out of one `soak-test: t=... beat=... rounds=...` line.
     ///
     /// Field-name-directed rather than positional, so adding a field to the kernel's heartbeat does
     /// not silently shift what this reads. A field that is missing or unparseable leaves the
@@ -891,9 +891,11 @@ mod tests {
     /// boundaries.
     #[test]
     fn the_captured_soak_reaches_the_soak_stage_and_its_last_beat_is_read() {
-        let progress = run(include_str!(
+        // A pre-297 capture, respelled at read time and not on disk; see
+        // `crate::respell_pre_297_markers` for why the file is left as the machine printed it.
+        let progress = run(&crate::respell_pre_297_markers(include_str!(
             "../tests/fixtures/captured/qemu-2026-09-01-riscv64-soak.log"
-        ));
+        )));
         assert_eq!(progress.reached(), Stage::Soak);
         assert!(
             progress.reached() > Stage::Tour,
@@ -913,15 +915,44 @@ mod tests {
         assert_eq!(beat.wakes, 0);
     }
 
-    /// **A soak failure is a failure, not a stage.** The kernel prints `soak: FAILED` and then
+    /// **The same parse against the marker vocabulary the kernel prints today** (milestone 297).
+    ///
+    /// `qemu-2026-09-14-riscv64-soak-test.log` is `script/soak-test --arch riscv64 --for 30s`, taken
+    /// unedited on the day the rename landed. It exists so that the live spelling is proved against
+    /// a machine rather than only against text this project wrote, which is the standard
+    /// `tests/fixtures/README.md` holds every other marker to. It is also post-221, so it carries
+    /// the `wakes=` field the capture above predates.
+    #[test]
+    fn the_renamed_markers_are_read_from_a_real_run_of_the_renamed_command() {
+        let progress = run(include_str!(
+            "../tests/fixtures/captured/qemu-2026-09-14-riscv64-soak-test.log"
+        ));
+        assert_eq!(progress.reached(), Stage::Soak);
+        assert_eq!(progress.failure(), None);
+        let beat = progress.soak().expect("the heartbeats must be parsed");
+        assert_eq!(beat.beat, 5);
+        assert_eq!(beat.seconds, 25);
+        assert_eq!(beat.rounds, 274_744);
+        assert_eq!(beat.rate, 11_014);
+        assert_eq!(beat.refused, 0);
+        assert_eq!(beat.mismatches, 0);
+        assert_eq!(beat.stalled, 0);
+        // The tick route is live in this build, so unlike the pre-221 capture above this one both
+        // wakes and crosses. Neither number is a result: see notes/soak.md on what a soak rate is
+        // worth under emulation.
+        assert_eq!(beat.wakes, 10_032);
+        assert_eq!(beat.crossings, 2_717);
+    }
+
+    /// **A soak failure is a failure, not a stage.** The kernel prints `soak-test: FAILED` and then
     /// panics, and it is the panic the recogniser names, carrying the reason; the `FAILED` line
     /// must not be mistaken for a heartbeat or for the workload starting.
     #[test]
     fn a_soak_failure_is_reported_as_the_panic_it_becomes() {
         let progress = run(concat!(
-            "soak: started 4 groups of one responder and 3 callers (20 user threads)\n",
-            "soak: t=5s beat=1 rounds=100 rate=20/s workers=20 refused=1 mismatch=0 stalled=0\n",
-            "soak: FAILED at t=5s beat=1: the wake gate refused a wake\n",
+            "soak-test: started 4 groups of one responder and 3 callers (20 user threads)\n",
+            "soak-test: t=5s beat=1 rounds=100 rate=20/s workers=20 refused=1 mismatch=0 stalled=0\n",
+            "soak-test: FAILED at t=5s beat=1: the wake gate refused a wake\n",
             "[PANIC] soak failed at t=5s beat=1\n",
         ));
         assert_eq!(progress.reached(), Stage::Soak);
@@ -936,7 +967,7 @@ mod tests {
 
     /// **The placement census must be invisible to this recogniser** (milestone 240).
     ///
-    /// `kernel/src/soak.rs` prints a block of `soak-census:` lines at soak start and again whenever
+    /// `kernel/src/soak.rs` prints a block of `soak-test-census:` lines at soak start and again whenever
     /// the arrangement changes. The two agree by that prefix being outside both substrings this
     /// file matches on, and that is an argument until something checks it: these lines are verbatim
     /// from an aarch64 QEMU run on 2026-09-03, interleaved exactly as the kernel emits them.
@@ -947,14 +978,14 @@ mod tests {
     #[test]
     fn the_placement_census_changes_nothing_the_recogniser_reads() {
         let progress = run(concat!(
-            "soak-census: core=0 threads=10 R0 C0 C0 C0 G0 R2 C2 C2 C2 G3\n",
-            "soak: started 4 groups of one responder, 3 callers, 1 grinder and 1 tick waiter \
+            "soak-test-census: core=0 threads=10 R0 C0 C0 C0 G0 R2 C2 C2 C2 G3\n",
+            "soak-test: started 4 groups of one responder, 3 callers, 1 grinder and 1 tick waiter \
              (24 user threads) on 4 online core(s), beating every 5s\n",
-            "soak-census: where the kernel placed each worker at spawn: R=responder, C=caller, \
+            "soak-test-census: where the kernel placed each worker at spawn: R=responder, C=caller, \
              G=grinder, W=tick waiter, and the number after each letter is its group\n",
-            "soak-census: core=1 threads=7 W0 W1 W2 R3 C3 C3 C3\n",
-            "soak-census: core=2 threads=3 G1 G2 W3\n",
-            "soak: t=10s beat=2 rounds=314048 rate=35576/s wakes=3747 wakerate=386/s workers=24 \
+            "soak-test-census: core=1 threads=7 W0 W1 W2 R3 C3 C3 C3\n",
+            "soak-test-census: core=2 threads=3 G1 G2 W3\n",
+            "soak-test: t=10s beat=2 rounds=314048 rate=35576/s wakes=3747 wakerate=386/s workers=24 \
              refused=0 mismatch=0 stalled=0 drifted=0 crossings=1849 remote=2165 steals=4 \
              deferred=6\n",
         ));
@@ -976,7 +1007,7 @@ mod tests {
     /// a soak start, and reporting one would make `board_console` claim a stage from an artefact.
     #[test]
     fn a_census_alone_does_not_reach_the_soak_stage() {
-        let progress = run("soak-census: core=0 threads=6 R0 C0 C0 C0 G0 W0\n");
+        let progress = run("soak-test-census: core=0 threads=6 R0 C0 C0 C0 G0 W0\n");
         assert_eq!(progress.reached(), Stage::Cold);
         assert_eq!(progress.soak(), None);
     }

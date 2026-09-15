@@ -127,3 +127,13 @@ get from Cray, Intel, or Linaro's tools, because those tools profile a kernel no
   discipline already exists); Phase B has no precedent in this tree beyond the two static-analysis
   gates (fastpath-footprint, stack high-water) it most resembles, and both of those took real
   iteration to land honestly rather than optimistically.
+
+## Index row
+
+Every HPC center already runs FTQ/FWQ noise benchmarks and reads a histogram; none of their
+kernels are small or verified enough to turn "the noise was low on this run" into "here are all N
+sources of preemption and their worst-case cost, enumerated." Phase A ports FTQ against milestone
+51's clock, no PMU needed, and compares against Linux on the same board. Phase B walks every
+interrupt source (timer, IPC, milestone 108's confined drivers) with the fastpath-footprint gate's
+static-analysis method and publishes a bound a reader can check rather than a sample they have to
+trust.

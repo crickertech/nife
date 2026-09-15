@@ -105,3 +105,10 @@ what this block said: an evening every time the soak produces its most interesti
 - **Nothing here was tried against the plug's own network**, because nobody has said which one that
   is. Every measurement in this block is a negative taken from networks the plug is not on, which is
   consistent with the diagnosis and proves less than it appears to.
+
+## Index row
+
+calef chose manual power 2026-09-04 after the diagnosis was re-measured: still zero Kasa replies
+from either of patagonia's interfaces, and the gateway is GL.iNet, whose guest network isolates by
+design. Milestone 257 removed the larger tax (the card), so staying manual costs less than this
+block first priced it

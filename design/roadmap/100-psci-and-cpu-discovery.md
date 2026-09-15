@@ -70,3 +70,12 @@ reports more; changing the ceiling is a separate decision with a memory cost att
   boot hart's once for the whole machine, so a board whose harts genuinely differ is misread. That
   is also where the parity gap this block found, a hardcoded 10 MHz against aarch64's `CNTFRQ_EL0`
   read, was closed.
+
+## Index row
+
+**Built:** 2026-08-04
+
+The conduit (`hvc`), the function id, and the core list (`0..MAX_CPUS`, and `MAX_CPUS` is 4) are
+compiled in, where `/psci` and `/cpus` state all three and `crates/dtb` can already read them. The
+core-list half is a guaranteed silent no-op on a bigger board; the conduit half's failure is
+board-specific and untested. Milestones 24 and 88 both boot a machine that is not `virt`

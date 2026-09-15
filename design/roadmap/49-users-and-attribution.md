@@ -375,3 +375,12 @@ feature (`components/src/login.rs`'s own BUGS, more precisely worded per item).
 - **Refused.** Real terminal multiplexing. `login` hands the terminal to the first successful caller
   and refuses the rest with a dedicated code until `LOGOUT`, deliberately, because the narrow shape
   commits to nothing the wider one would later have to unwind.
+
+## Index row
+
+**Built:** 2026-08-27
+
+three of Unix's four uses for a uid are already answered structurally; the fourth, attribution, is
+a channel (DECISIONS §109). `login` is wired into the real interactive boot on both ISAs,
+provisions a boot-generated demo credential, and hands back all three capabilities the milestone
+names: a directory, a budget, and (single-session, deny cleanly) the terminal

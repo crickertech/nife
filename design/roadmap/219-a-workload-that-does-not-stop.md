@@ -178,7 +178,7 @@ because each is a scheduler-policy or syscall-surface question and those are cal
   `design/decisions/138-cross-core-handoff-under-load.md` and 221 built the `sched::on_tick` hook.
 - **Milestone 225.** The second: run the soak on radon, argon and xenon, which is where its answer
   means anything. The procedure is written and the tooling is built; it needs a bench and an evening.
-- **Milestone 245.** The duration this block declined to set. Every counter `script/soak` prints is
+- **Milestone 245.** The duration this block declined to set. Every counter `script/soak-test` prints is
   a volume, so no beat can be compared with the one before it and a run that stopped learning looks
   exactly like one that has not.
 - **Refused.** A soak leg inside `script/test`. Twenty seconds per architecture would stop the
@@ -186,7 +186,7 @@ because each is a scheduler-policy or syscall-surface question and those are cal
   every push.
 - **Recorded.** `notes/soak.md`: a soak that finds nothing is weak evidence, and what a clean run
   licenses is one sentence about round trips completed without a refused wake, a wrong reply or a
-  stalled worker. `script/soak` prints that caveat on every green run.
+  stalled worker. `script/soak-test` prints that caveat on every green run.
 - **Recorded.** `notes/soak.md`: a soak build is not the binary that ships. Its IPC fast path is
   1.05 to 1.06x the production one, so no number here is a statement about how fast this kernel does
   IPC, and `script/bench` is the instrument for that.
@@ -197,3 +197,19 @@ because each is a scheduler-policy or syscall-surface question and those are cal
 - **Recorded.** `design/roadmap/219-a-workload-that-does-not-stop.md`: an x86_64 soak runs one core
   unless told otherwise, because that runner defaults to one and its SMP bring-up has two open bugs.
   A crossing count of zero says so out loud, and a single-core soak is not a multicore soak.
+
+## Index row
+
+**Built:** 2026-09-01
+
+`--features soak` replaces the halt at the end of the boot tour with user-mode IPC workers and a
+supervisor that beats every five seconds, on all three architectures. The workload is a user
+program and the detection is in the kernel, because the one defect risk 5 produced is causable
+from userspace and assertable only from inside. `script/soak` judges the QEMU run with the same
+recogniser `script/board-console` points at a board, and `Stage::Soak` re-arms the quiet check a
+completed tour suppresses, so a hang and a slow run are told apart by one rule both halves
+implement. First numbers: **aarch64 ~58,000 round trips/s on four cores, riscv64 ~24,000, x86_64
+~3,900 on one.** **And a finding the block did not think to ask for: a saturated workload does not
+migrate between cores under this scheduler**, measured across three topologies and both multicore
+architectures, so the soak sustains contention on shared kernel state and cannot sustain
+cross-core handoff, which is where the observed defect lived. No board has been run yet.

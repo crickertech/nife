@@ -91,3 +91,14 @@ for whoever picks this up, informed by how the raw-input primitive actually gets
 - **Recorded.** `components/src/rmle.rs`, in the module doc a reader meets first: no `SIGWINCH`-equivalent
   resize notification, no syntax highlighting and no incremental search, so a resized terminal is
   not noticed until something else forces a redraw.
+
+## Index row
+
+**Built:** 2026-08-27
+
+A dependency review of Emacs, nano and vim for a possible nife port found the same wall under all
+three (DECISIONS §31's C-syscall seam), and one real, reusable gap behind it: nife's terminal
+contract is a line discipline with no raw-keystroke input. Built as `rmle`, a Rust
+reimplementation of `kilo`'s spirit and scope rather than a literal port (the seam as built cannot
+support an interactive event loop; that gap is milestone 181); the raw-keystroke primitive itself
+(`OP_RAWMODE`/`OP_READRAW`) is the milestone's own real deliverable.

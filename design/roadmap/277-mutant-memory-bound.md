@@ -139,3 +139,14 @@ header keeps saying so.
   `ubuntu-24.04-arm` and the dev Mac is Apple Silicon. This is milestone 117's stranger-test class
   exactly, found here only because this lane measured every host test binary. Written up as its own
   proposal rather than fixed in a memory-bound lane.
+
+## Index row
+
+**Built:** 2026-09-12
+
+Promoted from the proposal queue 2026-09-11 by calef, the oldest thing in it. One mutant goes 1.4
+GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside a per-mutant timeout
+that is on time and therefore never fires; the sweep that refreshes fatal risk 3 has failed every
+scheduled run since. A cargo runner gives each mutant's test binary a 4 GiB address-space ceiling,
+4.0x the largest of the tree's 143 host test binaries; cargo-mutants 27.1.0 has no memory option
+at all, checked first.

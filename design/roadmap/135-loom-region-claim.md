@@ -122,3 +122,17 @@ already exists, and adds harnesses to a script that already exists.
   interrupts and carries no rank, so the model says the protocol is correct given mutual exclusion
   and says nothing about whether the real lock provides it. `script/lint`'s rank check and
   `notes/locking.md` are the separate arguments.
+
+## Index row
+
+**Built:** 2026-08-18
+
+`untyped::destroy` was not a single-winner claim, and pull request #316 fixed it by removing the
+slot under the same lock hold that decided to destroy it. That fix is argued from lock discipline
+and **nothing gates it**: the literal double free needs two `destroy` calls to overlap inside a
+few instructions, and no test in this tree can schedule that. Lift the region table out of `kernel/src/untyped.rs` into `crates/regions`, beside the `destroy_outcome` arithmetic Kani
+already proves, so the claim is one `&mut self` method a caller cannot take twice, then let loom
+search every interleaving of two destroyers, a destroyer against a retype, and a destroyer against
+a split. Wired into `script/interleaving-check`, which covers four crates today and **none of the
+memory-reclamation path**, the one subsystem where a concurrency bug is already known to have
+lived

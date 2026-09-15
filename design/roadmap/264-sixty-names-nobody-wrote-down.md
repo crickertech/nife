@@ -237,3 +237,11 @@ needs a file of its own; what is listed here is where to read it and what happen
 
 The 31 names that were already `provisional` on 2026-09-05 are untouched on purpose: they are
 prepared, and adding to their argument is not this milestone's business.
+
+## Index row
+
+**Built:** 2026-09-05
+
+100 of 204 names are unratified, and the 60 unrecorded ones have no argument at all. Bringing
+calef a name with no argument is what the seven questions refuse, so this does the lookups and
+leaves him a prepared set

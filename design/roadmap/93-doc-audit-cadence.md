@@ -69,3 +69,13 @@ or stays a sweep heuristic is a decision for whoever builds this. The index and 
   staleness triggers to build beyond the cadence. `script/audits --worklist` derives a note's
   candidacy from how much its cited code has moved since the note's last edit, and the reasoning
   there says why that stayed a sweep heuristic instead of becoming a signal that fires.
+
+## Index row
+
+**Built:** 2026-08-16
+
+92's sibling for claim rot: four stale claims were found in one day, every one by accident. Shares
+92's index, tripwire and dispositions by adding one cadence row; `script/audits --worklist` ranks
+documents by how much of the code they cite has moved, and `notes/documentation-audit.md` is the
+procedure. The first sweep ran in the same lane and found 13 stale environment names, 9 stale
+paths and a rotted justification, then closed the first class with a gate

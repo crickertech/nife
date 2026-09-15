@@ -730,3 +730,16 @@ One thing that is not a step, and is now resolved rather than owed:
   disagree about which core booted. Checked 2026-09-03.
 - **Milestone 167.** The 1 GHz `cntfrq` fallback for children built through the supervision
   protocol is that block's scope, and it is still NOT-STARTED.
+
+## Index row
+
+Splits real work out of milestone 20's stale text: DECISIONS §19 declared x86_64 a target,
+milestone 20's own "Deliverable, in two parts" named it, but 20 is BUILT for the HAL split and
+RISC-V alone (`kernel/src/arch/` has no `x86_64/`). Starts under QEMU TCG, not gated on milestone
+87's physical machine, whose serial hardware arrived and is installed as of 2026-08-23. The fine
+map, IO APIC, ring 3, the scheduler/real processes, VT-d, and a real userspace (170 of 237 kernel
+tests pass) are all **BUILT**, and the discovery seam's wide half was split into its own milestone
+(176). **What keeps this PARTIAL is SMP**: INIT-SIPI-SIPI and a real-mode trampoline start a
+second core, but two unresolved bugs (a third-or-later secondary failing intermittently, and two
+idling cores crashing under the real scheduler's cross-core placement/reaping) mean nothing
+downstream of "a second core exists" has been shown safe, so `NIFE_SMP` stays at 1; see the block.

@@ -32,3 +32,9 @@ shell has since become is milestones 31, 47, and 67's story.
   nothing here could say where it was or what it was holding.
 - **Milestone 67.** The language the shell speaks, which this block leaves as the interactive
   niceties that started the next day (echoing keystrokes) rather than a grammar anyone designed.
+
+## Index row
+
+**Built:** 2026-07-14
+
+proof the whole stack works: every keystroke is a conversation between processes

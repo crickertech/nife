@@ -479,3 +479,15 @@ The real-hardware half of milestone 56's own claim: an entropy service this tree
 board it actually ships to, not only in QEMU. Downstream of that, whenever §120's stopgap question
 is revisited with a real customer, the answer can be "real hardware entropy," not only "QEMU's
 virtio-rng."
+
+## Index row
+
+**Built:** 2026-09-04
+
+Surfaced while investigating milestone 49's boot-wiring fork (DECISIONS §120): the entropy service
+(milestone 56) only has a virtio-rng backend, which does not exist on real silicon. **A confined
+userspace driver drove the TRNG on radon on 2026-09-04 and a client got real, differing bytes
+through a capability naming no device**, which is fatal risk 6's "drives real hardware" half; the
+tour still printed FAILED, because its success line asked for 32 bytes down a protocol carrying 8
+and was unreachable on any device. Fixed, with the bring-up steps upstream has and this driver
+lacked, none of it yet run on silicon.

@@ -338,3 +338,23 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   be expected to change shape against what the TX1 and the U74 actually count.
 - **Recorded.** M9 could refute the fastpath as sketched, and listing it is the point. If per-phase
   attribution says dispatch is cheap and trap entry dominates, §95's premise moves.
+
+## Index row
+
+Both open kernel decisions ended at the same place, that the deciding number does not exist. A
+register rather than a work queue, in two tiers defined to the same standard, because a measure
+that exists only as an intention is at rung zero and the tier is a property of the instrument
+rather than of the measure's importance. **Tier A needs no silicon**, which corrects §95 and §96
+for over-gating on the TX1: a thread census that can retire §96 alone, IPC latency against thread
+count with a falsifiable prediction (stacks 28 KiB apart fill a 32 KB L1d at 16 to 32 threads, so
+the knee should be in the low tens, and it must not run under icount which would report a flat
+line that looks like an answer), and a footprint perturbation that tests Liedtke with no PMU. **Tier B** is cycles, I-cache, D-cache attributed to the stack region, TLB, per-phase attribution
+that could refute the fastpath premise, application working-set displacement, and interrupt
+latency as the counterweight nobody has priced **PARTIAL 2026-08-18**: the register itself landed
+(notes/register-of-measures.md), with the unsafe census and the `count-at-most` ceiling folded in
+at calef's direction; density outside `kernel/src/arch/` has fallen 22.8 to 9.3 per 10,000 lines
+since 2026-07-15 and nothing was measuring it. **E1 through E4 ran 2026-08-22**: a real knee in
+IPC latency by 64-96 threads (8-11% over the flat region), 4 new threads at the customer-path
+topology, ~2x fastpath footprint growth with only 2-3% measured latency effect, 0-3% application
+displacement under IPC load. Tier B remains gated on milestone 74's counters and milestone 127's
+silicon

@@ -201,3 +201,10 @@ could still take.
   unrepresentable rather than swept: `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`.
 - **Milestone 133.** Reclaiming the hung component's own region, which this does not touch and must
   not be quoted as doing.
+
+## Index row
+
+**Built:** 2026-09-04
+
+`Gone` reaches endpoint wait queues and not reply parks, so a dead server blocks its callers for
+the life of the machine

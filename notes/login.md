@@ -114,8 +114,9 @@ send(REQUEST, w0, 0, 0);
 let (verdict, _, _) = recv(RESULT);
 assert_eq!(verdict, proto::DENIED);
 // No RECV_CAP here. The protocol promises nothing follows a refusal; a client that tried anyway
-// would block forever, which `login_test_client.rs`'s ROLE_WRONG_SECRET relies on as its own check
-// that the promise holds.
+// would block forever, which `login_test_client.rs` relies on as its own check that the promise
+// holds: its wrong-secret run is `LOGIN` with `credential_proto::fixture::WRONG` for a secret, the
+// same code as the honest run (milestone 293).
 ```
 
 ## What is proven, and where

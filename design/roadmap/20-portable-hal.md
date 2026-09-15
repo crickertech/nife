@@ -72,3 +72,10 @@ precedent.
   because the proofs live in the machine-independent crates that already do not care about the ISA,
   and each new architecture enlarges the unverified TCB by one hand-written boot, MMU, trap and
   syscall layer.
+
+## Index row
+
+**Built:** 2026-07-30
+
+the "portable verified core" claim, for the HAL split and RISC-V; x86_64 split out to milestone
+161

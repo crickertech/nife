@@ -215,3 +215,12 @@ not an error. That skip is DECISIONS 139 part 3 showing up in a test rather than
 - **Recorded.** `design/roadmap/229-the-counter-grant.md`: every name here is provisional and names
   are calef's, including `Thread::cycle_counter_grant`, `arch::timer::set_cycle_counter_grant`,
   `cycle_counter_grantable` and `sched::grant_cycle_counter`.
+
+## Index row
+
+**Built:** 2026-09-02
+
+the kernel half is complete and the syscall method is deliberately not minted: a grant on the TCB,
+written at the context switch beside the address-space root, aarch64 `PMUSERENR_EL0.CR` cached,
+riscv64 `scounteren.CY` read back so `TM` survives, `x86_64` a no-op that leaves its fastpath
+byte-identical

@@ -32,3 +32,9 @@ reserved it for; the capability table and address-space work it plausibly named 
   there is no commit titled 7b and no surviving record of what the letter reserved. The capability
   table and address-space work it plausibly named arrived inside 7c and 7d. The gap is a hole in the
   history rather than in the code.
+
+## Index row
+
+**Built:** 2026-07-14
+
+the actual OS boundary, and the §10 decision made deliberately at the parked decision point

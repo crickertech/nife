@@ -204,3 +204,9 @@ moves is one nobody can check.
 - **This milestone was measured in QEMU and not on silicon.** radon was not at this lane's bench, so
   every claim about what a VisionFive 2 prints is read from `notes/visionfive2.md`'s captures and
   from the source, the same limitation milestone 289 recorded.
+
+## Index row
+
+**Built:** 2026-09-14
+
+Promoted from the 2026-09-14 proposal that asked calef one sentence and got it: *"Retire builder"*, option (b). Milestone 20's richer-initrd demo composed a child from **exactly two** capabilities and printed the tour's `init/build` line; milestone 268 item 4 made the default riscv64 boot hand over to the progenitor, which makes the same claim at the scale of a whole system on the same boot, so the step was making it twice. Eight surveyed sites, all real, one path stale (`crates/user_rt` is `user_mode_runtime` since 285), plus two live-code citations the survey missed. The accepted risk was priced rather than assumed: the minimality half is **half-proved**, by `fixtures/src/address_space_builder.rs` holding the same two capabilities on both ISAs under `script/test`, and proved nowhere past the address space, which is `design/roadmap/proposals/composing-a-process-from-two-capabilities.md`. The proposal's guess at where the claim went was checked and was wrong: `least_authority_demo` and `grant_plan` are about a **child's** authority, not a composer's. Closed unasked: the one unmeasured child-loader that ran on the shipped board path. `userspace_ran()` keeps its matcher for the VisionFive 2 capture and its doc now says it reads history, not a live board.

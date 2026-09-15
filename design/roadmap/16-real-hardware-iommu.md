@@ -115,3 +115,7 @@ it underneath the check.
   justifies it now has its own block, with the market work in `notes/aarch64-board-survey.md`.
 - **Milestone 252.** The gap this block found in itself, that a PARTIAL block goes unread while it
   keeps claiming work, is milestone 252.
+
+## Index row
+
+isolation in hardware, under real workloads

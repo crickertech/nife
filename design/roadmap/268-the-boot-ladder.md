@@ -361,3 +361,9 @@ it the same day, *"Retire builder"*, and milestone 295 performed it.
   demonstration tour they do not have; levelling it down would delete riscv64's, which is the trap
   this block warns about. The portable rungs that replace it for every tool are `Machine` and
   `SelfTest`.
+
+## Index row
+
+calef, 2026-09-09. Parity is the demonstrator's claim (§19) and three boot arms had quietly
+diverged: `machine.rs` on one architecture, `self_test` on two, a `Stage::Tour` marker reachable
+on one.

@@ -272,3 +272,14 @@ carry.
   whether it is re-homed somewhere that still exists or recorded as lost is undecided. Six inline
   comments in `components/src/session_reviver.rs` still cite the deleted type as the shape they mirror.
   Checked 2026-09-03.
+
+## Index row
+
+calef wants a scheduled job's capabilities to reflect the scheduling user's own authority
+(milestone 129's #387), which means the registrar has to be a user's session rather than a fixed
+system component. Collides with DECISIONS §92 (a caretaker is supervised by the client it serves):
+the right rule for a one-shot grant is the wrong one for a job meant to survive its registrar
+disconnecting. **Three of four design pieces built and tested (2026-08-24): `smb_server.rs`'s `DurableSession` (§16's live-children rule applied to a session), the on-disk schedule store
+(§122) and boot-time re-derivation of it (`session_reviver`, §123), plus a new decision (§125) for
+the manifest question neither §122 nor §123 fully specified. Its gate on milestone 49 cleared
+2026-08-27 (49 reached BUILT); what remains is wiring a real scheduled-job registrar against `DurableSession` (#387).**

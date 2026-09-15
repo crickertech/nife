@@ -5,6 +5,14 @@
 //! same endowment**: the verify endpoint, a report endpoint, and the page it writes its request
 //! into. No store, no provision endpoint, no entropy, no budget.
 //!
+//! **All three are behaviours, and none of them is a credential** (milestone 293, which checked).
+//! They differ in what they send and on which endpoint, not in whose password they present: the
+//! provisioner fills a store, the honest client asks four questions, and the attacker sends five
+//! things the contract does not offer. There is no role-to-credential lookup here to dissolve, which
+//! is the difference between this file and `login_test_client.rs`. What 293 did take from here is
+//! [`PEOPLE`], which lives in `credential_protocol::fixture` now because three files were keeping their
+//! own copy of it.
+//!
 //! - [`ROLE_HONEST`] is what any authenticating server would be: it asks three questions and reports the
 //!   three answers, plus whether the shared page came back clean.
 //! - [`ROLE_ATTACKER`] holds the identical endowment and tries to *write* the store through it:
@@ -44,6 +52,11 @@
 #![no_main]
 
 use credential_protocol as proto;
+/// The identities and secrets this milestone's tests use, from the one place they live
+/// (milestone 293). This file held the definition until then and two other files held their own
+/// copies of it, one of which said in a comment that it had *chosen* to match this one; a fact
+/// three files agree on by hand is a fact waiting to disagree.
+use proto::fixture::PEOPLE;
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, exit, send};
 
@@ -74,14 +87,6 @@ pub const RPT_DONE: u64 = 0x_c2ed_c11e_0000_0001;
 
 /// Bit 0 of the report's third word: the shared page came back empty after the last reply.
 pub const F_CLEAN: u64 = 1 << 0;
-/// The identities and secrets this milestone's tests use. Three, matching the three family members
-/// design/roadmap/56-secrets-and-entropy.md says the real deployment serves.
-const PEOPLE: [(&[u8], &[u8]); 3] = [
-    (b"chris", b"correct horse battery staple"),
-    (b"corinne", b"a different secret entirely"),
-    (b"graeme", b"and a third one"),
-];
-
 /// One share: the resource name, the password, the account name, and the domain. A named type
 /// rather than a bare tuple because four `&[u8]`s in a row are a puzzle at the use site, which is
 /// exactly what clippy's `type_complexity` is for.
@@ -190,7 +195,7 @@ fn honest() -> ! {
     codes.push(request(
         PAGE_WINDOW,
         identity,
-        b"not the secret",
+        proto::fixture::NOBODYS_SECRET,
         proto::verify::VERIFY,
     ));
     codes.push(request(

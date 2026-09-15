@@ -75,3 +75,13 @@ principle 3's test applied to running rather than to building, and today the ans
 - **nife cannot build software**, so a package is a thing produced by a host toolchain and consumed
   by the target. Every packaging idea borrowed from a self-hosting system needs that translation
   checked rather than assumed.
+
+## Index row
+
+calef, 2026-08-30: no third party sees nife until there is a package manager and a trivial
+install, and he wants both **early, to make our own lives easier**. That makes packaging a **precondition on principle 1's ranking function** rather than an item under it: the customer path
+is vacant partly because a second customer could not be accepted if one appeared. The early half
+is what earns it, since the builders pay for its absence today, hand-wiring per program what a
+package would install once (milestone 40 already ships "installed by the package that owns it",
+against no package). Gate: DECISION, MILESTONE 23, inherited from milestone 39, which now has a
+consumer.

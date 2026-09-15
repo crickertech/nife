@@ -52,3 +52,11 @@ the duration is positive and sane, not a latency benchmark, which is `bench`'s j
   a rival to it.
 - **Milestone 93.** The status row still said the work had not started after it merged, which is the
   roadmap drift 93 turned into a cadence rather than a one-off correction.
+
+## Index row
+
+**Built:** 2026-08-04
+
+The second prefix-word command after `caps`, so the grammar is proven, and `date` already built
+the clock story. The design question was whose clock it is: the shell's, so a child that holds no
+clock capability can still be timed, which is the Unix behaviour and what shipped

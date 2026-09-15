@@ -99,3 +99,12 @@ used as source material, checked at that point, not assumed here.
 ## BUGS
 
 Not started; nothing built yet to carry its own BUGS section.
+
+## Index row
+
+Milestone 169 quietly answered its own C-seam goal by building `kilo` in Rust instead; calef's
+reservation named the sharper question this milestone actually answers: nife has no proven way to
+run real, unmodified foreign-language code at all, only a 150-line one-shot spike (DECISIONS §31).
+Extends the seam's driving loop to call an already-running C component repeatedly rather than
+once; recommends proving it with `dc` (small, real, stateful, no raw-keystroke dependency) before
+attempting a real `kilo.c` port.

@@ -208,3 +208,9 @@ bench session, not an unattended one.**
   the script's own `Name:` block, which is where a reader meets them.
 - **Recorded.** The keyboard-at-POST hazard, above and in `notes/xenon-firmware.md`. It is calef's
   two settings and it belongs to the unattended-rig work rather than to this one.
+
+## Index row
+
+PXE needs the DHCP server to point at the boot server, which milestone 257 could avoid and this
+cannot. The objection died when calef said the router is OpenWRT: not a second DHCP server, one
+option on the existing one, scoped to one MAC

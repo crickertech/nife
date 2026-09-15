@@ -16,3 +16,9 @@
   (per-client endpoints for unforgeable identity, a served screenshot instead of a tearing read-only
   mapping, input delivery that is not a blocking `CALL`), is written up in
   `design/decisions/33-compositor-authority.md`.
+
+## Index row
+
+**Built:** 2026-07-29
+
+the canonical multiplexer of one device among mutually distrusting clients

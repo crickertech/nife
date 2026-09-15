@@ -103,3 +103,10 @@ in notes/soak.md.
   genuinely thrashes would print one per beat and roughly double the log.
 - **Refused.** Not a rebalancer. DECISIONS 138 declined one on prior art, since no capability
   microkernel read for it rebalances at all, and nothing here reopens that question.
+
+## Index row
+
+**Built:** 2026-09-03
+
+two runs from one card differed 8x in IPC rate with the CPU proven identical, and nothing prints
+which core a thread landed on

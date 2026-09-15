@@ -230,3 +230,17 @@ half is fixed and proven, and a different wall is standing behind it.
   where the next person changing the fragment meets them. The one most likely to bite is the first:
   a macOS regression would show up as `script/bootstrap` doing something surprising on the architect's
   own machine, and no gate in this repository runs on macOS.
+
+## Index row
+
+**Built:** 2026-09-13
+
+Minted 2026-09-13 after reproducing the whole failure on a stock Ubuntu box. Milestone 117's
+stranger run found `script/setup` could not complete on cold Linux; the remedy applied was a
+better error message, and three defects sat on it. The message never printed (`[ "$os" = linux ]`,
+while `uname -s` says `Linux`). Printing is rung four. And the two commands it printed looped: `script/ci-qemu` installs into `$HOME/.cache/nife-qemu` and the only thing in the tree that ever
+put that on PATH was `ci.yml`, so twelve minutes of building ended at `/usr/bin`'s 8.2.2 again,
+forever. notes/stranger-test.md had recorded it fixed and was wrong for twenty-eight days.
+bootstrap now runs `ci-qemu` itself; `scripts/qemu-path.sh` (**name provisional**) is the PATH
+half, sourced rather than executed because the emulator is named bare from 38 sites and
+inheritance reaches them all; `script/lint` gates that every entry point resolves it.

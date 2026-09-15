@@ -91,8 +91,8 @@ nife on RISC-V (rv64, S-mode, Sv39)
   hw entropy  : skipped (this machine's tree describes no starfive,jh7110-trng; QEMU virt has none)
 nife: the capability core runs on RISC-V.
 
-soak: started 4 groups of one responder and 3 callers (20 user threads) on 4 online core(s), beating every 5s
-soak: silence longer than a few beats is a hang, not a slow run; the beat is on the wall clock and does not depend on the workload making progress
-soak: a clean run is a number to compare against, NOT evidence that the concurrency is correct (design/roadmap/219-a-workload-that-does-not-stop.md)
-soak: t=5s beat=1 rounds=117498 rate=23499/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
-soak: t=10s beat=2 rounds=236294 rate=23759/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak-test: started 4 groups of one responder and 3 callers (20 user threads) on 4 online core(s), beating every 5s
+soak-test: silence longer than a few beats is a hang, not a slow run; the beat is on the wall clock and does not depend on the workload making progress
+soak-test: a clean run is a number to compare against, NOT evidence that the concurrency is correct (design/roadmap/219-a-workload-that-does-not-stop.md)
+soak-test: t=5s beat=1 rounds=117498 rate=23499/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0
+soak-test: t=10s beat=2 rounds=236294 rate=23759/s workers=20 refused=0 mismatch=0 stalled=0 crossings=21 remote=20 steals=4 deferred=0

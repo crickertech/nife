@@ -273,3 +273,11 @@ Transcripts: `bench/radon-2026-09-05/`.
   buy an investigation yet.
 - **Milestone 224.** Remote power, and it stays there: manual power was accepted on 2026-09-04 and
   nothing here changes that argument.
+
+## Index row
+
+**Built:** 2026-09-05
+
+`script/board-image --tftp` writes a boot script that fetches over the network and falls back to
+the card, `script/board-netboot` serves it, and no server address is written down anywhere: it is
+read off the machine writing the card and echoed at boot. The fallback is exercised under `/bin/sh`; none of it has run on radon

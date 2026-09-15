@@ -94,7 +94,7 @@ const SRST_RESET_TYPE_SHUTDOWN: usize = 0;
 /// this vendor firmware build accepts, and nobody in this tree has asked it. [`reboot`] returns
 /// the firmware's own error code so the answer is read off a console rather than assumed. See
 /// notes/soak.md, "Verifying the reset before anything is left unattended".
-#[cfg(feature = "reboot_soak")]
+#[cfg(feature = "reboot_soak_test")]
 const SRST_RESET_TYPE_COLD_REBOOT: usize = 1;
 /// SRST reset reason: none (no additional reason specified).
 #[cfg(feature = "board")]
@@ -134,16 +134,16 @@ fn sbi_system_reset(reset_type: usize) -> isize {
 ///
 /// This is one constant away from the shutdown the board exit already performs, and the whole of
 /// what makes a soak able to draw the boot lottery more than once an evening. The caller is
-/// `soak::watch`, behind `--features reboot_soak`, and it is reached only after the escape in
+/// `soak::watch`, behind `--features reboot_soak_test`, and it is reached only after the escape in
 /// `console::rx_waiting` has been checked twice.
 ///
 /// The return value is the firmware's `sbiret.error`. Nothing here interprets it or prints it: the
 /// marker vocabulary a console log is read with lives in `kernel/src/soak.rs` beside every other
-/// `soak-reboot:` line, so this stays a call to the firmware and the caller stays the only place
+/// `soak-test-reboot:` line, so this stays a call to the firmware and the caller stays the only place
 /// that speaks to a reader.
 ///
 /// Name provisional (milestone 249): calef names public items.
-#[cfg(feature = "reboot_soak")]
+#[cfg(feature = "reboot_soak_test")]
 pub fn reboot() -> isize {
     sbi_system_reset(SRST_RESET_TYPE_COLD_REBOOT)
 }

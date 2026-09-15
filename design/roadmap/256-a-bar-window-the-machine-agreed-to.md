@@ -222,3 +222,19 @@ the disagreement message naming both numbers. `script/test` passes on all three 
   answer is a window sized from what the bus asks for rather than a constant, and 2 MiB leaves so
   that a larger window is not a megabyte of page tables. Nothing forces it today, which is why it
   is a proposal and not a milestone.
+
+## Index row
+
+**Built:** 2026-09-04
+
+milestone 165 predicted it on 2026-09-02 and xenon confirmed it on 2026-09-04: `PCI_BAR_PHYS` was
+q35's hole checked once at `-m 256M`, and a 16 GiB machine's RAM runs through it. The constant is
+gone: `mmu::memory_mapped_io_window` derives the window from the firmware map's first gap above
+low DRAM and from Intel's `TOLUD`, panics naming both numbers when they disagree, and steps over
+the windows this kernel already knows decode in the hole, which xenon's framebuffer at the hole's
+exact floor is why. `pci::place_bars` adopts a BAR firmware already placed instead of moving it,
+mapping it where it stands unless it overlaps RAM. The census's second number now counts only what
+can be neither used nor adopted, and reads **0** on every path measured (was 5 of 8 under PVH, 3
+of 6 under OVMF, 13 of 15 on xenon). QEMU models `TOLUD` nowhere, so absence is distinguished from
+disagreement and the map is the only source under emulation. Unconfirmed on xenon, which needs a
+bench session with a camera.

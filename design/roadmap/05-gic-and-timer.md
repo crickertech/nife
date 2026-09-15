@@ -23,3 +23,9 @@ All 52 kernel tests ran preemptibly from this commit on.
 ## Follow-on
 
 - **None.**
+
+## Index row
+
+**Built:** 2026-07-13
+
+the preemption source, and the locking discipline becomes load-bearing

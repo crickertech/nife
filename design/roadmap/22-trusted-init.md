@@ -125,3 +125,9 @@ that restart policy wants to be a rich userspace thing, not a kernel reflex).
 - **Recorded.** `design/roadmap/22-trusted-init.md`, under "The reach tail": proving init's
   *behaviour* as distinct from verifying its bytes is the direction and is explicitly not committed.
   Proof buys safety, supervision buys availability, and init's failure mode is availability.
+
+## Index row
+
+**Built:** 2026-08-04
+
+closes the thesis's own soft spot: init is the privileged *unverified* component

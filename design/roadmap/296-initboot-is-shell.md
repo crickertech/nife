@@ -255,3 +255,9 @@ they were written.
   run `script/initboot`.** Each now carries a note saying the command is gone and what to type
   instead, which is rung three: the record is at the thing itself and nothing fires on its own. The
   alternative, editing the accounts, would make them describe a boot nobody performed on those dates.
+
+## Index row
+
+**Built:** 2026-09-14
+
+Promoted from the 2026-09-09 proposal milestone 267's lane wrote and was told not to act on. `script/initboot` was the only `script/` entry point running two words together; asked to rule on `progenitor-boot` or `handoff`, calef asked what the thing does and ruled it deleted, so a naming question was answered by deletion. The premise was measured rather than grepped: an aarch64 kernel built `--features initboot` and one built `--features shell` carry the **same 3,109 symbols at the same 1,273,614 total bytes**, differing only in the crate disambiguator hash the feature name itself feeds. On riscv64 `initboot` was a strict subset, selecting three things less. `script/initboot` was deleted rather than aliased, because its `xtask` arm differed from `shell`'s only by omitting the virtio-rng device and the RedoxFS fixture. **`jobmix` moved in the same breath and it was a repair, not a tidy-up**: calef's 2026-09-13 ratification of `crates/job_mix` rests on the family staying greppable as one string and counts three members, and the fourth, `kernel/src/jobmix.rs`, is exactly what that grep misses (31 files against 25). Console markers to `job-mix:`. Found and fixed one line nobody was looking at: `--features job_mix` failed `-D warnings` on both ISAs. Merged with milestone 297's `soak` to `soak_test` rename on 2026-09-15, carrying both renames through every conflicted site.

@@ -236,3 +236,12 @@ own "this stays owed against a kernel-side consumer appearing". This block only 
 - **Recorded.** The aarch64 refutation is a specification reading, not an experiment. Setting
   `CNTKCTL_EL1.EL0PTEN`, having an EL0 program write `CNTP_CVAL_EL0`, and seeing INTID 30 arrive is
   perhaps an hour and would turn it into a measurement. It was not run.
+
+## Index row
+
+answered 2026-09-05, the day it was minted. **No on riscv64, architecturally**, so the
+userspace-timer-service answer to 106 does not survive §19 and the fork goes back to calef as a
+PROPOSED decision. aarch64's negative was **refuted**: `CNTKCTL_EL1.EL0PTEN` opens the physical
+comparator to EL0, and milestones 229/237 built the per-thread grant §139 said the tree lacked.
+The fourth shape priced at zero bytes per capability, no `ipc_fastpath` movement, and under 0.25%
+of the kernel. notes/timer-capability.md

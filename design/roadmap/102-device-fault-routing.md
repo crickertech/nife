@@ -63,3 +63,9 @@ different path with its own owner (§26, the fault endpoint).
 **The proof shape is milestone 16b's, reused.** Point a confined device at a frame outside its
 domain, and assert the report arrives where the design says it should, rather than asserting a queue
 entry exists. Milestone 29's flood is the reason to keep the provocation to a single translation.
+
+## Index row
+
+Three documents defer to "a fault-handling milestone" that has never existed. All five `take_fault` call sites are tests, so a confined device faulting in a real boot reports to nobody,
+and the kernel discards its own evidence that hardware confinement fired. Also owed: clearing the
+overflow bit on drain, whose absence already made one test misreport another

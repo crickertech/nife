@@ -44,20 +44,31 @@ Nothing has been cleaned up; cleaning it would remove the parts a recogniser has
   It is the third outcome, and the reason the recogniser has one: U-Boot refusing before the kernel
   ever ran looks nothing like a hang and must not be reported as one.
 
-**And two captures that are not off a board at all**, kept in this directory anyway because the
+**And three captures that are not off a board at all**, kept in this directory anyway because the
 distinction this directory draws is *machine-printed against hand-written*, not *silicon against
-emulator*. Both are `script/soak` output on the RISC-V `virt` machine, taken on this development
-Mac, and both are unedited:
+emulator*. All three are the soak command's output on the RISC-V `virt` machine, and all three are
+unedited:
 
 - **`qemu-2026-09-01-riscv64-soak.log`** is milestone 219's workload announcing itself and beating,
   from before the placement census existed. Its beats are what `progress::observe_soak_beat` is
-  asserted against.
+  asserted against. Taken on the development Mac with `script/soak`, the command's name at the time.
 - **`qemu-2026-09-03-riscv64-soak-census.log`** is the same thing with milestone 240's census in it,
-  taken by milestone 249's lane. It is the only capture in this tree that carries a real
-  `soak-census:` block, so it is what stops `lottery::tally`'s clean-core count from being proved
-  only against text this project wrote. Two of the four cores hold three grinders between them and
-  the settled arrangement has **one** clean core, at 18,963 round trips a second, which is the low
-  end of the same spread radon shows.
+  taken by milestone 249's lane, also with `script/soak`. Two of the four cores hold three grinders
+  between them and the settled arrangement has **one** clean core, at 18,963 round trips a second,
+  which is the low end of the same spread radon shows.
+- **`qemu-2026-09-14-riscv64-soak-test.log`** is `script/soak-test --arch riscv64 --for 30s` on the
+  day milestone 297 renamed the command, taken in the lane's own Linux worktree. It is post-221, so
+  it is the only one of the three that carries `wakes=` and a census block that changes between the
+  spawn lottery and the settled arrangement.
+
+**The first two predate the marker rename and are left exactly as they arrived** (milestone 297,
+2026-09-14: `soak:` became `soak-test:` and `soak-census:` became `soak-test-census:` when
+`script/soak` became `script/soak-test`). A capture is a record, so the respelling happens at read
+time in `board_console::respell_pre_297_markers` and never on disk; that function's block says why
+the parser does not simply match both spellings, and why the third capture above is what makes that
+affordable. Rewriting the marker inside a `captured/` file would be the fabricated transcript
+`notes/naming.md` opens its rename section with, and this directory exists to make that impossible
+to do by accident.
 
 **Both board captures show a degraded U-Boot environment on this card, and that is not a defect in
 our payload.** `*** Warning - bad CRC, using default environment`, then several

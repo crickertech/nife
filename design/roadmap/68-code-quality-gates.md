@@ -162,3 +162,16 @@ first, then the comment, then the block.
   `supervision_proto` and `system_initializer`. Each takes an unconditional `user_rt` dependency, so
   the host test selection excludes it and nothing in CI ever runs its doctests. That is five crates
   whose examples can rot unnoticed inside the gate milestone 68 exists to be.
+
+## Index row
+
+**Built:** 2026-08-22
+
+Import order, `[workspace.lints]`, dependency direction, unused dependencies, spelling. Three
+lints were adopted, measured and **removed** on the evidence. `undocumented_unsafe_blocks` is now
+a GATE: all 205 undocumented blocks were read and commented. Doc examples **closed 2026-08-17**:
+every crate under `crates/` now has a worked example and the workspace runs 116 doctests, 109 of
+them in the host pass. `missing_docs` moved to `[workspace.lints.rust]`, opt-out, **decided
+2026-08-22 (DECISIONS §107)**: every crate is checked by default, and the 7 with a real remaining
+worklist (cut from 32 by a same-day lane) carry an explicit `#![allow]`. The coverage number this
+block used to defer the switch turned out to measure a different thing than the lint does

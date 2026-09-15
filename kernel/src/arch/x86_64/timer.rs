@@ -322,7 +322,7 @@ pub fn init() {
 /// gated.
 ///
 /// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
-/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// a measurement build the way `soak_test` is. `kernel/Cargo.toml`'s feature block carries the
 /// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 // Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
 // callers that have to skip rather than fault on a part with no counter to grant. Marked rather
@@ -353,7 +353,7 @@ pub fn cycle_counter_grantable() -> bool {
 /// written against the grant works here for a reason it should not rely on.
 ///
 /// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
-/// a measurement build the way `soak` is. `kernel/Cargo.toml`'s feature block carries the
+/// a measurement build the way `soak_test` is. `kernel/Cargo.toml`'s feature block carries the
 /// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 #[inline(always)]
 #[cfg(any(test, feature = "cycle_counter_grant"))]

@@ -33,3 +33,10 @@ Sequenced after the VisionFive 2's first results on purpose: the board is bought
 data point, which only becomes interpretable once there is a first. The hourly price makes the
 feasibility probe (stage one) reasonable any time; the rest waits. Nothing here regresses QEMU or
 the board path, same parity rule as everything else (§19).
+
+## Index row
+
+Real riscv64 silicon (T-Head TH1520, C910 cores) at EUR 0.042/hour, the vendor-quirk cousin of the
+cpu matrix's `thead-c906` model. A second implementation's answers to the questions QEMU cannot
+vary (the `satp.ASID` probe above all), independent of the VisionFive 2's arrival. Whether a
+custom kernel can boot there at all is the first fact to establish

@@ -39,3 +39,7 @@ recorded here so the gap has one home rather than two.
   closes `PMUSERENR_EL0.CR` on the context switch.
 - **Milestone 168.** The multi-tasking workload this block's own suite cannot supply, minted from
   DECISIONS §96's text so the gap has one home.
+
+## Index row
+
+turns perf claims into cross-OS numbers

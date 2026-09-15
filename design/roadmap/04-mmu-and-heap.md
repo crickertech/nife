@@ -28,3 +28,9 @@ whole host core, the finding CLAUDE.md still carries.
 - **None.** Backfilled history. Everything it names either landed the same day (the TLB proof, the
   slab allocator, the `wfi` fix) or was undone on purpose by milestone 14, and the block leaves no
   hazard, phase or fork open.
+
+## Index row
+
+**Built:** 2026-07-13
+
+virtual memory with W^X and a guard page; the heap milestone 14 later removed on purpose

@@ -494,7 +494,8 @@ read `ipc_thread_scaling skipped` twenty minutes later.
   a *board* boot with three U74s left parked by us rather than by firmware. They are left exactly
   as OpenSBI handed them over, which is the same state they are in before `bring_up_secondaries`
   runs on any boot, so the expectation is that nothing notices.
-- **Nothing in CI compiles this card, or any card.** `board`, `soak`, `job_mix`, `reboot_soak`,
+- **Nothing in CI compiles this card, or any card.** `board`, `soak_test`, `job_mix`,
+  `reboot_soak_test`,
   `single_hart` and `fastpath_pad` are built when a person runs `script/board-image`, minutes before
   walking to the bench. A refactor that breaks a card build leaves the tree green until then, and
   the error arrives at the worst possible moment. Six release builds of one crate would close it:

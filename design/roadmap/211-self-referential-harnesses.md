@@ -137,3 +137,16 @@ implementation back at itself.
 - **Recorded.** `design/roadmap/211-self-referential-harnesses.md`: eleven is a floor rather than a
   count. Each finding is a defect somebody thought of, and "no blind spot demonstrated" only means
   nobody has broken it the right way yet.
+
+## Index row
+
+**Built:** 2026-09-01
+
+Scopes `design/fatal-risks.md` risk 2, are the proofs load-bearing. **146 harnesses read, 11
+measured blind**, and measured is the word: for each one the pre-211 phrasing was run against a
+defect in the function it stated its property through and observed to stay green, while the
+rewrite goes red. All 11 rewritten, each carrying that patch as its §134 record; `script/falsifications` went 25 of 141 replayable to 33. Three kinds: the guard's own predicate,
+the value's own producer, and an encoder round-tripped through its own decoder, which no
+call-graph test can find. Three further harnesses were rewritten and recorded as **not** findings,
+because no defect their old phrasing misses could be exhibited. Method and the per-harness table
+in notes/falsification.md.
