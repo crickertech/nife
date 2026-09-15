@@ -177,8 +177,8 @@ The alternative was to leave one crate spelled `_proto` while fourteen siblings 
 which is exactly the split state this milestone exists to end, so the uniform suffix won and the
 cost was taken with its eyes open rather than overlooked.
 
-**Where the stem question lives**: `design/roadmap/proposals/what-the-login-family-is-named-for.md`,
-which carries the measurement and the options and takes no position.
+**Where the stem question lived**: a proposal carrying the measurement and the options, which took no
+position. It was answered and deleted on 2026-09-15; see the correction at the end of this section.
 
 **It was not on `main` while this milestone was performed, and that is why the cost is written twice
 here rather than cited once.** It sat unlanded on the branch `maintainer/ratify-entropy` until PR
@@ -194,6 +194,11 @@ site because a crate rename is compiler-checked. The cost is the record rather t
 is this tree's usual asymmetry: a second rename means a second set of provenance edits and a second
 chance to sweep an account. The crate's own provenance block says all of this where a reader meets
 it.
+
+**Corrected 2026-09-15: the second rename will not happen.** calef ruled that the `login` stem stays
+for the whole family, so the cost this section accepted is never paid and `login_protocol` is final.
+The account above is kept as written, because it is what this lane knew and chose when it performed
+the suffix; the argument for keeping the stem is in `notes/naming.md`, "The `login` stem stays".
 
 ## How it was performed, and what the sweep took
 
@@ -267,9 +272,9 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
   directories that no longer exist. The limitation is written beside the reader in this block's
   `BUGS` and in `notes/naming.md`'s rename procedure, which is where somebody performing the next
   rename meets it.
-- **Recorded.** `login_protocol` keeps an unruled stem and will be renamed a second time. The cost is
-  stated above and again in `crates/login_protocol/src/lib.rs`'s own provenance block, where a reader
-  meets the crate.
+- **Done.** `login_protocol`'s stem, left open here and expected to cost a second rename, was ruled on
+  2026-09-15: the stem stays for the whole family, so there is no second rename. Recorded in the
+  crate's provenance block and in `notes/naming.md`.
 - **Done.** The five stems calef ruled on 2026-09-13 were performed in this pass, including
   `counter_frequency_protocol`, which this block's own table had omitted. Carried by this lane's pull
   request.
