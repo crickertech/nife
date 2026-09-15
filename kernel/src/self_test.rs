@@ -56,10 +56,14 @@
 //!   board's, and a boot self-test that cost a second would be turned off. The deep proofs are
 //!   `script/test`'s suite; this is the subset that has to be true before a prompt is worth
 //!   offering.
-//! - **A check that hangs hangs the boot.** [`fn@timer`] and [`scheduler`] both wait, and both are
-//!   bounded by the free-running counter rather than by an iteration count, so a machine whose
-//!   counter does not advance at all would sit in [`fn@timer`] forever. That is the one failure this
-//!   module cannot report, and it is the same exposure `arch::timer::spin_for` already has.
+//! - **A check can still hang the boot if the operation it measures never returns.** The two
+//!   waits here no longer can: both read the counter through [`Counter`], which reports a counter
+//!   that has stopped rather than waiting on it, and [`fn@timer`] spins rather than sleeping, so a
+//!   machine whose interrupts never arrive cannot park it either. What nothing here bounds is a
+//!   `sched::yield_now` or an `mmu::map_page` that itself never comes back; that needs a watchdog
+//!   on another core or on the timer interrupt, which this module deliberately does not own.
+//!   (Before 2026-09-14 a stopped counter hung [`fn@timer`] forever, and `arch::timer::spin_for`
+//!   still has that exposure.)
 
 use core::sync::atomic::{AtomicU64, Ordering};
 
@@ -69,8 +73,22 @@ use core::sync::atomic::{AtomicU64, Ordering};
 // rather than the start of a longer word.
 use boot_ladder::{SELF_TEST as VERDICT, SELF_TEST_FAILED as FAILED};
 
-use crate::arch::{self, timer};
-use crate::{memory, println, sched};
+use crate::{arch, memory, println, sched};
+
+/// The timer the checks read. A module rather than `arch::timer` directly, so an injected build
+/// can stop the counter these checks see without stopping the one the scheduler runs on.
+mod timer {
+    pub use crate::arch::timer::{frequency, ticks};
+
+    /// The free-running counter, or a stopped one when the build injects a failure.
+    pub fn now() -> u64 {
+        if super::INJECT {
+            0x0268
+        } else {
+            crate::arch::timer::now()
+        }
+    }
+}
 
 /// How many checks there are. Only the tally's fixed-size failure list needs the number; it is
 /// asserted against the calls below rather than derived from them, because a list that could
@@ -87,6 +105,12 @@ const CHECKS: usize = 5;
 /// It is a `cfg!` rather than a `#[cfg]` block so that both arms compile on every build: a fault
 /// injector that only type-checks when it is switched on is an injector that has rotted by the time
 /// somebody needs it.
+///
+/// **It injects two failures, and the second is a gate for the first fix.** Besides failing
+/// `exceptions` it stops the counter the checks read (this module's `timer::now`), which is the
+/// fault that used to hang [`fn@timer`] forever. So every `--inject` run also proves the waits are
+/// bounded: a regression there turns a red verdict back into a boot that goes quiet, and
+/// `boot-check --inject` fails on that.
 ///
 /// Name provisional (milestone 268).
 const INJECT: bool = cfg!(feature = "self_test_injection");
@@ -290,6 +314,49 @@ fn mapping(tally: &mut Tally) {
     }
 }
 
+/// **How many reads of an unchanged counter mean it has stopped.**
+///
+/// Every counter this kernel reads is free-running and fast: `CNTVCT_EL0` at 62.5 MHz on QEMU's
+/// aarch64, `rdtime` at 10 MHz on QEMU's riscv64 and 4 MHz on the JH7110, the TSC on `x86_64`. The
+/// slowest of those changes every 250 ns, and a million reads take far longer than that on any core
+/// this runs on, so a healthy counter cannot read the same value this many times running. Counted
+/// in reads rather than in time for the obvious reason: time is the thing in doubt.
+const STALLED_READS: u32 = 1_000_000;
+
+/// **The free-running counter, read by something that notices when it stops.**
+///
+/// The two waits below are bounded by the counter, which is right on a working machine (it makes
+/// the number mean the same thing on a 62 MHz generic timer and a 2 GHz TSC) and was a hang on a
+/// broken one. This makes the broken case an answer instead.
+struct Counter {
+    last: u64,
+    unchanged: u32,
+}
+
+impl Counter {
+    fn new() -> Self {
+        Self {
+            last: timer::now(),
+            unchanged: 0,
+        }
+    }
+
+    /// The counter now, or `None` once it has read the same value [`STALLED_READS`] times running.
+    fn read(&mut self) -> Option<u64> {
+        let now = timer::now();
+        if now == self.last {
+            self.unchanged += 1;
+            if self.unchanged >= STALLED_READS {
+                return None;
+            }
+        } else {
+            self.last = now;
+            self.unchanged = 0;
+        }
+        Some(now)
+    }
+}
+
 /// The value written through the fresh mapping and read back. `0xc0ffee` is the RISC-V tour's, kept
 /// so a board transcript from before milestone 268 and one from after it read the same.
 const WITNESS: u64 = 0xc0ffee;
@@ -343,18 +410,39 @@ fn frames(tally: &mut Tally) {
 ///
 /// **Bounded by the counter rather than by an iteration count**, which is what makes the number
 /// mean the same thing on a 62 MHz aarch64 generic timer, a 10 MHz RISC-V `mtime` and a 2 GHz TSC.
-/// The cost is that a machine whose counter never advances hangs here; see this module's `BUGS`.
+///
+/// **It spins rather than sleeping, and reads through [`Counter`]**, and both are the fix for the
+/// hang this module's `BUGS` used to record. The loop was `wait_for_interrupt` until the counter
+/// passed the window, so a counter that never advanced sat here forever, and so did a machine whose
+/// interrupts never arrived, because the sleep had nothing to wake it. Spinning with interrupts on
+/// still lets the tick arrive, which is half of what this check measures.
 fn timer(tally: &mut Tally) {
     let hz = timer::frequency();
-    let start = timer::now();
+    let mut counter = Counter::new();
+    let start = counter.last;
     let ticks_before = timer::ticks();
     // 20 ms: two tick periods at the 100 Hz `TICK_HZ` every architecture uses, so a single missed
     // tick does not read as a broken interrupt path.
     let window = hz / 50;
-    while timer::now().wrapping_sub(start) < window {
-        arch::wait_for_interrupt();
+    let mut advanced = 0;
+    loop {
+        let Some(now) = counter.read() else {
+            tally.record(
+                "timer",
+                false,
+                format_args!(
+                    "the counter stopped at {:#x}: {STALLED_READS} reads without a change",
+                    counter.last
+                ),
+            );
+            return;
+        };
+        advanced = now.wrapping_sub(start);
+        if advanced >= window {
+            break;
+        }
+        core::hint::spin_loop();
     }
-    let advanced = timer::now().wrapping_sub(start);
     let ticks = timer::ticks() - ticks_before;
 
     let ok = advanced >= window && ticks >= 1;
@@ -399,10 +487,15 @@ fn scheduler(tally: &mut Tally) {
 
     // Two seconds is far beyond any honest completion and is the same bound the RISC-V tour
     // settled on; the point of the deadline is that the boot continues rather than that the number
-    // is tight.
-    let deadline = timer::now() + 2 * timer::frequency();
-    while SAW.load(Ordering::SeqCst) != CAPTURED && timer::now() < deadline {
-        sched::yield_now();
+    // is tight. Read through [`Counter`], so a stopped counter ends the wait instead of making the
+    // deadline unreachable.
+    let mut counter = Counter::new();
+    let deadline = counter.last + 2 * timer::frequency();
+    while SAW.load(Ordering::SeqCst) != CAPTURED {
+        match counter.read() {
+            Some(now) if now < deadline => sched::yield_now(),
+            _ => break,
+        }
     }
 
     let saw = SAW.load(Ordering::SeqCst);
