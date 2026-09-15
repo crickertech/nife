@@ -224,14 +224,20 @@
 //! - mapped, dynamically, starting at [`CONNECT_VA_BASE`]: one page per channel [`connect`] mints,
 //!   for as long as this process runs (see BUGS: never unmapped or reused in this slice).
 //!
-//! Name: recorded (AGENTS.md's naming section, "standard terms a reader already knows from
-//! outside"; and milestone 63's name table for the resource-noun pattern). Minted 2026-08-22 for
-//! milestone 49. Two arguments land on it and neither is this block's. It is the Unix name for
-//! the program that answers exactly this request, which the protected class keeps. And it is the
-//! plain noun on the `clock`/`entropy` pattern milestone 63 weighs by name: 63 departed from that
-//! pattern for the credential service on the ground that the service "will never hand you a
-//! credential", and this program does perform a login, so the reason 63 gives for its exception
-//! does not reach here. calef has not ratified it.
+//! Name: ratified 2026-09-15 (calef, for the whole `login` family: the stem stays on `login`,
+//! `login_protocol`, `login_test_client` and the kernel's `login_service` and `login_tests`). Minted
+//! 2026-08-22 for milestone 49.
+//!
+//! **The basis is the term of art, and not the one this block used to give.** It used to say this
+//! is the Unix name for the program that answers this request, which is true, and leaned on a person
+//! meeting it, which is not: nothing types `login`. The kernel starts it and only other programs reach
+//! it, by `CONNECT` on its front door. And it authenticates nothing itself; it relays to
+//! `credentialer`, which checks the secret, and then turns an identity into a **principal** (the term
+//! ratified 2026-09-14, `notes/naming.md`). By milestone 63's own test a login service never hands you
+//! a login, so the stem was genuinely open. calef kept it: `login` is the field's name for this role
+//! whoever speaks it, a reader arriving from Unix lands in the right place, and the stem is carried by a
+//! wire vocabulary two programs agree on. The argument and the refused alternatives are in
+//! `notes/naming.md`, "The `login` stem stays".
 //!
 //! # BUGS
 //!

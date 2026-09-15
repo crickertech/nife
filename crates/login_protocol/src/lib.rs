@@ -142,13 +142,11 @@
 //! for milestone 49, following the tree's existing `<subject>_proto` pattern (`credential_proto`,
 //! `clock_proto`, `entropy_proto`), which is what those three were called that day.
 //!
-//! **The suffix became `_protocol` at milestone 265** (calef, 2026-09-05). **The stem did not, and
-//! that is a cost taken knowingly rather than an oversight.** calef parked the whole `login`
-//! family on 2026-09-14 without ruling on what it is named for, so this crate keeps a stem that is
-//! still open; when that ruling comes, these files move a second time. Milestone 265 took the
-//! second rename over leaving one crate spelled `_proto` while fourteen siblings read `_protocol`,
-//! because a uniform suffix is the whole of what the milestone is for and a split state is what it
-//! exists to end.
+//! **The suffix became `_protocol` at milestone 265** (calef, 2026-09-05). The stem was left open
+//! then, because calef had parked the whole `login` family on 2026-09-14, and 265 accepted that it
+//! might cost this crate a second rename. **It will not: calef ruled on 2026-09-15 that the stem stays
+//! for the whole family**, so this name is final on both halves. The argument is in
+//! `notes/naming.md`, "The `login` stem stays".
 
 pub use credential_protocol::{MAX_IDENTITY, MAX_SECRET, PAGE, op, place, read, wipe};
 

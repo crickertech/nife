@@ -983,6 +983,34 @@ login session, and an **agent** session in AGENTS.md and the process notes. The 
 mostly the second. Nothing in code confuses them, and no rename is proposed here; a reader of the
 process docs should know the word is doing two jobs.
 
+## The `login` stem stays
+
+**Ratified 2026-09-15 by calef, for the whole family**: `components/src/login.rs`,
+`crates/login_protocol`, `fixtures/src/login_test_client.rs`, and the kernel's `login_service` and
+`login_tests`. About 700 occurrences across 94 files keep the word.
+
+**The case against was real, which is why this was parked on 2026-09-14 rather than signed.** Two
+facts undercut the reason first recorded for the name. **Nothing types `login`**: the kernel starts
+it, and only other programs reach it, by `CONNECT` on its front door, so an argument resting on a
+person meeting the Unix name did not hold. **And it does not authenticate**: it relays to
+`credentialer`, which checks the secret, and what it does itself is turn an identity into a
+principal (the section above). By milestone 63's own test, which refused to name the credential
+service for its resource because it "never hands you a credential", a login service never hands
+you a login.
+
+**Why the stem stays anyway.** `login` is the field's name for this role whoever speaks it, and a
+reader arriving from Unix lands in the right place; the program's docs say plainly where it departs
+(capabilities instead of a mutated user ID). And the stem is carried by `login_protocol`, a wire
+vocabulary two programs agree on, which is the expensive kind of name to move.
+
+**Considered and refused**, as a program name: `authenticator` names the half this program does not
+do; `principal_minter` and `session_granter` are accurate and are new words for what everyone already
+calls logging in; `powerbox` is the right term of art for the pattern and one almost no reader would
+recognise.
+
+**The cost that ruling removed.** Milestone 265 renamed `login_proto` to `login_protocol` with the stem
+open and accepted a second rename when it was ruled. There is no second rename.
+
 ## Performing a ratified rename
 
 `AGENTS.md` carries the three rules. This is the argument, the worked example and what is not
