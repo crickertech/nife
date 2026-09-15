@@ -28,7 +28,7 @@ children on both ISAs, with the plan printed before anything fires.
 - **`components/src/timetable.rs`** holds a budget, the monotonic counter and the loader. Its complete
   authority is four capabilities: an output endpoint, an untyped budget, a child report endpoint and
   a supervision endpoint. No clock, no directory, no console, no network.
-- **`user/timetable.conf`** is the document, in `multicast_dns_config`'s shape and carrying its recorded
+- **`user/timetable.conf`** is the document, in the shape of the retired `multicast_dns_config` (notes/mdns.md) and carrying its recorded
   compiled-in limitation.
 - **`kernel/src/user/timetable_tests.rs`**, one module for both ISAs.
 
@@ -232,7 +232,7 @@ entries, and persistence of the entry table across reboot are each their own lat
   whatever milestone gives services durable configuration at all, which does not exist yet.
 
 - **The document is compiled in, not read from disk**, which is the limitation
-  `components/src/multicast_dns_responder.rs` records and has the same fix (a `FileSpec` grant plus an `fs_proto`
+  the multicast DNS responder recorded before its retirement (notes/mdns.md), with the same fix (a `FileSpec` grant plus an `fs_proto`
   open-and-read at startup, milestone 131). It is load-bearing here in a way it is not there, because
   where the document lives is also what answers "who may register".
 

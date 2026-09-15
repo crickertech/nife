@@ -216,7 +216,7 @@ place rather than an assertion that they are.
   holds real parsers over untrusted input and has at least as good a claim on the prover as the
   kernel does. Not attempted here.
 - **The `kernel` row's 5 seconds in `script/verify`'s table is a dev-Mac number**, like
-  `multicast_dns_protocol`'s and `jh7110_entropy`'s, and the wrong machine for that column. Replace it from the
+  `jh7110_entropy`'s, and the wrong machine for that column. Replace it from the
   first CI log that carries it. Almost all of it is the crate's own compile rather than solver time,
   so it will grow with the harnesses and not with the kernel.
 - **The `kernel` row needs an aarch64 host, and nothing enforces that.** `kernel/Cargo.toml` depends

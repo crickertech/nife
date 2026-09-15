@@ -263,7 +263,7 @@ written are suppressed rather than allowed to fail for an unrelated reason:
 - **the post-run RedoxFS, crash and blank image checks** are skipped, the same guard `--arch
   x86_64` already has: they would open a stale image from a previous run and report a true fact
   about a leftover file as a false one about this run;
-- **the scanout, inbound and multicast referees** still run (the scanout referee is also what
+- **the scanout and inbound referees** still run (the scanout referee is also what
   presses keys over QEMU's monitor, which the keyboard test needs) but their verdicts become
   advisory, and the run says so on a line of its own.
 

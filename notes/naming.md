@@ -284,7 +284,7 @@ is a known gap rather than a decision.
 - **Wire contracts**, spelled `*_protocol` and checked for it by `script/lint`:
   `filesystem_protocol`, `socket_protocol`, `byte_sink_protocol`, `credential_protocol`,
   `clock_protocol`, `entropy_protocol`, `graphics_protocol`, `environment_protocol`,
-  `login_protocol`, `multicast_dns_protocol`, `network_time_protocol`, `supervision_protocol`,
+  `login_protocol`, `network_time_protocol`, `supervision_protocol`,
   `swap_protocol`, `counter_frequency_protocol`, `capability_demo_protocol`. Plus `abi`, which is
   the syscall boundary and predates the suffix.
 

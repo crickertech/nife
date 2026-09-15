@@ -689,13 +689,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   with it, which is the transferable half: DECISIONS §79 approved password-equivalent material and
   three broken hash functions for NTLMv2 protocol compliance, and with no protocol to comply with
   the tree was carrying both for a consumer that no longer existed.
-- [mDNS/DNS-SD: the Time Machine advertisement](mdns.md): milestone 55's second protocol. The
-  reference router's actual `_smb`/`_adisk`/`_device-info` records, captured 2026-08-15 and decoded
-  (one `_adisk` instance with the disks inside its TXT, SRV port 0 on the flag services, and a
-  measured `model=MacSamba` against a config that says TimeCapsule), which are `multicast_dns_protocol`'s test
-  vectors. Then the smoltcp 0.13.1 multicast verdict: the `multicast` feature exists and the tree
-  has it off, so receiving on 224.0.0.251 needs a feature line, a join call, and the three pieces
-  of socket surface the note lists; the responder program waits on those.
+- [mDNS/DNS-SD: the Time Machine advertisement, and why it is no longer here](mdns.md): milestone
+  55's second protocol, **retired on 2026-09-15 by milestone 298** with its program, its two crates,
+  the prober and the stack's multicast pieces, because it could advertise nothing but Time Machine
+  and Time Machine was gone. Kept as a record: the reference router's actual
+  `_smb`/`_adisk`/`_device-info` records, captured 2026-08-15 and decoded, the smoltcp multicast
+  verdict, how the QEMU gate got under slirp, and what a future multicast responder would start
+  from. The code is at commit `0652c981`.
 - [NTP: the wire format, and the client that carries it](ntp.md): milestone 51 lanes C and D. The
   48-byte NTPv4 packet, the 1900-epoch fixed-point timestamp and the **fixed era pivot** chosen for
   the 2036 rollover (and why picking the era nearest to "now" is worse), the offset and delay

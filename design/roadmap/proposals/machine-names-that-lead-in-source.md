@@ -19,8 +19,8 @@ silicon-versus-emulation, which is what the reader needs:
 **Nine gloss the name but lead with it** (`"on radon (the StarFive VisionFive 2)"`), where the
 relevant half belongs first.
 
-**One is example data**, `crates/multicast_dns_protocol`'s `host: "patagonia"`, which §143 explicitly puts
-outside the rule. Changing it is a preference (a household name in a public crate's documentation),
+**One was example data**, `crates/multicast_dns_protocol`'s `host: "patagonia"`, which §143 explicitly puts
+outside the rule. That crate was retired on 2026-09-15, so the case no longer exists in the tree. Changing it is a preference (a household name in a public crate's documentation),
 not a consequence of the decision, and whoever does this should say which they acted on.
 
 **And `notes/README.md` indexes `target-hardware.md` as "Where nife could actually run"**, which does

@@ -988,4 +988,7 @@ Two things this does **not** fix, both recorded rather than papered over:
   the querier's source port; the TFTP gate consumes it by ACKing to the DATA packet's reported
   source, which is what TFTP's TID scheme wanted all along. The stack also joins 224.0.0.251 at
   startup (smoltcp's `multicast` feature, switched on in the same milestone). The whole story,
-  including what QEMU can and cannot prove about multicast, is notes/mdns.md's.
+  including what QEMU could and could not prove about multicast, is notes/mdns.md's. **The
+  multicast half was retired on 2026-09-15** (milestone 298): the group join, the feature and the
+  runners' injection hub went with the responder, so nothing proves multicast now. The UDP bind
+  grant and the `RECV` source endpoint stayed, still proved by the accept test and the TFTP gate.

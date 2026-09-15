@@ -1,10 +1,7 @@
 # 298. Retire the multicast DNS responder and its two crates, which advertised a goal that is gone
 
-**Status: NOT-STARTED.** Minted 2026-09-15 by the maintainer on **calef's ruling of the same day:
+**Status: BUILT 2026-09-15.** Minted 2026-09-15 by the maintainer on **calef's ruling of the same day:
 *"Retire all three."*** *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** The decision is made. What is left is a removal across a program, two crates, a
-configuration file, the tests that spawn it, `xtask`'s multicast check, and the records that cite it.
 
 ## How it came up, because it came up as a naming question
 
@@ -66,13 +63,47 @@ beside the Time Machine records. A future unicast resolver
 retire all three knowing this; git keeps the code, and the resolver proposal should say where to find
 it.
 
+## What was built
+
+- **Removed**: the program, its configuration document, both crates (and their workspace members and
+  dependencies in `components` and `xtask`), both archive entries, xtask's multicast prober with its
+  DNS decoder and its term in both pass conditions (the TCG legs and `--hvf`), and
+  `multicast_dns_protocol`'s row in `script/verify` (three harnesses; the tree now carries 148 across
+  25 packages).
+- **Also removed, and not on the list above**, because each existed only for the responder and its
+  prober and nothing could exercise it afterwards: the runners' frame-level injection hub
+  (`NIFE_MCAST_PORT`), `net_stack`'s join of 224.0.0.251, and smoltcp's `multicast` feature. So
+  **nothing in the tree proves multicast receive or send now**, recorded in notes/mdns.md and
+  notes/net.md. Reversible: all three are at commit `0652c981`.
+- **Kept, and still proved**: the accept test moved from `start_shared_net_stack` (deleted, since it
+  had no second client left) to `start_net_stack` with the same listen and UDP bind grants, so the
+  inbound rounds and the UDP bind grant's refusal and exclusivity checks run unchanged. A UDP `RECV`'s
+  source endpoint is still proved by the TFTP exchange.
+- **Records**: `notes/mdns.md` follows `notes/smb.md`'s precedent (kept in full under a past-tense
+  header naming the last commit). Live blocks 129, 131, 146 and 260 and four proposals keep their
+  lessons and lose the dangling paths; the resolver proposal names where the general DNS parsing is.
+  `BUILT` accounts, including 55 and 265, keep their words.
+
 ## BUGS
 
 - **This block's reference counts are from one grep on 2026-09-15** (about 26 code and configuration
   files, 26 markdown files), and the lane should enumerate rather than trust them.
 
+## Follow-on
+
+- **Recorded.** Nothing in the tree proves multicast receive or send now, and what a future multicast
+  client must put back (smoltcp's feature, the group join, a host-side peer below slirp) is written in
+  `notes/mdns.md` and `notes/net.md`.
+- **Recorded.** `NET_CLIENT_STACK_PAGES` stays at six, a number measured for the retired responder's
+  call frame rather than for the socket client that is left; lowering it wants a stack-depth reading,
+  written beside the constant in `kernel/src/user/virtio_service.rs`.
+- **Recorded.** The general DNS parsing the retirement loses is pointed at by commit in
+  `design/roadmap/proposals/a-name-resolver-and-who-holds-it.md`.
+
 ## Index row
 
-Retire the multicast DNS responder and its two crates on calef's 2026-09-15 ruling. They advertised
+**Built:** 2026-09-15
+
+Retired the multicast DNS responder and its two crates on calef's 2026-09-15 ruling. They advertised
 Time Machine and an SMB share, both removed on 2026-08-30, nothing but tests ran them, and no live
 work wants them. Came up as a naming question and dissolved into a retirement.
