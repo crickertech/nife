@@ -2146,19 +2146,19 @@ fn riscv_hand_over() {
 /// **Hand `x86_64` to the progenitor, and say how far it got** (milestone 182, inside milestone
 /// 268's lane).
 ///
-/// The same call `riscv_hand_over` makes, so the two architectures load, measure, endow and start
-/// the first process through one body. The difference is the second half: RISC-V's progenitor
-/// builds a console and a `swish` prompt announces the boot finished, and on this architecture it
-/// cannot, because the console is port I/O (DECISIONS §121) and how a shell reaches it is DECISIONS
-/// §149, not yet decided. A progenitor that stops there prints nothing, since it has nothing to
-/// print through, so without this function the transcript would end at the hand-over line and a
-/// reader could not tell a machine waiting on a decision from a hang.
+/// The same call `riscv_hand_over` makes, so the three architectures load, measure, endow and start
+/// the first process through one body, and now reach the same place: the progenitor builds a
+/// userspace console and a `swish` prompt announces the boot finished. Until milestone 299 this
+/// architecture could not, because the console is port I/O (DECISIONS §121) with no page a driver
+/// could map; §121's reversal gave x86 a `PortRange` capability, so the console and input drivers are
+/// userspace processes holding COM1's ports, and the prompt above is transmitted by an `out` from
+/// ring 3 like every other line the shell prints.
 ///
-/// **So the boot thread watches, bounded, and reports what it saw.** A thread that left through a
-/// ring-3 fault left a record (`arch::exceptions::last_user_fault`), and the kernel's own fault
-/// report above it names the faulting instruction in the user half, which is the proof the thread
-/// ran at ring 3 rather than an assumption that it did. A progenitor still running when the bound
-/// expires is the outcome §149 will produce, and says that instead.
+/// **The boot thread still watches, bounded, and reports what it saw**, because it is the boot
+/// thread and has nothing else to do once the system is handed over: a progenitor still running when
+/// the bound expires is the ordinary interactive outcome (the shell is up and waiting for input), and
+/// a thread that left through a ring-3 fault left a record (`arch::exceptions::last_user_fault`) the
+/// kernel's own fault report above it corroborates.
 ///
 /// Name provisional (milestone 182), matching `riscv_hand_over`.
 #[cfg(target_arch = "x86_64")]
@@ -2204,13 +2204,15 @@ fn x86_hand_over() {
             "nife x86_64: the progenitor is running at ring 3; {faults} of the processes it built \
              stopped on purpose."
         );
-        // Measured on 2026-09-14, and said here because nothing else on this console can say it:
-        // the progenitor builds the whole system, and the two device programs in it (the console
-        // server and the input driver) have `x86_64` arms that trap on first use, since a process
-        // cannot reach port I/O (DECISIONS §121). So `swish` is built and its banner goes nowhere.
+        // DECISIONS §121, reversed 2026-09-15, made the console server and the input driver
+        // userspace processes holding a `PortRange` capability for COM1's ports (milestone 299), so
+        // `swish`'s prompt above was transmitted by an `out` from ring 3, not by the kernel. A
+        // holdover from §121's kernel-console era printed a "no prompt" line here; the prompt is now
+        // the last thing above this, and `faults` above is zero because the two device drivers no
+        // longer trap on first use.
         println!(
-            "  no prompt  : the console server cannot reach COM1 from ring 3 (\u{a7}121); how a \
-             shell gets a console here is \u{a7}149, not yet decided."
+            "  prompt     : the shell above is served by userspace console and input drivers \
+             holding COM1 as a port capability (milestone 299)."
         );
         return;
     }

@@ -61,6 +61,10 @@ pub fn run() -> ! {
     yield_switch();
     #[cfg(target_arch = "x86_64")]
     tss_iomap_switch();
+    #[cfg(target_arch = "x86_64")]
+    tss_iomap_lazy_switch();
+    #[cfg(target_arch = "x86_64")]
+    tss_iomap_lazy_nop();
     ipc_rtt();
     relay_rtt();
     call_reply();
@@ -164,6 +168,82 @@ fn tss_iomap_switch() {
     });
     DONE.store(true, Ordering::Relaxed);
     sched::yield_now(); // let the peer see the flag and exit
+}
+
+/// **What the LAZY TSS I/O-bitmap write costs on a switch that crosses a port holder** (`x86_64`
+/// only; milestone 299, the measurement DECISIONS §121's 2026-08-25 refinement asked for). This is
+/// **not** a second run of [`tss_iomap_switch`], which prices the naive always-write of the whole
+/// 8 KiB bitmap. This prices what milestone 299 actually ships: [`set_port_range_grant`], which checks the
+/// incoming grant against what the core already holds and writes only the bits that move.
+///
+/// The same two-thread ping-pong as [`yield_switch`], but each thread sets its own port grant on
+/// resume, and the two disagree: the peer installs `None` (no ports), the main thread installs the
+/// COM1 range. So **every** switch is a holder<->non-holder transition, which is the case that takes
+/// the write, and reading this against `yield_switch` from the same boot is the cost of the lazy
+/// write per switch that crosses a holder. It is the worst case, not the common one: the common one
+/// is [`tss_iomap_lazy_nop`] below, where nothing crosses a holder and the write never happens.
+///
+/// The COM1 range `(0x3F8, 8)` is the real console driver's grant, so the byte count written is the
+/// production one. Nothing executes `in`/`out` during the bench, so installing the grant is harmless;
+/// the loop restores `None` at the end so the boot's TSS is left denying all ports.
+#[cfg(target_arch = "x86_64")]
+fn tss_iomap_lazy_switch() {
+    const COM1: Option<(u16, u16)> = Some((0x3F8, 8));
+    static DONE: AtomicBool = AtomicBool::new(false);
+
+    sched::spawn(|| {
+        while !DONE.load(Ordering::Relaxed) {
+            sched::yield_now();
+            crate::arch::segments::set_port_range_grant(None); // the non-holder side
+        }
+    })
+    .expect("bench: no peer thread");
+
+    for _ in 0..WARMUP {
+        sched::yield_now();
+        crate::arch::segments::set_port_range_grant(COM1);
+    }
+    timed("tss_iomap_lazy_switch", YIELD_ITERS, || {
+        for _ in 0..YIELD_ITERS {
+            sched::yield_now();
+            crate::arch::segments::set_port_range_grant(COM1); // the holder side, every iteration a transition
+        }
+    });
+    DONE.store(true, Ordering::Relaxed);
+    sched::yield_now(); // let the peer see the flag and exit
+    crate::arch::segments::set_port_range_grant(None); // leave the TSS denying all ports
+}
+
+/// **What the lazy write costs when nothing holds a port** (`x86_64` only; milestone 299), which is
+/// the case nearly every switch on nearly every machine actually takes. Both threads install `None`
+/// on resume, so [`set_port_range_grant`] finds the core already holds `None` and returns after one
+/// comparison, writing nothing. Read against `yield_switch`, the difference is the whole cost the
+/// lazy form imposes on a system where nobody holds a port: a load and a branch. That gap, not
+/// `tss_iomap_switch`'s ~2,682 ns, is what x86 pays for having the mechanism present.
+#[cfg(target_arch = "x86_64")]
+fn tss_iomap_lazy_nop() {
+    static DONE: AtomicBool = AtomicBool::new(false);
+
+    sched::spawn(|| {
+        while !DONE.load(Ordering::Relaxed) {
+            sched::yield_now();
+            crate::arch::segments::set_port_range_grant(None);
+        }
+    })
+    .expect("bench: no peer thread");
+
+    for _ in 0..WARMUP {
+        sched::yield_now();
+        crate::arch::segments::set_port_range_grant(None);
+    }
+    timed("tss_iomap_lazy_nop", YIELD_ITERS, || {
+        for _ in 0..YIELD_ITERS {
+            sched::yield_now();
+            crate::arch::segments::set_port_range_grant(None);
+        }
+    });
+    DONE.store(true, Ordering::Relaxed);
+    sched::yield_now();
 }
 
 /// **Synchronous IPC round trip, the classic microkernel number.** A server loops

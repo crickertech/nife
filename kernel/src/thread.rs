@@ -476,6 +476,29 @@ pub struct Thread {
     #[cfg(any(test, feature = "cycle_counter_grant"))]
     pub(crate) cycle_counter_grant: bool,
 
+    /// **The x86 I/O ports this thread may reach from ring 3** (milestone 299, DECISIONS §121
+    /// reversed 2026-09-15), as `(base, count)`, or `None` for the overwhelming majority of threads
+    /// that hold no port capability.
+    ///
+    /// This is the per-thread "holds a port capability" fact the lazy TSS-bitmap enforcement is
+    /// built on. `sched::schedule` reads it beside the incoming thread's address-space root and
+    /// hands it to `arch::segments::set_port_range_grant`, which writes the current CPU's TSS I/O bitmap
+    /// **only when it differs** from what that CPU already holds. On a machine where one process (the
+    /// console driver) ever holds a port capability, that is `None` on both sides of nearly every
+    /// switch and costs one compare, which is the whole point of the lazy form (§121's 2026-08-25
+    /// refinement, binding here): the naive always-write cost ~2,682 ns/switch and this pays it only
+    /// on the rare switch that crosses a holder.
+    ///
+    /// Set by `sched::thread_control_block_insert_cap` when a `PortRange` capability is inserted into
+    /// this thread (the choke point the progenitor's `CAP_INSERT` and the boot's own child builder
+    /// both pass through), and cleared by `sched::delete_port_range_caps*` on revocation. **`x86_64`
+    /// only**: the field, and every path that reads it, is compiled out on the architectures that
+    /// have no port space, so the switch path there is byte-for-byte what it was.
+    ///
+    /// *(Field name provisional: names are calef's.)*
+    #[cfg(target_arch = "x86_64")]
+    pub(crate) port_range_grant: Option<(u16, u16)>,
+
     /// **The child's initial `x0`, `x1`, `x2`** (milestone 19d/19e): the words `START` hands the
     /// new EL0 thread in its first registers, so a loader can pass a child its role plus data (a
     /// worker's input, a driver's DMA address). All zero for a kernel thread.
@@ -564,6 +587,8 @@ impl Thread {
             fault_msg: None,
             #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
+            #[cfg(target_arch = "x86_64")]
+            port_range_grant: None,
         }
     }
 
@@ -597,6 +622,8 @@ impl Thread {
             fault_msg: None,
             #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
+            #[cfg(target_arch = "x86_64")]
+            port_range_grant: None,
         }
     }
 
@@ -704,6 +731,8 @@ impl Thread {
                 fault_msg: None,
                 #[cfg(any(test, feature = "cycle_counter_grant"))]
                 cycle_counter_grant: false,
+                #[cfg(target_arch = "x86_64")]
+                port_range_grant: None,
             });
         }
         true
@@ -751,6 +780,8 @@ impl Thread {
             fault_msg: None,
             #[cfg(any(test, feature = "cycle_counter_grant"))]
             cycle_counter_grant: false,
+            #[cfg(target_arch = "x86_64")]
+            port_range_grant: None,
         }
     }
 

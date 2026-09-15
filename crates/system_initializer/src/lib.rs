@@ -593,9 +593,20 @@ const LINE_EDITOR_MODE_DISPLAY: u64 = 1;
 
 // The VAs each program hardcodes; they must match console.rs / input.rs / line_editor.rs / swish.rs.
 const CON_SHARED_VA: u64 = 0x0060_0000; // console reads text here; line_editor writes it
+/// A child's capability grants and page mappings, the two slices a `ChildEndowment` takes as `caps`
+/// and `maps`. Named so the `x86_64`-vs-others split of the console and input endowments (a port
+/// capability held rather than a page mapped, milestone 299) is a one-line `let` per branch without
+/// clippy's type-complexity lint firing on the bare tuple. `'a` ties the slices to the `let`'s block.
+type EndowmentSlices<'a> = (&'a [(u64, u64)], &'a [(u64, u64, u64)]);
+
+// The two UART mappings are aarch64/riscv64 only: x86 holds COM1 as a port range, which has no page
+// to map (milestone 299), so on that architecture these VAs name nothing and the console/input
+// drivers hold the port capability instead.
+#[cfg_attr(target_arch = "x86_64", allow(dead_code))]
 const CON_UART_VA: u64 = 0x0070_0000; // console's UART mapping
 const TERM_OUT_VA: u64 = 0x0080_0000; // line_editor reads the shell's text/prompts here
 const TERM_IN_VA: u64 = 0x0090_0000; // line_editor delivers completed lines here
+#[cfg_attr(target_arch = "x86_64", allow(dead_code))]
 const IN_UART_VA: u64 = 0x00a0_0000; // input driver's UART mapping
 const SH_OUT_VA: u64 = 0x00c0_0000; // the shell's view of the TERM_OUT frame (swish.rs OUT_VA)
 const LINE_VA: u64 = 0x00b0_0000; // the shell's view of the TERM_IN frame
@@ -1089,16 +1100,38 @@ pub fn boot(
         let con_shared = must(retype_page_frame(ut)); // line_editor -> console text
 
         // 1. Console server: reads text from the shared page, writes it to the UART.
+        //
+        // **On aarch64/riscv64 the UART is a page**, so the console holds it as a mapped
+        // `DeviceFrame` (`CON_UART_VA`). **On x86 COM1 is a port range**, which has nothing to map
+        // (DECISIONS §121, reversed 2026-09-15): the console holds it as a `PortRange` capability
+        // delegated into its table instead, and the kernel's TSS I/O bitmap is what lets its `out`
+        // reach the port. So `g.uart_dev` moves from a `maps` entry to a `caps` entry on x86, and
+        // the UART mapping is dropped. It lands in the child's slot 2; the console never invokes it
+        // by slot (it executes `out` directly), it only has to hold it.
+        #[cfg(not(target_arch = "x86_64"))]
+        let (con_caps, con_maps): EndowmentSlices = (
+            &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
+            &[
+                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
+                (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
+            ],
+        );
+        #[cfg(target_arch = "x86_64")]
+        let (con_caps, con_maps): EndowmentSlices = (
+            &[
+                (request, abi::rights::READ),
+                (reply, abi::rights::WRITE),
+                (g.uart_dev, abi::rights::WRITE), // COM1's port range, held not mapped
+            ],
+            &[(CON_SHARED_VA, con_shared, abi::address_space::MAP_RO)],
+        );
         let con = must(build_child(
             ut,
             ut,
             &con_elf,
             &ChildEndowment {
-                caps: &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
-                maps: &[
-                    (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
-                    (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
-                ],
+                caps: con_caps,
+                maps: con_maps,
                 stack_pages: CHILD_STACK_PAGES,
                 ..ChildEndowment::new(Retention::Nothing)
             },
@@ -1191,16 +1224,36 @@ pub fn boot(
     // `g.uart_irq` are still granted either way (their slot numbers do not move; see
     // `BootEndowment`'s own doc), simply unused, and freed below regardless of mode.
     if !has_graphical {
+        // **On aarch64/riscv64 input is interrupt-driven**: it holds the receive interrupt
+        // (`g.uart_irq`) and the UART page (`IN_UART_VA`). **On x86 it polls COM1's port range**, the
+        // same capability the console holds, because the receive line is not yet routed to a
+        // userspace waiter on this architecture (milestone 299; see `components/src/input.rs`). So on
+        // x86 it gets the `PortRange` capability delegated into its table (slot 1) and neither the
+        // interrupt nor the UART mapping. It never invokes the port cap by slot; holding it is what
+        // the TSS bitmap enforcement reads.
+        #[cfg(not(target_arch = "x86_64"))]
+        let (in_caps, in_maps): EndowmentSlices = (
+            &[
+                (term_ep, abi::rights::WRITE),
+                (g.uart_irq, abi::rights::READ),
+            ],
+            &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
+        );
+        #[cfg(target_arch = "x86_64")]
+        let (in_caps, in_maps): EndowmentSlices = (
+            &[
+                (term_ep, abi::rights::WRITE),
+                (g.uart_dev, abi::rights::WRITE), // COM1's port range, polled not waited on
+            ],
+            &[],
+        );
         let input = must(build_child(
             ut,
             ut,
             &in_elf,
             &ChildEndowment {
-                caps: &[
-                    (term_ep, abi::rights::WRITE),
-                    (g.uart_irq, abi::rights::READ),
-                ],
-                maps: &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
+                caps: in_caps,
+                maps: in_maps,
                 stack_pages: CHILD_STACK_PAGES,
                 ..ChildEndowment::new(Retention::Nothing)
             },

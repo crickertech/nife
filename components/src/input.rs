@@ -13,12 +13,16 @@
 //! 8-byte messages, and the CALL's rendezvous is the flow control that keeps a fast sender from
 //! outrunning the discipline.
 //!
-//! Its whole authority: WRITE on the terminal endpoint (slot 0), the RX interrupt capability
-//! (slot 1), and the UART registers mapped device-typed. It cannot print, spawn, or read what
-//! anyone else typed. No role selector; the syscall runtime comes from `user_mode_runtime`.
+//! Its whole authority: WRITE on the terminal endpoint (slot 0), and the device the machine gives
+//! it. On aarch64/riscv64 that is the RX interrupt capability (slot 1) plus the UART registers
+//! mapped device-typed; **on x86 (milestone 299) it is a `PortRange` capability for COM1's ports**,
+//! polled rather than waited on, because COM1's receive line is not yet routed to a userspace waiter
+//! there. It cannot print, spawn, or read what anyone else typed. No role selector; the syscall
+//! runtime comes from `user_mode_runtime`.
 //!
-//! The one arch-specific thing is the UART register layout, in the `uart` module below
-//! (aarch64 PL011, RISC-V NS16550).
+//! The arch-specific parts are the UART register layout and how a byte's arrival is learned, in the
+//! `uart` module and the two `_start` arms below (aarch64 PL011, RISC-V NS16550, both
+//! interrupt-driven; x86 16550 by port I/O, polled).
 //!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
 //! right.
@@ -31,7 +35,9 @@
 #![no_main]
 
 use line_editor::proto;
-use user_mode_runtime::{call, irq_ack, irq_wait};
+use user_mode_runtime::call;
+#[cfg(not(target_arch = "x86_64"))]
+use user_mode_runtime::{irq_ack, irq_wait};
 
 // Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
 // so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
@@ -41,6 +47,7 @@ use user_mode_runtime::{call, irq_ack, irq_wait};
 const UART_VA: u64 = 0x0000_0000_00a0_0000;
 
 const TERM: u64 = 0; // CALL: forward raw wire bytes to the line discipline
+#[cfg(not(target_arch = "x86_64"))]
 const IRQ: u64 = 1; // WAIT / ACK the receive interrupt
 
 /// The UART, the one arch-specific part of an input driver. aarch64's `virt` has a PL011 (32-bit
@@ -150,37 +157,43 @@ mod uart {
     }
 }
 
-/// **`x86_64` has no UART a process can reach** (milestone 161), so every entry point here dies
-/// rather than returning a plausible answer.
+/// **The x86 twin: COM1's receive side by port I/O** (milestone 299, DECISIONS §121 reversed
+/// 2026-09-15). The two arms above differ in a register layout; this one differs in kind. COM1's
+/// 16550 lives at I/O ports `0x3F8..=0x3FF`, reached only by `in`/`out`, which ring 3 may execute
+/// only for a port it holds a capability to. This driver holds the `(0x3F8, 8)` port range the
+/// progenitor delegated it, so the kernel's TSS I/O bitmap permits these eight ports and no others.
 ///
-/// The two arms above differ in a register layout, which is what an input driver's device half is
-/// for. This one differs in kind: COM1 is at I/O ports `0x3f8..0x400`, `IOPL` is 0 and the TSS's
-/// I/O permission bitmap is empty, so `in`/`out` from ring 3 is a general protection fault, and
-/// `user::UART_PHYS` is zero because there is no page to map. Handing a process a port range is
-/// [DECISIONS §121](../../design/decisions/121-port-io-capability.md), still PROPOSED.
-///
-/// **Returning `false` from `rx_pending` would have been the quiet option and is the wrong one**:
-/// it compiles into a driver that waits forever on an interrupt it can never see, which looks
-/// exactly like a hung machine and names nothing. `trap()` reports `EVENT_FAULT` to this program's
-/// supervisor (DECISIONS §26). Nothing reaches it today; `xtask`'s x86 archive does not carry this
-/// program, for exactly this reason.
+/// **The interrupt arm is a poll on x86** (see [`_start`]), so there is nothing to arm or
+/// acknowledge: COM1's receive line (legacy IRQ 4) is not yet routed to a userspace
+/// waiter on this architecture (the kernel delivers only self-directed vectors to a driver today,
+/// `kernel/src/arch/x86_64/exceptions.rs`), so the driver reads the port it holds and yields between
+/// reads rather than blocking on an interrupt it would never see. Interrupt-driven x86 input is a
+/// follow-up; the port capability this milestone adds is what the poll reads through, and the
+/// register layout below is exactly what the interrupt driver will use once the line is wired.
 #[cfg(target_arch = "x86_64")]
 mod uart {
+    use user_mode_runtime::inb;
+    const RBR: u16 = 0x3F8; // receive buffer (COM1 base)
+    const LSR: u16 = 0x3FD; // line status register (base + 5)
+    const LSR_DR: u8 = 1 << 0; // data ready
+
     pub fn rx_pending() -> bool {
-        user_mode_runtime::trap()
+        inb(LSR) & LSR_DR != 0
     }
     pub fn rx_get() -> u8 {
-        user_mode_runtime::trap()
+        inb(RBR) // reading clears the receive condition, as on the NS16550
     }
-    pub fn arm_rx_interrupt() {
-        user_mode_runtime::trap()
-    }
-    pub fn clear_interrupt() {
-        user_mode_runtime::trap()
-    }
+    // No `arm_rx_interrupt`/`clear_interrupt` here: this arm polls (see `_start`), so it never arms
+    // or acknowledges a line. The interrupt-driven follow-up adds them, driving IER (`base + 1`) the
+    // way the riscv64 NS16550 arm above drives it.
 }
 
 /// Forward wire bytes forever. No arguments: a standalone binary.
+///
+/// **Interrupt-driven on aarch64 and riscv64**: WAIT on the receive interrupt, drain the FIFO, hand
+/// the bytes on, ACK. The one arch-specific fact besides the register layout is on x86, which polls
+/// instead; see the `_start` twin below.
+#[cfg(not(target_arch = "x86_64"))]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
     // Drain anything already in the FIFO by POLLING, before arming the interrupt: input piped in at
@@ -197,6 +210,22 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
         drain();
         uart::clear_interrupt(); // quiet the device (PL011: ICR; NS16550: reading RBR already did)
         irq_ack(IRQ); // re-enable the line at the controller now that the device is quiet
+    }
+}
+
+/// **The x86 twin: poll the port, do not wait on an interrupt** (milestone 299). COM1's receive line
+/// is not yet routed to a userspace waiter on this architecture (see the `uart` module doc), so this
+/// driver reads the port range it holds and yields between reads, forwarding whatever arrived. It
+/// burns cycles a blocked driver would not, which is why interrupt-driven x86 input is a named
+/// follow-up rather than the end state; functionally it reaches the same prompt and forwards the
+/// same keystrokes, through the same port capability. `yield_now` hands the CPU to the shell and the
+/// line discipline between polls, so a cooperative or preempted schedule interleaves all three.
+#[cfg(target_arch = "x86_64")]
+#[unsafe(no_mangle)]
+pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
+    loop {
+        drain();
+        user_mode_runtime::yield_now();
     }
 }
 

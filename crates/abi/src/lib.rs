@@ -620,6 +620,22 @@ pub mod page_frame {
     pub const REVOKE: u64 = 1;
 }
 
+/// Methods on a `PortRange` capability (milestone 299). **A range of x86 I/O ports a driver holds.**
+///
+/// A `PortRange` capability is not invoked to *use* the ports: the holder executes `in`/`out`
+/// directly, and the kernel enforces the grant through the TSS I/O permission bitmap at context
+/// switch, with no syscall on the data path. The one method is administrative, mirroring
+/// [`page_frame::REVOKE`]'s take-back meaning on a `DeviceFrame`.
+pub mod port_range {
+    /// `invoke(cap, REVOKE, _, _, _)` -> 0. **Take the ports back from everyone else.** Delete every
+    /// `PortRange` capability naming this range from every other thread's table and clear the TSS
+    /// bitmap that granted it, so those holders fault on their next `in`/`out`, while the caller
+    /// keeps its own. Needs `GRANT` (you were trusted to lend the ports on, so you may take them
+    /// back), the same rule and the same asymmetry `DeviceFrame`'s take-back uses: the kernel mints
+    /// a port capability once, at boot, so a symmetric revoke would strand the device forever.
+    pub const REVOKE: u64 = 1;
+}
+
 /// What went wrong. Returned as a **negative** `x0`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(i64)]

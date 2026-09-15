@@ -2685,6 +2685,62 @@ address-space switch's. What it retires is the *tooling* gap the roadmap named; 
 gap (a workload that actually switches `CR3`) is still open, and remains calef's call on when it is
 worth building one.
 
+## 2026-09-15: the LAZY TSS I/O-bitmap write, the number §121's refinement asked for (milestone 299)
+
+DECISIONS §121 was reversed on 2026-09-15 to build the port-range capability (milestone 299), and its
+2026-08-25 refinement is now binding rather than a footnote: the ~2,682 ns/write above prices the
+**naive** always-write of the whole 8 KiB bitmap on every switch, and the real implementation is the
+**lazy** write, where `arch::segments::set_port_grant` compares the incoming thread's grant against
+what the core already holds and writes only the bits that move. This section is the measurement the
+refinement said to take: the lazy write's real cost, timed against a bare switch, the way the section
+above timed the naive one.
+
+Two new benchmarks join `tss_iomap_switch` in the x86 bench boot (`kernel/src/bench.rs`), the same
+two-thread yield ping-pong, differing only in what each thread installs on resume:
+
+- **`tss_iomap_lazy_switch`**: the peer installs `None` (no ports), the main thread installs COM1's
+  `(0x3F8, 8)` range, so **every** switch is a holder<->non-holder transition, the case that takes
+  the write. This is the worst case, not the common one.
+- **`tss_iomap_lazy_nop`**: both threads install `None`, so `set_port_grant` finds the core already
+  holds `None` and returns after one comparison, writing nothing. This is the case nearly every
+  switch on nearly every machine actually takes.
+
+Measured on the pinned QEMU under **TCG + icount** (deterministic instruction-count ticks; the
+x86 icount leg the 2026-08-25 section above added), **debug** build, 2000 iters, one run each (icount
+is reproducible, so a single run is the number):
+
+| benchmark | ticks/iter | delta over `yield_switch` |
+|---|---|---|
+| `yield_switch` (bare two-switch round trip) | 10,580 | baseline |
+| `tss_iomap_lazy_nop` (nothing holds a port) | 10,796 | **+216** |
+| `tss_iomap_lazy_switch` (every switch crosses a holder) | 12,567 | **+1,987** |
+| `tss_iomap_switch` (naive 8 KiB always-write) | 12,953 | **+2,373** |
+
+**The load-bearing result is the second row.** On a system where nothing holds a port (every switch
+but the console driver's), the lazy mechanism adds **+216 ticks/iter**, ~108 per switch: a load of the
+per-core "installed grant" and a branch. That, not the ~2,682 ns naive write, is what x86 pays for
+having the enforcement present, and it is what the naive always-write threw away by writing 8 KiB on
+switches that never touch a port.
+
+**Why the lazy-switch and naive rows look close under icount, and why that understates the win.** In
+instruction count they are +1,987 vs +2,373, only ~16% apart, which is not the order-of-magnitude gap
+the byte counts (2 bytes moved vs 8192 written) would suggest. The reason is the instrument: the naive
+`write_bytes(_, 8192)` compiles to a `rep stos`, a handful of *instructions* for 8 KiB of *memory
+traffic*, and icount counts the instructions, not the traffic. So icount cannot see the naive write's
+real cost, which is exactly why §121 measured that one in wall-clock (~2,682 ns) rather than icount.
+The lazy form's advantage is therefore **not** primarily that its holder-crossing write is cheaper in
+instructions (it is a little cheaper); it is that (a) the crossing almost never happens, so the common
+switch pays the +216-tick nop path, and (b) when it does happen it moves ~2 bytes instead of issuing
+an 8 KiB `rep stos`, a real-memory cost icount is blind to but a cache is not.
+
+**Caveats, stated because the magnitudes are fiction.** TCG models no caches, so the ns the tool would
+print are meaningless and only the deterministic ticks are quoted; there is no HVF for x86_64 on this
+Apple Silicon host, so no `--real` magnitude leg exists for these the way it does for aarch64. The
+naive row here (+2,373 ticks, icount) and §121's naive row above (~2,682 ns, wall-clock release) are
+the *same benchmark* measured two different ways and are not comparable numbers; both say the same
+thing, that the always-write is the dominant cost of a switch, and this section adds the half §121
+could not yet take: the lazy write moves that cost off every switch that does not cross a holder.
+
 ## 2026-08-27: raising a ceiling made `spawn_el0` 16.5% slower, and the fix made it 41% faster than it had ever been
 
 The `--check` tripwire caught `sched::MAX_THREADS` going 128 to 256: **`spawn_el0` 2,418,606 ticks

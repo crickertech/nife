@@ -7,7 +7,8 @@ substantially larger, separate undertaking than pieces 1-2's device attachment a
 Built in part on 2026-09-14, inside [milestone 268](268-the-boot-ladder.md)'s lane, because 268's
 top rung on x86_64 is not reachable any other way.
 
-**Gate: MILESTONE 299.** **Resolved 2026-09-15.** The entry point is built and the progenitor runs
+**Gate: NONE.** **Resolved 2026-09-15**, and milestone 299 is now BUILT, so this no longer waits on
+it. The entry point is built and the progenitor runs
 at ring 3 from the archive. What was left, a console `swish` can reach, was DECISIONS §149; calef
 resolved it 2026-09-15 by reversing DECISIONS §121 (`AMENDED`): x86's console is a userspace driver
 holding a port-range capability, not a kernel thread. Building that capability and moving the driver

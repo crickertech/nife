@@ -776,12 +776,26 @@ pub const UART_PHYS: u64 = 0x0900_0000;
 pub const UART_PHYS: u64 = 0x1000_0000;
 /// `x86_64` has **no physical address for its console at all**: COM1 lives in the I/O port space,
 /// which has no page tables in front of it, so there is nothing here for a device capability to be
-/// a mapping *of*. The constant is zero and unused, and that zero is the marker for a real design
-/// question this port has not answered: a userspace console driver on x86 needs a port-range grant
-/// through the TSS I/O permission bitmap, not a mapped page. See `arch/x86_64/port.rs`.
+/// a mapping *of*. The console is reached through [`X86_COM1_PORT_BASE`] as a `PortRange` capability
+/// instead (milestone 299, DECISIONS §121 reversed 2026-09-15); this constant stays zero because a
+/// port has no physical page, and the predicate below still reads it to keep a fixture from ever
+/// granting a device page where there is none. See `arch/x86_64/port.rs` and `segments.rs`.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "x86_64")]
 pub const UART_PHYS: u64 = 0;
+
+/// **COM1's I/O ports** (milestone 299): the eight consecutive ports `0x3F8..=0x3FF` a 16550 UART
+/// occupies, which QEMU's `q35` and every PC since the PC/AT put COM1 at. The progenitor is minted a
+/// `PortRange(0x3F8, 8)` capability over exactly this range and delegates it to the console and input
+/// drivers, so their `in`/`out` reach these ports and no others (enforced by the TSS I/O bitmap). The
+/// port analogue of [`UART_PHYS`] on the other two architectures.
+#[cfg(target_arch = "x86_64")]
+pub const X86_COM1_PORT_BASE: u16 = 0x3F8;
+/// The eight ports a 16550 occupies (data/interrupt-enable/FIFO-control/line-control/modem-control/
+/// line-status/modem-status/scratch). A range because a device capability names what the hardware
+/// names, the port-space twin of a `DeviceFrame` naming a page.
+#[cfg(target_arch = "x86_64")]
+pub const X86_COM1_PORT_COUNT: u16 = 8;
 
 /// **Is there a UART a device capability can be a mapping of on this machine?** (milestone 161.)
 ///
@@ -1929,18 +1943,17 @@ pub fn riscv_shell_boot(
     // function's doc for why the slot cannot be left empty there.
     #[cfg(target_arch = "riscv64")]
     let uart_slot = crate::cap::device_frame_cap(UART_PHYS, Rights::WRITE.union(Rights::GRANT));
-    // FOOT GUN, marked as one (AGENTS.md: an exception must say so where a reader meets it). A
-    // zeroed frame nothing else owns, standing where a UART page would be, so that the slot number
-    // `system_initializer` deletes as `uart_dev` names a capability it was actually granted.
-    // `READ` because the progenitor maps it read-only into the console and the input driver, whose
-    // `x86_64` arms trap before touching it (DECISIONS §121). It is not a device and grants nothing a
-    // process could use; whatever DECISIONS §149 decides replaces it.
+    // **On `x86_64` the console is a port range, not a page** (milestone 299, DECISIONS §121
+    // reversed 2026-09-15). COM1's 16550 lives at I/O ports `0x3F8..=0x3FF`, so `uart_dev` names a
+    // `PortRange` capability rather than a device page: the progenitor holds it with `GRANT` and
+    // delegates it (`CAP_INSERT`, not `MAP_INTO`) into the console and input drivers it builds, and
+    // the kernel's TSS I/O bitmap is what lets their `in`/`out` reach exactly these ports. This
+    // replaces the inert placeholder frame §121 left here while the driver stayed in the kernel.
     #[cfg(target_arch = "x86_64")]
-    let uart_slot = crate::cap::page_frame_cap(
-        crate::memory::alloc_zeroed()
-            .expect("no frame for the console placeholder")
-            .addr(),
-        Rights::READ.union(Rights::GRANT),
+    let uart_slot = crate::cap::port_range_cap(
+        X86_COM1_PORT_BASE,
+        X86_COM1_PORT_COUNT,
+        Rights::WRITE.union(Rights::GRANT),
     );
     let s1 = crate::sched::thread_control_block_insert_cap(tid, uart_slot, Some(1))
         .expect("insert uart device");
@@ -3203,6 +3216,13 @@ mod measured_boot_tests;
 /// only sender on the fault endpoint, so the tid the supervisor reads is trustworthy without a badge.
 #[cfg(test)]
 mod supervision_tests;
+
+/// The two load-bearing tests of the x86 port-range capability (milestone 299): a non-holder faults
+/// on `out` (and a holder's grant does not leak across the switch to it), and a revoked holder faults
+/// on its next `out`. `x86_64` only, because the mechanism is the TSS I/O permission bitmap, which
+/// the other two architectures have no counterpart to.
+#[cfg(all(test, target_arch = "x86_64"))]
+mod x86_port_tests;
 
 /// **A supervisor may collect a corpse without being able to build one** (DECISIONS §32,
 /// `rendezvous::REAP`). Cross-ISA, because the authorization check is architecture-neutral: it reads

@@ -1,13 +1,31 @@
 # 299. The x86 port-range capability: the serial console becomes a userspace driver
 
-**Status: NOT-STARTED.** Minted 2026-09-15 by calef, who reversed DECISIONS §121 the same day and
-ruled option 1, the port-range capability, straight rather than sequencing through §149's kernel
-thread. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT.** 2026-09-15. Minted the same day by calef, who reversed DECISIONS §121 and ruled
+option 1, the port-range capability, straight rather than sequencing through §149's kernel thread.
+*(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** The design fork is decided (DECISIONS §121, amended 2026-09-15; §149, resolved the
-same day). The mechanism is testable entirely under QEMU's `q35` (COM1 at `3F8h`, and QEMU enforces
-the TSS I/O bitmap), so no board is a precondition. Milestone 268/182's x86 userspace boot is on
-`main`, which this consumes.
+**What was built.** `Object::PortRange(base, count)` on the capability surface (semantics recorded in
+DECISIONS §152, provisional), enforced by the **lazy** TSS I/O-bitmap write on the context switch
+(`arch::segments::set_port_grant`, installed from `sched::schedule`): a switch that crosses no port
+holder costs one comparison and writes nothing (`tss_iomap_lazy_nop`, +216 ticks/iter over a bare
+switch), and a holder crossing writes only the bits that move, not the 8 KiB the naive always-write
+§121 priced at ~2,682 ns cost every switch (`notes/benchmarks.md`, 2026-09-15). Revocation
+(`PortRange::REVOKE`, and the kernel's own whole-machine sweep) deletes the capability, clears the
+cached grant, and resets the core's TSS, so a revoked holder faults on its next `in`/`out`. The x86
+console and input drivers are userspace processes holding COM1's `(0x3F8, 8)` ports, delegated by the
+progenitor; **`swish` reaches an interactive prompt on x86_64 over serial**, its console served by the
+userspace driver's `out`, with zero processes trapping (the milestone-268 gap closed). Two
+load-bearing tests pass under QEMU (`kernel/src/user/x86_port_tests.rs`): a non-holder faults on `out`
+(and a holder's grant does not leak across the switch to it), and a revoked holder faults on its next
+`out`.
+
+**One scope note, recorded rather than hidden.** The x86 **input** driver **polls** COM1 (reading the
+port it holds and yielding between reads) rather than blocking on the receive interrupt, because x86
+does not yet route a device line (COM1's legacy IRQ 4) to a userspace waiter: the kernel delivers only
+self-directed vectors to a driver today (`kernel/src/arch/x86_64/exceptions.rs`). Output (the prompt,
+and everything the shell prints) is unaffected and interrupt-independent. Interrupt-driven x86 input,
+which routes IRQ 4 through the IO APIC to the input driver's `Irq` capability and lets it block, wants
+its own milestone; the register layout it will use is already in `components/src/input.rs`'s x86 arm.
 
 ## What this is
 
@@ -79,7 +97,28 @@ architectures, no scope note.
   The revocation test and a "non-holder cannot touch the port" test are both load-bearing, not
   nice-to-have.
 
+## Follow-on
+
+- **Recorded.** x86 input **polls** COM1 rather than blocking on the receive interrupt, recorded in
+  `components/src/input.rs`'s x86 `uart` arm and this block's own scope note. COM1's legacy IRQ 4 is
+  not yet routed to a userspace waiter (the kernel delivers only self-directed vectors to a driver,
+  `kernel/src/arch/x86_64/exceptions.rs`); wiring it needs the device-line delivery path (mask on
+  fire, `irq_route`/`irq_notify`, EOI, unmask on ACK) that x86 has for the timer but not yet for a
+  device. Output, and the prompt, are interrupt-independent, so this is a limitation of input
+  latency and CPU spent polling, not of whether the milestone's claim holds.
+- **Decision.** `design/decisions/152-port-range-capability.md` (provisional number), the `PortRange`
+  object and its `REVOKE` method on the capability surface, calef's to ratify.
+- **Recorded.** Two limits are in §152's BUGS beside the feature: a thread caches one port range, not
+  a set (every real consumer holds one), and a `PortRange` delegated to an already-running thread by
+  `SEND_CAP` is not cached (no consumer does that). Both are within the design's pinned consumer.
+- **Done.** The x86 prompt that milestones 268 and 182 left **Outstanding**: a default x86_64 boot now
+  reaches an interactive `swish` prompt over serial, its console served by a userspace driver holding
+  COM1 as a port capability, with zero processes trapping. Checked 2026-09-15 by booting it under
+  QEMU `q35`; the prompt and the shell banner are in the transcript above the hand-over line.
+
 ## Index row
+
+**Built:** 2026-09-15
 
 The x86 port-range capability. DECISIONS §121 was reversed 2026-09-15 once the serial console became
 the customer it had assumed away (a prompt on every architecture, headless x86 driven over serial).

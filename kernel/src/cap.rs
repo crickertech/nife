@@ -122,6 +122,32 @@ pub enum Object {
     /// sees it. The holder drives the device (status, features, submit) through this, but cannot
     /// point it outside its region. See kernel/src/virtio.rs.
     Virtio(usize),
+
+    /// **A contiguous range of x86 I/O ports**, by base port and count (milestone 299,
+    /// DECISIONS §121 reversed 2026-09-15). The device-capability kind for the one class of device
+    /// that has no page: x86's legacy port-I/O hardware, reached only by `in`/`out`, which the MMU
+    /// cannot grant or deny because there is no page table in front of the port space.
+    ///
+    /// It is the honest analogue of [`Object::DeviceFrame`]: `DeviceFrame` names a device's MMIO page and
+    /// the MMU enforces it; `PortRange` names a device's ports and the **TSS I/O permission bitmap**
+    /// enforces it. A thread that holds one may execute `in`/`out` on `[base, base + count)` from
+    /// ring 3, and no other port; a thread that holds none may touch no port at all. The granularity
+    /// is a range because a 16550 UART is eight consecutive ports (COM1 is `0x3F8..=0x3FF`).
+    ///
+    /// **`x86_64` only**, because the other two architectures have no port space and no TSS I/O
+    /// bitmap: there is no hardware for this object to name, so unlike [`Object::DeviceFrame`] (an
+    /// MMIO page, which every architecture has) it is not a parity gap to omit it (§19). Compiling it
+    /// only where it exists also keeps it off the other two architectures' syscall dispatcher, which
+    /// a new enum variant would otherwise grow (`script/fastpath-footprint`). See
+    /// `kernel/src/arch/x86_64/segments.rs` for the bitmap that carries the grant and
+    /// `sched::schedule` for the lazy install on switch-in.
+    ///
+    /// `(u16, u16)` because a port number is 16 bits (`in`/`out` address exactly 64 Ki ports) and a
+    /// count never exceeds that; the pair fits the enum's existing 16-byte payload, so adding it does
+    /// not grow a capability slot (the assertion below still holds, on every architecture, because
+    /// `PageFrame` is the widest variant either way).
+    #[cfg(target_arch = "x86_64")]
+    PortRange(u16, u16),
 }
 
 pub type Cap = capability::Cap<Object>;
@@ -476,6 +502,20 @@ pub fn virtio_cap(id: usize) -> Cap {
 pub fn virtio_cap_rights(id: usize, rights: Rights) -> Cap {
     Cap {
         object: Object::Virtio(id),
+        rights,
+    }
+}
+
+/// A capability naming a contiguous range of x86 I/O ports (milestone 299). `WRITE` lets the holder
+/// map it (a port is read/write by nature, like a device page); minted by the kernel for a known
+/// device, the way [`device_frame_cap`] mints one for an MMIO device. The progenitor holds one with
+/// `GRANT` so it can delegate the ports to the console and input drivers it builds, the same
+/// disposition [`device_frame_cap`] gets on the other two architectures. `x86_64` only, like the
+/// [`Object::PortRange`] it constructs: there is no port space to name elsewhere.
+#[cfg(target_arch = "x86_64")]
+pub fn port_range_cap(base: u16, count: u16, rights: Rights) -> Cap {
+    Cap {
+        object: Object::PortRange(base, count),
         rights,
     }
 }
