@@ -253,8 +253,12 @@ reboot_soak_test = ["soak_test", "board"]
 # milestone 19d.2c's `initboot`, a second feature naming the same six cfg sites; milestone 296
 # deleted it, because a build of each produced the same 3,109 symbols at the same total size.
 shell = []
-# **The boot self-test's fault injector** (milestone 268). One check in `kernel/src/self_test.rs`
-# reports failure, so the verdict line goes red on a kernel that is otherwise fine.
+# **The boot self-test's fault injector** (milestone 268). `exceptions` reports failure, and the
+# counter the `timer` and `scheduler` checks read stops, so the verdict line goes red on a kernel
+# that is otherwise fine. The second fault is the one that used to hang the boot in `timer`; with
+# it injected, every `--inject` run also proves those waits are bounded (a regression goes quiet
+# instead of red, and the gate fails). Only the checks' copy of the counter stops; the scheduler's
+# own clock is untouched.
 #
 # It exists because a verdict nobody has seen red is a verdict nobody has tested, and milestone
 # 268's proof condition is exactly that: the same failure injected into any one architecture turns

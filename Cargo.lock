@@ -1084,6 +1084,7 @@ version = "0.1.0"
 dependencies = [
  "bitmap_font",
  "board_console",
+ "boot_ladder",
  "compositor",
  "documentation",
  "filesystem_protocol",

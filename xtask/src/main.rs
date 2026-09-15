@@ -3219,7 +3219,12 @@ fn uefi_boot() -> bool {
 
     let mut ok = true;
     for wanted in [
-        "nife x86_64: boot complete, halting.",
+        // The self-test verdict and the hand-over, rather than the halt line this used to want:
+        // milestone 182 made x86_64 hand the machine to the progenitor instead of halting, and
+        // this boot carries the archive (`uefi_stage`'s `NIFE_UEFI_INITRD`), so under real
+        // firmware it reaches both.
+        boot_ladder::SELF_TEST,
+        "nife: handing the system to the userspace progenitor.",
         "(xsdt)",
         "pci         : ecam at",
         // Two cores ONLINE, not two in the MADT: the difference is whether the trampoline page the
@@ -3283,10 +3288,14 @@ fn uefi_boot() -> bool {
 
 /// The line the screen has to be showing for milestone 243 to have worked.
 ///
-/// The *last* line of the tour on purpose: a 1280x800 screen is 100 character rows and the tour is
+/// **Near the end of the boot on purpose**: a 1280x800 screen is 100 character rows and the boot is
 /// longer than that, so the early lines have scrolled off by the time anything reads the picture.
 /// Asserting on a line that is still there is the difference between a gate and a flaky one.
-const UEFI_SCREEN_MARKER: &str = "nife x86_64: boot complete, halting.";
+///
+/// It was the halt line, `nife x86_64: boot complete, halting.`, until milestone 182 removed the
+/// halt. The self-test verdict replaced it because it is the last line **every** boot prints
+/// whatever it hands over to next; it sits a few dozen rows above the bottom, well inside the 100.
+const UEFI_SCREEN_MARKER: &str = boot_ladder::SELF_TEST;
 
 /// **Poll the QEMU monitor until the tour's last line is on the screen** (milestone 243).
 ///

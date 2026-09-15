@@ -683,14 +683,6 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             arch::halt();
         }
 
-        // And that is the end of what is built. What the RISC-V tour does past this point (the
-        // device drivers and a shell) needs devices a ring-3 process can reach, which on this
-        // architecture is DECISIONS §121 and the discovery seam's wide half rather than more
-        // userspace. See the roadmap for the order the rest comes in.
-        println!();
-        println!(
-            "  next        : real ELF user programs (user_mode_runtime has no x86_64 arms), then the device seam and port I/O (\u{a7}121)."
-        );
         // **The tour ends and the soak begins** (milestone 219), before the halting line rather
         // than after it: a boot that says it is halting and then does not would be the tool's
         // problem and the reader's.
@@ -703,9 +695,15 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         job_mix::run();
         #[cfg(feature = "soak_test")]
         soak::run();
+        // **Nothing halts by default** (milestone 268), on this architecture as on the other two:
+        // the boot hands the machine to the progenitor, loaded from the archive and measured, and
+        // the boot thread parks in a preemptible `wfi` loop so it gets scheduled. That is milestone
+        // 182's entry point. What it cannot reach yet is a prompt, because a shell needs a console
+        // and this one is port I/O; `x86_hand_over` says so in the transcript rather than leaving
+        // a silent machine to be read as a hang.
         #[cfg(not(any(feature = "soak_test", feature = "job_mix")))]
         {
-            println!("nife x86_64: boot complete, halting.");
+            x86_hand_over();
             arch::halt();
         }
     }
@@ -2142,6 +2140,86 @@ fn riscv_hand_over() {
     println!("  uart irq: source {uart_irq} ({uart_irq_source})");
     if let Err(e) = user::riscv_shell_boot(initrd, uart_irq) {
         println!("  handoff FAILED: {e:?}");
+    }
+}
+
+/// **Hand `x86_64` to the progenitor, and say how far it got** (milestone 182, inside milestone
+/// 268's lane).
+///
+/// The same call `riscv_hand_over` makes, so the two architectures load, measure, endow and start
+/// the first process through one body. The difference is the second half: RISC-V's progenitor
+/// builds a console and a `swish` prompt announces the boot finished, and on this architecture it
+/// cannot, because the console is port I/O (DECISIONS §121) and how a shell reaches it is DECISIONS
+/// §149, not yet decided. A progenitor that stops there prints nothing, since it has nothing to
+/// print through, so without this function the transcript would end at the hand-over line and a
+/// reader could not tell a machine waiting on a decision from a hang.
+///
+/// **So the boot thread watches, bounded, and reports what it saw.** A thread that left through a
+/// ring-3 fault left a record (`arch::exceptions::last_user_fault`), and the kernel's own fault
+/// report above it names the faulting instruction in the user half, which is the proof the thread
+/// ran at ring 3 rather than an assumption that it did. A progenitor still running when the bound
+/// expires is the outcome §149 will produce, and says that instead.
+///
+/// Name provisional (milestone 182), matching `riscv_hand_over`.
+#[cfg(target_arch = "x86_64")]
+// Uncalled in the four configurations `riscv_hand_over` is, for the same reasons.
+#[cfg_attr(
+    any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
+    allow(dead_code)
+)]
+fn x86_hand_over() {
+    use core::sync::atomic::Ordering;
+
+    let Some(initrd) = user::initrd() else {
+        println!();
+        println!("nife: no archive to hand the system to (run `cargo xtask initrd-x86`).");
+        return;
+    };
+    println!();
+    println!("nife: handing the system to the userspace progenitor.");
+    let (uart_irq, uart_irq_source) = user::uart_irq_and_source();
+    println!("  uart irq: line {uart_irq} ({uart_irq_source})");
+
+    let faults_before = arch::exceptions::USER_FAULTS.load(Ordering::Acquire);
+    let tid = match user::riscv_shell_boot(initrd, uart_irq) {
+        Ok(tid) => tid,
+        Err(e) => {
+            println!("  handoff FAILED: {e:?}");
+            return;
+        }
+    };
+
+    // Ten seconds of TCG is far past the progenitor's first console build, which is microseconds of
+    // real time after it starts. The bound exists so the boot thread parks rather than waits.
+    let deadline = arch::timer::now() + 10 * arch::timer::frequency();
+    while sched::thread_present(tid) && arch::timer::now() < deadline {
+        sched::yield_now();
+    }
+
+    let faults = arch::exceptions::USER_FAULTS
+        .load(Ordering::Acquire)
+        .wrapping_sub(faults_before);
+    if sched::thread_present(tid) {
+        println!(
+            "nife x86_64: the progenitor is running at ring 3; {faults} of the processes it built \
+             stopped on purpose."
+        );
+        // Measured on 2026-09-14, and said here because nothing else on this console can say it:
+        // the progenitor builds the whole system, and the two device programs in it (the console
+        // server and the input driver) have `x86_64` arms that trap on first use, since a process
+        // cannot reach port I/O (DECISIONS §121). So `swish` is built and its banner goes nowhere.
+        println!(
+            "  no prompt  : the console server cannot reach COM1 from ring 3 (\u{a7}121); how a \
+             shell gets a console here is \u{a7}149, not yet decided."
+        );
+        return;
+    }
+    match arch::exceptions::last_user_fault() {
+        Some((fault, addr)) if faults > 0 => println!(
+            "nife x86_64: the progenitor ran at ring 3 and stopped ({fault:?} at {addr:#x}); \
+             its fault report is above."
+        ),
+        _ => println!("nife x86_64: the progenitor left ring 3 without faulting."),
     }
 }
 

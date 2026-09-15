@@ -103,6 +103,22 @@ pub const SELF_TEST: &str = "nife self-test: ";
 /// verdict must find both.
 pub const SELF_TEST_FAILED: &str = "FAILED: ";
 
+/// **The boot self-test's checks, by name, in the order they run** (milestone 268).
+///
+/// One list for every architecture, and that is the whole point. Before it the set was a
+/// compile-time fact inside `kernel/src/self_test.rs`, so an architecture that ran a different set,
+/// or a smaller one with the count adjusted to match, still printed *N of N passed* and read as
+/// green. Measured on 2026-09-14: `x86_64` with `scheduler` cut and the count set to four printed
+/// `nife self-test: 4 of 4 passed` and `boot-check` passed it.
+///
+/// So the kernel takes its check names from here, and its verdict counts against this list rather
+/// than against what ran. A listed check that did not run fails by name, a check that is not
+/// listed fails by name, and `board_console` fails a verdict whose total is not this list's length.
+/// Changing the set is an edit to this one list, which every architecture and the recogniser read.
+///
+/// Names provisional (milestone 268): they are printed, and matched, so they are a contract.
+pub const SELF_TEST_CHECKS: &[&str] = &["exceptions", "mapping", "frames", "timer", "scheduler"];
+
 /// **The RISC-V demonstration tour ran to its end.**
 ///
 /// Printed by the RISC-V arm of `kernel/src/main.rs` and by nothing else, which is milestone 268's
