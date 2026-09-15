@@ -151,24 +151,26 @@ fn uart_put(byte: u8) {
     }
 }
 
-/// **`x86_64` cannot transmit from ring 3 at all** (milestone 161), and this arm dies rather than
-/// dropping the byte.
+/// **The x86 twin: COM1 by port I/O, not memory** (milestone 299, DECISIONS §121 reversed
+/// 2026-09-15). The other two arms differ in a register layout; this one differs in kind. COM1's
+/// 16550 lives at I/O ports `0x3F8..=0x3FF`, reached only by `in`/`out`, which ring 3 may execute
+/// only for a port it holds a capability to. This process holds the `(0x3F8, 8)` port range the
+/// progenitor delegated it, so the kernel's TSS I/O bitmap permits exactly these eight ports and no
+/// others; an `out` to any other port would fault.
 ///
-/// The other two arms differ in a register layout. This one differs in kind: COM1 is at I/O ports
-/// `0x3f8..0x400`, `IOPL` is 0 and the TSS's I/O permission bitmap is empty, so an `out` from a
-/// process is a general protection fault and there is no page for `UART_VA` to be
-/// (`user::UART_PHYS` is zero here). Giving a process the port range is
-/// [DECISIONS §121](../../design/decisions/121-port-io-capability.md), which is PROPOSED: a
-/// question about what a capability *is*, not a driver to write.
-///
-/// **A silent no-op was the other option and is the wrong one.** It would compile, link, run, and
-/// produce a console that acknowledges every byte and prints none, which is a lie told in the one
-/// place the operator is looking. `trap()` reports `EVENT_FAULT` to this program's supervisor
-/// (DECISIONS §26), so a boot that ever reaches here says so out loud on the first byte. Nothing
-/// reaches it today: `xtask`'s x86 archive does not carry this program, for exactly this reason.
+/// The kernel configured the device at boot (baud divisor, 8N1), so this only transmits: spin until
+/// the Transmit Holding Register is empty, then write the byte. Same shape as the NS16550 arm above,
+/// with `outb`/`inb` in place of the volatile MMIO because the registers are ports.
 #[cfg(target_arch = "x86_64")]
-fn uart_put(_byte: u8) {
-    user_mode_runtime::trap()
+fn uart_put(byte: u8) {
+    use user_mode_runtime::{inb, outb};
+    const THR: u16 = 0x3F8; // transmit holding register (COM1 base)
+    const LSR: u16 = 0x3FD; // line status register (base + 5)
+    const LSR_THRE: u8 = 1 << 5; // transmit holding register empty
+    while inb(LSR) & LSR_THRE == 0 {
+        core::hint::spin_loop();
+    }
+    outb(THR, byte);
 }
 
 user_mode_runtime::panic_handler!();

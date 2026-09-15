@@ -615,6 +615,41 @@ pub fn yield_now() {
     }
 }
 
+/// **Write one byte to an x86 I/O port** (milestone 299). Not a syscall: `out` is an instruction,
+/// and a ring-3 program may execute it exactly when it holds a `PortRange` capability naming `port`,
+/// which the kernel enforces through the TSS I/O permission bitmap (DECISIONS §121, reversed
+/// 2026-09-15). A program that executes this against a port it does not hold takes a general
+/// protection fault, which its supervisor sees as a fault message; there is no page table to catch
+/// a wrong guess, so the caller must know it holds the port.
+///
+/// The one thing in userspace besides the syscall wrappers that names a machine instruction, and it
+/// is here for the same reason `in`/`out` live under `kernel/src/arch/x86_64/port.rs`: an
+/// instruction belongs with the code that knows the ISA, so a driver writes `outb(0x3F8, b)` rather
+/// than its own `asm!`.
+#[cfg(target_arch = "x86_64")]
+pub fn outb(port: u16, val: u8) {
+    // SAFETY: `out` has no memory effect and no flag effect; `nostack` holds. The caller promises it
+    // holds the port capability, so the CPU permits the instruction; without it this faults, which
+    // is the enforcement working rather than undefined behaviour.
+    unsafe {
+        core::arch::asm!("out dx, al", in("dx") port, in("al") val, options(nostack, preserves_flags));
+    }
+}
+
+/// **Read one byte from an x86 I/O port** (milestone 299). The `in` twin of [`outb`]; the same
+/// capability rule and the same fault on a port the caller does not hold. A read is not automatically
+/// harmless: several legacy devices (the 16550's receive register at COM1's base) have read side
+/// effects, which is exactly why a driver, not the kernel, decides when to issue one.
+#[cfg(target_arch = "x86_64")]
+pub fn inb(port: u16) -> u8 {
+    let val: u8;
+    // SAFETY: as `outb`; the caller holds the port capability or this faults.
+    unsafe {
+        core::arch::asm!("in al, dx", out("al") val, in("dx") port, options(nostack, preserves_flags));
+    }
+    val
+}
+
 /// Drop the capability in `slot` from this thread's capability table (`SYS_CAP_DELETE`). Deleting an empty
 /// slot is a no-op. A program that retypes many objects (a loader, a spawner) frees each slot as
 /// soon as it is done with it, so its fixed capability table does not fill.
