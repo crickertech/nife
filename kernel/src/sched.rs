@@ -1793,34 +1793,21 @@ fn install_cycle_counter_grant(granted: bool) {
 #[cfg(not(any(test, feature = "cycle_counter_grant")))]
 fn install_cycle_counter_grant(_granted: bool) {}
 
-/// **The incoming thread's x86 port grant** (milestone 299), read under the lock beside its
-/// address-space root and its cycle-counter grant, for the same reason: it is a per-thread fact the
-/// context switch installs on the core about to run the thread. `None` on every architecture without
-/// a port space, where the constant folds through the switch tuple and leaves nothing behind (the
-/// `cycle_counter_grant_of` twin's own argument).
-#[cfg(target_arch = "x86_64")]
-fn port_grant_of(t: &crate::thread::Thread) -> Option<(u16, u16)> {
-    t.port_range_grant
-}
-
-/// No port space, so no thread has a port grant. See the twin above.
-#[cfg(not(target_arch = "x86_64"))]
-fn port_grant_of(_t: &crate::thread::Thread) -> Option<(u16, u16)> {
-    None
-}
-
-/// Install the incoming thread's port grant into the core about to run it, immediately after its
-/// address-space root and cycle-counter grant. The lazy write lives in `arch::segments`; this is a
-/// no-op on the architectures with no TSS and no port space (`x86_64` is the only one), where the
-/// call and its argument fold away.
+/// Install the incoming thread's x86 port grant into the core about to run it, immediately after its
+/// address-space root and cycle-counter grant. The lazy write lives in `arch::segments`.
+///
+/// **`x86_64` only, and both the read (in `schedule`) and this install are `#[cfg]`-gated at the
+/// switch site**, not carried through the shared switch tuple. An earlier version threaded the value
+/// through the tuple like `next_cycle_counter` and trusted the optimizer to fold a constant `None`
+/// away on the other two architectures; it did not (icount measured `yield_switch` and `ctx_switch`
+/// up 13% on aarch64). `cycle_counter_grant_of` gets away with the tuple because the whole mechanism
+/// is behind a build feature, so its production value is a literal `false` the optimizer really does
+/// fold; a port grant is present in every x86 build, so keeping it off the other two ISAs' switch
+/// path takes a `#[cfg]`, not a constant. See DECISIONS §152's x86-only rationale.
 #[cfg(target_arch = "x86_64")]
 fn install_port_grant(grant: Option<(u16, u16)>) {
     crate::arch::segments::set_port_range_grant(grant);
 }
-
-/// No port space to enforce, so the switch installs nothing. See the twin above.
-#[cfg(not(target_arch = "x86_64"))]
-fn install_port_grant(_grant: Option<(u16, u16)>) {}
 
 /// Pick another thread and go there.
 ///
@@ -1852,6 +1839,13 @@ pub fn schedule() {
     // correct: when someone eventually switches back to us, `switch_to` returns here, and this
     // frame (with the right `was_enabled` in it) is still sitting where we left it.
     let was_enabled = crate::arch::interrupts::disable();
+
+    // The incoming thread's x86 port grant, carried out of the decision block below without widening
+    // the switch tuple (milestone 299). Declared here, written inside the block under the lock, read
+    // at the install site after the lock drops; `None` unless the block decides to switch. `x86_64`
+    // only, so the other two architectures' `schedule()` gains nothing at all. See `install_port_grant`.
+    #[cfg(target_arch = "x86_64")]
+    let mut next_port_grant: Option<(u16, u16)> = None;
 
     // A labeled block, so every exit path leaves through the SAME point: the guard drops at the
     // block's end and interrupts are restored ONCE, AFTER it. The earlier version called
@@ -2002,29 +1996,35 @@ pub fn schedule() {
         // together. See `cycle_counter_grant_of`.
         let next_cycle_counter = cycle_counter_grant_of(sched.threads.get(next).unwrap());
 
-        // The incoming thread's x86 port grant (milestone 299), read here for the same reason as the
-        // root and the cycle-counter grant: this is the last point the lock is held. `None` on every
-        // other architecture, where it folds away through the tuple like `next_cycle_counter`.
-        let next_port_grant = port_grant_of(sched.threads.get(next).unwrap());
-
         // Copy the two raw pointers out before the lock drops. The assembly writes through the
         // first and reads the second, and both threads' `Box`es keep their contents pinned.
         let prev_slot: *mut *mut Context = &mut sched.threads.get_mut(current).unwrap().context;
-        let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
 
-        Some((
-            prev_slot,
-            next_ctx,
-            next_root,
-            next_cycle_counter,
-            next_port_grant,
-        ))
+        // `next_ctx`, and on x86 the incoming thread's port grant (milestone 299) beside it, out of
+        // ONE `threads.get(next)`. The two arms are byte-identical bar the port read, and the split
+        // is deliberate: the other two architectures must keep the exact `get(next).unwrap().context`
+        // their deterministic-icount baseline was measured on (introducing a `next_thread` binding
+        // there shifted it, tiny but not zero), while x86 reuses the one lookup rather than paying a
+        // second map probe for the port grant. The port read goes into the `x86_64`-only variable
+        // declared above the block, not the switch tuple, so it costs the other two nothing at all.
+        // See `install_port_grant` for why a `#[cfg]` and not the tuple-and-fold trick
+        // `next_cycle_counter` uses.
+        #[cfg(not(target_arch = "x86_64"))]
+        let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
+        #[cfg(target_arch = "x86_64")]
+        let next_ctx: *mut Context = {
+            let next_thread = sched.threads.get(next).unwrap();
+            next_port_grant = next_thread.port_range_grant;
+            next_thread.context
+        };
+
+        Some((prev_slot, next_ctx, next_root, next_cycle_counter))
     };
     // Rule 1: THE LOCK IS RELEASED HERE, before the switch. Holding it across `switch_to` would
     // leave it held by a thread that is not running, and the next thread to want it would spin
     // forever waiting for a thread that can only be scheduled by taking the lock.
 
-    if let Some((prev_slot, next_ctx, next_root, next_cycle_counter, next_port_grant)) = switch {
+    if let Some((prev_slot, next_ctx, next_root, next_cycle_counter)) = switch {
         // Install the incoming thread's address space FIRST. `TTBR0_EL1` is one register, shared
         // by everybody, and a thread that resumes at EL0 in the previous thread's low half is
         // running a stranger's code. (No-ops, including no TLB flush, when the root is already
@@ -2051,7 +2051,8 @@ pub fn schedule() {
 
         // And the incoming thread's authority to reach x86 I/O ports from ring 3, the same shape of
         // per-core, one-register fact: the TSS I/O-bitmap grant the lazy write installs only when it
-        // crosses a holder. `None` folds this to nothing on every architecture but `x86_64`.
+        // crosses a holder. `#[cfg]`-gated, not folded: it exists on no other architecture's switch.
+        #[cfg(target_arch = "x86_64")]
         install_port_grant(next_port_grant);
 
         // SAFETY: both pointers name live `Context`s owned by boxed `Thread`s in the map, and
@@ -3959,7 +3960,7 @@ pub fn thread_control_block_insert_cap(
     }?;
     // **The one choke point where a port capability enters a thread** (milestone 299): the boot's
     // own child builder and the progenitor's `ThreadControlBlock::CAP_INSERT` both endow an embryo
-    // through here, so caching the grant here is what makes the context switch's `port_grant_of`
+    // through here, so caching the grant here is what makes the context switch's port-grant read
     // one field read instead of a capability-table scan. Set only on the `x86_64` build that
     // enforces it, and only after the insert succeeded, so a full table leaves the grant untouched.
     //
