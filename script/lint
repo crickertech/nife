@@ -172,9 +172,17 @@ echo "==> clippy: kernel (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
 
-# `bench` on x86_64, same flags, same reasoning: see the note above this block. The other
-# boot-mode features (shell, icount, board, fastpath_pad, soak_test) still fail on this
-# ISA and stay out of any loop until their own arch layer exists.
+# `bench` on x86_64, same flags, same reasoning: see the note above this block.
+#
+# **Four more build-mode features are checked below, and two are still held out** (measured
+# 2026-09-15, calef's call). `shell`, `soak_test`, `job_mix` and `board` compile clean on x86_64
+# under these flags: what each gates is either arch-neutral or dead on this ISA, and the shared
+# `-A dead_code` already covers the partial port. `icount` and `fastpath_pad` genuinely fail to
+# COMPILE, not merely warn: `icount` calls `arch::timer::calibration_loop`, `missed_ticks` and
+# `deadline`, and `fastpath_pad` calls `arch::fastpath_pad_body`, none of which exist on x86_64
+# yet. Those two stay out until their arch functions exist; a loop over them would fail the gate
+# for a reason the gate cannot fix. The earlier version of this comment said all five failed,
+# which stopped being true once each of the four grew arch-neutral or dead-only code.
 echo "==> clippy: kernel --features bench (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
@@ -188,6 +196,15 @@ cargo clippy -p kernel --features bench --target x86_64-unknown-none -- \
 echo "==> clippy: kernel --features cycle_counter_grant (x86_64, the binary only; see the note above)"
 cargo clippy -p kernel --features cycle_counter_grant --target x86_64-unknown-none -- \
     -D warnings -A dead_code -A clippy::reversed_empty_ranges
+
+# The four build-mode features that compile clean on x86_64 (see the note above the `bench` line).
+# Each on its own line rather than in the two-ISA loop above, because that loop's `--target` list is
+# aarch64/riscv64 and widening it would also drag `icount` and `fastpath_pad` in, which do not build.
+for feat in shell soak_test job_mix board; do
+    echo "==> clippy: kernel --features $feat (x86_64, the binary only; see the note above)"
+    cargo clippy -p kernel --features "$feat" --target x86_64-unknown-none -- \
+        -D warnings -A dead_code -A clippy::reversed_empty_ranges
+done
 
 # And userspace on the third architecture (milestone 161, item 4's hand-off). Held to the SAME bar
 # as the aarch64 pass above, with no `-A dead_code` and no narrowings, because there is nothing
