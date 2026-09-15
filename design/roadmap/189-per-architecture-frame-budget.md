@@ -35,6 +35,13 @@ suite**: the file servers, the `std` farm, and the services that keep a session'
 rest of the boot. The tests that do not run on x86_64 are disproportionately the ones that keep
 memory.
 
+**Both named skip causes have since closed, and the 57 above is the 2026-08-28 count, kept as
+measured.** Milestone 164 made `redoxfs_server` build for x86_64 on 2026-09-01, and milestone 184 built
+`x86_64-unknown-nife` and its `std` farm on 2026-09-14, so `std_exerciser` now runs there. The file
+servers still mostly skip on x86_64, for a different reason: no disk the FS service can find
+(`design/roadmap/proposals/an-fs-service-with-no-disk-on-x86-64.md`). Re-count before relying on this
+block's premise that x86_64 undercounts the heaviest consumers.
+
 So x86_64 sits far under a ceiling it cannot approach, and the gate that reads green there is not
 reporting a healthy leg. It is reporting that a number fitted to a different, larger suite was not
 exceeded by a smaller one.

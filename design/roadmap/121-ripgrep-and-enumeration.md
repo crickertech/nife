@@ -24,10 +24,12 @@ found on the way: a program image has under 896 KiB before it collides with its 
 (`user/link.ld`'s `0x40_0000` against `USER_STACK_VA`'s `0x50_0000`), and `ripgrep`'s `.text` alone
 is 1.37 MiB (1.23 MiB on riscv64, over the same ceiling).
 
-**Parity, per DECISIONS §19: two of three.** aarch64 and riscv64 both built and both run. x86_64 is
-not a gap this milestone can close: milestone 27 shipped `std` for aarch64 and riscv64 only, so there
-is no `x86_64-unknown-nife` spec, no farm, and therefore no `ripgrep`. **`MILESTONE 184`** is what
-closes it, and when it lands this experiment is one more triple in the build script's loop.
+**Parity, per DECISIONS §19: two of three run, three of three build.** aarch64 and riscv64 both built
+and both run. x86_64 had no `std` until milestone 184 built `x86_64-unknown-nife` and its farm on
+2026-09-14, and the build script's loop now carries the third triple: `ripgrep` builds there with zero
+source changes. **It does not run**, because its test needs a RedoxFS disk and the x86_64 FS service
+looks for one only on the virtio-mmio bus, which `q35` does not have. That is a disk gap rather than a
+port gap, and a proposal owns it.
 
 **What remains is everything the block calls the point**: the confined demonstration, the negative
 half against a capability lacking `ENUMERATE`, and the benchmark that prices the walk. All three need
@@ -208,8 +210,9 @@ ripgrep working beautifully and confinement being decorative.
 - **Outstanding.** The benchmark that prices the walk, per-entry IPC cost separated from per-byte
   search cost, is unmade, and `notes/ripgrep-on-nife.md`'s own `BUGS` says so: nothing here
   measured a search, so nothing here measured the walk. Checked 2026-09-03.
-- **Milestone 184.** x86_64 has no `std` and therefore no `ripgrep`;
-  `design/roadmap/184-std-x86-64.md` owns the gap and this block already names it.
+- **Proposed.** `design/roadmap/proposals/an-fs-service-with-no-disk-on-x86-64.md`. The x86_64 run.
+  Milestone 184 closed the `std` half of this gap on 2026-09-14 and `ripgrep` builds there; what is
+  left is a disk the FS service can find, without which the test skips.
 - **Outstanding.** Directory reading still reads a listing whole rather than streaming it, and the
   memory cost of a deep walk over large directories is unmeasured. Checked 2026-09-03 against the
   filesystem shim under `patches/std-nife/overlay/std/src/sys/`.
@@ -232,4 +235,4 @@ runs, names its own directory through a granted capability and exits cleanly, an
 DECISIONS §105 because it asks `available_parallelism()` and nife answers `1` honestly. What stops
 it is that the ABI has **no argument vector**, so it prints its own "requires at least one
 pattern". The demonstration, the `ENUMERATE` refusal and the benchmark all wait on a way to tell a
-foreign program what to do. x86_64 has no `std` and so no `ripgrep`; milestone 184 closes that
+foreign program what to do. x86_64 builds `ripgrep` since milestone 184 and does not run it yet, for want of a disk the FS service can find
