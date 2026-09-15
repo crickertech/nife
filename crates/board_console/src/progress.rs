@@ -509,6 +509,19 @@ impl BootProgress {
                 // alone is every green boot. The names are what follows the token.
                 let names = line[at + failed + boot_ladder::SELF_TEST_FAILED.len()..].trim();
                 self.failure = Some(Failure::SelfTestFailed(names.to_string()));
+            } else if complete
+                && let Some(at) = line.find(boot_ladder::SELF_TEST)
+                && let Some(total) = Self::verdict_total(&line[at + boot_ladder::SELF_TEST.len()..])
+                && total != boot_ladder::SELF_TEST_CHECKS.len()
+            {
+                // **A green verdict over the wrong set is not green** (milestone 268). The kernel
+                // counts against `boot_ladder::SELF_TEST_CHECKS`, so a total that differs is a
+                // kernel built against a different list: an older one, or one architecture whose
+                // set was cut and the count adjusted to hide it, which printed `4 of 4 passed`.
+                self.failure = Some(Failure::SelfTestFailed(format!(
+                    "the verdict counted {total} checks and boot_ladder lists {}",
+                    boot_ladder::SELF_TEST_CHECKS.len()
+                )));
             }
         }
 
@@ -517,6 +530,19 @@ impl BootProgress {
         if complete && !line.trim().is_empty() {
             self.last_line = line.trim().to_string();
         }
+    }
+
+    /// The `Y` in a verdict's `X of Y passed`, given the text after `boot_ladder::SELF_TEST`.
+    ///
+    /// `None` for anything that is not that shape, so an unfamiliar verdict is left alone rather
+    /// than reported as a count it never printed.
+    fn verdict_total(tail: &str) -> Option<usize> {
+        let mut words = tail.split_whitespace();
+        words.next()?.parse::<usize>().ok()?;
+        if words.next()? != "of" {
+            return None;
+        }
+        words.next()?.trim_end_matches(',').parse().ok()
     }
 
     /// Pull the numbers out of one `soak-test: t=... beat=... rounds=...` line.
@@ -777,6 +803,29 @@ mod tests {
         );
     }
 
+    /// **A green verdict over a set that is not `boot_ladder::SELF_TEST_CHECKS` is a failure.**
+    /// Milestone 268's parity hole, measured before it was closed: `x86_64` with `scheduler` cut and
+    /// the count set to four printed exactly this line, and `boot-check` passed it.
+    #[test]
+    fn a_green_verdict_over_the_wrong_set_is_a_failure() {
+        let mut progress = BootProgress::new();
+        progress.observe_line("nife self-test: 4 of 4 passed");
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::SelfTestFailed(format!(
+                "the verdict counted 4 checks and boot_ladder lists {}",
+                boot_ladder::SELF_TEST_CHECKS.len()
+            ))),
+        );
+
+        let mut right = BootProgress::new();
+        right.observe_line(&format!(
+            "nife self-test: {n} of {n} passed",
+            n = boot_ladder::SELF_TEST_CHECKS.len()
+        ));
+        assert_eq!(right.failure(), None, "the listed total must stay green");
+    }
+
     /// More than one failed check, because the verdict names them all and a reader needs all of
     /// them: fixing the first and re-running to discover the second is the loop this avoids.
     #[test]
@@ -799,17 +848,33 @@ mod tests {
         assert_eq!(progress.failure(), None);
     }
 
-    /// A green verdict's counts are kept, because they are the only defence this tree has against
-    /// a self-test that quietly stopped running anything. "0 of 0 passed" is a *passing* verdict
-    /// and a broken build, and a reader can only see that if the numbers survive.
+    /// A green verdict's counts are kept, because a reader comparing two runs needs to see both ran
+    /// the same set. "0 of 0 passed" used to be a *passing* verdict on a broken build, visible only
+    /// if a person read the numbers; since milestone 268 checks the total against
+    /// `boot_ladder::SELF_TEST_CHECKS`, it is a failure, and its raw line is still kept.
     #[test]
     fn a_green_verdict_keeps_its_counts() {
+        let green = format!(
+            "nife self-test: {n} of {n} passed",
+            n = boot_ladder::SELF_TEST_CHECKS.len()
+        );
         let mut progress = BootProgress::new();
-        progress.observe_line("nife self-test: 0 of 0 passed");
+        progress.observe_line(&green);
         assert_eq!(progress.failure(), None);
+        assert_eq!(progress.self_test_line(), Some(green.as_str()));
+
+        // `0 of 0 passed` is the vacuous pass the counts exist to expose, and since the total is
+        // checked against `boot_ladder::SELF_TEST_CHECKS` it is red rather than kept as green.
+        let mut vacuous = BootProgress::new();
+        vacuous.observe_line("nife self-test: 0 of 0 passed");
+        assert!(matches!(
+            vacuous.failure(),
+            Some(Failure::SelfTestFailed(_))
+        ));
         assert_eq!(
-            progress.self_test_line(),
-            Some("nife self-test: 0 of 0 passed")
+            vacuous.self_test_line(),
+            Some("nife self-test: 0 of 0 passed"),
+            "the raw line is kept on a red verdict too"
         );
     }
 

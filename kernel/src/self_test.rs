@@ -90,10 +90,10 @@ mod timer {
     }
 }
 
-/// How many checks there are. Only the tally's fixed-size failure list needs the number; it is
-/// asserted against the calls below rather than derived from them, because a list that could
-/// silently shrink is exactly what this module's `BUGS` says it cannot defend against.
-const CHECKS: usize = 5;
+/// How many checks there are: the length of `boot_ladder::SELF_TEST_CHECKS`, and not a count of
+/// the calls below. That difference is the fix for this module's old parity hole, where a check cut
+/// from one architecture took its own evidence with it and the verdict still said *N of N*.
+const CHECKS: usize = boot_ladder::SELF_TEST_CHECKS.len();
 
 /// **Make one check report failure**, so the verdict can be *seen* red rather than reasoned about.
 ///
@@ -123,6 +123,8 @@ const INJECT: bool = cfg!(feature = "self_test_injection");
 struct Tally {
     passed: usize,
     ran: usize,
+    /// Which of `boot_ladder::SELF_TEST_CHECKS` recorded an outcome, by index.
+    seen: [bool; CHECKS],
     failed: [&'static str; CHECKS],
     failures: usize,
 }
@@ -132,8 +134,16 @@ impl Tally {
         Self {
             passed: 0,
             ran: 0,
+            seen: [false; CHECKS],
             failed: [""; CHECKS],
             failures: 0,
+        }
+    }
+
+    fn fail(&mut self, name: &'static str) {
+        if self.failures < CHECKS {
+            self.failed[self.failures] = name;
+            self.failures += 1;
         }
     }
 
@@ -145,11 +155,20 @@ impl Tally {
     /// `FAILED`.
     fn record(&mut self, name: &'static str, ok: bool, detail: core::fmt::Arguments) {
         self.ran += 1;
+        // A check not on the shared list is a failure however it went: an architecture running a
+        // check the others do not is the same parity hole as one skipping a check they run.
+        let listed = boot_ladder::SELF_TEST_CHECKS
+            .iter()
+            .position(|&n| n == name);
+        let ok = ok && listed.is_some();
+        match listed {
+            Some(i) => self.seen[i] = true,
+            None => println!("  self-test       : {name} is not in boot_ladder::SELF_TEST_CHECKS"),
+        }
         if ok {
             self.passed += 1;
-        } else if self.failures < CHECKS {
-            self.failed[self.failures] = name;
-            self.failures += 1;
+        } else {
+            self.fail(name);
         }
         println!(
             "  self-test       : {name:<10} {:<6}  {detail}",
@@ -158,14 +177,24 @@ impl Tally {
     }
 
     /// The verdict line. See [`VERDICT`] for why it is shaped the way it is.
-    fn verdict(&self) {
+    ///
+    /// **The total is the shared list's length, not how many checks ran**, and a listed check that
+    /// never recorded an outcome is named as a failure here. So a kernel that ran four of the five
+    /// says `4 of 5 passed, 1 FAILED: scheduler` on every architecture, rather than `4 of 4 passed`.
+    fn verdict(&mut self) {
+        for (i, &name) in boot_ladder::SELF_TEST_CHECKS.iter().enumerate() {
+            if !self.seen[i] {
+                println!("  self-test       : {name:<10} FAILED  did not run on this architecture");
+                self.fail(name);
+            }
+        }
         if self.failures == 0 {
-            println!("{VERDICT}{} of {} passed", self.passed, self.ran);
+            println!("{VERDICT}{} of {CHECKS} passed", self.passed);
             return;
         }
         // Built by printing rather than by joining, so there is no buffer to size and no allocation
         // on the path that reports a broken machine.
-        print_verdict_head(self.passed, self.ran, self.failures);
+        print_verdict_head(self.passed, CHECKS, self.failures);
         for (i, name) in self.failed[..self.failures].iter().enumerate() {
             if i > 0 {
                 crate::print!(" ");
@@ -195,10 +224,6 @@ pub fn run() {
     timer(&mut tally);
     scheduler(&mut tally);
 
-    debug_assert_eq!(
-        tally.ran, CHECKS,
-        "the tally array is sized for every check"
-    );
     tally.verdict();
 }
 
@@ -424,8 +449,7 @@ fn timer(tally: &mut Tally) {
     // 20 ms: two tick periods at the 100 Hz `TICK_HZ` every architecture uses, so a single missed
     // tick does not read as a broken interrupt path.
     let window = hz / 50;
-    let mut advanced = 0;
-    loop {
+    let advanced = loop {
         let Some(now) = counter.read() else {
             tally.record(
                 "timer",
@@ -437,12 +461,12 @@ fn timer(tally: &mut Tally) {
             );
             return;
         };
-        advanced = now.wrapping_sub(start);
+        let advanced = now.wrapping_sub(start);
         if advanced >= window {
-            break;
+            break advanced;
         }
         core::hint::spin_loop();
-    }
+    };
     let ticks = timer::ticks() - ticks_before;
 
     let ok = advanced >= window && ticks >= 1;
