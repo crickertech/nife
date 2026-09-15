@@ -13,12 +13,13 @@
 # the three link arguments `std_exerciser/build.rs` supplies for a program built in-tree (the shared
 # linker script, `-u_start`, and no build id).
 #
-# Both architectures, because DECISIONS §19 makes parity a gate rather than an aspiration: a
-# capability ships on every supported target or a scope note records the gap and the plan. x86_64 is
-# the recorded gap, and it is milestone 184's rather than this experiment's: milestone 27 shipped
-# `std` for aarch64 and riscv64 only, so there is no `std` on x86_64 and therefore no `ripgrep`.
+# All three architectures, because DECISIONS §19 makes parity a gate rather than an aspiration: a
+# capability ships on every supported target or a scope note records the gap and the plan. x86_64
+# joined at milestone 184, which built `x86_64-unknown-nife` and its `std` farm; before that there
+# was no `std` on x86_64 and therefore no `ripgrep`.
 #
 # Usage: scripts/build-ripgrep.sh [version]     (default 14.1.1)
+#        NIFE_RIPGREP_TRIPLES="x86_64-unknown-nife" scripts/build-ripgrep.sh   (one target only)
 #
 # See notes/ripgrep-on-nife.md for what it does and does not do once it is running.
 set -euo pipefail
@@ -63,7 +64,7 @@ mkdir -p "$OUT"
 sed 's/^    \. = 0x400000;$/    . = 0x1000000;/' "$ROOT/crates/user_mode_runtime/link.ld" > "$OUT/link-high.ld"
 grep -q '0x1000000' "$OUT/link-high.ld" || { echo "build-ripgrep: crates/user_mode_runtime/link.ld no longer sets 0x400000 where this script expects it"; exit 1; }
 
-for TRIPLE in aarch64-unknown-nife riscv64-unknown-nife; do
+for TRIPLE in ${NIFE_RIPGREP_TRIPLES:-aarch64-unknown-nife riscv64-unknown-nife x86_64-unknown-nife}; do
   cd "$SRC"
   RUSTUP_TOOLCHAIN=nife-dev \
   RUSTFLAGS="-Clink-arg=-T$OUT/link-high.ld -Clink-arg=-u_start -Clink-arg=--build-id=none -Cstrip=debuginfo -Copt-level=s" \

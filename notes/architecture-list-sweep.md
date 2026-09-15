@@ -145,7 +145,7 @@ Listed so the next reader does not count them twice.
 
 | Where | Missing | Where the reason is written |
 |---|---|---|
-| `xtask/src/main.rs` `STD_TARGETS: [&str; 2]`, and `targets/` holding two `.json` specs | `x86_64-unknown-nife` | milestone 184 (extend the `std` port to x86_64), and `kernel/src/user/std_service.rs`'s `NO_STD_EXERCISER` constant, which is the string a skipped test prints |
+| ~~`xtask/src/main.rs` `STD_TARGETS: [&str; 2]`, and `targets/` holding two `.json` specs~~ | ~~`x86_64-unknown-nife`~~ | **Closed** by milestone 184 (extend the `std` port to x86_64): `STD_TARGETS` has three entries and `targets/` three specs |
 | `xtask/src/main.rs`, the vendored RedoxFS build loop `for target in [TARGET, RISCV_TARGET]` | x86_64 | milestone 164 (x86_64 userspace can't build `aes`). The reason is written at `initrd_x86` and at `fs_service.rs`'s `NO_FS_SERVER`, **not at the loop itself**, which is the one weakness in an otherwise clean record |
 | `xtask/src/main.rs` `shell_check`, which refuses `--arch x86_64` | an x86_64 shell leg | Inline at the match arm: nothing boots x86_64 straight to an interactive prompt, scoped under milestone 177 (wire the graphical terminal stack into the real interactive boot) |
 | `xtask/src/main.rs` `icount`, which refuses `--arch x86_64` | an x86_64 icount leg | The real reason is at `bench_x86`'s doc comment (the LAPIC timer is a periodic hardware reload with no re-armed deadline to compare against). **The inline comment at the match arm gives a different and now-stale reason** ("needs a userspace this port cannot build"), which stopped being true when milestone 161 item 4 landed. Worth a one-line correction by whoever next touches it |

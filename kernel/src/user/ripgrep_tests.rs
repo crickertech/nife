@@ -14,12 +14,13 @@
 //! making the gate fetch a crates.io dependency tree is DECISIONS §46's decision and calef's rather
 //! than a lane's. See notes/ripgrep-on-nife.md.
 //!
-//! **Both ISAs run it**, which is DECISIONS §19 rather than thoroughness: a capability ships on
+//! **All three ISAs run it**, which is DECISIONS §19 rather than thoroughness: a capability ships on
 //! every supported architecture or a scope note records the gap and the plan. `scripts/build-ripgrep.sh`
-//! builds for `aarch64-unknown-nife` and `riscv64-unknown-nife` in one pass, and one test body
-//! serves both because nothing it asserts is architecture-specific. **x86_64 is the recorded gap
-//! and it is not this milestone's**: milestone 27 shipped `std` for aarch64 and riscv64 only, so
-//! there is no `std` on x86_64 and therefore no `ripgrep`. Milestone 184 is what closes it.
+//! builds for `aarch64-unknown-nife`, `riscv64-unknown-nife` and (since milestone 184)
+//! `x86_64-unknown-nife` in one pass, and one test body serves all three because nothing it asserts
+//! is architecture-specific. **On `x86_64` it skips even when `rg` is built**, at "no RedoxFS disk
+//! attached": no `x86_64` runner attaches a RedoxFS image yet (notes/x86-port.md), and the test needs
+//! one for `rg` to have a directory to be handed.
 
 use super::*;
 

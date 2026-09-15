@@ -920,7 +920,7 @@ Every skip prints why. Grouped by cause, largest first:
 | 5 | the console UART is in the I/O port space | DECISIONS §121 |
 | 4 | one core online / no core roster | SMP, item 5 |
 | 4 | no PCI bus enumerated, so no GPU, keyboard or NVMe | item 0 again, and the runner |
-| 1 | no `std_exerciser` | an `x86_64-unknown-nife` target and a `std` farm (milestone 27) |
+| 1 | no `std_exerciser` | an `x86_64-unknown-nife` target and a `std` farm. **Closed by milestone 184**: the test now passes on this port |
 | 1 | no `mkfs` | `fs_server`'s cause, one binary over |
 | 1 | address spaces are not tagged | `CR4.PCIDE`, which is calef's call (item 3) |
 | 1 | `hvm_start_info` is not a device tree | nothing; it is a true statement about this machine |
@@ -1054,7 +1054,9 @@ Every item is a device or a toolchain, and none is `user_mode_runtime` any more.
   Every machine seen reports 0; none is required to.
 - **No RedoxFS image is attached**, so the FS server (packed since milestone 164) has nothing to
   open. The nifefs disk above is the only fixture on this bus.
-- **No `std`**: there is no `x86_64-unknown-nife` target spec and no farm (milestone 27).
+- ~~**No `std`**~~: closed by milestone 184. `x86_64-unknown-nife` and its farm exist, and
+  `std_exerciser` passes here. `std::fs` and `std::net` are compiled but unexercised on this port,
+  for the RedoxFS and NIC reasons on either side of this line; see notes/std.md.
 - **No second core** (item 5), and **no ASID tags**, because `CR4.PCIDE` is off (item 3, calef's
   call, and it wants a number rather than an argument).
 

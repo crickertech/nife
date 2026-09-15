@@ -1294,12 +1294,6 @@ pub fn start_std(
 
 /// What [`start_std_full`] hands back: the service's readiness endpoints if this call wired it, the
 /// program's stdout endpoint, the untyped region its heap was drawn from, and the thread it runs as.
-// `heap` and `thread` have exactly one reader (`user::ripgrep_tests`), which does not exist on
-// x86_64 because that target has no `std` port yet (milestone 184). They are not dead where it is.
-#[cfg_attr(
-    not(any(target_arch = "aarch64", target_arch = "riscv64")),
-    allow(dead_code)
-)]
 pub struct StdSpawn {
     pub readiness: Option<(RendezvousId, RendezvousId)>,
     pub report: RendezvousId,
