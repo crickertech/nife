@@ -52,6 +52,14 @@ pub(crate) mod sinkproto;
 // (init, or today's kernel test harness standing in for it), hence the allow.
 #[allow(dead_code)]
 pub(crate) mod envproto;
+// The `x86_64` timebase page (milestone 184): where `rt::cntfrq` reads the TSC's calibrated rate,
+// since x86 has no register that states it. Generated verbatim from
+// `crates/counter_frequency_protocol/src/lib.rs` by the same xtask step, so the page's address and
+// layout cannot drift from the kernel that writes it. Compiled only where it is read; the other two
+// architectures state their rate in a register or a constant. `build_page` is the kernel's half.
+#[cfg(target_arch = "x86_64")]
+#[allow(dead_code)]
+pub(crate) mod counterfreqproto;
 pub(crate) mod rt;
 
 use crate::io;
@@ -64,9 +72,44 @@ use crate::io;
 ///
 /// The linker finds this symbol in std's rlib because the link script's `ENTRY(_start)` makes it
 /// an undefined reference, the same way a libc's crt0.o gets pulled in.
-#[cfg(not(test))]
+#[cfg(all(not(test), not(target_arch = "x86_64")))]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_a0: u64, _a1: u64, _a2: u64) -> ! {
+    run_main()
+}
+
+/// **`x86_64` enters through one `call`, because the SysV stack contract is about the instruction
+/// before the function, not the function** (milestone 184).
+///
+/// The kernel drops a new thread to ring 3 with `rsp` at the top of its stack page, which is a page
+/// boundary and so `rsp % 16 == 0`. The x86-64 psABI promises a function that `rsp % 16 == 8` on
+/// entry, because it assumes a `call` just pushed an 8-byte return address. aarch64 and RISC-V have
+/// no such offset (neither pushes on call), which is why only this architecture needs a shim. The
+/// cheapest correct fix is to make the assumption true: `call` the Rust entry, which pushes exactly
+/// the eight bytes the ABI expects. The argument registers pass through untouched.
+///
+/// Without SSE nothing in this target *faults* on a misaligned stack (there is no `movaps` to trip),
+/// so getting this wrong would pass every test and stay latent until someone compiled with vector
+/// features. That is the reason to do it properly rather than to rely on the soft-float target
+/// being forgiving. The `ud2` is unreachable: the Rust entry diverges.
+#[cfg(all(not(test), target_arch = "x86_64"))]
+core::arch::global_asm!(
+    ".pushsection .text._start, \"ax\", @progbits",
+    ".globl _start",
+    "_start:",
+    "call {entry}",
+    "ud2",
+    ".popsection",
+    entry = sym x86_entry,
+);
+
+#[cfg(all(not(test), target_arch = "x86_64"))]
+extern "C" fn x86_entry(_a0: u64, _a1: u64, _a2: u64) -> ! {
+    run_main()
+}
+
+#[cfg(not(test))]
+fn run_main() -> ! {
     unsafe extern "C" {
         fn main(argc: isize, argv: *const *const u8, sigpipe: u8) -> i32;
     }

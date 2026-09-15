@@ -5,9 +5,10 @@ use crate::sched::RendezvousId;
 /// **The `std` demo's binary, or `None` because this target has no `std` for it** (milestone 161).
 ///
 /// `std_exerciser` is not built with the rest of `user/`: it is its own workspace, compiled with
-/// `-Zbuild-std` for a **custom target** (`aarch64-unknown-nife`, `riscv64-unknown-nife`) against
-/// the patched `std` in the `nife-dev` toolchain. There is no `x86_64-unknown-nife` spec and no
-/// x86 farm, so the program simply is not in that archive; making one is milestone 27's work.
+/// `-Zbuild-std` for a **custom target** (`aarch64-unknown-nife`, `riscv64-unknown-nife`,
+/// `x86_64-unknown-nife` since milestone 184) against the patched `std` in the `nife-dev`
+/// toolchain. It is absent from an archive packed by something that never built it (a bare
+/// `cargo xtask initrd-x86`, an interactive `run`), and every std test skips rather than fails.
 ///
 /// A named accessor rather than an `.expect` at nine call sites, for [`super::fs_service::
 /// fs_server_image`]'s reason: a fixture missing because of the *toolchain* rather than because of
@@ -18,8 +19,9 @@ pub fn std_exerciser_image() -> Option<&'static [u8]> {
 
 /// The reason a test gives when [`std_exerciser_image`] is `None`.
 pub const NO_STD_EXERCISER: &str = "no std_exerciser in this archive: it is built with -Zbuild-std \
-                                    for a custom target against the nife-dev toolchain, and there \
-                                    is no x86_64-unknown-nife spec or farm yet (milestone 27)";
+                                    for a custom target against the nife-dev toolchain, and \
+                                    whatever packed this archive did not build it first (`cargo \
+                                    xtask std-exerciser`, which `script/test` runs)";
 
 /// Where the loader maps the clock page for a std program. Must match the std PAL's
 /// `rt::CLOCK_PAGE`, and the slot must match its `rt::CLOCK_SLOT`.
@@ -39,6 +41,20 @@ const CONFIG_SLOT: u64 = 7;
 /// IS a page, randomness is obtained by asking, so the whole grant is one endpoint that names
 /// no device.
 const ENTROPY_SLOT: u64 = 6;
+
+/// **Which entropy backend a std program's `SystemRng` is served from.** The program cannot tell:
+/// its slot 6 names an endpoint either way (DECISIONS §44), which is why this is a spawner's choice
+/// and not the PAL's.
+///
+/// `x86_64` takes `RDSEED` (milestone 162's instruction backend) because its runner attaches no
+/// virtio-rng at all (`scripts/qemu-runner-x86_64.sh`: "no NIC, no GPU, no RNG") and the suite's
+/// `-cpu max` implements the instruction. The other two keep the virtio-mmio device their legs have
+/// always attached. Milestone 184 made this a per-architecture constant; before it, `x86_64` never
+/// reached this function because it had no std program to spawn.
+#[cfg(target_arch = "x86_64")]
+const STD_ENTROPY_BUS: entropy_service::Bus = entropy_service::Bus::Instruction;
+#[cfg(not(target_arch = "x86_64"))]
+const STD_ENTROPY_BUS: entropy_service::Bus = entropy_service::Bus::Mmio;
 
 /// The heap high-water for the demo's Vec/String/HashMap workout plus std's own runtime
 /// allocations and the heap's page tables is well under 1 MiB; 256 pages is comfortable, and
@@ -83,8 +99,8 @@ pub fn start_on(
     // The entropy service, wired once per boot and shared with the milestone-56 tests. Its
     // request endpoint is the whole of a std program's randomness authority: `SystemRng` is a
     // `CALL` on it, and nothing about it reaches the device (DECISIONS §44).
-    let entropy = entropy_service::ensure(entropy_image, entropy_service::Bus::Mmio)
-        .expect("no virtio-rng device for the std program (is NIFE_RNG set on this leg?)");
+    let entropy = entropy_service::ensure(entropy_image, STD_ENTROPY_BUS)
+        .expect("no entropy source for the std program (a virtio-rng device on aarch64/riscv64, is NIFE_RNG set on this leg? RDSEED on x86_64)");
     if let Some(ready) = entropy.ready {
         let report = crate::sched::ipc_recv(ready);
         assert_eq!(

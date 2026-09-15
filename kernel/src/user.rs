@@ -2877,9 +2877,9 @@ pub mod std_service;
 mod std_tests;
 
 /// **Unmodified `ripgrep` from crates.io** (milestone 121), which skips unless somebody ran
-/// `scripts/build-ripgrep.sh`. Both ISAs the `std` port ships on, per DECISIONS §19; x86_64 has no
-/// `std` at all until milestone 184, so it has no `ripgrep` either.
-#[cfg(all(test, initrd, any(target_arch = "aarch64", target_arch = "riscv64")))]
+/// `scripts/build-ripgrep.sh`. Every ISA the `std` port ships on, per DECISIONS §19, which is all
+/// three since milestone 184 built `x86_64-unknown-nife`.
+#[cfg(all(test, initrd))]
 mod ripgrep_tests;
 
 /// **Capability delegation: authority moves between processes at runtime.**

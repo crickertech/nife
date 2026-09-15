@@ -260,7 +260,11 @@ fn user() -> bool {
 
 /// The custom-target triples the std demo builds for, one per supported ISA. The name is the
 /// JSON spec's file stem, which is also cargo's target-dir subdirectory.
-const STD_TARGETS: [&str; 2] = ["aarch64-unknown-nife", "riscv64-unknown-nife"];
+const STD_TARGETS: [&str; 3] = [
+    "aarch64-unknown-nife",
+    "riscv64-unknown-nife",
+    "x86_64-unknown-nife",
+];
 
 /// The linked toolchain name (`rustup toolchain link`) whose rust-src carries the nife PAL.
 const NIFE_TOOLCHAIN: &str = "nife-dev";
@@ -342,6 +346,10 @@ fn std_inputs_stamp() -> u64 {
         root.join("crates/environment_protocol/src/lib.rs"),
         root.join("targets/aarch64-unknown-nife.json"),
         root.join("targets/riscv64-unknown-nife.json"),
+        root.join("targets/x86_64-unknown-nife.json"),
+        // The x86_64 timebase page (milestone 184): `rt::cntfrq` reads it on that architecture, and
+        // its layout is generated verbatim into the PAL like every contract above.
+        root.join("crates/counter_frequency_protocol/src/lib.rs"),
     ];
     collect_files(&root.join("patches/std-nife/overlay"), &mut files);
     files.sort();
@@ -646,6 +654,14 @@ fn std_generate_modules() -> bool {
             root.join("crates/byte_sink_protocol/src/lib.rs"),
             farm_std_src().join("sys/pal/nife/sinkproto.rs"),
         ),
+        // The x86_64 timebase page (milestone 184), so `rt::cntfrq` reads the TSC's rate at the
+        // address and with the magic the kernel writes it with. Generated for every farm and
+        // compiled only on x86_64 (`sys/pal/nife/mod.rs` gates the module), because the farm is
+        // one source tree for all three targets.
+        (
+            root.join("crates/counter_frequency_protocol/src/lib.rs"),
+            farm_std_src().join("sys/pal/nife/counterfreqproto.rs"),
+        ),
     ];
     for (src, dst) in jobs {
         let Ok(text) = std::fs::read_to_string(&src) else {
@@ -840,7 +856,7 @@ fn std_patch_dispatch() -> bool {
     )
 }
 
-/// **Build the `std_exerciser` program for both custom targets** (milestone 27), via -Zbuild-std against
+/// **Build the `std_exerciser` program for every custom target** (milestone 27; `x86_64` since 184), via -Zbuild-std against
 /// the patched `nife-dev` toolchain. panic=abort and singlethread come from the target specs;
 /// `compiler-builtins-mem` supplies memcpy/memset for the bare target.
 ///
@@ -3792,11 +3808,9 @@ fn x86_initrd_path() -> String {
 ///
 /// # BUGS
 ///
-/// Three things both other archives carry are absent, and the third is a real toolchain failure
-/// rather than work not yet done.
-///
-/// **`std_exerciser`** needs an `x86_64-unknown-nife` custom target and a `std` PAL built through
-/// the `nife-dev` toolchain. Milestone 27's work, not this one's.
+/// Two things both other archives carry were absent when this was written, and the second was a
+/// real toolchain failure rather than work not yet done. (A third, `std_exerciser`, was packed at
+/// milestone 184, when `x86_64-unknown-nife` and its farm landed.)
 ///
 /// **No disk fixture is generated**, so even a packed `fs_server` would have nothing to open. The
 /// runner attaches no drive; attaching one is a smaller piece of work here than it looks (q35's
@@ -3866,6 +3880,19 @@ fn initrd_x86() -> bool {
     }
     if let Ok(bytes) = read_stripped(&mkfs_elf(X86_TARGET)) {
         blobs.push(("mkfs", bytes));
+    }
+    // The std demo (milestone 184), on the terms both other archives carry it: present iff
+    // `cargo xtask std-exerciser` built it for `x86_64-unknown-nife`, which `test` does first.
+    if let Ok(bytes) = read_stripped(
+        &std_exerciser_elf("x86_64-unknown-nife")
+            .display()
+            .to_string(),
+    ) {
+        blobs.push(("std_exerciser", bytes));
+    }
+    // **Unmodified `ripgrep`** (milestones 121 and 184), present iff `scripts/build-ripgrep.sh` ran.
+    if let Ok(bytes) = read_stripped(&ripgrep_elf("x86_64-unknown-nife").display().to_string()) {
+        blobs.push(("rg", bytes));
     }
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The measurement table (milestone 104), on the same terms as the other two: last, so it
@@ -6057,7 +6084,7 @@ fn test() -> bool {
         }
     }
 
-    // Build the std demo (milestone 27) for both custom targets first, so both initrds carry it:
+    // Build the std demo (milestone 27) for every custom target first, so every initrd carries it:
     // initrd_aarch64 (inside `user`) packs the aarch64 std_exerciser, initrd_riscv packs the riscv one. Outside
     // the leg guards below because BOTH legs need it, and the nifefs data disk with it: it is
     // arch-neutral, and the riscv leg reads it whether or not the aarch64 leg ran.
@@ -9056,12 +9083,15 @@ fn read_stripped(path: &str) -> std::io::Result<Vec<u8>> {
     // 121). `std_exerciser` is built for both and lands here under one name; `rg` now is as well.
     // Sequentially that is harmless, because each call writes the file it then reads, but it is
     // the same shape of latent bug the paragraph above describes and it costs one arm to close.
+    // A third `*-unknown-nife` arm joined at milestone 184, for the same reason as the second.
     let tag = if path.contains(RISCV_TARGET) {
         "riscv"
     } else if path.contains(X86_TARGET) {
         "x86"
     } else if path.contains("riscv64-unknown-nife") {
         "std-riscv"
+    } else if path.contains("x86_64-unknown-nife") {
+        "std-x86"
     } else if path.contains("nife") {
         "std"
     } else {
