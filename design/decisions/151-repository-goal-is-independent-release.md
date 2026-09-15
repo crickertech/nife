@@ -33,6 +33,35 @@ exists so `basalt` has something to assemble (milestone 198). Until then the sin
 all-architecture `script/test` is the credibility mechanism milestone 39 says a premature split would
 quietly break, so the strain has to justify the trade. That trade is a separate ruling.
 
+## The model is a Linux distribution, not a BSD (calef, 2026-09-15)
+
+**A BSD ships a base system**: kernel plus core userland as one cohesive tree, developed and released
+as a unit, with ports layered on top. There is a privileged base, and it *is* the OS. **A Linux
+distribution has no base tree**: the kernel is one upstream project on its own cadence, every userland
+piece is a separately-versioned upstream, and the distribution is an integrator that packages those
+independent pieces together with glue and a package manager, owning none of them.
+
+nife is the second. Three consequences that are the point of naming it rather than a stylistic note:
+
+- **The kernel is one independently-released component, not a privileged base.** From the
+  distribution's view it is packaged like any other piece. This is why independent release (above) is
+  the property that matters and not "the base tree stays coherent": there is no base tree to keep
+  coherent.
+- **`basalt` is the distribution, not a base manifest.** It packages the kernel, the components, and
+  the system glue, the way Debian assembles Linux plus a userland it did not write. It is an
+  integrator and an assembly step, which is exactly milestone 39's packaging observation (the program
+  manifest plus measured-boot hashing are three quarters of a package format already). It is **not**
+  a pinned manifest over a base system that a BSD-shaped reading of milestone 39's "distribution as a
+  manifest repo" recommendation would suggest.
+- **Third-party programs are first-class, not ports on top of a base.** A program an outside author
+  writes is the same kind of thing as one this project wrote; the distribution packages both. That is
+  the Linux-distribution posture and it is what "third-party programs is the goal" means structurally.
+
+**What this does not change** is the near-term path. Develop in one repository now (milestone 39's
+option B) and reach the split when the seams exist; the *target model* being a distribution rather
+than a base system does not force the split earlier. It corrects the mental model of the endpoint,
+and with it the maintainer's earlier BSD-leaning comparison, not the sequencing.
+
 ## What is unblocked
 
 - **Milestone 39** can move from RECORDED to a direction: its option C is the stated destination,
