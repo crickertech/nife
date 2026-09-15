@@ -13,12 +13,16 @@
 //! 8-byte messages, and the CALL's rendezvous is the flow control that keeps a fast sender from
 //! outrunning the discipline.
 //!
-//! Its whole authority: WRITE on the terminal endpoint (slot 0), the RX interrupt capability
-//! (slot 1), and the UART registers mapped device-typed. It cannot print, spawn, or read what
-//! anyone else typed. No role selector; the syscall runtime comes from `user_mode_runtime`.
+//! Its whole authority: WRITE on the terminal endpoint (slot 0), and the device the machine gives
+//! it. On aarch64/riscv64 that is the RX interrupt capability (slot 1) plus the UART registers
+//! mapped device-typed; **on x86 (milestone 299) it is a `PortRange` capability for COM1's ports**,
+//! polled rather than waited on, because COM1's receive line is not yet routed to a userspace waiter
+//! there. It cannot print, spawn, or read what anyone else typed. No role selector; the syscall
+//! runtime comes from `user_mode_runtime`.
 //!
-//! The one arch-specific thing is the UART register layout, in the `uart` module below
-//! (aarch64 PL011, RISC-V NS16550).
+//! The arch-specific parts are the UART register layout and how a byte's arrival is learned, in the
+//! `uart` module and the two `_start` arms below (aarch64 PL011, RISC-V NS16550, both
+//! interrupt-driven; x86 16550 by port I/O, polled).
 //!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
 //! right.

@@ -426,9 +426,10 @@ pub fn revoke_installed_port_grant(base: u16, count: u16) {
 /// port yet; see `user::x86_programs`). So the number this produces is the cost of an 8 KiB
 /// per-CPU memory write on the switch path, not a proof that the bitmap enforces anything; that
 /// second half is option 1's real implementation, out of scope here (`design/decisions/121-port-io-capability.md`).
-#[cfg(feature = "bench")]
-const IOMAP_BYTES: usize = 65536 / 8;
-
+///
+/// (Milestone 299 built that real implementation; this bench's naive always-write stays as the
+/// upper-bound baseline the lazy `tss_iomap_lazy_switch`/`tss_iomap_lazy_nop` read against. It reuses
+/// the production [`IOMAP_BYTES`] rather than redefining it.)
 #[cfg(feature = "bench")]
 #[repr(C, align(8))]
 struct BenchIoBitmap([u8; IOMAP_BYTES]);

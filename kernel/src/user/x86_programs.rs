@@ -56,6 +56,8 @@ macro_rules! packer {
 packer!(pack_1, 4, 1);
 packer!(pack_2, 8, 2);
 packer!(pack_8, 32, 8);
+packer!(pack_9, 36, 9);
+packer!(pack_16, 64, 16);
 
 /// `0x90`, the one-byte `nop`. Programs are padded up to a word boundary with it rather than with
 /// zero, because `00 00` is `add [rax], al` and would fault rather than fall off the end quietly.
@@ -133,6 +135,116 @@ pub const fn report(word: u32) -> [u32; 8] {
         0xB8, ext[0], ext[1], ext[2], ext[3], // mov eax, SYS_EXIT
         0x0F, 0x05, // syscall
         NOP, NOP, NOP,
+    ])
+}
+
+/// **A child that writes one byte to an I/O port, then SENDs a word and exits** (milestone 299).
+/// The port-capability twin of [`report`]: it prefixes the report with `out dx, al`, so whether the
+/// word arrives is the test of whether ring 3 was allowed the port. A holder of the `PortRange`
+/// capability naming `port` reports `word`; a non-holder takes a general protection fault on the
+/// `out` and its supervisor sees `EVENT_FAULT` instead of the word.
+///
+/// The `out` is the third instruction (`mov dx` then `mov al` set up its operands), at
+/// [`PORT_OUT_PC_OFFSET`] past the entry. `mov dx, port` is the 16-bit-operand form (`66` prefix); the
+/// `report` tail that follows is byte-for-byte [`report`], including its own `mov edx, word`, which
+/// harmlessly overwrites `dx` after the `out` has used it.
+///
+/// ```text
+///   66 ba xx xx       mov dx, port     (16-bit immediate)
+///   b0 xx             mov al, val
+///   ee                out dx, al       (#GP here if this thread holds no PortRange for `port`)
+///   ...               <report(word)>   (SEND the word on slot 0, then SYS_EXIT)
+/// ```
+pub const fn port_out(port: u16, val: u8, word: u32) -> [u32; 9] {
+    const {
+        assert!(
+            abi::rendezvous::SEND == 0,
+            "the `xor esi, esi` in this program encodes SEND as zero"
+        );
+    }
+    let p = port.to_le_bytes();
+    let w = word.to_le_bytes();
+    let inv = (abi::SYS_INVOKE as u32).to_le_bytes();
+    let ext = (abi::SYS_EXIT as u32).to_le_bytes();
+    pack_9([
+        0x66, 0xBA, p[0], p[1], // mov dx, port
+        0xB0, val,  // mov al, val
+        0xEE, // out dx, al
+        0x31, 0xFF, // xor edi, edi      (slot 0)
+        0x31, 0xF6, // xor esi, esi      (SEND)
+        0xBA, w[0], w[1], w[2], w[3], // mov edx, word
+        0x45, 0x31, 0xD2, // xor r10d, r10d
+        0x45, 0x31, 0xC0, // xor r8d, r8d
+        0xB8, inv[0], inv[1], inv[2], inv[3], // mov eax, SYS_INVOKE
+        0x0F, 0x05, // syscall (SEND)
+        0xB8, ext[0], ext[1], ext[2], ext[3], // mov eax, SYS_EXIT
+        0x0F, 0x05, // syscall (exit)
+    ])
+}
+
+/// The faulting pc offset for [`port_out`]: `mov dx, port` (`66 BA` + imm16, 4 bytes) and
+/// `mov al, val` (`B0` + imm8, 2 bytes) precede the `out`, so a fault on it is reported six bytes
+/// past the entry.
+#[cfg(all(test, target_arch = "x86_64"))]
+pub const PORT_OUT_PC_OFFSET: u64 = 6;
+
+/// **A child that blocks in RECV on slot 1, then writes a byte to a port, then reports and exits**
+/// (milestone 299). The revocation fixture: a holder of the `PortRange` capability naming `port`
+/// parks in RECV, and while it is parked the test revokes the range and wakes it; the `out` it then
+/// executes takes a general protection fault, so its supervisor sees `EVENT_FAULT` and the `word`
+/// never arrives. The RECV is what lets the test choose the instant between "holds the port" and
+/// "does the `out`" to revoke, so the fault is the revocation's doing and not a race.
+///
+/// `RECV` reuses [`invoke_then_exit`]'s exact encoding through slot 1; the `out` and `report` tail
+/// are [`port_out`]'s. The `out` is the instruction after the RECV `syscall`, at
+/// [`RECV_THEN_PORT_OUT_PC_OFFSET`] past the entry.
+///
+/// ```text
+///   bf 01 00 00 00    mov edi, 1        (slot 1)
+///   be xx xx xx xx    mov esi, RECV
+///   31 d2             xor edx, edx
+///   45 31 d2          xor r10d, r10d
+///   45 31 c0          xor r8d, r8d
+///   b8 xx xx xx xx    mov eax, SYS_INVOKE
+///   0f 05             syscall           (RECV: blocks until the test wakes it)
+///   66 ba xx xx       mov dx, port
+///   b0 xx             mov al, val
+///   ee                out dx, al        (#GP here once the port has been revoked)
+///   ...               <report(word)>    (unreached after a fault)
+/// ```
+pub const fn recv_then_port_out(port: u16, val: u8, word: u32) -> [u32; 16] {
+    const {
+        assert!(
+            abi::rendezvous::SEND == 0,
+            "the `xor esi, esi` in this program encodes SEND as zero"
+        );
+    }
+    let p = port.to_le_bytes();
+    let w = word.to_le_bytes();
+    let rcv = (abi::rendezvous::RECV as u32).to_le_bytes();
+    let inv = (abi::SYS_INVOKE as u32).to_le_bytes();
+    let ext = (abi::SYS_EXIT as u32).to_le_bytes();
+    pack_16([
+        0xBF, 0x01, 0x00, 0x00, 0x00, // mov edi, 1        (slot 1)
+        0xBE, rcv[0], rcv[1], rcv[2], rcv[3], // mov esi, RECV
+        0x31, 0xD2, // xor edx, edx
+        0x45, 0x31, 0xD2, // xor r10d, r10d
+        0x45, 0x31, 0xC0, // xor r8d, r8d
+        0xB8, inv[0], inv[1], inv[2], inv[3], // mov eax, SYS_INVOKE
+        0x0F, 0x05, // syscall (RECV)
+        0x66, 0xBA, p[0], p[1], // mov dx, port
+        0xB0, val,  // mov al, val
+        0xEE, // out dx, al
+        0x31, 0xFF, // xor edi, edi      (slot 0)
+        0x31, 0xF6, // xor esi, esi      (SEND)
+        0xBA, w[0], w[1], w[2], w[3], // mov edx, word
+        0x45, 0x31, 0xD2, // xor r10d, r10d
+        0x45, 0x31, 0xC0, // xor r8d, r8d
+        0xB8, inv[0], inv[1], inv[2], inv[3], // mov eax, SYS_INVOKE
+        0x0F, 0x05, // syscall (SEND)
+        0xB8, ext[0], ext[1], ext[2], ext[3], // mov eax, SYS_EXIT
+        0x0F, 0x05, // syscall (exit)
+        NOP, NOP, NOP, // pad 61 -> 64 (16 words)
     ])
 }
 

@@ -3217,6 +3217,13 @@ mod measured_boot_tests;
 #[cfg(test)]
 mod supervision_tests;
 
+/// The two load-bearing tests of the x86 port-range capability (milestone 299): a non-holder faults
+/// on `out` (and a holder's grant does not leak across the switch to it), and a revoked holder faults
+/// on its next `out`. `x86_64` only, because the mechanism is the TSS I/O permission bitmap, which
+/// the other two architectures have no counterpart to.
+#[cfg(all(test, target_arch = "x86_64"))]
+mod x86_port_tests;
+
 /// **A supervisor may collect a corpse without being able to build one** (DECISIONS §32,
 /// `rendezvous::REAP`). Cross-ISA, because the authorization check is architecture-neutral: it reads
 /// two fields of a TCB and compares two generational names, so a divergence here would mean
