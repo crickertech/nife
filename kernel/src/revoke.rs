@@ -612,6 +612,26 @@ pub fn revoke_device_from_others(phys: u64) {
     unmap_everywhere(phys, mmu::current_user_root());
 }
 
+/// **Take an x86 port range back from every other thread** (milestone 299, DECISIONS §121 reversed
+/// 2026-09-15). The port analogue of [`revoke_device_from_others`]: a port range has no page to
+/// unmap, so revocation is entirely capability deletion plus forgetting the cached grant, which
+/// [`crate::sched::delete_port_range_caps_from_others`] does, and the TSS reset it triggers is what
+/// makes the revoked holder fault on its next `in`/`out`. This is `PortRange::REVOKE`'s body. Enforced
+/// only on `x86_64`; on the other architectures no `PortRange` capability is ever minted, so the walk
+/// finds nothing (the object exists on the surface for a uniform dispatch, see [`crate::cap::Object`]).
+pub fn revoke_port_range_from_others(base: u16, count: u16) {
+    crate::sched::delete_port_range_caps_from_others(base, count);
+}
+
+/// **Take an x86 port range back from everyone.** The whole-machine sweep [`revoke_page_frame`] is
+/// to a frame: it deletes the capability from the invoker too, which no live-replacement path wants
+/// but the kernel's own port-capability tests do (they grant a range to a child, prove it can `out`,
+/// revoke, and prove it faults). Test-only, like its frame twin.
+#[cfg_attr(not(all(target_arch = "x86_64", test, initrd)), allow(dead_code))]
+pub fn revoke_port_range(base: u16, count: u16) {
+    crate::sched::delete_port_range_caps(base, count);
+}
+
 /// Revoke every page in `[base, base + size)`. `memory_region::destroy` calls this before
 /// returning a region to the allocator, which is what turns the old "spend-only, never reused"
 /// invariant into the stronger "no live mapping survives" one that makes reuse actually safe.

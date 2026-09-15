@@ -449,6 +449,20 @@ pub(crate) fn invoke(
             }
             _ => Err(Error::BadMethod),
         },
+
+        // A port range is enforced at the context switch (the TSS I/O bitmap), so like a
+        // `DeviceFrame` it is almost passive on the syscall path: it answers exactly one invocation,
+        // `REVOKE`, the take-back a live driver replacement needs (DECISIONS §121, milestone 299).
+        Object::PortRange(base, count) => match method {
+            abi::port_range::REVOKE => {
+                if !cap.rights.allows(Rights::GRANT) {
+                    return Err(Error::NotPermitted);
+                }
+                crate::revoke::revoke_port_range_from_others(base, count);
+                Ok(0)
+            }
+            _ => Err(Error::BadMethod),
+        },
     }
 }
 

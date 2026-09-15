@@ -45,12 +45,41 @@ const TSS_SELECTOR: u16 = 0x28;
 /// switch stacks", so slot 1 is `TSS.ist[0]`.
 pub const IST_DOUBLE_FAULT: u8 = 1;
 
-/// A 64-bit Task State Segment.
+/// The x86 I/O port space is 16 bits (`in`/`out` address exactly 64 Ki ports), one bit of "may this
+/// ring-3 thread touch this port" each, so a full permission bitmap is `65536 / 8 == 8192` bytes.
+const IOMAP_BYTES: usize = 65536 / 8;
+
+/// One trailing guard byte, set to all ones, because the CPU may read **two** bytes of the bitmap
+/// when it checks the highest port and a bitmap that ended exactly at the limit would read one byte
+/// past it. Linux appends the same byte for the same reason. The `Tss` descriptor's limit covers it.
+const IOMAP_GUARD: usize = 1;
+
+/// Offset, in bytes from the base of a [`Tss`], to its I/O permission bitmap. This is the value
+/// [`Tss::iomap_base`] holds while a thread that owns ports is running: everything up to it is the
+/// fixed 104-byte TSS, and the bitmap follows.
+const IOMAP_OFFSET: u16 = 104;
+
+/// What [`Tss::iomap_base`] holds while **no** thread with a port capability is running: a value
+/// past the descriptor's limit, which the CPU reads as "there is no bitmap", so every `in`/`out`
+/// from ring 3 faults. This is the lazy form DECISIONS §121 named (2026-08-25, binding here): a
+/// thread that holds no port capability switches with `iomap_base` pointing past the segment limit,
+/// and the bitmap is written into the TSS only when a holder is on a side of the switch. `0xFFFF`
+/// is past the limit for any TSS this kernel builds (the descriptor limit is `size_of::<Tss>() - 1`,
+/// far below 64 Ki).
+const IOMAP_BASE_DENY_ALL: u16 = 0xFFFF;
+
+/// A 64-bit Task State Segment, with its I/O permission bitmap.
 ///
 /// Almost every field of the 32-bit TSS is gone in long mode; what remains is three ring stacks,
-/// seven interrupt stacks, and the I/O permission bitmap offset. `#[repr(C, packed)]` because the
-/// layout is the CPU's, not Rust's, and the reserved words are load-bearing padding rather than
-/// slack.
+/// seven interrupt stacks, the I/O permission bitmap offset, and the bitmap itself. `#[repr(C,
+/// packed)]` because the layout is the CPU's, not Rust's, and the reserved words are load-bearing
+/// padding rather than slack.
+///
+/// **The bitmap lives inside the TSS on purpose** (milestone 299): `iomap_base` is an offset *from
+/// the TSS base*, and the CPU reads the bitmap out of the same segment, so the permission bits have
+/// to be contiguous with the rest of the structure rather than a separate allocation. One per core,
+/// like the rest of the TSS, so two cores never share the bits that say what ports the thread on
+/// each may reach.
 #[repr(C, packed)]
 struct Tss {
     _reserved0: u32,
@@ -65,10 +94,16 @@ struct Tss {
     ist: [u64; 7],
     _reserved2: u64,
     _reserved3: u16,
-    /// Offset from the base of this TSS to the I/O permission bitmap. Set past the end of the
-    /// structure, which means "no ports are permitted to ring 3", the only correct answer while no
-    /// program has been granted one. See `port.rs` for why this is where such a grant would go.
+    /// Offset from the base of this TSS to the I/O permission bitmap ([`IOMAP_OFFSET`]) while a
+    /// thread that owns ports runs, or [`IOMAP_BASE_DENY_ALL`] (past the limit, "no bitmap") while
+    /// none does. [`set_port_grant`] is the only writer after boot; the initial value denies all,
+    /// the only correct answer while no program has been granted a port. See DECISIONS §121.
     iomap_base: u16,
+    /// The permission bitmap plus its guard byte. A **set** bit denies the port to ring 3; a
+    /// **clear** bit permits it. The invariant [`set_port_grant`] maintains is that this is entirely
+    /// ones (all denied) whenever no port grant is installed on this core, so installing one is a
+    /// matter of clearing the grant's own bits and uninstalling is setting them back.
+    iomap: [u8; IOMAP_BYTES + IOMAP_GUARD],
 }
 
 impl Tss {
@@ -82,13 +117,17 @@ impl Tss {
             ist: [0; 7],
             _reserved2: 0,
             _reserved3: 0,
-            // sizeof(Tss) == 104. Anything >= the limit in the descriptor means "empty bitmap".
-            iomap_base: 104,
+            // No holder at boot: no bitmap is consulted. The bitmap below is still all-ones so the
+            // "all denied when nothing is installed" invariant holds the instant a holder installs.
+            iomap_base: IOMAP_BASE_DENY_ALL,
+            iomap: [0xFF; IOMAP_BYTES + IOMAP_GUARD],
         }
     }
 }
 
-const _: () = assert!(size_of::<Tss>() == 104);
+const _: () = assert!(size_of::<Tss>() == 104 + IOMAP_BYTES + IOMAP_GUARD);
+// `IOMAP_OFFSET` is the byte offset of the bitmap; the fixed part of a 64-bit TSS is 104 bytes.
+const _: () = assert!(core::mem::offset_of!(Tss, iomap) == IOMAP_OFFSET as usize);
 
 /// **One TSS per core** (milestone 161's SMP item, fixing exactly the limitation this static's own
 /// doc used to name: "every core needs its own, since `rsp0` names a per-core stack"). Indexed by
@@ -266,6 +305,104 @@ pub unsafe fn set_interrupt_stack(slot: u8, top: u64) {
             .cast::<u64>()
             .add(slot as usize - 1)
             .write_unaligned(top);
+    }
+}
+
+/// **Which port grant is installed in this core's TSS bitmap right now**, or `None` for the
+/// overwhelming majority of cores that never run a port-holding thread. Indexed by `cpu::id()`, the
+/// same per-core discipline the TSS and GDT arrays use.
+///
+/// This is the state that makes the switch cheap: [`set_port_grant`] compares the incoming thread's
+/// grant against it and does nothing when they match, which is every switch on a core where nothing
+/// holds a port (both sides `None`) and every switch that keeps the same holder running.
+static mut INSTALLED_PORT_GRANT: [Option<(u16, u16)>; crate::cpu::MAX_CPUS] =
+    [None; crate::cpu::MAX_CPUS];
+
+/// Set every bit of ports `[base, base + count)` in `iomap` to `deny` (`true` = the port faults from
+/// ring 3, `false` = the port is permitted). A port's bit is bit `port % 8` of byte `port / 8`. The
+/// range is clamped to the real bitmap so a grant near the top of the port space cannot touch the
+/// guard byte or run off the end; `count == 0` writes nothing.
+fn write_range_bits(
+    iomap: &mut [u8; IOMAP_BYTES + IOMAP_GUARD],
+    base: u16,
+    count: u16,
+    deny: bool,
+) {
+    for port in (base as usize)..(base as usize + count as usize).min(IOMAP_BYTES * 8) {
+        let bit = 1u8 << (port % 8);
+        if deny {
+            iomap[port / 8] |= bit;
+        } else {
+            iomap[port / 8] &= !bit;
+        }
+    }
+}
+
+/// **Install a thread's port grant into this core's TSS, the lazy way** (milestone 299, DECISIONS
+/// §121 reversed 2026-09-15). `sched::schedule` calls this on switch-in with the incoming thread's
+/// `(base, count)` grant, or `None` if it holds no port capability.
+///
+/// The cost this pays, and the cost it does not, are the whole design:
+///
+/// - **When the grant is unchanged, it returns after one comparison.** Both sides `None` (a switch
+///   between two ordinary threads, which is nearly every switch on nearly every machine) costs a
+///   load and a branch and writes nothing. This is what makes the enforcement free for the threads
+///   that do not use it, the property §121's 2026-08-25 refinement said the naive always-write
+///   (~2,682 ns/switch) threw away.
+/// - **When it changes, it writes only the bits that move**, not the whole 8 KiB bitmap: it re-denies
+///   the outgoing holder's range (restoring the all-ones invariant for those bytes) and permits the
+///   incoming holder's, then points `iomap_base` at the bitmap (a holder is on the CPU) or past the
+///   limit (none is). For a 16550's eight ports that is one byte plus the `iomap_base` word.
+///
+/// No `ltr` re-issue is needed: the CPU reads `iomap_base` and the bitmap out of the TSS in memory
+/// on each `in`/`out`, so writing them takes effect on the next port access. The caller runs with
+/// interrupts masked (it is on the switch path), and this touches only this core's own TSS, so the
+/// writes cannot race a port access on this core or a TSS write on another.
+pub fn set_port_grant(grant: Option<(u16, u16)>) {
+    let id = crate::cpu::id();
+    // SAFETY: this core's own slot, read and written only here and only with interrupts masked on
+    // the switch path; a different core touches a different index.
+    let installed = unsafe { INSTALLED_PORT_GRANT[id] };
+    if installed == grant {
+        return;
+    }
+    // SAFETY: this core's own TSS, indexed by its own `cpu::id()`. The CPU reads it only on a
+    // ring-3 `in`/`out`, which cannot happen while this runs with interrupts masked on this core.
+    // A reference to a field of a `packed` struct would be misaligned, so the writes go through a
+    // raw pointer to the whole `iomap` array (which is `align(1)` bytes anyway).
+    let iomap: &mut [u8; IOMAP_BYTES + IOMAP_GUARD] = unsafe { &mut *(&raw mut TSS[id].iomap) };
+    if let Some((base, count)) = installed {
+        write_range_bits(iomap, base, count, true); // restore the outgoing holder's deny bits
+    }
+    let base_value = match grant {
+        Some((base, count)) => {
+            write_range_bits(iomap, base, count, false); // permit the incoming holder's ports
+            IOMAP_OFFSET
+        }
+        None => IOMAP_BASE_DENY_ALL,
+    };
+    // SAFETY: as above; `iomap_base` is a `u16` in the same packed TSS, written through a raw
+    // pointer because a reference to a packed field would be misaligned.
+    unsafe { (&raw mut TSS[id].iomap_base).write_unaligned(base_value) };
+    // SAFETY: this core's own slot.
+    unsafe { INSTALLED_PORT_GRANT[id] = grant };
+}
+
+/// **Reset this core's TSS if it currently grants exactly `(base, count)`** (milestone 299): the
+/// core-local half of revocation. If the running thread's installed grant is the range being
+/// revoked, re-deny its bits and point `iomap_base` past the limit, so a port access faults even
+/// before the next context switch. If a different grant (or none) is installed, this does nothing.
+///
+/// On a single-core x86 this is a belt-and-suspenders check: the switch away from a holder already
+/// uninstalls its grant, so the revoker running here means the revoked grant is not installed. It is
+/// written anyway because it is what a future SMP x86 would run **on each core** in response to a
+/// shootdown IPI, the same shape as the TLB shootdown, and getting the core-local step right now is
+/// what makes that generalization a broadcast rather than a redesign.
+pub fn revoke_installed_port_grant(base: u16, count: u16) {
+    let id = crate::cpu::id();
+    // SAFETY: this core's own slot; see `set_port_grant`.
+    if unsafe { INSTALLED_PORT_GRANT[id] } == Some((base, count)) {
+        set_port_grant(None);
     }
 }
 

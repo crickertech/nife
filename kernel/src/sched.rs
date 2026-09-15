@@ -1793,6 +1793,35 @@ fn install_cycle_counter_grant(granted: bool) {
 #[cfg(not(any(test, feature = "cycle_counter_grant")))]
 fn install_cycle_counter_grant(_granted: bool) {}
 
+/// **The incoming thread's x86 port grant** (milestone 299), read under the lock beside its
+/// address-space root and its cycle-counter grant, for the same reason: it is a per-thread fact the
+/// context switch installs on the core about to run the thread. `None` on every architecture without
+/// a port space, where the constant folds through the switch tuple and leaves nothing behind (the
+/// `cycle_counter_grant_of` twin's own argument).
+#[cfg(target_arch = "x86_64")]
+fn port_grant_of(t: &crate::thread::Thread) -> Option<(u16, u16)> {
+    t.port_grant
+}
+
+/// No port space, so no thread has a port grant. See the twin above.
+#[cfg(not(target_arch = "x86_64"))]
+fn port_grant_of(_t: &crate::thread::Thread) -> Option<(u16, u16)> {
+    None
+}
+
+/// Install the incoming thread's port grant into the core about to run it, immediately after its
+/// address-space root and cycle-counter grant. The lazy write lives in `arch::segments`; this is a
+/// no-op on the architectures with no TSS and no port space (`x86_64` is the only one), where the
+/// call and its argument fold away.
+#[cfg(target_arch = "x86_64")]
+fn install_port_grant(grant: Option<(u16, u16)>) {
+    crate::arch::segments::set_port_grant(grant);
+}
+
+/// No port space to enforce, so the switch installs nothing. See the twin above.
+#[cfg(not(target_arch = "x86_64"))]
+fn install_port_grant(_grant: Option<(u16, u16)>) {}
+
 /// Pick another thread and go there.
 ///
 /// May be called from normal context (a voluntary `yield_now`) or from the tail of the timer
@@ -1973,18 +2002,29 @@ pub fn schedule() {
         // together. See `cycle_counter_grant_of`.
         let next_cycle_counter = cycle_counter_grant_of(sched.threads.get(next).unwrap());
 
+        // The incoming thread's x86 port grant (milestone 299), read here for the same reason as the
+        // root and the cycle-counter grant: this is the last point the lock is held. `None` on every
+        // other architecture, where it folds away through the tuple like `next_cycle_counter`.
+        let next_port_grant = port_grant_of(sched.threads.get(next).unwrap());
+
         // Copy the two raw pointers out before the lock drops. The assembly writes through the
         // first and reads the second, and both threads' `Box`es keep their contents pinned.
         let prev_slot: *mut *mut Context = &mut sched.threads.get_mut(current).unwrap().context;
         let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
 
-        Some((prev_slot, next_ctx, next_root, next_cycle_counter))
+        Some((
+            prev_slot,
+            next_ctx,
+            next_root,
+            next_cycle_counter,
+            next_port_grant,
+        ))
     };
     // Rule 1: THE LOCK IS RELEASED HERE, before the switch. Holding it across `switch_to` would
     // leave it held by a thread that is not running, and the next thread to want it would spin
     // forever waiting for a thread that can only be scheduled by taking the lock.
 
-    if let Some((prev_slot, next_ctx, next_root, next_cycle_counter)) = switch {
+    if let Some((prev_slot, next_ctx, next_root, next_cycle_counter, next_port_grant)) = switch {
         // Install the incoming thread's address space FIRST. `TTBR0_EL1` is one register, shared
         // by everybody, and a thread that resumes at EL0 in the previous thread's low half is
         // running a stranger's code. (No-ops, including no TLB flush, when the root is already
@@ -2008,6 +2048,11 @@ pub fn schedule() {
         // `install_cycle_counter_grant` below for why this call is still written here in a build
         // that has no grant to install.
         install_cycle_counter_grant(next_cycle_counter);
+
+        // And the incoming thread's authority to reach x86 I/O ports from ring 3, the same shape of
+        // per-core, one-register fact: the TSS I/O-bitmap grant the lazy write installs only when it
+        // crosses a holder. `None` folds this to nothing on every architecture but `x86_64`.
+        install_port_grant(next_port_grant);
 
         // SAFETY: both pointers name live `Context`s owned by boxed `Thread`s in the map, and
         // interrupts are masked so nothing can reorder underneath us.
@@ -3085,6 +3130,64 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
     }
 }
 
+/// **Take a port range back from every other thread** (milestone 299): delete every
+/// `PortRange(base, count)` capability from every table but the caller's, and forget the cached
+/// grant on each affected thread so the next context switch to it installs no bitmap and it faults
+/// on its next `in`/`out`. The invoker keeps its own, the same take-back asymmetry
+/// [`delete_device_frame_caps_from_others`] has and for the same reason (the kernel mints a port
+/// capability once, at boot). This is `PortRange::REVOKE`'s body.
+pub fn delete_port_range_caps_from_others(base: u16, count: u16) {
+    delete_port_range_caps_impl(base, count, Some(current_thread_id()));
+}
+
+/// **Take a port range back from everyone**, the invoker included. The whole-machine revoke the
+/// kernel's own tests use to prove a holder faults after its capability is gone (mirroring
+/// [`crate::revoke::revoke_page_frame`]'s test-only whole-machine sweep); no syscall reaches it,
+/// because a live driver replacement wants the sparing variant above.
+#[cfg_attr(not(all(target_arch = "x86_64", any(test, initrd))), allow(dead_code))]
+pub fn delete_port_range_caps(base: u16, count: u16) {
+    delete_port_range_caps_impl(base, count, None);
+}
+
+/// The body of both: walk every thread, delete the matching capability, and clear the cached grant.
+/// `keeper` is spared (the take-back's invoker) or `None` (the whole-machine sweep).
+fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) {
+    {
+        let mut guard = IPC_TABLES.lock();
+        let Some(sched) = guard.as_mut() else {
+            return;
+        };
+        let target = crate::cap::Object::PortRange(base, count);
+        for t in sched.threads.iter_mut() {
+            if Some(t.id) == keeper {
+                continue;
+            }
+            for slot in 0..t.capability_table.len() as u64 {
+                if t.capability_table
+                    .get(slot)
+                    .is_ok_and(|c| c.object == target)
+                {
+                    let _ = t.capability_table.delete(slot);
+                }
+            }
+            // Forget the cached grant if it named the revoked range, so switching to this thread
+            // installs nothing. x86 only; the field exists nowhere else.
+            #[cfg(target_arch = "x86_64")]
+            if t.port_grant == Some((base, count)) {
+                t.port_grant = None;
+            }
+        }
+    }
+    // Reach the TSS of the core that might already hold the revoked bitmap. Today x86 runs one core
+    // (`smp::bring_up_secondaries` refuses on `x86_64`) and the revoker is on it, so this resets at
+    // most the current core; a stale grant on the running thread is impossible here because the
+    // switch away from it already uninstalled it. The call is the placeholder for the multi-core
+    // shootdown a future SMP x86 would broadcast by IPI (the shape §121 named), and a no-op on every
+    // architecture with no TSS.
+    #[cfg(target_arch = "x86_64")]
+    crate::arch::segments::revoke_installed_port_grant(base, count);
+}
+
 /// Remove a capability from the **current thread's** table. Used to consume a one-shot Reply
 /// capability the instant it is invoked (§12), which is what makes a second reply impossible.
 pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
@@ -3840,7 +3943,7 @@ pub fn thread_control_block_insert_cap(
     if t.handshake.state != State::Embryo {
         return Err(abi::Error::WrongObject);
     }
-    match target {
+    let landed = match target {
         None => t
             .capability_table
             .insert(cap)
@@ -3849,7 +3952,23 @@ pub fn thread_control_block_insert_cap(
             .capability_table
             .insert_at(slot, cap)
             .map_err(|_| abi::Error::OutOfMemory),
+    }?;
+    // **The one choke point where a port capability enters a thread** (milestone 299): the boot's
+    // own child builder and the progenitor's `ThreadControlBlock::CAP_INSERT` both endow an embryo
+    // through here, so caching the grant here is what makes the context switch's `port_grant_of`
+    // one field read instead of a capability-table scan. Set only on the `x86_64` build that
+    // enforces it, and only after the insert succeeded, so a full table leaves the grant untouched.
+    //
+    // A thread that is handed more than one port range keeps only the last, which every real
+    // consumer is well within (a console driver holds exactly one, for COM1); see this milestone's
+    // BUGS. A `PortRange` delegated to an *already running* thread by `SEND_CAP` is likewise not
+    // cached here, because no consumer does that and the enforcement is a creation-time grant, the
+    // same posture `cycle_counter_grant` takes.
+    #[cfg(target_arch = "x86_64")]
+    if let crate::cap::Object::PortRange(base, count) = cap.object {
+        t.port_grant = Some((base, count));
     }
+    Ok(landed)
 }
 
 /// **Start an embryo** (milestone 19c.3): the no-start-before-whole gate, then make it runnable.
