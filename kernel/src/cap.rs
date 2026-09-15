@@ -128,7 +128,7 @@ pub enum Object {
     /// that has no page: x86's legacy port-I/O hardware, reached only by `in`/`out`, which the MMU
     /// cannot grant or deny because there is no page table in front of the port space.
     ///
-    /// It is the honest analogue of [`DeviceFrame`]: `DeviceFrame` names a device's MMIO page and
+    /// It is the honest analogue of [`Object::DeviceFrame`]: `DeviceFrame` names a device's MMIO page and
     /// the MMU enforces it; `PortRange` names a device's ports and the **TSS I/O permission bitmap**
     /// enforces it. A thread that holds one may execute `in`/`out` on `[base, base + count)` from
     /// ring 3, and no other port; a thread that holds none may touch no port at all. The granularity
@@ -136,7 +136,7 @@ pub enum Object {
     ///
     /// **Enforced only on `x86_64`**, because the other two architectures have no port space and no
     /// TSS. The variant exists on every architecture so the capability surface and its syscall
-    /// dispatch are uniform (§19), the same way [`DeviceFrame`] does; it is constructed and enforced
+    /// dispatch are uniform (§19), the same way [`Object::DeviceFrame`] does; it is constructed and enforced
     /// only where the hardware it names exists. See `kernel/src/arch/x86_64/segments.rs` for the
     /// bitmap that carries the grant and `sched::schedule` for the lazy install on switch-in.
     ///

@@ -593,6 +593,12 @@ const LINE_EDITOR_MODE_DISPLAY: u64 = 1;
 
 // The VAs each program hardcodes; they must match console.rs / input.rs / line_editor.rs / swish.rs.
 const CON_SHARED_VA: u64 = 0x0060_0000; // console reads text here; line_editor writes it
+/// A child's capability grants and page mappings, the two slices a `ChildEndowment` takes as `caps`
+/// and `maps`. Named so the `x86_64`-vs-others split of the console and input endowments (a port
+/// capability held rather than a page mapped, milestone 299) is a one-line `let` per branch without
+/// clippy's type-complexity lint firing on the bare tuple. `'a` ties the slices to the `let`'s block.
+type EndowmentSlices<'a> = (&'a [(u64, u64)], &'a [(u64, u64, u64)]);
+
 // The two UART mappings are aarch64/riscv64 only: x86 holds COM1 as a port range, which has no page
 // to map (milestone 299), so on that architecture these VAs name nothing and the console/input
 // drivers hold the port capability instead.
@@ -1103,7 +1109,7 @@ pub fn boot(
         // the UART mapping is dropped. It lands in the child's slot 2; the console never invokes it
         // by slot (it executes `out` directly), it only has to hold it.
         #[cfg(not(target_arch = "x86_64"))]
-        let (con_caps, con_maps): (&[(u64, u64)], &[(u64, u64, u64)]) = (
+        let (con_caps, con_maps): EndowmentSlices = (
             &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
             &[
                 (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
@@ -1111,7 +1117,7 @@ pub fn boot(
             ],
         );
         #[cfg(target_arch = "x86_64")]
-        let (con_caps, con_maps): (&[(u64, u64)], &[(u64, u64, u64)]) = (
+        let (con_caps, con_maps): EndowmentSlices = (
             &[
                 (request, abi::rights::READ),
                 (reply, abi::rights::WRITE),
@@ -1226,7 +1232,7 @@ pub fn boot(
         // interrupt nor the UART mapping. It never invokes the port cap by slot; holding it is what
         // the TSS bitmap enforcement reads.
         #[cfg(not(target_arch = "x86_64"))]
-        let (in_caps, in_maps): (&[(u64, u64)], &[(u64, u64, u64)]) = (
+        let (in_caps, in_maps): EndowmentSlices = (
             &[
                 (term_ep, abi::rights::WRITE),
                 (g.uart_irq, abi::rights::READ),
@@ -1234,7 +1240,7 @@ pub fn boot(
             &[(IN_UART_VA, g.uart_dev, abi::address_space::MAP_RO)],
         );
         #[cfg(target_arch = "x86_64")]
-        let (in_caps, in_maps): (&[(u64, u64)], &[(u64, u64, u64)]) = (
+        let (in_caps, in_maps): EndowmentSlices = (
             &[
                 (term_ep, abi::rights::WRITE),
                 (g.uart_dev, abi::rights::WRITE), // COM1's port range, polled not waited on

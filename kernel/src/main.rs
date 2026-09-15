@@ -2204,8 +2204,8 @@ fn x86_hand_over() {
             "nife x86_64: the progenitor is running at ring 3; {faults} of the processes it built \
              stopped on purpose."
         );
-        // Milestone 299 (DECISIONS §121 reversed 2026-09-15): the console server and the input
-        // driver are userspace processes holding a `PortRange` capability for COM1's ports, so
+        // DECISIONS §121, reversed 2026-09-15, made the console server and the input driver
+        // userspace processes holding a `PortRange` capability for COM1's ports (milestone 299), so
         // `swish`'s prompt above was transmitted by an `out` from ring 3, not by the kernel. A
         // holdover from §121's kernel-console era printed a "no prompt" line here; the prompt is now
         // the last thing above this, and `faults` above is zero because the two device drivers no

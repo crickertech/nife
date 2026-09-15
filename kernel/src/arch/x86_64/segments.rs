@@ -322,18 +322,27 @@ static mut INSTALLED_PORT_GRANT: [Option<(u16, u16)>; crate::cpu::MAX_CPUS] =
 /// ring 3, `false` = the port is permitted). A port's bit is bit `port % 8` of byte `port / 8`. The
 /// range is clamped to the real bitmap so a grant near the top of the port space cannot touch the
 /// guard byte or run off the end; `count == 0` writes nothing.
-fn write_range_bits(
-    iomap: &mut [u8; IOMAP_BYTES + IOMAP_GUARD],
-    base: u16,
-    count: u16,
-    deny: bool,
-) {
+///
+/// `iomap` is a raw pointer to the bitmap's first byte rather than a `&mut [u8; _]`, because the
+/// array is a field of a `#[repr(C, packed)]` `static mut` and taking a reference into it is exactly
+/// the shape the rest of this file avoids; a pointer plus an in-bounds index is the honest form.
+///
+/// # Safety
+/// `iomap` must point at a live `[u8; IOMAP_BYTES + IOMAP_GUARD]` (a core's own TSS bitmap), and the
+/// caller must hold it exclusively (interrupts masked, this core's own slot). The index never
+/// reaches the guard byte, because it is clamped to `IOMAP_BYTES * 8` ports.
+unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
     for port in (base as usize)..(base as usize + count as usize).min(IOMAP_BYTES * 8) {
         let bit = 1u8 << (port % 8);
-        if deny {
-            iomap[port / 8] |= bit;
-        } else {
-            iomap[port / 8] &= !bit;
+        // SAFETY: `port / 8 < IOMAP_BYTES`, so this is inside the array `iomap` points at; the
+        // caller guarantees exclusive access to it.
+        unsafe {
+            let byte = iomap.add(port / 8);
+            if deny {
+                *byte |= bit;
+            } else {
+                *byte &= !bit;
+            }
         }
     }
 }
@@ -366,17 +375,19 @@ pub fn set_port_grant(grant: Option<(u16, u16)>) {
     if installed == grant {
         return;
     }
-    // SAFETY: this core's own TSS, indexed by its own `cpu::id()`. The CPU reads it only on a
-    // ring-3 `in`/`out`, which cannot happen while this runs with interrupts masked on this core.
-    // A reference to a field of a `packed` struct would be misaligned, so the writes go through a
-    // raw pointer to the whole `iomap` array (which is `align(1)` bytes anyway).
-    let iomap: &mut [u8; IOMAP_BYTES + IOMAP_GUARD] = unsafe { &mut *(&raw mut TSS[id].iomap) };
+    // This core's own TSS bitmap, as a raw pointer to its first byte: the CPU reads it only on a
+    // ring-3 `in`/`out`, which cannot happen while this runs with interrupts masked on this core, and
+    // a pointer avoids taking a reference into the `packed` `static mut`.
+    // SAFETY: forming a raw pointer into this core's own TSS slot; no reference is taken.
+    let iomap = unsafe { (&raw mut TSS[id].iomap).cast::<u8>() };
     if let Some((base, count)) = installed {
-        write_range_bits(iomap, base, count, true); // restore the outgoing holder's deny bits
+        // SAFETY: this core's own bitmap, held exclusively (interrupts masked, own slot).
+        unsafe { write_range_bits(iomap, base, count, true) }; // restore the outgoing holder's deny bits
     }
     let base_value = match grant {
         Some((base, count)) => {
-            write_range_bits(iomap, base, count, false); // permit the incoming holder's ports
+            // SAFETY: as above.
+            unsafe { write_range_bits(iomap, base, count, false) }; // permit the incoming holder's ports
             IOMAP_OFFSET
         }
         None => IOMAP_BASE_DENY_ALL,

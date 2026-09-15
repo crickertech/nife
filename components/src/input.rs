@@ -163,8 +163,8 @@ mod uart {
 /// only for a port it holds a capability to. This driver holds the `(0x3F8, 8)` port range the
 /// progenitor delegated it, so the kernel's TSS I/O bitmap permits these eight ports and no others.
 ///
-/// **The interrupt arm is a poll on x86** (see [`_start`]), so `arm_rx_interrupt` and
-/// `clear_interrupt` are empty: COM1's receive line (legacy IRQ 4) is not yet routed to a userspace
+/// **The interrupt arm is a poll on x86** (see [`_start`]), so there is nothing to arm or
+/// acknowledge: COM1's receive line (legacy IRQ 4) is not yet routed to a userspace
 /// waiter on this architecture (the kernel delivers only self-directed vectors to a driver today,
 /// `kernel/src/arch/x86_64/exceptions.rs`), so the driver reads the port it holds and yields between
 /// reads rather than blocking on an interrupt it would never see. Interrupt-driven x86 input is a
@@ -183,12 +183,9 @@ mod uart {
     pub fn rx_get() -> u8 {
         inb(RBR) // reading clears the receive condition, as on the NS16550
     }
-    pub fn arm_rx_interrupt() {
-        // Polled on x86; nothing to arm. See the module doc and `_start`.
-    }
-    pub fn clear_interrupt() {
-        // Polled on x86; the read in `rx_get` is the only thing that quiets the device.
-    }
+    // No `arm_rx_interrupt`/`clear_interrupt` here: this arm polls (see `_start`), so it never arms
+    // or acknowledges a line. The interrupt-driven follow-up adds them, driving IER (`base + 1`) the
+    // way the riscv64 NS16550 arm above drives it.
 }
 
 /// Forward wire bytes forever. No arguments: a standalone binary.

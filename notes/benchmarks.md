@@ -2711,7 +2711,7 @@ is reproducible, so a single run is the number):
 
 | benchmark | ticks/iter | delta over `yield_switch` |
 |---|---|---|
-| `yield_switch` (bare two-switch round trip) | 10,580 | — |
+| `yield_switch` (bare two-switch round trip) | 10,580 | baseline |
 | `tss_iomap_lazy_nop` (nothing holds a port) | 10,796 | **+216** |
 | `tss_iomap_lazy_switch` (every switch crosses a holder) | 12,567 | **+1,987** |
 | `tss_iomap_switch` (naive 8 KiB always-write) | 12,953 | **+2,373** |

@@ -27,11 +27,6 @@ and everything the shell prints) is unaffected and interrupt-independent. Interr
 which routes IRQ 4 through the IO APIC to the input driver's `Irq` capability and lets it block, wants
 its own milestone; the register layout it will use is already in `components/src/input.rs`'s x86 arm.
 
-**Gate: NONE.** The design fork is decided (DECISIONS §121, amended 2026-09-15; §149, resolved the
-same day). The mechanism is testable entirely under QEMU's `q35` (COM1 at `3F8h`, and QEMU enforces
-the TSS I/O bitmap), so no board is a precondition. Milestone 268/182's x86 userspace boot is on
-`main`, which this consumes.
-
 ## What this is
 
 On aarch64 and riscv64 a device driver is a userspace process holding the device's registers as a
@@ -102,7 +97,28 @@ architectures, no scope note.
   The revocation test and a "non-holder cannot touch the port" test are both load-bearing, not
   nice-to-have.
 
+## Follow-on
+
+- **Recorded.** x86 input **polls** COM1 rather than blocking on the receive interrupt, recorded in
+  `components/src/input.rs`'s x86 `uart` arm and this block's own scope note. COM1's legacy IRQ 4 is
+  not yet routed to a userspace waiter (the kernel delivers only self-directed vectors to a driver,
+  `kernel/src/arch/x86_64/exceptions.rs`); wiring it needs the device-line delivery path (mask on
+  fire, `irq_route`/`irq_notify`, EOI, unmask on ACK) that x86 has for the timer but not yet for a
+  device. Output, and the prompt, are interrupt-independent, so this is a limitation of input
+  latency and CPU spent polling, not of whether the milestone's claim holds.
+- **Decision.** `design/decisions/152-port-range-capability.md` (provisional number), the `PortRange`
+  object and its `REVOKE` method on the capability surface, calef's to ratify.
+- **Recorded.** Two limits are in §152's BUGS beside the feature: a thread caches one port range, not
+  a set (every real consumer holds one), and a `PortRange` delegated to an already-running thread by
+  `SEND_CAP` is not cached (no consumer does that). Both are within the design's pinned consumer.
+- **Done.** The x86 prompt that milestones 268 and 182 left **Outstanding**: a default x86_64 boot now
+  reaches an interactive `swish` prompt over serial, its console served by a userspace driver holding
+  COM1 as a port capability, with zero processes trapping. Checked 2026-09-15 by booting it under
+  QEMU `q35`; the prompt and the shell banner are in the transcript above the hand-over line.
+
 ## Index row
+
+**Built:** 2026-09-15
 
 The x86 port-range capability. DECISIONS §121 was reversed 2026-09-15 once the serial console became
 the customer it had assumed away (a prompt on every architecture, headless x86 driven over serial).
