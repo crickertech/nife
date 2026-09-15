@@ -1,7 +1,10 @@
 # 121. What a device capability is when the device has no page: x86 port I/O
 
-**Status: DECIDED.** calef, 2026-08-25, in conversation, after the TSS I/O-bitmap write cost was
-measured and refined below: *"Ratify option 2 permanently."* Raised 2026-08-23 by milestone 161's
+**Status: AMENDED.** Reopened and reversed 2026-09-15. The original ruling (calef, 2026-08-25, *"Ratify option 2
+permanently"*) stood on a premise the boot-to-a-prompt goal has since falsified; calef reversed it to
+**option 1, the port-range capability**, on 2026-09-15, on this file's own named trigger. The
+reasoning below is kept as the record of what was decided and why it held while it held; the reversal
+is the last section. Raised 2026-08-23 by milestone 161's
 lane, which found it while wiring the x86_64 console and could not decide it: what a capability *is*
 is the centre of this system's claim, not an implementation choice a lane makes on the way past. The
 number is **provisional**, minted by a lane against the current README rather than by an integrator.
@@ -226,3 +229,51 @@ what the demonstrator claims, or is "userspace drivers, demonstrated on two arch
 third's legacy serial port a recorded exception" enough?** calef answered the second, permanently,
 once the cost of the alternative was measured rather than assumed. Option 2 is the scope note, and it
 is this decision's own deliverable.
+
+
+## Reopened 2026-09-15: the trigger this file named has fired, and the call is option 1
+
+**This file wrote its own reopening condition, and it is now met.** The "reopening trigger" section
+above said, verbatim: *"if a real userspace console on x86 ever becomes something calef actively wants
+demonstrated, rather than something the other two architectures merely happen to have, that is what
+justifies building option 1 for real."* Two changes since 2026-08-25 met it exactly:
+
+- **The customer path the original ruling leaned on is gone.** Option 2 rested on *"the gap this
+  decision accepts is confined entirely to a debug/developer serial console a customer never interacts
+  with,"* which was true while the customer path was the Time Machine backup server (journey 2, all
+  MMIO). Journey 2 was retired 2026-08-30. The serial console is no longer beside the customer path.
+- **A prompt on every architecture became the goal.** Milestones 268 and 182 made x86 boot into
+  userspace and stop one step short of a shell, because §121 left the console in the kernel. On a
+  headless x86 machine (xenon, driven over serial by design), the serial console is not a debug
+  side-channel; it is the **only** interface anyone operates the machine through. By principle 1's own
+  rule, the operator at that prompt is the first customer of x86 nife. So the serial console is the
+  customer this file assumed did not exist.
+
+**The call is option 1: the port-range capability, enforced by the TSS I/O bitmap** (calef,
+2026-09-15). x86's serial console and input drivers become userspace processes holding a `(base, count)`
+port capability, exactly as the other two architectures' UART drivers hold a memory-mapped device
+capability. This restores "every driver is a userspace process" on real x86 hardware, with no
+exception, which is the choice seL4 (this project's own benchmark), Genode and L4Re all made with the
+same TSS-bitmap mechanism.
+
+**calef chose this over §149 option 1 (a kernel thread serving the console) deliberately, and over
+sequencing through it.** The maintainer's first framing was "kernel thread now, port capability later,
+the console endpoint hides the migration." calef ruled straight to the port capability, on the tenet
+that this project is not built out of convenience: the endpoint would have let userspace stay
+unchanged, but the driver would have sat in the kernel until someone did the expensive work anyway, and
+the only thing "later" bought was a faster prompt and a chance to measure the switch cost first. He
+accepted both give-ups. See DECISIONS §149, now resolved by this reversal, and milestone 299, which
+builds it.
+
+**Build the lazy write, not the naive one this file measured.** The "Refined 2026-08-25" section is
+now load-bearing rather than a footnote: the ~2,682 ns/switch release figure is the worst-case
+always-write, and the real cost is the lazy version, where the TSS `iomap_base` is set to a real
+bitmap only when a thread that actually holds a port capability is on either side of a switch. In a
+system where realistically one process (the console driver) ever holds one, that is near-zero for the
+overwhelming majority of switches. **Milestone 299's own first measurement is the lazy write's real
+cost**, taken the way this file already specified, not a second run of `tss_iomap_switch`.
+
+**What this does not reopen.** Option 3 (the I/O-port broker, a syscall per register access) stays
+refused on its measured ~337 ns-per-round-trip cost against single-digit-cycle `in`/`out`; nothing
+here revisits it. And the mapping-based capability for MMIO devices is unchanged: this adds a second
+kind of device capability for the one class that has no page, it does not replace the first.

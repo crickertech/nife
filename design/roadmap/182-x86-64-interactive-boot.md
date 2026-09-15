@@ -7,9 +7,14 @@ substantially larger, separate undertaking than pieces 1-2's device attachment a
 Built in part on 2026-09-14, inside [milestone 268](268-the-boot-ladder.md)'s lane, because 268's
 top rung on x86_64 is not reachable any other way.
 
-**Gate: DECISION.** The entry point is built and the progenitor runs at ring 3 from the archive.
-What is left, a console `swish` can reach, is DECISIONS §149 (`PROPOSED`), and the third
-`shell-check` leg below it waits on the same ruling.
+**Gate: MILESTONE 299.** **Resolved 2026-09-15.** The entry point is built and the progenitor runs
+at ring 3 from the archive. What was left, a console `swish` can reach, was DECISIONS §149; calef
+resolved it 2026-09-15 by reversing DECISIONS §121 (`AMENDED`): x86's console is a userspace driver
+holding a port-range capability, not a kernel thread. Building that capability and moving the driver
+is [milestone 299](299-x86-port-capability.md), which reaches the prompt this milestone and 268 both
+left Outstanding. The `shell-check` leg lands with 299. The narrative below predates the ruling and
+still weighs §149's options; it is kept as the record and the `## What §149 would take from here`
+section is answered by 299.
 
 **Amended 2026-09-09: this block's central premise no longer holds, and the milestone is smaller
 than it reads.** It says the graphical stack is x86_64's *only possible* route to an interactive

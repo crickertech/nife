@@ -179,7 +179,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 118 | DECIDED | [`Scheduler`/`SCHED` rename to `IpcTables`/`IPC_TABLES`](118-ipc-tables-name.md) |
 | 119 | DECIDED | [Splitting `OutOfMemory`'s three causes is declined for want of a customer](119-oom-causes-declined.md) |
 | 120 | AMENDED | [A QEMU-only virtio-rng stopgap for the interactive boot](120-boot-entropy-stopgap-declined.md) |
-| 121 | DECIDED | [What a device capability is when the device has no page: x86 port I/O](121-port-io-capability.md) |
+| 121 | AMENDED | [What a device capability is when the device has no page: x86 port I/O](121-port-io-capability.md) |
 | 122 | DECIDED | [The on-disk, per-user schedule store: format, write path, read-at-boot path](122-durable-schedule-store-format.md) |
 | 123 | DECIDED | [Boot-time re-derivation: what grants the privilege, and how it dies after one use](123-boot-time-rederivation-privilege.md) |
 | 124 | DECIDED | [Ratify the x86_64 syscall ABI](124-x86-64-syscall-abi.md) |
@@ -207,7 +207,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 146 | PROPOSED | [Archive and compression: which pieces we write, which we take, and which we refuse](146-archive-and-compression-write-or-take.md) |
 | 147 | DECIDED | [A timer a userspace service cannot hold: how the timed wait gets served instead](147-a-timer-a-userspace-service-cannot-hold.md) |
 | 148 | DECIDED | [Milestone 105's two forks: a supervisor restarts by asking, and resolves by asking the kernel](148-reap-and-thread-identity.md) |
-| 149 | PROPOSED | [May the kernel answer on an endpoint, where §121 leaves no userspace holder?](149-kernel-served-console-endpoint.md) |
+| 149 | DECIDED | [May the kernel answer on an endpoint, where §121 leaves no userspace holder?](149-kernel-served-console-endpoint.md) |
 | 150 | DECIDED | [How does a thread's CPU time reach userspace?](150-per-thread-cpu-accounting.md) |
 | 151 | DECIDED | [The goal of the repository split is independent release and third-party programs](151-repository-goal-is-independent-release.md) |
 
