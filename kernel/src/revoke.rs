@@ -116,7 +116,7 @@ const LOG_ENTRIES: usize = 170;
 /// request, since "mapping" alone is overloaded across this tree (page mappings, capability
 /// derivation, filesystem grants) and this tree already has an established, narrower term for
 /// exactly this concept: `crates/pmap`, "page map." `Source` matches this tree's existing pattern
-/// for a small enum naming where something came from (`grant_plan::Source`, `multicast_dns_protocol::QuerySource`).
+/// for a small enum naming where something came from (`grant_plan::Source`).
 #[derive(Clone, Copy)]
 pub enum PageMapSource {
     /// The capability whose object begins at this physical address, **and every capability derived

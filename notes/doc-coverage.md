@@ -24,7 +24,8 @@ the four crates the block named as the hard ones left (`dtb`, `nifefs`, `gpt`) g
 the following fortnight, and `machine_discovery`, `manual`, `swish` and `generational_table` gained theirs too. Meanwhile five
 crates arrived with none: `ntlm` and `system_initializer` (2026-08-04), `nvme` (2026-08-15), and
 `multicast_dns_protocol` and `smb_proto` (2026-08-15). `ntlm` and `smb_proto` were removed from the tree on
-2026-08-30 (notes/smb.md); their rows below are left as the record they always were. A count of
+2026-08-30 (notes/smb.md), and `multicast_dns_protocol` with `multicast_dns_config` on 2026-09-15
+(notes/mdns.md); their rows below are left as the record they always were. A count of
 what is missing is a moving target in a tree
 adding a crate every few days, which is the argument for a gate rather than a number in a block.
 
@@ -95,7 +96,7 @@ a hard gate, so those crates cannot regress:
 `abi`, `asid`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `memory_corruption_canary_gate`, `capability`,
 `clock_protocol`, `component_plan`, `coremark`, `cpu_set`, `cred`, `credential_protocol`, `dma_validator`, `dtb`,
 `elf`, `entropy_protocol`, `page_frames`, `filesystem_protocol`, `graphics_protocol`, `glob`, `intrusive_fifo`, `ipc`, `line_editor`,
-`manual`, `multicast_dns_config`, `measured_boot`, `nifefs`, `network_time_protocol`, `nvme`, `paging`, `pgrep`,
+`manual`, `measured_boot`, `nifefs`, `network_time_protocol`, `nvme`, `paging`, `pgrep`,
 `ps`, `memory_regions`, `byte_sink_protocol`, `generational_table`, `socket_protocol`, `work_steal_slot`, `supervision_protocol`,
 `swap_protocol`, `swish`, `system_initializer`, `timetable`, `user_mode_heap`, `user_mode_runtime`, `video_terminal`,
 `virtio`, `thread_wake_handshake`.
@@ -106,7 +107,7 @@ The worklist, largest first, so the next person can take one crate and turn its 
 |---|---|
 | `machine_discovery` | 54 |
 | `smb_proto` (removed 2026-08-30) | 52 |
-| `multicast_dns_protocol` | 41 |
+| `multicast_dns_protocol` (removed 2026-09-15) | 41 |
 | `pci` | 24 |
 | `gpt` | 23 |
 | `grant_plan` | 22 |

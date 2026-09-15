@@ -22,8 +22,8 @@ finding rather than a disappointment.
 
 **Most of the parsing is not in `user/` any more.** Rule 7 (anything two binaries agree on is a
 crate) and the host-testability discipline have already lifted it out: the initrd parser is
-`nifefs`, the ELF front half is `elf`, the partition table is `gpt`, the mDNS decoder is
-`multicast_dns_protocol`, the directory entries are `filesystem_protocol`, the terminal escapes are
+`nifefs`, the ELF front half is `elf`, the partition table is `gpt`, the directory entries are
+`filesystem_protocol`, the terminal escapes are
 `video_terminal`, the shell's routing is `swish`, the pattern matcher is `glob`. Every one of those
 is in `script/verify`'s table already. What is left in `components/src/*.rs` and `fixtures/src/*.rs`
 is overwhelmingly **IO glue**:
@@ -212,9 +212,11 @@ Four reasons it is not worth it, in the order they matter:
    runtime, and holds no capability. Its failure mode is a wrong gate result, not a compromised
    system. Every argument in DECISIONS §14 for a verified core is an argument about the core.
 2. **Proving its parsers would destroy the thing that makes them worth having.** `xtask`'s
-   hand-written decoders (the mDNS prober, the screendump readers) exist *precisely* to be a second
-   opinion: `xtask/Cargo.toml`'s own comment says the wire-format side is deliberately **not** shared
-   with `multicast_dns_protocol`, "or the gate would be checking `multicast_dns_protocol` against itself." Aiming the same
+   hand-written decoders (the screendump readers, and until 2026-09-15 the mDNS prober) exist
+   *precisely* to be a second opinion: `xtask/Cargo.toml`'s comment said the prober's wire-format side
+   was deliberately **not** shared with `multicast_dns_protocol`, "or the gate would be checking
+   `multicast_dns_protocol` against itself." Both were retired by milestone 298; the argument
+   outlived them. Aiming the same
    prover at both halves of a deliberately independent pair narrows the independence that is their
    entire justification.
 3. **It is the environment Kani is least differentiated in.** `xtask` is host code with `std`, a
@@ -299,7 +301,7 @@ are worth their place rather than an assertion that they are.
   today.
 - **`user/` is a package with 68 binaries and no library**, so there is no `cargo kani -p user` that
   means "everything". Stub 5 above is the consequence.
-- **`user`'s 3 seconds in `script/verify`'s table is a dev-Mac number**, like `multicast_dns_protocol`'s,
+- **`user`'s 3 seconds in `script/verify`'s table is a dev-Mac number**, like
   `jh7110_entropy`'s and `kernel`'s, and the wrong machine for that column. Replace it from the first
   CI log that carries it. Almost all of it is compile rather than solver time, so it will grow with
   the harnesses and not with the programs.

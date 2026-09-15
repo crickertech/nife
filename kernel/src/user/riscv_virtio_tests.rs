@@ -32,14 +32,11 @@ const NET_TEST_TCP_ACCEPT: u64 = 5;
 /// other and never hold it at once. From `socket_protocol::fixture` since milestone 64: see the
 /// aarch64 twin for why the number has one definition.
 const NET_LISTEN_PORT: u16 = socket_protocol::fixture::LISTEN_PORT;
-/// The fixed UDP ports the mDNS gate is granted (milestone 55): RFC 6762's 5353, which
-/// `multicast_dns_responder` holds for the whole run, and its neighbour, which `socket_test_client` uses to
-/// prove that a granted port binds and is exclusive. See the aarch64 twin for why they are two.
-const NET_MDNS_PORT: u16 = 5353;
-const NET_MDNS_GRANT_TOP: u16 = 5354;
-/// Queries the responder must answer before reporting OK, matching xtask's multicast prober: one
-/// multicast browse and one legacy-unicast query.
-const MDNS_QUERIES: u64 = 2;
+/// The fixed UDP port range the accept test's stack is granted (milestone 55's UDP bind grant).
+/// `socket_test_client` binds 5354 inside it and is refused 4444 outside it. See the aarch64 twin
+/// for why the range still starts at 5353.
+const NET_UDP_GRANT_BOTTOM: u16 = 5353;
+const NET_UDP_GRANT_TOP: u16 = 5354;
 const NET_CLIENT_OK: u64 = 1;
 /// The client could not complete for an ENVIRONMENTAL reason (the host resolver never answered),
 /// not because of a defect here. Only the non-gating real-DNS check can report it.
@@ -547,21 +544,14 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
     net.release_or_fail("a net test's net_stack");
 }
 
-/// The `multicast_dns_responder` program's ELF bytes (milestone 55): the discovery half, a third client of
-/// the same stack. See the aarch64 twin.
-fn multicast_dns_responder_image() -> &'static [u8] {
-    program("multicast_dns_responder")
-        .expect("no multicast_dns_responder program in the initrd archive")
-}
-
 /// **The guest is connected TO, on a granted port, on the second ISA** (milestone 107). A port
 /// outside the stack's grant is refused as a matter of authority, the granted one binds and is
 /// exclusive, and then a host process opens a TCP connection to it twice through QEMU's `hostfwd`
-/// while the guest accepts, reads and answers each. **The mDNS-shaped exchange then rides in the
-/// same spawn** (milestone 55's stack half): the UDP bind grant refuses and admits, the joined
-/// group receives xtask's injected datagram with its spoofed source intact, and the guest answers
-/// the group. **Milestone 54's SMB adapter rode the same spawn on this ISA too**, with the same
-/// authenticated fs-backed share, until 2026-08-30; notes/smb.md records it. See the aarch64 twin
+/// while the guest accepts, reads and answers each. **The UDP bind grant then rides in the same
+/// spawn** (milestone 55's stack half): it refuses a port outside the grant and admits one inside
+/// it, exclusively. **Milestone 54's SMB adapter and milestone 55's multicast DNS responder rode
+/// the same spawn on this ISA too**, until 2026-08-30 and 2026-09-15 respectively; notes/smb.md and
+/// notes/mdns.md record them. See the aarch64 twin
 /// for the shape, for why all of it shares one exchange (a net server's spawn is frames nothing
 /// reclaims), and for what the stage codes mean.
 #[test_case]
@@ -571,19 +561,18 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // is what "before this test wired anything" means, and the census below reports the delta
     // against it rather than an absolute reading contaminated by whatever ran first.
     let e2_baseline_threads = sched::thread_count();
-    let Some((report, mdns_report, net)) = virtio_service::start_shared_net_stack(
+    let Some((report, net)) = virtio_service::start_net_stack(
         net_stack_image(),
-        multicast_dns_responder_image(),
         NET_TEST_TCP_ACCEPT,
-        NET_LISTEN_PORT,
-        MDNS_QUERIES,
-        socket_protocol::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
+        false,
+        socket_protocol::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT)
+            | socket_protocol::udp_bind_grant(NET_UDP_GRANT_BOTTOM, NET_UDP_GRANT_TOP),
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
     // E2 (milestone 134, design/roadmap/134-the-measurements-that-decide.md): the thread census on
     // the customer path. Every process this topology needs is already spawned by this point
-    // (`net_stack`, the echo client, the mDNS responder), and none of them spawns another kernel
+    // (`net_stack` and the echo client), and neither spawns another kernel
     // thread per connection or per request (each is a single-threaded event loop over its own
     // endpoint), so this count is already the peak. Reported as a delta against
     // `e2_baseline_threads`, not as the absolute reading. See the aarch64 twin, including its note
@@ -591,7 +580,7 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     crate::println!(
         "    (E2 thread census: {} threads created by wiring this customer-path topology \
          ({} live now, {e2_baseline_threads} live before this test wired anything): main + \
-         net_stack + echo client + mDNS responder)",
+         net_stack + echo client)",
         sched::thread_count().saturating_sub(e2_baseline_threads),
         sched::thread_count(),
     );
@@ -602,14 +591,6 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
          mean a port outside a grant was bound anyway, 0xE060 or 0xE070 means nobody ever \
          connected (the host side), 0xE082/0xE084 mean the UDP bind grant admitted or refused the \
          wrong port",
-    );
-    let verdict = sched::ipc_recv(mdns_report)[0];
-    assert_eq!(
-        verdict, NET_CLIENT_OK,
-        "the mDNS responder did not answer the injected queries (code {verdict:#x}); 0xE20L is a \
-         configuration document wrong at line L, 0xE220 no UDP bind grant, 0xE221 the port already \
-         held, 0xE240 nothing ever asked (RX acceptance, or NIFE_MCAST_PORT and the prober). See \
-         the aarch64 twin",
     );
     net.release_or_fail("a net test's net_stack");
 }

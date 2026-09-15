@@ -20,7 +20,7 @@
 //! - slot 4: the `Stack` endpoint (READ), where clients' requests arrive
 //! - arg1: the DMA page's physical address
 //! - arg2: the **grant word**: the TCP listen range (milestone 107) in its low half and the
-//!   fixed-UDP bind range (milestone 55's mDNS stack half) in its high half, both packed by
+//!   fixed-UDP bind range (milestone 55's stack half) in its high half, both packed by
 //!   `socket_protocol`. Zero, the default, means no port anywhere in either protocol: a stack serves
 //!   inbound connections, or claims a fixed UDP port, only when whoever spawned it said which.
 //!
@@ -78,14 +78,6 @@ static HEAP: user_mode_runtime::heap::MemoryRegionHeap =
 
 /// Our MAC. Locally administered; slirp routes DHCP regardless.
 const MAC: [u8; 6] = [0x52, 0x54, 0x00, 0x12, 0x34, 0x56];
-
-/// The mDNS group, RFC 6762's 224.0.0.251. The stack joins it at startup (milestone 55's mDNS
-/// stack half): joining is what makes smoltcp's IPv4 input path accept datagrams addressed to the
-/// group, and an mDNS responder cannot exist without that. Unconditional rather than
-/// client-requested because membership is interface state, not socket state, and this stack has
-/// exactly one interface; what IS granted per client is the right to bind port 5353
-/// (`socket_protocol::udp_bind_grant`). See notes/mdns.md.
-const MDNS_GROUP: Ipv4Address = Ipv4Address::new(224, 0, 0, 251);
 
 /// Where a client's shared frame for socket `sid` is mapped in `net_stack`'s address space. Above the DMA
 /// page (`0x90_0000`) and well below the heap (1 GiB).
@@ -160,7 +152,7 @@ const SOCK_BUF: usize = 2048;
 ///
 /// `a2` is the server's **grant word**, both port authorities in one spawn argument: the TCP
 /// listen range in the low half (milestone 107, `socket_protocol::listen_grant`) and the fixed-UDP
-/// bind range in the high half (milestone 55's mDNS stack half, `socket_protocol::udp_bind_grant`).
+/// bind range in the high half (milestone 55's stack half, `socket_protocol::udp_bind_grant`).
 /// Whoever spawns the server decides both; a server spawned with zero (`NO_LISTEN_GRANT`, which
 /// every outbound-only test uses) refuses every `LISTEN` and every `BIND_UDP`. The client half
 /// ignores it.
@@ -209,13 +201,11 @@ fn server(dma_phys: u64, grant_word: u64) -> ! {
         wait_for_nic(&mut iface, &mut dev, &mut sockets);
     }
 
-    // Join the mDNS group, after DHCP so the IGMP membership report carries a real source address.
-    // `join_multicast_group` only queues the join; the poll is what emits the report and flips the
-    // group to joined, and from then on datagrams to 224.0.0.251 pass the IPv4 accept filter. The
-    // error arm is unreachable for a well-formed multicast address unless the group table is full,
-    // and this stack joins exactly one group.
-    let _ = iface.join_multicast_group(MDNS_GROUP);
-    iface.poll(instant(), &mut dev, &mut sockets);
+    // No multicast group is joined here. Milestone 55 joined mDNS's 224.0.0.251 at this point, after
+    // DHCP so the IGMP report carried a real source address, and milestone 298 removed the join on
+    // 2026-09-15 with the responder that was its only reason (notes/mdns.md). A group is interface
+    // state rather than socket state, so a future multicast client puts a join back here and
+    // smoltcp's `multicast` feature back in components/Cargo.toml.
 
     // --- Serve the socket contract. One synchronous exchange per request. ---
     let mut socks: [Option<Sock>; MAX_SOCKETS] = [None; MAX_SOCKETS];
@@ -521,9 +511,9 @@ fn sock_recv(
         match sockets.get_mut::<udp::Socket>(handle).recv_slice(&mut buf) {
             Ok((n, meta)) => {
                 // The datagram's source endpoint rides back in the frame's dst fields, which are
-                // dead space on a reply (socket_protocol's layout note). A responder needs it: mDNS's
-                // reply semantics turn on the querier's source port (RFC 6762 §6.7), and this used
-                // to be discarded here with `.map(|(n, _)| n)`.
+                // dead space on a reply (socket_protocol's layout note). A responder needs it to answer
+                // whoever asked (TFTP's transfer ids use it today, and mDNS's legacy-unicast rule
+                // did until milestone 298), and this used to be discarded with `.map(|(n, _)| n)`.
                 let IpAddress::Ipv4(src) = meta.endpoint.addr;
                 for (i, &b) in src.octets().iter().enumerate() {
                     window.w8(OFF_DST_IP + i as u64, b);

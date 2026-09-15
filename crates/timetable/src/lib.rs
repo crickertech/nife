@@ -143,7 +143,7 @@ pub struct Document<'a> {
 
 /// Why a document does not parse. Every variant carries the **1-based line number** it went wrong
 /// on, because a configuration error a person cannot find is a configuration error they will not
-/// fix. `multicast_dns_config` reached the same shape for the same reason.
+/// fix. The retired `multicast_dns_config` reached the same shape for the same reason (notes/mdns.md).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Error {
     /// A line that is neither blank, a comment, nor a schedule word followed by a command.
@@ -193,7 +193,7 @@ impl Error {
 
 /// Parse a timetable document.
 ///
-/// Fails on the **first** problem, with its line, which is `multicast_dns_config`'s posture and the right one
+/// Fails on the **first** problem, with its line, which was the retired `multicast_dns_config`'s posture too, and the right one
 /// for a document a person edits: reporting six errors when the first one is a typo that shifted
 /// everything after it is noise, and the second error is often the first one wearing a hat.
 ///
@@ -1002,8 +1002,8 @@ mod tests {
 
     use super::*;
 
-    /// **The shipped document is a specification, not a comment.** `multicast_dns_config` reached this shape
-    /// first and the reason is the same: a configuration file nothing parses in CI is a file that
+    /// **The shipped document is a specification, not a comment.** The retired `multicast_dns_config` reached
+    /// this shape first (notes/mdns.md) and the reason is the same: a configuration file nothing parses in CI is a file that
     /// rots, and the first person to notice is the one whose machine will not boot.
     const REFERENCE: &str = include_str!("../../../components/timetable.conf");
 

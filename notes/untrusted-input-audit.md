@@ -233,6 +233,17 @@ is not here; the SMB parser that will be the first attacker-reachable hand-writt
 the base at all. The clearances above are of the crates as they stand, and the responder and the SMB
 server each want their own read the day they land.
 
+## Correction, 2026-09-15: one of the three subjects is gone
+
+**`crates/multicast_dns_protocol` was retired on 2026-09-15** (milestone 298, on calef's ruling),
+together with the responder whose wiring this note said wanted its own read the day it landed. That
+read never happened: the responder landed, fed nothing but the QEMU gate's injected queries, and was
+retired with the crate. The clearance above is therefore a record of a crate at `32f835a1`, not a
+statement about anything on `main`, and the table under "What was examined" lists it for the same
+reason. A future DNS parser, unicast or multicast, gets a fresh read rather than inheriting this
+one; the code this cleared is at commit `0652c981` (notes/mdns.md). The NVMe finding and the
+credential clearance are unaffected.
+
 ## What wants a lane
 
 **Extend the hostile-device harness (shared-page-audit.md's candidate B) to NVMe, and fail closed.**

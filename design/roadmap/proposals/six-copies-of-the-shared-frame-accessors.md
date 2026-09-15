@@ -26,7 +26,7 @@ fn read_payload(n: usize, out: &mut [u8]) -> usize { ... OFF_PAYLOAD ... }
 |---|---|---|
 | `components/src/entropy.rs` | `components/` | a virtio DMA region |
 | `components/src/net_transport.rs` | `components/` | a virtio DMA region |
-| `components/src/multicast_dns_responder.rs` | `components/` | the socket contract's frame |
+| ~~`components/src/multicast_dns_responder.rs`~~ | retired 2026-09-15 (milestone 298) | the socket contract's frame |
 | `components/src/socket_test_client.rs` | `components/` | the socket contract's frame |
 | `components/src/network_time_client.rs` | `components/` | the socket contract's frame |
 | `fixtures/src/network_time_test_server.rs` | `fixtures/` | the socket contract's frame |
@@ -67,6 +67,6 @@ into the crate would be inventing an agreement that does not exist.
 ## What would close it
 
 Four programs constructing one type from `socket_protocol`, their local accessor functions gone, and the
-existing socket, mDNS and network time tests green on both ISAs with no test changed. If the virtio
+existing socket and network time tests green on both ISAs with no test changed. If the virtio
 pair is done in the same lane, `crates/virtio`'s own host tests too. Any new type is a name calef has
 not ruled on, so it ships provisional and says so.

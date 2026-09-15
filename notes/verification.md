@@ -638,7 +638,8 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**151 harnesses** <!--count:kani-harnesses--> **across 26 packages** <!--count:harness-crates-->. (This line said 67 for
+**148 harnesses** <!--count:kani-harnesses--> **across 25 packages** <!--count:harness-crates-->. (It fell from 151 across 26 on
+2026-09-15, when milestone 298 retired `multicast_dns_protocol` and its three. This line said 67 for
 a while after it was 69, then "a few minutes" for a month after that stopped being true, then 107
 after it was 119. Both counts now carry a `<!--count:-->` marker and `script/lint` re-derives them
 from the tree on every build, so they cannot drift again; what they could still do, and did, is

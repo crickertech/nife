@@ -27,9 +27,9 @@
 //!     lane re-measured it: an eleventh spawn died as `Unmappable(OutOfPageFrames)` in an unrelated
 //!     later test). A fixed port outside the grant is refused as authority, a granted one binds
 //!     and is exclusive, which incidentally proves the two grant halves compose in one word on the
-//!     machine. The traffic that used to ride here belongs to `multicast_dns_responder` now: it is a third
-//!     client of this same stack, it holds 5353 for the whole run, and it proves the multicast
-//!     path with real DNS rather than with marker payloads.
+//!     machine. Multicast traffic rode here first as marker payloads and then as a separate
+//!     multicast DNS responder client; the responder was retired on 2026-09-15 (milestone 298,
+//!     notes/mdns.md) and nothing exercises multicast now.
 //!
 //! On success it reports `OK`; any failure reports a stage code, so the kernel test fails loudly
 //! with a hint rather than hanging.
@@ -120,20 +120,15 @@ const OUT_MSG: &[u8] = socket_protocol::fixture::OUT_MSG;
 const TFTP_NAME: &[u8] = b"nife";
 const TFTP_BODY: &[u8] = b"nife-tftp!";
 
-/// **The UDP bind grant's refusals** (milestone 55). `MDNS_DENIED_PORT` is deliberately outside the
+/// **The UDP bind grant's refusals** (milestone 55). `UDP_DENIED_PORT` is deliberately outside the
 /// range the kernel test grants this spawn, so asking for it proves the grant *refuses* rather than
-/// that nothing happened to bind; `MDNS_GRANTED_PORT` is inside it, and is deliberately **not**
-/// 5353.
+/// that nothing happened to bind; `UDP_GRANTED_PORT` is inside it.
 ///
-/// The real port belongs to `multicast_dns_responder`, which is a third client of this same stack and holds
-/// it for the whole run (milestone 55's responder lane). That is why the traffic half of this
-/// exchange is gone: the marker datagrams this test used to trade with xtask's multicast prober
-/// proved that a joined group receives, that the source endpoint rides back on RECV, and that a
-/// multicast SENDTO reaches the wire, and the responder now proves all three with real DNS
-/// messages the prober parses. What cannot be proved by a program holding a granted port is the
-/// refusal of one it was not granted, so that half stays here.
-const MDNS_DENIED_PORT: u64 = 4444;
-const MDNS_GRANTED_PORT: u64 = 5354;
+/// It is 5354 rather than 5353 because the multicast DNS responder held 5353 as a second client of
+/// this same stack until milestone 298 retired it on 2026-09-15 (notes/mdns.md). The numbers must
+/// match the kernel test's `NET_UDP_GRANT_*` and mean nothing else.
+const UDP_DENIED_PORT: u64 = 4444;
+const UDP_GRANTED_PORT: u64 = 5354;
 
 /// How many times the real-DNS check sends its query before giving up. A DNS client retries; UDP has
 /// no retransmit of its own and the measured single-query loss to a real resolver was ~2.5%, so one
@@ -363,7 +358,7 @@ fn udp_tftp() -> ! {
     //
     // Addressed to the DATA's reported source rather than to :69, which is what TFTP's TID scheme
     // asks for and is the first real consumer of the source endpoint: replying to the querier is
-    // exactly the move an mDNS legacy-unicast responder makes.
+    // exactly the move any UDP responder makes.
     let mut a = PAGE_FRAME_VA + OFF_PAYLOAD;
     put8(0x00, &mut a);
     put8(0x04, &mut a);
@@ -497,12 +492,12 @@ fn tcp_accept_inbound() -> ! {
 
     let _ = call(STACK, req(OP_CLOSE, LISTEN_SID), 0);
 
-    // The mDNS half rides in this same spawn (milestone 55's stack half), because a second net
+    // The UDP bind half rides in this same spawn (milestone 55's stack half), because a second net
     // server does not fit the aarch64 boot: the spawn is ~154 frames nothing ever reclaims, and
     // this lane measured the eleventh one dying as `Unmappable(OutOfPageFrames)` in an unrelated later
     // test, the exact failure notes/net.md's memory receipt predicted. Milestone 107 folded its
     // grant half for the same reason; the stage codes stand in for the separate test's name.
-    udp_mdns_half();
+    udp_bind_half();
     done(OK);
 }
 
@@ -548,25 +543,24 @@ fn serve_one_inbound(base: u64) {
 ///
 /// **What is deliberately not here any more**: the marker-payload exchange with xtask's multicast
 /// prober. It proved that a joined group receives, that a multicast `SENDTO` reaches the wire, and
-/// that a datagram's source endpoint rides back on `RECV`; `multicast_dns_responder`, a third client of this
-/// same stack, now proves all three with real DNS messages the prober decodes as records
-/// (notes/mdns.md). Two programs sending markers past each other proved carriage twice and protocol
-/// never.
-fn udp_mdns_half() {
-    match call(STACK, req(OP_BIND_UDP, LISTEN_SID), MDNS_DENIED_PORT).0 {
+/// that a datagram's source endpoint rides back on `RECV`. The multicast DNS responder took over
+/// the first two with real DNS messages, and milestone 298 retired it and the prober on 2026-09-15
+/// (notes/mdns.md), so **nothing proves multicast now**. The third is still proved, by `udp_tftp`.
+fn udp_bind_half() {
+    match call(STACK, req(OP_BIND_UDP, LISTEN_SID), UDP_DENIED_PORT).0 {
         LISTEN_DENIED => {}
         LISTEN_GRANTED => done(0xE080), // bound a port nothing granted: the whole point, lost
         _ => done(0xE081),
     }
 
-    match call(STACK, req(OP_BIND_UDP, CONN_SID), MDNS_GRANTED_PORT).0 {
+    match call(STACK, req(OP_BIND_UDP, CONN_SID), UDP_GRANTED_PORT).0 {
         LISTEN_GRANTED => {}
         LISTEN_DENIED => done(0xE082), // the spawn granted the wrong range
         _ => done(0xE083),
     }
 
     // Exclusive, the property that makes a fixed port grantable rather than merely a number.
-    match call(STACK, req(OP_BIND_UDP, LISTEN_SID), MDNS_GRANTED_PORT).0 {
+    match call(STACK, req(OP_BIND_UDP, LISTEN_SID), UDP_GRANTED_PORT).0 {
         LISTEN_IN_USE => {}
         LISTEN_GRANTED => done(0xE084), // two sockets on one fixed port
         _ => done(0xE085),

@@ -62,8 +62,6 @@ members = [
     "crates/loaded_image_check",
     "crates/documentation",
     "crates/measured_boot",
-    "crates/multicast_dns_config",
-    "crates/multicast_dns_protocol",
     "crates/network_time_protocol",
     "crates/nvme",
     "crates/generational_table",
@@ -147,8 +145,8 @@ unsafe_op_in_unsafe_fn = "warn"
 # Workspace-wide as of DECISIONS §107 (2026-08-22), a deliberate, recorded exception to §61's own
 # rule against adding a lint before every existing violation is fixed: the worklist had shrunk from
 # 32 crates to 7 by the time this landed, so the cost is 7 `#[allow(missing_docs)]` lines, not an
-# open-ended commitment. Those remaining (`machine_discovery`, `multicast_dns_protocol`, `pci`, `gpt`, `grant_plan`,
-# `compositor`) carry the allow explicitly, citing their own item count; see notes/doc-coverage.md
+# open-ended commitment. Those remaining (`machine_discovery`, `pci`, `gpt`, `grant_plan`, `compositor`;
+# `multicast_dns_protocol` was retired on 2026-09-15) carry the allow explicitly, citing their own item count; see notes/doc-coverage.md
 # for the tracked worklist.
 missing_docs = "warn"
 

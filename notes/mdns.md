@@ -1,4 +1,43 @@
-# mDNS/DNS-SD: the Time Machine advertisement
+# mDNS/DNS-SD: the Time Machine advertisement, and why it is no longer here (milestone 55)
+
+**The code this note describes was retired from the tree on 2026-09-15, on calef's ruling ("Retire
+all three"), by milestone 298.** Every present tense below is the tree as it stood at commit
+`0652c981`, the last commit that holds it; nothing described here can be built or run from `main`
+any more. This follows the precedent milestone 54's removal set for [smb.md](smb.md): the note is
+kept in full, with this header, because a finding worth keeping lands in `notes/` rather than in a
+commit nobody will check out. Read it in the past tense.
+
+**Why it went.** It was never a general responder. `multicast_dns_protocol` hardcoded exactly Time
+Machine's three services (`_smb._tcp`, `_adisk._tcp`, `_device-info._tcp`), the
+`multicast_dns_config` grammar could describe nothing else, and the shipped configuration was calef's
+router, advertising two family backup disks. The SMB share it advertised was removed on 2026-08-30,
+the day milestone 55 (Time Machine) was retired because the family's backups moved to borg on
+cordoba. After that nothing ran the responder but tests, and no live milestone wanted it. It came up
+as a naming question (calef had ruled the `multicast_dns` stem without seeing the whole names) and
+dissolved into a retirement once the names said what the program was for.
+
+**What went with it**, all at `0652c981` in git:
+
+- `components/src/multicast_dns_responder.rs`, `components/multicast_dns_responder.conf`,
+  `crates/multicast_dns_protocol` (with its three Kani harnesses) and `crates/multicast_dns_config`.
+- xtask's multicast prober, its independent DNS decoder, and its term in the test run's pass
+  condition. The scanout and inbound checks are unchanged.
+- The stack half's multicast pieces: the runners' frame-level injection hub (`NIFE_MCAST_PORT`),
+  `net_stack`'s join of 224.0.0.251, and smoltcp's `multicast` feature. Each existed only for the
+  responder and its prober, and without them nothing could exercise them. **Nothing in the tree
+  proves multicast receive or send any more**; a future multicast client puts back the feature, the
+  join, and a host-side peer below slirp, and "The smoltcp multicast answer" and "The QEMU gate"
+  below say what each took.
+
+**What stayed**, because it is not mDNS-shaped: the UDP bind grant (`BIND_UDP`,
+`socket_protocol::udp_bind_grant`), still proved by `socket_test_client`'s refusal and exclusivity
+checks inside the accept test, and the source endpoint on a UDP `RECV`, still proved by the TFTP
+exchange.
+
+**The one real loss** is general DNS message and name parsing, Kani-checked at the name decoder
+(compression pointers cannot loop or overrun), which sat beside the Time Machine records. A unicast
+resolver would want that half; `design/roadmap/proposals/a-name-resolver-and-who-holds-it.md` says
+where to find it.
 
 Milestone 55's second protocol. A Mac's Time Machine UI lists only servers it discovered over
 multicast DNS, and the reference router advertises exactly three service types: `_smb._tcp` (the
@@ -271,6 +310,9 @@ refuses to start and reports `0xE20L`, where `L` is the line number.
 
 ## BUGS
 
+- **Everything in this section describes code retired on 2026-09-15** (milestone 298; see the
+  header). It is kept as the list a future multicast responder would start from, not as a
+  description of the tree.
 - **What the QEMU gate cannot prove, for the bench to pick up.** The hub is a wire with no router
   on it, so everything a real network's multicast turns on is out of its reach: **IGMP snooping**
   (a switch that forwards group traffic only to reported members; the gate never checks the

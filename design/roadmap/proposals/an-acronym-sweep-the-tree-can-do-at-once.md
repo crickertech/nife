@@ -66,7 +66,8 @@ accepts.
 asymmetry argument ran out: spelling out the outer acronym exposes an inner one, so the expansion
 does not reach a word the newcomer knows either way. calef did not apply the rule harder; he drew a
 line, and the reasoning is in milestone 265's block and in
-`crates/multicast_dns_protocol/src/lib.rs`'s provenance.
+`crates/multicast_dns_protocol/src/lib.rs`'s provenance (that crate and its two siblings were retired
+on 2026-09-15 by milestone 298; the provenance is at commit `0652c981`).
 
 What is left is the BUGS below: the five names the rule deratified by name, and the two kernel
 function names. Both want a ruling per name, and `ipc` is the reason this is still a milestone

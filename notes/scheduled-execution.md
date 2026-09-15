@@ -186,8 +186,8 @@ touch a disk, cannot open a socket, and cannot give any of those to a child, bec
 ambient authority anywhere for a child to fall back on.
 
 **Who may register is answered by where the document lives**, and for the first deliverable that is
-`include_str!`: the document is compiled into the binary, exactly as `components/multicast_dns_responder.conf` is
-compiled into the responder and for the same recorded reason (reading a file needs a file capability
+`include_str!`: the document is compiled into the binary, exactly as the multicast DNS responder's configuration
+was until that program was retired on 2026-09-15, and for the same recorded reason (reading a file needs a file capability
 wired through the spawn; see notes/mdns.md and milestone 131). So today the authority to register is
 the authority to rebuild the image, which is the strongest possible answer and also the least useful
 one. A runtime registration protocol is a real decision with a real fork in it (the boot endowment?
@@ -338,7 +338,7 @@ document whose `--mem` entry shared the clock with a fast interval would.
   gives services durable configuration at all, which does not exist yet.
 
 - **The document is compiled in, not read from disk**, which is also what decides who may register
-  (see above). `multicast_dns_responder` carries the same limitation for the same reason; milestone 131 is
+  (see above). The retired `multicast_dns_responder` carried the same limitation for the same reason; milestone 131 is
   where the runtime-read shape lands, and nothing about the format, the parser, the line-numbered
   errors or the tests changes when it does.
 
@@ -367,4 +367,4 @@ document whose `--mem` entry shared the clock with a fast interval would.
 - [load-sensitive-assertions.md](load-sensitive-assertions.md): why the test counts fires instead of
   timing them.
 - [mdns.md](mdns.md): the configuration-document shape this copied, including its compiled-in
-  limitation.
+  limitation. The program it described was retired on 2026-09-15; the shape is still the lesson.

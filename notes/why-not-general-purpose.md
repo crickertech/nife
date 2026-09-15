@@ -44,7 +44,7 @@ shown rather than quietly replaced.
 |---|---|---|
 | **No POSIX, no libc, no `std` target** | *"The big one... You cannot drop in existing software; every program is hand-written against our ABI"* | **Substantially false.** There is a `std` target (the `nife-dev` toolchain and milestone 64), `notes/crates-io-on-nife.md` probed 27 crates against it, and **milestone 121 ran unmodified `ripgrep` with zero patches** on 2026-08-31. That was fatal risk 1's experiment and it came back green. What remains is narrower and is below. |
 | **No writable filesystem** | *"nifefs is read-only, one block, built at compile time"* | **False.** Milestone 57's write half landed. |
-| **No networking** | *"No TCP/IP, no sockets"* | **False.** `net_stack` (milestone 30) with TCP, UDP, DHCP and mDNS; listen and accept since milestone 107. |
+| **No networking** | *"No TCP/IP, no sockets"* | **False.** `net_stack` (milestone 30) with TCP, UDP and DHCP; listen and accept since milestone 107. (It answered mDNS too, for Time Machine, until milestone 298 retired that on 2026-09-15.) |
 | **No display, GUI, or input beyond a serial console** | *"The only I/O to a human is a UART"* | **False.** The compositor landed 2026-08-26, and [§131](../design/decisions/131-hold-at-rung-two.md) is a decision about which rung of the display ladder to stop at rather than an absence. |
 | **Tiny, fixed platform** | *"QEMU virt, 128 MiB, single-core until the §11 SMP work lands"* | **False.** Three architectures, four cores on radon, and single-core is now an opt-in `single_hart` feature. |
 | **No dynamic linking** | *"Static only; no shared libraries, no `dlopen`"* | **Still true**, and see below. |

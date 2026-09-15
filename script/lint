@@ -2160,6 +2160,14 @@ echo "==> the stranger test's run record"
 #    It is deliberately narrow. It knows one namespace, `NIFE_`/`CRICKER_`, because those are the
 #    names this project mints and therefore the ones only this project can check. See
 #    notes/documentation-audit.md.
+#
+#    **A third case the two above do not cover: a name retired on purpose, quoted in an account**
+#    (milestone 298, 2026-09-15). Retiring the multicast DNS responder removed the only reader of
+#    `NIFE_MCAST_PORT`, and a BUILT block (222) quotes an error message naming it. A quotation never
+#    moves, and a fake definition somewhere to satisfy this check would be worse than the failure. So
+#    `RETIRED` names each such variable with the record that says it is gone; a reader who types one
+#    and gets nothing finds that record by grepping the name. Add to it only when the code that read
+#    the name was deleted deliberately, never to quiet a rename the prose did not follow.
 echo "==> environment names in prose"
 python3 - <<'PY'
 import re, subprocess, sys
@@ -2168,6 +2176,12 @@ tracked = [f for f in subprocess.run(['git', 'ls-files'], capture_output=True, t
            .stdout.split('\n') if f]
 
 TOKEN = re.compile(r'\b((?:NIFE|CRICKER)_[A-Z0-9_]+)\b')
+
+# Names whose reader was deleted on purpose, each with where its retirement is recorded. See the
+# comment above the check: this is for a retirement, never for a rename.
+RETIRED = {
+    'NIFE_MCAST_PORT': 'milestone 298, 2026-09-15: the multicast prober and its runner hub (notes/mdns.md)',
+}
 
 live = set()
 for f in tracked:
@@ -2194,7 +2208,7 @@ for f in tracked:
         continue
     for i, line in enumerate(open(f, errors='replace'), 1):
         for name in TOKEN.findall(line):
-            if name not in live:
+            if name not in live and name not in RETIRED:
                 bad.append((f, i, name))
 
 if bad:
@@ -2207,7 +2221,8 @@ if bad:
           file=sys.stderr)
     sys.exit(1)
 ours = sorted(n for n in live if n.startswith(('NIFE_', 'CRICKER_')))
-print(f'environment names: {len(ours)} live, and every one named in prose is read or assigned')
+print(f'environment names: {len(ours)} live, and every one named in prose is read or assigned '
+      f'({len(RETIRED)} retired on the record)')
 PY
 
 echo "==> markdown links and the notes index"

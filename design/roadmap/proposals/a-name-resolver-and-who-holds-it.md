@@ -8,7 +8,7 @@ not have.
 
 ## The gap, measured
 
-`user/Cargo.toml` builds `smoltcp` 0.14 with `alloc`, `medium-ethernet`, `multicast`, `proto-ipv4`,
+`user/Cargo.toml` builds `smoltcp` 0.14 with `alloc`, `medium-ethernet`, `proto-ipv4`,
 `proto-dhcpv4`, `socket-udp`, `socket-tcp` and `socket-dhcpv4`. **`socket-dns` is not among them**,
 and nothing else in `crates/` or `user/src/` resolves names: the only greps that match "resolve" are
 about capability names and generational tables.
@@ -64,8 +64,12 @@ stated at the scale of a whole operating system.
 **It is not `curl`.** A resolver plus HTTP plus TLS is three pieces and this is the first. There is
 no consumer today for any of them, which is why this is a proposal.
 
-**And it does not need mDNS.** `multicast_dns_responder` exists and answers for names on the local link; that
-is a different protocol solving a different problem, and reusing it here would be a category error.
+**And it does not need mDNS.** The multicast DNS responder answered for names on the local link, which
+is a different protocol solving a different problem, and reusing it here would have been a category
+error. It was retired on 2026-09-15 (milestone 298, notes/mdns.md). **Its general half is worth
+reading before writing a parser**: DNS header, record and name decoding with compression pointers,
+Kani-proven not to loop or overrun, is in `crates/multicast_dns_protocol` at commit `0652c981`
+(`git show 0652c981:crates/multicast_dns_protocol/src/lib.rs`, with `src/proofs.rs` beside it).
 
 ## BUGS
 

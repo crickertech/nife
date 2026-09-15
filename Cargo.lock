@@ -184,8 +184,6 @@ dependencies = [
  "line_editor",
  "login_protocol",
  "measured_boot",
- "multicast_dns_config",
- "multicast_dns_protocol",
  "network_time_protocol",
  "nifefs",
  "pgrep",
@@ -628,17 +626,6 @@ dependencies = [
  "generational_table",
  "loom",
 ]
-
-[[package]]
-name = "multicast_dns_config"
-version = "0.1.0"
-dependencies = [
- "multicast_dns_protocol",
-]
-
-[[package]]
-name = "multicast_dns_protocol"
-version = "0.1.0"
 
 [[package]]
 name = "network_time_protocol"
@@ -1103,7 +1090,6 @@ dependencies = [
  "gpt",
  "graphics_protocol",
  "measured_boot",
- "multicast_dns_config",
  "nifefs",
  "video_terminal",
 ]

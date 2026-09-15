@@ -162,16 +162,6 @@ path = "src/net_stack.rs"
 test = false
 bench = false
 
-# The mDNS responder (milestone 55): what makes this machine appear in a Mac's Time Machine list.
-# A client of the socket contract holding one fixed UDP port and nothing else; every decision it
-# makes is `multicast_dns_protocol`'s and everything it says is the document in `components/multicast_dns_responder.conf`.
-# Provisional name.
-[[bin]]
-name = "multicast_dns_responder"
-path = "src/multicast_dns_responder.rs"
-test = false
-bench = false
-
 # The GPU driver (milestone 29, the display ladder's rung one): drives the virtio-gpu device
 # over the confined transport and serves the framebuffer contract to clients. `initrd_aarch64` packs
 # it as "gpu_driver" for both ISAs.
@@ -498,8 +488,6 @@ component_plan = { version = "0.1.0", path = "../crates/component_plan" }
 swap_protocol = { version = "0.1.0", path = "../crates/swap_protocol" }
 virtio = { version = "0.1.0", path = "../crates/virtio" }
 socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
-multicast_dns_protocol = { version = "0.1.0", path = "../crates/multicast_dns_protocol" }
-multicast_dns_config = { version = "0.1.0", path = "../crates/multicast_dns_config" }
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
 gpt = { version = "0.1.0", path = "../crates/gpt" }
@@ -556,12 +544,11 @@ tock-registers = "0.10"
 smoltcp = { version = "0.14.0", default-features = false, features = [
     "alloc",
     "medium-ethernet",
-    # Multicast group membership (milestone 55's mDNS stack half): join_multicast_group, IGMP, and,
-    # the part that matters, RX acceptance of datagrams addressed to a joined group. Without this
-    # feature the IPv4 input path accepts multicast only to 224.0.0.1 (all-systems, hardcoded), so
-    # a datagram to mDNS's 224.0.0.251 is dropped before UDP ever sees it. In smoltcp's own default
-    # feature set; `default-features = false` had discarded it. See notes/mdns.md.
-    "multicast",
+    # No "multicast". Milestone 55's mDNS stack half enabled it (group membership, IGMP, and RX
+    # acceptance of datagrams addressed to a joined group) and milestone 298 took it out again on
+    # 2026-09-15 with the only thing that joined a group. Without it the IPv4 input path accepts
+    # multicast only to 224.0.0.1, so a future multicast client must put it back; notes/mdns.md
+    # records what it took and what QEMU could and could not prove.
     "proto-ipv4",
     "proto-dhcpv4",
     "socket-udp",
