@@ -26,9 +26,12 @@ CPU's **TSS I/O permission bitmap**.
 - **It is minted by the kernel**, once, at boot, the way a `DeviceFrame` is: only the kernel knows a
   machine's device ports. The progenitor is handed COM1's `PortRange(0x3F8, 8)` with `GRANT` and
   delegates it to the console and input drivers it builds.
-- **The object exists on every architecture** for a uniform capability surface and a uniform syscall
-  dispatch (§19), the same way `DeviceFrame` does; it is constructed and enforced only on `x86_64`,
-  where the hardware it names exists.
+- **The object is `x86_64`-only**, unlike `DeviceFrame` (which every architecture has, because MMIO
+  is universal). Port I/O exists on no other architecture, so omitting it there is not a parity gap
+  (§19), it is the absence of the hardware. Compiling the variant only where it exists also keeps a
+  new enum arm off the other two architectures' syscall dispatcher, which the IPC round trip's
+  instruction-footprint bound is measured against (`script/fastpath-footprint`): a variant present
+  everywhere grew riscv64's dispatcher past that bound for hardware it can never name.
 
 ## What invoking it does
 

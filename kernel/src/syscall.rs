@@ -453,16 +453,37 @@ pub(crate) fn invoke(
         // A port range is enforced at the context switch (the TSS I/O bitmap), so like a
         // `DeviceFrame` it is almost passive on the syscall path: it answers exactly one invocation,
         // `REVOKE`, the take-back a live driver replacement needs (DECISIONS §121, milestone 299).
-        Object::PortRange(base, count) => match method {
-            abi::port_range::REVOKE => {
-                if !cap.rights.allows(Rights::GRANT) {
-                    return Err(Error::NotPermitted);
-                }
-                crate::revoke::revoke_port_range_from_others(base, count);
-                Ok(0)
+        // Extracted, `#[inline(never)]`, for `memory_region_map`'s reason: a rare administrative
+        // method has no business growing the flat `syscall_entry` footprint the IPC round trip is
+        // measured against (`script/fastpath-footprint`). The variant is `x86_64`-only, so on the
+        // other two architectures this match is exhaustive without it and their dispatcher is
+        // unchanged.
+        #[cfg(target_arch = "x86_64")]
+        Object::PortRange(base, count) => port_range_invoke(cap.rights, base, count, method),
+    }
+}
+
+/// `PortRange::REVOKE` (milestone 299): take the port range back from every other holder. The only
+/// method a port capability answers; enforcement is at the switch, not here.
+///
+/// **`#[cold]`, not just `#[inline(never)]`.** A live-driver-replacement take-back is among the
+/// rarest things a program does, and `syscall_entry`'s footprint bound is measured over the
+/// *non-cold* calls reachable from the dispatcher (`script/fastpath-footprint`). Marking this cold
+/// keeps it and `revoke_port_range_from_others` out of that closure, so a new capability method does
+/// not spend the IPC round trip's L1i budget on a path the round trip never takes.
+#[cfg(target_arch = "x86_64")]
+#[cold]
+#[inline(never)]
+fn port_range_invoke(rights: Rights, base: u16, count: u16, method: u64) -> Result<i64, Error> {
+    match method {
+        abi::port_range::REVOKE => {
+            if !rights.allows(Rights::GRANT) {
+                return Err(Error::NotPermitted);
             }
-            _ => Err(Error::BadMethod),
-        },
+            crate::revoke::revoke_port_range_from_others(base, count);
+            Ok(0)
+        }
+        _ => Err(Error::BadMethod),
     }
 }
 

@@ -3135,7 +3135,9 @@ pub fn delete_device_frame_caps_from_others(phys: u64) {
 /// grant on each affected thread so the next context switch to it installs no bitmap and it faults
 /// on its next `in`/`out`. The invoker keeps its own, the same take-back asymmetry
 /// [`delete_device_frame_caps_from_others`] has and for the same reason (the kernel mints a port
-/// capability once, at boot). This is `PortRange::REVOKE`'s body.
+/// capability once, at boot). This is `PortRange::REVOKE`'s body. `x86_64` only, like the
+/// `PortRange` object it deletes.
+#[cfg(target_arch = "x86_64")]
 pub fn delete_port_range_caps_from_others(base: u16, count: u16) {
     delete_port_range_caps_impl(base, count, Some(current_thread_id()));
 }
@@ -3143,14 +3145,16 @@ pub fn delete_port_range_caps_from_others(base: u16, count: u16) {
 /// **Take a port range back from everyone**, the invoker included. The whole-machine revoke the
 /// kernel's own tests use to prove a holder faults after its capability is gone (mirroring
 /// [`crate::revoke::revoke_page_frame`]'s test-only whole-machine sweep); no syscall reaches it,
-/// because a live driver replacement wants the sparing variant above.
-#[cfg_attr(not(all(target_arch = "x86_64", any(test, initrd))), allow(dead_code))]
+/// because a live driver replacement wants the sparing variant above. `x86_64` only.
+#[cfg(target_arch = "x86_64")]
+#[cfg_attr(not(any(test, initrd)), allow(dead_code))]
 pub fn delete_port_range_caps(base: u16, count: u16) {
     delete_port_range_caps_impl(base, count, None);
 }
 
 /// The body of both: walk every thread, delete the matching capability, and clear the cached grant.
-/// `keeper` is spared (the take-back's invoker) or `None` (the whole-machine sweep).
+/// `keeper` is spared (the take-back's invoker) or `None` (the whole-machine sweep). `x86_64` only.
+#[cfg(target_arch = "x86_64")]
 fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) {
     {
         let mut guard = IPC_TABLES.lock();

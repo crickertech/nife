@@ -367,6 +367,13 @@ unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
 /// on each `in`/`out`, so writing them takes effect on the next port access. The caller runs with
 /// interrupts masked (it is on the switch path), and this touches only this core's own TSS, so the
 /// writes cannot race a port access on this core or a TSS write on another.
+///
+/// **`#[cold]`, because its effect is rare even though it is called on every switch.** On a machine
+/// where one process holds a port capability, the early return is taken on all but a handful of
+/// switches, and marking the function cold keeps its body (and `write_range_bits`) out of the IPC
+/// fastpath's hot instruction footprint (`script/fastpath-footprint`, which follows non-cold calls
+/// out of `schedule()`'s switch), for the price of a call and a compare on the common switch.
+#[cold]
 pub fn set_port_grant(grant: Option<(u16, u16)>) {
     let id = crate::cpu::id();
     // SAFETY: this core's own slot, read and written only here and only with interrupts masked on
