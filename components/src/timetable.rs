@@ -136,8 +136,8 @@
 //!   with the boot. Milestone 129's block records this and points at whatever milestone gives
 //!   services durable configuration at all, which does not exist yet.
 //!
-//! - **The document is compiled in, not read from disk.** `include_str!`, exactly as
-//!   `components/src/multicast_dns_responder.rs` does and for the same reason: reading a file needs a file
+//! - **The document is compiled in, not read from disk.** `include_str!`, exactly as the
+//!   multicast DNS responder did until its retirement (notes/mdns.md), and for the same reason: reading a file needs a file
 //!   capability wired through the spawn. The format, the parser, the line-numbered errors and every
 //!   test are unaffected by where the bytes come from.
 

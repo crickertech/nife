@@ -58,10 +58,10 @@
 use crate::sched;
 use crate::thread::ThreadId;
 
-/// The most threads one holding covers. The widest service this boot builds is now **three**: a
-/// `net_stack`, its socket client, and the mDNS responder. It was four until 2026-08-30, when the
-/// SMB adapter that was the fourth went with the rest of the SMB implementation (notes/smb.md), so
-/// this number carries one slot of margin again rather than none. **The bound is kept at four
+/// The most threads one holding covers. The widest service this boot builds is now **two**: a
+/// `net_stack` and its socket client. It was four until 2026-08-30, when the SMB adapter went with
+/// the rest of the SMB implementation (notes/smb.md), and three until 2026-09-15, when milestone 298
+/// retired the multicast DNS responder (notes/mdns.md), so this number carries two slots of margin. **The bound is kept at four
 /// deliberately**: it is a panic rather than a silent drop, and lowering it to the current width
 /// would buy nothing and make the next client a build failure for no reason. A fifth client still
 /// panics here, which is the intended behaviour and worth knowing before adding one: raise this and
@@ -69,10 +69,10 @@ use crate::thread::ThreadId;
 const MAX_THREADS: usize = 4;
 
 /// The most untyped regions one holding covers, in **each** phase. The widest service this boot
-/// builds is `net_stack` with **two** clients (the socket client and milestone 55's mDNS
-/// responder), which is three endpoint regions before death and six budget-and-stack regions after
-/// it. It was three clients until 2026-08-30, when the SMB adapter left (notes/smb.md), and this
-/// number is kept at the eight that width needed: it is the same deliberate margin
+/// builds is `net_stack` with **one** client, which is two endpoint regions before death and four
+/// budget-and-stack regions after it. It was three clients until 2026-08-30, when the SMB adapter
+/// left (notes/smb.md), and two until 2026-09-15, when the multicast DNS responder was retired
+/// (milestone 298, notes/mdns.md). This number is kept at the eight the three-client width needed: it is the same deliberate margin
 /// [`MAX_THREADS`] keeps, and the next client added must raise both together. Failing the build is
 /// the point; dropping one silently would leak memory that looks reclaimed.
 const MAX_REGIONS: usize = 8;

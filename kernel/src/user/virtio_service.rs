@@ -292,11 +292,12 @@ fn wire_net_server(
 const NET_CLIENT_BUDGET_PAGES: u64 = 16;
 
 /// A stack client's stack, in pages. **Six, raised from two** by milestone 55's responder lane, and
-/// the number came from a call frame rather than from taste: `multicast_dns_protocol::respond` holds nine
-/// 256-byte wire names, the echoed questions and a TXT assembly buffer, which is about five
-/// kilobytes of one frame, and the responder adds its own datagram buffers on top. Two pages fit
-/// none of that, and an overflowed EL0 stack is a fault a long way from its cause. Four frames per
-/// client is what it costs, and the three clients here share one NIC.
+/// the number came from a call frame rather than from taste: the multicast DNS responder's
+/// `respond` held nine 256-byte wire names, the echoed questions and a TXT assembly buffer, about
+/// five kilobytes of one frame. **That client was retired on 2026-09-15** (milestone 298,
+/// notes/mdns.md) and the number was not re-measured for the socket client that is left, so six is
+/// now margin rather than a measurement. Lowering it wants a stack-depth reading of
+/// `socket_test_client`, not a guess.
 const NET_CLIENT_STACK_PAGES: u64 = 6;
 
 /// **Spawn the net server and a client of its socket contract** (milestone 30, piece 3 phase B).
@@ -347,13 +348,15 @@ pub fn start_net_stack(
 }
 
 /// Spawn one client of a `Stack` endpoint: WRITE on the shared endpoint, its own untyped, a
-/// report endpoint, [`NET_CLIENT_STACK_PAGES`] extra stack pages, no heap. The shared body of [`start_net_stack`]'s
-/// socket-contract client and the mDNS responder below; `arg0`/`arg1` are the client's, and mean
-/// whatever its `_start` says they mean.
+/// report endpoint, [`NET_CLIENT_STACK_PAGES`] extra stack pages, no heap. The body of
+/// [`start_net_stack`]'s socket-contract client; `arg0`/`arg1` are the client's, and mean whatever
+/// its `_start` says they mean.
 ///
 /// It used to take a directory capability and a credential endpoint too, for the SMB adapter that
-/// was a third client of this spawn; both went with that program on 2026-08-30 (notes/smb.md).
-/// What is left is the shape every remaining client actually uses.
+/// was a third client of this spawn; both went with that program on 2026-08-30 (notes/smb.md). Its
+/// other caller, `start_shared_net_stack`, spawned the multicast DNS responder as a second client
+/// and went with that program on 2026-09-15 (milestone 298, notes/mdns.md). A second client of one
+/// `Stack` is a single call to this function away, which is why it stays a function.
 ///
 /// `held` is the caller's [`Holding`]: this client's thread and the three regions behind it are
 /// added to whatever the net server already put there, so one `release` at the end of a test ends
@@ -424,71 +427,6 @@ fn spawn_stack_client(
     held.add_region_after_death(cli_budget);
     held.add_region_after_death(cli_stack_region);
     cli_report
-}
-
-/// **Spawn the net server, the inbound socket-contract client AND the mDNS responder**
-/// (milestones 107 and 55), all on one NIC and one `Stack` endpoint. Returns
-/// `(socket client's report, responder's report)`, or `None` with no NIC.
-///
-/// The responder is the second client and the last spawned, because it takes the DHCP lease as an
-/// argument (see below). It holds one fixed UDP port and nothing else: milestone 55's two halves
-/// were two processes with two authorities, which was the whole demonstration. Samba's reference
-/// wiring has one process and one configuration file serving both.
-///
-/// **This spawn served three milestones until 2026-08-30** (notes/smb.md), when the SMB adapter it
-/// carried as a third client was removed. The reason the clients share one `Stack` outlived it: a
-/// second `net_stack` did not fit the test boot when this was written (its untyped region was never
-/// reclaimed; see `virtio::MAX_DEVICES`), and although a `net_stack` has been reclaimable since
-/// 2026-08-16 (notes/frames.md), sharing one stack is *also* what proves two clients share its
-/// socket table and its grant. The echo client owns socket ids 0 and 1, the responder its own, and
-/// the listen grant keeps the denied-port check (8080) meaningful.
-///
-/// `udp_bind_grant` is milestone 55's mDNS stack half: the UDP port range the socket client may
-/// `BIND_UDP`, [`socket_protocol::udp_bind_grant`]'s half of the word, or zero when no client needs
-/// one. It is a *separate* parameter rather than folded into the port arguments because it grants a
-/// different verb over a different namespace, and because the two halves living in one word is
-/// exactly what the composed packing has to be exercised on: this is the only spawn in the tree
-/// that hands out both at once, so it is the only place the machine checks that the listen grant
-/// and the UDP grant do not leak into each other.
-/// **Name: ratified 2026-08-30 (calef, in session).** It names the property this spawn exists to
-/// demonstrate, one stack with more than one client, rather than the identity of whichever client
-/// rides on it. That is the correction: this function was `start_net_stack_with_smb` until
-/// 2026-08-30, and it **named a client, and the client went away**. Renaming it after a different
-/// client would have repeated the defect the same week milestone 161 fixed `has_both_backends` to
-/// `has_every_backend`, whose own comment calls an arity in a name "the smallest possible version of
-/// a name going stale"; an identity in a name is that defect wearing a different coat. Refused
-/// `start_net_stack_with_responder` (names a client), `start_net_stack_with_two_clients` (an arity),
-/// `start_net_stack_with_mdns` (both, narrower), and `start_net_stack_with_second_client` (describes
-/// the mechanism rather than the claim). With one client nothing is shared, so `shared` does real
-/// work against its sibling `start_net_stack`.
-pub fn start_shared_net_stack(
-    image: &'static [u8],
-    mdns_image: &'static [u8],
-    cli_arg: u64,
-    echo_port: u16,
-    mdns_queries: u64,
-    udp_bind_grant: u64,
-) -> Option<(RendezvousId, RendezvousId, Holding)> {
-    let dev = crate::virtio::find_net_device()?;
-    let transport = crate::virtio::Transport::Mmio {
-        mmio_phys: dev.mmio_phys,
-    };
-    let grant = socket_protocol::listen_grant(echo_port, echo_port) | udp_bind_grant;
-    let (net_stack_report, stack, mut held) =
-        wire_net_server(image, transport, dev.intid, None, grant);
-    let cli_report = spawn_stack_client(image, cli_arg, 0, stack, &mut held);
-
-    // Drain the DHCP lease report, as in start_net_stack: the clients block on their first
-    // request until the server enters its serve loop.
-    //
-    // **And keep the address**, which is the one thing this drain used to throw away. The mDNS
-    // responder announces an A record for the name it advertises, and the address in it is a fact
-    // about the running system rather than a line in its configuration, so the responder is spawned
-    // *after* this recv and handed the address it reported.
-    let lease = crate::sched::ipc_recv(net_stack_report)[0];
-    let mdns_report = spawn_stack_client(mdns_image, mdns_queries, lease, stack, &mut held);
-
-    Some((cli_report, mdns_report, held))
 }
 
 /// The networked std client's heap budget and extra stack, both larger than the hand-written

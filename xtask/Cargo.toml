@@ -43,12 +43,6 @@ bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 # host-logic crate in this tree gives: the interesting half is text, and text is worth a thousand
 # tests in milliseconds. This file keeps the argument parsing and the report.
 board_console = { version = "0.1.0", path = "../crates/board_console" }
-# The mDNS responder's configuration document (milestone 55). The gate's expectations are DERIVED
-# from the same file the guest ships, so editing what this machine advertises moves the assertion
-# with it and the two cannot drift. The wire-format side is deliberately NOT shared: the prober
-# decodes the guest's answers with its own parser below, or the gate would be checking multicast_dns_protocol
-# against itself.
-multicast_dns_config = { version = "0.1.0", path = "../crates/multicast_dns_config" }
 # The compositor contract (milestone 33): the same scanout check also verifies the screen the
 # compositor composed, against the same scene and the same per-pixel definition the guest used. A
 # compositor's output is the thing a guest-side digest cannot confirm on its own.

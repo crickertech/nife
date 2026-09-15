@@ -156,33 +156,18 @@ const NET_TEST_TCP_ACCEPT: u64 = 5;
 /// read a Rust crate, and that drift is loud (the prober reports the guest served none).
 #[cfg(target_arch = "aarch64")]
 const NET_LISTEN_PORT: u16 = socket_protocol::fixture::LISTEN_PORT;
-/// The fixed UDP ports the mDNS gate is granted (milestone 55), RFC 6762's 5353 and its
-/// neighbour. Named here for the same reason as the listen port: the spawn service grants them,
-/// and a program cannot ask for what it was not given.
+/// The fixed UDP port range the accept test's stack is granted (milestone 55's UDP bind grant).
+/// Named here for the same reason as the listen port: the spawn service grants it, and a program
+/// cannot ask for what it was not given. `socket_test_client` binds 5354 inside it to prove a
+/// granted port binds and is exclusive, and asks for 4444 outside it to prove the refusal.
 ///
-/// **Two ports, for two clients with two different jobs.** `multicast_dns_responder` holds 5353 and answers
-/// real queries on it for the whole run. `socket_test_client` cannot then use 5353 to prove that a
-/// *granted* port binds and is exclusive, so it uses 5354; the port outside the range (4444) is
-/// what proves the refusal, and that is the check the responder cannot make about itself.
+/// The range starts at 5353 because the multicast DNS responder held that port beside the socket
+/// client until milestone 298 retired it on 2026-09-15 (notes/mdns.md). The numbers carry no
+/// meaning of their own now; they are kept so the client and this grant still agree.
 #[cfg(target_arch = "aarch64")]
-const NET_MDNS_PORT: u16 = 5353;
+const NET_UDP_GRANT_BOTTOM: u16 = 5353;
 #[cfg(target_arch = "aarch64")]
-const NET_MDNS_GRANT_TOP: u16 = 5354;
-/// Queries `multicast_dns_responder` must answer before reporting OK, matching xtask's multicast prober:
-/// one multicast browse and one legacy-unicast query, which are the two shapes RFC 6762 §6.7
-/// splits a responder's behaviour on.
-#[cfg(target_arch = "aarch64")]
-const MDNS_QUERIES: u64 = 2;
-
-/// The `multicast_dns_responder` program's ELF bytes (milestone 55): the discovery half, spawned as a third
-/// client of the same stack. A separate binary rather than a role of `net_stack`, because it is a
-/// separate authority: it holds one UDP port and nothing else. When it was written the SMB adapter
-/// beside it held the share and no discovery, which was the demonstration; notes/smb.md.
-#[cfg(target_arch = "aarch64")]
-fn multicast_dns_responder_image() -> &'static [u8] {
-    program("multicast_dns_responder")
-        .expect("no multicast_dns_responder program in the initrd archive")
-}
+const NET_UDP_GRANT_TOP: u16 = 5354;
 #[cfg(target_arch = "aarch64")]
 const NET_CLIENT_OK: u64 = 1;
 
@@ -1758,25 +1743,20 @@ fn a_reopened_socket_id_connects_again_over_tcp() {
 /// reclaimable (notes/frames.md); the tests stay merged because splitting them is its own change
 /// with its own argument. The stage codes stand in for the names the second test would have had.
 ///
-/// **The mDNS-shaped exchange rides in this same spawn too** (milestone 55's stack half), for the
-/// same memory reason, re-measured by the lane that built it: a twelfth net server died as
+/// **The UDP bind grant rides in this same spawn too** (milestone 55's stack half), for the same
+/// memory reason, re-measured by the lane that built it: a twelfth net server died as
 /// `Unmappable(OutOfPageFrames)` in an unrelated later test. After the accept rounds, the client
-/// proves the three things a responder needs and nothing else touches: binding UDP 5353 is an
-/// authority (a port outside the spawn's `udp_bind_grant` is refused, the granted one binds and
-/// is exclusive; and since this spawn's word carries both grants, the composed packing is what
-/// the machine exercises); a datagram addressed to 224.0.0.251, not to the guest, is accepted
-/// because the stack joined the group (without smoltcp's `multicast` feature it dies in the IPv4
-/// input path, unseen by UDP); and the querier's source rendezvous rides back on RECV, which RFC
-/// 6762 §6.7's semantics turn on. Slirp cannot carry multicast, so the host side is xtask's
-/// multicast prober on the frame-level hub the runner wires beside slirp: it takes the guest's
-/// own multicast send off the wire (which is what proves SENDTO to a group reaches it), injects
-/// the group-addressed query with a spoofed source nothing on the network holds, and requires
-/// the guest's composed answer. See notes/mdns.md for what QEMU still cannot prove.
+/// proves that binding a fixed UDP port is an authority: a port outside the spawn's
+/// `udp_bind_grant` is refused, the granted one binds and is exclusive, and since this spawn's
+/// word carries both grants, the composed packing is what the machine exercises.
 ///
-/// **Milestone 54's SMB adapter rode this same spawn as a third client**, with an authenticated,
-/// fs-backed share and the credential service beside it, until 2026-08-30. It was removed with the
-/// rest of the SMB implementation; notes/smb.md records what that boot proved and why it is gone.
-/// What is left here is the echo client and the responder.
+/// **Two more clients rode this spawn once, and both are gone.** Milestone 54's SMB adapter, with
+/// an authenticated fs-backed share and the credential service beside it, until 2026-08-30
+/// (notes/smb.md). And milestone 55's multicast DNS responder, whose group-addressed answers xtask's
+/// multicast prober decoded off a frame-level hub, until milestone 298 retired it on 2026-09-15
+/// (notes/mdns.md). With it went the only check that a datagram addressed to a joined group is
+/// accepted and that a multicast `SENDTO` reaches the wire. The source endpoint on a UDP `RECV` did
+/// not go with it: the TFTP exchange proves that (stage codes 0xE046 and 0xE047).
 // RISC-V twin: `riscv_virtio_tests::a_host_process_connects_to_the_guest_and_is_answered`.
 #[cfg(target_arch = "aarch64")]
 #[test_case]
@@ -1788,19 +1768,18 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // delta against this baseline is what isolates "how many threads did wiring THIS topology
     // create" from "how many threads exist in the boot at this point in the suite".
     let e2_baseline_threads = sched::thread_count();
-    let Some((report, mdns_report, net)) = virtio_service::start_shared_net_stack(
+    let Some((report, net)) = virtio_service::start_net_stack(
         net_stack_image(),
-        multicast_dns_responder_image(),
         NET_TEST_TCP_ACCEPT,
-        NET_LISTEN_PORT,
-        MDNS_QUERIES,
-        socket_protocol::udp_bind_grant(NET_MDNS_PORT, NET_MDNS_GRANT_TOP),
+        false,
+        socket_protocol::listen_grant(NET_LISTEN_PORT, NET_LISTEN_PORT)
+            | socket_protocol::udp_bind_grant(NET_UDP_GRANT_BOTTOM, NET_UDP_GRANT_TOP),
     ) else {
         crate::testing::skip!("no virtio-net device attached");
     };
     // E2 (milestone 134, design/roadmap/134-the-measurements-that-decide.md): the thread census on
     // the customer path. Every process this topology needs is already spawned by this point
-    // (`net_stack`, the echo client, the mDNS responder), and none of them spawns another kernel
+    // (`net_stack` and the echo client), and neither spawns another kernel
     // thread per connection or per request (each is a single-threaded event loop over its own
     // rendezvous), so this count is already the peak: it does not grow further as the host prober's
     // connections arrive. See notes/benchmarks.md and this milestone's register entry for what this
@@ -1811,11 +1790,12 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
     // The census covered a wider topology until 2026-08-30: it also held the block server, the FS
     // server, the SMB adapter and the credential service, all wired for the SMB gate. notes/smb.md
     // records what that boot was and why it is gone, and the number here is not comparable to the
-    // one milestone 134 recorded against it.
+    // one milestone 134 recorded against it. It lost the multicast DNS responder on 2026-09-15
+    // (milestone 298, notes/mdns.md), one thread fewer again.
     crate::println!(
         "    (E2 thread census: {} threads created by wiring this customer-path topology \
          ({} live now, {e2_baseline_threads} live before this test wired anything): main + \
-         net_stack + echo client + mDNS responder)",
+         net_stack + echo client)",
         sched::thread_count().saturating_sub(e2_baseline_threads),
         sched::thread_count(),
     );
@@ -1827,16 +1807,6 @@ fn a_host_process_connects_to_the_guest_and_is_answered() {
          0xE060 or 0xE070 means nobody ever connected, which is the host side: is the runner \
          adding a hostfwd (NIFE_HOSTFWD_PORT) and is xtask's inbound prober running beside this \
          suite? 0xE082 or 0xE084 mean the UDP bind grant admitted or refused the wrong port",
-    );
-    let verdict = sched::ipc_recv(mdns_report)[0];
-    assert_eq!(
-        verdict, NET_CLIENT_OK,
-        "the mDNS responder did not answer the queries xtask injected (code {verdict:#x}). \
-         0xE2xx is this program's range: 0xE20L means its configuration document is wrong at line \
-         L, 0xE220 means it was spawned without the UDP bind grant it needs, 0xE221 that something \
-         else already held 5353, and 0xE240 that nothing ever asked it anything, which is either \
-         the joined group's RX acceptance or the host side (NIFE_MCAST_PORT and xtask's multicast \
-         prober). What the prober asserts about the ANSWERS is separate and reported by xtask",
     );
     net.release_or_fail("a net test's net_stack");
 }
