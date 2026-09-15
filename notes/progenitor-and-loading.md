@@ -266,7 +266,10 @@ reaches it too, so calef retired `builder`.
 **Split the claim in two, because only one half moved cleanly.**
 
 *Userspace composes a process.* Carried by the progenitor on every architecture that runs one
-(`spawn_progenitor` on aarch64, `riscv_shell_boot` on riscv64), on the boot a card actually performs.
+(`spawn_progenitor` on aarch64, `riscv_shell_boot` on riscv64 and, since milestone 182, on `x86_64`),
+on the boot a card actually performs. On `x86_64` the progenitor composes the system but its console
+server and input driver stop on first use, because a ring-3 process cannot reach port I/O (DECISIONS
+§121); how a shell gets a console there is DECISIONS §149.
 This half is better off than it was: the progenitor composes the console server, the line
 discipline, the input driver and `swish`, and a person can then type at the result.
 

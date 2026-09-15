@@ -6,9 +6,10 @@ review that followed it. *(Number provisional until the merge queue lands it.)*
 **Gate: DECISION, MILESTONE 182.** The ladder itself is decided (calef, 2026-09-09, in
 conversation) and nothing in it is a design fork. What is gated is only its **last rung on
 x86_64**: that architecture cannot reach a prompt until DECISIONS §149 says how `swish` gets a
-console there, and until milestone 182 builds the entry point. **Every rung below the last one runs
-before userspace exists and waits on neither**, so the bulk of this milestone can land first and
-should.
+console there. Milestone 182's entry point, the other half of this gate, was built on 2026-09-14
+and the x86_64 boot now hands over to the progenitor; what 182 still owes is the same prompt, gated
+on the same decision. **Every rung below the last one runs before userspace exists and waits on
+neither**, so the bulk of this milestone landed first.
 
 ## What calef decided, so a lane does not re-litigate it
 
@@ -136,10 +137,13 @@ prints, and not a marker that exists on one architecture, which is the defect be
 - **Milestone 269.** `machine` as a program that can be run from the prompt.
 - **Recorded.** The `attach_screen` asymmetry is named in BUGS above rather than left for a lane to
   rediscover, because the wrong move is the obvious one.
-- **Outstanding.** The ladder's **top rung on `x86_64`**: a default boot there still ends in
-  `nife x86_64: boot complete, halting.` after a green verdict, because the architecture has no
-  entry point that hands the machine to a shell. Still this block's scope and still gated on the two
-  things named above it; checked 2026-09-14 by booting it.
+- **Outstanding.** The ladder's **top rung on `x86_64`**. Since 2026-09-14 a default boot there
+  hands the machine to the progenitor (milestone 182's entry point) and no longer halts, but it
+  reaches no prompt: the progenitor's console server cannot reach COM1 from ring 3, and how a shell
+  gets a console there is DECISIONS §149. The boot's last two lines say exactly that. Checked the
+  same day by booting it; see "Second pass" below.
+- **Outstanding.** `script/boot-check` asserting the prompt, on all three architectures at once when
+  §149 lets `x86_64` reach one. See `BUGS (as built)` for why not on two of three now.
 - **Done.** By milestone 295 (design/roadmap/295-retire-the-builder-program.md), which is the
   proposal file below promoted in place: calef answered the one-sentence question it was written to
   ask with *"Retire builder"*, option (b), and the removal landed on 2026-09-14. The paragraph that
@@ -159,6 +163,12 @@ prints, and not a marker that exists on one architecture, which is the defect be
   `kernel::user::riscv_initrd_demo`, drop `builder` from `xtask`'s `boot_programs` and the archive
   table, delete the program, and give `crates/board_console` a live marker in place of
   `userspace_ran`'s `init/build` (the captured board transcript keeps needing the old one).
+  **Correction, 2026-09-14 (milestone 182's lane):** the premise that `x86_64` "has none" was false
+  by the time it was written into this paragraph and the section below. `crates/user_mode_runtime`
+  has had `x86_64` arms since milestone 161 (the x86_64 kernel port), which is why the x86 archive
+  packs every portable program and `std_exerciser` ran there at milestone 184; and the same day the progenitor itself was loaded
+  from the archive and ran at ring 3 on `x86_64`. The two passages are kept as written because they
+  are the record of the reasoning; the retirement they discussed went ahead anyway.
 - **Proposed.** `design/roadmap/proposals/one-machine-description-not-two.md`. **Trim the
   duplicated bring-up narrative on riscv64 and `x86_64`**, now that the
   machine description answers the same questions in one block on every architecture. The constraint
@@ -331,6 +341,90 @@ could make: whether the retirement waits for an `x86_64` leg that can run a comp
 ahead now on the strength of the progenitor carrying the claim wherever a progenitor runs. He made
 it the same day, *"Retire builder"*, and milestone 295 performed it.
 
+## Second pass (2026-09-14): the top rung's entry point, and two BUGS closed
+
+Built in one lane with milestone 182, whose block carries the entry point in full.
+
+### `x86_64` no longer halts
+
+The default boot ends by handing the machine to the progenitor, loaded from the archive and
+measured, through the same function riscv64's default boot enters (`kernel::user::riscv_shell_boot`).
+It reaches ring 3, builds the system, and stays running. What it cannot do is offer a prompt,
+because the console server and the input driver it builds trap on first use: a ring-3 process cannot
+reach port I/O (DECISIONS §121). The boot says so rather than going quiet:
+
+```
+nife: handing the system to the userspace progenitor.
+  uart irq: line 4 (machine description)
+  ...
+nife x86_64: the progenitor is running at ring 3; 2 of the processes it built stopped on purpose.
+  no prompt  : the console server cannot reach COM1 from ring 3 (§121); how a shell gets a console here is §149, not yet decided.
+```
+
+The body it shares with riscv64 changed (every grant names its slot), and `script/shell-check`
+still reaches and drives the prompt on aarch64 and riscv64 after it.
+
+**"Nothing halts" now holds on all three architectures.** The rung that is still missing on `x86_64`
+is the prompt, and it waits on one ruling.
+
+Three gates keyed on the old halt line (`uefi-boot`'s serial and screen markers,
+`script/netboot-rehearsal`) and now wait for `boot_ladder::SELF_TEST`, the last line every boot
+prints whatever comes next. `uefi-boot` also requires the hand-over, and passed under OVMF.
+
+### "The self-test can hang the boot": closed
+
+`timer` waited in `wait_for_interrupt` until the counter passed its window, so a stopped counter, or
+a machine whose interrupts never arrived, parked the boot forever; `scheduler`'s deadline was
+unreachable on a stopped counter. Both now read through `self_test::Counter`, which reports a
+counter that read one value a million times running (every counter this kernel reads changes at
+least every 250 ns), and `timer` spins rather than sleeping.
+
+Proved with the injector, which now also stops the checks' copy of the counter. **Before**, on
+`x86_64`:
+
+```
+  self-test       : frames     ok      one frame out and back at 0x993000; ...
+boot-check (x86_64): went quiet after machine described (5014 bytes in 30.8s)
+boot-check (x86_64): FAILED. A kernel built with `--features self_test_injection` must print a RED verdict and this run did not ...
+```
+
+**After**, on all three:
+
+```
+boot-check (aarch64): nife self-test: 3 of 5 passed, 2 FAILED: exceptions timer
+boot-check (riscv64): nife self-test: 3 of 5 passed, 2 FAILED: exceptions timer
+boot-check (x86_64): nife self-test: 3 of 5 passed, 2 FAILED: exceptions timer
+boot-check: every architecture reached the self-test verdict and it was RED, as the injection asked
+```
+
+with `timer FAILED  the counter stopped at 0x268: 1000000 reads without a change`, each verdict in
+under a second. A plain `boot-check` stays green on all three. Because the injector keeps stopping
+the counter, every `--inject` run is now also a gate for this bound.
+
+### "Nothing proves an architecture ran the right five checks": closed
+
+**Before**, measured by cutting `scheduler` from `x86_64` and setting the count to four, the edit a
+lane makes to keep `self_test`'s `debug_assert` quiet:
+
+```
+boot-check (x86_64): nife self-test: 4 of 4 passed
+boot-check: every architecture reached the self-test verdict and it was green
+```
+
+`boot_ladder::SELF_TEST_CHECKS` is now the set, one list for every architecture and the recogniser.
+The kernel counts against it and names a listed check that never ran, and `board_console` fails a
+verdict whose total is not the list's length. **After**, the same cut:
+
+```
+  self-test       : scheduler  FAILED  did not run on this architecture
+boot-check (x86_64): nife self-test: 4 of 5 passed, 1 FAILED: scheduler
+boot-check (x86_64): FAILED. ...
+```
+
+The injected verdict reads `3 of 5 passed, 2 FAILED: exceptions timer` rather than the `4 of 5,
+1 FAILED: exceptions` in "What was built" above, because the injector injects two faults now; that
+transcript is kept as the record of the first pass.
+
 ## BUGS (as built)
 
 - **The machine description is printed twice-over on riscv64 and `x86_64`.** Both arms print their
@@ -341,21 +435,33 @@ it the same day, *"Retire builder"*, and milestone 295 performed it.
   report what machine they ran on. Proposed in
   `design/roadmap/proposals/one-machine-description-not-two.md`, which is listed under Follow-on
   above.
-- **Nothing proves an architecture ran the right five checks.** The verdict says five of five passed
-  on a kernel that ran five; a check deleted from the list takes its own evidence with it. The count
-  is the partial defence and review is the rest. `kernel/src/self_test.rs`'s own `BUGS` says this
-  where a reader meets it.
-- **The self-test can hang the boot.** `timer` and `scheduler` both wait, bounded by the
-  free-running counter rather than by an iteration count, so a machine whose counter never advances
-  sits in `timer` forever. Same exposure `arch::timer::spin_for` already has, recorded beside the
-  code.
-- **`script/boot-check` does not check the prompt**, for the reason in "What `x86_64` could not
-  reach": asserting the top rung on two of three architectures would be the shape of defect this
-  milestone exists to fix. `script/shell-check` reaches a prompt on the two that can.
+- **Closed 2026-09-14: "Nothing proves an architecture ran the right five checks."** See "Second
+  pass". What remains is narrower and is recorded in `boot_ladder::SELF_TEST_CHECKS`'s own doc: the
+  list is what every architecture is held to, so changing the set is one edit that review still has
+  to judge.
+- **Closed 2026-09-14: "The self-test can hang the boot."** See "Second pass". What remains is a
+  check whose *operation* never returns (a `yield_now` or a `map_page` that wedges), which needs a
+  watchdog this module does not own; `kernel/src/self_test.rs`'s `BUGS` says so. `arch::timer::spin_for`
+  keeps the stopped-counter exposure the self-test used to share.
+- **`script/boot-check` does not check the prompt**, still, and now for one reason rather than two.
+  `x86_64` no longer halts, but it reaches no prompt until DECISIONS §149, so the rung still cannot be
+  asserted on all three. Asserting it on aarch64 and riscv64 alone was considered and not done: it
+  would need the archive that `boot-check` deliberately boots without, which makes it a second
+  `script/shell-check`, which already reaches a prompt on those two; and it would ship the two of
+  three shape this milestone exists to remove. The plan is the Follow-on's second `Outstanding.`
+  line: one change that adds `--until prompt` with an archive on all three once §149 is decided.
 - **The injected leg is not in CI.** `script/boot-check --inject` rebuilds three kernels for one
   boolean, and what it proves is a property of the gate rather than of the change under test. It is
   run by hand when the self-test or the recogniser changes; the transcript above is from the run
   that proved it. A gate for the gate, left at rung four deliberately and said out loud.
+- **The `x86_64` tour's own `kernel task` line can print `FAILED` on two cores**, seen once on
+  2026-09-14 under OVMF with `NIFE_SMP=2` (`a spawned thread ran and carried its captured state (0x0)
+  FAILED`) and not on the run before it. It waits a fixed eight `yield_now`s, and on two cores the
+  thread can be placed on the other one, which is the VisionFive 2's lesson that `self_test::scheduler`
+  already applied by bounding on the clock. It gates nothing (the tour reports), and the same claim is
+  proven by the `scheduler` self-test on every boot, so the fix is to give the tour line that
+  self-test's bound or drop it as a duplicate. Recorded here rather than fixed, because it is the
+  tour's code and not this milestone's.
 - **`Stage::Tour` is still one architecture's rung**, and is now documented as one rather than
   quietly left in the ladder. Levelling it up would mean giving aarch64 and `x86_64` a marker for a
   demonstration tour they do not have; levelling it down would delete riscv64's, which is the trap
