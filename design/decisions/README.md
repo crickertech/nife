@@ -210,6 +210,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 149 | DECIDED | [May the kernel answer on an endpoint, where §121 leaves no userspace holder?](149-kernel-served-console-endpoint.md) |
 | 150 | DECIDED | [How does a thread's CPU time reach userspace?](150-per-thread-cpu-accounting.md) |
 | 151 | DECIDED | [The goal of the repository split is independent release and third-party programs](151-repository-goal-is-independent-release.md) |
+| 152 | PROPOSED | [The port-range capability: object and method semantics on the syscall surface](152-port-range-capability.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

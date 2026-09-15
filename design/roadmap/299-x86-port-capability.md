@@ -1,8 +1,31 @@
 # 299. The x86 port-range capability: the serial console becomes a userspace driver
 
-**Status: NOT-STARTED.** Minted 2026-09-15 by calef, who reversed DECISIONS §121 the same day and
-ruled option 1, the port-range capability, straight rather than sequencing through §149's kernel
-thread. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT.** 2026-09-15. Minted the same day by calef, who reversed DECISIONS §121 and ruled
+option 1, the port-range capability, straight rather than sequencing through §149's kernel thread.
+*(Number provisional until the merge queue lands it.)*
+
+**What was built.** `Object::PortRange(base, count)` on the capability surface (semantics recorded in
+DECISIONS §152, provisional), enforced by the **lazy** TSS I/O-bitmap write on the context switch
+(`arch::segments::set_port_grant`, installed from `sched::schedule`): a switch that crosses no port
+holder costs one comparison and writes nothing (`tss_iomap_lazy_nop`, +216 ticks/iter over a bare
+switch), and a holder crossing writes only the bits that move, not the 8 KiB the naive always-write
+§121 priced at ~2,682 ns cost every switch (`notes/benchmarks.md`, 2026-09-15). Revocation
+(`PortRange::REVOKE`, and the kernel's own whole-machine sweep) deletes the capability, clears the
+cached grant, and resets the core's TSS, so a revoked holder faults on its next `in`/`out`. The x86
+console and input drivers are userspace processes holding COM1's `(0x3F8, 8)` ports, delegated by the
+progenitor; **`swish` reaches an interactive prompt on x86_64 over serial**, its console served by the
+userspace driver's `out`, with zero processes trapping (the milestone-268 gap closed). Two
+load-bearing tests pass under QEMU (`kernel/src/user/x86_port_tests.rs`): a non-holder faults on `out`
+(and a holder's grant does not leak across the switch to it), and a revoked holder faults on its next
+`out`.
+
+**One scope note, recorded rather than hidden.** The x86 **input** driver **polls** COM1 (reading the
+port it holds and yielding between reads) rather than blocking on the receive interrupt, because x86
+does not yet route a device line (COM1's legacy IRQ 4) to a userspace waiter: the kernel delivers only
+self-directed vectors to a driver today (`kernel/src/arch/x86_64/exceptions.rs`). Output (the prompt,
+and everything the shell prints) is unaffected and interrupt-independent. Interrupt-driven x86 input,
+which routes IRQ 4 through the IO APIC to the input driver's `Irq` capability and lets it block, wants
+its own milestone; the register layout it will use is already in `components/src/input.rs`'s x86 arm.
 
 **Gate: NONE.** The design fork is decided (DECISIONS §121, amended 2026-09-15; §149, resolved the
 same day). The mechanism is testable entirely under QEMU's `q35` (COM1 at `3F8h`, and QEMU enforces
