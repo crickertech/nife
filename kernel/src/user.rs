@@ -1819,7 +1819,21 @@ pub fn riscv_uart_driver_demo(
 /// the input driver, and the shell out of its own budget and wires them together; the kernel touches
 /// none of it. Unlike the other demos this
 /// does not block: `system_initializer` and its children run on the scheduler while the boot thread parks.
-#[cfg(target_arch = "riscv64")]
+///
+/// **And on `x86_64` too, since milestone 182** (built inside milestone 268's lane). That
+/// architecture had no function here at all, only `x86_userspace_demo`'s hand-assembled fixture,
+/// and this body needed three changes to serve it rather than a third copy of it: every grant names
+/// its slot, the timebase page is mapped the way [`load`] maps it, and the interrupt-controller
+/// arming at the end stays RISC-V's. **Slot 1 is left empty on `x86_64`**, deliberately: COM1 is
+/// port I/O, so there is no page for a device capability to be a mapping of (DECISIONS §121), and
+/// granting one over physical page zero would hand the console server real memory to scribble on.
+/// The progenitor therefore stops where it first builds the console. How a shell reaches a
+/// console on this architecture is DECISIONS §149, and until it is decided that stop is the
+/// honest end of this boot. Returns the progenitor's thread, so the caller can say how it left.
+///
+/// **The name is now wrong on one of its two architectures.** Kept rather than renamed, because a
+/// rename is calef's; proposed in milestone 182's block.
+#[cfg(any(target_arch = "riscv64", target_arch = "x86_64"))]
 // Two callers since milestone 268: the `shell` boot mode, and the default boot's own hand-off at
 // the end of the tour (`riscv_hand_over`), because nothing halts by default any more. The `allow`
 // is kept for the configurations that reach neither (a `soak` or `job_mix` build replaces the
@@ -1828,8 +1842,12 @@ pub fn riscv_uart_driver_demo(
     any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
     allow(dead_code)
 )]
-pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), LoadError> {
+pub fn riscv_shell_boot(
+    archive: &'static [u8],
+    uart_irq: u32,
+) -> Result<crate::thread::ThreadId, LoadError> {
     use crate::cap::Rights;
+    #[cfg(target_arch = "riscv64")]
     const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt
 
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
@@ -1870,6 +1888,11 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
             .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
             .map_err(LoadError::Unmappable)?;
     }
+    // The `x86_64` timebase page, which [`load`] maps for every process it builds and a hand-built
+    // address space has to map for itself (see [`map_x86_timebase_page`] for the six call sites
+    // that each found this as a page fault). The progenitor reads the clock like any program does.
+    #[cfg(target_arch = "x86_64")]
+    map_x86_timebase_page(&mut space).map_err(LoadError::Unmappable)?;
     for i in 0..initrd_pages {
         space
             .map_physical(
@@ -1902,17 +1925,30 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     )
     .expect("insert budget");
     assert_eq!(s0, 0);
-    let s1 = crate::sched::thread_control_block_insert_cap(
-        tid,
-        crate::cap::device_frame_cap(UART_PHYS, Rights::WRITE.union(Rights::GRANT)),
-        None,
-    )
-    .expect("insert uart device");
+    // Slot 1: the console's registers on RISC-V, and **an inert placeholder on `x86_64`**. See this
+    // function's doc for why the slot cannot be left empty there.
+    #[cfg(target_arch = "riscv64")]
+    let uart_slot = crate::cap::device_frame_cap(UART_PHYS, Rights::WRITE.union(Rights::GRANT));
+    // FOOT GUN, marked as one (AGENTS.md: an exception must say so where a reader meets it). A
+    // zeroed frame nothing else owns, standing where a UART page would be, so that the slot number
+    // `system_initializer` deletes as `uart_dev` names a capability it was actually granted.
+    // `READ` because the progenitor maps it read-only into the console and the input driver, whose
+    // `x86_64` arms trap before touching it (DECISIONS §121). It is not a device and grants nothing a
+    // process could use; whatever DECISIONS §149 decides replaces it.
+    #[cfg(target_arch = "x86_64")]
+    let uart_slot = crate::cap::page_frame_cap(
+        crate::memory::alloc_zeroed()
+            .expect("no frame for the console placeholder")
+            .addr(),
+        Rights::READ.union(Rights::GRANT),
+    );
+    let s1 = crate::sched::thread_control_block_insert_cap(tid, uart_slot, Some(1))
+        .expect("insert uart device");
     assert_eq!(s1, 1);
     let s2 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::irq_cap_rights(uart_irq, Rights::READ.union(Rights::GRANT)),
-        None,
+        Some(2),
     )
     .expect("insert uart irq");
     assert_eq!(s2, 2);
@@ -1922,7 +1958,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let s3 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::page_frame_cap(boot_clock_page(), Rights::READ.union(Rights::GRANT)),
-        None,
+        Some(3),
     )
     .expect("insert the clock page");
     assert_eq!(s3, 3);
@@ -1932,7 +1968,7 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     let s4 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::page_frame_cap(boot_config_page(), Rights::READ.union(Rights::GRANT)),
-        None,
+        Some(4),
     )
     .expect("insert the config page");
     assert_eq!(s4, 4);
@@ -1948,14 +1984,14 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
             let s5 = crate::sched::thread_control_block_insert_cap(
                 tid,
                 crate::cap::rendezvous_cap(file_ep, Rights::WRITE.union(Rights::GRANT)),
-                None,
+                Some(5),
             )
             .expect("insert the file service");
             assert_eq!(s5, 5);
             let s6 = crate::sched::thread_control_block_insert_cap(
                 tid,
                 crate::cap::page_frame_cap(file_shared, Rights::WRITE.union(Rights::GRANT)),
-                None,
+                Some(6),
             )
             .expect("insert the shared file page");
             assert_eq!(s6, 6);
@@ -2047,14 +2083,23 @@ pub fn riscv_shell_boot(archive: &'static [u8], uart_irq: u32) -> Result<(), Loa
     // Arm the interrupt chain so the input driver's keystrokes flow: the source at the PLIC and
     // supervisor external interrupts in `sie`. The input driver arms the NS16550's own RX interrupt
     // (its IER) when it starts, and re-arms the PLIC source through its Irq cap's ACK.
-    crate::drivers::plic::enable(uart_irq, crate::arch::irq::boot_s_context());
-    // The virtio-rng device's own source, pinned to the same boot-hart context for the same reason
-    // (`notes/harts-and-pes.md`'s hart lottery; see [`VirtioRngGrant::intid`]'s own doc).
-    if let Some(g) = &virtio_rng {
-        crate::drivers::plic::enable(g.intid, crate::arch::irq::boot_s_context());
+    //
+    // RISC-V's alone. On `x86_64` there is no input driver to feed (it would need the UART page
+    // slot 1 does not hold), so arming COM1's line would deliver keystrokes to nobody; that wiring
+    // belongs to whichever console DECISIONS §149 chooses.
+    #[cfg(target_arch = "riscv64")]
+    {
+        crate::drivers::plic::enable(uart_irq, crate::arch::irq::boot_s_context());
+        // The virtio-rng device's own source, pinned to the same boot-hart context for the same
+        // reason (`notes/harts-and-pes.md`'s hart lottery; see [`VirtioRngGrant::intid`]'s own doc).
+        if let Some(g) = &virtio_rng {
+            crate::drivers::plic::enable(g.intid, crate::arch::irq::boot_s_context());
+        }
+        crate::arch::exceptions::enable_external();
     }
-    crate::arch::exceptions::enable_external();
-    Ok(())
+    #[cfg(target_arch = "x86_64")]
+    let _ = &virtio_rng;
+    Ok(tid)
 }
 
 /// Bringing the console driver up in userspace, and wiring a client to it.
