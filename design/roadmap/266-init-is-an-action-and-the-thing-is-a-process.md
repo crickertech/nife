@@ -268,7 +268,9 @@ applied, stated so it can be disagreed with:
   still two orders for one endowment; unifying them means renumbering aarch64's 19d test roles,
   which is its own milestone with its own gate. Until then the tables sit beside each other in
   `components/src/progenitor.rs`, which is the cheapest place to notice they disagree.
-- **Proposed.** `design/roadmap/proposals/what-the-boot-path-is-called.md`. Held out of this milestone deliberately (`script/initboot` to
+- **Milestone 296.** `design/roadmap/proposals/what-the-boot-path-is-called.md` (retired with that
+  milestone: calef ruled the feature **deleted** rather than renamed, so neither candidate below
+  won and the table is kept as the argument that was made). Held out of this milestone deliberately (`script/initboot` to
   `init-boot` was staged and backed out pending it), and it is three strings in two naming domains:
 
   | thing | today | domain | mechanical answer |

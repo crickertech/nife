@@ -3,7 +3,7 @@
 //! `crates/job_mix` is the workload's definition and its header carries the argument for *what* the
 //! mix is and why AIM7's own categories were kept while its 53 job names were not. This file is one
 //! task: it runs the mix when the supervisor releases it, self-times, and reports.
-//! `kernel/src/jobmix.rs` is the supervisor that releases it and owns the wall clock.
+//! `kernel/src/job_mix.rs` is the supervisor that releases it and owns the wall clock.
 //!
 //! # Why the tasks are processes and not kernel threads
 //!
@@ -80,7 +80,7 @@ use user_mode_runtime::{call, now, recv, recv_cap, reply, send, yield_now};
 static mut WORKING_SET: [u64; job_mix::TOUCH_WORDS] = [0; job_mix::TOUCH_WORDS];
 
 /// A capability slot this task was given nothing in, for the [`job_mix::NULL_SYSCALL`] job to be
-/// refused on. Past every slot `kernel/src/jobmix.rs` grants, and it must stay that way: a slot
+/// refused on. Past every slot `kernel/src/job_mix.rs` grants, and it must stay that way: a slot
 /// that ever held an object would make the job invoke it rather than bounce off the kernel's
 /// slot check.
 const EMPTY_SLOT: u64 = 63;

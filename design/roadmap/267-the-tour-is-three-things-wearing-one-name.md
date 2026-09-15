@@ -277,18 +277,22 @@ nothing, which is the Follow-on question below rather than a step in this proof.
   `crates/byte_sink_proto`'s sink), and that a program written against one cannot be started by the
   other. That is recorded here rather than left in a deleted file, because it is true of every
   program and was only ever illustrated by this one.
-- **Proposed.** Whether `initboot` and `shell` should collapse to one feature, or stop being a
+- **Milestone 296.** Whether `initboot` and `shell` should collapse to one feature, or stop being a
   compile-time switch at all, now that the measurement exists: 7.3% on one architecture, zero on
   x86_64, and something else entirely on riscv64. Not acted on here, on purpose.
-  `design/roadmap/proposals/two-boot-mode-features-for-one-decision.md`. Still live after the
-  deletion, and slightly more so: the features now differ by the demonstrations alone.
-- **Proposed.** `design/roadmap/proposals/what-the-boot-path-is-called.md` is **not** retired by
+  `design/roadmap/proposals/two-boot-mode-features-for-one-decision.md` was this lane's file and is
+  the block milestone 296 was promoted from. Answered: the switch is kept on that 7.3%, and it is
+  one feature, `shell`. `initboot` was deleted after a build of each was found to carry the same
+  3,109 symbols at the same total size.
+- **Milestone 296.** `design/roadmap/proposals/what-the-boot-path-is-called.md` is **not** retired by
   this milestone, which is the opposite of what this block originally predicted. Checked by reading
   it: it chooses between `progenitor-boot` and `handoff` for the boot mode, and both features still
   exist and still mean the same thing, so the question it holds is untouched. What changed is that
   there is now a fourth candidate, because the feature is better described as naming the absence of
   the demonstrations than as naming a boot path. (Carried here as `**Proposed.**` rather than
-  `**Outstanding.**` because this block is BUILT and the work is nobody's.)
+  `**Outstanding.**` because this block is BUILT and the work is nobody's.) **It was retired by
+  milestone 296, by a fifth answer none of the four candidates could be: calef deleted the thing
+  the proposal was naming.**
 - **Recorded.** The kernel's UART driver and the userspace console server write the same device
   unarbitrated. The limitation is `script/shell-check`'s and milestone 230's, and it is **not**
   this milestone's doing in either direction: 267 briefly added fifteen userspace-printed lines to

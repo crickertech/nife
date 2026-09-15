@@ -123,6 +123,44 @@
 //! crate, `fixtures/src/job_mix_task.rs` and `script/job-mix`. Three members in three naming
 //! domains, each correct for its own, which is the domain table working rather than a coincidence.
 //!
+//! **That sentence counted three members and there were four, so the property it rests on was
+//! already false when it was written** (found and repaired by milestone 296). The fourth is the
+//! kernel-side supervisor of this same workload, and it was spelled `kernel/src/jobmix.rs`, with a
+//! `jobmix` Cargo feature and `jobmix:` console markers. A squish is exactly what a
+//! separator-insensitive grep cannot reach: at `9b68f17e`, `git grep -lie 'job[_-]mix'` returns 31
+//! files and `git grep -lie jobmix` returns 25, and `kernel/src/user.rs` is in the second set and
+//! not the first. So the greppability the ratification was *made for* did not hold, and it did not hold
+//! because of the one member nobody had counted.
+//!
+//! **The repair is therefore not the hyphen rule being applied to a stray file. It is this
+//! ruling being carried out.** `job_mix` is the ratified name of this thing; `jobmix` was a
+//! misspelling of it. The module is `kernel/src/job_mix.rs`, the feature is `job_mix`, and
+//! `script/board-image`'s flag is `--job-mix`.
+//!
+//! **The console markers went to `job-mix:`, the command's spelling rather than this crate's, and
+//! calef ratified that on 2026-09-14** (`job-mix:` and `job-mix-census:`), on the argument below.
+//! **The rule it settles, which is the part worth carrying forward**: a console marker takes the
+//! spelling of the command a reader typed to produce it, not of the crate that implements it,
+//! because the reader's path to the string runs through the command. That makes `soak`'s markers a
+//! precedent rather than a coincidence, and gives the next workload's markers an answer before
+//! anyone has to ask.
+//!
+//! The case as it stood when he ruled: A marker is neither a Rust identifier nor a shell command; it is a
+//! string a person reads on a serial console after typing `script/job-mix`, and the one recogniser
+//! that matches it sits beside `script/board-console`. `kernel/src/soak.rs` sets the precedent by
+//! accident rather than by argument, since `soak` is one word and cannot show a seam: its markers
+//! matched `script/soak` exactly without anyone having to decide that they should.
+//!
+//! **That precedent has since been tested, and it held.** calef ruled `script/soak` to `soak-test`
+//! the same day, and the markers moved with the command to `soak-test:` and
+//! `soak-test-census:` rather than staying with the crate or the module, which are still spelled
+//! `soak`. So the rule stated here is not a description of one accident: it predicted what a rename
+//! would do to a marker, and the rename did it. If that rename has not landed where you are reading
+//! this, the markers there still say `soak:`. The deciding evidence was that
+//! `xtask`'s own line already read "job-mix: QEMU ended before printing `jobmix: done`", one
+//! sentence in two spellings. calef names what a reader meets, and this is a reader-facing string
+//! he has not ruled on.
+//!
 //! **The refusal of `aim7` was righter than this block knew**, and the reason is worth recording
 //! because it inverts the usual direction. It was refused for claiming somebody else's benchmark.
 //! A premise check on 2026-09-13 (`notes/job-mix.md`, and the correction in §96) found the

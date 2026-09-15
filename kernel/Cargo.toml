@@ -219,9 +219,9 @@ soak_test = []
 # EL0 tasks through a heterogeneous job mix and prints jobs-per-minute against task count, which is
 # the instrument design/decisions/96-process-kernel-or-event-kernel.md says it is missing. Off by
 # default. A feature rather than a `bench.rs` row because the number has to be taken on a board, and
-# the path a board takes is script/board-image plus script/board-console. See kernel/src/jobmix.rs
+# the path a board takes is script/board-image plus script/board-console. See kernel/src/job_mix.rs
 # and script/job-mix. Name provisional.
-jobmix = []
+job_mix = []
 # The rebooting soak (milestone 249): after a fixed window the soak asks SBI SRST for a **cold
 # reboot** instead of beating forever, so the boot-time thread-placement lottery can be drawn fifty
 # times unattended rather than nine times by a person walking to the board. riscv64 only, and
@@ -247,10 +247,11 @@ jobmix = []
 # happens to soak, and that is the wrong thing. The hazard the paragraph above insists the name
 # carry is still carried: `reboot` is still the first word an operator reads.
 reboot_soak_test = ["soak_test", "board"]
-# The init boot (milestone 19d.2c): userspace init is the boot path and brings up the system's
-# console, rather than the kernel wiring services directly. See script/initboot / xtask.
-initboot = []
 # Boot straight to the interactive shell, skipping the milestone tour. Used by cargo xtask shell.
+# The userspace progenitor is the boot path here: it brings up the console, the line discipline, the
+# input driver and the shell out of its own budget, and the kernel wires none of it. That was
+# milestone 19d.2c's `initboot`, a second feature naming the same six cfg sites; milestone 296
+# deleted it, because a build of each produced the same 3,109 symbols at the same total size.
 shell = []
 # **The boot self-test's fault injector** (milestone 268). One check in `kernel/src/self_test.rs`
 # reports failure, so the verdict line goes red on a kernel that is otherwise fine.

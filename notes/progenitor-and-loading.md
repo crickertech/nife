@@ -160,6 +160,9 @@ Every consumer that used to spawn "a role-6 least_authority_demo of hello" now l
 it with `x0 = 0` (a standalone binary needs no role selector) and the input in `x1`:
 
 - init's `init_least_authority_demo` and the initboot spawn service (`hello.rs`), for `run <n>`.
+  (**`initboot` is the name that path had when this was written.** It was a kernel Cargo feature
+  and a `script/initboot`, both deleted by milestone 296, which found the feature selected nothing
+  `shell` did not. Read `initboot` here as today's `shell`; the account is otherwise unchanged.)
 - the kernel-side `shell_service` (the pre-initboot interactive shell), same `run <n>`. (Retired as
   a boot path by DECISIONS §28 and deleted by milestone 41; it is described here as it was.)
 

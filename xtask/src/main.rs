@@ -106,23 +106,6 @@ fn main() -> ExitCode {
                     TARGET,
                 ])
         }
-        "initboot" => {
-            // Milestone 19d.2c: boot with the userspace progenitor as the boot path (it brings up the
-            // console). Add --hvf for the real core.
-            maybe_hvf();
-            eprintln!("--- booting nife via the userspace progenitor (Ctrl-C to quit) ---");
-            mkdisk()
-                && user()
-                && cargo(&[
-                    "run",
-                    "-p",
-                    "kernel",
-                    "--features",
-                    "initboot",
-                    "--target",
-                    TARGET,
-                ])
-        }
         // The aarch64 archive, standalone (2026-08-27): every other caller reaches
         // `initrd_aarch64` through `user()` as part of a boot (`build`, `run`, `shell`, ...), and
         // `initrd_aarch64` itself only packs, it does not build. `initrd_riscv` and `initrd_x86`
@@ -197,7 +180,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initboot|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");
@@ -3519,7 +3502,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
+        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
         ("job_mix_task", "job_mix_task"),
@@ -4467,7 +4450,7 @@ fn initrd_aarch64() -> bool {
         // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
         // because the whole premise is that the same workload runs on QEMU and on all three boards.
         ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features jobmix` sweeps. In
+        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
         // every archive for the soaker's own reason, that the instrument develops under QEMU and
         // the number is taken on a board.
         ("job_mix_task", "job_mix_task"),
@@ -9771,7 +9754,7 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
 }
 
 /// **The QEMU rehearsal of milestone 168's multi-tasking workload sweep.** Boot a
-/// `--features jobmix` kernel, echo its lines, stop when it says it is done, and kill it.
+/// `--features job_mix` kernel, echo its lines, stop when it says it is done, and kill it.
 ///
 /// **This is a rehearsal and not the measurement**, and the distinction is the milestone's whole
 /// gate. Under TCG the magnitudes are fiction (no caches are modelled) and under HVF the host
@@ -9851,7 +9834,7 @@ fn job_mix_sweep() -> ExitCode {
         "-p",
         "kernel",
         "--features",
-        "jobmix",
+        "job_mix",
         "--target",
         target,
     ]) {
@@ -9894,16 +9877,16 @@ fn job_mix_sweep() -> ExitCode {
     let mut failed = false;
     for line in std::io::BufReader::new(stdout).lines() {
         let Ok(line) = line else { break };
-        if line.starts_with("jobmix") {
+        if line.starts_with("job-mix") {
             println!("{line}");
         }
-        if line.contains("jobmix: FAILED") {
+        if line.contains("job-mix: FAILED") {
             failed = true;
         }
-        if line.starts_with("jobmix: tasks=") {
+        if line.starts_with("job-mix: tasks=") {
             points += 1;
         }
-        if line.trim_end() == "jobmix: done" {
+        if line.trim_end() == "job-mix: done" {
             done = true;
             break;
         }
@@ -9921,7 +9904,7 @@ fn job_mix_sweep() -> ExitCode {
         return ExitCode::from(1);
     }
     if !done {
-        eprintln!("job-mix: QEMU ended before printing `jobmix: done`; {points} point(s) printed");
+        eprintln!("job-mix: QEMU ended before printing `job-mix: done`; {points} point(s) printed");
         return ExitCode::from(3);
     }
     eprintln!();

@@ -854,7 +854,7 @@ pub fn steals_served() -> u64 {
 /// silicon is uninterpretable without the arrangement that produced it.
 ///
 /// Name provisional (milestone 240): calef names public items.
-#[cfg(any(feature = "soak_test", feature = "jobmix"))]
+#[cfg(any(feature = "soak_test", feature = "job_mix"))]
 pub fn spawn_reporting_placement<F: FnOnce() + Send + 'static>(f: F) -> Option<(ThreadId, usize)> {
     let target = pick_spawn_target();
     spawn_on(target, f).map(|id| (id, target))
@@ -4267,14 +4267,11 @@ pub fn wake_without_delivery(tid: ThreadId) {
 /// **The number that says preemption is real**, read by the preemption tests and printed by the
 /// milestone tour.
 ///
-/// The alternate boot modes (`shell`, `bench`, `initboot`) each compile the tour out and run no
-/// tests, so in those three configurations this genuinely has no caller. That is a property of the
-/// boot mode, not evidence the counter is dead, which is why the allow is conditioned on exactly
-/// those features rather than written unconditionally.
-#[cfg_attr(
-    any(feature = "shell", feature = "bench", feature = "initboot"),
-    allow(dead_code)
-)]
+/// The alternate boot modes (`shell`, `bench`) each compile the tour out and run no tests, so in
+/// those two configurations this genuinely has no caller. That is a property of the boot mode, not
+/// evidence the counter is dead, which is why the allow is conditioned on exactly those features
+/// rather than written unconditionally.
+#[cfg_attr(any(feature = "shell", feature = "bench"), allow(dead_code))]
 pub fn preemptions() -> u64 {
     PREEMPTIONS.load(Ordering::Relaxed)
 }

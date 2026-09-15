@@ -191,11 +191,18 @@ needs a file of its own; what is listed here is where to read it and what happen
   nothing about a program that reads console input, where `serial` is the plain word for the same
   wire. `console_driver` stays refused because `console` is already a program, and a driver named
   for another program invites a reader to think it drives that program rather than a device.
-- **Recorded.** **`script/initboot` wants the hyphen every sibling has, as `init-boot`**, in that script's header. It is
+- **Milestone 296.** **`script/initboot` wants the hyphen every sibling has, as `init-boot`**, in
+  that script's header. It is
   the one entry point of fifty-two that runs two words together, and it survived milestone 63's
   2026-08-01 hyphenation sweep rather than being exempted by it. `cargo xtask initboot` is likewise
   the only run-together subcommand beside `shell-check`, `board-console`, `initrd-aarch64` and
   `std-src`, so the change is two strings. The reversible half of the naming rule, and cheap.
+  **It got neither hyphen nor rename.** Put to calef on 2026-09-14, he asked what the thing does,
+  and the answer was nothing `--features shell` does not: the two features selected the same six
+  `cfg` sites and a build of each carried the same 3,109 symbols at the same total size. He ruled it
+  deleted, so the script, the subcommand and the feature are all gone and this bullet is closed by
+  subtraction rather than by spelling. The header that carried this argument went with the script;
+  it is in git and quoted in 296's block.
 - **Recorded.** **`script/shell-check` wants a name that is not one hyphen from `shellcheck`**, in
   that script's header. `shellcheck` is the shell linter `script/lint` itself runs, so two names
   differ by punctuation while naming unrelated things. Compounding it, notes/naming.md's BUGS already
