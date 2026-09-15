@@ -1,10 +1,12 @@
 # 152. The port-range capability: object and method semantics on the syscall surface
 
-**Status: PROPOSED.** 2026-09-15, milestone 299. **Number provisional**, minted by a lane against the
-current README; the integrator renumbers if the merge queue collides it. This section records the one
-thing milestone 299 puts on the capability surface, because a new object type there is calef's to
-ratify (§10, §16) and the *move fast on what can be undone* tenet files the syscall surface under the
-irreversible category. DECISIONS §121 decided *that* x86 gets a port capability and *why* (the
+**Status: DECIDED.** calef, 2026-09-15, ratified the object, its one method, and the x86-only scope
+together, when milestone 299 landed the working driver behind them. **Number provisional**, minted by a
+lane against the current README; the integrator renumbers if the merge queue collides it. This section
+records the one thing milestone 299 puts on the capability surface, because a new object type there is
+calef's to ratify (§10, §16) and the *move fast on what can be undone* tenet files the syscall surface
+under the irreversible category. **The provisional names for the object, its method, and their fields
+are not ratified here** and stay on the worklist (`script/names`); calef takes those separately. DECISIONS §121 decided *that* x86 gets a port capability and *why* (the
 reversal at the end of that file); this decides *what the object is and what invoking it does*, the
 part §121 named but left for the milestone.
 
