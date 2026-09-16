@@ -10,7 +10,7 @@
 //!
 //! The other half is `call_client`; the wiring is `kernel/src/user/call_service.rs`.
 //!
-//! Name: ratified `call_reply_server` 2026-09-15 (calef, this header). Was provisional
+//! Name: ratified 2026-09-15 (calef, this header). Ratified as `call_reply_server`; was provisional
 //! `call_server` (milestone 291); qualified to the `call_reply` stem (the round-trip benchmark's
 //! name), `reply` naming the one-shot capability this pair proves. File, `[[bin]]` and archive-tuple
 //! rename pending the batched 291 sweep. This was `hello`'s `CALL_SERVER` role, number 14, and

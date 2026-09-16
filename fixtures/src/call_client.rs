@@ -7,7 +7,7 @@
 //!
 //! The other half is `call_server`.
 //!
-//! Name: ratified `call_reply_client` 2026-09-15 (calef, this header). Was provisional
+//! Name: ratified 2026-09-15 (calef, this header). Ratified as `call_reply_client`; was provisional
 //! `call_client` (milestone 291); `call` alone read as too generic, so it takes the `call_reply`
 //! stem the round-trip benchmark already carries, `reply` naming the one-shot capability this pair
 //! proves. File, `[[bin]]` and archive-tuple rename pending the batched 291 sweep. This was
