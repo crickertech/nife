@@ -2429,7 +2429,7 @@ fn a_user_built_aspace_maps_translates_and_revokes() {
 /// **aarch64-only, because RISC-V has no second interrupt to raise.** It has no
 /// software-generated interrupt a test can assert on itself at all (the SBI IPI arrives down the
 /// software-interrupt arm and never reaches `irq_route`), so the only line it can raise by hand
-/// is the console UART's own, which `spawn_progenitor` is already routing for the input driver init
+/// is the console UART's own, which `spawn_hello` is already routing for the input driver init
 /// builds. A twin would have to share that one source between init's UART capability and the
 /// test's delegated one, and would then prove delivery through whichever route was bound last
 /// rather than through the delegated capability, which is the entire claim. The *property*
@@ -2444,7 +2444,7 @@ fn userspace_init_delegates_an_interrupt_to_a_child() {
     const INIT_IRQ_ROLE: u64 = 25;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_IRQ_ROLE, report);
+    let init = spawn_hello(initrd().expect("no initrd"), INIT_IRQ_ROLE, report);
 
     // Raise the test interrupt. The rendezvous counts it if the child is not waiting yet (it is
     // still being built), and the child's WAIT drains that pending signal, so there is no race.
@@ -2476,7 +2476,7 @@ fn userspace_init_brings_up_the_console_server() {
     const INIT_CONSOLE_ROLE: u64 = 24;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_CONSOLE_ROLE, report);
+    let init = spawn_hello(initrd().expect("no initrd"), INIT_CONSOLE_ROLE, report);
 
     let acked = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2509,7 +2509,7 @@ fn userspace_init_builds_a_driver_that_reads_real_hardware() {
     const INIT_DEV_ROLE: u64 = 23;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_DEV_ROLE, report);
+    let init = spawn_hello(initrd().expect("no initrd"), INIT_DEV_ROLE, report);
 
     let id = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2533,7 +2533,7 @@ fn userspace_init_parses_an_elf_and_builds_a_running_child() {
     const INIT_ROLE: u64 = 20;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_ROLE, report);
+    let init = spawn_hello(initrd().expect("no initrd"), INIT_ROLE, report);
 
     let word = crate::sched::ipc_recv(report)[0];
     assert_eq!(
@@ -2555,7 +2555,7 @@ fn init_builds_the_demo_and_passes_it_an_argument() {
     const WORKER_INPUT: u64 = 7;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(
+    let init = spawn_hello(
         initrd().expect("no initrd"),
         INIT_LEAST_AUTHORITY_DEMO_ROLE,
         report,
@@ -2656,7 +2656,7 @@ fn init_runs_the_coremark_workload_and_it_checks_out() {
     const INIT_COREMARK_ROLE: u64 = 29;
 
     let report = crate::sched::create_rendezvous();
-    let init = spawn_progenitor(initrd().expect("no initrd"), INIT_COREMARK_ROLE, report);
+    let init = spawn_hello(initrd().expect("no initrd"), INIT_COREMARK_ROLE, report);
 
     let [crc, ticks, freq, _, _] = crate::sched::ipc_recv(report);
     assert_eq!(

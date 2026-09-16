@@ -283,7 +283,7 @@ missing was a handle and an ordering.
   destructive (it arms kills; see `reclaim_region`'s BUGS), so this is the same commitment one object
   over.
 
-- **`spawn_progenitor` carves the progenitor's building budget outside the spawned thread** and hands the caller a
+- **`spawn_hello` carves `hello`'s building budget outside the spawned thread** and hands the caller a
   holding over it. The region is unchanged; who can name it is not, and that is the whole difference
   between 8 MiB spent and 8 MiB lent.
 

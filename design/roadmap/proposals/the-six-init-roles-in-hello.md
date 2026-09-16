@@ -29,7 +29,7 @@ left is the 19d/19e catalogue, in which `hello` plays the **parent**: it parses,
 delegates and collects a report, which is the demonstration that userspace and not the kernel
 composes the system.
 
-**They are live.** `kernel/src/user/tests.rs` drives all six through `spawn_progenitor`, each from its
+**They are live.** `kernel/src/user/tests.rs` drives all six through `spawn_hello`, each from its
 own duplicate constant (`INIT_ROLE = 20`, `INIT_DEV_ROLE = 23`, `INIT_CONSOLE_ROLE = 24`,
 `INIT_IRQ_ROLE = 25`, `INIT_LEAST_AUTHORITY_DEMO_ROLE = 28`, `INIT_COREMARK_ROLE = 29`), and each test
 asserts on the word the child reports. Nothing here is dead wiring, and deleting any of it would be a

@@ -26,10 +26,10 @@
 //! three of them *are* that child: the parent finds its child by looking *itself* up in the
 //! archive ([`ROLES_ENTRY`]) and re-entering its own image at a different role. Splitting the
 //! parents from the children means each parent naming its child's archive entry instead, which
-//! changes what `kernel::user::spawn_progenitor` has to know: today it picks the entry from the
-//! role (`progenitor` for the boot role, this binary for everything else), and six roles becoming
-//! six programs means that choice becomes a table. That is a boot-path change rather than a
-//! fixtures change, and it is the one piece 291 did not take. See
+//! changes what `kernel::user::spawn_hello` has to know: today it always re-enters this binary,
+//! and six roles becoming six programs means it would have to name an entry per role instead.
+//! That is a boot-path change rather than a fixtures change, and it is the one piece 291 did not
+//! take. See
 //! `design/roadmap/291-one-program-one-job.md`.
 //!
 //! Name: unrecorded, and overdue. Nobody wrote down why `hello` is called `hello` and nobody
@@ -77,7 +77,7 @@ use user_mode_runtime::{exit, irq_wait, map_page_frame, recv, send};
 //
 // **The numbers are not reused and the gaps are not tidied.** A role number is the word the kernel
 // puts in `x0`, so it is a value the kernel's test wiring and this file agree on, and
-// `design/roadmap/proposals/one-grant-order-for-the-progenitor.md` records six `spawn_progenitor`
+// `design/roadmap/proposals/one-grant-order-for-the-progenitor.md` records six `spawn_hello`
 // tests that name them. Renumbering would be an edit to a wire value bought with nothing.
 const INIT: u64 = 20;
 const CHILD: u64 = 21;
@@ -176,7 +176,7 @@ const CHILD_WORD: u64 = 0xC0FFEE;
 /// of its own budget through the granular verbs (retype an address space, copy each segment into
 /// retyped frames and map them in, retype a TCB, endow it, configure, start). The child reports
 /// a word home; receiving it proves init parsed a real ELF and built a running process, with the
-/// kernel never touching the child's bytes. See kernel/src/user.rs `spawn_progenitor`.
+/// kernel never touching the child's bytes. See kernel/src/user.rs `spawn_hello`.
 fn init(initrd_len: u64) -> ! {
     init_build(initrd_len, false)
 }
@@ -190,7 +190,7 @@ fn init(initrd_len: u64) -> ! {
 fn init_irq(initrd_len: u64) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
-    const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted this program (spawn_progenitor)
+    const TEST_IRQ: u64 = 3; // the Irq cap the kernel granted this program (spawn_hello)
 
     let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {
         fail_report(REPORT)
@@ -366,7 +366,7 @@ fn init_dev(initrd_len: u64) -> ! {
 fn init_build(initrd_len: u64, device: bool) -> ! {
     const MEMORY_REGION: u64 = 0;
     const REPORT: u64 = 1;
-    const UART_DEV: u64 = 2; // the UART device cap the kernel granted this program (spawn_progenitor)
+    const UART_DEV: u64 = 2; // the UART device cap the kernel granted this program (spawn_hello)
     const CHILD_UART_VA: u64 = 0x0070_0000;
 
     let Some(init_bytes) = program(initrd_len, ROLES_ENTRY) else {

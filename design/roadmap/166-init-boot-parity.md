@@ -58,15 +58,15 @@ shape. aarch64's boot drops the report endpoint and the test SGI, so all three a
 the progenitor **the same slot layout**, and `components/src/progenitor.rs`'s two cfg-gated cap
 tables collapse into one with no `cfg` at all.
 
-`spawn_progenitor` stays behind as the milestone-19d/19e test-role `hello` spawner, reduced to that
+`spawn_hello` stays behind as the milestone-19d/19e test-role `hello` spawner, reduced to that
 one job (always `hello`, the five test-role capabilities, the `Holding` return). Its ~28 direct-by-
 name fixture call sites in `kernel/src/user/tests.rs` are unrelated to the boot path and are
-unchanged; the six `spawn_progenitor` tests reach `hello`'s roles exactly as before.
+unchanged; the six `spawn_hello` tests reach `hello`'s roles exactly as before.
 
 ## What it touched
 
-- `kernel/src/user.rs`: `riscv_shell_boot` became `boot_progenitor`; `spawn_progenitor` reduced to
-  the test-role spawner; `boot_via_progenitor` deleted.
+- `kernel/src/user.rs`: `riscv_shell_boot` became `boot_progenitor`; `spawn_progenitor` was
+  reduced to the test-role spawner and renamed `spawn_hello`; `boot_via_progenitor` deleted.
 - `kernel/src/main.rs`: all three hand-off sites call `boot_progenitor`.
 - `components/src/progenitor.rs`: the two `GRANTS` tables collapsed into one.
 - `crates/system_initializer`: unchanged in logic. Its `BootEndowment.for_test_roles` field is now
@@ -75,9 +75,10 @@ unchanged; the six `spawn_progenitor` tests reach `hello`'s roles exactly as bef
 
 ## Follow-on
 
-- **Recorded.** `spawn_progenitor` is now a misnomer: it no longer spawns the progenitor, it spawns
-  `hello` at a milestone-19d/19e test role. Recorded in its own doc comment in `kernel/src/user.rs`;
-  a rename is calef's and reaches every test call site.
+- **Done.** `spawn_progenitor` was left a misnomer by the split: it no longer spawns the
+  progenitor, it spawns `hello` at a milestone-19d/19e test role. calef ratified **`spawn_hello`**
+  on 2026-09-15 and the rename is swept through the tree, with the refusal recorded at the
+  function's own definition in `kernel/src/user.rs`.
 - **Recorded.** `boot_progenitor`'s name is provisional (milestone 166), recorded at its definition
   in `kernel/src/user.rs`; calef names the merged loader.
 - **Recorded.** `BootEndowment.for_test_roles` is now dead data: no boot path fills it, so
@@ -95,5 +96,6 @@ never used) and riscv64/x86_64's `riscv_shell_boot` (the TCB-builder, boot-only)
 merged the boot halves into one `boot_progenitor` used by all three architectures, `#[cfg]`-gating
 only the two genuine hardware differences (the x86 `PortRange` console vs the others' UART page, and
 GIC vs PLIC vs APIC arming); the slot layout is now identical everywhere and
-`components/src/progenitor.rs`'s two cap tables became one. `spawn_progenitor` stays as the
-19d/19e test-role `hello` spawner, fixtures untouched.
+`components/src/progenitor.rs`'s two cap tables became one. `spawn_hello` stays as the
+19d/19e test-role `hello` spawner, fixtures untouched; that is `spawn_progenitor` renamed, which
+calef ratified on 2026-09-15 once the boot half it was named for had moved out.

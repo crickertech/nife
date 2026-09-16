@@ -561,7 +561,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
 
 /// Map the `x86_64` timebase page into `space`, if this process needs one built directly rather
 /// than through [`load`]. Several kernel-side functions build a top-level process's own
-/// `AddressSpace` by hand instead of calling `load` (`spawn_progenitor`, and every
+/// `AddressSpace` by hand instead of calling `load` (`spawn_hello`, and every
 /// `spawn_<program>`-shaped test harness that hands a narrowed archive to a named program:
 /// `timetable_tests::spawn_timetable`, `authority_tests`' `root_supervisor` spawn,
 /// `c_seam_tests::spawn_confiner`, `login_service`, `live_swap_tests`' `swapper` spawn), because
@@ -587,7 +587,7 @@ fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
 }
 
 /// Lay an ELF's loadable segments into `space`, honouring their permissions exactly (milestone
-/// 19d factored this out of `load` so `spawn_progenitor` shares it; the progenitor's userspace
+/// 19d factored this out of `load` so `spawn_hello` shares it; the progenitor's userspace
 /// loader mirrors it).
 /// A read-only segment gets `user_rodata`, not `user_data`: a loader that widens permissions is
 /// a loader you cannot reason about. `.bss` is free because `map_new` zeroes every page.
@@ -649,7 +649,7 @@ pub fn initrd() -> Option<&'static [u8]> {
 /// nifefs image carrying the progenitor plus the programs it loads. The milestone tour and the
 /// kernel-side service demos ask for whichever program they wire, by name; since milestone 291
 /// that is one program per demo rather than one role of [`HELLO_ENTRY`].
-/// `spawn_progenitor` and `boot_progenitor` instead take the whole archive, because the
+/// `spawn_hello` and `boot_progenitor` instead take the whole archive, because the
 /// progenitor parses the rest itself. Returns `None` if there is no initrd, it will not parse, or
 /// it holds no such program.
 // Used by the milestone tour, the kernel-wired virtio/console/shell demos, and the tests that load
@@ -711,7 +711,7 @@ pub const INITRD_VA: u64 = 0x2000_0000;
 /// RISC-V has no software-generated interrupt a test can raise on itself at all (the SBI IPI
 /// arrives down the *software*-interrupt arm, never touching `irq_route`), so it names the console
 /// UART's own line, which is the one interrupt this ISA can assert by hand. That makes it the same
-/// number as [`UART_RX_INTID`] there, deliberately; [`spawn_progenitor`] binds the route once and grants
+/// number as [`UART_RX_INTID`] there, deliberately; [`spawn_hello`] binds the route once and grants
 /// two capabilities naming it. See `sched::tests`' `DELIVERY_IRQ`, which reached the same conclusion.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "aarch64")]
@@ -840,7 +840,7 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 /// **It was the whole milestone 7-19 role catalogue until milestone 291**, thirty-one roles in one
 /// binary. Twenty-two of them are their own programs or `block_driver`'s roles now; nine are left,
 /// and `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md` is what would
-/// take them, since splitting them is a change to [`spawn_progenitor`]'s choice of entry rather
+/// take them, since splitting them is a change to [`spawn_hello`]'s choice of entry rather
 /// than to `fixtures/`.
 ///
 /// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
@@ -890,11 +890,16 @@ pub const PROGENITOR_ROLE: u64 = 27;
 /// (`design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`): six are separate
 /// programs waiting to happen, and each would need its own archive entry named here.
 ///
-/// **Name provisional** (milestone 166): it no longer spawns the progenitor, so `spawn_progenitor`
-/// is now a misnomer. Kept until calef rules on a replacement, because a rename is his and reaches
-/// every test call site; see the lane report.
+/// Name: ratified 2026-09-15 (calef, this header). Refused keeping `spawn_progenitor`, the name
+/// this function carried until milestone 166 split it in two: the boot half it was named for is
+/// [`boot_progenitor`] now, and what stayed here never spawns the progenitor at all. It only ever
+/// re-enters [`HELLO_ENTRY`] at one of milestone 19d/19e's test roles, at every call site it has
+/// (all of them in `kernel/src/user/tests.rs`), so the old name pointed at the half that left.
+/// `spawn` is the verb this body performs and `hello` the program it performs it on, which makes
+/// the name a claim about what the function does rather than about what it used to do, and greps
+/// with [`HELLO_ENTRY`] as one family.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn spawn_progenitor(
+pub fn spawn_hello(
     image: &'static [u8],
     role: u64,
     report: crate::sched::RendezvousId,
@@ -1623,7 +1628,7 @@ pub fn riscv_uart_driver_demo(
 /// `components/src/progenitor.rs`'s single `GRANTS` table reads exactly this. Until milestone 166
 /// aarch64's boot carried two extra capabilities at slots 1 and 3 (a report endpoint and a test
 /// interrupt) that the interactive system never used, only because its loader was shared with
-/// milestone 19d's test roles; [`spawn_progenitor`] is that shared role path, now boot-free.
+/// milestone 19d's test roles; [`spawn_hello`] is that shared role path, now boot-free.
 ///
 /// **Only two differences are the hardware's, and only those are `#[cfg]`-gated**:
 /// - **The console device (slot 1).** aarch64 and riscv64 grant the UART's registers as a
@@ -1904,7 +1909,7 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
     // x0 = the boot role (the progenitor has one role and ignores it, but it is passed for the
-    // symmetry `spawn_progenitor` established); x1 = the archive length; x2 = the file-service rights.
+    // symmetry the old `spawn_progenitor` established); x1 = the archive length; x2 = the file-service rights.
     crate::sched::start_thread_control_block(tid, [PROGENITOR_ROLE, initrd_len, fs_rights])
         .expect("start");
 
@@ -2382,7 +2387,7 @@ pub enum KeystrokeSource {
 ///
 /// **The keyboard driver is spawned here too, for a different reason than the GPU's.** Its own raw
 /// materials (an `Irq`, a `Virtio`, one DMA `PageFrame`) would fit the three slots aarch64's
-/// `spawn_progenitor` has left, on their own -- but option A's target endpoint is `line_editor`'s own
+/// `boot_progenitor` has left, on their own -- but option A's target endpoint is `line_editor`'s own
 /// served endpoint, which does not exist until the progenitor builds it, and a driver the progenitor spawns can only be
 /// wired to capabilities the progenitor itself already holds (`ChildEndowment::maps`' own contract: it maps
 /// what the caller has, not what the caller could ask the kernel for). Creating that endpoint here

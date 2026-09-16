@@ -960,7 +960,7 @@ been closed; its entry carries the record):
   `<type number flags>` with the bank base added). Host tests hold the whole claim: the same
   read answers 10 on QEMU's tree and **32 on both JH7110 fixtures**
   (`crates/machine_discovery/tests/interrupt_ids.rs`), and 33 on aarch64 `virt`, where `UART_RX_INTID = 33`
-  was the same bug one board away and was fixed in the same motion (`user::spawn_progenitor` now asks
+  was the same bug one board away and was fixed in the same motion (`user::boot_progenitor` now asks
   the tree first). The constants survive as the documented fallback for a tree that does not
   say, and every boot path prints a `uart irq` line naming which source won, so the next bench
   transcript answers this question instead of raising it. What QEMU cannot prove, as ever: that

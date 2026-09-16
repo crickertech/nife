@@ -159,9 +159,10 @@ garbage on the first real board.
 ## Where the interactive boot puts it (milestone 51's wiring)
 
 Both ISAs' `--features shell` boots start the clock service before the progenitor exists and grant **the progenitor** the
-page with `READ` and `GRANT`: slot 3 on RISC-V (`riscv_shell_boot`), slot 5 on aarch64 (`spawn_progenitor`,
-boot role only). The progenitor hands a read-only copy plus a read-only mapping at `0x00c0_0000` to any child
-whose `grant_plan` manifest declares `clock`, which today is `date` and nothing else.
+page with `READ` and `GRANT`: slot 3 on every architecture (`boot_progenitor`, which milestone 166
+made one function; until then it was slot 3 on RISC-V and slot 5 on aarch64). The progenitor hands
+a read-only copy plus a read-only mapping at `0x00c0_0000` to any child whose `grant_plan` manifest
+declares `clock`, which today is `date` and nothing else.
 
 Three things about that shape are deliberate:
 

@@ -317,15 +317,15 @@ use supervision_protocol::{
 };
 use user_mode_runtime::{call, cap_delete, granted, invoke, recv, recv_cap, send};
 
-/// **The capabilities the kernel granted the progenitor, by slot.** The one thing the boards do not
-/// agree on, so it is data the boot entry states rather than code this crate repeats, and since
-/// milestone 266 it is also the only thing left under a `cfg` in that entry.
+/// **The capabilities the kernel granted the progenitor, by slot.** Data the boot entry states
+/// rather than code this crate repeats, so a board that grants a different layout says so in one
+/// place instead of in this crate's logic.
 ///
-/// The two orders come from `kernel::user::spawn_progenitor` (aarch64) and
-/// `kernel::user::riscv_shell_boot` (riscv64, and `x86_64` through the same archive). They differ
-/// because the aarch64 path is shared with milestone 19d's test roles, which were granted a report
-/// endpoint and a test interrupt this system has no use for; see
-/// [`for_test_roles`](BootEndowment::for_test_roles).
+/// The order comes from `kernel::user::boot_progenitor`, which has been one function on all three
+/// architectures since milestone 166, and that is why `components/src/progenitor.rs` states it
+/// once with no `cfg`. Until then aarch64's loader was shared with milestone 19d's test roles and
+/// granted a report endpoint and a test interrupt this system has no use for, which displaced
+/// every slot after the first; see [`for_test_roles`](BootEndowment::for_test_roles).
 pub struct BootEndowment {
     /// The construction budget, held `WRITE | GRANT`: everything this system is made of.
     pub untyped: u64,
