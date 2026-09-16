@@ -100,12 +100,14 @@ milestone removes, so x86_64's baseline is re-saved against its recovered number
 
 ## Follow-on
 
-- **Proposed.** Decision 2 of the finding, calef's and deferred: make a toolchain bump re-baseline
-  or fail loudly. `script/toolchain-bump` raises the pinned nightly without touching the baselines,
-  and this milestone proves the drift they leave is real (even where, as here, the culprit turned out
-  to be code rather than the nightly). Written up as
-  `design/roadmap/proposals/a-toolchain-bump-that-leaves-the-baselines-stale.md`, since it is a
-  workflow change calef owns and this milestone deliberately did not touch it.
+- **Milestone 302.** Decision 2 of the finding, and calef ruled it on 2026-09-16: **fail loudly**,
+  rather than have a bump re-baseline itself. `script/toolchain-bump` raises the pinned nightly
+  without touching the baselines, and this milestone proves the drift they leave is real (even where,
+  as here, the culprit turned out to be code rather than the nightly). Written up as
+  `design/roadmap/proposals/a-toolchain-bump-that-leaves-the-baselines-stale.md` and promoted to
+  milestone 302, which folds in calef's second ruling of the same day: that a `--save` records its
+  reason in the baseline file. The two are one mechanism, because a stale-baseline check can only
+  exist if the file records which nightly produced the numbers, and today nothing does.
 - **Done.** DECISIONS 139 estimated its switch cost as the compare `switch_user_root` already
   pays (~2-3 ticks when nothing is granted). #885 measured ~+35.7 ticks per context switch and
   guessed a non-inlined arch function on the hot path; that guess was wrong. The arch write
