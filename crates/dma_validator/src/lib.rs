@@ -359,10 +359,23 @@ mod verification {
             let limit = base
                 .checked_add(size)
                 .expect("acceptance implies no base+size overflow");
-            assert!(addr >= base);
-            assert!(end <= limit);
-            // Stated as containment: no byte the device would touch lies outside the granted region.
-            assert!(addr >= base && end <= limit);
+            // **The containment sentence is on the two assertions rather than below them**
+            // (milestone 307). There used to be a third line here, `assert!(addr >= base && end <=
+            // limit)`, carrying the readable comment "no byte the device would touch lies outside
+            // the granted region". It was the conjunction of the two above it, so it could not fail
+            // under any defect: the readable statement of the claim was the unreachable one, which
+            // is the shape milestone 305 found in DECISIONS §31 and in row 24 of
+            // notes/confinement-claims.md. Deleting it loses nothing and moving its sentence up
+            // means a reader who quotes this harness quotes something that fires.
+            assert!(
+                addr >= base,
+                "an accepted range starts below the granted region",
+            );
+            assert!(
+                end <= limit,
+                "an accepted range ends past the granted region: a byte the device would touch \
+                 lies outside it",
+            );
         }
     }
 
@@ -403,11 +416,15 @@ mod verification {
                 d.addr >= base && end <= limit,
                 "an accepted descriptor escapes the region"
             );
-            assert!(!d.is_indirect(), "an indirect descriptor was accepted");
-            assert!(
-                in_region(base, size, d.addr, d.buf_len()),
-                "an accepted descriptor escapes the region",
-            );
+            // **The two assertions that used to sit here are gone** (milestone 307).
+            // `assert!(!d.is_indirect())` and `assert!(in_region(base, size, d.addr,
+            // d.buf_len()))` were the same two calls, with the same arguments, that
+            // `check_descriptor` returns false on: pure restatements of the `if` guard just
+            // passed, so neither could fail under any defect in this crate. They carried the two
+            // readable messages while the milestone 211 assertions above did the work, which is
+            // the citation failure this milestone swept for. The comment above records why the
+            // blind phrasing existed; keeping it below the fix left a reader quoting an assertion
+            // that could not fire.
         }
     }
 

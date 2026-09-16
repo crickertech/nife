@@ -1,28 +1,58 @@
 Falsifies `paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit`.
 
-The defect: `Vtd::leaf_entry` also sets the Accessed bit, copying the habit two
-hundred lines up in this same file where `Ia32e::attrs` opens with `let mut bits =
-A`. Bit 8 is defined in an IA-32e paging entry and reserved in a VT-d second-level
-entry, and the harness's own doc comment says why that difference is not cosmetic:
-QEMU's model and real silicon fault a transaction over a reserved bit rather than
-ignoring it. So the failure mode is a confined device whose every DMA is rejected,
-which reads as broken hardware rather than as a bad table.
+The defect: `VTD_ADDR_MASK` is widened from bits 51:12 to bits 62:12, so
+`Vtd::leaf_entry` and `Vtd::table_entry` carry address bits into a range a VT-d
+second-level entry reserves. The constant's own doc comment says this is a live
+parameter rather than a hypothetical one: VT-d's real address width is
+`CAP_REG.MGAW`-defined and this driver has never narrowed to it, so the mask is
+a number somebody could plausibly change. The failure mode is a confined device
+whose every translated DMA faults on a reserved bit, which presents as broken
+hardware rather than as a bad table.
 
-Expected to fail: `assert_eq!(leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0)`, the
-first of the harness's three assertions, for every physical address and every
-`Flags` constructor. The `table_entry` assertion below it stays green, which is
-what makes this a falsification of the leaf encoding specifically.
+Expected to fail: `assert_eq!(leaf & !VTD_PERMITTED_BITS, 0)`, the first of the
+harness's assertions, and the `table_entry` one below it for the same reason.
+Measured on patagonia 2026-09-16: FAILED, 1 of 68 checks.
+
+**This defect replaced an earlier one, and the replacement is the whole of
+milestone 307's finding here.** The patch recorded until 2026-09-16 set the
+Accessed bit in `Vtd::leaf_entry` (`let mut bits = VTD_R | A`), copying
+`Ia32e::attrs` two hundred lines up; bit 8 is defined in an IA-32e entry and
+reserved in a VT-d one. That defect is real and the harness did catch it, but it
+is a defect in the *flag* half, and the flag half was the only half the harness
+could see. Every assertion, and the `kani::assume` above them, was spelled
+through `VTD_ADDR_MASK`, `VTD_R` and `VTD_W`, which are the three constants the
+encoder builds the entry out of, so `(pa & M) | bits` sets no bit outside
+`M | VTD_R | VTD_W` for every value of M, and the assume admitted exactly the
+addresses M allowed. The address half of row 12's claim was a tautology.
+
+Measured both ways, same machine and day, with this patch applied:
+
+  - the pre-307 harness: **SUCCESSFUL, 0 of 45 failed. A survivor.**
+  - the harness as it now stands: FAILED, 1 of 68.
+
+So this patch is recorded rather than the Accessed-bit one because it is the
+defect the harness was blind to, and a record whose job is saying what is known
+should carry the harder case. The superseded defect is written out above instead
+of kept, because two patches cannot share one §134 path and the one worth
+replaying is this one.
+
+The host twin `a_vtd_leaf_sets_no_bit_outside_read_write_and_address` catches
+this too, in microseconds, but only since it was given a physical address with
+bits above 51 in it: with its old single concrete `0x10_0000` the encoder's
+masking was never exercised, so a wider mask changed nothing it could observe.
+That is the same blindness one level down, and it is why this patch is not
+sufficient evidence on its own that the property is watched.
 
 diff --git a/crates/paging/src/x86_64.rs b/crates/paging/src/x86_64.rs
-index ff9b8488..faa4bfa5 100644
+index 8967e642..c34b8144 100644
 --- a/crates/paging/src/x86_64.rs
 +++ b/crates/paging/src/x86_64.rs
-@@ -217,7 +217,7 @@ impl PageFormat for Vtd {
-     /// would be reserved-bit violations here rather than the extra permissiveness they are on the
-     /// CPU's own format.
-     fn leaf_entry(pa: u64, flags: Flags) -> u64 {
--        let mut bits = VTD_R;
-+        let mut bits = VTD_R | A;
-         if flags.is_writable() {
-             bits |= VTD_W;
-         }
+@@ -186,7 +186,7 @@ const VTD_W: u64 = 1 << 1;
+ /// width `Ia32e::ADDR_MASK` uses, because nothing this kernel runs names a wider physical address
+ /// yet; VT-d's actual width is `CAP_REG.MGAW`-defined and this driver has not needed to narrow to
+ /// it (`kernel/src/arch/x86_64/iommu.rs`'s BUGS says why).
+-const VTD_ADDR_MASK: u64 = 0x000f_ffff_ffff_f000;
++const VTD_ADDR_MASK: u64 = 0x7fff_ffff_ffff_f000;
+ 
+ /// **Every bit a VT-d second-level entry is allowed to carry, written out**: R (bit 0), W (bit 1)
+ /// and the address field (bits 51:12). Verified against QEMU's `VTD_SPTE_PAGE_L1_RSVD_MASK`;
