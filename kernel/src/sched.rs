@@ -1760,50 +1760,40 @@ pub fn take_need_resched() -> bool {
     cpu::current().need_resched.swap(false, Ordering::Relaxed)
 }
 
-/// **May the thread about to run read the cycle counter?** (milestone 229, DECISIONS 139 option 4.)
+/// Install the incoming thread's cycle-counter grant on the core about to run it, immediately after
+/// its address-space root (milestone 229, DECISIONS §139 option 4).
 ///
-/// Two bodies rather than a `#[cfg]` inside `schedule`, because the value has to leave a
-/// sixty-line locked block through a tuple and `#[cfg]` is not allowed on a tuple element. When
-/// milestone 229's instrument is not built this is the constant `false`, which the optimizer folds
-/// through the tuple and into the empty [`install_cycle_counter_grant`] below, so the read, the
-/// second `threads.get(next)` and the register write all leave the binary together: measured,
-/// `sched::schedule` is 136 bytes smaller for it. `kernel/Cargo.toml`'s `cycle_counter_grant` block
-/// carries the reasoning and the rest of the measurement (milestone 237).
-#[cfg(any(test, feature = "cycle_counter_grant"))]
-fn cycle_counter_grant_of(t: &crate::thread::Thread) -> bool {
-    t.cycle_counter_grant
-}
-
-/// No grant is built, so no thread has one. See the twin above.
-#[cfg(not(any(test, feature = "cycle_counter_grant")))]
-fn cycle_counter_grant_of(_t: &crate::thread::Thread) -> bool {
-    false
-}
-
-/// Install it on the core about to run that thread, immediately after its address-space root.
+/// **Built only under `test` or `--features cycle_counter_grant`, and both the read (in `schedule`)
+/// and this install are `#[cfg]`-gated at the switch site**, not carried through the shared switch
+/// tuple. Milestone 139 threaded the grant through the tuple and called this unconditionally on every
+/// arch, trusting the optimizer to fold the constant `false` away when no grant is built; milestone
+/// 237 made the mechanism a feature and left the fold in place. Under the debug build the icount gate
+/// measures, that fold does not happen: the const-`false` tuple element and the empty install stayed
+/// in the shipping switch and cost `yield_switch` +35.6 and `ctx_switch` +36.0 ticks per switch on
+/// aarch64 (milestone 300). This is the same leak milestone 299 found for the port grant, and the fix
+/// is the same shape: `#[cfg]` the read and the install, keep the tuple at its pre-139 width. When the
+/// feature is off `PMUSERENR_EL0` (and riscv64's `scounteren.CY`) keeps the closed value milestone 228
+/// wrote at boot for the whole life of the kernel, and none of this code exists to touch it. Closing
+/// what we claim is closed is right whether or not anyone can be granted an exception, which is why
+/// 228's default write is NOT behind the feature and this is. `kernel/Cargo.toml`'s
+/// `cycle_counter_grant` block carries the rest of the measurement.
 #[cfg(any(test, feature = "cycle_counter_grant"))]
 fn install_cycle_counter_grant(granted: bool) {
     crate::arch::timer::set_cycle_counter_grant(granted);
 }
-
-/// No grant is built, so `PMUSERENR_EL0` (and riscv64's `scounteren.CY`) keeps the closed value
-/// milestone 228 wrote at boot for the whole life of the kernel. Closing what we claim is closed is
-/// right whether or not anyone can be granted an exception, which is why 228's default write is NOT
-/// behind the feature and this is.
-#[cfg(not(any(test, feature = "cycle_counter_grant")))]
-fn install_cycle_counter_grant(_granted: bool) {}
 
 /// Install the incoming thread's x86 port grant into the core about to run it, immediately after its
 /// address-space root and cycle-counter grant. The lazy write lives in `arch::segments`.
 ///
 /// **`x86_64` only, and both the read (in `schedule`) and this install are `#[cfg]`-gated at the
 /// switch site**, not carried through the shared switch tuple. An earlier version threaded the value
-/// through the tuple like `next_cycle_counter` and trusted the optimizer to fold a constant `None`
-/// away on the other two architectures; it did not (icount measured `yield_switch` and `ctx_switch`
-/// up 13% on aarch64). `cycle_counter_grant_of` gets away with the tuple because the whole mechanism
-/// is behind a build feature, so its production value is a literal `false` the optimizer really does
-/// fold; a port grant is present in every x86 build, so keeping it off the other two ISAs' switch
-/// path takes a `#[cfg]`, not a constant. See DECISIONS §152's x86-only rationale.
+/// through the tuple the way the cycle-counter grant then did and trusted the optimizer to fold a
+/// constant `None` away on the other two architectures; it did not (icount measured `yield_switch`
+/// and `ctx_switch` up 13% on aarch64). The cycle-counter grant turned out to leak the same way for
+/// the same reason (the fold does not happen in the debug build the icount gate measures), and
+/// milestone 300 gave it this exact treatment; see `install_cycle_counter_grant`. A port grant is
+/// present in every x86 build, so keeping it off the other two ISAs' switch path takes a `#[cfg]`,
+/// not a constant. See DECISIONS §152's x86-only rationale.
 #[cfg(target_arch = "x86_64")]
 fn install_port_grant(grant: Option<(u16, u16)>) {
     crate::arch::segments::set_port_range_grant(grant);
@@ -1846,6 +1836,15 @@ pub fn schedule() {
     // only, so the other two architectures' `schedule()` gains nothing at all. See `install_port_grant`.
     #[cfg(target_arch = "x86_64")]
     let mut next_port_grant: Option<(u16, u16)> = None;
+
+    // The incoming thread's cycle-counter grant, carried out of the decision block the same way and
+    // for the same reason (milestone 300, the fix milestone 299 gave the port grant just above).
+    // Written inside the block under the lock, read at the install site after the lock drops; `false`
+    // unless the block decides to switch. Built only when a grant can exist (`test` or
+    // `--features cycle_counter_grant`), so every shipping build's `schedule()` gains nothing at all
+    // and the switch tuple stays at its pre-139 width. See `install_cycle_counter_grant`.
+    #[cfg(any(test, feature = "cycle_counter_grant"))]
+    let mut next_cycle_counter = false;
 
     // A labeled block, so every exit path leaves through the SAME point: the guard drops at the
     // block's end and interrupts are restored ONCE, AFTER it. The earlier version called
@@ -1985,16 +1984,16 @@ pub fn schedule() {
             .map(|s| s.ttbr0())
             .unwrap_or_else(crate::arch::mmu::reserved_root);
 
-        // The incoming thread's cycle-counter grant (milestone 229, DECISIONS 139 option 4), read
+        // The incoming thread's cycle-counter grant (milestone 229, DECISIONS §139 option 4), read
         // here for the same reason the root is: this is the last point the lock is held. A kernel
-        // thread's is `false`, like every user thread nobody granted it to.
-        //
-        // A constant `false` in a production build (milestone 237), which is what makes the
-        // instrument cost nothing here without a fourth `#[cfg]` on a sixty-line block: the
-        // optimizer folds it through the tuple into an empty `install_cycle_counter_grant`, so the
-        // read, this second `threads.get(next)` and the register write all leave the binary
-        // together. See `cycle_counter_grant_of`.
-        let next_cycle_counter = cycle_counter_grant_of(sched.threads.get(next).unwrap());
+        // thread's is `false`, like every user thread nobody granted it to. Written into the
+        // `#[cfg]`-gated variable declared above the block, not the switch tuple, so it costs the
+        // shipping build nothing at all (milestone 300; see `install_cycle_counter_grant` for why the
+        // old tuple-and-fold did not fold in the debug build the icount gate measures).
+        #[cfg(any(test, feature = "cycle_counter_grant"))]
+        {
+            next_cycle_counter = sched.threads.get(next).unwrap().cycle_counter_grant;
+        }
 
         // Copy the two raw pointers out before the lock drops. The assembly writes through the
         // first and reads the second, and both threads' `Box`es keep their contents pinned.
@@ -2007,8 +2006,9 @@ pub fn schedule() {
         // there shifted it, tiny but not zero), while x86 reuses the one lookup rather than paying a
         // second map probe for the port grant. The port read goes into the `x86_64`-only variable
         // declared above the block, not the switch tuple, so it costs the other two nothing at all.
-        // See `install_port_grant` for why a `#[cfg]` and not the tuple-and-fold trick
-        // `next_cycle_counter` uses.
+        // The cycle-counter grant is carried the same way now (milestone 300), so neither grant
+        // widens this tuple: it is back to its pre-139 width `(prev_slot, next_ctx, next_root)` on
+        // every shipping build.
         #[cfg(not(target_arch = "x86_64"))]
         let next_ctx: *mut Context = sched.threads.get(next).unwrap().context;
         #[cfg(target_arch = "x86_64")]
@@ -2018,13 +2018,13 @@ pub fn schedule() {
             next_thread.context
         };
 
-        Some((prev_slot, next_ctx, next_root, next_cycle_counter))
+        Some((prev_slot, next_ctx, next_root))
     };
     // Rule 1: THE LOCK IS RELEASED HERE, before the switch. Holding it across `switch_to` would
     // leave it held by a thread that is not running, and the next thread to want it would spin
     // forever waiting for a thread that can only be scheduled by taking the lock.
 
-    if let Some((prev_slot, next_ctx, next_root, next_cycle_counter)) = switch {
+    if let Some((prev_slot, next_ctx, next_root)) = switch {
         // Install the incoming thread's address space FIRST. `TTBR0_EL1` is one register, shared
         // by everybody, and a thread that resumes at EL0 in the previous thread's low half is
         // running a stranger's code. (No-ops, including no TLB flush, when the root is already
@@ -2044,9 +2044,10 @@ pub fn schedule() {
         // because unlike `TTBR0_EL1` this register names no memory and points at nothing that can
         // be freed: getting it wrong opens or closes a counter, it does not hand a thread a
         // stranger's pages. Costs a compare when the value already matches, which is every switch
-        // on a machine where nothing is granted. See `arch::timer::set_cycle_counter_grant`, and
-        // `install_cycle_counter_grant` below for why this call is still written here in a build
-        // that has no grant to install.
+        // on a machine where nothing is granted. `#[cfg]`-gated, not folded (milestone 300): it
+        // exists only in a build that can grant the counter, the same shape as the port grant just
+        // below. See `arch::timer::set_cycle_counter_grant` and `install_cycle_counter_grant`.
+        #[cfg(any(test, feature = "cycle_counter_grant"))]
         install_cycle_counter_grant(next_cycle_counter);
 
         // And the incoming thread's authority to reach x86 I/O ports from ring 3, the same shape of
