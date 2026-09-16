@@ -188,6 +188,24 @@ const VTD_W: u64 = 1 << 1;
 /// it (`kernel/src/arch/x86_64/iommu.rs`'s BUGS says why).
 const VTD_ADDR_MASK: u64 = 0x000f_ffff_ffff_f000;
 
+/// **Every bit a VT-d second-level entry is allowed to carry, written out**: R (bit 0), W (bit 1)
+/// and the address field (bits 51:12). Verified against QEMU's `VTD_SPTE_PAGE_L1_RSVD_MASK`;
+/// everything else is reserved-must-be-zero and faults the transaction rather than being ignored.
+///
+/// **It exists because the reserved-bit claim cannot be stated through the constants that build
+/// the entry** (milestone 307). `Vtd::leaf_entry` returns `(pa & VTD_ADDR_MASK) | bits` with
+/// `bits` drawn from `VTD_R` and `VTD_W`, so `leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W) == 0` is
+/// identically true for *every* value of those three constants: widen `VTD_ADDR_MASK` over bits
+/// 52..63 and the encoder and the assertion move together, leaving the harness green while every
+/// translated DMA faults on a reserved bit. The architecture chooses these bit positions and this
+/// crate does not, which is exactly the case for spelling them rather than citing ourselves; the
+/// same argument is already written out at `the_leaf_keeps_address_and_permissions_apart`.
+///
+/// `cfg`-gated to the two test configurations on purpose: an implementation that could reach it
+/// would reintroduce the coupling this constant exists to break.
+#[cfg(any(test, kani))]
+const VTD_PERMITTED_BITS: u64 = 0x000f_ffff_ffff_f003;
+
 impl PageFormat for Vtd {
     const LEVELS: usize = 4;
 
@@ -360,6 +378,11 @@ mod tests {
     /// address field is reserved-must-be-zero at a second-level leaf, and QEMU's model checks it.
     /// Every `Flags` constructor is tried, including the ones (`user_code`, `kernel_data`, ...)
     /// that would set `US` or `XD` on `Ia32e`'s encoding of the same flags.
+    ///
+    /// **The permitted set is a literal** ([`VTD_PERMITTED_BITS`]), for the reason milestone 307
+    /// found in the Kani harness that generalises this test: written as
+    /// `!(VTD_ADDR_MASK | VTD_R | VTD_W)` it was satisfied by any value of those three constants,
+    /// because `leaf_entry` builds the entry out of the same three.
     #[test]
     fn a_vtd_leaf_sets_no_bit_outside_read_write_and_address() {
         for flags in [
@@ -372,12 +395,24 @@ mod tests {
             Flags::user_data(),
             Flags::user_device(),
         ] {
-            let leaf = Vtd::leaf_entry(0x10_0000, flags);
-            assert_eq!(
-                leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W),
-                0,
-                "a reserved bit was set for {flags:?}: {leaf:#x}"
-            );
+            for pa in [
+                0x10_0000,
+                // **An address with bits above 51 set**, which is what makes this test able to see
+                // a widened `VTD_ADDR_MASK` at all. With a small concrete address the encoder's
+                // masking is never exercised: `(pa & M) == pa` for every M wide enough, so the
+                // defect and the test move together exactly as they did in the Kani harness this
+                // generalises. Masking the address down is `leaf_entry`'s job and this is the
+                // input that asks it to do the job.
+                0x00ff_ffff_ffff_f000,
+                u64::MAX & !0xfff,
+            ] {
+                let leaf = Vtd::leaf_entry(pa, flags);
+                assert_eq!(
+                    leaf & !VTD_PERMITTED_BITS,
+                    0,
+                    "a reserved bit was set for {flags:?} at {pa:#x}: {leaf:#x}"
+                );
+            }
         }
     }
 
@@ -516,8 +551,13 @@ mod verification {
         // get to choose, and it is spelled as a literal rather than through this crate's own
         // ADDR_MASK or PPN_SHIFT: a defect in one of those constants moves the implementation
         // and any harness that cited it together, which is the same trap one level down.
-        // `no_vtd_entry_ever_sets_a_reserved_bit` in this crate already works this way; this
-        // is the same move on the portable leaf.
+        //
+        // **This comment used to say `no_vtd_entry_ever_sets_a_reserved_bit` already worked this
+        // way. It did not** (milestone 307): that harness stated its address property through
+        // `VTD_ADDR_MASK`, which is the constant its encoder builds the entry out of, so the
+        // property held for every value of the constant. The citation was the only place in the
+        // tree claiming the trap had been avoided there, and it was written by a lane that had
+        // just avoided it here. Both are literals now.
         assert_eq!(
             leaf & 0x000f_ffff_ffff_f000,
             pa,
@@ -560,11 +600,37 @@ mod verification {
     /// for every address and every flag combination the type accepts, which matters here more than
     /// on `Ia32e` because QEMU's model (and real silicon) faults a transaction over a reserved bit
     /// rather than merely ignoring it.
+    ///
+    /// # Every assertion here is spelled in literals, and milestone 307 is why
+    ///
+    /// This harness used to state all three of its assertions, and its `assume`, through
+    /// `VTD_ADDR_MASK`, `VTD_R` and `VTD_W`: the same three constants `Vtd::leaf_entry` and
+    /// `Vtd::table_entry` build their result out of. `(pa & M) | bits` sets no bit outside
+    /// `M | VTD_R | VTD_W` **for every value of M**, so the address half of the reserved-bit claim
+    /// was a tautology and this harness could not fail on it. Widening `VTD_ADDR_MASK` over bits
+    /// 52..63, which this crate's own note says has never been narrowed to the `CAP_REG.MGAW` the
+    /// hardware reports, moves the encoder and the assertion together; every DMA the IOMMU
+    /// translates then faults on a reserved bit while the proof stays green, and the symptom is a
+    /// device that reads as broken rather than a table that reads as wrong.
+    ///
+    /// It was found by asking which assertion fires when the claim is broken, and it is worth the
+    /// paragraph because the tree had recorded the opposite: the comment on
+    /// `the_leaf_keeps_address_and_permissions_apart` cited *this* harness as already avoiding the
+    /// trap it was demonstrating. [`VTD_PERMITTED_BITS`] carries the argument in full.
     /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.no_vtd_entry_ever_sets_a_reserved_bit.patch`
     #[kani::proof]
     fn no_vtd_entry_ever_sets_a_reserved_bit() {
+        // The address field, bits 51:12, written out rather than cited.
+        const ADDRESS_BITS: u64 = 0x000f_ffff_ffff_f000;
+
+        // **No assumption on `pa`, and that is half the fix.** This harness used to open with
+        // `kani::assume(pa & !VTD_ADDR_MASK == 0)`, which defines the input space in terms of the
+        // constant under test: widen the mask and the harness quietly admits the very addresses
+        // that would now reach the entry, so the defect and the guard against it move together and
+        // the proof stays green. Masking the address down is `leaf_entry`'s own job, so the claim
+        // is over *every* `u64`, and the address assertions below say `pa & ADDRESS_BITS` rather
+        // than `pa` because that is what a correct encoder keeps.
         let pa: u64 = kani::any();
-        kani::assume(pa & !VTD_ADDR_MASK == 0);
 
         let all = [
             Flags::kernel_code(),
@@ -580,10 +646,31 @@ mod verification {
         kani::assume(i < all.len());
 
         let leaf = Vtd::leaf_entry(pa, all[i]);
-        assert_eq!(leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0);
-        assert_eq!(Vtd::entry_pa(leaf), pa);
+        assert_eq!(
+            leaf & !VTD_PERMITTED_BITS,
+            0,
+            "a VT-d leaf set a bit the hardware reserves",
+        );
+        // Where the architecture puts the address, not where this crate says it does. The
+        // `entry_pa` round trip below is an encoder and its own decoder, so a shift wrong in both
+        // satisfies it; this line is what that round trip is checked against.
+        assert_eq!(
+            leaf & ADDRESS_BITS,
+            pa & ADDRESS_BITS,
+            "the address left bits 12..52",
+        );
+        assert_eq!(Vtd::entry_pa(leaf), pa & ADDRESS_BITS);
 
         let table = Vtd::table_entry(pa);
-        assert_eq!(table & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0);
+        assert_eq!(
+            table & !VTD_PERMITTED_BITS,
+            0,
+            "a VT-d table entry set a bit the hardware reserves",
+        );
+        assert_eq!(
+            table & ADDRESS_BITS,
+            pa & ADDRESS_BITS,
+            "the address left bits 12..52",
+        );
     }
 }
