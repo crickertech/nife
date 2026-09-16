@@ -156,6 +156,31 @@ network boot (this block), an on-board test-suite exit so a machine rather than 
 result (milestone 16's remaining piece), and remote power (224, accepted as manual). Two of the
 three are lanes; the third is a decision that has been made the other way, on purpose.
 
+## Used in anger, 2026-09-16: seven boots, no card touched
+
+A five-boot job-mix session plus a bench boot and the tour, all fetched over the wire from an
+identical image, with the microSD card written **once** at the start of the day and never removed
+again. Transcripts under `bench/radon-2026-09-16/`.
+
+```
+ethernet@16030000 Waiting for PHY auto negotiation to complete...... done
+DHCP client bound to address 192.168.8.200 (257 ms)
+TFTP from server 192.168.8.206; our IP address is 192.168.8.200
+nife: payload came from net
+```
+
+Kernel at 3.2 MiB/s, the 8.6 MB archive at 6.7 MiB/s. This is the workflow this milestone was built
+for: the 2026-09-04 session that justified it wrote the card six times in one evening, once per
+boot, each a walk to the board and back.
+
+**The fallback was exercised too, by accident, and that is the more useful half.** The first boot of
+2026-09-16 came up before the ethernet cable was in, and printed
+`Waiting for PHY auto negotiation to complete......... TIMEOUT !` followed by
+`nife: payload came from card`. The board booted anyway, off the card, and said which path it took.
+A boot script that fetches over the network is a promise about a machine that has to be running, and
+this is the first evidence that the promise degrades rather than strands the board. Recorded in
+milestone 218's block as well, where the hands-free claim it supports lives.
+
 ## Confirmed on radon, 2026-09-05, and it found a bug no test could have
 
 Three boots, with the card written by `--tftp` and left in the board throughout.

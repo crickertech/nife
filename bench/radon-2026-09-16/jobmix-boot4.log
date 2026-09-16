@@ -1,0 +1,851 @@
+warning: binary `audit_sink` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../audit_sink
+    |                                       ^^^^^^^^^^
+    |
+    = note: `cargo::non_kebab_case_bins` is set to `warn` by default
+help: to change the binary name to `audit-sink`, convert `bin.name`
+   --> components/Cargo.toml:340:8
+    |
+340 - name = "audit_sink"
+340 + name = "audit-sink"
+    |
+warning: binary `block_driver` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../block_driver
+   |                                       ^^^^^^^^^^^^
+   |
+help: to change the binary name to `block-driver`, convert `bin.name`
+  --> components/Cargo.toml:89:8
+   |
+89 - name = "block_driver"
+89 + name = "block-driver"
+   |
+warning: binary `disk_partitioner` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../disk_partitioner
+    |                                       ^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `disk-partitioner`, convert `bin.name`
+   --> components/Cargo.toml:273:8
+    |
+273 - name = "disk_partitioner"
+273 + name = "disk-partitioner"
+    |
+warning: binary `disk_surveyor` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../disk_surveyor
+    |                                       ^^^^^^^^^^^^^
+    |
+help: to change the binary name to `disk-surveyor`, convert `bin.name`
+   --> components/Cargo.toml:262:8
+    |
+262 - name = "disk_surveyor"
+262 + name = "disk-surveyor"
+    |
+warning: binary `display_terminal` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../display_terminal
+    |                                       ^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `display-terminal`, convert `bin.name`
+   --> components/Cargo.toml:189:8
+    |
+189 - name = "display_terminal"
+189 + name = "display-terminal"
+    |
+warning: binary `fs_file_caretaker` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../fs_file_caretaker
+   |                                       ^^^^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `fs-file-caretaker`, convert `bin.name`
+  --> components/Cargo.toml:99:8
+   |
+99 - name = "fs_file_caretaker"
+99 + name = "fs-file-caretaker"
+   |
+warning: binary `fs_nameset_caretaker` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../fs_nameset_caretaker
+    |                                       ^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `fs-nameset-caretaker`, convert `bin.name`
+   --> components/Cargo.toml:120:8
+    |
+120 - name = "fs_nameset_caretaker"
+120 + name = "fs-nameset-caretaker"
+    |
+warning: binary `fs_subtree_caretaker` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../fs_subtree_caretaker
+    |                                       ^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `fs-subtree-caretaker`, convert `bin.name`
+   --> components/Cargo.toml:110:8
+    |
+110 - name = "fs_subtree_caretaker"
+110 + name = "fs-subtree-caretaker"
+    |
+warning: binary `gpu_driver` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../gpu_driver
+    |                                       ^^^^^^^^^^
+    |
+help: to change the binary name to `gpu-driver`, convert `bin.name`
+   --> components/Cargo.toml:169:8
+    |
+169 - name = "gpu_driver"
+169 + name = "gpu-driver"
+    |
+warning: binary `identity_provisioner` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../identity_provisioner
+    |                                       ^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `identity-provisioner`, convert `bin.name`
+   --> components/Cargo.toml:350:8
+    |
+350 - name = "identity_provisioner"
+350 + name = "identity-provisioner"
+    |
+warning: binary `jh7110_entropy` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../jh7110_entropy
+    |                                       ^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `jh7110-entropy`, convert `bin.name`
+   --> components/Cargo.toml:311:8
+    |
+311 - name = "jh7110_entropy"
+311 + name = "jh7110-entropy"
+    |
+warning: binary `job_undertaker` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../job_undertaker
+    |                                       ^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `job-undertaker`, convert `bin.name`
+   --> components/Cargo.toml:152:8
+    |
+152 - name = "job_undertaker"
+152 + name = "job-undertaker"
+    |
+warning: binary `keyboard_driver` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../keyboard_driver
+    |                                       ^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `keyboard-driver`, convert `bin.name`
+   --> components/Cargo.toml:282:8
+    |
+282 - name = "keyboard_driver"
+282 + name = "keyboard-driver"
+    |
+warning: binary `least_authority_demo` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../least_authority_demo
+    |                                       ^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `least-authority-demo`, convert `bin.name`
+   --> components/Cargo.toml:466:8
+    |
+466 - name = "least_authority_demo"
+466 + name = "least-authority-demo"
+    |
+warning: binary `line_editor` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../line_editor
+   |                                       ^^^^^^^^^^^
+   |
+help: to change the binary name to `line-editor`, convert `bin.name`
+  --> components/Cargo.toml:39:8
+   |
+39 - name = "line_editor"
+39 + name = "line-editor"
+   |
+warning: binary `net_stack` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../net_stack
+    |                                       ^^^^^^^^^
+    |
+help: to change the binary name to `net-stack`, convert `bin.name`
+   --> components/Cargo.toml:160:8
+    |
+160 - name = "net_stack"
+160 + name = "net-stack"
+    |
+warning: binary `network_time_client` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../network_time_client
+    |                                       ^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `network-time-client`, convert `bin.name`
+   --> components/Cargo.toml:372:8
+    |
+372 - name = "network_time_client"
+372 + name = "network-time-client"
+    |
+warning: binary `root_supervisor` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../root_supervisor
+    |                                       ^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `root-supervisor`, convert `bin.name`
+   --> components/Cargo.toml:131:8
+    |
+131 - name = "root_supervisor"
+131 + name = "root-supervisor"
+    |
+warning: binary `serial_driver` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../serial_driver
+   |                                       ^^^^^^^^^^^^^
+   |
+help: to change the binary name to `serial-driver`, convert `bin.name`
+  --> components/Cargo.toml:69:8
+   |
+69 - name = "serial_driver"
+69 + name = "serial-driver"
+   |
+warning: binary `session_reviver` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../session_reviver
+    |                                       ^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `session-reviver`, convert `bin.name`
+   --> components/Cargo.toml:361:8
+    |
+361 - name = "session_reviver"
+361 + name = "session-reviver"
+    |
+warning: binary `sub_server_supervisor` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../sub_server_supervisor
+    |                                       ^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `sub-server-supervisor`, convert `bin.name`
+   --> components/Cargo.toml:143:8
+    |
+143 - name = "sub_server_supervisor"
+143 + name = "sub-server-supervisor"
+    |
+warning: binary `terminal_sink_caretaker` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../terminal_sink_caretaker
+   |                                       ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `terminal-sink-caretaker`, convert `bin.name`
+  --> components/Cargo.toml:49:8
+   |
+49 - name = "terminal_sink_caretaker"
+49 + name = "terminal-sink-caretaker"
+   |
+warning: binary `uefi_loader` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../uefi_loader
+   |                                       ^^^^^^^^^^^
+   |
+   = note: `cargo::non_kebab_case_bins` is set to `warn` by default
+help: to change the binary name to `uefi-loader`, convert `bin.name`
+  --> uefi_loader/Cargo.toml:32:8
+   |
+32 - name = "uefi_loader"
+32 + name = "uefi-loader"
+   |
+warning: binary `address_space_builder` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../address_space_builder
+    |                                       ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `cargo::non_kebab_case_bins` is set to `warn` by default
+help: to change the binary name to `address-space-builder`, convert `bin.name`
+   --> fixtures/Cargo.toml:341:8
+    |
+341 - name = "address_space_builder"
+341 + name = "address-space-builder"
+    |
+warning: binary `allocator_exerciser` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../allocator_exerciser
+   |                                       ^^^^^^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `allocator-exerciser`, convert `bin.name`
+  --> fixtures/Cargo.toml:91:8
+   |
+91 - name = "allocator_exerciser"
+91 + name = "allocator-exerciser"
+   |
+warning: binary `c_confiner` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../c_confiner
+    |                                       ^^^^^^^^^^
+    |
+help: to change the binary name to `c-confiner`, convert `bin.name`
+   --> fixtures/Cargo.toml:129:8
+    |
+129 - name = "c_confiner"
+129 + name = "c-confiner"
+    |
+warning: binary `c_shim` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../c_shim
+    |                                       ^^^^^^
+    |
+help: to change the binary name to `c-shim`, convert `bin.name`
+   --> fixtures/Cargo.toml:123:8
+    |
+123 - name = "c_shim"
+123 + name = "c-shim"
+    |
+warning: binary `c_swappable` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../c_swappable
+    |                                       ^^^^^^^^^^^
+    |
+help: to change the binary name to `c-swappable`, convert `bin.name`
+   --> fixtures/Cargo.toml:159:8
+    |
+159 - name = "c_swappable"
+159 + name = "c-swappable"
+    |
+warning: binary `call_client` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../call_client
+    |                                       ^^^^^^^^^^^
+    |
+help: to change the binary name to `call-client`, convert `bin.name`
+   --> fixtures/Cargo.toml:309:8
+    |
+309 - name = "call_client"
+309 + name = "call-client"
+    |
+warning: binary `call_server` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../call_server
+    |                                       ^^^^^^^^^^^
+    |
+help: to change the binary name to `call-server`, convert `bin.name`
+   --> fixtures/Cargo.toml:302:8
+    |
+302 - name = "call_server"
+302 + name = "call-server"
+    |
+warning: binary `console_test_client` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../console_test_client
+    |                                       ^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `console-test-client`, convert `bin.name`
+   --> fixtures/Cargo.toml:254:8
+    |
+254 - name = "console_test_client"
+254 + name = "console-test-client"
+    |
+warning: binary `credentialer_test_client` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../credentialer_test_client
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `credentialer-test-client`, convert `bin.name`
+   --> fixtures/Cargo.toml:175:8
+    |
+175 - name = "credentialer_test_client"
+175 + name = "credentialer-test-client"
+    |
+warning: binary `cycle_counter_reader` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../cycle_counter_reader
+    |                                       ^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `cycle-counter-reader`, convert `bin.name`
+   --> fixtures/Cargo.toml:349:8
+    |
+349 - name = "cycle_counter_reader"
+349 + name = "cycle-counter-reader"
+    |
+warning: binary `delegation_granter` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../delegation_granter
+    |                                       ^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `delegation-granter`, convert `bin.name`
+   --> fixtures/Cargo.toml:270:8
+    |
+270 - name = "delegation_granter"
+270 + name = "delegation-granter"
+    |
+warning: binary `delegation_receiver` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../delegation_receiver
+    |                                       ^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `delegation-receiver`, convert `bin.name`
+   --> fixtures/Cargo.toml:278:8
+    |
+278 - name = "delegation_receiver"
+278 + name = "delegation-receiver"
+    |
+warning: binary `file_sink` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../file_sink
+    |                                       ^^^^^^^^^
+    |
+help: to change the binary name to `file-sink`, convert `bin.name`
+   --> fixtures/Cargo.toml:203:8
+    |
+203 - name = "file_sink"
+203 + name = "file-sink"
+    |
+warning: binary `file_source` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../file_source
+    |                                       ^^^^^^^^^^^
+    |
+help: to change the binary name to `file-source`, convert `bin.name`
+   --> fixtures/Cargo.toml:209:8
+    |
+209 - name = "file_source"
+209 + name = "file-source"
+    |
+warning: binary `frame_revoker` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../frame_revoker
+    |                                       ^^^^^^^^^^^^^
+    |
+help: to change the binary name to `frame-revoker`, convert `bin.name`
+   --> fixtures/Cargo.toml:317:8
+    |
+317 - name = "frame_revoker"
+317 + name = "frame-revoker"
+    |
+warning: binary `fs_test_client` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../fs_test_client
+   |                                       ^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `fs-test-client`, convert `bin.name`
+  --> fixtures/Cargo.toml:99:8
+   |
+99 - name = "fs_test_client"
+99 + name = "fs-test-client"
+   |
+warning: binary `image_self_checker` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../image_self_checker
+    |                                       ^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `image-self-checker`, convert `bin.name`
+   --> fixtures/Cargo.toml:246:8
+    |
+246 - name = "image_self_checker"
+246 + name = "image-self-checker"
+    |
+warning: binary `interrupt_heeder` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../interrupt_heeder
+   |                                       ^^^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `interrupt-heeder`, convert `bin.name`
+  --> fixtures/Cargo.toml:40:8
+   |
+40 - name = "interrupt_heeder"
+40 + name = "interrupt-heeder"
+   |
+warning: binary `interrupt_ignorer` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../interrupt_ignorer
+   |                                       ^^^^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `interrupt-ignorer`, convert `bin.name`
+  --> fixtures/Cargo.toml:66:8
+   |
+66 - name = "interrupt_ignorer"
+66 + name = "interrupt-ignorer"
+   |
+warning: binary `job_mix_task` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../job_mix_task
+   |                                       ^^^^^^^^^^^^
+   |
+help: to change the binary name to `job-mix-task`, convert `bin.name`
+  --> fixtures/Cargo.toml:60:8
+   |
+60 - name = "job_mix_task"
+60 + name = "job-mix-task"
+   |
+warning: binary `login_test_client` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../login_test_client
+    |                                       ^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `login-test-client`, convert `bin.name`
+   --> fixtures/Cargo.toml:185:8
+    |
+185 - name = "login_test_client"
+185 + name = "login-test-client"
+    |
+warning: binary `memory_grant_depleter` should have a kebab-case name
+   |
+ 1 | /Users/calef/projects/nife/target/.../memory_grant_depleter
+   |                                       ^^^^^^^^^^^^^^^^^^^^^
+   |
+help: to change the binary name to `memory-grant-depleter`, convert `bin.name`
+  --> fixtures/Cargo.toml:31:8
+   |
+31 - name = "memory_grant_depleter"
+31 + name = "memory-grant-depleter"
+   |
+warning: binary `memory_region_depleter` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../memory_region_depleter
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `memory-region-depleter`, convert `bin.name`
+   --> fixtures/Cargo.toml:262:8
+    |
+262 - name = "memory_region_depleter"
+262 + name = "memory-region-depleter"
+    |
+warning: binary `network_time_test_server` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../network_time_test_server
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `network-time-test-server`, convert `bin.name`
+   --> fixtures/Cargo.toml:222:8
+    |
+222 - name = "network_time_test_server"
+222 + name = "network-time-test-server"
+    |
+warning: binary `os_primitives_benchmarker` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../os_primitives_benchmarker
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `os-primitives-benchmarker`, convert `bin.name`
+   --> fixtures/Cargo.toml:107:8
+    |
+107 - name = "os_primitives_benchmarker"
+107 + name = "os-primitives-benchmarker"
+    |
+warning: binary `page_frame_consumer` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../page_frame_consumer
+    |                                       ^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `page-frame-consumer`, convert `bin.name`
+   --> fixtures/Cargo.toml:294:8
+    |
+294 - name = "page_frame_consumer"
+294 + name = "page-frame-consumer"
+    |
+warning: binary `page_frame_producer` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../page_frame_producer
+    |                                       ^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `page-frame-producer`, convert `bin.name`
+   --> fixtures/Cargo.toml:286:8
+    |
+286 - name = "page_frame_producer"
+286 + name = "page-frame-producer"
+    |
+warning: binary `rendezvous_minter` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../rendezvous_minter
+    |                                       ^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `rendezvous-minter`, convert `bin.name`
+   --> fixtures/Cargo.toml:325:8
+    |
+325 - name = "rendezvous_minter"
+325 + name = "rendezvous-minter"
+    |
+warning: binary `rendezvous_peer` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../rendezvous_peer
+    |                                       ^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `rendezvous-peer`, convert `bin.name`
+   --> fixtures/Cargo.toml:333:8
+    |
+333 - name = "rendezvous_peer"
+333 + name = "rendezvous-peer"
+    |
+warning: binary `rust_swappable` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../rust_swappable
+    |                                       ^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `rust-swappable`, convert `bin.name`
+   --> fixtures/Cargo.toml:153:8
+    |
+153 - name = "rust_swappable"
+153 + name = "rust-swappable"
+    |
+warning: binary `sink_transcript_writer` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../sink_transcript_writer
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `sink-transcript-writer`, convert `bin.name`
+   --> fixtures/Cargo.toml:197:8
+    |
+197 - name = "sink_transcript_writer"
+197 + name = "sink-transcript-writer"
+    |
+warning: binary `unwritable_clock_witness` should have a kebab-case name
+    |
+  1 | /Users/calef/projects/nife/target/.../unwritable_clock_witness
+    |                                       ^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: to change the binary name to `unwritable-clock-witness`, convert `bin.name`
+   --> fixtures/Cargo.toml:233:8
+    |
+233 - name = "unwritable_clock_witness"
+233 + name = "unwritable-clock-witness"
+    |
+--- /dev/cu.usbmodem5C7B0104661 at 115200 baud, logging to target/board-console-1789592992.log, up to 1200s ---
+
+U-Boot SPL 2021.10 (Feb 12 2023 - 18:15:33 +0800)
+DDR version: dc2e84f0.
+Trying to boot from SPI
+
+OpenSBI v1.2
+   ____                    _____ ____ _____
+  / __ \                  / ____|  _ \_   _|
+ | |  | |_ __   ___ _ __ | (___ | |_) || |
+ | |  | | '_ \ / _ \ '_ \ \___ \|  _ < | |
+ | |__| | |_) |  __/ | | |____) | |_) || |_
+  \____/| .__/ \___|_| |_|_____/|____/_____|
+        | |
+        |_|
+
+Platform Name             : StarFive VisionFive V2
+Platform Features         : medeleg
+Platform HART Count       : 5
+Platform IPI Device       : aclint-mswi
+Platform Timer Device     : aclint-mtimer @ 4000000Hz
+Platform Console Device   : uart8250
+Platform HSM Device       : jh7110-hsm
+Platform PMU Device       : ---
+Platform Reboot Device    : pm-reset
+Platform Shutdown Device  : pm-reset
+Firmware Base             : 0x40000000
+Firmware Size             : 292 KB
+Runtime SBI Version       : 1.0
+
+Domain0 Name              : root
+Domain0 Boot HART         : 1
+Domain0 HARTs             : 0*,1*,2*,3*,4*
+Domain0 Region00          : 0x0000000002000000-0x000000000200ffff (I)
+Domain0 Region01          : 0x0000000040000000-0x000000004007ffff ()
+Domain0 Region02          : 0x0000000000000000-0xffffffffffffffff (R,W,X)
+Domain0 Next Address      : 0x0000000040200000
+Domain0 Next Arg1         : 0x0000000042200000
+Domain0 Next Mode         : S-mode
+Domain0 SysReset          : yes
+
+Boot HART ID              : 1
+Boot HART Domain          : root
+Boot HART Priv Version    : v1.11
+Boot HART Base ISA        : rv64imafdcbx
+Boot HART ISA Extensions  : none
+Boot HART PMP Count       : 8
+Boot HART PMP Granularity : 4096
+Boot HART PMP Address Bits: 34
+Boot HART MHPM Count      : 2
+Boot HART MIDELEG         : 0x0000000000000222
+Boot HART MEDELEG         : 0x000000000000b109
+
+
+U-Boot 2021.10 (Feb 12 2023 - 18:15:33 +0800), Build: jenkins-VF2_515_Branch_SDK_Release-24
+
+CPU:   rv64imacu
+Model: StarFive VisionFive V2
+DRAM:  8 GiB
+MMC:   sdio0@16010000: 0, sdio1@16020000: 1
+Loading Environment from SPIFlash... SF: Detected gd25lq128 with page size 256 Bytes, erase size 4 KiB, total 16 MiB
+*** Warning - bad CRC, using default environment
+
+StarFive EEPROM format v2
+
+--------EEPROM INFO--------
+Vendor : StarFive Technology Co., Ltd.
+Product full SN: VF7110B1-2253-D008E000-00004584
+data version: 0x2
+PCB revision: 0xb2
+BOM revision: A
+Ethernet MAC0 address: 6c:cf:39:00:47:2c
+Ethernet MAC1 address: 6c:cf:39:00:47:2d
+--------EEPROM INFO--------
+
+In:    serial@10000000
+Out:   serial@10000000
+Err:   serial@10000000
+Model: StarFive VisionFive V2
+Net:   eth0: ethernet@16030000, eth1: ethernet@16040000
+switch to partitions #0, OK
+mmc1 is current device
+found device 1
+bootmode flash device 1
+** Invalid partition 3 **
+Couldn't find partition mmc 1:3
+Can't set block device
+** Invalid partition 3 **
+Couldn't find partition mmc 1:3
+Can't set block device
+Hit any key to stop autoboot:  2  1  0 
+** Invalid partition 3 **
+Couldn't find partition mmc 1:3
+Can't set block device
+Importing environment from mmc1 ...
+## Warning: Input data exceeds 1048576 bytes - truncated
+## Info: input data size = 1048578 = 0x100002
+** Invalid partition 2 **
+Couldn't find partition mmc 1:2
+Can't set block device
+## Warning: defaulting to text format
+## Error: "boot2" not defined
+switch to partitions #0, OK
+mmc1 is current device
+Scanning mmc 1:1...
+Found U-Boot script /boot.scr.uimg
+1595 bytes read in 8 ms (194.3 KiB/s)
+## Executing script at 43900000
+nife: boot.scr is driving this boot, milestones 218 and 257
+nife: tftp server is 192.168.8.206, setenv nife_boot_server to point somewhere else
+ethernet@16030000 Waiting for PHY auto negotiation to complete...... done
+BOOTP broadcast 1
+BOOTP broadcast 2
+DHCP client bound to address 192.168.8.200 (257 ms)
+Using ethernet@16030000 device
+TFTP from server 192.168.8.206; our IP address is 192.168.8.200
+Filename 'nife-vf2.img'.
+Load address: 0x40200000
+Loading: *###################
+	 2.8 MiB/s
+done
+Bytes transferred = 278528 (44000 hex)
+Using ethernet@16030000 device
+TFTP from server 192.168.8.206; our IP address is 192.168.8.200
+Filename 'nife-initrd.img'.
+Load address: 0x90000000
+Loading: *#################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 #################################################################
+	 ####
+	 7.2 MiB/s
+done
+Bytes transferred = 8641024 (83da00 hex)
+nife: payload came from net
+Moving Image from 0x40200000 to 0x80200000, end=8030c000
+## Flattened Device Tree blob at 86000000
+   Booting using the fdt blob at 0x86000000
+   Using Device Tree in place at 0000000086000000, end 000000008600d41a
+
+Starting kernel ...
+
+clk u5_dw_i2c_clk_core already disabled
+clk u5_dw_i2c_clk_apb already disabled
+
+nife on RISC-V (rv64, S-mode, Sv39)
+  hart 0 booted: high-half kernel, .bss, and the NS16550 console are up.
+  running at  : 0xffffffc08021acea  (high half: Sv39 paging is on)
+  device tree : 0x0000000086000000
+  traps       : stvec set; a breakpoint was caught and stepped over (1)
+  timer       : 21 ticks in ~0.2s (SBI timer + S-mode interrupt at 100 Hz)
+  memory      : device tree parsed, frame allocator up (first frame 0x400a0000)
+  smp: 5 core(s) in the device tree, 4 startable
+  smp: cpu 0's riscv,isa names user mode and not supervisor: it cannot run this kernel, whatever status and mmu-type claim; not started
+  plic: S contexts from the device tree differ from the 2h+1 formula (expected on the JH7110: the disabled S7 shifts every context down one)
+  paging      : fine-grained W^X Sv39 tables installed, satp switched (paging on: true)
+  isa         : rv64i m a c f d
+              : 5 hart(s), mmu sv39 declared and sv39 in use, satp.ASID 0 bits measured; read from the deprecated riscv,isa
+  firmware    : OpenSBI 0x10002, SBI 1.0, TIME IPI RFENCE HSM PMU
+  cycles      : SBI PMU counter 0, CSR 0xc00, 64 bits
+  smp: sbi hsm hart_start (the only mechanism RISC-V defines)
+  smp: cpu 0 is not startable by this kernel (disabled, no supervisor
+       mode, or an enable-method we do not speak); leaving it alone.
+  smp: 4 core(s) online
+
+nife
+  isa         : rv64i m a c f d
+              : 5 hart(s), mmu sv39 declared and sv39 in use, satp.ASID 0 bits measured; read from the deprecated riscv,isa
+  firmware    : OpenSBI 0x10002, SBI 1.0, TIME IPI RFENCE HSM PMU
+  stack top       : 0xffffffc08025c000
+  firmware handoff: 0x0000000086000000  (device tree)
+  processors      : 4 online of 5 described, boot cpu hwid 0x1
+  memory          : 4096 MiB total, 4069 MiB free (26752 KiB in use)
+  console         : NS16550 at 0xffffffc010000000, interrupt line 32
+                  : no screen; this console is the UART alone
+  interrupts      : PLIC at 0x000000000c000000, this hart's S-mode context 2
+  timer           : 100 Hz tick, counter at 4 MHz, interrupts ON
+  initrd          : 8641024 bytes at 0x0000000090000000, a nifefs archive of 89 program(s)
+  pcie            : none (this machine describes no host bridge)
+  iommu           : none (no riscv-iommu-pci function on this machine's bus)
+  mmu             : Sv39 on, fine-grained W^X tables installed, one satp, kernel high half at 0xffffffc000000000
+                  : kernel root 0x00000000400a1000, live satp root 0x00000000400a1000
+  scheduler       : 5 thread(s), round robin, preemptive
+nife machine: riscv64, 4 processor(s), 4096 MiB, 100 Hz
+  self-test       : exceptions ok      a breakpoint was caught and stepped over (1)
+  self-test       : mapping    ok      0xffffffc180000000 -> 0x410cb000, read back 0xc0ffee, unmapped
+  self-test       : frames     ok      one frame out and back at 0x410cb000; used 6690 -> Some(6691) -> Some(6690)
+  self-test       : timer      ok      the 4MHz counter advanced 80000 and 2 tick(s) arrived in ~20ms
+  self-test       : scheduler  ok      thread 5 ran and carried its captured state (0x268026802680268)
+nife self-test: 5 of 5 passed
+  user address space : process satp activated (kernel half shared), user 0x400000 -> Some((410cb000, Flags(3)))
+  userspace   : a program ran at U-mode and made 0 syscalls (yield/yield/exit via ecall)
+  user ELF    : an archive; the progenitor composes this machine's userspace at the handoff below
+  preemption  : two never-yield threads ran 4391331 and 10942625 iterations, 81 preemptions (a thread that refuses to yield is preempted anyway)
+  uart irq    : source 32 (machine description)
+  device IRQ  : userspace driver started (holds an Irq cap + a UART mapping); pipe a byte to see it
+  virtio      : no block device attached (pass NIFE_DISK to attach one)
+  pcie        : no virtio-blk on the bus (pass NIFE_DISK to attach one)
+  hw clock    : JH7110 STG CRG at 0x10230000 (named by this machine's device tree): clocks 0x00000000,0x00000000 -> 0x80000000,0x80000000 (running); reset 3 assert 0x007ffffe -> 0x007ffff6, status 0x00000009 (released, 1 polls)
+  capability slots: 2 of 24 at peak
+  hw entropy  : JH7110 TRNG at 0x1600c000 served 32+32 bytes to a client through a capability that names no device; first draw 7edff612.., second differs; STAT after init 0x00040308 (256-bit: all eight RAND words are the answer); since the pcie line 20782 us, of which bring-up 516 us (window mapped, driver spawned, reseed, first generation; the hw clock line's own console time excluded) and 64 bytes in 64 us (992248 bytes/s over 8 round trips)
+nife: the capability core runs on RISC-V.
+
+job-mix: started 32 tasks and 2 servers on 4 online core(s), cntfrq=4000000 Hz
+  capability slots: 3 of 24 at peak
+job-mix: one job is one of 5 kinds (16 per round, 8 rounds per task per subrun); see crates/job_mix for the mix and what it deliberately leaves out
+job-mix: this measures THIS kernel under multi-tasking load; it compares nothing against an event kernel and does not decide design/decisions/96-process-kernel-or-event-kernel.md
+job-mix-census: where the kernel placed each thread at spawn: S=echo server, T=task
+job-mix-census: core=1 threads=6 T1 T2 T15 T19 T24 T29
+job-mix-census: core=2 threads=9 S0 T3 T4 T10 T14 T16 T23 T28 T31
+job-mix-census: core=3 threads=9 T0 T5 T7 T8 T13 T20 T22 T26 T30
+job-mix-census: core=4 threads=10 S1 T6 T9 T11 T12 T17 T18 T21 T25 T27
+job-mix-census: placement decides throughput on real silicon by up to fifteenfold (notes/soak.md, milestone 240), so a jobs-per-minute figure from ONE boot is a draw and not a result; notes/job-mix.md's procedure asks for repeated boots
+job-mix-repeat: tasks=1 repeat=0 ticks=96372
+job-mix-repeat: tasks=1 repeat=1 ticks=96305
+job-mix-repeat: tasks=1 repeat=2 ticks=96297
+job-mix: tasks=1 jobs=128 ticks=96297 jpm=319013
+job-mix-repeat: tasks=2 repeat=0 ticks=111513
+job-mix-repeat: tasks=2 repeat=1 ticks=97778
+job-mix-repeat: tasks=2 repeat=2 ticks=111268
+job-mix: tasks=2 jobs=256 ticks=97778 jpm=628362
+job-mix-repeat: tasks=4 repeat=0 ticks=160342
+job-mix-repeat: tasks=4 repeat=1 ticks=161808
+job-mix-repeat: tasks=4 repeat=2 ticks=177846
+job-mix: tasks=4 jobs=512 ticks=160342 jpm=766361
+job-mix-repeat: tasks=8 repeat=0 ticks=269731
+job-mix-repeat: tasks=8 repeat=1 ticks=274443
+job-mix-repeat: tasks=8 repeat=2 ticks=299644
+job-mix: tasks=8 jobs=1024 ticks=269731 jpm=911129
+job-mix-repeat: tasks=16 repeat=0 ticks=543490
+job-mix-repeat: tasks=16 repeat=1 ticks=522841
+job-mix-repeat: tasks=16 repeat=2 ticks=519265
+job-mix: tasks=16 jobs=2048 ticks=519265 jpm=946568
+job-mix-repeat: tasks=32 repeat=0 ticks=929556
+job-mix-repeat: tasks=32 repeat=1 ticks=948435
+job-mix-repeat: tasks=32 repeat=2 ticks=980229
+job-mix: tasks=32 jobs=4096 ticks=929556 jpm=1057537
+job-mix: done

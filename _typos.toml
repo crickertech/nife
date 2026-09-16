@@ -17,7 +17,14 @@
 # The vendored engine is kept byte-identical to its pin (vendor/README.md), so its typos are not
 # ours to fix and a gate that reports them is a gate that gets ignored. Same for patches, which are
 # diffs against upstream text, and for lockfiles, which are generated.
-extend-exclude = ["vendor/", "patches/", "*.lock", "target/"]
+# Board transcripts are added for a third reason, and it is the one that generalises: `bench/**/*.log`
+# is a verbatim capture of what a machine sent down a serial line, not prose anybody wrote, so there
+# is no author to correct and nothing to ratchet. Spell-checking it is the same category error as
+# spell-checking a lockfile. It became a gate failure rather than a theoretical point on 2026-09-16,
+# when `script/board-console` wrote a truncated `evice` into a job-mix transcript (its own defect,
+# recorded in notes/bench-runbook.md's BUGS); the alternative was editing a transcript to please a
+# checker, which would make it no longer a transcript.
+extend-exclude = ["vendor/", "patches/", "*.lock", "target/", "bench/**/*.log"]
 
 # The allowlist is almost entirely HARDWARE, and that is the honest characterisation rather than an
 # excuse: a spell checker aimed at an operating system meets register mnemonics constantly, and they

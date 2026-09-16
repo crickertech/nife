@@ -107,8 +107,12 @@ it underneath the check.
 - **Done.** The DTB-driven UART IRQ landed: the machine description supplies the source in
   `kernel/src/user.rs`, read by `kernel/src/main.rs` and by the input service, and the nine boots
   of the 2026-09-03 series each printed `uart irq : source 32 (machine description)`.
-- **Milestone 74.** The real-cycle benches are all that is left of 16a. 74 is still NOT-STARTED and
-  its own text says the PMU appears only in device-tree fixtures and in that file.
+- **Milestone 74.** The real-cycle benches are all that is left of 16a, and **the riscv64 number was
+  taken on 2026-09-16**: `cycles_per_tick 250.00`, which converts every tick-denominated board row to
+  cycles. 74's own block carries the figure, the reason a round number is real here rather than the
+  emulator artifact 16a warned about, and the cycle table it unlocks. 74 stays `PARTIAL` for its
+  aarch64 half, where `PMCR_EL0.E` is still never written. (This bullet said 74 was `NOT-STARTED`,
+  which was already stale when written: its riscv64 code landed 2026-09-03.)
 - **Milestone 143.** Carrying 16b's RISC-V IOMMU driver to silicon is that block, gated on hardware
   because no board shipping the ratified spec exists.
 - **Milestone 241.** The aarch64 board this block deferred to when milestone 25's leftover
