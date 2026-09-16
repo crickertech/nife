@@ -162,6 +162,33 @@ this study said the tree did not have, and it now exists. It cost about 10 secon
 `script/verify`. `kernel/src/arch/`, `user/` and `xtask` are still out of reach, so the amber stands;
 what changed is that the reason is now a worklist rather than a wall.
 
+**And on 2026-09-16 a proof caught a real kernel defect, on an architecture the prover had never
+compiled.** Milestone 304 found that `cargo kani -p kernel` selects its `arch/` subtree by
+`#[cfg(target_arch)]`, which under Kani is the **host**, so every CI job and the dev Mac had been
+proving `arch/aarch64/` and nothing of the other two. The premise was measured rather than assumed:
+two `assert!(false)` probes placed in `arch/riscv64/` and `arch/x86_64/` produced *"4 successfully
+verified harnesses, 0 failures"*, because neither subtree was compiled.
+
+The first proof ever pointed at `arch/x86_64/irq.rs` went red. `gsi_vector` is a flat
+`GSI_VECTOR_BASE.wrapping_add(gsi)`, and `MAX_REDIRECTION_ENTRIES` is documented as the reason it
+"cannot silently wrap onto an exception vector" while actually bounding the IO APIC's **entry
+count**, not the GSI. A second IO APIC based at global interrupt 200 with the 24 entries every real
+part has admits GSI 210, and `gsi_vector(210)` wraps onto **vector 2, the NMI**. Nothing has hit it
+because every single-socket PC gives its one IO APIC `gsi_base` 0; a nonzero base is legal ACPI and
+exists on multi-socket servers.
+
+**That is a latent defect on hardware this project does not own, found by a model checker, which no
+test in this tree could have reached.** It is the class this risk was written to ask about, and it
+is the first time this tree has an instance of it. The survivorship caveat above still applies with
+full force: the harness caught it *while being written*, like `dtb::be32` and `pci::intx_irq` before
+it, so it is evidence that pointing the prover somewhere new pays, not yet evidence that a standing
+proof catches regressions. **riscv64 remains unreachable to the prover and nobody here can change
+that**: no GitHub image, no Kani cross-target flag, and CBMC needs a goto-binary for its own host.
+The fix was deliberately not made in that lane, because it changes a public signature and a
+documented policy: `design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md`, gate
+`DECISION`. The defect is recorded in `kernel/src/arch/x86_64/irq.rs`'s module `BUGS` as well, which
+is where a reader meets the feature.
+
 ## 3. The tests do not test anything, and the quality is illusory
 
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
@@ -423,10 +450,39 @@ notes/confinement-claims.md; PR #614.
 
 **What it does not say.** Nothing here says the confinement holds. What it supports is narrower and
 was the point: these named claims are tested, and each has been shown to fail when the claim is
-broken. **Six kernel confinement rows still have no mechanism at all**, and the adversarial exercise
-this entry originally called for is still unbuilt: an outsider trying to escape, rather than us
-demonstrating that a planned escape fails. That wants outside eyes
+broken. The adversarial exercise this entry originally called for is still unbuilt: an outsider
+trying to escape, rather than us demonstrating that a planned escape fails. That wants outside eyes
 and is gated behind milestone 198 by calef's no-third-parties position.
+
+**The six kernel rows got their mechanism on 2026-09-16, and one of them was not testing its own
+claim.** This entry said until that day that those rows had none; milestone 305 built it, on top of
+milestone 210's `cargo xtask test --test <substring>` (built 2026-08-31, and the note claiming the
+mechanism "does not exist" had been stale for sixteen days). Seven of the eight tests behind rows 21
+to 26 now carry a replayable falsification. The sweep is **48 swept, 0 survivors, 2 min 55 s warm**.
+
+**The finding is the one this risk exists to produce, and it is worse than a missing test.**
+`the_page_tables_say_u_mode_cannot_read_the_kernels_memory` was patched to remove the `U`-bit check
+from `mmu::user_can_read` **outright**, and the test still passed. `user_can_read` went through
+`translate_user`, whose `Mapper` is built with `Half::Low` *always*, so a high-half kernel address
+returned `None` before any leaf was read. **The assertion answered "U-mode cannot read the kernel"
+by refusing to look**, and had done so since milestone 41, with every gate in this tree green
+throughout. `is_mapped_in_current_space` exists forty lines away for exactly this case and says so
+in its own doc comment. Fixed in 305 (`translate_in_either_half`) and measured both ways.
+
+That is the shape of failure this file's rule 1 is about: **a test that cannot come back red is
+indistinguishable from a test that passes**, and nothing but a falsification can tell them apart.
+Risk 3's mutation census measures the same property over host crates and cannot see kernel tests at
+all, so this class was invisible to every instrument the project owned.
+
+**Two further things were recorded rather than smoothed over.** Row 26 (a client of a rendezvous
+cannot become its server) is **`unfalsified`**, honestly: the complete break produces a 60-second
+lost-wakeup watchdog rather than a claim-shaped red, because `RECV_CAP` blocks, so an attacker the
+kernel fails to refuse takes the honest server's message instead of reporting an escape. Filling it
+with an easier defect would have fired an assertion while leaving the claim untested, which is
+precisely what the row above shows costs eight months. And **§31's assertion-order hazard has a
+second independent instance**: row 24's quotable crossing assertion sits below two per-shell bitmap
+equalities that catch any crossing one call earlier, so it cannot run. Two instances found the same
+way in one sweep is a reason to expect more.
 
 ## 8. Nobody needs it
 
@@ -520,7 +576,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
-| ~~7~~ | 7, confinement | **RUN 2026-08-31.** 26 claims enumerated, 25 falsifications replaying red, and §31's headline assertion found unreachable in the case it exists to catch | milestone 202 | done; the adversarial half remains |
+| ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16.** 26 claims enumerated, 25 falsifications replaying red, and §31's headline assertion found unreachable in the case it exists to catch. Milestone 305 then gave the six kernel rows a mechanism and found **a confinement test that could not fail**: the U-bit check removed outright and the test still green, since milestone 41 | milestones 202, 305 | done; the adversarial half remains |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
 
 ## BUGS
