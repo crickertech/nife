@@ -1,0 +1,41 @@
+Falsifies `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen`.
+
+Architecture: aarch64
+
+The defect is two extra pages in the client's spawn map: the loop that maps a client's own
+surface frames runs two frames past the end, so the page the attacker was handed the address
+of, its neighbour's first pixel frame, is now in its own address space. Nothing else changes.
+The same binary runs with the same role bits, reaches for the same virtual address, and the
+address still points where the test asserts it points.
+
+`MAX_CLIENT_MAPS` is 5 and the attacker's window needs 2 surface frames plus its control page,
+so the extended loop fits exactly with no capacity edit, which is why this is one line.
+
+Expected to fail: `assert!(wait_for(|| USER_FAULTS.load(Ordering::Relaxed) > faults), "a client
+wrote at {probe_va:#x}, its neighbour's pixels, and was NOT stopped")`.
+
+**The two preconditions above it stay green, which is what gives the red its meaning.** The
+test first requires that `neighbour_probe_phys(ATTACKER)` really is the victim's first pixel
+frame, so the probe cannot degenerate into poking an empty hole, and then that the attacker
+reported `WIN_PROBING` at exactly the address it was handed. Both still hold under the patch:
+the allocation is unchanged and the address is unchanged. Only the mapping moved.
+
+**The confidentiality half of this test is not falsified by this patch and says so.** The test
+proves four things and this reaches one: the input-slot refusal (`NoSuchSlot` on an ungranted
+slot), the witness digests, and the third client's read of the screen are all downstream of
+the fault assertion and never run. A record that claimed this patch falsified the whole row
+would be claiming more than one assertion's worth.
+
+diff --git a/kernel/src/user/compositor_service.rs b/kernel/src/user/compositor_service.rs
+index e870c21d..20c10c62 100644
+--- a/kernel/src/user/compositor_service.rs
++++ b/kernel/src/user/compositor_service.rs
+@@ -234,7 +234,7 @@ impl Wiring {
+             flags: Flags::user_data(),
+         };
+         m += 1;
+-        for k in 0..frames {
++        for k in 0..frames + 2 {
+             maps[m] = Mapping {
+                 va: SURFACE_VA + k * FRAME_SIZE,
+                 phys: self.client[i] + (1 + k) * FRAME_SIZE,

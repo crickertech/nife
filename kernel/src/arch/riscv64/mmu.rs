@@ -724,6 +724,30 @@ pub fn deactivate_user() {
     unsafe { switch_user_root(reserved_root()) };
 }
 
+/// The leaf the hardware would find for `va` on this hart, **in whichever half `va` names**.
+///
+/// [`translate_user`] cannot answer this and it is not a near miss: `translate_at` builds its
+/// `Mapper` with `Half::Low`, always, so a high-half address comes back `None` before any leaf is
+/// read. [`is_mapped_in_current_space`] already carried the fix in its own body and said why in its
+/// doc comment ("a user thread reaching for the *kernel's* memory names a high-half address ...
+/// `translate_user` alone would say 'not mapped' for it and turn the most interesting case into the
+/// wrong answer"), and [`user_can_read`] went on calling `translate_user` anyway.
+///
+/// **Milestone 305 found that by falsification, which is the only way it could have been found.**
+/// A patch that removed the `U` check from `user_can_read` entirely left
+/// `the_page_tables_say_u_mode_cannot_read_the_kernels_memory` **green**, because the answer was
+/// never coming from the `U` bit: the walk stopped at the half. The test's headline assertion was
+/// vacuous and had been since milestone 41.
+fn translate_in_either_half(va: u64) -> Option<(u64, Flags)> {
+    let root = current_root_pa();
+    // SAFETY: `root` is the live installed root; the direct map makes `phys_to_ptr` valid; a
+    // translate allocates nothing, so the `|| None` allocator is never called.
+    let half = |h| unsafe { Mapper::<_, _, Sv39>::new(root, h, || None, phys_to_ptr) };
+    half(Half::Low)
+        .translate(va)
+        .or_else(|| half(Half::High).translate(va))
+}
+
 /// Whether U-mode may read `va` in the installed address space. RISC-V has no address-translation
 /// instruction like aarch64's `AT S1E0R`, so we walk the current tables and check the U bit.
 ///
@@ -731,15 +755,19 @@ pub fn deactivate_user() {
 /// see the aarch64 twin for the full disposition. It is proved rather than merely allowed, by
 /// `the_page_tables_say_u_mode_cannot_read_the_kernels_memory` (milestone 41, which is when this
 /// ISA got the confused-deputy test aarch64 had had all along).
+///
+/// **The walk is [`translate_in_either_half`] rather than [`translate_user`], and that is the whole
+/// of milestone 305's correction here.** With `translate_user` this function answered "no" for
+/// every kernel address by refusing to look, so the one assertion it exists for could not fail.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn user_can_read(va: u64) -> bool {
-    translate_user(va).is_some_and(|(_, f)| f.is_user_accessible())
+    translate_in_either_half(va).is_some_and(|(_, f)| f.is_user_accessible())
 }
 
 /// Whether U-mode may write `va`: user-accessible and writable. Same disposition, same test.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn user_can_write(va: u64) -> bool {
-    translate_user(va).is_some_and(|(_, f)| f.is_user_accessible() && f.is_writable())
+    translate_in_either_half(va).is_some_and(|(_, f)| f.is_user_accessible() && f.is_writable())
 }
 
 /// The physical root of the currently installed address space (`satp.PPN << 12`).

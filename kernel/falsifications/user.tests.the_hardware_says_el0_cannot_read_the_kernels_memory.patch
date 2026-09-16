@@ -1,0 +1,46 @@
+Falsifies `kernel::user::tests::the_hardware_says_el0_cannot_read_the_kernels_memory`.
+
+Architecture: aarch64
+
+The defect is the kernel's own **text** mapped EL0-readable, which is the one section the
+sibling falsification of `a_user_program_cannot_read_a_kernel_address` does not reach: that
+one maps `.rodata` user-readable and this test asks about `0xffff_0000_4008_0000`, the
+kernel's text.
+
+It is one bit on the constructor rather than one flag at the call site, because there is no
+constructor for "kernel-executable and user-readable" and there should not be: `Flags` is a
+capability word with a fixed vocabulary, and the honest way to write this defect is to widen
+the vocabulary rather than to pick a wrong word out of it. `CAP_KERNEL_EXEC` is kept, so the
+kernel still executes its own text; `CAP_USER` is added, so the leaf encoder writes
+`AP_RO_EL0` and EL0 may read it. `UXN` stays set, because `CAP_USER_EXEC` is not added, so
+the page is still not executable at EL0.
+
+Expected to fail: `assert!(!mmu::user_can_read(KERNEL_TEXT), "the hardware says EL0 could
+read the kernel's own text")`. That assertion is the one the test is named for and it is
+answered by the silicon (`AT S1E0R`), not by a software walk, which is what makes this
+record worth more than its sibling's: the fault counter in the other test is the kernel's own
+bookkeeping, and this is the CPU.
+
+**The precondition above it stays green**, which is the shape to check for. The test first
+requires `mmu::translate(KERNEL_TEXT).is_some()`, and it still is: the page is mapped, it is
+readable, and only the privilege level changed.
+
+**Two host tests in `crates/paging` break under this patch and neither runs here.**
+`Flags::kernel_code().bits()` is asserted against a literal in that crate's own unit tests,
+and `paging`'s Kani harnesses reason about the encoder rather than the constructor. A full
+`script/test` would catch the first. This sweep boots one kernel test and does not, which is
+the honest scope of a kernel-test falsification and is stated in script/falsifications' BUGS.
+
+diff --git a/crates/paging/src/lib.rs b/crates/paging/src/lib.rs
+index 903a72a4..8b05b275 100644
+--- a/crates/paging/src/lib.rs
++++ b/crates/paging/src/lib.rs
+@@ -206,7 +206,7 @@ pub struct Flags(u64);
+ impl Flags {
+     /// Kernel code: readable and executable by the kernel, never writable, never user.
+     pub const fn kernel_code() -> Self {
+-        Flags(CAP_KERNEL_EXEC | CAP_GLOBAL)
++        Flags(CAP_KERNEL_EXEC | CAP_GLOBAL | CAP_USER)
+     }
+ 
+     /// Kernel constants: readable by the kernel, never writable, never executable by anyone.

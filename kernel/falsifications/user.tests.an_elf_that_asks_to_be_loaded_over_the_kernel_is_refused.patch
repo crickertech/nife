@@ -1,0 +1,40 @@
+Falsifies `kernel::user::tests::an_elf_that_asks_to_be_loaded_over_the_kernel_is_refused`.
+
+Architecture: aarch64
+
+The defect is the removal of the half check in `paging::Mapper::map`, which is the guard the
+test's own doc comment says it is testing: the refusal is "by construction, not by a check we
+remembered to write", because the user `Mapper` is built with `Half::Low` and a high address
+is not a thing it can express. This patch makes it expressible.
+
+`WrongHalf` is the only thing between a hostile ELF naming `KERNEL_VA_BASE` as its load
+address and a walk down the low tables with the top bits thrown away. With the guard gone the
+walk proceeds: the hardware selects the table set from bits the walk never sees, so the
+mapping is built somewhere nobody will consult, and the loader returns success.
+
+Expected to fail: `assert_eq!(load(&image).err(), Some(LoadError::Unmappable(
+MapError::WrongHalf)), "the kernel agreed to map a user program on top of itself")`.
+
+**The `map_range` guard at line 636 is left alone on purpose.** `Mapper` checks the half in
+two places, `map` and `unmap`, and a patch that removed both would be a larger edit proving no
+more. The loader reaches this through `map`.
+
+**This is the clean case for the §31 shape**: the assertion that fires is the assertion the
+claim is stated in, with nothing upstream. A load that succeeds returns `Ok`, `err()` is
+`None`, and the equality is the first thing that looks.
+
+diff --git a/crates/paging/src/lib.rs b/crates/paging/src/lib.rs
+index 903a72a4..de4c383c 100644
+--- a/crates/paging/src/lib.rs
++++ b/crates/paging/src/lib.rs
+@@ -561,10 +561,6 @@ where
+     pub fn map(&mut self, va: u64, pa: u64, flags: Flags) -> Result<(), MapError> {
+         // The hardware selects the table set from the top bits before it touches an index, so
+         // mapping a high address into the low tables would build a mapping the CPU never consults.
+-        if !F::in_half(self.half, va) {
+-            return Err(MapError::WrongHalf);
+-        }
+-
+         if !va.is_multiple_of(PAGE_SIZE) || !pa.is_multiple_of(PAGE_SIZE) {
+             return Err(MapError::Misaligned);
+         }
