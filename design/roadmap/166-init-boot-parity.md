@@ -79,8 +79,8 @@ unchanged; the six `spawn_hello` tests reach `hello`'s roles exactly as before.
   progenitor, it spawns `hello` at a milestone-19d/19e test role. calef ratified **`spawn_hello`**
   on 2026-09-15 and the rename is swept through the tree, with the refusal recorded at the
   function's own definition in `kernel/src/user.rs`.
-- **Recorded.** `boot_progenitor`'s name is provisional (milestone 166), recorded at its definition
-  in `kernel/src/user.rs`; calef names the merged loader.
+- **Done.** `boot_progenitor`'s name was provisional when the loader merged; calef ratified it on
+  2026-09-15, and the refusal is recorded at its definition in `kernel/src/user.rs`.
 - **Recorded.** `BootEndowment.for_test_roles` is now dead data: no boot path fills it, so
   `crates/system_initializer` could drop the field and the slot-deletion it drives. Recorded in this
   block's "What it touched" section; retiring it is a change to `system_initializer`'s logic, out of
