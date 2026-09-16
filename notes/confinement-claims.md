@@ -43,12 +43,12 @@ themselves. The last column is this milestone's result.
 | 18 | A wiring plan never grants a right the declaration did not ask for | §41 | `component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for` | **yes** |
 | 19 | A directory capability reaches its subtree and nothing above it | §50 | `filesystem_protocol::attenuate_never_widens`, `a_grandchild_is_bounded_by_the_root`; `kernel::user::dir_capability_tests` | milestone 194 (the proofs) |
 | 20 | A memory-unsafe C component faults on an out-of-bounds write and changes nothing outside its grant | §31 | `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant` | **yes, by hand** |
-| 21 | A user program cannot read a kernel address, on every ISA | §19 | `kernel::user::tests::a_user_program_cannot_read_a_kernel_address`, `the_hardware_says_el0_cannot_read_the_kernels_memory`, `riscv_virtio_tests::the_page_tables_say_u_mode_cannot_read_the_kernels_memory` | **no** |
-| 22 | An ELF cannot ask to be loaded over the kernel, or for a writable executable page | §15 | `kernel::user::tests::an_elf_that_asks_to_be_loaded_over_the_kernel_is_refused`, `..._for_a_writable_executable_page_is_refused` | **no** |
-| 23 | The progenitor cannot rebuild after dropping its construction authority | §26 | `kernel::user::authority_tests::init_drops_its_construction_authority_and_cannot_build_again` | **no** |
-| 24 | Two shells with different roots cannot name each other's files | §50 | `kernel::user::shell_navigation_tests::two_shells_with_different_roots_cannot_name_each_others_files` | **no** |
-| 25 | A client cannot reach its neighbour's pixels or read the screen | §66 | `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen` | **no** |
-| 26 | A client of a rendezvous cannot become its server | §41 | `kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server` | **no** |
+| 21 | A user program cannot read a kernel address, on every ISA | §19 | `kernel::user::tests::a_user_program_cannot_read_a_kernel_address`, `the_hardware_says_el0_cannot_read_the_kernels_memory`, `riscv_virtio_tests::the_page_tables_say_u_mode_cannot_read_the_kernels_memory` | **yes, three, and see below on the ISA** |
+| 22 | An ELF cannot ask to be loaded over the kernel, or for a writable executable page | §15 | `kernel::user::tests::an_elf_that_asks_to_be_loaded_over_the_kernel_is_refused`, `..._for_a_writable_executable_page_is_refused` | **yes, two** |
+| 23 | The progenitor cannot rebuild after dropping its construction authority | §26 | `kernel::user::authority_tests::init_drops_its_construction_authority_and_cannot_build_again` | **yes, and see below** |
+| 24 | Two shells with different roots cannot name each other's files | §50 | `kernel::user::shell_navigation_tests::two_shells_with_different_roots_cannot_name_each_others_files` | **yes, and see below** |
+| 25 | A client cannot reach its neighbour's pixels or read the screen | §66 | `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen` | **yes, one of its four** |
+| 26 | A client of a rendezvous cannot become its server | §41 | `kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server` | **no, and see below** |
 
 ## Five claims that are stated nowhere, which is what step 1 was for
 
@@ -117,6 +117,12 @@ Twenty-five Kani harnesses now carry a recorded patch that turns them red, up fr
 `script/falsifications --sweep` runs all twenty-five in about 30 seconds and every one goes red.
 Three results are worth more than the count.
 
+**Milestone 305 added the kernel half** (2026-09-16), which milestone 202 could not: ten kernel
+`#[test_case]`s now carry a record and `--sweep` replays each by booting one architecture. Its own
+results are in the section after this one. Read them first if you only read one: the headline is a
+confinement test that **stayed green under a patch that broke the thing it claims**, and had been
+unable to fail since milestone 41.
+
 ### §31's headline sentence is not what catches a broken confinement
 
 Row 20 is the roadmap's own worked example: map `WITNESS_RO` read/write into the C component,
@@ -156,16 +162,128 @@ rather than through the post-mutation assertion, which is a red for the wrong re
 not recorded as evidence. The harness proves a property of the *design* rather than of code that
 could regress, and its honest denominator is that state and not a patch.
 
+## What breaking the kernel tests found (milestone 305)
+
+Rows 21 to 26 are six claims and nine tests, and a falsification is per test. **Eight of the nine
+now carry a recorded patch; the ninth is row 26 and it cannot carry one.** Five results are worth
+more than that count.
+
+### A confinement test that could not fail, on RISC-V, since milestone 41
+
+Row 21's RISC-V twin, `the_page_tables_say_u_mode_cannot_read_the_kernels_memory`, is the one place
+this milestone found the thing it was looking for. The patch removes the `U`-bit check from
+`mmu::user_can_read` outright, which is as complete a break of that test's stated property as can be
+written, and the first sweep reported **SURVIVOR**: the test ran, and passed.
+
+The reason was not a weak defect. `user_can_read` walked through `translate_user`, and
+`translate_at` builds its `Mapper` with `Half::Low`, **always**, so the high-half kernel address the
+test asks about came back `None` before any leaf was read. The headline assertion, `assert!(
+!mmu::user_can_read(kernel_va), "the page tables say U-mode could read the kernel's own memory")`,
+answered "no" by refusing to look. It could not fail, and the test's own doc comment calls that walk
+"the thing under test" and calls the `U` bit RISC-V's single line of defence.
+
+**The tree had already written the cause down and nothing connected it.**
+`is_mapped_in_current_space`, forty lines away in the same file, exists for exactly this case and
+says so in its doc comment: *"a user thread reaching for the kernel's memory names a high-half
+address ... `translate_user` alone would say 'not mapped' for it and turn the most interesting case
+into the wrong answer."* `user_can_read` went on calling `translate_user`.
+
+Milestone 305 fixed it (`translate_in_either_half`) and the patch is recorded against the fixed
+function, so the row is evidence now rather than ritual. **Two things follow.** A green confinement
+test is consistent with the assertion being unable to fail, which is this note's opening sentence
+arriving from a direction nobody had checked. And **the only instrument that could find it was a
+falsification**: every gate in this tree was green throughout, because a vacuous assertion is a
+passing assertion.
+
+### The §31 assertion-order hazard recurs, in row 24
+
+Milestone 202 found that §31's leading sentence, the witness-page equality, is reached only by an
+escape that faults anyway. **Row 24 is the same shape in a different subsystem, and here it is
+structural rather than incidental.**
+
+`two_shells_with_different_roots_cannot_name_each_others_files` states its property twice: once as
+the per-shell bitmap equalities in `assert_report`, and once as the crossing, `assert_eq!((a &
+nb::REACHED_SECRET, b & nb::REACHED_INNER), (0, 0), "a shell named a file in the other shell's
+root")`. The second is the sentence the milestone makes and the one a reader would quote. It sits
+**below** both per-shell checks, and **it cannot run**: any defect that causes a crossing sets a
+forbidden bit in one of the reports, and `assert_report`'s first direction catches that one call
+earlier. No patch tried in milestone 305 made the crossing fire, and none can.
+
+The quotable sentence is documentation; the bitmap equalities are the mechanism. **Here that costs
+nothing**, because `assert_report`'s messages name the offending or missing bit, so a reader learns
+as much as the crossing would have told them. §31's instance cost a 234-second watchdog timeout
+reading "livelock". Two instances found the same way promotes it from an anecdote about §31 to a
+thing to look for: **in a test that states its property twice, the readable statement is usually the
+unreachable one.**
+
+**And row 24's own record is weaker than the row looks**, which the patch says where a reader meets
+it. The recorded defect (the caretaker serving the filesystem root instead of its narrowed handle)
+turns the test red through `assert_report`'s *second* direction, the vacuity guard: the shell could
+no longer reach its own files, so every refusal it reported would have proved nothing. Nothing
+crossed. It proves the test is wired to the real root handle; it does not demonstrate a crossing.
+
+### Row 21's "on every ISA" is not evidenced the same way on every ISA
+
+The aarch64 falsifications map the kernel's own memory EL0-readable, one flag at one call site, and
+the tests watch the hardware refuse. **That defect cannot be booted on RISC-V.** `crates/paging`'s
+Sv39 encoder turns `CAP_USER` into the `U` bit, and S-mode access to a `U` page faults unless
+`sstatus.SUM` is set, which this kernel sets only inside a test helper. A kernel that marked its own
+`.rodata` user-readable there would not be a kernel userspace can read; it would be a kernel that
+cannot read itself, dead before the first test. So the RISC-V evidence is against the software walk
+instead, and the row's three "yes"es are not three of the same thing. DECISIONS §19 makes parity a
+gate for the **capability**; this is a gap in the **evidence**.
+
+### Row 26 cannot be falsified as written, because a real escape hangs the run
+
+`a_client_of_the_stable_rendezvous_cannot_become_its_server` asserts `attack[1] ==
+-NotPermitted`, and the honest defect is the one that breaks the claim: delete the kernel's
+`Rights::READ` check on `RECV_CAP`, so a client really can receive on the stable rendezvous. That
+patch was written and run on 2026-09-16, and the result was **a 60-second watchdog reading "no
+progress ... a lost-wakeup hang"**, with a thread dump and not one word about impersonation.
+
+The reason is structural. `RECV_CAP` is a **blocking** receive. An attacker the kernel fails to
+refuse does not come back and report an escape; it takes the message the honest server was waiting
+for, or parks on the rendezvous, and the run deadlocks. So the assertion that states the claim is
+reachable only when the kernel *does* refuse, and the case it is written about cannot reach it.
+
+**That is milestone 202's wrong-reason red, on a third claim, and a red for the wrong reason is not
+evidence.** The row is `unfalsified` on purpose, the same disposition as row 17's, rather than being
+filled with the easier defect that *does* fire the assertion: changing which error the refusal
+returns makes `attack[1]` wrong while leaving the claim entirely intact, which would put a false
+claim in the record whose whole job is saying what is known.
+
+**What would close it** is the same move milestone 202 made for §31: give the attacker a bounded
+wait so that "the server never answered me" is reported rather than waited out. That needs a
+non-blocking or timed receive, which is the syscall surface, so it is a proposal rather than a fix.
+See milestone 305's block.
+
+### One row's falsification proves less than the row looks like it proves
+
+Row 23 is falsified in the kernel rather than in the fixture, by making `CapabilityTable::delete`
+not take the capability out of the slot, which is the right place because the claim is the kernel's.
+But rows 4 and 5 are `capability::a_deleted_capability_stays_deleted` and
+`capability::delete_touches_only_its_slot`, both already `replayable`, and both catch that same
+defect. So the honest reading is narrower: it proves row 23's kernel test is wired to the kernel's
+own delete, not that row 23's test is the only thing watching it. Rows 21, 24, 25 and 26 have no
+such overlap.
+
 ## BUGS
 
-- **Six kernel confinement tests in the table are marked "no", and there is no mechanism to
-  change that.** `script/falsifications` walks `crates/` and keys on `#[kani::proof]`. Row 20's
-  patch was applied, run and reverted by hand, and it lives in `kernel/falsifications/`, a
-  **provisional** path nothing sweeps. Automating it needs a way to run one kernel test by name,
-  which does not exist: `kernel/src/testing.rs`'s runner takes no filter, `cargo xtask test`
-  parses only `--arch`, `--cpu` and `--hvf`, and arguments after `--` reach QEMU rather than the
-  kernel. Without that, one falsification costs a whole suite run. See milestone 202's block for
-  the proposal.
+- ~~**Six kernel confinement tests in the table are marked "no", and there is no mechanism to
+  change that.**~~ **Closed by milestone 305, and the mechanism it needed had existed since
+  2026-08-31 without anyone connecting the two.** The sentence this replaces said that automating a
+  kernel falsification "needs a way to run one kernel test by name, which does not exist". Milestone
+  210 built exactly that (`cargo xtask test --test <substring>`, with the filter baked into the test
+  binary by `kernel/build.rs` and read by `kernel/src/testing.rs`'s runner) and this note went on
+  saying it did not exist for a fortnight. `script/falsifications` now reads a `Falsification:` block
+  above a `#[test_case]` and replays it by booting one architecture; `kernel/falsifications/` is the
+  path §134 already spells, and row 20's patch is swept rather than remembered.
+- **A kernel row's evidence is re-checked far less often than a harness row's, and on one
+  architecture.** A Kani record costs a second, so `script/falsifications --affected-since` re-checks
+  it on every pull request that can reach it. A kernel record costs a boot, so it is re-checked only
+  by a full `--sweep`, which nobody runs per commit, and only on the architecture its patch names.
+  Both limits are in `script/falsifications`' own `BUGS`. Read the "Falsified" column accordingly: a
+  **yes** on a kernel row is a machine-replayable fact that nothing replays on a schedule.
 - **This table is a floor and its own worst failure is invisible.** It cannot list the claim
   nobody made. Every row here was found by reading what this project already wrote, so the
   enumeration inherits exactly the blind spots the tests have. §31's `BUGS` and
@@ -176,6 +294,10 @@ could regress, and its honest denominator is that state and not a patch.
   false: its defect was claimed to be caught by that harness alone and it also reaches
   `reap_is_permitted_only_to_the_supervising_rendezvous`. Both the prediction and its correction
   are in the patch, which is the point of writing the prediction down.
-- **The rows citing kernel tests are not evidence at the same grade as the rows citing
-  harnesses.** A Kani row means a machine re-checks the falsification on every sweep. A kernel
-  row means a human ran it once, or, for the six marked "no", that nobody has.
+- **The rows citing kernel tests are still not evidence at the same grade as the rows citing
+  harnesses, and the reason changed.** It used to be that nothing could replay a kernel
+  falsification at all. Since milestone 305 a machine can, so the gap is narrower and it is now
+  about what the replay *proves*: a Kani harness is checked by a solver over every input in its
+  bound, and a kernel test is one boot of one machine with one fixture attached, on one
+  architecture. A kernel row that skipped for want of a disk or a device page is not evidence at
+  all, which is why `--sweep` reports a skipped test as an error rather than as either colour.
