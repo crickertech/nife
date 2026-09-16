@@ -118,7 +118,7 @@ stack-depth-check|ci|script/stack-depth-check
 supply-chain|ci|script/supply-chain
 coverage|ci|script/coverage
 fuzz|ci|script/fuzz --time 60
-bench|ci|script/bench --check && script/bench --riscv --check
+bench|ci|script/bench --check && script/bench --riscv --check && script/bench --x86 --check
 cpu-matrix|ci|script/cpu-matrix
 TABLE
 }
