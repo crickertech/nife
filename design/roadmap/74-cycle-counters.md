@@ -95,7 +95,40 @@ world will look for first.
   provides. notes/pmu.md's last section explains why virtualization keeps the PMU out of reach: the
   generic timer is architected state a hypervisor must present, and the PMU is not.
 
-## Parity makes this two ISAs, not one
+## Parity: the capability half is two ISAs, the measurement half is three
+
+**This heading read "Parity makes this two ISAs, not one" until 2026-09-16, and that was worse than
+wrong: it asserted completeness over a gap.** It was true when written on 2026-08-03, when x86_64 was
+declared and not started. x86_64 now boots, enumerates PCI, runs `std` and runs unmodified `ripgrep`,
+so a reader met a parity claim covering two of three architectures with nothing saying which one was
+missing or why. §19's wording is that a capability ships everywhere **or a scope note records the gap
+and the plan**; this block had the gap and no note. It has one now, below.
+
+**The two halves of this milestone have different parity answers, and conflating them is what hid
+the gap.**
+
+**The capability half is legitimately two ISAs, by a recorded exception rather than an omission.**
+[DECISIONS §139 part 3](../decisions/139-cycle-counter-authority.md) rules that x86_64 keeps its
+ambient counter: `CR4.TSD` is clear at reset, this kernel never writes it, so ring 3 may execute
+`rdtsc` and **an ungranted read is not an error**. There is therefore no x86_64 counterpart to
+"grant the counter, fault without it", and
+`kernel::user::tests::a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` skips
+its negative half there, saying so in the comment beside the `cfg`. That is §19 working: an
+exception with a reason, where a reader meets it.
+
+**The measurement half is three ISAs and is currently one.** `bench::cycles_per_tick`, the probe
+that converts every tick-denominated board row to cycles, is `#[cfg(target_arch = "riscv64")]`.
+Nothing architectural stops the other two: x86_64 already reads `rdtsc` in
+`arch/x86_64/timer.rs` for its own calibration, and aarch64 has `PMCCNTR_EL0` once this milestone's
+aarch64 half enables it. **The ratio is the thing cross-machine comparison needs**, which is this
+milestone's whole purpose and milestone 25's and §96's, so having it on one architecture is the
+parity gap that matters here rather than a cosmetic one.
+
+**Scope note, per §19.** The measurement half is not built for aarch64 or x86_64, it is not blocked
+by anything architectural, and the plan is
+`design/roadmap/proposals/cycles-per-tick-on-the-other-two-architectures.md`.
+
+### The capability half, per ISA
 
 §19 is a gate, and it bites here in an unobvious direction. The milestone reads as RISC-V work because
 16a is the RISC-V board, but **`PMCCNTR_EL0` is equally unimplemented**, so a RISC-V-only cycle
