@@ -191,6 +191,8 @@ fn of_kind(msgs: &[[u64; 5]; EXPECTED_REPORTS], kind: u64) -> impl Iterator<Item
 /// The verdict bitmap is asserted for **equality**, not for containing the interesting bits,
 /// because a missing bit is exactly what a broken confinement looks like and a superset would
 /// mean the checker started answering a question nobody asked.
+///
+/// Falsification: replayable `kernel/falsifications/user.c_seam_tests.a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant.patch`
 #[test_case]
 fn a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant() {
     let msgs = run_seam();

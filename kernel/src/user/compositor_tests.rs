@@ -183,6 +183,8 @@ fn assert_screen_is(w: &Wiring, committed: usize) {
 /// A read fault proves the page is not mapped *at all*, which is the same reason a write cannot
 /// reach it either; the two probes here are a write (integrity) and a read (confidentiality) so
 /// both directions are exercised on real hardware behaviour rather than argued from one.
+///
+/// Falsification: replayable `kernel/falsifications/user.compositor_tests.a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen.patch`
 #[test_case]
 fn a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen() {
     const ATTACKER: usize = 0;

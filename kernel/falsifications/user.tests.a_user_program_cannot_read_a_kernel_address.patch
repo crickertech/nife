@@ -1,0 +1,51 @@
+Falsifies `kernel::user::tests::a_user_program_cannot_read_a_kernel_address`.
+
+Architecture: aarch64
+
+The defect is the kernel mapping its own constants EL0-readable: one flag, in the one place
+the kernel image's sections are mapped at their linked addresses. `Flags::user_rodata()` is
+`CAP_USER` alone, so the leaf encoder writes `AP_RO_EL0` where it wrote `AP_RO_EL1`, and
+nothing else about the page changes: still not writable, still not executable at either
+level. The kernel goes on reading its own `.rodata` because this kernel never sets
+`PSTATE.PAN`, which `arch::aarch64::mmu::permit_kernel_access_to_user_pages` already records
+as a no-op for exactly that reason.
+
+The sentinel the test reaches for is a `static` in the kernel's `.rodata`, so this is the
+page it is about.
+
+**Nothing upstream catches it, and that was checked rather than assumed.** The obvious
+candidate is `TCR_EL1.E0PD1`, which would fault an EL0 access to the TTBR1 range whatever the
+access permission says and would make this patch a red for the wrong reason. This kernel does
+not set it: `TCR_EL1` is written once with `T0SZ/TG0/SH0/ORGN0/IRGN0/EPD0/T1SZ/TG1/SH1/ORGN1/
+IRGN1/EPD1/IPS` and nothing else. So the permission bit really is the only thing between EL0
+and the kernel's constants here, which is what the test says.
+
+Expected to fail: `assert!(wait_for(|| USER_FAULTS.load(Ordering::Relaxed) > before), "the
+user program read a kernel address and was NOT stopped")`.
+
+**The two sibling assertions below it never run**, and that is the honest half. The test goes
+on to require a `Permission` fault rather than a `Translation` one, and to require the fault
+address to be the sentinel's. Both are about a fault that no longer happens, so the test's
+most interesting sentence, the one about permission-versus-translation, is not the one that
+catches a kernel mapped user-readable; the fault counter is.
+
+**This is aarch64 only, and the reason is the ISA rather than the effort.** `Flags` is
+format-neutral and `crates/paging`'s RISC-V encoder turns `CAP_USER` into the Sv39 `U` bit,
+which forbids S-mode access unless `sstatus.SUM` is set. So the same defect on riscv64 does
+not produce a kernel that lets userspace read it; it produces a kernel that cannot read
+itself, and dies before any test runs. The claim in notes/confinement-claims.md row 21 is
+stated "on every ISA" and this evidence is not. See that row.
+
+diff --git a/kernel/src/arch/aarch64/mmu.rs b/kernel/src/arch/aarch64/mmu.rs
+index 746341dd..87854474 100644
+--- a/kernel/src/arch/aarch64/mmu.rs
++++ b/kernel/src/arch/aarch64/mmu.rs
+@@ -225,7 +225,7 @@ where
+ 
+     // 2. The kernel image, section by section, at its LINKED virtual addresses. This is W^X.
+     map_range(m, text_start(), text_end(), Flags::kernel_code())?;
+-    map_range(m, rodata_start(), rodata_end(), Flags::kernel_rodata())?;
++    map_range(m, rodata_start(), rodata_end(), Flags::user_rodata())?;
+     map_range(m, data_start(), bss_end(), Flags::kernel_data())?;
+ 
+     // 3. THE GUARD PAGE IS NOT MAPPED. That is its entire job.

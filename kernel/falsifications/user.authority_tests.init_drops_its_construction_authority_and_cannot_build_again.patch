@@ -1,0 +1,47 @@
+Falsifies `kernel::user::authority_tests::init_drops_its_construction_authority_and_cannot_build_again`.
+
+Architecture: aarch64
+
+The defect is the progenitor keeping the construction budget it is supposed to give away: one
+line deleted from `root_supervisor`, the `cap_delete(ROOT_UT)` that drops the untyped itself.
+Everything else runs unchanged, including the four wiring capabilities it still deletes and the
+two proof attempts immediately below, which now succeed.
+
+Expected to fail: `assert_eq!(dropped[1], 1, "progenitor still built a page or a kernel object
+after deleting its untyped: the authority was not actually dropped")`. Confirmed red on
+2026-09-16 at `kernel/src/user/authority_tests.rs:165`.
+
+**The kernel-side defect was tried first and is recorded here because it failed for the wrong
+reason**, which is milestone 202's hazard and the thing this file exists to be honest about.
+The claim is the kernel's, so the better-looking patch is `CapabilityTable::delete` taking a
+non-consuming read instead of `Option::take`: `delete` returns `Ok(())`, the slot keeps its
+capability, and the progenitor's retype succeeds. It does turn this test red. **It turns it red
+at `authority_tests.rs:112`**, `assert_ne!(msg[0], REPORT_FAILED, "the supervision tree could
+not be built: stage {}")`, inside the `run_tree` helper, because a `delete` that deletes
+nothing breaks the construction of the supervision tree long before the progenitor gets to the
+part where it drops anything. Right answer, useless diagnostic: nothing in "stage 3" says the
+progenitor kept its authority.
+
+So the fixture edit is the better falsification even though the kernel edit is the more
+faithful defect, and the reason is stated rather than implied: a patch has to make **this
+test's own assertion** fire, and a global break of `delete` fails an earlier assertion about
+something else.
+
+**What this record does not prove.** It proves the test notices when the drop does not happen.
+It does not prove the kernel is what makes the drop stick, and the evidence for that lives
+elsewhere: `capability::a_deleted_capability_stays_deleted` and
+`capability::delete_touches_only_its_slot` are rows 4 and 5 of notes/confinement-claims.md and
+both are `replayable` against the kernel-side defect this refused.
+
+diff --git a/components/src/root_supervisor.rs b/components/src/root_supervisor.rs
+index e46d7d5d..b2c84cf1 100644
+--- a/components/src/root_supervisor.rs
++++ b/components/src/root_supervisor.rs
+@@ -159,7 +159,6 @@ pub extern "C" fn _start(_a0: u64, initrd_len: u64, _a2: u64) -> ! {
+     for c in [req, rep, childfault, sp_ut] {
+         cap_delete(c);
+     }
+-    cap_delete(ROOT_UT);
+ 
+     // And prove it, from the inside, on the two primitives that build things: retype a page, and
+     // retype a kernel object. Both must now fail with `NoSuchSlot` (-1), which is what
