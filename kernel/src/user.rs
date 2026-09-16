@@ -561,7 +561,7 @@ fn x86_timebase_page_phys() -> Option<u64> {
 
 /// Map the `x86_64` timebase page into `space`, if this process needs one built directly rather
 /// than through [`load`]. Several kernel-side functions build a top-level process's own
-/// `AddressSpace` by hand instead of calling `load` (`spawn_progenitor`, and every
+/// `AddressSpace` by hand instead of calling `load` (`spawn_hello`, and every
 /// `spawn_<program>`-shaped test harness that hands a narrowed archive to a named program:
 /// `timetable_tests::spawn_timetable`, `authority_tests`' `root_supervisor` spawn,
 /// `c_seam_tests::spawn_confiner`, `login_service`, `live_swap_tests`' `swapper` spawn), because
@@ -587,7 +587,7 @@ fn map_x86_timebase_page(space: &mut AddressSpace) -> Result<(), MapError> {
 }
 
 /// Lay an ELF's loadable segments into `space`, honouring their permissions exactly (milestone
-/// 19d factored this out of `load` so `spawn_progenitor` shares it; the progenitor's userspace
+/// 19d factored this out of `load` so `spawn_hello` shares it; the progenitor's userspace
 /// loader mirrors it).
 /// A read-only segment gets `user_rodata`, not `user_data`: a loader that widens permissions is
 /// a loader you cannot reason about. `.bss` is free because `map_new` zeroes every page.
@@ -649,7 +649,7 @@ pub fn initrd() -> Option<&'static [u8]> {
 /// nifefs image carrying the progenitor plus the programs it loads. The milestone tour and the
 /// kernel-side service demos ask for whichever program they wire, by name; since milestone 291
 /// that is one program per demo rather than one role of [`HELLO_ENTRY`].
-/// `spawn_progenitor` and `boot_via_progenitor` instead take the whole archive, because the
+/// `spawn_hello` and `boot_progenitor` instead take the whole archive, because the
 /// progenitor parses the rest itself. Returns `None` if there is no initrd, it will not parse, or
 /// it holds no such program.
 // Used by the milestone tour, the kernel-wired virtio/console/shell demos, and the tests that load
@@ -711,7 +711,7 @@ pub const INITRD_VA: u64 = 0x2000_0000;
 /// RISC-V has no software-generated interrupt a test can raise on itself at all (the SBI IPI
 /// arrives down the *software*-interrupt arm, never touching `irq_route`), so it names the console
 /// UART's own line, which is the one interrupt this ISA can assert by hand. That makes it the same
-/// number as [`UART_RX_INTID`] there, deliberately; [`spawn_progenitor`] binds the route once and grants
+/// number as [`UART_RX_INTID`] there, deliberately; [`spawn_hello`] binds the route once and grants
 /// two capabilities naming it. See `sched::tests`' `DELIVERY_IRQ`, which reached the same conclusion.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(target_arch = "aarch64")]
@@ -840,7 +840,7 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 /// **It was the whole milestone 7-19 role catalogue until milestone 291**, thirty-one roles in one
 /// binary. Twenty-two of them are their own programs or `block_driver`'s roles now; nine are left,
 /// and `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md` is what would
-/// take them, since splitting them is a change to [`spawn_progenitor`]'s choice of entry rather
+/// take them, since splitting them is a change to [`spawn_hello`]'s choice of entry rather
 /// than to `fixtures/`.
 ///
 /// **Name provisional** (milestone 266): a constant rather than a program, but it is the name a
@@ -856,41 +856,50 @@ const INIT_STACK_PAGES: u64 = 8;
 
 /// **The role that means "boot the system"**, as opposed to milestone 19d's test roles.
 ///
-/// It is what [`spawn_progenitor`] switches on: at this role it loads [`PROGENITOR_ENTRY`] and
-/// grants it a filesystem, a clock, a configuration page and whatever devices this boot found; at
-/// any other it loads [`HELLO_ENTRY`] and grants the bare 19d world. The progenitor itself ignores
-/// the role it is entered at, having only one.
+/// [`boot_progenitor`] passes it as the progenitor's `x0` when it loads [`PROGENITOR_ENTRY`] and
+/// grants the boot capability set. The progenitor has one role and ignores it; the value is passed
+/// for the symmetry the old `spawn_progenitor` established, when a single function both booted the
+/// system and re-entered [`HELLO_ENTRY`] at milestone 19d's test roles (milestone 166 split those
+/// two jobs, so this role no longer selects an entry).
 ///
 /// The number is 27 because that is the role `hello`'s retired `init_boot` had, and every 19d role
-/// number around it is load-bearing to a test. **Name provisional** (milestone 266), replacing
-/// `PROGENITOR_ROLE`.
+/// number around it is load-bearing to a test. **Name provisional** (milestone 266).
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PROGENITOR_ROLE: u64 = 27;
 
-/// **Spawn the first process with the aarch64 boot endowment** (milestone 19d.2c, unified at 266).
+/// **Spawn a milestone-19d/19e test role of [`HELLO_ENTRY`]** (milestone 19d.2c; the boot half of
+/// this function became [`boot_progenitor`] at milestone 166).
 ///
-/// At [`PROGENITOR_ROLE`] the program is [`PROGENITOR_ENTRY`] and this is the real boot. At any
-/// other role it is [`HELLO_ENTRY`], entered at one of milestone 19d's test roles, which share this
-/// path and this slot numbering; that sharing is why the aarch64 endowment carries two
-/// capabilities the interactive system has no use for, and why its slots are not riscv64's.
+/// The kernel re-enters the one `hello` binary at `role` to play a userspace parent, handing it the
+/// bare 19d world at fixed slots: the building budget (slot 0), the kernel's `report` endpoint (slot
+/// 1, `WRITE|GRANT` so a role can report and endow a child on it), the console UART's registers
+/// (slot 2), the 19d.2b test interrupt (slot 3), and the UART receive interrupt (slot 4). It returns
+/// a [`holding::Holding`] over the thread and its building budget, so a test finished with it can
+/// hand **2048 frames** back: six of these tests reserve 8 MiB each and the measured aarch64 boot
+/// spent 12289 frames on them, **42% of everything the suite never returned** (notes/frames.md).
 ///
-/// **That `if` is the reason `hello` still has nine roles**, and is the thing a follow-on to
-/// milestone 291 would change: six of those roles are separate programs waiting to happen, and
-/// each would need its own archive entry named here instead of one name standing for all of them.
-/// See `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`. It is written
-/// here rather than only in the proposal because this is where the next person to touch the entry
-/// choice is already reading.
+/// **This is no longer the boot path.** Until milestone 166 it was both jobs at once: at
+/// [`PROGENITOR_ROLE`] it loaded [`PROGENITOR_ENTRY`] and booted the whole system, and at any other
+/// role it loaded `hello`. That sharing is exactly why aarch64's boot once carried slots 1 and 3 the
+/// interactive system never used, and DECISIONS §19's silent-divergence risk lived in the split. The
+/// boot now goes through [`boot_progenitor`] on all three architectures, which hands the progenitor
+/// the same slot layout everywhere; this function only ever plays a test role and grants only the
+/// five capabilities those roles use.
 ///
-/// Returns a [`holding::Holding`] over the thread and its building budget, so a test that is
-/// finished with it can hand **2048 frames** back. That number is not incidental: six
-/// `spawn_progenitor` tests reserve 8 MiB each and the measured aarch64 boot spent 12289 frames on
-/// them, **42% of everything the suite never returned** (notes/frames.md). The boot path ignores
-/// the holding, correctly: on that path the progenitor is the system.
-// RISC-V and x86_64 boot the same program through `riscv_shell_boot`, which grants the same
-// capabilities in a different order. That order is the one thing the boards genuinely disagree
-// about, and `components/src/progenitor.rs` carries both tables under the single `cfg` it costs.
+/// **`hello` still has nine roles**, and splitting them is a follow-on to milestone 291
+/// (`design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`): six are separate
+/// programs waiting to happen, and each would need its own archive entry named here.
+///
+/// Name: ratified 2026-09-15 (calef, this header). Refused keeping `spawn_progenitor`, the name
+/// this function carried until milestone 166 split it in two: the boot half it was named for is
+/// [`boot_progenitor`] now, and what stayed here never spawns the progenitor at all. It only ever
+/// re-enters [`HELLO_ENTRY`] at one of milestone 19d/19e's test roles, at every call site it has
+/// (all of them in `kernel/src/user/tests.rs`), so the old name pointed at the half that left.
+/// `spawn` is the verb this body performs and `hello` the program it performs it on, which makes
+/// the name a claim about what the function does rather than about what it used to do, and greps
+/// with [`HELLO_ENTRY`] as one family.
 #[cfg_attr(not(test), allow(dead_code))]
-pub fn spawn_progenitor(
+pub fn spawn_hello(
     image: &'static [u8],
     role: u64,
     report: crate::sched::RendezvousId,
@@ -919,124 +928,41 @@ pub fn spawn_progenitor(
         crate::arch::irq::enable(uart_rx_intid);
     }
 
-    // The initrd is a nifefs archive (milestone 19f), not a bare ELF: it carries the progenitor
-    // plus the programs the progenitor will load. The kernel reads only the one entry it must. This
-    // is the same "honest residue" as before (something has to load the first program), now naming
-    // that program through a fixed archive name instead of assuming it sits at offset 0. Every
-    // other program is the progenitor's to parse. See notes/progenitor-and-loading.md.
-    //
-    // **Which entry depends on the role, and that is the whole of milestone 266's structural
-    // change on this side.** The boot role gets `progenitor`; 19d's test roles get `hello`, which
-    // holds them. Before 266 both were the same archive entry on this architecture, which is what
-    // made `init` mean one thing here and another on RISC-V.
-    let entry = if role == PROGENITOR_ROLE {
-        PROGENITOR_ENTRY
-    } else {
-        HELLO_ENTRY
-    };
-    //
-    // Read and MEASURE it here, on the boot path, before anything is spawned (milestone 22 phase
-    // B.1): the check has to be the thing that decides whether a thread is created at all, not
-    // something the new thread does to itself. `trust::require` halts on a mismatch, so past this
-    // line the bytes are the ones this kernel image was built against.
+    // Read and MEASURE `hello` here, before the thread is created (milestone 22 phase B.1): the
+    // check has to be the thing that decides whether a thread is created at all, not something the
+    // new thread does to itself. `trust::require` halts on a mismatch, so past this line the bytes
+    // are the ones this kernel image was built against. The program-measurement table (milestone
+    // 104) is required for the same reason: the whole archive is mapped into `hello`.
     let boot_fs = match nifefs::Fs::parse(image) {
         Ok(fs) => fs,
         Err(e) => {
-            crate::println!("  boot archive is not a nifefs image: {e:?}");
+            crate::println!("  archive is not a nifefs image: {e:?}");
             crate::arch::halt();
         }
     };
-    let Some(init_bytes) = boot_fs.read(entry) else {
-        crate::println!("  boot archive has no '{entry}' program");
+    let Some(init_bytes) = boot_fs.read(HELLO_ENTRY) else {
+        crate::println!("  archive has no '{HELLO_ENTRY}' program");
         crate::arch::halt();
     };
-    crate::trust::require(entry, init_bytes);
-    // And the table the progenitor measures *its* loads against (milestone 104). The whole archive is about to
-    // be mapped into the progenitor, so this is the same decision one link down: what the kernel hands over
-    // has to be what this kernel image was built against, or the refusals the progenitor makes with it are
-    // worth nothing.
+    crate::trust::require(HELLO_ENTRY, init_bytes);
     crate::trust::require_program_measurements(&boot_fs);
 
-    // **The filesystem, for the boot role only** (milestone 50). Bring up the block server and the
-    // FS server here, before the progenitor exists, and hand the progenitor the service endpoint and the page its
-    // clients map; the progenitor narrows both into the shell, which is what makes `>` and `<` reachable from
-    // a real prompt. `None` is the ordinary case for a run with no RedoxFS disk attached, and the
-    // whole chain from here to the prompt treats it as "this boot has no filesystem" rather than as
-    // a failure. The other roles are milestone 19d's tests, which wire their own worlds.
-    let fs = if role == PROGENITOR_ROLE {
-        program("redoxfs_server").and_then(|redoxfs_server| {
-            fs_service::root_directory(fs_service::blk_server_image(), redoxfs_server)
-        })
-    } else {
-        None
-    };
-
-    // **The wall clock, for the boot role only** (milestone 51's wiring). Started here, before the progenitor
-    // exists, for the same reason the filesystem is: the progenitor is the one that hands it on, and a service
-    // spawned after its client would be a race. See [`boot_clock_page`] for why the grant does not
-    // depend on whether the machine turned out to have an RTC. The other roles are milestone 19d's
-    // tests, whose slot numbering must not move.
-    let clock_page = if role == PROGENITOR_ROLE {
-        Some(boot_clock_page())
-    } else {
-        None
-    };
-
-    // **The inert-configuration page, for the boot role only** (milestone 47's environment-
-    // variable fork, DECISIONS §111). [`clock_page`]'s twin: assembled here, before the progenitor exists,
-    // unconditionally, so the slot is the same on every boot. See [`boot_config_page`].
-    let config_page = if role == PROGENITOR_ROLE {
-        Some(boot_config_page())
-    } else {
-        None
-    };
-
-    // **A virtio-rng device, for the boot role only, when one is attached** (DECISIONS §120's
-    // 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a boot with no
-    // such device (real hardware, or a run with `NIFE_RNG` unset): the whole chain past this point
-    // treats it exactly as "this boot has no filesystem" is already treated, as an absence rather
-    // than a failure. See [`boot_virtio_rng_device`] for what wiring it costs.
-    let virtio_rng = if role == PROGENITOR_ROLE {
-        boot_virtio_rng_device()
-    } else {
-        None
-    };
-    // Enabled here, immediately, the same place and the same way `uart_rx_intid` already is on
-    // this board (aarch64's GIC has no boot-hart-lottery hazard to avoid; see
-    // [`VirtioRngGrant::intid`]'s own doc for why `riscv_shell_boot` cannot do this and defers).
-    if let Some(g) = &virtio_rng {
-        crate::arch::irq::enable(g.intid);
-    }
-
-    // **The graphical terminal stack, for the boot role only, when a GPU is attached** (milestone
-    // 177, option A; milestone 192 dropped the keyboard from the condition). `None` on a boot with
-    // no GPU (a run with `NIFE_GPU` unset): the whole chain past this point treats it exactly as
-    // "this boot has no filesystem" is already treated, as an absence rather than a failure, and
-    // the progenitor builds the plain console/input pair instead. A keyboard is no longer required, because
-    // the board's own UART is a keystroke source too; see [`boot_graphical_terminal`] for what
-    // wiring it costs, why it is built here rather than by the progenitor, and which source it picks.
-    let graphical = if role == PROGENITOR_ROLE {
-        boot_graphical_terminal(uart_rx_intid)
-    } else {
-        None
-    };
-    // **The progenitor's building budget is carved here, not inside the thread**, so the caller has a name for
-    // it and can reclaim it. A large untyped the progenitor retypes the child's address space, frames and TCB from,
-    // sized for a full copy of the initrd program plus its tables and the progenitor's scratch. Carving it out
-    // here changes nothing about what the progenitor gets; it changes who can name it afterwards, which is the
-    // whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
-    let build_region =
-        crate::memory_region::create(12288).expect("no building budget for the progenitor");
+    // **The building budget is carved here, not inside the thread**, so the caller has a name for it
+    // and can reclaim it: a large untyped a role retypes its child's address space, frames and TCB
+    // from. Carving it out here changes nothing about what the role gets; it changes who can name it
+    // afterwards, the whole difference between 8 MiB spent and 8 MiB lent. See notes/frames.md.
+    let build_region = crate::memory_region::create(12288).expect("no building budget for hello");
 
     let tid = crate::sched::spawn(move || {
         let elf = match Elf::parse(init_bytes) {
             Ok(e) => e,
             Err(e) => {
-                crate::println!("  the progenitor image is not loadable: {e:?}");
+                crate::println!("  the hello image is not loadable: {e:?}");
                 crate::sched::exit();
             }
         };
-        // A region big enough for the progenitor's own segments, the initrd's page tables, and slack.
+        // A region big enough for hello's own segments, the initrd's page tables, and slack: a role
+        // that builds a child loads whole ELFs with deep call chains.
         let content: u64 = elf
             .segments()
             .map(|seg| {
@@ -1048,21 +974,22 @@ pub fn spawn_progenitor(
             + initrd_pages / 512
             + INIT_STACK_PAGES
             + 8;
-        let mut space = AddressSpace::new(content).expect("no memory for the progenitor");
-        map_segments(&mut space, &elf).expect("could not lay out the progenitor");
-        // A multi-page stack: the progenitor loads whole ELFs with deep call chains (the loader loop,
-        // copy_from_slice, the elf parser), so one page overflows. Map INIT_STACK_PAGES down from
-        // USER_STACK_TOP; the entry sp is unchanged (USER_STACK_TOP).
+        let mut space = AddressSpace::new(content).expect("no memory for hello");
+        map_segments(&mut space, &elf).expect("could not lay out hello");
+        // A multi-page stack: a role that parses and builds a child ELF has deep call chains (the
+        // loader loop, copy_from_slice, the elf parser), so one page overflows. Map INIT_STACK_PAGES
+        // down from USER_STACK_TOP; the entry sp is unchanged (USER_STACK_TOP).
         for k in 0..INIT_STACK_PAGES {
             space
                 .map_new(USER_STACK_VA - k * FRAME_SIZE, Flags::user_data())
-                .expect("could not map the progenitor's stack");
+                .expect("could not map hello's stack");
         }
         #[cfg(target_arch = "x86_64")]
-        map_x86_timebase_page(&mut space).expect("could not map the progenitor's timebase page");
+        map_x86_timebase_page(&mut space).expect("could not map hello's timebase page");
 
         // Map the initrd, one page at a time, read-only. These are reserved RAM pages the frame
-        // allocator does not own, so this maps rather than allocates.
+        // allocator does not own, so this maps rather than allocates. A role that builds a child
+        // parses the archive here.
         for i in 0..initrd_pages {
             space
                 .map_physical(
@@ -1070,206 +997,62 @@ pub fn spawn_progenitor(
                     initrd_start + i * FRAME_SIZE,
                     Flags::user_rodata(),
                 )
-                .expect("could not map the initrd into the progenitor");
+                .expect("could not map the initrd into hello");
         }
 
         crate::sched::adopt_address_space(space);
-        // The delegable root budget: the progenitor narrows and hands budgets to the children it builds, so
-        // the root carries GRANT (milestone 31). Rights only narrow downward from here.
+        // slot 0: the delegable root budget. A role narrows and hands budgets to the children it
+        // builds, so the root carries GRANT (milestone 31). Rights only narrow downward from here.
         crate::sched::grant(crate::cap::memory_region_root_cap(build_region))
             .expect("grant untyped");
+        // slot 1: the kernel's report endpoint, WRITE|GRANT so a role can report a result and endow
+        // a child to send on it. This slot is the boot layout's slot 1 too, which is exactly why
+        // [`boot_progenitor`] once carried a report endpoint it never used: the shared function.
         crate::sched::grant(crate::cap::rendezvous_cap(
             report,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ))
         .expect("grant report");
-        // A device capability for the UART (slot 2), so the progenitor can build a driver and hand it the
-        // registers (19d.2). WRITE (device access) | GRANT (the progenitor delegates it to the driver).
+        // slot 2: the UART registers, so a console role can build a driver and hand it the registers
+        // (19d.2). WRITE (device access) | GRANT (delegate to the driver).
         //
         // **On x86_64 `UART_PHYS` is zero and this grants a device capability over physical page
         // zero**, which is a foot gun and is marked as one rather than designed away (AGENTS.md's
-        // ladder: an exception must say it is an exception). The slot is positional, so declining
-        // to grant here would renumber the interrupt capability below and every role that names
-        // it; and there is nothing better to put in the slot until DECISIONS §121 decides what a
-        // port capability is. Nothing reaches it today: every fixture that would map it asks
-        // `machine_has_no_device_page_for_the_console()` first and skips. A role that maps it
-        // anyway gets the real-mode interrupt vector table and will look like it works.
+        // ladder: an exception must say it is an exception). The slot is positional, so declining to
+        // grant here would renumber the interrupts below and every role that names them. Nothing
+        // reaches it today: every fixture that would map it asks
+        // `machine_has_no_device_page_for_the_console()` first and skips.
         crate::sched::grant(crate::cap::device_frame_cap(
             UART_PHYS,
             crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
         ))
         .expect("grant uart device");
-        // An interrupt capability (slot 3): the third delegatable device authority, so the progenitor can
-        // build an interrupt-driven driver (19d.2b). The route was set up above, before the spawn;
-        // this only grants the progenitor the Irq cap (a per-thread act). READ (WAIT/ACK) | GRANT (delegate).
+        // slot 3: the 19d.2b test interrupt, so the IRQ-delegation role can build an interrupt-driven
+        // driver and hand it the Irq cap. The route was set up above, before the spawn; this only
+        // grants the cap (a per-thread act). READ (WAIT/ACK) | GRANT (delegate).
         crate::sched::grant(crate::cap::irq_cap_rights(
             INIT_TEST_SGI,
             crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
         ))
         .expect("grant test irq");
-        // The UART receive interrupt (slot 4), for the input driver the progenitor builds (19d.2c). The
-        // same discovered number the route above was bound with, or the cap would name a source
+        // slot 4: the UART receive interrupt, for the input driver a console role builds (19d.2c).
+        // The same discovered number the route above was bound with, or the cap would name a source
         // no endpoint serves.
         crate::sched::grant(crate::cap::irq_cap_rights(
             uart_rx_intid,
             crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
         ))
         .expect("grant uart rx irq");
-        // The clock page (slot 5), read-only, before the filesystem pair so its slot number does not
-        // depend on whether a disk was attached. `READ` is the whole of DECISIONS §43's split at
-        // this boundary: the progenitor can hand a child a reader and has nothing that could set the time.
-        // `GRANT` so it can hand one on at all.
-        if let Some(phys) = clock_page {
-            crate::sched::grant(crate::cap::page_frame_cap(
-                phys,
-                crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
-            ))
-            .expect("grant the clock page");
-        }
-        // The inert-configuration page (slot 6), `clock`'s twin (milestone 47, DECISIONS §111):
-        // read-only, ahead of the filesystem pair for the identical reason.
-        if let Some(phys) = config_page {
-            crate::sched::grant(crate::cap::page_frame_cap(
-                phys,
-                crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
-            ))
-            .expect("grant the config page");
-        }
-        // The file service (slot 7) and the page its clients share with it (slot 8), when this boot
-        // has a filesystem. GRANT on both, because the progenitor's job with them is to delegate: it narrows
-        // the endpoint into the shell and maps the frame into its address space. `a2` carries the
-        // rights the endpoint holds, which is also how the progenitor is told there is one at all.
-        let fs_rights = match fs {
-            Some((file_ep, file_shared)) => {
-                crate::sched::grant(crate::cap::rendezvous_cap(
-                    file_ep,
-                    crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
-                ))
-                .expect("grant the file service");
-                crate::sched::grant(crate::cap::page_frame_cap(
-                    file_shared,
-                    crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
-                ))
-                .expect("grant the shared file page");
-                filesystem_protocol::dir::ALL
-            }
-            None => 0,
-        };
 
-        // The virtio-rng device (slots 9-11, always, even without a disk): the confined transport,
-        // its completion interrupt, and the DMA page the kernel already wrote `dma_phys` into (see
-        // [`boot_virtio_rng_device`]). GRANT on all three so the progenitor can delegate them onward to an
-        // entropy service it builds, the same shape every other device authority here already
-        // takes. `virtio_rng` is `None` exactly as `fs`/`clock_page` can be: the progenitor's own probe
-        // (`invoke` on an ungranted slot answers `NoSuchSlot`) is what tells it apart from a real
-        // one, the same negative-control idiom `crates/system_initializer::boot` already uses.
-        //
-        // **`grant_at`, not `grant`'s first-free**, and this is not a style choice: the filesystem
-        // pair immediately above is itself conditional, and first-free numbering would silently
-        // shift these three down by two on the (ordinary) boot that has virtio-rng but no attached
-        // disk. Explicit slots keep 9-11 the virtio-rng trio's own regardless of what the
-        // filesystem pair did or did not consume (`crate::sched::grant_at`'s own doc: "some
-        // out-of-band conventions name a fixed slot... the emptiness is load-bearing"). Slot 8, not
-        // 6, is where the filesystem pair's reach now ends: milestone 47's inert-configuration page
-        // (DECISIONS §111) took the unconditional slot 6 ahead of it, shifting the pair from 6/7 to
-        // 7/8, so the virtio-rng trio's own fixed floor moved with it.
-        if let Some(g) = virtio_rng {
-            crate::sched::grant_at(
-                9,
-                crate::cap::virtio_cap_rights(
-                    g.vid,
-                    crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
-                ),
-            )
-            .expect("grant the virtio-rng transport");
-            crate::sched::grant_at(
-                10,
-                crate::cap::irq_cap_rights(
-                    g.intid,
-                    crate::cap::Rights::READ.union(crate::cap::Rights::GRANT),
-                ),
-            )
-            .expect("grant the virtio-rng interrupt");
-            crate::sched::grant_at(
-                11,
-                crate::cap::page_frame_cap(
-                    g.dma,
-                    crate::cap::Rights::READ
-                        .union(crate::cap::Rights::WRITE)
-                        .union(crate::cap::Rights::GRANT),
-                ),
-            )
-            .expect("grant the virtio-rng DMA page");
-        }
-
-        // **The graphical terminal stack (slots 12-14, milestone 177), when this boot has one.**
-        // `grant_at`, not first-free, for the virtio-rng trio's own reason: the filesystem pair is
-        // itself conditional, so first-free numbering would silently shift these three depending on
-        // whether a disk was attached. Fixed past the virtio-rng trio's own floor (slot 11).
-        if let Some(g) = graphical {
-            crate::sched::grant_at(
-                12,
-                crate::cap::rendezvous_cap(
-                    g.disp_term_ep,
-                    crate::cap::Rights::WRITE.union(crate::cap::Rights::GRANT),
-                ),
-            )
-            .expect("grant the display terminal's endpoint");
-            crate::sched::grant_at(
-                13,
-                crate::cap::page_frame_cap(
-                    g.disp_term_page,
-                    crate::cap::Rights::READ
-                        .union(crate::cap::Rights::WRITE)
-                        .union(crate::cap::Rights::GRANT),
-                ),
-            )
-            .expect("grant the display terminal's output page");
-            crate::sched::grant_at(
-                14,
-                crate::cap::rendezvous_cap(
-                    g.kbd_ep,
-                    crate::cap::Rights::READ
-                        .union(crate::cap::Rights::WRITE)
-                        .union(crate::cap::Rights::GRANT),
-                ),
-            )
-            .expect("grant the keyboard driver's endpoint");
-        }
-
-        enter_frame(elf.entry(), USER_STACK_TOP, role, initrd_len, fs_rights)
+        // A test role has no filesystem, so `x2` (the file-service rights the boot path passes) is 0.
+        enter_frame(elf.entry(), USER_STACK_TOP, role, initrd_len, 0)
     })
-    .expect("could not spawn the progenitor");
+    .expect("could not spawn hello");
 
     let mut held = holding::Holding::new();
     held.add_thread(tid);
     held.add_region(build_region);
     held
-}
-
-/// **The boot path** (milestone 19d.2c): spawn the progenitor at [`PROGENITOR_ROLE`] and return.
-/// It brings up the console out of its own budget and announces the system through it, so the
-/// system's first output comes from a userspace driver the progenitor built, not from the kernel.
-/// The report endpoint is unused on this path (the progenitor prints via the console it builds, not
-/// back to the kernel); it is created only to satisfy `spawn_progenitor`'s shape.
-// The aarch64 interactive boot hands off here for every non-bench build (the tour and `--features
-// shell`), since milestone 28 retired the kernel-wired `shell_service`.
-#[cfg(not(any(test, feature = "bench")))]
-// The soak boot (milestone 219) takes the place of this handoff rather than following it: a run
-// that also brought up a console, a line discipline and a shell would be soaking those too. So on
-// that build this function has no caller, which is a configuration rather than a mistake.
-//
-// **The job-mix boot (milestone 168) does the same thing and was missing from this list**, which
-// made `--features job_mix` fail `-D warnings` on both ISAs. Found by milestone 296 while renaming
-// the feature, not by any gate: `script/lint`'s per-feature loop does not carry it, and
-// `script/job-mix`'s own BUGS says nothing else builds it either. The fix is this arm; what keeps
-// it fixed is nothing, and that is `design/roadmap/proposals/board-only-features-nothing-compiles.md`.
-#[cfg_attr(any(feature = "soak_test", feature = "job_mix"), allow(dead_code))]
-pub fn boot_via_progenitor(image: &'static [u8]) {
-    let report = crate::sched::create_rendezvous();
-    // The holding is dropped on purpose: on this path the progenitor **is** the system, and there
-    // is nobody to hand its memory back to.
-    let _ = spawn_progenitor(image, PROGENITOR_ROLE, report);
 }
 
 /// Load the initrd program and become it, handed the world described by `spawn`. Never returns.
@@ -1823,46 +1606,70 @@ pub fn riscv_uart_driver_demo(
     Ok(report)
 }
 
-/// **Boot the interactive shell system on RISC-V** (parity D). The riscv counterpart of aarch64's
-/// `spawn_progenitor`: load `progenitor` (the first process) as the boot process, map
-/// the whole initrd into it, and grant it a large untyped budget (slot 0), the NS16550's registers as
-/// a device cap (slot 1), the UART receive interrupt as an `Irq` cap (slot 2), the wall clock page
-/// read-only (slot 3, milestone 51's wiring), the inert-configuration page read-only (slot 4,
-/// milestone 47's environment-variable fork, DECISIONS §111), and the file service plus its shared
-/// page (slots 5 and 6) when a RedoxFS disk is attached. From those, `system_initializer` builds the console server,
-/// the input driver, and the shell out of its own budget and wires them together; the kernel touches
-/// none of it. Unlike the other demos this
-/// does not block: `system_initializer` and its children run on the scheduler while the boot thread parks.
+/// **Boot the system: load the progenitor and start it as the first process, on every architecture**
+/// (milestone 166, which merged aarch64's `spawn_progenitor` boot half and `riscv64`/`x86_64`'s
+/// `riscv_shell_boot` into this one body).
 ///
-/// **And on `x86_64` too, since milestone 182** (built inside milestone 268's lane). That
-/// architecture had no function here at all, only `x86_userspace_demo`'s hand-assembled fixture,
-/// and this body needed three changes to serve it rather than a third copy of it: every grant names
-/// its slot, the timebase page is mapped the way [`load`] maps it, and the interrupt-controller
-/// arming at the end stays RISC-V's. **Slot 1 is left empty on `x86_64`**, deliberately: COM1 is
-/// port I/O, so there is no page for a device capability to be a mapping of (DECISIONS §121), and
-/// granting one over physical page zero would hand the console server real memory to scribble on.
-/// The progenitor therefore stops where it first builds the console. How a shell reaches a
-/// console on this architecture is DECISIONS §149, and until it is decided that stop is the
-/// honest end of this boot. Returns the progenitor's thread, so the caller can say how it left.
+/// It loads [`PROGENITOR_ENTRY`], measures it under the trust root (milestone 22 phase B.1) and the
+/// program-measurement table it will check its own loads against (milestone 104), builds its address
+/// space (its segments, a deep stack, and the whole initrd mapped read-only so it can parse and load
+/// the rest by name), endows it with the boot capability set, and starts it. From those capabilities
+/// and nothing else, `crates/system_initializer` builds the console server, the input driver, the
+/// line discipline and the shell out of the progenitor's own budget and wires them together; the
+/// kernel touches none of it. It does not block: the progenitor and its children run on the
+/// scheduler while the boot thread parks.
 ///
-/// **The name is now wrong on one of its two architectures.** Kept rather than renamed, because a
-/// rename is calef's; proposed in milestone 182's block.
-#[cfg(any(target_arch = "riscv64", target_arch = "x86_64"))]
-// Two callers since milestone 268: the `shell` boot mode, and the default boot's own hand-off at
-// the end of the tour (`riscv_hand_over`), because nothing halts by default any more. The `allow`
-// is kept for the configurations that reach neither (a `soak` or `job_mix` build replaces the
-// hand-off with its own workload; `test` and `bench` park before it).
+/// **The capability slot layout is the same on all three architectures** (milestone 166's point):
+/// the delegable root budget at slot 0, the console device at slot 1, the UART receive interrupt at
+/// slot 2, the wall clock page read-only at slot 3 (milestone 51's wiring), the inert-configuration
+/// page read-only at slot 4 (milestone 47's environment-variable fork, DECISIONS §111), the file
+/// service and the page its clients share at slots 5 and 6 when a RedoxFS disk is attached (milestone
+/// 50), the virtio-rng trio at 7-9 and the graphical terminal stack at 10-12 when each is present.
+/// `components/src/progenitor.rs`'s single `GRANTS` table reads exactly this. Until milestone 166
+/// aarch64's boot carried two extra capabilities at slots 1 and 3 (a report endpoint and a test
+/// interrupt) that the interactive system never used, only because its loader was shared with
+/// milestone 19d's test roles; [`spawn_hello`] is that shared role path, now boot-free.
+///
+/// **Only two differences are the hardware's, and only those are `#[cfg]`-gated**:
+/// - **The console device (slot 1).** aarch64 and riscv64 grant the UART's registers as a
+///   `DeviceFrame` (a page), `WRITE|GRANT` so the progenitor maps them into the console and input
+///   drivers it builds. `x86_64` has no page for its console (COM1 is port I/O), so it grants a
+///   `PortRange` over `0x3F8..=0x3FF` instead (milestone 299, DECISIONS §121 reversed 2026-09-15):
+///   the progenitor delegates it with `CAP_INSERT` rather than `MAP_INTO`, and the kernel's TSS I/O
+///   bitmap is what lets the drivers' `in`/`out` reach exactly these ports.
+/// - **Arming the interrupt controller.** aarch64's GIC has no boot-hart lottery, so its UART line
+///   is enabled inline before the thread is built and its virtio-rng source as its caps are inserted;
+///   riscv64 enables the PLIC source and supervisor external interrupts only after the driver is
+///   running, because the lottery forbids arming earlier (see [`VirtioRngGrant::intid`]); `x86_64`
+///   arms nothing here, because it has no userspace input driver to feed until DECISIONS §149.
+///
+/// Returns the progenitor's thread, so the caller can say how it left.
+///
+/// Name: ratified 2026-09-15 (calef, this header). Refused `boot_via_progenitor` (the provisional
+/// name from milestone 268, whose `via` did two jobs and has spent both: it disambiguated this entry
+/// from aarch64's separate boot path, which milestone 166 unified away, and it gestured at the
+/// microkernel indirection, which the sentence "on this path the progenitor **is** the system" says
+/// better than a preposition in a name can). `boot` is the term-of-art verb and `progenitor` the
+/// noun it acts on, so the name claims this function's own action, load the `progenitor` program,
+/// measure it, and start it, rather than the system bring-up `progenitor` itself does next. Greps
+/// with [`PROGENITOR_ENTRY`] and [`PROGENITOR_ROLE`] as one family.
+// One caller per architecture, all in `kernel::main`'s hand-off (aarch64's default boot, and
+// `riscv_hand_over`/`x86_hand_over`). The `allow` is kept for the configurations that reach none of
+// them: a `soak` or `job_mix` build replaces the hand-off with its own workload, and `test`/`bench`
+// park before it.
 #[cfg_attr(
     any(test, feature = "bench", feature = "soak_test", feature = "job_mix"),
     allow(dead_code)
 )]
-pub fn riscv_shell_boot(
-    archive: &'static [u8],
-    uart_irq: u32,
-) -> Result<crate::thread::ThreadId, LoadError> {
+pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId, LoadError> {
     use crate::cap::Rights;
-    #[cfg(target_arch = "riscv64")]
-    const UART_PHYS: u64 = 0x1000_0000; // the NS16550 on QEMU virt
+
+    // The UART receive interrupt line, from the machine's own description when it gave one
+    // (`memory::uart_irq`), else QEMU virt's constant. The source is printed so a bench transcript
+    // names where the number came from: a wrong PLIC source once cost a boot on the JH7110
+    // (notes/visionfive2.md, BUGS).
+    let (uart_irq, uart_irq_source) = uart_irq_and_source();
+    crate::println!("  uart irq  : {uart_irq} ({uart_irq_source})");
 
     let (initrd_start, initrd_len) = memory::initrd_region().expect("no initrd region");
     let initrd_pages = initrd_len.div_ceil(FRAME_SIZE);
@@ -1917,21 +1724,26 @@ pub fn riscv_shell_boot(
             .map_err(LoadError::Unmappable)?;
     }
     let aspace_name =
-        readopt_user_address_space(space).expect("register system_initializer address space");
+        readopt_user_address_space(space).expect("register the progenitor's address space");
 
     // Route the UART receive interrupt to an endpoint; the input driver's Irq cap will WAIT on it.
     let irq_ep = crate::sched::create_rendezvous();
     crate::sched::bind_irq(uart_irq, irq_ep);
+    // aarch64's GIC has no boot-hart-lottery hazard, so its UART line is enabled here, the same
+    // place and way the old `spawn_progenitor` armed it. riscv64 must wait until the driver is
+    // running (the arming block after the start below); `x86_64` arms nothing (DECISIONS §149).
+    #[cfg(target_arch = "aarch64")]
+    crate::arch::irq::enable(uart_irq);
     let build_region =
-        crate::memory_region::create(12288).expect("no building budget for system_initializer");
+        crate::memory_region::create(12288).expect("no building budget for the progenitor");
 
     let thread_control_block_region = crate::memory_region::create(2).expect("no tcb region");
     let tid =
         crate::sched::create_thread_control_block(thread_control_block_region).expect("no tcb");
-    // slot 0: the delegable root budget (milestone 31), GRANT included so system_initializer can split off a
-    // budget for the shell and hand it on; rights only narrow downward. slot 1: the NS16550
-    // registers, WRITE|GRANT so system_initializer maps them into the console and input drivers. slot 2: the
-    // UART Irq, READ|GRANT so it can delegate it to input.
+    // slot 0: the delegable root budget (milestone 31), GRANT included so the progenitor can split
+    // off a budget for the shell and hand it on; rights only narrow downward. slot 1: the console
+    // device (see below), WRITE|GRANT so the progenitor delegates it into the console and input
+    // drivers. slot 2: the UART Irq, READ|GRANT so it can delegate it to input.
     let s0 = crate::sched::thread_control_block_insert_cap(
         tid,
         crate::cap::memory_region_root_cap(build_region),
@@ -1939,16 +1751,16 @@ pub fn riscv_shell_boot(
     )
     .expect("insert budget");
     assert_eq!(s0, 0);
-    // Slot 1: the console's registers on RISC-V, and **an inert placeholder on `x86_64`**. See this
-    // function's doc for why the slot cannot be left empty there.
-    #[cfg(target_arch = "riscv64")]
+    // Slot 1: the console device. On aarch64 and riscv64 it is the UART's registers as a
+    // `DeviceFrame` (a page); on `x86_64` the console is port I/O with no page, so it is a
+    // `PortRange` over COM1's eight ports instead. See this function's doc for the full split.
+    #[cfg(not(target_arch = "x86_64"))]
     let uart_slot = crate::cap::device_frame_cap(UART_PHYS, Rights::WRITE.union(Rights::GRANT));
     // **On `x86_64` the console is a port range, not a page** (milestone 299, DECISIONS §121
     // reversed 2026-09-15). COM1's 16550 lives at I/O ports `0x3F8..=0x3FF`, so `uart_dev` names a
     // `PortRange` capability rather than a device page: the progenitor holds it with `GRANT` and
     // delegates it (`CAP_INSERT`, not `MAP_INTO`) into the console and input drivers it builds, and
-    // the kernel's TSS I/O bitmap is what lets their `in`/`out` reach exactly these ports. This
-    // replaces the inert placeholder frame §121 left here while the driver stayed in the kernel.
+    // the kernel's TSS I/O bitmap is what lets their `in`/`out` reach exactly these ports.
     #[cfg(target_arch = "x86_64")]
     let uart_slot = crate::cap::port_range_cap(
         X86_COM1_PORT_BASE,
@@ -2053,6 +1865,11 @@ pub fn riscv_shell_boot(
         )
         .expect("insert the virtio-rng DMA page");
         assert_eq!(s9, 9);
+        // aarch64's GIC has no hart lottery, so its virtio-rng source is enabled here, inline,
+        // exactly as the old `spawn_progenitor` did before the thread started. riscv64's is armed at
+        // the PLIC in the block after the start below; `x86_64` arms nothing.
+        #[cfg(target_arch = "aarch64")]
+        crate::arch::irq::enable(g.intid);
     }
     // The graphical terminal stack (slots 10-12, milestone 177), when a GPU is attached
     // (milestone 192 dropped the keyboard from the condition; the UART is a keystroke source too).
@@ -2091,15 +1908,22 @@ pub fn riscv_shell_boot(
     }
     crate::sched::configure_thread_control_block(tid, elf.entry(), USER_STACK_TOP, aspace_name)
         .expect("configure");
-    crate::sched::start_thread_control_block(tid, [0, initrd_len, fs_rights]).expect("start"); // a1 = archive length
+    // x0 = the boot role (the progenitor has one role and ignores it, but it is passed for the
+    // symmetry the old `spawn_progenitor` established); x1 = the archive length; x2 = the file-service rights.
+    crate::sched::start_thread_control_block(tid, [PROGENITOR_ROLE, initrd_len, fs_rights])
+        .expect("start");
 
-    // Arm the interrupt chain so the input driver's keystrokes flow: the source at the PLIC and
-    // supervisor external interrupts in `sie`. The input driver arms the NS16550's own RX interrupt
-    // (its IER) when it starts, and re-arms the PLIC source through its Irq cap's ACK.
+    // Arm the interrupt chain so the input driver's keystrokes flow. aarch64 already did its arming
+    // inline above (the GIC's UART line before the thread was built, its virtio-rng source as the
+    // caps were inserted), because the GIC has no boot-hart lottery. What is left here is the
+    // hardware that must wait until the driver is running:
     //
-    // RISC-V's alone. On `x86_64` there is no input driver to feed (it would need the UART page
-    // slot 1 does not hold), so arming COM1's line would deliver keystrokes to nobody; that wiring
-    // belongs to whichever console DECISIONS §149 chooses.
+    // riscv64: the source at the PLIC and supervisor external interrupts in `sie`. The input driver
+    // arms the NS16550's own RX interrupt (its IER) when it starts, and re-arms the PLIC source
+    // through its Irq cap's ACK.
+    //
+    // `x86_64`: nothing. There is no userspace input driver to feed until DECISIONS §149 chooses a
+    // console, so arming COM1's line would deliver keystrokes to nobody.
     #[cfg(target_arch = "riscv64")]
     {
         crate::drivers::plic::enable(uart_irq, crate::arch::irq::boot_s_context());
@@ -2331,7 +2155,7 @@ pub mod input_service;
 pub mod clock_service;
 
 /// **The clock page the interactive boot hands the progenitor**, and the one place both ISAs agree on what a
-/// machine with no clock looks like (milestone 51's wiring; `spawn_progenitor`, `riscv_shell_boot`).
+/// machine with no clock looks like (milestone 51's wiring; `boot_progenitor`).
 ///
 /// The grant is **unconditional**, and that is the design rather than an oversight. A zeroed page
 /// reads as `clock_protocol::state::UNKNOWN` (`a_zeroed_page_reads_as_unknown`), so a boot with no
@@ -2376,7 +2200,7 @@ struct VirtioRngGrant {
     /// **enabled**: the two boards enable an interrupt source differently (aarch64's GIC inline,
     /// riscv64's PLIC pinned to the boot hart's own context via `boot_s_context`, not the
     /// hart-spreading `crate::arch::irq::enable` uses -- `notes/harts-and-pes.md`'s hart lottery
-    /// is why, the same reasoning `uart_irq`'s identical two-step split in `riscv_shell_boot`
+    /// is why, the same reasoning `uart_irq`'s identical two-step split in `boot_progenitor`
     /// already follows), so the caller does that part itself, the same place it already enables
     /// `uart_irq`.
     intid: u32,
@@ -2402,8 +2226,8 @@ const VIRTIO_RNG_DMA_PHYS_OFFSET: u64 = FRAME_SIZE - 8;
 /// (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng stopgap"). `None` on a
 /// boot with no such device: real hardware (milestone 55's actual target has no virtio-rng at all,
 /// §120's own text), or a run with `NIFE_RNG` unset. The whole chain past this point treats that
-/// exactly as "this boot has no filesystem" is already treated by [`spawn_progenitor`]/
-/// `riscv_shell_boot`: an absence the caller can act on, not a failure.
+/// exactly as "this boot has no filesystem" is already treated by [`boot_progenitor`]: an absence
+/// the caller can act on, not a failure.
 ///
 /// **Only the MMIO transport**, unlike `entropy_service::start`'s own test-harness wiring, which
 /// also offers PCIe: a first cut scoped to what an interactive boot actually needs, on the same
@@ -2457,7 +2281,7 @@ fn boot_virtio_rng_device() -> Option<VirtioRngGrant> {
 }
 
 /// **The inert-configuration page the interactive boot hands the progenitor** (milestone 47's
-/// environment-variable fork, DECISIONS §111; `spawn_progenitor`, `riscv_shell_boot`).
+/// environment-variable fork, DECISIONS §111; `boot_progenitor`).
 /// [`boot_clock_page`]'s twin, minus the service: nothing here runs, so there is nothing to spawn
 /// and nothing to wait for a report from. The page is assembled once, into a frame nothing else
 /// can see, and only then handed to the progenitor; see `environment_protocol`'s own docs for why that
@@ -2563,7 +2387,7 @@ pub enum KeystrokeSource {
 ///
 /// **The keyboard driver is spawned here too, for a different reason than the GPU's.** Its own raw
 /// materials (an `Irq`, a `Virtio`, one DMA `PageFrame`) would fit the three slots aarch64's
-/// `spawn_progenitor` has left, on their own -- but option A's target endpoint is `line_editor`'s own
+/// `boot_progenitor` has left, on their own -- but option A's target endpoint is `line_editor`'s own
 /// served endpoint, which does not exist until the progenitor builds it, and a driver the progenitor spawns can only be
 /// wired to capabilities the progenitor itself already holds (`ChildEndowment::maps`' own contract: it maps
 /// what the caller has, not what the caller could ask the kernel for). Creating that endpoint here
@@ -3193,8 +3017,8 @@ mod live_swap_tests;
 /// B.1, DECISIONS §22).
 ///
 /// Cross-ISA, because the check is portable: one hash implementation (`crates/measured_boot`), one trust
-/// root generated into the kernel image by `build.rs`, called from the boot path on both
-/// architectures (aarch64 `spawn_progenitor`, riscv `riscv_initrd_demo` / `riscv_shell_boot`).
+/// root generated into the kernel image by `build.rs`, called from the boot path on every
+/// architecture (`boot_progenitor`; the riscv milestone-20 demo `riscv_initrd_demo` measures too).
 ///
 /// **What these two prove, and why the boot path itself cannot be tested directly.** A real refusal
 /// halts the machine, so a test cannot take that branch and live. What *can* be proven, and is what

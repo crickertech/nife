@@ -1272,7 +1272,7 @@ fn std_relative(p: &Path) -> String {
 ///
 /// **`hello` is on every list too, and it is not a boot program in the ordinary sense.** It carries
 /// milestone 19d's and 19e's init roles, which are all nine it has left after milestone 291, and
-/// `spawn_progenitor` enters it directly for them; `trust::require`
+/// `spawn_hello` enters it directly for them; `trust::require`
 /// refuses any entry the trust root does not name. A kernel that could enter a program it never
 /// measured would be the hole measured boot exists to close, so the entry is here rather than the
 /// check being relaxed there.
@@ -2692,7 +2692,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // board. It held the whole milestone 7-19 role catalogue (the printing client, the untyped
         // demo, the granter and receiver, the call server) until milestone 291 split that into the
         // fourteen programs above; what is left is milestone 19d's and 19e's init roles, which
-        // `spawn_progenitor` enters on aarch64. aarch64 used to pack it as `init` because there it
+        // `spawn_hello` enters on aarch64. aarch64 used to pack it as `init` because there it
         // also carried the boot role; that role is `progenitor` now, and the alias went with it.
         ("hello", "hello"),
         // The sink contract's ends (milestone 50), three programs since milestone 292. Portable, so
@@ -3488,7 +3488,7 @@ fn initrd_aarch64() -> bool {
         // **The first process** (milestone 266). Until then this row read `("init", "hello")` and
         // aarch64's boot was a role of the demo catalogue.
         ("progenitor", "progenitor"),
-        // **Milestone 19d's and 19e's init roles, under `hello`'s name.** `spawn_progenitor` enters
+        // **Milestone 19d's and 19e's init roles, under `hello`'s name.** `spawn_hello` enters
         // it directly for them, so it is in `boot_programs` and measured. It held the whole
         // milestone 7-19 catalogue until 291 split that into the fourteen programs below.
         ("hello", "hello"),

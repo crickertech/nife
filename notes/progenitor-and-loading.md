@@ -1,6 +1,6 @@
 # The progenitor, and loading a program from userspace
 
-*(Milestone 19d. `kernel/src/user.rs` `spawn_progenitor`, and the `init`/`child` roles in
+*(Milestone 19d. `kernel/src/user.rs` `spawn_hello`, and the `init`/`child` roles in
 `fixtures/src/hello.rs`. The loader described here lived in that file until milestone 96 gave the tree
 one of them; it is `crates/supervision_protocol`'s `build_child` now, and every caller reaches it there.
 What the loader does is unchanged, and the steps below are still the steps.)*
@@ -29,14 +29,15 @@ every other descends. It was called init until milestone 266.
 ## What still loads the progenitor (the honest residue)
 
 Something has to load the *first* program, so the kernel keeps exactly enough loader for one: it
-`spawn_progenitor`s the progenitor and nothing else. The progenitor loads every *other* program.
+loads the progenitor through `boot_progenitor` and nothing else. The progenitor loads every
+*other* program.
 "The kernel loads exactly one program" is not a slogan we rounded up to; it is literally one call
 site. (19d.2 removes the kernel's other loaders, the ones that wire up the console and shell
 services today, by moving that wiring into the first process.)
 
 ## How the progenitor loads a child (the loader, in userspace, through the verbs)
 
-It is handed three things by `spawn_progenitor`: a building **untyped** budget (slot 0), a **report**
+It is handed three things by `spawn_hello`: a building **untyped** budget (slot 0), a **report**
 endpoint (slot 1, with `GRANT` so it can endow a child), and the whole **initrd mapped read-only**
 at `INITRD_VA` so it can read the ELF. Its length arrives in `x1`.
 
@@ -104,7 +105,7 @@ entry today, `progenitor`.
 
 Two readers changed, each in its own domain:
 
-- The **kernel** (`spawn_progenitor`) reads the superblock, looks up the `"progenitor"` entry
+- The **kernel** (`boot_progenitor`) reads the superblock, looks up the `"progenitor"` entry
   (`"init"` until milestone 266), and loads *that*
   as the ELF. This is the same honest residue as before ("something has to load the first program"),
   now naming that program through a fixed archive index instead of assuming it sits at offset 0. The
@@ -266,7 +267,7 @@ reaches it too, so calef retired `builder`.
 **Split the claim in two, because only one half moved cleanly.**
 
 *Userspace composes a process.* Carried by the progenitor on every architecture that runs one
-(`spawn_progenitor` on aarch64, `riscv_shell_boot` on riscv64 and, since milestone 182, on `x86_64`),
+(`boot_progenitor`, one function on all three architectures since milestone 166),
 on the boot a card actually performs. On `x86_64` the progenitor composes the system but its console
 server and input driver stop on first use, because a ring-3 process cannot reach port I/O (DECISIONS
 §121); how a shell gets a console there is DECISIONS §149.

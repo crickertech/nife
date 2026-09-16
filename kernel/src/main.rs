@@ -1031,7 +1031,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             //
             // **And the measured-boot refusal moved rather than went.** The archive used to be
             // checked against this kernel's trust root here (`trust::require("builder", ...)` and
-            // the measurement table with it); it is now checked in `riscv_shell_boot` at the
+            // the measurement table with it); it is now checked in `boot_progenitor` at the
             // handoff, which every default boot reaches. A card with the wrong archive still halts
             // with `MEASURED BOOT REFUSED`, later in the transcript than it used to.
             //
@@ -1711,7 +1711,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             // its bring-up once its only client is gone is calef's call, because deleting it
             // removes infrastructure rather than a demonstration. Milestone 267's block states the
             // case both ways. The interactive system does not reach this code at all; it builds
-            // its own console through `boot_via_progenitor` further down.
+            // its own console through `boot_progenitor` further down.
             //
             // The initrd is asked for first because both `expect`s inside
             // `console_service::start` are about the archive rather than the machine: a run with no
@@ -1940,7 +1940,9 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         if let Some(image) = user::initrd() {
             println!();
             println!("nife: handing the system to the userspace progenitor.");
-            user::boot_via_progenitor(image);
+            if let Err(e) = user::boot_progenitor(image) {
+                println!("  handoff FAILED: {e:?}");
+            }
             // The boot thread's work is done; the progenitor and the services it builds run until halt.
         }
     }
@@ -2102,9 +2104,9 @@ fn stack_top() -> usize {
 /// exits through semihosting before the tour and a bench boot diverges into `bench::run`, so
 /// neither has a system to hand over.
 ///
-/// Name provisional (milestone 268). `boot_via_progenitor` is taken by the aarch64 path's own
-/// function in `user.rs`, which this is not (that one takes an image and this one finds it), and
-/// calef names what a reader meets.
+/// Name provisional (milestone 268). This is the x86 caller of the shared `user::boot_progenitor`
+/// loader (milestone 166): it finds the initrd, hands it over, then watches the boot thread bounded
+/// and reports how it left; `riscv_hand_over` is its riscv twin. calef names what a reader meets.
 #[cfg(target_arch = "riscv64")]
 // A `soak` or `job_mix` build replaces the handoff with its own workload and never calls this, and
 // a `test` or `bench` build parks before it; all four are boots with nothing to hand over. Allowed
@@ -2132,13 +2134,10 @@ fn riscv_hand_over() {
     };
     println!();
     println!("nife: handing the system to the userspace progenitor.");
-    // The UART's PLIC source, from the machine's own tree: 10 on QEMU virt, 32 on the JH7110. It
-    // was a constant, and the constant was QEMU's; see the tour's driver step and
-    // notes/visionfive2.md (BUGS). The line names which source won, so a bench transcript is
-    // diagnosable.
-    let (uart_irq, uart_irq_source) = user::uart_irq_and_source();
-    println!("  uart irq: source {uart_irq} ({uart_irq_source})");
-    if let Err(e) = user::riscv_shell_boot(initrd, uart_irq) {
+    // `boot_progenitor` discovers the UART's interrupt line itself and prints it with its source
+    // (10 on QEMU virt, 32 on the JH7110; notes/visionfive2.md, BUGS), so a bench transcript names
+    // which source won.
+    if let Err(e) = user::boot_progenitor(initrd) {
         println!("  handoff FAILED: {e:?}");
     }
 }
@@ -2177,11 +2176,9 @@ fn x86_hand_over() {
     };
     println!();
     println!("nife: handing the system to the userspace progenitor.");
-    let (uart_irq, uart_irq_source) = user::uart_irq_and_source();
-    println!("  uart irq: line {uart_irq} ({uart_irq_source})");
 
     let faults_before = arch::exceptions::USER_FAULTS.load(Ordering::Acquire);
-    let tid = match user::riscv_shell_boot(initrd, uart_irq) {
+    let tid = match user::boot_progenitor(initrd) {
         Ok(tid) => tid,
         Err(e) => {
             println!("  handoff FAILED: {e:?}");

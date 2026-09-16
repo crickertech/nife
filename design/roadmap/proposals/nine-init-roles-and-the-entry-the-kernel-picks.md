@@ -1,11 +1,11 @@
-# The nine `INIT` roles, and the archive entry `spawn_progenitor` picks
+# The nine `INIT` roles, and the archive entry `spawn_hello` picks
 
 **Status: PROPOSED 2026-09-14.** Filed by milestone 291's lane, which split twenty-two of
 `fixtures/src/hello.rs`'s thirty-one roles into programs and stopped at these nine on purpose. See
 [291](../291-one-program-one-job.md) for the inventory and the principle.
 
 **Gate: MILESTONE 268.** That lane was rebuilding the boot sequence on all three architectures
-while 291 ran, and the change proposed here is in `kernel::user::spawn_progenitor`. Two lanes in
+while 291 ran, and the change proposed here is in `kernel::user::spawn_hello`. Two lanes in
 that function is the collision this tree already knows how to avoid.
 
 ## What is left, and why it did not come apart with the rest
@@ -19,10 +19,10 @@ The other twenty-two came apart cheaply because the kernel spawns each of them d
 `run(image, Spawn { .. })`, so the only change was which bytes the caller passed. These nine do not,
 for two reasons:
 
-1. **`spawn_progenitor` picks the archive entry from the role**, in one `if`: `PROGENITOR_ENTRY`
-   for the boot role, `HELLO_ENTRY` for everything else. Six parents becoming six programs makes
-   that a table, or makes the entry a parameter the six call sites supply. The second is the
-   smaller surface and is probably right; it is still a boot-path signature change.
+1. **`spawn_hello` always re-enters `HELLO_ENTRY`**, since milestone 166 moved the boot role's own
+   entry out to `boot_progenitor`. Six parents becoming six programs makes that choice a table, or
+   makes the entry a parameter the six call sites supply. The second is the smaller surface and is
+   probably right; it is still a boot-path signature change.
 2. **The parents find their children by looking themselves up.** `ROLES_ENTRY` is the string
    `"hello"`, and `init_build` reads *this binary's own ELF* out of the archive and re-enters it at
    a different role. Split, each parent names its child's archive entry instead, which is the
@@ -37,8 +37,8 @@ for two reasons:
   and the interrupt child's reported word) join `capability_demo_protocol`, which milestone 291
   created for exactly this.
 - Six parent programs, each naming its child's entry.
-- `spawn_progenitor` taking the entry name, or a role-to-entry table beside `PROGENITOR_ROLE`.
-- Six `spawn_progenitor` test call sites updated. The role numbers themselves stay:
+- `spawn_hello` taking the entry name, or a role-to-entry table beside `PROGENITOR_ROLE`.
+- Six `spawn_hello` test call sites updated. The role numbers themselves stay:
   [the progenitor's grant order](one-grant-order-for-the-progenitor.md) records that those six
   tests name them, and the grant *order* the roles share is the thing that proposal is about.
 

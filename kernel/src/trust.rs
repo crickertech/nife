@@ -3,7 +3,7 @@
 //! The kernel loads exactly one program itself: the boot program, out of the initrd archive
 //! (`"progenitor"`, on every architecture, since milestone 295 took `"builder"` off riscv64's and
 //! `x86_64`'s lists). Everything else is the progenitor's to load. `"hello"` is in the root too and
-//! is not a counter-example: `spawn_progenitor` enters it directly for milestone 19d's and 19e's
+//! is not a counter-example: `spawn_hello` enters it directly for milestone 19d's and 19e's
 //! init roles, and [`require`] refuses an entry the root does not name, so the root grew rather
 //! than the check being relaxed (`xtask`'s `boot_programs`).
 //! That one load used to be pure trust: whatever bytes sat at `/chosen/linux,initrd-start` got
