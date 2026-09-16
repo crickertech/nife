@@ -170,6 +170,34 @@ FALSIFICATION = re.compile(r'\bFalsification:\s+(replayable|attested|unfalsified
 NOT_A_PACKAGE = ('scripts/', 'patches/')
 
 
+def falsification_records(text):
+    """The state of each `Falsification:` record that annotates a `#[kani::proof]`.
+
+    Text-only, like everything else here, and the approximation is stated rather than hidden: a
+    record is attributed to the **first attribute** that follows it, skipping the rest of its own
+    comment run. That is what `script/falsifications` does with a real module walk, and it is exact
+    for every shape this tree uses, because the block is defined as the comment run immediately
+    above the attribute. A record separated from its attribute by a blank line would be missed here
+    and by `script/falsifications` both, which is the same answer rather than a drift.
+    """
+    lines = text.split('\n')
+    out = []
+    for i, line in enumerate(lines):
+        hit = FALSIFICATION.search(line)
+        if hit is None:
+            continue
+        for j in range(i + 1, min(i + 40, len(lines))):
+            s = lines[j].strip()
+            if s.startswith('//'):
+                continue
+            if PROOF.search(s):
+                out.append(hit.group(1))
+            elif s.startswith('#['):
+                continue  # another attribute between the comment and the one that decides
+            break
+    return out
+
+
 def harness_count(files):
     """Proof harnesses and how many carry a falsification record, from the source text alone.
 
@@ -186,7 +214,14 @@ def harness_count(files):
         # Stripped, so the sentence in `kernel/src/syscall.rs` explaining what a `#[kani::proof]`
         # is does not count as one. A raw grep counts 151 where the tree has 146.
         total += len(PROOF.findall(strip_non_code(text)))
-        # Raw, because a falsification record lives in a doc comment by construction.
-        falsified += sum(1 for kind in FALSIFICATION.findall(text)
+        # Raw, because a falsification record lives in a doc comment by construction, and
+        # attributed to what it annotates, because since milestone 305 a record may sit above a
+        # kernel `#[test_case]` instead of a `#[kani::proof]`. `total` counts harnesses, so a
+        # record counted here that belongs to a test would put two different populations in one
+        # fraction: it inflates `falsified` and deflates `unfalsified` by the same amount, and
+        # `script/lint`'s drift check against `script/falsifications --count` reports the
+        # disagreement rather than either being wrong. Nine such records arrived at once and it
+        # fired, which is the check working.
+        falsified += sum(1 for kind in falsification_records(text)
                          if kind in ('replayable', 'attested'))
     return {'total': total, 'falsified': falsified, 'unfalsified': max(total - falsified, 0)}
