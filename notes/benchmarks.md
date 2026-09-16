@@ -2809,7 +2809,7 @@ next, this benchmark will not notice, which is the property that was worth an ho
   The honest statement is that cost now tracks what the machine holds; on this benchmark that
   happens to be very little.
 
-## 2026-09-15: the baselines drifted +6.5% and it was all one feature, not the toolchain (milestone 300)
+## 2026-09-15: the baselines drifted +6.5%, and it was one feature's un-gated switch-tuple residual, not the toolchain (milestone 300)
 
 The aarch64 and riscv64 baselines were last saved 2026-08-27 (commit `a79fdb95`). By 2026-09-15
 `main` sat ~+6.5% over them on the switch-heavy benchmarks, ~19 nightly bumps and ~150 commits
@@ -2913,26 +2913,87 @@ regressions. A later commit (milestone 299's `44890a8a`, keeping the port grant 
 switch path) trimmed the aarch64/riscv peak back from ~+43 to the net ~+35.7 ticks/switch that
 stands at HEAD.
 
-### Classification: intended feature work, re-baselined; but the cost overran its own estimate
+### Classification, corrected: a removable regression, not an intended feature cost (milestone 300)
 
-Milestone 139 is a decided feature (DECISIONS 139), and 139's own text places the cost exactly where
-the measurement found it: option 4 is *"a per-thread grant enforced at the context switch ... it
-costs the compare that `switch_user_root` already pays for `TTBR0_EL1`."* So this is the
-recorded/intended-cost case, not an unexplained regression: the baselines are re-saved on
-`nightly-2026-09-15` with the move attributed to 139.
+PR #885's first pass classified this as intended feature work and re-saved the baselines to absorb
+it, reasoning that 139 is a decided feature whose own text places the cost at the switch. That was
+wrong, and the reason is milestone 237. **Milestone 237 made the cycle-counter grant a
+measurement-only feature that ships OFF**: `set_cycle_counter_grant` is
+`#[cfg(any(test, feature = "cycle_counter_grant"))]`, and in a feature-off binary the arch write,
+`pmuserenr`/`scounteren`, and the grant field do not appear at all. So the +35.7 ticks/switch on
+`main` were not paying for a shipping feature. They were a residual 237 left behind: 139 threaded the
+grant through the shared context-switch tuple as an extra element, and when 237 gated the feature off
+it turned that element into a constant `false` and trusted the optimizer to fold it away (a `#[cfg]`
+is not allowed on a tuple element, which is why 237 reached for the fold). **The fold works in the
+release build but not in the debug build the icount gate measures**, so the const-`false` element, its
+read, and a gated-off `install_cycle_counter_grant` call all stayed in the shipping switch and cost
+the +35.7.
 
-**The flag worth keeping:** 139 estimated *"the compare"* (a load, a compare, a not-taken branch:
-~2-3 ticks when nothing is granted) and delivered ~**+35.7 ticks per context switch** at HEAD (+43
-before 299's trim), an order of magnitude over the estimate. The likely cause is that the grant is
-"handed to an arch function" (139's own words) that is not inlined to the promised compare, so every
-switch pays a call/return and register churn whether or not anything is granted. This is not a
-correctness bug (139's tests pass) and it was legitimately decided, so it is not held out of the
-baseline; but the gap between a decision's cost estimate and its delivered cost is exactly the kind
-of thing the `--real` medians and this instrument exist to surface, and it wants a look. See the
-milestone 300 follow-on.
+This is the exact class milestone 299 found and fixed for the x86 port grant in this same function
+(`44890a8a`): a per-switch value threaded through the shared tuple and trusted to fold, which it did
+not. Milestone 300 applies 299's fix to the cycle-counter grant: the grant is read and installed
+behind a `#[cfg(any(test, feature = "cycle_counter_grant"))]` at the switch site, into a gated local
+rather than the tuple, so the shipping switch tuple is back to its pre-139 width
+`(prev_slot, next_ctx, next_root)`.
 
-### x86_64 is current, confirmed
+**Recovery, measured on both ISAs** (QEMU 11.1.1, `nightly-2026-09-15`, debug icount; #885 floor ->
+milestone 300 fix, pre-139 parent `61c6a780` from the bisect table above for reference):
 
-Milestone 299's lane re-saved `bench/baseline-x86_64.txt` on 2026-09-15. `cargo xtask bench --x86
---check` here returns **byte-identical** numbers (`yield_switch` 20080160, `coremark` 306262395, all
-lines) and passes. Not re-measured; the x86 window this milestone addresses does not exist.
+| benchmark | #885 floor | 300 fix | recovered | pre-139 | residual over pre-139 |
+|---|---:|---:|---:|---:|---:|
+| aarch64 yield_switch | 1167649 | 1101149 | -66500 (33.3/sw) | 1096444 | +4705 (+0.43%) |
+| aarch64 ctx_switch | 3089320 | 2922971 | -166349 (33.3/sw) | 2909838 | +13133 (+0.45%) |
+| riscv64 yield_switch | 195910 | 184875 | -11035 (5.5/sw) | 183768 | +1107 (+0.60%) |
+| riscv64 ctx_switch | 522565 | 495050 | -27515 (5.5/sw) | 492350 | +2700 (+0.55%) |
+
+`coremark`, the pure-compute control, stayed flat across the fix (aarch64 20915884 -> 20915599,
+riscv64 3654380 -> 3654349, both ~0.001%). The fix recovers ~91-93% of the drift and lands within
+~0.5% of the pre-139 numbers. The sub-1% residual is the codegen noise floor, not a remaining
+threaded cost: the tuple is provably 3-wide and no cycle-counter code compiles with the feature off,
+so there is nothing left to gate, and untouched benchmarks shift by comparable sub-tenth-percent
+amounts whenever switch-path code changes because the compiler remakes whole-crate inlining
+decisions. **The baselines are re-saved on `nightly-2026-09-15` against these RECOVERED numbers,
+superseding #885's re-baseline.**
+
+**139's estimate was right after all.** 139 estimated *"the compare"* `switch_user_root` already pays
+(~2-3 ticks when nothing is granted); #885 read the +35.7 as an order-of-magnitude overrun and
+guessed a non-inlined arch function on the hot path. That guess was wrong: the arch function ships
+off and is absent from a feature-off binary, so it was never the cost. Once the tuple residual is
+removed the delivered cost matches the estimate, to within the noise floor. The 139 feature, when
+built (`--features cycle_counter_grant`), still costs ~136 bytes in the release switch (see
+`kernel/Cargo.toml`), which is its legitimate on-cost.
+
+### A baseline is saved only from the shipping feature set (calef, 2026-09-15)
+
+The standing rule this episode argues for. `bench --save` must run with the *shipping* feature set:
+every measurement-only feature (`cycle_counter_grant`, `soak_test`, `job_mix`, and any future one of
+that kind) OFF, and every shipping feature ON. A baseline saved from an opted-in build bakes a cost
+that never ships into the tripwire floor and turns the gate into fiction. Both directions fail: a
+*shipping* feature turned off for a bench understates production, and a *measurement* feature turned
+on overstates it. The one legitimate bench-only feature is `icount` itself, and it draws the line: it
+is instrumentation of *observation* (it changes how `timer::now()` reads the clock, not the switch
+logic being counted). A bench feature may change how you observe, never what you measure.
+
+### x86_64 recovered too: the residual was the *shared* tuple, not an aarch64/riscv path
+
+Milestone 299's lane re-saved `bench/baseline-x86_64.txt` on 2026-09-15, and this milestone's brief
+carried #885's assumption that x86_64 was unaffected because "the grant is a no-op on x86". Measured,
+that is wrong. The `next_cycle_counter` element sat in the switch tuple on **every** ISA (it was never
+`target_arch`-gated), so the x86 debug icount build carried the const-`false` element and its
+gated-off install just like the other two, and the milestone 300 fix recovers it:
+
+| benchmark | #885 floor | 300 fix | recovered |
+|---|---:|---:|---:|
+| yield_switch | 20080160 | 18903108 | -1177052 (-5.9%) |
+| tss_iomap_switch | 24818161 | 23661444 | -1156717 (-4.7%) |
+| tss_iomap_lazy_switch | 24487313 | 23309946 | -1177367 (-4.8%) |
+| tss_iomap_lazy_nop | 20490158 | 19323946 | -1166212 (-5.7%) |
+| coremark | 306262395 | 306261408 | -987 (~0, control) |
+
+`bench --x86 --check` passed against the #885 floor only because ~5.9% is under the 10% tripwire.
+Leaving that floor in place would bake the removable regression into the x86 tripwire, which is the
+laundering this milestone exists to prevent, so `bench/baseline-x86_64.txt` is re-saved against the
+recovered numbers alongside the other two. The IPC benchmarks moved in proportion to their switch
+counts (`relay_rtt` 35208246 -> 34051949, `broker_rtt` 36208747 -> 35054295) and the no-switch
+primitives (`map_new`, `map_el0`, `null_syscall`) stayed byte-identical, the same signature as the
+other two ISAs.

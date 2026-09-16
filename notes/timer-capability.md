@@ -64,8 +64,10 @@ precedent in this tree for a per-thread system-register bit maintained across a 
 is the one piece of machinery option 4 below needs and the tree does not have."*
 
 **That sentence is now stale, and its own decision is what made it stale.** Milestones 229 and 237
-built exactly that: a `cycle_counter_grant` bool on `Thread`, read in `sched::schedule` by
-`cycle_counter_grant_of`, and installed on the core about to run the thread by
+built exactly that: a `cycle_counter_grant` bool on `Thread`, read in `sched::schedule` at a
+`#[cfg(any(test, feature = "cycle_counter_grant"))]`-gated switch site (milestone 300 removed the
+const-`false` helper `cycle_counter_grant_of` that used to carry it through the shipping switch
+tuple), and installed on the core about to run the thread by
 `install_cycle_counter_grant` -> `arch::timer::set_cycle_counter_grant`, which is a cached
 compare-and-skip around a `PMUSERENR_EL0` write on aarch64 and an `scounteren` write on riscv64. A
 per-thread `CNTKCTL_EL1.EL0PTEN` grant is the same shape at the same call site, on a register two
