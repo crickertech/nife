@@ -46,24 +46,24 @@ cannot spawn; `std::process` refuses everything; there is no `fork`, no POSIX, n
 **The experiment:** milestone 121 (`ripgrep`: enumeration as a capability), chosen because `ripgrep`
 has a real dependency tree, walks a filesystem, and uses threads.
 
-**Status: RUN, 2026-08-31. GREEN on two of three architectures, and the blocker is not what anyone
-predicted.**
-notes/ripgrep-on-nife.md has it; PR #600.
+**Status: RUN, 2026-08-31. GREEN on all three architectures since 2026-09-16, and the blocker is
+not what anyone predicted.**
+notes/ripgrep-on-nife.md has it; PR #600 for the first two, milestone 303 for x86_64.
 
 - **Unmodified `ripgrep` 14.1.1 from crates.io, forty transitive crates, builds for
-  `aarch64-unknown-nife` and `riscv64-unknown-nife` with zero source changes**, loads, runs, resolves
-  its working directory through a granted directory capability, and exits through
-  `std::process::exit`. **Zero patches**, and the two transcripts are byte for byte identical from
-  two separately built binaries. Everything that differs from a Linux build is on the command line.
-- **x86_64 builds and has not run.** Milestone 184 (extend the `std` port to x86_64) is `BUILT` as of
-  2026-09-14: `std_exerciser` passes on that architecture, and unmodified `ripgrep` 14.1.1 builds for
-  `x86_64-unknown-nife` with zero source changes. **A build is not a transcript.** The run needs a
-  RedoxFS disk the FS service can find, and on x86_64 there is none: the service looks only on the
-  virtio-mmio bus, which that machine does not have
-  (`design/roadmap/proposals/an-fs-service-with-no-disk-on-x86-64.md`). So the honest sentence is
-  still *unmodified third-party software runs on nife on aarch64 and riscv64*, and writing it without
-  the architectures is the overclaim DECISIONS §19 (architectural parity is a tenet) exists to
-  prevent. `notes/ripgrep-on-nife.md` has the parity table.
+  `aarch64-unknown-nife`, `riscv64-unknown-nife` and `x86_64-unknown-nife` with zero source
+  changes**, loads, runs, resolves its working directory through a granted directory capability, and
+  exits through `std::process::exit`. **Zero patches**, and the three transcripts are byte for byte
+  identical from three separately built binaries. Everything that differs from a Linux build is on
+  the command line.
+- **x86_64 took two more milestones and the second was a disk.** Milestone 184 (extend the `std` port
+  to x86_64) made `std_exerciser` pass there on 2026-09-14 and `ripgrep` build, and **a build is not
+  a transcript**: the run needed a RedoxFS disk the FS service could find, which `q35` could not
+  offer because the lookup walked the virtio-mmio bus that machine does not have. Milestone 303
+  (x86_64's FS service has a server and no disk it can find) closed that on 2026-09-16, and the
+  transcript is the same 62 bytes. So the honest sentence is now *unmodified third-party software
+  runs on nife*, with no architecture qualifier, which is what DECISIONS §19 (architectural parity is
+  a tenet) asks before the qualifier comes off. `notes/ripgrep-on-nife.md` has the parity table.
 - **What stops it is that the ABI has no argument vector.** `std::env::args()` compiles std's
   `unsupported` backend and yields nothing, so `ripgrep` parses no arguments and prints its own
   *"requires at least one pattern to execute a search"*. **Somebody else's application reached its
@@ -76,10 +76,11 @@ notes/ripgrep-on-nife.md has it; PR #600.
 - **The capability model is visible from inside a stranger's program.** Without slot 4 the same
   binary prints `failed to get current working directory: operation not supported on this platform`.
 
-**What it changes.** The structural fear behind this risk is retired **on the two architectures where
-it has run**: this system runs software it did not write, unmodified, with a real dependency tree.
-What remains is an ABI gap with a name, which is a design question rather than a wall, plus a parity
-gap on x86_64 that narrowed on 2026-09-14 from a missing port to a missing disk.
+**What it changes.** The structural fear behind this risk is retired **on every architecture this
+kernel supports**: this system runs software it did not write, unmodified, with a real dependency
+tree. What remains is an ABI gap with a name, which is a design question rather than a wall. The
+parity gap that qualified this paragraph narrowed on 2026-09-14 from a missing port to a missing
+disk, and closed on 2026-09-16 when the disk arrived.
 
 **This qualifier was written on 2026-08-31 and did not land for two weeks.** calef caught the first
 draft omitting the architecture the day the result came in; the correction was committed to a

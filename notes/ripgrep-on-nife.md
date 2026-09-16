@@ -25,8 +25,8 @@ ok
 ```
 
 That line is `ripgrep`'s, word for word, from `crates/core/main.rs`. Somebody else's application
-reached its own error path on this kernel. **Byte for byte identical on both ISAs**, from two
-separately built binaries.
+reached its own error path on this kernel. **Byte for byte identical on all three ISAs**, from three
+separately built binaries (aarch64 and riscv64 at milestone 121, x86_64 at milestone 303).
 
 ## Parity (DECISIONS §19)
 
@@ -34,7 +34,7 @@ separately built binaries.
 |---|---|---|
 | `aarch64-unknown-nife` | **built and run**, 4.7 MB ELF, 62-byte transcript | |
 | `riscv64-unknown-nife` | **built and run**, 10.7 MB ELF, same 62-byte transcript | |
-| `x86_64-unknown-nife` | **built, not run**, 4.1 MB ELF | Milestone 184 built the target and its `std`, and `ripgrep` 14.1.1 builds for it with zero source changes. The test skips at "no RedoxFS disk attached": x86_64's FS service finds its disk over virtio-mmio only and `q35` has none, so `rg` has no directory to be handed. **Whether its transcript matches the other two is unknown.** |
+| `x86_64-unknown-nife` | **built and run**, 4.1 MB ELF, same 62-byte transcript | Milestone 184 built the target and its `std`; milestone 303 gave the FS service a disk it can find on `q35` (the lookup spans virtio-mmio and virtio-pci, and the runner attaches the RedoxFS image as a second `virtio-blk-pci` function). Ran 2026-09-16. |
 
 The RISC-V leg was worth running rather than assuming, and it produced one difference worth
 recording and one non-difference worth recording:
@@ -55,8 +55,8 @@ recording and one non-difference worth recording:
 
 ### 1. Does it build?
 
-**Yes, on both ISAs, with no patch, no vendored copy and no fork.** `scripts/build-ripgrep.sh`
-downloads the published crate and builds it for both targets in one pass. Everything that differs
+**Yes, on all three ISAs, with no patch, no vendored copy and no fork.** `scripts/build-ripgrep.sh`
+downloads the published crate and builds it for every target in one pass. Everything that differs
 from a Linux build is on the command line:
 
 | What | Why |
@@ -74,13 +74,13 @@ succeeds.
 
 ### 2. Does it run, and on what subset?
 
-**It runs, on both ISAs.** `kernel/src/user/ripgrep_tests.rs` is one test body serving both, because
-nothing it asserts is architecture-specific; it spawns `rg` exactly as milestone 27's `std` demo is
+**It runs, on all three ISAs.** `kernel/src/user/ripgrep_tests.rs` is one test body serving all of
+them, because nothing it asserts is architecture-specific; it spawns `rg` exactly as milestone 27's `std` demo is
 spawned, with a heap untyped at slot 0, an output endpoint at slot 1, and the FS service's directory
 capability at slot 4. What that proves, layer by layer, and none of it written for `ripgrep`:
 
 - the ELF loader maps a **multi-megabyte, three-segment** program (4.7 MB on aarch64, 10.7 MB on
-  riscv64);
+  riscv64, 4.1 MB on x86_64);
 - `std`'s allocator grows a heap one page at a time out of an untyped budget, under `regex`'s and
   `ignore`'s allocation patterns rather than a demo's;
 - `std::env::current_dir()` answers `/`, the root of this process's own namespace, **because it holds
@@ -225,10 +225,10 @@ pass for everyone else.
   AGENTS.md's ladder. Gap B is the fix.
 - **One version.** `ripgrep` 14.1.1. No other version was tried, and no other program: one
   application building and running is evidence about this platform, not a survey of crates.io.
-- **x86_64 builds and does not run.** Milestone 184 added the third triple to the build script's
-  loop and it builds, but the test needs a RedoxFS disk and no x86_64 runner can attach one the FS
-  service will find (design/roadmap/184-std-x86-64.md, Follow-on). A build is not a transcript, and
-  risk 1 is not green on x86_64 until one exists.
+- **x86_64's transcript needs `rg` built by hand, like the other two.** `scripts/build-ripgrep.sh`
+  fetches from crates.io and no gate runs it (DECISIONS §46), so the x86_64 row above is reproducible
+  only after somebody builds the binary. What milestone 303 changed is that building it is now
+  sufficient: the disk the test skipped for is attached, and the run needs nothing else.
 - **`ripgrep` never allocated much**, because it stopped before searching. The 256-page heap was
   sized from `std_exerciser` and is untested against a real workload; a search may want far more, and
   what a std program does when its untyped budget is exhausted is not exercised here.
