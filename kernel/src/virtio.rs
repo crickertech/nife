@@ -85,10 +85,12 @@ pub fn find_block_device() -> Option<VirtioMmioDevice> {
 
 /// How many virtio block devices are on the mmio bus (milestone 57's roster).
 ///
-/// The same walk [`find_block_device_n`] does, counted rather than stopped, so the roster's
-/// ordinals and the ordinal a wiring passes to `find_block_device_n` are the same numbers by
+/// The same walk [`mmio_block_device_n`] does, counted rather than stopped, so the roster's mmio
+/// ordinals and the ordinal a wiring passes to [`find_block_device_n`] are the same numbers by
 /// construction. Reads two ID registers per slot and nothing else: enumeration is not bring-up.
-#[cfg_attr(not(test), allow(dead_code))] // disk_service is the caller, and its tests drive it
+///
+/// [`find_block_device_n`] also calls it, to know where the mmio half of the ordering ends and the
+/// PCI half begins.
 pub fn count_block_devices() -> usize {
     let mut n = 0;
     for slot in 0..SLOTS {
@@ -114,12 +116,68 @@ pub fn find_entropy_device() -> Option<VirtioMmioDevice> {
     find_by_device_id(DEVICE_ID_ENTROPY)
 }
 
-/// Scan the bus for the `n`-th (0-based) virtio block device, `None` if there is no such disk. The
-/// FS server (milestone 32 phase 2) drives the SECOND mmio block disk (`n = 1`), a RedoxFS image,
-/// leaving the first (the nifefs disk) to the phase-1 driver tests. QEMU numbers the mmio slots
-/// in device order, so the runner attaches the nifefs disk first and the RedoxFS disk second.
+/// **One block device, resolved on whichever bus it turned out to be on** (provisional name,
+/// milestone 303). What [`find_block_device_n`] hands a wiring, and exactly the three things
+/// `virtio_service::wire` and `fs_service::spawn_block_server` need: the transport seam's answer
+/// for this device, the interrupt to bind, and the IOMMU requester id when there is one.
+///
+/// `rid` is `None` for a virtio-mmio device because neither `virt` board puts an IOMMU in front of
+/// that bus, and `Some` for a PCI function because the domain `virtio::register` builds is keyed on
+/// it. A caller that had to ask which bus it got would be a caller the seam failed.
+pub struct BlockDevice {
+    pub transport: Transport,
+    pub intid: u32,
+    pub rid: Option<u32>,
+}
+
+/// **The `n`-th (0-based) block device this machine offers, on any bus.** `None` if there is no
+/// such disk.
+///
+/// The FS server (milestone 32 phase 2) drives the SECOND one (`n = 1`), a RedoxFS image, leaving
+/// the first (the nifefs disk) to the phase-1 driver tests. Milestone 57's roster wirings take the
+/// fourth and fifth, and milestone 37's crash test the third.
+///
+/// **The ordering is a contract, and it is the roster's row order**: every virtio-mmio slot first,
+/// in slot order, then every modern virtio-pci function, in bus:device.function order. That is the
+/// same order `disk_service::devices` lists the roster in, so a listing and a wiring cannot
+/// disagree about which disk is which, and it is what keeps these ordinals stable across the two
+/// `virt` boards while widening them to a machine with no mmio bus at all. QEMU numbers the mmio
+/// slots in device order, so the aarch64 and riscv64 runners attach the nifefs disk first and the
+/// RedoxFS disk second and nothing about those two architectures moved when this stopped being
+/// mmio-only (milestone 303): both have five mmio block devices, so every ordinal any wiring asks
+/// for is still resolved before the PCI half is reached.
+///
+/// **`q35` has no virtio-mmio bus at all** (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0), so on `x86_64`
+/// the mmio half is empty and ordinal 0 is the first `virtio-blk-pci` function, ordinal 1 the
+/// second. `scripts/qemu-runner-x86_64.sh` attaches the nifefs image and then the RedoxFS image in
+/// that order for exactly that reason.
+///
+/// **Resolving a PCI ordinal brings the function up**, which sizes and assigns its BARs and enables
+/// memory decoding and bus mastering; the mmio half reads two identity registers and nothing else.
+/// That asymmetry is `pci::bring_up`'s, not this function's, and it is why a bare *presence* probe
+/// (`fs_service::crash_disk_present`) should be read as "this ordinal exists", with the side effects
+/// of having asked.
 #[cfg_attr(not(test), allow(dead_code))] // fs_service is the caller, and the phase-2 test drives it
-pub fn find_block_device_n(n: usize) -> Option<VirtioMmioDevice> {
+pub fn find_block_device_n(n: usize) -> Option<BlockDevice> {
+    if let Some(d) = mmio_block_device_n(n) {
+        return Some(BlockDevice {
+            transport: Transport::Mmio {
+                mmio_phys: d.mmio_phys,
+            },
+            intid: d.intid,
+            rid: None, // virtio-mmio has no IOMMU in front of it on either board
+        });
+    }
+    let d = crate::pci::find_block_device_n(n.checked_sub(count_block_devices())?)?;
+    Some(BlockDevice {
+        transport: Transport::pci(&d),
+        intid: d.intid,
+        rid: Some(d.rid), // the PCIe requester id, the IOMMU keys its tables on it
+    })
+}
+
+/// The mmio half of [`find_block_device_n`]: the `n`-th virtio-mmio block slot, in slot order.
+fn mmio_block_device_n(n: usize) -> Option<VirtioMmioDevice> {
     let mut seen = 0;
     for slot in 0..SLOTS {
         if read_reg(slot, REG_MAGIC) != MAGIC || read_reg(slot, REG_DEVICE_ID) != DEVICE_ID_BLOCK {

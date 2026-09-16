@@ -285,6 +285,39 @@ pub fn find_block_device() -> Option<PciVirtioDevice> {
     bring_up(bdf, pci::VIRTIO_TYPE_BLOCK)
 }
 
+/// **Find the `n`-th (0-based) modern virtio-blk function on the bus and bring it up**, in
+/// bus:device.function order. `None` if the bus has no such function.
+///
+/// The PCI half of [`crate::virtio::find_block_device_n`]'s ordering, and the reason it exists is
+/// `q35`: that machine has no virtio-mmio bus, so every block device a wiring can ask for on `x86_64`
+/// is a PCI function and "the second disk" has to be answerable here (milestone 303). On both
+/// `virt` boards the mmio half answers every ordinal any wiring asks for and this is never reached.
+///
+/// [`find_block_device`] is `n = 0` and is kept rather than folded into this, because the PCIe
+/// transport tests (`virtio_service::start_role_pci`) want "the PCI disk" rather than an ordinal
+/// into an ordering that spans a bus they are deliberately not on.
+#[cfg_attr(not(test), allow(dead_code))] // the mmio half answers first on both virt boards
+pub fn find_block_device_n(n: usize) -> Option<PciVirtioDevice> {
+    if !host_bridge_present() {
+        return None;
+    }
+    let mut seen = 0;
+    let mut found: Option<Bdf> = None;
+    pci::enumerate(
+        PCI_ECAM_BUSES,
+        &mut |b, o| cfg_read32(b, o),
+        &mut |bdf, vendor, device| {
+            if found.is_none() && vendor == pci::VIRTIO_VENDOR && device == pci::VIRTIO_BLK_MODERN {
+                if seen == n {
+                    found = Some(bdf);
+                }
+                seen += 1;
+            }
+        },
+    );
+    bring_up(found?, pci::VIRTIO_TYPE_BLOCK)
+}
+
 /// Find the first modern virtio-net function on the bus and bring it up. `None` if there is no
 /// PCI NIC. Same bring-up as the disk; the transport seam and the DMA confinement do not know or
 /// care that a NIC sits behind them (milestone 30).
