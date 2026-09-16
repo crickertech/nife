@@ -1602,7 +1602,7 @@ pub fn riscv_uart_driver_demo(
 }
 
 /// **Boot the system: load the progenitor and start it as the first process, on every architecture**
-/// (milestone 166, which merged aarch64's `spawn_progenitor` boot half and riscv64/x86_64's
+/// (milestone 166, which merged aarch64's `spawn_progenitor` boot half and `riscv64`/`x86_64`'s
 /// `riscv_shell_boot` into this one body).
 ///
 /// It loads [`PROGENITOR_ENTRY`], measures it under the trust root (milestone 22 phase B.1) and the

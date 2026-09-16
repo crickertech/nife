@@ -6,8 +6,6 @@ minted for (2026-08-25) was overtaken and settled by other milestones before thi
 scope narrowed to the loader unification that actually remained; see "What overtook the original
 premise" below.
 
-**Gate: NONE.** A software architecture change, not hardware-gated.
-
 ## What overtook the original premise
 
 This block was minted from a naming review that asked whether aarch64's `init -> hello` archive
@@ -16,7 +14,7 @@ mapping should become `init -> builder`. That framing is gone:
 - **Milestone 266 (one progenitor)** gave the first process one name, `progenitor`, on all three
   architectures, retiring `init` as an alias that meant a different binary per board. The archive's
   `init` slot no longer carries two jobs, so there was no `init`-meaning question left to answer.
-- **Milestone 291 (one program, one job)** split `hello`'s thirty-one roles into their own programs,
+- **Milestone 291 (thirty-one programs wearing one name)** split `hello`'s thirty-one roles into their own programs,
   leaving nine `INIT`/child roles that the kernel still re-enters `hello` at. `builder` and its
   `init_boot` role, and `components/src/builder.rs`, are gone.
 - **Milestones 182/268/299** brought `x86_64` onto the same loader riscv64 uses and gave it a
@@ -77,13 +75,19 @@ unchanged; the six `spawn_progenitor` tests reach `hello`'s roles exactly as bef
 
 ## Follow-on
 
-- **`spawn_progenitor` is now a misnomer.** It no longer spawns the progenitor; it spawns `hello` at
-  a test role. A rename is calef's and reaches every test call site.
-- **`boot_progenitor`'s name is provisional** (milestone 166).
-- **`BootEndowment.for_test_roles` is now dead data.** No boot path fills it, so `system_initializer`
-  could drop the field and the slot-deletion it feeds.
+- **Recorded.** `spawn_progenitor` is now a misnomer: it no longer spawns the progenitor, it spawns
+  `hello` at a milestone-19d/19e test role. Recorded in its own doc comment in `kernel/src/user.rs`;
+  a rename is calef's and reaches every test call site.
+- **Recorded.** `boot_progenitor`'s name is provisional (milestone 166), recorded at its definition
+  in `kernel/src/user.rs`; calef names the merged loader.
+- **Recorded.** `BootEndowment.for_test_roles` is now dead data: no boot path fills it, so
+  `crates/system_initializer` could drop the field and the slot-deletion it drives. Recorded in this
+  block's "What it touched" section; retiring it is a change to `system_initializer`'s logic, out of
+  this milestone's scope.
 
 ## Index row
+
+**Built:** 2026-09-15
 
 Two boot-loader functions loaded the first process differently: aarch64's `spawn_progenitor` (a
 closure that also served the 19d test roles, and so carried two capabilities the interactive system
