@@ -34,7 +34,7 @@ themselves. The last column is this milestone's result.
 | 9 | What a supervisor may see and what it may reap are one domain | milestone 126 | `capability::the_view_and_the_reap_have_the_same_scope` | **yes** |
 | 10 | A user virtual address is in the low half and page-aligned, on every ISA | §19 | `paging::{aarch64,sv39,x86_64}::the_user_va_gate_admits_only_the_aligned_low_half` | **yes, three times** |
 | 11 | No page is both writable and executable | §19 | `paging::x86_64::no_encoded_leaf_is_both_writable_and_executable` | **yes** |
-| 12 | An IOMMU entry sets no bit the hardware treats as reserved | §20 | `paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit` | **yes** |
+| 12 | An IOMMU entry sets no bit the hardware treats as reserved | §20 | `paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit` | **yes, since 2026-09-16, and see below** |
 | 13 | A device cannot touch memory outside its driver's granted region | §20 | `dma_validator::in_region_is_sound`, `an_accepted_descriptor_is_confined`, `validate_and_shadow_confines_every_chain` | **yes, three** |
 | 14 | A driver cannot send its device to descriptors nothing validated | §20 | `dma_validator::an_accepted_descriptor_is_confined` (the indirect refusal) | **yes** |
 | 15 | A driver cannot make the validator walk outside the rings, or forever | §20 | `dma_validator::the_outer_walk_stays_inside_the_rings_and_terminates`, `an_oversized_batch_is_refused` | **yes, two** |
@@ -145,12 +145,22 @@ of 12 with a sentence about what a missing death report means.
 
 ### A proof can be blind to the predicate it is stated in, twice
 
-`component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for` asserts
+`component_plan::a_plan_never_grants_a_right_the_declaration_did_not_ask_for` asserted
 `p.caps()[i].1 == reqs.caps[i].direction.rights()`, which is stated *through* `rights()`, so a
 `rights()` that adds `GRANT` to everything satisfies it. Only the explicit
-`& abi::rights::GRANT == 0` beside it catches the defect. That is the same shape milestone 194
-measured in `capability::derive_never_widens_rights`, one crate over, and it is the argument for
+`& abi::rights::GRANT == 0` beside it caught the defect. That is the same shape milestone 194
+measured in `capability::derive_never_widens_rights`, one crate over, and it was the argument for
 keeping an assertion that looks redundant.
+
+**Milestone 307 found that this paragraph had inverted, and the inversion is a better lesson than
+the original.** Milestone 211 fixed the harness by writing the expected rights out in literals
+(`Direction::Serve => READ`, `Direction::Use => WRITE`) instead of calling `rights()`. Since `READ`
+is `1 << 0`, `WRITE` is `1 << 1` and `GRANT` is `1 << 2`, that equality now *implies* both lines
+below it, so **`& GRANT == 0`, the assertion this note credits as the only thing catching the
+defect, became the one that could not fail.** The rescue became the decoration, the note went on
+describing code that had changed, and nothing gated the drift. The two implied lines are removed in
+307 and the live assertion carries the sentence; the argument for keeping a redundant-looking
+assertion survives, with the caveat that which one is redundant moves when the other is repaired.
 
 ### One claim has no falsification and the reason is structural
 
@@ -267,6 +277,138 @@ defect. So the honest reading is narrower: it proves row 23's kernel test is wir
 own delete, not that row 23's test is the only thing watching it. Rows 21, 24, 25 and 26 have no
 such overlap.
 
+## Which assertion actually fires (milestone 307)
+
+Milestone 305 found two independent cases where the assertion a reader would quote is not the
+assertion doing the work, and said a sweep would probably find more. This is that sweep, over all
+26 rows. The question asked of every test and harness: **when the claim is broken, which assertion
+fires, and is the one a reader would quote reachable at all?**
+
+Three verdicts, and the third is not padding. **Fires as advertised: 17 rows.** **The quotable
+assertion cannot run: 8 rows.** **Answered by refusing to look: 1 row**, which is row 12, and it is
+the finding the milestone is for.
+
+### Row 12's proof could not fail, and the tree had written down that it could
+
+`paging::x86_64::no_vtd_entry_ever_sets_a_reserved_bit` is row 12's whole evidence: §20's claim that
+an IOMMU entry sets no bit the hardware treats as reserved. It stated all three of its assertions,
+**and its `kani::assume`**, through `VTD_ADDR_MASK`, `VTD_R` and `VTD_W`. Those are the three
+constants `Vtd::leaf_entry` builds its result out of:
+
+```rust
+fn leaf_entry(pa: u64, flags: Flags) -> u64 { (pa & VTD_ADDR_MASK) | bits }   // bits ⊆ {VTD_R, VTD_W}
+assert_eq!(leaf & !(VTD_ADDR_MASK | VTD_R | VTD_W), 0);
+```
+
+`(pa & M) | bits` sets no bit outside `M | VTD_R | VTD_W` **for every value of M**, and the assume
+admitted exactly the addresses `M` allowed, so widening the mask moved the encoder, the input space
+and the assertion in lockstep. The address half of the claim was a tautology.
+
+**Measured, and this is the part that makes it a finding rather than an argument.** With
+`VTD_ADDR_MASK` widened to bits 62:12, a range a VT-d second-level entry really does reserve
+(patagonia, 2026-09-16, kani 0.67.0):
+
+| Harness | Result |
+|---|---|
+| as it stood before 307 | **SUCCESSFUL, 0 of 45 failed. A survivor.** |
+| as it stands after 307 | FAILED, 1 of 68 |
+| after 307, honest tree | SUCCESSFUL, 0 of 68 |
+
+The defect is not exotic. `VTD_ADDR_MASK`'s own doc comment says VT-d's real width is
+`CAP_REG.MGAW`-defined and this driver has never narrowed to it, so the mask is a number somebody
+could plausibly change. And the consequence is not cosmetic: QEMU's model and real silicon fault a
+transaction over a reserved bit rather than ignoring it, so the failure mode is an IOMMU whose every
+translation fails, presenting as broken hardware rather than as a bad table.
+
+**The tree had already recorded the opposite, in writing, forty lines up.** The comment on
+`the_leaf_keeps_address_and_permissions_apart` explains this exact trap correctly and then says
+*"`no_vtd_entry_ever_sets_a_reserved_bit` in this crate already works this way; this is the same move
+on the portable leaf."* It did not work that way. A lane that had just avoided the trap cited, as its
+precedent, the one harness in the crate still caught in it. That comment is corrected rather than
+deleted, because the citation is the interesting half.
+
+Fixed here: the permitted bits are a literal (`VTD_PERMITTED_BITS`, `cfg`-gated to the test
+configurations so no implementation can reach it and reintroduce the coupling), and the assume is
+gone, because masking the address down is `leaf_entry`'s own job and a claim about what it does with
+an arbitrary address may not assume the address is already in range. The host twin
+`a_vtd_leaf_sets_no_bit_outside_read_write_and_address` was blind for a **second, independent**
+reason on top of the first, and it is worth naming because a literal alone would not have fixed it:
+its one concrete address `0x10_0000` has no bits above 51, so the encoder's masking was never
+exercised and a wider mask changed nothing it could observe. It now runs three addresses and catches
+the same defect in microseconds.
+
+### The 305 shape recurs six more times, and it recurs in proofs as well as in kernel tests
+
+Milestone 305 promoted "in a test that states its property twice, the readable statement is usually
+the unreachable one" from an anecdote about §31 to a thing to look for. It looks for well. Eight rows
+carry an assertion that states the claim in the claim's own vocabulary and cannot run:
+
+- **Row 13.** `in_region_is_sound` ended with `assert!(addr >= base && end <= limit)`, carrying the
+  comment *"no byte the device would touch lies outside the granted region"*, directly below the two
+  assertions it is the conjunction of. Removed in 307; the sentence moved onto the live pair.
+- **Row 14.** `an_accepted_descriptor_is_confined` kept `assert!(!d.is_indirect())` and
+  `assert!(in_region(base, size, d.addr, d.buf_len()))` **below** the milestone 211 assertions that
+  replaced them. Inside `if check_descriptor(..)` those are the same two calls with the same
+  arguments the guard returns false on, so neither can fail. 211 added the working phrasing and left
+  the blind one underneath holding both readable messages. Removed in 307.
+- **Row 18.** The inversion described in the section above.
+- **Row 4.** `a_deleted_capability_stays_deleted`'s `get`/`delete` re-use refusals sit below the
+  storage check `assert!(cs.slots[slot].is_none())`, which catches the same defect one line earlier.
+  Benign and already named in an in-code comment; left alone, because the accessors are the claim's
+  vocabulary and the storage line is its mechanism, and here that costs nothing.
+- **Row 15.** `an_oversized_batch_is_refused`'s single `assert!(!ok)` is never reached; the panicking
+  closures are the mechanism. Its own patch says so. Left alone for the same reason.
+- **Row 20.** §31's headline, and 307 sharpens what 305 recorded. `assert_eq!(v[2], CONFINED)` is not
+  simply unreachable: it is reachable **only through the two bits that are not the confinement
+  claim**. A broken `IN_GRANT_WRITE_LANDED` or `FAULT_ADDR_AS_EXPECTED` still faults, still produces
+  a death report, still produces a verdict, and fires it. A broken `WITNESS_RO_INTACT` or
+  `WITNESS_FAR_INTACT` means the store landed instead of faulting, so no death is reported and the
+  run stalls at `wait_for_report`. The assertion that prints *"read-only witness intact"* can fire
+  for everything except a broken witness.
+- **Row 24.** 305 recorded the relative-path crossing as unreachable. **It is the same for the
+  absolute-path crossing twenty lines further down**, and for all four `assert_ne!` lines beside the
+  two: every one of them restates a bit `assert_report` has already checked in one direction or the
+  other. Six assertions, all of them the readable half, none of them able to run.
+- **Row 25.** The two `assert_eq!(sched::rendezvous_waiting_senders(..), 0)` lines, whose messages
+  read *"the write did not fault"* and *"a client read a pixel of the screen it holds no mapping
+  of"*, sit below a `wait_for` on the fault counter that catches exactly that defect two seconds
+  earlier. The quotable assertion for row 25 is the fault wait itself, and that one fires.
+
+### Two limits the sweep found that are not assertion order
+
+**An assertion can be live on one architecture and structurally dead on another, and row 21 is not
+the only place.** `a_read_only_segment_is_mapped_read_only` asserts
+`!flags.is_kernel_executable()` on a user `.rodata` page. On aarch64 that is a live check: `PXN` is
+a bit independent of `AP_USER`, and a kernel-executable user page is a real hazard the
+`Flags::user_code` doc calls out by name. On **riscv64 and x86_64 it cannot fail**, because both
+decoders reach `CAP_KERNEL_EXEC` only through an `else` branch that requires the user bit clear
+(`sv39.rs` `leaf_flags`, `x86_64.rs` `leaf_flags`), and the assertion two lines up has already
+established the page is user-accessible. The decoders are faithful: on those two ISAs the hardware
+really does make a user page non-executable in supervisor mode, so this is a sound structural
+guarantee rather than a bug. What is wrong is reading one portable test as three ISAs' worth of
+evidence. Same distinction 305 drew for row 21: a gap in the evidence, not in the capability.
+
+**Row 19's attackers cannot tell a refusal from a probe that was never sent.** `fs_test_client`'s
+`dir_attacker` sets `REACHED_PARENT` and its siblings only on *success*, so a fixture that stopped
+attempting the parent open would report a clean verdict and the test would pass. `OPENED_ITS_OWN`
+and `GRANTED_ACCESS_FAILED` guard the other direction (a capability that reaches nothing is
+trivially confined) and they do that job well; nothing guards this one. It is the note's own opening
+sentence, one level out: a passing test is consistent with the component being stopped and with the
+component never having asked. Recorded rather than fixed, because the fix is a per-probe
+"attempted" bit in a wire-format bitmap two programs agree on.
+
+### And where the three instances did not generalise, which is worth as much
+
+The predicate class that produced 305's survivor was checked on every architecture and found sound
+elsewhere. aarch64's `user_can_read` asks the silicon (`AT S1E0R`) and has no half to get wrong;
+x86_64 has no such predicate at all. The DMA attackers' descriptors reach `in_region` rather than
+being turned away by an earlier check (`check_descriptor` tries `is_indirect` first, and the direct
+attacker's descriptor is not indirect; the indirect attacker's *is*, and its own comment says so).
+The compositor test's vacuity guard, `neighbour_probe_phys(ATTACKER) == client[VICTIM] + FRAME_SIZE`,
+compares two different allocation records and is a real fact about adjacency rather than a
+restatement. `reap_tests::assert_can_only_supervise` walks every slot and checks both directions.
+All of these fire as advertised.
+
 ## BUGS
 
 - ~~**Six kernel confinement tests in the table are marked "no", and there is no mechanism to
@@ -294,6 +436,26 @@ such overlap.
   false: its defect was claimed to be caught by that harness alone and it also reaches
   `reap_is_permitted_only_to_the_supervising_rendezvous`. Both the prediction and its correction
   are in the patch, which is the point of writing the prediction down.
+- **Nothing gates which assertion a row's evidence comes through, and milestone 307 is a manual
+  sweep rather than a mechanism.** `script/falsifications` checks that a recorded defect turns the
+  harness red; it cannot check that the red came through the assertion the patch's prose predicts,
+  which is its own `BUGS`' standing entry, and it has nothing at all to say about an assertion that
+  is *unreachable while the harness is green*. Row 12's survivor was found by reading the encoder
+  beside the assertion and then breaking a constant on purpose. Nine rows' worth of that reading is
+  recorded above and it will rot the moment somebody rewrites one of these harnesses. **Read the
+  verdicts as dated 2026-09-16.**
+- **An assertion that is unreachable because a guard above it is correct becomes reachable the day
+  the guard is wrong, so "cannot run" is not "delete it".** Rows 4 and 15 are left exactly as they
+  are for this reason: the unreachable assertion is the claim in the claim's own words, and it costs
+  nothing but a line. Where 307 did remove such a line (rows 13, 14, 18) it was because the assertion
+  was a *restatement of the guard itself*, so no defect anywhere can separate them. The distinction
+  is worth keeping: one is redundancy, the other is decoration.
+- **The sweep read every assertion and broke exactly one.** Reading is how all nine unreachable
+  assertions were found and it is cheap; breaking is the only thing that can find a survivor and it
+  costs a solver run or a boot per defect. Row 12 was broken because the reading predicted a
+  tautology and a prediction about a proof is worth confirming. The other 25 rows' verdicts are
+  **reasoned from the code, not measured**, and milestone 305's own headline is the standing warning
+  about what that is worth: `user_can_read` had been readable for four weeks.
 - **The rows citing kernel tests are still not evidence at the same grade as the rows citing
   harnesses, and the reason changed.** It used to be that nothing could replay a kernel
   falsification at all. Since milestone 305 a machine can, so the gap is narrower and it is now

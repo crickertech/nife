@@ -1287,9 +1287,20 @@ mod proofs {
                     Direction::Serve => abi::rights::READ,
                     Direction::Use => abi::rights::WRITE,
                 };
-                assert!(p.caps()[i].1 == expected);
-                assert!(p.caps()[i].1 == abi::rights::READ || p.caps()[i].1 == abi::rights::WRITE);
-                assert!(p.caps()[i].1 & abi::rights::GRANT == 0);
+                assert!(
+                    p.caps()[i].1 == expected,
+                    "a plan granted a right the declaration did not ask for",
+                );
+                // **The two assertions that used to follow are gone, and which one they were is
+                // the point** (milestone 307). They were `== READ || == WRITE` and
+                // `& GRANT == 0`, and once the line above was written out in literals rather than
+                // through `direction.rights()` (milestone 211), both became implied by it:
+                // `READ = 1<<0`, `WRITE = 1<<1`, `GRANT = 1<<2`, so an equality against one of
+                // the first two settles the other two. The `& GRANT == 0` line is the one
+                // notes/confinement-claims.md credited as the only thing catching the original
+                // defect, and 211's fix turned the rescue assertion into the decoration. That
+                // inversion is worth more than the line was.
+
                 assert!(p.caps()[i].0 == held[i].1);
                 i += 1;
             }
