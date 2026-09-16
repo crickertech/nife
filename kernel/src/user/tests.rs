@@ -2,12 +2,13 @@ use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 // The std-transcript and FS-readiness assertions live with the std tests so both ISAs share one
 // copy; see `std_tests`. Most of them are used only by the device/FS tests below, which have
-// RISC-V twins in `riscv_virtio_tests` and are gated to aarch64 here.
+// RISC-V twins in `riscv_virtio_tests` and are gated to aarch64 here. The three the `std::fs` test
+// needs are wider, because that test runs on `x86_64` too since milestone 303 gave that
+// architecture a disk; its own comment says why it is the one member of the family that had to.
 #[cfg(target_arch = "aarch64")]
-use super::std_tests::{
-    assert_a_kill_mid_transaction_recovers, assert_attrs, assert_fs_service_ready,
-    assert_std_transcript, std_fs_expected,
-};
+use super::std_tests::{assert_a_kill_mid_transaction_recovers, assert_attrs};
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
+use super::std_tests::{assert_fs_service_ready, assert_std_transcript, std_fs_expected};
 use super::*;
 use crate::arch::exceptions::{SVC_COUNT, USER_FAULTS, last_user_fault};
 use crate::arch::{UserFault, UserFaultAccess, timer};
@@ -1103,7 +1104,17 @@ fn a_userspace_driver_reads_a_file_from_a_virtio_disk() {
 // to prove nothing new. (It read "through hello's roles" until milestone 291, when aarch64 stopped
 // having any: the two legs differ by ISA now and by nothing else.) See this module's comment on
 // the two kinds of gate.
-#[cfg(target_arch = "aarch64")]
+//
+// **`x86_64` joined this one at milestone 303**, when that architecture got a RedoxFS disk its FS
+// service can find, and it is the one test in this family that had to rather than merely could.
+// Two reasons, and the second is the load-bearing one. It is the `std::fs` half the milestone was
+// for: the proposal's own sentence was that `std_exerciser`'s `std::fs` half is compiled and never
+// run there. And **it is the only thing on that leg that writes `scratch`**, which
+// `xtask::redoxfs_check_after_run` reopens with the host tool after the run; the x86_64 leg runs
+// last and regenerates the fixture, so without this the end-of-run check would open an image whose
+// write never happened and report a true statement about a placeholder. The rest of this family
+// (the per-file grant attacks) stays on two architectures, for the "nothing new" reason above.
+#[cfg(any(target_arch = "aarch64", target_arch = "x86_64"))]
 #[test_case]
 fn std_fs_reads_a_file_through_a_granted_directory_capability() {
     if fs_service::fs_server_image().is_none() {
@@ -1115,7 +1126,7 @@ fn std_fs_reads_a_file_through_a_granted_directory_capability() {
     let Some((readiness, report)) = fs_service::start_std(
         blk_image(),
         program("redoxfs_server").expect("no redoxfs_server program in the initrd archive"),
-        std_exerciser_image(),
+        program("std_exerciser").expect("no std_exerciser program in the initrd archive"),
     ) else {
         crate::testing::skip!("no RedoxFS disk attached");
     };

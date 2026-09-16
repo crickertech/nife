@@ -1052,11 +1052,14 @@ Every item is a device or a toolchain, and none is `user_mode_runtime` any more.
   addresses a function as `base + (bus << 20 | ...)` with an absolute bus number, and the
   subtraction that looks like the fix names a base below the window `mmu::map_everything` maps.
   Every machine seen reports 0; none is required to.
-- **No RedoxFS image is attached**, so the FS server (packed since milestone 164) has nothing to
-  open. The nifefs disk above is the only fixture on this bus.
+- ~~**No RedoxFS image is attached**~~: closed by milestone 303. The runner attaches the
+  `-redoxfs.img` fixture as a second `virtio-blk-pci` function, and `virtio::find_block_device_n`
+  spans virtio-mmio and virtio-pci so a wiring on a machine with no mmio bus can find it. What is
+  still missing is the rest of the fixture set (milestone 37's crash disk, milestone 57's GPT and
+  blank disks); see design/roadmap/proposals/the-rest-of-the-x86-64-fixture-set.md.
 - ~~**No `std`**~~: closed by milestone 184. `x86_64-unknown-nife` and its farm exist, and
-  `std_exerciser` passes here. `std::fs` and `std::net` are compiled but unexercised on this port,
-  for the RedoxFS and NIC reasons on either side of this line; see notes/std.md.
+  `std_exerciser` passes here. `std::fs` runs since milestone 303 gave the FS service a disk;
+  `std::net` is compiled and unexercised for the NIC reason above. See notes/std.md.
 - **No second core** (item 5), and **no ASID tags**, because `CR4.PCIDE` is off (item 3, calef's
   call, and it wants a number rather than an argument).
 
@@ -1227,8 +1230,11 @@ argued where the gate is (see `script/lint`):
   the other two passes; what can hide is code dead on x86_64 alone.
 
 **There is a `script/test` leg**: `--arch x86_64`, in `xtask`'s `test`, and it runs by default
-alongside the other two. It builds nothing before it boots, because there is no userspace archive to
-pack and `scripts/qemu-runner-x86_64.sh` attaches no disks.
+alongside the other two. That sentence used to end "it builds nothing before it boots, because there
+is no userspace archive to pack and the runner attaches no disks", and every clause of it has since
+stopped being true: milestone 161 packed an archive, 164 added the FS server, 215 attached the first
+`virtio-blk-pci` disk and 303 the RedoxFS fixture. The leg now builds the FS server, the archive, and
+the nifefs, RedoxFS and NVMe images before it boots.
 
 ## Reproducing it
 

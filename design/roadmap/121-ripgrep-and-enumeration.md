@@ -210,9 +210,9 @@ ripgrep working beautifully and confinement being decorative.
 - **Outstanding.** The benchmark that prices the walk, per-entry IPC cost separated from per-byte
   search cost, is unmade, and `notes/ripgrep-on-nife.md`'s own `BUGS` says so: nothing here
   measured a search, so nothing here measured the walk. Checked 2026-09-03.
-- **Proposed.** `design/roadmap/proposals/an-fs-service-with-no-disk-on-x86-64.md`. The x86_64 run.
-  Milestone 184 closed the `std` half of this gap on 2026-09-14 and `ripgrep` builds there; what is
-  left is a disk the FS service can find, without which the test skips.
+- **Milestone 303.** The x86_64 run, done 2026-09-16. Milestone 184 closed the `std` half of this
+  gap on 2026-09-14 and `ripgrep` built there; 303 gave the FS service a disk it can find on `q35`,
+  and the transcript is the same 62 bytes as the other two architectures.
 - **Outstanding.** Directory reading still reads a listing whole rather than streaming it, and the
   memory cost of a deep walk over large directories is unmeasured. Checked 2026-09-03 against the
   filesystem shim under `patches/std-nife/overlay/std/src/sys/`.

@@ -5314,15 +5314,20 @@ fn test() -> bool {
         eprintln!("--- kernel tests, x86_64 (QEMU q35) ---");
         // The FS server for this target BEFORE the archive that packs it (milestone 164), the same
         // order the aarch64 and riscv64 legs use. `mkdisk` since milestone 215 (a PCI function's
-        // interrupt on x86_64), because this runner now attaches the sibling `-pci.img` as a
-        // virtio-blk-pci function; there is still no RedoxFS fixture beside it, so the FS tests
-        // reach `start()` and take its "no RedoxFS disk attached" arm.
+        // interrupt on x86_64), because this runner attaches the sibling `-pci.img` as a
+        // virtio-blk-pci function, and `mkredoxfs` since milestone 303, because it now attaches the
+        // `-redoxfs.img` sibling as a second one. The FS tests reach a real filesystem here.
         //
-        // **It runs after the other two legs, and regenerates their nifefs images**, which is
-        // harmless and worth saying: the images are fixtures rebuilt from scratch by every leg
-        // that uses them, and the end-of-run consistency check below opens the *RedoxFS* image,
-        // which `mkdisk` does not write.
-        if !redoxfs_server_build(X86_TARGET) || !initrd_x86() || !mkdisk() || !mknvmedisk() {
+        // **It runs after the other two legs, and regenerates every image they wrote**, which is
+        // the same freshness discipline the riscv64 leg's own `mkredoxfs` call documents: a leg
+        // that wrote to an image a previous leg mutated would be order-coupled and reproducible
+        // only in sequence. Each leg gets the known-good fixture.
+        if !redoxfs_server_build(X86_TARGET)
+            || !initrd_x86()
+            || !mkdisk()
+            || !mkredoxfs()
+            || !mknvmedisk()
+        {
             return false;
         }
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
@@ -5331,9 +5336,10 @@ fn test() -> bool {
         // copies pipe bytes into a String and never touches the environment.
         unsafe { std::env::set_var("NIFE_INITRD", x86_initrd_path()) };
         // **`NIFE_DISK` names the fixture set, not one disk**, exactly as it does on both other
-        // runners. This one derives the `-pci.img` sibling from it and attaches that as the single
-        // virtio-blk-pci function (milestone 215); `q35` has no virtio-mmio bus, so the image the
-        // variable itself names is not attached anywhere here.
+        // runners. This one derives the `-pci.img` and `-redoxfs.img` siblings from it and attaches
+        // those as the first and second virtio-blk-pci functions (milestones 215 and 303); `q35`
+        // has no virtio-mmio bus, so the image the variable itself names is not attached anywhere
+        // here.
         //
         // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask is
         // single-threaded here: this runs on the main thread before the child that reads it is
@@ -5364,19 +5370,23 @@ fn test() -> bool {
 
     // FS-level consistency after the runs (milestone 32 phase 2): reopen the RedoxFS image with the
     // host tool and confirm the FS server's write persisted and the filesystem still parses. This
-    // checks the image of whichever leg ran LAST **that touches an image**, which is riscv64 unless
-    // `--arch aarch64` narrowed the run; the x86_64 leg runs after both and attaches no RedoxFS
-    // image (only the nifefs `-pci.img`, milestone 215), so it cannot be the one meant here. On
-    // its own fresh fixture.
+    // checks the image of whichever leg ran LAST, each of which regenerates the fixture and then
+    // writes it: x86_64 in a full run (milestone 303 gave it a RedoxFS disk), riscv64 when
+    // `--arch x86_64` was not asked for, aarch64 when it was the only leg.
     //
-    // **Only when a leg that writes a RedoxFS image ran** (milestone 161). `--arch x86_64` runs a
-    // leg that attaches no RedoxFS disk and regenerates no RedoxFS fixture, so this check would
-    // open whatever the last
-    // full run left and report "motd did not read back", which is a true statement about a stale
-    // file and a false statement about the run. A check whose subject did not happen is worse than
-    // no check, because it fails for a reason unrelated to what was tested.
+    // **The crash and blank images are aarch64's and riscv64's alone**, and that is why the x86_64
+    // arm below is separate rather than the guard simply going away. `scripts/qemu-runner-x86_64.sh`
+    // attaches two PCI functions, the nifefs image and the RedoxFS one; milestone 37's crash disk
+    // and milestone 57's GPT and blank disks are not among them, so those two checks would open
+    // whatever a previous full run left and report a true statement about a stale file and a false
+    // one about this run. A check whose subject did not happen is worse than no check.
     if !legs.aarch64() && !legs.riscv64() {
-        return true;
+        if filter.is_some() {
+            return true;
+        }
+        eprintln!();
+        eprintln!("--- redoxfs image consistency after the run (host tool) ---");
+        return redoxfs_check_after_run();
     }
     // **And not under a filter** (milestone 210), for the same reason the `--arch x86_64` guard
     // above exists: these checks assert what the FS tests WROTE, so a run that did not select them

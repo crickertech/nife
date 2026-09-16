@@ -18,9 +18,9 @@
 //! every supported architecture or a scope note records the gap and the plan. `scripts/build-ripgrep.sh`
 //! builds for `aarch64-unknown-nife`, `riscv64-unknown-nife` and (since milestone 184)
 //! `x86_64-unknown-nife` in one pass, and one test body serves all three because nothing it asserts
-//! is architecture-specific. **On `x86_64` it skips even when `rg` is built**, at "no RedoxFS disk
-//! attached": no `x86_64` runner attaches a RedoxFS image yet (notes/x86-port.md), and the test needs
-//! one for `rg` to have a directory to be handed.
+//! is architecture-specific. **It runs on all three since milestone 303**, which gave `q35` a RedoxFS
+//! image the FS service can find (the block lookup spans virtio-mmio and virtio-pci now), and the
+//! x86_64 transcript is byte-identical to the other two.
 
 use super::*;
 

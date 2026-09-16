@@ -268,9 +268,15 @@ fn wire_servers(
 /// server, so the device DMAs up to `BLK_PAGES` contiguous filesystem blocks straight into the FS
 /// server's region in one request, no per-block loop and no copy.
 ///
-/// Bring one virtio-mmio block device up under a confined userspace block server, and hand back the
+/// Bring one virtio block device up under a confined userspace block server, and hand back the
 /// three things a client needs: the request endpoint, the readiness endpoint, and the physical
 /// base address of the region the transfers land in.
+///
+/// **It takes a resolved device rather than an mmio slot** (milestone 303), which is the transport
+/// seam doing here what it already did for `virtio_service::wire`: the DMA region, the `Irq`
+/// routing, the confined `Virtio` capability and the spawn are all bus-agnostic, and the one thing
+/// that was not was the type of this argument. On `q35` there is no virtio-mmio bus for it to have
+/// named.
 ///
 /// `pub(super)` because milestone 57's `disk_service` wires a fourth disk the same way. The FS
 /// server is no longer the only thing that wants "a block device, served over IPC, by a process
@@ -279,7 +285,7 @@ fn wire_servers(
 /// by the region's growth, the same compatibility [`filesystem_protocol::blk::TRANSFER_BLOCKS`] documents.
 pub(super) fn spawn_block_server(
     blk_image: &'static [u8],
-    dev: crate::virtio::VirtioMmioDevice,
+    dev: crate::virtio::BlockDevice,
 ) -> (RendezvousId, RendezvousId, u64) {
     // Zeroed so neither stale descriptors nor stale file bytes are ever visible to the device
     // or the FS server.
@@ -295,12 +301,10 @@ pub(super) fn spawn_block_server(
     crate::sched::bind_irq(dev.intid, irq_ep);
     crate::arch::irq::enable(dev.intid);
     let vid = crate::virtio::register(
-        crate::virtio::Transport::Mmio {
-            mmio_phys: dev.mmio_phys,
-        },
+        dev.transport,
         dma,
         (1 + BLK_PAGES) as u64 * FRAME_SIZE, // every page: the device may touch the rings AND the data buffer
-        None,                                // virtio-mmio has no IOMMU in front of it
+        dev.rid, // `Some` behind an IOMMU (every PCI function), `None` on virtio-mmio
     );
     crate::sched::spawn(move || {
         // The rings page, then the BLK_PAGES data pages, contiguous at DMA_VA.

@@ -8,13 +8,16 @@
 # RISC-V's OpenSBI): QEMU's `q35` reads the PVH note in our ELF, loads the segments at their
 # physical addresses and enters the 32-bit trampoline directly. See kernel/src/arch/x86_64/boot.s.
 #
-# WHAT IS NOT HERE YET: no NIC, no GPU, no RNG. NVMe is wired (below, decisions §86's x86_64/VT-d
-# data point), because the kernel-resident NVMe driver is arch-neutral and VT-d confinement landed
-# this session, and since milestone 215 (a PCI function's interrupt on x86_64) so is one virtio-blk-pci
-# disk, because a PCI function's interrupt can now reach a userspace driver here. The rest are
-# wired one at a time as the port reaches them, and adding a device to this file before the kernel
-# can drive it only produces a boot that looks richer than it is. See
-# design/roadmap/161-x86-64-kernel-port.md.
+# WHAT IS NOT HERE YET: no NIC, no GPU, no RNG, and three of the five disk fixtures the other two
+# runners build (milestone 37's crash disk, milestone 57's GPT and blank disks). NVMe is wired
+# (below, decisions §86's x86_64/VT-d data point), because the kernel-resident NVMe driver is
+# arch-neutral and VT-d confinement landed this session; one virtio-blk-pci disk since milestone 215
+# (a PCI function's interrupt on x86_64), because a PCI function's interrupt can now reach a
+# userspace driver here; and a second one, the RedoxFS fixture, since milestone 303, because the
+# block lookup spans both buses now. The rest are wired one at a time as the port reaches them, and
+# adding a device to this file before the kernel can drive it only produces a boot that looks richer
+# than it is. See design/roadmap/161-x86-64-kernel-port.md and
+# design/roadmap/proposals/the-rest-of-the-x86-64-fixture-set.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
 # run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").
@@ -92,11 +95,20 @@ IOMMU="-device intel-iommu"
 # (kernel/src/nvme.rs). serial= is mandatory (QEMU refuses the device without one). A set
 # NIFE_NVME naming a missing file is an error, the same NIFE_INITRD lesson above: a silently
 # absent controller would read as a machine fact when it is a build-order mistake.
-# The PCIe transport's disk (milestone 215). `q35` has no virtio-mmio bus at all
-# (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0), so unlike the other two runners this attaches the PCI
-# image and nothing else, and `NIFE_DISK` names the fixture set the same way it does there: the
-# sibling `-pci.img` mkdisk writes beside it. A separate file rather than the main image because
-# both are attached writable elsewhere and QEMU's image locking refuses one file to two writers.
+# The PCIe transport's disk (milestone 215) and the RedoxFS disk (milestone 303). `q35` has no
+# virtio-mmio bus at all (`arch::x86_64::mmu::VIRTIO_SLOTS` is 0), so unlike the other two runners
+# every block device here is a PCI function, and `NIFE_DISK` names the fixture set the same way it
+# does there: the siblings `-pci.img` (mkdisk writes it) and `-redoxfs.img` (mkredoxfs does). A
+# separate file rather than the main image because both are attached writable elsewhere and QEMU's
+# image locking refuses one file to two writers.
+#
+# **The ORDER of these two -device arguments is a contract**, not a formatting choice.
+# `virtio::find_block_device_n` orders block devices mmio-first-then-PCI-in-bdf-order, QEMU assigns
+# `pcie.0` slots in command-line order, and the wirings ask for ordinals: the nifefs image is
+# ordinal 0 (the PCIe transport tests' disk) and the RedoxFS image is ordinal 1 (what
+# `fs_service::wire_servers` mounts). Swapping these two lines hands the FS server the nifefs image,
+# which is not a RedoxFS filesystem, and the failure arrives as a mount error rather than as
+# anything naming this file. The other two runners' mmio blocks carry the same coupling.
 #
 # disable-legacy=on makes the function MODERN (device id 0x1042); the transitional 0x1001 device's
 # register layout is one this tree deliberately does not drive.
@@ -123,6 +135,14 @@ if [ -n "$NIFE_DISK" ]; then
         exit 1
     fi
     DISK="-drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
+    # The RedoxFS fixture as the SECOND function, when a leg built one (milestone 303). Absent is a
+    # fact about the run rather than an error, unlike the two images above: `cargo xtask bench` and
+    # `boot-check` set NIFE_DISK without ever calling mkredoxfs, and the FS tests' own
+    # "no RedoxFS disk attached" arm is the honest answer for those boots.
+    REDOXFS_DISK="${NIFE_DISK%.img}-redoxfs.img"
+    if [ -f "$REDOXFS_DISK" ]; then
+        DISK="$DISK -drive file=$REDOXFS_DISK,if=none,format=raw,id=hd2 -device virtio-blk-pci,drive=hd2,disable-legacy=on,iommu_platform=on"
+    fi
 fi
 
 NVME=""
