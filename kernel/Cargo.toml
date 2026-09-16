@@ -285,9 +285,14 @@ watchdog_probe = []
 # `sched::schedule`**, on `script/fastpath-footprint`'s aarch64 `ipc_fastpath` closure (5852 with the
 # feature off, 5988 with it on, byte for byte the two figures milestone 237's block was minted from).
 # Every other symbol in the closure is identical either way. That is why it is a feature: the grant's
-# only consumer is a benchmark, no program can request it at all until 229's deferred ABI is minted,
-# and an ordinary boot was paying for the switch read anyway.
-# See design/roadmap/237-the-cycle-grant-is-a-measurement-build.md.
+# only consumer is a benchmark, and no program can request it at all until 229's deferred ABI is
+# minted. Milestone 237 also argued an ordinary boot paid for the switch read anyway; milestone 300
+# found that true only of the release build, where the constant folds. In the debug build the icount
+# gate measures, the fold does not happen: the read and the install were costing yield_switch +35.6
+# and ctx_switch +36.0 ticks per switch on aarch64. They are now `#[cfg]`-gated at the switch site
+# (see `sched::install_cycle_counter_grant`) rather than threaded through the switch tuple and trusted
+# to fold, the same fix milestone 299 gave the port grant, so a feature-off boot pays nothing on any
+# build. See design/roadmap/237-the-cycle-grant-is-a-measurement-build.md.
 #
 # **The gate on every piece is `any(test, feature = "cycle_counter_grant")`, not the feature
 # alone**, and that is deliberate. Milestone 229's proofs (the embryo refusal in `sched`, the EL0
