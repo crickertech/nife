@@ -456,12 +456,12 @@ Three sources settle them, all cited in the crate with URLs and fetch dates: mai
 - **Recorded.** `POLL_TRIES` and `LOCKUP_RETRIES` bound loop iterations, not time, so what they
   bound depends on the core and on what the compiler did to the loop. Noted in the same `BUGS`
   section; a real timeout needs a clock the driver does not hold.
-- **Proposed.** Timing the `hw entropy` step, which is the "at real speed" half of fatal risk 6:
-  `design/roadmap/proposals/time-the-hw-entropy-step.md`. **Its QEMU half is built** (2026-09-10,
-  branch `milestone/159-time-hw-entropy`): the tour reads the timebase around the step and prints
-  the gap, the bring-up and the draw rate, exercised against virtio-rng because QEMU has no JH7110.
-  The file stays a proposal because what is left is one boot of radon and only the integrator mints
-  a number.
+- **Milestone 306.** Timing the `hw entropy` step, which is the "at real speed" half of fatal risk 6.
+  Its QEMU half was built 2026-09-10 (the tour reads the timebase around the step and prints the
+  gap, the bring-up and the draw rate, exercised against virtio-rng because QEMU has no JH7110), and
+  the one boot of radon that remained happened on 2026-09-16: **955,223 bytes/s**, 8.4 us per round
+  trip, bring-up 562 us. The proposal was promoted to milestone 306 at that point, because a
+  proposal whose work is finished is not a proposal.
 - **Decision.** Whether these bytes need a NIST SP 800-90B-class health test before anything
   security-shaped trusts them: `design/decisions/137-trng-health-tests.md`, already `PROPOSED` and
   untouched by this lane.

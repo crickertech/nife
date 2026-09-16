@@ -282,10 +282,14 @@ ratified RISC-V IOMMU, over the §18 PCIe transport, and milestone 35 built the 
 it is virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist
 (milestone 143).
 
-**Status: RUN, 2026-09-04. The experiment is run and two of its three parts are green.**
+**Status: RUN, and as of 2026-09-16 all three of its parts are measured on silicon.** The two
+2026-09-04 halves are below; the third was taken on 2026-09-16 and is the bullet that used to read
+*unmeasured*. **This does not retire the risk**, and the reason is in the third bullet and repeated
+at the foot of this entry: a TRNG is the smallest real device on the board, and throughput is what a
+TRNG cannot test.
 
-The risk names three things and they were never one claim. Measured on radon, transcript at
-`target/board/radon-2026-09-04-trng-success.log`:
+The risk names three things and they were never one claim. Measured on radon, transcripts at
+`target/board/radon-2026-09-04-trng-success.log` and `bench/radon-2026-09-16/tour-083200.log`:
 
 - **Confined: yes**, 2026-09-03. Milestone 159's driver is an EL0 process started from the archive,
   reaching the JH7110's TRNG through a capability that names no device. This is the tree's only
@@ -293,17 +297,26 @@ The risk names three things and they were never one claim. Measured on radon, tr
 - **Drives real hardware: yes**, 2026-09-04, reproducibly. `served 32+32 bytes`, two boots, first
   draws `3faa07e1` and `731191ba`, each boot's two draws differing from each other. Reseeded per
   boot rather than a constant in silicon or a stale register file.
-- **At real speed: unmeasured on silicon**, and nothing here should be read as answering it.
-  **The instrument now exists**, which it did not when this entry was written: as of 2026-09-10 the
-  tour reads the timebase around the step and the `hw entropy` line carries three figures (the whole
-  `pcie`-to-`hw entropy` gap, the bring-up alone, and the two draws with a rate).
-  `design/roadmap/proposals/time-the-hw-entropy-step.md` has the QEMU numbers that give radon's a
-  denominator, about 250 us per 8-byte exchange with an emulated device that costs nothing. What is
-  left is one boot of radon, which is why that proposal's gate is now `HARDWARE` rather than `NONE`.
-  **Re-read 2026-09-14** because milestone 265 touched that proposal and this check asked: the only
-  change was three crate spellings (`entropy_proto` and `timebase_proto` became
-  `entropy_protocol` and `counter_frequency_protocol`), and every figure and every claim above is
-  unchanged.
+- **At real speed: MEASURED on silicon, 2026-09-16.** **955,223 bytes/s**, 64 bytes in 67 us over
+  eight `entropy_protocol` round trips, which is about **8.4 us per round trip**; bring-up 562 us.
+  One boot of radon, transcript at `bench/radon-2026-09-16/tour-083200.log`. The instrument is the
+  one built on 2026-09-10 (the tour reads the timebase around the step and the `hw entropy` line
+  carries three figures), and this is the boot that proposal was waiting for.
+
+  **The QEMU denominator did not survive contact with the board, and that is the finding.** It was
+  built to say that the path itself costs about 250 us per 8-byte exchange with an emulated device
+  that costs nothing, so that whatever radon spent beyond that would be the JH7110's. radon spends
+  **8.4 us**, which is thirty times *less* than the floor it was supposed to be read against, and
+  the bring-up is 562 us against QEMU's 8069 to 13057 us. So TCG was slower than silicon in both
+  halves and the subtraction the denominator was for cannot be done. The proposal had already said
+  to distrust the QEMU bring-up figure; the rate figure turns out to want the same warning.
+
+  **What the number counts** is what the tour's own line says: the round trips, the context switches
+  each one costs, the driver's poll loop, and the device. It does not count the spawn or the
+  bring-up, and **it is not comparable to a Linux `hwrng` throughput figure**, which is a read from
+  an already-running in-kernel driver with no IPC in it. The honest comparison, against
+  `jh7110-trng.c` on the same silicon, is interrupt-driven where this driver polls and remains
+  unmeasured.
 
 **What it took is worth recording, because none of it was the driver.** Milestone 239 found the
 device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's
@@ -350,13 +363,12 @@ That splits this risk into three, and two of them are now answered:
   register window. It is the *smallest* real device on the board, so it settles "a confined
   userspace process can reach non-virtio silicon at all" and it settles nothing about a device with
   a ring buffer.
-- **At real speed**: **unmeasured on silicon**, and this is now the whole of the open question for
-  small devices. **Corrected 2026-09-11:** this used to read "nothing in the boot tour timestamps
-  the step, so the only available clock is a person watching a serial console", and that stopped
-  being true on 2026-09-10 when the step began timing itself. The stopwatch is no longer the
-  instrument; one boot of radon is the whole of what remains, and
-  `design/roadmap/proposals/time-the-hw-entropy-step.md` carries the procedure and the QEMU
-  denominator.
+- **At real speed**: **measured on silicon 2026-09-16, and the small-device question is closed.**
+  955,223 bytes/s, 8.4 us per round trip, bring-up 562 us. The full figures and what they do and do
+  not count are at the head of this entry. **Corrected 2026-09-11:** this used to read "nothing in
+  the boot tour timestamps the step, so the only available clock is a person watching a serial
+  console", and that stopped being true on 2026-09-10 when the step began timing itself; the boot
+  that read it came five days after that.
 
 The decisive experiment above is unchanged, because throughput is what a TRNG cannot test.
 
@@ -413,8 +425,8 @@ notes/confinement-claims.md; PR #614.
 was the point: these named claims are tested, and each has been shown to fail when the claim is
 broken. **Six kernel confinement rows still have no mechanism at all**, and the adversarial exercise
 this entry originally called for is still unbuilt: an outsider trying to escape, rather than us
-demonstrating that a planned escape fails. That wants outside eyes and is gated behind milestone 198
-by calef's no-third-parties position.
+demonstrating that a planned escape fails. That wants outside eyes
+and is gated behind milestone 198 by calef's no-third-parties position.
 
 ## 8. Nobody needs it
 

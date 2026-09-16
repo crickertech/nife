@@ -165,8 +165,9 @@ once, and by this file's own standard that is an attestation rather than evidenc
   `design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` already holds it, and
   `.github/workflows/mutation.yml`'s second cause (a runaway mutant exhausting the runner) is what
   blocks it.
-- **Proposed.** Risk 6's remaining half is one boot of radon against an instrument that now exists:
-  `design/roadmap/proposals/time-the-hw-entropy-step.md`, gate `HARDWARE`.
+- **Milestone 306.** Risk 6's remaining half was one boot of radon against an instrument that now
+  exists. The proposal this bullet used to name was promoted and the boot happened on 2026-09-16:
+  955,223 bytes/s, and risk 6's third bullet carries it.
 
 ## Index row
 

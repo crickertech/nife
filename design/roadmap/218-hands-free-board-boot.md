@@ -1,9 +1,48 @@
 # 218. Every boot of the VisionFive 2 needs a human typing four commands into U-Boot
 
-**Status: NOT-STARTED.** Minted 2026-09-01 by the maintainer, after driving the board from a script
-made the cost of the manual path concrete. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT 2026-09-16.** Minted 2026-09-01 by the maintainer, after driving the board from a
+script made the cost of the manual path concrete. The artifact shipped 2026-09-02 and **sat
+unconfirmed for fourteen days for want of a powered board**; the boot that confirmed it happened on
+2026-09-16. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** The fix is a boot-path change and needs the board only to confirm it.
+## The boot, 2026-09-16
+
+Transcript: `bench/radon-2026-09-16/tour-083200.log`. The countdown expired with nobody typing:
+
+```
+Hit any key to stop autoboot:  2   1   0
+Scanning mmc 1:1...
+Found U-Boot script /boot.scr.uimg
+1595 bytes read in 8 ms (194.3 KiB/s)
+## Executing script at 43900000
+nife: boot.scr is driving this boot, milestones 218 and 257
+```
+
+and ran through to `nife: the capability core runs on RISC-V` and the progenitor handoff. That is
+this milestone's one phase, and nothing about it needed a person.
+
+**What the block predicted and what it got right.** The 2026-09-02 lane's diagnosis held up
+unchanged: U-Boot's distro boot scans extlinux first and boot scripts second, so a card carrying
+`boot.scr.uimg` and no `extlinux.conf` runs our script. The `### ERROR ### Please RESET the board
+###` hang is gone because the condition that caused it is gone, not because anything worked around
+it.
+
+**One thing it did not predict, and it is the reason this took a second reading to confirm.** The
+same boot exercised milestone 257's network-first path, which **failed**:
+
+```
+nife: tftp server is 192.168.8.206, setenv nife_boot_server to point somewhere else
+ethernet@16030000 Waiting for PHY auto negotiation to complete......... TIMEOUT !
+...
+nife: payload came from card
+```
+
+That is a dead link (no cable, or no link partner), not a defect: the same board negotiated and took
+a DHCP lease on 2026-09-04. **It is recorded here rather than only in 257 because it is the first
+evidence that the fallback works**, which is the property that makes this card safe to leave in the
+board. The script tried the network, failed, fell back to the card, said which path it took, and
+booted. A boot script that could strand the board on a network problem would not be worth the
+hands-free boot it buys.
 
 **A route was taken on 2026-09-02 and the board was unreachable to try it on**, so the status
 did not move and everything below the routes list is that lane's report. Read "What was built
@@ -65,6 +104,12 @@ there anywhere else it could have: `PARTIAL` earns itself elsewhere in this tree
 end in QEMU first, and QEMU's `virt` machine has no U-Boot, no SD card and no distro boot, so
 there is no rehearsal available. The token stays `NOT-STARTED` and this paragraph is what the
 reader should believe instead of it.
+
+**That was true until 2026-09-16 and is kept as the account it is.** The boot happened, on the
+artifact this section describes and with no change to it, and the status is `BUILT`. What the
+paragraph got right is worth keeping visible: it refused to call a shipped artifact `PARTIAL` when
+the one phase that defines the milestone had not occurred, and fourteen days later the only thing
+that had to change was that somebody powered the board on.
 
 ### The route, and what killed the other two
 
@@ -207,7 +252,24 @@ Everything above is reasoning. This is what settles it. Steps 1 and 2 need no bo
   the kernel and the archive, and `--card` rewrites all three every time, but a card written by
   hand can now be wrong in one more way.
 
+## Follow-on
+
+- **Done.** The confirming boot, radon 2026-09-16, transcript `bench/radon-2026-09-16/tour-083200.log`.
+- **Recorded.** The same boot found milestone 257's network-first path failing at
+  `Waiting for PHY auto negotiation to complete......... TIMEOUT !`, a dead link rather than a
+  defect, and the limitation is recorded beside the feature in this block and in
+  `notes/visionfive2.md`'s bench runbook. What it proves is the fallback: the script tried the
+  network, failed, fell back to the card, named the path it took and booted.
+- **Milestone 306.** The measurement this boot also carried, the hw-entropy rate, closing fatal risk
+  6's third half.
+- **Recorded.** A hands-free boot is necessary for the sustained overnight runs
+  `design/fatal-risks.md` risk 5 names as its decisive experiment, and is nowhere near sufficient:
+  power cycling is still manual by calef's own 2026-09-04 ruling in milestone 224, so a wedged board
+  still ends a run. That limitation lives beside the decision, in milestone 224's block.
+
 ## Index row
+
+**Built:** 2026-09-16
 
 the board cannot boot unattended and fatal risk 5 wants sustained runs. **A route was taken
 2026-09-02 and radon was unreachable to try it on**, so the token still says what the outcome is
