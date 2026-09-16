@@ -2808,3 +2808,131 @@ next, this benchmark will not notice, which is the property that was worth an ho
   tables are genuinely full would see the old cost, because then the bound and the ceiling agree.
   The honest statement is that cost now tracks what the machine holds; on this benchmark that
   happens to be very little.
+
+## 2026-09-15: the baselines drifted +6.5% and it was all one feature, not the toolchain (milestone 300)
+
+The aarch64 and riscv64 baselines were last saved 2026-08-27 (commit `a79fdb95`). By 2026-09-15
+`main` sat ~+6.5% over them on the switch-heavy benchmarks, ~19 nightly bumps and ~150 commits
+later, all individually under the 10% tripwire. Milestone 299's lane surfaced the gap and proposed
+re-baselining (PR #883). calef's constraint on the re-baseline: prove what moved each number before
+blessing it, because "a silent regression laundered into the floor is exactly what this milestone
+exists to prevent."
+
+### The method: a 2x2x2 grid, not a single before/after
+
+A naive `current - baseline` conflates three variables that all changed in the window: the code, the
+pinned nightly (`nightly-2026-08-27` -> `nightly-2026-09-15`), and, less obviously, the dev Mac's
+QEMU (`11.0.2` -> `11.1.1`, upgraded 2026-08-28, after the baseline was saved). icount counts guest
+instructions, so in principle the emulator version is part of what a number means; that is why
+`.qemu-version` is pinned and `script/qemu-check` warns on a mismatch. Only 11.1.1 is installable
+locally now, so the QEMU term had to be measured out rather than assumed away.
+
+Four measurements per arch, QEMU held at 11.1.1 throughout, isolate each term:
+
+| Point | Code | Nightly | What it isolates against the point above |
+|---|---|---|---|
+| **A** | `a79fdb95` | 2026-08-27 | the committed baseline (recorded on QEMU **11.0.2**) |
+| **B** | `a79fdb95` | 2026-08-27 | **B - A = QEMU** (same code, same nightly; only 11.0.2 -> 11.1.1 differs) |
+| **C** | `HEAD` (`1e9a8a14`) | 2026-08-27 | **C - B = code** (a79fdb95 -> HEAD, same nightly) |
+| **D** | `HEAD` | 2026-09-15 | **D - C = toolchain** (08-27 -> 09-15 nightly, same code) |
+
+icount is deterministic, so each point is one run, exact. D is the re-saved baseline.
+
+### The result: QEMU ~0, toolchain ~0, code is the whole move
+
+**aarch64** (ticks; components are per the grid above):
+
+| benchmark | baseline A | QEMU (B-A) | code (C-B) | toolchain (D-C) | new baseline D | total |
+|---|---:|---:|---:|---:|---:|---:|
+| yield_switch | 1096445 | -1 | **+71205** | 0 | 1167649 | +6.5% |
+| ctx_switch | 2909256 | +1 | **+179446** | +617 | 3089320 | +6.2% |
+| spawn_el0 | 1223065 | -2334 | **+63485** | -69 | 1284147 | +5.0% |
+| broker_rtt | 2076750 | 0 | **+77145** | 0 | 2153895 | +3.7% |
+| call_reply | 1040221 | 0 | **+38456** | -1 | 1078676 | +3.7% |
+| relay_rtt | 2027957 | 0 | **+72006** | 0 | 2099963 | +3.6% |
+| ipc_rtt_el0 | 10739771 | -3667 | **+346421** | +16329 | 11098854 | +3.3% |
+| ipc_rtt | 1026533 | +1 | **+25393** | 0 | 1051927 | +2.5% |
+| spawn_reap | 205713 | 0 | +5908 | 0 | 211621 | +2.9% |
+| sink_throughput | 4413308 | +286 | +89039 | +287 | 4502920 | +2.0% |
+| null_syscall | 405003 | 0 | +225 | 0 | 405228 | +0.06% |
+| coremark | 20917371 | 0 | +417 | -1904 | 20915884 | -0.01% |
+| map_new | 15743 | 0 | 0 | +1 | 15744 | +0.01% |
+| map_el0 | 388673 | 0 | +2 | -1 | 388674 | +0.00% |
+
+**riscv64**:
+
+| benchmark | baseline A | QEMU (B-A) | code (C-B) | toolchain (D-C) | new baseline D | total |
+|---|---:|---:|---:|---:|---:|---:|
+| yield_switch | 183768 | 0 | **+12239** | -97 | 195910 | +6.6% |
+| ctx_switch | 492350 | +1 | **+30318** | -104 | 522565 | +6.1% |
+| spawn_el0 | 192808 | 0 | **+10614** | +209 | 203631 | +5.6% |
+| broker_rtt | 349322 | 0 | **+12995** | +16 | 362333 | +3.7% |
+| call_reply | 174952 | 0 | **+6490** | -16 | 181426 | +3.7% |
+| relay_rtt | 339292 | 0 | **+12191** | -68 | 351415 | +3.6% |
+| ipc_rtt | 169463 | -1 | **+5511** | +179 | 175152 | +3.4% |
+| ipc_rtt_el0 | 1821100 | +2230 | **+55867** | -808 | 1878389 | +3.1% |
+| spawn_reap | 32975 | 0 | +1004 | 0 | 33979 | +3.0% |
+| sink_throughput | 747166 | 0 | +15176 | 0 | 762342 | +2.0% |
+| null_syscall | 72229 | 0 | +1 | 0 | 72230 | +0.00% |
+| coremark | 3654773 | 0 | -394 | +1 | 3654380 | -0.01% |
+| map_new | 2396 | 0 | 0 | 0 | 2396 | 0 |
+| map_el0 | 62308 | +1 | 0 | -1 | 62308 | 0 |
+| rfence_self | 5991 | 0 | 0 | 0 | 5991 | 0 |
+
+The QEMU column is noise (every entry sub-0.2%, both signs): the 11.0.2 -> 11.1.1 upgrade does not
+move icount, which is what "icount counts guest instructions" should mean and is now measured rather
+than assumed. The toolchain column is **also** noise: `nightly-2026-08-27` and `nightly-2026-09-15`
+emit byte-identical instruction counts on the same code (`yield_switch` 1167649 on both aarch64
+nightlies). This refutes the proposal's framing, which read the drift as the nightly bump's codegen:
+across these two endpoints the nightly did nothing. The entire move is **code**, and it is the same
+code on both ISAs (near-identical percentages, which codegen noise would not produce).
+
+### The code component is one commit: milestone 139's cycle-counter grant at the switch
+
+`git bisect` on aarch64 `yield_switch` over `a79fdb95..HEAD` (toolchain fixed at 09-15) landed on
+**`57399c34`** (2026-09-02), *"sched: write the cycle-counter grant at the context switch"*,
+DECISIONS 139 option 4. Benching the full suite at that commit and its parent `61c6a780` isolates
+exactly the switch write:
+
+| benchmark | parent 61c6a780 | at 57399c34 | delta | per-iter |
+|---|---:|---:|---:|---:|
+| yield_switch | 1096444 | 1182988 | +86544 | +43.3/switch |
+| ctx_switch | 2909838 | 3126218 | +216380 | +43.3/switch |
+| relay_rtt | 2027957 | 2115135 | +87178 | +87/iter |
+| broker_rtt | 2076749 | 2163016 | +86267 | +86/iter |
+| call_reply | 1040221 | 1083471 | +43250 | +43/iter |
+| ipc_rtt | 1026533 | 1069550 | +43017 | +43/iter |
+| ipc_rtt_el0 | 10757288 | 11137698 | +380410 | +76/iter |
+| coremark | 20915467 | 20912818 | -2649 | ~0 (compute) |
+| map_new / map_el0 | 15744 / 388673 | 15744 / 388450 | ~0 | ~0 |
+
+`yield_switch` and `ctx_switch` move by the **identical** per-switch amount (+43.3 ticks), and every
+IPC benchmark moves in proportion to how many switches it does, while pure compute (`coremark`) and
+the no-switch map primitives do not move. That is a single per-context-switch cost, not a scatter of
+regressions. A later commit (milestone 299's `44890a8a`, keeping the port grant off the non-x86
+switch path) trimmed the aarch64/riscv peak back from ~+43 to the net ~+35.7 ticks/switch that
+stands at HEAD.
+
+### Classification: intended feature work, re-baselined; but the cost overran its own estimate
+
+Milestone 139 is a decided feature (DECISIONS 139), and 139's own text places the cost exactly where
+the measurement found it: option 4 is *"a per-thread grant enforced at the context switch ... it
+costs the compare that `switch_user_root` already pays for `TTBR0_EL1`."* So this is the
+recorded/intended-cost case, not an unexplained regression: the baselines are re-saved on
+`nightly-2026-09-15` with the move attributed to 139.
+
+**The flag worth keeping:** 139 estimated *"the compare"* (a load, a compare, a not-taken branch:
+~2-3 ticks when nothing is granted) and delivered ~**+35.7 ticks per context switch** at HEAD (+43
+before 299's trim), an order of magnitude over the estimate. The likely cause is that the grant is
+"handed to an arch function" (139's own words) that is not inlined to the promised compare, so every
+switch pays a call/return and register churn whether or not anything is granted. This is not a
+correctness bug (139's tests pass) and it was legitimately decided, so it is not held out of the
+baseline; but the gap between a decision's cost estimate and its delivered cost is exactly the kind
+of thing the `--real` medians and this instrument exist to surface, and it wants a look. See the
+milestone 300 follow-on.
+
+### x86_64 is current, confirmed
+
+Milestone 299's lane re-saved `bench/baseline-x86_64.txt` on 2026-09-15. `cargo xtask bench --x86
+--check` here returns **byte-identical** numbers (`yield_switch` 20080160, `coremark` 306262395, all
+lines) and passes. Not re-measured; the x86 window this milestone addresses does not exist.
