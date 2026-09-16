@@ -1639,6 +1639,15 @@ pub fn riscv_uart_driver_demo(
 ///   arms nothing here, because it has no userspace input driver to feed until DECISIONS §149.
 ///
 /// Returns the progenitor's thread, so the caller can say how it left.
+///
+/// Name: ratified 2026-09-15 (calef, this header). Refused `boot_via_progenitor` (the provisional
+/// name from milestone 268, whose `via` did two jobs and has spent both: it disambiguated this entry
+/// from aarch64's separate boot path, which milestone 166 unified away, and it gestured at the
+/// microkernel indirection, which the sentence "on this path the progenitor **is** the system" says
+/// better than a preposition in a name can). `boot` is the term-of-art verb and `progenitor` the
+/// noun it acts on, so the name claims this function's own action, load the `progenitor` program,
+/// measure it, and start it, rather than the system bring-up `progenitor` itself does next. Greps
+/// with [`PROGENITOR_ENTRY`] and [`PROGENITOR_ROLE`] as one family.
 // One caller per architecture, all in `kernel::main`'s hand-off (aarch64's default boot, and
 // `riscv_hand_over`/`x86_hand_over`). The `allow` is kept for the configurations that reach none of
 // them: a `soak` or `job_mix` build replaces the hand-off with its own workload, and `test`/`bench`
