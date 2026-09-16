@@ -264,10 +264,13 @@ applied, stated so it can be disagreed with:
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/one-grant-order-for-the-progenitor.md`. The `cfg` above is honest and it is
-  still two orders for one endowment; unifying them means renumbering aarch64's 19d test roles,
-  which is its own milestone with its own gate. Until then the tables sit beside each other in
-  `components/src/progenitor.rs`, which is the cheapest place to notice they disagree.
+- **Milestone 301.** `design/roadmap/proposals/one-grant-order-for-the-progenitor.md`, promoted to
+  milestone 301 and SUPERSEDED there by milestone 166. This entry once read: the `cfg` above is
+  honest and it is still two orders for one endowment, and unifying them means renumbering aarch64's
+  19d test roles, which is its own milestone with its own gate. 166 did exactly that, splitting the
+  19d roles out of the boot path into `spawn_hello`, so the two tables in
+  `components/src/progenitor.rs` became one and the `cfg` is gone. The proposal path is kept as
+  history, the way milestone 296's retired proposal is cited below.
 - **Milestone 296.** `design/roadmap/proposals/what-the-boot-path-is-called.md` (retired with that
   milestone: calef ruled the feature **deleted** rather than renamed, so neither candidate below
   won and the table is kept as the argument that was made). Held out of this milestone deliberately (`script/initboot` to
