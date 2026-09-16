@@ -135,9 +135,18 @@ aarch64. It is now in `script/falsifications`' `BUGS`.
 
 ## Cost, measured
 
-- **`script/verify --only kernel` on cordoba** (4 cores, 23 GB, Kani 0.67.0): ~60 seconds of
-  `cargo kani` wall time from cold, of which the solver is ~0.7s across four harnesses. The rest is
-  the kernel crate's own compile, which milestone 193 already pays on the other host.
+- **From the first CI log that carried it**, which is the machine this column should be taken on
+  (`script/verify`'s own table says so about its dev-Mac numbers). Run 2026-09-16, GitHub
+  `ubuntu-24.04`: the whole job is **41 seconds**, of which `script/verify --only kernel` is **3**,
+  Kani's install 15 and the cache restore 17. The proving itself is 0.52s of solver across four
+  harnesses and 1.1s of `kernel`'s own compile. The measurement it replaces was ~60s from cold on
+  cordoba, which was the right order and the wrong machine.
+- **It was checked for the invisible green rather than trusted**, because three seconds is fast
+  enough to look like a job that proved nothing, and that exact failure is on this file's record
+  twice. The log names all four harnesses:
+  `arch::x86_64::irq::proofs::no_vector_belongs_to_two_bands`,
+  `arch::x86_64::irq::proofs::an_owned_gsi_routes_inside_the_io_apic_band`, and `syscall.rs`'s two.
+  A pass here is a pass on the architecture this milestone exists to reach.
 - **One extra CI runner**, in parallel with the two `prove` shards, which are 15 minutes each. It
   adds nothing to the critical path. `VERIFY_JOBS` is left at the script's default rather than
   pinned to 2 like the shards, because the memory kill that forced theirs was four concurrent CBMC
