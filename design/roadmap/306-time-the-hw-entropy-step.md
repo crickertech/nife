@@ -1,12 +1,33 @@
-# The boot tour prints nothing between `pcie` and `hw entropy`, so the last half of fatal risk 6 can only be measured by eye
+# 306. Time the hw-entropy step, so fatal risk 6's last half stops being measured by eye
 
-**Status: PROPOSED 2026-09-04.** Written by milestone 159's third lane, from that milestone's own
-bench procedure.
+**Status: BUILT 2026-09-16.** Promoted from `design/roadmap/proposals/time-the-hw-entropy-step.md`
+by the maintainer on 2026-09-16, the day its remaining half was satisfied: a proposal whose work is
+finished is not a proposal, and `script/roadmap` refuses a proposal file that does not say
+`PROPOSED`, which is what surfaced this. Written by milestone 159's third lane, from that
+milestone's own bench procedure. `design/fatal-risks.md` risk 6 carries the result and
+`bench/radon-2026-09-16/tour-083200.log` is the transcript.
+*(Number provisional until the merge queue lands it.)*
 
-**Gate: HARDWARE.** Only for what is left. The gate was `NONE`, correctly: the instrument was written
+**The number: 955,223 bytes/s**, 64 bytes in 67 us over eight round trips (about 8.4 us each), with
+bring-up at 562 us.
+
+**And the thing this proposal got wrong is worth more than the thing it got right.** Its whole
+argument for the QEMU run was to give radon's number a denominator: with an emulated device that
+costs nothing, the path itself costs about 250 us per exchange, so whatever radon spent beyond that
+would be the JH7110's. **radon spends 8.4 us, thirty times less than the floor**, and its bring-up
+is 562 us against QEMU's 8069 to 13057. TCG is slower than this silicon in both halves, so the
+subtraction cannot be done and the denominator is not one. This file already said to distrust the
+QEMU bring-up figure because process spawn on TCG harts is exactly what an emulator reproduces
+badly; the measurement says the rate figure deserved the same warning, and it did not get it.
+
+**How the gate moved, kept because it is the block's own history.** It was `NONE` while the
+instrument was unbuilt, correctly: the instrument was written
 and exercised under QEMU on 2026-09-10 (branch `milestone/159-time-hw-entropy`) and the section at
-the bottom of this file records what it printed. What remains is one boot of radon, which nothing
-but radon can do.
+the bottom of this file records what it printed. What remained was one boot of radon, which nothing
+but radon could do.
+
+**Everything below this line is the proposal as it was written on 2026-09-04**, kept as the account
+it is rather than rewritten into the past tense. Where it says the question is open, it was.
 
 **In brief.** `design/fatal-risks.md` risk 6 is *"a capability-confined userspace driver cannot
 drive real hardware at real speed"*. On 2026-09-04 its **confined** half and its **drives real
@@ -123,3 +144,38 @@ is why nothing met it. Fixed in both runners by hoisting the global. The latent 
 
 The scan's own behaviour is a separate question and has its own proposal:
 `design/roadmap/proposals/a-legacy-virtio-mmio-slot-panics-the-scan.md`.
+
+## Follow-on
+
+- **Done.** The measurement itself, on radon 2026-09-16, one boot, transcript
+  `bench/radon-2026-09-16/tour-083200.log`. `design/fatal-risks.md` risk 6's third bullet carries it.
+- **Recorded.** The QEMU reference is not a denominator, and the limitation lives beside the table
+  that prints it in this block's own "What QEMU measured" section: radon is thirty times faster than
+  the emulated floor, so a number taken under TCG cannot bound a number taken on this silicon in
+  either direction. Anyone reaching for that table to price a real device should read it as evidence
+  that the path works, not as a cost.
+- **Recorded.** The like-for-like comparison against Linux's `jh7110-trng.c` on the same silicon is
+  unmeasured, and the limitation is beside the number in `design/fatal-risks.md` risk 6 and in the
+  tour line itself. Linux's driver is interrupt-driven where this one polls, so the two have to be
+  measured over the same thing before either number means anything about the other. This block
+  deliberately does not claim it.
+- **Recorded.** That this number settles nothing about a larger device is a limitation recorded in
+  `design/fatal-risks.md` risk 6, where a reader meets the claim: a TRNG has no DMA, no interrupt in
+  this driver's path and one register window, so it is the smallest real device on the board. Risk
+  6's decisive experiment is unchanged and is still an EL0 NVMe driver at throughput.
+
+## Index row
+
+**Built:** 2026-09-16
+
+The riscv64 boot tour printed `pcie` and then `hw entropy` with nothing in between, so the last open
+half of `design/fatal-risks.md` risk 6 (*a capability-confined userspace driver cannot drive real
+hardware at real speed*) could only be resolved by a person with a stopwatch at a serial console,
+which answers "milliseconds or minutes" and nothing finer. This makes the step time itself and print
+three figures: the whole `pcie`-to-`hw entropy` gap, the bring-up alone, and the draws with a rate.
+Measured on radon 2026-09-16: **955,223 bytes/s**, 64 bytes in 67 us over eight `entropy_protocol`
+round trips, bring-up 562 us. The QEMU reference the proposal built to give that number a
+denominator turned out not to be one: radon is thirty times faster than the emulated floor, so the
+subtraction it existed for cannot be done, and TCG's slowness is the finding rather than the
+device's cost. What the rate counts is stated at the function that computes it, because a number
+that leaves the machine has to say what is in it.

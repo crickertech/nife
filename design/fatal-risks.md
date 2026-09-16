@@ -163,15 +163,66 @@ this study said the tree did not have, and it now exists. It cost about 10 secon
 `script/verify`. `kernel/src/arch/`, `user/` and `xtask` are still out of reach, so the amber stands;
 what changed is that the reason is now a worklist rather than a wall.
 
+**And on 2026-09-16 a proof caught a real kernel defect, on an architecture the prover had never
+compiled.** Milestone 304 found that `cargo kani -p kernel` selects its `arch/` subtree by
+`#[cfg(target_arch)]`, which under Kani is the **host**, so every CI job and the dev Mac had been
+proving `arch/aarch64/` and nothing of the other two. The premise was measured rather than assumed:
+two `assert!(false)` probes placed in `arch/riscv64/` and `arch/x86_64/` produced *"4 successfully
+verified harnesses, 0 failures"*, because neither subtree was compiled.
+
+The first proof ever pointed at `arch/x86_64/irq.rs` went red. `gsi_vector` is a flat
+`GSI_VECTOR_BASE.wrapping_add(gsi)`, and `MAX_REDIRECTION_ENTRIES` is documented as the reason it
+"cannot silently wrap onto an exception vector" while actually bounding the IO APIC's **entry
+count**, not the GSI. A second IO APIC based at global interrupt 200 with the 24 entries every real
+part has admits GSI 210, and `gsi_vector(210)` wraps onto **vector 2, the NMI**. Nothing has hit it
+because every single-socket PC gives its one IO APIC `gsi_base` 0; a nonzero base is legal ACPI and
+exists on multi-socket servers.
+
+**That is a latent defect on hardware this project does not own, found by a model checker, which no
+test in this tree could have reached.** It is the class this risk was written to ask about, and it
+is the first time this tree has an instance of it. The survivorship caveat above still applies with
+full force: the harness caught it *while being written*, like `dtb::be32` and `pci::intx_irq` before
+it, so it is evidence that pointing the prover somewhere new pays, not yet evidence that a standing
+proof catches regressions. **riscv64 remains unreachable to the prover and nobody here can change
+that**: no GitHub image, no Kani cross-target flag, and CBMC needs a goto-binary for its own host.
+The fix was deliberately not made in that lane, because it changes a public signature and a
+documented policy: `design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md`, gate
+`DECISION`. The defect is recorded in `kernel/src/arch/x86_64/irq.rs`'s module `BUGS` as well, which
+is where a reader meets the feature.
+
 ## 3. The tests do not test anything, and the quality is illusory
 
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: STALE, 2026-09-13.** Ruled by calef: the headline this entry carried, *"MEASURED, and it
-came back green"*, was true of a run from 2026-08-03 and nothing has refreshed it since, so it read
-as a verdict where the evidence underneath had become a history. The measurement itself is not in
-doubt and is kept below; what changed is that this entry no longer presents it as current.
+**Status: STALE, 2026-09-13, and a census now exists that this entry does not yet read.** Ruled by
+calef: the headline this entry carried, *"MEASURED, and it came back green"*, was true of a run from
+2026-08-03 and nothing has refreshed it since, so it read as a verdict where the evidence underneath
+had become a history. The measurement itself is not in doubt and is kept below; what changed is that
+this entry no longer presents it as current.
+
+**The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
+workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped
+the runaway mutant: **10,012 mutants over 64 crates, 91.7% of viable mutants killed**. Against the
+38 crates the baseline covers, like for like, **93.6% against 92.4%**: the score went *up*.
+`notes/mutation-testing.md` has the tables.
+
+**So the "fall to 85.3%" was an artifact, and the entry below is kept as the account it is.** That
+reading came from a one-eighth sample taken while two crates were being scored against suites that
+could not run, and milestone 280 fixed both: `uefi_loader` now scores 100% and `documentation` 95.4%,
+the two crates the drop had been blamed on. The 1.9-point gap between the like-for-like 93.6% and
+the corpus 91.7% is the 26 crates that did not exist at baseline, which is a worklist rather than a
+verdict.
+
+**The verdict stays calef's and this entry is not marked settled.**
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal that owns the
+re-read, gate `DECISION`, waiting since 2026-09-03; what changed is that it now has its number. Two
+things a reader should weigh before that call, both of which a census shows and a sample cannot.
+**Three of the baseline's five perfect crates lost their perfect score** (`memory_regions` 100% to
+88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%), which are regressions in properties that
+used to hold. And the tree's worst crate on this measure is `timetable` at 73.6% with 48 survivors,
+which is the crate holding `next_after`, the property risk 2 below names as its strongest
+counterfactual.
 
 `script/mutation` (milestone 85) ran 5,551 mutants over
 38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
@@ -183,31 +234,33 @@ from 2026-08-03 and the tree has grown since; it covers **host** crates only, so
 arch trees, where risks 5 and 9 live, are not in it at all; and mutation testing measures the test
 suite, not the code.
 
-**The remaining experiment is cheap:** re-run it and compare against `.cargo/mutants-baseline.txt`.
-No new milestone; milestone 85 already owns it.
+**The remaining experiment was cheap:** re-run it and compare against `.cargo/mutants-baseline.txt`.
+No new milestone; milestone 85 already owned it, and it ran on 2026-09-14.
 
-**Correction, 2026-09-11.** That paragraph used to close "and the weekly workflow already publishes
-the report", and the workflow had published nothing. `mutation.yml`'s own `BUGS` section records it:
-the workflow **had never once succeeded**, four scheduled runs red from 2026-08-10, found by
-milestone 232's audit on 2026-09-03. Milestone 238 repaired one of the two causes (shard indices
-counted from one, so a job died in twenty seconds every run and shard 0 was never tested); the other
-is live, a runaway mutant exhausting the runner's memory inside the timeout meant to catch it, and
-the 2026-09-07 scheduled run failed with it. So **this risk's green is from 2026-08-03 and nothing
-has refreshed it since**, which is a weaker position than the entry claimed rather than a different
-verdict. `script/cadence-check` now reports the dead cadence.
+**Correction, 2026-09-11, and its second half closed three days later.** That paragraph used to close
+"and the weekly workflow already publishes the report", and the workflow had published nothing.
+`mutation.yml`'s own `BUGS` section records it: the workflow **had never once succeeded**, four
+scheduled runs red from 2026-08-10, found by milestone 232's audit on 2026-09-03. Milestone 238
+repaired one of the two causes (shard indices counted from one, so a job died in twenty seconds every
+run and shard 0 was never tested). **The other was repaired by milestone 277 on 2026-09-12** (a
+runaway mutant exhausting the runner's memory inside the timeout meant to catch it, which had taken
+the 2026-09-07 run), and the next scheduled run, 2026-09-14, was the workflow's first success.
+**The cadence is alive**; `script/cadence-check` is what reported it dead, and one success is not yet
+a cadence.
 
-**One number has published since, and it is worse: 83.4%.** It comes from the single shard that
-survived, a uniform one-eighth sample across all 60 crates rather than the 38 host crates the 92.4%
-figure covers, so it is not a like-for-like reading and settles nothing on its own. Two crates carry
-most of the fall and neither is explained: `uefi_loader` at 15% and `manual` at 52%
-(milestone 280, promoted out of the proposal queue 2026-09-13). A third, `system_initializer`,
-was measured and closed `RECORDED` by milestone 244 because its pure fraction is small.
+**One number published in between, and it read worse: 83.4%, corrected to 85.3%.** It came from the
+single shard that survived, a uniform one-eighth sample across all 60 crates rather than the 38 host
+crates the 92.4% figure covers, so it was never a like-for-like reading. Two crates carried most of
+the apparent fall and neither was explained at the time: `uefi_loader` at 15% and `manual` at 52%.
+**Both turned out to be measurement rather than quality** (milestone 280, built 2026-09-13), as did a
+third, `system_initializer`, before them (milestone 244). The census of 2026-09-14 above supersedes
+this number; it is kept here because it is what this entry was ranked on for eleven days.
 
-**So the repair is now tracked and the reading is not.** The runaway mutant is milestone 277, which
-makes a clean full run possible for the first time since 2026-08-03. What that run then means for
-this entry's verdict is a separate question and calef's:
-`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal already waiting on
-it, and this entry should not be marked settled again until that one is.
+**Both repairs landed and the reading arrived.** The runaway mutant was milestone 277, built
+2026-09-12, which made the clean full run possible for the first time since 2026-08-03; the run
+happened two days later. What it means for this entry's verdict remains calef's:
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal waiting on it, and
+this entry should not be marked settled again until that one is.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
@@ -257,10 +310,14 @@ ratified RISC-V IOMMU, over the §18 PCIe transport, and milestone 35 built the 
 it is virtio or emulated. The VisionFive 2 boots and its ratified-IOMMU silicon does not exist
 (milestone 143).
 
-**Status: RUN, 2026-09-04. The experiment is run and two of its three parts are green.**
+**Status: RUN, and as of 2026-09-16 all three of its parts are measured on silicon.** The two
+2026-09-04 halves are below; the third was taken on 2026-09-16 and is the bullet that used to read
+*unmeasured*. **This does not retire the risk**, and the reason is in the third bullet and repeated
+at the foot of this entry: a TRNG is the smallest real device on the board, and throughput is what a
+TRNG cannot test.
 
-The risk names three things and they were never one claim. Measured on radon, transcript at
-`target/board/radon-2026-09-04-trng-success.log`:
+The risk names three things and they were never one claim. Measured on radon, transcripts at
+`target/board/radon-2026-09-04-trng-success.log` and `bench/radon-2026-09-16/tour-083200.log`:
 
 - **Confined: yes**, 2026-09-03. Milestone 159's driver is an EL0 process started from the archive,
   reaching the JH7110's TRNG through a capability that names no device. This is the tree's only
@@ -268,17 +325,26 @@ The risk names three things and they were never one claim. Measured on radon, tr
 - **Drives real hardware: yes**, 2026-09-04, reproducibly. `served 32+32 bytes`, two boots, first
   draws `3faa07e1` and `731191ba`, each boot's two draws differing from each other. Reseeded per
   boot rather than a constant in silicon or a stale register file.
-- **At real speed: unmeasured on silicon**, and nothing here should be read as answering it.
-  **The instrument now exists**, which it did not when this entry was written: as of 2026-09-10 the
-  tour reads the timebase around the step and the `hw entropy` line carries three figures (the whole
-  `pcie`-to-`hw entropy` gap, the bring-up alone, and the two draws with a rate).
-  `design/roadmap/proposals/time-the-hw-entropy-step.md` has the QEMU numbers that give radon's a
-  denominator, about 250 us per 8-byte exchange with an emulated device that costs nothing. What is
-  left is one boot of radon, which is why that proposal's gate is now `HARDWARE` rather than `NONE`.
-  **Re-read 2026-09-14** because milestone 265 touched that proposal and this check asked: the only
-  change was three crate spellings (`entropy_proto` and `timebase_proto` became
-  `entropy_protocol` and `counter_frequency_protocol`), and every figure and every claim above is
-  unchanged.
+- **At real speed: MEASURED on silicon, 2026-09-16.** **955,223 bytes/s**, 64 bytes in 67 us over
+  eight `entropy_protocol` round trips, which is about **8.4 us per round trip**; bring-up 562 us.
+  One boot of radon, transcript at `bench/radon-2026-09-16/tour-083200.log`. The instrument is the
+  one built on 2026-09-10 (the tour reads the timebase around the step and the `hw entropy` line
+  carries three figures), and this is the boot that proposal was waiting for.
+
+  **The QEMU denominator did not survive contact with the board, and that is the finding.** It was
+  built to say that the path itself costs about 250 us per 8-byte exchange with an emulated device
+  that costs nothing, so that whatever radon spent beyond that would be the JH7110's. radon spends
+  **8.4 us**, which is thirty times *less* than the floor it was supposed to be read against, and
+  the bring-up is 562 us against QEMU's 8069 to 13057 us. So TCG was slower than silicon in both
+  halves and the subtraction the denominator was for cannot be done. The proposal had already said
+  to distrust the QEMU bring-up figure; the rate figure turns out to want the same warning.
+
+  **What the number counts** is what the tour's own line says: the round trips, the context switches
+  each one costs, the driver's poll loop, and the device. It does not count the spawn or the
+  bring-up, and **it is not comparable to a Linux `hwrng` throughput figure**, which is a read from
+  an already-running in-kernel driver with no IPC in it. The honest comparison, against
+  `jh7110-trng.c` on the same silicon, is interrupt-driven where this driver polls and remains
+  unmeasured.
 
 **What it took is worth recording, because none of it was the driver.** Milestone 239 found the
 device tree spells the node with the vendor U-Boot's `starfive,trng` rather than mainline's
@@ -325,13 +391,12 @@ That splits this risk into three, and two of them are now answered:
   register window. It is the *smallest* real device on the board, so it settles "a confined
   userspace process can reach non-virtio silicon at all" and it settles nothing about a device with
   a ring buffer.
-- **At real speed**: **unmeasured on silicon**, and this is now the whole of the open question for
-  small devices. **Corrected 2026-09-11:** this used to read "nothing in the boot tour timestamps
-  the step, so the only available clock is a person watching a serial console", and that stopped
-  being true on 2026-09-10 when the step began timing itself. The stopwatch is no longer the
-  instrument; one boot of radon is the whole of what remains, and
-  `design/roadmap/proposals/time-the-hw-entropy-step.md` carries the procedure and the QEMU
-  denominator.
+- **At real speed**: **measured on silicon 2026-09-16, and the small-device question is closed.**
+  955,223 bytes/s, 8.4 us per round trip, bring-up 562 us. The full figures and what they do and do
+  not count are at the head of this entry. **Corrected 2026-09-11:** this used to read "nothing in
+  the boot tour timestamps the step, so the only available clock is a person watching a serial
+  console", and that stopped being true on 2026-09-10 when the step began timing itself; the boot
+  that read it came five days after that.
 
 The decisive experiment above is unchanged, because throughput is what a TRNG cannot test.
 
@@ -386,10 +451,39 @@ notes/confinement-claims.md; PR #614.
 
 **What it does not say.** Nothing here says the confinement holds. What it supports is narrower and
 was the point: these named claims are tested, and each has been shown to fail when the claim is
-broken. **Six kernel confinement rows still have no mechanism at all**, and the adversarial exercise
-this entry originally called for is still unbuilt: an outsider trying to escape, rather than us
-demonstrating that a planned escape fails. That wants outside eyes and is gated behind milestone 198
-by calef's no-third-parties position.
+broken. The adversarial exercise this entry originally called for is still unbuilt: an outsider
+trying to escape, rather than us demonstrating that a planned escape fails. That wants outside eyes
+and is gated behind milestone 198 by calef's no-third-parties position.
+
+**The six kernel rows got their mechanism on 2026-09-16, and one of them was not testing its own
+claim.** This entry said until that day that those rows had none; milestone 305 built it, on top of
+milestone 210's `cargo xtask test --test <substring>` (built 2026-08-31, and the note claiming the
+mechanism "does not exist" had been stale for sixteen days). Seven of the eight tests behind rows 21
+to 26 now carry a replayable falsification. The sweep is **48 swept, 0 survivors, 2 min 55 s warm**.
+
+**The finding is the one this risk exists to produce, and it is worse than a missing test.**
+`the_page_tables_say_u_mode_cannot_read_the_kernels_memory` was patched to remove the `U`-bit check
+from `mmu::user_can_read` **outright**, and the test still passed. `user_can_read` went through
+`translate_user`, whose `Mapper` is built with `Half::Low` *always*, so a high-half kernel address
+returned `None` before any leaf was read. **The assertion answered "U-mode cannot read the kernel"
+by refusing to look**, and had done so since milestone 41, with every gate in this tree green
+throughout. `is_mapped_in_current_space` exists forty lines away for exactly this case and says so
+in its own doc comment. Fixed in 305 (`translate_in_either_half`) and measured both ways.
+
+That is the shape of failure this file's rule 1 is about: **a test that cannot come back red is
+indistinguishable from a test that passes**, and nothing but a falsification can tell them apart.
+Risk 3's mutation census measures the same property over host crates and cannot see kernel tests at
+all, so this class was invisible to every instrument the project owned.
+
+**Two further things were recorded rather than smoothed over.** Row 26 (a client of a rendezvous
+cannot become its server) is **`unfalsified`**, honestly: the complete break produces a 60-second
+lost-wakeup watchdog rather than a claim-shaped red, because `RECV_CAP` blocks, so an attacker the
+kernel fails to refuse takes the honest server's message instead of reporting an escape. Filling it
+with an easier defect would have fired an assertion while leaving the claim untested, which is
+precisely what the row above shows costs eight months. And **§31's assertion-order hazard has a
+second independent instance**: row 24's quotable crossing assertion sits below two per-shell bitmap
+equalities that catch any crossing one call earlier, so it cannot run. Two instances found the same
+way in one sweep is a reason to expect more.
 
 ## 8. Nobody needs it
 
@@ -479,11 +573,11 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
-| 5 | 3, the tests | **the re-run dies the same way every time (a runaway mutant, out of memory).** Build the bound first, then re-run against the baseline | milestone 277, then milestone 85 | a day once the bound exists |
+| ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
-| ~~7~~ | 7, confinement | **RUN 2026-08-31.** 26 claims enumerated, 25 falsifications replaying red, and §31's headline assertion found unreachable in the case it exists to catch | milestone 202 | done; the adversarial half remains |
+| ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16.** 26 claims enumerated, 25 falsifications replaying red, and §31's headline assertion found unreachable in the case it exists to catch. Milestone 305 then gave the six kernel rows a mechanism and found **a confinement test that could not fail**: the U-bit check removed outright and the test still green, since milestone 41 | milestones 202, 305 | done; the adversarial half remains |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
 
 ## BUGS
