@@ -10,7 +10,10 @@
 //!
 //! The other half is `call_client`; the wiring is `kernel/src/user/call_service.rs`.
 //!
-//! Name: provisional (milestone 291). This was `hello`'s `CALL_SERVER` role, number 14, and
+//! Name: ratified `call_reply_server` 2026-09-15 (calef, this header). Was provisional
+//! `call_server` (milestone 291); qualified to the `call_reply` stem (the round-trip benchmark's
+//! name), `reply` naming the one-shot capability this pair proves. File, `[[bin]]` and archive-tuple
+//! rename pending the batched 291 sweep. This was `hello`'s `CALL_SERVER` role, number 14, and
 //! matches the kernel-side module that wires it. "Call" here is the IPC operation's own name
 //! (`user_mode_runtime::call`, `abi`'s `CALL`), which is the "standard term a reader already knows" case
 //! AGENTS.md's naming section protects rather than a generic verb.
