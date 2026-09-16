@@ -1,121 +1,95 @@
-# 166. One boot orchestrator, reached three inconsistent ways: giving `init` a consistent meaning across architectures
+# 166. One boot loader, reached two inconsistent ways: unifying the per-architecture progenitor loaders
 
-**Status: NOT-STARTED.** Minted 2026-08-25, from a naming review that went looking for a small
-inconsistency and found a real one instead. calef asked whether aarch64's `init -> hello` archive
-mapping should become `init -> builder`, to match riscv64 and the then-unmerged x86_64 port
-(PR #476). An investigation lane found the premise false: `hello` and `builder` are not comparable
-programs, and repointing aarch64's mapping would have silently broken the real interactive boot plus
-six live kernel tests. This milestone is the real question underneath that near-miss.
+**Status: BUILT** 2026-09-15. Delivered as one boot loader, `kernel::user::boot_progenitor`
+(name provisional), used by all three architectures. The `init`-meaning question this block was
+minted for (2026-08-25) was overtaken and settled by other milestones before this was built, so the
+scope narrowed to the loader unification that actually remained; see "What overtook the original
+premise" below.
 
-**Gate: NONE.** This is a software architecture question, not hardware-gated. Whoever picks it up
-needs no board, no bring-up, nothing calef has to do by hand first.
+**Gate: NONE.** A software architecture change, not hardware-gated.
 
-## What the investigation actually found
+## What overtook the original premise
 
-There is exactly **one** real boot orchestrator, `crates/system_initializer::boot()`, and it is
-already correctly shared. Its own module doc says so plainly: *"There are two inits, because the two
-boards' kernels hand off differently: `user::initrd()` loads the archive entry `init`, which is
-`fixtures/src/hello.rs`'s `init_boot` role on aarch64 and `user/src/system_initializer.rs` on riscv64.
-There is **one** system they build, and this crate is it."* The same doc also names why this crate
-exists at all: before it, the construction and the spawn service were written twice, and *"a fix
-that lands in one init and not the other is **a boot that reaches userspace and prints nothing at
-all**, with no fault and no message. That shape cost three separate lanes an evening each."* This
-milestone is that same risk, one layer up: not the orchestrator's logic diverging, but the *paths
-that reach it* already having diverged, silently, in a way nobody had named until now.
+This block was minted from a naming review that asked whether aarch64's `init -> hello` archive
+mapping should become `init -> builder`. That framing is gone:
 
-**The three paths, precisely** (`kernel/src/user.rs`):
+- **Milestone 266 (one progenitor)** gave the first process one name, `progenitor`, on all three
+  architectures, retiring `init` as an alias that meant a different binary per board. The archive's
+  `init` slot no longer carries two jobs, so there was no `init`-meaning question left to answer.
+- **Milestone 291 (one program, one job)** split `hello`'s thirty-one roles into their own programs,
+  leaving nine `INIT`/child roles that the kernel still re-enters `hello` at. `builder` and its
+  `init_boot` role, and `components/src/builder.rs`, are gone.
+- **Milestones 182/268/299** brought `x86_64` onto the same loader riscv64 uses and gave it a
+  `PortRange` console capability.
 
-- **aarch64.** `INIT_ROLES_ENTRY = "init"`. `hello` is packed under the archive name `init` because
-  on this architecture it genuinely is the boot program: role 27 (`INIT_BOOT_ROLE`) builds
-  aarch64's device-grant table (PL011, GIC IRQ, the clock page, the file service when a disk is
-  attached) and hands off into `system_initializer::boot()`. `spawn_init`/`boot_via_init` is this
-  path. The same archive entry, `init`, and the same `INIT_ROLES_ENTRY` constant, is also how six
-  live kernel tests (`kernel/src/user/tests.rs`, the milestone 19d role-dispatch suite: roles 20,
-  23, 24, 25, 28, 29) reach `hello`'s other roles. One archive slot, two live jobs.
-- **riscv64.** `INIT_ROLES_ENTRY = "hello"` here instead, and the comment at its definition says
-  why: *"RISC-V's `init` is the portable `builder` demo, so hello goes in under its own name.
-  Reading the wrong one gets a program with no such roles."* The real boot path,
-  `riscv_shell_boot`, never touches the `init` archive entry at all: it reads `"system_initializer"`
-  by its own name directly, measures it under that name in the trust root, and boots it. `builder`
-  (packed as `init`) is a narrow, standalone milestone-20 demo: it parses the archive, builds one
-  hardcoded child (`worker`), starts it with a fixed input, and exits. Invoked only by
-  `riscv_initrd_demo`, structurally unrelated to the real interactive boot.
-- **x86_64** (PR #476, milestone 161 item 4's hand-off, as of this writing still open/unmerged).
-  Currently maps `init -> builder` too, via the same `portable_archive_entries()` table riscv64's
-  `initrd_riscv` now shares. Per this milestone's own finding, that mapping was never actually
-  riscv64's real boot program to begin with, so x86_64 may be inheriting the same legacy-artifact
-  choice riscv64 carries, rather than a deliberate one. **Read what PR #476 actually shipped before
-  starting this milestone**: it may already need to change, or it may be a clean-slate opportunity
-  to give the third architecture the right shape from the start, and that's worth knowing before
-  scoping the fix.
+So `spawn_init`, `boot_via_init`, `INIT_ROLES_ENTRY`, `INIT_BOOT_ROLE`, `components/src/builder.rs`
+and `hello`'s `init_boot` role, all named by the original body, no longer existed when this was
+built.
 
-**So the inconsistency is not "aarch64 lags a converged standard."** riscv64's `init -> builder`
-mapping is itself a legacy artifact, older than the shared milestone 19d role-catalogue tests that
-now also depend on the `init` archive slot meaning something specific on aarch64. Three
-architectures, three different answers to "what does the archive's `init` entry mean," none of them
-wrong on their own terms, all of them different.
+## What actually remained, and what this milestone did
 
-## What this milestone is not
+There were **two boot-loader functions doing the same job differently**:
 
-**Not a rename.** The near-miss this session was exactly that mistake: reading the surface
-inconsistency (three packers disagree on `init -> X`) and assuming the fix is picking one `X` and
-repointing the others at it. It isn't: `hello`'s `init_boot` role and `builder`'s standalone demo
-do different jobs, and neither can simply replace the other without losing something (aarch64's real
-boot device-grant table, in `hello`'s case; nothing load-bearing, in `builder`'s, which is why it's
-the one safe to retire from the `init` slot).
+- `kernel::user::spawn_progenitor` (aarch64): loaded the `progenitor` archive entry, built its
+  address space through the `sched::spawn` closure model, granted the boot capability set from
+  inside the spawned thread, and returned a `Holding`. The **same function** also re-entered `hello`
+  at milestone 19d's test roles, and that sharing was the whole problem: to keep the test roles' slot
+  numbers stable, aarch64's boot progenitor was handed two capabilities the interactive system never
+  used, a report endpoint at slot 1 and the 19d.2b test interrupt at slot 3, which is why its slot
+  layout was not riscv64's.
+- `kernel::user::riscv_shell_boot` (riscv64 and, since milestone 182/299, x86_64): loaded the same
+  `progenitor` entry through the TCB-builder model (`create_thread_control_block` +
+  `thread_control_block_insert_cap` from the parent), granted a boot-only capability set at fixed
+  slots, and returned the thread.
 
-**Not a decision this milestone makes.** What (if anything) the archive's `init` slot should hold on
-each architecture, once the real boot orchestrator has its own name everywhere, is an open design
-question for whoever builds this, not predetermined here.
+Both reached the already-shared orchestrator `crates/system_initializer::boot()`, which was correct
+and was not touched. The divergence was in the paths that reach it.
 
-## The direction the investigation suggested, not yet decided
+**The two functions differed on four things, and only two were the hardware's:**
 
-Give aarch64 a `system_initializer`-under-its-own-name boot entry point, mirroring riscv64's shape:
-a dedicated, separately-named archive entry for the real boot orchestrator, decoupled from both the
-generic `init` slot and from `hello`'s role-dispatch test-fixture job. Only once that split exists on
-all three architectures does it become possible to answer, cleanly, what `init` itself should mean
-(a test-harness convenience name naming whichever role-catalogue program a given architecture ships,
-nothing at all, or something else) without one archive slot quietly carrying two jobs at once.
+| Difference | aarch64 | riscv64 / x86_64 | Real, or history? |
+|---|---|---|---|
+| Spawn mechanism | `sched::spawn` closure + `Holding` | TCB-builder + `ThreadId` | **History** (both APIs are arch-neutral) |
+| Slot layout | budget 0, report 1, uart 2, test-SGI 3, uart-rx 4, ... | budget 0, uart 1, uart-rx 2, ... | **History** (report + test-SGI are the shared-with-tests residue) |
+| Console device authority | `DeviceFrame` (UART page) | riscv64 `DeviceFrame`; x86_64 `PortRange` | **Hardware** (COM1 is port I/O) |
+| Interrupt-controller arming | GIC, inline | riscv64 PLIC + supervisor external; x86_64 none | **Hardware** |
 
-## What it touches
+The build merged the boot halves into `boot_progenitor`, which uses the TCB-builder model on all
+three architectures and `#[cfg]`-gates only the two genuine hardware differences inside one shared
+shape. aarch64's boot drops the report endpoint and the test SGI, so all three architectures now hand
+the progenitor **the same slot layout**, and `components/src/progenitor.rs`'s two cfg-gated cap
+tables collapse into one with no `cfg` at all.
 
-- `kernel/src/user.rs`: `spawn_init`, `boot_via_init`, `riscv_shell_boot`, `INIT_ROLES_ENTRY`,
-  `INIT_BOOT_ROLE`, and whichever `x86_64` boot path PR #476 lands.
-- `fixtures/src/hello.rs`'s `init_boot` role (27) and its other, independently-tested roles
-  (`SELF_CHECK`, `UNTYPED_DEMO`, the `VIRTIO_*` probes, `GRANTER`/`RECEIVER`,
-  `FRAME_PRODUCER`/`CONSUMER`, `CALL_SERVER`/`CLIENT`, `REVOKE_DEMO`, `ASPACE_BUILDER`,
-  `EP_MAKER`/`EP_USER`): these have solid, live coverage today through direct-by-name lookup
-  (`HELLO_ENTRY`, ~28 call sites in `kernel/src/user/tests.rs`) and are unrelated to which program
-  plays `init`; whoever builds this should confirm that coverage stays intact regardless of how the
-  `init` question resolves.
-- `components/src/builder.rs`, whose own role in the `init` slot (on riscv64 today, x86_64 pending #476)
-  is exactly what this milestone reconsiders.
-- `crates/system_initializer`, unchanged in logic: this milestone is about the paths that reach it,
-  not the orchestrator itself.
+`spawn_progenitor` stays behind as the milestone-19d/19e test-role `hello` spawner, reduced to that
+one job (always `hello`, the five test-role capabilities, the `Holding` return). Its ~28 direct-by-
+name fixture call sites in `kernel/src/user/tests.rs` are unrelated to the boot path and are
+unchanged; the six `spawn_progenitor` tests reach `hello`'s roles exactly as before.
 
-## Why it matters
+## What it touched
 
-Because the failure mode is silent and expensive, and this project has already paid for it twice in
-different forms: once historically (the two-inits-written-twice era `system_initializer`'s own doc
-records, "three separate lanes an evening each"), and once this session, caught only because it was
-investigated before being built rather than after. A boot path and a test suite quietly depending on
-the same archive slot meaning two different things is exactly the shape of gap `AGENTS.md`'s own
-ladder exists to move up a rung: right now it is a fact three people have to independently rediscover
-by reading `kernel/src/user.rs` closely, not something the tree states once and any reader can find.
+- `kernel/src/user.rs`: `riscv_shell_boot` became `boot_progenitor`; `spawn_progenitor` reduced to
+  the test-role spawner; `boot_via_progenitor` deleted.
+- `kernel/src/main.rs`: all three hand-off sites call `boot_progenitor`.
+- `components/src/progenitor.rs`: the two `GRANTS` tables collapsed into one.
+- `crates/system_initializer`: unchanged in logic. Its `BootEndowment.for_test_roles` field is now
+  `&[]` on every boot, so nothing exercises the slot-deletion it drives; retiring the field is a
+  follow-on, not this milestone's to make (it would be a change to `system_initializer`'s logic).
 
-## What is needed to answer it
+## Follow-on
 
-Whoever picks this up should read PR #476's actual, landed x86_64 choice first (not this milestone's
-description of it, which is current only as of 2026-08-25), decide whether aarch64's real boot should
-move to a named `system_initializer` archive entry the way riscv64's already is, and only then decide
-what (if anything) the `init` slot should mean on each architecture going forward.
+- **`spawn_progenitor` is now a misnomer.** It no longer spawns the progenitor; it spawns `hello` at
+  a test role. A rename is calef's and reaches every test call site.
+- **`boot_progenitor`'s name is provisional** (milestone 166).
+- **`BootEndowment.for_test_roles` is now dead data.** No boot path fills it, so `system_initializer`
+  could drop the field and the slot-deletion it feeds.
 
 ## Index row
 
-A naming review asked whether aarch64's `init -> hello` mapping should become `init -> builder` to
-match riscv64/x86_64; the premise was false, and repointing it would have silently broken the real
-interactive boot plus six live kernel tests. `hello`'s `init_boot` role (aarch64) and riscv64's
-separately-named `system_initializer` entry already reach the same real orchestrator
-(`crates/system_initializer::boot()`) correctly; the three architectures just reach it through
-inconsistent paths, one of which (`builder`, riscv64's and possibly x86_64's `init` slot) was
-never the real boot program at all.
+Two boot-loader functions loaded the first process differently: aarch64's `spawn_progenitor` (a
+closure that also served the 19d test roles, and so carried two capabilities the interactive system
+never used) and riscv64/x86_64's `riscv_shell_boot` (the TCB-builder, boot-only). Milestone 166
+merged the boot halves into one `boot_progenitor` used by all three architectures, `#[cfg]`-gating
+only the two genuine hardware differences (the x86 `PortRange` console vs the others' UART page, and
+GIC vs PLIC vs APIC arming); the slot layout is now identical everywhere and
+`components/src/progenitor.rs`'s two cap tables became one. `spawn_progenitor` stays as the
+19d/19e test-role `hello` spawner, fixtures untouched.
