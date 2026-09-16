@@ -404,7 +404,7 @@ mod tests {
                 // generalises. Masking the address down is `leaf_entry`'s job and this is the
                 // input that asks it to do the job.
                 0x00ff_ffff_ffff_f000,
-                u64::MAX & !0xfff,
+                0xffff_ffff_ffff_f000,
             ] {
                 let leaf = Vtd::leaf_entry(pa, flags);
                 assert_eq!(

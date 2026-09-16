@@ -131,19 +131,19 @@ enough to confirm that there is no excuse for leaving one unconfirmed.
 
 ## Follow-on
 
-- **Recorded**, in `notes/confinement-claims.md`'s `BUGS` beside the table: that the verdicts are
+- **Recorded.** In `notes/confinement-claims.md`'s `BUGS` beside the table: that the verdicts are
   dated and ungated, that 25 of 26 are reasoned rather than measured, and that an unreachable
   assertion is not automatically a deletable one.
-- **Recorded**, in `notes/confinement-claims.md`'s new section: that an assertion can be live on one
+- **Recorded.** In `notes/confinement-claims.md`'s new section: that an assertion can be live on one
   architecture and structurally dead on another even where no row's citation says so.
   `assert!(!flags.is_kernel_executable())` on a user page is a real check on aarch64 and cannot fail
   on riscv64 or x86_64, because both decoders reach `CAP_KERNEL_EXEC` only through a branch requiring
   the user bit clear. The decoders are faithful and the hardware really does guarantee it there; what
   is wrong is reading one portable test as three ISAs' worth of evidence. Same distinction 305 drew
   for row 21.
-- **Proposed milestone** (provisional, the integrator mints the number): **a `Falsification:` block
-  that names the assertion its patch expects to fire, and a `script/falsifications` check that the
-  named line is the one the transcript reports.** Four of the tree's patches already state this in
+- **Proposed.** `design/roadmap/proposals/a-falsification-that-names-the-assertion-it-expects.md`.
+  A `Falsification:` block that names the assertion its patch expects to fire, and a
+  `script/falsifications` check that the named line is the one the transcript reports. Four of the tree's patches already state this in
   prose, correctly and usefully, and a reader only meets it by opening a patch file, which is rung
   four by `AGENTS.md`'s own reckoning. It would have caught none of this milestone's findings, and
   that is the honest case against doing it first: an unreachable assertion is invisible to it, since
@@ -151,9 +151,9 @@ enough to confirm that there is no excuse for leaving one unconfirmed.
   the *next* 305, where a red arrives through a helper at "the supervision tree could not be built:
   stage 3", is a gate failure rather than something somebody happens to read. It is a format change,
   so the field's spelling is calef's.
-- **Proposed milestone** (provisional): **point `script/mutation` at `crates/paging`,
-  `crates/dma_validator`, `crates/component_plan` and `crates/capability` specifically, and compare
-  its verdict against this milestone's.** Risk 3's census measures whether a change to the code is
+- **Proposed.** `design/roadmap/proposals/did-the-mutation-census-already-know-about-row-12.md`.
+  Point `script/mutation` at `crates/paging`, `crates/dma_validator`, `crates/component_plan` and
+  `crates/capability`, and compare its verdict against this milestone's. Risk 3's census measures whether a change to the code is
   caught; this milestone measured whether a specific assertion can catch anything. Row 12's tautology
   is exactly the shape a mutation of `VTD_ADDR_MASK` would have surfaced as a survivor, in a crate
   the census already covers, which makes "did the census already know" a question worth an answer
