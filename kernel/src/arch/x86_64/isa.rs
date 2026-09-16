@@ -13,7 +13,40 @@
 //!   calls). The x86 equivalents worth gating on are NX, SYSCALL, and the invariant TSC; this
 //!   reports and does not refuse. See design/roadmap/161-x86-64-kernel-port.md.
 
-use core::arch::x86_64::{__cpuid, __cpuid_count};
+use core::arch::x86_64::CpuidResult;
+
+/// **`CPUID`, spelled so that two toolchains a year apart both accept it** (milestone 304).
+///
+/// `core::arch::x86_64::__cpuid` is a *safe* function on the toolchain this tree pins, because the
+/// instruction has no precondition on a 64-bit part; every call site here used to read it bare and
+/// say so in a comment. It was an `unsafe fn` until upstream made it safe, and **Kani bundles its
+/// own rustc**, ten months behind ours (`kani-0.67.0` pins `nightly-2025-11-21`, rustc 1.93.0). So
+/// the bare calls were four `E0133`s under the prover, and `arch/x86_64/` did not compile there at
+/// all: the whole subtree was out of reach of the model checker for four missing keywords.
+///
+/// The `unsafe` block satisfies the old toolchain; `allow(unused_unsafe)` satisfies the new one,
+/// where the block is redundant and `script/lint`'s `-D warnings` would otherwise reject it. That
+/// allow is the **exception this file owes a reader** (AGENTS.md's ladder): it is load-bearing for
+/// the prover and a foot gun for anyone who reads it as "this call needs auditing". Delete it when
+/// Kani's pinned rustc passes 2026-02-ish, and the bare call comes back.
+///
+/// Name provisional (milestone 304): `cpuid` is the instruction's own mnemonic, which AGENTS.md's
+/// naming section keeps rather than expands.
+#[allow(unused_unsafe)]
+pub(super) fn cpuid(leaf: u32) -> CpuidResult {
+    // SAFETY: `CPUID` is architected on every 64-bit x86 part and has no precondition; a leaf the
+    // part does not implement answers with another leaf's data rather than faulting, which is why
+    // the callers that need one do a max-leaf check of their own. Under the pinned toolchain this
+    // block is redundant, which is what the allow above is for.
+    unsafe { core::arch::x86_64::__cpuid(leaf) }
+}
+
+/// `CPUID` with a subleaf. Same toolchain-skew reasoning as [`cpuid`]; see its comment.
+#[allow(unused_unsafe)]
+fn cpuid_count(leaf: u32, sub_leaf: u32) -> CpuidResult {
+    // SAFETY: as [`cpuid`].
+    unsafe { core::arch::x86_64::__cpuid_count(leaf, sub_leaf) }
+}
 
 /// What this machine is, as far as this port has learned to ask.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -43,10 +76,9 @@ static mut ISA: Isa = Isa {
 /// architectures.
 pub fn init(boot_info_pointer: usize) {
     let _ = boot_info_pointer;
-    // `__cpuid` is a safe function in `core::arch::x86_64` (the instruction has no precondition on
-    // a 64-bit part), so there is no `unsafe` block here and none is needed. Leaf 0 in particular
-    // needs no maximum-leaf check first, because leaf 0 is what reports the maximum.
-    let leaf0 = __cpuid(0);
+    // Leaf 0 needs no maximum-leaf check first, because leaf 0 is what reports the maximum. See
+    // `cpuid` above for why this is a helper rather than the bare intrinsic.
+    let leaf0 = cpuid(0);
     let mut vendor = [0u8; 12];
     vendor[0..4].copy_from_slice(&leaf0.ebx.to_le_bytes());
     vendor[4..8].copy_from_slice(&leaf0.edx.to_le_bytes());
@@ -55,7 +87,7 @@ pub fn init(boot_info_pointer: usize) {
     // Leaf 7 needs a maximum-leaf check first, unlike leaf 0: a part that does not implement it
     // answers with whatever it does implement's data rather than refusing, so an unchecked read
     // would misattribute another leaf's bits to RDSEED.
-    let rdseed = leaf0.eax >= 7 && (__cpuid_count(7, 0).ebx & (1 << 18)) != 0;
+    let rdseed = leaf0.eax >= 7 && (cpuid_count(7, 0).ebx & (1 << 18)) != 0;
 
     // SAFETY: single-threaded boot code, before any secondary CPU exists.
     unsafe {
@@ -129,9 +161,8 @@ pub fn tsc_crystal_hz() -> Option<u64> {
     if get().max_leaf < 0x15 {
         return None;
     }
-    // `__cpuid` is safe (see `init`'s own comment); leaf 0x15 carries no precondition beyond the
-    // max-leaf check just above.
-    let leaf = __cpuid(0x15);
+    // Leaf 0x15 carries no precondition beyond the max-leaf check just above.
+    let leaf = cpuid(0x15);
     if leaf.eax == 0 || leaf.ebx == 0 || leaf.ecx == 0 {
         return None;
     }
