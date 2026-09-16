@@ -76,6 +76,21 @@
 //! - **Nothing distributes MSI vectors across cores.** Every message is addressed to the local
 //!   APIC id of whichever core ran [`alloc_msi_vector`], which is the boot core, exactly as
 //!   [`route_gsi`]'s destination is.
+//! - **The GSI-to-vector map wraps on an IO APIC whose global interrupt base is not zero**, and
+//!   [`MAX_REDIRECTION_ENTRIES`]'s doc says it cannot. Found by proof, milestone 304, the first
+//!   time a model checker was pointed at this file. [`gsi_vector`] is
+//!   `GSI_VECTOR_BASE.wrapping_add(gsi as u8)`, and the cap bounds the *entry count*, not the GSI:
+//!   [`redirection_index`] admits any `gsi` in `base..base + entries`, so a second IO APIC owning
+//!   global interrupts from 200 with the 24 entries every real part has admits GSI 210, and
+//!   `gsi_vector(210)` is `0x30 + 210 = 0x102`, which wraps to vector **2, the NMI**. [`enable`]
+//!   passes that vector straight to [`route_gsi`]. Nothing has hit it: this kernel records one IO
+//!   APIC, and QEMU's q35 and every single-socket PC give it base 0, where the map is exact, which
+//!   is the assumption `proofs::an_owned_gsi_routes_inside_the_io_apic_band` makes and names.
+//!   **The fix is a design fork rather than a patch**, which is why it is recorded here instead of
+//!   applied: the correct vector is `GSI_VECTOR_BASE + redirection_index(gsi)` rather than
+//!   `+ gsi`, and that costs [`gsi_vector`] its `const fn`, its total signature, and the
+//!   "flat and reversible" property three doc comments in this file and one in `exceptions.rs`
+//!   rest on. See design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md.
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
@@ -928,5 +943,139 @@ pub fn print_summary() {
         (None, _) => crate::println!(
             "  interrupts      : none (the MADT did not say where the local apic is)",
         ),
+    }
+}
+
+/// **Proofs about the vector space** (milestone 304), the first properties this tree has ever
+/// checked on `arch/x86_64/`: until 304 the prover compiled `arch/aarch64/` and nothing else, so
+/// this whole subtree was out of reach for a `cfg` rather than for a construct. See
+/// notes/kernel-proofs.md, whose stub list applies here unchanged, and
+/// design/roadmap/304-prover-one-architecture.md for why a second host is what made them runnable.
+///
+/// Both harnesses are about **numbers firmware chose**. The MADT supplies the IO APIC's GSI base,
+/// the version register supplies its entry count, and an interrupt source override supplies the GSI
+/// a legacy IRQ resolves to. Every one of those decides which vector an interrupt is delivered on,
+/// and a vector is an index into the IDT: getting it wrong does not misroute an interrupt, it runs
+/// the page-fault handler.
+#[cfg(kani)]
+mod proofs {
+    use super::*;
+
+    /// **The three vector bands never overlap, whatever the version register says.**
+    ///
+    /// [`MSI_VECTOR_BASE`]'s doc claims the bands are "disjoint by construction rather than by
+    /// anybody remembering", and the construction is [`MAX_REDIRECTION_ENTRIES`] clamping the
+    /// entry count in [`init_io_apic`]. This is that claim, stated over every entry count an
+    /// eight-bit version field can report and every allocation state the MSI bump counter can be
+    /// in, rather than over the two numbers QEMU happens to produce.
+    ///
+    /// The claim is deliberately not a restatement of the constants: it asks the two *predicates*
+    /// the trap handler actually calls, so a change to either one's arithmetic breaks this even if
+    /// the constants are untouched.
+    ///
+    /// Falsification: attested 2026-09-16. `MAX_REDIRECTION_ENTRIES` raised by one, on cordoba
+    /// (x86_64 Linux): the device band then reaches `MSI_VECTOR_BASE` and this goes red, along
+    /// with its sibling. One character in the constant whose own doc makes the disjointness claim.
+    ///
+    /// **`attested` rather than `replayable`, and the reason is this milestone's subject.** A patch
+    /// under `kernel/falsifications/` is replayed by `script/falsifications --sweep kernel`, which
+    /// runs one named harness on whatever host it is on; an x86_64 harness does not exist on an
+    /// aarch64 host, so a `replayable` record here would fail the sweep on the dev Mac and on every
+    /// CI runner but the new one. See that script's BUGS, where the same fact is recorded from the
+    /// sweep's side, and note it has always been true of the `arch.aarch64.iommu` patches facing
+    /// the other way.
+    #[kani::proof]
+    fn no_vector_belongs_to_two_bands() {
+        // What `init_io_apic` stores: the version register's entry field is eight bits, plus one,
+        // then clamped. Anything the hardware can say, put through the real expression.
+        let reported: u32 = kani::any();
+        kani::assume(reported <= 0xff);
+        let entries = (reported + 1).min(MAX_REDIRECTION_ENTRIES);
+        IO_APIC_ENTRIES.store(entries, Ordering::Relaxed);
+
+        // Every state the bump counter can reach, including past the end of the band.
+        let allocated: u32 = kani::any();
+        MSI_NEXT.store(allocated, Ordering::Relaxed);
+
+        let vector: u64 = kani::any();
+        kani::assume(vector <= 0xff);
+
+        let device = is_device_vector(vector);
+        let msi = is_msi_vector(vector);
+        let local = is_local_apic_source(vector as u32);
+
+        assert!(
+            !(device && msi),
+            "a vector cannot be both an IO APIC line and an MSI"
+        );
+        assert!(
+            !(device && local),
+            "a vector cannot be both an IO APIC line and a local APIC source"
+        );
+        assert!(
+            !(msi && local),
+            "a vector cannot be both an MSI and a local APIC source"
+        );
+        assert!(
+            !(msi && vector == SPURIOUS_VECTOR as u64),
+            "the MSI band must stop short of the spurious vector"
+        );
+        assert!(
+            !(device && vector == SPURIOUS_VECTOR as u64),
+            "the IO APIC band must stop short of the spurious vector"
+        );
+    }
+
+    /// **A GSI this IO APIC owns is routed to a vector inside the IO APIC's own band**, on a
+    /// machine whose IO APIC owns global interrupts from zero.
+    ///
+    /// [`route_gsi`] is called as `route_gsi(gsi, gsi_vector(gsi), ...)` from [`enable`], and
+    /// [`redirection_index`] is the only thing between a GSI the MADT supplied and a raw
+    /// redirection-table write. So the question a model checker can settle is whether the *guard*
+    /// and the *vector* agree: for every GSI the guard admits, does the flat map land in
+    /// `GSI_VECTOR_BASE..MSI_VECTOR_BASE`? The same shape as milestone 255's
+    /// `no_stream_can_reach_another_streams_tables` one architecture over: a firmware-supplied
+    /// identifier, one bounds check, and a write that cannot be taken back.
+    ///
+    /// **The assumption on `base` is the finding, not a convenience** (milestone 304). Without it
+    /// this harness fails, and the counterexample is real rather than pathological: a base of 127
+    /// with 129 entries admits GSI 255, and `gsi_vector(255)` is `0x30.wrapping_add(255)` = `0x2f`,
+    /// which is inside the local APIC's own band. See this module's BUGS for the plausible-hardware
+    /// version of the same case and for why the fix is not this lane's to make. The assumption is
+    /// therefore an **exception written where a reader meets it**: it is what
+    /// [`MAX_REDIRECTION_ENTRIES`]'s doc claims the cap already guarantees, and the cap does not.
+    ///
+    /// Falsification: attested 2026-09-16. Twice, on cordoba (x86_64 Linux). Raising
+    /// `MAX_REDIRECTION_ENTRIES` by one turns this red; so does loosening `redirection_index`'s own
+    /// bound from `index < entries` to `index <= entries`, which is the guard this harness is
+    /// really about. **The second defect leaves `no_vector_belongs_to_two_bands` green**, which is
+    /// the honest half of the record: that harness never calls the guard. `attested` rather than
+    /// `replayable` for the reason given on the sibling above.
+    #[kani::proof]
+    fn an_owned_gsi_routes_inside_the_io_apic_band() {
+        let base: u32 = kani::any();
+        // Every machine this kernel boots, and every machine with one IO APIC: the MADT gives it
+        // global interrupt base zero. `init_io_apic` records whatever the MADT said, and nothing
+        // refuses a nonzero one, which is the recorded limitation this assumption stands in for.
+        kani::assume(base == 0);
+        IO_APIC_GSI_BASE.store(base, Ordering::Relaxed);
+
+        let reported: u32 = kani::any();
+        kani::assume(reported <= 0xff);
+        let entries = (reported + 1).min(MAX_REDIRECTION_ENTRIES);
+        IO_APIC_ENTRIES.store(entries, Ordering::Relaxed);
+
+        let gsi: u32 = kani::any();
+        // The MADT packs a GSI into sixteen bits on the way through `record_isa_routing`, so this
+        // is every GSI that can reach `enable`.
+        kani::assume(gsi <= 0xffff);
+
+        if redirection_index(gsi).is_some() {
+            let vector = gsi_vector(gsi) as u32;
+            assert!(
+                (GSI_VECTOR_BASE as u32..MSI_VECTOR_BASE as u32).contains(&vector),
+                "a GSI the IO APIC owns was mapped onto a vector outside the IO APIC band"
+            );
+        }
     }
 }

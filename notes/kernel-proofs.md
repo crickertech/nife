@@ -60,16 +60,24 @@ will actually meet it.
    architecture layer is still overwhelmingly unverified, and the VisionFive 2's undelivered-wake
    defect is still on the far side of this line, but "unreachable by construction" was a claim about
    a directory and the truth is a claim about two constructs.
-3. **The panic handler is absent.** Nothing proved here says anything about what the kernel does
+3. **Two thirds of `kernel/src/arch/` is not compiled at all, and this is a `cfg` rather than a
+   construct** (milestone 304, 2026-09-16). `arch/mod.rs` selects its subtree with
+   `#[cfg(target_arch = ...)]` and Kani compiles for the **host**, so a run sees exactly one
+   architecture's `arch/` and no line of the other two. This is the item most likely to be
+   misread as coverage, because unlike items 1 and 2 it is **silent**: an `asm!` site makes Kani
+   report an unsupported construct, and a `cfg`-excluded file produces no diagnostic of any kind.
+   `script/verify` now proves the `kernel` row on two hosts for this reason; see the table below
+   for which architecture each one reaches and for the one that nothing reaches.
+4. **The panic handler is absent.** Nothing proved here says anything about what the kernel does
    after a panic.
-4. **The link sections are absent.** Under `cfg(kani)` the host target is not `target_os = "none"`,
+5. **The link sections are absent.** Under `cfg(kani)` the host target is not `target_os = "none"`,
    so `STACKS` and `SECONDARY_STACKS` are ordinary statics rather than statics in their own regions.
    A harness reasoning about guard-page layout would therefore be reasoning about a fiction. Do not
    write one; the region-size claim is held by
    `the_secondary_stack_region_is_the_size_the_linker_reserved` in a real build instead.
-5. **MMIO and fixed physical addresses** are raw pointers to nothing under a model checker. The same
+6. **MMIO and fixed physical addresses** are raw pointers to nothing under a model checker. The same
    argument applies: stub the boundary, do not pretend.
-6. **`script/lint`'s harness-clippy pass excludes `kernel`**, so clippy lints do not fire inside
+7. **`script/lint`'s harness-clippy pass excludes `kernel`**, so clippy lints do not fire inside
    these harnesses. That pass's own comment carries the two tooling reasons and what still covers
    them. Practical consequence: **keep kernel harnesses free of `unsafe`.**
 
@@ -127,6 +135,69 @@ by this. And **a property proved of the SMMUv3 is not proved of the other two IO
 `riscv64/iommu.rs` writes its device context in 64-bit stores with no split at all, so this property
 has no counterpart there, and `x86_64/` is not even compiled under Kani on an aarch64 host.
 
+### And two in `kernel/src/arch/x86_64/irq.rs` (milestone 304)
+
+**The first properties this tree has ever checked on `arch/x86_64/`**, and they exist because of a
+runner label rather than because of anything clever: until milestone 304 every Kani job in this
+repository ran on an aarch64 host, so `arch/x86_64/` was never compiled. Both are about **numbers
+firmware chose**, which is the strongest case here for a bounded model checker: a vector is an index
+into the IDT, so getting one wrong does not misroute an interrupt, it runs the page-fault handler.
+
+- **`no_vector_belongs_to_two_bands`.** `MSI_VECTOR_BASE`'s doc claims the three vector bands are
+  "disjoint by construction rather than by anybody remembering", the construction being
+  `MAX_REDIRECTION_ENTRIES` clamping the entry count. This is that claim, over every entry count an
+  eight-bit version register can report and every state the MSI bump counter can be in, asked
+  through the two predicates the trap handler actually calls rather than restated from the
+  constants.
+- **`an_owned_gsi_routes_inside_the_io_apic_band`.** For every GSI `redirection_index` admits, the
+  flat map lands inside `GSI_VECTOR_BASE..MSI_VECTOR_BASE`. Milestone 255's
+  `no_stream_can_reach_another_streams_tables` one architecture over: a firmware-supplied
+  identifier, one bounds check, a write that cannot be taken back.
+
+**The second one found a defect, and the harness carries the finding as an assumption.** Without
+`kani::assume(base == 0)` it fails: a second IO APIC owning global interrupts from 200, with the 24
+entries every real part has, admits GSI 210, and `gsi_vector(210)` wraps onto **vector 2, the NMI**.
+`MAX_REDIRECTION_ENTRIES`' doc says this cannot happen and bounds the wrong quantity. Not fixed
+here, because the fix costs `gsi_vector` its `const fn` and its total signature: see `irq.rs`'s
+module `BUGS` and
+`design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md`.
+
+**Falsified twice, on cordoba, and the asymmetry is the honest half.** Raising
+`MAX_REDIRECTION_ENTRIES` by one turns both red; loosening `redirection_index`'s bound from
+`index < entries` to `index <= entries` turns only the second red, correctly, because the first
+never calls the guard. Both are recorded `attested` rather than `replayable`, because
+`script/falsifications --sweep` runs a named harness on whatever host it is on and an x86_64 harness
+does not exist on an aarch64 one; that script's `BUGS` now records the same fact from the sweep's
+side.
+
+## Which architecture the prover actually sees
+
+**One, and it is the host's** (milestone 304). This is stub-list item 3, stated as a table because it
+is the thing most often read as more coverage than it is.
+
+| host | `arch/` subtree compiled | harnesses that run |
+|---|---|---|
+| aarch64 (dev Mac; `ubuntu-24.04-arm` runners) | `arch/aarch64/` | 4: two in `syscall.rs`, two in `arch/aarch64/iommu.rs` |
+| x86_64 (cordoba; the `ubuntu-24.04` runner) | `arch/x86_64/` | 4: the same two in `syscall.rs`, two in `arch/x86_64/irq.rs` |
+| riscv64 | **nothing** | **nothing** |
+
+Six distinct harnesses, not eight: `syscall.rs`'s two are portable and run on both. They pass
+identically on both hosts, which is the parity question milestone 304 was sent to answer and is a
+clean answer rather than an interesting one.
+
+**riscv64 is unreachable and no one here can fix it.** GitHub offers no riscv64 image; Kani has no
+cross-target flag (`cargo kani --help` carries `--target-dir` and nothing else); CBMC needs a
+goto-binary for the host it runs on; `radon` is a lab board rather than a runner. So
+`arch/riscv64/iommu.rs`'s own property, which the SMMUv3 harnesses explicitly do not cover, can be
+written and cannot be run.
+
+**One thing had to change before an x86_64 host could compile the kernel at all**, and it was not
+about the code. `core::arch::x86_64::__cpuid` is a *safe* function on the toolchain this tree pins
+and was an `unsafe fn` until upstream changed it; **Kani bundles its own rustc**, `kani-0.67.0`
+pinning `nightly-2025-11-21`. So four bare `__cpuid` calls in `arch/x86_64/` were four `E0133`s
+under the prover and nowhere else. They are wrapped in `isa::cpuid` and `isa::cpuid_count`, whose
+`#[allow(unused_unsafe)]` is a labelled exception that comes out when Kani's pin catches up.
+
 ### Why these two and not the timer
 
 Milestone 193's block nominates the milestone 6 timer re-arm drift as the first property worth
@@ -150,7 +221,7 @@ Prove just the kernel's harnesses, with a counterexample trace on failure:
 ```console
 $ cargo kani -p kernel -Z unstable-options --ignore-global-asm
 ...
-Complete - 2 successfully verified harnesses, 0 failures, 2 total.
+Complete - 4 successfully verified harnesses, 0 failures, 4 total.
 ```
 
 One harness on its own:
@@ -164,6 +235,13 @@ The whole suite, kernel included, the way CI runs it:
 
 ```console
 $ script/verify
+```
+
+Just the kernel row, which is what the x86_64 CI job runs and the only row whose coverage depends on
+the machine it runs on:
+
+```console
+$ script/verify --only kernel
 ```
 
 **Falsify a new harness before you believe it.** This is the tree's standing discipline for proofs
@@ -186,8 +264,11 @@ place rather than an assertion that they are.
 
 1. Put it beside the code it proves, in a `#[cfg(kani)] mod proofs`, not in a separate file. The
    stub list above is the reason: a reader has to meet the caveats where they meet the harness.
-2. Check the call graph against the stub list. If it reaches `crate::arch`, stop; you are proving
-   nothing, and Kani will say so rather than lie.
+2. Check the call graph against the stub list. If it reaches `asm!` or MMIO, stop; you are proving
+   nothing, and Kani will say so rather than lie. **`crate::arch` itself is no longer the boundary**
+   (milestones 255 and 304 put harnesses inside two of its three subtrees), but ask which
+   architecture you are in: a harness under `arch/<isa>/` runs only on an `<isa>` host, and a
+   `riscv64` one runs nowhere. That failure is silent, unlike the `asm!` one.
 3. Falsify it. Break the code under it and watch the harness fail, then put the code back.
 4. `kernel` is already in `script/verify`'s crate table, so nothing needs adding there. If you add a
    harness to a crate that is *not* in that table, `script/lint`'s "every crate with proof harnesses
@@ -196,16 +277,21 @@ place rather than an assertion that they are.
 
 ## BUGS
 
-- **`kernel/src/arch/` is very nearly unproved, and the part that is proved is one file.** Milestone
-  255 put two harnesses into `arch/aarch64/iommu.rs`; that is 347 of 16,225 lines. Two of the
-  corpus's own defects (the timer re-arm drift, the VisionFive 2 undelivered wake) are still on the
-  far side of the `asm!` boundary and nothing here touches them.
-- **Only one architecture's `arch/` is even compiled.** `crate::arch` dispatches on the host's
-  `target_arch`, so `cargo kani -p kernel` on the aarch64 runners sees `arch/aarch64/` and nothing
-  of `arch/riscv64/` or `arch/x86_64/`. The two largest asm-free files in the tree
-  (`x86_64/irq.rs`, `x86_64/machine.rs`) are unreachable for that reason rather than for the `asm!`
-  one, and reaching them needs a second `script/verify` row on an x86_64 host.
-- **Two harnesses is not coverage of a 64,818-line crate**, and the number to watch is not the count
+- **`kernel/src/arch/` is very nearly unproved, and the part that is proved is two files.**
+  Milestone 255 put two harnesses into `arch/aarch64/iommu.rs` and milestone 304 two into
+  `arch/x86_64/irq.rs`; that is 1,279 of 16,225 lines. Two of the corpus's own defects (the timer
+  re-arm drift, the VisionFive 2 undelivered wake) are still on the far side of the `asm!` boundary
+  and nothing here touches them.
+- **Only one architecture's `arch/` is compiled per run, and riscv64's is compiled by nothing.**
+  Narrowed by milestone 304 rather than closed: the `kernel` row is now proved on an x86_64 runner
+  as well as the aarch64 ones, so two of the three subtrees are reachable on some machine. The third
+  is not, and the section above says why nobody here can change that. **`x86_64/machine.rs` is the
+  work this unblocked and did not do**: 836 lines of ACPI parsing over lengths, checksums and counts
+  that firmware supplied, now reachable for the first time and still carrying no harness. Its
+  parsing half already lives in `crates/machine_discovery`, which has no harnesses and no verify
+  row; the half in `machine.rs` reads raw pointers into the direct map, which stub-list item 6 says
+  to stub rather than pretend. Finding that seam is a lane of its own.
+- **Four harnesses is not coverage of a 64,818-line crate**, and the number to watch is not the count
   but whether the properties are ones a defect would violate. The two here were chosen because a
   defect *did* violate them.
 - **`--ignore-global-asm` is a global switch, not a per-item one.** A future `global_asm!` block that
@@ -219,7 +305,15 @@ place rather than an assertion that they are.
   `jh7110_entropy`'s, and the wrong machine for that column. Replace it from the
   first CI log that carries it. Almost all of it is the crate's own compile rather than solver time,
   so it will grow with the harnesses and not with the kernel.
-- **The `kernel` row needs an aarch64 host, and nothing enforces that.** `kernel/Cargo.toml` depends
+- **The `kernel` row is proved on two hosts and means something different on each, which no single
+  number in `script/verify`'s table can say.** Its seconds column is one figure for two jobs, and
+  the harness count a reader would infer from "the kernel row passed" is the host's rather than the
+  tree's. The tree has six kernel harnesses; neither host runs more than four.
+- **The paragraph below was the old statement of this and is kept as the account.** It said the
+  `kernel` row *needs* an aarch64 host; since milestone 304 it needs an aarch64 host **and** an
+  x86_64 one, and the `aarch64-cpu` fix it names as a contingency had already landed on 2026-08-31,
+  which is why the second host cost nothing on that axis.
+- **The `kernel` row needed an aarch64 host, and nothing enforced that.** `kernel/Cargo.toml` depends
   on `aarch64-cpu` unconditionally, and `crate::arch::mmu::Format` resolves by the host's
   `target_arch` under Kani, so `cargo kani -p kernel` on an x86_64 box would fail to build and would
   be proving a different `Format` if it did. It works today because **every job in

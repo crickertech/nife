@@ -179,6 +179,56 @@ jobs:
         env:
           VERIFY_JOBS: 2
 
+  # **The same `kernel` row, on the other host architecture** (milestone 304).
+  #
+  # Every other job in this file runs on `ubuntu-24.04-arm`, and until this one existed that was not
+  # a scheduling detail: `kernel/src/arch/mod.rs` selects its subtree with
+  # `#[cfg(target_arch = ...)]` and Kani compiles for the HOST, so the whole suite proved
+  # `arch/aarch64/` and compiled no line of `arch/riscv64/` or `arch/x86_64/`. Two thirds of the
+  # architecture layer was unreachable for a `cfg` rather than for a construct, which is
+  # `design/fatal-risks.md` risk 2 ("the proofs prove trivia") wearing a shape nobody had named, and
+  # a DECISIONS §19 parity gap besides: a property proved on one ISA and never run on the others is
+  # exactly what §19 exists to catch.
+  #
+  # `ubuntu-24.04` (no `-arm`) is x86_64, so the label IS the mechanism. `--only kernel` because
+  # `kernel` is the one row whose meaning depends on the machine; the other eighteen are portable
+  # logic and re-proving them here would buy a runner's time and no coverage.
+  #
+  # **Cost, measured rather than asserted** (2026-09-16, on cordoba, 4 cores / 23 GB, the same Kani
+  # 0.67.0): about 60 seconds of `cargo kani` wall time from cold, of which the solver is ~0.7s and
+  # the rest is the kernel's own compile, plus Kani's install. It is a parallel runner, and the
+  # `prove` shards are 15 minutes each, so this adds nothing to the critical path and no memory
+  # pressure to any existing job. It grows with the harnesses in `arch/x86_64/`, not with the kernel.
+  #
+  # **`VERIFY_JOBS` is left at the script's default** rather than pinned to 2 like the shards: the
+  # memory kill that forced theirs was four concurrent CBMC formulas at `glob`'s size, and this job
+  # runs four harnesses whose formulas are milliseconds.
+  #
+  # **riscv64 is not here and cannot be.** GitHub offers no riscv64 image, Kani has no cross-target
+  # flag (checked: `cargo kani --help` has `--target-dir` and nothing else), and CBMC needs a
+  # goto-binary for the host it runs on. `radon` is a lab board, not a runner. `arch/riscv64/` stays
+  # outside the prover's reach, and notes/kernel-proofs.md says so where a reader meets the claim.
+  prove-kernel-x86_64:
+    name: prove the kernel on x86_64
+    needs: [gate, scope]
+    if: >-
+      always() &&
+      needs.scope.outputs.needed == 'true' &&
+      needs.gate.outputs.run != 'false'
+    runs-on: ubuntu-24.04
+    # Kani's install dominates; the proving is ~1 minute. Generous against growth, tight enough that
+    # a hung solver fails loudly rather than sitting on the runner's 6-hour default.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Kani
+        run: |
+          cargo install --locked kani-verifier
+          cargo kani setup
+      - name: script/verify --only kernel
+        run: script/verify --only kernel
+
   # The per-pull-request half of DECISIONS §134, and the half `script/mutation` has no equivalent
   # for. A lane that touches a harness or the code it covers re-falsifies **that harness only**,
   # which is seconds rather than the weekly sweep's minutes, and it closes the window in which a
@@ -221,7 +271,7 @@ jobs:
 
   verify:
     name: verify (Kani proofs)
-    needs: [gate, scope, prove]
+    needs: [gate, scope, prove, prove-kernel-x86_64]
     # **`always()` is load-bearing.** Without it this job is skipped whenever a shard fails or the
     # scope job says the proofs are not needed, and a required check that never reports blocks the
     # merge forever, which notes/repo-hardening.md names as the single most likely way to get this
@@ -244,8 +294,10 @@ jobs:
         run: |
           scope="${{ needs.scope.result }}"
           prove="${{ needs.prove.result }}"
+          kernel_x86="${{ needs['prove-kernel-x86_64'].result }}"
           echo "scope: $scope"
           echo "prove: $prove"
+          echo "prove-kernel-x86_64: $kernel_x86"
           if [ "$scope" != "success" ]; then
             echo "==> the scope job did not finish; refusing to report the proofs as green" >&2
             exit 1
@@ -254,4 +306,17 @@ jobs:
             success) echo "==> every shard proved its crates" ;;
             skipped) echo "==> nothing in this change can reach a proof" ;;
             *)       echo "==> a shard reported '$prove'" >&2; exit 1 ;;
+          esac
+          # The x86_64 kernel row (milestone 304), judged by exactly the vocabulary above and for
+          # the same reasons: `skipped` is the deliberate green-without-proving path the scope job
+          # decides, and anything else, `cancelled` included, is a job that did not finish and must
+          # not read as one that did. It is folded into THIS job rather than made a second required
+          # check, because the ruleset requires the string `verify (Kani proofs)` and nothing else;
+          # adding a name to a ruleset is a change nobody can make from a lane, and a proof that
+          # fails while the required check stays green is the invisible failure this file has
+          # already recorded twice.
+          case "$kernel_x86" in
+            success) echo "==> the kernel proved on x86_64 too" ;;
+            skipped) echo "==> nothing in this change can reach a proof" ;;
+            *)       echo "==> the x86_64 kernel row reported '$kernel_x86'" >&2; exit 1 ;;
           esac

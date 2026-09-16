@@ -165,9 +165,9 @@ pub unsafe fn write_msr(msr: u32, value: u64) {
 /// `cpu::init_this_cpu(arch::boot_cpu_id())` can call this before the console, the GDT, or ACPI
 /// exist.
 pub fn boot_cpu_id() -> usize {
-    // `__cpuid` is a safe function (see `isa::init`'s own comment); leaf 1 is architected on every
-    // CPU this kernel runs on, so no maximum-leaf check is needed the way leaf 7 wants one.
-    let leaf1 = core::arch::x86_64::__cpuid(1);
+    // Leaf 1 is architected on every CPU this kernel runs on, so no maximum-leaf check is needed
+    // the way leaf 7 wants one. `isa::cpuid` rather than the bare intrinsic; see its comment.
+    let leaf1 = isa::cpuid(1);
     ((leaf1.ebx >> 24) & 0xff) as usize
 }
 
