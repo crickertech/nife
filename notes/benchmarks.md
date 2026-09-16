@@ -13,7 +13,7 @@ that make each possible exclude the other:
 | virtual time | a deterministic function of instructions executed | the hardware counter, 24 MHz |
 | numbers are | **exact and reproducible** (byte-identical runs, verified) | **real** (caches, TLBs, branch predictors are the host's) |
 | numbers mean | path length; magnitudes are fiction (TCG models no caches, no TLB) | nanoseconds; determinism is gone (a desktop OS underneath) |
-| job | regression gating: `--check` fails on >2% drift from the committed baseline | knowing what a path actually costs |
+| job | regression gating: `--check` fails on >10% drift from the committed baseline | knowing what a path actually costs |
 
 The gating story answers "identify the introduction of performance problems proximate to the
 changes that introduce them" structurally: `bench/baseline-aarch64.txt` is committed, `--check` fails on
