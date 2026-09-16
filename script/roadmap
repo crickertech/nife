@@ -124,7 +124,8 @@ import roadmap_proposals                                                    # no
 
 PROPOSED_DIR = "proposals"
 
-VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL", "RECORDED"]
+VOCAB = ["BUILT", "REMOVED", "SUPERSEDED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL",
+         "RECORDED"]
 
 # REMOVED KEEPS its Built date where it had one, and that is half the reason it is a status rather
 # than prose: a milestone built on a date turned BUILT on that date, nothing later makes that untrue,
@@ -141,6 +142,23 @@ VOCAB = ["BUILT", "REMOVED", "PARTIAL", "IN-PROGRESS", "NOT-STARTED", "OPTIONAL"
 # about it, since NOT-STARTED denies it was ever built, OPTIONAL reads as available to pick up,
 # RECORDED means the work was deliberately not taken, and leaving it BUILT makes the column claim a
 # network file service that no longer exists.
+# SUPERSEDED is "other work answered this, so it will never be built", and it is minted for the same
+# reason REMOVED was: every existing word could only lie about it. REMOVED says it once existed and
+# was taken out, when this was never built; RECORDED says the work was deliberately not taken, when
+# this was not declined but *answered*; NOT-STARTED is literally true and reads as still pending;
+# OPTIONAL reads as available to pick up, when there is nothing left to pick up.
+#
+# **It is deliberately NOT in DATED.** A SUPERSEDED block never turned BUILT, so it has no date to
+# keep, and inventing one is the lie milestone 55 caught this gate telling within a minute of minting
+# the rule. The date that matters is in the status line's own prose, beside the milestone that
+# settled it. It is not in ANSWERS either (a block nothing will build owes no '## Follow-on'), nor in
+# STARTABLE (there is nothing to start).
+#
+# Minted 2026-09-15 (calef), promoting `one-grant-order-for-the-progenitor` to milestone 301 and
+# disposing of it in the same act: milestone 166 split the 19d test roles out of the boot path and
+# collapsed the two BootEndowment tables into one, which is precisely what that proposal asked for.
+# A proposal cannot be retired in place, because `scripts/roadmap_proposals.py` matches PROPOSED and
+# nothing else, so promotion is how a proposal reaches a disposition at all.
 DATED = ("BUILT", "REMOVED")
 
 # The statuses that must answer '## Follow-on'. BUILT and REMOVED were milestone 247's; PARTIAL is
