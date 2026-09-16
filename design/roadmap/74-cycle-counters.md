@@ -174,6 +174,51 @@ milestone 229's grant and 237's measurement build, which already exist), and no 
 support (reading one costs an `ecall` per read, and an `ecall` inside a cycle measurement measures
 the `ecall`).
 
+## The riscv64 number, measured on radon 2026-09-16
+
+**`bench-probe: cycles_per_tick 250.00 (25000940 cycles over 100002 ticks at cntfrq 4000000)`**,
+transcript `bench/radon-2026-09-16/bench-134300.log`. That is this milestone's `HARDWARE` half in
+its second sense: a person at the board, following `notes/riscv-cycle-counters.md`. The counter is
+the one the riscv64 half built, and the boot reported it before the sweep:
+`cycles : SBI PMU counter 0, CSR 0xc00, 64 bits`.
+
+**A round number is exactly what milestone 16a warned would be an artifact, so the reason it is real
+is recorded rather than assumed.** 16a's block says QEMU-TCG yields "an implausibly exact 100.00"
+because one virtual clock drives both the `cycle` and `time` CSRs, and an exact ratio is the tell.
+This one is 250 for a physical reason: `cntfrq` is 4 MHz, the core is running at 1.0 GHz, and both
+derive from the same PLL, so the ratio is an integer by construction of the silicon rather than of
+the emulator. **The evidence that two independent counters are being read is that the measurement is
+not exact**: 25,000,940 over 100,002 ticks is 250.0044, and a single clock feeding both would give
+250.0000 every time. The 0.0044 is the drift an emulator cannot produce.
+
+**What it converts.** Every tick-denominated row of a board bench becomes cycles and wall time at
+250 cycles per tick. From the same boot, single-hart (`--bench` parks the secondaries, so these are
+uncontended costs):
+
+| row | cycles | time |
+|---|---|---|
+| `null_syscall` | 322 | 0.32 us |
+| `yield_switch` | 571 | 0.57 us |
+| `ipc_rtt` | 1,046 | 1.05 us |
+| `call_reply` | 1,256 | 1.26 us |
+| `map_el0` | 1,477 | 1.48 us |
+| `ctx_switch` | 1,980 | 1.98 us |
+| `relay_rtt` | 2,306 | 2.31 us |
+| `broker_rtt` | 2,512 | 2.51 us |
+| `ipc_rtt_el0` | 6,222 | 6.22 us |
+| `spawn_reap` | 17,086 | 17.09 us |
+| `spawn_el0` | 64,820 | 64.82 us |
+
+**These are not comparable to `bench/baseline-riscv64.txt`**, and the reason is the unit rather than
+the machine: that file records QEMU **icount**, which counts guest instructions, while these are
+real cycles on silicon. The icount baseline remains what the tripwire checks; this table is what the
+hardware costs. Putting them in one table would be the apples-to-apples failure
+`notes/benchmarks.md` exists to prevent.
+
+**The aarch64 half is untouched by this** and still needs `PMCR_EL0.E` and `PMCNTENSET_EL0.C`
+written before `PMCCNTR_EL0` is anything but a stopped counter reading zero, which is why this block
+stays `PARTIAL`. See `design/roadmap/proposals/the-aarch64-half-of-74.md`.
+
 ## Follow-on
 
 - **Proposed.** `design/roadmap/proposals/the-aarch64-half-of-74.md`: the aarch64 half. The

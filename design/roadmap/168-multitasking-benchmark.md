@@ -1,7 +1,10 @@
 # 168. A multi-tasking workload benchmark: the number that would decide the event-kernel question
 
-**Status: PARTIAL.** The instrument is built, gated and rehearsed on all three architectures; **no
-number exists**, and this block does not turn `BUILT` until one does. Started and left partial
+**Status: PARTIAL.** The instrument is built, gated and rehearsed on all three architectures.
+**Five boots of radon on 2026-09-16 produced numbers, and this block still does not turn `BUILT`**,
+because one of the six sweep points did not produce a number so much as a distribution. The measured
+curve and the reason are in "What five boots measured" below; the honest summary is that the
+**shape** is solid and `tasks=4` is not yet a figure anyone should quote. Started and left partial
 2026-09-04 by a lane with no board, which is what the gate below predicts rather than a shortfall
 against it. Minted 2026-08-25, from [DECISIONS §96](../decisions/96-process-kernel-or-event-kernel.md)'s own recommendation: *"Build the instrument that could decide it. The blocker is that a multi-tasking workload is the only place the difference appears, and we have none."*
 
@@ -87,6 +90,65 @@ needing more experiments). Both are real; they are not the same strength of clai
 ## What this does not decide
 
 Whether nife should actually switch kernel models. That is DECISIONS §96's own question, and it stays open until this milestone's number exists (or until a real customer-path workload starts creating threads in the hundreds, the other condition §96 names for reopening early).
+
+## What five boots measured, radon, 2026-09-16
+
+Transcripts `bench/radon-2026-09-16/jobmix-boot1.log` through `boot5.log`, all five complete
+(six sweep rows and `job-mix: done` each), booted over TFTP from an identical image.
+
+Each `job-mix:` line is the **best of three repeats**, per `job_mix::REPEATS` and the reason stated
+there: the minimum is the least-contended sample.
+
+| tasks | boot 1 | boot 2 | boot 3 | boot 4 | boot 5 | spread |
+|---|---|---|---|---|---|---|
+| 1 | 319,052 | 319,013 | 319,039 | 319,013 | 319,072 | **0.0%** |
+| 2 | 626,242 | 622,410 | 626,452 | 628,362 | 629,044 | 1.1% |
+| 4 | 849,610 | 793,137 | 929,866 | 766,361 | 991,671 | **29.4%** |
+| 8 | 935,893 | 901,011 | 923,732 | 911,129 | 997,548 | 10.7% |
+| 16 | 987,572 | 1,003,653 | 940,648 | 946,568 | 987,017 | 6.7% |
+| 32 | 1,032,586 | 1,060,264 | 1,054,227 | 1,057,537 | 1,050,944 | 2.7% |
+
+**The shape is the result, and it held on every boot.** 1 to 2 tasks is 1.96x on a machine with four
+usable harts, so nearly free; the knee is between 2 and 4; past 8 it is flat; and at 32 tasks, which
+is 8x oversubscription, throughput still creeps up rather than falling. A kernel losing significant
+time to process-kernel overhead under load would bend earlier **and keep declining**. This plateaus.
+
+**`tasks=4` is not a number, and five boots are what established that rather than five boots being
+what it needed.** The variance is *within* a boot, not between boots. Pooling all fifteen repeats at
+each sweep point:
+
+| tasks | min ticks | max ticks | worst within-boot spread |
+|---|---|---|---|
+| 1 | 96,279 | 96,402 | 0.1% |
+| 2 | 97,672 | 112,124 | 14.2% |
+| 4 | **123,912** | **181,408** | **37.3%** |
+| 8 | 246,364 | 299,644 | 18.5% |
+| 16 | 489,731 | 544,301 | 6.1% |
+| 32 | 927,165 | 1,016,672 | 6.8% |
+
+Boot 3's three repeats at `tasks=4` span 132,148 to 181,408 on their own, which **contains the
+entire boot-to-boot range of the best-of-three values**. So a best-of-three drawn from a
+distribution this wide is itself a coin flip, which is why boot 4 read 766,361 and boot 5 read
+991,671 from the same image. **More power cycles sample the wrong axis.**
+
+**Why `tasks=4` and not elsewhere, from the code rather than from the shape of the output.**
+`job_mix::ECHO_SERVERS` is 2, deliberately fewer than the task count so the endpoint is genuinely
+contended. At 1 and 2 tasks there is no contention (1:1 or better); at 4 there is 2:1 contention for
+the first time, with too few samples to average it; by 8 and above the contention is deeper but the
+averaging is better. **The knee and the instability are the same phenomenon**, which is worth
+stating because reading them as two facts would suggest the knee is a scheduling cost when it is a
+contention point the instrument was built to create.
+
+**A correction, recorded because it was nearly written into this block as a finding.** The
+`job-mix-census:` lines were read across three boots as evidence that thread placement is
+deterministic (6/9/9/10 every time) and therefore that `notes/soak.md`'s fifteenfold placement
+hazard had not materialised. That inference was wrong: the census prints **once, before the sweep**,
+and describes the 32-thread pool. It says nothing about where four tasks land during the `tasks=4`
+subrun, which is exactly the configuration whose variance was being explained.
+
+**What is solid.** `tasks=1` at 0.0% across five cold boots is a determinism check on the instrument
+itself, and it passes. The curve shape is stable. The `tasks=32` figure, about 1.05M jobs per minute,
+is the most repeatable point on the sweep at 2.7%.
 
 ## Follow-on
 

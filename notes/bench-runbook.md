@@ -115,3 +115,18 @@ made that instrument a feature rather than something production carries.
   evenings, or what to abandon when time runs out.
 - **No procedure here has been run end to end by its author.** Each was written by the lane that
   built the thing it tests, and the ordering is this page's own.
+- **`script/board-console` writes bytes into its log that are not valid UTF-8**, under sustained
+  board output. Found 2026-09-16 across a five-boot job-mix session: `tr` refuses the file with
+  `Illegal byte sequence`, `awk` dies with `towc: multibyte conversion failure`, and, worst of the
+  three, **`grep` silently reports nothing** because it decides the file is binary. The measured
+  rows themselves were intact in every case; what breaks is every ordinary tool a person would use
+  to read the transcript, and two of the three break *quietly*. Until it is fixed, read a board log
+  with `LC_ALL=C` and `grep -a`, and strip it with `LC_ALL=C tr -cd '\11\12\15\40-\176'` before
+  committing it to `bench/`. The cause is not diagnosed: it may be line noise on the UART at 115200
+  with no flow control, or the tool's own write path.
+- **Two `script/board-console` processes on one serial port silently split the byte stream.** Each
+  gets a fraction and neither reports a problem, so a capture looks merely incomplete rather than
+  wrong. This cost a whole job-mix boot on 2026-09-16, whose log was missing one sweep point's
+  result and all of another's, and read exactly like a board that had wedged. The previous capture
+  had been left running on its own `--for` timer. **Check `lsof /dev/cu.*` before starting a
+  capture**, and kill the previous one rather than assuming its deadline has passed.
