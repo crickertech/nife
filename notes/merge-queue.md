@@ -408,6 +408,25 @@ is a fact about two branches.
   path; it is not an interlock.
 - **Only the first `Blocked-by:` is read.** A pull request sequenced behind two others can only say
   so once, and the honest workaround is to name the later one.
+- **A push after the pull request is enqueued is silently discarded, and the pull request keeps
+  reporting the newer commit as its head** (found 2026-09-16, milestone 304). The queue merges the
+  **SHA it enqueued**. Push again before the group build lands and GitHub updates
+  `headRefOid` to the new commit, shows the PR as merged, and then deletes the branch, so the
+  merge commit's second parent is the *old* SHA and the last commit exists nowhere but a local
+  object store. Milestone 304 lost a documentation commit this way and found it only because the
+  lane happened to diff `origin/main` for its own content afterwards; it was recovered by
+  cherry-picking out of the pruned worktree's objects and landed as its own pull request.
+
+  **The tell is that `gh pr view --json headRefOid` disagrees with
+  `git log -1 --format=%P <merge commit>`.** Nothing reports it, no check fails, and both halves
+  look correct in isolation: the PR says merged, `main` is green, and the diff a reader compares
+  against is the one that was enqueued.
+
+  Two habits cover it, and the first is nearly free. **After a merge, confirm the work is on `main`
+  by content rather than by the PR's state** (`git merge-base --is-ancestor <your last SHA>
+  origin/main`). And **treat the moment a pull request is marked ready as the end of pushing**: a
+  lane that wants one more commit should expect to open a second pull request for it, which is
+  cheaper than the recovery above and is what happened here anyway.
 
 - **A watcher started from a lane worktree dies when that worktree is pruned, and now refuses to
   start there** (2026-08-18). `/bin/sh` reads a script lazily, so deleting the file under a running
