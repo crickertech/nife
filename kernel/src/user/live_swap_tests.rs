@@ -498,6 +498,15 @@ fn a_client_keeps_talking_while_the_server_underneath_it_is_replaced() {
 /// pipe in whichever direction each holder was trusted with. The attacker is endowed with
 /// *exactly* what the honest client holds, so the refusal is about rights and not about
 /// wiring.
+///
+/// Falsification: unfalsified. A real escape here hangs the run instead of failing this
+/// assertion; see notes/confinement-claims.md and milestone 305. `RECV_CAP` is a blocking
+/// receive, so an attacker the kernel fails to refuse does not report an escape, it takes the
+/// message the honest server was waiting for and every thread blocks. Measured 2026-09-16 with
+/// the rights check deleted from the syscall: a 60-second watchdog reading `a lost-wakeup
+/// hang`, which is milestone 202's wrong-reason red exactly. A defect that only changes which
+/// error is returned does fire this assertion and is not recorded, because it leaves the claim
+/// intact.
 #[test_case]
 fn a_client_of_the_stable_rendezvous_cannot_become_its_server() {
     if machine_has_no_device_page_for_the_console() {

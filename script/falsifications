@@ -42,14 +42,31 @@
 #                       Counted, and a worklist entry. An assertion is not evidence.
 #   unfalsified         nobody has. This is the claim's honest denominator.
 #
-# And a fourth thing that is not a state, because it is not a harness. A `falsifications/` directory
-# may hold a patch against something `cargo kani` cannot run at all: milestone 202 (every confinement
-# test is a ritual until somebody breaks the confinement) recorded one against a kernel `#[test_case]`
-# that boots under QEMU. It is a real falsification of a real claim and no sweep can replay it until
-# milestone 210 (no kernel test can be run by name) lands. Those are printed after the ratio and
-# counted in neither half of it, which milestone 212 chose deliberately: a denominator that quietly
-# excludes them is the defect, and a numerator that quietly includes evidence nothing re-runs is the
-# same defect facing the other way.
+# **A kernel `#[test_case]` carries the same block and is swept the same way** (milestone 305).
+# Milestone 202 recorded a falsification against
+# `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant`,
+# a test that boots under QEMU rather than a Kani harness, and nothing could replay it: this script
+# keyed on `#[kani::proof]`, and the only replay verb it had was `cargo kani --harness`. **Milestone
+# 210 built the missing half** (`cargo xtask test --test <substring>` filters the kernel suite), and
+# six kernel confinement claims in notes/confinement-claims.md had sat at "no mechanism" waiting for
+# it. So the three states, the `Falsification:` block and §134's patch path are all unchanged; what
+# is new is a second replay verb and a second thing to read the block above.
+#
+# **§134 is read as already covering this**, rather than amended, and the evidence is that milestone
+# 202's patch filename obeys the section's spelling exactly with no special case:
+# `<package>/falsifications/<module.path>.<harness_fn_name>.patch` names
+# `kernel/falsifications/user.c_seam_tests.a_c_...patch`. The only word that strains is `harness`,
+# and it strains in prose rather than in the convention. If calef wants the wording widened, that is
+# a decisions edit and not this script's.
+#
+# **Kernel tests are opt-in where Kani harnesses are mandatory**, which is the one deliberate
+# asymmetry. `--check` fails a `#[kani::proof]` that carries no block, because there are 145 of them
+# and the whole point of the record is that every proof says which of the three it is. There are 312
+# `#[test_case]`s and almost none of them is a confinement claim, so requiring a block on all of them
+# would buy a wall of `unfalsified` and teach nobody anything. A kernel test is counted here when it
+# carries a block, and the both-directions patch check is what keeps that honest: a patch under a
+# package's `falsifications/` must be claimed by a harness **or** by a test, and an unclaimed one is
+# still reported as rot.
 #
 # The block, which is all the lint checks:
 #
@@ -68,6 +85,12 @@
 #                                           for the drift check in script/lint (milestone 236)
 #   script/falsifications --sweep [package] apply every recorded patch, require red, revert
 #   script/falsifications --affected-since <base>   sweep only what a diff can reach (the per-PR half)
+#
+# **`--count` stays Kani-only and that is deliberate.** `script/lint`'s drift check (milestone 236)
+# compares these two integers against `script/metrics`, which counts the same harnesses from source
+# text at revisions nobody has checked out. Folding kernel tests into the numbers here would make the
+# two derivations disagree for a reason neither is wrong about, which is the drift the check exists to
+# find. The kernel-test ratio is printed in the table instead, as its own sentence.
 #
 # **The scope is every workspace package, and it was `crates/` until milestone 212.** That is the
 # whole of that milestone and it was not an undercount so much as a mislabelled fraction: the ratio
@@ -107,12 +130,54 @@
 # - **`--sweep` refuses to run on a dirty working tree**, because it applies and reverts patches with
 #   `git apply` and a failure mid-run would otherwise leave a deliberate defect in somebody's source.
 #   That is a real limit: you cannot sweep while you work.
+# - **A kernel-test falsification costs a boot, and what it really costs is whatever the patch makes
+#   cargo rebuild.** Measured on patagonia, 2026-09-16: the whole 48-record sweep is **2 min 55 s**
+#   warm, against about **22 min** on a tree where each patch forced a rebuild. Milestone 210
+#   measured QEMU start to `running N tests` at 0.50 s and a warm filtered run at 8.6 s, and a
+#   riscv64 record here came in at 9.9 s, so the boot is not the cost and never was. A patch that
+#   touches a crate the kernel and the user programs both depend on pays for the archive, the
+#   standard-library exerciser and five disk images on every apply and every revert. That is why
+#   this stayed a report rather than becoming a gate.
+# - **`--affected-since` covers only the Kani half.** It is the per-PR half and the reason it is
+#   affordable is that a falsification runs one harness; adding a per-record kernel boot would put
+#   eight minutes on every pull request that touches `kernel/`. So a kernel-test falsification is
+#   re-checked by a full `--sweep` and by nothing else, which means it can rot between sweeps exactly
+#   the way a Kani record cannot.
+# - **A kernel record is swept on ONE architecture, the one its patch names.** `Architecture:` in the
+#   patch head (default `aarch64`) picks the leg, because a defect is not always expressible on all
+#   three: `crates/paging`'s `U` bit marks a page user-accessible on RISC-V, and a kernel page marked
+#   `U` faults the kernel itself with `sstatus.SUM` clear, so "the kernel maps its own memory
+#   user-readable" cannot be booted there at all. DECISIONS §19 makes parity a gate for the
+#   *capability*; this is a gap in the *evidence*, and notes/confinement-claims.md names which rows
+#   it affects.
+# - **A kernel record's red is checked for shape, not for the assertion it names.** The sweep
+#   requires the kernel to have booted and selected exactly one test (`running 1 of N`) before it
+#   will call a non-zero exit red, which is what keeps a patch that does not compile, or a boot that
+#   dies, from reading as a successful falsification. It cannot check that the failure came through
+#   the assertion the patch's prose predicts; the transcript's panic line is printed so a reader can.
+#   Milestone 202's watchdog timeout at 234 seconds is the failure this leaves on the table.
 # - **The affected-since computation is crate-granular, not harness-granular.** A change anywhere in
 #   a harness crate's dependency closure re-falsifies every replayable harness in that crate, because
 #   nothing in this tree knows which lines a given harness actually covers (that is what an IVC would
 #   have bought). It fails toward doing too much.
-# - **`kernel/src/arch/` carries no harnesses and gains nothing here**, so the architecture layer,
-#   where the VisionFive 2's undelivered-wake defect actually lived, is outside this record entirely.
+# - **The sweep replays a harness only on a host whose architecture compiles it** (milestone 304),
+#   and nothing here says which host a record needs. `kernel/src/arch/mod.rs` selects its subtree
+#   with `#[cfg(target_arch = ...)]` and Kani compiles for the host, so
+#   `kernel/falsifications/arch.aarch64.iommu.*.patch` can only be replayed on an aarch64 box and an
+#   `arch.x86_64.*` one only on an x86_64 box. That has been true since milestone 255 wrote the
+#   first of them and went unnoticed because every machine in this project was aarch64; milestone
+#   304 added an x86_64 CI runner and made it a fact with two sides. **The honest consequence is
+#   that an architecture-specific harness records `attested` rather than `replayable`** (both of
+#   milestone 304's do, and say why at the harness), because a `replayable` record here would turn
+#   `--sweep kernel` red on every host but one. Teaching the sweep to skip a patch it cannot compile
+#   is the obvious fix and is deliberately NOT taken: a skip is the invisible direction this file
+#   argues against everywhere else, and it would need a per-record statement of the host it wants,
+#   which is a format change and so calef's.
+# - **`kernel/src/arch/` is barely covered here**, and the line above this one used to say it carried
+#   no harnesses at all, which stopped being true when milestone 255 proved
+#   `arch/aarch64/iommu.rs` in place. It is now four harnesses across two architectures and two
+#   files; the VisionFive 2's undelivered-wake defect, which is the reason this entry exists, is
+#   still on the far side of the `asm!` boundary and outside this record entirely.
 # - **A file's module path is derived from the Cargo target it belongs to, and one shape defeats
 #   that.** `components/src` holds 49 `[[bin]]` roots and two single-consumer `#[path]` modules that rule 7
 #   permits (`net_transport.rs`, `socket_test_client.rs`). A root contributes no module segment and a
@@ -161,6 +226,14 @@ RECORD = re.compile(r"^//[/!]?\s*Falsification:\s*(.*)$")
 # The first line of a patch that falsifies something `cargo kani` cannot run: `Falsifies
 # `kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults...``. See `unclaimed()`.
 FALSIFIES = re.compile(r"^Falsifies\s+`?([A-Za-z_][\w:]*)`?", re.M)
+
+# A kernel `#[test_case]`, matched on the stripped line exactly as `PROOF` is (milestone 305).
+TEST_CASE = re.compile(r"^#\[test_case\]")
+
+# `Architecture: riscv64` in a kernel patch's prose head: which leg the sweep boots. Default
+# `aarch64`. See this script's BUGS on why a kernel record is swept on one architecture.
+ARCH_DECL = re.compile(r"^Architecture:\s*(\w+)\s*$", re.M)
+ARCHES = ("aarch64", "riscv64", "x86_64")
 
 MOD_OPEN = re.compile(r"^(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*\{")
 
@@ -319,14 +392,31 @@ def harness_files():
     return sorted(out.stdout.split())
 
 
-def harnesses():
+def test_case_files():
+    """Every tracked `.rs` file carrying a `#[test_case]`, from `git grep` (milestone 305).
+
+    Narrowed to files that ALSO mention `Falsification:` before anything is parsed, because a kernel
+    test is opt-in: 312 `#[test_case]`s exist and a handful carry a record, so scanning the rest
+    would be work with nothing at the end of it.
+    """
+    out = subprocess.run(["git", "-C", root, "grep", "-lE", r"#\[test_case\]", "--", "*.rs"],
+                         capture_output=True, text=True)
+    files = []
+    for rel in sorted(out.stdout.split()):
+        with open(os.path.join(root, rel), errors="replace") as f:
+            if "Falsification:" in f.read():
+                files.append(rel)
+    return files
+
+
+def harnesses(pkgs=None):
     """Every Kani harness in a workspace package, with the falsification record it carries.
 
     Derived from the tree rather than from a list, for the reason `script/verify`'s own scope
     computation gives: a harness that arrives tomorrow is covered without editing anything, and a
     list that is one entry short fails silently and invisibly.
     """
-    pkgs = packages()
+    pkgs = pkgs if pkgs is not None else packages()
     out = []
     for rel in harness_files():
         pkg = next((p for p in pkgs if rel.startswith(p.prefix)), None)
@@ -369,7 +459,59 @@ def harnesses():
     return out
 
 
+def kernel_tests(pkgs=None):
+    """Every `#[test_case]` that CARRIES a `Falsification:` block (milestone 305).
+
+    The same walk `harnesses()` does, with two differences and both are the asymmetry the header
+    argues for. The attribute is `#[test_case]`, and a function without a record is skipped rather
+    than reported, because the record is opt-in here: `--check` demands a block from all 145 Kani
+    harnesses and would buy nothing but noise demanding one from 312 kernel tests.
+    """
+    pkgs = pkgs if pkgs is not None else packages()
+    out = []
+    for rel in test_case_files():
+        pkg = next((p for p in pkgs if rel.startswith(p.prefix)), None)
+        if pkg is None:
+            continue
+        lines = open(os.path.join(root, rel), errors="replace").read().split("\n")
+        mods = module_path_by_line(pkg.file_mods(rel), lines)
+        target, _ = pkg.target_of(rel)
+        for i, line in enumerate(lines):
+            if not TEST_CASE.match(line.strip()):
+                continue
+            # Downward past any further attributes (`#[cfg(target_arch = "aarch64")]`) to the
+            # function, and upward past them to the comment run, exactly as `harnesses()` does.
+            name = None
+            for j in range(i + 1, len(lines)):
+                s = lines[j].strip()
+                if not s or ATTR.match(s) or COMMENT.match(s):
+                    continue
+                hit = FN.match(s)
+                name = hit.group(1) if hit else None
+                break
+            if name is None:
+                continue
+            record, record_line = None, None
+            k = i - 1
+            while k >= 0 and ATTR.match(lines[k].strip()):
+                k -= 1
+            while k >= 0 and COMMENT.match(lines[k].strip()):
+                hit = RECORD.match(lines[k].strip())
+                if hit:
+                    record, record_line = hit.group(1).strip(), k + 1
+                k -= 1
+            if record is None:
+                continue
+            out.append(KernelTest(pkg, target, name, rel, i + 1, record, record_line, mods[i]))
+    out.sort(key=lambda h: (h.package, h.name))
+    return out
+
+
 class Harness:
+    # What replays this record, which is the only thing `KernelTest` changes. Named rather than
+    # tested with `isinstance`, because it is printed in the table and in the sweep's own output.
+    kind = "kani"
+
     def __init__(self, pkg, target, name, rel, line, record, record_line, mods):
         self.pkg = pkg
         self.package = pkg.name
@@ -452,6 +594,43 @@ class Harness:
         return argv + ["--harness", self.qualified, "--exact", "--output-format=terse"]
 
 
+class KernelTest(Harness):
+    """A kernel `#[test_case]` carrying a `Falsification:` block (milestone 305).
+
+    Everything about the record is a `Harness`'s: the three states, the `<module.path>.<fn>.patch`
+    spelling, the prose requirement. What differs is how it is replayed, which is milestone 210's
+    filter rather than `cargo kani`, and that it boots a machine to do it.
+    """
+
+    kind = "kernel test"
+
+    @property
+    def architecture(self):
+        """Which leg the sweep boots, from `Architecture:` in the patch's prose head.
+
+        Defaulted rather than required, because `aarch64` is what every one of these was written
+        against and a record that says nothing is saying that. A spelling that is not one of the
+        three is a `--check` problem rather than a silent fallback: the sweep would otherwise run a
+        leg nobody asked for and call the result evidence.
+        """
+        path = self.patch
+        if not path or not os.path.exists(os.path.join(root, path)):
+            return "aarch64"
+        body = open(os.path.join(root, path), errors="replace").read()
+        hit = ARCH_DECL.search(body.split("diff --git")[0])
+        return hit.group(1) if hit else "aarch64"
+
+    def replay_argv(self):
+        """What runs this ONE test and nothing else: milestone 210's filter, on one architecture.
+
+        The filter is the bare function name rather than the qualified path. Both work (the runner
+        matches a substring of the full test path) and the short one is what a reader would type,
+        which matters because this string is also the command a person re-runs by hand after the
+        sweep reports a survivor.
+        """
+        return ["cargo", "xtask", "test", "--arch", self.architecture, "--test", self.name]
+
+
 def patch_files(pkgs):
     """Every patch under a package's `falsifications/`, repo-relative."""
     out = []
@@ -513,16 +692,25 @@ def unclaimed(path, pkgs):
     return "gap", "%s (%s), which no Kani harness declares" % (target, found.stdout.split()[0])
 
 
-def check(hs, pkgs):
+def check(hs, pkgs, kts=()):
     """Form, never truth. Exactly the line `script/names --check` draws, and for the same reason.
 
     Both directions, which §134 asked for by name: every `replayable` path resolves AND every patch
     under a package's `falsifications/` has a harness that claims it. A one-directional check lets a
     patch rot into a file nobody runs, which is the failure this record exists to end wearing
     different clothes.
+
+    `kts` are the kernel tests carrying a record (milestone 305). They go through the same checks and
+    into the same `claimed` set, which is what retires the "falsifies something that is not a Kani
+    harness; nothing sweeps it" line: the patch now has a claimant and something does sweep it.
     """
     problems = []
     claimed = {}
+    for t in kts:
+        if t.state == "replayable" and t.patch and t.architecture not in ARCHES:
+            problems.append("%s:%d: `%s` declares `Architecture: %s`; the three are %s"
+                            % (t.rel, t.line, t.patch, t.architecture, ", ".join(ARCHES)))
+    hs = list(hs) + list(kts)
     # A duplicate qualified name is impossible in Rust, so this is a guard on the PARSER rather than
     # on the tree: if brace counting ever miscomputes a module path, two harnesses collapse onto one
     # patch path and the sweep would prove the wrong one. Cheap to assert, invisible if it drifts.
@@ -595,7 +783,7 @@ def check(hs, pkgs):
     return problems, gaps
 
 
-def table(hs, pkgs):
+def table(hs, pkgs, kts=()):
     counts = {s: 0 for s in STATES}
     by_pkg = {}
     for h in hs:
@@ -622,7 +810,22 @@ def table(hs, pkgs):
     # than folded into either number above. Milestone 212 decided this explicitly: a denominator
     # that quietly excludes them is what it was written to end, and so is a numerator that quietly
     # includes evidence nothing re-runs.
-    _, gaps = check(hs, pkgs)
+    # The kernel-test half, printed as its own paragraph rather than folded into the ratio above
+    # (milestone 305). Two reasons and neither is tidiness. `--count` feeds `script/lint`'s drift
+    # check against `script/metrics`, which counts Kani harnesses from source text, so a merged
+    # number would make two honest derivations disagree. And the evidence is not the same grade: a
+    # Kani record is re-checked in a second and a kernel record costs a boot, so they are re-checked
+    # at different cadences and a reader should be told which they are looking at.
+    if kts:
+        print("")
+        print("%d kernel test(s) carry a falsification record, swept by booting one architecture:"
+              % len(kts))
+        kwidth = max(len(t.name) for t in kts)
+        for t in kts:
+            print("  %-*s  %s" % (kwidth, t.name, t.record))
+        n = sum(1 for t in kts if t.state == "replayable")
+        print("  %d of %d replayable. These are NOT in the ratio above." % (n, len(kts)))
+    _, gaps = check(hs, pkgs, kts)
     if gaps:
         print("")
         print("%d falsification record(s) nothing here can sweep, because the thing they falsify is"
@@ -651,6 +854,90 @@ def dirty():
     out = subprocess.run(["git", "-C", root, "status", "--porcelain"],
                          capture_output=True, text=True).stdout.strip()
     return out
+
+
+def replay_kani(h):
+    """Run one Kani harness against the applied patch. Returns (verdict, detail).
+
+    `--exact` against the fully qualified name, which is what the amended patch path buys beyond
+    uniqueness: the path and this filter are one fact with the separators changed. Before the
+    amendment this was a substring match on the bare function name, and `paging`'s three
+    `index_is_always_in_bounds` harnesses would all have run, so "one of them went red" proved
+    nothing about the one being falsified.
+    """
+    run = subprocess.run(h.kani_argv(), cwd=root, capture_output=True, text=True)
+    out = run.stdout + run.stderr
+    hit = re.search(r"(\d+) successfully verified harnesses, (\d+) failures, (\d+) total", out)
+    if not hit:
+        last = out.strip().splitlines()
+        return "error", ("could not read Kani's summary; ran with exit %d%s"
+                         % (run.returncode, ("\n    " + last[-1]) if last else ""))
+    if hit.group(3) != "1":
+        # Belt and braces over `--exact`: if Kani ever matched none (a renamed harness) or more
+        # than one, "something went red" would prove nothing about this harness.
+        return "error", "`--exact %s` matched %s harnesses, not 1" % (h.qualified, hit.group(3))
+    if hit.group(2) == "1":
+        return "red", "the harness caught it"
+    return "survivor", ""
+
+
+def replay_kernel_test(t):
+    """Boot one architecture, run one kernel test against the applied patch (milestone 305).
+
+    **A non-zero exit is not enough to call this red**, and that is the whole of the care here. A
+    patch that does not compile, a kernel that dies before the suite, a filter that selects nothing:
+    every one of those exits non-zero and none of them is evidence about a confinement claim. So the
+    transcript must first show that the kernel booted and selected exactly one test, which is
+    `running 1 of N tests (filter: ...)`, printed by `testing::runner` after the filter is applied.
+    Only then does the exit code mean what it looks like it means.
+
+    A test that SKIPS is neither red nor a survivor in any useful sense and is reported as an error,
+    because a skip means the fixture the claim needs was not attached to this boot (no RedoxFS disk,
+    no device page) and the falsification was never actually attempted. Reading that as green would
+    be the manufactured fact milestone 214's skip accounting exists to refuse, one level out.
+
+    What it cannot check is the one thing milestone 202 warns about: that the red came through the
+    assertion the patch's prose predicts. The panic line is returned so a reader can judge, which is
+    rung three rather than rung two, and this script's BUGS says so.
+    """
+    run = subprocess.run(t.replay_argv(), cwd=root, capture_output=True, text=True)
+    out = run.stdout + run.stderr
+    selected = re.search(r"running (\d+) of (\d+) tests", out)
+    if selected is None:
+        last = [l for l in out.strip().splitlines() if l.strip()]
+        return "error", ("the kernel never reached its test runner on %s (exit %d): the patch may "
+                         "not compile, or the boot died.%s"
+                         % (t.architecture, run.returncode,
+                            ("\n    " + last[-1]) if last else ""))
+    if selected.group(1) != "1":
+        return "error", ("`--test %s` selected %s tests, not 1: a red would not be about this one"
+                         % (t.name, selected.group(1)))
+    result = re.search(r"^test result:.*$", out, re.M)
+    if result is not None and "skipped" in result.group(0):
+        return "error", ("the test SKIPPED on %s (%s): its fixture was not attached to this boot, "
+                         "so the falsification was never attempted"
+                         % (t.architecture, result.group(0).strip()))
+    if run.returncode == 0:
+        return "survivor", "it ran, it passed, and the defect is still in the tree under the patch"
+    # The panic's location AND its message, which is what a reader needs to tell a claim-shaped red
+    # from milestone 202's watchdog timeout at 234 seconds. `panicked at <file>:<line>:` is on its
+    # own line and the assertion's own sentence is on the next ones, so taking only the first gives
+    # a coordinate where the point is the words.
+    hit = re.search(r"^.*panicked at.*$", out, re.M)
+    if hit is None:
+        return "red", ("exit %d on %s, with no panic line in the transcript: read it before "
+                       "believing this" % (run.returncode, t.architecture))
+    # The assertion's own sentence follows the location on the next lines, and so, eventually, does
+    # cargo's own chatter, because this runs a build and a boot down one pipe. Stop at the first
+    # line that is plainly the toolchain talking rather than the kernel.
+    lines = out[hit.start():].splitlines()[:5]
+    body = []
+    for line in lines:
+        s = line.strip()
+        if not s or re.match(r"^(warning|error|note|help|\||=|-->|\^)", s):
+            break
+        body.append(s)
+    return "red", "the test caught it on %s\n      %s" % (t.architecture, "\n      ".join(body))
 
 
 def sweep(hs, only=None):
@@ -686,32 +973,18 @@ def sweep(hs, only=None):
             broken.append(h)
             continue
         try:
-            # `--exact` against the fully qualified name, which is what the amended patch path
-            # buys beyond uniqueness: the path and this filter are one fact with the separators
-            # changed. Before the amendment this was a substring match on the bare function name,
-            # and `paging`'s three `index_is_always_in_bounds` harnesses would all have run, so
-            # "one of them went red" proved nothing about the one being falsified.
-            run = subprocess.run(h.kani_argv(), cwd=root, capture_output=True, text=True)
-            out = run.stdout + run.stderr
-            hit = re.search(r"(\d+) successfully verified harnesses, (\d+) failures, (\d+) total",
-                            out)
-            if not hit:
-                print("    ERROR    could not read Kani's summary; ran with exit %d" % run.returncode)
-                last = out.strip().splitlines()
-                if last:
-                    print("    " + last[-1])
-                broken.append(h)
-            elif hit.group(3) != "1":
-                # Belt and braces over `--exact`: if Kani ever matched none (a renamed harness) or
-                # more than one, "something went red" would prove nothing about this harness.
-                print("    ERROR    `--exact %s` matched %s harnesses, not 1"
-                      % (h.qualified, hit.group(3)))
-                broken.append(h)
-            elif hit.group(2) == "1":
-                print("    red      the harness caught it")
-            else:
-                print("    SURVIVOR the harness stayed green with its own falsification applied")
+            replay = replay_kernel_test if h.kind == "kernel test" else replay_kani
+            verdict, detail = replay(h)
+            if verdict == "red":
+                print("    red      %s" % detail)
+            elif verdict == "survivor":
+                print("    SURVIVOR it stayed green with its own falsification applied")
+                if detail:
+                    print("    " + detail)
                 survivors.append(h)
+            else:
+                print("    ERROR    %s" % detail)
+                broken.append(h)
         finally:
             rev = subprocess.run(["git", "-C", root, "apply", "-R", patch],
                                  capture_output=True, text=True)
@@ -788,13 +1061,14 @@ def affected_packages(base, hs):
 
 
 pkgs = packages()
-hs = harnesses()
+hs = harnesses(pkgs)
+kts = kernel_tests(pkgs)
 if not hs:
     sys.exit("script/falsifications: found no Kani harnesses in any workspace package, which cannot "
              "be right")
 
 if mode == "--check":
-    problems, gaps = check(hs, pkgs)
+    problems, gaps = check(hs, pkgs, kts)
     for p in problems:
         print("  " + p)
     if problems:
@@ -804,6 +1078,9 @@ if mode == "--check":
     n = sum(1 for h in hs if h.state == "replayable")
     print("  %d harnesses in %d packages, every one carrying a Falsification: block (%d replayable)"
           % (len(hs), len({h.package for h in hs}), n))
+    if kts:
+        print("  %d kernel test(s) carry a record (%d replayable), swept by booting one architecture"
+              % (len(kts), sum(1 for t in kts if t.state == "replayable")))
     for p, _ in gaps:
         print("  %s falsifies something that is not a Kani harness; nothing sweeps it" % p)
 elif mode == "--count":
@@ -820,7 +1097,10 @@ elif mode == "--count":
 elif mode == "--unfalsified":
     unfalsified(hs)
 elif mode == "--sweep":
-    sys.exit(sweep(hs, set(args[1:]) or None))
+    # Kernel records join the sweep rather than getting a verb of their own, because a second verb
+    # would make the honest ratio the one nobody runs. The cost is stated in BUGS: about a minute
+    # each, against a harness's second.
+    sys.exit(sweep(hs + kts, set(args[1:]) or None))
 elif mode == "--affected-since":
     if len(args) < 2:
         sys.exit("usage: script/falsifications --affected-since <base-ref>")
@@ -831,7 +1111,7 @@ elif mode == "--affected-since":
     print("reachable harness packages: %s" % ", ".join(sorted(names)))
     sys.exit(sweep(hs, names))
 elif mode in ("", "--all"):
-    table(hs, pkgs)
+    table(hs, pkgs, kts)
 else:
     sys.exit("script/falsifications: unknown option %r (see the header)" % mode)
 PY

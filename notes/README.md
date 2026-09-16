@@ -855,7 +855,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   `design/fatal-risks.md`'s risk 7, and the enumeration is the deliverable: **twenty-six confinement
   claims, where each is stated, which test checks it, and whether that test has been shown to fail
   when the claim is broken.** Twenty-five Kani harnesses now carry a replayable falsification, up
-  from six. Three findings are worth more than the count. DECISIONS §31's headline sentence, that
+  from six, and since milestone 305 so do ten kernel tests, which closed the six rows that had no
+  mechanism at all. **That sweep's first run found a survivor**, and it is the sharpest thing in
+  this note: row 21's RISC-V twin stayed green under a patch that removed the `U`-bit check
+  outright, because `user_can_read` walked a low-half mapper and answered "U-mode cannot read the
+  kernel" by refusing to look at a high-half address. The assertion had been unable to fail since
+  milestone 41 with every gate green throughout. Three older findings are worth more than the count.
+  DECISIONS §31's headline sentence, that
   two witness pages are unchanged after a C component's out-of-bounds write, is **not** what catches
   a broken confinement: map `WITNESS_RO` read/write and the verdict assertion never runs, because a
   component that is not confined does not fault and a run missing a death report stalls before any

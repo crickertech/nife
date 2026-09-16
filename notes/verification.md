@@ -75,6 +75,16 @@ A proof is only as good as four things, and each is worth being blunt about:
    sharpest edge of this limit**: every queue and endpoint proof here is single-threaded, and the
    wake-before-switch-out race (notes/intrusive-queues.md) lived precisely in the SMP interleaving
    those proofs cannot see. Green harnesses and a real race coexisted; the flaky test found it.
+
+   **And there is a fourth edge of the same limit that is not about the model at all: the prover
+   compiles for the host, so it sees one architecture** (milestone 304). `kernel/src/arch/mod.rs`
+   selects its subtree with `#[cfg(target_arch = ...)]`, which means a Kani run on an aarch64 box
+   compiles `arch/aarch64/` and no line of the other two. This is worse than the `asm!` boundary
+   above rather than milder, because it is **silent**: an unsupported construct is reported, a
+   `cfg`-excluded file produces no diagnostic of any kind, and the suite goes green faster. The
+   `kernel` row is now proved on an aarch64 runner and an x86_64 one for exactly this reason;
+   `arch/riscv64/` is compiled by nothing anywhere, and there is no runner that could. See
+   notes/kernel-proofs.md for the table of what each host reaches.
 3. **The harness itself is code, and until milestone 113 it was code no gate read.** `cfg(kani)` is
    set by the model checker and by nothing else, so `script/lint` never compiled a single
    `#[cfg(kani)] mod verification` and `clippy::undocumented_unsafe_blocks` could not fire in one.
@@ -638,7 +648,9 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**148 harnesses** <!--count:kani-harnesses--> **across 25 packages** <!--count:harness-crates-->. (It fell from 151 across 26 on
+**150 harnesses** <!--count:kani-harnesses--> **across 25 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
+`kernel/src/arch/x86_64/irq.rs`, which **only the x86_64 job runs**: the count is of the tree, not of
+any one run, and no single host compiles all 150. It fell to 148 from 151 across 26 on
 2026-09-15, when milestone 298 retired `multicast_dns_protocol` and its three. This line said 67 for
 a while after it was 69, then "a few minutes" for a month after that stopped being true, then 107
 after it was 119. Both counts now carry a `<!--count:-->` marker and `script/lint` re-derives them

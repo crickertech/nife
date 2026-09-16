@@ -6,6 +6,19 @@ for the largest asm-free files in `kernel/src/arch/`.
 **Gate: NONE.** The mechanism is a `script/verify` row and a runner label, both of which already
 exist in other shapes. It is reversible: a row can be removed.
 
+**Promoted:** minted as **milestone 304** and built on 2026-09-16. The record is
+[design/roadmap/304-prover-one-architecture.md](../304-prover-one-architecture.md); the status line
+above keeps its original date because that is what makes the pile measurable.
+
+**Three things this proposal got wrong, kept here rather than edited away**, because the proposal is
+the argument as it stood and the milestone is the account. The premise was exactly right and was
+re-measured before anything was built on it. But the prerequisite it named (`aarch64-cpu` behind a
+target `cfg`) **was already done** on 2026-08-31, so that half cost nothing; the mechanism was *not*
+only a row and a label, because `arch/x86_64/` did not compile under Kani at all, for four `E0133`s
+that turned out to be Kani's bundled rustc running ten months behind this tree's pin; and the
+"probably" in the riscv64 bullet is now a measurement, since Kani has no cross-target flag and CBMC
+needs a goto-binary for its own host.
+
 **In brief.** `kernel/src/arch/mod.rs` selects its subtree with `#[cfg(target_arch = ...)]`, and
 under Kani the target is the **host**. Every job in `.github/workflows/verify.yml` runs on
 `ubuntu-24.04-arm`, and the dev machine is Apple Silicon, so `cargo kani -p kernel` compiles
