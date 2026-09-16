@@ -177,6 +177,40 @@ if [ "$1" = "--shard" ]; then
 	shift 2
 fi
 
+# --only <crate>: prove exactly one row of the table below.
+#
+# **It exists because one row's coverage depends on the machine running it** (milestone 304). Every
+# other crate here is portable logic and proves the same thing wherever it runs; `kernel` does not.
+# `kernel/src/arch/mod.rs` selects its subtree with `#[cfg(target_arch = ...)]`, and Kani compiles
+# for the HOST, so `cargo kani -p kernel` on an aarch64 box proves `arch/aarch64/` and compiles no
+# line of `arch/riscv64/` or `arch/x86_64/`. Two thirds of the architecture layer was out of the
+# prover's reach for a `cfg` rather than for a construct, and nothing in the tree said so until
+# milestone 255 found it.
+#
+# So the mechanism is a second host, and this is the flag that lets a job on one ask for the row
+# that differs instead of re-proving the eighteen that do not. See
+# `.github/workflows/verify.yml`'s `prove-kernel-x86_64` job and
+# design/roadmap/304-prover-one-architecture.md.
+#
+# It refuses a crate that is not in the table, rather than passing the name to `cargo kani` and
+# proving nothing while reporting success: a typo here would be the same invisible green the
+# missing-row failures above cost this file twice.
+#
+# Name provisional (milestone 304): calef names what a reader meets, and a flag is an interface.
+only=""
+if [ "$1" = "--only" ]; then
+	only="$2"
+	if [ -z "$only" ]; then
+		echo "usage: script/verify --only <crate>   (for example --only kernel)" >&2
+		exit 2
+	fi
+	if [ -n "$shard" ]; then
+		echo "script/verify: --only and --shard both select crates; pass one" >&2
+		exit 2
+	fi
+	shift 2
+fi
+
 if ! cargo kani --version >/dev/null 2>&1; then
 	echo "==> installing Kani (first run only)"
 	cargo install --locked kani-verifier
@@ -243,6 +277,12 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 # `kernel`'s 5 seconds are the same kind of number and carry one extra caveat: what the solver spends
 # is milliseconds, and the row is almost entirely the crate's own compile. It will grow with the
 # harnesses rather than with the kernel.
+#
+# **And `kernel` is the one row whose MEANING depends on the machine** (milestone 304). It is proved
+# twice, on two hosts, because `crate::arch` dispatches on the host's `target_arch` under Kani: an
+# aarch64 host proves `arch/aarch64/` plus the portable harnesses, an x86_64 host proves
+# `arch/x86_64/` plus the same portable ones, and the two sets are not the same harnesses. Nothing
+# proves `arch/riscv64/` and nothing can; see `--only` above and the milestone's block.
 #
 # **No apostrophes in this table, anywhere, ever** (found 2026-08-24). The `paging` row used to read
 # "the IOMMU domain's page set"; that one apostrophe, alone, made the dev Mac's `/bin/sh` (bash
@@ -333,6 +373,13 @@ sys.stderr.write("shard %d/%d: %d crates, ~%.1f min of a %.1f-minute serial tota
                  % (k, n, len(bins[k - 1]), load[k - 1] / 60, sum(load) / 60))
 print(" ".join(bins[k - 1]))
 ')"
+elif [ -n "$only" ]; then
+    if ! printf '%s\n' "$CRATES" | cut -f1 | grep -qx "$only"; then
+        echo "script/verify: --only $only is not a row in the crate table; refusing to prove" \
+             "nothing and report it as a suite" >&2
+        exit 2
+    fi
+    crates="$only"
 else
     crates="$(printf '%s\n' "$CRATES" | cut -f1 | tr '\n' ' ')"
 fi
