@@ -284,9 +284,30 @@ assertion doing the work, and said a sweep would probably find more. This is tha
 26 rows. The question asked of every test and harness: **when the claim is broken, which assertion
 fires, and is the one a reader would quote reachable at all?**
 
-Three verdicts, and the third is not padding. **Fires as advertised: 17 rows.** **The quotable
-assertion cannot run: 8 rows.** **Answered by refusing to look: 1 row**, which is row 12, and it is
-the finding the milestone is for.
+Three verdicts, and the first is not padding: saying plainly that most rows are exactly what they
+look like is what makes the rest worth reading.
+
+| Verdict | Rows | Count |
+|---|---|---|
+| **Fires as advertised** | 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 16, 18, 19, 21, 22, 23, 25 | 17 |
+| **The quotable assertion cannot run** | 4, 13, 14, 15, 20, 24 | 6 |
+| **Answered by refusing to look** | 12 | 1 |
+| Deliberately `unfalsified`, so neither | 17, 26 | 2 |
+
+Two of the seventeen carry an unreachable restatement *below* a headline that does fire, which is
+the same shape doing less damage: row 18's `& GRANT == 0` and row 25's two
+`rendezvous_waiting_senders` checks. They are counted where their headline is and described below.
+
+Row-by-row notes on the seventeen, so a reader can tell which fact is which rather than inferring it
+from a count: rows 1, 3, 5, 6, 8, 10, 11 and 16 state their property independently of the code under
+test and each has a recorded patch that fires on the assertion its prose names. Row 2's
+`from_bits_cannot_forge_a_right` is sound for the claim it makes and blind to the adjacent hazard its
+own doc comment names, a wrong `Rights::ALL`, which drops rights rather than forging them and is a
+different claim. Row 7's `kani::assume` narrows *to* the adversarial case rather than away from it.
+Row 9 is stated through both functions it compares, which is the claim (that they agree) rather than
+a defect. Row 16's two assumes plus `MAX_QUEUES = 2` admit exactly one pair, `(0, 1)`, so "any two
+distinct queues" is one concrete case; its patch says so. Rows 19, 21, 22 and 23 are the kernel
+tests, and 23's evidence is about the test rather than the kernel for the reason 305 recorded.
 
 ### Row 12's proof could not fail, and the tree had written down that it could
 
