@@ -10,9 +10,15 @@ The tool is pinned in `.cargo-mutants-version` (the `.cargo-deny-version` discip
 extra tooth here: cargo-mutants changes which mutants it *generates* between versions, so an
 unpinned tool moves the weekly numbers with nothing in the tree having changed). Exclusions live in
 `.cargo/mutants.toml`, each with its reason; config, not a code dependency, per DECISIONS §46. The
-weekly `mutation testing` workflow reruns the same command four-way sharded and publishes the
-per-crate table against `.cargo/mutants-baseline.txt`. A report, not a gate, until the weekly
-numbers prove stable enough that a new survivor deserves to fail something.
+weekly `mutation testing` workflow reruns the same command eight-way sharded (four until milestone
+238, and round-robin rather than alphabetical since) and publishes the per-crate table against
+`.cargo/mutants-baseline.txt`. A report, not a gate, until the weekly numbers prove stable enough
+that a new survivor deserves to fail something.
+
+**The current census is the run of 2026-09-14**, the first the workflow ever completed: 10,012
+mutants over 64 crates, 91.7% of viable mutants killed, and 93.6% over the 38 crates the baseline
+below covers. The baseline section is kept as the 2026-08-03 measurement it is, because it is what
+the next run diffs against; read it as a fixed point rather than as the tree's score today.
 
 ## The triage rule
 
@@ -218,6 +224,108 @@ calef's. It is a sample rather than a census: seven of eight shards were killed 
 failure above, so 8,700 of the 9,857 mutants are still unrun since 2026-08-03. What it removes is
 the reason the stale number was acceptable, which was the clause saying a refresh arrives on its
 own. A refresh has now arrived, once, and it is lower.
+
+## 2026-09-14: the first census since the baseline, and the fall was an artifact
+
+**The workflow succeeded, all eight shards, for the first time since it was written.** Run
+[34833498873](https://github.com/crickertech/nife/actions/runs/34833498873), scheduled, 54 minutes,
+**10,012 mutants over 64 crates: 8,303 caught, 771 missed, 203 timed out, 735 unviable**, which is
+**91.7% of viable mutants killed**. Milestone 277's memory bound is what made it finish; the runaway
+that had taken seven of eight shards every week did not take one.
+
+This is the re-run `design/fatal-risks.md`'s third risk has been waiting for since 2026-08-03, and
+it is a census rather than a sample.
+
+### The like-for-like number is up, not down
+
+The section above read the tree's score as having fallen from 92.4% to roughly 85.3%. **On the
+evidence of a full run that is wrong, and the correction is worth stating before the numbers**: the
+38 crates that existed at baseline scored **93.6%**, against 92.4% for the same 38 crates a month
+earlier.
+
+| | crates | caught | missed | timeout | viable | killed |
+|---|---|---|---|---|---|---|
+| whole corpus, 2026-08-03 (baseline) | 38 | 4,654 | 391 | 96 | 5,141 | **92.4%** |
+| the same 38 crates, 2026-09-14 | 38 | 6,008 | 417 | 127 | 6,552 | **93.6%** |
+| whole corpus, 2026-09-14 | 64 | 8,303 | 771 | 203 | 9,277 | **91.7%** |
+
+**So there was no fall.** The 85.3% reading was a one-eighth sample taken while two crates were
+being scored against test suites that could not run: `uefi_loader`'s `[[bin]]` half, whose 154
+mutants came back missed in "0s build + 0s test" because nothing rebuilt, and `documentation`
+(then `manual`), measured with a third of its suite compiled away behind a default-off Cargo
+feature. Milestone 280 fixed both, and both are now unrecognisable: **`uefi_loader` scores 100% and
+`documentation` 95.4%**, the two crates that had been blamed for the drop.
+
+**The gap between 93.6% and 91.7% is the 26 crates that did not exist at baseline**, and that is the
+real finding rather than a disappointment. New crates arrive less well tested than old ones, which
+is what a month of lanes should be expected to produce and is a worklist rather than a verdict.
+
+### Two things a census shows that a sample cannot
+
+**Three of the baseline's five perfect crates lost their perfect score**, which no sampled run would
+have surfaced as a regression because a sample cannot distinguish an absent mutant from a killed
+one. These are the survivors worth triaging first, because each is a property that used to hold:
+
+| crate | baseline | 2026-09-14 | missed |
+|---|---|---|---|
+| `memory_regions` | 100.0% | 88.9% | 0 -> 8 |
+| `capability` | 97.4% | 88.2% | 1 -> 8 |
+| `clock_protocol` | 96.8% | 91.0% | 2 -> 6 |
+| `elf` | 100.0% | 94.2% | 0 -> 6 |
+| `swish` | 94.6% | 89.4% | 3 -> 20 |
+| `dtb` | 99.7% | 96.6% | 1 -> 14 |
+| `filesystem_protocol` | 93.1% | 90.1% | 37 -> 59 |
+
+`nifefs`, `dma_validator` and `bitmap_font` held at 100%. Against those regressions, the largest
+gains are real too and mostly where a triage pass was spent: `intrusive_fifo` 57.1% to 100%,
+`line_editor` 80.1% to 98.5%, `pci` 77.3% to 90.7%, `ipc` 82.8% to 96.6%, `glob` 89.2% to 100%,
+`user_mode_heap` 89.3% to 100%.
+
+**And the eight worst crates in the tree are all new**, none of them in the baseline:
+
+| crate | killed | missed of viable |
+|---|---|---|
+| `work_steal_slot` | 54.2% | 11 of 24 |
+| `memory_corruption_canary_gate` | 66.7% | 6 of 18 |
+| `soak_page` | 68.2% | 7 of 22 |
+| `timetable` | 73.6% | 48 of 182 |
+| `jh7110_entropy` | 76.8% | 19 of 82 |
+| `mdns_proto` | 77.3% | 82 of 362 |
+| `job_mix` | 77.8% | 6 of 27 |
+| `schedule_store` | 78.4% | 8 of 37 |
+
+`timetable` is the one to read first, and not because of its rate. It is the crate holding
+`next_after`, the property `design/fatal-risks.md`'s risk 2 names as its strongest counterfactual
+(the milestone 6 timer drift, proved in this tree over code the timer does not call). 48 survivors
+in a crate carrying a proof is the shape that file's risk 2 is about.
+
+### Two caveats on the comparison, neither of which moves the reading
+
+**The run predates milestone 265's rename by seven hours** (the sweep started 10:30 UTC on
+2026-09-14; #860 merged at 17:12), so its artifacts spell the protocol crates `*_proto` and the
+baseline file spells them `*_protocol`. Every table above maps the nine affected names; nothing else
+about them differs. The next run's artifacts will match the baseline's spelling without help.
+
+**The baseline's `caught` was derived, and this run's is reported.** The head comment on
+`.cargo/mutants-baseline.txt` records that the 2026-08-03 run was resumed twice, so its caught
+column is total-minus-the-rest and three mutants could not be attributed at all. This run was a
+single clean pass per shard. The direction of that difference favours the baseline being slightly
+generous, which makes the +1.2 like-for-like gain a floor rather than a ceiling.
+
+**The baseline file is deliberately not updated here.** Replacing it would destroy the comparison
+the next run wants, and choosing when a new census becomes the baseline is not a records edit.
+
+### What this does not say
+
+It does not re-read `design/fatal-risks.md`'s third risk, which is calef's and which
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` has been holding since
+2026-09-03. What it does is give that proposal the number it was written to be read against, and
+the number is not the one anyone expected.
+
+It also says nothing about the kernel or the arch trees, which are excluded by construction and are
+where risks 5 and 9 live. **Mutation testing measures the test suite, not the code**, and one green
+census does not make a habit: this is the first of the weekly runs to finish, and the cadence is
+worth a second data point before anyone quotes a trend.
 
 ## Calibration: the exhaustive crates
 

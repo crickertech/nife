@@ -167,10 +167,34 @@ what changed is that the reason is now a worklist rather than a wall.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: STALE, 2026-09-13.** Ruled by calef: the headline this entry carried, *"MEASURED, and it
-came back green"*, was true of a run from 2026-08-03 and nothing has refreshed it since, so it read
-as a verdict where the evidence underneath had become a history. The measurement itself is not in
-doubt and is kept below; what changed is that this entry no longer presents it as current.
+**Status: STALE, 2026-09-13, and a census now exists that this entry does not yet read.** Ruled by
+calef: the headline this entry carried, *"MEASURED, and it came back green"*, was true of a run from
+2026-08-03 and nothing has refreshed it since, so it read as a verdict where the evidence underneath
+had become a history. The measurement itself is not in doubt and is kept below; what changed is that
+this entry no longer presents it as current.
+
+**The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
+workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped
+the runaway mutant: **10,012 mutants over 64 crates, 91.7% of viable mutants killed**. Against the
+38 crates the baseline covers, like for like, **93.6% against 92.4%**: the score went *up*.
+`notes/mutation-testing.md` has the tables.
+
+**So the "fall to 85.3%" was an artifact, and the entry below is kept as the account it is.** That
+reading came from a one-eighth sample taken while two crates were being scored against suites that
+could not run, and milestone 280 fixed both: `uefi_loader` now scores 100% and `documentation` 95.4%,
+the two crates the drop had been blamed on. The 1.9-point gap between the like-for-like 93.6% and
+the corpus 91.7% is the 26 crates that did not exist at baseline, which is a worklist rather than a
+verdict.
+
+**The verdict stays calef's and this entry is not marked settled.**
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal that owns the
+re-read, gate `DECISION`, waiting since 2026-09-03; what changed is that it now has its number. Two
+things a reader should weigh before that call, both of which a census shows and a sample cannot.
+**Three of the baseline's five perfect crates lost their perfect score** (`memory_regions` 100% to
+88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%), which are regressions in properties that
+used to hold. And the tree's worst crate on this measure is `timetable` at 73.6% with 48 survivors,
+which is the crate holding `next_after`, the property risk 2 below names as its strongest
+counterfactual.
 
 `script/mutation` (milestone 85) ran 5,551 mutants over
 38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
@@ -182,31 +206,33 @@ from 2026-08-03 and the tree has grown since; it covers **host** crates only, so
 arch trees, where risks 5 and 9 live, are not in it at all; and mutation testing measures the test
 suite, not the code.
 
-**The remaining experiment is cheap:** re-run it and compare against `.cargo/mutants-baseline.txt`.
-No new milestone; milestone 85 already owns it.
+**The remaining experiment was cheap:** re-run it and compare against `.cargo/mutants-baseline.txt`.
+No new milestone; milestone 85 already owned it, and it ran on 2026-09-14.
 
-**Correction, 2026-09-11.** That paragraph used to close "and the weekly workflow already publishes
-the report", and the workflow had published nothing. `mutation.yml`'s own `BUGS` section records it:
-the workflow **had never once succeeded**, four scheduled runs red from 2026-08-10, found by
-milestone 232's audit on 2026-09-03. Milestone 238 repaired one of the two causes (shard indices
-counted from one, so a job died in twenty seconds every run and shard 0 was never tested); the other
-is live, a runaway mutant exhausting the runner's memory inside the timeout meant to catch it, and
-the 2026-09-07 scheduled run failed with it. So **this risk's green is from 2026-08-03 and nothing
-has refreshed it since**, which is a weaker position than the entry claimed rather than a different
-verdict. `script/cadence-check` now reports the dead cadence.
+**Correction, 2026-09-11, and its second half closed three days later.** That paragraph used to close
+"and the weekly workflow already publishes the report", and the workflow had published nothing.
+`mutation.yml`'s own `BUGS` section records it: the workflow **had never once succeeded**, four
+scheduled runs red from 2026-08-10, found by milestone 232's audit on 2026-09-03. Milestone 238
+repaired one of the two causes (shard indices counted from one, so a job died in twenty seconds every
+run and shard 0 was never tested). **The other was repaired by milestone 277 on 2026-09-12** (a
+runaway mutant exhausting the runner's memory inside the timeout meant to catch it, which had taken
+the 2026-09-07 run), and the next scheduled run, 2026-09-14, was the workflow's first success.
+**The cadence is alive**; `script/cadence-check` is what reported it dead, and one success is not yet
+a cadence.
 
-**One number has published since, and it is worse: 83.4%.** It comes from the single shard that
-survived, a uniform one-eighth sample across all 60 crates rather than the 38 host crates the 92.4%
-figure covers, so it is not a like-for-like reading and settles nothing on its own. Two crates carry
-most of the fall and neither is explained: `uefi_loader` at 15% and `manual` at 52%
-(milestone 280, promoted out of the proposal queue 2026-09-13). A third, `system_initializer`,
-was measured and closed `RECORDED` by milestone 244 because its pure fraction is small.
+**One number published in between, and it read worse: 83.4%, corrected to 85.3%.** It came from the
+single shard that survived, a uniform one-eighth sample across all 60 crates rather than the 38 host
+crates the 92.4% figure covers, so it was never a like-for-like reading. Two crates carried most of
+the apparent fall and neither was explained at the time: `uefi_loader` at 15% and `manual` at 52%.
+**Both turned out to be measurement rather than quality** (milestone 280, built 2026-09-13), as did a
+third, `system_initializer`, before them (milestone 244). The census of 2026-09-14 above supersedes
+this number; it is kept here because it is what this entry was ranked on for eleven days.
 
-**So the repair is now tracked and the reading is not.** The runaway mutant is milestone 277, which
-makes a clean full run possible for the first time since 2026-08-03. What that run then means for
-this entry's verdict is a separate question and calef's:
-`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal already waiting on
-it, and this entry should not be marked settled again until that one is.
+**Both repairs landed and the reading arrived.** The runaway mutant was milestone 277, built
+2026-09-12, which made the clean full run possible for the first time since 2026-08-03; the run
+happened two days later. What it means for this entry's verdict remains calef's:
+`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal waiting on it, and
+this entry should not be marked settled again until that one is.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
@@ -478,7 +504,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 2 | 9, the HAL, on the board that already boots | the on-board test-suite exit, so silicon becomes gate-able rather than a human watching a console | milestone 16 | bench time, board proven since 2026-08-14 |
 | 3 | 9, the HAL, on the architecture that carries the risk | a GRUB Multiboot or UEFI entry path, then the OptiPlex prints a byte | milestone 87 | a lane, then bench time |
 | ~~4~~ | 1, the ecosystem | **RUN 2026-08-31: green on aarch64 and riscv64.** Unmodified `ripgrep`, zero patches, runs and reaches its own argument parsing. The blocker is a missing argv, not threads. x86_64 has `std` (milestone 184) and builds it; the run waits on a disk the FS service can find | milestone 121 | done for two ISAs |
-| 5 | 3, the tests | **the re-run dies the same way every time (a runaway mutant, out of memory).** Build the bound first, then re-run against the baseline | milestone 277, then milestone 85 | a day once the bound exists |
+| ~~5~~ | 3, the tests | **RUN 2026-09-14, the first census since the baseline.** 10,012 mutants, 64 crates, 91.7% killed; 93.6% against the baseline's own 38 crates, which is **up** from 92.4%. The fall to 85.3% was two crates scored against suites that could not run. **The verdict is calef's and is not yet given** | the proposal, gate `DECISION` | done; the re-read remains |
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
