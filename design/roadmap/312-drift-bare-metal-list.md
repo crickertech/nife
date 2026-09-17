@@ -163,10 +163,10 @@ the first in eighteen days able to say anything at all.
 | `script/drift` (the pin, three architectures) | clean, exit 0 | 82s |
 | `script/drift nightly` | clean, exit 0 | 94s |
 | `shellcheck --severity=warning script/drift` | clean | |
-| `script/lint` | 0 | |
-| `script/test` (aarch64) | green | |
-| `script/test --arch riscv64` | green | |
-| `script/test --arch x86_64` | green | |
+| `script/lint` | 0 | 71s |
+| `script/test` (aarch64) | green, exit 0 | 340s |
+| `script/test --arch riscv64` | green, exit 0 | 274s |
+| `script/test --arch x86_64` | green, exit 0 | 270s |
 
 ## Follow-on
 
