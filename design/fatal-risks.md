@@ -461,6 +461,46 @@ notes/confinement-claims.md; PR #614.
   block warned about, on the day it was written: the break surfaced as a 234-second watchdog timeout
   reading *"a livelock, not a lost wakeup"*, a correct red with nothing in it about confinement.
 
+**Status: AUDITED, 2026-09-17, and the answer is a qualified yes with one exception found and
+fixed.** Milestone 313 read this risk's question adversarially under the userspace-confinement lens,
+the first security audit since 2026-08-17. `design/audit-reports/2026-09-17-userspace-confinement.md`
+has it; findings fixed 3, minted 3, accepted 1.
+
+**One published claim was false as stated, on a path taken every boot.** DECISIONS §12 says *a
+consumed capability cannot be used again*. On `x86_64` it was not: `SYS_CAP_DELETE` cleared the
+capability table and **not** the cached grant the context switch installs into the TSS I/O bitmap, so
+a thread that dropped its `PortRange` kept COM1 for the rest of its life. `system_initializer`
+performs exactly that delete on every x86 boot. Fixed in `sched::delete_current_cap`, with a test and
+a falsification replayed red.
+
+**A second published sentence about the hardware was false and is now true.** `crates/paging`'s
+decoder reports user pages as not kernel-executable, and milestone 307 wrote that the hardware makes
+it so; on x86 that holds only with `CR4.SMEP`, which nothing set. The bit is now set per core where
+CPUID offers it, and 307's sentence is struck through with the correction beside it rather than
+edited away.
+
+**The headline claim was not found false anywhere this audit looked**, and what it looked at is
+stated rather than implied: components that took device or network authority since the last audit,
+which reading every capability mint site shrank from 45 counted components to **two objects**; the
+six claims milestone 307 marked quotable-but-unreachable, none of which turned out weaker than its
+claim; and the two new machine classes, radon and xenon.
+
+**Three things this does not settle.** The syscall surface and IPC model are the remaining untaken
+lens and want their own audit. The adversarial half this entry has always called for, an outsider
+trying to escape rather than us demonstrating a planned escape fails, is still unbuilt and still
+gated behind milestone 198. And one window was **accepted rather than closed**: `PortRange::REVOKE`
+reaches one core, so a revoked holder on another core keeps its bitmap for at most one tick
+(DECISIONS §152's `BUGS`, corrected the same day, and
+`design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md`).
+
+**And the audit produced a third instance of this file's recurring shape.** Milestone 299's two port
+tests could not fail in the direction they exist for: a wrongly permitted `out` was followed by a
+`SEND` nobody received, so the run hung instead of going red. That is row 26's shape one object over,
+found only because a draft of finding 1 hung. After milestone 305's vacuous `U`-bit test and
+milestone 307's six unreachable assertions, **three independent sweeps have now each found
+confinement tests that could not fail**, which is the strongest evidence in this file that the
+question risk 3 asks is answered differently inside the kernel than outside it.
+
 **What it does not say.** Nothing here says the confinement holds. What it supports is narrower and
 was the point: these named claims are tested, and each has been shown to fail when the claim is
 broken. The adversarial exercise this entry originally called for is still unbuilt: an outsider
@@ -617,7 +657,7 @@ Ranked by chance-of-fatal times cheapness-of-test, not by number.
 | 6 | 4, performance | the multi-tasking workload number | milestone 168 | one lane |
 | 7 | 9 and 6 together | journey 3, end to end on three boards | journey 3 | months, and it is the capstone |
 | -- | 5, multicore | the defect-discovery curve: a linear one is the red result | milestone 201 | weeks, hardware |
-| ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16.** 26 claims enumerated, 25 falsifications replaying red, and §31's headline assertion found unreachable in the case it exists to catch. Milestone 305 then gave the six kernel rows a mechanism and found **a confinement test that could not fail**: the U-bit check removed outright and the test still green, since milestone 41 | milestones 202, 305 | done; the adversarial half remains |
+| ~~7~~ | 7, confinement | **RUN 2026-08-31, extended 2026-09-16, AUDITED 2026-09-17.** 26 claims enumerated, 25 falsifications replaying red, §31's headline assertion unreachable in the case it exists to catch, and milestone 305's finding that **a confinement test could not fail**. The audit then found **DECISIONS §12 false on x86_64**: a deleted `PortRange` kept COM1 for life, on a path `system_initializer` takes every boot. Fixed | milestones 202, 305, 313 | done; the adversarial half remains |
 | -- | 8, nobody needs it | none. This is principle 1 | -- | -- |
 
 ## BUGS
