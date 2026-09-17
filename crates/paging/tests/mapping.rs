@@ -24,6 +24,17 @@ thread_local! {
 /// exit. It was fine until milestone 79: Miri's leak check reports each one, and a suite that
 /// "fails" on purpose teaches everyone to ignore the gate. Owning the cleanup costs one line per
 /// test and keeps the leak check meaning something (notes/undefined-behavior.md).
+///
+/// # BUGS
+///
+/// **Binding this is opt-in, and that is a known defect rather than a design.** Every test in this
+/// file currently binds one, so nothing leaks today; nothing makes that stay true. The sibling
+/// fixture in `src/domain.rs` had the identical shape, one test written later did not bind its
+/// guard, and the weekly Miri workflow was red for five weeks before anyone noticed (milestone
+/// 310). That fixture now hangs allocation off the pool itself, so forgetting is a compile error;
+/// this one has not been converted, because it would touch twenty-one call sites in a file that is
+/// not currently failing. A test added here **must** declare `let _tables = TableGuard;` first, and
+/// first matters: it has to drop after the mapper that reads the tables.
 struct TableGuard;
 impl Drop for TableGuard {
     fn drop(&mut self) {

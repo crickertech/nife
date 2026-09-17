@@ -68,6 +68,20 @@ respectively. Deliberate or not, a suite that fails the leak check on purpose te
 ignore the gate. Both harnesses now free what they allocate through a `Drop` guard per test,
 declared first so it drops after the mapper that reads the tables.
 
+**And then it came back, which is the part worth learning from** (milestone 310). The guard above
+was opt-in: each test had to remember to bind one. A `domain.rs` test written after that fix did
+not, five frames leaked, and **the weekly workflow was red on every scheduled run from 2026-08-11
+to 2026-09-17** with nobody able to see it, because a scheduled job's red is an entry in the Actions
+tab with no badge. So the fix here was not the missing line, which would have restored the same
+defect for the next author. `domain.rs`'s pool now owns the allocation: `frame` and `frame_at` are
+methods on `FramePool`, the free functions are gone, and a test that allocates without holding a
+pool **does not compile**. That is AGENTS.md's ladder moving from rung four to rung one, on a
+mechanism that had already been given one chance at rung four and lost it.
+
+`tests/mapping.rs`'s `TableGuard` is still the opt-in shape and every test in that file currently
+binds one. It is a latent instance of exactly the same defect; see the `BUGS` note at `TableGuard`
+and milestone 310's follow-on.
+
 **4. A `glob` sweep failure in the triage logs: an artifact, not a finding.** One intermediate run
 recorded `greedy_agrees_with_exhaustive_search_over_every_short_pattern` failing with
 `checked = 43,720`; that run caught the file mid-edit, with the Miri stride applied but the
