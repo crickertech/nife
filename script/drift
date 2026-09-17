@@ -19,6 +19,18 @@
 # bare-metal is a fact about the workspace, and a copy of that fact in a workflow file drifts
 # silently as the workspace changes. Keep it here, where it is one fact in one place.
 #
+# **And then it happened again, to this file, exactly as written** (milestone 312). Moving the copy
+# out of the YAML and into here made it one copy instead of two; it did not stop it being a copy.
+# `crates/board_console` arrived with milestone 216, needs `std` because it drives a real serial
+# port on the dev machine, and nobody added `--exclude board_console`. The workflow was red on every
+# run for seventeen days, could report nothing about upstream, and again the permanent failure
+# looked like the mechanism working, because this job is designed to tolerate red.
+#
+# So the lists below are now **derived**, which is rung one of AGENTS.md's ladder rather than rung
+# four: there is no list to forget to update, and a crate or an architecture added to the workspace
+# is covered the day it lands. `script/lint`'s host pass derives the mirror-image fact the same way,
+# after milestone 244 found a crate missing from a hand-kept copy of it.
+#
 # Name: recorded (notes/scripts.md, which states what it answers, and the `toolchain drift`
 # workflow it backs). Introduced 2026-07-31 to put the toolchain-drift commands where a developer
 # can run them. "Drift" is not this script's coinage: it is the word the daily workflow and
@@ -33,31 +45,103 @@ cd "$(dirname "$0")/.."
 
 target_toolchain="$1"
 
+# **Every target the pin declares**, read from `rust-toolchain.toml` rather than spelled here.
+# rustup already honours this array for the pinned toolchain, which is why nothing noticed that the
+# old hand-written list below was missing `x86_64-unknown-none`: the pin covered for it, and the
+# one path where it does not is precisely this script's reason for existing, because a `--toolchain`
+# install is a DIFFERENT toolchain that rustup will not apply the array to. One fact, one place, and
+# a fourth architecture is installed the day somebody adds it to the pin.
+all_targets="$(awk -F'"' '/^targets *=/ {for (i = 2; i < NF; i += 2) printf "%s ", $i}' rust-toolchain.toml)"
+
+# **The subset this builds the whole workspace for**: those whose OS field is `none`. That is the
+# physical property rather than a second list, and it is what "bare metal" means here: no operating
+# system underneath, so no `std`. `x86_64-unknown-uefi` is in the array above and is not one of
+# these; it has firmware underneath it and exactly one crate (`uefi_loader`) targets it, so building
+# the workspace for it would assert something untrue about every other crate.
+#
+# Written as a loop rather than a `case` inside `$(...)` because bash 3.2, which is what
+# `/bin/sh` is on the macOS dev machine, miscounts the `)` that closes a case pattern and reports
+# a syntax error on a line that is correct.
+kernel_targets=""
+# shellcheck disable=SC2086  # word splitting is the point: one word per target
+for drift_target in $all_targets; do
+    case "$drift_target" in
+        *-none | *-none-*) kernel_targets="$kernel_targets $drift_target" ;;
+    esac
+done
+
 if [ -n "$target_toolchain" ]; then
     echo "==> Checking $target_toolchain (not the pin)"
     rustup toolchain install "$target_toolchain" --profile minimal --component rust-src,llvm-tools
-    # BUGS: two of three targets. `x86_64-unknown-none` is missing here, and unlike
-    # script/bootstrap's copy of this list, `rust-toolchain.toml`'s `targets` array does not cover
-    # for it: this installs against a DIFFERENT toolchain than the pin, which is the whole point of
-    # the script. See notes/architecture-list-sweep.md.
-    rustup target add --toolchain "$target_toolchain" \
-        aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
+    # shellcheck disable=SC2086  # word splitting is the point: one flag per target
+    rustup target add --toolchain "$target_toolchain" $all_targets
     RUSTUP_TOOLCHAIN="$target_toolchain"
     export RUSTUP_TOOLCHAIN
 else
     echo "==> Checking the pinned toolchain ($(awk -F'"' '/^channel/ {print $2}' rust-toolchain.toml))"
+    # Harmless when the pin's array already covers it, and load-bearing when the caller has set
+    # RUSTUP_TOOLCHAIN in the environment instead of passing it: that is how the `toolchain drift`
+    # workflow runs this, and rustup does not apply the pin's `targets` array to an override.
+    # shellcheck disable=SC2086
+    rustup target add $all_targets
 fi
 
-# The bare-metal build. `--exclude xtask` is load-bearing: xtask drives cargo and QEMU from the host
-# and uses `std` freely, so asking for it on a target without a standard library fails with
-# `can't find crate for std`. It is not part of what ships; it is what builds what ships.
-# BUGS: ONE architecture, where three are supported and two are installed four lines above. A
-# nightly that breaks only the riscv64 or x86_64 build is invisible to the toolchain-drift
-# workflow this script exists to make honest, which is the same class of blind spot its own header
-# describes: a command that no developer runs has no witness. See
-# notes/architecture-list-sweep.md.
-echo "==> Bare-metal build (aarch64)"
-cargo build --workspace --exclude xtask --target aarch64-unknown-none-softfloat
+# **Which crates cannot build for a bare-metal target, derived from the crates themselves.**
+#
+# The fact is physical and every crate states it: a crate root without a `no_std` attribute gets
+# `extern crate std` injected by the prelude, and there is no `std` for a target with no operating
+# system, so the build fails with `can't find crate for std` no matter what the crate's code does.
+# A crate root WITH one compiles for these targets by construction. So the question "is this crate
+# host-only" is answered by reading the crate, and a new crate answers it on the day it is written
+# rather than on the day somebody remembers this file.
+#
+# Two crates qualify today and both are host tooling that is not part of what ships: `xtask`, which
+# drives cargo and QEMU, and `board_console`, which opens a real serial port on the dev machine.
+# Neither is named here, which is the whole point.
+echo "==> Deriving the host-only crates"
+host_only="$(python3 - <<'PYEOF'
+import json, re, subprocess, sys
+
+meta = json.loads(subprocess.run(
+    ["cargo", "metadata", "--format-version", "1", "--locked", "--no-deps"],
+    capture_output=True, text=True, check=True).stdout)
+
+# `#![no_std]`, and also `#![cfg_attr(not(test), no_std)]`, which is what a crate with host tests
+# writes. Anchored to a whole attribute line so that prose in a doc comment cannot answer for the
+# code: every crate in this tree that has the attribute writes it on its own line.
+attr = re.compile(r'^\s*#!\[.*\bno_std\b.*\]\s*$', re.M)
+
+host_only = []
+for pkg in sorted(meta["packages"], key=lambda p: p["name"]):
+    # Build targets only. A `test` or `bench` target is compiled by `cargo test` on the host and is
+    # never in a `cargo build --target <bare metal>` graph, so its use of `std` decides nothing.
+    roots = {t["src_path"] for t in pkg["targets"]
+             if t["kind"][0] in ("lib", "bin", "proc-macro")}
+    if not roots:
+        continue
+    if not all(attr.search(open(r, encoding="utf-8").read()) for r in roots):
+        host_only.append(pkg["name"])
+
+if not host_only:
+    sys.stderr.write(
+        "drift: no host-only crates found, which cannot be right: `xtask` is one by construction.\n"
+        "The `no_std` detection above has probably stopped matching. Do not 'fix' this by building\n"
+        "the whole workspace bare-metal; find out what changed.\n")
+    sys.exit(1)
+
+print(" ".join(f"--exclude {c}" for c in host_only))
+PYEOF
+)"
+echo "    host-only: $(echo "$host_only" | sed 's/--exclude //g')"
+
+# The bare-metal build, once per architecture. All three are supported (DECISIONS §19) and a
+# nightly that breaks only one of them is exactly the drift this job exists to find; until
+# milestone 312 it built aarch64 alone, so riscv64 was installed four lines above and never used.
+for bare_target in $kernel_targets; do
+    echo "==> Bare-metal build ($bare_target)"
+    # shellcheck disable=SC2086  # host_only is a flag list and must split
+    cargo build --workspace $host_only --target "$bare_target"
+done
 
 # The host-logic crates. kernel, components and fixtures are excluded because they are `no_std`
 # binaries that only

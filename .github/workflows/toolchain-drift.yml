@@ -50,9 +50,12 @@ jobs:
         run: |
           rustup toolchain install nightly --profile minimal \
             --component rust-src,llvm-tools,rustfmt,clippy
-          rustup target add --toolchain nightly \
-            aarch64-unknown-none-softfloat riscv64imac-unknown-none-elf
           echo "RUSTUP_TOOLCHAIN=nightly" >> "$GITHUB_ENV"
+          # The TARGETS are not added here. This step used to name two of the three supported
+          # triples, which is the same copied-list defect as the `--exclude` list the script's
+          # header describes, one file over. `script/drift` now adds every target
+          # `rust-toolchain.toml` declares, to whichever toolchain is in effect, so the copy is
+          # gone rather than corrected. See milestone 312.
 
       - name: Record which nightly this actually is
         run: |
