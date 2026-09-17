@@ -66,6 +66,16 @@ code was touched and a comment in a shared crate is code that was touched.
   this entry and of the report's finding 7 read the filtered result as this machine disagreeing with
   CI, and the full run corrected it. It matters for `script/falsifications --sweep`, which replays
   every kernel record as a filtered run; no record names that test today.
+- **The lane's own falsification sweep was green while CI's was red, on the same mechanism, by
+  scope alone.** The lane ran `script/falsifications --sweep kernel` (16 swept, 0 survivors) and
+  CI ran `--affected-since <base>`, which follows the diff into `crates/` and found that the SMEP
+  comment added above `Ia32e::attrs`'s `XD` branch had moved the context of
+  `crates/paging/falsifications/x86_64.verification.no_encoded_leaf_is_both_writable_and_executable.patch`.
+  That is the mechanism working as its header says it should ("a patch that no longer applies means
+  the covered code moved"). The record was redone against the code as it stands, defect unchanged,
+  and confirmed red by hand at the harness's only assertion. The lesson for the next lane is the
+  form to run before pushing: `--affected-since <base SHA>`, never a package-scoped `--sweep`, because
+  the package a change reaches is not the package the lane was thinking about.
 - **Finding 3 has no test.** `CR4.SMEP` is set and a boot line says so; a falsification would need
   ring 0 to survive its own page fault, which this kernel cannot do. The boot line is rung three.
 - **The cross-core port window is accepted, not closed.** One tick at most, cache cleared so it
