@@ -43,7 +43,7 @@ pub(super) fn cpuid(leaf: u32) -> CpuidResult {
 
 /// `CPUID` with a subleaf. Same toolchain-skew reasoning as [`cpuid`]; see its comment.
 #[allow(unused_unsafe)]
-fn cpuid_count(leaf: u32, sub_leaf: u32) -> CpuidResult {
+pub(super) fn cpuid_count(leaf: u32, sub_leaf: u32) -> CpuidResult {
     // SAFETY: as [`cpuid`].
     unsafe { core::arch::x86_64::__cpuid_count(leaf, sub_leaf) }
 }

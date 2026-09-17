@@ -358,6 +358,75 @@ pub fn init() {
     unsafe { exceptions::init_syscall() };
 
     close_performance_counters_to_ring3();
+    close_ring3_pages_to_ring0_execution();
+}
+
+/// Establish `CR4.SMEP` set, so ring 0 cannot execute an instruction fetched from a page whose
+/// `U/S` bit says it belongs to ring 3.
+///
+/// # Why this is a confinement matter and not a hardening nicety
+///
+/// `crates/paging`'s x86 decoder reports a user page as *not* kernel-executable, and every
+/// confinement test that reads a mapping through `Flags::is_kernel_executable` believes it. The
+/// hardware disagrees unless this bit is set: x86 has one execute permission, `XD`, and it applies
+/// at every ring, so a user code page with `XD` clear is executable at ring 0 too. RISC-V refuses a
+/// supervisor fetch from a `U` page unconditionally and aarch64 has `PXN`; x86 gates the same
+/// refusal behind a control-register bit that nothing here set. Milestone 313's audit found the
+/// decoder's claim, and `notes/confinement-claims.md`'s sentence that "the hardware really does make
+/// a user page non-executable in supervisor mode", both true only with this bit on.
+///
+/// What it costs: nothing on any path. SMEP is checked by the fetch unit against the leaf's `U/S`
+/// bit; there is no per-access software toggle, which is what separates it from `SMAP` (`stac`/`clac`
+/// around every kernel access to user memory, and the reason SMAP stays off, per
+/// `mmu::permit_kernel_access_to_user_pages`'s `BUGS`). What it forbids: nothing this kernel does.
+/// Every kernel page is mapped `U/S` clear, and a user program's code is only ever *entered* through
+/// `iretq`/`sysret` at ring 3, never called from ring 0.
+///
+/// # Gated on CPUID, and honest on the console when absent
+///
+/// `CPUID.(EAX=7,ECX=0):EBX[7]` is the feature bit (Ivy Bridge and every Intel since; AMD from
+/// Excavator; QEMU's `-cpu max`, HVF and the `q35` defaults all offer it). Setting `CR4.SMEP` on a
+/// CPU that does not advertise it is `#GP`, so this reads first. A machine that does not offer it
+/// gets a boot line saying that ring 0 can execute ring-3 pages there, because the decoder's answer
+/// is then wrong on that machine and a reader of the transcript should know.
+///
+/// Per core, like `close_performance_counters_to_ring3` above it: `CR4` is per-CPU state.
+fn close_ring3_pages_to_ring0_execution() {
+    /// `CR4.SMEP`: "Supervisor Mode Execution Prevention".
+    const SMEP: u64 = 1 << 20;
+    /// `CPUID.(7,0):EBX` bit 7 advertises SMEP.
+    const CPUID_7_EBX_SMEP: u32 = 1 << 7;
+
+    // Leaf 7 exists only when leaf 0 says the maximum basic leaf reaches it; `isa::init` makes
+    // the same check before reading RDSEED out of the same word.
+    let offered = isa::cpuid(0).eax >= 7 && isa::cpuid_count(7, 0).ebx & CPUID_7_EBX_SMEP != 0;
+    if !offered {
+        crate::println!(
+            "  cr4.smep    : not offered by cpuid on core {}; ring 0 can execute ring-3 pages here",
+            crate::cpu::id()
+        );
+        return;
+    }
+
+    let cr4: u64;
+    // SAFETY: reads a control register. No side effects, no memory touched.
+    unsafe {
+        core::arch::asm!("mov {}, cr4", out(reg) cr4, options(nomem, nostack, preserves_flags));
+    }
+    if cr4 & SMEP != 0 {
+        return;
+    }
+    // SAFETY: setting `CR4.SMEP` only *removes* a ring-0 permission the kernel never uses (no
+    // kernel code lives in a `U/S` page). CPUID advertised the bit, so the write cannot `#GP`. Paging
+    // bits are preserved; no TLB entry is invalidated, and the bit takes effect on the next fetch
+    // without one, because SMEP is evaluated against the leaf at fetch time.
+    unsafe {
+        core::arch::asm!("mov cr4, {}", in(reg) cr4 | SMEP, options(nomem, nostack, preserves_flags));
+    }
+    crate::println!(
+        "  cr4.smep    : set on core {}; ring 0 faults on a fetch from a ring-3 page",
+        crate::cpu::id()
+    );
 }
 
 /// Establish `CR4.PCE` clear, so ring 3 cannot execute `RDPMC`.

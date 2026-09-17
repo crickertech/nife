@@ -3184,28 +3184,76 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>) 
             }
         }
     }
-    // Reach the TSS of the core that might already hold the revoked bitmap. Today x86 runs one core
-    // (`smp::bring_up_secondaries` refuses on `x86_64`) and the revoker is on it, so this resets at
-    // most the current core; a stale grant on the running thread is impossible here because the
-    // switch away from it already uninstalled it. The call is the placeholder for the multi-core
-    // shootdown a future SMP x86 would broadcast by IPI (the shape §121 named), and a no-op on every
-    // architecture with no TSS.
+    // Reach the TSS of the core that might already hold the revoked bitmap. This resets **the
+    // revoker's core only**. That was the whole machine when it was written ("`smp::bring_up_secondaries`
+    // refuses on `x86_64`", which stopped being true when `smp::seat_cpus_from_acpi` landed: the x86
+    // tour boots two cores under OVMF, notes/x86-uefi-boot.md). On a multi-core x86 a holder that is
+    // *running on another core* keeps its installed bitmap until that core's next context switch,
+    // so its `in`/`out` succeed for up to one tick after this returns. The cached grant is already
+    // cleared above, so the window closes at the switch and cannot reopen. The IPI shootdown that
+    // would close it at once (the shape of the TLB shootdown, notes/x86-tlb-shootdown.md) is not built; milestone
+    // 313's audit records the window and proposes it. A no-op on every architecture with no TSS.
     #[cfg(target_arch = "x86_64")]
     crate::arch::segments::revoke_installed_port_grant(base, count);
 }
 
 /// Remove a capability from the **current thread's** table. Used to consume a one-shot Reply
 /// capability the instant it is invoked (§12), which is what makes a second reply impossible.
+///
+/// **On `x86_64`, deleting the `PortRange` capability behind the thread's cached port grant also
+/// drops the grant** (milestone 313's audit, 2026-09-17). A port range is enforced by
+/// `Thread::port_range_grant` and the TSS bitmap the context switch installs from it, not by the
+/// capability table, so until this was added a thread that `SYS_CAP_DELETE`d its own port capability
+/// kept `in`/`out` access to those ports for the rest of its life: the table said the authority was
+/// gone and the switch kept installing it. That is §12's "a consumed capability cannot be used again"
+/// failing for the one object whose enforcement lives outside the table, and it was live rather than
+/// theoretical: `system_initializer` deletes its console device capability (`cap_delete(g.uart_dev)`)
+/// on every boot, which on x86 is exactly this object. The cache is cleared here and this core's TSS
+/// is reset at once, so the ports fault on the very next access rather than after a switch.
+///
+/// The check costs one field read on the ordinary path (`port_range_grant` is `None` for every thread
+/// but a port holder), so the reply consumption this function also serves is untouched in the case
+/// the IPC round trip measures.
 pub fn delete_current_cap(slot: u64) -> Result<(), crate::cap::Error> {
-    let mut guard = IPC_TABLES.lock();
-    let sched = guard.as_mut().ok_or(crate::cap::Error::NoSuchSlot)?;
-    let current = current_thread_id();
-    sched
-        .threads
-        .get_mut(current)
-        .ok_or(crate::cap::Error::NoSuchSlot)?
-        .capability_table
-        .delete(slot)
+    #[cfg(target_arch = "x86_64")]
+    let dropped_port_grant;
+    {
+        let mut guard = IPC_TABLES.lock();
+        let sched = guard.as_mut().ok_or(crate::cap::Error::NoSuchSlot)?;
+        let current = current_thread_id();
+        let t = sched
+            .threads
+            .get_mut(current)
+            .ok_or(crate::cap::Error::NoSuchSlot)?;
+        // Read before the delete: a deleted slot names nothing. Only a holder pays for the lookup.
+        #[cfg(target_arch = "x86_64")]
+        {
+            dropped_port_grant = match t.port_range_grant {
+                None => None,
+                Some(granted) => match t.capability_table.get(slot) {
+                    Ok(c) => match c.object {
+                        crate::cap::Object::PortRange(base, count) if (base, count) == granted => {
+                            Some(granted)
+                        }
+                        _ => None,
+                    },
+                    Err(_) => None,
+                },
+            };
+        }
+        t.capability_table.delete(slot)?;
+        #[cfg(target_arch = "x86_64")]
+        if dropped_port_grant.is_some() {
+            t.port_range_grant = None;
+        }
+    }
+    // Outside the lock, as `delete_port_range_caps_impl` does: the caller is the thread whose grant
+    // is installed in this core's TSS, so the core-local reset is the whole of the revocation here.
+    #[cfg(target_arch = "x86_64")]
+    if let Some((base, count)) = dropped_port_grant {
+        crate::arch::segments::revoke_installed_port_grant(base, count);
+    }
+    Ok(())
 }
 
 /// Look up a capability in the **current thread's** table.

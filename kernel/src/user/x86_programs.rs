@@ -56,6 +56,7 @@ macro_rules! packer {
 packer!(pack_1, 4, 1);
 packer!(pack_2, 8, 2);
 packer!(pack_8, 32, 8);
+packer!(pack_7, 28, 7);
 packer!(pack_9, 36, 9);
 packer!(pack_16, 64, 16);
 
@@ -187,6 +188,60 @@ pub const fn port_out(port: u16, val: u8, word: u32) -> [u32; 9] {
 /// past the entry.
 #[cfg(all(test, target_arch = "x86_64"))]
 pub const PORT_OUT_PC_OFFSET: u64 = 6;
+
+/// **A child that deletes its own capability in `slot`, then writes a byte to a port, then exits**
+/// (milestone 313's audit). The drop-it-yourself fixture: a holder of the `PortRange` capability
+/// naming `port` executes `SYS_CAP_DELETE` on the slot that capability sits in, and the `out` that
+/// follows must take a general protection fault, because the authority is gone by the thread's own
+/// hand. Before milestone 313 it did not fault: the port grant is enforced by a cached field the
+/// context switch reads, and deleting the capability left the cache alone.
+///
+/// **It exits rather than reporting, and that is the falsification's shape, not a shortcut.** The
+/// first draft ended in [`port_out`]'s `SEND`-then-exit tail, and on the unfixed kernel the run hung
+/// rather than going red: the permitted `out` was followed by a `SEND` on a rendezvous the test was
+/// not receiving (it was waiting on the supervision endpoint for a death report), so the child
+/// parked forever and so did the test. That is `notes/confinement-claims.md`'s row 26 one object
+/// over: a real escape that blocks instead of reporting is not evidence. Exiting instead turns the
+/// escape into `EVENT_EXIT` on the supervision endpoint, in the same message the test wants
+/// `EVENT_FAULT` in, so the assertion that states the claim is the one that fires.
+///
+/// `SYS_CAP_DELETE` is a plain syscall number, not an `INVOKE` method, so the slot rides in `edi`
+/// (arg0) and the number in `eax`; nothing else is read. `dx` is set after the syscall rather than
+/// before it, so no register the syscall clobbers matters. The `out` is at
+/// [`CAP_DELETE_THEN_PORT_OUT_PC_OFFSET`] past the entry.
+///
+/// ```text
+///   bf xx xx xx xx    mov edi, slot
+///   b8 xx xx xx xx    mov eax, SYS_CAP_DELETE
+///   0f 05             syscall           (the capability is gone)
+///   66 ba xx xx       mov dx, port
+///   b0 xx             mov al, val
+///   ee                out dx, al        (#GP here: the grant went with the capability)
+///   b8 xx xx xx xx    mov eax, SYS_EXIT (reached only if the `out` was permitted)
+///   0f 05             syscall           (exit: the supervisor sees EVENT_EXIT, not EVENT_FAULT)
+/// ```
+pub const fn cap_delete_then_port_out(slot: u32, port: u16, val: u8) -> [u32; 7] {
+    let s = slot.to_le_bytes();
+    let del = (abi::SYS_CAP_DELETE as u32).to_le_bytes();
+    let p = port.to_le_bytes();
+    let ext = (abi::SYS_EXIT as u32).to_le_bytes();
+    pack_7([
+        0xBF, s[0], s[1], s[2], s[3], // mov edi, slot
+        0xB8, del[0], del[1], del[2], del[3], // mov eax, SYS_CAP_DELETE
+        0x0F, 0x05, // syscall (CAP_DELETE)
+        0x66, 0xBA, p[0], p[1], // mov dx, port
+        0xB0, val,  // mov al, val
+        0xEE, // out dx, al
+        0xB8, ext[0], ext[1], ext[2], ext[3], // mov eax, SYS_EXIT
+        0x0F, 0x05, // syscall (exit)
+        NOP, NOP,
+    ])
+}
+
+/// The faulting pc offset for [`cap_delete_then_port_out`]: two five-byte `mov r32, imm32`s and the
+/// two-byte `syscall` (12 bytes), then [`port_out`]'s own six bytes before its `out`.
+#[cfg(all(test, target_arch = "x86_64"))]
+pub const CAP_DELETE_THEN_PORT_OUT_PC_OFFSET: u64 = 12 + PORT_OUT_PC_OFFSET;
 
 /// **A child that blocks in RECV on slot 1, then writes a byte to a port, then reports and exits**
 /// (milestone 299). The revocation fixture: a holder of the `PortRange` capability naming `port`
