@@ -56,8 +56,10 @@ macro_rules! packer {
 packer!(pack_1, 4, 1);
 packer!(pack_2, 8, 2);
 packer!(pack_8, 32, 8);
+packer!(pack_4, 16, 4);
 packer!(pack_7, 28, 7);
 packer!(pack_9, 36, 9);
+packer!(pack_10, 40, 10);
 packer!(pack_16, 64, 16);
 
 /// `0x90`, the one-byte `nop`. Programs are padded up to a word boundary with it rather than with
@@ -189,6 +191,35 @@ pub const fn port_out(port: u16, val: u8, word: u32) -> [u32; 9] {
 #[cfg(all(test, target_arch = "x86_64"))]
 pub const PORT_OUT_PC_OFFSET: u64 = 6;
 
+/// **A child that writes one byte to an I/O port and then exits, reporting nothing** (milestone
+/// 313's audit). [`port_out`] for a child whose `out` is *expected to fault*: the non-holder in the
+/// hand-off test. The difference is the whole of the falsification's shape. A `port_out` child
+/// whose `out` was wrongly permitted goes on to `SEND` a word on a rendezvous the test is not
+/// receiving (the test is waiting on the supervision endpoint for a fault), so the broken case
+/// parks the child forever and hangs the run instead of turning an assertion red. This child
+/// exits instead, so a wrongly permitted `out` arrives as `EVENT_EXIT` in the very message the
+/// test wants `EVENT_FAULT` in. The `out` is at [`PORT_OUT_PC_OFFSET`], the same as `port_out`'s.
+///
+/// ```text
+///   66 ba xx xx       mov dx, port
+///   b0 xx             mov al, val
+///   ee                out dx, al        (#GP here for a thread holding no PortRange for `port`)
+///   b8 xx xx xx xx    mov eax, SYS_EXIT (reached only if the `out` was permitted)
+///   0f 05             syscall           (exit)
+/// ```
+pub const fn port_out_then_exit(port: u16, val: u8) -> [u32; 4] {
+    let p = port.to_le_bytes();
+    let ext = (abi::SYS_EXIT as u32).to_le_bytes();
+    pack_4([
+        0x66, 0xBA, p[0], p[1], // mov dx, port
+        0xB0, val,  // mov al, val
+        0xEE, // out dx, al
+        0xB8, ext[0], ext[1], ext[2], ext[3], // mov eax, SYS_EXIT
+        0x0F, 0x05, // syscall (exit)
+        NOP, NOP,
+    ])
+}
+
 /// **A child that deletes its own capability in `slot`, then writes a byte to a port, then exits**
 /// (milestone 313's audit). The drop-it-yourself fixture: a holder of the `PortRange` capability
 /// naming `port` executes `SYS_CAP_DELETE` on the slot that capability sits in, and the `out` that
@@ -243,7 +274,7 @@ pub const fn cap_delete_then_port_out(slot: u32, port: u16, val: u8) -> [u32; 7]
 #[cfg(all(test, target_arch = "x86_64"))]
 pub const CAP_DELETE_THEN_PORT_OUT_PC_OFFSET: u64 = 12 + PORT_OUT_PC_OFFSET;
 
-/// **A child that blocks in RECV on slot 1, then writes a byte to a port, then reports and exits**
+/// **A child that blocks in RECV on slot 1, then writes a byte to a port, then exits**
 /// (milestone 299). The revocation fixture: a holder of the `PortRange` capability naming `port`
 /// parks in RECV, and while it is parked the test revokes the range and wakes it; the `out` it then
 /// executes takes a general protection fault, so its supervisor sees `EVENT_FAULT` and the `word`
@@ -265,21 +296,22 @@ pub const CAP_DELETE_THEN_PORT_OUT_PC_OFFSET: u64 = 12 + PORT_OUT_PC_OFFSET;
 ///   66 ba xx xx       mov dx, port
 ///   b0 xx             mov al, val
 ///   ee                out dx, al        (#GP here once the port has been revoked)
-///   ...               <report(word)>    (unreached after a fault)
+///   b8 xx xx xx xx    mov eax, SYS_EXIT (reached only if the revoke did not take)
+///   0f 05             syscall           (exit)
 /// ```
-pub const fn recv_then_port_out(port: u16, val: u8, word: u32) -> [u32; 16] {
-    const {
-        assert!(
-            abi::rendezvous::SEND == 0,
-            "the `xor esi, esi` in this program encodes SEND as zero"
-        );
-    }
+///
+/// **It exits after the `out` rather than reporting** (milestone 313's audit; it carried
+/// [`port_out`]'s `SEND`-then-exit tail until then). The child's `out` is *expected* to fault, so
+/// the interesting case is the one where it does not, and in that case a `SEND` on a rendezvous the
+/// test is not receiving parks the child forever and hangs the run: a broken revoke could not turn
+/// the test red, only stall it. Exiting makes the broken case arrive as `EVENT_EXIT` where the test
+/// wants `EVENT_FAULT`, which is what lets the test carry a falsification record at all.
+pub const fn recv_then_port_out(port: u16, val: u8) -> [u32; 10] {
     let p = port.to_le_bytes();
-    let w = word.to_le_bytes();
     let rcv = (abi::rendezvous::RECV as u32).to_le_bytes();
     let inv = (abi::SYS_INVOKE as u32).to_le_bytes();
     let ext = (abi::SYS_EXIT as u32).to_le_bytes();
-    pack_16([
+    pack_10([
         0xBF, 0x01, 0x00, 0x00, 0x00, // mov edi, 1        (slot 1)
         0xBE, rcv[0], rcv[1], rcv[2], rcv[3], // mov esi, RECV
         0x31, 0xD2, // xor edx, edx
@@ -290,16 +322,9 @@ pub const fn recv_then_port_out(port: u16, val: u8, word: u32) -> [u32; 16] {
         0x66, 0xBA, p[0], p[1], // mov dx, port
         0xB0, val,  // mov al, val
         0xEE, // out dx, al
-        0x31, 0xFF, // xor edi, edi      (slot 0)
-        0x31, 0xF6, // xor esi, esi      (SEND)
-        0xBA, w[0], w[1], w[2], w[3], // mov edx, word
-        0x45, 0x31, 0xD2, // xor r10d, r10d
-        0x45, 0x31, 0xC0, // xor r8d, r8d
-        0xB8, inv[0], inv[1], inv[2], inv[3], // mov eax, SYS_INVOKE
-        0x0F, 0x05, // syscall (SEND)
         0xB8, ext[0], ext[1], ext[2], ext[3], // mov eax, SYS_EXIT
         0x0F, 0x05, // syscall (exit)
-        NOP, NOP, NOP, // pad 61 -> 64 (16 words)
+        NOP,  // pad 39 -> 40 (10 words)
     ])
 }
 

@@ -169,6 +169,8 @@ fn reap(region: u64) {
 /// hand-off test in one, because the order is the hand-off: the non-holder is scheduled after the
 /// holder installed and then vacated the TSS bitmap, so its fault is proof the switch left the port
 /// denied rather than inheriting the holder's grant.
+///
+/// Falsification: replayable `kernel/falsifications/user.x86_port_tests.port_holder_transmits_then_a_non_holder_faults.patch`
 #[test_case]
 fn port_holder_transmits_then_a_non_holder_faults() {
     // The holder: it executes `out` to a port its capability names, so the CPU permits it, and the
@@ -194,13 +196,15 @@ fn port_holder_transmits_then_a_non_holder_faults() {
     );
     reap(holder_region);
 
-    // The non-holder: the *same* program, granted no port capability, run right after the holder. Its
+    // The non-holder: the same `out`, granted no port capability, run right after the holder. Its
     // `out` faults, which is both "a non-holder cannot touch the port" and "the hand-off away from
-    // the holder left the TSS denying".
+    // the holder left the TSS denying". It exits rather than reporting (milestone 313's audit): if
+    // the hand-off ever leaked the grant, a reporting child would park on a `SEND` nobody receives
+    // and hang the run, and this test would be unable to go red for the one defect it exists for.
     let report2 = sched::create_rendezvous();
     let sup2 = sched::create_rendezvous();
     let (non_holder, nh_region) = build_child(
-        &super::x86_programs::port_out(SCRATCH_PORT, SCRATCH_VAL, REPORTED as u32),
+        &super::x86_programs::port_out_then_exit(SCRATCH_PORT, SCRATCH_VAL),
         report2,
         None,
         false,
@@ -224,13 +228,15 @@ fn port_holder_transmits_then_a_non_holder_faults() {
 /// `RECV`; while it is parked the test revokes the range (deleting its capability and clearing the
 /// cached grant the switch installs), then wakes it. The `out` it executes on waking faults, which
 /// is the whole claim: a capability that was real became unusable the instant it was revoked.
+///
+/// Falsification: replayable `kernel/falsifications/user.x86_port_tests.a_revoked_holder_faults_on_its_next_port_write.patch`
 #[test_case]
 fn a_revoked_holder_faults_on_its_next_port_write() {
     let report = sched::create_rendezvous();
     let wake = sched::create_rendezvous();
     let sup = sched::create_rendezvous();
     let (holder, region) = build_child(
-        &super::x86_programs::recv_then_port_out(SCRATCH_PORT, SCRATCH_VAL, REPORTED as u32),
+        &super::x86_programs::recv_then_port_out(SCRATCH_PORT, SCRATCH_VAL),
         report,
         Some(wake),
         true,
