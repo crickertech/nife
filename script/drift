@@ -147,6 +147,12 @@ done
 # binaries that only
 # run under QEMU; everything else (paging, elf, frames, slab, grant_plan, the protocol crates) is pure
 # logic that compiles and tests on the host in milliseconds. See CLAUDE.md on why that split exists.
+#
+# BUGS: this list is still written out, where the two above it are derived (milestone 312). Left
+# that way on purpose rather than overlooked: a crate that belongs here and is not here fails this
+# line with a compile error the moment it lands, which is rung two of AGENTS.md's ladder and loud.
+# The bare-metal list was rung four and failed *silently*, inside a job designed to tolerate red,
+# which is why it got the derivation and this did not.
 echo "==> Host tests"
 cargo test --workspace --exclude kernel --exclude components --exclude fixtures
 
