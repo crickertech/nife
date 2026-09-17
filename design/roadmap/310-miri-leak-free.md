@@ -32,9 +32,15 @@ plainly because the workflow's header warns to expect one: `cargo miri test` sto
 failure, and the last time this job was taken apart a three-week red turned out to have three
 causes. This time the first fix was the only fix.
 
-Two things the number is not. It is not the CI figure: CI's last run was 141 minutes on
-`ubuntu-24.04-arm` and died red partway, so it never measured a finishing run. And the 47% CPU says
-most of this is one interpreter thread, so it is wall clock that more cores will not buy back.
+**And it passes in CI, which is the measurement that settles it.** `workflow_dispatch` on this
+branch, run 35256118545 on `ubuntu-24.04-arm`: **success in 2:58:13**, the workflow's first green
+since it was written. The two figures agreeing within eleven minutes across two very different
+machines is worth having, because it means three hours is the job's cost rather than this laptop's.
+
+The 47% CPU is the load-bearing part of the local line: most of this is one interpreter thread, so
+it is wall clock that more cores will not buy back. The old 141-minute figure was a *red* run that
+died partway and never measured a finishing one, which is the header's point that a failing check is
+also not measuring.
 
 ## The part worth reading: the guard was not missing
 
@@ -108,8 +114,8 @@ and the crate's other thirty pass unchanged.
   memory and lets the process clean up) is caught only by the weekly Miri run, which is exactly the
   detection latency that let this sit for five weeks. `script/cadence-check` shortens the latency on
   the *job going quiet*, not on the job going red.
-- **The weekly run's cost is now measured and still unjudged.** Three hours nine minutes locally,
-  and the workflow's header asks for its 240-minute budget to be tightened once `compositor` is
+- **The weekly run's cost is now measured and still unjudged.** Three hours nine minutes locally and
+  2:58:13 in CI, and the workflow's header asks for its 240-minute budget to be tightened once `compositor` is
   sampled. This milestone supplies the number the header was missing and does not answer whether the
   cadence is worth it. See the follow-on.
 - **`crates/paging/tests/mapping.rs` still has the opt-in shape this milestone removed from
@@ -163,4 +169,4 @@ frame without holding one no longer compiles.** calef refused both alternatives 
 reduction in what Miri checks is the wrong trade for a one-time cost; the refusals and their reasons
 are in the block. **Measured: three hours nine minutes, exit 0, full sampled workspace**, with no
 second failure hiding behind the first, which supplies the honest cost figure the workflow's own
-header says is "not yet known".
+header says is "not yet known", and confirmed green in CI at 2:58:13.
