@@ -1,4 +1,4 @@
-//! **Unhalted core cycles, `x86_64`** (milestone 309, the x86_64 half of milestone 74's
+//! **Unhalted core cycles, `x86_64`** (milestone 309, the `x86_64` half of milestone 74's
 //! measurement side).
 //!
 //! # Why this is not `rdtsc`, which is the whole reason the module exists
@@ -14,9 +14,9 @@
 //!
 //! | | `arch::timer::now()` | the cycle counter |
 //! |---|---|---|
-//! | aarch64 | `CNTVCT_EL0`, the architected generic timer | `PMCCNTR_EL0`, a PMU counter |
-//! | riscv64 | `rdtime`, a fixed-rate reference tick | `mcycle`/`hpmcounterN` via SBI PMU |
-//! | x86_64 | `rdtsc`, **a constant-rate counter** | `IA32_PERF_FIXED_CTR1`, **this module** |
+//! | `aarch64` | `CNTVCT_EL0`, the architected generic timer | `PMCCNTR_EL0`, a PMU counter |
+//! | `riscv64` | `rdtime`, a fixed-rate reference tick | `mcycle`/`hpmcounterN` via SBI PMU |
+//! | `x86_64` | `rdtsc`, **a constant-rate counter** | `IA32_PERF_FIXED_CTR1`, **this module** |
 //!
 //! `IA32_PERF_FIXED_CTR1` is architectural fixed-function counter 1,
 //! `CPU_CLK_UNHALTED.CORE`: cycles the core actually ran, at whatever frequency it was running,
@@ -29,7 +29,7 @@
 //! # No authority question, and this must not create one
 //!
 //! [DECISIONS §139 part 3](../../../design/decisions/139-cycle-counter-authority.md) records that
-//! x86_64's TSC is already ambient: `CR4.TSD` is clear at reset and this kernel never writes it, so
+//! `x86_64`'s TSC is already ambient: `CR4.TSD` is clear at reset and this kernel never writes it, so
 //! ring 3 can `rdtsc` and the negative half of the cycle-counter grant test skips here with a
 //! reason. **This module does not change that and must not.** It enables a counter the kernel reads
 //! with `rdmsr`, which is ring 0 only. `CR4.PCE` stays clear, so `rdpmc` from ring 3 still faults
@@ -81,7 +81,7 @@
 //! # BUGS
 //!
 //! - **Nothing here has been run on silicon.** Every outcome this module can report today is a fact
-//!   about QEMU. xenon (milestone 87, the OptiPlex) is the machine that would produce a real
+//!   about QEMU. `xenon` (milestone 87, this project's x86 machine) is the one that would produce a
 //!   number, and it has never booted nife at all. See design/roadmap/309-x86-64-core-cycles.md.
 //! - **The in-step check is bit-exact equality, and that is a deliberate under-detection.** A real
 //!   core pegged at exactly its base frequency has core cycles and TSC ticks at the same *rate*, so
@@ -121,7 +121,7 @@ const IA32_PERF_GLOBAL_CTRL: u32 = 0x38F;
 ///
 /// **Both rings, deliberately.** The quantity the other two architectures report is cycles the core
 /// ran, without regard to privilege, and a counter that stopped at the ring boundary would make
-/// x86_64's number mean something different from theirs, which is the exact confusion milestone 309
+/// `x86_64`'s number mean something different from theirs, which is the exact confusion milestone 309
 /// exists to remove. Enabling ring 3 *counting* is not ring 3 *access*: reading still needs `rdmsr`,
 /// or `rdpmc` with `CR4.PCE` set, and this kernel sets neither. See this module's header.
 const FIXED_CTR1_BOTH_RINGS: u64 = 0b11 << 4;
@@ -163,7 +163,7 @@ pub enum CycleCounter {
     NoPerfmonLeaf,
     /// Architectural performance monitoring exists, but at a version below 2 or with fewer than two
     /// fixed-function counters, so `IA32_PERF_FIXED_CTR1` is not implemented.
-    NoFixedCycleCounter,
+    NoFixedCounter,
     /// **Enabled, read twice across a timed spin, and unmoved.** A counter of executed cycles cannot
     /// do that on a core that is executing, so it is refused rather than reported as zero. This is
     /// the x86 twin of riscv64's `Stuck`, and it is the outcome a counter modelled as a constant
@@ -199,7 +199,7 @@ static CHECK_TSC: AtomicU64 = AtomicU64::new(0);
 /// **Find the architectural fixed cycle counter, enable it, check it is counting something of its
 /// own, and remember whether to believe it.**
 ///
-/// Called once from `kernel_main`'s x86_64 arm, after the TSC has been calibrated: the checks below
+/// Called once from `kernel_main`'s `x86_64` arm, after the TSC has been calibrated: the checks below
 /// need a clock to spin against, and the clock they spin against is the very counter they are
 /// checking the answer is not. Silent and harmless on a part with no performance monitoring:
 /// [`cycles`] then answers `None` forever, which is the honest answer and not an error.
@@ -235,7 +235,7 @@ pub fn init() {
         || fixed_count < FIXED_COUNTERS_NEEDED
         || bits == 0
     {
-        OUTCOME.store(CycleCounter::NoFixedCycleCounter as u8, Ordering::Release);
+        OUTCOME.store(CycleCounter::NoFixedCounter as u8, Ordering::Release);
         return;
     }
 
@@ -335,7 +335,7 @@ fn cycles_delta(c0: u64, c1: u64) -> u64 {
 pub fn outcome() -> CycleCounter {
     match OUTCOME.load(Ordering::Acquire) {
         x if x == CycleCounter::NoPerfmonLeaf as u8 => CycleCounter::NoPerfmonLeaf,
-        x if x == CycleCounter::NoFixedCycleCounter as u8 => CycleCounter::NoFixedCycleCounter,
+        x if x == CycleCounter::NoFixedCounter as u8 => CycleCounter::NoFixedCounter,
         x if x == CycleCounter::Stuck as u8 => CycleCounter::Stuck,
         x if x == CycleCounter::InStepWithTheTsc as u8 => CycleCounter::InStepWithTheTsc,
         x if x == CycleCounter::Running as u8 => CycleCounter::Running,
@@ -392,7 +392,7 @@ pub fn print_summary() {
         CycleCounter::NoPerfmonLeaf => crate::println!(
             "  cycles      : no architectural performance monitoring (cpuid leaf 0x0a); TSC ticks only"
         ),
-        CycleCounter::NoFixedCycleCounter => crate::println!(
+        CycleCounter::NoFixedCounter => crate::println!(
             "  cycles      : perfmon v{version} has no fixed counter 1; TSC ticks only"
         ),
         CycleCounter::Stuck => crate::println!(
