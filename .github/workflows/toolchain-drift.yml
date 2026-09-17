@@ -73,6 +73,12 @@ jobs:
 
       # The most fragile thing first, because it is the thing that actually breaks: rebuilding the std
       # overlay against a fresh rust-src. A clean farm is the point, so this must not reuse a cached one.
+      #
+      # BUGS: this step is the one part of this job that still lives only in YAML, which is the very
+      # shape script/drift's header argues against: a command no developer runs has no witness. It
+      # stays here because moving it into script/drift would make a developer's `script/drift` delete
+      # their std farm and take the account-wide `nife-dev` toolchain link, which is a cost worth
+      # deciding rather than absorbing. See design/roadmap/312-drift-bare-metal-list.md's BUGS.
       - name: Build the std overlay (the fragile part)
         run: |
           rm -rf target/nife-farm
