@@ -390,49 +390,80 @@ mod tests {
         static PHYS: RefCell<Vec<(u64, u64)>> = const { RefCell::new(Vec::new()) };
     }
 
-    /// Frees the pool's host frames when a test ends. Each test that allocates frames holds one.
+    /// The layout every host frame is allocated with, and the one every `dealloc` must repeat.
     ///
-    /// The frames used to be simply leaked, on the theory that the test process exits anyway,
-    /// which was true and still let a real gate rot: Miri's leak check (milestone 79) reports
-    /// every one of them, sixteen reports drowning out whatever it might otherwise say about
-    /// this crate. A `Drop` guard is also what a test should have done all along; the leak was
-    /// a shortcut, not a decision (notes/undefined-behavior.md).
-    struct PoolGuard;
-    impl Drop for PoolGuard {
-        fn drop(&mut self) {
-            PHYS.with(|m| {
-                for (_, host) in m.borrow_mut().drain(..) {
-                    // SAFETY: `host` came from `frame_at`'s alloc_zeroed with this exact layout,
-                    // registered exactly once, and the drain removes it so nothing frees it twice.
-                    unsafe {
-                        std::alloc::dealloc(
-                            host as *mut u8,
-                            Layout::from_size_align(4096, 4096).unwrap(),
-                        );
-                    }
-                }
-            });
+    /// Named once so the two sites cannot drift apart. A `dealloc` whose layout disagrees with its
+    /// `alloc` is itself undefined behaviour, which would be an unusually embarrassing way to fail
+    /// the check this fixture exists to pass.
+    fn frame_layout() -> Layout {
+        Layout::from_size_align(PAGE_SIZE as usize, PAGE_SIZE as usize).unwrap()
+    }
+
+    /// The synthetic pool. **Holding one is the only way to allocate a frame**, and dropping it frees
+    /// every frame allocated through it.
+    ///
+    /// # BUGS
+    ///
+    /// The frames are host allocations that nothing else owns, so if they are not freed they leak.
+    /// They used to be, on the theory that a test process exits anyway. That is true under
+    /// `cargo test` and false under Miri, which checks for leaks by default: sixteen leak reports
+    /// drowned out anything this crate's Miri run might otherwise have said (milestone 79,
+    /// `notes/undefined-behavior.md`).
+    ///
+    /// The first fix, on 2026-08-03, was a bare `PoolGuard` that each test had to remember to bind.
+    /// **A test written afterwards did not, and the weekly Miri job went red for five weeks**; a
+    /// convention a test author has to remember is rung four of `AGENTS.md`'s ladder, and rung four
+    /// is what failed. So allocation now hangs off the pool itself: `frame` and `frame_at` are
+    /// methods, the free functions are gone, and a test that allocates without holding a pool does
+    /// not compile. That is the whole reason for the receiver, which is otherwise unused.
+    ///
+    /// Nesting two live pools on one thread would make the inner drop free the outer's frames and
+    /// leave dangling entries behind, so [`FramePool::new`] refuses it loudly rather than leaving it
+    /// to be discovered as a use-after-free.
+    struct FramePool;
+
+    impl FramePool {
+        /// Open the thread's pool. Panics if one is already open on this thread; see the type's
+        /// `BUGS`.
+        fn new() -> Self {
+            assert!(
+                PHYS.with(|m| m.borrow().is_empty()),
+                "a FramePool is already open on this thread: nesting them would free its frames early"
+            );
+            FramePool
+        }
+
+        /// Back the synthetic physical address `pa` with a real zeroed host frame.
+        fn frame_at(&self, pa: u64) -> u64 {
+            assert!(
+                pa.is_multiple_of(PAGE_SIZE),
+                "a synthetic PA must be page-aligned"
+            );
+            // SAFETY: a valid non-zero layout; alloc_zeroed returns zeroed memory or null (asserted).
+            let p = unsafe { alloc_zeroed(frame_layout()) };
+            assert!(!p.is_null());
+            PHYS.with(|m| m.borrow_mut().push((pa, p as u64)));
+            pa
+        }
+
+        /// The next frame from the sequential pool: for roots and page tables, where the address does
+        /// not matter as long as it is legal and distinct.
+        fn frame(&self) -> u64 {
+            let n = PHYS.with(|m| m.borrow().len()) as u64;
+            self.frame_at(POOL_BASE + n * PAGE_SIZE)
         }
     }
 
-    /// Back the synthetic physical address `pa` with a real zeroed host frame.
-    fn page_frame_at(pa: u64) -> u64 {
-        assert!(
-            pa.is_multiple_of(PAGE_SIZE),
-            "a synthetic PA must be page-aligned"
-        );
-        // SAFETY: a valid non-zero layout; alloc_zeroed returns zeroed memory or null (asserted).
-        let p = unsafe { alloc_zeroed(Layout::from_size_align(4096, 4096).unwrap()) };
-        assert!(!p.is_null());
-        PHYS.with(|m| m.borrow_mut().push((pa, p as u64)));
-        pa
-    }
-
-    /// The next frame from the sequential pool: for roots and page tables, where the address does not
-    /// matter as long as it is legal and distinct.
-    fn page_frame() -> u64 {
-        let n = PHYS.with(|m| m.borrow().len()) as u64;
-        page_frame_at(POOL_BASE + n * PAGE_SIZE)
+    impl Drop for FramePool {
+        fn drop(&mut self) {
+            PHYS.with(|m| {
+                for (_, host) in m.borrow_mut().drain(..) {
+                    // SAFETY: `host` came from `frame_at`'s alloc_zeroed with exactly this layout,
+                    // registered exactly once, and the drain removes it so nothing frees it twice.
+                    unsafe { std::alloc::dealloc(host as *mut u8, frame_layout()) };
+                }
+            });
+        }
     }
 
     /// Resolve a synthetic PA to the host frame behind it. Panics on an unregistered address, which
@@ -451,12 +482,13 @@ mod tests {
     /// Build a domain over one region and check every in-region page translates to itself while a
     /// page just past the end does not. This is the confinement stated as a property of the tables.
     fn one_region_confines<F: PageFormat>() {
+        let pool = FramePool::new();
         let mut frames: Vec<u64> = Vec::new();
-        let root = page_frame();
+        let root = pool.frame();
         // The device's data frame, at an address the TEST chooses so the assertions below mean what
         // they say: `base + PAGE_SIZE` must be a page the domain was not given, and with a sequential
         // pool it would have been the next frame allocated instead.
-        let base = page_frame_at(0x2000_0000);
+        let base = pool.frame_at(0x2000_0000);
         let regions = [DmaRegion {
             base,
             size: PAGE_SIZE,
@@ -467,7 +499,7 @@ mod tests {
             build_identity_domain::<_, _, F>(
                 root,
                 || {
-                    let f = page_frame();
+                    let f = pool.frame();
                     frames.push(f);
                     Some(f)
                 },
@@ -495,13 +527,11 @@ mod tests {
 
     #[test]
     fn aarch64_domain_confines_a_region() {
-        let _pool = PoolGuard;
         one_region_confines::<Aarch64>();
     }
 
     #[test]
     fn sv39_domain_confines_a_region() {
-        let _pool = PoolGuard;
         one_region_confines::<Sv39>();
     }
 
@@ -511,9 +541,10 @@ mod tests {
     /// [`grant_page`]'s whole-page test and its opposite. Two pages and a half separates all three.
     #[test]
     fn a_multi_page_grant_maps_its_whole_pages_and_not_the_partial_tail() {
+        let pool = FramePool::new();
         let mut frames: Vec<u64> = Vec::new();
-        let root = page_frame();
-        let base = page_frame_at(0x2000_0000);
+        let root = pool.frame();
+        let base = pool.frame_at(0x2000_0000);
         let regions = [DmaRegion {
             base,
             size: 2 * PAGE_SIZE + PAGE_SIZE / 2,
@@ -523,7 +554,7 @@ mod tests {
             build_identity_domain::<_, _, Aarch64>(
                 root,
                 || {
-                    let f = page_frame();
+                    let f = pool.frame();
                     frames.push(f);
                     Some(f)
                 },
@@ -553,14 +584,14 @@ mod tests {
     /// both map, and the gap between them does not: the domain is exactly the allow-list, no more.
     #[test]
     fn two_disjoint_regions_map_and_the_gap_does_not() {
-        let _pool = PoolGuard;
+        let pool = FramePool::new();
         let mut frames: Vec<u64> = Vec::new();
-        let root = page_frame();
+        let root = pool.frame();
         // Far apart on purpose: the point of this test is the GAP between them, and adjacent regions
         // would prove nothing about it. Sequentially-pooled frames would be adjacent, which is how
         // this assertion could have quietly stopped testing anything.
-        let a = page_frame_at(0x2000_0000);
-        let b = page_frame_at(0x3000_0000);
+        let a = pool.frame_at(0x2000_0000);
+        let b = pool.frame_at(0x3000_0000);
         let regions = [
             DmaRegion {
                 base: a,
@@ -576,7 +607,7 @@ mod tests {
             build_identity_domain::<_, _, Sv39>(
                 root,
                 || {
-                    let f = page_frame();
+                    let f = pool.frame();
                     frames.push(f);
                     Some(f)
                 },
@@ -593,7 +624,7 @@ mod tests {
         assert!(m.translate(b).is_some(), "region B did not map");
         // A frame the domain was never given: unmapped, so the device faults on it. In the gap
         // between A and B, which is the strongest place to ask.
-        let c = page_frame_at(0x2800_0000);
+        let c = pool.frame_at(0x2800_0000);
         assert_eq!(
             m.translate(c),
             None,
