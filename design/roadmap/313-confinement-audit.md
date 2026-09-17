@@ -42,27 +42,30 @@ comment are corrected rather than deleted.
 **And three things recorded rather than fixed**, each with a proposal: `PortRange::REVOKE` reaches
 one core and `x86_64` no longer runs one (a one-tick window, accepted with the reason and a `BUGS`
 section at the function); row 21's `x86_64` leg carries no falsification because the mechanism
-admits one architecture per record; and, outside the lens, the `x86_64` suite fails its boot-stack
-gate on this machine at the base commit for one language test while CI at the same commit is green.
+admits one architecture per record; and, outside the lens, one `x86_64` language test trips the
+boot-stack gate when run alone and not inside the suite.
 
 ## What it cost
 
-Reading, about four hours of lane time. Twelve `x86_64` boots: one cold build to prime the farm,
-three runs of the port tests as the fixtures changed, one run that hung (the first draft's escape
-parking on a `SEND`, killed at its root after ten minutes), four single-test runs to isolate the
-stack-gate excess (two of them on the base commit's own `kernel/` and `crates/`), and three record
-replays. No aarch64 or riscv64 boot: the kernel changes are `#[cfg(target_arch = "x86_64")]`
-throughout, and the only cross-architecture edit is a comment in `crates/paging`.
+Reading, about four hours of lane time. Twelve targeted `x86_64` boots: one cold build to prime the
+farm, three runs of the port tests as the fixtures changed, one run that hung (the first draft's
+escape parking on a `SEND`, killed at its root after ten minutes), four single-test runs to isolate
+the stack-gate excess (two of them on the base commit's own `kernel/` and `crates/`), and three
+record replays. Then the full suite on all three architectures, one at a time (`x86_64` in both boot
+modes, aarch64, riscv64, every one exit 0), although the kernel changes are
+`#[cfg(target_arch = "x86_64")]` throughout and the only cross-architecture edit is a comment in
+`crates/paging`; the other two legs were run because the brief asked for every architecture whose
+code was touched and a comment in a shared crate is code that was touched.
 
 ## BUGS
 
-- **The `x86_64` full suite was not run green by this lane, and cannot be on this machine.**
-  `language_tests::a_refusal_and_a_success_report_different_numbers` alone drives the boot stack to
+- **One `x86_64` test trips the boot-stack gate when run alone and not inside the suite.**
+  `language_tests::a_refusal_and_a_success_report_different_numbers`, filtered to by itself, ends at
   62456 bytes against the 61440 gate, on the base commit, before any of this lane's changes; the
-  report's finding 7 has the measurements and the gap in what could be read from CI. Every test this
-  lane touched was booted under both `x86_64` boot modes and passed. The brief asked for `script/test`
-  green on every architecture whose code was touched, and this is the honest answer rather than the
-  green one.
+  full suite on this lane's tree ends at 53144 (PVH) and 50272 (UEFI), green. An earlier draft of
+  this entry and of the report's finding 7 read the filtered result as this machine disagreeing with
+  CI, and the full run corrected it. It matters for `script/falsifications --sweep`, which replays
+  every kernel record as a filtered run; no record names that test today.
 - **Finding 3 has no test.** `CR4.SMEP` is set and a boot line says so; a falsification would need
   ring 0 to survive its own page fault, which this kernel cannot do. The boot line is rung three.
 - **The cross-core port window is accepted, not closed.** One tick at most, cache cleared so it
@@ -84,8 +87,8 @@ throughout, and the only cross-architecture edit is a comment in `crates/paging`
   record per architecture, so a portable confinement test can carry evidence on every leg it runs on.
 - **Proposed.** `design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`: the
   test finding 3 could not have, and SMAP with the syscall-path number its `BUGS` asks for.
-- **Proposed.** `design/roadmap/proposals/an-x86-stack-gate-that-disagrees-between-machines.md`: the
-  boot-stack high-water that is 62456 here and green in CI at the same commit.
+- **Proposed.** `design/roadmap/proposals/a-stack-gate-that-fires-only-on-a-filtered-run.md`: the
+  boot-stack high-water that is 62456 for one test run alone and 53144 for the suite that contains it.
 - **Recorded.** The one-tick cross-core window on a revoked `x86_64` port range, in
   `kernel/src/arch/x86_64/segments.rs`'s `revoke_installed_port_grant` `BUGS` section and in the
   report's finding 4.
@@ -113,5 +116,5 @@ catch, because a wrongly permitted `out` parked on a `SEND` nobody received and 
 falsification records. Ring 0 could execute a user page on `x86_64` and the paging decoder said it
 could not; `CR4.SMEP` is now set where CPUID offers it. Recorded and proposed: the one-tick
 cross-core window on a revoked port range now that `x86_64` runs secondaries, the missing `x86_64`
-evidence for row 21, a test for the SMEP claim, and an `x86_64` stack gate that is red on this machine
-and green in CI at the same commit.
+evidence for row 21, a test for the SMEP claim, and an `x86_64` stack gate that fires on a filtered
+single-test run and not on the suite that contains the same test.

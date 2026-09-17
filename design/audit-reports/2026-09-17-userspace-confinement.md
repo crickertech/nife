@@ -120,6 +120,17 @@ above, and its cross-core behaviour is finding 4. Interrupt remapping is the sta
 it, the DMAR has never been read, and `design/roadmap/proposals/read-the-dmar-on-xenon.md` already
 proposes reading it. It stays latent because no component holds a DMA-capable device on xenon.
 
+**xenon passed its self-test on real firmware while this audit was running** (milestone 87, closed
+2026-09-17 09:55 UTC, `bench/xenon-2026-09-17/first-light-095500.log`, with the line `VT-d drhd at
+0xfed90000, root table default-deny, translating`). That turns the second machine-class trigger from
+a question into a transcript, and it bears on two things here. The DMAR *has* now been found by the
+kernel's own walk on that machine, so the "never read" above is one step narrower: the unit is
+located and its root table is installed default-deny; what is still unread is the `INTR_REMAP` flag
+and the unit's `IR` capability, which is the half the latent claim depends on and the half the
+proposal asks for. And that boot predates finding 3's change, so it carries no `cr4.smep` line:
+xenon's Kaby Lake offers SMEP and the next boot there is the first that will say whether the bit
+was set, which is the one machine this audit could not check.
+
 ## What milestone 307's six rows actually guarantee
 
 The brief asked, for the six rows whose quotable assertion cannot run, what is actually guaranteed.
@@ -271,20 +282,20 @@ turning SMAP on would need for its own test. Both belong to one lane, and the SM
 syscall-path measurement the existing `BUGS` entry asks for. Proposed in
 `design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`.
 
-### 7. MINTED, outside the lens: the `x86_64` suite fails its boot-stack gate on this machine at the base commit
+### 7. MINTED, outside the lens: the `x86_64` boot-stack gate fires on a filtered run and not on the suite
 
-Found while gating, and reported because it decides what "green on `x86_64`" can mean for this pull
-request. `language_tests::a_refusal_and_a_success_report_different_numbers`, run alone, drives the
-`x86_64` boot stack to **62456 bytes against `stack.rs`'s 61440 limit**, deterministically (four
-runs, four identical numbers), on the tree with this lane's `sched.rs` change reverted **and on the
-base commit `52da4ae4`'s own `kernel/` and `crates/`**. CI at that same commit is green, and
-`cargo xtask test` boots all three legs by default, so CI's `x86_64` leg either measures this chain
-lower or does not reach it; the job's log as `gh` returns it carries only setup and cleanup steps,
-so this audit could not read CI's transcript to say which. Nothing in this lane's diff moves the
-number (31120 for the port tests before and after every change here). It is not a confinement matter
-and it is not this lane's to fix, but it is a gate that is red on one machine and green on another
-for the same commit, which is the kind of disagreement this tree treats as a finding. Proposed in
-`design/roadmap/proposals/an-x86-stack-gate-that-disagrees-between-machines.md`.
+Found while gating, and corrected once the full suite had run: an earlier draft of this finding read
+the filtered result as the machine disagreeing with CI, and the full suite showed it is the filter
+disagreeing with the suite. `language_tests::a_refusal_and_a_success_report_different_numbers`, run
+**alone** (`--test a_refusal_and_a_success`), drives the `x86_64` boot stack to **62456 bytes against
+`stack.rs`'s 61440 limit**, deterministically (four runs, four identical numbers), on the base commit
+`52da4ae4`'s own `kernel/` and `crates/`. The **full** `x86_64` suite on this lane's tree is green in
+both boot modes, with the boot stack at 53144 (PVH, 243 passed) and 50272 (UEFI, 214 passed). So the
+same test sits about 9 KiB deeper when it is the only one selected. Nothing in this lane's diff moves
+either number. It is not a confinement matter and not this lane's to fix; it matters because a
+filtered run is how a person reproduces one failure and how `script/falsifications --sweep` replays
+every kernel record, and a gate that fires only there would report a red for the wrong reason.
+Proposed in `design/roadmap/proposals/a-stack-gate-that-fires-only-on-a-filtered-run.md`.
 
 ## Is any confinement claim in this tree false as stated?
 
@@ -326,7 +337,7 @@ question with a finite answer per ISA; nothing here asked it of the DMA path or 
 - **A falsification record per architecture** (finding 5's proposal), which also rescues the aarch64
   twin `the_hardware_says_el0_cannot_read_the_kernels_memory`'s sibling on `x86_64`.
 - **Ring 0 provably cannot execute ring-3 pages, and SMAP with a number** (finding 6's proposal).
-- **The `x86_64` stack gate that disagrees between machines** (finding 7's proposal).
+- **The stack gate that fires only on a filtered run** (finding 7's proposal).
 - **DECISIONS §152's BUGS and `design/fatal-risks.md` risk 7 are the maintainer's to update** from
   this report: the single-core premise, and the sentence that one claim was false and fixed.
 - **The syscall surface** is the remaining untaken lens, and this audit deliberately read none of it
