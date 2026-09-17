@@ -42,6 +42,22 @@
 # far more strictly than they need. The looseness is on purpose: one missed weekly run is weather,
 # two is a pattern, and a watcher that speaks on weather gets muted.
 #
+# **That sentence is an assumption about other files, and on 2026-09-16 it was false for one of
+# them.** `vendor-watch.yml` was monthly (`0 9 1 * *`), so this script reported it DEAD for roughly
+# half of every month while it was running exactly on schedule -- a false positive in the one tripwire
+# whose whole value is that a scheduled workflow's red is otherwise invisible. A watcher that cries
+# wolf on a healthy job trains a reader to skim it, which is how three genuinely dead workflows sat
+# unnoticed since August.
+#
+# It was resolved on 2026-09-17 by making `vendor-watch` weekly rather than by teaching this script
+# about intervals, and calef's reason was that the shorter lag was better on its own merits: a watch
+# for "has upstream moved" that answers up to a month late is worse than one that answers up to a
+# week late, whatever the threshold here says. **So the invariant holds again by agreement rather
+# than by construction**, and the next monthly or quarterly workflow anyone adds will reproduce the
+# false positive. The durable fix is to derive each workflow's expected interval from its own cron,
+# which this script already reads; that is deliberately not done here, and this paragraph is the
+# record of why it is owed.
+#
 # **A workflow too young to have fired yet is not dead**, which is a distinction this got wrong on
 # its first draft. `falsifications.yml` and `metrics.yml` both carry a Monday cron and both had zero
 # scheduled runs when this was written, because they were added on 2026-08-31 and 2026-09-02 and
