@@ -1,13 +1,95 @@
 # 87. The x86_64 bare-metal machine
 
-**Status: PARTIAL, and it has booted.** Raised 2026-08-03. The selection is made and recorded here,
-and as of 2026-08-30 the software side was done and proved under real firmware in QEMU.
+**Status: BUILT 2026-09-17.** Raised 2026-08-03. xenon printed `nife self-test: 5 of 5 passed` at
+09:55 UTC on 2026-09-17, which is the criterion calef set that morning. Transcript:
+`bench/xenon-2026-09-17/first-light-095500.log`.
 
-**Gate: HARDWARE.** It is now the only gate. The hardware side finished 2026-08-23 (the
-OptiPlex arrived 2026-08-15; the Dell C4PDJ serial module and the dev-side RS-232 chain arrived and
-are installed). The *software* blocker closed 2026-08-30: the kernel could not be started by any
-real firmware at all until then, because the x86_64 port boots by PVH, a hypervisor direct-boot
-protocol no machine speaks. That is what "What was built" below fixed.
+**nife now runs on all three declared architectures on real hardware.**
+
+**How the gate stood, kept as this block's history.** It read `HARDWARE` to the end, and the
+hardware side finished 2026-08-23. What follows is that paragraph as written.
+
+> **Gate: HARDWARE.** It is now the only gate. The hardware side finished 2026-08-23 (the
+> OptiPlex arrived 2026-08-15; the Dell C4PDJ serial module and the dev-side RS-232 chain arrived and
+> are installed). The *software* blocker closed 2026-08-30: the kernel could not be started by any
+> real firmware at all until then, because the x86_64 port boots by PVH, a hypervisor direct-boot
+> protocol no machine speaks. That is what "What was built" below fixed.
+
+## The boot that closed it, 2026-09-17
+
+```
+  mmu             : fine W^X 4-level map installed (cr3 0x187000), image 0xffffffff80000000
+                  : 32824 KiB of page tables, no identity map, guard pages are holes
+  cycles      : IA32_PERF_FIXED_CTR1 (unhalted core cycles), 48 bits, perfmon v4
+  iommu           : VT-d drhd at 0x00000000fed90000, root table default-deny, translating
+nife machine: x86_64, 4 processor(s), 17119 MiB, 100 Hz
+  self-test       : exceptions ok · mapping ok · frames ok · timer ok · scheduler ok
+nife self-test: 5 of 5 passed
+```
+
+**The `AlreadyMapped` fix held.** `mmu : fine W^X 4-level map installed` is the line this machine
+died before reaching on 2026-09-04, and the boot went straight past it.
+
+**Three numbers nobody had read from real x86_64 hardware:**
+
+- **32,824 KiB of page tables**, against `mmu.rs`'s `BUGS` prediction of 0.2% of RAM, which is about
+  33 MiB of this machine's 17 GB. The estimate was right.
+- **`IA32_PERF_FIXED_CTR1`, 48 bits, perfmon v4.** Milestone 309's probe, merged hours earlier,
+  reported `NoPerfmonLeaf` under QEMU and found the real counter here. x86_64 now reports the same
+  quantity riscv64 does, unhalted core cycles rather than TSC ticks, which is the parity gap
+  milestone 74's scope note names.
+- **TSC 2714 MHz** by PIT calibration, and the timer self-test measured against it.
+
+**One address disagreement, reported rather than assumed:**
+
+```
+pcie ecam 0xf0000000, buses 0..=127 (mmu::PCI_ECAM_PHYS says 0xb0000000)
+```
+
+The ACPI MCFG puts the ECAM window at `0xf0000000`; the constant says `0xb0000000`. Nothing failed,
+because the discovered value is what was used. A constant that disagrees with firmware on the first
+real machine to check it is worth a look before something trusts it without cross-checking.
+
+## And it refused to hand over, which is the gate working and a defect in our own build
+
+```
+nife: handing the system to the userspace progenitor.
+  MEASURED BOOT REFUSED: no measurement for the archive entry 'progenitor'
+```
+
+**This is the second time this exact defect has reached a bench.** `cargo xtask uefi-image` built the
+kernel **before** the archive. Packing the archive regenerates `target/init-measure-x86_64.txt`, the
+manifest `kernel/build.rs` compiles in as the measured-boot trust root, so a kernel built first
+vouches for the *previous* archive and the gate refuses the pair at handover.
+
+`script/board-image` had the same defect for riscv64 and the VisionFive 2 refused the pair on
+2026-08-15 (boot 12). The fix there carries a comment reading *"QEMU never hit it because xtask
+orders these correctly"*, which was **true of the riscv64 path and false of this one**, and nothing checked.
+
+QEMU does not catch it because a developer running both from one tree usually has both fresh. It
+bites when the kernel is already built, which is every time a lane compiled it earlier in the
+session. That is exactly what happened here.
+
+**Fixed in `xtask::uefi_image` on 2026-09-17**, archive first, with the reasoning at the call site
+rather than in a note, because a comment in the other script had already asserted this was handled.
+Verified under OVMF: the corrected pair prints `progenitor: every program measured against the
+archive table` and reaches a ring-3 shell.
+
+**The next boot therefore starts where this one stopped**, and everything past the handover is ground
+this kernel has never covered on this machine.
+
+## What the screen showed, and a finding that was nearly invented
+
+The framebuffer console worked: the tour was legible on the panel during boot (calef, at the bench).
+A photograph taken after the halt (`IMG_4143`, filed in `~/projects/xenon/` per
+`notes/xenon-firmware.md`'s convention) shows a sparse dotted grid, which is the panel after the
+machine stopped rather than anything nife drew.
+
+**Recorded because it was nearly written up as a defect.** A maintainer read that photograph alone
+and had begun drafting a finding that the framebuffer console was broken on xenon, citing
+`uefi_loader`'s own stride warning as the likely cause. calef's correction, that text had been on
+the screen before it, is the only thing that stopped a fabricated defect entering the record. A
+photograph of a halted machine is evidence about a halted machine.
 
 **First light happened on 2026-09-04**, and this block went on reading as though it had not, which
 misled a maintainer on 2026-09-16 into saying three times that xenon had never booted nife at all.
@@ -177,15 +259,17 @@ hardware side finished before the code side needed it.
 - **Done.** SMP under UEFI is exercised. `notes/x86-uefi-boot.md` records two cores up under OVMF
   five runs out of five, gated, after the loader started asking firmware for the trampoline page by
   name instead of relying on OVMF's habits.
-- **Outstanding.** The bench procedure itself is still unrun and unproved. `notes/x86-uefi-boot.md`
-  says outright that this has not been done, and its `BUGS` says every firmware-menu path and key
-  name comes from the 7050's documented behaviour rather than from the machine. Checked 2026-09-03.
-- **Outstanding.** This milestone's own completion condition, a byte printed over serial from the
-  OptiPlex, is unmet: nothing in `notes/` or the roadmap records a boot on the machine, and the
-  gate is a person at the desk. Checked 2026-09-03.
-- **Outstanding.** The smart plug this block's requirements list prices at $15, and includes in its
+- **Done.** The bench procedure is run and proved: 2026-09-04 first light and 2026-09-17's closing
+  boot both followed `notes/x86-uefi-boot.md`'s "The bench" section, and `notes/xenon-firmware.md`
+  carries the firmware settings read off the machine rather than off Dell's documentation.
+- **Done.** The completion condition is met, and it changed on the way: calef ruled on 2026-09-17
+  that `BUILT` means `nife self-test: N of N passed` rather than a byte over serial, because a byte
+  was printed on 2026-09-04 while the milestone plainly was not done. xenon printed the self-test
+  line on 2026-09-17.
+- **Recorded.** The smart plug this block's requirements list prices at $15, and includes in its
   $194 estimate, appears in no purchase record in the tree, so a bring-up loop of hang,
-  power-cycle, retry has no remote power today. Checked 2026-09-03.
+  power-cycle, retry has no remote power today. That limitation lives beside the decision it
+  belongs to, milestone 224, where calef ruled on 2026-09-04 that board power stays manual.
 - **Recorded.** The suite under firmware still runs at one core, so nothing exercises UEFI AP
   bring-up together with the scheduler's cross-core tests. That is the x86_64 port's open two-core
   defect rather than a firmware fact.
@@ -200,6 +284,8 @@ hardware side finished before the code side needed it.
   than to the machine purchase.
 
 ## Index row
+
+**Built:** 2026-09-17
 
 Milestone 161's third ISA needs what milestone 16's second needed: a dedicated, brickable board,
 selected before the port so the requirements drive the purchase. Selected: a used OptiPlex 7050

@@ -3036,7 +3036,26 @@ fn esp_dir() -> std::path::PathBuf {
 ///   of its own (`efibootmgr`'s job on Linux) is not done here, and is what a machine that boots
 ///   nife by default would need.
 fn uefi_image() -> bool {
-    if !cargo_profiled(&["build", "-p", "kernel", "--target", X86_TARGET]) || !initrd_x86() {
+    // **The archive FIRST, then the kernel, and the order is load-bearing.** Packing the archive
+    // regenerates `target/init-measure-x86_64.txt`, the manifest `kernel/build.rs` compiles in as
+    // the measured-boot trust root. Kernel-first builds a kernel vouching for the PREVIOUS archive,
+    // and the gate then refuses the pair at the point of handover:
+    //
+    //     MEASURED BOOT REFUSED: no measurement for the archive entry 'progenitor'
+    //
+    // **This is the second time this defect has reached a bench**, which is why the comment is here
+    // rather than in a note. `script/board-image` had it for riscv64 and the VisionFive 2 refused
+    // the pair on 2026-08-15 (boot 12); the fix there carries a comment saying "QEMU never hit it
+    // because xtask orders these correctly", which was true of the riscv64 path and false of this
+    // one. xenon refused the pair the same way on 2026-09-17, after its self-test passed.
+    //
+    // QEMU does not catch it because a developer who runs the kernel and the archive from one
+    // working tree usually has both fresh; it bites when the kernel is already built, which is
+    // every time a lane has compiled it earlier in the session.
+    //
+    // `initrd_x86` builds `components`, never the kernel, so the dependency runs one way only and
+    // this order is the safe one as well as the correct one.
+    if !initrd_x86() || !cargo_profiled(&["build", "-p", "kernel", "--target", X86_TARGET]) {
         return false;
     }
 

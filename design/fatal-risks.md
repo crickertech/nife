@@ -413,6 +413,13 @@ its firmware transcription says so precisely: a `Micron 2450 NVMe 256GB` on M.2 
 in AHCI rather than RAID, *"so the NVMe is a plain PCIe function rather than hidden behind Intel
 RST"*, on a machine milestone 87 selected partly for VT-d.
 
+**And that machine now boots nife, as of 2026-09-17** (milestone 87, `BUILT`), which removes the
+last thing standing between this risk and its decisive experiment that was not code. Its first
+complete boot reported `iommu : VT-d drhd at 0x00000000fed90000, root table default-deny,
+translating` and `pci : 15 function(s) on the bus`, so the IOMMU this experiment needs came up on
+its own hardware rather than under emulation. What remains is an EL0 NVMe driver under §86's option
+2a, and a disk wipe calef has already confirmed is safe.
+
 **What stood in the way was not hardware, it was that the disk held somebody else's Windows**, and a
 disk this project must not write to is not a disk it can drive. calef confirmed on 2026-09-05 that
 the installation is a freshly wiped image from the seller rather than anyone's data, and that the
@@ -545,10 +552,38 @@ kernel thread may answer there instead is `design/decisions/149-kernel-served-co
 sentence above stands as written. Either way this risk's decisive experiment below is unaffected,
 because milestone 87 is about the boot entry and not about the shell.
 
-**The decisive experiment is milestone 87 (the x86_64 bare-metal machine)**, which completes when the
-OptiPlex prints a byte over serial. The machine, the serial module and the RS-232 chain have been
-installed since 2026-08-23 and nothing has ever been booted on it. Then boot the tour. If it needs
-driver work, that is schedule. If it needs the kernel restructured, that is the red result.
+**The decisive experiment was milestone 87 (the x86_64 bare-metal machine), and it RAN on
+2026-09-17. The result is green.**
+
+```
+nife machine: x86_64, 4 processor(s), 17119 MiB, 100 Hz
+nife self-test: 5 of 5 passed
+```
+
+**nife runs on all three declared architectures on real hardware.** Transcript
+`bench/xenon-2026-09-17/first-light-095500.log`; milestone 87's block has the detail.
+
+**What the experiment was actually testing, and why this answers it.** This entry's own sharpening
+says the ISA count is not the fatal part: what would be fatal is a failure revealing that adding an
+architecture requires changing the kernel rather than adding a directory under `arch/`. **It did
+not.** The x86_64 port reached a passing self-test on its own firmware with the boot entry, the
+mapper and the discovery seam living under `kernel/src/arch/x86_64/`, which is what DECISIONS §4
+rule 1 and §19 claim. Two boots were needed rather than one, and the defect between them
+(`AlreadyMapped`, a fill that mapped device ranges cacheably because the firmware's map does not
+describe the MMIO hole) was **machine-specific and fixed inside `arch/x86_64/mmu.rs`**, which is the shape
+this entry predicts for a healthy HAL rather than the shape it fears.
+
+**Two things this does not claim.** The completion criterion was ruled by calef on the day to be the
+self-test rather than a byte over serial, because a byte was printed on 2026-09-04 while the
+milestone plainly was not done; a reader should take "the self-test passes" as the claim and nothing
+wider. And **userspace was not reached on that boot**: the measured-boot gate refused the handover
+because `xtask::uefi_image` built the kernel before the archive, so the kernel vouched for the
+previous one. That is a defect in this project's build ordering, fixed the same day and verified
+under OVMF, and it is the second time that same ordering defect has reached a bench.
+
+**What remains on this edge is no longer first light.** It is the two-core defect under firmware,
+the boot entry's remaining work, and the orchestrator, all of which are schedule rather than
+restructure.
 
 **It is not the free hour this file first called it**, and the correction is calef's, 2026-08-30,
 asking why it should outrank finishing milestone 16 (real hardware + IOMMU-backed driver
