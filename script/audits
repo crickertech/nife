@@ -39,7 +39,7 @@
 # claim rather than evidence:
 #
 #   milestones built     BUILT rows in design/roadmap/README.md
-#   components           crates/*/ plus [[bin]] targets in user/Cargo.toml
+#   components           crates/*/ plus [[bin]] targets in components/ and fixtures/Cargo.toml
 #   ABI constants        the `pub const NAME: u64` surface of crates/abi (see BUGS)
 #   external packages    distinct registry packages across every committed Cargo.lock but vendor's
 #
@@ -164,8 +164,23 @@ def current():
         built = len(re.findall(r"^\| \d+ \| BUILT \|", f.read(), re.M))
 
     crates = len([d for d in glob.glob(os.path.join(root, "crates", "*")) if os.path.isdir(d)])
-    with open(os.path.join(root, "user", "Cargo.toml"), errors="replace") as f:
-        programs = f.read().count("[[bin]]")
+    # **Both packages, and the reason is the baseline table rather than the word "component".**
+    # This read `user/Cargo.toml` until milestone 311. Milestone 175 split `user/` into
+    # `components/` (a distribution would ship it) and `fixtures/` (it exists to test something),
+    # and from 2026-08-11 to 2026-09-17 this line raised FileNotFoundError on every scheduled run:
+    # five weeks in which nothing reported whether an audit was due.
+    #
+    # Reading only `components/` would have been the tempting repair, because the trigger is named
+    # for components and milestone 175's own rule says a fixture is not one. It would also be
+    # wrong, and quietly: every baseline row on record was counted when `user/` held both, so a
+    # delta taken against `components/` alone compares 114 with a baseline of 110 that meant 155.
+    # The trigger would under-report by forty, which is the one direction an audit signal must not
+    # err in. The split moved no program (72 targets before, 73 after), so counting both is what
+    # keeps the number continuous across it, which is the only property a delta needs.
+    programs = 0
+    for pkg in ("components", "fixtures"):
+        with open(os.path.join(root, pkg, "Cargo.toml"), errors="replace") as f:
+            programs += f.read().count("[[bin]]")
 
     with open(os.path.join(root, "crates", "abi", "src", "lib.rs"), errors="replace") as f:
         abi = len(re.findall(r"^\s*pub const [A-Z_0-9]+: u64 = ", f.read(), re.M))

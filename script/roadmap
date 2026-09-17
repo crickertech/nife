@@ -674,11 +674,21 @@ for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
 # every span that held a slash fired on all four. So a span is a path claim only when it has no
 # whitespace and begins with a directory this repository actually has, which still catches the rot
 # this check exists for: milestone 136's pin named `crates/regions` after §113 renamed it.
-PATHISH = re.compile(r"(?:" + "|".join([
-    "art", "bench", "crates", "design", "entropy_backend", "fuzz", "kernel", "notes", "patches",
-    "redoxfs_server", "script", "scripts", "std_exerciser", "targets", "tools", "uefi_loader",
-    "user", "vendor", "xtask", r"\.github",
-]) + r")/\S+")
+#
+# **The list used to be typed out here, and it drifted** (milestone 311). It still named `user/`
+# nineteen days after milestone 175 split that directory into `components/` and `fixtures/`, and it
+# named neither of the two. Both halves of that are defects and only one is visible: a stale entry
+# makes a dead path *look* checkable, and a missing entry means a `**Recorded.**` bullet citing
+# `components/src/...` is not read as a path claim at all, so the broken footnote this check exists
+# to catch passes it in silence. `.cargo/` and `.githooks/` had never been in the list either.
+#
+# So it is derived from the tree instead of copied from it, which is rung one of AGENTS.md's ladder:
+# the wrong state is now unrepresentable rather than merely gated. `git ls-tree` rather than
+# `os.listdir` because an untracked `target/` is not a directory a citation should resolve into,
+# and git is already this script's neighbour two checks down.
+_ROOT_DIRS = subprocess.run(["git", "-C", root, "ls-tree", "-d", "--name-only", "HEAD"],
+                            capture_output=True, text=True).stdout.split()
+PATHISH = re.compile(r"(?:" + "|".join(re.escape(d) for d in sorted(_ROOT_DIRS)) + r")/\S+")
 # **`Outstanding.` is milestone 252's one addition, and it is the word a PARTIAL block needs that a
 # finished one does not.** Seven of the eight say where work WENT. A PARTIAL block's commonest answer
 # is that the work has not gone anywhere and is still its own scope, and none of the seven can say

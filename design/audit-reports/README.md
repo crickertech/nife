@@ -22,33 +22,46 @@ counts. `script/audits` reads both.
 `script/audits` answers, from this file and from the tree. It never runs an audit and never edits
 anything:
 
+This is a real run, on 2026-09-17, the day milestone 311 repaired the script after five weeks in
+which it could not run at all. It is kept rather than replaced with a tidier example because what it
+says is the thing a reader of this file most needs to know:
+
 ```
 $ script/audits
-documentation  last 2026-08-16 (Docs versus reality, scoped by the staleness worklist)
-  milestones built     73 -> 73  (+0, fires at 10)
-  components           108 -> 108  (+0, fires at 10)
-  ABI constants        43 -> 43  (+0, any change fires)
+documentation  last 2026-08-17 (The ABI surface as documented, read from the wire outward: e)
+  milestones built     76 -> 188  (+112, fires at 10)   <-- FIRED
+  components           110 -> 155  (+45, fires at 10)   <-- FIRED
+  ABI constants        50 -> 52  (+2, any change fires)   <-- FIRED
   external packages    108 -> 108  (+0, fires at 30)
-  calendar             0 days since (12 weeks)
-  not due
+  calendar             31 days since (12 weeks)
+  DUE: milestones built +112 (fires at 10); components +45 (fires at 10); ABI constants +2 (fires at 1)
   ? has a subsystem been rewritten inside its existing crate since the last sweep? ...
   ? has a decision superseded a plan that a note still prescribes? ...
 
-security      last 2026-08-15 (Untrusted counterparty input: a value a hostile counterparty)
-  milestones built     71 -> 73  (+2, fires at 15)
-  components           104 -> 108  (+4, fires at 8)
-  ABI constants        43 -> 43  (+0, any change fires)
+security      last 2026-08-17 (Newly minted authority, read adversarially: the seven ABI co)
+  milestones built     76 -> 188  (+112, fires at 15)   <-- FIRED
+  components           110 -> 155  (+45, fires at 8)   <-- FIRED
+  ABI constants        50 -> 52  (+2, any change fires)   <-- FIRED
   external packages    108 -> 108  (+0, any change fires)
-  calendar             1 day since (6 weeks)
-  not due
+  calendar             31 days since (6 weeks)
+  DUE: milestones built +112 (fires at 15); components +45 (fires at 8); ABI constants +2 (fires at 1)
   ? has a new component taken device or network authority since the last audit?
   ? has this booted on a new machine class (a board, a cloud) since the last audit?
 
 The `?` lines are triggers nothing here can count, because they are a judgment and not a
 number. If one is yes, that kind is due regardless of everything above (milestone 92, §74).
 
-audits: 5 on record, 2 kinds, none due
+audits: 7 on record, DUE: documentation, security
+Red means run the audit. Nothing here ran one, and nothing here can.
+design/audit-reports/README.md says how, and which lens the last one lacked.
 ```
+
+**Both kinds are overdue, and the security one is overdue by seven times its own trigger.** §74 set
+the security count at 15 milestones or 8 components; the tree has built 112 milestones and 45
+components since the last audit of any kind. The calendar backstop, the trigger a reader reaches for
+first, is the only one that has *not* fired: 31 days against 42. That is the count triggers doing
+exactly the job §74 gave them, and it is worth seeing once, because a mechanism resting on the
+calendar alone would still be reporting green today.
 
 The triggers, and the ruling behind each, are
 [§74](../decisions/74-audit-cadence.md): **event triggers first, a count second, the calendar a
@@ -126,8 +139,16 @@ audits, which is what stops them drifting apart.
 Every number is **counted, not remembered**, by `script/audits --baseline` at the commit that landed
 the report. Milestones built is the `BUILT` rows in
 [design/roadmap/README.md](../roadmap/README.md); components is `crates/*/` plus `[[bin]]` targets in
-`user/Cargo.toml`; ABI constants is the `pub const NAME: u64` surface of `crates/abi`; external
+`components/Cargo.toml` **and** `fixtures/Cargo.toml`; ABI constants is the `pub const NAME: u64`
+surface of `crates/abi`; external
 packages is the distinct registry packages across every committed lockfile but the vendored one.
+
+**Both userspace packages, and the reason is this table rather than the word "component"**
+(milestone 311). Every row below was counted when `user/` was one directory; milestone 175 split it
+into `components/` and `fixtures/` on 2026-09-13 and moved no program across the boundary (72
+`[[bin]]` targets before, 73 after). Counting only `components/` would read 114 against a baseline of
+110 that meant 155, under-reporting the trigger by forty, which is the one direction an audit signal
+must not err in. So the count spans both, and it stays continuous across the split.
 
 | Date | Kind | Milestones built | Components | ABI constants | External packages |
 |---|---|---|---|---|---|
@@ -263,11 +284,40 @@ script/audits --baseline
   in a table, verified by re-running `--baseline` against that commit, which nobody does
   automatically. The `--check` gate validates that the cells are integers or `-`, not that they are
   true.
-- **The scheduled workflow does not report its own death.** Same limitation `notes/merge-queue.md`
-  records for the merge drain: a workflow that is disabled, or whose schedule GitHub drops on an
-  inactive repository, goes quiet in exactly the way a green run does. It also only runs from the
-  default branch, so it cannot be exercised on a pull request; run `script/audits --due` by hand, or
-  dispatch the workflow once it is on `main`.
+- **The scheduled workflow does not report its own death, and this has now happened rather than
+  being a worry.** Same limitation (dates below verified against `gh run list`) `notes/merge-queue.md` records for the merge drain: a workflow
+  that is disabled, or whose schedule GitHub drops on an inactive repository, goes quiet in exactly
+  the way a green run does. It also only runs from the default branch, so it cannot be exercised on
+  a pull request; run `script/audits --due` by hand, or dispatch the workflow once it is on `main`.
+
+  **This workflow has never once succeeded, and reading why is the finding** (milestone 311,
+  2026-09-17, after the lane's own brief had it wrong and the logs corrected it). All five scheduled
+  runs since the first on 2026-08-17 went red. It is tempting, and it was the lane's starting
+  assumption, to read five red runs as five weeks of a broken tripwire. Four of them were the
+  tripwire **working**:
+
+  ```
+  2026-08-17  audits: 5 on record, DUE: documentation, security   exit 1
+  2026-08-24  audits: 7 on record, DUE: documentation, security   exit 1
+  2026-08-31  audits: 7 on record, DUE: documentation, security   exit 1
+  2026-09-07  audits: 7 on record, DUE: documentation, security   exit 1
+  2026-09-14  FileNotFoundError: .../user/Cargo.toml              exit 1
+  ```
+
+  Only the last is the path defect, and it is four days old, not five weeks: milestone 175 split
+  `user/` on 2026-09-13 and the very next scheduled run broke. **An audit has been overdue every
+  single week since 2026-08-17, the mechanism said so on schedule every time, and no audit was run.**
+  That is a month in which this directory's whole purpose was served correctly and changed nothing.
+
+  **Why a month of correct alarms was as invisible as silence, which is the part to design against.**
+  Red *is* this job's signal, by deliberate choice, so the Actions tab shows the same colour whether
+  the tripwire is firing or the tripwire is broken, and a reader who has learned that this job is
+  "the red one" stops distinguishing them. The path defect then hid inside the alarm it replaced.
+  Milestone 238's `script/cadence-check` catches the second failure by asking when a workflow last
+  *succeeded*, which is the right question for a dead job and, here, the wrong one for a live one: a
+  job whose healthy state is red has no green to measure staleness against. Nothing yet notices a
+  cadence job that is red for a *new* reason, and nothing yet notices the thing that actually
+  mattered, which is that the same red repeated four times and nobody acted. Both are open.
 - **A due audit can be closed by editing this file.** Adding a row is all it takes, and nothing
   anywhere checks that a report describes work somebody did. That is not fixable by a script and it
   is worth saying out loud: the mechanism makes the audit *scheduled*, and only a person makes it
