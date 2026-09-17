@@ -77,7 +77,13 @@ Every merge boots this, and it passes:
 
 ```text
   probe: cycles_per_tick 100.00 (10000029 cycles over 100000 ticks at cntfrq 10000000)
+  probe: cycles_per_tick_means core cycles (SBI PMU CPU_CYCLES) per tick of the `time` CSR, a fixed-rate timebase the device tree states
 ```
+
+**The second line arrived with milestone 309**, which built the same probe for `x86_64` on a
+different counter (`IA32_PERF_FIXED_CTR1`, unhalted core cycles, over TSC ticks). A rate printed
+under one name on two machines will be compared across them, so each architecture now states what
+its own ratio is a ratio of, beside the number rather than in a note. The numeric line is unchanged.
 
 **That ratio is an artifact and the exactness is the tell.** QEMU-TCG has no cycles to count; under
 `-icount` the `cycle` CSR and the `time` CSR are both driven off the same virtual clock, so the
@@ -180,6 +186,7 @@ and read the one probe line:
 
 ```text
   probe: cycles_per_tick R.RR (C cycles over T ticks at cntfrq 4000000)
+  probe: cycles_per_tick_means core cycles (SBI PMU CPU_CYCLES) per tick of the `time` CSR, a fixed-rate timebase the device tree states
 ```
 
 `cntfrq` should read **4000000** on this board (the JH7110's `/cpus/timebase-frequency`; QEMU

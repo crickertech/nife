@@ -531,6 +531,19 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             None => println!("  entropy     : rdseed not supported (cpuid leaf 7 ebx.18 clear)"),
         }
 
+        // **Unhalted core cycles** (milestone 309), the x86_64 half of milestone 74's measurement
+        // side. Here rather than beside `isa::print_summary` at the top of this tour, which is
+        // where the riscv64 boot puts its own `pmu::init`: this one's did-it-count check spins
+        // against the TSC, so it has to come after `timer::init_frequency` above. Beside `entropy`
+        // because the two are the same shape, a CPUID-gated probe that reports what it found and
+        // refuses to guess.
+        //
+        // Silent and harmless where there is no performance monitoring, which is every QEMU boot
+        // unless its `pmu` property is on: the counter is then `None` forever and no MSR is ever
+        // read. `arch::x86_64::pmu` is emphatic about why this is not `rdtsc`.
+        arch::pmu::init();
+        arch::pmu::print_summary();
+
         // The per-CPU interrupt stacks go live here, for the reason both other boots arm them right
         // after their own `mmu::init`: their guard pages are holes in the map that was just
         // installed, and before that they are covered by the coarse boot map and are not holes yet.

@@ -73,7 +73,10 @@ pub fn run() -> ! {
     map_new();
     #[cfg(target_arch = "riscv64")]
     rfence_self();
-    #[cfg(target_arch = "riscv64")]
+    // Milestone 74's riscv64 half and milestone 309's x86_64 half. aarch64 is ordered behind
+    // milestone 74's own aarch64 half (`PMCCNTR_EL0` reads zero until `PMCR_EL0.E` and
+    // `PMCNTENSET_EL0.C` are written); see design/roadmap/proposals/the-aarch64-half-of-74.md.
+    #[cfg(any(target_arch = "riscv64", target_arch = "x86_64"))]
     cycles_per_tick();
     coremark_compute();
     null_syscall_el0();
@@ -531,25 +534,44 @@ fn map_new() {
 /// It must be single-hart. A two-hart comparison would be the 2026-07-28 mistake again: under
 /// `-icount` all harts share one virtual clock, so a second hart's idle `wfi` dumps quantized time
 /// into whatever window is open, and the delta would measure interleaving rather than the call.
-/// **How many CPU cycles this machine runs per reference tick** (milestone 74, riscv64 half).
+/// **What one tick of this machine's clock costs in CPU cycles** (milestone 74's riscv64 half,
+/// milestone 309's `x86_64` half).
 ///
-/// Every row in `bench/baseline-riscv64.txt` is denominated in ticks of the `time` CSR, a
-/// fixed-rate reference counter. The literature this project is compared against is denominated in
-/// **cycles**: notes/benchmarks.md converts by hand, against an assumed clock rate, and milestone
-/// 74's block is largely about how badly that has gone. One measured ratio converts every existing
-/// row at once, which is why this is the harness change rather than a second number on every line.
+/// Every row of a board bench is denominated in ticks of `crate::arch::timer::now()`, a fixed-rate
+/// reference counter. The literature this project is compared against is denominated in **cycles**:
+/// notes/benchmarks.md converts by hand, against an assumed clock rate, and milestone 74's block is
+/// largely about how badly that has gone. One measured ratio converts every existing row at once,
+/// which is why this is the harness change rather than a second number on every line.
 ///
 /// **A probe, not a benchmark row.** It is a rate, not a duration, and `--check` policing it with a
 /// 10% tolerance would fail on any machine that scales frequency, which is every machine this is
 /// interesting on. `bench-probe:` lines are echoed and never enter the baseline; see `map_new`.
 ///
+/// # The numerator and the denominator are different on each architecture, and the line says so
+///
+/// This is the whole hazard milestone 309 was written to avoid, and it is the kind that cannot be
+/// un-published: a rate printed under one name on three machines will be compared across them.
+/// A second `cycles_per_tick_means` line is therefore printed beside the number on every
+/// architecture, naming both halves of the ratio in that machine's own vocabulary.
+///
+/// - **`riscv64`.** Core cycles (SBI PMU `CPU_CYCLES`) over ticks of the `time` CSR, a timebase the
+///   device tree states: 10 MHz on QEMU `virt`, 4 MHz on radon's JH7110.
+/// - **`x86_64`.** Unhalted core cycles (`IA32_PERF_FIXED_CTR1`) over TSC ticks. **The TSC is
+///   constant-rate and core cycles are not**, so this ratio moves with frequency scaling and turbo
+///   on a machine that does either. That is information rather than noise, and it is exactly why
+///   the TSC alone cannot answer this question: `arch::timer::now()` on this architecture *is*
+///   `rdtsc`, so a probe built on it would divide one counter by itself and print `1.00`. See
+///   `arch::x86_64::pmu`'s header.
+///
 /// # What this measures under emulation, which is nothing
 ///
-/// QEMU-TCG's `cycle` CSR is an instruction count. The ratio printed on the merge machine is
-/// therefore a fact about the emulator and not about any silicon, and the line says so itself
-/// rather than leaving a reader to infer it from the milestone. The number is real only on a real
-/// core, which for this harness today means the JH7110 (radon) and nothing else it runs on;
-/// notes/riscv-cycle-counters.md is the procedure.
+/// QEMU-TCG's `riscv64` `cycle` CSR is an instruction count, and its `x86_64` build models no
+/// performance monitoring at all unless asked. The ratio printed on the merge machine is therefore
+/// a fact about the emulator and not about any silicon, and the line says so itself rather than
+/// leaving a reader to infer it from the milestone. The number is real only on a real core, which
+/// for this harness today means the JH7110 (radon) and nothing else it runs on;
+/// notes/riscv-cycle-counters.md is the riscv64 procedure and design/roadmap/309-x86-64-core-cycles.md
+/// is the `x86_64` one.
 ///
 /// # Why the window is a timed spin
 ///
@@ -557,15 +579,14 @@ fn map_new() {
 /// is or on the loop being compiled a particular way. A fixed iteration count would make the ratio
 /// depend on the code inside the loop, which is exactly the thing that differs between an emulator
 /// and a core.
-#[cfg(target_arch = "riscv64")]
+#[cfg(any(target_arch = "riscv64", target_arch = "x86_64"))]
 fn cycles_per_tick() {
-    /// Ticks to spin for. At QEMU's 10 MHz `time` CSR this is 10 ms, long enough that the two
-    /// counter reads at each end are noise and short enough not to stretch a bench run.
-    const WINDOW_TICKS: u64 = 100_000;
-
     let Some(c0) = crate::arch::pmu::cycles() else {
         // The outcome says *why*, and on a board that is the whole diagnostic: see
-        // `arch::riscv64::pmu::CycleCounter`.
+        // `arch::riscv64::pmu::CycleCounter` and `arch::x86_64::pmu::CycleCounter`. **Never a
+        // number here**, and in particular never a fallback to the reference clock: on x86_64 that
+        // clock is the TSC, and a probe that degraded to it would print an exact 1.00 that reads
+        // as a measurement.
         println!(
             "bench-probe: cycles_per_tick unavailable ({:?})",
             crate::arch::pmu::outcome()
@@ -574,14 +595,14 @@ fn cycles_per_tick() {
     };
 
     let t0 = crate::arch::timer::now();
-    while crate::arch::timer::now() - t0 < WINDOW_TICKS {
+    while crate::arch::timer::now() - t0 < cycle_probe_window_ticks() {
         core::hint::spin_loop();
     }
     let t1 = crate::arch::timer::now();
     let c1 = crate::arch::pmu::cycles().expect("the counter did not vanish mid-window");
 
     let ticks = t1 - t0;
-    let cycles = c1.wrapping_sub(c0);
+    let cycles = cycle_probe_delta(c0, c1);
     // Two decimal places by integer arithmetic: this is a `no_std` kernel and the ratio is under
     // one on any emulator and in the hundreds on real silicon, so the fraction carries real
     // information at both ends.
@@ -592,6 +613,58 @@ fn cycles_per_tick() {
         hundredths % 100,
         crate::arch::timer::frequency(),
     );
+    println!("bench-probe: cycles_per_tick_means {CYCLE_PROBE_MEANING}");
+}
+
+/// **What the ratio above is a ratio of**, in this machine's own vocabulary. Printed rather than
+/// left to a note, because the number leaves the machine and the note does not travel with it.
+#[cfg(target_arch = "riscv64")]
+const CYCLE_PROBE_MEANING: &str = "core cycles (SBI PMU CPU_CYCLES) per tick of the `time` CSR, a fixed-rate timebase the device \
+     tree states";
+
+/// The `x86_64` twin, and the difference a cross-architecture reader has to know: the denominator
+/// here is the TSC, which is constant-rate, so the ratio moves with the core's frequency where
+/// riscv64's does not.
+#[cfg(target_arch = "x86_64")]
+const CYCLE_PROBE_MEANING: &str = "unhalted core cycles (IA32_PERF_FIXED_CTR1) per TSC tick; the TSC is constant-rate and core \
+     cycles are not, so this ratio moves with frequency scaling and turbo";
+
+/// Ticks to spin for. At QEMU's 10 MHz `time` CSR this is 10 ms, long enough that the two counter
+/// reads at each end are noise and short enough not to stretch a bench run.
+///
+/// **A constant here and a computed value on `x86_64`**, because RISC-V's timebase is stated by the
+/// machine and x86's is measured by this kernel: 100,000 ticks is 10 ms on QEMU and 25 ms on
+/// radon's 4 MHz JH7110, both fine. It stays a constant for the same reason `SCALE_MAX_PAIRS` did:
+/// milestone 74's block records a reading of `100002 ticks`, and changing the window would make
+/// every future radon run incomparable with the one on record.
+#[cfg(target_arch = "riscv64")]
+fn cycle_probe_window_ticks() -> u64 {
+    100_000
+}
+
+/// Ten milliseconds of TSC, whatever this part's TSC rate turned out to be. A constant would be
+/// microseconds on one machine and a visible pause on another, because the TSC's rate is a property
+/// of the part rather than an architected number (see `arch::x86_64::timer`'s header on why this
+/// kernel has to measure it against the PIT at all).
+#[cfg(target_arch = "x86_64")]
+fn cycle_probe_window_ticks() -> u64 {
+    crate::arch::timer::frequency() / 100
+}
+
+/// The difference between two counter reads. The SBI PMU counter this kernel accepts is 64 bits
+/// wide (`arch::riscv64::pmu` records the width and QEMU's is 64), so a plain wrapping subtraction
+/// is the whole of it.
+#[cfg(target_arch = "riscv64")]
+fn cycle_probe_delta(first: u64, second: u64) -> u64 {
+    second.wrapping_sub(first)
+}
+
+/// The `x86_64` twin, which cannot be a plain subtraction: the architectural fixed counters are
+/// commonly 48 bits, so a wrap mid-window would otherwise produce a difference near 2^64 and print
+/// a preposterous ratio rather than an error. `arch::x86_64::pmu` knows the width `CPUID` reported.
+#[cfg(target_arch = "x86_64")]
+fn cycle_probe_delta(first: u64, second: u64) -> u64 {
+    crate::arch::pmu::elapsed_cycles(first, second)
 }
 
 #[cfg(target_arch = "riscv64")]

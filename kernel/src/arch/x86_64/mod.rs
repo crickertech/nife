@@ -51,6 +51,11 @@ pub mod isa;
 // What the loader said (milestone 161): the kernel side of `machine_discovery::x86_64`.
 pub mod machine;
 pub mod mmu;
+// Unhalted core cycles (milestone 309), the x86_64 half of milestone 74's measurement side. It is
+// here rather than folded into `timer` because it is a different counter answering a different
+// question: `timer::now()` is `rdtsc`, a constant-rate clock, and this is what the core actually
+// ran. Its own header has the table of all three architectures' two counters.
+pub mod pmu;
 pub mod port;
 pub mod rtc;
 pub mod segments;

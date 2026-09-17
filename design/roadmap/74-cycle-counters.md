@@ -116,17 +116,25 @@ ambient counter: `CR4.TSD` is clear at reset, this kernel never writes it, so ri
 its negative half there, saying so in the comment beside the `cfg`. That is §19 working: an
 exception with a reason, where a reader meets it.
 
-**The measurement half is three ISAs and is currently one.** `bench::cycles_per_tick`, the probe
-that converts every tick-denominated board row to cycles, is `#[cfg(target_arch = "riscv64")]`.
-Nothing architectural stops the other two: x86_64 already reads `rdtsc` in
-`arch/x86_64/timer.rs` for its own calibration, and aarch64 has `PMCCNTR_EL0` once this milestone's
-aarch64 half enables it. **The ratio is the thing cross-machine comparison needs**, which is this
-milestone's whole purpose and milestone 25's and §96's, so having it on one architecture is the
-parity gap that matters here rather than a cosmetic one.
+**The measurement half is three ISAs and is currently two** (it was one until 2026-09-17).
+`bench::cycles_per_tick`, the probe that converts every tick-denominated board row to cycles, was
+`#[cfg(target_arch = "riscv64")]`; milestone 309 added the x86_64 arm. **The ratio is the thing
+cross-machine comparison needs**, which is this milestone's whole purpose and milestone 25's and
+§96's, so having it on fewer than three architectures is the parity gap that matters here rather
+than a cosmetic one.
 
-**Scope note, per §19.** The measurement half is not built for aarch64 or x86_64, it is not blocked
-by anything architectural, and the plan is
-`design/roadmap/proposals/cycles-per-tick-on-the-other-two-architectures.md`.
+**And the paragraph above used to name the wrong mechanism for x86_64**, which is worth keeping
+rather than silently correcting, because it is the reasoning most likely to be re-derived. It said
+"x86_64 already reads `rdtsc` in `arch/x86_64/timer.rs` for its own calibration", implying the probe
+could be built on that read. It cannot: `arch::x86_64::timer::now()` **is** `rdtsc`, so such a probe
+divides one counter by itself and prints an exact `1.00` on every part. Milestone 309 built it on
+`IA32_PERF_FIXED_CTR1` (unhalted core cycles) instead, and its block has the argument.
+
+**Scope note, per §19.** The measurement half is built for riscv64 (this milestone) and x86_64
+(milestone 309, `design/roadmap/309-x86-64-core-cycles.md`). It is **not built for aarch64**, and
+that is not blocked by anything architectural either: `PMCCNTR_EL0` reads zero until `PMCR_EL0.E`
+and `PMCNTENSET_EL0.C` are written, which is this milestone's own aarch64 half, and the plan is
+`design/roadmap/proposals/the-aarch64-half-of-74.md`.
 
 ### The capability half, per ISA
 
