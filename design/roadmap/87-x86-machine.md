@@ -1,14 +1,66 @@
 # 87. The x86_64 bare-metal machine
 
-**Status: PARTIAL.** Raised 2026-08-03. The selection is made and recorded here, and as of
-2026-08-30 **the software side is done and proved under real firmware in QEMU**; the milestone
-completes when the machine on the desk has printed a byte over serial, which only calef can do.
+**Status: PARTIAL, and it has booted.** Raised 2026-08-03. The selection is made and recorded here,
+and as of 2026-08-30 the software side was done and proved under real firmware in QEMU.
 
 **Gate: HARDWARE.** It is now the only gate. The hardware side finished 2026-08-23 (the
 OptiPlex arrived 2026-08-15; the Dell C4PDJ serial module and the dev-side RS-232 chain arrived and
 are installed). The *software* blocker closed 2026-08-30: the kernel could not be started by any
 real firmware at all until then, because the x86_64 port boots by PVH, a hypervisor direct-boot
 protocol no machine speaks. That is what "What was built" below fixed.
+
+**First light happened on 2026-09-04**, and this block went on reading as though it had not, which
+misled a maintainer on 2026-09-16 into saying three times that xenon had never booted nife at all.
+The completion sentence below ("completes when the machine has printed a byte over serial") is the
+cause: bytes were printed, so the sentence is satisfied while the milestone is not, and a reader
+checking the status word against that sentence concludes nothing has happened.
+
+**What actually happened.** The UEFI loader ran from the stick, the kernel started under the
+machine's own firmware, the tour printed, and it panicked in the mapper:
+
+```
+[PANIC] panicked at kernel/src/arch/x86_64/mmu.rs:325:33:
+failed to build the kernel page tables: AlreadyMapped
+```
+
+`notes/x86-uefi-boot.md` carries the session and the diagnosis; `notes/xenon-firmware.md` carries
+the 70 photographs of firmware settings taken the same day. **The diagnosis corrected its own first
+hypothesis** (the framebuffer aperture had not met RAM; the firmware's map does not describe the
+32-bit MMIO hole at all), and found something larger than the panic: the fill was mapping the IO
+APIC, the SPI flash and 128 MiB of PCH decode **cacheably**, which is a write that can sit in a
+cache line and never reach the device. Nothing had touched those yet, so nothing had failed; the
+panic is what made it visible.
+
+**The fix is on `main`** (`memory_mapped_io_window`), so the next boot is a **resumption rather than
+a first light**: the line to look for is `mmu : fine W^X 4-level map installed (cr3 ...)`, which is
+one line past where the machine stopped, followed by a page-table cost nobody has ever read from
+real hardware. `notes/x86-uefi-boot.md`'s step list has the procedure and what to do if it panics
+somewhere new, which is progress rather than a failure of the fix.
+
+**The completion criterion is the self-test, ruled by calef on 2026-09-17**, replacing "printed a
+byte over serial":
+
+> **This milestone is `BUILT` when xenon prints `nife self-test: N of N passed`.**
+
+**Why that line and not one of the obvious alternatives**, because the question turned out to be
+sharper than it looked. "The tour completing" was proposed first and withdrawn: milestone 267
+established that **the tour is three things wearing one name**, and deleted one of them. The
+narrative program is gone, so a criterion naming "the tour" would cite something that partly does
+not exist.
+
+The self-test is the right bound for **this** milestone. It is a machine-readable line that
+`script/soak` and `crates/board_console` already judge board runs by, so nothing new has to learn to
+read it; and passing it means exceptions, mapping, frames, timer and scheduler all work on the
+hardware, which is "this machine runs nife" with a definite answer rather than a liveness signal.
+
+The progenitor handover (`nife: handing the system to the userspace progenitor`) was considered and
+is a stronger claim, but it drags in the archive, ELF loading and the FS service, which are
+**milestone 161's** scope rather than this block's. This block's own text already says the x86_64
+port is not gated on the purchase. That line belongs to 161 or 182, not here.
+
+**The sentence below is kept as written** because it is what the block promised, and rewriting a
+promise to match an outcome is how a record stops being one. This paragraph is what a reader should
+believe instead of it.
 
 **What remains is one person, one USB stick and a serial console**, and the procedure is written
 out step by step, with a failure-triage table, in notes/x86-uefi-boot.md's "The bench" section. It
