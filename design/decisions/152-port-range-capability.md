@@ -97,8 +97,23 @@ constructor together.
   creation-time fact, set when an embryo is endowed, the same posture `cycle_counter_grant` takes.
   Runtime delegation to a live thread would leave the switch installing the old grant until the next
   insert-through-the-choke-point. No consumer does this.
-- **Revocation reaches one core.** x86 runs a single core today (`smp::bring_up_secondaries` refuses
-  on `x86_64`), so revocation's TSS reset is core-local and the stale-bitmap window a multi-core
-  machine would have does not exist. The core-local reset is written as the step a future SMP x86
-  would broadcast by IPI, the shape of the TLB shootdown this tree already has, so the generalization
-  is a broadcast rather than a redesign.
+- **Revocation reaches one core, and since 2026-09-17 that is a window rather than a non-issue.**
+  This entry used to end *"the stale-bitmap window a multi-core machine would have does not exist"*,
+  on the premise that x86 runs a single core because `smp::bring_up_secondaries` refuses there.
+  **`smp::seat_cpus_from_acpi` made that premise false**, and the conclusion inverted with it:
+  milestone 313's security audit found the reset still core-local while the tour boots two cores
+  under OVMF and four on xenon, so a revoked holder running on another core keeps that core's TSS
+  bitmap until its next context switch, **at most one tick**, during which its `in`/`out` succeed
+  against a capability that no longer exists.
+
+  **The audit accepted the window rather than fixing it**, with its reason: it is bounded, it cannot
+  reopen, and no consumer holds a port on two cores today. The limitation is recorded where a reader
+  meets the code, in a `BUGS` section at
+  `arch::x86_64::segments::revoke_installed_port_grant`, and the closing move is
+  `design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md`.
+
+  **What this entry got right is the part worth keeping**: the core-local reset was written as the
+  step a future SMP x86 would broadcast by IPI, the shape of the TLB shootdown this tree already
+  has, so the generalization is a broadcast rather than a redesign. That held. Only the sentence
+  claiming the window did not exist was wrong, and it was wrong because a fact about another
+  subsystem changed underneath it.
