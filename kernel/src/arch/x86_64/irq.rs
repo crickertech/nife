@@ -76,21 +76,30 @@
 //! - **Nothing distributes MSI vectors across cores.** Every message is addressed to the local
 //!   APIC id of whichever core ran [`alloc_msi_vector`], which is the boot core, exactly as
 //!   [`route_gsi`]'s destination is.
-//! - **The GSI-to-vector map wraps on an IO APIC whose global interrupt base is not zero**, and
-//!   [`MAX_REDIRECTION_ENTRIES`]'s doc says it cannot. Found by proof, milestone 304, the first
-//!   time a model checker was pointed at this file. [`gsi_vector`] is
-//!   `GSI_VECTOR_BASE.wrapping_add(gsi as u8)`, and the cap bounds the *entry count*, not the GSI:
-//!   [`redirection_index`] admits any `gsi` in `base..base + entries`, so a second IO APIC owning
-//!   global interrupts from 200 with the 24 entries every real part has admits GSI 210, and
-//!   `gsi_vector(210)` is `0x30 + 210 = 0x102`, which wraps to vector **2, the NMI**. [`enable`]
-//!   passes that vector straight to [`route_gsi`]. Nothing has hit it: this kernel records one IO
-//!   APIC, and QEMU's q35 and every single-socket PC give it base 0, where the map is exact, which
-//!   is the assumption `proofs::an_owned_gsi_routes_inside_the_io_apic_band` makes and names.
-//!   **The fix is a design fork rather than a patch**, which is why it is recorded here instead of
-//!   applied: the correct vector is `GSI_VECTOR_BASE + redirection_index(gsi)` rather than
-//!   `+ gsi`, and that costs [`gsi_vector`] its `const fn`, its total signature, and the
-//!   "flat and reversible" property three doc comments in this file and one in `exceptions.rs`
-//!   rest on. See design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md.
+//! - **The multi-IO-APIC path has never been executed, and cannot be on any machine this project
+//!   owns.** This is the live half of what milestone 304 found and milestone 308 fixed, and it is
+//!   recorded rather than closed because the fix landing is not the same thing as the fix running.
+//!
+//!   The defect, for the record: [`gsi_vector`] was `GSI_VECTOR_BASE.wrapping_add(gsi as u8)`, and
+//!   [`MAX_REDIRECTION_ENTRIES`]'s doc named the cap as the reason that could not wrap onto an
+//!   exception vector. The cap bounds the *entry count*, not the GSI. [`redirection_index`] admits
+//!   any `gsi` in `base..base + entries`, so a second IO APIC owning global interrupts from 200
+//!   with the 24 entries every real part has admits GSI 210, and `0x30 + 210 = 0x102` wrapped to
+//!   vector **2, the NMI**, which [`enable`] passed straight to [`route_gsi`]. Nothing had hit it
+//!   because this kernel records one IO APIC and QEMU's q35 and every single-socket PC give it
+//!   base 0. Milestone 308 routes by redirection index instead, which is bit-for-bit identical
+//!   wherever the base is zero.
+//!
+//!   **So the correctness of the nonzero-base path rests on the proof and on the ACPI spec, not on
+//!   a boot** (accepted, calef, 2026-09-16). `proofs::an_owned_gsi_routes_inside_the_io_apic_band`
+//!   states it over every base, entry count and GSI, with no assumption, and
+//!   `tests::a_gsi_on_a_second_io_apic_routes_inside_the_band` executes the arithmetic against a
+//!   synthetic second part; neither is a machine delivering an interrupt through a second IO APIC,
+//!   and nothing in this tree will be until one exists to boot on. What is untested is the whole
+//!   surrounding path rather than the map: `read_madt` keeps only the first IO APIC it finds, so a
+//!   GSI belonging to the second is refused by [`route_gsi`] rather than misrouted, and a machine
+//!   that needs both is not merely unproven here, it is unimplemented. That is the thing to check
+//!   first when this kernel meets a two-socket server, and it is its own piece of work.
 
 use core::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
@@ -368,10 +377,18 @@ const REDIR_ACTIVE_LOW: u32 = 1 << 13;
 /// local APIC's own sources (the timer at [`TIMER_VECTOR`], and later the thermal, performance,
 /// error and inter-processor vectors, which are LVT entries rather than redirection entries).
 ///
-/// A GSI's vector is this plus the GSI, which is flat and reversible: a stray vector in a fault
-/// report names its line by subtraction. That costs the ability to prioritise (x86 priority is the
-/// vector's top four bits, so a flat map gives 0x30..0x47 two priority classes and no say in
-/// which line is in which). Nothing here has a priority policy to express yet.
+/// A GSI's vector is this plus its **redirection index**, the offset of its entry within the IO
+/// APIC that owns it (milestone 308; it was this plus the GSI until then, which wrapped onto an
+/// exception vector on an IO APIC whose global interrupt base is not zero). The map is flat *in the
+/// index*, so a stray vector in a fault report names its redirection entry by subtraction, and on
+/// every machine this kernel has booted that entry's index is also its GSI because the MADT gives
+/// the single IO APIC base zero. **Recovering the GSI on a machine where they differ needs the
+/// base**, which [`redirection_index`] reads and nothing inverts; see `exceptions.rs`'s BUGS, where
+/// the inversion is recorded as missing and unneeded.
+///
+/// The flat map costs the ability to prioritise (x86 priority is the vector's top four bits, so a
+/// flat map gives 0x30..0x47 two priority classes and no say in which line is in which). Nothing
+/// here has a priority policy to express yet.
 ///
 /// **Provisional name** (milestone 161), along with [`gsi_vector`] and the IO APIC entry points
 /// below.
@@ -397,8 +414,17 @@ pub const MSI_VECTOR_BASE: u8 = 0xc0;
 /// the ICH-era chipsets); the field could report up to 256, and this cap is the number that still
 /// fits in the vector space between [`GSI_VECTOR_BASE`] and [`MSI_VECTOR_BASE`]. It bounds
 /// [`is_device_vector`] and the mask loop in [`init_io_apic`] against a version register saying
-/// something absurd, and it is the reason [`gsi_vector`] cannot silently wrap onto an exception
-/// vector or onto an MSI one.
+/// something absurd.
+///
+/// **It bounds the entry count, and until milestone 308 this doc claimed it also stopped
+/// [`gsi_vector`] wrapping onto an exception vector or onto an MSI one. It never did.** The cap is
+/// a statement about how many redirection entries exist; the old `gsi_vector` added the *GSI*, a
+/// number the MADT supplies and nothing here bounds, so a second IO APIC based at global interrupt
+/// 200 wrapped GSI 210 onto vector 2. A doc asserting a guarantee the code did not provide is what
+/// hid that defect for as long as it existed, which is why the correction is spelled out here
+/// rather than quietly deleted. Now that [`gsi_vector`] adds the index instead, this cap **is** the
+/// bound that keeps the sum inside the band, which is the claim
+/// `proofs::an_owned_gsi_routes_inside_the_io_apic_band` checks.
 const MAX_REDIRECTION_ENTRIES: u32 = (MSI_VECTOR_BASE - GSI_VECTOR_BASE) as u32;
 
 /// The next MSI vector to hand out, as an offset from [`MSI_VECTOR_BASE`]. A bump counter, never
@@ -581,14 +607,47 @@ pub fn io_apic_entries() -> u32 {
     IO_APIC_ENTRIES.load(Ordering::Relaxed)
 }
 
-/// **The vector a global system interrupt is routed to.** See [`GSI_VECTOR_BASE`] for why the map
-/// is flat.
-pub const fn gsi_vector(gsi: u32) -> u8 {
-    GSI_VECTOR_BASE.wrapping_add(gsi as u8)
+/// **The vector a global system interrupt is routed to**, or `None` when this IO APIC does not own
+/// that GSI and so has no entry to route it through.
+///
+/// The vector is [`GSI_VECTOR_BASE`] plus the GSI's **redirection index**, not plus the GSI
+/// (milestone 308). On every machine this kernel has booted the two are the same number, because
+/// the MADT gives the single IO APIC global interrupt base zero; they part company on a machine
+/// with a second IO APIC, and the version that added the GSI wrapped a GSI of 210 onto vector 2,
+/// the NMI. See this module's BUGS for the case, and
+/// `proofs::an_owned_gsi_routes_inside_the_io_apic_band` for the statement that it can no longer
+/// happen.
+///
+/// **This is the same partiality [`redirection_index`] has**, and it is the point rather than a
+/// side effect: a GSI with no entry has no vector, and the old total signature had to invent one.
+///
+/// **Provisional name, and this change makes it worse rather than better** (milestone 161 marked it
+/// provisional; milestone 308 is the lane that noticed): the function now maps an *index* into the
+/// vector space and the GSI is what it takes, not what it adds. `gsi_vector` still describes the
+/// question a caller asks, so it is not wrong, but a name naming the index would be more honest.
+/// calef names public items; this lane proposes rather than renames.
+pub fn gsi_vector(gsi: u32) -> Option<u8> {
+    let index = redirection_index(gsi)?;
+    // `init_io_apic` clamps the entry count to `MAX_REDIRECTION_ENTRIES`, which is exactly the
+    // width of the band, and `redirection_index` admits only an index below that count. So this
+    // addition lands in `GSI_VECTOR_BASE..MSI_VECTOR_BASE` and neither wraps nor truncates. The
+    // assert is the invariant said out loud at the one place that depends on it; the proof named
+    // above is what checks it over every entry count a version register can report.
+    debug_assert!(
+        index < MAX_REDIRECTION_ENTRIES,
+        "redirection index {index} is outside the vector band the entry-count cap reserves"
+    );
+    Some(GSI_VECTOR_BASE + index as u8)
 }
 
 /// Is `vector` one of the IO APIC's? The trap handler asks, so that a device interrupt is counted
 /// as routed rather than as an unowned vector nothing claimed.
+///
+/// **This and [`gsi_vector`] agree on what the band is**, which they did not before milestone 308:
+/// this predicate has always defined the band by *index* (`GSI_VECTOR_BASE` up to the entry count),
+/// while `gsi_vector` assigned by GSI, so on an IO APIC with a nonzero base the same interrupt was
+/// routed as a device vector and then not counted as one here.
+/// `proofs::an_owned_gsi_routes_inside_the_io_apic_band` now asserts the agreement directly.
 pub fn is_device_vector(vector: u64) -> bool {
     let base = GSI_VECTOR_BASE as u64;
     vector >= base && vector < base + io_apic_entries() as u64
@@ -765,9 +824,22 @@ pub fn enable(intid: u32) {
         return;
     }
     let routing = isa_routing(intid);
+    // A GSI with no redirection entry has no vector, which is the same condition `route_gsi` panics
+    // on one line below. It is refused here instead, and not only to satisfy the `Option`: this
+    // message names the `intid` the caller passed, which `route_gsi` never sees. The bug quoted
+    // above surfaced as "gsi 34 is outside the IO APIC's range" when what the caller said was 34,
+    // and reading that took a while precisely because the two numbers had been silently swapped.
+    let Some(vector) = gsi_vector(routing.gsi) else {
+        panic!(
+            "intid {intid} resolves to gsi {}, which is outside the IO APIC's range (base {}, {} entries)",
+            routing.gsi,
+            IO_APIC_GSI_BASE.load(Ordering::Relaxed),
+            IO_APIC_ENTRIES.load(Ordering::Relaxed),
+        )
+    };
     route_gsi(
         routing.gsi,
-        gsi_vector(routing.gsi),
+        vector,
         routing.active_low,
         routing.level_triggered,
         local_apic_id(),
@@ -1026,8 +1098,8 @@ mod proofs {
         );
     }
 
-    /// **A GSI this IO APIC owns is routed to a vector inside the IO APIC's own band**, on a
-    /// machine whose IO APIC owns global interrupts from zero.
+    /// **A GSI this IO APIC owns is routed to a vector inside the IO APIC's own band**, whatever
+    /// global interrupt base the MADT gave it.
     ///
     /// [`route_gsi`] is called as `route_gsi(gsi, gsi_vector(gsi), ...)` from [`enable`], and
     /// [`redirection_index`] is the only thing between a GSI the MADT supplied and a raw
@@ -1037,27 +1109,42 @@ mod proofs {
     /// `no_stream_can_reach_another_streams_tables` one architecture over: a firmware-supplied
     /// identifier, one bounds check, and a write that cannot be taken back.
     ///
-    /// **The assumption on `base` is the finding, not a convenience** (milestone 304). Without it
-    /// this harness fails, and the counterexample is real rather than pathological: a base of 127
-    /// with 129 entries admits GSI 255, and `gsi_vector(255)` is `0x30.wrapping_add(255)` = `0x2f`,
-    /// which is inside the local APIC's own band. See this module's BUGS for the plausible-hardware
-    /// version of the same case and for why the fix is not this lane's to make. The assumption is
-    /// therefore an **exception written where a reader meets it**: it is what
-    /// [`MAX_REDIRECTION_ENTRIES`]'s doc claims the cap already guarantees, and the cap does not.
+    /// **`base` used to carry an assumption, and the assumption was the finding** (milestone 304).
+    /// `kani::assume(base == 0)` narrowed this to the single-IO-APIC machine, because without it
+    /// the harness failed and the counterexample was real rather than pathological: a base of 127
+    /// with 129 entries admits GSI 255, and the old `gsi_vector(255)` was
+    /// `0x30.wrapping_add(255)` = `0x2f`, inside the local APIC's own band. **Milestone 308 removed
+    /// the assumption by fixing the code**, routing by redirection index, and this harness now
+    /// states the property over every `base`, every entry count an eight-bit version field can
+    /// report, and every `gsi` in `u32`. There is no precondition left, which is the outcome worth
+    /// naming: a proof with no assume is a proof that owes the reader nothing.
     ///
-    /// Falsification: attested 2026-09-16. Twice, on cordoba (x86_64 Linux). Raising
-    /// `MAX_REDIRECTION_ENTRIES` by one turns this red; so does loosening `redirection_index`'s own
-    /// bound from `index < entries` to `index <= entries`, which is the guard this harness is
-    /// really about. **The second defect leaves `no_vector_belongs_to_two_bands` green**, which is
-    /// the honest half of the record: that harness never calls the guard. `attested` rather than
-    /// `replayable` for the reason given on the sibling above.
+    /// **The second assertion is the one milestone 308 added**, and it is a claim about two
+    /// functions rather than one. [`is_device_vector`] has always defined the band by *index*
+    /// (`GSI_VECTOR_BASE` up to the entry count) while [`gsi_vector`] assigned by *GSI*, so on a
+    /// nonzero base the trap handler declined to count an interrupt this kernel had itself routed
+    /// as a device vector. They are now the same arithmetic, and this says so over every input
+    /// instead of leaving it to a reader comparing two function bodies.
+    ///
+    /// Falsification: attested 2026-09-16. On cordoba (x86_64 Linux), and the patch is written
+    /// down, which is unusual for an `attested` record and is the point:
+    /// `kernel/falsifications/arch.x86_64.irq.tests.a_gsi_on_a_second_io_apic_routes_inside_the_band.patch`
+    /// restores `GSI_VECTOR_BASE.wrapping_add(gsi as u8)` and turns **both** this harness and the
+    /// kernel test it names red. Here it fires **both** assertions in the `if let` below, the one
+    /// whose message begins "a GSI the IO APIC owns" and the one beginning "a vector this kernel
+    /// routed". Named rather than numbered because the lines move: they were `irq.rs:1164` and
+    /// `irq.rs:1168` when this was measured. The second red is that assertion earning its place:
+    /// the two functions really did disagree, rather than merely looking as though they might.
+    /// It is filed against the test rather than against this, because a
+    /// `#[kani::proof]` compiles for the HOST and `kernel/src/arch/mod.rs` selects its subtree by
+    /// `#[cfg(target_arch)]`: a `replayable` record here would turn `script/falsifications --sweep
+    /// kernel` red on every machine in this project but cordoba, while a kernel test names its
+    /// architecture and boots QEMU. See `script/falsifications`' BUGS, where the same constraint is
+    /// recorded from the sweep's side, and note this is the third x86_64 harness it applies to.
     #[kani::proof]
     fn an_owned_gsi_routes_inside_the_io_apic_band() {
+        // Unconstrained: the MADT states this and nothing in this kernel bounds or refuses it.
         let base: u32 = kani::any();
-        // Every machine this kernel boots, and every machine with one IO APIC: the MADT gives it
-        // global interrupt base zero. `init_io_apic` records whatever the MADT said, and nothing
-        // refuses a nonzero one, which is the recorded limitation this assumption stands in for.
-        kani::assume(base == 0);
         IO_APIC_GSI_BASE.store(base, Ordering::Relaxed);
 
         let reported: u32 = kani::any();
@@ -1065,17 +1152,89 @@ mod proofs {
         let entries = (reported + 1).min(MAX_REDIRECTION_ENTRIES);
         IO_APIC_ENTRIES.store(entries, Ordering::Relaxed);
 
+        // Unconstrained too. `record_isa_routing` packs a GSI into sixteen bits, so the reachable
+        // set is smaller than this; stating it over the whole type costs nothing and means the
+        // property does not quietly depend on that packing.
         let gsi: u32 = kani::any();
-        // The MADT packs a GSI into sixteen bits on the way through `record_isa_routing`, so this
-        // is every GSI that can reach `enable`.
-        kani::assume(gsi <= 0xffff);
 
-        if redirection_index(gsi).is_some() {
-            let vector = gsi_vector(gsi) as u32;
+        // The guard and the map agree about which GSIs exist. The old signature could not say
+        // this, because it answered for every GSI whether or not the part owned one.
+        assert_eq!(
+            gsi_vector(gsi).is_some(),
+            redirection_index(gsi).is_some(),
+            "a GSI has a vector exactly when this IO APIC has an entry for it"
+        );
+
+        if let Some(vector) = gsi_vector(gsi) {
             assert!(
-                (GSI_VECTOR_BASE as u32..MSI_VECTOR_BASE as u32).contains(&vector),
+                (GSI_VECTOR_BASE as u32..MSI_VECTOR_BASE as u32).contains(&(vector as u32)),
                 "a GSI the IO APIC owns was mapped onto a vector outside the IO APIC band"
             );
+            assert!(
+                is_device_vector(vector as u64),
+                "a vector this kernel routed a device line to is not counted as a device vector"
+            );
         }
+    }
+}
+
+/// **The second IO APIC nobody has, executed** (milestone 308).
+///
+/// The proof above states the map's property over every input a model checker can reach, and the
+/// module's BUGS is honest that the machine it describes does not exist here. This is the middle
+/// ground: one concrete plausible part, the one from the proposal, put through the real functions
+/// on a real boot. It is not evidence that a second IO APIC works, and nothing in this tree is; it
+/// is evidence that the arithmetic a second IO APIC would need is compiled, linked and running,
+/// which an `#[cfg(kani)]` harness on an aarch64 dev machine is not.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **A GSI owned by an IO APIC based at global interrupt 200 routes inside the device band**,
+    /// and the vector the trap handler would see is one it counts as a device vector.
+    ///
+    /// The numbers are the proposal's plausible-hardware case rather than the prover's: base 200
+    /// with the 24 redirection entries every real part has, so GSI 210 is entry 10. Before
+    /// milestone 308 that GSI mapped to `0x30.wrapping_add(210)`, which is **2, the NMI**, and the
+    /// assertion on `NMI` below is why this test names a vector rather than only a range: a reader
+    /// meeting a failure here should see immediately what the old map did with it.
+    ///
+    /// The two statics are this machine's real IO APIC state, so they are saved and put back. They
+    /// are read by the trap handler's `is_device_vector`, and the entry count is restored to the
+    /// same value it is set to here, so nothing in flight can see a band that moved.
+    ///
+    /// Falsification: replayable `kernel/falsifications/arch.x86_64.irq.tests.a_gsi_on_a_second_io_apic_routes_inside_the_band.patch`
+    #[test_case]
+    fn a_gsi_on_a_second_io_apic_routes_inside_the_band() {
+        let saved_base = IO_APIC_GSI_BASE.load(Ordering::Relaxed);
+        let saved_entries = IO_APIC_ENTRIES.load(Ordering::Relaxed);
+
+        IO_APIC_GSI_BASE.store(200, Ordering::Relaxed);
+        IO_APIC_ENTRIES.store(24, Ordering::Relaxed);
+
+        let vector = gsi_vector(210).expect("gsi 210 is entry 10 of a part based at 200");
+        assert_eq!(
+            vector,
+            GSI_VECTOR_BASE + 10,
+            "the vector is the base plus the redirection index, not plus the GSI"
+        );
+        assert_ne!(vector, 2, "the pre-308 map sent this GSI to the NMI");
+        assert!(
+            is_device_vector(vector as u64),
+            "the trap handler must count a line this kernel routed as a device vector"
+        );
+
+        // Both ends of the part's range, so the guard is exercised rather than assumed.
+        assert_eq!(gsi_vector(199), None, "199 is below this part's base");
+        assert_eq!(gsi_vector(200), Some(GSI_VECTOR_BASE), "the first entry");
+        assert_eq!(
+            gsi_vector(223),
+            Some(GSI_VECTOR_BASE + 23),
+            "the last entry"
+        );
+        assert_eq!(gsi_vector(224), None, "one past the last entry");
+
+        IO_APIC_GSI_BASE.store(saved_base, Ordering::Relaxed);
+        IO_APIC_ENTRIES.store(saved_entries, Ordering::Relaxed);
     }
 }

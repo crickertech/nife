@@ -451,9 +451,15 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
             arch::irq::mask_timer();
 
             let pit = arch::irq::isa_routing(arch::timer::PIT_IRQ);
-            let vector = arch::irq::gsi_vector(pit.gsi);
             let hz = arch::timer::start_pit_ticking(arch::timer::TICK_HZ);
             arch::irq::enable(arch::timer::PIT_IRQ);
+            // Read after `enable` rather than before, which is what makes the `expect` honest
+            // rather than hopeful: `enable` has just routed this same GSI and panics with a named
+            // reason if the IO APIC does not own it, so an index exists by the time this runs. It
+            // also makes the transcript's field the vector that was programmed instead of one
+            // computed alongside it.
+            let vector = arch::irq::gsi_vector(pit.gsi)
+                .expect("enable routed this gsi a line ago, so the io apic owns it");
 
             arch::exceptions::enable_external();
             arch::interrupts::enable();
