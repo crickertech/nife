@@ -226,6 +226,16 @@ pub const IO_APIC_PHYS: u64 = 0xfec0_0000;
 /// `machine::print_acpi_summary` prints the MCFG's own answer against, which is the second
 /// witness aarch64 and riscv64 also kept (their old device-tree hardcodes, held equal to the
 /// discovered value by `pci.rs`'s own test).
+///
+/// **The asymmetry is worth knowing before reading a boot log.** Those two architectures only ever
+/// boot QEMU `virt`, so there the second witness is an *equality invariant* and a difference would
+/// be a finding. Here it is not, and not only on real hardware. Firmware places this window, so the
+/// two values agree on QEMU q35 **under `SeaBIOS`** and nowhere else that has been measured: OVMF
+/// relocates it to `0xe000_0000`, which is what both of `script/test --arch x86_64`'s real-firmware
+/// boots print, and xenon's own MCFG says `0xf000_0000` over 128 buses. That is why
+/// `print_acpi_summary` names q35 rather than this constant when it prints the comparison
+/// (milestone 314); the earlier wording read as a defect report everywhere except the one firmware
+/// it was written against, and was eventually reported as one.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_ECAM_PHYS: u64 = 0xb000_0000;
 

@@ -635,8 +635,19 @@ pub fn print_acpi_summary(found: &Acpi) {
     }
     print_isa_overrides(found);
     match found.ecam {
+        // **The parenthetical names q35, not the constant, and the wording is the whole point.**
+        // `PCI_ECAM_PHYS` is a second witness (see its doc), never the source of truth: `base` is
+        // the MCFG's own answer and is what gets mapped. On aarch64 and riscv64 the second witness
+        // is an equality invariant, because both boot QEMU `virt` and a test holds the two equal.
+        // Here it cannot be: firmware places this window, so the two agree under SeaBIOS on q35 and
+        // nowhere else measured. OVMF relocates it to 0xe000_0000 (both real-firmware boots in
+        // `script/test --arch x86_64`), and xenon's MCFG says 0xf000_0000. The old wording,
+        // "mmu::PCI_ECAM_PHYS says ...", therefore read as a discrepancy report on two of every
+        // three boots in our own gate, and a maintainer duly reported xenon's first boot as a
+        // defect. Naming the machine the number belongs to says what is being compared instead of
+        // implying something is wrong.
         Some((base, lo, hi)) => crate::println!(
-            "                pcie ecam {base:#x}, buses {lo}..={hi} (mmu::PCI_ECAM_PHYS says {:#x})",
+            "                pcie ecam {base:#x}, buses {lo}..={hi} (q35's default is {:#x})",
             super::mmu::PCI_ECAM_PHYS,
         ),
         None => crate::println!("                no MCFG: the PCIe window is not described"),
