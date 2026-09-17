@@ -37,9 +37,30 @@ one line past where the machine stopped, followed by a page-table cost nobody ha
 real hardware. `notes/x86-uefi-boot.md`'s step list has the procedure and what to do if it panics
 somewhere new, which is progress rather than a failure of the fix.
 
-**What this milestone still needs is therefore the tour completing, not a byte.** Whether that is
-what `BUILT` should mean here is calef's; the sentence below is kept as written because it is what
-the block promised, and this paragraph is what a reader should believe instead of it.
+**The completion criterion is the self-test, ruled by calef on 2026-09-17**, replacing "printed a
+byte over serial":
+
+> **This milestone is `BUILT` when xenon prints `nife self-test: N of N passed`.**
+
+**Why that line and not one of the obvious alternatives**, because the question turned out to be
+sharper than it looked. "The tour completing" was proposed first and withdrawn: milestone 267
+established that **the tour is three things wearing one name**, and deleted one of them. The
+narrative program is gone, so a criterion naming "the tour" would cite something that partly does
+not exist.
+
+The self-test is the right bound for **this** milestone. It is a machine-readable line that
+`script/soak` and `crates/board_console` already judge board runs by, so nothing new has to learn to
+read it; and passing it means exceptions, mapping, frames, timer and scheduler all work on the
+hardware, which is "this machine runs nife" with a definite answer rather than a liveness signal.
+
+The progenitor handover (`nife: handing the system to the userspace progenitor`) was considered and
+is a stronger claim, but it drags in the archive, ELF loading and the FS service, which are
+**milestone 161's** scope rather than this block's. This block's own text already says the x86_64
+port is not gated on the purchase. That line belongs to 161 or 182, not here.
+
+**The sentence below is kept as written** because it is what the block promised, and rewriting a
+promise to match an outcome is how a record stops being one. This paragraph is what a reader should
+believe instead of it.
 
 **What remains is one person, one USB stick and a serial console**, and the procedure is written
 out step by step, with a failure-triage table, in notes/x86-uefi-boot.md's "The bench" section. It
