@@ -15,11 +15,26 @@ name: vendor watch
 # deliberately, and what to do about a gap (which of the five divergences still apply, whether the
 # store's safety claim survives) is a judgment nothing here can make.
 #
-# **Monthly rather than weekly, measured rather than chosen.** Releases are irregular and clustered:
-# 0.8.5 and 0.8.6 landed the same day, 0.9.0 to 0.9.1 spanned five months. Weekly would mostly
-# report the same thing four times. Monthly's worst-case lag is shorter than the gaps it is watching
-# for, and clustering is the reason the check has to be idempotent rather than incremental: two
-# releases in a week must produce one pull request, not two.
+# **Weekly, changed from monthly on 2026-09-17 by calef, and the old reasoning is kept below because
+# it was wrong in an instructive way.** It read: *"Monthly rather than weekly, measured rather than
+# chosen. Releases are irregular and clustered: 0.8.5 and 0.8.6 landed the same day, 0.9.0 to 0.9.1
+# spanned five months. Weekly would mostly report the same thing four times. Monthly's worst-case lag
+# is shorter than the gaps it is watching for."*
+#
+# Two things are wrong with that. **"Measured rather than chosen" oversells two data points**, which
+# is thin evidence to pin a cadence to. And the objection it raises, reporting the same thing four
+# times, is about **noise** -- which the idempotence below already eliminates, since an unchanged
+# upstream produces an empty diff and this workflow stays silent. So the cost of asking more often
+# was never four reports; it was four silent runs, which is nothing.
+#
+# **What the old wording measured was release cadence, not the thing that matters, which is lag.**
+# Monthly means finding out up to a month after upstream moves. Weekly means up to a week. For a
+# watch whose entire purpose is noticing that something moved, a shorter worst case is strictly
+# better and the clustering argument does not bear on it.
+#
+# Clustering remains the reason the check must be **idempotent rather than incremental**: two
+# releases in one interval must produce one pull request, not two. That was the durable half of the
+# old paragraph and it is unchanged.
 #
 # **Idempotence is a property of the artifact, not of a memory.** `vendor/upstream-status.md`
 # carries no timestamp, so an unchanged upstream regenerates a byte-identical file and `git diff`
@@ -29,9 +44,10 @@ name: vendor watch
 
 on:
   schedule:
-    # 09:00 UTC on the 1st. An hour after the daily toolchain jobs, for no reason beyond keeping the
-    # morning's scheduled runs from starting on the same minute.
-    - cron: "0 9 1 * *"
+    # 09:00 UTC on Mondays. An hour after audit-cadence and the daily toolchain jobs, for no reason
+    # beyond keeping the morning's scheduled runs from starting on the same minute. Monday because
+    # every other weekly in this tree is Monday, so one day carries the whole weekly cadence.
+    - cron: "0 9 * * 1"
   workflow_dispatch:
 
 concurrency:
