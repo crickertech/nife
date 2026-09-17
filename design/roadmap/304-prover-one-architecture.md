@@ -179,13 +179,17 @@ aarch64. It is now in `script/falsifications`' `BUGS`.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md`. The
-  defect this milestone's own proof found: `gsi_vector` is a flat `GSI_VECTOR_BASE + gsi` and
+- **Milestone 308.** Promoted from
+  `design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md` on 2026-09-16, the day
+  it was written, when calef chose option 1 (route by index). The
+  defect this milestone's own proof found: `gsi_vector` was a flat `GSI_VECTOR_BASE + gsi` and
   `MAX_REDIRECTION_ENTRIES` bounds the entry count rather than the GSI, so an IO APIC whose global
   interrupt base is not zero can route an owned line onto the NMI. The fix costs `gsi_vector` its
   `const fn` and its total signature, which makes it calef's fork rather than a patch.
 - **Recorded.** `kernel/src/arch/x86_64/irq.rs`, module `BUGS`. The same defect, stated where a
-  reader meets the feature, with the plausible-hardware case and why the harness assumes it away.
+  reader meets the feature, with the plausible-hardware case and why the harness assumed it away.
+  Milestone 308 fixed the defect and removed the assumption; that entry now records what remains,
+  which is that the multi-IO-APIC path ships unexecuted.
 - **Recorded.** `script/falsifications`, `BUGS`. `--sweep` replays a harness only on a host whose
   architecture compiles it, so an architecture-specific harness can only be `attested`. True of the
   `arch.aarch64.iommu` patches since milestone 255 and unnoticed because every machine here was

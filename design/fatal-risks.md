@@ -186,9 +186,14 @@ it, so it is evidence that pointing the prover somewhere new pays, not yet evide
 proof catches regressions. **riscv64 remains unreachable to the prover and nobody here can change
 that**: no GitHub image, no Kani cross-target flag, and CBMC needs a goto-binary for its own host.
 The fix was deliberately not made in that lane, because it changes a public signature and a
-documented policy: `design/roadmap/proposals/the-gsi-vector-map-wraps-on-a-second-io-apic.md`, gate
-`DECISION`. The defect is recorded in `kernel/src/arch/x86_64/irq.rs`'s module `BUGS` as well, which
-is where a reader meets the feature.
+documented policy; it was raised as a proposal with gate `DECISION`, calef chose to route by
+redirection index on 2026-09-16, and it was built the same day as
+[milestone 308](roadmap/308-route-gsi-by-index.md). **The fix does not add to this risk's
+evidence and slightly complicates it**: the harness's `kani::assume(base == 0)` is gone, so a
+standing proof now covers the case, but no machine here can execute the path, which
+`kernel/src/arch/x86_64/irq.rs`'s module `BUGS` records where a reader meets the feature. A proof
+that catches a regression on hardware nobody owns is still the honest shape of what this risk asks
+about.
 
 ## 3. The tests do not test anything, and the quality is illusory
 
