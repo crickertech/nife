@@ -19,12 +19,19 @@ the same bit carries both claims; neither of them is redundant, since the
 round-trip harness would stay green on a defect that set `XD` too often and this
 one would not.
 
+**Redone 2026-09-17 by milestone 313's audit, with the defect unchanged.** The audit added a
+comment block above the `if` this patch edits (the `CR4.SMEP` caveat: x86 refuses a supervisor fetch
+from a user page only while that bit is set, which the kernel now sets), so the record's context no
+longer matched and `--affected-since` reported it stale, as it should. The one-line defect is the
+same; only the lines around it moved. CI found it because `--affected-since` follows a diff into
+`crates/`, and the lane's own `--sweep kernel` did not, which is recorded in the milestone's block.
+
 diff --git a/crates/paging/src/x86_64.rs b/crates/paging/src/x86_64.rs
-index ff9b8488..5db9a838 100644
+index 72e0ea27..197e76a8 100644
 --- a/crates/paging/src/x86_64.rs
 +++ b/crates/paging/src/x86_64.rs
-@@ -102,7 +102,7 @@ impl Ia32e {
-         // arrangement of the same three facts.
+@@ -110,7 +110,7 @@ impl Ia32e {
+         // is why it is said here.
          if flags.is_kernel_executable() {
              bits |= SW_KERNEL_EXEC;
 -        } else if !flags.is_user_executable() {
