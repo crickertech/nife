@@ -128,6 +128,7 @@ malformed it.
 | 2026-08-16 | documentation | Docs versus reality, scoped by the staleness worklist, read for names and numbers a reader would act on | fixed 4, minted 1, accepted 2 | [Names and numbers the tree moved past](2026-08-16-docs-versus-reality.md) |
 | 2026-08-17 | documentation | The ABI surface as documented, read from the wire outward: every constant two programs must agree on, checked against what the prose says the surface is | fixed 5, minted 1, accepted 2 | [The ABI surface as documented](2026-08-17-abi-surface-as-documented.md) |
 | 2026-08-17 | security | Newly minted authority, read adversarially: the seven ABI constants and the new right that landed overnight, not the tree at large | fixed 2, minted 1, accepted 3 | [The authority that was minted overnight](2026-08-17-newly-minted-authority.md) |
+| 2026-09-17 | security | Userspace confinement, read adversarially: the device and port authority minted since the last audit, the claims milestone 307 marked unreachable, and the two machine classes (radon, xenon) that booted real silicon in the window | fixed 3, minted 3, accepted 1 | [Userspace confinement](2026-09-17-userspace-confinement.md) |
 
 ## What the tree looked like when each ran
 
@@ -159,6 +160,7 @@ must not err in. So the count spans both, and it stays continuous across the spl
 | 2026-08-16 | documentation | 73 | 108 | 43 | 108 |
 | 2026-08-17 | documentation | 76 | 110 | 50 | 108 |
 | 2026-08-17 | security | 76 | 110 | 50 | 108 |
+| 2026-09-17 | security | 190 | 155 | 52 | 108 |
 
 The two `-` cells are honest rather than lazy: `design/roadmap/README.md` did not exist until
 milestone 76 split it out on 2026-08-03, and milestones 1 to 11 were backfilled the same day, so

@@ -1,0 +1,42 @@
+Falsifies `kernel::user::x86_port_tests::port_holder_transmits_then_a_non_holder_faults`.
+
+Architecture: x86_64
+
+The defect is the "optimisation" a reader of the lazy design is most likely to write: an early
+return in `arch::segments::set_port_range_grant` when the incoming thread holds no port grant, on
+the reasoning that a thread with no ports needs nothing installed for it. It is wrong because the
+TSS bitmap is per core and outlives the thread that installed it: after the holder runs, the
+bitmap permits COM1 and `iomap_base` points at it, and every later switch-in with `None` now
+leaves both as they are. The non-holder inherits the holder's ports.
+
+Milestone 299's own BUGS named this the load-bearing property ("a thread that holds a port
+capability switching to one that does not must leave the TSS denying ports, or the second thread
+inherits the first's access"), and this record is the first time it has been broken on purpose.
+Before milestone 313's audit the test could not have gone red for it: the non-holder reported on a
+rendezvous nobody was receiving, so an inherited grant hung the run.
+
+The first, weaker defect tried is worth recording because it did NOT fire: removing only the
+re-deny of the outgoing holder's bits leaves the bitmap permitting COM1 but still moves `iomap_base`
+past the segment limit, and the CPU consults no bitmap at all then, so the non-holder still faults.
+The hand-off is protected twice, and the early return is the defect that defeats both.
+
+Expected to fail: `assert_eq!(msg[0], EVENT_FAULT, "a non-holder's `out` must fault, not be
+permitted")`, holding `EVENT_EXIT` (2) where it wanted `EVENT_FAULT` (1): the non-holder's `out`
+is permitted, it exits, and the supervisor's message is a clean exit. The holder's half of the test
+(its word arrives) is unaffected by the patch and passes first.
+
+diff --git a/kernel/src/arch/x86_64/segments.rs b/kernel/src/arch/x86_64/segments.rs
+index 59766bb1..f816b350 100644
+--- a/kernel/src/arch/x86_64/segments.rs
++++ b/kernel/src/arch/x86_64/segments.rs
+@@ -376,6 +376,10 @@ unsafe fn write_range_bits(iomap: *mut u8, base: u16, count: u16, deny: bool) {
+ #[cold]
+ pub fn set_port_range_grant(grant: Option<(u16, u16)>) {
+     let id = crate::cpu::id();
++    // A thread with no port capability needs nothing installed for it.
++    if grant.is_none() {
++        return;
++    }
+     // SAFETY: this core's own slot, read and written only here and only with interrupts masked on
+     // the switch path; a different core touches a different index.
+     let installed = unsafe { INSTALLED_PORT_GRANT[id] };

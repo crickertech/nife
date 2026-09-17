@@ -149,7 +149,7 @@ took, its findings by disposition, and a link to the report. `script/audits` say
 is due, from the triggers `design/decisions/74-audit-cadence.md` decided, and a weekly workflow asks
 the same question so that auditing does not depend on anyone remembering to.
 
-**Five** <!--count:security-audits--> security audits are on the record, and reading them first will
+**Six** <!--count:security-audits--> security audits are on the record, and reading them first will
 save you time. Each took a lens the previous one did not, deliberately, because the value of an audit
 is the lens the last one lacked. (Documentation audits are in the same index and are not listed here;
 they read the tree for claims that had gone false, which is worth knowing if you find prose and code
@@ -181,6 +181,14 @@ disagreeing.)
   the finding to carry off is a **counting channel**, where a viewer holding the narrowest capability
   this system can express learns how many threads exist outside its own domain, though it can never
   name one.
+- **design/audit-reports/2026-09-17-userspace-confinement.md**: the device and port authority minted
+  since the previous audit, the confinement claims a sweep had marked unreachable, and the two boards
+  that booted real silicon, read for claims that are true only by accident. **One was false as
+  stated and is fixed**: on `x86_64` a thread that deleted its own port capability kept the ports,
+  because the grant is enforced by a cached field the context switch installs rather than by the
+  capability table. Also: ring 0 could execute a user page on `x86_64` until `CR4.SMEP` was set,
+  and two existing port tests could not go red for the defects they exist to catch because a wrongly
+  permitted `out` hung the run instead of failing it.
 
 The machine-checked half is `script/verify` (Kani harnesses over the capability model, IPC, the MMU
 invariants, the DMA validator). notes/verification.md states what each proof covers and, more

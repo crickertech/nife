@@ -1,0 +1,40 @@
+Falsifies `kernel::user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`.
+
+Architecture: x86_64
+
+The defect is `PortRange::REVOKE` doing only the half that every other revoke does: deleting the
+capability from every other holder's table, and not the half this object alone needs, which is
+forgetting the cached grant (`Thread::port_range_grant`) the context switch installs from. With
+the six lines that clear the cache removed from `sched::delete_port_range_caps_impl`, the revoked
+holder's capability is gone from its table and its grant survives; when the test wakes it, its
+switch-in installs the range into the TSS and its `out` is permitted.
+
+It is the same class of defect milestone 313's audit found live in the tree on the self-delete
+path (`sched::delete_current_cap`): the table and the cache are two records of one authority, and
+a path that updates one and not the other is enforcement that outlives the capability. This record
+proves the revoke test is wired to the cache half rather than to the table half, which is the half
+that matters, since nothing on the port path ever reads the table.
+
+Before milestone 313's audit the test could not have gone red for this: the revoked holder reported
+after its `out` on a rendezvous nobody was receiving, so a surviving grant hung the run.
+
+Expected to fail: `assert_eq!(msg[0], EVENT_FAULT, "a revoked holder's next `out` must fault; the
+word must never arrive")`, holding `EVENT_EXIT` (2) where it wanted `EVENT_FAULT` (1).
+
+diff --git a/kernel/src/sched.rs b/kernel/src/sched.rs
+index 201071c7..00c851c7 100644
+--- a/kernel/src/sched.rs
++++ b/kernel/src/sched.rs
+@@ -3176,12 +3176,6 @@ fn delete_port_range_caps_impl(base: u16, count: u16, keeper: Option<ThreadId>)
+                     let _ = t.capability_table.delete(slot);
+                 }
+             }
+-            // Forget the cached grant if it named the revoked range, so switching to this thread
+-            // installs nothing. x86 only; the field exists nowhere else.
+-            #[cfg(target_arch = "x86_64")]
+-            if t.port_range_grant == Some((base, count)) {
+-                t.port_range_grant = None;
+-            }
+         }
+     }
+     // Reach the TSS of the core that might already hold the revoked bitmap. This resets **the

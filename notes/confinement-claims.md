@@ -49,6 +49,9 @@ themselves. The last column is this milestone's result.
 | 24 | Two shells with different roots cannot name each other's files | §50 | `kernel::user::shell_navigation_tests::two_shells_with_different_roots_cannot_name_each_others_files` | **yes, and see below** |
 | 25 | A client cannot reach its neighbour's pixels or read the screen | §66 | `kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen` | **yes, one of its four** |
 | 26 | A client of a rendezvous cannot become its server | §41 | `kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server` | **no, and see below** |
+| 27 | A thread holding no port capability cannot touch a port, and a holder's ports do not leak across a context switch (`x86_64`) | §121, milestone 299 | `kernel::user::x86_port_tests::port_holder_transmits_then_a_non_holder_faults` | **yes, milestone 313, and see below** |
+| 28 | A revoked port holder faults on its next `in`/`out` (`x86_64`) | §121, milestone 299 | `kernel::user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` | **yes, milestone 313** |
+| 29 | A thread that deletes its own port capability faults on its next `in`/`out` (`x86_64`) | §12, milestone 313 | `kernel::user::x86_port_tests::a_holder_that_deletes_its_port_capability_faults_on_its_next_port_write` | **yes, milestone 313, and it was false in the tree** |
 
 ## Five claims that are stated nowhere, which is what step 1 was for
 
@@ -110,6 +113,20 @@ falsification has to be a driver aiming an interrupt where it was not given one,
 **The progenitor's bytes are unsigned.**
 §14 says so plainly in its own honest caveat and it is not in the table because it is not a
 confinement claim; it is the reason the confinement has an unverified component inside it.
+
+**The kernel cannot execute a confined component's code.**
+Added 2026-09-17 by milestone 313's audit, which found it stated nowhere and true on one
+architecture only by accident. No row above says it and no test asks. On aarch64 it is `PXN`, which
+the encoder sets on every user page; on riscv64 it is the hardware, which refuses a supervisor
+fetch from a `U` page unconditionally; on `x86_64` it is `CR4.SMEP`, which nothing in this kernel
+set until that audit, so a user code page with `XD` clear was executable at ring 0, whatever
+`crates/paging`'s decoder reported. It is not a userspace escape on its own (a kernel control-flow
+bug has to come first), which is why it belongs in this section rather than in the table: it is
+the thing that turns any such bug into a full one. `arch::x86_64::init` now sets the bit on every
+core whose CPUID offers it and prints a line either way. **There is still no test**, because a
+falsification would need ring 0 to survive its own page fault, and `SMAP` (its sibling, per-access
+and not free) stays off with the reason `mmu::permit_kernel_access_to_user_pages` records; both are
+one proposed milestone (`design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`).
 
 ## What breaking them found
 
@@ -242,6 +259,17 @@ Sv39 encoder turns `CAP_USER` into the `U` bit, and S-mode access to a `U` page 
 cannot read itself, dead before the first test. So the RISC-V evidence is against the software walk
 instead, and the row's three "yes"es are not three of the same thing. DECISIONS §19 makes parity a
 gate for the **capability**; this is a gap in the **evidence**.
+
+**And the `x86_64` leg has no evidence at all** (milestone 313's audit, 2026-09-17).
+`a_user_program_cannot_read_a_kernel_address` runs on aarch64 and `x86_64`, and its record declares
+`Architecture: aarch64`. `script/falsifications` replays a kernel record on the one architecture its
+patch names, and the record's filename is the test's, so a portable test can carry one architecture's
+evidence and no more. On `x86_64` the row is therefore a green test that has never been shown able
+to go red, which is exactly the state milestone 305 found row 21's RISC-V twin in. The aarch64
+defect would work there (SMAP is off, so the kernel keeps reading its own constants after they are
+mapped `U/S`-accessible), and the mechanism cannot record it. Read the row's "yes, three" as
+aarch64 twice and riscv64 once. The mechanism change is proposed in
+`design/roadmap/proposals/a-falsification-record-per-architecture.md`.
 
 ### Row 26 cannot be falsified as written, because a real escape hangs the run
 
@@ -404,10 +432,17 @@ a bit independent of `AP_USER`, and a kernel-executable user page is a real haza
 `Flags::user_code` doc calls out by name. On **riscv64 and x86_64 it cannot fail**, because both
 decoders reach `CAP_KERNEL_EXEC` only through an `else` branch that requires the user bit clear
 (`sv39.rs` `leaf_flags`, `x86_64.rs` `leaf_flags`), and the assertion two lines up has already
-established the page is user-accessible. The decoders are faithful: on those two ISAs the hardware
-really does make a user page non-executable in supervisor mode, so this is a sound structural
-guarantee rather than a bug. What is wrong is reading one portable test as three ISAs' worth of
-evidence. Same distinction 305 drew for row 21: a gap in the evidence, not in the capability.
+established the page is user-accessible. ~~The decoders are faithful: on those two ISAs the hardware
+really does make a user page non-executable in supervisor mode~~ **Half of that sentence was false,
+and milestone 313's audit found it** (2026-09-17). On riscv64 the hardware does refuse a supervisor
+fetch from a `U` page, unconditionally. On `x86_64` it does so only while `CR4.SMEP` is set, and
+this kernel had never set it: `XD` is the one execute bit and applies at every ring, so the decoder
+was reporting a user page as not kernel-executable on a machine where ring 0 could execute it. The
+bit is set now (`arch::x86_64::init`, on every core whose CPUID offers it), which makes the decoder
+true on the hardware rather than in principle; the encoder's own comment carries the correction. The
+structural point survives with that caveat: the assertion still cannot fail on those two ISAs, and
+what is wrong is reading one portable test as three ISAs' worth of evidence. Same distinction 305
+drew for row 21: a gap in the evidence, not in the capability.
 
 **Row 19's attackers cannot tell a refusal from a probe that was never sent.** `fs_test_client`'s
 `dir_attacker` sets `REACHED_PARENT` and its siblings only on *success*, so a fixture that stopped
@@ -477,6 +512,16 @@ All of these fire as advertised.
   tautology and a prediction about a proof is worth confirming. The other 25 rows' verdicts are
   **reasoned from the code, not measured**, and milestone 305's own headline is the standing warning
   about what that is worth: `user_can_read` had been readable for four weeks.
+- **Rows 27 to 29 were added by an audit and their verdicts are dated 2026-09-17.** Milestone 313
+  found the tree's newest device object (the `x86_64` `PortRange`, milestone 299) absent from this
+  table, its two tests unable to go red in the direction they exist for (a wrongly permitted `out`
+  was followed by a `SEND` nobody received, so the escape hung the run: row 26's shape, one object
+  over), and a third property, self-deletion, false in the tree. The fixtures were reshaped so an
+  escape exits and arrives as `EVENT_EXIT` where the test wants `EVENT_FAULT`, and all three rows
+  carry a record replayed on `x86_64`. Row 27's record also names the defect that did **not** fire,
+  because the hand-off is protected twice (the bitmap bits and the `iomap_base` word) and only a
+  defect that defeats both turns the test red. The audit is
+  [design/audit-reports/2026-09-17-userspace-confinement.md](../design/audit-reports/2026-09-17-userspace-confinement.md).
 - **The rows citing kernel tests are still not evidence at the same grade as the rows citing
   harnesses, and the reason changed.** It used to be that nothing could replay a kernel
   falsification at all. Since milestone 305 a machine can, so the gap is narrower and it is now
