@@ -824,18 +824,26 @@ pub unsafe extern "C" fn x86_trap_body(frame: *mut TrapFrame) -> bool {
             true
         }
         // A device line, routed by the IO APIC's redirection table onto a vector this kernel chose
-        // (irq::GSI_VECTOR_BASE plus the GSI).
+        // (irq::GSI_VECTOR_BASE plus the line's redirection index; milestone 308, and it was plus
+        // the GSI until then).
         //
         // # BUGS
         // **An IO APIC line cannot yet become a message here**, unlike on the other two
         // architectures, and the missing piece is an inversion rather than a mechanism: the arms
         // above show the delivery works, and what a *line* needs is a vector -> intid map so
-        // `sched::irq_route` can be asked. The flat vector map makes the GSI recoverable by
-        // subtraction, but a *legacy IRQ* (which is what `irq::enable` takes, and so what a driver
-        // would have bound) is not: GSI 0 is the 8259 cascade and has no legacy owner, so an
-        // inversion that fell back to the GSI would answer 0 for both it and the PIT's IRQ 0.
-        // Nothing needs it: a PCI function reaches its driver by MSI-X on this architecture
-        // (milestone 215), and the console UART's line is the only other candidate.
+        // `sched::irq_route` can be asked. Subtraction recovers the **redirection index**, and the
+        // GSI is then that plus the owning IO APIC's global interrupt base, which
+        // `irq::redirection_index` reads and nothing here inverts. That extra step is milestone
+        // 308's and it changes nothing in practice, because the base is zero on every machine this
+        // kernel boots; the step that was already missing is the one that matters. A *legacy IRQ*
+        // (which is what `irq::enable` takes, and so what a driver would have bound) is not
+        // recoverable at all: GSI 0 is the 8259 cascade and has no legacy owner, so an inversion
+        // that fell back to the GSI would answer 0 for both it and the PIT's IRQ 0.
+        //
+        // **Still nothing needs it, which milestone 308 re-checked rather than assumed**: a PCI
+        // function reaches its driver by MSI-X on this architecture (milestone 215) and takes the
+        // arm above, and the console UART's line is the only other candidate. Making `gsi_vector`
+        // fallible added no caller here, because this arm never calls it.
         v if super::irq::is_device_vector(v) => {
             // [`DEVICE_IRQS`] only: a line outside the CPU reached it, which is what that counter
             // claims, but the BUGS note above is exactly that nothing here can route it to a

@@ -1,0 +1,55 @@
+Falsifies `kernel::arch::x86_64::irq::tests::a_gsi_on_a_second_io_apic_routes_inside_the_band`.
+
+Architecture: x86_64
+
+The defect is the code milestone 308 replaced, put back: `gsi_vector` adding the **GSI** to
+`GSI_VECTOR_BASE` instead of adding the GSI's **redirection index**. It is a one-line patch
+because the defect was a one-line defect, and it shipped for as long as this file has had an
+IO APIC in it. The `?` on `redirection_index` stays, so the signature and every call site are
+untouched and the only thing that changes is the arithmetic; a patch that also restored the
+old `const fn` signature would be measuring whether the tree compiles rather than whether the
+test catches the wrap.
+
+Expected to fail: `assert_eq!(vector, GSI_VECTOR_BASE + 10, "the vector is the base plus the
+redirection index, not plus the GSI")`, the first assertion in the test body
+(`kernel/src/arch/x86_64/irq.rs:1216` at the revision swept; the line moves and the name does
+not, which is why both are written). Measured on
+patagonia, 2026-09-16, `cargo xtask test --arch x86_64 --test
+a_gsi_on_a_second_io_apic_routes_inside_the_band`: RED, with `left: 2` and `right: 58`. The
+left-hand number is the whole milestone in one integer. 58 is `0x3a`, the vector entry 10 of a
+part based at global interrupt 200 is routed to; **2 is the NMI**, which is where GSI 210 went
+before, because `0x30 + 210` is `0x102` and a `u8` keeps the low byte.
+
+**This patch stands for the Kani harness too**, `proofs::an_owned_gsi_routes_inside_the_io_apic_band`,
+which it also turns red. Attested on cordoba, 2026-09-16, x86_64 Linux, `script/verify --only
+kernel`: 3 of 4 harnesses SUCCESSFUL and that one FAILED, on **both** assertions inside its `if let`
+(the band one and the `is_device_vector` agreement one; `irq.rs:1164` and `irq.rs:1168` at the
+revision measured, and the messages rather than the numbers are what to grep for). Without the patch
+the same command is 4 of 4 SUCCESSFUL with 131 checks on that harness. That harness records
+`attested` rather than `replayable` and points here, because a
+`#[kani::proof]` compiles for the HOST and `kernel/src/arch/mod.rs` selects its subtree by
+`#[cfg(target_arch)]`, so a `replayable` record on an x86_64 harness turns `--sweep kernel` red
+on every machine in this project but cordoba. A kernel test names its architecture and boots
+QEMU, which is why the replayable half of milestone 308's evidence is this one. See
+`script/falsifications`' BUGS, where the same constraint is recorded from the sweep's side.
+
+**What this record does not cover**, and it is the limitation the milestone itself is about:
+no machine here has a second IO APIC, so the numbers above are a synthetic base and entry
+count written into two atomics rather than a part answering its own version register. This
+proves the arithmetic is compiled and wrong-when-broken. It does not prove an interrupt is
+delivered through a second IO APIC, and nothing in this tree does. `irq.rs`'s module BUGS says
+so where a reader meets the feature.
+
+diff --git a/kernel/src/arch/x86_64/irq.rs b/kernel/src/arch/x86_64/irq.rs
+index 7f878eaf..03941f7b 100644
+--- a/kernel/src/arch/x86_64/irq.rs
++++ b/kernel/src/arch/x86_64/irq.rs
+@@ -637,7 +637,7 @@ pub fn gsi_vector(gsi: u32) -> Option<u8> {
+         index < MAX_REDIRECTION_ENTRIES,
+         "redirection index {index} is outside the vector band the entry-count cap reserves"
+     );
+-    Some(GSI_VECTOR_BASE + index as u8)
++    Some(GSI_VECTOR_BASE.wrapping_add(gsi as u8))
+ }
+ 
+ /// Is `vector` one of the IO APIC's? The trap handler asks, so that a device interrupt is counted
