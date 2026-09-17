@@ -411,11 +411,23 @@ pub fn set_port_range_grant(grant: Option<(u16, u16)>) {
 /// revoked, re-deny its bits and point `iomap_base` past the limit, so a port access faults even
 /// before the next context switch. If a different grant (or none) is installed, this does nothing.
 ///
-/// On a single-core x86 this is a belt-and-suspenders check: the switch away from a holder already
-/// uninstalls its grant, so the revoker running here means the revoked grant is not installed. It is
-/// written anyway because it is what a future SMP x86 would run **on each core** in response to a
-/// shootdown IPI, the same shape as the TLB shootdown, and getting the core-local step right now is
-/// what makes that generalization a broadcast rather than a redesign.
+/// For a `PortRange::REVOKE` this is a belt-and-suspenders check: the switch away from a holder
+/// already uninstalls its grant, so the revoker running here means the revoked grant is not installed
+/// on *this* core. For `sched::delete_current_cap` (milestone 313's audit) it is the whole mechanism:
+/// the thread dropping its own port capability is the thread whose grant is installed here, and this
+/// is what makes its next `in`/`out` fault rather than its next-but-one.
+///
+/// # BUGS
+///
+/// **It reaches one core, and x86 no longer runs one.** This was written as the step a future SMP
+/// x86 would run **on each core** in response to a shootdown IPI, the same shape as the TLB
+/// shootdown (notes/x86-tlb-shootdown.md), while `smp::bring_up_secondaries` still refused on
+/// `x86_64`. It no longer refuses (`smp::seat_cpus_from_acpi`; the tour boots two cores under OVMF),
+/// and the IPI was never added. So on a multi-core x86 a revoked holder that is *running on another
+/// core* keeps that core's bitmap until its next context switch, at most one tick, during which its
+/// `in`/`out` still succeed. The cached grant is cleared by then, so the window cannot reopen. The
+/// two port tests run on one core and cannot see this; recorded by milestone 313's audit rather
+/// than fixed, with the broadcast proposed as its own milestone.
 pub fn revoke_installed_port_grant(base: u16, count: u16) {
     let id = crate::cpu::id();
     // SAFETY: this core's own slot; see `set_port_range_grant`.

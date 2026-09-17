@@ -100,6 +100,14 @@ impl Ia32e {
         // One execute permission, applying at whichever ring `U/S` names. A page executable by
         // nobody gets XD; anything else leaves it clear and relies on U/S, which is exactly Sv39's
         // arrangement of the same three facts.
+        //
+        // **With one difference the hardware draws and Sv39 does not**, found by milestone 313's
+        // audit. Sv39 refuses a supervisor fetch from a `U` page unconditionally. x86 does so only
+        // while `CR4.SMEP` is set; with it clear, a page whose `XD` is clear is executable at ring 0
+        // whatever `U/S` says. So `leaf_flags` reporting a user page as *not* kernel-executable is
+        // true on the machine only because `arch::x86_64::init` sets SMEP on every core whose CPUID
+        // offers it, and says on the console when one does not. This crate cannot check that, which
+        // is why it is said here.
         if flags.is_kernel_executable() {
             bits |= SW_KERNEL_EXEC;
         } else if !flags.is_user_executable() {

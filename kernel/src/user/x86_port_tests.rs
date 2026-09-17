@@ -1,5 +1,5 @@
-//! **The two load-bearing tests of the x86 port-range capability** (milestone 299, DECISIONS §121
-//! reversed 2026-09-15). A `PortRange` capability is enforced entirely at the context switch, by the
+//! **The load-bearing tests of the x86 port-range capability** (milestone 299, DECISIONS §121
+//! reversed 2026-09-15; a third added by milestone 313's audit). A `PortRange` capability is enforced entirely at the context switch, by the
 //! TSS I/O permission bitmap, with nothing on the syscall path to assert on; the only honest test is
 //! a ring-3 program that executes `out` and observes whether the CPU allowed it. So these build
 //! hand-assembled `x86_64` children (`super::x86_programs`) exactly as `supervision_tests` does, and
@@ -16,6 +16,10 @@
 //! 2. **A revoked holder faults on its next `in`/`out`.**
 //!    [`a_revoked_holder_faults_on_its_next_port_write`] parks a holder in `RECV`, revokes its port
 //!    range while it is parked, wakes it, and confirms the `out` it then executes faults.
+//! 3. **A holder that drops its own port capability faults on its next `in`/`out`.**
+//!    [`a_holder_that_deletes_its_port_capability_faults_on_its_next_port_write`] is milestone 313's
+//!    audit finding turned into a test: the first two prove the grant follows the capability across
+//!    a switch and a revoke, and neither could see that `SYS_CAP_DELETE` left it behind.
 //!
 //! `x86_64` only: there is no port space, and no TSS I/O bitmap, on the other two architectures.
 
@@ -44,6 +48,11 @@ const COM1_COUNT: u16 = super::X86_COM1_PORT_COUNT;
 /// The word a holder SENDs once its `out` is allowed, so a test can tell "it transmitted" from "it
 /// faulted". Distinctive.
 const REPORTED: u64 = 0xC0DE;
+
+/// Where [`build_child`] lands the `PortRange` capability when the child has no wake endpoint: slot
+/// 0 is the report endpoint, so the next free slot is 1. The self-deleting child names this slot in
+/// its own machine code, and `build_child` asserts it.
+const PORT_SLOT_WITHOUT_WAKE: u64 = 1;
 
 /// Build a ring-3 child from `stub` with its whole world in one region (address space, code, stack,
 /// TCB), so a single reclaim frees it. `report` lands in slot 0 (what the stub SENDs on), `wake` in
@@ -112,14 +121,22 @@ fn build_child(
 
     // The port range, held so the TSS bitmap grants it: the whole point of the test. `WRITE`, the
     // rights a driver gets; never `GRANT`, so the child cannot re-delegate or revoke it. It is not
-    // invoked by slot number (the child executes `out` directly), so its slot does not matter.
+    // invoked by slot number (the child executes `out` directly), so its slot matters to exactly one
+    // child, the one that deletes it: [`PORT_SLOT_WITHOUT_WAKE`] is asserted here so that program
+    // cannot delete the wrong thing and pass for the wrong reason.
     if port {
-        sched::thread_control_block_insert_cap(
+        let slot = sched::thread_control_block_insert_cap(
             tid,
             crate::cap::port_range_cap(COM1_BASE, COM1_COUNT, crate::cap::Rights::WRITE),
             None,
         )
         .expect("insert the port range");
+        if wake.is_none() {
+            assert_eq!(
+                slot, PORT_SLOT_WITHOUT_WAKE,
+                "the port cap must land where the deleter looks"
+            );
+        }
     }
 
     // The reserved fault slot: born supervised, so a #GP on the `out` arrives as a message rather
@@ -152,6 +169,8 @@ fn reap(region: u64) {
 /// hand-off test in one, because the order is the hand-off: the non-holder is scheduled after the
 /// holder installed and then vacated the TSS bitmap, so its fault is proof the switch left the port
 /// denied rather than inheriting the holder's grant.
+///
+/// Falsification: replayable `kernel/falsifications/user.x86_port_tests.port_holder_transmits_then_a_non_holder_faults.patch`
 #[test_case]
 fn port_holder_transmits_then_a_non_holder_faults() {
     // The holder: it executes `out` to a port its capability names, so the CPU permits it, and the
@@ -177,13 +196,15 @@ fn port_holder_transmits_then_a_non_holder_faults() {
     );
     reap(holder_region);
 
-    // The non-holder: the *same* program, granted no port capability, run right after the holder. Its
+    // The non-holder: the same `out`, granted no port capability, run right after the holder. Its
     // `out` faults, which is both "a non-holder cannot touch the port" and "the hand-off away from
-    // the holder left the TSS denying".
+    // the holder left the TSS denying". It exits rather than reporting (milestone 313's audit): if
+    // the hand-off ever leaked the grant, a reporting child would park on a `SEND` nobody receives
+    // and hang the run, and this test would be unable to go red for the one defect it exists for.
     let report2 = sched::create_rendezvous();
     let sup2 = sched::create_rendezvous();
     let (non_holder, nh_region) = build_child(
-        &super::x86_programs::port_out(SCRATCH_PORT, SCRATCH_VAL, REPORTED as u32),
+        &super::x86_programs::port_out_then_exit(SCRATCH_PORT, SCRATCH_VAL),
         report2,
         None,
         false,
@@ -207,13 +228,15 @@ fn port_holder_transmits_then_a_non_holder_faults() {
 /// `RECV`; while it is parked the test revokes the range (deleting its capability and clearing the
 /// cached grant the switch installs), then wakes it. The `out` it executes on waking faults, which
 /// is the whole claim: a capability that was real became unusable the instant it was revoked.
+///
+/// Falsification: replayable `kernel/falsifications/user.x86_port_tests.a_revoked_holder_faults_on_its_next_port_write.patch`
 #[test_case]
 fn a_revoked_holder_faults_on_its_next_port_write() {
     let report = sched::create_rendezvous();
     let wake = sched::create_rendezvous();
     let sup = sched::create_rendezvous();
     let (holder, region) = build_child(
-        &super::x86_programs::recv_then_port_out(SCRATCH_PORT, SCRATCH_VAL, REPORTED as u32),
+        &super::x86_programs::recv_then_port_out(SCRATCH_PORT, SCRATCH_VAL),
         report,
         Some(wake),
         true,
@@ -234,5 +257,58 @@ fn a_revoked_holder_faults_on_its_next_port_write() {
         "a revoked holder's next `out` must fault; the word must never arrive",
     );
     assert_eq!(msg[1], holder, "the fault named the wrong thread");
+    reap(region);
+}
+
+/// **A holder that deletes its own port capability faults on its next `out`** (milestone 313's
+/// audit, 2026-09-17). The third property, and the one the first two could not see: they establish
+/// that the grant follows the capability across a switch and across a revoke, and this establishes
+/// that it follows the capability out of the thread's own table. Before the audit it did not. The
+/// grant is a cached field the switch installs, `SYS_CAP_DELETE` cleared the table and not the
+/// cache, and a thread that dropped its port capability kept the ports for life, which is §12's
+/// "a consumed capability cannot be used again" failing for the one object enforced outside the
+/// table. The progenitor does exactly this drop on every x86 boot (`cap_delete(g.uart_dev)`).
+///
+/// The child deletes [`PORT_SLOT_WITHOUT_WAKE`] and then executes `out`, and **exits rather than
+/// reporting** if the `out` is permitted; the first draft reported, and on the unfixed kernel that
+/// `SEND` parked on a rendezvous nobody was receiving and the run hung instead of going red (row
+/// 26's shape, and the program's doc carries the account). Which assertion fires is stated here so
+/// nobody has to run milestone 307's sweep on it: a permitted `out` means the child exits cleanly,
+/// so the supervisor's message is `EVENT_EXIT` and the **first** `assert_eq!` is the one that goes
+/// red, holding `EVENT_EXIT` where it wanted `EVENT_FAULT`. The pc equality below it is the
+/// wrong-reason guard for the other direction: a `syscall` that faulted, or a bad slot, would
+/// report a different pc.
+///
+/// Falsification: replayable `kernel/falsifications/user.x86_port_tests.a_holder_that_deletes_its_port_capability_faults_on_its_next_port_write.patch`
+#[test_case]
+fn a_holder_that_deletes_its_port_capability_faults_on_its_next_port_write() {
+    // The report endpoint is granted so slot 0 is what it is for every other child; this child
+    // never sends on it (see the program's own doc for why it exits instead).
+    let report = sched::create_rendezvous();
+    let sup = sched::create_rendezvous();
+    let (holder, region) = build_child(
+        &super::x86_programs::cap_delete_then_port_out(
+            PORT_SLOT_WITHOUT_WAKE as u32,
+            SCRATCH_PORT,
+            SCRATCH_VAL,
+        ),
+        report,
+        None,
+        true,
+        sup,
+    );
+
+    let msg = sched::ipc_recv(sup);
+    assert_eq!(
+        msg[0], EVENT_FAULT,
+        "a holder that deleted its own port capability must fault on its next `out`; it kept the \
+         ports after dropping the capability",
+    );
+    assert_eq!(msg[1], holder, "the fault named the wrong thread");
+    assert_eq!(
+        msg[2],
+        CODE_VA + super::x86_programs::CAP_DELETE_THEN_PORT_OUT_PC_OFFSET,
+        "the faulting pc was not the `out` instruction: a red for the wrong reason",
+    );
     reap(region);
 }

@@ -491,7 +491,9 @@ pub struct Thread {
     ///
     /// Set by `sched::thread_control_block_insert_cap` when a `PortRange` capability is inserted into
     /// this thread (the choke point the progenitor's `CAP_INSERT` and the boot's own child builder
-    /// both pass through), and cleared by `sched::delete_port_range_caps*` on revocation. **`x86_64`
+    /// both pass through), cleared by `sched::delete_port_range_caps*` on revocation, and cleared by
+    /// `sched::delete_current_cap` when the thread drops the capability itself (milestone 313's
+    /// audit found that path leaving the grant installed for the thread's whole life). **`x86_64`
     /// only**: the field, and every path that reads it, is compiled out on the architectures that
     /// have no port space, so the switch path there is byte-for-byte what it was.
     ///
