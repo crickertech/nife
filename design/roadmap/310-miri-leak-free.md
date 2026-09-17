@@ -18,6 +18,24 @@ error: test failed, to rerun pass `-p paging --lib`
 the page-table walker has memory to walk. Those frames were never freed. `cargo test` does not care,
 because the process exits; Miri checks for leaks by default and does.
 
+## The measurement
+
+`script/undefined-behavior-check`, the full sampled workspace, on patagonia:
+
+```
+script/undefined-behavior-check  5429.38s user  18.55s system  47% cpu  3:09:41.64 total
+[exited with code 0]
+```
+
+**Three hours nine minutes, and green.** No failure appeared behind the leak, which is worth saying
+plainly because the workflow's header warns to expect one: `cargo miri test` stops at the first
+failure, and the last time this job was taken apart a three-week red turned out to have three
+causes. This time the first fix was the only fix.
+
+Two things the number is not. It is not the CI figure: CI's last run was 141 minutes on
+`ubuntu-24.04-arm` and died red partway, so it never measured a finishing run. And the 47% CPU says
+most of this is one interpreter thread, so it is wall clock that more cores will not buy back.
+
 ## The part worth reading: the guard was not missing
 
 The obvious story is "a fixture nobody taught to free". It is wrong, and the correct story is the
@@ -90,19 +108,59 @@ and the crate's other thirty pass unchanged.
   memory and lets the process clean up) is caught only by the weekly Miri run, which is exactly the
   detection latency that let this sit for five weeks. `script/cadence-check` shortens the latency on
   the *job going quiet*, not on the job going red.
-- **The weekly run's cost is still unanswered.** The last CI run took **141 minutes** and the
-  workflow's own header says the honest current cost "is not yet known" and asks for the budget to be
-  tightened once `compositor` is sampled. Turning the job green is what finally makes that question
-  answerable, and it is not answered here. See the follow-on below.
+- **The weekly run's cost is now measured and still unjudged.** Three hours nine minutes locally,
+  and the workflow's header asks for its 240-minute budget to be tightened once `compositor` is
+  sampled. This milestone supplies the number the header was missing and does not answer whether the
+  cadence is worth it. See the follow-on.
+- **`crates/paging/tests/mapping.rs` still has the opt-in shape this milestone removed from
+  `domain.rs`.** `TableGuard` must be bound by hand; every test in the file does bind one today, so
+  nothing leaks, and nothing keeps that true. Recorded in a `BUGS` section at `TableGuard` rather
+  than fixed, because converting it touches twenty-one call sites in a file that is not failing.
 - **`FramePool` is a provisional name** (a private type inside `#[cfg(test)] mod tests`, not a public
   surface). It replaces `PoolGuard`, which named the `Drop` half of a thing that is now mostly an
   allocator.
 
 ## Follow-on
 
-- **Is a 141-minute weekly Miri run worth what it costs?** The workflow's header raises it and nobody
-  has answered. Now that a full run can actually finish, the inputs exist: what the run found in five
-  weeks of working (nothing, because it never ran), what it found in its working life before that,
-  and which crates dominate the wall clock. `compositor`'s six full-screen sweeps at 317,856 pixels
-  each are named in the header as a milestone of their own, and sampling them under `cfg(miri)` the
-  way `gpt`, `calendar` and `network_time_protocol` already do is the obvious first cut. A lane.
+- **Done.** The weekly workflow can go green for the first time since it was written, and
+  `script/cadence-check` stops reporting it DEAD. What that buys is not the leak: it is every other
+  thing Miri checks in this workspace, aliasing and provenance and uninitialized reads, which have
+  been unchecked on `main` since 2026-08-11 because one error message hid all of them.
+- **Proposed.** Is a three-hour weekly Miri run worth what it costs? The workflow's header raises it
+  and nobody has answered; the cadence is calef's call, and the measurement, the likely answer and
+  what still has to be measured before it is one are in
+  `design/roadmap/proposals/what-the-weekly-miri-run-should-cost.md`. The short version: the cost is
+  concentrated in a few crates whose expensive tests are breadth over in-memory input, which is
+  exactly what Miri cannot judge, so the lever is running less of it rather than running it less
+  often. Nothing is blocked on the answer, since the job is green and inside its budget.
+- **Proposed.** Nothing here measured which crates dominate, and that is the prerequisite for the
+  bullet above being more than an argument: a per-crate wall clock from one instrumented run.
+  `cargo miri test` prints per-target timings already and nobody has collected them. Step 1 of
+  `design/roadmap/proposals/what-the-weekly-miri-run-should-cost.md`.
+- **Recorded.** `crates/paging/tests/mapping.rs`'s `TableGuard` is the same opt-in shape this
+  milestone removed from `domain.rs`, and it is a `BUGS` section at the guard rather than a fix, for
+  the reason stated there: twenty-one call sites in a file that is not failing. `script/lint` cannot
+  check it, because "a test that allocates and forgets a guard" is not a grep.
+- **Recorded.** An edit outside this lane's own roadmap block, named here because AGENTS.md says a
+  lane edits its own block and only that: `notes/undefined-behavior.md`'s item 3 said the `paging`
+  leak was "fixed", which stopped being true five weeks ago and is the §76 shape of a record
+  describing a system that no longer exists. Corrected in place, with the recurrence and why the
+  second fix went up a rung.
+
+## Index row
+
+**Built:** 2026-09-17
+
+`.github/workflows/undefined-behavior-check.yml` had **never once succeeded**, five scheduled runs
+red since 2026-08-11, and the cause was never undefined behaviour: `crates/paging`'s domain tests
+leaked five zeroed host frames, which `cargo test` ignores and Miri's default leak check does not.
+The interesting part is that the guard was not missing. `PoolGuard` had been added on 2026-08-03 for
+exactly this leak, and a test written afterwards simply did not bind one, which is AGENTS.md's rung
+four failing the way rung four fails; binding the missing line would have restored the identical
+defect for the next author. So allocation moved onto the pool itself and **a test that allocates a
+frame without holding one no longer compiles.** calef refused both alternatives on 2026-09-17,
+`-Zmiri-ignore-leaks` globally and a `paging`-scoped ignore, on the ground that a permanent
+reduction in what Miri checks is the wrong trade for a one-time cost; the refusals and their reasons
+are in the block. **Measured: three hours nine minutes, exit 0, full sampled workspace**, with no
+second failure hiding behind the first, which supplies the honest cost figure the workflow's own
+header says is "not yet known".
