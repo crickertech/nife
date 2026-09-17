@@ -138,12 +138,22 @@ Proposed provisionally, with the refusals: see the block in `components/src/buil
   where it already lived, with one caveat added there rather than given a second home: that note
   groups the three uncovered loaders as "test or demo programs rather than the shipped system", and
   on riscv64 the first of them is the program the kernel loads and measures on the build that goes to
-  a card. It is also in `components/src/builder.rs`'s `BUGS`, where a reader meets the program.
-- **Recorded.** The category and the name are calef's and are written up beside the program, in
-  `components/src/builder.rs`'s own provenance and `BUGS` blocks: `components/` versus `fixtures/`
-  (recommended `components/`, with the trust root as the reason), and a replacement for the generic
-  `builder`, proposed provisionally with its refusals. `script/names --unratified` is the worklist,
-  and it lists `builder` today.
+  a card. It had a second home in the `builder` program's own `BUGS`, and that home is gone: calef
+  retired `builder` on 2026-09-14 (milestone 295) and the file went with it. The note is now the only
+  copy, which is where this bullet said it already lived.
+- **Done.** Milestone 295 carried this, by answering it out of existence rather than by choosing.
+  The bullet asked for two calls from calef, the category (`components/` versus `fixtures/`) and a
+  replacement for the generic name `builder`; on 2026-09-14 he retired the program in one sentence,
+  so neither question has a subject any more and `script/names --unratified` no longer lists it. The
+  write-up lived in the program's own provenance and `BUGS` blocks and went with the file; commit
+  `0fa40ee8` is where a reader can still read it.
+
+*(Both bullets above were edited by milestone 311's lane, which is not this block's own, and the
+edit was forced by a gate. They cited a file milestone 295 deleted, and `script/roadmap --check`
+fails a `**Recorded.**` bullet naming a path that does not resolve. It had been passing only because
+that check's list of real directories still said `user/`, which milestone 175 split in two, so it
+did not recognise a `components/` citation as a path claim at all. Milestone 311 derives the list
+from the tree; these two bullets are the first thing it found.)*
 
 ## BUGS
 
