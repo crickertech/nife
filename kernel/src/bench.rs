@@ -535,7 +535,7 @@ fn map_new() {
 /// `-icount` all harts share one virtual clock, so a second hart's idle `wfi` dumps quantized time
 /// into whatever window is open, and the delta would measure interleaving rather than the call.
 /// **What one tick of this machine's clock costs in CPU cycles** (milestone 74's riscv64 half,
-/// milestone 309's x86_64 half).
+/// milestone 309's `x86_64` half).
 ///
 /// Every row of a board bench is denominated in ticks of `crate::arch::timer::now()`, a fixed-rate
 /// reference counter. The literature this project is compared against is denominated in **cycles**:
@@ -554,9 +554,9 @@ fn map_new() {
 /// A second `cycles_per_tick_means` line is therefore printed beside the number on every
 /// architecture, naming both halves of the ratio in that machine's own vocabulary.
 ///
-/// - **riscv64.** Core cycles (SBI PMU `CPU_CYCLES`) over ticks of the `time` CSR, a timebase the
+/// - **`riscv64`.** Core cycles (SBI PMU `CPU_CYCLES`) over ticks of the `time` CSR, a timebase the
 ///   device tree states: 10 MHz on QEMU `virt`, 4 MHz on radon's JH7110.
-/// - **x86_64.** Unhalted core cycles (`IA32_PERF_FIXED_CTR1`) over TSC ticks. **The TSC is
+/// - **`x86_64`.** Unhalted core cycles (`IA32_PERF_FIXED_CTR1`) over TSC ticks. **The TSC is
 ///   constant-rate and core cycles are not**, so this ratio moves with frequency scaling and turbo
 ///   on a machine that does either. That is information rather than noise, and it is exactly why
 ///   the TSC alone cannot answer this question: `arch::timer::now()` on this architecture *is*
@@ -565,13 +565,13 @@ fn map_new() {
 ///
 /// # What this measures under emulation, which is nothing
 ///
-/// QEMU-TCG's riscv64 `cycle` CSR is an instruction count, and its x86_64 build models no
+/// QEMU-TCG's `riscv64` `cycle` CSR is an instruction count, and its `x86_64` build models no
 /// performance monitoring at all unless asked. The ratio printed on the merge machine is therefore
 /// a fact about the emulator and not about any silicon, and the line says so itself rather than
 /// leaving a reader to infer it from the milestone. The number is real only on a real core, which
 /// for this harness today means the JH7110 (radon) and nothing else it runs on;
 /// notes/riscv-cycle-counters.md is the riscv64 procedure and design/roadmap/309-x86-64-core-cycles.md
-/// is the x86_64 one.
+/// is the `x86_64` one.
 ///
 /// # Why the window is a timed spin
 ///
@@ -622,7 +622,7 @@ fn cycles_per_tick() {
 const CYCLE_PROBE_MEANING: &str = "core cycles (SBI PMU CPU_CYCLES) per tick of the `time` CSR, a fixed-rate timebase the device \
      tree states";
 
-/// The x86_64 twin, and the difference a cross-architecture reader has to know: the denominator
+/// The `x86_64` twin, and the difference a cross-architecture reader has to know: the denominator
 /// here is the TSC, which is constant-rate, so the ratio moves with the core's frequency where
 /// riscv64's does not.
 #[cfg(target_arch = "x86_64")]
@@ -632,7 +632,7 @@ const CYCLE_PROBE_MEANING: &str = "unhalted core cycles (IA32_PERF_FIXED_CTR1) p
 /// Ticks to spin for. At QEMU's 10 MHz `time` CSR this is 10 ms, long enough that the two counter
 /// reads at each end are noise and short enough not to stretch a bench run.
 ///
-/// **A constant here and a computed value on x86_64**, because RISC-V's timebase is stated by the
+/// **A constant here and a computed value on `x86_64`**, because RISC-V's timebase is stated by the
 /// machine and x86's is measured by this kernel: 100,000 ticks is 10 ms on QEMU and 25 ms on
 /// radon's 4 MHz JH7110, both fine. It stays a constant for the same reason `SCALE_MAX_PAIRS` did:
 /// milestone 74's block records a reading of `100002 ticks`, and changing the window would make
@@ -659,7 +659,7 @@ fn cycle_probe_delta(first: u64, second: u64) -> u64 {
     second.wrapping_sub(first)
 }
 
-/// The x86_64 twin, which cannot be a plain subtraction: the architectural fixed counters are
+/// The `x86_64` twin, which cannot be a plain subtraction: the architectural fixed counters are
 /// commonly 48 bits, so a wrap mid-window would otherwise produce a difference near 2^64 and print
 /// a preposterous ratio rather than an error. `arch::x86_64::pmu` knows the width `CPUID` reported.
 #[cfg(target_arch = "x86_64")]
