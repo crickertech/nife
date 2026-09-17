@@ -82,7 +82,11 @@
 //!
 //! - **Nothing here has been run on silicon.** Every outcome this module can report today is a fact
 //!   about QEMU. `xenon` (milestone 87, this project's x86 machine) is the one that would produce a
-//!   number, and it has never booted nife at all. See design/roadmap/309-x86-64-core-cycles.md.
+//!   number. It **has** booted nife, on 2026-09-04 under its own UEFI firmware, and stopped in the
+//!   mapper at `mmu.rs`'s `AlreadyMapped` before reaching anything this module touches; that cause
+//!   is fixed on `main` and the next boot resumes one line further on. So the honest statement is
+//!   that this counter has never been read on silicon, not that the machine has never run.
+//!   See design/roadmap/309-x86-64-core-cycles.md and notes/x86-uefi-boot.md.
 //! - **The in-step check is bit-exact equality, and that is a deliberate under-detection.** A real
 //!   core pegged at exactly its base frequency has core cycles and TSC ticks at the same *rate*, so
 //!   an approximate band would refuse a legitimate counter on a legitimate machine. Two independent
