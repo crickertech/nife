@@ -186,6 +186,7 @@ dependencies = [
  "measured_boot",
  "network_time_protocol",
  "nifefs",
+ "nvme",
  "pgrep",
  "pmap",
  "ps",

@@ -648,9 +648,9 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**150 harnesses** <!--count:kani-harnesses--> **across 25 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
+**153 harnesses** <!--count:kani-harnesses--> **across 25 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
 `kernel/src/arch/x86_64/irq.rs`, which **only the x86_64 job runs**: the count is of the tree, not of
-any one run, and no single host compiles all 150. It fell to 148 from 151 across 26 on
+any one run, and no single host compiles all 153. It fell to 148 from 151 across 26 on
 2026-09-15, when milestone 298 retired `multicast_dns_protocol` and its three. This line said 67 for
 a while after it was 69, then "a few minutes" for a month after that stopped being true, then 107
 after it was 119. Both counts now carry a `<!--count:-->` marker and `script/lint` re-derives them

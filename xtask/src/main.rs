@@ -2657,6 +2657,10 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // to a skip on any machine whose device tree has no `starfive,jh7110-trng` node, which is
         // every machine but radon (the `StarFive` VisionFive 2).
         ("jh7110_entropy", "jh7110_entropy"),
+        // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
+        // process that drives the machine's NVMe controller from ring 3. Portable, so every
+        // archive carries it; the test that spawns it skips on a leg with no controller attached.
+        ("nvme_server", "nvme_server"),
         // The credential service and its clients (milestone 56, the credential half). Portable, so
         // both archives carry both: the claim is that holding the verify endpoint does not let you
         // read or write the store, and that has to hold on either instruction set or it is not a
@@ -3580,6 +3584,10 @@ fn initrd_aarch64() -> bool {
         // into the surface it serves.
         ("gpu_driver", "gpu_driver"),
         ("painter", "painter"),
+        // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
+        // process that drives the machine's NVMe controller from ring 3. Portable, so every
+        // archive carries it; the test that spawns it skips on a leg with no controller attached.
+        ("nvme_server", "nvme_server"),
         // The C seam (milestone 36): the confiner that builds, supervises and checks the foreign
         // component, and the Rust shell that links it.
         ("c_confiner", "c_confiner"),
