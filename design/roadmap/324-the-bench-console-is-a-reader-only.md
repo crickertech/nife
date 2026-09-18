@@ -25,17 +25,15 @@ those being a bench session and being a job.
 
 1. **It cannot stop a reboot loop.** Milestone 249's self-rebooting soak is stopped by pressing a
    key, so nine draws is a whole evening at the board. A mode on a script that already holds the
-   port. `design/roadmap/proposals/board-console-cannot-speak-to-the-board.md`
+   port. Found by milestone 249's lane, which built the escape this would automate.
 2. **It cannot tell a finished job-mix sweep from a wedged one.** `crates/board_console` recognises
    the boot sequence and, since milestone 219, a soak's stages and heartbeat; the job-mix sweep has
-   no recogniser, so its exit status cannot distinguish the two.
-   `design/roadmap/proposals/a-board-console-recogniser-for-the-job-mix-sweep.md`
+   no recogniser, so its exit status cannot distinguish the two. Found by milestone 168's lane.
 3. **It serves radon only.** The behaviour is the same on all three boards; the banners and boot
-   sequences differ. Board profile or a tool each is calef's call.
-   `design/roadmap/proposals/board-console-for-argon-and-xenon.md`
+   sequences differ. Board profile or a tool each is calef's call. Found by milestone 247's sweep, from milestone 216's block.
 4. **Whether it should type at a board at all**, and if so whether that is this tool with an explicit
    mode or a second one. Milestone 218 may remove the need by fixing autoboot, so the answer may be
-   no. `design/roadmap/proposals/board-console-writes.md`
+   no. Found by milestone 247's sweep, from milestone 216's block.
 
 **Parts 1 and 4 are close enough to collide**, and that is an argument for the cluster rather than
 against it: part 1 wants to send one keystroke and part 4 asks whether sending anything is allowed.

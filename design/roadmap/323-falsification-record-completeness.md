@@ -27,22 +27,17 @@ question that wants one.
 
 1. **The device-tree parser's four harnesses are unfalsified.** `crates/dtb` carries `be32_is_total`,
    `be64_is_total`, `be32_reads_big_endian_when_in_bounds` and `align4_rounds_up_to_a_multiple_of_four`,
-   and none has a record. Four patches against code that already exists.
-   `design/roadmap/proposals/falsifications-for-the-device-tree-parsers-four-harnesses.md`
+   and none has a record. Four patches against code that already exists. Found by milestone 319.
 2. **The NVMe end-to-end test has none either**, and milestone 318's lane falsified it by hand with
    nowhere to put the evidence. What is owed is a cost judgement, not a decision: a fifteenth kernel
-   record lengthens the sweep for every lane, and this one needs an NVMe controller attached.
-   `design/roadmap/proposals/a-replayable-falsification-for-the-nvme-end-to-end-test.md`
+   record lengthens the sweep for every lane, and this one needs an NVMe controller attached. Found by milestone 318's lane.
 3. **A record names one architecture, so a portable claim is evidenced on one leg.** Milestone 313's
-   finding 5. Two spellings fit the existing convention and either would do.
-   `design/roadmap/proposals/a-falsification-record-per-architecture.md`
+   finding 5. Two spellings fit the existing convention and either would do. Milestone 313's finding 5.
 4. **A record does not say which assertion it expects to fire**, so a patch that turns a test red for
    the wrong reason is indistinguishable from one that works. Milestone 307 swept all 26 rows of
-   `notes/confinement-claims.md` asking exactly this.
-   `design/roadmap/proposals/a-falsification-that-names-the-assertion-it-expects.md`
+   `notes/confinement-claims.md` asking exactly this. Found by milestone 307.
 5. **Six kernel confinement claims have records nothing can replay**, because `script/falsifications`
-   replays through `cargo kani` and these are kernel tests.
-   `design/roadmap/proposals/kernel-falsification-replay.md`
+   replays through `cargo kani` and these are kernel tests. Found by milestone 247's sweep, from milestone 210's block.
 
 ## What it is not
 

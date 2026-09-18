@@ -23,17 +23,15 @@ ones found *before* the machine that punishes them.
 1. **An unclaimed PCI function behind the IOMMU is refused one request at a time, not confined
    once.** Milestone 303's lane put a second `virtio-blk-pci` function on `q35`'s bus, watched the
    first fault, and spent an hour proving the fault was correct rather than a confinement gap. Both
-   `virt` boards have the same shape with their own units.
-   `design/roadmap/proposals/an-unclaimed-function-behind-the-iommu.md`
+   `virt` boards have the same shape with their own units. Found by milestone 303's lane.
 2. **A bridge memory window nothing programs.** QEMU's PVH boot leaves a root port's window
-   unprogrammed, which one environment variable reproduces.
-   `design/roadmap/proposals/a-bridge-window-the-kernel-programs-itself.md`
+   unprogrammed, which one environment variable reproduces. Found by milestone 320's lane.
 3. **The BAR window is sized by a constant rather than by the bus.** The sizing pass already exists
    in `pci::read_bars` and needs moving earlier; the leaf size is a value in `crates/paging`'s format
-   trait. `design/roadmap/proposals/a-bar-window-wide-enough-to-see-into.md`
+   trait. Found by milestone 256's lane.
 4. **Only the first IO APIC the MADT lists is kept**, so half a multi-socket machine's interrupts have
    nowhere to go. Found by milestone 308's lane while writing the `BUGS` entry recording that 308's
-   own fix ships unexecuted. `design/roadmap/proposals/this-kernel-keeps-only-the-first-io-apic.md`
+   own fix ships unexecuted. Found by milestone 308's lane.
 
 ## What it is not
 

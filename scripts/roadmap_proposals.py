@@ -89,29 +89,26 @@ def classify(text):
     return status.group(1), lines[0][2:], None
 
 
-# ---- promotion, and the disposition it owes the proposal ----------------------
+# ---- promotion, which removes the proposal ------------------------------------
 #
-# **Promotion is the only disposition a proposal has**, and when the motion comes apart both records
-# survive: one numbered block saying BUILT, one proposal still saying PROPOSED with a gate a lane
-# could start on. calef ruled it on 2026-09-15, promoting `one-grant-order-for-the-progenitor` to
-# milestone 301, and gave the reason as a property of this module: `classify` matches PROPOSED and
-# nothing else, so there is nowhere for a promoted proposal to say what became of it.
+# **A promoted proposal is deleted, and the milestone is where its work lives.** calef ruled this
+# twice in one day and the second ruling is the one that stands: on the morning of 2026-09-18 he
+# allowed a promoted proposal to be retired in place, carrying a `**Promoted:**` line; that evening,
+# looking at what the first cluster promotion actually did to the directory, he reversed it. *"I'd
+# like to drain the proposal files as we promote them versus accumulate another place where we
+# capture work."*
 #
-# **This gives it somewhere, and calef ratified that on 2026-09-18**: *"yes, keep it"*, amending the
-# 2026-09-15 wording rather than overturning its reason. Retiring in place was refused because there
-# was no way to record the retirement; there is one now, so the refusal has no premise left. He put
-# the rule as **a proposal should be promoted before it is closed**, which makes promotion and
-# closure two states rather than one motion, and it is the two-state reading this module implements.
+# **The reversal is right and the evidence that argued against it was weaker than it looked.** The
+# case for keeping was milestone 304's proposal, said to carry three things it got wrong that its
+# block did not. Its block carries all three, in more detail: the prerequisite that was already
+# done, the four `E0133`s, and Kani's bundled rustc running ten months behind this tree's pin. The
+# same was true of milestone 313's. So keeping the files preserved almost nothing and cost a
+# directory that grows for ever, which is a second place work accumulates and the exact shape
+# `design/roadmap/README.md` calls a burial in a new location.
 #
-# It also follows a precedent the tree wrote the day after the original ruling: milestone 304's
-# proposal was kept and annotated `**Promoted:**` rather than deleted, on the argument that **the
-# proposal is the argument as it stood and the milestone is the account.** That proposal carries
-# three things it got wrong, kept on purpose; the numbered block carries none of them, and deleting
-# the file would have destroyed the only self-correction in the pair.
-#
-# So a promoted proposal keeps its dated PROPOSED line, which is what makes the pile measurable, and
-# adds a `**Promoted:**` line naming what it became. It stops counting as unpromoted, because it is
-# not: the count is meant to be the work nobody has taken.
+# So the count this module feeds is the count of files, and a promoted proposal stops being either.
+# What a promotion owes instead is that **anything the proposal carried and the milestone does not
+# gets folded in before the file goes**, which is draining rather than discarding.
 #
 # **What this cannot do**, and the second half is the larger one.
 #
@@ -119,19 +116,13 @@ def classify(text):
 # claim, and a spelling it does not know is a silent miss.
 #
 # **And a proposal closed without ever being promoted is invisible here**, which is the half of
-# calef's rule no gate reaches. The ordering IS gated for a proposal a numbered
-# block names in a `**Proposed.**` follow-on bullet, because that disposition must resolve to a file
-# that exists, so deleting one fails the build; 70 of the 115 proposals on 2026-09-18 were covered
-# that way. The other 45 are standalone, written by a lane that named them nowhere else, and
-# deleting one leaves NOTHING in the working tree to notice: this module reads the tree, not the
-# history. A gate that read `git log` could see it and is deliberately not written here, because
-# `script/metrics` reads blobs at revisions nobody has checked out and the two callers would then
-# need different answers to the same question.
-#
-# So for those 45 the rule is a convention rather than a mechanism, which is rung three on
-# AGENTS.md's ladder wearing a gate's clothes, and saying so is the only honest thing available.
-PROMOTED = re.compile(r"^\*\*Promoted:\*\* \S", re.M)
-
+# calef's rule no gate reaches. The ordering IS gated for a proposal a numbered block names in a
+# `**Proposed.**` follow-on bullet, because that disposition must resolve to a file that exists, so
+# deleting one fails the build. The rest are standalone, and deleting one leaves NOTHING in the
+# working tree to notice: this module reads the tree, not the history. A gate that read `git log`
+# could see it and is deliberately not written here, because `script/metrics` reads blobs at
+# revisions nobody has checked out and the two callers would then need different answers to the same
+# question.
 CITATION = 'promoted from the proposal `<slug>`'
 
 _PROMOTED_FROM = re.compile(r"promoted from the proposal `([a-z][a-z0-9-]*)`", re.I)
@@ -148,11 +139,6 @@ _PROMOTED_FROM_LOOSE = (
     re.compile(r"promoted from\s+`(?:design/roadmap/)?proposals/([a-z][a-z0-9-]*)\.md`", re.I),
     re.compile(r"proposal\s*\(`([a-z][a-z0-9-]*)`\)", re.I),
 )
-
-
-def is_promoted(text):
-    """Whether this proposal's text says what it became, so the pile should stop counting it."""
-    return bool(PROMOTED.search(text))
 
 
 def promoted_from(status_paragraph):

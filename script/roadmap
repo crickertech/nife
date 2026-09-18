@@ -603,11 +603,6 @@ for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
                         f"a lane cannot start is worth as little as a milestone a lane cannot "
                         f"start (found {gate_para[:48]!r})")
         continue
-    if roadmap_proposals.is_promoted(ptext):
-        # It says what it became, so it is not work nobody has taken. It stays on disk because the
-        # proposal is the argument as it stood and the numbered block is the account; milestone
-        # 304's carries three things it got wrong that its block does not.
-        continue
     proposals.append((when, rel, title))
 
 # **A promoted proposal leaves the pile, and that is the only disposition it has.** calef, 2026-09-15,
@@ -623,16 +618,13 @@ for fname in sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []:
 # has not already promoted something: it fires only on a motion somebody started and left half
 # finished. Three on the record when it was written (milestones 304, 313, 315).
 for slug, by in sorted(promoted.items()):
-    ppath = os.path.join(pdir, f"{slug}.md")
-    if os.path.exists(ppath) and not roadmap_proposals.is_promoted(open(ppath).read()):
+    if os.path.exists(os.path.join(pdir, f"{slug}.md")):
         problems.append(f"{PROPOSED_DIR}/{slug}.md: {by} says it was promoted from this proposal, "
-                        f"and the proposal does not say so. Two records of one piece of work is "
-                        f"the milestone 69 defect one level out: the numbered block is where this "
-                        f"work is tracked now, and the proposal still offers it as untaken. Give "
-                        f"it a "
-                        f"'**Promoted:** minted as **milestone <n>**' line under its gate, the way "
-                        f"milestone 304's proposal does; it keeps its PROPOSED date, because that "
-                        f"is what makes the pile measurable, and stops being counted as untaken")
+                        f"and the proposal is still here. Promotion DELETES it: the milestone is "
+                        f"where the work lives now, and a promoted file left behind is a second "
+                        f"place work accumulates (calef, 2026-09-18, reversing his own ruling of "
+                        f"that morning). Fold anything the proposal carries that the block does not "
+                        f"into the block, then `git rm` it")
 
 # ---- the Follow-on section (milestone 247) ------------------------------------
 # A finished milestone is the last place anyone looks, and the work it named on the way out is what
@@ -906,26 +898,7 @@ for mid, fname in sorted(ids.items()):
                     f"to exist (found {named if named else 'no proposal'}). Writing one costs a "
                     f"file and no coordination, which is why a promise in prose is not enough")
             else:
-                # **A promoted proposal is discharged, so it cannot be where untaken work lives.**
-                # Same defect as the one above, one level out: the disposition claims a reader can
-                # go and pick this up, and the file it points at says the work already has a
-                # number. Milestone 304's own bullet was this shape, and the work it described (the
-                # ACPI walk, reachable and unproved) is real and needed a home of its own.
-                # `real` admits a bullet naming the bare directory, which some do; only a file
-                # can carry a **Promoted:** line, and leaving the rest to `unclaimed` keeps this
-                # addition from changing what already passed.
-                done = [p for p in real
-                        if os.path.isfile(os.path.join(root, p))
-                        and roadmap_proposals.is_promoted(open(os.path.join(root, p)).read())]
-                if len(done) == len(real):
-                    problems.append(
-                        f"{fname}:{n}: '**Proposed.**' names {done[0]}, which is marked "
-                        f"**Promoted:** and so is no longer work nobody has taken. If this bullet "
-                        f"describes the SAME work, its disposition is '**Milestone <n>.**'; if it "
-                        f"describes something the promotion left over, that wants a proposal of "
-                        f"its own, which costs a file and no coordination")
-                else:
-                    unclaimed.append((num, fname, n, rest))
+                unclaimed.append((num, fname, n, rest))
         elif kind == "Refused" and len(rest) < 40:
             problems.append(f"{fname}:{n}: '**Refused.**' carries the reason it was refused. A "
                             f"refusal with a reason is a success here; a bare one is silence with "
