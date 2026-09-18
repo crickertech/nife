@@ -152,6 +152,35 @@ printed sequence looped, because nothing outside `.github/workflows/ci.yml` put 
 prefix on PATH. See `scripts/qemu-path.sh` and
 design/roadmap/287-bootstrap-installs-a-working-qemu.md.
 
+## A piped gate reports the pipe's status, not the gate's
+
+**`script/lint | tail -30; echo $?` prints `tail`'s exit code.** So does `| grep`, `| head`, and
+every other filter somebody reaches for to make a long gate readable. The gate can fail and the
+shell will say `0`.
+
+This is not theoretical and it is not rare. A rename lane on 2026-09-18 read exit 0 from a piped
+`script/lint` while clippy was failing on a `doc_markdown` error that lane's own edit had
+introduced; it was caught only by re-running the command unpiped. The maintainer session briefing
+that lane had been using the same shape earlier the same night.
+
+**It is the worst kind of defect this tree can have in a gate**, because it fails in the safe-looking
+direction: a red gate reporting green is indistinguishable from a green one, and the whole point of
+`script/lint` is that a person does not have to read it.
+
+**Write it as a redirect, and read `$?` before anything else touches it:**
+
+```console
+$ script/lint > /tmp/lint.txt 2>&1; echo "exit=$?"
+exit=0
+$ grep -iE "^error|PROBLEM" /tmp/lint.txt      # now filter, having already read the status
+```
+
+`set -o pipefail` fixes it inside a script and is what `script/` entry points use; it is **not** on
+by default in an interactive shell or in most one-liners, which is exactly where this bites.
+
+**Nothing gates this**, and nothing plausibly could: a shell pipeline is not something the repository
+can inspect. It is rung four, recorded where somebody about to run a gate is already reading.
+
 ## Counted claims, one of `script/lint`'s checks
 
 Milestone 125 added a check that does not fit the table above, because what it gates is the prose
