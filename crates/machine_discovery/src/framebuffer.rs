@@ -542,6 +542,14 @@ mod tests {
 
     /// The span is what bounds every write a console makes, so a geometry whose arithmetic
     /// overflows has to be refused rather than truncated.
+    ///
+    /// **This test used to assert the opposite, and it was wrong** (milestone 319). It expected
+    /// `Some(u32::MAX * u32::MAX)` for a screen `u32::MAX` pixels wide with a stride of `u32::MAX`,
+    /// and called it "the honest answer" on a 64-bit host. It is not: four bytes per pixel means
+    /// that row needs four times the stride it has. The old `span` agreed with the test because both
+    /// were reading `width.saturating_mul(4)`, which saturates to `u32::MAX` and makes the
+    /// comparison vacuously true above `2^30 - 1`. A hand-written test that encodes the defect it
+    /// was meant to catch is the thing risk 2 warns about, and it is why this crate wanted a prover.
     #[test]
     fn a_span_that_cannot_be_computed_is_refused() {
         let absurd = Framebuffer {
@@ -551,7 +559,20 @@ mod tests {
             stride: u32::MAX,
             order: PixelOrder::Bgrx,
         };
-        // 4 GiB of rows at 4 GiB each: fine on a 64-bit host, and this is the honest answer there.
-        assert_eq!(absurd.span(), Some(u32::MAX as usize * u32::MAX as usize));
+        assert_eq!(
+            absurd.span(),
+            None,
+            "one row of u32::MAX pixels needs four times this stride"
+        );
+
+        // A stride that does cover the row is computed, and on a 64-bit host it fits.
+        let wide = Framebuffer {
+            // The widest row a u32 stride can cover: four bytes each, so (2^32 - 4) bytes.
+            width: (1 << 30) - 1,
+            stride: u32::MAX,
+            height: 4,
+            ..absurd
+        };
+        assert_eq!(wide.span(), Some(u32::MAX as usize * 4));
     }
 }
