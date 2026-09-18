@@ -89,7 +89,7 @@
 //! one. The virtio block server issues a single request for the same range, so this server is
 //! slower on bulk by construction and the fix is a PRP list rather than anything about this file.
 //!
-//! Name: **provisional** (milestone 261). `nvme_server` is the name §86 uses for this program in
+//! Name: provisional (milestone 261). `nvme_server` is the name DECISIONS §86 uses for this program in
 //! passing, and §86 says plainly that is not a ratification. It reads as the `<device>_server`
 //! pair to `block_driver`'s `<device>_driver`, and both readings are calef's to settle: a server
 //! is what this is (it serves a contract) where the virtio one is named for the device it drives.

@@ -958,7 +958,7 @@ mod verification {
         kani::assume((1..=8).contains(&h.blocks_per));
         let block: u64 = kani::any();
         let data_phys: u64 = kani::any();
-        kani::assume(data_phys % 4096 == 0 && data_phys < u64::MAX - 8192);
+        kani::assume(data_phys.is_multiple_of(4096) && data_phys < u64::MAX - 8192);
         if h.transfer_command(1, 1, block, 4096, data_phys, 4096, kani::any())
             .is_some()
         {

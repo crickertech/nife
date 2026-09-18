@@ -18,7 +18,7 @@
 //!   round-tripped, so a hang in bring-up is distinguishable from a hang in the first read;
 //! - mapped: **one page of BAR0**, device-typed, the **doorbell page** at `bar0 + 0x1000`;
 //! - mapped: **the data plane's run of its DMA region**, normal memory, read/write: the I/O
-//!   submission ring, the I/O completion ring, and [`nvme::TRANSFER_PAGES`] pages of transfer
+//!   submission ring, the I/O completion ring, and [`crate::nvme::TRANSFER_PAGES`] pages of transfer
 //!   buffer.
 //!
 //! Denied, and each of these is a decision rather than an omission:
@@ -41,7 +41,7 @@
 //!   and its own header records that an earlier draft's `DeviceFrame` slot described a thing
 //!   nobody hands over.
 //! - **The physical address of anything but its own data plane.** [`nvme::Handoff`] carries one
-//!   base, and it is page [`nvme::DATA_PLANE_PAGE`] of the region, not page 0.
+//!   base, and it is page [`crate::nvme::DATA_PLANE_PAGE`] of the region, not page 0.
 //!
 //! # BUGS
 //!
@@ -72,7 +72,7 @@
 //! driver this replaced (notes/nvme.md's `BUGS`), and it is what makes any throughput number
 //! measured against this server a lower bound rather than the device's.
 //!
-//! Name: **provisional** (milestone 261). `nvme_server` is what §86 calls the program in passing,
+//! Name: provisional (milestone 261). `nvme_server` is what §86 calls the program in passing,
 //! which is not a ratification, and this module is named after it.
 
 use super::*;
@@ -158,11 +158,11 @@ fn start(image: &'static [u8]) -> Option<Wiring> {
     let ready = crate::sched::create_rendezvous();
     let request = crate::sched::create_rendezvous();
 
-    // The controller must stay alive for as long as the server runs, and nothing in this kernel
-    // ever takes it down; leaking it deliberately is what says so. Dropping it would be worse
-    // than a leak: a future `Drop` that reset the controller would pull the queues out from under
-    // a live EL0 driver.
-    core::mem::forget(found.controller);
+    // `found.controller` is dropped here and that is correct today, because `Nvme` has no `Drop`:
+    // the controller stays enabled and its queues stay where the admin plane put them, which is
+    // exactly what a live EL0 data plane needs. **If it ever grows one that resets the
+    // controller, this line becomes a bug**, and the fix is to keep the value alive rather than
+    // to forget it, so the admin plane is still reachable for a re-wire.
 
     crate::sched::spawn(move || {
         // The two I/O rings, then the transfer buffer, contiguous at DATA_PLANE_VA; then one

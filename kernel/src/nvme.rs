@@ -226,12 +226,6 @@ impl Nvme {
         }
     }
 
-    /// The physical base of the whole DMA region, admin plane included: what [`bring_up`] confined
-    /// and what the caller must not hand out.
-    pub fn dma_phys(&self) -> u64 {
-        self.dma_phys
-    }
-
     /// Submit one **admin** command and poll its completion: the copy into the ring, the publish
     /// barrier, the tail doorbell, the phase-gated poll, the head doorbell. The I/O queue rides
     /// the identical discipline one privilege level down, which is why this bring-up is itself a
@@ -356,8 +350,6 @@ impl Nvme {
 pub struct Found {
     /// BAR0's physical base.
     pub bar0: u64,
-    /// The controller's PCIe requester id, for the IOMMU.
-    pub rid: u32,
     /// The initialized admin plane.
     pub controller: Nvme,
 }
@@ -391,7 +383,6 @@ pub fn bring_up() -> Option<Found> {
     match Nvme::new(mmu::phys_to_virt(dev.bar0), dma, mmu::phys_to_virt(dma)) {
         Ok(controller) => Some(Found {
             bar0: dev.bar0,
-            rid: dev.rid,
             controller,
         }),
         Err(e) => {
