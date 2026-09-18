@@ -46,6 +46,10 @@ The table is the run of 2026-08-03: **5,551 mutants over 38 host crates, 4,654 c
 missed, 96 timed out, 410 unviable**, which is **92.4% of the viable mutants killed**. It cost about
 five and a half hours at `-j 2` on an 8-core, 16 GiB machine.
 
+Crate names below are the ones the run measured. Where one has since changed, the row keeps the
+measured spelling so the number stays traceable to the command that produced it: `asid` is
+`address_space_identifier` since 2026-09-18 (DECISIONS §154).
+
 **Read the `missed` column as a worklist, not as a score, and read it as of that run.** Every one of
 those 391 has since been triaged, and the commits on this branch close about two hundred of them,
 so a rerun today would report a smaller number. The table is not restated here from a rerun because
@@ -589,7 +593,7 @@ input that also trips check A.
   answer it already held: rv32 after rv64 could keep rv64 (and boot on the rv32 machine), and a
   base-less extensions node could clobber the base under one flipped `&&`. A wide-first fixture
   exercises every replacement arm; `Missing::any` gets one single-missing case per clause;
-  ASIDBits `0b0000` must decode to the 8 bits `crates/asid` assumes. Equivalent (10): idempotent
+  ASIDBits `0b0000` must decode to the 8 bits `crates/address_space_identifier` assumes. Equivalent (10): idempotent
   assignments at `<=` boundaries, disjoint-operand `|` vs `^`, `1 << 0`, and six compile-time
   duplicate-check loops whose guards are vacuous on a table that already passes, a pattern the
   weekly report will keep resurfacing (noted here so nobody re-triages it).

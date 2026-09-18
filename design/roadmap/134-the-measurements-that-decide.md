@@ -157,7 +157,7 @@ informative outcome of the whole register.
 ### M8. TLB misses per IPC, instruction and data
 
 **Settles two claims at once.** Whether the 28 KiB stack stride costs TLB coverage as threads
-multiply, which is the other half of M7. And whether the ASID work does what notes/asids.md claims,
+multiply, which is the other half of M7. And whether the ASID work does what notes/address-space-identifiers.md claims,
 that the context-switch flush disappeared on aarch64 while RISC-V keeps flushing when `satp.ASID` is
 zero bits wide. That asymmetry is currently an argument from the code, and this is what would turn it
 into a number.

@@ -46,7 +46,7 @@ a Linux-distribution-shaped layer will eventually sit on top of the OS component
   needs of their own had to leave.
 - **`crates/` conflates three audiences with different rules**, so the boundary a third party would
   care about is invisible: kernel proof crates (`capability`, `paging`, `frames`, `regions`, `slots`,
-  `asid`, `intrusive`, `dtb`, `elf`, `dma_validator`, `measured_boot`, `user_heap`, Kani-proved and nobody
+  `address_space_identifier`, `intrusive`, `dtb`, `elf`, `dma_validator`, `measured_boot`, `user_heap`, Kani-proved and nobody
   else's business), wire contracts (`fs_proto`, `gfx_proto`, `line_editor`, `compositor`, `abi`, the
   **only** things an external component needs), and userspace runtime (`user_rt`, `grant_plan`,
   `nifefs`, `pci`).
@@ -126,7 +126,7 @@ exact failure rule 5 exists to catch, plus cross-repo changes become multi-PR da
 | `calendar` | **Real**, competing with `time` and `chrono`; the differentiator is the proofs plus strict `no_std` |
 | `dtb`, `pci` | Plausible, though `fdt` already occupies much of that space |
 | `ntp_proto` | Overlaps heavily with ntpd-rs's mature `ntp-proto` |
-| Everything else | Bound to our kernel model (`capability`, `slots`, `frames`, `regions`, `ipc`, `paging`, `asid`) or specific to us (`nifefs`, `grant_plan`, `dma_validator`) |
+| Everything else | Bound to our kernel model (`capability`, `slots`, `frames`, `regions`, `ipc`, `paging`, `address_space_identifier`) or specific to us (`nifefs`, `grant_plan`, `dma_validator`) |
 
 **The argument for publishing is a thesis argument, not a utility one**, and that is the version worth
 acting on. A `no_std`, I/O-free GPT parser carrying eight machine-checked proofs is a **publishable

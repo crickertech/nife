@@ -63,7 +63,7 @@ two of the entry's four candidates turned out not to be among them.**
 
 | Candidate | Verdict |
 |---|---|
-| ASID width | **Real, both ISAs.** `crates/asid` hands out 255 numbers on the stated assumption the hardware can tell them apart. riscv64 measures it (`probe_asid_bits`); aarch64 reads `ID_AA64MMFR0_EL1.ASIDBits`. |
+| ASID width | **Real, both ISAs.** `crates/address_space_identifier` hands out 255 numbers on the stated assumption the hardware can tell them apart. riscv64 measures it (`probe_asid_bits`); aarch64 reads `ID_AA64MMFR0_EL1.ASIDBits`. |
 | Sv39 versus Sv48 | **Real, as a refusal.** riscv64 stops on an `mmu-type` narrower than Sv39; aarch64's twin is the 4 KiB granule, which `TGran4` may refuse and every page table here depends on. |
 | `TCR_EL1.IPS` from `PARange` | **Real, and it predates this milestone.** The one place the kernel already read the machine, now read once into the record. |
 | TLB flush strategy | **Varies nowhere.** The unconditional `sfence.vma` in `write_satp` is unconditional by design, and removing it is its own milestone gated on the ASID probe. `Svinval` is recorded and acted on by nothing. |
@@ -330,6 +330,6 @@ says so where a reader meets the function.
   to branch across five QEMU CPU models and that QEMU reports 16 `satp.ASID` bits on every one of
   them, including `sifive-u54`. That is what made discovery worth building anyway: the one place a
   real chip may differ is the one place no emulator can tell us about.
-- [ASIDs](asids.md) for what the ASID width is load-bearing for.
+- [ASIDs](address-space-identifiers.md) for what the ASID width is load-bearing for.
 - [The device tree](device-tree.md) for the parser this reads through.
 - [The RISC-V port](riscv-port.md) for the SBI calls whose extensions are now probed.

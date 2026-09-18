@@ -301,7 +301,7 @@ dtb	3	the device-tree parser's leaf readers
 ipc	4	the rendezvous state machine
 generational_table	4	the generational thread table
 intrusive_fifo	9	the scheduler's queue structure
-asid	4	the TLB tag allocator
+address_space_identifier	4	the TLB tag allocator
 nifefs	2	the initrd parser the kernel runs on boot input
 pci	6	config-space decode on hostile-device input
 nvme	2	the queue rings never index out, and the doorbell/PRP arithmetic is total

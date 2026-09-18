@@ -25,7 +25,7 @@
 //! three neighbours that were being assumed:
 //!
 //! * the **4 KiB granule**, which the page tables are built on and which `TGran4` may refuse,
-//! * the **ASID width**, which `crates/asid` is built on and which RISC-V had to measure,
+//! * the **ASID width**, which `crates/address_space_identifier` is built on and which RISC-V had to measure,
 //! * the **VA range**, the direct twin of RISC-V's `mmu-type`.
 //!
 //! # BUGS
@@ -65,7 +65,7 @@ pub struct Isa {
     /// `ID_AA64MMFR0_EL1.ASIDBits`, decoded to 8 or 16. The aarch64 twin of RISC-V's `satp.ASID`
     /// probe, and the reason that probe had to exist: ARM **mandates** one of two values here, so
     /// the number is architected and readable, while RISC-V permits any width including zero and
-    /// publishes nothing, so it has to be measured. `crates/asid` assumes at least 8 either way.
+    /// publishes nothing, so it has to be measured. `crates/address_space_identifier` assumes at least 8 either way.
     pub asid_bits: u8,
     pub granules: Granules,
     /// `ID_AA64MMFR2_EL1.VARange`, decoded to 48 or 52. See BUGS: 52 is a claim about the part, not

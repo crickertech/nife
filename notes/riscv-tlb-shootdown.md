@@ -41,7 +41,7 @@ space maps it identically, and tagging it would cost one TLB entry per process f
 ### 2. `satp.ASID` must actually be wide enough
 
 **RISC-V permits zero implemented ASID bits.** The field is WARL, and hardwiring it to zero is the
-cheap option for a small core. aarch64 *mandates* eight. `crates/asid` hands out 255 numbers on the
+cheap option for a small core. aarch64 *mandates* eight. `crates/address_space_identifier` hands out 255 numbers on the
 stated assumption that even the smallest hardware ASID space is 256, which is true of one ISA and not
 of the other.
 
@@ -51,11 +51,11 @@ announce it.
 
 So the removal is gated on a measurement, not on the specification. `mmu::probe_asid_bits` writes
 ones into the field of the live `satp`, reads back which stuck, and counts them;
-`asid_tagging_is_trusted()` compares that against what `asid::ASIDS` needs. Too few bits and
+`asid_tagging_is_trusted()` compares that against what `address_space_identifier::ASIDS` needs. Too few bits and
 `write_satp` keeps the sweep. **Correct and slow beats fast and silently wrong**, and a panic would
 refuse to boot a machine that works.
 
-The threshold is derived (`(asid::ASIDS - 1).ilog2() + 1`) rather than written as `8`, so raising the
+The threshold is derived (`(address_space_identifier::ASIDS - 1).ilog2() + 1`) rather than written as `8`, so raising the
 allocator moves the gate with it instead of leaving a constant behind that used to be right.
 
 ### 3. An ASID must be swept from *every* hart before it is reused
@@ -64,7 +64,7 @@ This is the milestone, and it is the whole of the difference between the two ISA
 
 **`sfence.vma` is a local instruction.** It invalidates and orders for the hart that executes it and
 says nothing about any other. aarch64's `tlbi aside1is` broadcasts across the inner-shareable domain
-in hardware. So the contract `crates/asid` states in one line, *flush, then the number may tag
+in hardware. So the contract `crates/address_space_identifier` states in one line, *flush, then the number may tag
 someone else*, is one instruction there and a distributed protocol here.
 
 The protocol is SBI's RFENCE extension. `mmu::flush_asid` runs `sfence.vma x0, asid` locally, then

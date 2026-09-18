@@ -40,7 +40,7 @@
 //! # Examples
 //!
 //! ```
-//! use asid::Allocator;
+//! use address_space_identifier::Allocator;
 //!
 //! let mut a = Allocator::new();
 //! let first = a.alloc().expect("a fresh allocator has one to give");
@@ -52,10 +52,8 @@
 //! assert!(a.alloc().is_some());
 //! ```
 //!
-//! Name: provisional, and ruled: calef ruled **`address_space_identifier`** on 2026-09-18
-//! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
-//! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `asid` belongs on `script/names --unratified` rather than off it. Refused `asid`.
+//! Name: ratified 2026-09-18 (calef, `design/decisions/` §154), **deratifying the 2026-08-01
+//! ratification** to do it, and performed the same day. Refused `asid`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "address space identifier" is,
 //! so it goes, where `pci` stays because "peripheral component interconnect" is not.
@@ -64,11 +62,14 @@
 //! touched". That was an exemption rather than a test, and §154 records the three-layer
 //! contradiction the exemptions left behind.
 //!
-//! **The rename removes a `script/lint` `-d` allow-list entry rather than editing one**: that entry
-//! exists only because the name is an acronym the spell checker cannot read, and an expanded name
-//! needs no exemption. Whoever performs it deletes the entry in the same change.
+//! **The rename removed a `script/lint` `-d` allow-list entry rather than editing one**: that entry
+//! existed only because the name was an acronym the rule cannot read, and an expanded name needs no
+//! exemption.
 //!
-//! **Not yet performed**: milestones 320 and 321 are live lanes in files a sweep would touch.
+//! **The hardware field did not move with the crate.** `satp.ASID` and `TTBR0_EL1.ASID` are
+//! citations of two instruction-set manuals, so `ASID` stays wherever this tree is naming the field
+//! rather than the crate, `asid_bits()` and `flush_asid()` included. That is the bulk of the word's
+//! occurrences in the tree, and it is why the rename touched far fewer lines than a grep suggests.
 
 #![cfg_attr(not(test), no_std)]
 

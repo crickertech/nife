@@ -969,7 +969,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   settles none of it (TCG's `cycle` CSR is an instruction count, and the probe comes out at an
   implausibly exact 100.00 cycles per tick), so the note is mostly the bench procedure for radon,
   written and untested, with a table mapping each line of output to what it means.
-- [ASIDs: tagged address spaces](asids.md): milestone 15: every user mapping is `nG`, each
+- [ASIDs: tagged address spaces](address-space-identifiers.md): milestone 15: every user mapping is `nG`, each
   address space owns one ASID for life, the tag rides in TTBR0 with the root, and the context
   switch flushes nothing. Why a bitmap suffices where Linux needs generations (milestone 14
   bounded the spaces), and the witness test that would catch a broken tag.

@@ -256,7 +256,7 @@ see notes/intrusive-queues.md):
 One harness rather than several because the operation-sequence shape subsumes the single-step
 properties: a push-preserves-X proof is the sequence of length one.
 
-Three in `crates/asid/src/lib.rs`, the TLB tag allocator (milestone 15; see notes/asids.md,
+Three in `crates/address_space_identifier/src/lib.rs`, the TLB tag allocator (milestone 15; see notes/address-space-identifiers.md,
 including which half of the ASID contract stays on a hardware witness test rather than a proof):
 
 | Harness | Property |

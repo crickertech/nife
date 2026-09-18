@@ -42,6 +42,6 @@ The mechanism ships with its payoff asserted rather than measured."*
 Two facts from the same block bound what a measurement means. The RISC-V half arrived separately in
 milestone 58, because `sfence.vma` is local and discharging a tag machine-wide needs an IPI to
 every hart through SBI RFENCE, so radon's number is about a different mechanism from argon's.
-And `notes/asids.md` records that RISC-V permits `satp.ASID` to be zero bits wide, so a RISC-V
+And `notes/address-space-identifiers.md` records that RISC-V permits `satp.ASID` to be zero bits wide, so a RISC-V
 machine that cannot tell tags apart keeps flushing on every switch and would measure no change at
 all. Whichever board is used, the report has to say which of these it was.

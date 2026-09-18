@@ -455,7 +455,7 @@ In the order it should be done, because each is a prerequisite for the next.
    [DECISIONS §124](../decisions/124-x86-64-syscall-abi.md), which calef ratified 2026-08-24.
 
    **The two `CR4` bits stay off, and that is now a recorded choice rather than a deferral.**
-   `CR4.PCIDE` off means `crates/asid`'s tags have nowhere to live: PCID is `CR3[11:0]`, and with
+   `CR4.PCIDE` off means `crates/address_space_identifier`'s tags have nowhere to live: PCID is `CR3[11:0]`, and with
    PCIDE clear those bits are reserved-zero, so writing a tag into them faults rather than tagging
    anything. `arch/x86_64/mmu.rs`'s `ttbr0_value` therefore drops the number and `flush_asid`
    flushes the whole TLB, each saying so in its own words rather than implying a selectivity the

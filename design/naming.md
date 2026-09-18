@@ -866,7 +866,9 @@ which is the ordinary way a hand-kept count drifts; take it from the script.)
    abbreviation rather than a daemon (`kbd` was this rule's worked example until its 2026-08-28
    rename). Words that
    genuinely end in `d` go in `naming_allow` **with a reason**, the same shape as a per-item
-   `#[allow]`; `asid` (Address Space IDentifier) is the one there today.
+   `#[allow]`; `uuid` (RFC 9562's own term) is the one there today. `asid` was the other until
+   2026-09-18, and §154's rename removed the entry rather than re-argued it: an exemption that
+   exists only because a name is an unreadable acronym is one the expansion deletes.
 2. **The word "daemon" appears nowhere**, outside `design/decisions/` and `design/`, which are where the
    argument about the word lives and therefore have to be able to name it.
 3. **Contract crates spelled `*_proto`.**

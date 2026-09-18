@@ -56,7 +56,7 @@ fn read_satp() -> u64 {
 ///
 /// Three things had to exist before it could go, and now do. Every user mapping is non-global
 /// (`paging::Sv39` sets `G` only for the kernel's half), so its TLB entries carry the ASID that was
-/// live during the walk. Each address space owns one ASID for life (`crates/asid`), freed only after
+/// live during the walk. Each address space owns one ASID for life (`crates/address_space_identifier`), freed only after
 /// [`flush_asid`] has swept it **from every hart**. And [`probe_asid_bits`] measures the field the
 /// hardware actually implements, so this decision is made against the machine rather than against
 /// the specification's permission.
@@ -248,7 +248,7 @@ pub fn init() {
     KERNEL_ROOT.store(root, Ordering::Relaxed);
 
     // Probe after `install`, so the ASID tag is exercised against the real kernel root rather than
-    // the coarse boot table. See `probe_asid_bits`: this validates the assumption `crates/asid`
+    // the coarse boot table. See `probe_asid_bits`: this validates the assumption `crates/address_space_identifier`
     // is already built on, and it is the gate on ever removing the flush in `write_satp`.
     ASID_BITS.store(probe_asid_bits(), Ordering::Relaxed);
 
@@ -300,13 +300,13 @@ static ASID_BITS: core::sync::atomic::AtomicUsize =
 /// The widest ASID the architecture allows in Sv39: `satp` bits 59:44.
 const SATP_ASID_WIDTH: u32 = 16;
 
-/// **Discover how many `satp.ASID` bits exist, because `crates/asid` assumes at least eight.**
+/// **Discover how many `satp.ASID` bits exist, because `crates/address_space_identifier` assumes at least eight.**
 ///
 /// `satp.ASID` is **WARL**: an implementation may hardwire any number of those bits to zero,
 /// *including all of them*. That is not a hypothetical corner of the spec; it is the cheap option
 /// for a small core, and the VisionFive 2's U74 has not been checked.
 ///
-/// It matters because [`crates/asid`](asid) is built on an assumption it states out loud: 255 usable
+/// It matters because [`crates/address_space_identifier`](address_space_identifier) is built on an assumption it states out loud: 255 usable
 /// numbers, "below even the smallest hardware ASID space (8-bit, 256)". That holds on aarch64, where
 /// the architecture *mandates* at least 8 bits. RISC-V mandates none. On a machine with zero
 /// implemented bits, every one of the 160 address spaces would carry ASID 0 in hardware and their
@@ -316,7 +316,7 @@ const SATP_ASID_WIDTH: u32 = 16;
 /// used to follow every `csrw satp` with an unconditional `sfence.vma`, throwing the whole TLB away
 /// on each switch, so no entry ever survived long enough to alias; that flush was load-bearing for
 /// correctness rather than merely slow. It is now conditional on this number, through
-/// [`asid_tagging_is_trusted`]: a machine that implements fewer bits than `crates/asid` needs keeps
+/// [`asid_tagging_is_trusted`]: a machine that implements fewer bits than `crates/address_space_identifier` needs keeps
 /// the sweep and pays for it. See notes/riscv-tlb-shootdown.md.
 ///
 /// The probe writes ones into the ASID field of the *current* `satp`, leaving MODE and PPN alone, and
@@ -356,14 +356,14 @@ pub fn asid_bits() -> usize {
     n
 }
 
-/// How many `satp.ASID` bits the allocator's numbers need: enough to hold `asid::ASIDS - 1`, the
-/// largest tag `crates/asid` can hand out. Derived rather than written as `8`, so that raising
+/// How many `satp.ASID` bits the allocator's numbers need: enough to hold `address_space_identifier::ASIDS - 1`, the
+/// largest tag `crates/address_space_identifier` can hand out. Derived rather than written as `8`, so that raising
 /// `ASIDS` moves the gate with it instead of leaving a constant behind that used to be right.
 ///
 /// `pub(crate)` rather than private: `arch::riscv64::isa`'s own record test checks that
 /// [`asid_tagging_is_trusted`] agrees with this threshold on whatever width the bench measures,
 /// not just on the QEMU width, so it needs the same number `init` gates on.
-pub(crate) const ASID_BITS_NEEDED: u32 = (asid::ASIDS as u64 - 1).ilog2() + 1;
+pub(crate) const ASID_BITS_NEEDED: u32 = (address_space_identifier::ASIDS as u64 - 1).ilog2() + 1;
 
 /// **Whether two live address spaces are guaranteed to be distinguishable in this hart's TLB.**
 ///
@@ -645,7 +645,7 @@ pub fn asid_of(satp: u64) -> u16 {
 }
 
 /// Discard every TLB entry tagged with `asid`, **on every online hart**. The teardown half of the
-/// ASID contract (crates/asid): after this, and only after this, the number may tag someone else.
+/// ASID contract (`crates/address_space_identifier`): after this, and only after this, the number may tag someone else.
 /// The aarch64 twin of this function is one instruction, and the gap between them is milestone 58.
 ///
 /// # What each half guarantees
@@ -1063,7 +1063,7 @@ mod tests {
 
     /// **The trust flag agrees with the measured width, whatever that width is.**
     ///
-    /// This used to assert `bits >= 8` outright, named for `crates/asid`'s own justification:
+    /// This used to assert `bits >= 8` outright, named for `crates/address_space_identifier`'s own justification:
     /// "below even the smallest hardware ASID space (8-bit, 256)", true of aarch64 (which
     /// mandates 8 bits) and **not guaranteed by RISC-V at all**, which permits zero. The
     /// VisionFive 2's U74 measures exactly zero implemented bits (bench, 2026-08-21: the boot
@@ -1086,11 +1086,11 @@ mod tests {
         assert_eq!(
             super::asid_tagging_is_trusted(),
             bits >= super::ASID_BITS_NEEDED as usize,
-            "satp.ASID implements {bits} bits, asid::ASIDS needs {}: the trust flag must agree \
+            "satp.ASID implements {bits} bits, address_space_identifier::ASIDS needs {}: the trust flag must agree \
              with whether this width holds every tag the allocator can hand out. If it does not, \
              either the flush stays where it should have been dropped, or address spaces would \
              alias in the TLB with no flush catching it.",
-            asid::ASIDS,
+            address_space_identifier::ASIDS,
         );
     }
 

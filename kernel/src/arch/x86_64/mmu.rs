@@ -66,7 +66,7 @@
 //!   *after* the fine map is installed, or the boot map's non-global entries are the ones that get
 //!   pinned.
 //!
-//! - **`CR4.PCIDE` is off, so an address space has no hardware tag.** `crates/asid` hands every
+//! - **`CR4.PCIDE` is off, so an address space has no hardware tag.** `crates/address_space_identifier` hands every
 //!   space a number and this architecture has nowhere to put it: PCID is `CR3[11:0]`, and with
 //!   PCIDE clear those bits are reserved-zero rather than a tag. [`ttbr0_value`] therefore drops the
 //!   number and [`flush_asid`] flushes the whole TLB rather than one space's entries. Both say so in
@@ -1559,7 +1559,7 @@ pub fn ttbr0_value(root: u64, asid: u16) -> u64 {
         "a page-table root is page-aligned; CR3's low twelve bits are not part of it"
     );
     // The tag has nowhere to go while PCIDE is off; see this function's own doc comment. When it is
-    // turned on, this becomes `root | (asid as u64 & 0xfff)` and `crates/asid`'s reuse contract
+    // turned on, this becomes `root | (asid as u64 & 0xfff)` and `crates/address_space_identifier`'s reuse contract
     // acquires a meaning here that it does not have today.
     let _ = asid;
     root
@@ -1684,7 +1684,7 @@ pub fn deactivate_user() {
 
 /// Discharge every translation belonging to the address space tagged `asid`.
 ///
-/// **It flushes everything, and saying so is the point.** `crates/asid`'s teardown contract is
+/// **It flushes everything, and saying so is the point.** `crates/address_space_identifier`'s teardown contract is
 /// "after this call, and only after it, the number may tag someone else". With `CR4.PCIDE` clear
 /// the hardware holds no tag at all, so there is no set of entries this could select: the only
 /// implementation that keeps the contract true is to discard the whole non-global TLB, which a

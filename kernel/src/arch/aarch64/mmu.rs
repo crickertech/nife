@@ -646,7 +646,7 @@ pub fn share_kernel_half(_root: u64) {}
 /// new process the previous one's memory: the privilege boundary, not a performance bug.
 ///
 /// Now every user mapping is `nG` (tagged with the ASID that created it; see paging), each
-/// address space owns one ASID for life (`crates/asid`), and the tag rides in here with the
+/// address space owns one ASID for life (`crates/address_space_identifier`), and the tag rides in here with the
 /// root. The old space's entries stop *matching* instead of being discarded, the kernel's
 /// global entries were never in danger, and the switch flushes nothing. Invalidation happens at
 /// exactly two other places: revocation flushes by VA across all ASIDs, and address-space
@@ -665,7 +665,7 @@ unsafe fn set_ttbr0(ttbr: u64) {
 }
 
 /// Discard every TLB entry tagged with `asid`, on every core. The teardown half of the ASID
-/// contract (crates/asid): after this, and only after this, the number may tag someone else.
+/// contract (`crates/address_space_identifier`): after this, and only after this, the number may tag someone else.
 ///
 /// The **leading** `dsb ishst` is the half that was missing until milestone 58. The trailing pair
 /// makes the invalidation complete before we return; the leading one makes our earlier page-table
