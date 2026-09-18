@@ -29,9 +29,13 @@ that too.
 [exited with code 0]
 ```
 
-**Three hours nine minutes.** The 47% CPU is the load-bearing half of that line: most of this is one
-interpreter thread, so more cores do not buy the wall clock back, and `ubuntu-24.04-arm` will not be
-dramatically different in kind.
+And in CI, `workflow_dispatch` on `milestone/310-miri-leak-free`, run 35256118545 on
+`ubuntu-24.04-arm`: **success in 2:58:13**.
+
+**About three hours, on both machines.** The 47% CPU is the load-bearing half of the local line:
+most of this is one interpreter thread, so more cores do not buy the wall clock back. That the two
+very different machines agree within eleven minutes is what makes three hours the job's cost rather
+than one laptop's, and it means the 240-minute budget has about twenty percent of headroom.
 
 ## What the answer probably is, and what has to be measured before it is one
 
