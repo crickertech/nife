@@ -299,6 +299,80 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
     u64::from_le_bytes(w)
 }
 
+/// Machine-checked proofs over the PVH handoff (DECISIONS §14, milestone 319).
+///
+/// This is the first structure the x86 kernel reads through a pointer somebody else chose, and the
+/// module header already argues that a parser proved only inside a booting kernel is proved by
+/// nothing that runs in milliseconds. These are the leaves that argument earns.
+///
+/// Names: provisional (milestone 319).
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// One byte past the version-1 structure, so a symbolic length can straddle both size checks.
+    const N: usize = V1_LEN + 1;
+
+    /// **No length of handoff bytes makes the decode read past its end.**
+    ///
+    /// The structure has two sizes, and which one applies is decided by a field *inside* it: a
+    /// version-0 handoff stops at offset 40, and only a version of 1 or more puts anything at
+    /// offsets 40 and 48. So the length check for the larger structure is gated on a `u32` the
+    /// loader wrote, and the offsets it guards are read four lines below it. Every byte here is the
+    /// loader's, version included.
+    ///
+    /// Could plausibly have been false: reading `memmap` and `memmap_entries` unconditionally and
+    /// zeroing them afterwards is the obvious tidy-up, and it panics on any 40-to-55-byte handoff.
+    /// The module's own tests supply 40 bytes and 56 bytes and nothing between.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/x86_64.verification.no_length_of_handoff_bytes_makes_the_decode_read_past_its_end.patch`
+    #[kani::proof]
+    fn no_length_of_handoff_bytes_makes_the_decode_read_past_its_end() {
+        let bytes: [u8; N] = kani::any();
+        let len: usize = kani::any();
+        kani::assume(len <= N);
+        if let Ok(info) = BootInfo::parse(&bytes[..len]) {
+            assert!(len >= V0_LEN);
+            // The memory map is reported only when the bytes that carry it were actually there.
+            if info.memmap_entries != 0 || info.memmap != 0 {
+                assert!(info.version >= 1 && len >= V1_LEN);
+            }
+            kani::cover!(info.version >= 1, "a version-1 handoff is accepted");
+        }
+    }
+
+    /// **A range read out of the memory map never wraps to look empty.**
+    ///
+    /// [`MemoryEntry::end`] is what a frame allocator subtracts to size a region, and both `addr`
+    /// and `size` are `u64`s straight out of the map. A plain `+` on a firmware-supplied size near
+    /// `u64::MAX` wraps to an end *below* the start, which reads as a zero-length or negative range
+    /// and quietly hands the allocator nothing where the map described everything. The
+    /// `saturating_add` is the defence; this proves it holds for every pair, and that the index
+    /// arithmetic that reaches the entry is total at every index.
+    ///
+    /// Could plausibly have been false: `end` is a two-line `const fn` whose doc is the only thing
+    /// saying why it saturates, and `Module::end` beside it is a second copy of the same two lines.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/x86_64.verification.a_range_read_out_of_the_memory_map_never_wraps_to_look_empty.patch`
+    #[kani::proof]
+    fn a_range_read_out_of_the_memory_map_never_wraps_to_look_empty() {
+        let bytes: [u8; MEMMAP_ENTRY_LEN] = kani::any();
+        let index: usize = kani::any();
+        if let Some(e) = memory_entry(&bytes, index) {
+            assert_eq!(index, 0, "only one entry fits in these bytes");
+            assert!(e.end() >= e.addr);
+            // Ram is the only kind a frame allocator may hand out, and the module's doc is explicit
+            // that AcpiReclaimable is not one of them however reclaimable its name sounds.
+            assert_eq!(e.is_usable_ram(), matches!(e.kind, MemoryKind::Ram));
+            kani::cover!(e.is_usable_ram(), "some entry is allocatable RAM");
+        }
+        // The module list is read by the same index arithmetic one structure over, and it is a
+        // separate function with a separate stride; a shared proof would prove neither.
+        let module_bytes: [u8; MODULE_ENTRY_LEN] = kani::any();
+        if let Some(m) = module(&module_bytes, index) {
+            assert!(m.end() >= m.addr);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

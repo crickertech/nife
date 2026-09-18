@@ -312,6 +312,120 @@ fn parse_decimal(text: &str) -> Option<u32> {
     Some(value)
 }
 
+/// Machine-checked proofs over the screen token (DECISIONS §14, milestone 319).
+///
+/// **This is a wire format, which is what makes it worth a prover rather than a test.** The loader
+/// writes the token and the kernel reads it, so the two halves are the kind of agreement AGENTS.md
+/// calls expensive to unship: they are separate binaries, and a description one can write that the
+/// other cannot read is a black screen with nothing to say why.
+///
+/// Names: provisional (milestone 319).
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// **An encoded token never exceeds the maximum it advertises.**
+    ///
+    /// [`Framebuffer::MAX_LEN`]'s own doc records how close this came: the token was `fb=` when 64
+    /// was chosen, calef ratified the four-characters-longer `screen=` on 2026-09-04, and the worst
+    /// case went to **63 of 64** without anything noticing. The constant is "rounded up rather than
+    /// derived", so nothing in the type system ties it to what [`Framebuffer::encode`] writes, and
+    /// the `put` closure inside `encode` slices `out` without a bound of its own: an overrun is a
+    /// panic in a `no_std` UEFI application, which is the worst place in this system to find one.
+    ///
+    /// Could plausibly have been false: it is one addition away at every field. A sixth field, a
+    /// longer order token, or hex that is not shortest-form all break it, and no test can enumerate
+    /// the `u64` that makes `write_hex` emit its sixteenth digit alongside three ten-digit decimals.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.an_encoded_token_never_exceeds_the_maximum_it_advertises.patch`
+    #[kani::proof]
+    #[kani::unwind(18)]
+    fn an_encoded_token_never_exceeds_the_maximum_it_advertises() {
+        let screen = Framebuffer {
+            base: kani::any(),
+            width: kani::any(),
+            height: kani::any(),
+            stride: kani::any(),
+            order: if kani::any() {
+                PixelOrder::Bgrx
+            } else {
+                PixelOrder::Rgbx
+            },
+        };
+        let mut out = [0u8; Framebuffer::MAX_LEN];
+        let n = screen.encode(&mut out);
+        assert!(n <= Framebuffer::MAX_LEN);
+        kani::cover!(n >= 60, "the worst case really does get close to the bound");
+    }
+
+    /// **A span is refused exactly when the geometry cannot be trusted, and never overflows.**
+    ///
+    /// [`Framebuffer::span`] is the only validation a description read out of a boot handoff gets,
+    /// and the console paints inside whatever it returns. So the claim that matters is not that the
+    /// arithmetic is right but that a `Some` is *sound*: `stride * height` bytes really is at least
+    /// as much as the pixels the geometry describes, for every `u32` triple, including the ones
+    /// where `width * 4` overflows a `u32` on its own.
+    ///
+    /// Could plausibly have been false: `stride < width * 4` without the `saturating_mul` wraps for
+    /// any width above `2^30`, and a wrapped product is *small*, so the guard passes and the console
+    /// is handed a span shorter than one row. That is a `u32` no test writes down by hand.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.an_accepted_span_covers_every_pixel_the_geometry_describes.patch`
+    #[kani::proof]
+    fn an_accepted_span_covers_every_pixel_the_geometry_describes() {
+        let screen = Framebuffer {
+            base: 0,
+            width: kani::any(),
+            height: kani::any(),
+            stride: kani::any(),
+            order: PixelOrder::Bgrx,
+        };
+        if let Some(span) = screen.span() {
+            assert!(screen.width > 0 && screen.height > 0);
+            // Every row of visible pixels fits inside the span, with the four bytes per pixel the
+            // two `PixelOrder` encodings both use.
+            let pixels = screen.width as u64 * 4 * screen.height as u64;
+            assert!(span as u64 >= pixels);
+            kani::cover!(span > 0, "a real geometry is accepted");
+        }
+    }
+
+    /// **Whatever the loader can write, the kernel can read back unchanged.**
+    ///
+    /// The round trip through four hand-rolled converters (`write_hex`, `write_decimal`,
+    /// `parse_hex`, `parse_decimal`, none of which uses `core::fmt`, for the reason `encode`'s doc
+    /// gives). The hand-written test walks a table of six descriptions; this walks every `u64` base
+    /// and every `u32` geometry the encoder will accept.
+    ///
+    /// Could plausibly have been false in either direction and the failure is asymmetric, which is
+    /// why it is worth proving rather than testing: a writer bug produces a token the reader
+    /// rejects, and `parse` is documented to read a malformed token **as no screen at all**, so the
+    /// kernel boots to a black screen and says nothing. `parse_hex` refusing a seventeen-digit
+    /// value and `write_hex` emitting shortest-form are the two halves that have to agree, and they
+    /// are forty lines apart.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.a_token_the_loader_writes_is_a_token_the_kernel_reads_back.patch`
+    #[kani::proof]
+    #[kani::unwind(18)]
+    fn a_token_the_loader_writes_is_a_token_the_kernel_reads_back() {
+        let screen = Framebuffer {
+            base: kani::any(),
+            width: kani::any(),
+            height: kani::any(),
+            stride: kani::any(),
+            order: if kani::any() {
+                PixelOrder::Bgrx
+            } else {
+                PixelOrder::Rgbx
+            },
+        };
+        // `parse` validates the geometry it read, so a description the encoder can write but the
+        // span rule refuses is out of scope: the loader does not emit one.
+        kani::assume(screen.span().is_some());
+        let mut out = [0u8; Framebuffer::MAX_LEN];
+        let n = screen.encode(&mut out);
+        let token = core::str::from_utf8(&out[..n]).expect("the encoder writes ASCII");
+        assert_eq!(Framebuffer::parse(token), Some(screen));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Framebuffer, PixelOrder};
