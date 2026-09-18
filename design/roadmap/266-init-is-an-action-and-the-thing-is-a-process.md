@@ -251,7 +251,7 @@ applied, stated so it can be disagreed with:
   still dead.
 - **A present-tense claim about the system changes**, because it is now false. Three were:
   `notes/grant-expression.md`'s *"There are still two inits"*, `notes/trusted-init.md`'s
-  *"`user::initrd()` loads the archive entry `init`, which is..."*, and `notes/naming.md`'s *"the one
+  *"`user::initrd()` loads the archive entry `init`, which is..."*, and `design/naming.md`'s *"the one
   deliberate exception"*.
 - **A record of what was true on a date does not change.** This is the `cred`-to-`credentialer`
   precedent from the same week, and the reason is that rewriting it makes the record lie. Milestone

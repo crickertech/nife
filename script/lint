@@ -1823,7 +1823,7 @@ PYEOF
 
 # The naming conventions, for the ones a machine can check (milestone 46, DECISIONS §39). The rest of
 # them -- "name a component for what it is", "prefer a word a reader can parse without prior Unix
-# exposure" -- need judgement and stay prose, in notes/naming.md. These four do not.
+# exposure" -- need judgement and stay prose, in design/naming.md. These four do not.
 #
 # Every check below is a ratchet, and the argument is §39's: a name is a claim, made before a reader
 # sees a line of code. `netd`, `compd`, `gpud` and `termd` each claimed a Unix daemon model this OS
@@ -1862,19 +1862,19 @@ do
 done
 if [ -n "$named_for_a_daemon" ]; then
     echo "lint: names ending in -d, which claims a daemon this OS does not have:$named_for_a_daemon" >&2
-    echo "Name it for what it is (DECISIONS §39, notes/naming.md). If the word simply ends in d," >&2
+    echo "Name it for what it is (DECISIONS §39, design/naming.md). If the word simply ends in d," >&2
     echo "add it to naming_allow in this script with the reason." >&2
     exit 1
 fi
 
 # 2. "Daemon" appears nowhere. §39's vocabulary is component / service / contract, and the word is
-#    excluded from code, comments and notes. Three files are exempt because they are where the
-#    ARGUMENT about the word lives: design/, which holds the decisions, and notes/naming.md. A rule's rationale
-#    has to be able to name the thing it rejects, and this script does too.
+#    excluded from code, comments and notes. Two places are exempt because they are where the
+#    ARGUMENT about the word lives: design/, which holds the decisions and (since §155) the naming
+#    conventions, and this script. A rule's rationale has to be able to name the thing it rejects.
 if git -C "$(dirname "$0")/.." grep -Iilnw daemon -- \
-    ':!vendor' ':!design' ':!notes/naming.md' ':!script/lint' \
+    ':!vendor' ':!design' ':!script/lint' \
     > /tmp/nife-daemon.txt 2>/dev/null; then
-    echo "lint: \"daemon\" outside the three places the argument about the word lives:" >&2
+    echo "lint: \"daemon\" outside the two places the argument about the word lives:" >&2
     cat /tmp/nife-daemon.txt >&2
     echo "The vocabulary is component / service / contract (DECISIONS §39)." >&2
     exit 1
@@ -1890,13 +1890,13 @@ fi
 #
 #    **The glob is the whole hazard here and is why it is `*protocol` and not `*proto*`.** This loop
 #    selects the crates it then judges, so a glob that matches nothing passes by checking nothing,
-#    which is the `--exclude`-goes-stale failure notes/naming.md lists. `crates/*proto` stopped
+#    which is the `--exclude`-goes-stale failure design/naming.md lists. `crates/*proto` stopped
 #    matching any directory the moment 265 landed and would have reported clean forever.
 for dir in "$(dirname "$0")"/../crates/*protocol; do
     name="$(basename "$dir")"
     case "$name" in
         *_protocol) ;;
-        *) echo "lint: contract crate $name should be spelled *_protocol (notes/naming.md)" >&2; exit 1 ;;
+        *) echo "lint: contract crate $name should be spelled *_protocol (design/naming.md)" >&2; exit 1 ;;
     esac
 done
 
@@ -1927,7 +1927,7 @@ done
 #    also **fixed when the lane is cut**, where a label is editable at any time; for a check whose
 #    job is "you claimed 126, so move 126's block", the claim has to be the immutable half.
 #
-#    So the taxonomy moves to notes/naming.md as a convention, and the only thing still refused is
+#    So the taxonomy moves to design/naming.md as a convention, and the only thing still refused is
 #    a name that LOOKS like a milestone claim and would therefore skip 4b in silence. That is the
 #    one real hole the allowlist was plugging: `milestone-126-pgrep`, with a hyphen, does not match
 #    4b's `milestone/*` and would sail past the check that exists to catch a status that never
@@ -2167,7 +2167,7 @@ echo "==> the stranger test's run record"
 #    there and are milestone 93's handed-off finding, not this gate's business.
 #
 #    **Two more paths are exempt because they are where the argument about these names lives**, which
-#    is the same exemption the "daemon" check makes for `design/` and `notes/naming.md`: an audit
+#    is the same exemption the "daemon" check makes for `design/` and `design/naming.md`: an audit
 #    report has to be able to quote the stale name it found, and so does the procedure that explains
 #    how it was found. Note what is deliberately NOT exempt: a fenced code block. The eleventh stale
 #    name in the first sweep was inside one (`notes/cpu-models.md` opened with

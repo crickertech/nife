@@ -61,7 +61,7 @@
 //! endowing the new one. The old instance is asked to touch them one more time afterwards, and the
 //! kernel's fault message is the receipt.
 //!
-//! Name: recorded (milestone 46, and notes/naming.md's crate section). The wire contract was
+//! Name: recorded (milestone 46, and design/naming.md's crate section). The wire contract was
 //! spelled four ways (`filesystem_proto`, `graphics_proto`, `netproto`, `line_editor::proto`) for one concept;
 //! `*_proto` won on 2026-07-30 under DECISIONS §39, and `script/lint` has checked it since; the
 //! suffix became `_protocol` at milestone 265, on calef's ruling of 2026-09-05, and the

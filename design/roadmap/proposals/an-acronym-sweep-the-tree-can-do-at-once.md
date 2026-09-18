@@ -28,7 +28,7 @@ are the larger half and were never in it.
 ## Why it cannot be done a name at a time
 
 **An acronym is spelled out unless its expansion teaches nothing** (calef, 2026-09-05). The rule
-deratified `dma`, `dtb`, `gpt`, `ipc` and `asid` in the sentence that set it, and notes/naming.md
+deratified `dma`, `dtb`, `gpt`, `ipc` and `asid` in the sentence that set it, and design/naming.md
 already says the sweep is its own milestone because `ipc` is load-bearing across the tree.
 
 Milestone 264 found the second reason, which is smaller and sharper. **Several of these names exist
@@ -86,6 +86,6 @@ rather than an afternoon.
   harder case than the crates were and that is why they were left: unlike a crate name, each of
   these names the **hardware block**, whose device-tree spelling is the vendor's
   (`starfive,jh7110-trng`) and whose boot-log wording throughout the tree is "JH7110 TRNG", so the
-  "abbreviation we receive rather than author" clause in notes/naming.md may cover them where it did
+  "abbreviation we receive rather than author" clause in design/naming.md may cover them where it did
   not cover the crate. A lane should not guess: AGENTS.md puts public function names in calef's
   hands, and this list is where a name waits for him.

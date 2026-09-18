@@ -83,13 +83,15 @@ in the code or the conversation doesn't make sense, it belongs here.
   CI: doing so would fail the shared gate over a decision that is not a lane's to make. Name
   provisional.
 
-- [Naming things](naming.md): components, crates, scripts, branches, and which document goes
+- **Naming things moved out of `notes/`** on 2026-09-18 (`design/decisions/` §155): it is the rule
+  rather than an explanation, so it lives at [design/naming.md](../design/naming.md). Components,
+  crates, scripts, branches, and which document goes where. Why nothing here is named `-d` any more
+  (DECISIONS §39), why `§N` and "milestone N" are different numbers over the same integers (it has
+  already produced a wrong citation), and which four of these conventions `script/lint` checks. The
+  jargon half cannot be checked: `linedisc` would have passed every rule.
+
 - [Cobble, the mascot](mascot.md): the name, its claim, the held-not-embedded ruling, and the
   alternatives set aside. Drawn by Clay.
-  where. Why nothing here is named `-d` any more (DECISIONS §39), why `§N` and "milestone N" are
-  different numbers over the same integers (it has already produced a wrong citation), and
-  which four of these conventions `script/lint` checks. The jargon half cannot be checked:
-  `linedisc` would have passed every rule.
 
 - [The untracked-work sweep, and what each finding became](untracked-work-sweep.md): milestone 94's
   one-time read of the tree for work somebody had identified and never given a home, and the state

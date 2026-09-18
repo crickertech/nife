@@ -129,6 +129,18 @@ above it naming who took what. It also fixes the dangling case AGENTS.md describ
 worktree left `nife-dev` pointing at nothing and unrelated builds failed far from the cause with
 `override toolchain 'nife-dev' is not installed`.
 
+**Telling a lane not to take the link was never possible**, which milestone 57's lane established on
+2026-08-01 by reading the code rather than by failing. `script/test` calls `std_src()` transitively
+and a fresh worktree always has a cold farm, so **any lane that runs the gate takes the
+account-wide name.** `AGENTS.md` had at that point given two instructions that could not both be
+obeyed: gate before reporting, and do not run `xtask std-src`. The honest rule that replaced them is
+the integrator's, and is all that `AGENTS.md` still carries: expect every lane to take it, and
+relink from the main checkout at merge.
+
+**The workaround worth knowing, from the same lane**: symlink the worktree's `target/nife-farm` at
+the main checkout's farm once `cargo xtask std-stamp` shows the stamps match, and `std_src()`
+early-returns instead of rebuilding a second copy.
+
 **This does not make concurrent lanes safe, and must not be read that way.** It makes the loss
 visible and self-healing at the next call. A lane whose build is already in flight when another
 relinks still loses; the honest fix is a per-worktree toolchain name, which nobody has priced.

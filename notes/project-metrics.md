@@ -421,7 +421,7 @@ idempotence; for the current week it is `HEAD`, and the row moves as work lands.
   `script/` entry points and Cargo packages carry provenance blocks, so those are what this counts.
   Public function and method names have been calef's call since 2026-08-23 and nothing counts them;
   types, `scripts/` helpers and directory names are outside `script/names`' surfaces too, and
-  notes/naming.md's `BUGS` carries what that leaves uncovered.
+  design/naming.md's `BUGS` carries what that leaves uncovered.
 - **`proposals_unnumbered` is a net count and cannot see the flow.** Five proposals have left the
   directory and 81 remain; a flat line would be consistent with a stalled pile and with one
   draining as fast as it fills. The measurement that would tell them apart is the age of the oldest,

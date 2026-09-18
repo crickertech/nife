@@ -12,10 +12,38 @@
 //! the double map was refused. `kernel::user::tests` asserts `0b111` and prints the bit meanings
 //! on failure.
 //!
-//! Name: provisional (milestone 291). This was `hello`'s `ADDRESS_SPACE_BUILDER` role, number 19,
-//! and the lowercase of the role constant is the name. It is deliberately **not** `builder`, which
-//! is already a program in every archive (milestone 20's richer-initrd demo); the qualifier says
-//! which thing is built.
+//! Name: provisional, and ruled: calef ruled **`address_space_witness`** on 2026-09-18. The block
+//! stays `provisional` because the ratified name is not this file's until the rename is performed,
+//! and until then `address_space_builder` belongs on `script/names --unratified` rather than off
+//! it. Coined by milestone 291's lane, from `hello`'s `ADDRESS_SPACE_BUILDER` role (number 19),
+//! whose role constant lowercased was the name. Refused `address_space_builder` and `builder`;
+//! the argument for each is below.
+//!
+//! **The ruling is that a fixture is named for what it proves, not for what it does.** This tree
+//! already had one of those in `unwritable_clock_witness`, and this file's own prose reached for
+//! the same word before anyone ruled: *what this witnesses is that a process can construct one at
+//! all*. **Refused `address_space_builder`**, which the maintainer recommended on the grounds that
+//! building *is* the claim here, since 19b asked whether a process can construct a space at all,
+//! so the action and the proof coincide. calef ruled the other way: everything in `fixtures/`
+//! proves something, and naming them for the proof is the scheme rather than the exception.
+//!
+//! **That makes a scheme question live for the fixtures named for their action** (`image_self_
+//! checker`, `allocator_exerciser`, `os_primitives_benchmarker`). They are already on
+//! `script/names --unratified`, so they will reach calef on their own; nothing here rules on them,
+//! and this block should not be read as having done so.
+//!
+//! **The reason this name used to give had expired.** It said the qualifier existed because the
+//! name was *"deliberately not `builder`, which is already a program in every archive (milestone
+//! 20's richer-initrd demo)"*. Milestone 295 retired that program on 2026-09-14, on calef's own
+//! ruling, so the collision the qualifier was avoiding no longer exists. The qualifier survives on
+//! a different rule: `builder` alone is a **generic word that could name almost anything in an
+//! operating system**, which is AGENTS.md's second naming failure mode. Recorded because a
+//! justification that quietly stops being true is worse than one that was never written.
+//!
+//! **Not yet performed**: the name appears in `kernel/src/user.rs`, which milestone 321's lane is
+//! holding (PR #935). Three `bench/radon-2026-09-16/` transcripts also carry it and are evidence,
+//! so they are never edited; the `BUILT` blocks in milestones 291, 295 and 158 are accounts and
+//! keep the name they were written under.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

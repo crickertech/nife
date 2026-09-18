@@ -78,10 +78,16 @@
 //! assert!(matches!(Elf::parse(&foreign), Err(Error::WrongMachine)));
 //! ```
 //!
-//! Name: ratified 2026-08-01 (calef, the naming tenet in CLAUDE.md). Named in the group of standard
-//! terms that are already right and must not be touched, because a name a reader knows from outside
-//! this project costs nothing to learn and renaming it would destroy the recognition the tenet
-//! exists to buy.
+//! Name: ratified 2026-09-18 (calef, `design/decisions/` §154), re-ratified under the acronym
+//! test rather than grandfathered by the 2026-08-01 tenet that first blessed it. §154's question is
+//! whether the expansion is a phrase people actually say. "executable and linkable format" is not: an
+//! expert meeting those words has to translate them back to `elf` to know what they are looking
+//! at, so spelling it out would cost the reader who knows the term and help nobody. It stays.
+//! Refused `executable_and_linkable_format` (§154).
+//!
+//! Originally ratified 2026-08-01 in the group of standard terms "already right and must not be
+//! touched". That reasoning (recognition bought from outside this project) survives; what changed is
+//! that it is now the outcome of a test rather than an exemption from one.
 
 #![no_std]
 
@@ -149,7 +155,7 @@ pub const NATIVE_MACHINE: u16 = EXPECTED_MACHINE;
 ///
 /// The spelling is **provisional**, minted by milestone 288's lane on 2026-09-14, as are
 /// [`KNOWN_MACHINES`] and [`machine_no_nife_build_accepts`]. calef names public items and has not
-/// ruled on these three. `script/names` does not enumerate this surface (see notes/naming.md's
+/// ruled on these three. `script/names` does not enumerate this surface (see design/naming.md's
 /// `BUGS`), so this paragraph is the record rather than a `Name:` block.
 ///
 /// The other half of what [`NATIVE_MACHINE`] is for. A test that forges a header and expects it to

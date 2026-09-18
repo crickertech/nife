@@ -160,7 +160,7 @@ marker either way.
 `process_builder` was parked by calef on 2026-09-13 (*"Skip this one because it will go away with
 parity"*). Deleting the file took the name off `script/names --unratified` for free, which is what
 that parking was waiting for. The refusal records that quote the program (`script/names`'s own
-header, `crates/system_initializer`'s provenance block, `notes/naming.md`) are **kept verbatim**: a
+header, `crates/system_initializer`'s provenance block, `design/naming.md`) are **kept verbatim**: a
 refusal is an account of why a name lost on the day it lost, and one rewritten every time the tree
 moves is one nobody can check.
 

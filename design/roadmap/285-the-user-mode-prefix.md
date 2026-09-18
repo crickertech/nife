@@ -68,7 +68,7 @@ workspace, so `cargo build` at the root proves nothing about half of them:
 | `std_exerciser/build.rs` | **separate** |
 
 Seven more sites hide the same way, and they are listed with the reason each is invisible in
-[notes/naming.md](../../notes/naming.md)'s new "a crate is compiler-checked only where a compiler is
+[design/naming.md](../naming.md)'s new "a crate is compiler-checked only where a compiler is
 looking" table: `--exclude <crate>` arguments in `script/lint`, `script/coverage` and two lists in
 `xtask`, where cargo takes an unknown name in silence; `.cargo/mutants.toml`'s exclusion glob and
 `.cargo/mutants-baseline.txt`'s crate-keyed row; a `reaches_user_rt()` identifier inside
@@ -135,7 +135,7 @@ blind; the sets were listed, read, and then edited, which is what caught the rec
   settle whether `user_rt` keeps its name", which this milestone settled. One edit each, for whoever
   has the standing.
 - **Recorded.** **A crate name outside Rust is not compiler-checked**, in
-  [notes/naming.md](../../notes/naming.md)'s "Performing a ratified rename" section, beside the
+  [design/naming.md](../naming.md)'s "Performing a ratified rename" section, beside the
   clause it corrects. Eight kinds of site, each with why the compiler is blind to it and the habit
   that finds it: grep the path as well as the identifier, and build every workspace rather than the
   one `cargo build` means by default.
@@ -153,7 +153,7 @@ circle: `user_heap` was ratified partly because "`user_rt` already establishes `
 prefix rested on a crate nobody had argued. 818 occurrences in 223 files plus 79 in 37, swept by
 enumeration; the `uheap` refusal record, a quoted commit subject and a milestone 68 quotation kept
 their spelling. **Found that the "renaming a crate is compiler-checked" clause is too generous**
-and wrote the eight sites it misses into notes/naming.md: four `build.rs` linker-script paths, two
+and wrote the eight sites it misses into design/naming.md: four `build.rs` linker-script paths, two
 of them in separate workspaces, plus `--exclude` arguments, two mutation-testing files, a derived
 identifier in a gate's python, a shell script that seds the script by path, the generated module
 in the patched-`std` overlay, and each separate workspace's lockfile.

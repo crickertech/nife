@@ -67,7 +67,7 @@
 //! the specification, which is the protected class exactly, and the tree has reasoned about it
 //! from the far side: milestone 63 refused `virtio_net` for the transport adapter because
 //! "`crates/virtio` also drives net", which is an argument that this crate owns the whole
-//! family's name rather than one device's. notes/naming.md's BUGS comes one clause short of the
+//! family's name rather than one device's. design/naming.md's BUGS comes one clause short of the
 //! same conclusion, saying "the crate keeps its name, which is right" without giving the reason,
 //! so a reader there learns that somebody agreed rather than why; the reason is the two citations
 //! above. calef has not ratified it.

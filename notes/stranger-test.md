@@ -795,7 +795,7 @@ the gates had been run. The one document written for a person deciding whether t
 one the reading order failed to get read early.
 
 Still unopened after four runs: **every file under `design/decisions/`**, `notes/net.md`,
-`notes/naming.md`, and `notes/README.md` itself.
+`design/naming.md`, and `notes/README.md` itself.
 
 #### What it found, and none of it was fixed here
 
@@ -807,7 +807,7 @@ Still unopened after four runs: **every file under `design/decisions/`**, `notes
   it drops them too: `76 ratified, 15 recorded, 67 unrecorded` sums to 158 of 162. Reproduced on
   `main`. **It bites precisely the state a newcomer is told to use**, since `AGENTS.md` and
   `notes/adding-a-program.md` both say to ship a provisional name and say so. Recorded in
-  notes/naming.md's `BUGS`.
+  design/naming.md's `BUGS`.
 - **The two archives boot different binaries under the name `init`**, `hello` on aarch64 and
   `builder` on riscv64, in a project whose loudest claim is architectural parity. The stranger
   reported this as undocumented and was wrong: `xtask/src/main.rs` says it, in a comment on the
@@ -990,7 +990,7 @@ which is the gap the tool exists for. The reason is placement: the only page tha
 or `notes/README.md`.** Recorded in `script/apropos`'s own `BUGS`.
 
 Still unopened after five runs: every file under `design/decisions/`, `notes/net.md`,
-`notes/naming.md`, `notes/scripts.md`, and `notes/README.md`. New to the list: `AGENTS.md`.
+`design/naming.md`, `notes/scripts.md`, and `notes/README.md`. New to the list: `AGENTS.md`.
 
 #### What it found, and none of it was fixed here
 

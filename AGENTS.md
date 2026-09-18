@@ -514,46 +514,27 @@ runs. The warning signs were noted hours earlier, not acted on, and four more la
 of them. **If a lane is blocked, commit and push its work before removing anything**: a snapshot on
 the remote cannot be lost by a cleanup.
 
-**Both watchers now run unattended on patagonia, via `launchd`** (`com.nife.merge-drain` and
-`com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
-five minutes rather than as a session-owned foreground loop. This replaced the original instruction
-below the same day it failed for the reason it always fails: a maintainer session read the words,
-agreed with them, and did not act on them, which is prose behaving like rung four regardless of
-which file it lives in. `launchd` is rung one for the part of the gap a session can close: nothing
-has to remember to start these any more, because starting them is no longer a session's job.
+**Two watchers run unattended on patagonia via `launchd`** (calef, 2026-08-26). A session confirms
+both are alive (`launchctl list | grep nife`) and starts them the old way if not
+(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`), which is still how they run everywhere
+that is not patagonia.
 
-**The gap that remains is the one calef accepted rather than solved**: patagonia asleep or shut
-down means neither watcher runs, and nobody is watching during that window. Raised as an
-alternative (a cron on cordoba, the always-on box, which would close this gap too) and declined in
-favour of the simpler thing on the machine already in use, the cost named and accepted rather than
-hidden.
-
-**A session should still confirm both are alive** (`launchctl list | grep nife`) rather than assume
-the plists never got unloaded, and may start them in the foreground the old way
-(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`) if they are not, which is still how they
-run everywhere that is not patagonia (a lane's own worktree checks, CI, another machine).
-
-**And a maintainer session checks for what those watchers already found**, not only whether they are
-running. `merge-drain.sh`'s `notify()` posts once per stall (a conflict, a check failure, a stuck
-check) as a PR comment and then goes quiet, by design, so a stalled PR does not re-announce itself
-every five minutes; that also means nothing re-announces it to a session that opens later; and
-resolving a conflict or a check failure needs the same reading and judgment a person brings; it
-is not something the watcher itself can do (`design/decisions/`'s own boundary: a queue reports,
-it does not resolve). Deliberately not automated further into an unattended scheduled agent
-(calef declined that, 2026-08-26: he would rather this shut down when the session driving it
-does than run standing on a timer with nobody watching): so this is a maintainer session's own
-standing check, same priority as keeping lanes full, not new machinery. Concretely: `gh pr list
---search "commenter:app/github-actions merge-drain" ` is not precise enough to script, so read the
-queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for `DIRTY`/`CONFLICTING` or
-a `FAILURE` conclusion, and treat every one found as a task to resolve, the same as a lane report
-naming work nobody is doing yet.
+**And a maintainer session checks what they already found**, not only that they are running.
+`merge-drain.sh` posts once per stall and then goes quiet by design, so a stalled pull request does
+not re-announce itself every five minutes, and nothing re-announces it to a session that opens
+later. Read the queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for
+`DIRTY`/`CONFLICTING` or a `FAILURE` conclusion and treat each one found as a task to resolve, the
+same as a lane report naming work nobody is doing yet. A standing check, same priority as keeping
+lanes full. Resolving a conflict needs judgment a watcher does not have: a queue reports, it does
+not resolve.
 
 They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
 green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
 pull request staled eight others that nothing picked back up. The steward was meant to cover this and
 did not, for a reason worth keeping: **it reported and never acted.** A stalled queue announced in a
-message is only useful if somebody reads the message. See notes/merge-queue.md, whose BUGS section is
-honest that neither script reports its own death.
+message is only useful if somebody reads the message. notes/merge-queue.md has the `launchd` plists,
+the gap calef accepted rather than solved, why this is deliberately not automated further, and a
+BUGS section honest that neither script reports its own death.
 
 **Do not try to route this by requesting a review.** GitHub silently refuses a review request from
 the pull request's own author: `gh pr edit N --add-reviewer calef` **returns success and sets zero
@@ -602,28 +583,16 @@ Two kinds bit us on 2026-07-30:
   another; the merged tree had 95. Both were counted honestly. Take such a number at merge, from the
   merged tree.
 
-**Some shared state is global to the *machine*, not the repo, and `rustup toolchain link` is the one
-that has bitten.** The `nife-dev` toolchain the `std` farm needs is a symlink in
-`~/.rustup/toolchains`, so `xtask std-src` repoints a **user-account-wide** name at whichever
-worktree ran it last. Two lanes building the farm race for it, and the loser silently compiles
-against a farm inside someone else's worktree; deleting that worktree then breaks the toolchain for
-everything, surfacing far from the cause as "override toolchain 'nife-dev' is not installed"
-during an unrelated build. Fix: `rustup toolchain link nife-dev "$(pwd)/target/nife-farm"` from
-the main checkout. This is the same rule as the paragraph above, one level out: the integrator owns
-what is shared, and "shared" is wider than this repository.
-
-**And the instruction "do not run `xtask std-src`" is impossible for a lane that must gate**, which
-milestone 57's lane found on 2026-08-01 by reading the code rather than by failing. `script/test`
-calls `std_src()` transitively, and a fresh worktree always has a cold farm, so **any lane that runs
-the gate takes the account-wide link.** Two instructions this file gave together could not both be
-obeyed.
-
-Until `xtask test` grows a flag that skips the farm, the honest rule for the integrator is: **expect
-every lane to take `nife-dev`, and relink from the main checkout at merge**, in the same breath as
-pruning the worktree. Do not tell a lane not to do the thing gating requires; tell it what to say in
-its report so the relink is not forgotten. That lane also demonstrated the workaround worth knowing:
-symlink the worktree's `target/nife-farm` at the main checkout's farm after checking the stamps
-match (`cargo xtask std-stamp`), and `std_src()` early-returns instead of rebuilding.
+**Some shared state is global to the *machine*, not the repo**, and `rustup toolchain link` is the
+one that has bitten: `nife-dev` is one symlink for the whole user account, so it means whichever
+worktree ran `xtask std-src` last. **Every lane that gates takes it**, unavoidably, because
+`script/test` calls `std_src()` transitively and a fresh worktree always has a cold farm. So the
+integrator's duty is the only rule here: **expect every lane to take `nife-dev`, and relink from the
+main checkout at merge** (`rustup toolchain link nife-dev "$(pwd)/target/nife-farm"`), in the same
+breath as pruning the worktree, and tell a lane to say in its report that it took the link. Do not
+tell a lane not to do the thing gating requires. notes/std.md has the mechanism, the 2026-08-18
+cross-contamination that prompted it, and why `std_src` relinking loudly still does not make
+concurrent lanes safe.
 
 **An unmerged branch is either abandoned or it is
 holding knowledge that is not on `main`, and the second case is a bug in where the knowledge lives.**
@@ -777,85 +746,29 @@ the requirements are known.
 
 ## calef names the crates, the programs, and the shared modules
 
+**The name of a crate, a program, a module, or a public function is calef's call, not a lane's and
+not yours** (2026-08-01, widened to functions 2026-08-23). It is global to the tree, so it is decided
+by the person who can see the whole tree, and the reason is his: names are what make this OS
+accessible to humans and to LLMs, and in a capability system the name is often the only thing that
+says what a program may *do*.
+
+**So: propose, ship a provisional name, say so in your report, and never rename on your own
+initiative** (a rename is a naming decision with extra steps). That mechanism is what makes it safe
+not to have read the conventions before you start: a provisional name is expected to change, and the
+maintainer surfaces it.
+
+**[design/naming.md](design/naming.md) is the rule** (§155): the spelling conventions per domain, the
+acronym test, nouns over verbs, the failure modes, what `script/lint` can and cannot check, how to
+perform a ratified rename, and the refusals that shaped all of it. **Read it before you ratify or
+rename**; a lane inventing a provisional name does not have to. Where it and this file disagree,
+**that file is the rule** for naming conventions and this one is the bug; this file keeps only the
+authority above.
+
 **Contributors are referred to by their GitHub username** in prose, attributions, records and lane
 reports; legal names appear only in legal and authorship strings (`Cargo.toml` authors, licenses,
-patch `From:` headers). A username is unique and matches the identity every pull request and
-`git log --author` already carries, so a grep for a contributor finds them rather than everyone who
-shares a first name.
+patch `From:` headers), so a grep for a contributor finds them rather than everyone sharing a first
+name.
 
-**The name of a crate, a program, or a shared module is calef's call, not a lane's and not yours**
-(2026-08-01), and since 2026-08-23 that covers **public function and method names** too. Same rule
-as `design/decisions/` section numbers, one level up: it is global to the tree, so it is decided by the
-person who can see the whole tree. The reason is his: names are what make this OS accessible to
-humans and to LLMs, and in a capability system the name is often the only thing that says what a
-program can *do*.
-
-**How to work it.** Propose names with what each thing actually does, and wait. A lane that needs a
-new crate, program or module ships a **provisional** name, says so in its report, and expects it to
-change; the integrator surfaces it. Never rename on your own initiative, because a rename is a naming
-decision with extra steps. A function name is more reversible than a crate's, typically fewer call
-sites and all inside one crate, so the "recommend on reversible forks" latitude applies more freely
-there than one level up. **Performing a ratified rename has its own rules**, because the cheap
-edit is what destroys the expensive record: status decides what moves (a `BUILT` block is an account
-and keeps the old name, a `PROPOSED` one is live intent and moves), a quotation never moves, and you
-enumerate before sweeping. [notes/naming.md](notes/naming.md) has the worked example and what is not
-gateable.
-
-**The three failure modes to name against.** **Abbreviations** that need a decoder (`capsh`,
-`uheap`, `vt`). **Generic words** that could name almost anything in an operating system (`compose`,
-`measure`, `regions`, `slots`, `caps`, `frames`). And, on the other side of the line, **standard
-terms a reader already knows from outside**, which are the best names available (`elf`, `pci`,
-`paging`, `glob`): this rule is not a licence to rename everything.
-
-**An acronym is spelled out unless its expansion teaches nothing** (calef, 2026-09-05). The test is
-an asymmetry, and it is why the old list was wrong: **a reader who knows the term recognises its
-expansion instantly, so spelling it out costs the expert nothing and saves the newcomer a bounce.**
-`pci` expands to peripheral component interconnect and the reader is no wiser, so it stays. `dma`
-expands to direct memory access and the reader now knows what the crate guards, so it goes. **This
-deratifies `dma_validator`**, ratified 2026-08-01 before the test existed; `dtb`, `gpt`, `ipc` and
-`asid` sit the same way.
-
-**Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
-takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,
-`fs_subtree_caretaker`. A verb names an action and a namespace is not one, which is audible at the
-call site: `line_edit::expand_output` reads as an instruction where `line_editor::expand_output`
-reads as a location. The exception is a **term of art that happens to be a verb**, where the word is
-the one the field already uses: `bind` (§50) is Plan 9's, and respelling it as a noun would assert
-novelty where there is none.
-
-**A crate and a program may share a name, and it says something when they do**: the crate is that
-program's logic, lifted out so it can be host-tested and Kani-reachable while the program keeps the
-IO. `coremark`, `line_editor` and `compositor` are all this pair, and splitting the names would hide
-a relationship worth seeing.
-
-### The convention: one rule per domain, and each domain's own
-
-**`snake_case` is the rule for Rust things, not for everything.** Six domains, each keeping its own:
-
-| Domain | Form | Because |
-|---|---|---|
-| Crates, programs, modules | `snake_case` | Rust's own convention, and what the tree already does |
-| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
-| Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
-| Repo-root markdown | `SCREAMING_SNAKE_CASE` | **GitHub behaviour, not style.** It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
-| A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name |
-| Any other directory | `hyphens` if it needs two words | a directory is a path element, and paths are hyphenated outside this repository |
-
-These are splits *across* domains on a **stable** property: a file either is a Cargo target or is an
-executable in `script/`, and `script/test` will never become a `[[bin]]`. **There is no second tier
-*within* a domain**, because a split inside one would key on something unstable, which is the two-tier
-rule calef rejected. A short name for a typed command is then a *choice its author makes* rather than
-a convention to apply, and nobody needs a rule to know `wc` beats `word_count`.
-
-**One constraint to know:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, which bounds a
-program's name and not a crate's. It can be raised, at a cost in directory entries per block. Do not
-let the limit pick a name; do not spend a format change on bytes nothing needs.
-
-**The case for every rule above, and the refusals that shaped them, are in
-[notes/naming.md](notes/naming.md)**, along with the conventions a lane meets less often (shell
-builtins, branch prefixes, where a document goes, what `script/lint` can and cannot check). That note
-is the argument and the history, **not a second authority**: where the two disagree, this file is the
-rule and the note is the bug.
 
 ## The syscall surface is a boundary, not a habit
 

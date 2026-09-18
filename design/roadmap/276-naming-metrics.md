@@ -91,7 +91,7 @@ reader to infer a trend from a convention's birth.
 - **It counts four kinds of named thing, and the naming rule covers more.** Public function and
   method names have been calef's since 2026-08-23 and nothing counts them; types, `scripts/` helpers
   and directory names are outside `script/names`' surfaces, so they are outside this series too.
-  notes/naming.md's `BUGS` carries what that leaves uncovered.
+  design/naming.md's `BUGS` carries what that leaves uncovered.
 
 ## What was built
 
@@ -161,7 +161,7 @@ name is the mechanism working rather than failing, and the note that the band wo
 - **Recorded.** `scripts/name_provenance.py` is a provisional name and calef names modules. It
   carries no `Name:` block because `script/names` puts `scripts/` out of its own scope, which is the
   same hole the `package` kind closed one surface over; its header paragraph is the record instead.
-- **Recorded.** notes/naming.md's `BUGS` said `kernel`, `xtask`, `redoxfs_server` and
+- **Recorded.** design/naming.md's `BUGS` said `kernel`, `xtask`, `redoxfs_server` and
   `tools/redoxfs_host` were uncovered surfaces. They have carried blocks since the `package` kind
   landed on 2026-08-18, and this milestone's own series is what showed the sentence was stale. The
   entry now says what closed it and when.

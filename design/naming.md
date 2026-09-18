@@ -7,19 +7,83 @@ and its argument are [DECISIONS §39](../design/decisions/39-component-names.md)
 the parts §39 does not: crates, scripts, where a document goes, and the two numbering schemes that
 look alike and are not.
 
-**This note is the case, not the authority** (milestone 262, 2026-09-05). The rules a lane applies
-live in `AGENTS.md`, which is the file an agent has in front of it every session; this note carries
-the argument each of them came from, the refusals that shaped them, and the conventions a lane meets
-too rarely to keep in the constitution. **Where the two disagree, `AGENTS.md` is the rule and this
-note is the bug**, and the disagreement is worth reporting rather than reconciling on your own
-judgement.
+**This document is the authority for naming conventions** (`design/decisions/` §155, 2026-09-18),
+and it moved here from `notes/` on the same ruling, because a file that is normative is not a note.
+`AGENTS.md` keeps only the authority itself, which is the part a lane must act on without opening
+anything: **names are calef's, ship a provisional one and say so, never rename on your own
+initiative.** Everything else (the spelling conventions, the acronym test, nouns over verbs, the
+failure modes, how to perform a ratified rename) is here. **Where the two disagree, this file is the
+rule for conventions and `AGENTS.md` is the bug**, which is the reverse of what was true before §155.
 
-The split exists because the rule was previously written out twice, in full, in both files. On
-2026-09-05 the acronym test changed and had to be edited here and in `AGENTS.md` in one commit or
-this note would have contradicted the constitution the moment it merged. Nothing compares the two,
-and nothing plausibly could, since they are meant to say different things about the same subject.
-What milestone 262 could do was shrink the surface: one statement per rule up there, the case for it
-down here.
+**This overturns milestone 262 by finishing what it started.** On 2026-09-05 the rule was written
+out twice, in full, in both files, and 262 shrank that to one statement per rule in `AGENTS.md` with
+the case for it here. The residue was still duplication: when the acronym test changed on 2026-09-18
+it again had to be edited in both places in one commit, and nothing compares the two. §155 removes
+the duplication rather than shrinking it, and buys back 58 lines of a constitution that is on a
+budget (milestone 118). What makes that safe is the **provisional name**: a lane that has never read
+this file invents a name that is expected to change, so the conventions are needed at ratification
+and at rename, which are the unhurried moments, not at invention.
+
+## The rules a lane applies
+
+Moved here verbatim from `AGENTS.md` by §155; the argument for each is further down this document.
+
+new crate, program or module ships a **provisional** name, says so in its report, and expects it to
+change; the integrator surfaces it. Never rename on your own initiative, because a rename is a naming
+decision with extra steps. A function name is more reversible than a crate's, typically fewer call
+sites and all inside one crate, so the "recommend on reversible forks" latitude applies more freely
+there than one level up. **Performing a ratified rename has its own rules**, because the cheap
+edit is what destroys the expensive record: status decides what moves (a `BUILT` block is an account
+and keeps the old name, a `PROPOSED` one is live intent and moves), a quotation never moves, and you
+enumerate before sweeping. "Performing a ratified rename" below has the worked example and what is not gateable.
+
+**The three failure modes to name against.** **Abbreviations** that need a decoder (`capsh`,
+`uheap`, `vt`). **Generic words** that could name almost anything in an operating system (`compose`,
+`measure`, `regions`, `slots`, `caps`, `frames`). And, on the other side of the line, **standard
+terms a reader already knows from outside**, which are the best names available (`elf`, `pci`,
+`paging`, `glob`): this rule is not a licence to rename everything.
+
+**An acronym is spelled out where its expansion is a phrase people actually say, and stays whole
+where nobody says it** (calef, 2026-09-18, §154, which supersedes two earlier tests). Ask it again
+of any acronym inside the expansion. What decides it is whether anybody *uses* the expansion, not
+whether one exists, because only a spoken one is free to the expert. So `device_tree_blob`
+and `globally_unique_identifier_partition_table` go, `pci` and `elf` stay (nobody says "peripheral
+component interconnect"), `pcie` becomes `pci_express` with no special case, and this **deratifies
+`dma_validator`, `nvme`, `gpt`, `dtb`, `ipc`, `asid`** while re-ratifying `pci` and `elf` under it.
+
+**Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
+takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,
+`fs_subtree_caretaker`. A verb names an action and a namespace is not one, which is audible at the
+call site: `line_edit::expand_output` reads as an instruction where `line_editor::expand_output`
+reads as a location. The exception is a **term of art that happens to be a verb**, where the word is
+the one the field already uses: `bind` (§50) is Plan 9's, and respelling it as a noun would assert
+novelty where there is none.
+
+**A crate and a program may share a name, and it says something when they do**: the crate is that
+program's logic, lifted out so it can be host-tested and Kani-reachable while the program keeps the
+IO. `coremark`, `line_editor` and `compositor` are all this pair, and splitting the names would hide
+a relationship worth seeing.
+
+### The convention: one rule per domain, and each domain's own
+
+**`snake_case` is the rule for Rust things, not for everything.** Six domains, each keeping its own:
+
+| Domain | Form | Because |
+|---|---|---|
+| Crates, programs, modules | `snake_case` | Rust's own convention, and what the tree already does |
+| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
+| Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
+| Repo-root markdown | `SCREAMING_SNAKE_CASE` | **GitHub behaviour, not style.** It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
+| A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name |
+| Any other directory | `hyphens` if it needs two words | a directory is a path element, and paths are hyphenated outside this repository |
+
+These are splits *across* domains on a **stable** property: a file either is a Cargo target or is an
+executable in `script/`, and `script/test` will never become a `[[bin]]`. **There is no second tier
+*within* a domain**, because a split inside one would key on something unstable, which is the two-tier
+rule calef rejected. A short name for a typed command is then a *choice its author makes* rather than
+a convention to apply, and nobody needs a rule to know `wc` beats `word_count`.
+
+**One constraint to know:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, which bounds a
 
 ## The rule everything else is a corollary of
 
@@ -175,7 +239,7 @@ often the only thing that says what a program can *do*.
 The evidence is the tree itself, and every one of these was a locally reasonable choice by whoever
 was mid-task. `dwarden` is named for what it **holds** while its two siblings are named for what they
 **serve**, so a reader who correctly infers the scheme gets it wrong. `conx` has no recorded
-expansion anywhere: not in §41, not in [live-replacement.md](live-replacement.md), not in the commit
+expansion anywhere: not in §41, not in [live-replacement.md](../notes/live-replacement.md), not in the commit
 that introduced it. `cseam.rs` sat among 48 programs and was not one; it was a shared module.
 
 **Crates came into scope on 2026-08-01**, and they are the most reader-facing names in the tree: a
@@ -270,7 +334,7 @@ bounded. Crates are not in the archive and are unbounded.
 It was 24 until 2026-08-01, when it had started deciding names rather than bounding them: two settled
 names were within four bytes of it and `os_primitives_benchmarker` exceeded it. Raising it costs
 directory entries per block, and nothing else now that `Fs` no longer holds an entry array. See
-[nifefs.md](nifefs.md) for the numbers. The rule that survives the raise: **do not let the
+[nifefs.md](../notes/nifefs.md) for the numbers. The rule that survives the raise: **do not let the
 limit pick a name, and do not spend a format change on bytes nothing needs.** 32 clears the longest
 settled name by seven bytes, which is a budget rather than the three bytes that were left before.
 
@@ -357,7 +421,7 @@ Two directories, on purpose, and the split is by audience.
 - **`scripts/`** is the helper drawer: `.sh` extension, called by other scripts and by `xtask`, not
   by people (`qemu-bounded.sh`, `qemu-runner-aarch64.sh`, `qemu-runner-riscv64.sh`).
 
-Every `script/` entry needs a row in [scripts.md](scripts.md); `script/lint` fails without one, and
+Every `script/` entry needs a row in [scripts.md](../notes/scripts.md); `script/lint` fails without one, and
 fails in the other direction too if `README.md` names a script that does not exist.
 
 ## Where a name's provenance lives (milestone 115)
@@ -421,7 +485,7 @@ did most of the work in the 2026-08-04 triage:
   Reading them as history would make the record prove itself and every name `recorded` by
   construction, which is why a `recorded` block must cite somewhere else and the citation is checked
   for being present.
-- **"It got here first" is not a reason.** `notes/naming.md` exempts `abi` from the `*_proto` rule
+- **"It got here first" is not a reason.** `design/naming.md` exempts `abi` from the `*_proto` rule
   because it "predates the suffix", which explains why the crate is not called `syscall_proto` and
   says nothing about why it is called `abi`. Counting an exemption as an explanation would let every
   old name in the tree explain itself.
@@ -725,7 +789,7 @@ block is an argument for doing something, not a record of having done it, even a
 ships and the block gains a "Built" line.
 
 A note is not optional. Every concept and every finding gets one, indexed in
-[notes/README.md](README.md), because for a demonstration OS the documentation is part of the
+[notes/README.md](../notes/README.md), because for a demonstration OS the documentation is part of the
 deliverable rather than a courtesy to the author.
 
 ## `§N` is not milestone N, and they collide
@@ -1333,8 +1397,8 @@ by mistake.
   the worklist is for.
 
 - **Note filenames did not move**, and that is the rule rather than an oversight:
-  [fs-server.md](fs-server.md), [shell.md](shell.md), [shell-navigation.md](shell-navigation.md) and
-  [line-discipline.md](line-discipline.md) are markdown, so they stay lowercase-hyphenated even
+  [fs-server.md](../notes/fs-server.md), [shell.md](../notes/shell.md), [shell-navigation.md](../notes/shell-navigation.md) and
+  [line-discipline.md](../notes/line-discipline.md) are markdown, so they stay lowercase-hyphenated even
   though the things they describe are now `redoxfs_server`, `swish` and `line_editor`.
 
 ## The casing of `nife`, considered and settled

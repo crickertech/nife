@@ -427,11 +427,11 @@ neighbor for the same pattern applied to a different number.
 
 **Raised 992 to 1001 on 2026-09-13**, and the nine lines are a new section saying every date in this tree is UTC. The considered act: provenance blocks, roadmap rows, `design/decisions/` sections, notes and commit messages all carry dates, `script/names` *fails* a ratification that lacks one, and nothing anywhere said what zone a date meant. The agents writing most of them run UTC and calef does not, so a name he ruled in his evening was already being filed under the next day, silently and in a record nobody can correct later. This is the *facts that leave the machine* category of the **move fast on what can be undone** tenet, which is why it earned lines rather than a note. Nothing was removed to pay for it; that is the cost, stated. Deliberately **not gated**: `script/names` could compare a ratification date against the commit's author date, but a record honestly written the morning after a ruling would fail it, so the check would be wrong about the tree in the way §77 already is. Rung three, at the thing itself.
 
-**Raised 988 to 992 on 2026-09-13**, and the four lines are the rename procedure in the naming section. The considered act this budget asks for: the rule came out of a rename performed the same day that missed three live proposals and nearly rewrote a quotation, the detail lives in `notes/naming.md`, and what is here is the four-line rule itself, because `AGENTS.md` is the rule and the note is the argument. Nothing was removed to pay for it; that is the cost, stated.
+**Raised 988 to 992 on 2026-09-13**, and the four lines are the rename procedure in the naming section. The considered act this budget asks for: the rule came out of a rename performed the same day that missed three live proposals and nearly rewrote a quotation, the detail lives in `design/naming.md`, and what is here is the four-line rule itself, because `AGENTS.md` is the rule and the note is the argument. Nothing was removed to pay for it; that is the cost, stated.
 
 **Lowered from 1048 to 988 on 2026-09-05 by milestone 262, and a lowering deserves the sentence as
 much as a raise does.** The naming section went 137 lines to 77 without losing a rule: the argument
-moved to `notes/naming.md`, which now says in its own first paragraph that it is the case and not the
+moved to `design/naming.md`, which now says in its own first paragraph that it is the case and not the
 authority, and that where the two disagree this file is the rule and the note is the bug.
 
 **Most of the 60 lines were not moved, they were deleted as duplicates.** The two-tier rejection, the
@@ -465,7 +465,7 @@ has coined yet. It also overturns a ratification of his own (`dma_validator`, 20
 so, because a reader who remembers that decision should be able to see it reconsidered rather than
 quietly dropped.
 
-**The growth is six lines and not thirty because the argument went to notes/naming.md**, where the
+**The growth is six lines and not thirty because the argument went to design/naming.md**, where the
 same clause was also stated and would otherwise have contradicted the constitution the moment this
 landed. That duplication is itself the subject of a milestone now: the constitution should carry the
 tests a lane applies and the note should carry the history, and today the naming section is 12% of

@@ -100,10 +100,24 @@
 //!
 //! See notes/gpt.md for the format walk-through and the surprises the fixtures pinned.
 //!
-//! Name: ratified 2026-08-01 (calef, the naming tenet in CLAUDE.md). Named in the group of standard
-//! terms that are already right and must not be touched, because a name a reader knows from outside
-//! this project costs nothing to learn and renaming it would destroy the recognition the tenet
-//! exists to buy.
+//! Name: provisional, and ruled: calef ruled **`globally_unique_identifier_partition_table`** on 2026-09-18
+//! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
+//! `provisional` because the ratified name is not this crate's until the rename is performed, and
+//! until then `gpt` belongs on `script/names --unratified` rather than off it. Refused `gpt` and
+//! `guid_partition_table`, the one-level spelling; §154 asks the question again of `GUID`.
+//!
+//! §154's test is whether the expansion is a phrase people actually say. "GUID partition table" is,
+//! so it goes, where `pci` stays because "peripheral component interconnect" is not. It expands **all the way**, because §154 asks the same question of an acronym left inside an
+//! expansion and "globally unique identifier" is spoken too.
+//!
+//! The 2026-08-01 block called this one of the standard terms "already right and must not be
+//! touched". That was an exemption rather than a test, and §154 records the three-layer
+//! contradiction the exemptions left behind.
+//!
+//! **Known cost**: datasheets, error messages and this kernel's own output say `gpt`, so a reader
+//! grepping the word the machine printed will not find this identifier. Weighed and accepted.
+//!
+//! **Not yet performed**: milestones 320 and 321 are live lanes in files a sweep would touch.
 
 #![no_std]
 // milestone 68's ratchet is workspace-wide (§107); this crate opts out until its 23-item

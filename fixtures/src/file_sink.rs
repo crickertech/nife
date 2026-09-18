@@ -69,7 +69,7 @@
 //! ratified it.** It was `ROLE_FILE` inside the `sink` binary until milestone 292 split that binary
 //! into the three programs it had always been, and `file_sink` is the name the kernel side has
 //! spelled all along (`fs_service::FileSink`, `fs_service::start_file_sink`). `sink` survives the
-//! 2026-09-13 structural-versus-current test (notes/naming.md) here for the strongest of the three
+//! 2026-09-13 structural-versus-current test (design/naming.md) here for the strongest of the three
 //! reasons it survives anywhere: this terminus is structural, because the client holds a capability
 //! over which no message but "append" is expressible, and no grant anybody could make would change
 //! that. Refused `file_sink_caretaker` (it would match the shape the tree already spells

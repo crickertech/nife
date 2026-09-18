@@ -7,7 +7,7 @@
 //! and the two sinks.
 //!
 //! Name: ratified 2026-09-14 (calef, working the unratified worklist), on milestone 126 and
-//! notes/naming.md. Its crate was ratified 2026-08-23 in a kernel-dependency naming review, so the
+//! design/naming.md. Its crate was ratified 2026-08-23 in a kernel-dependency naming review, so the
 //! pair is signed at both ends. `pmap` is the name every reader already
 //! knows from outside this project. The crate beside it shares the name deliberately, the same
 //! crate-and-program pair `ps`, `coremark`, `line_editor` and `compositor` already are.

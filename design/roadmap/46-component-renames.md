@@ -7,7 +7,7 @@
 `crates/line_editor`. The scope estimated here at 398 came in at **457 whole-word token replacements
 across 4 file moves and 1 directory move** (`netd` 184, `linedisc` 93, `termd` 77, `gpud` 67,
 `compd` 36); the estimate was measured before milestones 23 and 37 landed and the tree grew under it,
-which is the ordinary way a count like this drifts. The conventions are notes/naming.md, indexed in
+which is the ordinary way a count like this drifts. The conventions are design/naming.md, indexed in
 notes/README.md, and four of them are checked in `script/lint`: no name ending in `-d`, the word
 "daemon" nowhere outside the documents that argue about it, one spelling for contract crates, and a
 recognised branch prefix. Each was proved to fail before it was trusted, and the strongest of those
@@ -78,7 +78,7 @@ arrival, or a checker that is red on arrival.
 - **Milestone 63.** The word-separation split this milestone measured and did not settle. It found
   two habits and no rule for multiword names; 63 wrote the rule, extended it to directories and
   package names, and renamed what disagreed.
-- **Recorded.** `notes/naming.md` states two limits of the checks this milestone added: they read
+- **Recorded.** `design/naming.md` states two limits of the checks this milestone added: they read
   the filesystem for names and `git grep` for the word, so an untracked file saying "daemon" is
   invisible, and check 1 sees names rather than behaviour, so a component with a good name that acts
   like a daemon is not its problem.

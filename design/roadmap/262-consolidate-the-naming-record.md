@@ -2,7 +2,7 @@
 
 **Status: PARTIAL.** The note half is done; the `AGENTS.md` half is proposed as a diff and waits for
 calef, which is the split this block's own BUGS section predicted. Minted 2026-09-05 by calef, on finding that a rule change had to land in
-`AGENTS.md` and `notes/naming.md` together or the note would have contradicted the constitution the
+`AGENTS.md` and `design/naming.md` together or the note would have contradicted the constitution the
 moment it merged. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** Moving prose between two files this tree already owns.
@@ -10,10 +10,10 @@ moment it merged. *(Number provisional until the merge queue lands it.)*
 ## The measurement
 
 `AGENTS.md` is **1,043 lines under a hard ceiling with zero headroom by design** (milestone 118), and
-**132 of them, 12%, are the naming section**. `notes/naming.md` is **760 lines** on the same subject.
+**132 of them, 12%, are the naming section**. `design/naming.md` is **760 lines** on the same subject.
 
 **Both stated the same rule.** `AGENTS.md` said standard terms *"should not be touched"* with a
-list; `notes/naming.md:154` said *"Standard terms are already right and must not be touched"* with
+list; `design/naming.md:154` said *"Standard terms are already right and must not be touched"* with
 the same list. On 2026-09-05 that rule changed, and it had to be edited in both places in one commit.
 Nothing would have caught it if it had not been: no gate compares the two, and the note is the file a
 lane reads *second*, so the contradiction would have been discovered by somebody acting on the wrong
@@ -28,7 +28,7 @@ one framing, which is the same defect wearing a second hat.
 **The constitution keeps the tests a lane applies.** Who names things, the `snake_case`/hyphen
 domain table, nouns rather than verbs, and now the acronym test. Short, imperative, and read every
 session, because `AGENTS.md` is the file an agent has in front of it and
-`notes/naming.md` is a file it visits only when something sends it there. **Moving a rule to a note
+`design/naming.md` is a file it visits only when something sends it there. **Moving a rule to a note
 demotes it to rung four of this file's own ladder**, and naming is the most frequently applied rule
 in the project: every lane ships names.
 
@@ -67,7 +67,7 @@ three crates the noun rule settled, and the domain table's two arguments.
 ## BUGS
 
 - **Nothing will stop it happening again.** No gate compares a rule's statement in `AGENTS.md`
-  against `notes/naming.md`, and none plausibly could, since the two are meant to say different
+  against `design/naming.md`, and none plausibly could, since the two are meant to say different
   things about the same subject. This milestone reduces the surface rather than closing it.
 - **`AGENTS.md` is calef's file.** A lane may not edit it (milestone 118 records that a lane cannot
   even carry the budget marker there), so the note half is a lane's and the constitution half is
@@ -84,11 +84,11 @@ three crates the noun rule settled, and the domain table's two arguments.
   the domain table and the prose around it moved without touching a check. That is convenient here
   and is the same fact as the first bug: nothing was watching, and nothing is watching now.
 - **The note still states some rules in its own words**, which is unavoidable and is why the framing
-  paragraph at the top of `notes/naming.md` says which file wins. The standard-terms rule in
+  paragraph at the top of `design/naming.md` says which file wins. The standard-terms rule in
   particular reads "must not be touched" there and "not a licence to rename everything" in the
   constitution; those agree, and a future edit to one of them is exactly the failure this block
   describes.
-- **`notes/naming.md` carries two sections both titled `## Crates`**, one about the rule and one
+- **`design/naming.md` carries two sections both titled `## Crates`**, one about the rule and one
   about what the 39 crate directories actually contain. Found while working and left alone, because
   a heading is a name and renaming one is a naming decision with extra steps.
 
@@ -97,7 +97,7 @@ three crates the noun rule settled, and the domain table's two arguments.
 - **Outstanding.** The `AGENTS.md` diff is in the pull request body and waits for calef to apply it,
   together with the `agents-md-lines` ceiling drop to 988 in 118's block. It is not a design fork
   and wants no decisions section: it is an edit a lane is not permitted to make.
-- **Outstanding.** `notes/naming.md` carries two sections both titled `## Crates`. A heading is a
+- **Outstanding.** `design/naming.md` carries two sections both titled `## Crates`. A heading is a
   name, so deduplicating it is calef's call rather than a lane's.
 - **Recorded.** The merge queue and the lane roles are stated twice in the milder shape, and the
   dependency rule is not; the reading is in the pull request body and the lane report.
@@ -105,7 +105,7 @@ three crates the noun rule settled, and the domain table's two arguments.
 ## Index row
 
 AGENTS.md's naming section is 132 lines, 12% of a file with a zero-headroom ceiling, and
-notes/naming.md is 760 more on the same subject. Both stated the rule that changed on 2026-09-05.
+design/naming.md is 760 more on the same subject. Both stated the rule that changed on 2026-09-05.
 The constitution should keep the tests a lane applies; the note should keep the argument. The note
 half is done: it opens by saying it is the case rather than a second authority, and it received
 the `dwarden`/`conx` evidence, the shared-module history, the milestone 160 extension, the noun

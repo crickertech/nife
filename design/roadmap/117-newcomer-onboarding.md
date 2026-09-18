@@ -61,7 +61,7 @@ followed:
 - **`script/lint`'s naming worklist under-counts by exactly the `provisional` names** and then names
   the command that prints the other number: `82 still want calef` against `UNRATIFIED (86 of 162)`,
   and a census line that sums to 158 of 162. It bites precisely the state a newcomer is told to use.
-  Recorded in notes/naming.md's `BUGS`.
+  Recorded in design/naming.md's `BUGS`.
 - **The two archives boot different binaries under the name `init`**, `hello` on aarch64 and
   `builder` on riscv64, stated in a comment 200 lines from the table that needs it. A placement
   finding rather than an absence, and run 3's closing diagnosis reproduced by a different reader.
@@ -310,7 +310,7 @@ declined to build.
 2. **Decide which number `script/names`' worklist line should print.** A gate that says `82 still
    want calef (script/names --unratified)` beside a command that says `86` is under-reporting the
    `provisional` names, which are the ones whose own author has said they are wrong. Fifteen minutes
-   of code and one decision about what the worklist is for. Recorded in notes/naming.md's `BUGS`.
+   of code and one decision about what the worklist is for. Recorded in design/naming.md's `BUGS`.
 3. **Say at the riscv initrd table that it boots a different `init`.** A comment, on the row that
    needs it rather than 200 lines away. Five minutes, and the fact is already written, which is what
    makes it a placement bug rather than a documentation one.
@@ -604,7 +604,7 @@ the milestone should say so wherever it reports a number.
   it was measured to cost: `README.md`'s start-here order names eight things and none of them is
   `apropos`, and `CONTRIBUTING.md` never mentions it either. Checked 2026-09-03.
 - **Outstanding.** Run 4's naming-worklist finding is unfixed: `script/names` still counts two
-  categories on the gate line and three on the default listing, and `notes/naming.md`'s `BUGS`
+  categories on the gate line and three on the default listing, and `design/naming.md`'s `BUGS`
   still carries the entry. Checked 2026-09-03.
 - **Done.** Run 4's placement finding about the two archives' `init` is fixed at the table rather
   than 200 lines away: the `hello` entry in `xtask/src/main.rs` now carries the comment that

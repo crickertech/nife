@@ -18,7 +18,7 @@
 # propose it again.
 #
 # Why a query and not a table. The first draft of milestone 115 proposed one ratified-names table in
-# notes/naming.md. calef rejected it on 2026-08-04 for scaling the way the original DECISIONS.md and
+# design/naming.md. calef rejected it on 2026-08-04 for scaling the way the original DECISIONS.md and
 # design/roadmap.md scaled, and size is the smaller half of that: every lane that adds a name would
 # edit **one file**, which is exactly what produced three section-number collisions in a day. So the
 # provenance lives **at the name**, in the header of the crate, program or script it belongs to,
@@ -120,7 +120,7 @@ sys.path.insert(0, os.path.join(root, "scripts"))
 import name_provenance                                                      # noqa: E402
 
 # The three surfaces, each with the file that holds its header. Anything else in the tree (kernel,
-# xtask, redoxfs_server, tools/, scripts/) is out of scope on purpose; see notes/naming.md's BUGS.
+# xtask, redoxfs_server, tools/, scripts/) is out of scope on purpose; see design/naming.md's BUGS.
 SURFACES = [
     ("crate", os.path.join(root, "crates"),
      lambda name: os.path.join(root, "crates", name, "src", "lib.rs"), "//!"),
@@ -363,7 +363,7 @@ if mode == "--check":
               "(the parse stops at the first) and a", file=sys.stderr)
         print("bolded, indented or `///` one is invisible, which is how two of calef's "
               "ratifications sat on the worklist for a week.", file=sys.stderr)
-        print("See notes/naming.md. Presence is the gate, never `ratified`: a name waiting on calef "
+        print("See design/naming.md. Presence is the gate, never `ratified`: a name waiting on calef "
               "never fails a build.", file=sys.stderr)
         print("`unrecorded` is a real answer; a ratification you cannot cite is not.",
               file=sys.stderr)
@@ -415,6 +415,11 @@ if mode == "--unratified":
     print("Exposure first: a program is typed at the prompt, a crate is what a newcomer greps,")
     print("a script/ entry point is typed by whoever works on the tree. Within a tier, a name")
     print("nobody can justify comes before one whose reasoning merely lacks a signature.\n")
+    # design/naming.md is the authority for the conventions a ratification is judged against
+    # (DECISIONS §155). AGENTS.md keeps only "names are calef's, ship provisional", so whoever is
+    # about to rule is reading the wrong file unless something says so, and this is the command
+    # they are already running.
+    print("The conventions a name is judged against are design/naming.md, which is the rule.\n")
     tier = None
     for r in todo:
         if (r["kind"], r["status"]) != tier:

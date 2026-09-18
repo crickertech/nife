@@ -103,7 +103,7 @@ where a reader meets them. Gathered here because calef rules them together:
   therefore one that would promise a name argument and a general program, which this is not).
 
 **`sink` survives as the contract word**, under the structural-versus-current test calef set on
-2026-09-13 (notes/naming.md). `byte_sink_proto` is a wire contract named for what it carries and
+2026-09-13 (design/naming.md). `byte_sink_proto` is a wire contract named for what it carries and
 makes no disposal claim; `file_sink`'s terminus is structural, because its client holds a capability
 over which no message but *append* is expressible and no grant anybody could make would change that.
 What did not survive the test is one binary wearing that word for three different jobs.
@@ -145,14 +145,14 @@ The initrd tables in `xtask/src/main.rs` pack `sink_transcript_writer`, `file_si
 ## Records this milestone deliberately did not edit
 
 `design/roadmap/50-pipes-and-redirection.md` and `design/decisions/51-sink-protocol.md` both cite
-`fixtures/src/sink.rs`, and both keep the old path. Milestone 50 is **BUILT**, which notes/naming.md
+`fixtures/src/sink.rs`, and both keep the old path. Milestone 50 is **BUILT**, which design/naming.md
 makes an account of what happened under the names it happened under, and a decision records what was
 decided in the words used then. A reader arriving from either lands here, because this block names
 both. The live documents (notes/sink-protocol.md, notes/pipes.md, notes/shared-page-audit.md,
 notes/unsafe-obligations.md, `crates/byte_sink_proto`, `components/src/swish.rs`) were repointed,
 because a reader picks those up to act on.
 
-`notes/naming.md`'s 2026-09-13 table row for `sink` (the program) is a record of a ruling made when
+`design/naming.md`'s 2026-09-13 table row for `sink` (the program) is a record of a ruling made when
 the program had three roles, so the row stands and carries a note saying what the split did to its
 reasoning. The ruling itself is unaffected: `sink` survived that sweep for reasons that survive the
 split too.

@@ -26,7 +26,7 @@ Name: provisional, minted by milestone 276's lane on 2026-09-11. It is a shared 
 own and this paragraph is the record instead. `provenance` alone was considered and reads as the
 mechanism rather than the subject, which is the same objection `script/names`' own header records
 against `provenance` as a command name; `naming` names the whole topic, including the conventions in
-notes/naming.md that this file knows nothing about. calef names modules, and has not ratified it.
+design/naming.md that this file knows nothing about. calef names modules, and has not ratified it.
 """
 
 import re
@@ -41,7 +41,7 @@ _HEAD = re.compile(r"(ratified|recorded|unrecorded|provisional)\b")
 _DATE = re.compile(r"ratified (\d{4}-\d{2}-\d{2})\b")
 
 # `recorded` claims the reasoning is somewhere else, so it has to point: `recorded (milestone 46)`,
-# `recorded (notes/naming.md)`. Same shape of check as the date on `ratified`, and the same limit,
+# `recorded (design/naming.md)`. Same shape of check as the date on `ratified`, and the same limit,
 # since nothing here follows the citation to see whether it says what the block claims.
 CITED = re.compile(r"^recorded \([^()]+\)")
 
