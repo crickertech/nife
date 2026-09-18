@@ -50,7 +50,7 @@
 #   diagnosis to a person, with `--keep` to hold the trees. Naming the cause would mean parsing two
 #   binaries, and the first suspects are cheap to check by hand: `git diff` the `build.rs` files.
 #
-# Name: PROVISIONAL, minted by a lane on 2026-09-18. calef names `script/` entry points. It is a
+# Name: provisional, minted by a lane on 2026-09-18. calef names `script/` entry points. It is a
 # sentence rather than a noun, which this tree's own convention argues against; `script/reproducible`
 # reads as a thing but says nothing about what is reproducible, and the other candidates
 # (`script/repro`, `script/rebuild-check`) are an abbreviation and a generic word respectively.
