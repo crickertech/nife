@@ -41,15 +41,37 @@
 //! it. A third program could depend on this crate and read `USED_WORD` for an unrelated purpose,
 //! and the next change to that constant would break it silently. The tree's other `*_proto` crates
 //! have the same property and it has never bitten; recorded here rather than defended.
-//! Name: provisional (milestone 291). The words the milestone 7-19 capability demonstrations agree
-//! on, now that each demonstration is its own binary rather than a role of one. Follows the tree's
-//! `*_proto` shape (`filesystem_proto`, `supervision_proto`, `graphics_proto`): what two
-//! compilation units must agree on has exactly one definition, which is AGENTS.md rule 7. Refused
-//! `demo_words` ("words" names the representation rather than the agreement, and `_proto` is the
-//! shape a reader of this tree already recognises). Refused folding these into `crates/abi` (abi is
-//! the kernel's syscall surface, which every program depends on, and three fixture constants have
-//! no business widening it). Refused `capability_demo` unsuffixed (it would read as the demo itself
-//! rather than as what the demos agree on, and there is no single demo to be).
+//! Name: provisional, and ruled: calef ruled **`capability_witness_protocol`** on 2026-09-18. The
+//! block stays `provisional` because the ratified name is not this crate's until the rename is
+//! performed, and until then `capability_demo_protocol` belongs on `script/names --unratified`
+//! rather than off it. Coined by milestone 291's lane.
+//!
+//! **The ruling is the same one as `address_space_witness`, made the same day**: a thing here is
+//! named for what it proves rather than for the occasion of its existence. Every value in this
+//! crate is a **witness** in the sense this tree already uses the word: DECISIONS §31's *"two
+//! witness pages answering two different questions"*, and `unwritable_clock_witness`. A sentinel
+//! chosen only to be recognised by a second program is exactly a witness value, so the word
+//! describes the contents rather than the milestone that produced them.
+//!
+//! **Refused `capability_demo_protocol`**, this crate's own coinage, which the maintainer
+//! recommended ratifying on the grounds that these really are demonstration fixtures and a name
+//! hiding that would be worse. The objection that carried: **`demo` says why the code exists
+//! rather than what the thing is**, and it sits close to AGENTS.md's second failure mode, a generic
+//! word that could name almost anything in an operating system. It also dates the crate to an
+//! occasion, and the values outlive the occasion.
+//!
+//! Refused `demo_words` ("words" names the representation rather than the agreement, and the
+//! suffix is the shape a reader of this tree already recognises). Refused folding these into
+//! `crates/abi` (abi is the kernel's syscall surface, which every program depends on, and three
+//! fixture constants have no business widening it). Refused `capability_demo` unsuffixed (it would
+//! read as the demo itself rather than as what the demos agree on, and there is no single demo to
+//! be).
+//!
+//! The suffixed shape is AGENTS.md rule 7: what two compilation units must agree on has exactly one
+//! definition, in a crate rather than a `#[path]` module.
+//!
+//! **Not yet performed**: this is a crate rename, so it moves a directory, a package name and three
+//! `Cargo.toml` dependency entries as well as the `use` sites in `fixtures/` and `kernel/`.
 //!
 //! The suffix became `_protocol` at milestone 265, three weeks after this block was written and
 //! together with the crates it cites; the `_proto` spellings above are what they were called when
