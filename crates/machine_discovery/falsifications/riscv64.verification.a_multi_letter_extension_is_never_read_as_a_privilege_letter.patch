@@ -21,7 +21,6 @@ Expected to fail: the `assert_eq!` that appending `_sstc` changes nothing, on a 
 spelling `u` and no `s`.
 
 diff --git a/crates/machine_discovery/src/riscv64.rs b/crates/machine_discovery/src/riscv64.rs
-index 0e391a88..4e51e177 100644
 --- a/crates/machine_discovery/src/riscv64.rs
 +++ b/crates/machine_discovery/src/riscv64.rs
 @@ -888,10 +888,7 @@ fn strip_base_prefix(value: &[u8]) -> &[u8] {

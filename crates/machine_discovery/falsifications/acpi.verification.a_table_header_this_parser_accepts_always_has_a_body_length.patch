@@ -16,7 +16,6 @@ Expected to fail: `assert_eq!(h.length as usize, SDT_HEADER_LEN + h.body_len())`
 or the arithmetic-overflow check inside `body_len` itself.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..01fe81d3 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -192,7 +192,7 @@ pub fn parse_sdt_header(bytes: &[u8]) -> Result<SdtHeader, AcpiError> {

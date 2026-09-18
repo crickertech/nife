@@ -15,7 +15,6 @@ file's tests write a zero length and nothing else, so they stay green.
 Expected to fail: `assert!(it.at >= last + 4)`.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..7ca75bbf 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -615,7 +615,7 @@ impl Iterator for DmarStructures<'_> {

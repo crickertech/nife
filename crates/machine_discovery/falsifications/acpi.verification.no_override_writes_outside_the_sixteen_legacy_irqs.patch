@@ -14,7 +14,6 @@ makes it read as though it had already been checked.
 Expected to fail: the bounds check on `table[source as usize]`.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..43aed8c1 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -450,7 +450,6 @@ pub fn isa_irq_table(body: &[u8]) -> [IsaIrqRouting; ISA_IRQ_COUNT] {

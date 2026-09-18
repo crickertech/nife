@@ -16,7 +16,6 @@ guaranteed zero on a machine whose SBI implementation is not QEMU's.
 Expected to fail: `assert!((1..=64).contains(&bits))`.
 
 diff --git a/crates/machine_discovery/src/riscv64.rs b/crates/machine_discovery/src/riscv64.rs
-index 0e391a88..c7431c9f 100644
 --- a/crates/machine_discovery/src/riscv64.rs
 +++ b/crates/machine_discovery/src/riscv64.rs
 @@ -948,7 +948,7 @@ impl CounterInfo {

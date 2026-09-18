@@ -484,7 +484,7 @@ impl McfgEntry {
     /// **A window that ends before it begins covers nothing, and says so rather than panicking.**
     /// Nothing in the MCFG's encoding stops firmware writing `start_bus = 255, end_bus = 0`, and
     /// the subtraction underflowed on exactly that until milestone 319's
-    /// [`verification::an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus`] found it.
+    /// `verification::an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus` found it.
     /// Zero is the honest answer: there is no bus in the range, so there is no configuration space
     /// to map.
     pub const fn size(&self) -> u64 {
@@ -531,7 +531,7 @@ pub struct Dmar {
     /// over `0..=255` and the width it names therefore ranges over `1..=256`. Narrower than the
     /// field plus one is not a smaller type, it is an addition that can overflow, and firmware
     /// writing `0xff` here panicked this parser on the boot path until milestone 319's
-    /// [`verification::the_dmar_fixed_part_decodes_without_arithmetic_overflow`] found it. Widening
+    /// `verification::the_dmar_fixed_part_decodes_without_arithmetic_overflow` found it. Widening
     /// makes the wrong state unrepresentable rather than guarded.
     pub host_address_width: u16,
     /// Bit 0 is `INTR_REMAP`: the platform also supports interrupt remapping. Reported and not
@@ -658,7 +658,7 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
 /// Machine-checked proofs over the ACPI tables (DECISIONS §14, milestone 319).
 ///
 /// These tables are the x86 boot path's untrusted input, and on 2026-09-17 they stopped being
-/// hypothetical: xenon, a Dell OptiPlex 7050, booted nife and this code parsed a real MADT, MCFG
+/// hypothetical: xenon, a Dell workstation, booted nife and this code parsed a real MADT, MCFG
 /// and DMAR written by firmware that had never heard of it (`bench/xenon-2026-09-17/`). Until then
 /// every table this parser had seen was one QEMU wrote for it.
 ///

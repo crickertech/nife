@@ -18,7 +18,6 @@ both read the same saturating product. That is what a prover is for.
 Expected to fail: `assert!(span as u128 >= pixels)`, on a width above `2^30 - 1`.
 
 diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
-index 253dc693..ed9b2bcd 100644
 --- a/crates/machine_discovery/src/framebuffer.rs
 +++ b/crates/machine_discovery/src/framebuffer.rs
 @@ -171,7 +171,7 @@ impl Framebuffer {

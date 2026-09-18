@@ -210,7 +210,7 @@ the `<module.path>.<harness>.patch` convention in DECISIONS §134 needs no speci
 Reported as proposals rather than as prose, per AGENTS.md's rule that identified work leaves the lane
 in a tracked form:
 
-1. **The volatile half's seam is narrower than it looked.** `kernel/src/arch/x86_64/machine.rs`'s ACPI
+- **Proposed.** `design/roadmap/proposals/a-checked-direct-map-reader-for-the-acpi-walk.md`. The volatile half's seam is narrower than it looked. `kernel/src/arch/x86_64/machine.rs`'s ACPI
    walk is 836 lines, but with this crate proved, what is left on the kernel side of the seam is
    *reading N bytes at a physical address through the direct map* and handing them here. Every
    decision about what those bytes mean is now in a proved crate. That suggests the design decision
@@ -218,12 +218,22 @@ in a tracked form:
    the direct-map read itself gets a checked accessor with a bound, which is the same question
    `dtb::Dtb::from_ptr` already answered on the other two architectures. Wants a lane, and wants
    calef on the accessor's name.
-2. **The DMAR defect's family should be swept for.** `field + 1` where the field is a byte and the
+- **Proposed.** `design/roadmap/proposals/a-sweep-for-specification-fields-that-are-one-less.md`. The DMAR defect's family should be swept for. `field + 1` where the field is a byte and the
    value is a byte is a shape, not an incident: this lane found it twice in two crates (broken in
    `acpi::parse_dmar`, correct in `riscv64::CounterInfo::bits`) with nothing at either site saying
    which it was. `cargo mutants --list` will not find it, because the mutation is in the type rather
    than in the expression. A `git grep` for specification fields documented as "one less than" is
    cheap and is not this lane's.
-3. **`crates/dtb`'s four harnesses are all `unfalsified`.** They are the sibling this lane was argued
+- **Proposed.** `design/roadmap/proposals/falsifications-for-the-device-tree-parsers-four-harnesses.md`. `crates/dtb`'s four harnesses are all `unfalsified`. They are the sibling this lane was argued
    from, and the argument cuts both ways: a harness with no falsification record is counted as
    `unfalsified` and says so. Four patches is an afternoon.
+
+## Index row
+
+**Built:** 2026-09-17
+
+4,072 lines that parse firmware the system did not write had no proofs at all and no row in
+`script/verify`'s table, the day after xenon made those bytes a real Dell's rather than QEMU's;
+three of the first fifteen harnesses were false, one of them a panic on the x86 boot path from a
+single `0xff` byte in a DMAR, and one of them a guard whose `saturating_mul` made the comparison
+vacuous in a way the crate's own test had written down as the expected answer

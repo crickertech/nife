@@ -18,7 +18,6 @@ length between the two is the gap this defect lives in.
 Expected to fail: the bounds check inside `u64(bytes, 40)`.
 
 diff --git a/crates/machine_discovery/src/x86_64.rs b/crates/machine_discovery/src/x86_64.rs
-index 7ede06e5..3799073c 100644
 --- a/crates/machine_discovery/src/x86_64.rs
 +++ b/crates/machine_discovery/src/x86_64.rs
 @@ -120,9 +120,6 @@ impl BootInfo {

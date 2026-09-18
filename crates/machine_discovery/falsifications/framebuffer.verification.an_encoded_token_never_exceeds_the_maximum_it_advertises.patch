@@ -19,7 +19,6 @@ Expected to fail: the bounds check inside `encode`'s `put` closure, on a base ne
 `u64::MAX` with three ten-digit fields.
 
 diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
-index 99a9386f..dc4d94e6 100644
 --- a/crates/machine_discovery/src/framebuffer.rs
 +++ b/crates/machine_discovery/src/framebuffer.rs
 @@ -154,7 +154,7 @@ impl Framebuffer {

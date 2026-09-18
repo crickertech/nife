@@ -17,7 +17,6 @@ Expected to fail: the `assert_eq!` that the reader returning `Some` and the inde
 being below the count are the same condition.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..12776597 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -226,7 +226,7 @@ pub const fn root_entry_count(length: u32, entries_are_64_bit: bool) -> usize {

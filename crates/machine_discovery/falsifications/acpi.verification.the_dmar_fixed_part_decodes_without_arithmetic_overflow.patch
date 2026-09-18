@@ -16,7 +16,6 @@ now reads tables written by people who never heard of it.
 Expected to fail: the arithmetic-overflow check on `body[0] + 1`.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..d081bbe8 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -549,7 +549,7 @@ pub fn parse_dmar(body: &[u8]) -> Result<Dmar, AcpiError> {

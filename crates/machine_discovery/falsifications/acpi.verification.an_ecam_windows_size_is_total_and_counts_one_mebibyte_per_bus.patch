@@ -15,7 +15,6 @@ Expected to fail: the arithmetic-overflow check on
 it.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..bd35ff4c 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -488,9 +488,6 @@ impl McfgEntry {

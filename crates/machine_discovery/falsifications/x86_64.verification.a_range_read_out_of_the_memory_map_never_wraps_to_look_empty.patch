@@ -16,7 +16,6 @@ into rung two.
 Expected to fail: `assert!(e.end() >= e.addr)`.
 
 diff --git a/crates/machine_discovery/src/x86_64.rs b/crates/machine_discovery/src/x86_64.rs
-index 7ede06e5..a446a2ed 100644
 --- a/crates/machine_discovery/src/x86_64.rs
 +++ b/crates/machine_discovery/src/x86_64.rs
 @@ -217,7 +217,7 @@ impl MemoryEntry {

@@ -16,7 +16,6 @@ Expected to fail: `assert!(it.at >= last + 2)`, and with a deeper unwind the
 `seen <= N / 2` bound behind it.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..620da25b 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -330,7 +330,7 @@ impl Iterator for MadtEntries<'_> {

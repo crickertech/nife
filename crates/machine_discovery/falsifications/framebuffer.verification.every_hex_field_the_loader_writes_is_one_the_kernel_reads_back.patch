@@ -19,7 +19,6 @@ windows, which is what xenon does.
 Expected to fail: `assert_eq!(parse_hex(text), Some(value))`.
 
 diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
-index 50e1dcfb..be43338a 100644
 --- a/crates/machine_discovery/src/framebuffer.rs
 +++ b/crates/machine_discovery/src/framebuffer.rs
 @@ -284,7 +284,7 @@ fn write_decimal(value: u32, out: &mut [u8; 10]) -> usize {

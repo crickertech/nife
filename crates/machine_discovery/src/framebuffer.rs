@@ -168,7 +168,7 @@ impl Framebuffer {
     /// The span then returned is shorter than a single row and the console paints off the end of it.
     /// Saturating made the overflow safe and the *comparison* meaningless; widening makes both true
     /// at once. Found by milestone 319's
-    /// [`verification::an_accepted_span_covers_every_pixel_the_geometry_describes`].
+    /// `verification::an_accepted_span_covers_every_pixel_the_geometry_describes`.
     #[must_use]
     pub const fn span(&self) -> Option<usize> {
         if self.width == 0 || self.height == 0 || (self.stride as u64) < self.width as u64 * 4 {

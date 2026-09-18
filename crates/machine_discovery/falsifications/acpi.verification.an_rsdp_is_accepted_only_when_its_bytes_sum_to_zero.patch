@@ -15,7 +15,6 @@ wrote.
 Expected to fail: `assert!(checksum_ok(&bytes[..RSDP_V1_LEN]))`.
 
 diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
-index d4fdb7cf..e150ccfb 100644
 --- a/crates/machine_discovery/src/acpi.rs
 +++ b/crates/machine_discovery/src/acpi.rs
 @@ -126,9 +126,6 @@ pub fn parse_rsdp(bytes: &[u8]) -> Result<Rsdp, AcpiError> {
