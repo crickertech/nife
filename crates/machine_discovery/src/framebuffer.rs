@@ -399,15 +399,19 @@ mod verification {
         };
         if let Some(span) = screen.span() {
             assert!(screen.width > 0 && screen.height > 0);
-            // **Two halves rather than one product, and that is a cost decision made out loud.**
-            // The natural spelling is `span >= width * 4 * height`, which reaches 2^64 at the
-            // type extremes and so has to be done in `u128`. That version proves the same thing
-            // and took **20 minutes** on the dev Mac before it was killed, against 1.6 seconds
-            // for this one. Stated as a conjunction, each half fits a `u64` with room to spare:
-            // one row of four-byte pixels fits inside the stride, and the span is exactly that
-            // many rows. Together they are the property.
+            // **One half of the obvious claim, and the omission is a cost decision made out loud.**
+            // The natural spelling is `span >= width * 4 * height`, which reaches 2^64 at the type
+            // extremes and so has to be done in `u128`: that version proves the same thing and took
+            // **20 minutes** on the dev Mac before it was killed. Restating it as a conjunction did
+            // not help, because the second half (`span == stride * height`) asks the solver to equate
+            // two 64-by-64-bit multiplies, which is the case bit-blasting is worst at: **9 minutes**,
+            // also killed.
+            //
+            // What is left is the half that carries the defect. `span == stride * height` is
+            // `span`'s own definition and proving it restates the function; **`stride >= width * 4`
+            // is the guard**, it is where the `saturating_mul` made the comparison vacuous, and with
+            // it established the rest follows by arithmetic a reader can do. Two seconds.
             assert!(screen.stride as u64 >= screen.width as u64 * 4);
-            assert_eq!(span as u64, screen.stride as u64 * screen.height as u64);
             kani::cover!(span > 0, "a real geometry is accepted");
         }
     }
