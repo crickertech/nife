@@ -417,8 +417,7 @@ RST"*, on a machine milestone 87 selected partly for VT-d.
 last thing standing between this risk and its decisive experiment that was not code. Its first
 complete boot reported `iommu : VT-d drhd at 0x00000000fed90000, root table default-deny,
 translating` and `pci : 15 function(s) on the bus`, so the IOMMU this experiment needs came up on
-its own hardware rather than under emulation. What remains is an EL0 NVMe driver under §86's option
-2a, and a disk wipe calef has already confirmed is safe.
+its own hardware rather than under emulation.
 
 **What stood in the way was not hardware, it was that the disk held somebody else's Windows**, and a
 disk this project must not write to is not a disk it can drive. calef confirmed on 2026-09-05 that
@@ -426,9 +425,22 @@ the installation is a freshly wiped image from the seller rather than anyone's d
 machine's own firmware can clear it (Maintenance, Data Wipe, `Wipe on Next Boot`, which covers M.2
 PCIe SSD; `notes/xenon-firmware.md`, IMG_4091).
 
-So the remaining distance to this risk's decisive experiment is an EL0 NVMe driver under §86's
-option 2a, and a bench evening. **That is a long way, and it is a known road rather than a missing
-machine**, which is a different position from the one this entry was in a week ago.
+calef ran that wipe on 2026-09-17, so the disk is this project's to write to.
+
+**The driver exists too, as of 2026-09-17** (milestone 261, §86's option 2a). An EL0 process holding
+two endpoints, one page of BAR0 and a run of DMA pages brings a controller from reset through
+identify to an I/O queue pair and serves the block verbs, with the IOMMU the whole of what stops it
+reaching memory it was not given, and `kernel/src/user/nvme_tests.rs` asserts that confinement on
+every leg the runner attaches a controller to. Milestone 318 then rewrote its assertions against the
+geometry each boot is handed, which is what lets the same case run on xenon's Micron rather than
+only on `mknvmedisk`'s 8 MiB image.
+
+**So the remaining distance to this risk's decisive experiment is a bench evening, and nothing
+else.** Every piece is on `main` and the stick is written. Two things still have to be true on the
+night, and neither is code: the DMAR's device scope must cover the NVMe function, because a
+throughput number from an unconfined device answers a different question; and the controller's LBA
+size must give `blocks_per` in `1..=8`, or the server never starts and the line reads `skipped`
+rather than `ok`. **A skip is not a pass.**
 
 ## 7. The confinement claim is false
 
