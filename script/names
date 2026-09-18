@@ -39,9 +39,16 @@
 #   Name: recorded (<where>). <what the history says, and what it does not settle>
 #   Name: unrecorded. <what the history does and does not say>
 #
-# A block runs from its `Name:` line to the next empty comment line, so it may wrap. `Refused` is
-# optional and every refused name is in backticks, which is what makes `script/names <name>` able to
-# answer "has this been proposed before" from the refusals as well as from the tree.
+# A block runs from its `Name:` line to the END OF ITS COMMENT RUN, across paragraph breaks, so it
+# may wrap and may argue one refusal per paragraph. `Refused` is optional and every refused name is
+# in backticks, which is what makes `script/names <name>` able to answer "has this been proposed
+# before" from the refusals as well as from the tree.
+#
+# **It used to stop at the first empty comment line**, and that sentence is what hid 91 refusals:
+# a block written one argument per paragraph put all of them out of reach, and nobody noticed for as
+# long as the convention had existed. Changed 2026-09-18; `scripts/name_provenance.py` carries the
+# measurement and what the wider read still gets wrong. A block is now expected to be the LAST thing
+# in its comment, which 139 of 143 files already did.
 #
 # **Three states, because two of them were one job wearing one word.** The first cut of this script
 # had `ratified` and `unrecorded`, and the second answered two different questions at once. "Nobody
@@ -264,6 +271,15 @@ def stray_problems(kind, name, path, prefix, text):
     for number, line, why in name_provenance.strays(text, prefix):
         out.append(f"{kind} {name}: {where}:{number} reads as a provenance header and is not the "
                    f"block that was read, because {STRAY_WHY[why]}\n      {line.strip()}")
+    # The other half of the same question (2026-09-18). `strays` asks what reads as a HEADER without
+    # being the one parsed; this asks what records a REFUSAL where the parse cannot reach it. A
+    # refusal the tool cannot see defeats milestone 115's one query, has this name been refused
+    # before, and it is invisible to a reader too because the file looks complete.
+    for number, line in name_provenance.refusals_outside(text, prefix):
+        out.append(f"{kind} {name}: {where}:{number} records a refusal the parse cannot read: it is "
+                   f"outside the `Name:` block, so `script/names --refused` will never show it. Move "
+                   f"it into the block, or move the block to the end of the comment.\n      "
+                   f"{line.strip()}")
     return out
 
 
