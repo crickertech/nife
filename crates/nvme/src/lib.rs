@@ -498,6 +498,25 @@ impl IdentifyNamespace {
 // them rather than the volatile shell that carries them.
 // ---------------------------------------------------------------------------------------------
 
+/// **The largest `CAP.DSTRD` a one-page doorbell mapping can serve**, and the reason it is a
+/// refusal rather than an assumption.
+///
+/// Doorbell N sits at `0x1000 + N * (4 << DSTRD)`, so the stride scales the doorbell *file*, not
+/// just the gap. An EL0 data plane mapped one page of BAR0 (DECISIONS §86's option 2a) names
+/// queues 0 and 1, whose highest doorbell is index 3, so the file fits that page exactly while
+/// `0x1000 + 3 * (4 << DSTRD) + 4 <= 0x2000`, which is `DSTRD <= 8`. `CAP`'s field is four bits
+/// wide, so 9 through 15 are values a controller may legitimately report and this wiring cannot
+/// serve.
+///
+/// **Found by Kani, not by reading** (milestone 261). The first version of
+/// `an_accepted_handoff_keeps_its_doorbells_inside_the_mapped_page` asserted the containment and
+/// the prover produced `DSTRD = 15` in under a second: queue 1's submission tail lands at
+/// `0x41000`, a quarter of a megabyte past the mapped window. Nothing in QEMU could have found it
+/// (it reports 0), and the failure on a real controller would have been a volatile write outside
+/// the one window this process is allowed, caught by `MappedWindow`'s bounds check as a panic in
+/// the disk driver rather than as a diagnosis.
+pub const MAX_DSTRD: u32 = 8;
+
 /// **What the admin plane tells the data plane at spawn**, and the whole of it.
 ///
 /// A process knows virtual addresses; PRP fields carry physical ones, so the physical base has to
@@ -542,12 +561,12 @@ impl Handoff {
     /// driver could serve rather than carrying the nonsense forward into a doorbell offset.
     /// `None` for a zero ring depth, a zero or out-of-range `blocks_per` (the shift bounds
     /// `parse_identify_namespace` enforces make `1..=8` the whole reachable range for a 4096-byte
-    /// unit), or a `dstrd` past the 4-bit field `CAP` can hold it in.
+    /// unit), or a `dstrd` above [`MAX_DSTRD`].
     pub fn unpack(words: [u64; 3]) -> Option<Handoff> {
         let dstrd = (words[0] >> 32) as u32;
         let blocks_per = (words[0] >> 16) as u16;
         let entries = words[0] as u16;
-        if dstrd > 0xf || !(1..=8).contains(&blocks_per) || entries < 2 {
+        if dstrd > MAX_DSTRD || !(1..=8).contains(&blocks_per) || entries < 2 {
             return None;
         }
         Some(Handoff {
@@ -746,9 +765,15 @@ mod tests {
         };
         assert_eq!(Handoff::unpack(h.pack()), Some(h));
 
-        // A stride the 4-bit CAP field cannot hold, a ring of one, and a geometry no namespace
+        // A stride whose doorbell file would not fit the one page of BAR0 this wiring maps (see
+        // `MAX_DSTRD`, which Kani found), a ring of one, and a geometry no namespace
         // `parse_identify_namespace` admits can produce for a 4096-byte unit.
-        assert!(Handoff::unpack([1 << 36 | 8 << 16 | 16, 0, 0]).is_none());
+        assert!(Handoff::unpack([(MAX_DSTRD as u64 + 1) << 32 | 8 << 16 | 16, 0, 0]).is_none());
+        // And the largest stride that does fit is admitted, with its last doorbell inside the
+        // page: this bound is a real edge, not a round number chosen for comfort.
+        let widest = Handoff::unpack([(MAX_DSTRD as u64) << 32 | 8 << 16 | 16, 0, 0])
+            .expect("MAX_DSTRD itself must be servable");
+        assert!(doorbell(1, Doorbell::CompletionHead, widest.dstrd) + 4 <= 0x2000);
         assert!(Handoff::unpack([8 << 16 | 1, 0, 0]).is_none());
         assert!(Handoff::unpack([9 << 16 | 16, 0, 0]).is_none());
         assert!(Handoff::unpack([16, 0, 0]).is_none(), "blocks_per zero");
@@ -916,14 +941,15 @@ mod verification {
             data_plane_phys: kani::any(),
             size_bytes: kani::any(),
         };
-        kani::assume(h.dstrd <= 0xf && (1..=8).contains(&h.blocks_per) && h.entries >= 2);
+        kani::assume(h.dstrd <= MAX_DSTRD && (1..=8).contains(&h.blocks_per) && h.entries >= 2);
         assert_eq!(Handoff::unpack(h.pack()), Some(h));
     }
 
     /// **An unpacked handoff can always drive the doorbell arithmetic**, for every word the
-    /// kernel could have packed. `unpack`'s refusals are what buy this: a `dstrd` out of `CAP`'s
-    /// field would compute a doorbell offset outside the one page of BAR0 this process is mapped,
-    /// which is the one arithmetic error in this driver that reaches hardware.
+    /// kernel could have packed. [`MAX_DSTRD`] is what buys this, and this harness is why that
+    /// constant exists: a stride the spec permits and QEMU never reports computes a doorbell
+    /// offset outside the one page of BAR0 the EL0 data plane is mapped, which is the one
+    /// arithmetic error in this driver that reaches hardware.
     /// Falsification: unfalsified
     #[kani::proof]
     fn an_accepted_handoff_keeps_its_doorbells_inside_the_mapped_page() {

@@ -120,6 +120,18 @@ that moves, and is refused an opcode the server has no verb for. It asserts the 
 which matters more here than it did for the kernel-resident driver: with the driver at EL0 the IOMMU
 is the *whole* of what stops a compromised server reaching memory it was not given.
 
+**The prover found a bug that only a real controller could have, and it is the best argument in
+this milestone for keeping the logic in the crate.** A harness asserting that an accepted handoff's
+doorbell offsets stay inside the one page of BAR0 the server is mapped failed in under a second, on
+`CAP.DSTRD = 15`: doorbell N sits at `0x1000 + N * (4 << DSTRD)`, so a wide stride scales the
+doorbell *file*, and queue 1's submission tail lands a quarter of a megabyte past the window. QEMU
+reports 0 and every hardware implementation §86 cites is expected to, so **no amount of testing on
+any machine this project owns could have found it**, and on a controller that did report a wide
+stride it would have presented as a panic inside the disk driver rather than as a diagnosis. It is
+now `nvme::MAX_DSTRD`, refused in two places: `Handoff::unpack`, so the data plane cannot be built
+around it, and the kernel's own bring-up, so such a controller fails loudly at EL1 naming itself
+rather than starting a process that cannot address its own doorbells.
+
 **What `crates/nvme` gained**, because the rule is that logic stays where the prover reaches it:
 `Handoff` (the three spawn scalars, packed and unpacked), `Handoff::holds_block` (the range check),
 `Handoff::transfer_command` (the whole of what the data plane computes), and `Command::flush`. Three

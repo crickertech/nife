@@ -95,8 +95,9 @@ pub enum Error {
     /// The identify data described a namespace this driver cannot serve (LBA format outside
     /// 512..=4096 bytes, or a size of zero).
     UnsupportedNamespace,
-    /// CAP describes a controller this driver cannot drive (queues too shallow, or a minimum
-    /// page size above the kernel's 4 KiB frames).
+    /// CAP describes a controller this driver cannot drive: queues too shallow, a minimum page
+    /// size above the kernel's 4 KiB frames, or a doorbell stride whose file would not fit the
+    /// one page of BAR0 an EL0 data plane is mapped (`nvme::MAX_DSTRD`).
     UnsupportedController,
 }
 
@@ -143,7 +144,14 @@ impl Nvme {
             cid: 0,
         };
         let cap = Cap(c.reg64(regs::CAP));
-        if cap.max_queue_entries() < ENTRIES as u32 || cap.min_page_size() > page_frames::FRAME_SIZE
+        // The doorbell stride is checked here as well as in `nvme::Handoff::unpack`, and the
+        // duplication is deliberate: a controller whose doorbell file does not fit the one page
+        // this wiring hands an EL0 data plane should fail at bring-up, loudly, naming the
+        // controller, rather than as a process that starts and then cannot address its own
+        // doorbells. `MAX_DSTRD` is Kani's finding, and its own doc has the arithmetic.
+        if cap.max_queue_entries() < ENTRIES as u32
+            || cap.min_page_size() > page_frames::FRAME_SIZE
+            || cap.doorbell_stride() > nvme::MAX_DSTRD
         {
             return Err(Error::UnsupportedController);
         }
