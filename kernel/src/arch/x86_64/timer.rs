@@ -28,6 +28,24 @@
 //!   a machine that lies, `now()` drifts against wall time when the CPU idles. QEMU's TSC is
 //!   invariant. A real machine must have the bit checked, and milestone 87's is where that gets
 //!   tested rather than argued.
+//! - **`now()` is the *calling core's* TSC, and nothing synchronizes or checks the cores against
+//!   each other.** This is the one place the three ports are not interchangeable and it is worth
+//!   saying out loud: aarch64's `CNTPCT_EL0` and RISC-V's `time` are *system* counters, so a
+//!   reading taken on one core and compared against a reading taken on another is meaningful by
+//!   construction. `rdtsc` is per-core hardware. Firmware sets each core's TSC at reset and modern
+//!   single-socket parts are usually close, but "usually" is the whole of the guarantee here: this
+//!   kernel neither measures the skew nor corrects it, and `CPUID.80000007H:EDX[8]` (checked
+//!   nowhere, see above) is about rate constancy over *time* and says nothing about agreement
+//!   *between* cores. Under QEMU every vCPU derives the TSC from one host clock, so the skew is
+//!   exactly zero and no test here can see it.
+//!
+//!   **What that costs today is a deadline that spans a migration.** `kernel::user::wait_for`
+//!   takes `now()`, adds two seconds, and then compares against `now()` again after `yield_now()`
+//!   calls that may have moved the thread to another core, so its bound is only as good as the
+//!   agreement between those two cores. Milestone 321 looked hard at this as the explanation for a
+//!   supervision test that failed on xenon and **ruled it out**, on the evidence that sixty other
+//!   `wait_for` call sites passed in the same run; the asymmetry is recorded because it is real and
+//!   undocumented, not because it is known to have broken anything.
 //! - **One calibration, no averaging.** A single 10 ms window on a busy host under TCG can be off by
 //!   a per cent or so. The other two architectures read an exact number, so nothing above this has
 //!   ever had to think about calibration error; anything that benchmarks on x86 will.

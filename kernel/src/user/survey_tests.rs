@@ -378,9 +378,19 @@ fn a_dead_child_is_still_in_the_domain_until_it_is_reaped() {
     let cap = hold_supervisor(ep);
     // The corpse parks on its supervision rendezvous's sender queue with its death message when
     // nobody is in RECV, which is how a survey can see it before anyone has collected the news.
+    // **The failure message carries the evidence, because the machine that produced it is not
+    // this one** (milestone 321). This assertion failed on xenon on 2026-09-17 with four real
+    // cores, and the transcript could not say which of three things had happened: the count is
+    // `== 1`, not `>= 1`, so two senders and none read identically; and even a count of zero
+    // leaves "never parked" and "parked, then removed" indistinguishable. The count settles the
+    // first question and `thread_death_disposition` settles the second, so the next failure on a
+    // bench is diagnosable from the log instead of needing the bench back.
     assert!(
         super::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
-        "the child never died onto its supervision rendezvous",
+        "the child never died onto its supervision rendezvous: {} senders parked on it, \
+         and the child is {:?}",
+        sched::rendezvous_waiting_senders(ep),
+        sched::thread_death_disposition(child),
     );
 
     let mut buf = [ps::Row::default(); TEST_ROWS];

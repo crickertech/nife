@@ -1,11 +1,15 @@
 # 321. A corpse that did not park, on four real cores
 
-**Status: NOT-STARTED.** Minted 2026-09-17 by the maintainer, from
+**Status: PARTIAL.** Minted 2026-09-17 by the maintainer, from
 `design/roadmap/proposals/a-corpse-that-did-not-park-on-four-real-cores.md`, which this block
-replaces. *(Number provisional until the merge queue lands it.)*
+replaces. *(Number provisional until the merge queue lands it.)* Worked 2026-09-17: the transcript
+now separates all three readings, and the failure did not reproduce on anything patagonia can run.
 
-**Gate: NONE.** Investigating needs no hardware. Whether *reproducing* needs it is the first thing
-to find out, and is itself the finding.
+**Gate: HARDWARE.** This line used to say `NONE`, on the reasoning that investigating needs no
+hardware and that *whether reproducing does* was the first thing to find out and was itself the
+finding. **That question is now answered, and the answer is yes**, so the gate moves: see "What the
+reproduction attempt established" below. The investigating half is done and is what this block
+delivered.
 
 **This is the one failure from xenon's 2026-09-17 bench evening that is not an assertion written
 against QEMU.** The other three were: a q35 chipset id, an eight-yield window, and a one-bus PCI
@@ -20,15 +24,6 @@ test kernel::user::survey_tests::a_dead_child_is_still_in_the_domain_until_it_is
   the kernel is fine.
 
 [PANIC] panicked at kernel/src/user/survey_tests.rs:381:5:
-```
-
-`kernel/src/user/survey_tests.rs:381`:
-
-```rust
-assert!(
-    super::wait_for(|| sched::rendezvous_waiting_senders(ep) == 1),
-    "the child never died onto its supervision rendezvous",
-);
 ```
 
 **The child died.** Its kill message is in the transcript three lines above the panic, at the fault
@@ -49,11 +44,20 @@ let deadline = crate::arch::timer::now() + 2 * crate::arch::timer::frequency();
 
 It yields until then and checks once more on the way out. Two seconds is not a thin margin on a
 2.7 GHz machine for a thread already reported dead. **A test made to pass by waiting longer, for
-something that should already have happened, has been silenced rather than fixed.** If the
-conclusion turns out to be that two seconds is genuinely not enough, that conclusion needs its own
-evidence and is a larger finding than this test.
+something that should already have happened, has been silenced rather than fixed.**
 
-## Three readings, and the transcript separates none of them
+**The bound was not widened, and it is now positively ruled out rather than merely left alone.**
+Two pieces of evidence, both from the transcript itself:
+
+- The boot print reads `clocks : tsc 2714 MHz (PIT calibration)`, so `frequency()` returned a sane
+  number and `2 * frequency()` really was about two seconds.
+- **61 call sites use `wait_for`** across the kernel's user tests, and this run failed exactly
+  one of them. A `wait_for` whose deadline arithmetic was wrong on this machine would have taken
+  a great many of the other sixty with it.
+
+So the two seconds elapsed, the predicate was sampled throughout, and it was never true.
+
+## Three readings, and the transcript separated none of them
 
 1. **The corpse parked and something took it off again.** Then the survey cannot see it either, and
    §26's property is false on this configuration.
@@ -62,14 +66,97 @@ evidence and is a larger finding than this test.
 3. **The count was not 1.** The assertion is `== 1`, not `>= 1`, so a second sender on that queue
    fails it in a way that reads identically in the log.
 
-## The order of work
+**The next transcript will separate all three**, which is what this block built. The assertion now
+carries the count *and* `sched::thread_death_disposition(child)`, which reports the corpse's run
+state, its `fault_ep` and its recorded wait. Those three fields differ in every history:
 
-1. **Print the count the test actually saw**, eliminating reading 3. One line, and it makes every
-   future failure here diagnosable from a transcript. This is the general lesson milestone 318 drew
-   about assertions against constants, applied to an equality.
-2. **Reproduce.** `NIFE_SMP=4` under QEMU is one run and costs nothing. It establishes whether this
-   is xenon, four cores, or four *real* cores, and those are three different findings.
-3. **Only then investigate delivery**, and only with a reproduction in hand.
+| What the message shows | What happened |
+|---|---|
+| `Finished`, `fault_ep` `None` | `depart` took the **unsupervised** path: supervision was lost before the fault, not in delivery |
+| `Dead`, wait `Some((ep, Sender))` | The corpse **did** park and something removed it: reading 1 |
+| `Dead`, wait `None` | `deliver_death`'s `send` met a waiting receiver, so the corpse never joined the queue: reading 2 |
+| `Ready`, `Running` or `Blocked` | It never departed, whatever was printed about it |
+| `None` | The thread was reaped and freed |
+
+The count alone would have settled only reading 3, which is why the disposition is there too: a
+count of zero leaves readings 1 and 2 still identical in a log. **The message was verified by
+forcing the assertion to fail**, rather than shipped unseen, and printed
+
+```
+the child never died onto its supervision rendezvous: 1 senders parked on it,
+and the child is Some((Dead, Some(17179869184), Some((17179869184, Sender))))
+```
+
+which is the healthy shape. That check earned its keep: on xenon the panic's own message **never
+reached the console at all**. `kernel/src/panic.rs` prints `[PANIC] {info}` as one statement whose
+`Display` spans two lines, and the log stops between them, so a diagnostic that had never been seen
+render would have been worth nothing.
+
+## What the reproduction attempt established
+
+**It did not reproduce on anything patagonia can run**, and the shape of that failure is the
+finding:
+
+- **x86_64 under QEMU at `NIFE_SMP=4`**: one full suite plus five filtered runs, all green, with
+  `smp: 4 core(s) online` confirmed in the boot print (so this was not `ap_boot`'s BUGS #1 quietly
+  running three).
+- **x86_64 under QEMU at `NIFE_SMP=8`**: ten filtered runs, all green.
+- **x86_64 under QEMU at `NIFE_SMP=4` with genuinely parallel cores**: twelve filtered runs, all
+  green. See below; this leg did not exist before this milestone.
+- **aarch64 at four cores**: `scripts/qemu-runner-aarch64.sh` defaults `NIFE_SMP` to 4, so every
+  ordinary `script/test` has been running this test at four cores all along, and it passes.
+
+### The missing condition was parallelism, not cores, and that is now measured
+
+TCG has two vCPU models, and this port had only ever used one. Round-robin (`thread=single`) runs
+every guest core on **one** host thread; multi-threaded TCG (`thread=multi`) gives each guest core
+its own. **On an aarch64 host running an x86_64 guest QEMU picks round-robin**, so `NIFE_SMP=4` in
+this tree has never meant four cores running in the same instant. Measured rather than asserted: at
+`-smp 4`, QEMU 11.1.1 creates **5** threads under `thread=single` and **8** under `thread=multi`.
+
+So the first sixteen runs above were not the experiment they looked like. `NIFE_TCG_THREAD`
+(**provisional name**) was added to `scripts/qemu-runner-x86_64.sh` to fix that, is empty by default
+so nothing else changes, and its `BUGS` section carries the caveat that matters: x86's TSO is
+stronger than an aarch64 host provides, QEMU accepts the pair without a warning, and nobody here has
+audited its barrier placement. **A red run under that knob would need confirming on a bench before
+it was believed.** Twelve green ones need no such care, and twelve is what it produced.
+
+The other path to parallel cores, the aarch64 HVF leg, **does not run here**: QEMU refuses
+`virt,accel=hvf,gic-version=2,iommu=smmuv3`, the known GICv2/GICv3 incompatibility that milestones
+227 and 317 own and that `script/ci-build` already skips out loud. That is somebody else's bug and
+was not worked around.
+
+So the honest statement is the one `design/fatal-risks.md` risk 2 predicts: **this is reachable only
+on real silicon, or it is rarer than 28 runs**, and the instrument for reading it when it next
+happens is now in the tree rather than on a bench.
+
+## What reading the code ruled out, and what it did not
+
+Reading is not measurement and this section is careful to say which is which. Three of the
+candidate mechanisms have **no path in the source** and are ruled out by inspection:
+
+- **The unsupervised path.** `build_child_in` inserts the fault-endpoint capability into
+  `FAULT_EP_SLOT` **before** `start_thread_control_block`, and that function records `t.fault_ep`
+  and consumes the slot under `IPC_TABLES` before the thread is ever `Ready`. There is no window in
+  which a startable child has no supervision endpoint.
+- **A recycled rendezvous carrying stale queue entries.** `try_create_rendezvous_from` retypes a
+  fresh page and explicitly writes `Rendezvous::new()` over it, and `rendezvous_table` is
+  generational. A new `ep` cannot inherit an old one's parked sender or, worse, an old one's parked
+  *receiver*, which would swallow the death message through `Send::Rendezvous` and leave the count
+  at zero forever.
+- **Something dequeuing the corpse.** The only things that remove a sender are `Rendezvous::recv`,
+  `remove_sender` and teardown. This test reaches none of them before the assertion.
+
+**What that leaves is reading 2 by a route nobody has yet named**, and this block does not claim to
+know it. `start_thread_control_block` places a fresh child on another core's inbox
+(`place_on(pick_spawn_target(), ptr)`) and sends a reschedule IPI; the death then happens on that
+core, under a lock this one also takes. That is the region where a genuinely parallel machine can
+differ from an interleaved one, and it is where the next bench run's disposition line will point.
+
+**One thing deliberately not concluded:** that the kernel is correct. Twenty-eight green runs, twelve
+of them with really parallel cores, are not evidence that the condition is harmless on a machine
+none of them reproduced. "It passed on a retry" is what this block refuses, and "it passed
+twenty-eight times somewhere else" is the same refusal wearing a bigger number.
 
 ## Why it is worth a lane rather than a retry
 
@@ -91,6 +178,10 @@ Either a defect is found and fixed with a test that fails without the fix, or th
 establishes that the kernel is correct and the test was wrong, **with the reason written down**.
 "It passed on a retry" is not an outcome this block accepts.
 
+**Neither has happened yet, which is why this is `PARTIAL` and not `BUILT`.** What has happened is
+that the next occurrence answers the question by itself, from the log, without the bench being
+available again.
+
 ## Index row
 
 A child died, the kernel reported it dead, and its corpse never reached its supervision rendezvous
@@ -99,4 +190,24 @@ bench evening that was not an assertion written against QEMU.
 
 ## Follow-on
 
-- **None.** This block is the identified work; it has not run yet.
+- **Outstanding.** The failure itself is unresolved and is gated on xenon: run the x86_64 suite at
+  `NIFE_SMP=4` on that machine. If the assertion fires, its message now names which of the three
+  readings is true; if it does not fire, the frequency of the original is itself worth recording,
+  because a one-in-many failure in supervision is not a lesser finding than a deterministic one.
+- **Milestone 315.** `kernel::user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`
+  also fails at `NIFE_SMP=4`, and this lane spent a while treating that as its own find before
+  reading the runner it had been editing. `scripts/qemu-runner-x86_64.sh`'s own header already names
+  it, root-causes it (`PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core only, so a
+  holder on another core keeps the ports for up to a tick), and points at
+  [milestone 315](315-port-revoke-every-core.md), which closes it and is `NOT-STARTED` with no gate.
+  **Nothing is owed here**, and the near-miss is worth the sentence: a proposal file had been written
+  for it before the existing record turned up.
+- **Done.** `NIFE_TCG_THREAD=multi` in `scripts/qemu-runner-x86_64.sh` gives this port parallel
+  cores under emulation for the first time. **Provisional name**, empty by default, and its `BUGS`
+  section is honest that it is a hunting instrument rather than a gate. Whether the suite should
+  ever run that way is not this lane's call and is left alone; §153 and milestone 315 are already
+  holding the x86 SMP posture.
+- **Recorded.** `kernel/src/arch/x86_64/timer.rs`'s `BUGS` now says that `now()` reads the calling
+  core's TSC while the other two ports read a system counter, and that nothing measures or corrects
+  the skew. Investigated as the explanation for this failure and ruled out; recorded because the
+  asymmetry is real and was undocumented.

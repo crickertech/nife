@@ -4402,6 +4402,66 @@ pub fn rendezvous_waiting_senders(ep: RendezvousId) -> usize {
     }
 }
 
+/// **What a death actually did to a thread**: its run state, the supervision rendezvous it was
+/// spawned with, and the wait it is recorded as being in. `None` if the thread is no longer in the
+/// table at all. Test support (milestone 321). **Provisional name.**
+///
+/// It exists because a corpse that does not reach its supervision rendezvous fails
+/// `rendezvous_waiting_senders(ep) == 1` in a way a transcript cannot explain, and the failure
+/// observed on xenon (2026-09-17) was on a bench nobody can re-run with a print added. The three
+/// possible histories leave three different marks here, so one line in an assertion message
+/// separates them:
+///
+///   - `Finished` with no `fault_ep`: [`depart`] took the *unsupervised* path, so the supervision
+///     endpoint was lost before the fault rather than the delivery failing.
+///   - `Dead` with `wait_on == Some((ep, Sender))`: the corpse did park, and something took it off
+///     the queue again.
+///   - `Dead` with `wait_on == None`: [`deliver_death`]'s `send` met a waiting receiver, so the
+///     message was handed over and the corpse never joined the sender queue.
+///   - `Ready`, `Running` or `Blocked`: it never departed, whatever was printed about it.
+///   - `None`: the thread was reaped and freed.
+///
+/// This is milestone 318's lesson about assertions against constants, carried one step past the
+/// count: knowing the count is 0 still leaves three readings, and this is what decides between them
+/// on a machine the person reading the log cannot touch.
+/// The three fields [`thread_death_disposition`] reports. **Provisional name.**
+///
+/// A struct rather than the tuple this started as, and clippy's `type_complexity` asking for the
+/// change is the smaller half of the reason. The larger one is that this type exists to be read
+/// **in a panic message**, through `{:?}`, by somebody holding a serial log from a machine they
+/// cannot touch. A three-field `Debug` names its fields and a three-element tuple does not, so the
+/// difference is between `Some((Dead, Some(4), Some((4, Sender))))` and a line that says which of
+/// those numbers is the endpoint.
+/// **Every field here is read through `Debug` and nowhere else, which the dead-code lint cannot
+/// see**: a derived `impl` does not count as a use, so without this the three fields that are the
+/// whole point of the type report as never read. The allow is the exception and this is it saying
+/// so. It is also the tell that the type is doing one job: if a field ever gets read by code, the
+/// allow should shrink rather than stay.
+#[cfg(test)]
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy)]
+pub struct ThreadDeathDisposition {
+    /// Where the scheduler thinks this thread is.
+    pub state: State,
+    /// The supervision rendezvous it was started with. `None` on a corpse means [`depart`] took the
+    /// unsupervised path, so supervision was lost before the fault rather than in delivery.
+    pub fault_ep: Option<RendezvousId>,
+    /// The queue it is recorded as parked on, and in which role.
+    pub wait_on: Option<(RendezvousId, WaitRole)>,
+}
+
+#[cfg(test)]
+pub fn thread_death_disposition(tid: ThreadId) -> Option<ThreadDeathDisposition> {
+    let mut guard = IPC_TABLES.lock();
+    let sched = guard.as_mut()?;
+    let t = sched.threads.get(tid)?;
+    Some(ThreadDeathDisposition {
+        state: t.handshake.state,
+        fault_ep: t.fault_ep,
+        wait_on: t.handshake.wait_on,
+    })
+}
+
 /// **How many receivers are parked on an rendezvous.** The twin of [`rendezvous_waiting_senders`], and
 /// test support for the same reason (milestone 81).
 ///
