@@ -135,7 +135,9 @@ unprivileged process; the caller holds one endpoint and no device:
 ```rust
 let disk = nvme_service::ensure(program("nvme_server").unwrap())
     .expect("an NVMe controller is attached");
-assert_eq!(disk.blk(blk::SIZE, 0), 8 * 1024 * 1024);
+// Against the geometry this boot was handed, never a constant: the same line holds for the
+// runner's 8 MiB image and for a 256 GB namespace.
+assert_eq!(disk.blk(blk::SIZE, 0) as u64, disk.size_bytes);
 
 // SAFETY: a blk request is a CALL, so one side holds the buffer at a time.
 unsafe { disk.transfer_block() }.fill(0x5a);
@@ -157,7 +159,7 @@ Poke at the controller interactively:
 
 ```sh
 cargo xtask build && NIFE_NVME=target/nife-nvme.img cargo xtask run
-# (write the image first: an 8 MiB zero file, or keep one a test run made)
+# (write the image first: any size a controller will take, e.g. an 8 MiB zero file)
 ```
 
 ## What the test proves, and where
@@ -165,11 +167,13 @@ cargo xtask build && NIFE_NVME=target/nife-nvme.img cargo xtask run
 `kernel/src/user/nvme_tests.rs::a_confined_el0_process_serves_the_block_interface_end_to_end`, on
 **all three** architectures (§19; x86_64 joined 2026-08-25, decisions §86's evidence section): the
 controller enumerates over ECAM, comes up confined behind the SMMU (aarch64), the RISC-V IOMMU
-(riscv64), or VT-d (x86_64), answers IDENTIFY with the attached image's exact size, and then an
-**EL0 process** serves SIZE, WRITE, READ-back with byte-exact verification, a read of an untouched
-block that must still be zeros (the write landed where it said, not everywhere), a refusal of a
-block outside the namespace, a flush count that moves, and a refusal of an opcode it has no verb
-for. It asserts the IOMMU was active, which matters more than it did when the driver was the
+(riscv64), or VT-d (x86_64), answers IDENTIFY with the attached disk's exact size, and then an
+**EL0 process** serves SIZE, WRITE, READ-back with byte-exact verification, a second block written
+with a second pattern so that each block reads back its own (the write landed where it said, not
+everywhere), a refusal of a block outside the namespace, a flush count that moves, and a refusal of
+an opcode it has no verb for. **Every one of those is written against the geometry the boot was
+handed rather than against the runner's image size**, and none of them assumes what the disk held
+beforehand, so the same test proves the same things on a 256 GB disk (milestone 318). It asserts the IOMMU was active, which matters more than it did when the driver was the
 kernel: the IOMMU is now the *whole* of what stops a compromised server reaching memory it was not
 given.
 
