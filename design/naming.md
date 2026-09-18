@@ -1152,6 +1152,31 @@ taken against a crate under the name it had that morning, so that sentence is ev
 Read the paragraph, not the heading. The resolution is to keep the old name **and add a clause
 saying why**, which is what that file now carries.
 
+### The ownership test: does it keep its name when our crate is deleted?
+
+**If yes, the name is not ours and does not move.** One question, and it settles the class that
+accounts for most occurrences in every rename so far.
+
+It is what kept `satp.ASID` and `TTBR0_EL1.ASID` (fields in two instruction-set manuals), and what
+kept `crates/pci`'s `CLASS_NVME` and `find_nvme_device` when the `nvme` crate was renamed around
+them: `01:08:02` is a class code the NVM Express specification defines, and it keeps that name
+whatever this tree calls its driver. Waiting for the renames still to come: `.dtb` is a file format
+`dtc` writes and QEMU reads, and `GUID Partition Table` is UEFI's phrase.
+
+The test is ownership rather than subject matter. A thing can be *about* our crate and still not be
+named by us.
+
+### Counting is not classifying, and only reading finds the rest
+
+**Take the census twice, and read the after-census line by line.** The `nvme` rename went 615 to 477
+and the classification pass over those 477 caught three sites that `script/lint`, `script/names` and
+a green four-leg `script/test` had all passed over: a module header still saying `Provisional` after
+ratification, a `println!` prefix, and a path inside two QEMU runner scripts.
+
+**None of the three is a link, a symbol, or a name any parser reads**, which is exactly why no gate
+saw them and why the count alone would not have either. The number tells you the sweep ran; only
+reading tells you it was right.
+
 ### A path is navigation; a name in an account is a claim
 
 A `BUILT` block keeps the old *name*, because it is an account of what was built under it. It does
