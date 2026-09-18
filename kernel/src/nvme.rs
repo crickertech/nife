@@ -1,57 +1,78 @@
-//! **The NVMe block driver's volatile half** (milestone 53's storage half; notes/nvme.md).
+//! **The NVMe controller's admin plane** (milestone 53's storage half, narrowed to the admin half
+//! by milestone 261; notes/nvme.md, [DECISIONS §86](../../design/decisions/86-el0-nvme-driver.md)).
 //!
-//! Everything an NVMe driver *touches*, over the arithmetic `crates/nvme` computes: volatile
-//! register reads and writes into the controller's BAR0, command copies into the queue memory,
-//! doorbell rings, and the polling loop that watches a completion's phase tag. The split is the
-//! `pci` module's exactly, and rule 2 shapes the driver itself: [`Nvme`] takes the register
-//! window's virtual base and one DMA region, passed in, and reaches for nothing else. What does
-//! reach into the kernel is [`bring_up`], the policy function, which is what finds the controller
+//! What is left in the kernel after §86's **option 2a**, and the line is the one the hardware
+//! already draws. Creating a queue names the physical address a ring lives at, in a PRP field of
+//! an admin command; the admin rings' own bases are the `ASQ` and `ACQ` registers. **That is the
+//! dangerous authority**, so it stays at EL1: reset the controller, build the admin pair by
+//! register, enable it, IDENTIFY the namespace, and create the one I/O queue pair whose rings are
+//! inside the region the IOMMU has already confined the device to. A process that never issues an
+//! admin command and never touches those registers cannot choose where any ring lives, which is
+//! what makes the geometry below a guarantee rather than an agreement.
+//!
+//! **The data path is gone from this file and runs at EL0.** Building a command, copying it into
+//! the submission ring, ringing the doorbell and watching a completion's phase tag are
+//! `components/src/nvme_server.rs`'s now, over the same `crates/nvme` arithmetic this module
+//! computes with. The bring-up below is still a test of that machinery, because the admin queue
+//! rides the identical ring discipline.
+//!
+//! Rule 2 shapes what is here exactly as it shaped the whole driver before: [`Nvme`] takes the
+//! register window's virtual base and one DMA region, passed in, and reaches for nothing else.
+//! What reaches into the kernel is [`bring_up`], the policy function, which finds the controller
 //! on the bus (`pci::find_nvme_device`), allocates the DMA region, and **confines the device to it
-//! in hardware** before the controller is enabled: on both `virt` boards the IOMMU denies an
+//! in hardware** before the controller is enabled: on all three `virt` machines the IOMMU denies an
 //! unlisted requester id by default (milestone 16b), so a controller that has not been confined
-//! cannot fetch its first command, and this driver's bring-up is proof the confinement admits
-//! exactly what it should.
-//!
-//! **Kernel-resident, and that is a recorded limitation rather than the design** (notes/nvme.md's
-//! BUGS). The virtio drivers run at EL0 behind a `Virtio` capability whose kernel half validates
-//! every queue address; NVMe has no such capability, and inventing one is new syscall surface,
-//! which is a design fork (§10, §16) this milestone does not take. Until it is decided, the driver
-//! serves the same block interface the FS server's block servers speak, one 4096-byte filesystem
-//! block per transfer ([`filesystem_protocol::blk`]'s unit), from kernel context.
+//! cannot fetch its first command, and this bring-up is proof the confinement admits exactly what
+//! it should.
 //!
 //! Name: unrecorded. Introduced 2026-08-15 with milestone 53's NVMe block driver, as the volatile
 //! half of the `nvme` crate, the crate/module pairing `pci` and `virtio` already use. Provisional,
 //! awaiting ratification with the crate's name.
 
-use nvme::{Cap, Command, Completion, CqState, Doorbell, IdentifyNamespace, SqState, regs};
+use nvme::{
+    Cap, Command, Completion, CqState, Doorbell, Handoff, IdentifyNamespace, SqState, regs,
+};
 
 use crate::arch::mmu;
 
-/// One transfer unit: a filesystem block, the same unit the blk-IPC protocol moves, so a future
-/// NVMe-backed block server serves the FS server without a translation layer.
+/// One transfer unit: a filesystem block, the same unit the blk-IPC protocol moves, so the EL0
+/// block server serves the FS server without a translation layer.
 pub const BLOCK_SIZE: usize = filesystem_protocol::blk::BLOCK_SIZE;
 
-/// The DMA region's layout, in page offsets. Six pages, one purpose each, allocated contiguously
-/// by [`bring_up`] and confined as one region: the two admin rings, the two I/O rings, the
-/// identify buffer, and the one-block data buffer.
+/// The DMA region's layout, in page offsets. One contiguous run, allocated by [`bring_up`] and
+/// confined as one region, in two halves that are **not** the same authority:
+///
+/// - pages 0..[`DATA_PLANE_PAGE`] are the **admin plane's**, and no EL0 process is mapped them:
+///   the two admin rings and the IDENTIFY buffer;
+/// - pages [`DATA_PLANE_PAGE`].. are the **data plane's**, mapped into the EL0 server: the I/O
+///   submission ring, the I/O completion ring, and [`TRANSFER_PAGES`] pages of transfer buffer.
+///
+/// The IOMMU confines the device to the whole run, because the controller fetches from both
+/// halves. Splitting the *mappings* is what withholds the admin plane from the driver; see
+/// `components/src/nvme_server.rs`'s "What it holds" for what that does and does not buy.
 const ADMIN_SQ_PAGE: u64 = 0;
 const ADMIN_CQ_PAGE: u64 = 1;
-const IO_SQ_PAGE: u64 = 2;
-const IO_CQ_PAGE: u64 = 3;
-const IDENTIFY_PAGE: u64 = 4;
-const DATA_PAGE: u64 = 5;
-const DMA_PAGES: u64 = 6;
+const IDENTIFY_PAGE: u64 = 2;
+/// The first page of the data plane's run, and the base [`Handoff::data_plane_phys`] carries.
+pub const DATA_PLANE_PAGE: u64 = 3;
+const IO_SQ_PAGE: u64 = 3;
+const IO_CQ_PAGE: u64 = 4;
+/// Where the transfer buffer starts, relative to [`DATA_PLANE_PAGE`]. The EL0 server computes the
+/// same offset from what it was handed; the constant is duplicated there against this one because
+/// the two live in different address spaces and nothing but the spawn contract joins them.
+pub const TRANSFER_PAGES: u64 = filesystem_protocol::blk::TRANSFER_BLOCKS as u64;
+const DMA_PAGES: u64 = 5 + TRANSFER_PAGES;
 
-/// Sixteen entries per queue: one page holds 64 (submission) or 256 (completion), but this driver
-/// completes each command before submitting the next, so depth buys nothing and a small ring keeps
-/// the wrap (where the phase discipline earns its keep) inside every test run.
+/// Sixteen entries per I/O ring: one page holds 64 (submission) or 256 (completion), but the EL0
+/// server completes each command before submitting the next, so depth buys nothing and a small
+/// ring keeps the wrap (where the phase discipline earns its keep) inside every test run.
 const ENTRIES: u16 = 16;
 
-/// The one I/O queue pair this driver creates.
+/// The one I/O queue pair the admin plane creates.
 const IO_QID: u16 = 1;
 
 /// The one namespace QEMU's `-device nvme,drive=` carries. Namespace ids are 1-based.
-const NSID: u32 = 1;
+pub const NSID: u32 = 1;
 
 /// How many polls of a status or completion before the driver declares the controller hung. QEMU
 /// completes synchronously inside the doorbell write, so a bound this size is pure paranoia; on
@@ -79,9 +100,9 @@ pub enum Error {
     UnsupportedController,
 }
 
-/// An initialized NVMe controller with one I/O queue pair, serving whole filesystem blocks.
-/// Constructed only by [`Nvme::new`]; holding one is holding a disk that has already proven it can
-/// answer admin commands.
+/// An initialized NVMe controller with one I/O queue pair, ready to be handed to an EL0 data
+/// plane. Constructed only by [`Nvme::new`]; holding one is holding a disk that has already
+/// proven it can answer admin commands, and the authority to create more queues.
 pub struct Nvme {
     /// BAR0's virtual base: the register file and, from 0x1000, the doorbells.
     regs: u64,
@@ -93,8 +114,6 @@ pub struct Nvme {
     dma_va: u64,
     admin_sq: SqState,
     admin_cq: CqState,
-    io_sq: SqState,
-    io_cq: CqState,
     /// The namespace's geometry, from IDENTIFY: size and blocks-per-filesystem-block.
     ns: IdentifyNamespace,
     /// The next command identifier. Echoed back in completions and checked there; monotonic and
@@ -103,11 +122,12 @@ pub struct Nvme {
 }
 
 impl Nvme {
-    /// Bring the controller from reset to serving I/O: reset, admin queues, enable, identify the
-    /// namespace, create the I/O queue pair. `regs_va` is BAR0's virtual base; `dma_phys`/`dma_va`
-    /// name the same zeroed, physically contiguous [`DMA_PAGES`]-page region through the two
-    /// address spaces. The caller has already confined the device to that region if an IOMMU is
-    /// active; nothing in here can tell, which is the point of the confinement being outside.
+    /// Bring the controller from reset to ready to serve I/O: reset, admin queues, enable,
+    /// identify the namespace, create the I/O queue pair. `regs_va` is BAR0's virtual base;
+    /// `dma_phys`/`dma_va` name the same zeroed, physically contiguous [`DMA_PAGES`]-page region
+    /// through the two address spaces. The caller has already confined the device to that region
+    /// if an IOMMU is active; nothing in here can tell, which is the point of the confinement
+    /// being outside.
     pub fn new(regs_va: u64, dma_phys: u64, dma_va: u64) -> Result<Nvme, Error> {
         let mut c = Nvme {
             regs: regs_va,
@@ -116,8 +136,6 @@ impl Nvme {
             dma_va,
             admin_sq: SqState::new(ENTRIES),
             admin_cq: CqState::new(ENTRIES),
-            io_sq: SqState::new(ENTRIES),
-            io_cq: CqState::new(ENTRIES),
             ns: IdentifyNamespace {
                 blocks: 0,
                 lba_shift: 9,
@@ -157,7 +175,7 @@ impl Nvme {
         // arithmetic below stands on, and refusing an exotic format here beats corrupting it later.
         let prp = dma_phys + IDENTIFY_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::identify(c.next_cid(), nvme::CNS_NAMESPACE, NSID, prp);
-        c.transact(0, cmd)?;
+        c.transact(cmd)?;
         // SAFETY: the identify page is ours (inside the region bring_up allocated), and the
         // controller finished writing it before the completion above was posted (NVMe's ordering
         // guarantee); the barrier in `transact` ordered those writes before this read.
@@ -168,89 +186,64 @@ impl Nvme {
             )
         };
         c.ns = nvme::parse_identify_namespace(data).ok_or(Error::UnsupportedNamespace)?;
-        if c.ns.blocks == 0 {
+        if c.ns.blocks == 0 || c.ns.blocks_per(BLOCK_SIZE as u64).is_none() {
             return Err(Error::UnsupportedNamespace);
         }
 
         // The I/O pair, by admin command, completion queue first: the submission queue names its
         // completion queue, so creating them in the other order is an Invalid Queue Identifier.
+        // **Both rings are inside the data plane's half of the region**, which is what makes the
+        // EL0 server able to reach them at all; it is the kernel that decided so, here, and the
+        // server has no command it could issue to change it.
         let cq_prp = dma_phys + IO_CQ_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::create_io_cq(c.next_cid(), IO_QID, ENTRIES, cq_prp);
-        c.transact(0, cmd)?;
+        c.transact(cmd)?;
         let sq_prp = dma_phys + IO_SQ_PAGE * page_frames::FRAME_SIZE;
         let cmd = Command::create_io_sq(c.next_cid(), IO_QID, ENTRIES, IO_QID, sq_prp);
-        c.transact(0, cmd)?;
+        c.transact(cmd)?;
         Ok(c)
     }
 
-    /// The disk's capacity in bytes: the blk-IPC `SIZE` answer.
+    /// The disk's capacity in bytes: the blk-IPC `SIZE` answer, which the EL0 server is told
+    /// rather than left to ask, because asking means IDENTIFY and IDENTIFY is an admin command.
     pub fn size_bytes(&self) -> u64 {
         self.ns.bytes()
     }
 
-    /// Read filesystem block `block` from the disk into [`Nvme::buffer`]: the blk-IPC `READ`.
-    pub fn read_block(&mut self, block: u64) -> Result<(), Error> {
-        self.transfer(block, false)
-    }
-
-    /// Write [`Nvme::buffer`]'s bytes to filesystem block `block`: the blk-IPC `WRITE`.
-    pub fn write_block(&mut self, block: u64) -> Result<(), Error> {
-        self.transfer(block, true)
-    }
-
-    /// The one-block transfer buffer the reads land in and the writes come from, the same shape
-    /// as the shared page a block server transfers through.
-    pub fn buffer(&mut self) -> &mut [u8; BLOCK_SIZE] {
-        // SAFETY: the data page is inside the region bring_up allocated for exactly this, no
-        // transfer is in flight (`transfer` completes each command before returning, and takes
-        // `&mut self` like this does), and BLOCK_SIZE is one frame.
-        unsafe {
-            &mut *((self.dma_va + DATA_PAGE * page_frames::FRAME_SIZE) as *mut [u8; BLOCK_SIZE])
+    /// **Everything the EL0 data plane is told**, and the whole of what it could not compute for
+    /// itself. See [`nvme::Handoff`] for why it is three words.
+    pub fn handoff(&self) -> Handoff {
+        Handoff {
+            dstrd: self.dstrd,
+            // `new` refused a namespace this returns `None` for, so the unwrap cannot fire.
+            blocks_per: self
+                .ns
+                .blocks_per(BLOCK_SIZE as u64)
+                .expect("new() refuses a namespace whose format 4096 is not a multiple of"),
+            entries: ENTRIES,
+            data_plane_phys: self.dma_phys + DATA_PLANE_PAGE * page_frames::FRAME_SIZE,
+            size_bytes: self.size_bytes(),
         }
     }
 
-    /// One whole-block transfer, both directions: the LBA arithmetic from the identified
-    /// geometry, the PRP from the data page, one command, one polled completion.
-    fn transfer(&mut self, block: u64, write: bool) -> Result<(), Error> {
-        // 4096 is a whole number of logical blocks for every format `parse_identify_namespace`
-        // admits (shift 9..=12), so this cannot fail; `expect` documents it.
-        let per = self
-            .ns
-            .blocks_per(BLOCK_SIZE as u64)
-            .expect("identify admitted a format 4096 is not a multiple of");
-        let slba = block * per as u64;
-        let data = self.dma_phys + DATA_PAGE * page_frames::FRAME_SIZE;
-        let (prp1, prp2) = nvme::prp_pair(data, BLOCK_SIZE as u64, page_frames::FRAME_SIZE)
-            .expect("one page-aligned block is always PRP-expressible");
-        let cid = self.next_cid();
-        let cmd = if write {
-            Command::write(cid, NSID, slba, per, prp1, prp2)
-        } else {
-            Command::read(cid, NSID, slba, per, prp1, prp2)
-        };
-        self.transact(IO_QID, cmd)
+    /// The physical base of the whole DMA region, admin plane included: what [`bring_up`] confined
+    /// and what the caller must not hand out.
+    pub fn dma_phys(&self) -> u64 {
+        self.dma_phys
     }
 
-    /// Submit one command on queue `qid` and poll its completion: the copy into the ring, the
-    /// publish barrier, the tail doorbell, the phase-gated poll, the head doorbell. Both queues
-    /// ride this one path, which is why the admin bring-up is itself a test of the I/O machinery.
-    fn transact(&mut self, qid: u16, cmd: Command) -> Result<(), Error> {
-        let (sq_page, cq_page) = if qid == 0 {
-            (ADMIN_SQ_PAGE, ADMIN_CQ_PAGE)
-        } else {
-            (IO_SQ_PAGE, IO_CQ_PAGE)
-        };
+    /// Submit one **admin** command and poll its completion: the copy into the ring, the publish
+    /// barrier, the tail doorbell, the phase-gated poll, the head doorbell. The I/O queue rides
+    /// the identical discipline one privilege level down, which is why this bring-up is itself a
+    /// test of the EL0 server's machinery.
+    fn transact(&mut self, cmd: Command) -> Result<(), Error> {
         let expect_cid = (cmd.0[0] >> 16) as u16;
 
-        let slot = if qid == 0 {
-            self.admin_sq.push()
-        } else {
-            self.io_sq.push()
-        };
+        let slot = self.admin_sq.push();
         // SAFETY: slot < ENTRIES and ENTRIES 64-byte entries fit one frame, so the write stays
-        // inside the submission ring's page of our own DMA region.
+        // inside the admin submission ring's page of our own DMA region.
         unsafe {
-            let dst = (self.dma_va + sq_page * page_frames::FRAME_SIZE + slot as u64 * 64)
+            let dst = (self.dma_va + ADMIN_SQ_PAGE * page_frames::FRAME_SIZE + slot as u64 * 64)
                 as *mut [u32; 16];
             core::ptr::write_volatile(dst, cmd.0);
         }
@@ -259,36 +252,22 @@ impl Nvme {
         // barrier on both ISAs (DSB SY / fence), so it also orders the poll reads below against
         // this ring, which is why one barrier a side is enough.
         crate::arch::dma_wmb();
-        let tail = if qid == 0 {
-            self.admin_sq.tail()
-        } else {
-            self.io_sq.tail()
-        };
         self.wr32(
-            nvme::doorbell(qid, Doorbell::SubmissionTail, self.dstrd),
-            tail as u32,
+            nvme::doorbell(0, Doorbell::SubmissionTail, self.dstrd),
+            self.admin_sq.tail() as u32,
         );
 
         // Poll the completion ring at the head slot until the phase tag says the entry is this
         // lap's. Volatile reads through the direct map; the controller DMAs into the same page.
-        let head = if qid == 0 {
-            self.admin_cq.head()
-        } else {
-            self.io_cq.head()
-        };
-        let cqe =
-            (self.dma_va + cq_page * page_frames::FRAME_SIZE + head as u64 * 16) as *const [u32; 4];
+        let head = self.admin_cq.head();
+        let cqe = (self.dma_va + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE + head as u64 * 16)
+            as *const [u32; 4];
         let mut done: Option<Completion> = None;
         for _ in 0..SPIN_BOUND {
             // SAFETY: head < ENTRIES and ENTRIES 16-byte entries fit one frame; reads of our own
             // DMA region are always safe, whatever the device is writing there.
             let c = Completion::from_dwords(unsafe { core::ptr::read_volatile(cqe) });
-            let owned = if qid == 0 {
-                self.admin_cq.owned(&c)
-            } else {
-                self.io_cq.owned(&c)
-            };
-            if owned {
+            if self.admin_cq.owned(&c) {
                 done = Some(c);
                 break;
             }
@@ -298,27 +277,19 @@ impl Nvme {
             core::hint::spin_loop();
         }
         let c = done.ok_or(Error::CompletionTimeout)?;
-        // Order the completion's phase read before the payload reads that follow (identify parse,
-        // block bytes): on a weakly-ordered CPU nothing else stops the data read hoisting above
-        // the flag read. Full barrier, as above.
+        // Order the completion's phase read before the payload reads that follow (the identify
+        // parse): on a weakly-ordered CPU nothing else stops the data read hoisting above the flag
+        // read. Full barrier, as above.
         crate::arch::dma_wmb();
 
         // Consume: advance the head (flipping phase on wrap), tell the controller, and let the
         // submission ring reuse what the controller has read.
-        let new_head = if qid == 0 {
-            self.admin_cq.pop()
-        } else {
-            self.io_cq.pop()
-        };
+        let new_head = self.admin_cq.pop();
         self.wr32(
-            nvme::doorbell(qid, Doorbell::CompletionHead, self.dstrd),
+            nvme::doorbell(0, Doorbell::CompletionHead, self.dstrd),
             new_head as u32,
         );
-        if qid == 0 {
-            self.admin_sq.note_head(c.sq_head);
-        } else {
-            self.io_sq.note_head(c.sq_head);
-        }
+        self.admin_sq.note_head(c.sq_head);
 
         // The one-at-a-time discipline makes any other cid a protocol violation worth dying on
         // legibly rather than misattributing a completion.
@@ -378,6 +349,19 @@ impl Nvme {
     }
 }
 
+/// **Where the controller's registers are, once it is up.** The physical base of BAR0, so a
+/// spawner can map the **doorbell page** (`bar0 + 0x1000`) and only that page into an EL0 data
+/// plane. Offsets 0x000..0x1000 hold `CC`, `CSTS`, `AQA`, `ASQ` and `ACQ`: a process that cannot
+/// name that page cannot reset the controller and cannot move the admin rings.
+pub struct Found {
+    /// BAR0's physical base.
+    pub bar0: u64,
+    /// The controller's PCIe requester id, for the IOMMU.
+    pub rid: u32,
+    /// The initialized admin plane.
+    pub controller: Nvme,
+}
+
 /// **Find, confine, and initialize the machine's NVMe disk.** `None` when no controller is on the
 /// bus (every boot the runner did not attach one), which is a fact about the machine; a controller
 /// that is present but fails bring-up prints the phase it died in and also returns `None`, because
@@ -385,10 +369,10 @@ impl Nvme {
 ///
 /// The order is the confinement story: the device gets its DMA region *before* the controller is
 /// enabled, so there is no instant at which an enabled controller could reach anything else. On a
-/// machine with no IOMMU (a plain `virt` boot) the confinement step is skipped and the driver
-/// still runs, with nothing but the driver's own arithmetic bounding the addresses; the test
-/// boots all have one, so the proven configuration is the confined one.
-pub fn bring_up() -> Option<Nvme> {
+/// machine with no IOMMU (a plain `virt` boot with the flag off) the confinement step is skipped
+/// and the driver still runs, with nothing but the driver's own arithmetic bounding the addresses;
+/// the test boots all have one, so the proven configuration is the confined one.
+pub fn bring_up() -> Option<Found> {
     let dev = crate::pci::find_nvme_device()?;
     // Zeroing is load-bearing for the completion rings: the phase discipline starts from
     // all-zero entries.
@@ -405,70 +389,14 @@ pub fn bring_up() -> Option<Nvme> {
         );
     }
     match Nvme::new(mmu::phys_to_virt(dev.bar0), dma, mmu::phys_to_virt(dma)) {
-        Ok(disk) => Some(disk),
+        Ok(controller) => Some(Found {
+            bar0: dev.bar0,
+            rid: dev.rid,
+            controller,
+        }),
         Err(e) => {
             crate::println!("  nvme: controller present but failed bring-up: {e:?}");
             None
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    /// **The whole storage half of milestone 53, end to end**: the controller is found over the
-    /// §18 PCIe transport, confined behind the machine's IOMMU, brought from reset through
-    /// identify to an I/O queue pair, and then proves it can serve the blk-IPC verbs: SIZE
-    /// answers the attached image's real size, WRITE persists a block, READ brings it back, and
-    /// an untouched block still reads as the zeros the runner wrote.
-    ///
-    /// One test on purpose: bring-up is not idempotent state to share between test cases (a
-    /// second `bring_up` would re-confine and re-create queues against a live controller), so the
-    /// sequence lives in one place with the ordering visible.
-    #[test_case]
-    fn the_nvme_disk_serves_the_block_interface_end_to_end() {
-        // QEMU's xtask legs always attach a controller (NIFE_NVME); a bare board boot has no
-        // equivalent (milestone 145, bench 2026-08-21). Absence used to be treated as a lost
-        // QEMU flag and asserted; skip instead, because a board boot genuinely has no NVMe
-        // controller to attach, and that is not this test's failure to report.
-        let Some(mut disk) = bring_up() else {
-            crate::testing::skip!("no NVMe controller came up (NIFE_NVME not set on this leg?)");
-        };
-
-        // On every test boot an IOMMU fronts the PCIe bus on both ISAs, so what this run proved
-        // is the confined configuration; say so if that ever silently stops being true.
-        assert!(
-            crate::iommu::active(),
-            "the NVMe test expects the machine's IOMMU; without it the confinement claim is untested"
-        );
-
-        // SIZE: the runner's image is 8 MiB (xtask's mknvmedisk); identify must agree exactly.
-        assert_eq!(disk.size_bytes(), 8 * 1024 * 1024);
-
-        // WRITE a block whose bytes are a function of their offset, far enough in that a driver
-        // confusing block and LBA units (the classic factor-of-8) would land visibly elsewhere.
-        const BLOCK: u64 = 37;
-        for (i, b) in disk.buffer().iter_mut().enumerate() {
-            *b = (i as u64 % 251) as u8; // 251 is prime to 4096, so no page-periodic alias
-        }
-        disk.write_block(BLOCK).expect("write");
-
-        // Clobber the buffer, READ the block back, and every byte must be the function again.
-        disk.buffer().fill(0xaa);
-        disk.read_block(BLOCK).expect("read");
-        for (i, b) in disk.buffer().iter().enumerate() {
-            assert_eq!(
-                *b,
-                (i as u64 % 251) as u8,
-                "byte {i} of the block came back wrong"
-            );
-        }
-
-        // A block this test never wrote is still the image's zeros: the write landed where it
-        // said, not everywhere.
-        disk.read_block(BLOCK + 1)
-            .expect("read of an untouched block");
-        assert!(disk.buffer().iter().all(|b| *b == 0));
     }
 }

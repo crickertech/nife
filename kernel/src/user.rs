@@ -2531,6 +2531,28 @@ mod uuid_tests;
 #[cfg_attr(not(test), allow(dead_code))] // the tests and std_service are its callers
 pub mod entropy_service;
 
+/// **The EL0 NVMe block server's wiring** (milestone 261; DECISIONS §86's option 2a).
+///
+/// The kernel keeps the admin plane, which is the authority to say where a queue lives, and hands
+/// a process the doorbell page and the data plane's pages of one confined DMA region. What it is
+/// granted and what it is refused is written out in that module's own header, in the shape
+/// milestone 159's TRNG driver established, because the confinement is the claim and the driver is
+/// only what exercises it.
+#[cfg_attr(not(test), allow(dead_code))] // the tests are its callers
+pub mod nvme_service;
+
+/// **A confined EL0 process drives a real, non-virtio DMA device** (milestone 261).
+///
+/// What these prove that nothing else would: that the NVMe queue mechanics work from ring 3 with
+/// no authority over the controller's own registers, that the blk contract a client holds names
+/// neither the device nor the doorbells, and that the bytes a client reads back are the bytes it
+/// wrote, through a controller an IOMMU confined before it was ever enabled.
+///
+/// `cfg(initrd)`: see `kernel/build.rs::declare_initrd_cfg`; the server is a packed program, so a
+/// build without an archive cannot spawn it.
+#[cfg(all(test, initrd))]
+mod nvme_tests;
+
 /// **Randomness that an adversary cannot predict** (milestone 56, DECISIONS §44).
 ///
 /// Not arch-gated and not transport-gated: the same binary, the same contract, the same assertions,
