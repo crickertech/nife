@@ -4354,10 +4354,12 @@ fn nvme_disk_path() -> String {
 }
 
 /// The NVMe test image (milestone 53's storage half): 8 MiB of zeros behind QEMU's `-device nvme`.
-/// Zeros because the boot test's negative check is that an untouched block still reads as the
-/// image's zeros after a neighboring block was written; 8 MiB because the test asserts IDENTIFY's
-/// size answer against exactly this number, so the file and the assertion must move together
-/// (kernel/src/nvme.rs). Regenerated per leg like the blank disk, and for the same reason: the
+/// **Neither number is load-bearing any more** (milestone 318): the boot test compares the
+/// server's size answer against the geometry the kernel read from IDENTIFY rather than against a
+/// constant, and proves a write landed where it said by writing a second block rather than by
+/// expecting an untouched one to read as zeros. So this file may be any size a controller will
+/// take, which is what lets the same test run against xenon's 256 GB Micron. Zeros and 8 MiB
+/// because a zero file is cheap to make and small is fast to attach. Regenerated per leg like the blank disk, and for the same reason: the
 /// test writes it, and a leg starting from the previous leg's damage is not reproducible alone.
 fn mknvmedisk() -> bool {
     let path = nvme_disk_path();

@@ -108,6 +108,11 @@ pub struct Wiring {
     /// True when an IOMMU was active and the controller's requester id was confined to the DMA
     /// region before it was enabled. False means the driver is as unconfined as its arithmetic.
     pub confined_by_iommu: bool,
+    /// **The namespace's size in bytes as the kernel's admin plane read it from IDENTIFY**, which
+    /// is the number [`nvme::Handoff`] carried into ring 3. A test compares the server's answers
+    /// against *this* rather than against a constant, so the same assertions hold on QEMU's 8 MiB
+    /// image and on a 256 GB disk (milestone 318).
+    pub size_bytes: u64,
 }
 
 /// **One NVMe server per boot**, for the reason the entropy service is wired once: a second
@@ -117,6 +122,7 @@ static WIRED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::n
 static REQUEST: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 static TRANSFER: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 static CONFINED: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(false);
+static SIZE_BYTES: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64::new(0);
 
 /// Wire the NVMe server if this boot has not already, else hand back what is already running.
 /// `None` when there is no NVMe controller on the bus, or when one is present and failed
@@ -131,12 +137,14 @@ pub fn ensure(image: &'static [u8]) -> Option<Wiring> {
             request: REQUEST.load(Ordering::Relaxed),
             transfer_phys: TRANSFER.load(Ordering::Relaxed),
             confined_by_iommu: CONFINED.load(Ordering::Relaxed),
+            size_bytes: SIZE_BYTES.load(Ordering::Relaxed),
         });
     }
     let w = start(image)?;
     REQUEST.store(w.request, Ordering::Relaxed);
     TRANSFER.store(w.transfer_phys, Ordering::Relaxed);
     CONFINED.store(w.confined_by_iommu, Ordering::Relaxed);
+    SIZE_BYTES.store(w.size_bytes, Ordering::Relaxed);
     WIRED.store(true, Ordering::Release);
     Some(w)
 }
@@ -206,6 +214,7 @@ fn start(image: &'static [u8]) -> Option<Wiring> {
         request,
         transfer_phys,
         confined_by_iommu,
+        size_bytes: handoff.size_bytes,
     })
 }
 
