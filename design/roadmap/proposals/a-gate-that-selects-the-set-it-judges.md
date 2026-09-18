@@ -31,7 +31,7 @@ for it; nothing in CI could have said a word.
 
 ## Why it is worth a milestone and not a fix
 
-**It is a different failure from the one `notes/naming.md` already records.** That note has a row for
+**It is a different failure from the one `design/naming.md` already records.** That note has a row for
 a stale `--exclude`: a gate that has quietly stopped covering one crate. This is the same family and
 strictly worse, because an exclusion that goes stale still covers everything else, while a **selector**
 that goes stale covers nothing at all. The subject disappears in one step and the green is read as an
@@ -55,7 +55,7 @@ over.
   (`notes/*.md design/*.md` in `script/lint`) cannot go empty while either directory exists, which is
   the shape to look for: a selector over a set that is *allowed* to become empty.
 - The `--exclude` lists in `script/lint`, `script/coverage` and `xtask` are the adjacent failure
-  `notes/naming.md` already names, and cargo takes an unknown `--exclude` silently.
+  `design/naming.md` already names, and cargo takes an unknown `--exclude` silently.
 - `.cargo/mutants.toml`'s exclusion globs are named in that same table: a glob that matches nothing is
   not an error.
 - Two gates already moved off hand-kept lists for a related reason and record the argument:

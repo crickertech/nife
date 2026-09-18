@@ -233,11 +233,11 @@
 //! meeting it, which is not: nothing types `login`. The kernel starts it and only other programs reach
 //! it, by `CONNECT` on its front door. And it authenticates nothing itself; it relays to
 //! `credentialer`, which checks the secret, and then turns an identity into a **principal** (the term
-//! ratified 2026-09-14, `notes/naming.md`). By milestone 63's own test a login service never hands you
+//! ratified 2026-09-14, `design/naming.md`). By milestone 63's own test a login service never hands you
 //! a login, so the stem was genuinely open. calef kept it: `login` is the field's name for this role
 //! whoever speaks it, a reader arriving from Unix lands in the right place, and the stem is carried by a
 //! wire vocabulary two programs agree on. The argument and the refused alternatives are in
-//! `notes/naming.md`, "The `login` stem stays".
+//! `design/naming.md`, "The `login` stem stays".
 //!
 //! # BUGS
 //!

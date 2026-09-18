@@ -63,7 +63,7 @@ despite it. `interrupt_ignorer` costs the borrowed word and buys a pair that par
 **`worker` was added to this list on the same day, and it settles a classification this milestone
 would otherwise have had to guess.** Its own provenance left the name open because the answer
 depended on whether the file is a fixture or the canonical minimal program, and three records
-(`notes/naming.md`, milestones 39 and 175) had it in a fixture list by repetition rather than by
+(`design/naming.md`, milestones 39 and 175) had it in a fixture list by repetition rather than by
 ruling. **calef ruled it the canonical minimal program**, so it goes to `components/` rather than
 `fixtures/`, and the name says what it demonstrates. `demo_square` was considered and refused: the
 file's own header says *"the squaring is arbitrary and the authority is the point"*, so naming it
@@ -86,7 +86,7 @@ program, because nobody uses the word otherwise. **So `heeder` sweeps mechanical
 read by hand, every occurrence, before anything is edited.**
 
 Three further traps, all learned the hard way this week and recorded in `AGENTS.md`'s naming section
-and `notes/naming.md`: the program's name is a **string literal** in `crates/grant_plan`'s command
+and `design/naming.md`: the program's name is a **string literal** in `crates/grant_plan`'s command
 table, `xtask`'s archive tuples and `kernel/src/user/tests.rs`'s `program("spinner")`, where no
 compiler reads it; a **path citation** must resolve whatever the citing record's status; and a
 `Name:` provenance block ends at the next **empty comment line**.
@@ -127,7 +127,7 @@ What separates the two is what the program IS.
 
 **`least_authority_demo` is the case where the ruling did the classifying**, and it is the reason
 this section is worth reading rather than skimming. It was `worker`, and three records had it in a
-fixture list (`notes/naming.md`, milestone 39's illustrative list, and this block's own) by
+fixture list (`design/naming.md`, milestone 39's illustrative list, and this block's own) by
 repetition rather than by ruling. calef ruled it the canonical minimal program on 2026-09-13, so it
 is a component. Nothing in the tree would have caught that: the lists agreed with each other, and
 they were all copies of one guess.
@@ -205,7 +205,7 @@ The boot leg is CI's.
   which is the exact failure `mdns_proto` and `jh7110_trng` each cost this tree once. Recorded where
   a reader adding a harness meets it rather than fixed, because fixing it means either a row that
   cannot pass or machinery for a case that does not exist yet.
-- **Recorded.** `notes/naming.md`'s BUGS: one present-tense claim in `design/` still names `worker`,
+- **Recorded.** `design/naming.md`'s BUGS: one present-tense claim in `design/` still names `worker`,
   `heeder` and `spinner` as programs this system confines, and `AGENTS.md`'s rule 7 section still
   describes the old program directory as a live one. Both were left because a developer lane edits
   its own milestone's roadmap block and nothing else under `design/`, and never `AGENTS.md`. Every

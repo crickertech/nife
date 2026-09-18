@@ -181,7 +181,7 @@ as built serves every read-only use, and 218 is the thing to do first either way
   external drive that must never be switched off. The built tool reads and never writes, to the port
   or to the outlet, so the question stayed undecided rather than being settled by an
   implementation.
-- **Recorded.** `notes/naming.md` holds the naming backlog this milestone added to:
+- **Recorded.** `design/naming.md` holds the naming backlog this milestone added to:
   `script/board-console`, `cargo xtask board-console` and `crates/board_console` all shipped
   provisional, as a lane's names are, and `script/names --unratified` is the worklist.
 - **Proposed.** `design/roadmap/proposals/board-console-writes.md`, Whether `script/board-console`

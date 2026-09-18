@@ -52,7 +52,7 @@ moment. The part that cannot be checked, "name it for what it is", stays prose b
 judgement.
 
 **Built 2026-07-30.** The rename landed as one commit; the conventions are
-[notes/naming.md](../../notes/naming.md), and `script/lint`'s `naming conventions` block checks four of
+[design/naming.md](../naming.md), and `script/lint`'s `naming conventions` block checks four of
 them. The unfalsifiable-looking half turns out to have a demonstration after all: run the `-d` check
 against `main` before the rename and it names exactly `compd`, `gpud`, `netd`, `termd`. What no check
 reaches is the jargon argument above, because `linedisc` passes every one of them. A person not

@@ -777,85 +777,29 @@ the requirements are known.
 
 ## calef names the crates, the programs, and the shared modules
 
+**The name of a crate, a program, a module, or a public function is calef's call, not a lane's and
+not yours** (2026-08-01, widened to functions 2026-08-23). It is global to the tree, so it is decided
+by the person who can see the whole tree, and the reason is his: names are what make this OS
+accessible to humans and to LLMs, and in a capability system the name is often the only thing that
+says what a program may *do*.
+
+**So: propose, ship a provisional name, say so in your report, and never rename on your own
+initiative** (a rename is a naming decision with extra steps). That mechanism is what makes it safe
+not to have read the conventions before you start: a provisional name is expected to change, and the
+maintainer surfaces it.
+
+**[design/naming.md](design/naming.md) is the rule** (§155): the spelling conventions per domain, the
+acronym test, nouns over verbs, the failure modes, what `script/lint` can and cannot check, how to
+perform a ratified rename, and the refusals that shaped all of it. **Read it before you ratify or
+rename**; a lane inventing a provisional name does not have to. Where it and this file disagree,
+**that file is the rule** for naming conventions and this one is the bug; this file keeps only the
+authority above.
+
 **Contributors are referred to by their GitHub username** in prose, attributions, records and lane
 reports; legal names appear only in legal and authorship strings (`Cargo.toml` authors, licenses,
-patch `From:` headers). A username is unique and matches the identity every pull request and
-`git log --author` already carries, so a grep for a contributor finds them rather than everyone who
-shares a first name.
+patch `From:` headers), so a grep for a contributor finds them rather than everyone sharing a first
+name.
 
-**The name of a crate, a program, or a shared module is calef's call, not a lane's and not yours**
-(2026-08-01), and since 2026-08-23 that covers **public function and method names** too. Same rule
-as `design/decisions/` section numbers, one level up: it is global to the tree, so it is decided by the
-person who can see the whole tree. The reason is his: names are what make this OS accessible to
-humans and to LLMs, and in a capability system the name is often the only thing that says what a
-program can *do*.
-
-**How to work it.** Propose names with what each thing actually does, and wait. A lane that needs a
-new crate, program or module ships a **provisional** name, says so in its report, and expects it to
-change; the integrator surfaces it. Never rename on your own initiative, because a rename is a naming
-decision with extra steps. A function name is more reversible than a crate's, typically fewer call
-sites and all inside one crate, so the "recommend on reversible forks" latitude applies more freely
-there than one level up. **Performing a ratified rename has its own rules**, because the cheap
-edit is what destroys the expensive record: status decides what moves (a `BUILT` block is an account
-and keeps the old name, a `PROPOSED` one is live intent and moves), a quotation never moves, and you
-enumerate before sweeping. [notes/naming.md](notes/naming.md) has the worked example and what is not
-gateable.
-
-**The three failure modes to name against.** **Abbreviations** that need a decoder (`capsh`,
-`uheap`, `vt`). **Generic words** that could name almost anything in an operating system (`compose`,
-`measure`, `regions`, `slots`, `caps`, `frames`). And, on the other side of the line, **standard
-terms a reader already knows from outside**, which are the best names available (`elf`, `pci`,
-`paging`, `glob`): this rule is not a licence to rename everything.
-
-**An acronym is spelled out where its expansion is a phrase people actually say, and stays whole
-where nobody says it** (calef, 2026-09-18, §154, which supersedes two earlier tests). Ask it again
-of any acronym inside the expansion. What decides it is whether anybody *uses* the expansion, not
-whether one exists, because only a spoken one is free to the expert. So `device_tree_blob`
-and `globally_unique_identifier_partition_table` go, `pci` and `elf` stay (nobody says "peripheral
-component interconnect"), `pcie` becomes `pci_express` with no special case, and this **deratifies
-`dma_validator`, `nvme`, `gpt`, `dtb`, `ipc`, `asid`** while re-ratifying `pci` and `elf` under it.
-
-**Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
-takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,
-`fs_subtree_caretaker`. A verb names an action and a namespace is not one, which is audible at the
-call site: `line_edit::expand_output` reads as an instruction where `line_editor::expand_output`
-reads as a location. The exception is a **term of art that happens to be a verb**, where the word is
-the one the field already uses: `bind` (§50) is Plan 9's, and respelling it as a noun would assert
-novelty where there is none.
-
-**A crate and a program may share a name, and it says something when they do**: the crate is that
-program's logic, lifted out so it can be host-tested and Kani-reachable while the program keeps the
-IO. `coremark`, `line_editor` and `compositor` are all this pair, and splitting the names would hide
-a relationship worth seeing.
-
-### The convention: one rule per domain, and each domain's own
-
-**`snake_case` is the rule for Rust things, not for everything.** Six domains, each keeping its own:
-
-| Domain | Form | Because |
-|---|---|---|
-| Crates, programs, modules | `snake_case` | Rust's own convention, and what the tree already does |
-| `script/` and `scripts/` entry points | `hyphens` | shell commands are hyphenated everywhere (`apt-get`, `pkg-config`, `docker-compose`); an underscore in a command name reads as a mistake |
-| Ordinary markdown (`notes/`, `design/`) | `hyphens` | filenames become URL slugs in every static site generator, and hyphens are word separators in a URL where underscores are joiners |
-| Repo-root markdown | `SCREAMING_SNAKE_CASE` | **GitHub behaviour, not style.** It recognises `README.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `CONTRIBUTING.md` and links them in its UI; get the name wrong and the Security tab does not find your policy |
-| A directory holding a Rust package | named **exactly as the package**, so `snake_case` | the directory and the package are one thing with one name |
-| Any other directory | `hyphens` if it needs two words | a directory is a path element, and paths are hyphenated outside this repository |
-
-These are splits *across* domains on a **stable** property: a file either is a Cargo target or is an
-executable in `script/`, and `script/test` will never become a `[[bin]]`. **There is no second tier
-*within* a domain**, because a split inside one would key on something unstable, which is the two-tier
-rule calef rejected. A short name for a typed command is then a *choice its author makes* rather than
-a convention to apply, and nobody needs a rule to know `wc` beats `word_count`.
-
-**One constraint to know:** `nifefs` caps archive names at `NAME_LEN = 32` bytes, which bounds a
-program's name and not a crate's. It can be raised, at a cost in directory entries per block. Do not
-let the limit pick a name; do not spend a format change on bytes nothing needs.
-
-**The case for every rule above, and the refusals that shaped them, are in
-[notes/naming.md](notes/naming.md)**, along with the conventions a lane meets less often (shell
-builtins, branch prefixes, where a document goes, what `script/lint` can and cannot check). That note
-is the argument and the history, **not a second authority**: where the two disagree, this file is the
-rule and the note is the bug.
 
 ## The syscall surface is a boundary, not a habit
 

@@ -54,7 +54,7 @@ The one header spelling is now a single `_head(prefix)` used by both `block()` (
 `strays()` (to say why a line is not it).
 
 **The parse was deliberately not widened to admit bold.** 205 files use the plain form and
-notes/naming.md documents it. Admitting the second spelling would make both legal, which is the
+design/naming.md documents it. Admitting the second spelling would make both legal, which is the
 opposite of the fix.
 
 ## The two lines a check like this has to draw, and where they went
@@ -115,7 +115,7 @@ question for calef rather than a lint to loosen.
   reported **before** the "no `Name:` block" case rather than instead of it, because a file whose
   only block is unreadable is exactly the file whose unreadable block is worth pointing at.
 - `crates/measured_boot/src/lib.rs`: the item-level record above, reworded.
-- notes/naming.md's *What is checked, and what cannot be*, item 7.
+- design/naming.md's *What is checked, and what cannot be*, item 7.
 
 **Verified in both directions.** Five faults were injected into a scratch copy of a clean file
 (`crates/glob/src/lib.rs`) one at a time and the gate was watched to fire on each with the right
@@ -141,7 +141,7 @@ right reason.
   not a crate, a program, a `script/` entry point or a Cargo package (archive entries, wire strings,
   public functions since 2026-08-23, types, `scripts/` helpers) carry no gate at all. This milestone
   makes their records *quieter* rather than louder: the header spelling is now reserved for the
-  file's own block, so an item-level record must say what it is in prose. notes/naming.md's `BUGS`
+  file's own block, so an item-level record must say what it is in prose. design/naming.md's `BUGS`
   carries the uncovered list.
 
 ## Follow-on

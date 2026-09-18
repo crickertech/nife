@@ -3,7 +3,7 @@
 # and a **service** is what one offers over a contract. 39 refused the Unix word for a long-running
 # background process on a technical rather than an aesthetic argument, and that argument is written
 # there rather than repeated here, because `script/lint` keeps the rejected word inside `design/`
-# and notes/naming.md where the case for rejecting it lives.
+# and design/naming.md where the case for rejecting it lives.
 #
 # The package holds every EL0 program a distribution would ship because somebody wants its function:
 # the services and drivers, the progenitor and supervision spine, and the tools a person invokes at the

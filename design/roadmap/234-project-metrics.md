@@ -87,7 +87,7 @@ file it agreed exactly: **701 outside `arch/`, 253 inside, zero files disagreein
   definitions to old commits, which is right for a trend and is not what was reported at the time.
   It also says that every historical figure in this tree is agent-derived, so agreement with
   `notes/unsafe-obligations.md` is a consistency check rather than independent confirmation.
-- **Recorded.** `notes/naming.md` holds `script/metrics`, which shipped provisional the way a lane's
+- **Recorded.** `design/naming.md` holds `script/metrics`, which shipped provisional the way a lane's
   names do; `script/names --unratified` is the worklist and it does not block anything.
 - **Refused.** Putting `--check` in `script/lint`. Any commit moves `HEAD` and a row records the
   commit it was taken at, so gating it would fail every pull request.

@@ -67,7 +67,7 @@ unedited:
 time in `board_console::respell_pre_297_markers` and never on disk; that function's block says why
 the parser does not simply match both spellings, and why the third capture above is what makes that
 affordable. Rewriting the marker inside a `captured/` file would be the fabricated transcript
-`notes/naming.md` opens its rename section with, and this directory exists to make that impossible
+`design/naming.md` opens its rename section with, and this directory exists to make that impossible
 to do by accident.
 
 **Both board captures show a degraded U-Boot environment on this card, and that is not a defect in

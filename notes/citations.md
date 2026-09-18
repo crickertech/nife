@@ -268,7 +268,7 @@ member should recognise the shape rather than rediscover it.
 
 ## See also
 
-- [Naming things](naming.md): why `§N` and `milestone N` are different numbers over the same
+- [Naming things](../design/naming.md): why `§N` and `milestone N` are different numbers over the same
   integers.
 - [The `script/` entry points](scripts.md): where this sits among the gates.
 - `script/decisions` and `script/roadmap`: the two gates that check a citation resolves, and whose

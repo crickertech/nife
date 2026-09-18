@@ -91,7 +91,7 @@ Both are unrepeatable **in time** rather than in hardware, which is a weaker cla
 claim about two files rather than about anything a board will print tomorrow. So:
 
 - **The captures are left byte-identical.** Rewriting a marker inside `captured/` would be the
-  fabricated transcript `notes/naming.md` opens its rename section with.
+  fabricated transcript `design/naming.md` opens its rename section with.
 - **The respelling happens at read time**, in one function with the argument beside it,
   `board_console::respell_pre_297_markers`, which replaces the marker prefix and nothing else.
 - **The parser keeps one spelling**, unlike 295's, because a permanent second match would pay
@@ -138,9 +138,9 @@ Those magnitudes are a Linux container under TCG and are not comparable with any
   `select-the-padding-at-boot-not-at-compile-time.md`, `nothing-in-ci-boots-the-riscv-tour.md`
   (`script/soak --arch riscv64`, `--features soak`) and
   `board-console-cannot-speak-to-the-board.md` (`soak-reboot: DISARMED`). All four are `PROPOSED`,
-  so by `notes/naming.md`'s status table they **should** have moved. They did not because a
+  so by `design/naming.md`'s status table they **should** have moved. They did not because a
   developer lane edits its own milestone's roadmap block and nothing else under `design/`, which is
-  the same exception `notes/naming.md`'s own `BUGS` records for milestone 63. The integrator or a
+  the same exception `design/naming.md`'s own `BUGS` records for milestone 63. The integrator or a
   later lane owns them.
 - **Nothing in CI compiles a `soak_test` or `reboot_soak_test` card**, which is not new
   (`notes/footprint-perturbation.md` records it) but is newly load-bearing: the feature names in
@@ -166,7 +166,7 @@ Those magnitudes are a Linux container under TCG and are not comparable with any
   in this lane's report for the integrator to file. That is rung four and says so.
 - **Recorded.** `design/roadmap/297-soak-becomes-soak-test.md`: four `PROPOSED` proposals still name
   `soak` and `reboot_soak` as live cargo features, and one carries a build command
-  (`board,soak,reboot_soak`) that will now fail. By `notes/naming.md`'s status table they should
+  (`board,soak,reboot_soak`) that will now fail. By `design/naming.md`'s status table they should
   have moved; a developer lane may not edit them.
 - **Proposed.** `design/roadmap/proposals/board-only-features-nothing-compiles.md`, which already
   owns this: nothing in CI compiles a `soak_test` or `reboot_soak_test` card, so the latter's 16

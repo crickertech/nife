@@ -194,7 +194,7 @@ symmetric pair says so.
 C" across two unrelated milestones: `c_shim`, `c_seam` and `c_confiner` are milestone 36's
 foreign-language seam (§31), while `c_swappable` is milestone 23's replacement demo. The prefix
 means the same thing in both cases; the milestones are not related. Worth a line in
-`notes/naming.md`.
+`design/naming.md`.
 
 ## BUGS
 

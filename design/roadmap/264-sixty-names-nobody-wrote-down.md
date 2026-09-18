@@ -205,14 +205,14 @@ needs a file of its own; what is listed here is where to read it and what happen
   it is in git and quoted in 296's block.
 - **Recorded.** **`script/shell-check` wants a name that is not one hyphen from `shellcheck`**, in
   that script's header. `shellcheck` is the shell linter `script/lint` itself runs, so two names
-  differ by punctuation while naming unrelated things. Compounding it, notes/naming.md's BUGS already
+  differ by punctuation while naming unrelated things. Compounding it, design/naming.md's BUGS already
   records that `shell` no longer names any program here, because the shell is `swish`. The case is
   for `swish-check`, naming the program actually driven, with `prompt-check` the alternative if he
   would rather name the surface. Two loose ends the rename carries without closing: the cargo feature
   is spelled `shell`, and `cargo xtask shell-check` is the same string one level along.
 - **Proposed.** `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md`. The 2026-09-05
   acronym test reaches at least seven of the sixty and this milestone deliberately settled none of
-  them, because notes/naming.md already says the sweep is its own milestone and one lane spelling one
+  them, because design/naming.md already says the sweep is its own milestone and one lane spelling one
   acronym out would leave a program disagreeing with a crate calef ratified. Each affected block asks
   the question and records the answer as open.
 - **Proposed.** `design/roadmap/proposals/a-provenance-token-that-agrees-with-its-own-prose.md`. The

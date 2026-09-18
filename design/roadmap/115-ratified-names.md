@@ -12,7 +12,7 @@ script entry points, 148 in total, which is complete coverage rather than a samp
 `script/names --check` verifies every one of them carries a block, and `script/lint` runs it. The
 table is a derived query (`script/names`, with `--unratified`, `--refused`, `--unrecorded`,
 `--provisional` and a bare-name lookup) rather than a file anyone maintains, which is the half calef
-rejected the first draft over. The convention is notes/naming.md:223.
+rejected the first draft over. The convention is design/naming.md:223.
 
 **The worklist's length is the mechanism working, not a shortfall.** `script/names --unratified`
 stands at 74 of 148. The gate deliberately checks that a name carries provenance and never that its
@@ -41,7 +41,7 @@ role (spent on capability-narrowing programs), and `Watcher`/`Project Manager` f
 proposer would look.
 
 **The deliverable, and its first draft was wrong in an instructive way.** That draft proposed one
-ratified-names table in notes/naming.md. calef rejected it on 2026-08-04 for scaling like the
+ratified-names table in design/naming.md. calef rejected it on 2026-08-04 for scaling like the
 original `design/roadmap.md` and `DECISIONS.md`, which is exactly right and is the third instance of
 that pattern in three days. Size is the smaller half; the **conflict shape** is the real one, since
 every lane that adds a name would edit the one file, which is what produced three §-number

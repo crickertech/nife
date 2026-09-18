@@ -53,7 +53,7 @@ a relationship rather than a convenience.
 ### 1. The source
 
 `components/src/<name>.rs` or `fixtures/src/<name>.rs`, `snake_case` (DECISIONS §39, and the
-convention table in [naming.md](naming.md)). `no_std`, against `user_mode_runtime`.
+convention table in [naming.md](../design/naming.md)). `no_std`, against `user_mode_runtime`.
 
 ### 2. A provenance block in its module doc
 

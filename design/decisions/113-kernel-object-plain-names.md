@@ -268,7 +268,7 @@ expansion test reaches them. The list conflated two kinds of name and only one k
 
 ### Not performed here, and that is deliberate
 
-**611 file-references across the six**, and `ipc` is load-bearing. `notes/naming.md` already says the
+**611 file-references across the six**, and `ipc` is load-bearing. `design/naming.md` already says the
 acronym sweep is its own milestone for that reason, and
 `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md` exists because answering one
 name at a time is the failure mode. This amendment answers the *question* for all six at once, which

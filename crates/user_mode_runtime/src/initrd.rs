@@ -8,7 +8,7 @@
 //! reading a file, which needs a filesystem, which needs a block driver, which in this system is
 //! itself a userspace program. The bootloader breaking that circle is the whole mechanism.
 //!
-//! **The name is not ours to change**, and `notes/naming.md` records the refusal: the kernel finds
+//! **The name is not ours to change**, and `design/naming.md` records the refusal: the kernel finds
 //! this region by reading `linux,initrd-start` out of a device tree QEMU generates, and every run
 //! passes QEMU's own `-initrd`. Both spellings are somebody else's, in an interface we receive
 //! across rather than author.

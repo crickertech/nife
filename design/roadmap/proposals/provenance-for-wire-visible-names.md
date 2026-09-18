@@ -57,7 +57,7 @@ It is also not one instance. Candidates, unenumerated, which is the point:
 
 **The counting is the cheap half and should come first.** Before widening anything, a sweep for
 `pub const <NAME>: &str` and the `*_proto` operation tables would say how many names this actually
-is. If it is a dozen, the answer is probably a list in `notes/naming.md` and no new machinery. If it
+is. If it is a dozen, the answer is probably a list in `design/naming.md` and no new machinery. If it
 is two hundred, the answer is probably that wire strings are out of scope and the record says so on
 purpose, the way `unrecorded` is a first-class answer rather than a gap.
 

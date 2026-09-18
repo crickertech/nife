@@ -10,7 +10,7 @@ and is untouched by this.
 **Applied the same day** to the three such directories that exist: `design/decisions/`,
 `design/roadmap/`, and `notes/`. The fourth is the case that exposed the gap,
 `design/audit-reports/`, which **does not exist yet**: milestone 92 creates it, and its ratified
-name, with `audit-trail` and bare `audits` refused for the reasons `notes/naming.md` records,
+name, with `audit-trail` and bare `audits` refused for the reasons `design/naming.md` records,
 lands in its README in the same commit that creates the directory. That is written here because
 a decision whose application waits on a milestone is exactly the kind that gets lost.
 
@@ -28,7 +28,7 @@ provenance block, and `script/names` derives the table. The mechanism covers **c
 
 **The gap.** `design/audit-reports/` was ratified on 2026-08-04, with `audit-trail` and bare `audits`
 refused for recorded reasons. It is a **directory**, so the mechanism has nowhere to put it. The lane
-recorded it in `notes/naming.md`'s BUGS rather than stretching the schema, which was right: a
+recorded it in `design/naming.md`'s BUGS rather than stretching the schema, which was right: a
 mechanism that half-covers a category is worse than one that says plainly what it does not cover.
 
 **Why it is not obvious.** A directory has no header file to carry a line, so covering it needs a

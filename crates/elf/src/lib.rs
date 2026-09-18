@@ -154,7 +154,7 @@ pub const NATIVE_MACHINE: u16 = EXPECTED_MACHINE;
 ///
 /// The spelling is **provisional**, minted by milestone 288's lane on 2026-09-14, as are
 /// [`KNOWN_MACHINES`] and [`machine_no_nife_build_accepts`]. calef names public items and has not
-/// ruled on these three. `script/names` does not enumerate this surface (see notes/naming.md's
+/// ruled on these three. `script/names` does not enumerate this surface (see design/naming.md's
 /// `BUGS`), so this paragraph is the record rather than a `Name:` block.
 ///
 /// The other half of what [`NATIVE_MACHINE`] is for. A test that forges a header and expects it to

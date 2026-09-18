@@ -108,7 +108,7 @@ reader's minute.
 
 ## Why, and the rule it fails is the tree's own
 
-**`proto` is not an abbreviation, it is a truncation.** `notes/naming.md` already refuses the shape:
+**`proto` is not an abbreviation, it is a truncation.** `design/naming.md` already refuses the shape:
 
 > Truncating a word you happen to be tired of typing is not abbreviation, it is shorthand, and
 > shorthand is what the third principle ("a newcomer must be able to succeed without asking anyone")
@@ -156,7 +156,7 @@ correctness problem, and it is named here so that a future 91 finds it written d
 - **What 91 inherits is the 64 markdown files this deliberately did not sweep**, listed by rule
   below. Those still read `_proto`, correctly, because they are accounts. A documentation sweep that
   normalises spelling across the tree will read them as rot and must not: the status rule is the
-  reason, and `notes/naming.md`'s rename procedure is where it is written down.
+  reason, and `design/naming.md`'s rename procedure is where it is written down.
 - **And it inherits one thing this milestone could not fix**: `design/decisions/` sections are
   closed decisions and keep `_proto` throughout, so a reader following a decision to a crate lands
   on a directory that no longer exists. Every such citation is prose rather than a checked path
@@ -198,13 +198,13 @@ it.
 **Corrected 2026-09-15: the second rename will not happen.** calef ruled that the `login` stem stays
 for the whole family, so the cost this section accepted is never paid and `login_protocol` is final.
 The account above is kept as written, because it is what this lane knew and chose when it performed
-the suffix; the argument for keeping the stem is in `notes/naming.md`, "The `login` stem stays".
+the suffix; the argument for keeping the stem is in `design/naming.md`, "The `login` stem stays".
 
 ## How it was performed, and what the sweep took
 
 **The pattern was `git grep -lE '\b(<seventeen alternatives>)\b'`, word-anchored, never a substring
 match**, and the file list was written out and read before anything was edited. The two habits
-`notes/naming.md` prescribes both earned their keep:
+`design/naming.md` prescribes both earned their keep:
 
 - **Enumerate before sweeping** caught the false positives. Thirty-four distinct `*_proto` tokens
   exist in the tree and only fifteen are live crates; the rest are predecessors kept on purpose
@@ -234,7 +234,7 @@ five are restored, each with a sentence beside it saying what the thing is calle
 **And one gate went blind rather than red.** `script/lint` check 3 globs `crates/*proto` to select
 the crates whose suffix it then judges. After the rename that glob matches nothing, so the loop body
 never runs and the check passes by checking zero crates, which is the `--exclude`-goes-stale failure
-`notes/naming.md` lists one row over. It now globs `crates/*protocol`, and the hazard is written into
+`design/naming.md` lists one row over. It now globs `crates/*protocol`, and the hazard is written into
 its comment because the next suffix change will meet it again.
 
 **The status rule decided the markdown**, 108 files swept and 64 left alone: `BUILT`, `REMOVED` and
@@ -270,11 +270,11 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
 
 - **Recorded.** `design/decisions/` keeps the old spelling, so twenty-two closed decisions cite crate
   directories that no longer exist. The limitation is written beside the reader in this block's
-  `BUGS` and in `notes/naming.md`'s rename procedure, which is where somebody performing the next
+  `BUGS` and in `design/naming.md`'s rename procedure, which is where somebody performing the next
   rename meets it.
 - **Done.** `login_protocol`'s stem, left open here and expected to cost a second rename, was ruled on
   2026-09-15: the stem stays for the whole family, so there is no second rename. Recorded in the
-  crate's provenance block and in `notes/naming.md`.
+  crate's provenance block and in `design/naming.md`.
 - **Done.** The five stems calef ruled on 2026-09-13 were performed in this pass, including
   `counter_frequency_protocol`, which this block's own table had omitted. Carried by this lane's pull
   request.
@@ -293,4 +293,4 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
 
 **Built:** 2026-09-14
 
-calef, 2026-09-05: it was lazy and should have been `_protocol` globally. `proto` is equally short for `prototype`, which this tree uses for a real thing, and notes/naming.md already refuses truncation. **The block's own numbers were wrong and are corrected in it**: 15 crates, not 14 (`capability_demo_proto` arrived with milestone 291 after it was written), across 424 files, not 349. Five stems calef ruled on 2026-09-13 travelled in the same pass rather than renaming the same files twice, and the block's table listed four: `timebase_proto`'s provenance records him ruling `counter_frequency_proto` that day **and refusing `timebase_protocol`**, the name a lane working from the table alone would have created. `mdns_config` and `mdns_responder` moved with their protocol's stem. The sweep took five records it should not have (a refusal, two accounts of what the 2026-08-23 renames produced, the 2026-07-30 four-ways account in four crates, and `socket_proto`'s ratification), all restored by enumerating the diff, and `script/lint`'s `crates/*proto` glob would have gone blind rather than red. `login_protocol` keeps a stem calef has not ruled and will move a second time, accepted knowingly
+calef, 2026-09-05: it was lazy and should have been `_protocol` globally. `proto` is equally short for `prototype`, which this tree uses for a real thing, and design/naming.md already refuses truncation. **The block's own numbers were wrong and are corrected in it**: 15 crates, not 14 (`capability_demo_proto` arrived with milestone 291 after it was written), across 424 files, not 349. Five stems calef ruled on 2026-09-13 travelled in the same pass rather than renaming the same files twice, and the block's table listed four: `timebase_proto`'s provenance records him ruling `counter_frequency_proto` that day **and refusing `timebase_protocol`**, the name a lane working from the table alone would have created. `mdns_config` and `mdns_responder` moved with their protocol's stem. The sweep took five records it should not have (a refusal, two accounts of what the 2026-08-23 renames produced, the 2026-07-30 four-ways account in four crates, and `socket_proto`'s ratification), all restored by enumerating the diff, and `script/lint`'s `crates/*proto` glob would have gone blind rather than red. `login_protocol` keeps a stem calef has not ruled and will move a second time, accepted knowingly

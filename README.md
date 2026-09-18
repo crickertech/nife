@@ -2,7 +2,7 @@
 
 *The name is lowercase everywhere, sentence starts included, and is said like* knife: *Ni + Fe,
 the Earth's nickel-iron core. The full story, refused spellings included, is
-[notes/naming.md](notes/naming.md).*
+[design/naming.md](design/naming.md).*
 
 <img src="art/cobble-realistic.jpg" alt="Cobble, the nife mascot: a stone golem with red eyes and mossy shoulders, holding a gear" width="300">
 

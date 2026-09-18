@@ -149,7 +149,7 @@ why the registry lost:
 The full argument there is worth reading and does not quote cleanly (a multi-line quote out of a
 shell comment carries its own `#` markers into `script/citations`' normalized text, which is a
 limitation of that check worth knowing before writing one). In summary: milestone 115's first draft
-proposed a single ratified-names table in `notes/naming.md`, calef rejected it on 2026-08-04 for
+proposed a single ratified-names table in `design/naming.md`, calef rejected it on 2026-08-04 for
 scaling the way the original `DECISIONS.md` and `design/roadmap.md` scaled, and the decisive half was
 collisions rather than size, since every lane adding a name would edit one file and that is exactly
 what produced three section-number collisions in a day.

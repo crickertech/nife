@@ -223,7 +223,7 @@ $ script/audits --baseline     # the counts to paste into both index tables
 
 - **The environment-names gate exempts three places, and one of them is this file.** An audit report
   and this procedure both have to be able to quote a stale name, which is the same exemption
-  `script/lint` makes for `design/` and `notes/naming.md` in its rejected-vocabulary check. The cost is real: a
+  `script/lint` makes for `design/` in its rejected-vocabulary check. The cost is real: a
   stale name written into `design/audit-reports/` or into this file is unchecked, so if the sweep
   procedure ever tells you to *type* something, it is not covered by the gate that covers everything
   else. A fenced code block is deliberately **not** exempt, because a fence is where a reader copies

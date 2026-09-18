@@ -5,7 +5,7 @@
 //! runs on the host in milliseconds; what lives here is the syscall and the two sinks.
 //!
 //! Name: ratified 2026-09-14 (calef, working the unratified worklist), on milestone 126 and
-//! notes/naming.md. Its crate was ratified 2026-08-23 in a kernel-dependency naming review, so the
+//! design/naming.md. Its crate was ratified 2026-08-23 in a kernel-dependency naming review, so the
 //! pair is now signed at both ends. `ps` is the name every reader already knows
 //! from outside this project, which the naming tenet calls the best name available and not one to
 //! spend a rename on: renaming a standard term costs a reader the recognition the whole tenet exists
