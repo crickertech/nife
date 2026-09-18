@@ -108,8 +108,23 @@ def classify(text):
 # adds a `**Promoted:**` line naming what it became. It stops counting as unpromoted, because it is
 # not: the count is meant to be the work nobody has taken.
 #
-# **What this cannot do**: nothing can find a promotion nobody wrote down. `promoted_from` reads a
-# numbered block's own claim, and a spelling it does not know is a silent miss.
+# **What this cannot do**, and the second half is the larger one.
+#
+# Nothing can find a promotion nobody wrote down. `promoted_from` reads a numbered block's own
+# claim, and a spelling it does not know is a silent miss.
+#
+# **And a proposal closed without ever being promoted is invisible here** (calef, 2026-09-18: a
+# proposal should be promoted before it is closed). The ordering IS gated for a proposal a numbered
+# block names in a `**Proposed.**` follow-on bullet, because that disposition must resolve to a file
+# that exists, so deleting one fails the build; 70 of the 115 proposals on 2026-09-18 were covered
+# that way. The other 45 are standalone, written by a lane that named them nowhere else, and
+# deleting one leaves NOTHING in the working tree to notice: this module reads the tree, not the
+# history. A gate that read `git log` could see it and is deliberately not written here, because
+# `script/metrics` reads blobs at revisions nobody has checked out and the two callers would then
+# need different answers to the same question.
+#
+# So for those 45 the rule is a convention rather than a mechanism, which is rung three on
+# AGENTS.md's ladder wearing a gate's clothes, and saying so is the only honest thing available.
 PROMOTED = re.compile(r"^\*\*Promoted:\*\* \S", re.M)
 
 CITATION = 'promoted from the proposal `<slug>`'
