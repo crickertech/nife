@@ -8,6 +8,14 @@ cost, which is why this is a proposal rather than a line of milestone 318: a fif
 falsification record lengthens `script/falsifications`' kernel sweep for every lane that runs it,
 and this test needs an NVMe controller attached, so it is not free on any leg.
 
+**Promoted:** minted as **milestone 323** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/323-falsification-record-completeness.md](../323-falsification-record-completeness.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **In brief.** `kernel::user::nvme_tests::a_confined_el0_process_serves_the_block_interface_end_to_end`
 is milestone 261's proof and fatal risk 6's decisive experiment, and nothing replays a defect
 against it. Give it a `Falsification:` line and a patch under `kernel/falsifications/`.

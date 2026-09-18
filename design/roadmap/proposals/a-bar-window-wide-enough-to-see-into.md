@@ -8,6 +8,14 @@ mints the number.
 trait. Nothing here needs hardware, and the trigger for starting is a boot line rather than a
 machine (see "What would force it").
 
+**Promoted:** minted as **milestone 325** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/325-what-the-pci-scan-does-not-yet-program.md](../325-what-the-pci-scan-does-not-yet-program.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 ## What
 
 `arch::x86_64::mmu::PCI_BAR_MAPPED` is 2 MiB. Milestone 256 made the window's **placement** the

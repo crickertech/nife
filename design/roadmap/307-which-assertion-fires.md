@@ -141,7 +141,7 @@ enough to confirm that there is no excuse for leaving one unconfirmed.
   the user bit clear. The decoders are faithful and the hardware really does guarantee it there; what
   is wrong is reading one portable test as three ISAs' worth of evidence. Same distinction 305 drew
   for row 21.
-- **Proposed.** `design/roadmap/proposals/a-falsification-that-names-the-assertion-it-expects.md`.
+- **Milestone 323.**.
   A `Falsification:` block that names the assertion its patch expects to fire, and a
   `script/falsifications` check that the named line is the one the transcript reports. Four of the tree's patches already state this in
   prose, correctly and usefully, and a reader only meets it by opening a patch file, which is rung

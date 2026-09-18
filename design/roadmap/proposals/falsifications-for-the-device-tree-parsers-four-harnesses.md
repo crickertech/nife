@@ -5,6 +5,14 @@ being the sibling that had proofs.
 
 **Gate: NONE.** Four patches against code that already exists.
 
+**Promoted:** minted as **milestone 323** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/323-falsification-record-completeness.md](../323-falsification-record-completeness.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 ## In brief
 
 `crates/dtb` carries four Kani harnesses (`be32_is_total`, `be64_is_total`,

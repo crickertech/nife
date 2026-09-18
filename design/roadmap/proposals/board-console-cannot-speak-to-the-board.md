@@ -6,6 +6,14 @@ automate.
 
 **Gate: NONE.** It is a mode on a script that already holds the port.
 
+**Promoted:** minted as **milestone 324** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/324-the-bench-console-is-a-reader-only.md](../324-the-bench-console-is-a-reader-only.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **What the work is.** Milestone 249's self-rebooting soak is stopped by pressing a key: the kernel
 polls the console UART's data-ready bit and disarms the reboot when any byte has arrived.
 `script/board-console` holds that port for the whole series and **cannot send the byte**, because its

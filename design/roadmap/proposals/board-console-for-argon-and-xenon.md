@@ -7,6 +7,14 @@ the boot sequence. Whether argon (aarch64) and xenon (x86_64) get this console t
 profile or through a tool each is calef's call, and it decides what a lane would build. The building
 after that is small.
 
+**Promoted:** minted as **milestone 324** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/324-the-bench-console-is-a-reader-only.md](../324-the-bench-console-is-a-reader-only.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **In brief.** `script/board-console` was built for radon, the VisionFive 2. It opens the port, tees
 every byte to a log that is never optional, recognises the runbook's boot sequence, and returns a
 different exit status for each way a session can end. Argon and xenon have no console tool at all.

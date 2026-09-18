@@ -7,6 +7,14 @@ mints the number.
 is about in one boot, with no hardware: QEMU's PVH boot leaves a root port's window unprogrammed,
 which is exactly the case this describes.
 
+**Promoted:** minted as **milestone 325** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/325-what-the-pci-scan-does-not-yet-program.md](../325-what-the-pci-scan-does-not-yet-program.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 ## What
 
 A PCI-to-PCI bridge forwards a memory transaction downstream only when the address falls inside the

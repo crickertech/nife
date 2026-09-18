@@ -4,6 +4,14 @@
 
 **Gate: NONE.** `script/falsifications` and its record format are the only things touched.
 
+**Promoted:** minted as **milestone 323** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/323-falsification-record-completeness.md](../323-falsification-record-completeness.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 ## What is being proposed
 
 Let a kernel test carry one falsification record **per architecture it runs on**, so a portable

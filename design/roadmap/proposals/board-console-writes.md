@@ -7,6 +7,14 @@ should ever write to the serial port, and if so whether that is this tool with a
 second tool. Milestone 218 may remove the need entirely by fixing autoboot, so the answer may turn
 out to be no.
 
+**Promoted:** minted as **milestone 324** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/324-the-bench-console-is-a-reader-only.md](../324-the-bench-console-is-a-reader-only.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **In brief.** `script/board-console` reads a board and never writes, to the port or to the outlet.
 That was a deliberate refusal rather than an omission: milestone 216 declined to settle the question
 by implementing it. A board sitting at a U-Boot prompt, or one that has wedged before autoboot,

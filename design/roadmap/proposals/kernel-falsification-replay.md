@@ -7,6 +7,14 @@ conventions §134 already fixed for crates. Where kernel records live is the sha
 `kernel/falsifications/` exists today and reads as a refusal of §134's per-crate rule, and somebody
 has to say whether it is an exception or a mistake before a sweep is written against either answer.
 
+**Promoted:** minted as **milestone 323** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/323-falsification-record-completeness.md](../323-falsification-record-completeness.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **In brief.** `script/falsifications` replays a proof's falsification by running `cargo kani
 --harness <name> --exact`. Kernel tests have no equivalent. Three pieces close it: extend §134's
 `Falsification:` comment convention from `#[kani::proof]` to `#[test_case]`, teach

@@ -5,6 +5,14 @@
 **Gate: NONE.** `crates/board_console` is host-tested Rust with no hardware in the loop, and the
 sweep it would recognise already runs under QEMU on all three architectures.
 
+**Promoted:** minted as **milestone 324** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/324-the-bench-console-is-a-reader-only.md](../324-the-bench-console-is-a-reader-only.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **In brief.** `crates/board_console` recognises the boot sequence and, since milestone 219, a soak's
 `Stage::Soak` and its heartbeat, so `script/board-console` can return a different exit status for
 each way a session ends. It knows nothing about milestone 168's sweep. An operator at radon

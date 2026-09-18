@@ -149,7 +149,7 @@ this tree does not have.
 - **Recorded.** Milestone 261's block and `design/fatal-risks.md` risk 6 both describe the test as asserting the
   image's zeros and the 8 MiB size. Deliberately not edited from this lane (they are another
   milestone's account and a decisions-adjacent record); the maintainer reconciles.
-- **Proposed.** `design/roadmap/proposals/a-replayable-falsification-for-the-nvme-end-to-end-test.md`. This test carries no `Falsification:` record, so the two falsifications above live in this block rather than in
+- **Milestone 323.**. This test carries no `Falsification:` record, so the two falsifications above live in this block rather than in
   `kernel/falsifications/`, and nothing replays them. Both were edits to the test, which proves the
   assertions are not vacuous and proves nothing about a real defect reaching them.
 - **Recorded.** The bench procedure in milestone 261's handoff tells the operator to confirm the namespace reads

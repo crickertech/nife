@@ -162,9 +162,8 @@ is the most repeatable point on the sweep at 2.7%.
   Checked by reading `crates/job_mix` and `kernel/src/jobmix.rs`: nothing has measured where a board
   actually runs out, and the supervisor's `FAILED: could not spawn task N` line is the measurement
   that would say. It is part of the first bench evening rather than separate work.
-- **Proposed.** `crates/board_console` has no recogniser for this run, so an operator tells a
-  finished sweep from a wedged one by reading the log.
-  `design/roadmap/proposals/a-board-console-recogniser-for-the-job-mix-sweep.md`, with the reason it
+- **Milestone 324.** `crates/board_console` has no recogniser for this run, so an operator tells a
+  finished sweep from a wedged one by reading the log, with the reason it
   was deliberately not written blind: the outcome table in `notes/job-mix.md` becomes evidence after
   the first bench evening and a guess before it.
 - **Proposed.** Three of AIM7's categories have no representative in the mix (file operations,

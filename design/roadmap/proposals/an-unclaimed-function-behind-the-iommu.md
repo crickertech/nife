@@ -7,6 +7,14 @@ proving the fault was correct rather than a confinement gap.
 **Gate: NONE.** QEMU's `q35` with `-device intel-iommu` reproduces all of it, and both `virt` boards
 have the same shape with their own units.
 
+**Promoted:** minted as **milestone 325** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/325-what-the-pci-scan-does-not-yet-program.md](../325-what-the-pci-scan-does-not-yet-program.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 **What the work is.** This kernel enters a function into an IOMMU domain when it *claims* it:
 `virtio::register` is the only caller of `iommu::confine`, and it runs when a driver is being wired.
 A function nobody claims therefore has no context entry at all, so the unit refuses each DMA it

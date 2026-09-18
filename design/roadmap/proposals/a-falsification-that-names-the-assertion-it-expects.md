@@ -6,6 +6,14 @@
 **Gate: DECISION.** It adds a field to the `Falsification:` block, whose spelling DECISIONS §134
 ratified, so the field's name and its placement are calef's before they are anyone's.
 
+**Promoted:** minted as **milestone 323** on 2026-09-18, as one of its parts rather than on its own.
+calef promoted the cluster: this proposal and its siblings were each filed by a different lane
+against the same surface, and answering them one at a time would have produced one brief per face of
+a single finding. The record is
+[design/roadmap/323-falsification-record-completeness.md](../323-falsification-record-completeness.md);
+the status line above keeps its original date, because that is what makes the pile measurable, and
+this file keeps its own argument, because the proposal is the argument as it stood and the milestone
+is the account.
 ## In brief
 
 `script/falsifications` checks that a recorded defect turns its harness or test **red**. Its own

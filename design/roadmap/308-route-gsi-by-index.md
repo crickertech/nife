@@ -161,7 +161,7 @@ not wrong, and calef names public items. Proposed, not performed, and said out l
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/this-kernel-keeps-only-the-first-io-apic.md`. The gap
+- **Milestone 325.**. The gap
   found while writing this milestone's `BUGS` entry, and the larger of the two: the MADT walk in
   `arch::x86_64::machine` keeps only the first IO APIC, so a machine with two has the second's whole
   range refused by `route_gsi`. Routing by index is a precondition for supporting one; it is not

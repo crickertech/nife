@@ -217,7 +217,7 @@ the disagreement message naming both numbers. `script/test` passes on all three 
   bench with a camera, because patagonia cannot be moved to it and there is no serial. It is the
   first entry in this block's BUGS rather than a promise here, and `art/bench/` plus
   `notes/x86-uefi-boot.md` are where the next transcript goes.
-- **Proposed.** `design/roadmap/proposals/a-bar-window-wide-enough-to-see-into.md`, for the case
+- **Milestone 325.** for the case
   `PCI_BAR_MAPPED` cannot serve: a machine whose unassigned BARs want more than 2 MiB, where the
   answer is a window sized from what the bus asks for rather than a constant, and 2 MiB leaves so
   that a larger window is not a megabyte of page tables. Nothing forces it today, which is why it
