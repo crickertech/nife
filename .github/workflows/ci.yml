@@ -422,8 +422,12 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: gate
     if: ${{ always() && needs.gate.outputs.run != 'false' }}
-    # Two COLD release builds with no shared artifacts, so it is slower than it looks on the page.
-    timeout-minutes: 45
+    # Measured, not guessed: 11.1 seconds for both builds on this runner (2026-09-18, its own first
+    # run), against 5 seconds for one cold `-p kernel` release build on the dev machine. This job
+    # was first written with a 45-minute timeout on the assumption that two cold builds are slow.
+    # Generous rather than tight, because a hung build must fail loudly rather than sit on the
+    # runner's 6-hour default.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - name: Install the bare-metal target
