@@ -170,10 +170,10 @@ edits are marked as such in it, and they are named in the Follow-on below.
   asks when a workflow last succeeded, which cannot distinguish a firing tripwire from a broken one.
   The four identical `DUE: documentation, security` runs between 2026-08-17 and 2026-09-07 are the
   worked example.
-- **Proposed.** `design/roadmap/proposals/the-security-audit-that-has-been-due-since-august.md`: the
-  security audit both trigger sets now say is due, overdue by 112 milestones against a threshold of
-  15. It sits on `design/fatal-risks.md`'s risk 7 path. It is a proposal rather than a lane brief
-  because the lens is calef's call and 112 milestones is more tree than one lens can hold.
+- **Milestone 313.** The security audit both trigger sets said was due, overdue by 112 milestones
+  against a threshold of 15. It sits on `design/fatal-risks.md`'s risk 7 path. It was routed through
+  a proposal rather than a lane brief because the lens was calef's call and 112 milestones is more
+  tree than one lens can hold.
 - **Proposed.** `design/roadmap/proposals/the-documentation-sweep-the-worklist-already-ranks.md`: the
   documentation sweep the same run says is due, arriving with its scope already computed by
   `script/audits --worklist`. The eight dead `components/` and `fixtures/` citations in the second

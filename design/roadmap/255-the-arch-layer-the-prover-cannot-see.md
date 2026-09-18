@@ -150,8 +150,8 @@ Not a survey of what could be proved, and not a harness over a function moved ou
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-prover-only-ever-sees-one-architecture.md`. `cargo kani
-  -p kernel` compiles only the host's `arch/` subtree, so `x86_64/irq.rs` (903 lines) and
+- **Milestone 304.** `cargo kani -p kernel` compiles only the host's `arch/` subtree, so
+  `x86_64/irq.rs` (903 lines) and
   `x86_64/machine.rs` (762), the two largest asm-free files this block named, cannot be reached from
   any machine this project has. Reaching them is a second `script/verify` row on an x86_64 runner,
   which needs `aarch64-cpu` behind a target `cfg` first.

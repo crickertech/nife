@@ -90,9 +90,8 @@ code was touched and a comment in a shared crate is code that was touched.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md`: the IPI
-  shootdown for `PortRange::REVOKE`, the shape of the TLB shootdown, now that `x86_64` boots
-  secondaries.
+- **Milestone 315.** The IPI shootdown for `PortRange::REVOKE`, the shape of the TLB shootdown, now
+  that `x86_64` boots secondaries.
 - **Proposed.** `design/roadmap/proposals/a-falsification-record-per-architecture.md`: a kernel
   record per architecture, so a portable confinement test can carry evidence on every leg it runs on.
 - **Proposed.** `design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`: the

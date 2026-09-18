@@ -6,6 +6,18 @@ what it said.
 **Gate: NONE.** It is a reading of the tree, and its output is a report plus two index rows; nothing
 has to build or boot before it can start.
 
+**Promoted:** minted as **milestone 313** and built on 2026-09-17, under the userspace-confinement
+lens the maintainer chose. The record is
+[design/roadmap/313-confinement-audit.md](../313-confinement-audit.md), and the report it produced is
+`design/audit-reports/2026-09-17-userspace-confinement.md`. The status line above keeps its original
+date because that is what makes the pile measurable.
+
+**What this proposal got the scale of wrong**, kept rather than edited away. It priced the sweep by
+the trigger counts, "112 milestones" and "+45 components", and read those as the population to
+review. Milestone 313 found the population was **two objects**, not forty-five, because it read every
+capability mint site rather than the component names. The triggers are a good alarm and were never a
+scope estimate; this is what taking them for one looks like.
+
 ## In brief
 
 `script/audits` on 2026-09-17, with every count taken from the tree rather than remembered:
