@@ -1,4 +1,4 @@
-# 317. The interrupt-remapping flags
+# 317. The interrupt-remapping flags, and where MSI confinement actually lives
 
 **Status: BUILT.** Minted by the maintainer on 2026-09-17 out of
 [DECISIONS §86](../decisions/86-el0-nvme-driver.md)'s research pass, which found the gap while
@@ -6,8 +6,22 @@ pricing an EL0 NVMe driver. *(Number provisional until the merge queue lands it.
 
 ## What this is, and what it deliberately is not
 
-**This makes interrupt remapping exercisable. It does not remap an interrupt, and it does not
-decide who may.**
+**This makes interrupt confinement askable on all three architectures. It confines no interrupt,
+and it does not decide who may.**
+
+The milestone was cut as "add two runner flags" and the flags are the smallest part of it. What it
+found is that **MSI confinement lives in a different place on each of the three architectures, and
+exactly none of the three is exercised today**, for three different reasons, only one of which
+anybody had written down.
+
+| | where MSI confinement lives | what this machine offers | what this kernel does |
+|---|---|---|---|
+| `x86_64` | a separate IOMMU feature: VT-d interrupt remapping | **offered** (`ECAP.IR` set, and it always was) | never sets `GCMD.IRE` |
+| aarch64 | a separate *device*: the GICv3 ITS | **absent** (`gic-version=2` has no ITS) | cannot reach the question |
+| riscv64 | one mode field inside a device context this driver already writes | **offered** (`CAPS.MSI_FLAT` set) | writes `msiptp = 0`, mode Off |
+
+The asymmetry is the finding. §86's survey covered two architectures and concluded the question was
+unaskable; the third one has the mechanism sitting inside a structure this tree already programs.
 
 An MSI or MSI-X message is a memory write to an architecturally special address, so an IOMMU doing
 DMA remapping alone does not confine it: a component that can write a device's MSI-X table can aim
@@ -17,14 +31,18 @@ hatch `allow_unsafe_interrupts`.
 
 §86 found that **no boot this tree runs could exercise the question even if a claim existed**, and
 `notes/confinement-claims.md` carries it as a claim stated nowhere. Two runner flags were named as
-the cheap first move. This milestone is those two flags, plus the one thing that makes them worth
-having: a way to tell from **inside the guest** which machine you are on.
+the cheap first move. This milestone is those two flags, the third architecture §86 did not look
+at, and the one thing that makes any of it worth having: each machine description now says, from
+**inside the guest**, what that machine offers.
 
-**That last part is what turned the milestone around**, and it is worth saying before the detail.
-Both of §86's findings were reached by reading the runner scripts. One of them is wrong. x86_64 has
-been offering interrupt remapping in every boot this tree has ever run, and the only reason nobody
-knew is that no code read the bit. aarch64's finding survives contact with the machine, and the
-machine adds something to it.
+**Both of §86's findings were reached by reading the runner scripts, and one of them is wrong.**
+`x86_64` has been offering interrupt remapping in every boot this tree has ever run, and the only
+reason nobody knew is that no code read the bit. aarch64's finding survives contact with the
+machine, and the machine adds something to it. riscv64 was not surveyed at all.
+
+**So the first deliverable is not a flag. It is that each architecture now reports its own position
+from inside the guest**, in its machine description, rather than from a source comment. That is
+what makes any of the rest checkable, and it is what turned two of the three answers around.
 
 **Who owns the page holding the MSI-X table is not decided here.** calef held that decision on
 2026-09-17 for want of an experiment behind it. This is the experiment.
@@ -161,12 +179,70 @@ Four things, and only the second is the large one its block warns about:
    scope note. x86_64 can offer interrupt remapping today and aarch64 cannot, so any claim built on
    it starts life with a recorded gap and this block is where it points.
 
-## riscv64
+## riscv64: offered, declined in one word, and untestable on silicon we own
 
-Untouched and unexamined by this lane. `-device riscv-iommu-pci` is on that runner and the RISC-V
-IOMMU has MSI redirection in its own spec (`MSIPTP`, the MSI page table), so the question has an
-answer there too and nobody has asked it. Named here rather than left implied; it is not this
-milestone's work.
+**§86 did not survey this architecture, and it is the one where the mechanism is closest to hand.**
+
+The RISC-V IOMMU puts MSI confinement *inside the device context this driver already writes*. There
+is no separate feature to enable and no separate device to drive: a context in the extended format
+carries `msiptp`, `msi_addr_mask` and `msi_addr_pattern` alongside the `iosatp` that
+`arch::riscv64::iommu::attach` fills in on every attach.
+
+**Measured from a boot, not from the source comment** (`CAPS` printed from inside the guest, QEMU
+11.1.1's `virt`, `riscv-iommu-pci` as the runner already attaches it):
+
+    CAPS = 0x78c2cf4f10    MSI_FLAT (bit 22) set, Sv39 (bit 9) set, version 0x10
+
+So the comment in that file was right, and now something other than a comment says so:
+
+    iommu           : riscv-iommu at 0x0000000040000000, device directory default-deny, translating, MSI page table offered (mode off)
+
+**The extended 64-byte context is the live path**, and `attach` writes those four words **zero**,
+which is `msiptp.MODE = Off`. No MSI page table is allocated. Nothing programs an entry in one.
+The capability is offered and declined, the same posture `x86_64` is in, reached by a completely
+different route.
+
+### Does riscv64 need a flag?
+
+**No, and that is a complete answer.** `-device riscv-iommu-pci` as the runner already spells it
+reports `MSI_FLAT`, so the capability is present with no option to add, and unlike `intel-iommu`
+there is no property to turn it off. Both sides of the `x86_64` comparison exist there because
+QEMU offers `intremap=off`; here only one side exists, and no flag this lane could add would
+create the other. `scripts/qemu-runner-riscv64.sh` is unchanged by this milestone.
+
+### The inversion, which is the sharpest thing here
+
+`arch::riscv64::iommu`'s own comment says the base 32-byte format is kept "because real silicon
+without MSI support will report otherwise." **That branch has run zero times, and cannot be made to
+run.** Milestone 143's block states the hardware fact plainly: no RISC-V SoC on the market ships
+the ratified IOMMU specification, and radon (the `VisionFive` 2, JH7110) predates it and has no
+IOMMU at all.
+
+So the three architectures are not merely in different places, they are in different places *along
+two axes*:
+
+| | emulated | on silicon this project owns |
+|---|---|---|
+| `x86_64` | capability offered, unused | xenon (`OptiPlex` 7050) has a real VT-d unit, unmeasured |
+| aarch64 | capability absent (GICv2) | argon (Jetson TX1) predates the question here too |
+| riscv64 | capability offered, unused | **no such silicon exists** (milestone 143) |
+
+**riscv64 is confined in the case we can test and untestable in the case we cannot**, which is the
+inverse of `x86_64`, where the emulated answer is easy and a second witness is sitting on a shelf.
+Any claim built on MSI confinement inherits that shape, and DECISIONS §19's parity gate is what
+will ask about it.
+
+### What is a reading rather than a measurement
+
+`msiptp.MODE = Off` means, per the RISC-V IOMMU specification, that MSI address translation is not
+performed and the transaction is translated as an ordinary memory access. If that is right, an
+MSI-shaped write from an attached device is still bounded by its `iosatp` domain rather than
+escaping it, which would make riscv64's position genuinely different from `x86_64`'s, where VT-d
+intercepts the MSI address range and DMA remapping does not cover it.
+
+**Nobody here has tested that**, and this tree carried a fabricated block quote for twelve days, so
+it is marked rather than asserted. It is recorded in the driver's own `BUGS` section beside the
+code, which is where a reader meets it.
 
 ## EXAMPLES
 
@@ -181,6 +257,12 @@ See what the guest makes of the machine, both ways:
     NIFE_INTREMAP=off cargo xtask boot-check --arch x86_64  # ... interrupt remapping absent
 
 The `iommu` line is in `target/boot-check-x86_64.log`.
+
+Ask each machine where it stands, which is the one command that makes this milestone checkable:
+
+    cargo xtask boot-check --arch x86_64   # ... interrupt remapping offered (unused)
+    cargo xtask boot-check --arch aarch64  # interrupts : GICv2, ... (no ITS to report)
+    cargo xtask boot-check --arch riscv64  # ... MSI page table offered (mode off)
 
 Reproduce aarch64's position in one command:
 
@@ -203,6 +285,14 @@ Compare the device trees the two GIC versions produce, which is how the table ab
   a lane may not edit the former. §86's "interrupt remapping is off in every x86_64 boot this tree
   runs" needs the correction above; the note's copy of the same sentence has it already. This is
   flagged for the integrator rather than fixed here.
+- **riscv64's `MODE = Off` semantics are a spec reading, not a measurement.** What the hardware
+  does with an MSI-shaped write from a device whose context has no MSI page table is stated in the
+  specification and has not been observed here. It is flagged in
+  `kernel/src/arch/riscv64/iommu.rs`'s `BUGS` as well, where a reader meets the code.
+- **riscv64's base 32-byte device-context branch has run zero times and cannot be made to.** No
+  silicon ships the ratified RISC-V IOMMU (milestone 143), so the `MSI_FLAT`-absent path in
+  `attach` is dead code kept for a machine that does not exist. Recorded rather than removed,
+  because deleting it would assert that no such machine ever will.
 - **So the confinement claim is still stated nowhere**, and `notes/confinement-claims.md` still
   carries it as such, now pointing here for the flags. What would settle it is a test in milestone
   202's shape: give a component the MSI-X table page, have it aim an interrupt at a vector it was
@@ -247,9 +337,12 @@ Compare the device trees the two GIC versions produce, which is how the table ab
   calef held it on 2026-09-17 for want of an experiment behind it, and this milestone is that
   experiment. It is now answerable on x86_64 without any further machinery, and the honest cost of
   answering it on aarch64 is milestone 227.
-- **Recorded.** That riscv64's own MSI-redirection question (`MSIPTP` on the RISC-V IOMMU) has
-  never been asked, in this block's own `riscv64` section. Nothing is blocked on it and no lane has
-  looked; it belongs to whoever takes the claim above.
+- **Recorded.** riscv64's position, in `kernel/src/arch/riscv64/iommu.rs`'s new `BUGS` section
+  beside `attach`: the MSI page table is offered (`CAPS.MSI_FLAT`, measured), every device context
+  is the extended 64-byte format, and all four MSI words are written zero. The `MODE = Off`
+  semantics are marked there as a spec reading rather than a measurement.
+- **Recorded.** That riscv64's base 32-byte context branch is unreachable on any silicon that
+  exists, in the same `BUGS` section, pointing at milestone 143's hardware gate.
 
 ## Index row
 
@@ -257,13 +350,18 @@ Compare the device trees the two GIC versions produce, which is how the table ab
 
 An MSI is a memory write to a special address, so DMA remapping does not confine it and a component
 that can write a device's MSI-X table can aim an interrupt at a vector it was never given. DECISIONS
-§86 found the question unaskable here, reasoning from the runner scripts: the x86_64 runner attached
-`-device intel-iommu` with no `intremap=on`, and the aarch64 runner's GICv2 has no ITS. **Booting
-the machine and reading `ECAP` says the first half is false.** QEMU's `intremap` defaults to `auto`,
-which resolves ON with no in-kernel irqchip, so interrupt remapping has been offered in every
-x86_64 boot this tree has ever run and nothing read the bit. The guest now reports it, a test
-asserts `GSTS.IRES` stays clear whatever it says, and `NIFE_INTREMAP=off` is the flag that reaches
-the *other* machine. aarch64's half survives, and turned out not to be one flag away, and finding out how was the point: `gic-version=3` moves `reg[1]` from the CPU
+§86 surveyed two architectures from the runner scripts and concluded the question was unaskable
+here. Booting all three says something different: **MSI confinement lives in a different place on
+each of them, and none of the three is exercised.** `x86_64` has had it offered in every boot this
+tree ever ran (QEMU's `intremap` defaults to `auto`, which resolves ON with no in-kernel irqchip),
+and nothing read the bit; `NIFE_INTREMAP=off` is the flag that reaches the machine without it, and
+a test asserts `GSTS.IRES` stays clear whatever `ECAP.IR` says. riscv64 was never surveyed and is
+the closest of the three: `CAPS.MSI_FLAT` is set, every device context is the extended format, and
+`attach` writes `msiptp = 0`, so the mechanism is one word inside a structure this driver already
+programs, and no flag is needed or available. It is also the one architecture whose answer can
+never get a second witness, since no silicon ships the ratified IOMMU (milestone 143), which
+inverts `x86_64`, where xenon is waiting. aarch64's half of §86 survives, and turned out not to be
+one flag away, and finding out how was the point: `gic-version=3` moves `reg[1]` from the CPU
 interface to the redistributor, `memory::init` matches the node by the `intc@` name prefix and never
 reads `compatible`, and the result is a boot that prints `GICv2, cpu interface 0x80a0000` and
 receives no timer tick. Milestone 227's bill is itemised here, and §86's MSI-X ownership decision is

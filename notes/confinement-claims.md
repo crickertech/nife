@@ -120,8 +120,21 @@ name-prefix match hands to a GICv2 driver without ever reading `compatible`. The
 a boot that says `GICv2` while printing a redistributor base, with zero timer ticks. That is
 milestone 227's bill; see design/roadmap/317-interrupt-remapping-flags.md.
 
-**The third is untouched, so the claim stays stated nowhere.** Nothing writes an `IRTE`, and nothing
-forges an MSI to see where it lands.
+**And there is a third architecture the paragraph above never mentions, which is the sharpest part.**
+riscv64 was not surveyed, and it is the one where the mechanism is closest to hand: the RISC-V IOMMU
+puts MSI confinement *inside the device context this kernel already writes on every attach*. Measured
+from a boot, `CAPS = 0x78c2cf4f10` has `MSI_FLAT` set, so every context is the extended 64-byte
+format, and `attach` writes all four MSI words zero (`msiptp.MODE = Off`). No flag is needed there
+and none is available. It is also the only one of the three that can never get a second witness: no
+silicon ships the ratified RISC-V IOMMU (milestone 143), which inverts x86_64, where xenon is
+waiting.
+
+**So MSI confinement lives in three different places and none of the three is exercised**: a separate
+IOMMU feature on x86_64, a separate device (the GICv3 ITS) on aarch64, one mode field on riscv64.
+Each machine description now reports its own position, which is what makes this checkable at all.
+
+**The claim itself stays stated nowhere.** Nothing writes an `IRTE`, nothing programs an MSI page
+table, and nothing forges an MSI to see where it lands.
 
 **It is latent rather than false**, and it stays latent exactly as long as every component that can
 reach a BAR is the kernel. It goes live the first time a driver leaves the kernel and wants
