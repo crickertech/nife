@@ -34,8 +34,9 @@ it. A second machine profile is the cheap half of noticing that class earlier.
 
 ## What it is not
 
-**It is not "run every machine".** The pinned QEMU offers about 118 aarch64 and 137 x86_64 machines,
-and a matrix over them would be a very slow way to test one memory map many times. The axis worth
+**It is not "run every machine".** The pinned QEMU offers 112 aarch64, 43 x86_64 and 10 riscv64
+machines (measured 2026-09-18 on 11.0.2), and a matrix over them would be a very slow way to test one
+memory map many times. The axis worth
 covering is **what a machine makes the kernel negotiate**: its memory map, its interrupt controller,
 whether it describes itself by device tree or ACPI, and how its PCI configuration space is reached.
 Each row earns its place by answering one of those differently from `virt`.
@@ -49,23 +50,52 @@ run had ever shown.
 
 ## The rows, and why each one differs from `virt`
 
-Provisional, and the first deliverable is confirming each against the pinned QEMU rather than this
-list being taken on faith.
+**Confirmed against the pinned QEMU 11.0.2 on 2026-09-18**, which was this block's first deliverable
+and is now discharged: every machine and option below exists on the pin. The list was first drafted
+against a container's QEMU 8.2.2, a version `script/qemu-check` **rejects** (it lacks
+`riscv-iommu-pci`, milestone 16b and DECISIONS §20), so it was drafted against an emulator this tree
+refuses to run on. Confirming it moved three things, all recorded below.
 
 **aarch64**
 
 - `virt,gic-version=3`, and then `4`. The interrupt controller, which is the case above. This row is
   red until milestone 227 lands a GICv3 driver, and **that is the point**: it turns 227 from a
-  judgement into a failing gate.
+  judgement into a failing gate. Confirmed: the pin accepts `2, 3, 4, host and max`.
+- `virt,its=off`. The pin offers `auto, gicv2m, its, off`, so interrupt translation is a machine
+  option too, and every result so far is from the default.
+
+**`virt,iommu=smmuv3` is deliberately NOT a row here, and the reason is a correction.** A draft of
+this block proposed it, on the finding that `-machine virt,help` offers an IOMMU option and the
+claim that nothing in this tree boots with one. **That claim was false and one grep would have shown
+it.** `scripts/qemu-runner-aarch64.sh` sets `iommu=smmuv3` on both the TCG and HVF paths
+unconditionally, and has since milestone 81; `scripts/qemu-runner-riscv64.sh` carries
+`-device riscv-iommu-pci` with `iommu_platform=on` on its PCI disk, net and GPU (milestone 16b's
+twin); and `scripts/qemu-runner-x86_64.sh` carries `intel-iommu` with a recorded analysis of its
+`intremap` capability bits. **All three architectures already boot behind an IOMMU**, which is why
+`script/qemu-check` gates on `riscv-iommu-pci` existing in the pin at all.
+
+**What the confirmation pass actually found on that axis is not a machine row at all**, which is why
+it is not here: the two IOMMU drivers rhyme and their proofs do not. `arch/aarch64/iommu.rs` carries
+two Kani harnesses over its entry-building arithmetic and the RISC-V side carries none, so on
+riscv64 the boot-time confinement test is the whole of the assurance, on one board. That is
+`design/roadmap/proposals/the-riscv-iommu-driver-has-no-proof.md`, and it is a parity gap under §19
+rather than a coverage gap this matrix could close.
 - `sbsa-ref`. Describes itself by **ACPI with no device tree**, which is the discovery seam x86_64
   already exercises and aarch64 never has.
-- `raspi3b`. A real SoC memory map with a different UART, which is the shape milestone 20's portable
-  HAL claims to make cheap.
+- `raspi3b`, and `raspi4b` which is also on the pin. A real SoC memory map with a different UART,
+  which is the shape milestone 20's portable HAL claims to make cheap.
 
 **riscv64**
 
 - `sifive_u`. A real SoC map rather than `virt`'s, closest in kind to the U74 on radon.
 - `spike`, `microchip-icicle-kit`. Different again, and cheap; keep whichever says something new.
+
+**And a thing the confirmation settles rather than proposes: the pin has no JH7110 or VisionFive 2
+machine at all.** Its ten riscv64 machines are the three above plus `virt`, `sifive_e`, `shakti_c`,
+`none`, and three this block does not want (`amd-microblaze-v-generic`, `boston-aia`,
+`xiangshan-kunminghu`). So there is no upstream model of radon's own SoC to adopt, which is the fact
+the question "should we feed our silicon learnings back into QEMU" turns on: adopting a model is
+cheap, writing one is a project in somebody else's tree.
 
 **x86_64**
 
@@ -83,6 +113,13 @@ refuse buys runtime and no coverage.
 So this milestone should **write that criterion down and apply it once per architecture**, which is
 work neither 59 nor this block has done: aarch64 and x86_64 have no CPU matrix at all, and whether
 they want one is the same question answered with their own feature lists rather than by analogy.
+The pin offers 37 aarch64, 27 riscv64 and 243 x86_64 CPU models, so the criterion is doing the whole
+of the work; a count is no help at all.
+
+**The riscv64 list is larger on the pin than 59's five suggest**, and applying the criterion to it is
+part of this milestone rather than assumed settled: `rv64i` is the base integer ISA with none of
+`imac`, which refuses more than any model 59 tests and may simply refuse to run the kernel at all,
+and that outcome is itself worth knowing once rather than guessing.
 
 ## Index row
 
