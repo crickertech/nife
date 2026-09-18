@@ -244,6 +244,19 @@ _start_high:
     xor eax, eax
     rep stosq
 
+    # Stash WHICH core booted, before any secondary exists to be confused with it. The value is
+    # CPUID leaf 1's "Initial APIC ID" (ebx[31:24]), the same one `arch::boot_cpu_id` used to
+    # recompute per caller; the point of recording it here is that this code runs exactly once, on
+    # the boot processor, so the answer means "which core booted" rather than "which core am I"
+    # (ap_boot.rs's BUGS #3, and riscv64/boot.s's BOOT_HARTID stash is the same move). .bss was just
+    # zeroed, so this survives. `cpuid` clobbers eax/ebx/ecx/edx; rbp (hvm_start_info) is untouched.
+    mov eax, 1
+    cpuid
+    shr ebx, 24
+    movzx ebx, bl
+    movabs rax, offset BOOT_CPU_ID
+    mov [rax], rbx
+
     # kernel_main(hvm_start_info_physical_address). The other two architectures pass a device-tree
     # pointer in this argument; x86 has no device tree, so what travels is PVH's `hvm_start_info`,
     # which is where the memory map and the ACPI RSDP address live. See arch/x86_64/machine.rs.
