@@ -1,0 +1,460 @@
+
+nife on x86_64 (long mode, ring 0, 4-level paging)
+  cpu 0 booted: high-half kernel, .bss, and the 16550 console are up.
+  running at  : 0xffffffff82048710  (high half: the long-mode jump landed)
+  boot info   : 0x00000000b9fbb000  (PVH hvm_start_info, not a device tree)
+  screen      : 1920x1080 bgrx at 0xd0000000, 274x135 cells (boot cmdline)
+  cpu         : x86_64, vendor GenuineIntel, cpuid leaves 0..0x16
+  cr4.smep    : set on core 0; ring 0 faults on a fetch from a ring-3 page
+  traps       : idt installed; a breakpoint was caught and stepped over (1)
+  memory      : 38 regions from the PVH handoff, rsdp 0xcae09000
+                0x000000000000..0x000000008000  ram
+                0x000000008000..0x000000009000  reserved
+                0x000000009000..0x000000058000  ram
+                0x000000058000..0x000000059000  reserved
+                0x000000059000..0x00000009e000  ram
+                0x00000009e000..0x0000000a0000  reserved
+                0x000000100000..0x000002000000  ram
+                0x000002000000..0x0000029bf000  reserved
+                0x0000029bf000..0x0000acfc0000  ram
+                0x0000acfc0000..0x0000ad000000  ram
+                0x0000ad000000..0x0000b7e3d000  ram
+                0x0000b7e3d000..0x0000b82c5000  reserved
+                0x0000b82c5000..0x0000b9efd000  ram
+                0x0000b9efd000..0x0000b9efe000  acpi-nvs
+                0x0000b9efe000..0x0000b9eff000  reserved
+                0x0000b9eff000..0x0000b9fb0000  ram
+                0x0000b9fb0000..0x0000b9fba000  ram
+                0x0000b9fba000..0x0000b9fbb000  ram
+                0x0000b9fbb000..0x0000b9fbf000  reserved
+                0x0000b9fbf000..0x0000c8940000  ram
+                0x0000c8940000..0x0000c8d3e000  ram
+                0x0000c8d3e000..0x0000c97c4000  ram
+                0x0000c97c4000..0x0000cadfb000  reserved
+                0x0000cadfb000..0x0000cae41000  acpi
+                0x0000cae41000..0x0000cb775000  acpi-nvs
+                0x0000cb775000..0x0000cbd18000  reserved
+                0x0000cbd18000..0x0000cbdff000  reserved
+                0x0000cbdff000..0x0000cbe00000  ram
+                0x000100000000..0x000140000000  ram
+                0x000140000000..0x000141341000  ram
+                0x000141341000..0x00042e000000  ram
+                0x0000000a0000..0x000000100000  reserved
+                0x0000cbe00000..0x0000d0000000  reserved
+                0x0000f0000000..0x0000f8000000  reserved
+                0x0000fe000000..0x0000fe011000  reserved
+                0x0000fec00000..0x0000fec01000  reserved
+                0x0000fee00000..0x0000fee01000  reserved
+                0x0000ff000000..0x000100000000  reserved
+                usable ram: 16622672 KiB
+  acpi        : rsdp at 0xcae09000 (revision 2), root table 0xcae090b8 (xsdt)
+                0x00cae34210  FACP (268 bytes)
+                0x00cae34320  APIC (132 bytes)
+                0x00cae343a8  FPDT (68 bytes)
+                0x00cae343f0  FIDT (172 bytes)
+                0x00cae344a0  MCFG (60 bytes)
+                0x00cae344e0  HPET (56 bytes)
+                0x00cae34518  SSDT (12662 bytes)
+                0x00cae37690  SSDT (9637 bytes)
+                0x00cae39c38  HPET (56 bytes)
+                0x00cae39c70  SSDT (3557 bytes)
+                0x00cae3aa58  SSDT (2996 bytes)
+                0x00cae3b610  UEFI (66 bytes)
+                0x00cae3b658  SSDT (3806 bytes)
+                0x00cae3c538  LPIT (148 bytes)
+                0x00cae3c5d0  SSDT (321 bytes)
+                0x00cae3c718  SSDT (671 bytes)
+                0x00cae3c9b8  SSDT (12290 bytes)
+                0x00cae3f9c0  SSDT (1293 bytes)
+                0x00cae3fed0  DBGP (52 bytes)
+                0x00cae3ff08  DBG2 (84 bytes)
+                0x00cae3ff60  MSDM (85 bytes)
+                0x00cae3ffb8  SLIC (374 bytes)
+                0x00cae40130  TPM2 (52 bytes)
+                0x00cae40168  ASF! (160 bytes)
+                0x00cae40208  BGRT (56 bytes)
+                0x00cae40240  DMAR (204 bytes)
+                local apic 0xfee00000, 4 cpu(s) enabled, 0 disabled, 8259s present (must be masked)
+                io apic 2 at 0xfec00000, gsi base 0
+                isa irq 0 -> gsi 2 (active high, edge)
+                isa irq 9 -> gsi 9 (active high, level)
+                pcie ecam 0xf0000000, buses 0..=127 (q35's default is 0xb0000000)
+                vt-d drhd at 0xfed90000
+  smp: 4 core(s) in the madt
+  pci         : ecam at 0xf0000000 (buses 0..=127), decode was already on
+                bar window 0xd0800000..0xd0a00000, from the firmware map and TOLUD, agreeing
+                15 function(s) on the bus, 0 with a BAR this kernel can neither use nor adopt
+  apic        : local apic 0xfee00000 up, id 0, version 0x15, 8259s masked
+  clocks      : tsc 2714 MHz (PIT calibration), apic timer 1 MHz (measured against the PIT)
+  timer       : 20 ticks in ~0.2s at 100 Hz (0 spurious)
+  io apic     : id 2 at 0xfec00000 up, version 0x20, 120 redirection entries, gsi base 0
+  device irq  : pit irq 0 -> gsi 2 on vector 0x32: 21 interrupts in ~0.2s at 100 Hz
+  frames      : allocator up over 15 ram region(s) (first frame 0x186000)
+  memory          : 17119 MiB total, 16231 MiB free (908348 KiB in use)
+  mmu             : fine W^X 4-level map installed (cr3 0x187000), image 0xffffffff80000000, direct map 0xffff888000000000
+                  : 32840 KiB of page tables, no identity map, guard pages are holes
+  image       : text 0xffffffff8200a000..0xffffffff82202000, stack 0xffffffff828ff000..0xffffffff8290f000
+  entropy     : rdseed supported (cpuid leaf 7 ebx.18), drew 0x0eda3138f8fffb81
+  cycles      : IA32_PERF_FIXED_CTR1 (unhalted core cycles), 48 bits, perfmon v4
+  vt-d        : drhd 0xfed90000 up, translation enabled (gsts.tes confirmed)
+  scheduler   : up on 1 cpu, preempting at 100 Hz (idle thread registered)
+  smp: init-sipi-sipi via the local apic, trampoline at 0x8000
+  cr4.smep    : set on core 2; ring 0 faults on a fetch from a ring-3 page
+  cr4.smep    : set on core 4; ring 0 faults on a fetch from a ring-3 page
+  cr4.smep    : set on core 6; ring 0 faults on a fetch from a ring-3 page
+  smp: 4 core(s) online
+  kernel task : a spawned thread ran and carried its captured state (0x16100004) after 8 yield(s)
+
+  user thread 12884901893 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+
+  user thread 21474836485 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+  userspace   : a process built from untyped ran at cpl 3 and sent 0x1610004 on a granted cap
+                thread 12884901893 died at pc 0x400005 on addr 0xa50000, delivered to its supervisor
+                two children cost 0 frames the first round and 0 the second (steady state)
+  initrd      : 4748288 bytes at 0xb7e3d000, 87 programs, from the PVH module list
+
+running 285 tests
+
+test kernel::arch::x86_64::iommu::tests::interrupt_remapping_is_reported_and_never_enabled ... ok
+test kernel::arch::x86_64::irq::tests::a_gsi_on_a_second_io_apic_routes_inside_the_band ... ok
+test kernel::arch::x86_64::mmu::map_tests::a_hole_with_no_room_answers_none ... ok
+test kernel::arch::x86_64::mmu::map_tests::a_small_machine_is_unchanged ... ok
+test kernel::arch::x86_64::mmu::map_tests::an_empty_hole_gives_up_its_floor ... ok
+test kernel::arch::x86_64::mmu::map_tests::the_disagreement_names_both_sources ... ok
+test kernel::arch::x86_64::mmu::map_tests::the_failure_names_both_ranges ... ok
+test kernel::arch::x86_64::mmu::map_tests::the_fill_stops_below_the_devices_on_a_17_gib_machine ... ok
+test kernel::arch::x86_64::mmu::map_tests::the_mmio_hole_on_a_17_gib_machine_is_bounded_at_both_ends ... ok
+test kernel::arch::x86_64::mmu::map_tests::the_window_steps_over_a_framebuffer_at_the_floor_of_the_hole ... ok
+test kernel::arch::x86_64::pmu::tests::a_narrow_counter_wraps_to_a_small_delta ... ok
+test kernel::arch::x86_64::pmu::tests::qemu_reaches_a_decided_answer ... ok
+test kernel::arch::x86_64::pmu::tests::the_msrs_are_only_touched_when_cpuid_allowed_it ... ok
+test kernel::arch::x86_64::pmu::tests::the_outcome_and_the_counter_agree ... ok
+test kernel::console::tests::console_lock_can_be_busted ...     (console still works after force_unlock)
+ok
+test kernel::cpu::tests::held_rank_lives_in_the_percpu_block ... ok
+test kernel::cpu::tests::percpu_is_self_consistent_on_whatever_core_we_run ... ok
+test kernel::interrupt_stack::tests::a_slots_guard_page_begins_where_the_slot_below_it_ends ... ok
+test kernel::interrupt_stack::tests::interrupts_are_handled_on_the_interrupt_stack ... ok
+test kernel::interrupt_stack::tests::the_interrupt_stack_region_is_the_size_the_linker_reserved ... ok
+test kernel::memory::tests::alloc_and_free_balance ... ok
+test kernel::memory::tests::allocator_never_hands_out_the_kernel ... ok
+test kernel::memory::tests::an_allocated_frame_is_real_memory ... ok
+test kernel::memory::tests::bitmap_overlaps_nothing ... ok
+test kernel::memory::tests::every_frame_of_the_kernel_image_is_reserved ... ok
+test kernel::memory::tests::initrd_is_reserved_if_present ... ok
+test kernel::memory::tests::memory_map_came_from_the_device_tree ... ok
+test kernel::pci::tests::acpi_mcfg_wires_a_real_ecam_window_that_finds_the_host_bridge ...     host bridge: vendor 0x8086, device 0x591f
+ok
+test kernel::revoke::tests::a_device_take_back_ignores_the_object_and_spares_one_holder ... ok
+test kernel::revoke::tests::an_exhausted_budget_refuses_the_record_not_the_safety ... ok
+test kernel::revoke::tests::destroy_unmaps_a_region_before_reclaiming_it ... ok
+test kernel::revoke::tests::destroying_a_region_deletes_every_capability_naming_it ... ok
+test kernel::revoke::tests::revoke_unmaps_a_shared_page_from_every_address_space ... ok
+test kernel::revoke::tests::revoking_a_run_unmaps_every_page_of_it_everywhere ... ok
+test kernel::revoke::tests::revoking_one_run_leaves_an_overlapping_capability_and_its_mappings_alone ... ok
+test kernel::sched::tests::a_blocked_waiter_wakes_with_an_error_when_its_rendezvous_is_revoked ... ok
+test kernel::sched::tests::a_call_gets_a_reply ... ok
+    [that test kept 32 frames]
+test kernel::sched::tests::a_dead_thread_still_standing_on_its_stack_is_not_reapable ... ok
+test kernel::sched::tests::a_finished_thread_is_reaped_and_its_memory_returned ... ok
+test kernel::sched::tests::a_guard_page_fault_names_its_stack ... ok
+test kernel::sched::tests::a_receiver_blocks_until_a_sender_arrives ... ok
+test kernel::sched::tests::a_reply_parked_caller_wakes_with_an_error_when_its_rendezvous_is_reclaimed ... ok
+test kernel::sched::tests::a_reply_reaches_the_caller_that_called ... ok
+test kernel::sched::tests::a_reply_to_a_thread_parked_as_a_receiver_is_dropped ... ok
+test kernel::sched::tests::a_request_gets_a_reply ... ok
+test kernel::sched::tests::a_retyped_rendezvous_carries_ipc_and_pins_its_region ... ok
+test kernel::sched::tests::a_running_thread_cannot_be_granted_the_cycle_counter ... ok
+test kernel::sched::tests::a_sender_blocks_until_a_receiver_arrives ... ok
+test kernel::sched::tests::a_server_that_exits_frees_the_caller_it_never_answered ... ok
+test kernel::sched::tests::a_slots_guard_page_begins_where_the_slot_below_it_ends ... ok
+test kernel::sched::tests::a_spawn_quota_caps_live_children_and_replenishes_on_reap ... ok
+test kernel::sched::tests::a_spawned_thread_runs ... ok
+test kernel::sched::tests::a_thread_that_never_yields_is_preempted_anyway ... ok
+test kernel::sched::tests::a_wake_without_delivery_cannot_complete_a_parked_recv ... ok
+test kernel::sched::tests::an_interrupt_becomes_a_message ... ok
+test kernel::sched::tests::an_interrupt_that_arrives_before_the_wait_is_not_lost ... ok
+test kernel::sched::tests::destroyed_region_slots_are_reused ... ok
+test kernel::sched::tests::every_thread_stack_has_a_guard_page ... ok
+test kernel::sched::tests::kernel_stacks_do_not_touch_the_frame_allocator_in_steady_state ... ok
+test kernel::sched::tests::other_threads_run_while_one_is_blocked ... ok
+test kernel::sched::tests::reclaim_frees_a_regions_idle_rendezvous ... ok
+test kernel::sched::tests::reclaim_frees_an_embryo_thread_control_blocks_region ... ok
+test kernel::sched::tests::reclaim_frees_an_unbound_address_spaces_region ... ok
+test kernel::sched::tests::split_returns_child_pages_to_the_parent ... ok
+test kernel::sched::tests::the_canary_reports_a_byte_that_changed_behind_its_back ...     canary: tick=11005 addr=0xffffffff824ec587 (range 0xffffffff824ec580+0x20 off 0x7) 0xa5 -> 0x5a
+ok
+test kernel::sched::tests::the_kernels_rendezvous_supply_grows_past_one_chunk ... ok
+    [that test kept 32 frames]
+test kernel::sched::tests::threads_round_robin ... ok
+test kernel::smp::tests::a_batch_of_cpu_bound_work_reaches_every_core ... ok
+test kernel::smp::tests::a_migrated_kernel_thread_keeps_its_hart_pointer ... ok
+test kernel::smp::tests::all_secondaries_came_online ... ok
+test kernel::smp::tests::every_core_the_tree_described_is_running ... ok
+test kernel::smp::tests::every_secondary_runs_scheduled_work ... ok
+test kernel::smp::tests::every_secondary_stack_sits_on_a_guard_page ... ok
+test kernel::smp::tests::the_online_set_is_the_mask_and_the_sampler_stays_inside_it ... ok
+test kernel::smp::tests::the_roster_is_the_machines_own_core_list ... skipped: nothing has read this machine's core roster from a device tree (either described_count() is 0, or this is x86_64, whose roster is ACPI-based and has no independent device-tree re-read to check it against yet)
+test kernel::smp::tests::the_secondary_stack_region_is_the_size_the_linker_reserved ... ok
+test kernel::smp::tests::work_can_be_placed_on_every_core ... ok
+test kernel::stack::tests::stack_canary_is_intact_and_we_have_headroom ... ok
+test kernel::sync::tests::holding_nothing_permits_any_rank ... ok
+test kernel::sync::tests::irq_safe_mutex_masks_interrupts_while_held ... ok
+test kernel::sync::tests::irq_safe_mutex_restores_rather_than_enables ... ok
+test kernel::sync::tests::nested_locks_restore_correctly ... ok
+test kernel::sync::tests::releasing_an_inner_lock_restores_the_outer_rank ... ok
+test kernel::sync::tests::taking_a_lock_records_its_rank ... ok
+test kernel::sync::tests::the_hierarchy_permits_only_strictly_decreasing_ranks ... ok
+test kernel::syscall::tests::a_partly_mapped_run_is_rolled_all_the_way_back ... ok
+test kernel::syscall::tests::split_inherits_the_parent_capabilitys_rights_never_widening ... ok
+test kernel::tests::bss_was_zeroed ... ok
+test kernel::tests::device_tree_has_the_right_magic ... skipped: this machine hands over PVH hvm_start_info, not a device tree (see machine_discovery::x86_64, host-tested)
+test kernel::tests::device_tree_pointer_was_provided ... ok
+test kernel::tests::harness_runs ... ok
+test kernel::tests::stack_pointer_is_16_byte_aligned ... ok
+test kernel::user::authority_tests::a_dead_sub_server_is_restarted_by_its_supervisor_not_by_init ... 
+  user thread 38654705672 killed: vector 14 (page fault)
+    rip 0x0000000000400064   addr 0x0000000000a50000   user rsp 0x0000000000500fd8   err 0x00000004
+  the kernel is fine.
+ok
+    [that test kept 1075 frames]
+test kernel::user::authority_tests::init_drops_its_construction_authority_and_cannot_build_again ... 
+  user thread 34359738379 killed: vector 14 (page fault)
+    rip 0x0000000000400064   addr 0x0000000000a50000   user rsp 0x0000000000500fd8   err 0x00000004
+  the kernel is fine.
+ok
+    [that test kept 1074 frames]
+test kernel::user::c_seam_tests::a_c_out_of_bounds_write_faults_and_changes_nothing_outside_its_grant ... 
+  user thread 30064771084 killed: vector 14 (page fault)
+    rip 0x0000000000402049   addr 0x0000000050001000   user rsp 0x0000000000500fb8   err 0x00000007
+  the kernel is fine.
+
+  user thread 34359738380 killed: vector 14 (page fault)
+    rip 0x0000000000402056   addr 0x0000000050002000   user rsp 0x0000000000500fb8   err 0x00000006
+  the kernel is fine.
+[5 s] ok
+    [that test kept 563 frames]
+test kernel::user::c_seam_tests::the_supervisor_restarts_the_faulted_c_component_and_the_restart_does_real_work ... 
+  user thread 30064771085 killed: vector 14 (page fault)
+    rip 0x0000000000402049   addr 0x0000000050001000   user rsp 0x0000000000500fb8   err 0x00000007
+  the kernel is fine.
+
+  user thread 34359738381 killed: vector 14 (page fault)
+    rip 0x0000000000402056   addr 0x0000000050002000   user rsp 0x0000000000500fb8   err 0x00000006
+  the kernel is fine.
+[5 s] ok
+    [that test kept 563 frames]
+test kernel::user::clock_tests::a_proposer_can_ask_and_cannot_tell ... ok
+    [that test kept 23 frames]
+test kernel::user::clock_tests::adjusting_the_wall_clock_leaves_the_monotonic_counter_alone ... ok
+    [that test kept 23 frames]
+test kernel::user::clock_tests::an_unknown_opcode_is_answered_rather_than_fatal ... ok
+    [that test kept 23 frames]
+test kernel::user::clock_tests::the_clock_service_reads_a_plausible_wall_clock_from_the_rtc ... ok
+    [that test kept 23 frames]
+test kernel::user::compositor_tests::a_client_holds_no_capability_for_its_neighbours_pixels_or_the_screen ... 
+  user thread 4294967316 killed: vector 14 (page fault)
+    rip 0x000000000040047d   addr 0x0000000000613000   user rsp 0x0000000000500e18   err 0x00000006
+  the kernel is fine.
+
+  user thread 8589934611 killed: vector 14 (page fault)
+    rip 0x0000000000400517   addr 0x0000000000800000   user rsp 0x0000000000500e18   err 0x00000004
+  the kernel is fine.
+[5 s] ok
+    [that test kept 370 frames]
+test kernel::user::compositor_tests::a_one_window_redraw_costs_one_rectangle_and_not_the_screen ... ok
+    [that test kept 399 frames]
+test kernel::user::compositor_tests::focus_routes_a_keystroke_to_one_terminals_grid_and_not_its_neighbours ... ok
+    [that test kept 599 frames]
+test kernel::user::compositor_tests::input_reaches_only_the_focused_client_and_focus_is_the_compositors_call ... ok
+    [that test kept 411 frames]
+test kernel::user::compositor_tests::three_clients_compose_into_one_scanout_and_the_host_sees_it ... skipped: no virtio-gpu-pci function on the bus: either this kernel enumerated no PCI at all, or (x86_64) the test runner has never wired a GPU device onto the bus it does enumerate; see notes/x86-port.md
+test kernel::user::credential_tests::a_client_gets_a_correct_yes_or_no_and_nothing_else ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::credential_tests::provisioning_fills_the_store_and_the_seal_closes_it ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::credential_tests::the_same_endowment_cannot_write_the_store ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::date_tests::a_declared_second_stream_carries_the_complaint_and_the_output_stays_empty ... ok
+test kernel::user::date_tests::an_unknown_clock_is_said_plainly_rather_than_printed_as_1970 ... ok
+    [that test kept 55 frames]
+test kernel::user::date_tests::date_prints_the_wall_clock_it_was_granted ... ok
+    [that test kept 104 frames]
+test kernel::user::date_tests::date_reports_where_the_time_came_from ... ok
+    [that test kept 77 frames]
+test kernel::user::date_tests::without_a_second_stream_the_complaint_stays_in_band ... ok
+    [that test kept 59 frames]
+test kernel::user::dir_capability_tests::a_full_directory_capability_does_everything_inside_and_nothing_outside ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::dir_capability_tests::a_name_set_capability_reads_its_attributes_and_still_names_only_its_set ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::dir_capability_tests::a_read_only_directory_capability_reaches_its_subtree_and_nothing_above_it ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::dir_capability_tests::an_append_only_directory_capability_adds_and_cannot_walk_or_list ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::disk_tests::the_disk_surveyor_reads_a_table_gptfdisk_wrote ... skipped: no GPT disk attached (this boot did not build the GPT image)
+test kernel::user::disk_tests::the_roster_can_be_revoked_out_from_under_its_holder ... 
+ok
+  user thread 39 killed: vector 14 (page fault)
+    [that test kept 46 frames]
+    rip 0x000000000040019f   addr 0x0000000050010000   user rsp 0x0000000000500f58   err 0x00000004
+test kernel::user::disk_tests::the_roster_is_a_listing_and_not_a_lever ...   the kernel is fine.
+
+  user thread 40 killed: vector 14 (page fault)
+    rip 0x0000000000400235   addr 0x0000000050010000   user rsp 0x0000000000500f58   err 0x00000007
+  the kernel is fine.
+ok
+test kernel::user::disk_tests::the_write_half_needs_a_disk_and_an_entropy_rendezvous_and_holds_nothing_else ... skipped: no mkfs in this archive (nothing built one for this target before the archive was packed)
+test kernel::user::display_tests::a_backing_outside_the_grant_is_refused_by_the_iommu ... skipped: no virtio-gpu-pci function on the bus (NIFE_GPU not set?)
+test kernel::user::display_tests::a_bitmap_font_and_a_vt_engine_put_readable_text_on_the_scanout ... skipped: no virtio-gpu-pci function on the bus (NIFE_GPU not set?)
+test kernel::user::display_tests::a_confined_userspace_driver_puts_a_known_pattern_in_a_framebuffer ... skipped: no virtio-gpu-pci function on the bus: either this kernel enumerated no PCI at all, or (x86_64) the test runner has never wired a GPU device onto the bus it does enumerate; see notes/x86-port.md
+test kernel::user::display_tests::a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte ... skipped: no virtio-input function on the bus (NIFE_KEYBOARD not set?)
+test kernel::user::entropy_tests::a_client_obtains_unpredictable_bytes_from_a_virtio_rng_over_mmio ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::entropy_tests::a_client_obtains_unpredictable_bytes_from_a_virtio_rng_over_pcie ... skipped: no virtio-rng device on the pcie bus (NIFE_RNG not set?)
+test kernel::user::entropy_tests::a_client_obtains_unpredictable_bytes_from_rndrrs_with_no_device_at_all ... ok
+    [that test kept 23 frames]
+test kernel::user::entropy_tests::a_fill_gathers_across_round_trips ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::entropy_tests::a_reply_never_delivers_more_bytes_than_it_says ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::entropy_tests::no_clock_window_is_mapped_where_there_is_no_jh7110 ... ok
+test kernel::user::entropy_tests::the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110 ... ok
+test kernel::user::entropy_tests::two_entropy_services_on_two_devices_do_not_produce_the_same_bytes ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::force_kill_tests::an_address_space_never_frees_a_region_it_was_lent ... ok
+test kernel::user::force_kill_tests::destroy_force_kills_a_runaway_and_reclaims_its_region ... ok
+test kernel::user::force_kill_tests::destroy_reclaims_a_region_whose_resident_blocks_on_a_rendezvous_it_does_not_own ... ok
+test kernel::user::force_kill_tests::destroy_reclaims_a_region_whose_resident_is_blocked_in_recv ... ok
+test kernel::user::force_kill_tests::tearing_down_a_reply_parked_caller_sweeps_the_reply_capability ... ok
+test kernel::user::glob_grant_tests::what_a_shell_shows_is_what_a_set_grant_takes_away ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::heap_tests::a_process_runs_alloc_collections_on_its_own_memory_region ... ok
+    [that test kept 99 frames]
+test kernel::user::identity_provisioning_tests::a_duplicate_identity_is_refused_without_disturbing_the_original ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::identity_provisioning_tests::provisioning_creates_a_working_credential_and_a_real_subtree ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::job_undertaker_tests::job_undertaker_returns_every_finished_job_to_the_pool ... ok
+    [that test kept 22 frames]
+test kernel::user::job_undertaker_tests::without_a_collector_a_bounded_job_pool_runs_out ... ok
+test kernel::user::language_tests::a_connector_runs_the_second_command_only_when_it_should ... skipped: no RedoxFS disk attached
+test kernel::user::language_tests::a_line_the_grammar_cannot_read_runs_nothing ... skipped: no RedoxFS disk attached
+test kernel::user::language_tests::a_name_with_a_space_in_it_can_be_written_and_read_back ... skipped: no RedoxFS disk attached
+test kernel::user::language_tests::a_quoted_name_is_the_grant_with_the_operator_left_out ... skipped: no RedoxFS disk attached
+test kernel::user::language_tests::a_refusal_and_a_success_report_different_numbers ... skipped: no RedoxFS disk attached
+test kernel::user::language_tests::the_same_word_is_a_name_quoted_and_a_set_unquoted ... skipped: no RedoxFS disk attached
+test kernel::user::live_swap_tests::a_client_keeps_talking_while_the_server_underneath_it_is_replaced ... skipped: this machine's console UART is in the I/O port space, so there is no page for a device capability to be a mapping of and no capability shape for a port yet (DECISIONS §121)
+test kernel::user::live_swap_tests::a_client_of_the_stable_rendezvous_cannot_become_its_server ... skipped: this machine's console UART is in the I/O port space, so there is no page for a device capability to be a mapping of and no capability shape for a port yet (DECISIONS §121)
+test kernel::user::live_swap_tests::a_component_that_stops_answering_without_dying_is_invisible_to_its_supervisor ... skipped: this machine's console UART is in the I/O port space, so there is no page for a device capability to be a mapping of and no capability shape for a port yet (DECISIONS §121)
+test kernel::user::live_swap_tests::a_producer_never_blocks_on_an_absent_consumer_and_loses_nothing ... skipped: this machine's console UART is in the I/O port space, so there is no page for a device capability to be a mapping of and no capability shape for a port yet (DECISIONS §121)
+test kernel::user::login_tests::caretaker_teardown_reclaims_a_full_session_worth_of_memory ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::login_denies_a_wrong_secret_and_sends_nothing_further ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::login_denies_an_authenticated_identity_with_no_provisioned_subtree ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::login_grants_a_working_capability_set_to_the_identity_it_verified ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::login_hands_out_the_terminal_once_and_denies_a_concurrent_second_login_until_logout ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::login_scopes_each_identity_to_its_own_provisioned_subtree ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::logins_caretaker_measurement_matches_the_real_table_and_a_tampered_one_would_be_refused ... ok
+test kernel::user::login_tests::the_login_service_serves_past_the_old_capability_table_ceiling ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::two_clients_connecting_together_get_independent_channels_and_neither_observes_the_others_secret ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::login_tests::two_different_identities_get_independently_working_channels_and_correct_attribution ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::measured_boot_tests::a_tampered_boot_program_and_an_unmeasured_name_are_both_refused ... ok
+test kernel::user::measured_boot_tests::every_program_init_loads_is_vouched_for_by_the_measurement_table ... ok
+test kernel::user::measured_boot_tests::the_boot_program_measures_to_the_compiled_in_trust_root ... ok
+test kernel::user::measured_boot_tests::the_measurement_table_measures_to_the_compiled_in_trust_root ... ok
+test kernel::user::measured_boot_tests::the_measurement_table_refuses_a_tampered_program_and_an_unnamed_one ... ok
+test kernel::user::multi_dir_namespace_tests::a_process_holding_two_directory_capabilities_reaches_both_and_crosses_neither ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::ntp_tests::a_proposal_outside_the_policy_is_refused_by_the_service ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::ntp_tests::a_reply_that_fails_validation_never_becomes_a_proposal ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::ntp_tests::an_ntp_client_holds_no_writable_clock_page ... 
+  user thread 4294967338 killed: vector 14 (page fault)
+    rip 0x000000000040004d   addr 0x0000000000c00000   user rsp 0x0000000000500fd8   err 0x00000006
+  the kernel is fine.
+ok
+    [that test kept 42 frames]
+test kernel::user::ntp_tests::an_ntp_exchange_reaches_the_clock_as_a_proposal ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::ntp_tests::the_nonce_on_the_wire_is_random_and_is_not_the_clock ... skipped: no virtio-rng device on the mmio bus (NIFE_RNG not set?)
+test kernel::user::ntp_tests::without_entropy_the_client_refuses_rather_than_guessing ... ok
+    [that test kept 83 frames]
+test kernel::user::nvme_tests::a_confined_el0_process_serves_the_block_interface_end_to_end ... skipped: no NVMe controller came up (NIFE_NVME not set on this leg?)
+test kernel::user::pipeline_tests::a_pipeline_composes_past_two_stages ... ok
+    [that test kept 230 frames]
+test kernel::user::pipeline_tests::a_redirection_a_shell_cannot_back_is_refused_rather_than_dropped ... ok
+test kernel::user::pipeline_tests::one_program_two_destinations_and_the_same_bytes ... ok
+test kernel::user::pipeline_tests::the_line_is_refused_before_anything_is_spawned ... ok
+test kernel::user::pipeline_tests::the_shell_can_be_the_producer ... ok
+test kernel::user::pmap_tests::a_builder_without_enumerate_is_refused_the_listing ... ok
+test kernel::user::pmap_tests::a_capability_outliving_its_space_reads_as_empty ... ok
+test kernel::user::pmap_tests::a_viewer_sees_every_mapping_and_can_touch_none_of_it ... ok
+test kernel::user::pmap_tests::an_empty_slot_holds_no_capability_at_all ... ok
+test kernel::user::pmap_tests::an_empty_space_is_a_real_answer_not_a_refusal ... ok
+test kernel::user::printenv_tests::a_key_never_declared_reads_as_unset_not_empty ... ok
+    [that test kept 23 frames]
+test kernel::user::printenv_tests::an_unpublished_config_page_reads_as_no_configuration ... ok
+    [that test kept 23 frames]
+test kernel::user::printenv_tests::no_capability_at_all_is_said_plainly ... ok
+    [that test kept 22 frames]
+test kernel::user::printenv_tests::printenv_prints_the_page_it_was_granted ... ok
+    [that test kept 23 frames]
+test kernel::user::raw_mode_tests::a_raw_read_parked_before_data_arrives_still_gets_it ... ok
+test kernel::user::raw_mode_tests::op_write_ignores_raw_mode_and_op_readline_survives_a_round_trip ... ok
+test kernel::user::raw_mode_tests::raw_mode_delivers_control_bytes_literally ... ok
+test kernel::user::raw_mode_tests::raw_mode_suppresses_echo_and_delivers_bytes_unbuffered ... ok
+test kernel::user::raw_mode_tests::switching_mode_abandons_a_parked_read_of_the_other_kind ... ok
+test kernel::user::raw_mode_tests::the_two_input_models_refuse_each_other ... ok
+test kernel::user::reap_tests::a_supervisor_holding_only_its_rendezvous_reaps_its_dead_child ... 
+  user thread 25769803825 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+ok
+test kernel::user::reap_tests::reap_refuses_a_live_child_with_a_distinct_error ... ok
+test kernel::user::reap_tests::reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread ... 
+  user thread 34359738417 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+ok
+test kernel::user::reap_tests::reap_refuses_another_supervisors_child ... 
+  user thread 42949673009 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+ok
+test kernel::user::reap_tests::reaping_an_uncollected_corpse_leaves_no_ghost_on_the_rendezvous ... 
+  user thread 47244640305 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+
+  user thread 51539607601 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+[5 s] ok
+test kernel::user::reap_tests::the_reaped_region_returns_to_the_builder_not_the_reaper ... 
+  user thread 55834574897 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+ok
+test kernel::user::redirection_tests::a_named_file_reaches_the_head_of_a_pipeline ... skipped: no RedoxFS disk attached
+test kernel::user::redirection_tests::a_redirection_that_cannot_be_backed_is_still_refused ... skipped: no RedoxFS disk attached
+test kernel::user::redirection_tests::append_keeps_what_truncate_throws_away ... skipped: no RedoxFS disk attached
+test kernel::user::redirection_tests::naming_a_file_to_a_reader_is_the_operator_left_out ... skipped: no RedoxFS disk attached
+test kernel::user::redirection_tests::one_builtin_two_destinations_and_the_same_bytes ... skipped: no RedoxFS disk attached
+test kernel::user::redirection_tests::one_program_two_destinations_and_the_same_bytes ... skipped: no RedoxFS disk attached
+test kernel::user::ripgrep_tests::unmodified_ripgrep_runs_and_has_no_arguments_to_run_on ... skipped: no rg in this archive: build it with scripts/build-ripgrep.sh, which fetches the published ripgrep crate from crates.io (milestone 121)
+test kernel::user::rm_program_tests::rm_f_ignores_a_name_that_is_not_there_and_success_says_nothing ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::rm_program_tests::rm_r_takes_the_subtree_it_was_granted_and_a_narrower_grant_cannot_begin ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::rmle_tests::rmle_edits_and_saves_a_real_file ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+    [that test kept 38 frames]
+test kernel::user::rmle_tests::rmle_refuses_to_quit_dirty_without_confirmation ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+    [that test kept 38 frames]
+test kernel::user::session_reviver_tests::a_fresh_reader_confirms_the_store_holds_exactly_what_the_seed_wrote ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::session_reviver_tests::the_schedule_store_write_path_and_the_boot_time_re_deriver_agree ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::shell_navigation_tests::a_shell_navigates_its_own_subtree_and_clamps_at_its_root ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::shell_navigation_tests::two_shells_with_different_roots_cannot_name_each_others_files ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::sink_tests::a_destroyed_sink_ends_the_writer_and_an_absent_one_does_not ... ok
+    [that test kept 32 frames]
+test kernel::user::sink_tests::a_program_cannot_tell_what_its_output_slot_holds ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::sink_tests::one_reader_two_sources_and_the_same_answer ... skipped: no RedoxFS service on this boot: either nothing packed a redoxfs_server into this archive, or this machine has no RedoxFS disk for one to serve
+test kernel::user::sink_tests::the_terminal_is_a_sink_like_any_other_and_the_writer_cannot_tell ... ok
+    [that test kept 21 frames]
+test kernel::user::std_tests::a_whole_std_program_runs_on_the_native_abi ... skipped: no std_exerciser in this archive: it is built with -Zbuild-std for a custom target against the nife-dev toolchain, and whatever packed this archive did not build it first (`cargo xtask std-exerciser`, which `script/test` runs)
+test kernel::user::supervision_tests::a_clean_exit_reports_the_exit_event_not_a_fault ... ok
+test kernel::user::supervision_tests::a_faulting_child_reports_to_its_supervisor_and_is_reaped_then_respawned ... 
+  user thread 8589934646 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+ok
+test kernel::user::survey_tests::a_dead_child_is_still_in_the_domain_until_it_is_reaped ... 
+  user thread 17179869238 killed: vector 14 (page fault)
+    rip 0x0000000000400005   addr 0x0000000000a50000   user rsp 0x0000000000501000   err 0x00000004
+  the kernel is fine.
+
+[PANIC] panicked at kernel/src/user/survey_tests.rs:381:5:

@@ -867,9 +867,10 @@ mod tests {
     /// named actually decodes real PCI configuration space once
     /// `arch::x86_64::machine::enable_pcie_ecam` has run.
     ///
-    /// The host bridge (bus 0, device 0, function 0) is q35's own chipset function and is on the
-    /// bus regardless of what `-device` flags `scripts/qemu-runner-x86_64.sh` does or does not
-    /// pass, which is what makes this a real read rather than a hope: before
+    /// The host bridge (bus 0, device 0, function 0) is the chipset's own function and is on the
+    /// bus on every x86_64 machine, emulated or not, regardless of what `-device` flags
+    /// `scripts/qemu-runner-x86_64.sh` does or does not pass, which is what makes this a real
+    /// read rather than a hope: before
     /// `enable_pcie_ecam` runs, this exact physical address **faults** (measured against QEMU's
     /// monitor, 2026-08-24: `xp` answers "Cannot access memory") rather than reading the
     /// all-ones an absent *device*'s config space would, so a wrong address or a skipped enable
@@ -890,17 +891,37 @@ mod tests {
             &mut |bdf, vendor, device| {
                 count += 1;
                 if bdf.bus == 0 && bdf.dev == 0 && bdf.func == 0 {
-                    // q35's host bridge, always present, id fixed by the chipset model rather
-                    // than by any -device flag.
-                    assert_eq!(vendor, 0x8086, "q35's host bridge vendor is always Intel");
-                    assert_eq!(device, 0x29c0, "q35's own host bridge device id");
+                    // **The ids are a diagnostic, not a pass condition**, and this is the one
+                    // thing xenon changed about this test. An earlier version asserted
+                    // `0x29c0`, q35's host bridge, which is a claim about which chipset is
+                    // being *emulated* rather than about whether ECAM reads reach config
+                    // space. It panicked on the first real machine it ever met (2026-09-17,
+                    // an OptiPlex 7050, whose Kaby Lake bridge answers a different id), and
+                    // it halted the suite before the NVMe test the boot was for.
+                    //
+                    // What this test claims is in its own doc comment: the window MCFG named
+                    // decodes real configuration space. The evidence for that is that 0:0.0
+                    // answers *something a device answers*, because an address outside a
+                    // decoded window reads back all-ones and one that is not decoded at all
+                    // faults. A specific id adds nothing to it.
+                    assert_ne!(
+                        vendor, 0xffff,
+                        "bus 0 device 0 function 0 read back all-ones, which is what an absent \
+                         device looks like; the ECAM window is not decoding"
+                    );
+                    assert_ne!(
+                        vendor, 0x0000,
+                        "bus 0 device 0 function 0 read back zero, which is neither a device nor \
+                         the absent pattern; the window is reading memory rather than config space"
+                    );
+                    crate::println!("    host bridge: vendor {vendor:#06x}, device {device:#06x}");
                     found_host_bridge = true;
                 }
             },
         );
         assert!(
             found_host_bridge,
-            "bus 0 device 0 function 0 (q35's host bridge) was not found; ECAM reads are not \
+            "bus 0 device 0 function 0 (the host bridge) was not found; ECAM reads are not \
              reaching real config space"
         );
         assert!(
