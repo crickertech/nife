@@ -108,6 +108,7 @@ fmt|local|script/fmt --check
 lint|local|script/lint
 image-permissions|local|script/image-permissions
 icount|local|script/icount
+build-is-reproducible|local|script/build-is-reproducible
 test|local|script/test
 shell-check|local|script/shell-check
 boot-check|local|script/boot-check
@@ -120,7 +121,6 @@ coverage|ci|script/coverage
 fuzz|ci|script/fuzz --time 60
 bench|ci|script/bench --check && script/bench --riscv --check && script/bench --x86 --check
 cpu-matrix|ci|script/cpu-matrix
-build-is-reproducible|ci|script/build-is-reproducible
 TABLE
 }
 
@@ -139,10 +139,6 @@ TABLE
 #   bench               two full icount baselines; `script/icount` above is the seven-second
 #                       instrument that carries the timing claims, and it IS local.
 #   cpu-matrix          five QEMU boots of the riscv64 suite, one per CPU model.
-#   build-is-reproducible
-#                       two COLD release builds of HEAD at two paths, sharing no artifacts with
-#                       each other or with this repository's `target/`. `fastpath-footprint` above
-#                       is `ci` for a weaker version of the same reason.
 #
 # `script/verify` (Kani, ~47 minutes) and the re-falsification sweep are deliberately absent: they
 # are `verify.yml`, a different workflow with its own sharding, and this table's claim is about the

@@ -31,9 +31,17 @@
 # learned the same lesson one file over on the same day. The cost is that this cannot check work in
 # progress, which is correct rather than regrettable.
 #
-# WHY IT IS `ci` AND NOT `local`. Two COLD release builds that share no artifacts with each other or
-# with the repository's own `target/`. `fastpath-footprint` is `ci` for a weaker version of the same
-# reason (two release kernels, warm).
+# WHY IT IS `local`, AND WHY THIS PARAGRAPH USED TO SAY THE OPPOSITE. It was written as a `ci` row
+# on the argument that two COLD release builds share no artifacts and so are "slower than it looks".
+# That was an assumption, and its own first CI run falsified it: **11.1 seconds for both builds**
+# (2026-09-18, job 105544195692), against a measured **5 seconds** for one cold `-p kernel` release
+# build on the dev machine. It is cheaper than `script/icount`, which this table calls the
+# seven-second instrument and runs `local`.
+#
+# So it runs where it is useful: before a push, at the moment somebody writes the `build.rs` that
+# would break it, rather than one CI round later. The correction is recorded rather than quietly
+# applied, because a cost asserted and never measured is the shape of claim this tree distrusts,
+# and this one survived review, a merge and a green run before anybody checked it.
 #
 # BUGS
 #
