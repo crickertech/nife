@@ -212,6 +212,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 151 | DECIDED | [The goal of the repository split is independent release and third-party programs](151-repository-goal-is-independent-release.md) |
 | 152 | DECIDED | [The port-range capability: object and method semantics on the syscall surface](152-port-range-capability.md) |
 | 153 | DECIDED | [How a two-core x86_64 test earns its place, when two-core x86_64 is not yet trustworthy](153-two-core-x86-test-sequencing.md) |
+| 154 | DECIDED | [The acronym test is whether the phrase is spoken, applied recursively](154-the-acronym-test-is-whether-the-phrase-is-spoken.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

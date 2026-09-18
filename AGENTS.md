@@ -808,26 +808,12 @@ terms a reader already knows from outside**, which are the best names available 
 `paging`, `glob`): this rule is not a licence to rename everything.
 
 **An acronym is spelled out where its expansion is a phrase people actually say, and stays whole
-where nobody says it** (calef, 2026-09-18, `design/decisions/` §154). Ask the same question of any
-acronym left inside the expansion.
-
-The test is an asymmetry: **a reader who knows the term recognises a spoken expansion instantly, so
-spelling it out costs the expert nothing and saves the newcomer a bounce.** What decides it is
-whether anybody uses the expansion, not whether one exists. `dtb` expands to device tree blob, which
-is a phrase people say, so it goes. `pci` expands to peripheral component interconnect, which nobody
-says, and an expert meeting those words has to translate them *back* to `pci` to know what they are
-looking at, so it stays. `gpt` goes all the way to `globally_unique_identifier_partition_table`,
-because both halves are spoken. `pcie` becomes `pci_express`, which is the row that shows this is one
-rule rather than two: it falls out with no special case and it is what people write.
-
-**This deratifies `dma_validator`** (2026-08-01), and also `nvme`, `gpt`, `dtb`, `ipc` and `asid`,
-all ratified before any acronym test existed. `pci` and `elf` are ratified **under this test** rather
-than grandfathered by the old tenet.
-
-**It replaces two earlier rules rather than refining them**: the 2026-09-05 "unless its expansion
-teaches nothing" test, whose example was `pci` and whose answer for `pci` is unchanged, and milestone
-265's format-versus-protocol boundary, which its own block recorded as unapplicable without calef.
-§154 has the three-layer contradiction those left behind, the refused flat rule, and the cost.
+where nobody says it** (calef, 2026-09-18, §154, which supersedes two earlier tests). Ask it again
+of any acronym inside the expansion. What decides it is whether anybody *uses* the expansion, not
+whether one exists, because only a spoken one is free to the expert. So `device_tree_blob`
+and `globally_unique_identifier_partition_table` go, `pci` and `elf` stay (nobody says "peripheral
+component interconnect"), `pcie` becomes `pci_express` with no special case, and this **deratifies
+`dma_validator`, `nvme`, `gpt`, `dtb`, `ipc`, `asid`** while re-ratifying `pci` and `elf` under it.
 
 **Name things with nouns** (calef, 2026-08-01). A crate, a program or a module is a *thing*, so it
 takes the name of a thing: `capability`, `grant_plan`, `user_heap`, `video_terminal`, `line_editor`,

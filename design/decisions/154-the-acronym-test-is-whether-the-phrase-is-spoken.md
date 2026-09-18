@@ -38,7 +38,7 @@ interconnect": an expert meeting the second has to translate it **back** to `pci
 are looking at, so it costs them. The new test keeps the asymmetry and fixes the thing that measures
 it. Recognition is not about whether an expansion exists; it is about whether anybody uses it.
 
-**265's format-versus-protocol boundary was unapplicable in principle**, and its own block said so:
+**265's format-versus-protocol boundary was inapplicable in principle**, and its own block said so:
 *"nothing mechanical can tell a format from a protocol. The next name that tests it comes to
 calef."* It was drawn to separate `ntp` (expand) from `gpt` (stay), and six weeks later `nvme`
 arrived looking like hardware and ruling like a protocol. A rule whose author records that it

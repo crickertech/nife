@@ -24,7 +24,7 @@
 //! until then `dtb` belongs on `script/names --unratified` rather than off it.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "device tree blob" is,
-//! so it goes, where `pci` stays because "peripheral component interconnect" is not. 
+//! so it goes, where `pci` stays because "peripheral component interconnect" is not.
 //!
 //! The 2026-08-01 block called this one of the standard terms "already right and must not be
 //! touched". That was an exemption rather than a test, and §154 records the three-layer
