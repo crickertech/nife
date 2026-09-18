@@ -97,12 +97,17 @@ def classify(text):
 # milestone 301, and gave the reason as a property of this module: `classify` matches PROPOSED and
 # nothing else, so there is nowhere for a promoted proposal to say what became of it.
 #
-# **This gives it somewhere**, which is the narrowest reading of what that ruling was working
-# around, and it follows a precedent the tree wrote the day after: milestone 304's proposal was kept
-# and annotated `**Promoted:**` rather than deleted, on the argument that **the proposal is the
-# argument as it stood and the milestone is the account.** That proposal carries three things it got
-# wrong, kept on purpose; the numbered block carries none of them, and deleting the file would have
-# destroyed the only self-correction in the pair.
+# **This gives it somewhere, and calef ratified that on 2026-09-18**: *"yes, keep it"*, amending the
+# 2026-09-15 wording rather than overturning its reason. Retiring in place was refused because there
+# was no way to record the retirement; there is one now, so the refusal has no premise left. He put
+# the rule as **a proposal should be promoted before it is closed**, which makes promotion and
+# closure two states rather than one motion, and it is the two-state reading this module implements.
+#
+# It also follows a precedent the tree wrote the day after the original ruling: milestone 304's
+# proposal was kept and annotated `**Promoted:**` rather than deleted, on the argument that **the
+# proposal is the argument as it stood and the milestone is the account.** That proposal carries
+# three things it got wrong, kept on purpose; the numbered block carries none of them, and deleting
+# the file would have destroyed the only self-correction in the pair.
 #
 # So a promoted proposal keeps its dated PROPOSED line, which is what makes the pile measurable, and
 # adds a `**Promoted:**` line naming what it became. It stops counting as unpromoted, because it is
@@ -113,8 +118,8 @@ def classify(text):
 # Nothing can find a promotion nobody wrote down. `promoted_from` reads a numbered block's own
 # claim, and a spelling it does not know is a silent miss.
 #
-# **And a proposal closed without ever being promoted is invisible here** (calef, 2026-09-18: a
-# proposal should be promoted before it is closed). The ordering IS gated for a proposal a numbered
+# **And a proposal closed without ever being promoted is invisible here**, which is the half of
+# calef's rule no gate reaches. The ordering IS gated for a proposal a numbered
 # block names in a `**Proposed.**` follow-on bullet, because that disposition must resolve to a file
 # that exists, so deleting one fails the build; 70 of the 115 proposals on 2026-09-18 were covered
 # that way. The other 45 are standalone, written by a lane that named them nowhere else, and
