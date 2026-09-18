@@ -100,10 +100,19 @@
 //! assert!(ep.is_idle());
 //! ```
 //!
-//! Name: ratified 2026-08-01 (calef, the naming tenet in CLAUDE.md). Named in the group of standard
-//! terms that are already right and must not be touched, because a name a reader knows from outside
-//! this project costs nothing to learn and renaming it would destroy the recognition the tenet
-//! exists to buy.
+//! Name: provisional, and ruled: calef ruled **`inter_process_communication`** on 2026-09-18
+//! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
+//! `provisional` because the ratified name is not this crate's until the rename is performed, and
+//! until then `ipc` belongs on `script/names --unratified` rather than off it.
+//!
+//! §154's test is whether the expansion is a phrase people actually say. "inter-process communication" is,
+//! so it goes, where `pci` stays because "peripheral component interconnect" is not.
+//!
+//! The 2026-08-01 block called this one of the standard terms "already right and must not be
+//! touched". That was an exemption rather than a test, and §154 records the three-layer
+//! contradiction the exemptions left behind.
+//!
+//! **Not yet performed**: milestones 320 and 321 are live lanes in files a sweep would touch.
 
 #![cfg_attr(not(test), no_std)]
 
