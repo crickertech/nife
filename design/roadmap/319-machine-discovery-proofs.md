@@ -164,22 +164,35 @@ The cost is not the round trip's logic, it is `parse`'s front end: `split_ascii_
 the four converters is reached.
 
 **What replaced it is the half that carries the risk**, which is the converters rather than the
-tokenizer: `every_hex_field_the_loader_writes_is_one_the_kernel_reads_back` and its decimal twin.
-The disagreement this property exists to catch is `write_hex` emitting a sixteenth digit that
-`parse_hex` refuses, and that is now proved for every `u64` and every `u32` with no tokenizer in the
-formula. The whole-token round trip stays a hand-written test over six realistic geometries, which
-is what it was before this lane and is honest about what it covers.
+tokenizer: `every_hex_field_the_loader_writes_is_one_the_kernel_reads_back`. The disagreement this
+property exists to catch is `write_hex` emitting a sixteenth digit that `parse_hex` refuses, and that
+is now proved for every `u64` with no tokenizer in the formula. The whole-token round trip stays a
+hand-written test over six realistic geometries, which is what it was before this lane and is honest
+about what it covers.
 
 **The decimal twin was written, measured, and dropped: 911 seconds.** `write_decimal` divides a
 symbolic `u32` by ten, ten times, and symbolic division is the one operation bit-blasting does
 badly; `parse_decimal` multiplies it back. 15.2 minutes for one harness would have become the
 suite's atomic floor, above `glob` at 15.0, which is the number the whole sharding argument in
-`script/verify` is built on. The hex twin is shifts and masks and costs **150 seconds**, which is
-most of this crate's row and is why the row reads 180 rather than 30.
+`script/verify` is built on. The hex twin is shifts and masks and costs **135 seconds**, which is
+still most of this crate's row and is why the row reads 180 rather than 60.
 
 So the decimal converters are **not proved**, and the boundary that matters about them (`4294967295`
 accepted, `4294967296` refused) is covered by a hand-written test rather than for every `u32`. That
 is a worse guarantee and it is the one the measurement bought.
+
+**And the span property was rewritten twice for the same reason, which is the pattern worth taking
+away.** The natural spelling, `span >= width * 4 * height`, reaches `2^64` at the type extremes and
+so has to be done in `u128`: **20 minutes**, killed. Restating it as a conjunction did not help,
+because the second half (`span == stride * height`) asks the solver to equate two 64-by-64-bit
+multiplies: **9 minutes**, killed. What ships is the half that carries the defect,
+`stride >= width * 4`, at **0.04 seconds**.
+
+That is a 30,000-fold spread over three spellings of one claim, and the cheapest one is the one that
+found the bug. The lesson is not that wide arithmetic is slow, which everyone knows. It is that
+`span == stride * height` **restates the function's own definition**, so proving it was never going
+to catch anything, and it was costing all of the time. Ask what a clause could falsify before paying
+for it.
 
 ## What this cost and what it bought
 
@@ -190,9 +203,9 @@ is a worse guarantee and it is the one the measurement bought.
 | `script/verify` row | absent | `machine_discovery 180` |
 
 The 180 seconds is a dev-Mac measurement rather than a CI-log one, which is the wrong machine for
-that column, the same caveat `jh7110_entropy` and `kernel` carry. **150 of the 180 are one harness**,
+that column, the same caveat `jh7110_entropy` and `kernel` carry. **135 of the 190 solver seconds are one harness**,
 `every_hex_field_the_loader_writes_is_one_the_kernel_reads_back`; the other fourteen together are
-about thirty seconds.
+about fifty-five, and the two slowest of those are 17.6 and 14.5.
 
 `script/lint`'s "every crate with proof harnesses is in the verify table" gate (milestone 193's,
 written after `jh7110_entropy` and `multicast_dns_protocol` each carried harnesses that ran nowhere)
