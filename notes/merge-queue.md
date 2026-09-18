@@ -145,6 +145,42 @@ The rule those four shapes were groping toward: **order the two operations by wh
 queue, not by what they cost themselves.** A merge queue is that rule implemented by the platform,
 which is why the script no longer needs to hold it.
 
+## How they run, and the gap that is accepted rather than closed
+
+Moved here from `AGENTS.md` by `design/decisions/` §155's principle, which the naming pass
+established: the constitution keeps the duty, this document keeps the mechanism. What `AGENTS.md`
+still says is that a session confirms both watchers are alive and acts on what they found.
+
+**Both run unattended on patagonia via `launchd`** (`com.nife.merge-drain` and
+`com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
+five minutes rather than as a session-owned foreground loop. That replaced an instruction in
+`AGENTS.md` on the same day it failed for the reason it always fails: a maintainer session read the
+words, agreed with them, and did not act on them, which is prose behaving like rung four of the
+ladder regardless of which file it lives in. `launchd` is rung one for the part of the gap a session
+can close, because starting these is no longer a session's job.
+
+**The gap that remains is the one calef accepted rather than solved.** Patagonia asleep or shut down
+means neither watcher runs and nobody is watching during that window. A cron on cordoba, the
+always-on box, was raised as the alternative that would close it, and declined in favour of the
+simpler thing on the machine already in use. The cost is named rather than hidden.
+
+Anywhere that is not patagonia (a lane's own worktree, CI, another machine) they still run in the
+foreground: `scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`.
+
+**Why `notify()` speaks once per stall.** `merge-drain.sh` posts a PR comment on a conflict, a check
+failure or a stuck check, and then goes quiet. That is deliberate, so a stalled pull request does not
+re-announce itself every five minutes. The consequence a maintainer has to hold is the other half of
+it: **nothing re-announces the stall to a session that opens later**, so reading the queue is a
+standing duty rather than something the watcher does for you. `gh pr list --search
+"commenter:app/github-actions merge-drain"` is not precise enough to script; read
+`gh pr list --json number,mergeStateStatus,statusCheckRollup` for `DIRTY`/`CONFLICTING` or a
+`FAILURE` conclusion instead.
+
+**Deliberately not automated further.** calef declined an unattended scheduled agent on 2026-08-26:
+he would rather this shut down when the session driving it does than run standing on a timer with
+nobody watching. Resolving a conflict or a check failure needs the reading and judgment a person
+brings, which is this queue's own boundary: **a queue reports, it does not resolve.**
+
 ## `scripts/trunk-health.sh`
 
 ```console

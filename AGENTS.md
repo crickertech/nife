@@ -514,46 +514,27 @@ runs. The warning signs were noted hours earlier, not acted on, and four more la
 of them. **If a lane is blocked, commit and push its work before removing anything**: a snapshot on
 the remote cannot be lost by a cleanup.
 
-**Both watchers now run unattended on patagonia, via `launchd`** (`com.nife.merge-drain` and
-`com.nife.trunk-health`, `~/Library/LaunchAgents/`, calef, 2026-08-26), each firing `--once` every
-five minutes rather than as a session-owned foreground loop. This replaced the original instruction
-below the same day it failed for the reason it always fails: a maintainer session read the words,
-agreed with them, and did not act on them, which is prose behaving like rung four regardless of
-which file it lives in. `launchd` is rung one for the part of the gap a session can close: nothing
-has to remember to start these any more, because starting them is no longer a session's job.
+**Two watchers run unattended on patagonia via `launchd`** (calef, 2026-08-26). A session confirms
+both are alive (`launchctl list | grep nife`) and starts them the old way if not
+(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`), which is still how they run everywhere
+that is not patagonia.
 
-**The gap that remains is the one calef accepted rather than solved**: patagonia asleep or shut
-down means neither watcher runs, and nobody is watching during that window. Raised as an
-alternative (a cron on cordoba, the always-on box, which would close this gap too) and declined in
-favour of the simpler thing on the machine already in use, the cost named and accepted rather than
-hidden.
-
-**A session should still confirm both are alive** (`launchctl list | grep nife`) rather than assume
-the plists never got unloaded, and may start them in the foreground the old way
-(`scripts/merge-drain.sh &`, `scripts/trunk-health.sh &`) if they are not, which is still how they
-run everywhere that is not patagonia (a lane's own worktree checks, CI, another machine).
-
-**And a maintainer session checks for what those watchers already found**, not only whether they are
-running. `merge-drain.sh`'s `notify()` posts once per stall (a conflict, a check failure, a stuck
-check) as a PR comment and then goes quiet, by design, so a stalled PR does not re-announce itself
-every five minutes; that also means nothing re-announces it to a session that opens later; and
-resolving a conflict or a check failure needs the same reading and judgment a person brings; it
-is not something the watcher itself can do (`design/decisions/`'s own boundary: a queue reports,
-it does not resolve). Deliberately not automated further into an unattended scheduled agent
-(calef declined that, 2026-08-26: he would rather this shut down when the session driving it
-does than run standing on a timer with nobody watching): so this is a maintainer session's own
-standing check, same priority as keeping lanes full, not new machinery. Concretely: `gh pr list
---search "commenter:app/github-actions merge-drain" ` is not precise enough to script, so read the
-queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for `DIRTY`/`CONFLICTING` or
-a `FAILURE` conclusion, and treat every one found as a task to resolve, the same as a lane report
-naming work nobody is doing yet.
+**And a maintainer session checks what they already found**, not only that they are running.
+`merge-drain.sh` posts once per stall and then goes quiet by design, so a stalled pull request does
+not re-announce itself every five minutes, and nothing re-announces it to a session that opens
+later. Read the queue (`gh pr list --json number,mergeStateStatus,statusCheckRollup`) for
+`DIRTY`/`CONFLICTING` or a `FAILURE` conclusion and treat each one found as a task to resolve, the
+same as a lane report naming work nobody is doing yet. A standing check, same priority as keeping
+lanes full. Resolving a conflict needs judgment a watcher does not have: a queue reports, it does
+not resolve.
 
 They exist because on 2026-08-04 three duties turned out to belong to whoever happened to notice: two
 green pull requests sat unmerged for hours, `main` went red with nobody assigned, and merging one
 pull request staled eight others that nothing picked back up. The steward was meant to cover this and
 did not, for a reason worth keeping: **it reported and never acted.** A stalled queue announced in a
-message is only useful if somebody reads the message. See notes/merge-queue.md, whose BUGS section is
-honest that neither script reports its own death.
+message is only useful if somebody reads the message. notes/merge-queue.md has the `launchd` plists,
+the gap calef accepted rather than solved, why this is deliberately not automated further, and a
+BUGS section honest that neither script reports its own death.
 
 **Do not try to route this by requesting a review.** GitHub silently refuses a review request from
 the pull request's own author: `gh pr edit N --add-reviewer calef` **returns success and sets zero
@@ -602,28 +583,16 @@ Two kinds bit us on 2026-07-30:
   another; the merged tree had 95. Both were counted honestly. Take such a number at merge, from the
   merged tree.
 
-**Some shared state is global to the *machine*, not the repo, and `rustup toolchain link` is the one
-that has bitten.** The `nife-dev` toolchain the `std` farm needs is a symlink in
-`~/.rustup/toolchains`, so `xtask std-src` repoints a **user-account-wide** name at whichever
-worktree ran it last. Two lanes building the farm race for it, and the loser silently compiles
-against a farm inside someone else's worktree; deleting that worktree then breaks the toolchain for
-everything, surfacing far from the cause as "override toolchain 'nife-dev' is not installed"
-during an unrelated build. Fix: `rustup toolchain link nife-dev "$(pwd)/target/nife-farm"` from
-the main checkout. This is the same rule as the paragraph above, one level out: the integrator owns
-what is shared, and "shared" is wider than this repository.
-
-**And the instruction "do not run `xtask std-src`" is impossible for a lane that must gate**, which
-milestone 57's lane found on 2026-08-01 by reading the code rather than by failing. `script/test`
-calls `std_src()` transitively, and a fresh worktree always has a cold farm, so **any lane that runs
-the gate takes the account-wide link.** Two instructions this file gave together could not both be
-obeyed.
-
-Until `xtask test` grows a flag that skips the farm, the honest rule for the integrator is: **expect
-every lane to take `nife-dev`, and relink from the main checkout at merge**, in the same breath as
-pruning the worktree. Do not tell a lane not to do the thing gating requires; tell it what to say in
-its report so the relink is not forgotten. That lane also demonstrated the workaround worth knowing:
-symlink the worktree's `target/nife-farm` at the main checkout's farm after checking the stamps
-match (`cargo xtask std-stamp`), and `std_src()` early-returns instead of rebuilding.
+**Some shared state is global to the *machine*, not the repo**, and `rustup toolchain link` is the
+one that has bitten: `nife-dev` is one symlink for the whole user account, so it means whichever
+worktree ran `xtask std-src` last. **Every lane that gates takes it**, unavoidably, because
+`script/test` calls `std_src()` transitively and a fresh worktree always has a cold farm. So the
+integrator's duty is the only rule here: **expect every lane to take `nife-dev`, and relink from the
+main checkout at merge** (`rustup toolchain link nife-dev "$(pwd)/target/nife-farm"`), in the same
+breath as pruning the worktree, and tell a lane to say in its report that it took the link. Do not
+tell a lane not to do the thing gating requires. notes/std.md has the mechanism, the 2026-08-18
+cross-contamination that prompted it, and why `std_src` relinking loudly still does not make
+concurrent lanes safe.
 
 **An unmerged branch is either abandoned or it is
 holding knowledge that is not on `main`, and the second case is a bug in where the knowledge lives.**
