@@ -96,6 +96,21 @@ The one thing this argument cannot cover is the device answering IDENTIFY with a
 rather than fails. That is pre-existing behaviour, correct, and worth knowing at the bench: **a
 skip is not a pass**, and the transcript distinguishes them.
 
+## Both new assertions were broken on purpose
+
+A geometry-independent assertion that is also vacuous would pass everywhere, which is the failure
+this milestone would otherwise be most likely to introduce. So each was falsified by hand, with
+`cargo xtask test --arch x86_64 --test confined_el0`:
+
+| Defect injected | What fired |
+|---|---|
+| `past_end` computed as `size / BLOCK_SIZE - 1` | `the server read block 2047, which a namespace of 8388608 bytes does not have` |
+| both writes sent to block 37 instead of 37 and 38 | `assertion left == right failed: byte 0 of block 37 came back wrong` |
+
+The second is the one worth reading twice: it is a write landing somewhere other than where it
+said, which is exactly the property the retired zeros check was there for, and the new shape
+catches it at the *first* read-back rather than at the neighbour.
+
 ## What else assumed QEMU's geometry
 
 Two records, now corrected, and both had the assumption written down as a *reason*, which is how
@@ -134,6 +149,9 @@ this tree does not have.
 - **Recorded.** Milestone 261's block and `design/fatal-risks.md` risk 6 both describe the test as asserting the
   image's zeros and the 8 MiB size. Deliberately not edited from this lane (they are another
   milestone's account and a decisions-adjacent record); the maintainer reconciles.
+- **Proposed.** `design/roadmap/proposals/a-replayable-falsification-for-the-nvme-end-to-end-test.md`. This test carries no `Falsification:` record, so the two falsifications above live in this block rather than in
+  `kernel/falsifications/`, and nothing replays them. Both were edits to the test, which proves the
+  assertions are not vacuous and proves nothing about a real defect reaching them.
 - **Recorded.** The bench procedure in milestone 261's handoff tells the operator to confirm the namespace reads
   about 256 GB rather than 8 MiB. That is now a *diagnostic* rather than a pass condition, since
   the test no longer cares, and the procedure should say so: the number worth reading off the
