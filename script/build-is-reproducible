@@ -1,0 +1,136 @@
+#!/bin/sh
+#
+# script/build-is-reproducible: the same commit builds the same bytes, from any path.
+#
+#   script/build-is-reproducible            build HEAD twice at two paths, compare
+#   script/build-is-reproducible --keep     leave the two trees for inspection on a failure
+#
+# WHY THIS EXISTS. On 2026-09-18 this property was MEASURED for the first time and it held: three
+# builds of `kernel` for aarch64 release, two target directories and one at a different source path,
+# all sha256 `849a37e7eddca287...`, 548360 bytes, with zero absolute paths in the binary (no source
+# dir, no target dir, no `/root/.cargo`, no `/root/.rustup`). Nothing in the tree claimed it,
+# nothing gated it, and `git grep reproducib` found the word used only to mean "reproduces the bug".
+#
+# So it is true by construction rather than by intent, which is the fragile kind. One `build.rs`
+# embedding a timestamp, a git hash, a hostname or `CARGO_MANIFEST_DIR` would end it, and the
+# regression would surface far from the change: as two machines disagreeing about a binary, months
+# later, with the diff that caused it long merged. That is the shape this tree gates against.
+#
+# WHY IT MATTERS BEYOND TIDINESS (calef, 2026-09-18). Docker's real value is not isolation, it is
+# that a program runs the same on a stranger's machine as on yours, and a container image is a
+# workaround for Linux binaries that are not portable: glibc skew, dynamic linking, `/etc` layout,
+# ambient state a program picks up without declaring it. nife has none of those by construction, so
+# "runs on my box" is mostly already answered here. It is only answered, though, if the artifact is
+# the SAME artifact, and until this ran that was an assumption. See `crates/component_plan`'s `BUGS`
+# and notes/component-manifest.md for the other half, which is a manifest shipped beside the build.
+#
+# WHY BOTH BUILDS COME FROM `git archive HEAD` rather than one from the working tree. A dirty tree
+# legitimately differs from HEAD, so comparing the two would fail for a reason that is not a defect,
+# and a gate that cries wolf on uncommitted work is one people learn to skip. Building HEAD twice is
+# also the claim worth making: a citation goes stale against what is RECORDED, and `script/fatal-risks`
+# learned the same lesson one file over on the same day. The cost is that this cannot check work in
+# progress, which is correct rather than regrettable.
+#
+# WHY IT IS `ci` AND NOT `local`. Two COLD release builds that share no artifacts with each other or
+# with the repository's own `target/`. `fastpath-footprint` is `ci` for a weaker version of the same
+# reason (two release kernels, warm).
+#
+# BUGS
+#
+# - **The kernel for aarch64 only.** Not riscv64, not x86_64, not debug, and NOT the user-program
+#   archive or the `nifefs` image, which is the artifact that actually ships to somebody else and so
+#   is the one a "runs on my box" claim most wants covered. Widening this is a cost decision about CI
+#   minutes, not a difficulty: add to TARGETS below. Stated here rather than implied, because a green
+#   run of a narrow gate reads exactly like a green run of a wide one.
+# - **One machine, one toolchain install.** This varies the source path and the target directory,
+#   which is what caught nothing on the day it was written. It cannot vary the host, the kernel, the
+#   filesystem or the installed nightly, so it is evidence for cross-machine reproducibility and not
+#   proof of it. A second machine is the only thing that settles that.
+# - **It cannot say WHY two builds differ.** On a failure it names the artifact and leaves the
+#   diagnosis to a person, with `--keep` to hold the trees. Naming the cause would mean parsing two
+#   binaries, and the first suspects are cheap to check by hand: `git diff` the `build.rs` files.
+#
+# Name: provisional, minted by a lane on 2026-09-18. calef names `script/` entry points. It is a
+# sentence rather than a noun, which this tree's own convention argues against; `script/reproducible`
+# reads as a thing but says nothing about what is reproducible, and the other candidates
+# (`script/repro`, `script/rebuild-check`) are an abbreviation and a generic word respectively.
+set -eu
+
+# Every artifact this compares, as `package|target|path-under-the-target-dir`.
+TARGETS='kernel|aarch64-unknown-none-softfloat|aarch64-unknown-none-softfloat/release/kernel'
+
+keep=''
+[ "${1:-}" = '--keep' ] && keep=1
+
+# `sha256sum` is GNU and this tree's dev machine is macOS, which ships `shasum` instead. Resolved
+# once here rather than at three call sites, because the failure would be a gate that works in CI
+# and dies on the one machine a person runs it from by hand.
+if command -v sha256sum >/dev/null 2>&1; then
+    hash_of() { sha256sum "$1" | cut -d' ' -f1; }
+elif command -v shasum >/dev/null 2>&1; then
+    hash_of() { shasum -a 256 "$1" | cut -d' ' -f1; }
+else
+    echo "build-is-reproducible: no sha256sum and no shasum on PATH" >&2
+    exit 1
+fi
+
+root=$(git rev-parse --show-toplevel)
+head=$(git -C "$root" rev-parse HEAD)
+work=$(mktemp -d)
+
+cleanup() {
+    [ -n "$keep" ] && { echo "build-is-reproducible: trees kept at $work" >&2; return; }
+    rm -rf "$work"
+}
+trap cleanup EXIT
+
+# Two extractions of the same commit at DIFFERENT paths, with different name lengths, because a path
+# baked into a binary usually shows up as a length difference before it shows up as a string.
+for leg in a bbbbbbbb; do
+    mkdir -p "$work/$leg/src"
+    git -C "$root" archive "$head" | tar -x -C "$work/$leg/src"
+done
+
+echo "build-is-reproducible: building $head twice, at two paths"
+for leg in a bbbbbbbb; do
+    while IFS='|' read -r pkg triple _; do
+        [ -n "$pkg" ] || continue
+        ( cd "$work/$leg/src" \
+          && CARGO_TARGET_DIR="$work/$leg/target" \
+             cargo build -p "$pkg" --target "$triple" --release >"$work/$leg.log" 2>&1 ) \
+          || { echo "build-is-reproducible: the $leg build FAILED." >&2
+               # The ERROR, not the tail. `cargo` prints warnings after errors, so `tail` showed a
+               # screen of unused-dependency notes and hid the one line that mattered; that cost a
+               # round trip on the day this was written.
+               grep -B2 -A8 '^error' "$work/$leg.log" >&2 || tail -20 "$work/$leg.log" >&2
+               exit 1; }
+    done <<TARGET_LIST
+$TARGETS
+TARGET_LIST
+done
+
+differed=0
+while IFS='|' read -r pkg _ artifact; do
+    [ -n "$pkg" ] || continue
+    one="$work/a/target/$artifact"
+    two="$work/bbbbbbbb/target/$artifact"
+    if cmp -s "$one" "$two"; then
+        echo "  $pkg: identical  $(hash_of "$one" | cut -c1-16)...  $(wc -c <"$one") bytes"
+    else
+        differed=1
+        echo "build-is-reproducible: $pkg DIFFERS between two builds of $head." >&2
+        echo "  $(hash_of "$one")  built at $work/a/src" >&2
+        echo "  $(hash_of "$two")  built at $work/bbbbbbbb/src" >&2
+        echo >&2
+        echo "The same commit has to produce the same bytes, or a binary cannot be checked against" >&2
+        echo "the source it claims to come from and two machines cannot agree on what they are" >&2
+        echo "running. The usual causes, cheapest to check first: a build.rs embedding a timestamp," >&2
+        echo "a git hash, a hostname or an absolute path; a HashMap iteration order reaching" >&2
+        echo "generated code; a dependency doing any of the above. Re-run with --keep to hold both" >&2
+        echo "trees, then compare the two target directories." >&2
+    fi
+done <<TARGET_LIST
+$TARGETS
+TARGET_LIST
+
+[ "$differed" = 0 ]
