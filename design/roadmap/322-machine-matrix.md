@@ -61,13 +61,25 @@ refuses to run on. Confirming it moved three things, all recorded below.
 - `virt,gic-version=3`, and then `4`. The interrupt controller, which is the case above. This row is
   red until milestone 227 lands a GICv3 driver, and **that is the point**: it turns 227 from a
   judgement into a failing gate. Confirmed: the pin accepts `2, 3, 4, host and max`.
-- `virt,iommu=smmuv3`. **Found while confirming the list, and not in its first draft.** `virt` takes
-  an IOMMU option, and an SMMUv3 in the path is the aarch64 half of what
-  `script/qemu-check` already gates the riscv64 side of (`riscv-iommu-pci`, milestone 16b,
-  DECISIONS §20). Milestone 35's DMA-confinement claim and milestone 16's IOMMU work both reason
-  about this device; nothing currently boots with one in front of the kernel.
 - `virt,its=off`. The pin offers `auto, gicv2m, its, off`, so interrupt translation is a machine
   option too, and every result so far is from the default.
+
+**`virt,iommu=smmuv3` is deliberately NOT a row here, and the reason is a correction.** A draft of
+this block proposed it, on the finding that `-machine virt,help` offers an IOMMU option and the
+claim that nothing in this tree boots with one. **That claim was false and one grep would have shown
+it.** `scripts/qemu-runner-aarch64.sh` sets `iommu=smmuv3` on both the TCG and HVF paths
+unconditionally, and has since milestone 81; `scripts/qemu-runner-riscv64.sh` carries
+`-device riscv-iommu-pci` with `iommu_platform=on` on its PCI disk, net and GPU (milestone 16b's
+twin); and `scripts/qemu-runner-x86_64.sh` carries `intel-iommu` with a recorded analysis of its
+`intremap` capability bits. **All three architectures already boot behind an IOMMU**, which is why
+`script/qemu-check` gates on `riscv-iommu-pci` existing in the pin at all.
+
+**What the confirmation pass actually found on that axis is not a machine row at all**, which is why
+it is not here: the two IOMMU drivers rhyme and their proofs do not. `arch/aarch64/iommu.rs` carries
+two Kani harnesses over its entry-building arithmetic and the RISC-V side carries none, so on
+riscv64 the boot-time confinement test is the whole of the assurance, on one board. That is
+`design/roadmap/proposals/the-riscv-iommu-driver-has-no-proof.md`, and it is a parity gap under §19
+rather than a coverage gap this matrix could close.
 - `sbsa-ref`. Describes itself by **ACPI with no device tree**, which is the discovery seam x86_64
   already exercises and aarch64 never has.
 - `raspi3b`, and `raspi4b` which is also on the pin. A real SoC memory map with a different UART,
