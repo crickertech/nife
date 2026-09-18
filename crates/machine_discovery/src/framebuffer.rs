@@ -382,47 +382,70 @@ mod verification {
             assert!(screen.width > 0 && screen.height > 0);
             // Every row of visible pixels fits inside the span, with the four bytes per pixel the
             // two `PixelOrder` encodings both use.
-            let pixels = screen.width as u64 * 4 * screen.height as u64;
-            assert!(span as u64 >= pixels);
+            //
+            // **In `u128`, and the first spelling of this harness got that wrong**: `width * 4 *
+            // height` reaches 2^64 at the type's own extremes, so the assertion overflowed and the
+            // harness failed against correct code. The bound that makes the product meaningful
+            // (`stride >= width * 4`, with `stride` a `u32`) is a consequence of `span` returning
+            // `Some`, not a premise the arithmetic has in hand.
+            let pixels = screen.width as u128 * 4 * screen.height as u128;
+            assert!(span as u128 >= pixels);
             kani::cover!(span > 0, "a real geometry is accepted");
         }
     }
 
-    /// **Whatever the loader can write, the kernel can read back unchanged.**
+    /// **Every hex field the loader can write, the kernel reads back unchanged.**
     ///
-    /// The round trip through four hand-rolled converters (`write_hex`, `write_decimal`,
-    /// `parse_hex`, `parse_decimal`, none of which uses `core::fmt`, for the reason `encode`'s doc
-    /// gives). The hand-written test walks a table of six descriptions; this walks every `u64` base
-    /// and every `u32` geometry the encoder will accept.
+    /// `write_hex` and `parse_hex` are forty lines apart and neither uses `core::fmt` (the encoder
+    /// doc says why: the only writer is a `no_std` UEFI application with no allocator). The writer
+    /// emits shortest-form digits behind a `0x` prefix; the reader refuses anything longer than
+    /// sixteen digits and anything without the prefix. Nothing but this says the two bounds are the
+    /// same bound.
     ///
-    /// Could plausibly have been false in either direction and the failure is asymmetric, which is
-    /// why it is worth proving rather than testing: a writer bug produces a token the reader
-    /// rejects, and `parse` is documented to read a malformed token **as no screen at all**, so the
-    /// kernel boots to a black screen and says nothing. `parse_hex` refusing a seventeen-digit
-    /// value and `write_hex` emitting shortest-form are the two halves that have to agree, and they
-    /// are forty lines apart.
-    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.a_token_the_loader_writes_is_a_token_the_kernel_reads_back.patch`
+    /// Could plausibly have been false, and the failure is silent in the direction that matters: a
+    /// reader one digit short of the writer rejects the token, and [`Framebuffer::parse`] is
+    /// documented to read a malformed token **as no screen at all**, so the kernel comes up with a
+    /// black screen and nothing to say why. A base above 2^60 is not hypothetical on a machine whose
+    /// firmware relocated its own windows, which is what xenon does.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.every_hex_field_the_loader_writes_is_one_the_kernel_reads_back.patch`
     #[kani::proof]
     #[kani::unwind(18)]
-    fn a_token_the_loader_writes_is_a_token_the_kernel_reads_back() {
-        let screen = Framebuffer {
-            base: kani::any(),
-            width: kani::any(),
-            height: kani::any(),
-            stride: kani::any(),
-            order: if kani::any() {
-                PixelOrder::Bgrx
-            } else {
-                PixelOrder::Rgbx
-            },
-        };
-        // `parse` validates the geometry it read, so a description the encoder can write but the
-        // span rule refuses is out of scope: the loader does not emit one.
-        kani::assume(screen.span().is_some());
-        let mut out = [0u8; Framebuffer::MAX_LEN];
-        let n = screen.encode(&mut out);
-        let token = core::str::from_utf8(&out[..n]).expect("the encoder writes ASCII");
-        assert_eq!(Framebuffer::parse(token), Some(screen));
+    fn every_hex_field_the_loader_writes_is_one_the_kernel_reads_back() {
+        let value: u64 = kani::any();
+        let mut out = [0u8; 18];
+        let n = write_hex(value, &mut out);
+        assert!(n <= 18);
+        let text = core::str::from_utf8(&out[..n]).expect("the writer emits ASCII");
+        assert_eq!(parse_hex(text), Some(value));
+        kani::cover!(
+            n == 18,
+            "the widest base really does use all sixteen digits"
+        );
+    }
+
+    /// **Every decimal field the loader can write, the kernel reads back unchanged.**
+    ///
+    /// The same claim for the three geometry fields, and a separate harness rather than a shared
+    /// one, because they are a separate pair of hand-rolled converters over a separate radix:
+    /// `write_decimal` divides by ten into a `[u8; 10]` and `parse_decimal` multiplies by ten with
+    /// `checked_mul`. A proof shared between the two would prove neither, which is the argument the
+    /// two ACPI entry walks make one module over.
+    ///
+    /// Could plausibly have been false: ten digits is exactly `u32::MAX`'s width, so the buffer has
+    /// no slack at all, and `parse_decimal`'s overflow refusal has to sit exactly at `4294967295`
+    /// accepted and `4294967296` refused. That boundary is one `checked_mul` away in either
+    /// direction.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back.patch`
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back() {
+        let value: u32 = kani::any();
+        let mut out = [0u8; 10];
+        let n = write_decimal(value, &mut out);
+        assert!((1..=10).contains(&n));
+        let text = core::str::from_utf8(&out[..n]).expect("the writer emits ASCII");
+        assert_eq!(parse_decimal(text), Some(value));
+        kani::cover!(n == 10, "u32::MAX uses the whole buffer");
     }
 }
 
