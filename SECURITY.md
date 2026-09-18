@@ -168,7 +168,7 @@ disagreeing.)
   construction. Its scope note says what it did not read, and that list is where an outside reviewer
   has the most room.
 - **notes/untrusted-input-audit.md**: the parsers and drivers that read bytes a hostile counterparty
-  supplies in a single message or completion, which is the surface that arrived with `crates/nvme`
+  supplies in a single message or completion, which is the surface that arrived with `crates/non_volatile_memory_express`
   and `crates/multicast_dns_protocol` after the pass above was written. The second was retired on
   2026-09-15 (milestone 298, notes/mdns.md), so that audit's DNS clearance describes nothing on
   `main` today; its NVMe finding still stands. One finding, recorded and accepted: the

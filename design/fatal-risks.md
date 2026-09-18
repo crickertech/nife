@@ -430,7 +430,7 @@ calef ran that wipe on 2026-09-17, so the disk is this project's to write to.
 **The driver exists too, as of 2026-09-17** (milestone 261, §86's option 2a). An EL0 process holding
 two endpoints, one page of BAR0 and a run of DMA pages brings a controller from reset through
 identify to an I/O queue pair and serves the block verbs, with the IOMMU the whole of what stops it
-reaching memory it was not given, and `kernel/src/user/nvme_tests.rs` asserts that confinement on
+reaching memory it was not given, and `kernel/src/user/non_volatile_memory_express_tests.rs` asserts that confinement on
 every leg the runner attaches a controller to. Milestone 318 then rewrote its assertions against the
 geometry each boot is handed, which is what lets the same case run on xenon's Micron rather than
 only on `mknvmedisk`'s 8 MiB image.

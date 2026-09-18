@@ -1,5 +1,5 @@
 //! **A confined EL0 process drives the machine's NVMe disk** (milestone 261; DECISIONS §86's
-//! option 2a, notes/nvme.md).
+//! option 2a, notes/non-volatile-memory-express.md).
 //!
 //! This is the test the kernel-resident driver's own end-to-end test became. The sequence is the
 //! same one milestone 53 proved (find the controller over the §18 PCIe transport, confine it
@@ -19,15 +19,16 @@ use super::*;
 /// leg the runner did not attach one on). Callers `skip!()` at their own call site rather than
 /// have this helper do it, because `skip!()` returns from its immediate caller and a helper is
 /// not the test.
-fn start() -> Option<nvme_service::Wiring> {
-    let image = program("nvme_server").expect("no nvme_server program in the initrd archive");
-    let w = nvme_service::ensure(image)?;
+fn start() -> Option<non_volatile_memory_express_service::Wiring> {
+    let image = program("non_volatile_memory_express")
+        .expect("no non_volatile_memory_express program in the initrd archive");
+    let w = non_volatile_memory_express_service::ensure(image)?;
     if let Some(report) = w.wait_for_ready() {
         assert_eq!(
             report[0],
             filesystem_protocol::fixture::READY,
             "the NVMe server did not come up (it reported {:#x}, first-read status {:#x}; see \
-             components/src/nvme_server.rs for the step words)",
+             components/src/non_volatile_memory_express.rs for the step words)",
             report[0],
             report[2],
         );
@@ -43,10 +44,10 @@ fn start() -> Option<nvme_service::Wiring> {
         );
     }
     // A namespace of no blocks would make every assertion below vacuously true, and
-    // `kernel/src/nvme.rs::bring_up` already refuses one; say so here rather than let a silent
+    // `kernel/src/non_volatile_memory_express.rs::bring_up` already refuses one; say so here rather than let a silent
     // zero pass for a pass.
     assert!(
-        w.size_bytes >= 2 * crate::nvme::BLOCK_SIZE as u64,
+        w.size_bytes >= 2 * crate::non_volatile_memory_express::BLOCK_SIZE as u64,
         "the namespace is {} bytes, too small for this test's two blocks",
         w.size_bytes,
     );
@@ -136,13 +137,13 @@ fn a_confined_el0_process_serves_the_block_interface_end_to_end() {
         }
     }
 
-    // **A block outside the namespace is refused rather than asked for.** `nvme::Handoff`'s range
-    // check is what does it (`crates/nvme`, Kani-proved), and the point is that the refusal
+    // **A block outside the namespace is refused rather than asked for.** `non_volatile_memory_express::Handoff`'s range
+    // check is what does it (`crates/non_volatile_memory_express`, Kani-proved), and the point is that the refusal
     // happens in the driver's own arithmetic rather than arriving as a controller status nobody
     // can attribute. The first block past the end is `size / BLOCK_SIZE` for any size: when the
     // namespace divides evenly that block starts at the end, and when it does not that block's
     // transfer runs off it, and `holds_block` refuses both.
-    let past_end = disk.size_bytes / crate::nvme::BLOCK_SIZE as u64;
+    let past_end = disk.size_bytes / crate::non_volatile_memory_express::BLOCK_SIZE as u64;
     assert!(
         disk.blk(filesystem_protocol::blk::READ, past_end) < 0,
         "the server read block {past_end}, which a namespace of {} bytes does not have",

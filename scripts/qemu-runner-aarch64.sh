@@ -453,7 +453,7 @@ fi
 # iommu_platform flag, because that knob is virtio's opt-in; a real PCI device model's DMA always
 # goes through the PCI address space, so with iommu=smmuv3 on the machine the controller sits
 # behind the SMMU with no flag to forget, and the kernel must confine its requester id before the
-# controller can fetch a single command (kernel/src/nvme.rs). serial= is mandatory (QEMU refuses
+# controller can fetch a single command (kernel/src/non_volatile_memory_express.rs). serial= is mandatory (QEMU refuses
 # the device without one); the value is arbitrary identity, not configuration.
 #
 # A set NIFE_NVME naming a missing file is an error, the NIFE_DISK lesson above: a silently

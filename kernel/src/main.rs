@@ -49,13 +49,13 @@ mod panic;
 // decode logic is crates/pci, and each arch supplies its window/irq constants. See
 // kernel/src/pci.rs.
 mod pci;
-// The NVMe block driver (milestone 53's storage half): the volatile half of crates/nvme, brought
-// up over the PCIe transport above and confined behind the machine's IOMMU. See kernel/src/nvme.rs.
+// The NVMe block driver (milestone 53's storage half): the volatile half of crates/non_volatile_memory_express, brought
+// up over the PCIe transport above and confined behind the machine's IOMMU. See kernel/src/non_volatile_memory_express.rs.
 // Only the test boot drives it today (nothing production-wired rides NVMe until the block-server
-// question in notes/nvme.md's BUGS is decided), so the non-test build allows it dead rather than
+// question in notes/non-volatile-memory-express.md's BUGS is decided), so the non-test build allows it dead rather than
 // cfg-gating a module whose next caller is already known.
 #[cfg_attr(not(test), allow(dead_code))]
-mod nvme;
+mod non_volatile_memory_express;
 mod revoke;
 mod sched;
 // The boot self-tests (milestone 268): the kernel proving it works on this machine, between the
@@ -564,7 +564,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         // SMMUv3 and the RISC-V IOMMU come up in on the other two boots: after the fine page
         // tables (a DRHD's register file is device-typed MMIO, reachable only through the map
         // `mmu::init` just installed) and before anything that could attach a device. The
-        // kernel-resident NVMe driver (`kernel/src/nvme.rs`, decisions §86) is the first PCI
+        // kernel-resident NVMe driver (`kernel/src/non_volatile_memory_express.rs`, decisions §86) is the first PCI
         // device this architecture confines through it, on the same terms as the aarch64/riscv64
         // legs' SMMUv3/riscv-iommu confinement; a boot with no NVMe controller attached (no
         // NIFE_NVME on this leg) still proves the driver stands up against real hardware: root

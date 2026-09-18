@@ -15,7 +15,7 @@ virtio and none for NVMe, so `disk_surveyor` cannot list the machine's NVMe disk
 device in this tree whose driver is now a confined process is the one the roster cannot see.
 
 The work is a transport kind, the roster entry that carries it, and the wiring that fills it in from
-`kernel/src/user/nvme_service.rs` the way the virtio disks are filled in from theirs.
+`kernel/src/user/non_volatile_memory_express_service.rs` the way the virtio disks are filled in from theirs.
 
 ## Why now, and why not before
 

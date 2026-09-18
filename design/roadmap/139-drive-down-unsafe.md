@@ -776,7 +776,7 @@ Categorised by what the first token inside each block is (the same stripping-and
 | shape | blocks | verdict |
 |---|---|---|
 | `core::ptr::write_bytes` | 41 | **the §94 shape; 37 collapsed this round** (see below). The 4 left have different provenance: `kmem.rs`'s pool recycle, `memory_region.rs`'s two retype paths, and one partial-page write in `user.rs` |
-| `core::ptr::read_volatile` | 34 | mixed. MMIO (`ns16550.rs`, `plic.rs`, `pci.rs`, `nvme.rs`, `virtio.rs`) is not a target; the rest read a shared frame the kernel just handed a process, in test fixtures that each read a different field |
+| `core::ptr::read_volatile` | 34 | mixed. MMIO (`ns16550.rs`, `plic.rs`, `pci.rs`, `non_volatile_memory_express.rs`, `virtio.rs`) is not a target; the rest read a shared frame the kernel just handed a process, in test fixtures that each read a different field |
 | `core::ptr::write_volatile` | 23 | same split as the row above, same verdict |
 | `&`-first (a reference built from a raw pointer) | 25 | mostly `sched.rs` (10) and the graphical test fixtures; each names a different object at a different lifetime |
 | `(`-first (a call through a raw pointer or a cast) | 16 | 13 of them `sched.rs`'s thread-control-block pointer arithmetic; see the design fork below |
@@ -859,7 +859,7 @@ cinched than was gained.
   text. The growth is milestone 161's `x86_64` port, which is a third architecture's worth of
   assembly and system registers: exactly the population the measurement excludes on purpose.
 - **MMIO and device-register access** (`ns16550.rs`, `plic.rs`, `gic.rs`, `pl011.rs`, `pci.rs`,
-  `nvme.rs`, `virtio.rs`). The same finding round 3 and round 5 reached for the userspace drivers,
+  `non_volatile_memory_express.rs`, `virtio.rs`). The same finding round 3 and round 5 reached for the userspace drivers,
   and for the same reasons: each block names a different device at a different offset table, and the
   one file that could carry a compile-time layout already does (`pl011.rs` uses
   `tock_registers::register_structs!`; `ns16550.rs`'s own module doc explains why it cannot, the

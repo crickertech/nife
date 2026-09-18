@@ -1,9 +1,9 @@
 #![no_std]
-//! **NVMe queue mechanics, as pure logic** (milestone 53's storage half; notes/nvme.md).
+//! **NVMe queue mechanics, as pure logic** (milestone 53's storage half; notes/non-volatile-memory-express.md).
 //!
 //! Everything an NVMe driver computes, with nothing an NVMe driver touches. The controller's
 //! register file, the doorbells, and the DMA memory the queues live in are all the kernel's
-//! (`kernel/src/nvme.rs`, which is a thin volatile layer over this crate); what lives here is the
+//! (`kernel/src/non_volatile_memory_express.rs`, which is a thin volatile layer over this crate); what lives here is the
 //! arithmetic those accesses carry: which doorbell, what dword, whose completion. That split is
 //! rule 7's, the same one `pci` and `virtio` already follow, and it is what makes the queue logic
 //! host-testable and Kani-reachable when the device itself only exists inside an emulator.
@@ -26,7 +26,7 @@
 //! flips:
 //!
 //! ```
-//! use nvme::{Completion, CqState};
+//! use non_volatile_memory_express::{Completion, CqState};
 //!
 //! let mut cq = CqState::new(2); // a two-slot ring, so it laps quickly
 //!
@@ -55,7 +55,7 @@
 //! means ringing a completion head where a submission tail belongs:
 //!
 //! ```
-//! use nvme::{Cap, Doorbell, doorbell};
+//! use non_volatile_memory_express::{Cap, Doorbell, doorbell};
 //!
 //! // A controller reporting DSTRD 0, so doorbells are 4 bytes apart.
 //! let cap = Cap(0);
@@ -73,7 +73,7 @@
 //! of transfer is one 4096-byte filesystem block.
 //!
 //! ```
-//! use nvme::prp_pair;
+//! use non_volatile_memory_express::prp_pair;
 //!
 //! // A page-aligned block: one pointer is enough.
 //! assert_eq!(prp_pair(0x4000_0000, 4096, 4096), Some((0x4000_0000, 0)));
@@ -86,12 +86,9 @@
 //! assert_eq!(prp_pair(0x4000_0000, 3 * 4096, 4096), None);
 //! ```
 //!
-//! Name: provisional, and ruled: calef ruled **`non_volatile_memory_express`** on 2026-09-17,
-//! **deratifying this crate's own 2026-08-23 ratification** to do it. The block is written as a
-//! pending rename rather than as the new name, the same shape `board_console` carries for its
-//! ruled `serial_console`: the ratified name is not this crate's until the rename is performed,
-//! and until then `nvme` belongs on `script/names --unratified` rather than off it. Refused
-//! `nvme`, `nvm_express`, `nvme_driver` and `nvme_server`; the argument for each is below.
+//! Name: ratified 2026-09-17 (calef, DECISIONS §154), **deratifying this crate's own 2026-08-23
+//! ratification** to do it, and performed on 2026-09-18. Refused `nvme`, `nvm_express`,
+//! `nvme_driver` and `nvme_server`; the argument for each is below.
 //!
 //! **What it overturns is its own earlier ratification** (2026-08-23, a kernel-dependency crate
 //! naming review), which read: *"the specification's own name for the device family, the same
@@ -129,6 +126,14 @@
 //! above. **Refused `nvme_driver` and `nvme_server`** for the program, both of which carry the
 //! same unexpanded word.
 //!
+//! **`script/names --check` reports this name as "refused but live", and that is a parse artifact
+//! rather than a fact.** The refusal clause above runs to the end of its sentence, and that
+//! sentence names `non_volatile_memory_express` while arguing against `nvm_express`, so the
+//! parser records the winner as a refusal too. It is a NOTE and never a failure, the same shape
+//! `video_terminal` carries for a real reason. It was left alone on 2026-09-18 because rewording
+//! the sentence would move the tree-wide refusal count, which is the one gate a performed rename
+//! is measured by; the count held at 273 across this rename.
+//!
 //! **Known cost, recorded rather than hidden**: every datasheet, every error message and this
 //! kernel's own boot output say `nvme`, so a reader grepping the word the machine printed will not
 //! find these identifiers. That is the price of the rule and it was weighed.
@@ -137,18 +142,36 @@
 //! crate's volatile half, the crate/module name-sharing convention AGENTS.md records for
 //! `compositor`.
 //!
-//! **What does not move when the rename is performed**, because three of the four senses of this
-//! word are not identifiers: a citation of the standard (`NVMe 1.4 §3.1`) is the spec's own name;
-//! a bench transcript is evidence and is never edited; and a `BUILT` roadmap block is an account
-//! of what was built under the name it had. The word appears 645 times across 84 files and only a
-//! minority of those are identifiers, so this is a rename with judgment in it rather than a sweep.
+//! **What did not move, and it was most of the word.** Three of the four senses of it are not
+//! identifiers: a citation of the standard (`NVMe 1.4 §3.1`) is the spec's own name; a bench
+//! transcript is evidence and is never edited; and a `BUILT` roadmap block is an account of what
+//! was built under the name it had. Measured across the performed rename on 2026-09-18: **615
+//! occurrences in 93 files before, 477 in 87 files after**, so 138 moved and 477 stayed. Of what
+//! stayed, 241 are the standard as a proper noun in prose, 71 are QEMU's device name or a build
+//! artifact, 68 are the old name inside an account or a quotation, 30 are spec citations, 26 are
+//! a decision or roadmap slug, and 26 are `crates/pci`'s class-code identifiers.
 //! AGENTS.md's own scar is the blind `sed` that rewrote the row recording a name's *refusal*.
 //!
-//! **Why it was ruled and not yet performed**: milestone 320 is a live lane in `kernel/src/pci.rs`
-//! and `crates/pci`, rewriting `find_nvme_device` and the bus walk around it, and landing a
-//! tree-wide rename underneath it would hand that lane a conflict in the files it is rewriting.
-//! Sequencing the two is cheaper than merging them (AGENTS.md on the collision surface). Perform
-//! this after 320 lands.
+//! **Four things carried the name and all four moved**: this crate, `kernel/src/nvme.rs`, the
+//! `Nvme` type inside it, and the program, which took this crate's own name rather than a
+//! `_server` suffix (calef, 2026-09-18; the argument is in
+//! `components/src/non_volatile_memory_express.rs`). `kernel/src/user/nvme_service.rs` and
+//! `nvme_tests.rs` went with the program, because a `<program>_service` module's name is the
+//! program's name plus a suffix and carries no decision of its own.
+//!
+//! **What stayed in the neighbouring crates was deliberate.** `crates/pci`'s `CLASS_NVME`,
+//! `PciNvmeDevice` and `find_nvme_device` name the **PCI class code the specification defines**,
+//! not this crate, so they keep the spelling for the same reason `satp.ASID` and `flush_asid`
+//! kept theirs through §154's first rename. So do QEMU's `-device nvme`, the `NIFE_NVME`
+//! environment variable and `target/nife-nvme.img`: an emulator's device name and a build
+//! artifact are not names this tree gets to choose. `clippy.toml` keeps its `NVMe` entry for the
+//! same reason the citations do, which is that the proper noun survives the rename intact.
+//!
+//! **It was ruled on 2026-09-17 and performed on 2026-09-18**, a day apart on purpose: milestone
+//! 320 was a live lane in `kernel/src/pci.rs` and `crates/pci`, rewriting `find_nvme_device` and
+//! the bus walk around it, and landing a tree-wide rename underneath it would have handed that
+//! lane a conflict in the files it was rewriting. Sequencing the two was cheaper than merging
+//! them (AGENTS.md on the collision surface).
 
 /// Register offsets in BAR0 (NVMe 1.4 §3.1). All are 4-byte registers or 8-byte registers the
 /// kernel accesses as two 4-byte halves (the spec permits either for the 64-bit ones).

@@ -176,7 +176,7 @@ IOMMU="-device intel-iommu${NIFE_INTREMAP:+,intremap=$NIFE_INTREMAP}"
 # PCI device model's DMA always goes through the PCI address space, so with `-device intel-iommu`
 # on the machine the controller sits behind VT-d with no flag to forget, and the kernel must
 # confine its requester id before the controller can fetch a single command
-# (kernel/src/nvme.rs). serial= is mandatory (QEMU refuses the device without one). A set
+# (kernel/src/non_volatile_memory_express.rs). serial= is mandatory (QEMU refuses the device without one). A set
 # NIFE_NVME naming a missing file is an error, the same NIFE_INITRD lesson above: a silently
 # absent controller would read as a machine fact when it is a build-order mistake.
 # The PCIe transport's disk (milestone 215) and the RedoxFS disk (milestone 303). `q35` has no

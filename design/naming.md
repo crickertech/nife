@@ -1441,6 +1441,55 @@ Two shapes recur and are worth expecting:
 single name, every passage arguing the convention is an account, and there are as many of them as
 there were names.
 
+### The census is the checklist, and it is taken twice
+
+Contributed by the fourth performed rename (`nvme` to `non_volatile_memory_express`, 2026-09-18),
+which is the first one large enough that no person could hold the file list in their head: 615
+occurrences across 93 files, against the `asid` rename's 446 and the two before it in the dozens.
+
+**Take the full census before and after, and classify every line of the second one.** Not the
+count, the lines. The after-census is the only artifact that asks "why is this one still here?"
+of each survivor individually, and on this rename it caught **three** sites every other check had
+passed over: a module header still calling itself "the volatile half of the `nvme` crate" and
+still saying `Provisional` after the ratification, a `println!` prefix naming the driver in the
+one place a user actually reads it, and `kernel/src/nvme.rs` written into two QEMU runner scripts
+as a comment. `script/lint`, `script/names` and a green `script/test` on four legs had all passed
+with those in the tree, because none of them is a link, a symbol, or a name a gate parses.
+
+**The classification is also the report and the block's own evidence.** Sorting the survivors into
+kinds (the standard as a proper noun, the emulator's device name, an account, a spec citation, a
+slug, a neighbouring crate's identifiers) takes one script and turns "most occurrences are not the
+crate" from a thing a brief asserts into a number the next lane can check. Here it was 241 / 71 /
+68 / 30 / 26 / 26, and that distribution is now in the crate's own provenance block.
+
+### A neighbouring crate's identifiers are the hardware's, not yours
+
+`crates/pci` holds `CLASS_NVME`, `PciNvmeDevice` and `find_nvme_device`, and none of them moved.
+They name the **PCI class code the specification defines** (`01:08:02`), the same way `satp.ASID`
+and `flush_asid` named a hardware field through §154's first rename. The tell is ownership rather
+than spelling: if the thing keeps its name when this tree's crate is deleted, the name is not
+this tree's to change.
+
+The same test disposes of the rest of that family in one pass, and it is worth listing because a
+sweep's pattern matches every one of them: QEMU's `-device nvme`, the `NIFE_NVME` environment
+variable, `target/nife-nvme.img`, and `clippy.toml`'s `doc-valid-idents` entry. The clippy entry
+is the interesting one, because the instinct on a rename is to delete it: it exists so
+`doc_markdown` tolerates the **proper noun**, the proper noun is what survives the rename, and
+deleting it would turn 30 spec citations red for a word nobody renamed.
+
+### A refusal the parser invented is not a refusal, and the count is why you leave it
+
+`script/names --check` reports `non_volatile_memory_express` as "refused but live", and it is
+neither refused nor a bug in the rename. A refusal clause runs to the end of its sentence; that
+crate's sentence refusing `nvm_express` names the winning spelling while arguing against the
+loser, so the parser records the winner too. It is the `video_terminal` NOTE's shape without
+`video_terminal`'s real reason behind it.
+
+**It was left alone deliberately**, and the reasoning generalises: rewording the sentence would
+have moved the tree-wide refusal count, which is the one gate a performed rename is measured by,
+and spending that signal to silence a NOTE that never fails a build is a bad trade. Record the
+artifact beside the block instead, which is what that crate now does.
+
 ### A sweep can turn a stale pointer into a fabricated one
 
 Contributed by the second performed rename (`address_space_builder` to `address_space_witness`,

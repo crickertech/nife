@@ -27,7 +27,7 @@ Two things make it the right lens for today's tree rather than a re-run of
 
 - **The counterparty is now genuinely outside the machine.** `crates/multicast_dns_protocol` decodes datagrams
   that arrive from the local network, including the DNS name-compression pointers that are the
-  canonical decompression-bomb and pointer-loop vector. `crates/nvme` is a kernel driver that reads
+  canonical decompression-bomb and pointer-loop vector. `crates/non_volatile_memory_express` is a kernel driver that reads
   16-byte completions a PCIe device writes into memory. Neither existed when the shared-page audit
   read the tree, and both take input from a party the threat model (DECISIONS §20, §23, §30, and
   SECURITY.md) declares untrusted.
@@ -54,7 +54,7 @@ added or rewritten after the shared-page audit read the tree (it read `313a055` 
 | Crate / driver | Untrusted source | First landed |
 |---|---|---|
 | `crates/multicast_dns_protocol` | a datagram from a network peer | 2026-08-15 |
-| `crates/nvme` + `kernel/src/nvme.rs` | a PCIe device's completions and identify data | 2026-08-14 |
+| `crates/non_volatile_memory_express` + `kernel/src/non_volatile_memory_express.rs` | a PCIe device's completions and identify data | 2026-08-14 |
 | `crates/ntlm`, `crates/credentialer` | a presented secret and an NTLM client blob | 2026-08-04 |
 
 ## What was deliberately not examined
@@ -81,7 +81,7 @@ Stated because a scope nobody wrote down is a scope nobody can check.
 
 ### 1. The NVMe kernel driver turns two device-written completion fields into a kernel panic
 
-**(a) The value.** `kernel/src/nvme.rs`'s `submit_and_poll` reads a 16-byte completion the controller
+**(a) The value.** `kernel/src/non_volatile_memory_express.rs`'s `submit_and_poll` reads a 16-byte completion the controller
 wrote and then consumes two of its fields:
 
 ```rust
@@ -94,7 +94,7 @@ assert!(
 );
 ```
 
-`note_head` (in `crates/nvme`) is:
+`note_head` (in `crates/non_volatile_memory_express`) is:
 
 ```rust
 pub fn note_head(&mut self, head: u16) {
@@ -108,7 +108,7 @@ Both `c.sq_head` and `c.cid` come straight out of the dwords the device wrote
 one command in flight, hits an `assert!` and **panics the kernel**.
 
 **(b) The source.** A PCIe NVMe controller, confined behind the machine's IOMMU
-(`kernel/src/nvme.rs:9` "confines the device to it," and the test at line 437 refuses to run without
+(`kernel/src/non_volatile_memory_express.rs:9` "confines the device to it," and the test at line 437 refuses to run without
 the IOMMU "without it the confinement claim is untested"). Confined is not trusted: the IOMMU exists
 precisely because the device is not (DECISIONS §20, §23, §30). And the IOMMU confines *where* the
 device may write, not *what* it writes. The completion queue is memory the device legitimately owns
@@ -141,7 +141,7 @@ error contract of `submit_and_poll` and every path above it, and it needs a nega
 device that lies) to prove the new path fails closed rather than mis-serving. That control is
 precisely the hostile-device harness shared-page-audit.md already proposed as its lane candidate B,
 and this finding extends that candidate's justification rather than adding a new one. Note this is
-consistent with `crates/nvme`'s own design comment on `SqState`: it deliberately does not model the
+consistent with `crates/non_volatile_memory_express`'s own design comment on `SqState`: it deliberately does not model the
 controller's head as a free-slot count "instead of carrying a free-slot count nothing would
 exercise," which is the right call for the honest path and is exactly why the dishonest path lands on
 an assert.
@@ -173,7 +173,7 @@ it is written to close both by construction:
   runtime today*. It is cleared as a crate, on the reading above and its own proof; the wiring that
   will feed it real datagrams is a separate read the day it lands.
 
-**`crates/nvme`'s `parse_identify_namespace`.** Reads the namespace size and LBA format from the
+**`crates/non_volatile_memory_express`'s `parse_identify_namespace`.** Reads the namespace size and LBA format from the
 4096-byte identify page the device fills. `data.len()` is checked against 384; `flbas` is a 4-bit
 field so `data[128 + 4*flbas + 2]` reaches at most index 190; and `lbads` (the device's bytes-per-block
 shift) is rejected unless it is in `9..=12`, so `1 << lba_shift` is at most 4096 and cannot
@@ -182,7 +182,7 @@ not used to bound any read into a fixed buffer (transfers go to the device throu
 overflow is benign. The only device-written values that reach control flow unbounded are the two
 completion fields of finding 1.
 
-**`crates/nvme`'s completion read itself.** The completion is read from the driver's own `head` slot,
+**`crates/non_volatile_memory_express`'s completion read itself.** The completion is read from the driver's own `head` slot,
 not from any device-supplied index, and `CqState::owned` distinguishes fresh from stale by the phase
 tag, not by `cid`. So `cid` is never used to index anything (finding 1 is that it is used in an
 *assert*, not that it indexes memory), and the read is memory-safe whatever the device writes.

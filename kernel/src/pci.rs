@@ -98,7 +98,7 @@ pub fn ecam_bytes() -> u64 {
 /// described a hundred and twenty-eight buses. Both facts were printed by every `x86_64` boot, two
 /// lines apart, for a year. On QEMU's `q35` the two agree in effect, because everything is on bus
 /// 0. On xenon the NVMe controller is behind a PCIe root port, so [`find_nvme_device`] searched a
-/// bus the disk was never on and `nvme_tests` **skipped** with QEMU's explanation for an absence
+/// bus the disk was never on and `non_volatile_memory_express_tests` **skipped** with QEMU's explanation for an absence
 /// that had an entirely different cause.
 ///
 /// A count would not have caught that and did not: `bar_census` printed "15 function(s) on the bus"
@@ -816,7 +816,7 @@ fn program_msix(bdf: Bdf, bars: &[Option<Bar>; 6], target: pci::MsiTarget) -> Op
 /// An enumerated, brought-up NVMe controller: its register file (BAR0) placed and decoding, bus
 /// mastering enabled, requester id known so the caller can confine its DMA before enabling the
 /// controller. No INTx line, on purpose: the milestone-53 driver completes by polling the phase
-/// tag (`kernel/src/nvme.rs`), so wiring an interrupt here would record a fact nothing checks.
+/// tag (`kernel/src/non_volatile_memory_express.rs`), so wiring an interrupt here would record a fact nothing checks.
 #[derive(Debug, Clone, Copy)]
 pub struct PciNvmeDevice {
     /// The register file's physical base (BAR0; the doorbells live in it too).
@@ -947,7 +947,7 @@ mod tests {
     fn the_discovered_pci_windows_are_the_machines_own_and_match_the_old_constants() {
         let Some((ecam, mem32)) = crate::memory::pci_regions() else {
             // The JH7110 has no generic-ECAM node at all (comment above); milestone 145 gives
-            // this the same treatment as nvme.rs rather than a panic the doc comment already
+            // this the same treatment as non_volatile_memory_express.rs rather than a panic the doc comment already
             // predicted.
             crate::testing::skip!(
                 "no pci-host-ecam-generic bridge in the device tree (expected on the JH7110)"
@@ -1060,7 +1060,7 @@ mod tests {
     ///
     /// The bug this pins is the one xenon exposed: the kernel mapped one megabyte of configuration
     /// space, enumerated bus 0, and reported a machine whose NVMe was behind a root port as having
-    /// no NVMe at all. What made it expensive to find is that nothing failed. `nvme_tests`
+    /// no NVMe at all. What made it expensive to find is that nothing failed. `non_volatile_memory_express_tests`
     /// **skipped**, with QEMU's explanation ("NIFE_NVME not set on this leg?") for an absence that
     /// had an entirely different cause, and a skip reads like a fact about the run.
     ///

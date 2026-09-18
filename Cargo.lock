@@ -186,7 +186,7 @@ dependencies = [
  "measured_boot",
  "network_time_protocol",
  "nifefs",
- "nvme",
+ "non_volatile_memory_express",
  "pgrep",
  "pmap",
  "ps",
@@ -515,7 +515,7 @@ dependencies = [
  "memory_regions",
  "network_time_protocol",
  "nifefs",
- "nvme",
+ "non_volatile_memory_express",
  "page_frames",
  "paging",
  "pci",
@@ -637,6 +637,10 @@ name = "nifefs"
 version = "0.1.0"
 
 [[package]]
+name = "non_volatile_memory_express"
+version = "0.1.0"
+
+[[package]]
 name = "nu-ansi-term"
 version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -644,10 +648,6 @@ checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
  "windows-sys",
 ]
-
-[[package]]
-name = "nvme"
-version = "0.1.0"
 
 [[package]]
 name = "once_cell"

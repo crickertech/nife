@@ -1,5 +1,5 @@
 [package]
-name = "nvme"
+name = "non_volatile_memory_express"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true

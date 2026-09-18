@@ -1,6 +1,6 @@
 //! **The NVMe block server, at EL0** (milestone 261;
 //! [DECISIONS §86](../../design/decisions/86-el0-nvme-driver.md), DECIDED 2026-09-03 as option 2a;
-//! notes/nvme.md).
+//! notes/non-volatile-memory-express.md).
 //!
 //! An unprivileged process that drives a real, non-virtio DMA device: it builds 64-byte commands,
 //! rings a hardware doorbell, and watches a completion ring's phase tag, while holding no
@@ -9,10 +9,10 @@
 //! thesis for storage, and until this program existed the NVMe driver was kernel code.
 //!
 //! ```text
-//!   NVMe controller ──doorbell page (1 page of BAR0)──► nvme_server ──blk IPC──► clients
-//!    (a PCIe function)                                    │
-//!    confined by the IOMMU to ─────────────────────────── its data plane: two I/O rings
-//!    the kernel's DMA region                               and a transfer buffer
+//!   NVMe controller ──doorbell page (1 page of BAR0)──► this program ──blk IPC──► clients
+//!    (a PCIe function)                                     │
+//!    confined by the IOMMU to ──────────────────────────── its data plane: two I/O rings
+//!    the kernel's DMA region                                and a transfer buffer
 //! ```
 //!
 //! # What it holds, and what it is denied
@@ -51,10 +51,10 @@
 //!
 //! # What is proven, and where
 //!
-//! Every piece of arithmetic is in `crates/nvme`, host-tested and Kani-reachable: the ring
+//! Every piece of arithmetic is in `crates/non_volatile_memory_express`, host-tested and Kani-reachable: the ring
 //! indices and the phase discipline, the doorbell offsets, the PRP pair, the identify decode, and
 //! (milestone 261) the spawn handoff's round trip and the block-range check
-//! [`nvme::Handoff::transfer_command`] refuses outside. What is left in this file is what cannot
+//! [`non_volatile_memory_express::Handoff::transfer_command`] refuses outside. What is left in this file is what cannot
 //! be tested without a device: volatile reads and writes, two barriers, and a bounded poll.
 //!
 //! # BUGS
@@ -62,11 +62,11 @@
 //! **One command in flight.** Each request completes before the next is submitted, so the ring
 //! depth buys nothing and any throughput measured against this server is a lower bound on the
 //! device rather than a measurement of it. Inherited from the kernel-resident driver this
-//! replaced; notes/nvme.md carries it.
+//! replaced; notes/non-volatile-memory-express.md carries it.
 //!
 //! **It polls rather than waiting on an interrupt**, so a request costs a spin instead of a
 //! block, and a busy server is a busy core. The controller is created with `IEN=0` and names no
-//! vector (`nvme::Command::create_io_cq`), so there is no interrupt to grant and switching would
+//! vector (`non_volatile_memory_express::Command::create_io_cq`), so there is no interrupt to grant and switching would
 //! change the admin plane as well as this file. It also keeps `Object::Irq` off this program's
 //! list, which is a smaller authority, and §86's own interrupt finding is the reason not to reach
 //! for MSI-X casually: this machine runs `-device intel-iommu` with no `intremap=on` and
@@ -84,16 +84,16 @@
 //! terms; option 4's doorbell validator is what would close it.
 //!
 //! **A transfer is one command per filesystem block**, even when a request carries
-//! [`TRANSFER_BLOCKS`] contiguous ones. `nvme::prp_pair` refuses anything needing a PRP *list*
-//! (notes/nvme.md: "One namespace, PRP-only, no SGLs, no PRP lists"), and a 16-page transfer needs
+//! [`TRANSFER_BLOCKS`] contiguous ones. `non_volatile_memory_express::prp_pair` refuses anything needing a PRP *list*
+//! (notes/non-volatile-memory-express.md: "One namespace, PRP-only, no SGLs, no PRP lists"), and a 16-page transfer needs
 //! one. The virtio block server issues a single request for the same range, so this server is
 //! slower on bulk by construction and the fix is a PRP list rather than anything about this file.
 //!
-//! Name: provisional, and ruled: calef ruled **`non_volatile_memory_express`** on 2026-09-17,
-//! for the whole family rather than for this program alone. The block stays `provisional` because
-//! the ratified name is not this program's until the rename is performed; the argument, the
-//! refusals and what does not move are recorded once, beside the crate, in `crates/nvme`.
-//! Refused `nvme_server`, `nvme_driver` and `non_volatile_memory_express_server`.
+//! Name: ratified 2026-09-17 (calef, DECISIONS §154) for the whole family rather than for this
+//! program alone, with the program's own half ruled on 2026-09-18 and performed the same day. The
+//! argument, the refusals and what did not move are recorded once, beside the crate, in
+//! `crates/non_volatile_memory_express`. Refused `nvme_server`, `nvme_driver` and
+//! `non_volatile_memory_express_server`.
 //!
 //! **This program takes the crate's own name, and calef ruled that on 2026-09-18 rather than a
 //! lane inferring it.** The obvious spelling does not exist: `non_volatile_memory_express_server`
@@ -140,20 +140,20 @@
 
 use abi::rendezvous;
 use filesystem_protocol::blk;
-use nvme::{Command, Completion, CqState, Doorbell, Handoff, SqState};
+use non_volatile_memory_express::{Command, Completion, CqState, Doorbell, Handoff, SqState};
 use user_mode_runtime::mapped_window::{MappedWindow, PAGE};
 use user_mode_runtime::{exit, recv_cap, reply, send};
 
-/// Capability slots, by convention with `kernel/src/user/nvme_service.rs`.
+/// Capability slots, by convention with `kernel/src/user/non_volatile_memory_express_service.rs`.
 const REQ: u64 = 0;
 const READY: u64 = 1;
 
 /// Where the spawner maps this server's data plane. **Must match
-/// `kernel/src/user/nvme_service.rs`'s `DATA_PLANE_VA`.**
+/// `kernel/src/user/non_volatile_memory_express_service.rs`'s `DATA_PLANE_VA`.**
 const DATA_PLANE_VA: u64 = 0x0000_0000_0098_0000;
 
 /// Where the spawner maps the doorbell page of BAR0, device-typed. **Must match
-/// `kernel/src/user/nvme_service.rs`'s `DOORBELL_VA`.**
+/// `kernel/src/user/non_volatile_memory_express_service.rs`'s `DOORBELL_VA`.**
 const DOORBELL_VA: u64 = 0x0000_0000_009c_0000;
 
 /// How many blocks one request may carry, and how many pages of transfer buffer the spawner
@@ -162,14 +162,14 @@ const TRANSFER_BLOCKS: usize = blk::TRANSFER_BLOCKS;
 
 /// The data plane's layout, in byte offsets from [`DATA_PLANE_VA`]. It is the spawner's layout,
 /// stated again here because the two halves live in different address spaces and nothing but the
-/// spawn contract joins them; `kernel/src/nvme.rs`'s page constants are the other end.
+/// spawn contract joins them; `kernel/src/non_volatile_memory_express.rs`'s page constants are the other end.
 const IO_SQ_OFF: u64 = 0;
 const IO_CQ_OFF: u64 = PAGE;
 const TRANSFER_OFF: u64 = 2 * PAGE;
 
 /// The whole data-plane window: two rings and the buffer.
 // SAFETY: the spawner maps exactly these pages read/write at DATA_PLANE_VA before `_start` runs
-// (`kernel/src/user/nvme_service.rs`), for the lifetime of this process.
+// (`kernel/src/user/non_volatile_memory_express_service.rs`), for the lifetime of this process.
 const DATA: MappedWindow =
     unsafe { MappedWindow::new(DATA_PLANE_VA, TRANSFER_OFF + TRANSFER_BLOCKS as u64 * PAGE) };
 
@@ -245,7 +245,7 @@ impl Plane {
     /// **Submit one command on the I/O queue and poll its completion.** The copy into the
     /// submission ring, the publish barrier, the tail doorbell, the phase-gated poll, the head
     /// doorbell. Every one of those is a volatile access through a window the spawner installed;
-    /// every index and offset in it came out of `crates/nvme`.
+    /// every index and offset in it came out of `crates/non_volatile_memory_express`.
     ///
     /// `Err(status)` carries the controller's status field, or [`u16::MAX`] for a completion that
     /// never arrived, which this server cannot distinguish from a fatal controller error because
@@ -258,7 +258,11 @@ impl Plane {
         // Publish the command before the doorbell: the controller is another observer.
         barrier();
         BELLS.w32(
-            nvme::doorbell(IO_QID, Doorbell::SubmissionTail, self.handoff.dstrd) - PAGE,
+            non_volatile_memory_express::doorbell(
+                IO_QID,
+                Doorbell::SubmissionTail,
+                self.handoff.dstrd,
+            ) - PAGE,
             self.sq.tail() as u32,
         );
 
@@ -281,7 +285,11 @@ impl Plane {
 
         let new_head = self.cq.pop();
         BELLS.w32(
-            nvme::doorbell(IO_QID, Doorbell::CompletionHead, self.handoff.dstrd) - PAGE,
+            non_volatile_memory_express::doorbell(
+                IO_QID,
+                Doorbell::CompletionHead,
+                self.handoff.dstrd,
+            ) - PAGE,
             new_head as u32,
         );
         self.sq.note_head(c.sq_head);
@@ -393,7 +401,7 @@ fn serve(mut plane: Plane) -> ! {
 }
 
 /// `count` contiguous blocks, one command each. See this module's `BUGS` for why it is not one
-/// command: `nvme::prp_pair` refuses a transfer needing a PRP list, and a multi-page one does.
+/// command: `non_volatile_memory_express::prp_pair` refuses a transfer needing a PRP list, and a multi-page one does.
 fn transfer_range(plane: &mut Plane, block: u64, count: usize, write: bool) -> i64 {
     for i in 0..count {
         if plane
