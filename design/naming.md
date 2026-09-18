@@ -349,7 +349,7 @@ is a known gap rather than a decision.
   `filesystem_protocol`, `socket_protocol`, `byte_sink_protocol`, `credential_protocol`,
   `clock_protocol`, `entropy_protocol`, `graphics_protocol`, `environment_protocol`,
   `login_protocol`, `network_time_protocol`, `supervision_protocol`,
-  `swap_protocol`, `counter_frequency_protocol`, `capability_demo_protocol`. Plus `abi`, which is
+  `swap_protocol`, `counter_frequency_protocol`, `capability_witness_protocol`. Plus `abi`, which is
   the syscall boundary and predates the suffix.
 
   **The suffix was `_proto` until milestone 265** (calef, 2026-09-05, on being shown

@@ -1,7 +1,7 @@
 //! **The frame demo, the half that shares**, milestone 19.
 //!
 //! Retypes a page out of its own memory region into a `PageFrame` capability, maps it read/write,
-//! writes [`capability_demo_protocol::PAGE_FRAME_SENTINEL`], and hands the consumer a READ-only view
+//! writes [`capability_witness_protocol::PAGE_FRAME_SENTINEL`], and hands the consumer a READ-only view
 //! of the *same physical page*. The kernel never copies the data and was never told these two
 //! processes would share memory: they composed the sharing themselves out of a capability.
 //!
@@ -49,7 +49,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     unsafe {
         core::ptr::write_volatile(
             PAGE_FRAME_VA as *mut u64,
-            capability_demo_protocol::PAGE_FRAME_SENTINEL,
+            capability_witness_protocol::PAGE_FRAME_SENTINEL,
         );
     }
 

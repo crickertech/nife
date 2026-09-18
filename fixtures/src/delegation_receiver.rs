@@ -39,7 +39,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     // Use it. A SEND on the received capability rendezvous with whoever holds the other end, which
     // proves a capability minted for us by another process carries real authority.
     if received {
-        send(got, capability_demo_protocol::USED_WORD, 0, 0);
+        send(got, capability_witness_protocol::USED_WORD, 0, 0);
     }
 
     // Try to pass it on. We hold it WITHOUT grant, so the kernel refuses before any rendezvous, and

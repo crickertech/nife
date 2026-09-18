@@ -118,7 +118,7 @@ name = "capability"
 version = "0.1.0"
 
 [[package]]
-name = "capability_demo_protocol"
+name = "capability_witness_protocol"
 version = "0.1.0"
 
 [[package]]
@@ -352,7 +352,7 @@ dependencies = [
  "abi",
  "byte_sink_protocol",
  "c_seam",
- "capability_demo_protocol",
+ "capability_witness_protocol",
  "clock_protocol",
  "component_plan",
  "compositor",
@@ -486,7 +486,7 @@ dependencies = [
  "byte_sink_protocol",
  "calendar",
  "capability",
- "capability_demo_protocol",
+ "capability_witness_protocol",
  "clock_protocol",
  "compositor",
  "coremark",

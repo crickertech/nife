@@ -34,7 +34,7 @@ for two reasons:
 
 - Three child programs, provisionally `reporting_child`, `device_identifying_child` and
   `interrupt_waiting_child`, packed in all three archives. Their two agreed words (`CHILD_WORD`,
-  and the interrupt child's reported word) join `capability_demo_protocol`, which milestone 291
+  and the interrupt child's reported word) join `capability_witness_protocol`, which milestone 291
   created for exactly this.
 - Six parent programs, each naming its child's entry.
 - `spawn_hello` taking the entry name, or a role-to-entry table beside `PROGENITOR_ROLE`.
