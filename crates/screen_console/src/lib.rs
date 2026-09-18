@@ -76,17 +76,30 @@
 //! - **Only 32-bit pixels.** [`machine_discovery::framebuffer::PixelOrder`] expresses the two byte
 //!   orders UEFI reports and nothing else, so a 24-bit packed or 16-bit mode has no console. Every
 //!   machine in the fleet reports one of the two.
-//! - **On the one real machine that has run this, the screen ends up showing a regular grid**, and
-//!   what that grid is has not been established. Observed twice on xenon (2026-09-04 and
-//!   2026-09-17), both times on a machine that had panicked and halted, and on 2026-09-17 after a
-//!   test boot that scrolled for hundreds of rows, which is the condition the bug above says this
-//!   was never built for. Three things are unseparated and the transcript cannot separate them: the
-//!   scroll path, the halt path, and the geometry. **The discriminating run is the tour image
-//!   rather than the test image**, because the tour fits on the screen, never scrolls, and does not
-//!   panic: if it paints text and holds it, the fault is downstream of painting. Recorded here
-//!   rather than as a fix because the one thing that is certain is that nobody has measured it, and
-//!   an earlier session nearly wrote up a framebuffer defect from a photograph of a halted machine
-//!   that had been displaying text correctly.
+//! - **On the one real machine that has run this, the screen shows a regular grid instead of
+//!   text**, and it is the painting path rather than scrolling or the halt path. Observed on xenon
+//!   on 2026-09-04 and 2026-09-17. The discriminating run was the **tour** image on 2026-09-17
+//!   (`bench/xenon-2026-09-17/tour-display-225100.log`, video `IMG_4145`): about 40 lines onto a
+//!   135-row screen, so **nothing scrolled**, and it ends at a live shell rather than a panic, so
+//!   the machine was **not halted**. The grid appeared anyway, which eliminates both of the
+//!   explanations the first sighting allowed for.
+//!
+//!   **The kernel's own geometry is not wrong**: that boot reported `8294400` bytes of
+//!   framebuffer, exactly 1920 x 1080 x 4, so [`Framebuffer::span`] and a 7680-byte stride agree
+//!   with each other and with the panel. What the screen shows is single pixels at regular
+//!   vertical intervals, in columns at regular horizontal intervals, with the columns **leaning**.
+//!   A constant lean down the screen is the signature of a fixed per-row drift between the address
+//!   this crate computes for row *n* and the address the display scans out for row *n*, which is
+//!   what a pitch disagreement produces. That is a hypothesis read off a photograph and **not a
+//!   measurement**; counting columns in a JPEG is not evidence this tree accepts.
+//!
+//!   **The experiment that turns it into a number needs no bench time to write**: paint one
+//!   horizontal run of known length at a known row before printing anything. A correct pitch shows
+//!   one line; a mismatched one shows a line that steps or wraps, and the step is the delta.
+//!
+//!   Recorded here rather than fixed because an earlier session nearly wrote up a framebuffer
+//!   defect from a photograph of a halted machine that had been displaying text correctly, and the
+//!   lesson taken was to name what a photograph can and cannot settle.
 //! - **Nothing here is proved on real silicon.** It is proved on the host and under OVMF. A
 //!   framebuffer that works under QEMU's emulated adapter is not a framebuffer that works on
 //!   Graeme's laptop, and `notes/serial-less-output.md` carries the bench procedure that would
