@@ -14,12 +14,18 @@ Three pieces, in the tree's usual split:
 
 - **`crates/nvme`**: the pure logic. Register field decode (CAP), command building (the 64-byte
   submission entries), the submission/completion ring arithmetic with the phase tag, doorbell
-  addressing, PRP construction, and IDENTIFY parsing. Host-tested in milliseconds, five Kani
-  harnesses (`script/verify`), no MMIO anywhere in it.
-- **`kernel/src/nvme.rs`**: the volatile half. Reads and writes into BAR0, copies commands into
-  the queue pages, rings doorbells, polls completions. `Nvme` takes the register window and one
-  DMA region passed in (rule 2); `bring_up()` is the policy that finds the controller, allocates
-  the region, and confines the device.
+  addressing, PRP construction, IDENTIFY parsing, and (milestone 261) the spawn handoff and the
+  block-range check the EL0 data plane runs before it builds a command. Host-tested in
+  milliseconds, eight Kani harnesses (`script/verify`), no MMIO anywhere in it.
+- **`kernel/src/nvme.rs`**: the **admin plane's** volatile half, at EL1. Reset, the admin rings by
+  register, enable, IDENTIFY, Create I/O Queue. `Nvme` takes the register window and one DMA
+  region passed in (rule 2); `bring_up()` is the policy that finds the controller, allocates the
+  region, and confines the device.
+- **`components/src/nvme_server.rs`**: the **data plane's** volatile half, at EL0 since milestone
+  261. Copies commands into the I/O submission ring, rings the doorbell, polls the completion
+  ring's phase tag, and serves `filesystem_protocol::blk`. Provisional name.
+- **`kernel/src/user/nvme_service.rs`**: the wiring, and the whole of the confinement claim: what
+  that process is handed and what it is refused, in one `Spawn` literal.
 - **`kernel/src/pci.rs::find_nvme_device`**: enumeration and transport bring-up over the §18 PCIe
   machinery, matching the NVMe **class code** (`01:08:02`) rather than a vendor id, because the
   class triple is the one identity the spec requires of every controller, QEMU's included.
@@ -58,7 +64,7 @@ device. NVMe's equivalent of a descriptor is the PRP inside a command the contro
 driver-written memory, and nothing kernel-side parses commands on their way past.
 
 What bounds the device instead is the **IOMMU alone** (milestone 16b): `bring_up` confines the
-controller's requester id to its six-page DMA region *before* the controller is enabled, so there
+controller's requester id to its DMA region *before* the controller is enabled, so there
 is no instant at which an enabled controller could reach other memory. All three test boots have
 an IOMMU denying unlisted requester ids by default (aarch64's SMMUv3, riscv64's ratified RISC-V
 IOMMU, x86_64's VT-d, confirmed behind this driver 2026-08-25 per decisions §86's evidence
@@ -71,6 +77,29 @@ Note the flag difference in the runners: the virtio PCI devices need `iommu_plat
 silently routes their DMA around the IOMMU; the NVMe device model needs **no flag**, because a real
 PCI device's DMA always goes through the PCI address space. One less thing to forget, and the
 reason the runner comment says so at the attach line.
+
+### The driver left the kernel, 2026-09-17
+
+Milestone 261 built §86's **option 2a**, and the paragraph above is now about a *process* rather
+than about the kernel. The split costs **no new syscall surface at all**, because NVMe 1.4 §3.1
+already put a page boundary where the authority boundary belongs: the controller registers (`CC`,
+`CSTS`, `AQA`, `ASQ`, `ACQ`) are below offset `1000h` and the first doorbell is at `1000h`. So the
+kernel maps one page of BAR0 into the server and not the other, and the server holds no
+`DeviceFrame`, no `PageFrame`, no `Irq` and no `Virtio` capability: both windows arrive as
+mappings installed before `_start` runs, the way milestone 159's TRNG driver's register page does.
+
+**What the split actually withholds**, stated precisely because it is easy to overclaim. Creating
+a queue is what names the physical address a ring lives at, in a PRP field of an admin command,
+and the admin rings' own bases are the `ASQ` and `ACQ` registers. A process that can issue no
+admin command and cannot name those registers cannot choose where any ring lives.
+
+**What it does not withhold.** The IOMMU keys on the controller's requester id and bounds it to
+the whole allocation, admin rings included, because the controller fetches from both halves; so a
+server that computes a PRP backwards from its own base can make the controller overwrite the admin
+ring. And with `CAP.DSTRD` = 0 the admin doorbells share the mapped page, so it can ring the admin
+queue without being able to write what that queue holds. Both are denial of service against the
+controller rather than an escape, §86's option 2a says so in those terms, and option 4's doorbell
+validator is what would close them.
 
 ### What x86_64 needed that the other two did not
 
@@ -99,18 +128,21 @@ which architecture is running.
 
 ## EXAMPLES
 
-Bring the disk up and move a block, from kernel context (this is the boot test, abridged; the full
-version is `kernel/src/nvme.rs::tests`):
+Wire the server and move a block through it (this is the boot test, abridged; the full version is
+`kernel/src/user/nvme_tests.rs`). Every one of these calls crosses a rendezvous to an
+unprivileged process; the caller holds one endpoint and no device:
 
 ```rust
-let mut disk = nvme::bring_up().expect("an NVMe controller is attached");
-assert_eq!(disk.size_bytes(), 8 * 1024 * 1024);
+let disk = nvme_service::ensure(program("nvme_server").unwrap())
+    .expect("an NVMe controller is attached");
+assert_eq!(disk.blk(blk::SIZE, 0), 8 * 1024 * 1024);
 
-disk.buffer().fill(0x5a);
-disk.write_block(37)?;      // eight 512-byte LBAs, one command, one PRP
-disk.buffer().fill(0);
-disk.read_block(37)?;
-assert!(disk.buffer().iter().all(|b| *b == 0x5a));
+// SAFETY: a blk request is a CALL, so one side holds the buffer at a time.
+unsafe { disk.transfer_block() }.fill(0x5a);
+assert_eq!(disk.blk(blk::WRITE, 37), 0);   // eight 512-byte LBAs, one command, one PRP
+unsafe { disk.transfer_block() }.fill(0);
+assert_eq!(disk.blk(blk::READ, 37), 0);
+assert!(unsafe { disk.transfer_block() }.iter().all(|b| *b == 0x5a));
 ```
 
 Run the proof of all of it on all three architectures:
@@ -118,7 +150,7 @@ Run the proof of all of it on all three architectures:
 ```sh
 script/test            # the boot test runs in every leg; xtask attaches the controller
 cargo test -p nvme     # the queue mechanics alone, on the host, in milliseconds
-cargo kani -p nvme     # the five harnesses, ~seconds
+cargo kani -p nvme     # the eight harnesses, ~seconds
 ```
 
 Poke at the controller interactively:
@@ -130,12 +162,20 @@ cargo xtask build && NIFE_NVME=target/nife-nvme.img cargo xtask run
 
 ## What the test proves, and where
 
-`kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end`, on **all three**
-architectures (§19; x86_64 joined 2026-08-25, decisions §86's evidence section): the controller
-enumerates over ECAM, comes up confined behind the SMMU (aarch64), the RISC-V IOMMU (riscv64), or
-VT-d (x86_64), answers IDENTIFY with the attached image's exact size, and serves WRITE, READ-back
-with byte-exact verification, and a read of an untouched block that must still be zeros (the write
-landed where it said, not everywhere).
+`kernel/src/user/nvme_tests.rs::a_confined_el0_process_serves_the_block_interface_end_to_end`, on
+**all three** architectures (§19; x86_64 joined 2026-08-25, decisions §86's evidence section): the
+controller enumerates over ECAM, comes up confined behind the SMMU (aarch64), the RISC-V IOMMU
+(riscv64), or VT-d (x86_64), answers IDENTIFY with the attached image's exact size, and then an
+**EL0 process** serves SIZE, WRITE, READ-back with byte-exact verification, a read of an untouched
+block that must still be zeros (the write landed where it said, not everywhere), a refusal of a
+block outside the namespace, a flush count that moves, and a refusal of an opcode it has no verb
+for. It asserts the IOMMU was active, which matters more than it did when the driver was the
+kernel: the IOMMU is now the *whole* of what stops a compromised server reaching memory it was not
+given.
+
+**This is not fatal risk 6's experiment**, and nothing here should be read as one. Milestone 16b
+already proved IOMMU-backed isolation against emulated silicon; risk 6's open clause is about a
+real device at real speed, on xenon, photographed, and milestone 261's block carries what remains.
 
 **The parity note milestone 53 requires**: what ships on all three architectures is this driver
 against QEMU's `-device nvme`, on the two `virt` machines and on `q35`. The VisionFive 2's PLDA
@@ -146,28 +186,37 @@ it.
 
 ## BUGS
 
-- **The driver is kernel-resident**, unlike every virtio driver, and that is a recorded limitation
-  rather than the design. A confined EL0 NVMe driver needs a kernel-owned transport capability in
-  the `Virtio` capability's mold (or command parsing at the doorbell, which is the same decision
-  wearing worse clothes), and that is new syscall surface: a §10/§16 design fork deliberately not
-  taken in this milestone. Until it is, the IOMMU confines the *device* and nothing additionally
-  confines the *driver*, because the driver is the kernel.
-
-  **Two corrections to that sentence, 2026-09-03**, from §86's research pass, and they are recorded
-  here because this is where a reader meets the limitation. **"Command parsing at the doorbell" is
-  not the same decision wearing worse clothes.** It is a different one, and it is the only shape in
-  §86's list that confines an EL0 driver on a machine with no IOMMU, which is every board this
-  project owns. And **it may need no new syscall surface at all**: NVMe puts the controller and
-  admin registers below offset 1000h and the first doorbell at 1000h, a page boundary, so
-  "kernel keeps the admin plane, EL0 gets the data path" is expressible with the `DeviceFrame`
-  capability that already exists. Read §86 before quoting this bullet.
-- **Nothing serves it over blk IPC yet.** The driver speaks the blk verbs as an API, so an
-  NVMe-backed block server is a wiring exercise plus the fork above; the FS server's default
-  remains virtio-blk, untouched.
+- **The driver was kernel-resident until 2026-09-17**, and the two entries that stood here
+  (the limitation, and §86's two corrections to it) are answered: milestone 261 built option 2a and
+  the correction's prediction held exactly. The page boundary at offset `1000h` was enough, and the
+  split cost no syscall surface. What replaces them is the honest remainder, which is the paragraph
+  "What it does not withhold" above: the IOMMU bounds the *controller* to a region that contains
+  the admin rings, so the server can aim DMA at them, and with stride 0 it can ring the admin
+  doorbell. Neither is an escape and both are option 4's to close.
+- **Nothing but the test serves it over blk IPC.** `nvme_server` speaks the four blk verbs, but
+  `block_roster` has no NVMe transport kind, so `disk_surveyor` cannot list the disk and the FS
+  server's default remains virtio-blk, untouched. The wire shape is decidable now that a process
+  owns the controller; see `design/roadmap/proposals/a-block-roster-that-can-name-an-nvme-disk.md`.
+- **A transfer is one command per filesystem block**, so a sixteen-block blk request is sixteen
+  round trips where the virtio block server issues one. `prp_pair` refuses anything needing a PRP
+  list, and a multi-page transfer needs one.
+- **The EL0 server cannot read `CSTS`**, so a hung controller presents to it as a bounded-out poll
+  answered `EIO` rather than as `CSTS.CFS`. The direct price of not mapping the controller register
+  page, and a worse diagnostic than the kernel-resident driver gave.
+- **A doorbell stride above `nvme::MAX_DSTRD` (8) is refused rather than served.** Doorbell N sits
+  at `0x1000 + N * (4 << DSTRD)`, so a wide stride scales the doorbell file past the one page of
+  BAR0 the server is mapped. Kani found this; QEMU reports 0 and §86 quotes the spec calling 0 "the
+  expected doorbell stride value" for hardware, so no controller this project has met would hit it,
+  and one that did now fails loudly at bring-up naming itself.
 - **Polling only.** Completions are spotted by phase-tag polls with a spin bound, not by the
   interrupt-as-message path the virtio drivers use. Right for QEMU (which completes synchronously
   inside the doorbell write) and for a boot test; wrong for a shared machine under load. The
   controller is created with IEN=0 and no MSI-X table is touched, so interrupts are additive later.
+  It also keeps `Object::Irq` off the EL0 server's grant list, which is a smaller authority, and
+  §86's interrupt finding is the reason not to reach for MSI-X casually: an MSI write is a memory
+  write to an architecturally special address, and this tree runs `intel-iommu` with no
+  `intremap=on` and `gic-version=2` with no ITS, so nothing would confine one a userspace driver
+  aimed. See `notes/confinement-claims.md`'s fifth claim.
 - **One command in flight per queue.** `SqState` asserts rather than manages a full ring; queue
   depth is 16 to keep wraps exercised, not for parallelism. Milestone 55's storage bench will want
   real queue depth, and the ring arithmetic already supports it; the driver's completion loop does
@@ -176,5 +225,5 @@ it.
   All fine for the blk unit; a future bulk path (or a 8 KiB+ LBA format) needs PRP lists.
 - **`bring_up` is not idempotent.** A second call re-confines the requester id (leaking the first
   domain's tables, as `iommu::confine` documents) and re-creates queues against a live controller,
-  which the controller will refuse. Call it once; the boot test does everything in one case for
-  exactly this reason.
+  which the controller will refuse. Call it once; `nvme_service::ensure` holds a once-per-boot flag
+  for exactly this reason, and the boot test does everything in one case.
