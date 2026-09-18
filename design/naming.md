@@ -1091,6 +1091,35 @@ say, and what this adds, is that the expensive half is not only the name in a re
 the **records**, and a sweep edits those at the same cost as it edits code while destroying
 something a revert cannot restore.
 
+### What a ratified name drags with it, and what it does not
+
+A name is ratified for a crate, a program or a module. Some other things in the tree carry that word
+and the question is which of them move with it. calef ruled both halves on 2026-09-18, during the
+names review that performed six renames.
+
+| Carries the name | Moves? | Why |
+|---|---|---|
+| The crate directory, package name, dependency entries | **Yes** | They *are* the name |
+| A **note filename** (`notes/asids.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **roadmap slug** (`design/roadmap/15-asids.md`) | **No** | Exempt, standing rule: roadmap titles and slugs are drafts, and the number is what people cite |
+| A **hardware field or wire name** (`satp.ASID`, `NVMe 1.4 §3.1`) | **Never** | A citation of somebody else's specification |
+| A **`BUILT` block, a transcript, a dated account** | **Never** | The status table above |
+
+**The note half has a cost the crate half does not: every citation of the old path breaks.**
+`notes/gpt.md` is cited by 18 files, `notes/ipc-naming.md` by 24. `script/lint` check 4c verifies that
+a markdown *link* target resolves, so it catches those; it does **not** catch a path written in prose
+outside a link, and both forms exist in this tree. Grep for both.
+
+**And the relative depth is where it actually goes wrong.** A citation from `design/roadmap/*.md`
+reads `../../notes/...`; one from inside `notes/` is a bare sibling with no directory at all. Moving
+`notes/naming.md` to `design/naming.md` on 2026-09-18 rewrote 65 citations correctly and still left
+one sibling link broken, because the grep that found the others could not see a path with no
+directory in it.
+
+**Filenames under `notes/` and `design/` are hyphenated**, per the domain table above, so a
+`snake_case` crate becomes a hyphenated note: `address_space_identifier` and
+`address-space-identifiers.md`.
+
 ### The refusal count is the gate, and it is one command
 
 **Take `script/names | tail -3` before the rename and again after. The refusal count must not
