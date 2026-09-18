@@ -5,8 +5,25 @@
 milestone 313's security audit raised it as finding 4. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: DECISION.** Not the mechanism, which exists twice over. **The scope question below is
-calef's and a lane should not start without it.**
+**Gate: NONE.** It was `DECISION` until 2026-09-18, when calef answered
+[§153](../decisions/153-two-core-x86-test-sequencing.md): **close this milestone first, then default
+`NIFE_SMP` to 2.** A lane can start today.
+
+**And the scope shrank while the decision was open.** This block said the test was the deliverable
+and would be the first port test able to observe the revocation window. **That test already exists.**
+Milestone 316 fixed `ap_boot`'s BUG #3 (the boot-core-identity defect that failed
+`every_secondary_runs_scheduled_work` about half the time at two cores), and with a working
+substrate `a_revoked_holder_faults_on_its_next_port_write` became the observer: of 12 two-core runs,
+**all seven failures are that one assertion**, `left: 2, right: 1`, the revoked holder's `out`
+succeeding.
+
+So this milestone owes **the broadcast, and the default flip**:
+
+1. `PortRange::REVOKE` and `sched::delete_current_cap`'s port half broadcast
+   `revoke_installed_port_grant` to every online core after clearing the cached grants.
+2. **Flip `NIFE_SMP`'s default from 1 to 2 as this milestone's closing step.** §153 is explicit that
+   the flip is not a separate judgment: the two-core suite going green *is* the verification that
+   the broadcast worked. Leaving it to be remembered is how it would not happen.
 
 ## What this is
 
@@ -78,8 +95,9 @@ finding 2 is the warning.
 
 ## Follow-on
 
-- **Decision.** The sequencing question above is written up as
-  `design/decisions/153-two-core-x86-test-sequencing.md`, which is what `Gate: DECISION` names.
+- **Decision.** `design/decisions/153-two-core-x86-test-sequencing.md`, **DECIDED 2026-09-18**:
+  close this milestone first, then default `NIFE_SMP` to 2, so the flip verifies the broadcast
+  rather than being a judgment somebody has to keep making.
 
 ## Index row
 
