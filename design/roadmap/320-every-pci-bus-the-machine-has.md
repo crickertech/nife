@@ -134,8 +134,8 @@ outstanding.
 
 ## Follow-on
 
-- **Proposed.** A bridge memory window the kernel programs itself
-  (`design/roadmap/proposals/a-bridge-window-the-kernel-programs-itself.md`), raised by this lane. A
+- **Milestone 325.** A bridge memory window the kernel programs itself
+  (), raised by this lane. A
   device behind a bridge firmware left unconfigured enumerates and does not work, and nothing in the
   boot line says why.
 - **Outstanding.** The xenon boot that closes this block: one boot, reading the census lines.

@@ -228,7 +228,7 @@ they were written.
 - **Proposed.** `design/roadmap/proposals/board-only-features-nothing-compiles.md`: `job_mix`,
   `reboot_soak` and `single_hart` are still built by nobody, and this lane demonstrated what that
   costs by finding one of them red. Not done here because the fix is a change to CI's shape.
-- **Proposed.** `design/roadmap/proposals/a-board-console-recogniser-for-the-job-mix-sweep.md`: the
+- **Milestone 324.**: the
   board-side recogniser still cannot read this workload's markers, which is why renaming them was
   safe and is also why a board run is still read by eye.
 - **Recorded.** The console markers' spelling is a lane's choice and calef has not ruled on it. It is

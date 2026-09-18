@@ -329,12 +329,11 @@ def proposals(tree):
     disagree about what is in the pile. A file that does not parse as a proposal is not counted;
     `script/lint` runs `script/roadmap --check`, so in any tree since milestone 247 there are none.
 
-    A proposal marked `**Promoted:**` is not counted, because it has a number now and this column
-    counts the ones awaiting one. It restates the series slightly for the weeks after 2026-09-16,
-    when milestone 304's proposal became the first to carry that line, which is the same
-    restatement artifact as the naming columns above and is rendered rather than backfilled.
+    A promoted proposal is deleted rather than marked (calef, 2026-09-18), so it leaves this count
+    by leaving the directory and no exclusion is needed here.
 
-    The weeks before 2026-09-04 are zero because the directory did not exist, for the same reason.
+    The weeks before 2026-09-04 are zero because the directory did not exist, which is the same
+    restatement artifact as the naming columns above and is rendered rather than backfilled.
     """
     count = 0
     for path, text in tree.markdown():
@@ -344,7 +343,7 @@ def proposals(tree):
         if roadmap_proposals.filename_problem(filename):
             continue
         _when, _title, problem = roadmap_proposals.classify(text)
-        if problem is None and not roadmap_proposals.is_promoted(text):
+        if problem is None:
             count += 1
     return {'proposals_unnumbered': count}
 
