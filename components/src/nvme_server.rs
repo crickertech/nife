@@ -93,7 +93,32 @@
 //! for the whole family rather than for this program alone. The block stays `provisional` because
 //! the ratified name is not this program's until the rename is performed; the argument, the
 //! refusals and what does not move are recorded once, beside the crate, in `crates/nvme`.
-//! Refused `nvme_server` and `nvme_driver`.
+//! Refused `nvme_server`, `nvme_driver` and `non_volatile_memory_express_server`.
+//!
+//! **This program takes the crate's own name, and calef ruled that on 2026-09-18 rather than a
+//! lane inferring it.** The obvious spelling does not exist: `non_volatile_memory_express_server`
+//! is **34 bytes** against `nifefs`'s 32-byte `NAME_LEN`, which bounds a program's name and not a
+//! crate's, so the family ruling could not reach this program by itself. The options were to share
+//! the crate's name (27 bytes), to raise `NAME_LEN` to 40, or to name the program something else
+//! entirely.
+//!
+//! **Raising `NAME_LEN` was refused on its cost**, which is measured rather than asserted: it is a
+//! format two programs agree on, which AGENTS.md's *move fast on what can be undone* puts in the
+//! expensive category, and it would take the archive from 127 entries to 106 against 87 in use
+//! today and about 93 after the tracked nine-role split. The naming rules already say not to let
+//! the limit pick a name and not to spend a format change on bytes nothing needs; this is the
+//! second half of that.
+//!
+//! **What sharing buys beyond fitting.** It is the pair AGENTS.md blesses and says *means*
+//! something: the crate is this program's logic, lifted out to be host-tested and Kani-reachable,
+//! while the program keeps the IO, exactly as `compositor` and `line_editor` do. And it settles
+//! the `_server`-versus-`_driver` split this block used to raise, by removing the suffix rather
+//! than choosing between them, which puts this program with `entropy`, `clock` and `input`: named
+//! for the thing, not for the role.
+//!
+//! **The precedent, stated because §154 will produce more of these**: a long expansion reaches a
+//! program by sharing its crate's name. `acpi` and `uart` expand to 42 and 43 bytes if they are
+//! ever ruled, and neither could ever name a program on its own.
 //!
 //! `nvme_server` was §86's name for this program in passing, and §86 said plainly that was not a
 //! ratification. Two things were wrong with it. It carries the unexpanded acronym, which is what
