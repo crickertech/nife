@@ -116,6 +116,20 @@ pub const BAR0: u64 = 0x10;
 pub const CAP_PTR: u64 = 0x34;
 pub const INTERRUPT_PIN: u64 = 0x3d;
 
+/// **Header type 1: a PCI-to-PCI bridge**, which is what a PCIe root port and every switch port
+/// present themselves as. The low seven bits of [`HEADER_TYPE`] are the layout code (0 an endpoint,
+/// 1 a bridge, 2 the long-dead `CardBus` shape); bit 7 is the multifunction flag and is masked off
+/// before comparing. A bridge's header has three BAR slots where an endpoint has six, and where an
+/// endpoint's BAR4 and BAR5 sit it carries [`BUS_NUMBERS`] instead.
+pub const HEADER_TYPE_BRIDGE: u8 = 1;
+
+/// **Where a type-1 header states the buses behind it**: primary, secondary and subordinate bus
+/// numbers in the low three bytes of the dword at 0x18, then the secondary latency timer. Firmware
+/// writes these during its own enumeration and they are the only record of the topology that
+/// exists; nothing derives them, and a kernel that does not read them cannot find a device behind a
+/// root port. See [`bridge_buses`].
+pub const BUS_NUMBERS: u64 = 0x18;
+
 /// The NVMe class code: mass storage (0x01) / non-volatile memory (0x08) / NVMe I/O (0x02).
 /// Matched by class rather than by vendor/device id on purpose: QEMU's controller is Red Hat
 /// 1b36:0010, real drives are anything at all, and the class triple is the one identity the spec
@@ -178,44 +192,201 @@ pub const VIRTIO_TYPE_ENTROPY: u32 = 4;
 pub const VIRTIO_TYPE_GPU: u32 = 16;
 pub const VIRTIO_TYPE_INPUT: u32 = 18;
 
-/// Walk every function on `buses` buses and call `f` with (bdf, vendor, device). Empty slots
-/// read vendor 0xffff (the bus's way of saying "nobody home") and are skipped; a single-function
-/// device (header type bit 7 clear) skips functions 1..8. QEMU `virt` is flat on bus 0, but the
-/// walk covers every bus in range so a bridge topology enumerates too; the caller picks how many
-/// buses its `bus-range` covers.
-pub fn enumerate(
-    buses: u16,
-    read32: &mut dyn FnMut(Bdf, u64) -> u32,
-    f: &mut dyn FnMut(Bdf, u16, u16),
-) {
-    for bus in 0..buses.min(256) {
+/// **The buses a type-1 header says lie behind it.** Firmware's own enumeration wrote these; a
+/// kernel that does not read them enumerates bus 0 and calls the rest of the machine absent.
+///
+/// `subordinate` is the *highest* bus number reachable through this bridge, so `secondary ..=
+/// subordinate` is the whole subtree. A bridge that firmware configured but left empty states
+/// `secondary == subordinate`; one firmware never configured at all reads back zeros, which
+/// [`walk`] treats as "nothing behind it" rather than as a second route to bus 0.
+///
+/// **Provisional names** (milestone 320), all of them: this type, [`bridge_buses`], [`Function`],
+/// [`walk`], [`BUS_NUMBERS`] and [`HEADER_TYPE_BRIDGE`]. calef names public items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BridgeBuses {
+    pub primary: u8,
+    pub secondary: u8,
+    pub subordinate: u8,
+}
+
+/// Decode the three bus numbers of a type-1 header. Total for any device response: it is three
+/// byte fields of one dword and there is no arithmetic to overflow.
+pub fn bridge_buses(bdf: Bdf, read32: &mut dyn FnMut(Bdf, u64) -> u32) -> BridgeBuses {
+    let w = read32(bdf, BUS_NUMBERS);
+    BridgeBuses {
+        primary: (w & 0xff) as u8,
+        secondary: ((w >> 8) & 0xff) as u8,
+        subordinate: ((w >> 16) & 0xff) as u8,
+    }
+}
+
+/// **One function the walk met**, with everything a census needs to print and everything the
+/// walk itself needs to decide where to go next.
+///
+/// **Provisional name** (milestone 320): calef names public items.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Function {
+    pub bdf: Bdf,
+    pub vendor: u16,
+    pub device: u16,
+    /// Class over subclass over programming interface, 24 bits: `CLASS_REVISION >> 8`. This is the
+    /// identity [`CLASS_NVME`] is matched against, and the one thing on the bus that says what a
+    /// function *is* rather than who made it.
+    pub class: u32,
+    /// The header layout code, **with the multifunction bit already masked off**: 0 an endpoint,
+    /// [`HEADER_TYPE_BRIDGE`] a bridge. Masked here rather than at every call site because an
+    /// unmasked comparison against 1 silently misses every multifunction bridge, which is what a
+    /// switch's upstream port is.
+    pub header_type: u8,
+    /// Whether this function reported itself multifunction, which is the bit that decides whether
+    /// functions 1..8 were probed at all.
+    pub multifunction: bool,
+    /// The buses behind it, for a bridge; `None` for an endpoint.
+    pub bridge: Option<BridgeBuses>,
+}
+
+/// **The buses [`walk`] still has to scan, and the ones it has already queued.** Private, because
+/// it is the walk's bookkeeping rather than anything a caller needs; separate from the walk
+/// because it is the one part of a bridge walk that can be wrong in a way a test would not see.
+///
+/// Every bus number a bridge states comes from firmware, so the queue is fed arbitrary bytes. What
+/// keeps `queue[tail]` in bounds is that a bus is enqueued only when its bit in `seen` is clear and
+/// the bit is set in the same breath, so at most 256 pushes can ever happen; `verification` proves
+/// exactly that against any sequence of arbitrary bus numbers, which is the property no fixture
+/// test can establish.
+struct BusQueue {
+    /// Bus numbers waiting to be scanned, `head..tail`.
+    queue: [u8; 256],
+    /// One bit per bus number: has it ever been enqueued? 256 bits is every bus that exists.
+    seen: [u64; 4],
+    head: usize,
+    tail: usize,
+}
+
+impl BusQueue {
+    /// A queue holding bus 0 alone. Bus 0 is the root complex and is where every PCI topology
+    /// starts; it is marked seen so a bridge that names it (a firmware bug, or an unconfigured
+    /// header) cannot put it in twice.
+    fn from_the_root() -> Self {
+        let mut q = BusQueue {
+            queue: [0; 256],
+            seen: [0; 4],
+            head: 0,
+            tail: 1,
+        };
+        q.seen[0] = 1;
+        q
+    }
+
+    /// Add `bus` unless it has been queued before. Idempotent per bus number, which is what bounds
+    /// the whole walk.
+    fn enqueue(&mut self, bus: u8) {
+        let (word, bit) = (bus as usize >> 6, 1u64 << (bus & 63));
+        if self.seen[word] & bit != 0 {
+            return;
+        }
+        self.seen[word] |= bit;
+        self.queue[self.tail] = bus;
+        self.tail += 1;
+    }
+
+    fn next_bus(&mut self) -> Option<u8> {
+        (self.head < self.tail).then(|| {
+            let bus = self.queue[self.head];
+            self.head += 1;
+            bus
+        })
+    }
+}
+
+/// **Walk the machine's PCI topology from bus 0, following bridges**, and call `f` once per
+/// function found. `ceiling` is the exclusive bus-number bound the caller can actually *read*:
+/// a bridge naming a secondary bus at or above it is reported (its [`Function`] carries the bus
+/// numbers) but not descended into, because reading an unmapped bus is a fault rather than a
+/// finding.
+///
+/// # Why a walk and not a scan (milestone 320)
+///
+/// Until this milestone the kernel scanned bus 0 alone and the two `virt` boards never noticed,
+/// because QEMU hangs everything off the root complex. The first real machine this port met put its
+/// NVMe controller behind a PCIe root port, so `find_nvme_device` searched a bus the disk was never
+/// on and the confinement test *skipped* rather than failed.
+///
+/// The obvious repair is to scan every bus the firmware's MCFG describes, and it was refused. A
+/// flat scan over a range ACPI happens to state is the same species of assumption that produced the
+/// bug: it is right until a machine numbers its buses differently, and it issues configuration
+/// reads to bus numbers no bridge on the machine decodes. What every real operating system does
+/// instead is read the topology from the only place it is recorded, which is the bridges
+/// themselves. That answer also costs less: a machine with two populated buses is two buses of
+/// probing rather than a hundred and twenty-eight.
+///
+/// # Termination
+///
+/// A bridge's bus numbers come from firmware, so they can name anything at all, including a bus
+/// already visited or the bridge's own. The walk is a breadth-first queue over a 256-bit visited
+/// set, so **each bus is scanned at most once** and a cycle in the bus numbering terminates
+/// instead of recursing. There is no recursion and no allocation: the queue is a 256-byte array,
+/// which is every bus number that exists.
+pub fn walk(ceiling: u16, read32: &mut dyn FnMut(Bdf, u64) -> u32, f: &mut dyn FnMut(Function)) {
+    let ceiling = ceiling.min(256);
+    if ceiling == 0 {
+        return;
+    }
+    let mut buses = BusQueue::from_the_root();
+
+    while let Some(bus) = buses.next_bus() {
         for dev in 0..32 {
-            let bdf0 = Bdf {
-                bus: bus as u8,
-                dev,
-                func: 0,
-            };
-            let id = read32(bdf0, VENDOR_ID);
-            if id & 0xffff == 0xffff {
-                continue; // empty slot
+            let bdf0 = Bdf { bus, dev, func: 0 };
+            if read32(bdf0, VENDOR_ID) & 0xffff == 0xffff {
+                continue; // empty slot: one config read, which is the whole point of this guard
             }
-            let multifunction =
-                (read32(bdf0, HEADER_TYPE & !3) >> ((HEADER_TYPE & 3) * 8)) & 0x80 != 0;
+            let type0 = (read32(bdf0, HEADER_TYPE & !3) >> ((HEADER_TYPE & 3) * 8)) & 0xff;
+            let multifunction = type0 & 0x80 != 0;
             let funcs = if multifunction { 8 } else { 1 };
             for func in 0..funcs {
-                let bdf = Bdf {
-                    bus: bus as u8,
-                    dev,
-                    func,
-                };
+                let bdf = Bdf { bus, dev, func };
                 let id = read32(bdf, VENDOR_ID);
                 if id & 0xffff == 0xffff {
                     continue;
                 }
-                f(bdf, (id & 0xffff) as u16, (id >> 16) as u16);
+                let raw = (read32(bdf, HEADER_TYPE & !3) >> ((HEADER_TYPE & 3) * 8)) & 0xff;
+                let header_type = (raw & 0x7f) as u8;
+                let bridge = (header_type == HEADER_TYPE_BRIDGE).then(|| {
+                    let behind = bridge_buses(bdf, read32);
+                    // Bus 0 is the root complex and is already the walk's starting point, so a
+                    // bridge reporting secondary 0 is one firmware never configured rather than a
+                    // second route to the top of the tree. Descending on it would be harmless
+                    // (bus 0 is in `seen`) and reporting it as a subtree would not be.
+                    if behind.secondary != 0 && (behind.secondary as u16) < ceiling {
+                        buses.enqueue(behind.secondary);
+                    }
+                    behind
+                });
+                f(Function {
+                    bdf,
+                    vendor: (id & 0xffff) as u16,
+                    device: (id >> 16) as u16,
+                    class: read32(bdf, CLASS_REVISION) >> 8,
+                    header_type,
+                    multifunction,
+                    bridge,
+                });
             }
         }
     }
+}
+
+/// Every function the machine has, as (bdf, vendor, device): [`walk`] with the topology detail
+/// dropped, which is all most callers want. `ceiling` is the exclusive bus bound the caller can
+/// read; see [`walk`] for what happens at it.
+pub fn enumerate(
+    ceiling: u16,
+    read32: &mut dyn FnMut(Bdf, u64) -> u32,
+    f: &mut dyn FnMut(Bdf, u16, u16),
+) {
+    walk(ceiling, read32, &mut |fun| {
+        f(fun.bdf, fun.vendor, fun.device);
+    });
 }
 
 /// One decoded Base Address Register: where the register block is, how big, and how wide.
@@ -521,9 +692,16 @@ pub fn mem32_window(ranges: &[u8]) -> Option<(u64, u64)> {
 /// This crate's input comes from a DEVICE: a hostile or broken PCI function can return any
 /// bytes at all through the config-space closures, and the decode runs in the kernel. So the
 /// properties proved are the hostile-input ones: the walks are total (no device response can
-/// panic them) and structurally bounded (a cycle in a capability list terminates). `enumerate`
-/// has no proof because it has nothing to prove: it owns no arrays and does no fallible
-/// arithmetic; its loops are bounded by literals.
+/// panic them) and structurally bounded (a cycle in a capability list terminates).
+///
+/// [`walk`] is the one function here that indexes an array by something a device said, and
+/// [`BusQueue`] is that array, so the proof is of the indexing. No fixture test can establish it:
+/// a fixture exercises the bus numbers it was written with, and the question is about every
+/// sequence firmware could have written. The scan loops themselves are bounded by literals and are
+/// deliberately not proved, because unrolling 256 buses of 32 devices is not something a bounded
+/// model checker finishes and the queue's bound already settles the only thing in them that a
+/// device controls. `enumerate` has no proof of its own because it is [`walk`] with a field
+/// dropped.
 #[cfg(kani)]
 mod verification {
     use super::*;
@@ -614,6 +792,56 @@ mod verification {
             assert!(cap.table_bar < 8);
             assert!(cap.table_offset % 8 == 0);
         }
+    }
+
+    /// **The bus queue never runs off the end of its array, whatever firmware wrote in the
+    /// bridges.** This is the one array in this crate indexed by a value a device supplied, and the
+    /// bound on it is not local: `enqueue` writes `queue[tail]` and nothing there checks `tail`
+    /// against 256.
+    ///
+    /// **Proved as an invariant rather than by pushing 256 times**, which matters: the loop version
+    /// of this harness needed an unwind past three hundred and did not finish in twenty minutes,
+    /// and `script/verify` runs every harness in this tree. The invariant is
+    /// `tail == the number of set bits in seen`, which bounds `tail` at 256 because there are 256
+    /// bits. [`BusQueue::from_the_root`] establishes it (one bit, `tail` of one) and this proves
+    /// `enqueue` preserves it **from any reachable state at all**, which is a stronger statement
+    /// than any number of iterations from the initial one.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn the_bus_queue_stays_inside_its_array_on_any_firmware() {
+        fn queued(seen: &[u64; 4]) -> usize {
+            seen.iter().map(|w| w.count_ones() as usize).sum()
+        }
+
+        // Any state the invariant admits, not merely the ones a walk happens to reach.
+        let mut q = BusQueue::from_the_root();
+        q.seen = kani::any();
+        q.head = kani::any();
+        q.tail = queued(&q.seen);
+        kani::assume(q.head <= q.tail);
+
+        let before = q.tail;
+        q.enqueue(kani::any());
+
+        assert!(
+            q.tail == queued(&q.seen),
+            "the count and the bitmap disagree, so nothing bounds the index"
+        );
+        assert!(q.tail <= 256, "the queue pushed past the last bus number");
+        assert!(q.tail <= before + 1, "one enqueue queued more than one bus");
+    }
+
+    /// **And the initial state satisfies the invariant the proof above preserves.** Written
+    /// separately because an induction with no base case proves nothing, and the base case here is
+    /// exactly the kind of one-line fact that gets changed by someone adjusting
+    /// [`BusQueue::from_the_root`] without reading the harness next to it.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn a_fresh_bus_queue_holds_the_root_and_nothing_else() {
+        let q = BusQueue::from_the_root();
+        let queued: usize = q.seen.iter().map(|w| w.count_ones() as usize).sum();
+        assert!(q.tail == queued && q.tail == 1);
+        assert!(q.head == 0 && q.queue[0] == 0);
     }
 
     /// **The ranges parser is total.** The property comes from firmware's device tree, which is
@@ -876,6 +1104,146 @@ mod tests {
         );
     }
 
+    /// **A machine shaped like xenon**: a host bridge and a PCIe root port on bus 0, and the NVMe
+    /// controller behind the root port on bus 1. This is the topology milestone 320 exists for, and
+    /// it is the one QEMU's `q35` does not have by default, so it is built here.
+    ///
+    /// The ids are the real ones off `bench/xenon-2026-09-17/`: an Intel Kaby Lake host bridge, an
+    /// Intel 200-series root port, and a Micron 2450 in the M.2 slot. Nothing depends on them being
+    /// those ids; they are here so a reader meets the machine rather than a fixture.
+    struct BridgedCfg {
+        space: std::collections::HashMap<(u8, u8, u8, u64), u32>,
+    }
+
+    impl BridgedCfg {
+        /// `class` is the 24-bit class triple; `header` the raw header-type byte (bit 7 sets
+        /// multifunction).
+        fn function(&mut self, bdf: (u8, u8, u8), ids: u32, class: u32, header: u32) {
+            self.space.insert((bdf.0, bdf.1, bdf.2, VENDOR_ID), ids);
+            self.space
+                .insert((bdf.0, bdf.1, bdf.2, CLASS_REVISION), class << 8);
+            self.space
+                .insert((bdf.0, bdf.1, bdf.2, HEADER_TYPE & !3), header << 16);
+        }
+
+        fn new() -> Self {
+            let mut cfg = BridgedCfg {
+                space: std::collections::HashMap::new(),
+            };
+            cfg.function((0, 0, 0), 0x591f_8086, 0x06_00_00, 0x00);
+            cfg.function((0, 0x1d, 0), 0xa334_8086, 0x06_04_00, 0x01);
+            // primary 0, secondary 1, subordinate 2: the subtree is buses 1 and 2, and only bus 1
+            // has anything on it, which is the ordinary shape (firmware leaves headroom).
+            cfg.space.insert((0, 0x1d, 0, BUS_NUMBERS), 0x00_02_01_00);
+            cfg.function((1, 0, 0), 0x51b2_1344, CLASS_NVME, 0x00);
+            cfg
+        }
+
+        fn read32(&self, bdf: Bdf, off: u64) -> u32 {
+            *self
+                .space
+                .get(&(bdf.bus, bdf.dev, bdf.func, off & !3))
+                .unwrap_or(&u32::MAX)
+        }
+    }
+
+    /// **The walk follows a root port onto the bus behind it and finds the controller there.**
+    /// This is milestone 320's whole claim in one test: before it, enumeration scanned bus 0 and
+    /// reported the machine as having no NVMe at all.
+    #[test]
+    fn the_walk_follows_a_root_port_onto_the_bus_behind_it() {
+        let cfg = BridgedCfg::new();
+        let mut found = Vec::new();
+        walk(256, &mut |b, o| cfg.read32(b, o), &mut |f| found.push(f));
+
+        let buses: Vec<u8> = found.iter().map(|f| f.bdf.bus).collect();
+        assert_eq!(buses, vec![0, 0, 1], "bus 1 was reached through the bridge");
+
+        let port = found[1];
+        assert_eq!(port.header_type, HEADER_TYPE_BRIDGE);
+        assert_eq!(
+            port.bridge,
+            Some(BridgeBuses {
+                primary: 0,
+                secondary: 1,
+                subordinate: 2,
+            })
+        );
+
+        let nvme = found[2];
+        assert_eq!(nvme.class, CLASS_NVME, "the controller is on bus 1");
+        assert_eq!(
+            nvme.bdf,
+            Bdf {
+                bus: 1,
+                dev: 0,
+                func: 0
+            }
+        );
+        assert_eq!(nvme.bridge, None, "an endpoint states no buses behind it");
+    }
+
+    /// **The ceiling stops the descent without hiding the bridge.** A kernel that has mapped only
+    /// bus 0 of configuration space must not read bus 1, and must still be able to *say* that there
+    /// is a subtree it cannot see: the bridge's own `Function` carries the bus numbers either way,
+    /// which is what lets `kernel/src/pci.rs` print the gap rather than enumerate silently short.
+    #[test]
+    fn a_bus_above_the_ceiling_is_reported_but_never_read() {
+        let cfg = BridgedCfg::new();
+        let mut found = Vec::new();
+        let mut touched_bus_1 = false;
+        walk(
+            1,
+            &mut |b, o| {
+                touched_bus_1 |= b.bus != 0;
+                cfg.read32(b, o)
+            },
+            &mut |f| found.push(f),
+        );
+
+        assert!(!touched_bus_1, "the walk read a bus outside the ceiling");
+        assert_eq!(found.len(), 2, "the two functions on bus 0");
+        assert_eq!(
+            found[1].bridge.unwrap().secondary,
+            1,
+            "the bridge still says where its subtree is"
+        );
+    }
+
+    /// **Bus numbers come from firmware and can name anything, including a loop.** A bridge on bus
+    /// 1 that claims bus 1 is behind it, and one on bus 1 claiming bus 0, are both firmware bugs
+    /// this kernel cannot fix and must not hang on. The visited set is what makes each bus scanned
+    /// once; without it this recurses until the stack ends.
+    #[test]
+    fn a_cycle_in_the_bus_numbering_terminates() {
+        let mut cfg = BridgedCfg::new();
+        // 01:01.0: a bridge whose secondary bus is 1, the bus it is itself on.
+        cfg.function((1, 1, 0), 0xdead_beef, 0x06_04_00, 0x01);
+        cfg.space.insert((1, 1, 0, BUS_NUMBERS), 0x00_01_01_00);
+        // 01:02.0: a bridge pointing back at bus 0, the root.
+        cfg.function((1, 2, 0), 0xdead_beee, 0x06_04_00, 0x01);
+        cfg.space.insert((1, 2, 0, BUS_NUMBERS), 0x00_02_00_01);
+
+        let mut n = 0usize;
+        walk(256, &mut |b, o| cfg.read32(b, o), &mut |_| n += 1);
+        assert_eq!(n, 5, "each bus scanned once: 2 on bus 0, 3 on bus 1");
+    }
+
+    /// **A bridge firmware never configured reads zeros, and zero is not a route to the root.**
+    /// An unconfigured bridge states secondary 0; treating that as a subtree would report bus 0's
+    /// functions a second time if the visited set ever changed, and reports a subtree that does not
+    /// exist either way. It is an endpoint-shaped answer to a bridge-shaped question, so the walk
+    /// reports the bridge and descends nowhere.
+    #[test]
+    fn an_unconfigured_bridge_states_no_subtree() {
+        let mut cfg = BridgedCfg::new();
+        cfg.space.insert((0, 0x1d, 0, BUS_NUMBERS), 0);
+        let mut found = Vec::new();
+        walk(256, &mut |b, o| cfg.read32(b, o), &mut |f| found.push(f));
+        assert_eq!(found.len(), 2, "nothing behind an unconfigured bridge");
+        assert_eq!(found[1].bridge.unwrap().secondary, 0);
+    }
+
     /// An empty slot costs exactly one config read, which is the entire job of the vendor-id
     /// check on function 0. Without it every empty slot on the bus also pays a header-type read
     /// and eight per-function reads, and the walk still returns the right answer, so read count
@@ -892,9 +1260,14 @@ mod tests {
             },
             &mut |_, _, _| {},
         );
-        // 29 empty slots at one read each, plus the three that answer: blk 3 (id, header type,
-        // one function), the multifunction device 10 (id, header type, eight functions), gpu 3.
-        assert_eq!(reads, 29 + 3 + 10 + 3);
+        // 29 empty slots at one read each, and then the three devices that answer. A device costs
+        // two reads before its functions (the function-0 vendor id, then the header type that says
+        // whether functions 1..8 exist), and a function that answers costs three (vendor id, header
+        // type, class); a function that does not answer costs only its vendor id.
+        //
+        // So: blk 2 + 3, the multifunction device 2 + 3 + 3 for its two functions and 6 for the six
+        // empty ones, gpu 2 + 3.
+        assert_eq!(reads, 29 + (2 + 3) + (2 + 3 + 3 + 6) + (2 + 3));
     }
 
     /// The BAR probe decodes an assigned 32-bit BAR and an UNassigned 64-bit BAR (base 0), sizes
