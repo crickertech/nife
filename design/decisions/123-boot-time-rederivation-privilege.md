@@ -98,7 +98,7 @@ and this section is included only because AGENTS.md's six questions ask for it e
 Checked rather than assumed. A repo-wide grep for `impersonate` finds exactly two hits outside this
 milestone's own roadmap doc, both unrelated (a comment about badge-less capabilities in
 `design/decisions/101-notification-objects.md`, and a comment about NVMe completion-tag wraparound in
-`kernel/src/nvme.rs`). A grep for `re-derivation`/`rederivation`/`boot-only` finds only this
+`kernel/src/non_volatile_memory_express.rs`). A grep for `re-derivation`/`rederivation`/`boot-only` finds only this
 milestone's own roadmap doc and unrelated prose in other notes (`notes/x86-port.md`,
 `notes/arch-audit.md`, `notes/frames.md`, none describing session re-derivation). There is no
 existing boot-time re-derivation mechanism, no "impersonate" capability, and no session-revival code

@@ -49,7 +49,7 @@ same reason §23 built multi-queue confinement only after single-queue worked: t
 tells you which parts of the contract are QEMU artifacts. A second, possibly faster path to the same
 data point may exist through milestone 87's x86 machine instead; see milestone 163's own text for
 why that does not make 163 unnecessary. Option 1 is honest in the meantime because the limitation is recorded
-in notes/nvme.md's BUGS section rather than implied away.
+in notes/non-volatile-memory-express.md's BUGS section rather than implied away.
 
 **A scoping lane has now reported on x86_64 (milestone 165, PARTIAL), and it is half an answer
 rather than a whole one.** Milestone 165 wired real PCI enumeration on x86_64 through ACPI's MCFG
@@ -69,7 +69,7 @@ session (milestone 161 item 6, `kernel/src/arch/x86_64/iommu.rs`) but had confin
 device; this is that exercise. `scripts/qemu-runner-x86_64.sh` now attaches `-device nvme` the same
 way the aarch64 and riscv64 runners do (no `iommu_platform` flag, same as the other two, since a
 real PCI device's DMA is not virtio's opt-in), and
-`kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end` now runs for real
+`kernel/src/nvme.rs::tests::the_nvme_disk_serves_the_block_interface_end_to_end` now runs for real (an account: that module is `kernel/src/non_volatile_memory_express.rs` since 2026-09-18, and milestone 261 replaced that test with the EL0 one, so neither the path nor the symbol resolves today)
 on all three architectures instead of skipping on x86_64. The result: **the confinement claim
 holds under VT-d exactly as it does under SMMUv3 and the RISC-V IOMMU.** The existing driver,
 unmodified in shape, enumerates the controller over ACPI's real MCFG, confines its requester id to
@@ -77,7 +77,7 @@ its six-page DMA region before enabling it, and serves SIZE/WRITE/READ over the 
 QEMU's `q35` with `-device intel-iommu`.
 
 Getting there took two fixes, neither of which is a confinement-contract difference between VT-d
-and the other two IOMMUs, and both recorded in full in `notes/nvme.md`'s new "What x86_64 needed
+and the other two IOMMUs, and both recorded in full in `notes/non-volatile-memory-express.md`'s new "What x86_64 needed
 that the other two did not" section:
 
 - `kernel/src/pci.rs::place_bars` trusted any nonzero BAR as already placed and already mapped,
@@ -106,7 +106,7 @@ VT-d/NVMe exercise; the second is now done.** This section still does not decide
 option 2; it reports that the confinement claim itself has now been checked, not merely built, on
 all three of this tree's targeted architectures.
 
-If the answer is option 1 permanently, nothing is blocked, and notes/nvme.md's BUGS entry becomes
+If the answer is option 1 permanently, nothing is blocked, and notes/non-volatile-memory-express.md's BUGS entry becomes
 the standing record. If it is never decided, the driver silently becomes load-bearing kernel code,
 which is how a microkernel stops being one; that is the failure this entry exists to prevent.
 
@@ -201,11 +201,11 @@ them are real constraints and only one of them was stated:
    in place, and it has the same answer.
 3. **PRP2 can be a pointer to a PRP List**, so a validator recurses one level for a transfer that
    spans more than two pages, and SGL-mode commands (CDW0.PSDT) would have to be refused or walked.
-   Today neither occurs: `nvme::prp_pair` answers `None` rather than build a list, and notes/nvme.md
+   Today neither occurs: `non_volatile_memory_express::prp_pair` answers `None` rather than build a list, and notes/non-volatile-memory-express.md
    records "One namespace, PRP-only, no SGLs, no PRP lists". Milestone 55's bulk path is what would
    change that, and it is the honest cost of the mediating option.
 
-**The tree half-knew this and lost it in a parenthesis.** notes/nvme.md's `BUGS` already says a
+**The tree half-knew this and lost it in a parenthesis.** notes/non-volatile-memory-express.md's `BUGS` already says a
 confined EL0 driver needs a capability "in the `Virtio` capability's mold (or command parsing at the
 doorbell, which is the same decision wearing worse clothes)". The doorbell was named. Calling it the
 same decision is what buried it, and it is not the same decision: parsing at the doorbell confines
@@ -219,7 +219,7 @@ NVMe match what §23 (multi-queue DMA confinement) did for virtio.
 The three above stand, with one correction to option 2 and one addition.
 
 **Option 1, stay kernel-resident.** Unchanged and still honest. The limitation is recorded in
-notes/nvme.md's `BUGS`.
+notes/non-volatile-memory-express.md's `BUGS`.
 
 **Option 2, a kernel-owned admin plane.** Still the right shape, and it is also what the field does
 (see the prior art below). One thing it never priced: **the split it describes is already a page
@@ -265,7 +265,7 @@ a multi-page DMA region.
 | BAR0's doorbell page mapped | `Object::DeviceFrame` plus `abi::page_frame::MAP` | none |
 | The DMA region's frames | one `PageFrame` naming the whole run, per §102 (a Frame names a run of pages); `gpu_driver` slot 5 | none |
 | The region's **physical** base, because PRP fields carry physical addresses | a spawn argument in `x1`. `components/src/entropy.rs` says it plainly: "Descriptors speak physical addresses; a process knows virtual ones, so the spawner passes this in" | none |
-| The controller confined to that run | `crate::iommu::confine`, already called from `kernel/src/nvme.rs::bring_up` before the controller is enabled | none |
+| The controller confined to that run | `crate::iommu::confine`, already called from `kernel/src/non_volatile_memory_express.rs::bring_up` before the controller is enabled | none |
 | Completions | `Object::Irq`'s `WAIT` and `ACK` | none |
 | The admin plane | stays in `Nvme::new` and `bring_up` | none |
 
@@ -281,7 +281,7 @@ is the pattern §16 (object revocation) established when it grew `Untyped`. One 
 if a variant is added: `kernel/src/cap.rs` asserts `size_of::<Object>() == 24` at compile time, so
 the new variant must carry no more than `Virtio(usize)` does.
 
-**How much kernel code leaves, and how much stays.** `kernel/src/nvme.rs` is 474 lines, 416 of them
+**How much kernel code leaves, and how much stays.** `kernel/src/non_volatile_memory_express.rs` is 474 lines, 416 of them
 before `mod tests`.
 
 | Piece | Lines | Under option 1 | Under 2 or 4 |
@@ -304,7 +304,7 @@ one level of recursion the day a PRP list appears, which today it cannot, and wh
 (Time Machine) is what would change.
 
 **What option 4 costs at run time is the honest open question and it is measurable rather than
-arguable.** Today's driver completes one command before submitting the next (notes/nvme.md's `BUGS`),
+arguable.** Today's driver completes one command before submitting the next (notes/non-volatile-memory-express.md's `BUGS`),
 so the per-command copy is invisible against a QEMU round trip. At real queue depth it is a syscall
 per batch plus 64 bytes copied per command, and `script/bench` is what would say whether that
 matters. Nobody should assert it either way from this section.
@@ -395,7 +395,7 @@ who may write it, and this tree has never asked.** Measured, not asserted:
   and untestable on the silicon it owns, since radon has no IOMMU at all. That is the exact reverse
   of x86_64's position now that xenon boots, and milestone 143's 2026-09-17 survey found a board
   with a ratified IOMMU buyable at about $299, which would close that gap and this one together.
-- The NVMe driver never touches MSI-X. notes/nvme.md's `BUGS` says so: "The controller is created
+- The NVMe driver never touches MSI-X. notes/non-volatile-memory-express.md's `BUGS` says so: "The controller is created
   with IEN=0 and no MSI-X table is touched." **Still true after milestone 261 moved the driver to
   EL0** on 2026-09-17: it polls, holds no `Irq` capability, and the controller is still created
   `IEN=0` naming no vector.
