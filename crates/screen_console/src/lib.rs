@@ -76,6 +76,17 @@
 //! - **Only 32-bit pixels.** [`machine_discovery::framebuffer::PixelOrder`] expresses the two byte
 //!   orders UEFI reports and nothing else, so a 24-bit packed or 16-bit mode has no console. Every
 //!   machine in the fleet reports one of the two.
+//! - **On the one real machine that has run this, the screen ends up showing a regular grid**, and
+//!   what that grid is has not been established. Observed twice on xenon (2026-09-04 and
+//!   2026-09-17), both times on a machine that had panicked and halted, and on 2026-09-17 after a
+//!   test boot that scrolled for hundreds of rows, which is the condition the bug above says this
+//!   was never built for. Three things are unseparated and the transcript cannot separate them: the
+//!   scroll path, the halt path, and the geometry. **The discriminating run is the tour image
+//!   rather than the test image**, because the tour fits on the screen, never scrolls, and does not
+//!   panic: if it paints text and holds it, the fault is downstream of painting. Recorded here
+//!   rather than as a fix because the one thing that is certain is that nobody has measured it, and
+//!   an earlier session nearly wrote up a framebuffer defect from a photograph of a halted machine
+//!   that had been displaying text correctly.
 //! - **Nothing here is proved on real silicon.** It is proved on the host and under OVMF. A
 //!   framebuffer that works under QEMU's emulated adapter is not a framebuffer that works on
 //!   Graeme's laptop, and `notes/serial-less-output.md` carries the bench procedure that would
