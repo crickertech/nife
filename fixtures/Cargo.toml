@@ -338,8 +338,8 @@ bench = false
 # The address-space builder (milestone 19b): constructs an address space from EL0 and
 # finds break-before-make enforced inside it. `hello`'s ADDRESS_SPACE_BUILDER role until 291.
 [[bin]]
-name = "address_space_builder"
-path = "src/address_space_builder.rs"
+name = "address_space_witness"
+path = "src/address_space_witness.rs"
 test = false
 bench = false
 

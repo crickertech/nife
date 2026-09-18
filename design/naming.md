@@ -620,6 +620,11 @@ UNRATIFIED (54 of 126), in the order worth working through
 44 unrecorded (research, then a ruling), 10 recorded (a ruling only).
 ```
 
+That capture keeps `address_space_builder`, which is `address_space_witness` since calef's ruling of
+2026-09-18. It is a transcript with measured counts in it, so it is evidence and stays; and sweeping
+it would have been doubly wrong, because the new name is ratified and so appears on no
+`--unratified` listing that command will ever print.
+
 **The tier is the kind, and not "programs a person actually types".** That second split is the
 two-tier rule calef rejected on 2026-08-01, keyed on a property that is not stable: `wc` went from
 internal plumbing to a prompt-typed pipeline stage inside a day. Every program in `components/src/`

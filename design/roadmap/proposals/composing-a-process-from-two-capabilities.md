@@ -22,7 +22,7 @@ a floor. This is the half that lost its only carrier.
 
 ## What is proved, so the gap is the real size and not a bigger one
 
-`fixtures/src/address_space_builder.rs` holds **exactly the same two capabilities** and, from them,
+`fixtures/src/address_space_witness.rs` holds **exactly the same two capabilities** and, from them,
 retypes an address space, retypes a page frame, maps the frame into the space it built, and proves
 the kernel enforces break-before-make inside that space. `kernel::user::tests::
 a_process_can_build_an_address_space_from_el0` asserts the verdict `0b111` on both architectures
@@ -36,7 +36,7 @@ no pull-request check has ever executed `builder`
 
 ## What is proved nowhere
 
-`address_space_builder` stops where milestone 19b stopped. Nothing runs in the space it builds,
+`address_space_witness` stops where milestone 19b stopped. Nothing runs in the space it builds,
 because threads were 19c's object. The rest of `builder`'s body is unasserted from a two-capability
 floor by anything in this tree:
 
@@ -59,13 +59,13 @@ capabilities; it is a benchmark. `crates/supervision_proto`'s `build_child` is t
 all share, and every caller of it is endowed for its job rather than trimmed to a floor.
 
 **So the gap is a join, not a hole.** Two verbs from userspace at a two-capability floor
-(`address_space_builder`), and the whole sequence from the kernel
+(`address_space_witness`), and the whole sequence from the kernel
 (`a_process_can_build_start_and_run_a_child_thread`). `builder` was the only thing that was both, and
 saying it that precisely is what makes option (a) below look as small as it is.
 
 ## The options
 
-**(a) Extend `address_space_builder` to run something in the space it builds.** The smallest change
+**(a) Extend `address_space_witness` to run something in the space it builds.** The smallest change
 that reaches the whole sequence: same two capabilities, same fixture, more verdict bits. It becomes a
 host-unrunnable QEMU test like the one it already is, on both architectures, asserted on every pull
 request, which is where `builder` never was. The cost is that the fixture's name stops describing it

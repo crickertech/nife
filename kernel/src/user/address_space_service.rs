@@ -2,12 +2,12 @@ use super::*;
 use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Spawn the builder; returns the report endpoint carrying its verdict bits.
+/// Spawn the witness; returns the report endpoint carrying its verdict bits.
 ///
 /// It was role 19 of the `hello` multiplexer until milestone 291 and is
-/// `fixtures/src/address_space_builder.rs` now, which reads nothing from `x0`.
+/// `fixtures/src/address_space_witness.rs` now, which reads nothing from `x0`.
 pub fn wire() -> RendezvousId {
-    let image = program("address_space_builder").expect("no address_space_builder in the archive");
+    let image = program("address_space_witness").expect("no address_space_witness in the archive");
     let report = crate::sched::create_rendezvous();
     let region = crate::memory_region::create(8).expect("no region for the builder");
 
