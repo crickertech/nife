@@ -382,10 +382,11 @@ mod verification {
     /// was put there to make the overflow safe and made the comparison meaningless instead. Fixed by
     /// comparing in `u64`, where both are true at once.
     ///
-    /// The harness was false a second time before that, for a reason of its own: the first spelling
-    /// asserted in `u64` over a product that reaches `2^64`, so it failed against code that was
-    /// right. Recorded because a harness that fails is not thereby evidence of a defect, and telling
-    /// the two apart took reading the counterexample rather than trusting the red.
+    /// **And it was false once before that for a reason of its own**, which is worth recording
+    /// separately: the first spelling asserted `span >= width * 4 * height` in `u64` over a product
+    /// that reaches `2^64`, so it failed against code that was right. A red harness is not by itself
+    /// evidence of a defect, and telling this apart from the real one took reading the
+    /// counterexample rather than trusting the colour.
     /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.an_accepted_span_covers_every_pixel_the_geometry_describes.patch`
     #[kani::proof]
     fn an_accepted_span_covers_every_pixel_the_geometry_describes() {
@@ -398,16 +399,15 @@ mod verification {
         };
         if let Some(span) = screen.span() {
             assert!(screen.width > 0 && screen.height > 0);
-            // Every row of visible pixels fits inside the span, with the four bytes per pixel the
-            // two `PixelOrder` encodings both use.
-            //
-            // **In `u128`, and the first spelling of this harness got that wrong**: `width * 4 *
-            // height` reaches 2^64 at the type's own extremes, so the assertion overflowed and the
-            // harness failed against correct code. The bound that makes the product meaningful
-            // (`stride >= width * 4`, with `stride` a `u32`) is a consequence of `span` returning
-            // `Some`, not a premise the arithmetic has in hand.
-            let pixels = screen.width as u128 * 4 * screen.height as u128;
-            assert!(span as u128 >= pixels);
+            // **Two halves rather than one product, and that is a cost decision made out loud.**
+            // The natural spelling is `span >= width * 4 * height`, which reaches 2^64 at the
+            // type extremes and so has to be done in `u128`. That version proves the same thing
+            // and took **20 minutes** on the dev Mac before it was killed, against 1.6 seconds
+            // for this one. Stated as a conjunction, each half fits a `u64` with room to spare:
+            // one row of four-byte pixels fits inside the stride, and the span is exactly that
+            // many rows. Together they are the property.
+            assert!(screen.stride as u64 >= screen.width as u64 * 4);
+            assert_eq!(span as u64, screen.stride as u64 * screen.height as u64);
             kani::cover!(span > 0, "a real geometry is accepted");
         }
     }

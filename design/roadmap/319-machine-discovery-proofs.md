@@ -1,4 +1,4 @@
-# 319. The crate that parses firmware had no proofs, and two of its first ones were false
+# 319. The crate that parses firmware had no proofs, and three of its first ones were false
 
 **Status: BUILT 2026-09-17.** *(Number provisional until the merge queue lands it.)*
 
@@ -29,10 +29,10 @@ that had never heard of it (`bench/xenon-2026-09-17/first-light-095500.log`, inc
 window at `0xf0000000` that disagreed with a hardcoded constant). Every table this parser had seen
 before that was one QEMU wrote for it.
 
-## Two of the harnesses were false when they were written
+## Three of the harnesses were false when they were written
 
-Both on the same kind of arithmetic, and neither reachable from any table QEMU emits. This is the
-outcome the lane existed for, so it is first.
+All three on arithmetic over a field a test would have had to think to write down, and none of them
+reachable from anything QEMU emits. This is the outcome the lane existed for, so it is first.
 
 **`acpi::Dmar::host_address_width` was `body[0] + 1` in a `u8`.** The DMAR stores the machine's
 physical address width minus one, so undoing that needs a byte's worth of headroom the byte does not
@@ -53,13 +53,26 @@ multiplied by a mebibyte. Fixed by answering zero, which is what "no bus is in t
 limitation that an inverted window is still *reported* as written is now in the module's `BUGS`,
 because the bus numbers are firmware's claim and this module reports claims.
 
-Neither defect is exotic and neither was going to be found by a test. The crate has 41 hand-written
-tests, and every one of them builds the table `q35` produces, because that was the only machine there
-was. `q35`'s DMAR says 38. Its MCFG says buses 0 through 255.
+**`framebuffer::Framebuffer::span()` compared a row width against the stride with a
+`saturating_mul`.** The saturation was put there to stop `width * 4` overflowing a `u32`, and it
+does. It also makes the comparison meaningless: above `2^30 - 1` the product saturates to `u32::MAX`,
+so a stride of `u32::MAX` satisfies a guard that one row of pixels genuinely fails, and `span`
+returns fewer bytes than a single row needs. That number bounds every write the console makes. Fixed
+by comparing in `u64`, where the overflow and the comparison are both right at once.
+
+**And the crate's own test asserted the defective answer.** `a_span_that_cannot_be_computed_is_refused`
+expected `Some(u32::MAX * u32::MAX)` for a screen `u32::MAX` pixels wide with a stride of `u32::MAX`,
+and called it *"the honest answer"* on a 64-bit host. The test and the code agreed because both read
+the same saturating product. That is the clearest answer this lane has to why a crate with 41 tests
+wanted a prover, and it is exactly the failure `design/fatal-risks.md`'s risk 2 is about.
+
+None of the three defects is exotic and none was going to be found by a test. Every one of those 41
+tests builds the table `q35` produces, because that was the only machine there was. `q35`'s DMAR says
+38. Its MCFG says buses 0 through 255. Its screen is 800 by 600.
 
 ## What is proved, and why each one could plausibly have been false
 
-Sixteen harnesses, in four `#[cfg(kani)] mod verification` blocks beside the code they prove. Each
+Fifteen harnesses, in four `#[cfg(kani)] mod verification` blocks beside the code they prove. Each
 carries a `Falsification: replayable` block per DECISIONS §134, and every patch under
 `crates/machine_discovery/falsifications/` was checked by `script/falsifications --sweep`: applied,
 the harness run, required red, reverted.
@@ -75,9 +88,8 @@ the harness run, required red, reverted.
 | `acpi::an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus` | **the second shipped defect**, restored |
 | `acpi::the_root_tables_entry_count_and_its_entry_reader_agree` | the reader bounds on the entry start instead of its end, so it returns one entry more than the count |
 | `framebuffer::an_encoded_token_never_exceeds_the_maximum_it_advertises` | `MAX_LEN` one below the real worst case, which is what its own doc records nearly happening |
-| `framebuffer::an_accepted_span_covers_every_pixel_the_geometry_describes` | `width * 4` without saturating, so a width above 2^30 wraps *small* and the guard passes |
+| `framebuffer::an_accepted_span_covers_every_pixel_the_geometry_describes` | **the third shipped defect**, restored |
 | `framebuffer::every_hex_field_the_loader_writes_is_one_the_kernel_reads_back` | `parse_hex` refuses one digit fewer than `write_hex` can emit |
-| `framebuffer::every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back` | `parse_decimal` accumulates unchecked, so `u32::MAX + 1` wraps instead of being refused |
 | `x86_64::no_length_of_handoff_bytes_makes_the_decode_read_past_its_end` | the version-1 length check is gone, and offsets 40 and 48 are read out of a 40-byte handoff |
 | `x86_64::a_range_read_out_of_the_memory_map_never_wraps_to_look_empty` | `end()` wraps, so a firmware size near `u64::MAX` makes a range look empty to a frame allocator |
 | `riscv64::a_multi_letter_extension_is_never_read_as_a_privilege_letter` | the privilege scan runs past the first `_`, and `_sstc` reads as a supervisor claim |
@@ -158,19 +170,29 @@ The disagreement this property exists to catch is `write_hex` emitting a sixteen
 formula. The whole-token round trip stays a hand-written test over six realistic geometries, which
 is what it was before this lane and is honest about what it covers.
 
-**The decimal half is expensive for a different reason and it is worth naming**: `write_decimal`
-divides a symbolic `u32` by ten, ten times, and symbolic division is the one operation that
-bit-blasting does badly. DECIMAL_COST The hex twin, which is shifts and masks, finishes in seconds.
-If this row ever needs to come down, that harness is where the minutes are.
+**The decimal twin was written, measured, and dropped: 911 seconds.** `write_decimal` divides a
+symbolic `u32` by ten, ten times, and symbolic division is the one operation bit-blasting does
+badly; `parse_decimal` multiplies it back. 15.2 minutes for one harness would have become the
+suite's atomic floor, above `glob` at 15.0, which is the number the whole sharding argument in
+`script/verify` is built on. The hex twin is shifts and masks and costs **150 seconds**, which is
+most of this crate's row and is why the row reads 180 rather than 30.
+
+So the decimal converters are **not proved**, and the boundary that matters about them (`4294967295`
+accepted, `4294967296` refused) is covered by a hand-written test rather than for every `u32`. That
+is a worse guarantee and it is the one the measurement bought.
 
 ## What this cost and what it bought
 
-| | harnesses | `script/verify` row |
+| | this crate | tree-wide |
 |---|---|---|
-| before | 0 | absent |
-| after | 15 | `machine_discovery 40` |
+| harnesses before | 0 | 153 |
+| harnesses after | 15 | 168 |
+| `script/verify` row | absent | `machine_discovery 180` |
 
-Tree-wide: VERIFY_BEFORE harnesses before, VERIFY_AFTER after.
+The 180 seconds is a dev-Mac measurement rather than a CI-log one, which is the wrong machine for
+that column, the same caveat `jh7110_entropy` and `kernel` carry. **150 of the 180 are one harness**,
+`every_hex_field_the_loader_writes_is_one_the_kernel_reads_back`; the other fourteen together are
+about thirty seconds.
 
 `script/lint`'s "every crate with proof harnesses is in the verify table" gate (milestone 193's,
 written after `jh7110_entropy` and `multicast_dns_protocol` each carried harnesses that ran nowhere)
