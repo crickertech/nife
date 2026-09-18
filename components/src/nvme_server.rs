@@ -89,10 +89,21 @@
 //! one. The virtio block server issues a single request for the same range, so this server is
 //! slower on bulk by construction and the fix is a PRP list rather than anything about this file.
 //!
-//! Name: provisional (milestone 261). `nvme_server` is the name DECISIONS §86 uses for this program in
-//! passing, and §86 says plainly that is not a ratification. It reads as the `<device>_server`
-//! pair to `block_driver`'s `<device>_driver`, and both readings are calef's to settle: a server
-//! is what this is (it serves a contract) where the virtio one is named for the device it drives.
+//! Name: provisional, and ruled: calef ruled **`non_volatile_memory_express`** on 2026-09-17,
+//! for the whole family rather than for this program alone. The block stays `provisional` because
+//! the ratified name is not this program's until the rename is performed; the argument, the
+//! refusals and what does not move are recorded once, beside the crate, in `crates/nvme`.
+//!
+//! `nvme_server` was §86's name for this program in passing, and §86 said plainly that was not a
+//! ratification. Two things were wrong with it. It carries the unexpanded acronym, which is what
+//! the ruling is about. And it was the tree's **only** `_server` against four `_driver` programs
+//! (`block_driver`, `gpu_driver`, `keyboard_driver`, `serial_driver`), drawing a distinction no
+//! reader can recover from the name: `block_driver` serves a contract too, and `crates/virtio`'s
+//! own prose calls that program's role *"the block server"*.
+//!
+//! **That inconsistency outlives this ruling and is not settled here.** `block_driver` and this
+//! program will spell the same role two ways until somebody rules on the `_driver`/`_server` split
+//! itself, which is calef's and is a separate question from the acronym.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
