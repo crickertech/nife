@@ -239,14 +239,17 @@ pub const IO_APIC_PHYS: u64 = 0xfec0_0000;
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_ECAM_PHYS: u64 = 0xb000_0000;
 
-/// How many PCI buses of the ECAM window the kernel maps. One bus is 1 MiB of configuration space;
-/// the other two architectures map one for the same reason (everything QEMU puts on the bus is on
-/// bus 0) and pay 1 MiB rather than the 256 MiB the full window would cost.
+/// How many PCI buses of the ECAM window the kernel maps **before it has asked the machine**. One
+/// bus is 1 MiB of configuration space, and the MCFG on the first real machine this port met
+/// describes a hundred and twenty-eight of them.
+///
+/// **The floor, not the answer, since milestone 320.** `pci::ecam_buses()` is what the kernel maps
+/// and reads: this value until `pci::survey` has run, and the topology the survey found afterwards.
+/// The survey runs from `kernel_main` while the boot tables still cover the low 4 GiB
+/// indiscriminately, which is the only window in the boot where every bus the MCFG describes is
+/// readable; `map_everything` runs after it and maps what it found.
 #[cfg_attr(not(test), allow(dead_code))]
 pub const PCI_ECAM_BUSES: u16 = 1;
-/// Bytes of ECAM actually mapped.
-#[cfg_attr(not(test), allow(dead_code))]
-pub const PCI_ECAM_MAPPED: u64 = PCI_ECAM_BUSES as u64 * 0x10_0000;
 
 /// Is paging on? True from the moment `boot.s` set `CR0.PG`, which is before any Rust runs, so this
 /// is a constant `true` in practice and is read back from the hardware anyway: the one thing worth
@@ -992,7 +995,7 @@ fn direct_map_claims(each: &mut dyn FnMut(Claim)) {
         each(Claim {
             what: "pci ecam",
             lo: ecam,
-            hi: ecam + PCI_ECAM_MAPPED.min(ecam_size),
+            hi: ecam + crate::pci::ecam_bytes().min(ecam_size),
             flags: Flags::device(),
             guarded: false,
         });

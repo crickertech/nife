@@ -5378,6 +5378,47 @@ fn test() -> bool {
         if !run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]) {
             return false;
         }
+        // **And one more boot, on a machine with a bridge on it** (milestone 320). `q35` is a flat
+        // root complex: every device hangs off bus 0, which is why a kernel that mapped one
+        // megabyte of configuration space and enumerated bus 0 passed every test in this tree for a
+        // year and then found no disk at all on the first real machine it met. `NIFE_PCIE_ROOT_PORT`
+        // puts the NVMe controller behind a `pcie-root-port`, which is the topology xenon's M.2 slot
+        // has.
+        //
+        // **One test, not the suite**, and that is the cost decision stated where it is paid. The
+        // claim needing a second topology is one claim (the walk follows a bridge and finds what is
+        // behind it); re-running two hundred tests under it would buy coverage of the tests rather
+        // than of the topology, the same argument `uefi_boot` above makes about firmware. It costs
+        // about three seconds.
+        //
+        // Skipped under `--test`, like the image checks below and for the same reason: the filter
+        // names a kernel test, and clobbering it here would run something the caller did not ask
+        // for and report it as what they did.
+        if filter.is_none() {
+            eprintln!();
+            eprintln!("--- kernel test, x86_64 with the NVMe behind a PCIe root port ---");
+            // SAFETY: `set_var` became unsafe in edition 2024 because it races other threads. xtask
+            // is single-threaded here: this runs on the main thread before the child that reads it
+            // is spawned, and the only thread xtask ever starts (the transcript reader in
+            // shell_check_leg) copies pipe bytes into a String and never touches the environment.
+            unsafe {
+                std::env::set_var("NIFE_PCIE_ROOT_PORT", "1");
+                std::env::set_var("NIFE_TEST_FILTER", "found_on_the_bus_behind_it");
+            }
+            let bridged = run("cargo", &["test", "-p", "kernel", "--target", X86_TARGET]);
+            // Removed whether or not it passed: the UEFI boots below and every later leg must get
+            // the flat machine they were written against.
+            //
+            // SAFETY: as above. Single-threaded, on the main thread, and the child that read these
+            // has already exited.
+            unsafe {
+                std::env::remove_var("NIFE_PCIE_ROOT_PORT");
+                std::env::remove_var("NIFE_TEST_FILTER");
+            }
+            if !bridged {
+                return false;
+            }
+        }
         // **And the same kernel started by real firmware** (milestone 87). The suite above rides
         // QEMU's PVH loader, which is a hypervisor protocol no machine speaks; this boots the same
         // code through OVMF from `\EFI\BOOT\BOOTX64.EFI`, which is what the Dell OptiPlex does.

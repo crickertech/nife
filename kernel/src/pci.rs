@@ -24,12 +24,25 @@
 //! constants say so, and host-run witnesses hold the device-tree architectures' swizzle against
 //! the machine's own tree.
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU16, AtomicU64, Ordering};
 
 use paging::PAGE_SIZE;
 use pci::{Bar, Bdf, VirtioCap};
 
 use crate::arch::mmu::{self, PCI_BAR_MAPPED, PCI_ECAM_BUSES, PCI_IRQ_BASE};
+
+/// One bus of ECAM configuration space: 32 devices of 8 functions of 4 KiB.
+const BUS_BYTES: u64 = 0x10_0000;
+
+/// **How many buses of configuration space this kernel has mapped, and may therefore read.** Zero
+/// means no survey has run and [`ecam_buses`] answers the architecture's compiled-in default.
+///
+/// It is a runtime value rather than a constant because the answer is the machine's (milestone
+/// 320). `arch::mmu::PCI_ECAM_BUSES` is 1 on all three architectures and was right for a year,
+/// because QEMU hangs every device off the root complex on every board this tree boots. A machine
+/// whose firmware put a controller behind a PCIe root port needs the bus behind that port mapped
+/// before anything can read it, and nothing compiled in can know which bus that is.
+static ECAM_BUSES: AtomicU16 = AtomicU16::new(0);
 
 /// The ECAM window's physical base, cached from `memory::pci_regions` by [`host_bridge_present`].
 /// Zero means "not cached yet, or no bridge", and cannot collide with a real value: no machine
@@ -49,6 +62,119 @@ static BAR_NEXT: AtomicU64 = AtomicU64::new(0);
 /// (`mmu::map_everything` maps the same `PCI_BAR_MAPPED`-capped slice, so this limit is exactly
 /// what is addressable).
 static BAR_LIMIT: AtomicU64 = AtomicU64::new(0);
+
+/// **The exclusive bus-number bound every walk in this module passes to `pci::walk`**: how many
+/// buses of configuration space are mapped, so how many can be read without faulting.
+///
+/// The compiled-in `PCI_ECAM_BUSES` until [`survey`] has run, and what the survey found afterwards.
+/// On both `virt` boards no survey runs and this is 1 forever, which is the truth there: their
+/// device trees describe a flat bus and QEMU puts nothing behind a bridge.
+pub fn ecam_buses() -> u16 {
+    match ECAM_BUSES.load(Ordering::Relaxed) {
+        0 => PCI_ECAM_BUSES,
+        n => n,
+    }
+}
+
+/// **Bytes of ECAM the direct map must cover**, for each architecture's `map_everything`.
+///
+/// One seam rather than three copies of `PCI_ECAM_MAPPED.min(ecam_size)`, so that the day a
+/// device-tree machine grows a root port there is one place that already knows the answer. The
+/// caller still clamps against the window the machine actually described: a survey cannot report a
+/// bus outside it, but `PCI_ECAM_BUSES` on a machine that describes less than one bus could.
+///
+/// **Provisional names** (milestone 320), with [`ecam_buses`] and [`survey`], and with
+/// `NIFE_PCIE_ROOT_PORT` in `scripts/qemu-runner-x86_64.sh`: calef names public items.
+pub fn ecam_bytes() -> u64 {
+    u64::from(ecam_buses()) * BUS_BYTES
+}
+
+/// **Print every function on every bus the machine has, and record how many buses that is**
+/// (milestone 320). Returns the number of functions found.
+///
+/// # Why this exists, and why it is a print rather than a count
+///
+/// The kernel mapped one megabyte of configuration space and enumerated bus 0, while ACPI's MCFG
+/// described a hundred and twenty-eight buses. Both facts were printed by every `x86_64` boot, two
+/// lines apart, for a year. On QEMU's `q35` the two agree in effect, because everything is on bus
+/// 0. On xenon the NVMe controller is behind a PCIe root port, so [`find_nvme_device`] searched a
+/// bus the disk was never on and `nvme_tests` **skipped** with QEMU's explanation for an absence
+/// that had an entirely different cause.
+///
+/// A count would not have caught that and did not: `bar_census` printed "15 function(s) on the bus"
+/// and fifteen functions is a perfectly ordinary number for a machine whose disk is missing. What
+/// was needed was the list, because the finding is in *which* functions those were.
+///
+/// # When it must run
+///
+/// **Before the fine map replaces the boot map**, which is the whole reason this is possible
+/// without lazy mapping machinery. On `x86_64` the boot tables cover the low 4 GiB
+/// indiscriminately, so at this point in boot every bus the MCFG describes is already readable and
+/// the survey costs no mapping at all; `arch::mmu::map_everything` then maps exactly the buses the
+/// survey found. Called later it would read its way straight off the end of the mapped window.
+///
+/// # What it cannot do, and this is a real limit rather than a caveat
+///
+/// It maps **bus 0 through the highest bus it found, contiguously**, not the set of buses it found.
+/// A machine whose firmware numbers a root port's subtree 0x60 pays sixty-one buses of page tables
+/// for two buses of devices. Nothing measured yet does that (see `BUGS` in notes/pcie.md), and the
+/// cost is bounded by what a flat map of the whole MCFG window would have cost anyway, so the set
+/// version is not built until a machine asks for it.
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))]
+pub fn survey() -> usize {
+    if !host_bridge_present() {
+        return 0;
+    }
+    // The whole window the machine described, which is what is readable right now and is never
+    // what stays mapped. `pci::walk` clamps this to 256 itself.
+    let described =
+        crate::memory::pci_regions().map_or(0, |((_, size), _)| (size / BUS_BYTES).min(256) as u16);
+
+    let (mut functions, mut highest) = (0usize, 0u8);
+    pci::walk(described, &mut |b, o| cfg_read32(b, o), &mut |f| {
+        functions += 1;
+        highest = highest.max(f.bdf.bus);
+        match f.bridge {
+            Some(b) => {
+                highest = highest.max(b.subordinate);
+                crate::println!(
+                    "                {:02x}:{:02x}.{} {:04x}:{:04x} class {:06x} \
+                     bridge to buses {:02x}..={:02x}",
+                    f.bdf.bus,
+                    f.bdf.dev,
+                    f.bdf.func,
+                    f.vendor,
+                    f.device,
+                    f.class,
+                    b.secondary,
+                    b.subordinate,
+                );
+            }
+            None => crate::println!(
+                "                {:02x}:{:02x}.{} {:04x}:{:04x} class {:06x}",
+                f.bdf.bus,
+                f.bdf.dev,
+                f.bdf.func,
+                f.vendor,
+                f.device,
+                f.class,
+            ),
+        }
+    });
+
+    // `highest` takes a bridge's SUBORDINATE bus and not only the buses that answered, because a
+    // subtree firmware left room in is a subtree a hotplugged device appears in, and because a
+    // bridge whose secondary bus is empty still decodes it.
+    let buses = u16::from(highest) + 1;
+    ECAM_BUSES.store(buses.min(described.max(1)), Ordering::Relaxed);
+    crate::println!(
+        "                {functions} function(s) over {} bus(es) of the {described} described; \
+         mapping {} KiB of config space",
+        buses,
+        ecam_bytes() / 1024,
+    );
+    functions
+}
 
 /// True when `memory::pci_regions()` named a host bridge, caching its windows on first call.
 /// Every public entry point checks this before touching config space, so on a machine with
@@ -304,7 +430,7 @@ pub fn find_block_device_n(n: usize) -> Option<PciVirtioDevice> {
     let mut seen = 0;
     let mut found: Option<Bdf> = None;
     pci::enumerate(
-        PCI_ECAM_BUSES,
+        ecam_buses(),
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, vendor, device| {
             if found.is_none() && vendor == pci::VIRTIO_VENDOR && device == pci::VIRTIO_BLK_MODERN {
@@ -390,7 +516,7 @@ pub fn count_block_devices() -> usize {
     }
     let mut n = 0;
     pci::enumerate(
-        PCI_ECAM_BUSES,
+        ecam_buses(),
         &mut |b, o| cfg_read32(b, o),
         &mut |_, vendor, device| {
             if vendor == pci::VIRTIO_VENDOR && device == pci::VIRTIO_BLK_MODERN {
@@ -447,7 +573,7 @@ pub fn bar_census() -> (usize, usize) {
     let hi = BAR_LIMIT.load(Ordering::Relaxed);
     let (mut functions, mut stranded) = (0usize, 0usize);
     pci::enumerate(
-        PCI_ECAM_BUSES,
+        ecam_buses(),
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, _, _| {
             functions += 1;
@@ -488,7 +614,7 @@ fn find_virtio_bdf(modern: u16, transitional: Option<u16>, kind: &str) -> Option
     }
     let mut found: Option<Bdf> = None;
     pci::enumerate(
-        PCI_ECAM_BUSES,
+        ecam_buses(),
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, vendor, device| {
             if found.is_none() && vendor == pci::VIRTIO_VENDOR {
@@ -714,7 +840,7 @@ pub fn find_nvme_device() -> Option<PciNvmeDevice> {
     }
     let mut found: Option<Bdf> = None;
     pci::enumerate(
-        PCI_ECAM_BUSES,
+        ecam_buses(),
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, _, _| {
             if found.is_none() && cfg_read32(bdf, pci::CLASS_REVISION) >> 8 == pci::CLASS_NVME {
@@ -768,7 +894,7 @@ pub fn init_iommu() {
     }
     let mut found: Option<Bdf> = None;
     pci::enumerate(
-        PCI_ECAM_BUSES,
+        ecam_buses(),
         &mut |b, o| cfg_read32(b, o),
         &mut |bdf, vendor, device| {
             if found.is_none() && vendor == IOMMU_VENDOR && device == IOMMU_DEVICE {
@@ -886,7 +1012,7 @@ mod tests {
         let mut found_host_bridge = false;
         let mut count = 0usize;
         pci::enumerate(
-            PCI_ECAM_BUSES,
+            ecam_buses(),
             &mut |b, o| cfg_read32(b, o),
             &mut |bdf, vendor, device| {
                 count += 1;
@@ -927,6 +1053,66 @@ mod tests {
         assert!(
             count >= 1,
             "enumeration walked the bus and found nothing at all"
+        );
+    }
+
+    /// **A controller behind a PCIe root port is found on the bus behind it** (milestone 320).
+    ///
+    /// The bug this pins is the one xenon exposed: the kernel mapped one megabyte of configuration
+    /// space, enumerated bus 0, and reported a machine whose NVMe was behind a root port as having
+    /// no NVMe at all. What made it expensive to find is that nothing failed. `nvme_tests`
+    /// **skipped**, with QEMU's explanation ("NIFE_NVME not set on this leg?") for an absence that
+    /// had an entirely different cause, and a skip reads like a fact about the run.
+    ///
+    /// So this test asserts the whole chain rather than the endpoint: the survey recorded more than
+    /// one bus, a bridge on bus 0 states a subtree, and the controller is on the bus that bridge
+    /// named. Asserting only "an NVMe was found" would pass on the flat machine too.
+    ///
+    /// **It does not bring the controller up, and that is a property of the machine rather than a
+    /// gap in the test.** A PCI-to-PCI bridge forwards memory only inside the window its own
+    /// base/limit registers describe, and this machine boots PVH with no firmware to have written
+    /// them, so the controller's BAR does not decode however correctly it is placed. On xenon
+    /// firmware wrote both the bus numbers and the windows and `place_bars` adopts what it finds
+    /// (milestone 256). See `design/roadmap/proposals/a-bridge-window-the-kernel-programs-itself.md`.
+    #[cfg(target_arch = "x86_64")]
+    #[test_case]
+    fn a_controller_behind_a_bridge_is_found_on_the_bus_behind_it() {
+        assert!(host_bridge_present(), "no ECAM window on this machine");
+
+        let (mut bridged_to, mut controller_on) = (None, None);
+        pci::walk(ecam_buses(), &mut |b, o| cfg_read32(b, o), &mut |f| {
+            if let Some(behind) = f.bridge
+                && behind.secondary != 0
+                && bridged_to.is_none()
+            {
+                bridged_to = Some(behind.secondary);
+            }
+            if f.class == pci::CLASS_NVME && controller_on.is_none() {
+                controller_on = Some(f.bdf.bus);
+            }
+        });
+
+        let Some(secondary) = bridged_to else {
+            // The flat `q35` every other leg boots, which is the honest answer here and names the
+            // knob rather than leaving a reader to guess, the way the skip this milestone came from
+            // did not.
+            crate::testing::skip!(
+                "no configured PCI bridge on this machine: q35 is a flat root complex unless \
+                 NIFE_PCIE_ROOT_PORT=1 puts the NVMe controller behind a root port, which \
+                 `cargo xtask test --arch x86_64` does on its own leg"
+            );
+        };
+
+        assert!(
+            ecam_buses() >= 2,
+            "a bridge states a subtree at bus {secondary} but the survey mapped {} bus(es)",
+            ecam_buses(),
+        );
+        assert_eq!(
+            controller_on,
+            Some(secondary),
+            "the NVMe controller was not on the bus the bridge named; before milestone 320 this \
+             read as None, because the walk never left bus 0"
         );
     }
 }

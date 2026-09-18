@@ -177,8 +177,10 @@ pub const VIRTIO_SLOTS: u64 = 8;
 /// appears. This base *was* a QEMU constant here (`PCI_ECAM_BASE = 0x3000_0000`), which is the
 /// DECISIONS §43 class the first VisionFive 2 boot paid for; the kernel test in pci.rs holds the
 /// discovered value to the old one on QEMU.
+/// **The floor, not the answer, since milestone 320.** `pci::ecam_buses()` is what the kernel maps
+/// and reads: this value until a survey has run, and the machine's own topology afterwards. On this
+/// architecture no survey runs, so it stays 1 and is the truth here.
 pub const PCI_ECAM_BUSES: u16 = 1;
-pub const PCI_ECAM_MAPPED: u64 = PCI_ECAM_BUSES as u64 * 0x10_0000;
 
 /// How much of the 32-bit PCI memory window the kernel maps and assigns BARs from. The window
 /// itself comes from the device tree (`memory::pci_regions`, the bridge's `ranges`); with
@@ -490,7 +492,7 @@ where
         direct_map(
             m,
             ecam,
-            ecam + PCI_ECAM_MAPPED.min(ecam_size),
+            ecam + crate::pci::ecam_bytes().min(ecam_size),
             Flags::device(),
         )?;
         direct_map(m, bar, bar + PCI_BAR_MAPPED.min(bar_size), Flags::device())?;
