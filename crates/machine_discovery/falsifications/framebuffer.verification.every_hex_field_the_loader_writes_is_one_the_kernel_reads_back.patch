@@ -1,0 +1,32 @@
+Falsifies `machine_discovery::framebuffer::verification::every_hex_field_the_loader_writes_is_one_the_kernel_reads_back`.
+
+The defect: `parse_hex` refuses seventeen digits instead of refusing more than
+sixteen, so it also refuses the sixteen-digit values `write_hex` can emit.
+
+Sixteen is `u64::MAX`'s width in hex, and a limit written as "more than sixteen is
+not a u64" and one written as "sixteen is the last one that fits" are one character
+apart. The reader and the writer are forty lines apart and neither mentions the
+other.
+
+The failure is silent in the direction that matters. `Framebuffer::parse` is
+documented to read a malformed token **as no screen at all**, deliberately, so that
+a display description the kernel could have done without does not stop the boot. So
+a reader one digit short of the writer reports nothing: the machine comes up with a
+black screen, and the UART, where there is one, is the only way to find out why. A
+base above 2^60 is not hypothetical on a machine whose firmware relocated its own
+windows, which is what xenon does.
+
+Expected to fail: `assert_eq!(parse_hex(text), Some(value))`.
+
+diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
+--- a/crates/machine_discovery/src/framebuffer.rs
++++ b/crates/machine_discovery/src/framebuffer.rs
+@@ -284,7 +284,7 @@ fn write_decimal(value: u32, out: &mut [u8; 10]) -> usize {
+ /// line would write. A bare number is refused rather than guessed at.
+ fn parse_hex(text: &str) -> Option<u64> {
+     let digits = text.strip_prefix("0x")?;
+-    if digits.is_empty() || digits.len() > 16 {
++    if digits.is_empty() || digits.len() > 15 {
+         return None;
+     }
+     let mut value = 0u64;

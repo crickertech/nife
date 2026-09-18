@@ -1,0 +1,29 @@
+Falsifies `machine_discovery::acpi::verification::the_madt_walk_terminates_and_stays_inside_the_body`.
+
+The defect: the minimum entry length drops from two to one. A MADT entry is
+`[type, length, ...]`, so an entry claiming a length of one advances the cursor by
+one byte and the next iteration reads its *length* byte as a type and its own
+successor's type as a length. The walk no longer consumes at least its own header
+per step, which is the only thing making it finite, and a table of `01 01 01 ...`
+walks one byte at a time through whatever follows the MADT in memory.
+
+Zero is still refused, which is what makes this the plausible mistake rather than
+an obviously broken one: "a zero length would loop forever" is the comment beside
+the check, and `len < 1` satisfies that comment exactly. Every test in this file
+stays green, because the only malformed lengths they write are zero and 200.
+
+Expected to fail: `assert!(it.at >= last + 2)`, and with a deeper unwind the
+`seen <= N / 2` bound behind it.
+
+diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
+--- a/crates/machine_discovery/src/acpi.rs
++++ b/crates/machine_discovery/src/acpi.rs
+@@ -330,7 +330,7 @@ impl Iterator for MadtEntries<'_> {
+         // A zero (or absurdly short) length is a malformed table, and continuing would either loop
+         // forever or read the next entry from the middle of this one. Stop, which reports the
+         // entries read so far rather than inventing more.
+-        if len < 2 || self.at + len > self.body.len() {
++        if len < 1 || self.at + len > self.body.len() {
+             return None;
+         }
+         let e = &self.body[self.at..self.at + len];

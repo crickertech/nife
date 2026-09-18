@@ -1,0 +1,31 @@
+Falsifies `machine_discovery::framebuffer::verification::an_accepted_span_covers_every_pixel_the_geometry_describes`.
+
+**This is the defect as it actually shipped**, restored: the row-width guard
+compares in `u32` with a `saturating_mul` instead of in `u64`.
+
+Saturating is not the same as correct, and that is the whole lesson. The
+`saturating_mul` was there to stop `width * 4` overflowing a `u32`, and it does. It
+also makes the comparison meaningless above `2^30 - 1`: the product saturates to
+`u32::MAX`, so a stride of `u32::MAX` satisfies a guard that one row of pixels
+genuinely fails, and `span` then hands the console a byte count smaller than a
+single row needs. Every write the console makes is bounded by that number.
+
+The crate's own test `a_span_that_cannot_be_computed_is_refused` **asserted the
+defective answer**, for a screen `u32::MAX` wide with a stride of `u32::MAX`, and
+called it "the honest answer" on a 64-bit host. The test and the code agreed because
+both read the same saturating product. That is what a prover is for.
+
+Expected to fail: `assert!(span as u128 >= pixels)`, on a width above `2^30 - 1`.
+
+diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
+--- a/crates/machine_discovery/src/framebuffer.rs
++++ b/crates/machine_discovery/src/framebuffer.rs
+@@ -171,7 +171,7 @@ impl Framebuffer {
+     /// `verification::an_accepted_span_covers_every_pixel_the_geometry_describes`.
+     #[must_use]
+     pub const fn span(&self) -> Option<usize> {
+-        if self.width == 0 || self.height == 0 || (self.stride as u64) < self.width as u64 * 4 {
++        if self.width == 0 || self.height == 0 || self.stride < self.width.saturating_mul(4) {
+             return None;
+         }
+         match (self.stride as u64).checked_mul(self.height as u64) {

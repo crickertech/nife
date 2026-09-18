@@ -1,0 +1,29 @@
+Falsifies `machine_discovery::riscv64::verification::a_counter_width_is_widened_before_the_specifications_off_by_one_is_undone`.
+
+The defect: `from_raw` masks the width field with `0xff` instead of `0x3f`.
+
+SBI v3.0 defines `counter_info[17:12]` as the width, six bits, one less than the
+number of bits in the CSR. Six bits is `0x3f`, and a byte is `0xff`; the two
+spellings look equally plausible beside a `u8` field, and the wider one quietly
+takes two bits of the reserved range with it. The mask and the `+ 1` that undoes
+the specification's off-by-one live in two different functions forty lines apart,
+which is why this is worth a prover rather than a reader: nothing at either site
+says what the other one assumes.
+
+The value arrives from firmware in `sbiret.value`, so the reserved bits are not
+guaranteed zero on a machine whose SBI implementation is not QEMU's.
+
+Expected to fail: `assert!((1..=64).contains(&bits))`.
+
+diff --git a/crates/machine_discovery/src/riscv64.rs b/crates/machine_discovery/src/riscv64.rs
+--- a/crates/machine_discovery/src/riscv64.rs
++++ b/crates/machine_discovery/src/riscv64.rs
+@@ -948,7 +948,7 @@ impl CounterInfo {
+         CounterInfo {
+             firmware: value >> 63 != 0,
+             raw_csr: (value & 0xfff) as u16,
+-            raw_width: ((value >> 12) & 0x3f) as u8,
++            raw_width: ((value >> 12) & 0xff) as u8,
+         }
+     }
+ 
