@@ -4,14 +4,22 @@
 five proposals, written by five lanes between 2026-09-03 and 2026-09-17, are all about the same
 record. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** Parts 4 and 5 only, which is milestone 188's shape rather than a blocked block:
-**parts 1, 2 and 3 need nobody and a lane can take them today.** Part 4 adds a field to the
-`Falsification:` block whose spelling
-[DECISIONS §134](../decisions/134-harness-falsification-record.md) ratified, so the field's name and
-placement are calef's first. Part 5 asks whether `kernel/falsifications/` is an exception to §134's
-per-crate rule or a mistake, and a sweep cannot be written against either answer until somebody says
-which. The token is `DECISION` because `NONE` stands alone and would claim nothing is owed, which is
-false for two parts; it is not a claim that the block cannot start.
+**Gate: DECISION.** Part 5 only, which is milestone 188's shape rather than a blocked block:
+**parts 1 to 4 need nobody and a lane can take them today.** Part 5 asks whether
+`kernel/falsifications/` is an exception to
+[§134](../decisions/134-harness-falsification-record.md)'s per-crate rule or a mistake, and a sweep
+cannot be written against either answer until somebody says which. The token is `DECISION` because
+`NONE` stands alone and would claim nothing is owed, which is false for part 5; it is not a claim
+that the block cannot start.
+
+**Part 4 was decided on 2026-09-18 and is no longer calef's**, which is recorded here rather than
+silently dropped: he ratified `Expected to fail:` as the line a record carries, in
+[§134](../decisions/134-harness-falsification-record.md)'s own spellings section. The decision turned
+out to be a ratification rather than a minting. This block filed it as *"what to call a new field"*
+on the proposal's observation that four patches already did it in prose; counted on the day, **all 66
+falsification records carried the line and 65 spelled it exactly that way**. The one outlier
+(`Expected red`, in `crates/nifefs`) was corrected in the same change, so the convention the gate will
+read is now uniform across all 66.
 
 **Why a cluster and not five proposals.** Each was filed by the lane that tripped over it, from a
 different direction: milestone 313's security audit, 307's sweep of all 26 confinement rows, 318's

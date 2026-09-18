@@ -281,6 +281,33 @@ turns `filesystem_proto`'s three-deep nesting into a tree of near-empty director
 eighteen harnesses to make a filename work, which would put the ISA in a function name the module
 already states and is a naming decision driven by a path.
 
+## `Expected to fail:`, ratified 2026-09-18
+
+**calef, 2026-09-18**, ratifying a convention rather than minting one, which is why this is four
+paragraphs and not four options.
+
+**A falsification record names the assertion it expects to fail**, on a line beginning
+`Expected to fail:` in the patch's prose head, beside `Falsifies`. `script/falsifications` may then
+compare it against the transcript and fail a record whose red arrived somewhere else.
+
+**The naming question had already been answered by use, and the proposal that raised it did not
+know.** Milestone 323's part 4 was filed as a decision about what to call a new field, on the
+observation that *"four patches in the tree already solve this in prose"*. That was a sample. Counted
+on 2026-09-18: **66 falsification records, all 66 carrying the line, 65 spelling it exactly
+`Expected to fail`** and one `Expected red`
+(`crates/nifefs/falsifications/verification.the_validation_implies_reads_slice_is_in_bounds.patch`,
+corrected in the same change). So the decision was not what to name a field; it was whether to ratify
+the name 65 records already used, or rewrite 65 files to no reader's benefit.
+
+**What it buys, and what it does not.** It closes the wrong-reason red: milestone 202's break of
+[§31](31-foreign-language-seam.md) surfaced as a 234-second watchdog timeout reading *"a livelock, not a lost
+wakeup"*, which is the right answer with a diagnostic containing no word about confinement, and
+milestone 305 hit the same edge and swapped the patch rather than record a red for the wrong reason.
+It buys nothing against an **unreachable** assertion, which is milestone 307's subject and a
+different hole: there the patch's prose and the transcript simply agree on some other line. Saying so
+here is the point, because a gate that looks like it covers both would be worse than one that covers
+one.
+
 ## BUGS
 
 - **This adds friction to writing a harness**, at the moment harness-writing is about to increase
