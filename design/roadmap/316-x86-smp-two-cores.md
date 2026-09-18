@@ -89,12 +89,29 @@ Measured with `NIFE_SMP=2 script/repeat-under-load -n 12 -s 0 -- --arch x86_64` 
 (Mac15,3, 8 cores), no induced load, logs under `target/acceptance/`. Each run is a full
 `script/test --arch x86_64`, which is three boots: SeaBIOS plus two OVMF.
 
-RESULTS_TABLE_PLACEHOLDER
+**5 of 12 runs green**, load average 2.0 to 8.9, one QEMU at every sample (no neighbouring lane).
+The interesting number is not that one. It is that **all seven failures are the same assertion at
+the same line**, `user/x86_port_tests.rs:255`, and none of them is #3 or #1:
+
+| what was measured | across the 12 runs |
+|---|---|
+| `smp::tests::every_secondary_runs_scheduled_work` | **19 of 19 `ok`** (it runs once per boot that reaches it) |
+| `stack::report_high_water`'s secondary line | **12 of 12** read `core1 9760/65536 bytes (14%)` |
+| `smp: N core(s) online` | **26 of 26 boots** read `2 core(s) online` |
+| failures | 7, **all** `a_revoked_holder_faults_on_its_next_port_write`, `left: 2, right: 1` |
 
 Before the fix, `every_secondary_runs_scheduled_work` failed **about half of runs at two cores**
-(`ap_boot.rs`'s own measurement). After it, that test and the high-water report were correct in
-every run above; the boot core reported ~50 KiB of 65504 and core 1 reported 9760 of 65536, a real
-painted number rather than the saturated one.
+(`ap_boot.rs`'s own measurement) and the high-water report printed `65536/65536`. Nineteen clean
+runs of the one and twelve of the other is not a proof, and a flake that fires one run in six needs
+more than twelve to be called gone; it is enough to say the half-the-time failure is not
+half-the-time any more.
+
+**Neither `BUGS` #1 nor the UEFI two-core start flake fired once.** `design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`
+records `smp: cpu 1 did not start (firmware returned -1)` at one run in three from a three-run
+sample; this campaign saw **26 two-core boots and zero** such lines, 8 of them under OVMF. That is
+incidental evidence rather than the dedicated `cargo xtask uefi-boot` measurement the proposal asks
+for, and it is a different tree than the one that proposal was written against, but one-in-three and
+zero-in-twenty-six do not sit together comfortably and somebody should reconcile them.
 
 ## Why the default stays at 1, and what changed about the reason
 
@@ -102,7 +119,7 @@ painted number rather than the saturated one.
 core makes visible:
 
 `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes red intermittently at
-two cores, with `left: 2, right: 1` — the revoked holder's `out` **succeeded** and the word arrived,
+two cores, with `left: 2, right: 1`. The revoked holder's `out` **succeeded** and the word arrived,
 where the test demands a fault. That is exactly the window
 `sched::delete_port_range_caps_impl` already documents at itself:
 
@@ -134,7 +151,8 @@ than an answer to it.
 
 - **`ap_boot`'s `BUGS` #1 is untouched and still open.** A third or later secondary fails
   intermittently at `-smp 3` and above, two hypotheses tested and refuted, no root cause. It was out
-  of this milestone's scope by the brief, and it did not fire at two cores in this lane's runs.
+  of this milestone's scope by the brief, and it did not fire in 26 two-core boots here, which is
+  consistent with its recorded "three or later" bound and proves nothing about three.
 - **The two-core suite is not clean**, per the section above, and `NIFE_SMP` therefore still
   defaults to 1 in `scripts/qemu-runner-x86_64.sh`. Nothing in CI gates two cores, and nothing here
   changes that. The two-core result above is a measurement on one host, not a promise.
@@ -174,17 +192,17 @@ than an answer to it.
 answers "which core am I" where every caller wants "which core booted"; the two agree only while
 there is one core. So a test body DECISIONS §28's placement had migrated onto a secondary took that
 secondary for the boot core, and two symptoms in two subsystems turned out to be one line:
-`smp::tests::every_secondary_runs_scheduled_work` inverted its own "is a secondary" predicate and
-waited out its bound for a mark the real boot core never sets, and `stack::report_high_water` skipped
-the painted slot and scanned an unpainted one, reporting a secondary stack at 65536/65536. `boot.s`
-now stamps the id into `BOOT_CPU_ID` (provisional name) after zeroing `.bss` and before calling
-`kernel_main`, and the accessor reads the record: riscv64's `BOOT_HARTID` shape, chosen because code
-that runs once on exactly the boot processor cannot misinform a later caller, while aarch64 keeps its
-architectural constant. `ap_boot`'s `BUGS` #3 is closed and the predicted shape was right.
-**The `NIFE_SMP` default stays at 1, for a new reason**: with #3 gone, the thing that keeps the
-two-core suite from being clean is `a_revoked_holder_faults_on_its_next_port_write`, red because
-`PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core only and the holder on the other
-core keeps the ports for up to one tick. That is milestone 313's accepted window, milestone 315's
+`every_secondary_runs_scheduled_work` inverted its own "is a secondary" predicate and waited out its
+bound for a mark the real boot core never sets, and `stack::report_high_water` scanned an unpainted
+slot and reported a secondary stack at 65536/65536. `boot.s` now stamps the id into `BOOT_CPU_ID`
+(provisional) before calling `kernel_main` and the accessor reads the record: riscv64's
+`BOOT_HARTID` shape, because code that runs once on exactly the boot processor cannot misinform a
+later caller. Twelve two-core runs came back 5 green, and the useful numbers are the others: 19 of
+19 on the migrated-boot-core test, 12 of 12 correct high-water lines, 26 of 26 boots with both cores
+online, and **all seven failures one assertion at one line**. **The `NIFE_SMP` default stays at 1,
+for a new reason**: what keeps the two-core suite from being clean is
+`a_revoked_holder_faults_on_its_next_port_write`, red because `PortRange::REVOKE` resets the TSS I/O
+bitmap on the revoker's core only. That is milestone 313's accepted window and milestone 315's
 target, and a red for exactly the reason the test exists rather than substrate flakiness, which is
 evidence DECISIONS §153 was written without: the two-core observer 315 planned to write already
 exists in the suite. `BUGS` #1 remains open and did not fire at two cores.
