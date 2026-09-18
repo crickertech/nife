@@ -94,18 +94,32 @@ was never given. Linux refuses to hand a device to an untrusted userspace driver
 without interrupt remapping for this reason, and names its escape hatch `allow_unsafe_interrupts`.
 
 **The absence is the finding, and it is three-deep.** Row 12 and row 13 are about where a device may
-*read and write*, and neither covers where it may *interrupt*. No boot this tree runs could exercise
-the question even if a claim existed: `scripts/qemu-runner-x86_64.sh` attaches `-device intel-iommu`
-with no `intremap=on`, and `scripts/qemu-runner-aarch64.sh` uses `gic-version=2`, which has no ITS.
-And no driver touches an MSI-X table (notes/nvme.md's `BUGS`: the NVMe controller is brought up with
-`IEN=0` and no MSI-X table is touched), so nothing has ever come near it.
+*read and write*, and neither covers where it may *interrupt*. When this was written, no boot this
+tree runs could exercise the question even if a claim existed: `scripts/qemu-runner-x86_64.sh`
+attached `-device intel-iommu` with no `intremap=on`, and `scripts/qemu-runner-aarch64.sh` used
+`gic-version=2`, which has no ITS. And no driver touches an MSI-X table (notes/nvme.md's `BUGS`: the
+NVMe controller is brought up with `IEN=0` and no MSI-X table is touched), so nothing has ever come
+near it.
+
+**The first of those three is closed, and the second is measured** (milestone 317, 2026-09-17).
+`NIFE_INTREMAP=1` puts `intremap=on` on the x86_64 runner's VT-d device, the guest reads `ECAP.IR`
+and reports it, and the suite is green both ways, which by itself proves only that the suite does
+not care. aarch64 is **not** one flag away: `gic-version=3` gives QEMU's `virt` an ITS, and it also
+moves `reg[1]` from the CPU interface to the redistributor, which `memory::init`'s `intc@`
+name-prefix match hands to a GICv2 driver without ever reading `compatible`. The measured result is
+a boot that says `GICv2` while printing a redistributor base, with zero timer ticks. That is
+milestone 227's bill; see design/roadmap/317-interrupt-remapping-flags.md.
+
+**The third is untouched, so the claim stays stated nowhere.** Nothing writes an `IRTE`, and nothing
+forges an MSI to see where it lands.
 
 **It is latent rather than false**, and it stays latent exactly as long as every component that can
 reach a BAR is the kernel. It goes live the first time a driver leaves the kernel and wants
 interrupts instead of polling, which is what §86 decides. Whatever §86 settles has to say who owns
-the page holding the MSI-X table; the cheap first move is two runner flags
-(`-device intel-iommu,intremap=on` with `kernel-irqchip=split`, and `gic-version=3`) to find out
-whether this boot path survives the hardware being present at all. The hazard is the one milestone
+the page holding the MSI-X table; the cheap first move was two runner flags, and milestone 317 took
+it. x86_64's boot path survives the hardware being present; aarch64's does not reach the question.
+(`kernel-irqchip=split` turned out not to be needed on patagonia: it is a KVM constraint and there
+is no KVM here. 317's block has the three invocations.) The hazard is the one milestone
 202 (every confinement test is a ritual until somebody breaks the confinement) already caught in
 §31's headline assertion: green after turning the flags on proves nothing by itself, and the
 falsification has to be a driver aiming an interrupt where it was not given one, coming back red.

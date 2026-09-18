@@ -93,7 +93,28 @@ DEBUG_EXIT="-device isa-debug-exit,iobase=0xf4,iosize=0x04"
 # host-side unit tests is `arch::x86_64::machine::read_acpi` finding a DMAR with one DRHD, so
 # `kernel_main`'s x86 tour brings VT-d up and prints so; the NVMe attachment below (§86's data
 # point) is the first PCI device this runner confines behind it.
-IOMMU="-device intel-iommu"
+#
+# **NIFE_INTREMAP=1 adds `intremap=on`** (milestone 317; the name is PROVISIONAL, a lane's to
+# propose and calef's to ratify). The unit then reports `ECAP.IR`, which the kernel reads and
+# prints (`arch::x86_64::iommu::print_summary`), so the two machines are distinguishable from
+# inside the guest instead of only on this command line.
+#
+# It is OPT-IN rather than the default, and the reason is not that it breaks anything: the full
+# suite is green both ways (214 passed, 70 skipped, identical, 2026-09-17). It is that nothing in
+# this tree remaps an interrupt, so default-on would make every boot carry a capability no code
+# reads and quietly retire the one thing the flag is good for, which is being able to run the same
+# kernel against a machine with the hardware and a machine without it. Turn it on when you are
+# exercising the interrupt-remapping question; see design/roadmap/317-interrupt-remapping-flags.md.
+#
+# **`kernel-irqchip=split` is NOT required here, and that is measured rather than inherited.** The
+# advice that pairs the two is real, and it is a KVM constraint: QEMU refuses `intremap=on` with an
+# in-kernel irqchip. patagonia has no KVM, so `q35` under TCG (and under HVF, which does not apply
+# to this runner) emulates the whole irqchip in the QEMU process and the check never fires. Against
+# QEMU 11.1.1, `-machine q35 -device intel-iommu,intremap=on` starts with no diagnostic, and so
+# does the same line with `kernel-irqchip=on`. A Linux host running these tests under KVM WOULD
+# need the split irqchip; this runner does not add it because adding a flag that is a no-op here
+# would be asserting a machine fact nobody on this machine can check.
+IOMMU="-device intel-iommu${NIFE_INTREMAP:+,intremap=on}"
 
 # An NVMe controller when NIFE_NVME names an image (milestone 53's storage half; decisions §86's
 # x86_64/VT-d data point), the twin of the aarch64 and riscv64 runners' blocks. No
