@@ -93,7 +93,48 @@ DEBUG_EXIT="-device isa-debug-exit,iobase=0xf4,iosize=0x04"
 # host-side unit tests is `arch::x86_64::machine::read_acpi` finding a DMAR with one DRHD, so
 # `kernel_main`'s x86 tour brings VT-d up and prints so; the NVMe attachment below (§86's data
 # point) is the first PCI device this runner confines behind it.
-IOMMU="-device intel-iommu"
+#
+# **NIFE_INTREMAP passes `intremap=` through to the unit** (milestone 317; the name is PROVISIONAL,
+# a lane's to propose and calef's to ratify). `on` and `off` are the only values; unset leaves
+# QEMU's own default, which is what every boot before this milestone got.
+#
+# **The useful value is `off`, and that is the opposite of what this milestone set out to build.**
+# DECISIONS §86 and notes/confinement-claims.md both state that this runner "attaches `-device
+# intel-iommu` with no `intremap=on`, so interrupt remapping is off in every x86_64 boot this tree
+# runs." The first half is a true reading of this file. **The second half is false**, and it was
+# reached by reading this file rather than by booting it. Measured by printing `ECAP` from inside
+# the guest, QEMU 11.1.1, `q35` under TCG on patagonia:
+#
+#     -device intel-iommu                 ECAP = 0xf00f4a   IR set    (QEMU's default)
+#     -device intel-iommu,intremap=on     ECAP = 0xf00f4a   IR set    (a no-op here)
+#     -device intel-iommu,intremap=off    ECAP = 0xf42      IR clear
+#
+# QEMU's `intremap` property is tri-state and defaults to `auto`, which resolves to ON when there
+# is no in-kernel irqchip to conflict with. patagonia has no KVM, so it has always resolved ON.
+# **Interrupt remapping has been offered to this kernel in every x86_64 boot it has ever run**, and
+# nothing read the bit, so nobody noticed. `intremap=off` is therefore the only way to reach a
+# machine WITHOUT the capability, which is the comparison this knob exists to make possible.
+#
+# The default does not move: unset is QEMU's default is what the tree already ran, so this adds a
+# knob and changes no existing boot. See design/roadmap/317-interrupt-remapping-flags.md.
+#
+# **`kernel-irqchip=split` is NOT required here, and that is measured rather than inherited.** The
+# advice that pairs the two is real, and it is a KVM constraint: QEMU refuses `intremap=on` with an
+# in-kernel irqchip. patagonia has no KVM, so `q35` under TCG (and under HVF, which does not apply
+# to this runner) emulates the whole irqchip in the QEMU process and the check never fires. Against
+# QEMU 11.1.1, `-machine q35 -device intel-iommu,intremap=on` starts with no diagnostic, and so
+# does the same line with `kernel-irqchip=on`. A Linux host running these tests under KVM WOULD
+# need the split irqchip; this runner does not add it because adding a flag that is a no-op here
+# would be asserting a machine fact nobody on this machine can check.
+#
+# A value that is neither `on` nor `off` is an error rather than a silent pass-through, the same
+# posture NIFE_INITRD and NIFE_DISK take about a missing file: QEMU would reject it anyway, and
+# failing here names the variable instead of burying it in a device-option diagnostic.
+if [ -n "$NIFE_INTREMAP" ] && [ "$NIFE_INTREMAP" != "on" ] && [ "$NIFE_INTREMAP" != "off" ]; then
+    echo "qemu-runner-x86_64: NIFE_INTREMAP=$NIFE_INTREMAP is neither 'on' nor 'off'" >&2
+    exit 1
+fi
+IOMMU="-device intel-iommu${NIFE_INTREMAP:+,intremap=$NIFE_INTREMAP}"
 
 # An NVMe controller when NIFE_NVME names an image (milestone 53's storage half; decisions §86's
 # x86_64/VT-d data point), the twin of the aarch64 and riscv64 runners' blocks. No

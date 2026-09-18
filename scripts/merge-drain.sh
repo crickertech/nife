@@ -86,6 +86,48 @@ if [ -z "$once" ] && [ "$(git rev-parse --git-dir 2>/dev/null)" != ".git" ]; the
 fi
 
 
+# **Dequeue anything now held that is already in the merge queue.** Admission is checked once, at
+# enqueue time, and until 2026-09-18 nothing ever re-checked it, so a label arriving *after* the
+# enqueue was ignored by everything: the `architect hold` check on the pull request went red, and the
+# queue carried on regardless because the queue does not read labels.
+#
+# **This is not hypothetical and the window is small enough to lose a race in.** On 2026-09-18 this
+# drain enqueued #923 at 03:53:36; its lane, which had discovered mid-flight that its work disproved
+# a DECISIONS premise and therefore needed calef, labelled it `needs-architect` at 03:54:49. Seventy
+# three seconds. calef noticed it merging and it was dequeued by hand. The lane had already dequeued
+# itself once at 03:08:05, and this drain simply put it back, which is the part a lane cannot defend
+# against on its own.
+#
+# The shape is AGENTS.md's ladder: the label was rung two (a gate that fires without being
+# remembered) for everything *except* the queue, where it was rung zero. This closes that, on the
+# side that can see both facts. A lane discovering late that it needs calef is the normal case
+# rather than the exceptional one, because finding the thing that needs deciding is usually the
+# work.
+dequeue_held() {
+	gh pr list --repo "$REPO" --state open 		--json number,labels,title 2>/dev/null |
+		jq -r --arg L "$HELD_LABEL" '
+			.[] | select((.labels | map(.name) | index($L))) | "\(.number)\t\(.title)"' 2>/dev/null |
+		while IFS="$(printf '\t')" read -r num title; do
+			[ -n "$num" ] || continue
+			# `dequeuePullRequest` is a no-op on a pull request that is not queued, so this needs no
+			# membership test: asking is cheaper than checking, and the check would race anyway.
+			# REST rather than GraphQL for the lookup: it takes `owner/repo` as one string, so it
+			# needs no second source of truth for the repository's name beyond $REPO.
+			id=$(gh api "repos/$REPO/pulls/$num" --jq '.node_id' 2>/dev/null) || continue
+			[ -n "$id" ] || continue
+			before=$(gh api "repos/$REPO/issues/$num/timeline" \
+				--jq '[.[] | select(.event=="removed_from_merge_queue")] | length' 2>/dev/null || echo 0)
+			gh api graphql -f query="mutation{dequeuePullRequest(input:{id:\"$id\"}){clientMutationId}}" >/dev/null 2>&1 || continue
+			after=$(gh api "repos/$REPO/issues/$num/timeline" \
+				--jq '[.[] | select(.event=="removed_from_merge_queue")] | length' 2>/dev/null || echo 0)
+			# Only speak when something actually moved. A held pull request that was never queued is
+			# the common case and saying so every five minutes is how a watcher gets muted.
+			if [ "$after" -gt "$before" ]; then
+				echo "merge-drain: dequeued #$num ($HELD_LABEL arrived after it was enqueued): $title"
+			fi
+		done
+}
+
 # The unheld queue, lowest number first. Drafts are excluded: a draft is not asking to be merged.
 queue() {
 	gh pr list --repo "$REPO" --state open \
@@ -246,6 +288,10 @@ pass() {
 	# nothing else on this pass will print a word. Milestone 204; the script owns its own
 	# grace period and its own false-positive shapes.
 	sh scripts/lane-claim-check.sh || true
+
+	# Before admitting anything, reconcile what is already admitted: a label that arrived after an
+	# enqueue is the one case the queue itself cannot see. See dequeue_held's own comment.
+	dequeue_held || true
 
 	q=$(queue)
 	n=$(printf '%s' "$q" | jq -r 'length' 2>/dev/null || echo 0)

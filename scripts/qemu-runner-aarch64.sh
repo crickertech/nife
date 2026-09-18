@@ -32,9 +32,12 @@ set -e
 # same ISA (aarch64). Two consequences:
 #
 #   - HVF runs the PHYSICAL core, so `-cpu host` is mandatory; you cannot ask for an emulated a72.
-#   - gic-version is PINNED to 2, so a future QEMU default cannot swap in a GICv3 our driver does
-#     not speak. QEMU emulates the GIC either way (Apple cores use their own AIC natively) and
-#     injects interrupts through HVF, so the MMIO GICv2 driver keeps working.
+#   - gic-version is STATED rather than left to QEMU, so a future QEMU default cannot swap in a
+#     GICv3 our driver does not speak. QEMU emulates the GIC either way (Apple cores use their own
+#     AIC natively) and injects interrupts through HVF, so the MMIO GICv2 driver keeps working.
+#     It used to be spelled as a literal 2 on both paths and now reads `$GIC`, whose default is 2
+#     and whose only other value is milestone 317's deliberately-broken GICv3 probe below; the
+#     property this comment claims is unchanged.
 #
 # NIFE_CPU overrides the TCG model (milestone 59, the parity twin of the riscv runner's flag).
 # Under HVF there is nothing to override: the guest runs on the physical Apple core, so `-cpu host`
@@ -62,6 +65,39 @@ if [ -n "$NIFE_EL2" ]; then
     VIRT_EL2=",virtualization=on"
 fi
 
+# **NIFE_GIC=3 asks for a GICv3, and this kernel CANNOT DRIVE ONE** (milestone 317; the name is
+# PROVISIONAL, a lane's to propose and calef's to ratify). It exists so that milestone 227's lane
+# can reproduce the failure in one command instead of rediscovering it, and so that the failure has
+# an artifact rather than living in a lane report. It is not a supported configuration and the
+# default does not move.
+#
+# The reason interrupt remapping wanted it: GICv2 has no ITS, so there is no MSI translation path
+# on this machine and a confinement claim about where a device may *interrupt* cannot be exercised
+# here at all. `gic-version=3` gives QEMU's `virt` an `its@8080000` node where `gic-version=2`
+# gives `v2m@8020000`. That much is free; driving it is not.
+#
+# **What breaks, measured on QEMU 11.1.1 rather than reasoned about** (`dumpdtb`, both versions):
+#
+#     gic-version=2  intc@8000000  compatible = "arm,cortex-a15-gic"
+#                    reg = <0x8000000 0x10000  0x8010000 0x10000>   GICD, GICC
+#     gic-version=3  intc@8000000  compatible = "arm,gic-v3"
+#                    reg = <0x8000000 0x10000  0x80a0000 0xf60000>  GICD, GICR
+#
+# `memory::init` finds the node by the `intc@` NAME PREFIX and ignores `compatible`, so it matches
+# either one and hands `reg[1]` to `arch::aarch64::irq::init` as the "CPU interface". On a GICv3
+# `reg[1]` is the redistributor frame array, which has an entirely different register layout, and
+# `drivers::gic`'s GICv2 MMIO writes land on it. Nothing refuses the mismatch: the name matched,
+# two regions were present, and the driver has no idea the hardware changed underneath it.
+#
+# **So the honest statement of aarch64's position is that it is not one flag away.** See
+# design/roadmap/317-interrupt-remapping-flags.md for what milestone 227 would owe.
+GIC="${NIFE_GIC:-2}"
+if [ "$GIC" != "2" ]; then
+    echo "qemu-runner-aarch64: NIFE_GIC=$GIC. This kernel's GIC driver is GICv2-only and nothing" >&2
+    echo "  checks the device tree's compatible string, so this boot drives a GICv3 redistributor" >&2
+    echo "  with GICv2 register offsets. Expected to fail; see milestones 227 and 317." >&2
+fi
+
 if [ "$NIFE_ACCEL" = "hvf" ]; then
     # iommu=smmuv3 is on BOTH paths since milestone 81, and this is a correction: it used to be
     # TCG-only, on the recorded belief that "smmuv3 emulation alongside HVF acceleration is the
@@ -73,7 +109,7 @@ if [ "$NIFE_ACCEL" = "hvf" ]; then
     # It is also the right place for it on principle. The accelerator chooses how CPU instructions
     # execute; the SMMU is in front of the PCIe root complex and translates DEVICE traffic, which
     # QEMU emulates in the host process either way. The two are orthogonal, and the suite proves it.
-    MACHINE="virt,accel=hvf,gic-version=2,iommu=smmuv3"
+    MACHINE="virt,accel=hvf,gic-version=$GIC,iommu=smmuv3"
     if [ -n "$NIFE_CPU" ] && [ "$NIFE_CPU" != "host" ]; then
         echo "qemu-runner-aarch64: NIFE_CPU=$NIFE_CPU cannot apply under HVF (the guest runs the physical core; -cpu host is mandatory)" >&2
         exit 1
@@ -84,7 +120,7 @@ else
     # then carries an `smmuv3@...` node (memory::smmu_region finds it) and an identity iommu-map for
     # the bus. A plain boot without a PCI disk still gets the SMMU; it just has nothing to confine.
     # The HVF branch above takes the same flag, since milestone 81.
-    MACHINE="virt,gic-version=2,iommu=smmuv3$VIRT_EL2"
+    MACHINE="virt,gic-version=$GIC,iommu=smmuv3$VIRT_EL2"
     CPU="${NIFE_CPU:-cortex-a72}"
 fi
 
