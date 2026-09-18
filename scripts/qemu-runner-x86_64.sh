@@ -36,11 +36,20 @@ shift
 # at `stack::PAINT`) is FIXED: it was a missing cross-core TLB shootdown, since `invlpg` is local
 # to one CPU and this port had no remote half. See `arch::x86_64::mmu::shoot_down_others`.
 #
-# Two other failures are still open and either can fail a two-core run, so the default stays where
-# it was: the AP-bring-up flakiness at three or more cores, and a boot-core-identity bug that makes
-# `smp::tests::every_secondary_runs_scheduled_work` fail about half the time at two. Both are
-# recorded, with what is known about each, in `arch::x86_64::ap_boot`'s own BUGS section (#1 and
-# #3), which is the authoritative account; see also design/roadmap/161-x86-64-kernel-port.md item 5.
+# The boot-core-identity bug that made `smp::tests::every_secondary_runs_scheduled_work` fail about
+# half the time at two is also FIXED (milestone 316, ap_boot's BUGS #3): `boot_cpu_id` recomputed
+# "which core am I" from CPUID on every call, and now reads a record `boot.s` stamps once on the
+# boot processor, the shape riscv64's BOOT_HARTID already had.
+#
+# The default still stays where it was, and on 2026-09-17 the reason changed a second time. Two
+# things can still fail a two-core run. The AP-bring-up flakiness at three or more cores (ap_boot's
+# BUGS #1) is unchanged and unexplained. And the two-core suite is not clean for a reason that is
+# not an SMP bug at all: `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes
+# red intermittently because `PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core
+# only, so a holder on the other core keeps the ports for up to one tick. That is milestone 313's
+# audited window, recorded at `sched::delete_port_range_caps_impl`, and milestone 315 closes it.
+# `arch::x86_64::ap_boot`'s own BUGS section is the authoritative account; see also
+# design/roadmap/316-x86-smp-two-cores.md and design/roadmap/161-x86-64-kernel-port.md item 5.
 SMP="${NIFE_SMP:-1}"
 
 # `q35` rather than the older `pc` because it is what the physical target looks like: a PCIe root
