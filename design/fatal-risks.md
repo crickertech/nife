@@ -503,7 +503,8 @@ trying to escape rather than us demonstrating a planned escape fails, is still u
 gated behind milestone 198. And one window was **accepted rather than closed**: `PortRange::REVOKE`
 reaches one core, so a revoked holder on another core keeps its bitmap for at most one tick
 (DECISIONS §152's `BUGS`, corrected the same day, and
-`design/roadmap/proposals/a-port-revoke-that-reaches-every-core.md`).
+[milestone 315](roadmap/315-port-revoke-every-core.md), which the audit raised as finding 4 and calef
+promoted out of this entry's proposal on 2026-09-17).
 
 **And the audit produced a third instance of this file's recurring shape.** Milestone 299's two port
 tests could not fail in the direction they exist for: a wrongly permitted `out` was followed by a

@@ -199,8 +199,9 @@ aarch64. It is now in `script/falsifications`' `BUGS`.
   compiled by nothing and no runner exists that could, so its IOMMU property can be written and not
   run. Also that the `kernel` row now means something different on each of two hosts, which no
   single number in `script/verify`'s table can say.
-- **Proposed.** `design/roadmap/proposals/the-prover-only-ever-sees-one-architecture.md` is where
-  this milestone came from and is now marked promoted. Its strongest target,
+- **Proposed.** `design/roadmap/proposals/the-acpi-walk-is-reachable-and-unproved.md`. This
+  milestone came from `the-prover-only-ever-sees-one-architecture`, which is now marked promoted and
+  so is no longer where untaken work can live. Its strongest target,
   `x86_64/machine.rs`'s ACPI walk, is **reachable for the first time and still unproved**: 836 lines
   over firmware-supplied lengths, checksums and counts. Its parsing half already lives in
   `crates/machine_discovery`, which carries no harnesses and appears in no `script/verify` row, and

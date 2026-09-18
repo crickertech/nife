@@ -87,3 +87,83 @@ def classify(text):
     if not _GATE.match(gate):
         return None, None, NO_GATE
     return status.group(1), lines[0][2:], None
+
+
+# ---- promotion, and the disposition it owes the proposal ----------------------
+#
+# **Promotion is the only disposition a proposal has**, and when the motion comes apart both records
+# survive: one numbered block saying BUILT, one proposal still saying PROPOSED with a gate a lane
+# could start on. calef ruled it on 2026-09-15, promoting `one-grant-order-for-the-progenitor` to
+# milestone 301, and gave the reason as a property of this module: `classify` matches PROPOSED and
+# nothing else, so there is nowhere for a promoted proposal to say what became of it.
+#
+# **This gives it somewhere, and calef ratified that on 2026-09-18**: *"yes, keep it"*, amending the
+# 2026-09-15 wording rather than overturning its reason. Retiring in place was refused because there
+# was no way to record the retirement; there is one now, so the refusal has no premise left. He put
+# the rule as **a proposal should be promoted before it is closed**, which makes promotion and
+# closure two states rather than one motion, and it is the two-state reading this module implements.
+#
+# It also follows a precedent the tree wrote the day after the original ruling: milestone 304's
+# proposal was kept and annotated `**Promoted:**` rather than deleted, on the argument that **the
+# proposal is the argument as it stood and the milestone is the account.** That proposal carries
+# three things it got wrong, kept on purpose; the numbered block carries none of them, and deleting
+# the file would have destroyed the only self-correction in the pair.
+#
+# So a promoted proposal keeps its dated PROPOSED line, which is what makes the pile measurable, and
+# adds a `**Promoted:**` line naming what it became. It stops counting as unpromoted, because it is
+# not: the count is meant to be the work nobody has taken.
+#
+# **What this cannot do**, and the second half is the larger one.
+#
+# Nothing can find a promotion nobody wrote down. `promoted_from` reads a numbered block's own
+# claim, and a spelling it does not know is a silent miss.
+#
+# **And a proposal closed without ever being promoted is invisible here**, which is the half of
+# calef's rule no gate reaches. The ordering IS gated for a proposal a numbered
+# block names in a `**Proposed.**` follow-on bullet, because that disposition must resolve to a file
+# that exists, so deleting one fails the build; 70 of the 115 proposals on 2026-09-18 were covered
+# that way. The other 45 are standalone, written by a lane that named them nowhere else, and
+# deleting one leaves NOTHING in the working tree to notice: this module reads the tree, not the
+# history. A gate that read `git log` could see it and is deliberately not written here, because
+# `script/metrics` reads blobs at revisions nobody has checked out and the two callers would then
+# need different answers to the same question.
+#
+# So for those 45 the rule is a convention rather than a mechanism, which is rung three on
+# AGENTS.md's ladder wearing a gate's clothes, and saying so is the only honest thing available.
+PROMOTED = re.compile(r"^\*\*Promoted:\*\* \S", re.M)
+
+CITATION = 'promoted from the proposal `<slug>`'
+
+_PROMOTED_FROM = re.compile(r"promoted from the proposal `([a-z][a-z0-9-]*)`", re.I)
+
+# The two spellings already in the tree on 2026-09-18, recognised so that this reads the record as
+# it stands rather than only the record as it should have been written. A path (milestones 304, 315)
+# or a parenthesised slug (313).
+#
+# **Both require the promotion verb, and that is the whole difficulty.** The first draft matched any
+# `proposals/<slug>.md` in a status paragraph and reported milestone 259, which says it was minted
+# "as the other half of" a proposal that is still open and still worth a lane. Citing a proposal and
+# being promoted from one are different claims, and only the second one disposes of anything.
+_PROMOTED_FROM_LOOSE = (
+    re.compile(r"promoted from\s+`(?:design/roadmap/)?proposals/([a-z][a-z0-9-]*)\.md`", re.I),
+    re.compile(r"proposal\s*\(`([a-z][a-z0-9-]*)`\)", re.I),
+)
+
+
+def is_promoted(text):
+    """Whether this proposal's text says what it became, so the pile should stop counting it."""
+    return bool(PROMOTED.search(text))
+
+
+def promoted_from(status_paragraph):
+    """The proposal slug a numbered block says it was promoted from, or None.
+
+    None is the common case: most blocks were never proposals. A block that cites a proposal
+    WITHOUT claiming promotion (milestone 259, "the other half of") returns None too, because that
+    proposal is still somebody's to take.
+    """
+    for pattern in (_PROMOTED_FROM,) + _PROMOTED_FROM_LOOSE:
+        m = pattern.search(status_paragraph)
+        if m:
+            return m.group(1)
+    return None

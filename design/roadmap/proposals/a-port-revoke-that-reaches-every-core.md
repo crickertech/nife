@@ -7,6 +7,12 @@ waits, already exists for the TLB (notes/x86-tlb-shootdown.md); the core-local s
 (`arch::x86_64::segments::revoke_installed_port_grant`, written for exactly this broadcast). What is
 missing is the call between them and a two-core test.
 
+**Promoted:** minted as **milestone 315** by calef on 2026-09-17, the day milestone 313's security
+audit raised it as finding 4. The record is
+[design/roadmap/315-port-revoke-every-core.md](../315-port-revoke-every-core.md), which is where the
+work is tracked; it is `NOT-STARTED`, so this is a promotion and not a completion. The status line
+above keeps its original date because that is what makes the pile measurable.
+
 ## What is being proposed
 
 `PortRange::REVOKE` (and `sched::delete_current_cap`'s port half) broadcast

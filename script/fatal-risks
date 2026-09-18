@@ -413,6 +413,17 @@ def built_dates():
     return out
 
 
+# **This reads COMMITTED history, so this check answers differently before and after a commit**, and
+# that cost a red CI run on 2026-09-18. A lane marked a proposal promoted, ran `script/lint` with the
+# change still in the working tree, and got a green: `git log` still reported the file's previous
+# commit date, which was older than the risk entry citing it. The same tree failed in CI one commit
+# later, for the same edit, because the commit is what moved the date.
+#
+# It is not worth "fixing" by reading the working tree instead. A citation goes stale against what
+# is RECORDED, and an uncommitted edit is not yet a record; a version that read mtimes would fire on
+# a file somebody merely opened. **The honest shape is to know that a green `script/lint` on a dirty
+# tree is a weaker claim than a green one on a clean commit**, for every check here that dates a
+# file, and to re-run after committing rather than before.
 def git_touched(rel):
     return subprocess.run(["git", "-C", root, "log", "-1", "--format=%ad", "--date=short",
                            "--", rel], capture_output=True, text=True).stdout.strip() or None
