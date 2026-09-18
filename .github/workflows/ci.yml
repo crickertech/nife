@@ -417,6 +417,26 @@ jobs:
       # parallel, so it costs no wall clock against the 30-minute Kani job.
       - run: script/ci-build fastpath-footprint
 
+  build-is-reproducible:
+    name: reproducible build (the same commit builds the same bytes)
+    runs-on: ubuntu-24.04-arm
+    needs: gate
+    if: ${{ always() && needs.gate.outputs.run != 'false' }}
+    # Two COLD release builds with no shared artifacts, so it is slower than it looks on the page.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install the bare-metal target
+        run: rustup target add aarch64-unknown-none-softfloat
+      # Its own job for fastpath-footprint's reason one step further: this needs TWO release builds
+      # that share nothing, so there is not only nothing to reuse from another job, there is nothing
+      # to reuse between its own halves. Jobs run in parallel, so it costs no wall clock against the
+      # proofs.
+      #
+      # It builds `git archive HEAD` twice at two different paths rather than reusing the checkout,
+      # which is why it does not need `fetch-depth: 0`: one commit is all it reads.
+      - run: script/ci-build build-is-reproducible
+
   image-permissions:
     name: image permissions (no kernel image ships a writable-executable segment)
     runs-on: ubuntu-24.04-arm
