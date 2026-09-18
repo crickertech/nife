@@ -620,6 +620,11 @@ UNRATIFIED (54 of 126), in the order worth working through
 44 unrecorded (research, then a ruling), 10 recorded (a ruling only).
 ```
 
+That capture keeps `address_space_builder`, which is `address_space_witness` since calef's ruling of
+2026-09-18. It is a transcript with measured counts in it, so it is evidence and stays; and sweeping
+it would have been doubly wrong, because the new name is ratified and so appears on no
+`--unratified` listing that command will ever print.
+
 **The tier is the kind, and not "programs a person actually types".** That second split is the
 two-tier rule calef rejected on 2026-08-01, keyed on a property that is not stable: `wc` went from
 internal plumbing to a prompt-typed pipeline stage inside a day. Every program in `components/src/`
@@ -1370,6 +1375,40 @@ Two shapes recur and are worth expecting:
 **The general rule this is a case of**: when the thing being renamed is a *convention* rather than a
 single name, every passage arguing the convention is an account, and there are as many of them as
 there were names.
+
+### A sweep can turn a stale pointer into a fabricated one
+
+Contributed by the second performed rename (`address_space_builder` to `address_space_witness`,
+2026-09-18), which found one site the sweep would have made worse rather than wrong.
+`kernel/src/user.rs` carried ``See fixtures/src/hello.rs `address_space_builder()` ``, and
+`hello.rs` has held no such function since milestone 291 split the role out into its own fixture.
+The pointer was already stale, which nothing notices, because a prose reference resolves in a
+reader's head rather than in a compiler.
+
+**A sweep does not fix that and does not leave it alone; it upgrades it.** Swept, the line would
+have read `` hello.rs `address_space_witness()` ``: a symbol that has never existed anywhere, cited
+by its current name, and so indistinguishable from a true reference. The stale version at least
+names something that used to exist and can be traced. This is the internal cousin of the foreign-
+identifier row in the table above, and it hides better, because there is no upstream tree to check
+it against.
+
+So when a match is a *pointer* rather than a declaration, resolve it before rewriting it. The cost
+is one grep per site and it is not optional: the two neighbouring doc comments on the same kernel
+module point into `hello.rs` for `ep_maker()`, `ep_user()`, `call_server()` and `call_client()`,
+none of which are there either, and they were left alone only because this rename did not touch
+them.
+
+### The generated roadmap index is not a sweep target, and running the generator proves it
+
+The same lane was briefed to run `script/roadmap --write` after editing, on the reasoning that
+`design/roadmap/README.md` is generated and would pick the rename up. It reported **"index already
+current"** and wrote nothing, which is the right answer: the README's one occurrence sits inside
+milestone 295's summary, mirrored from a `BUILT` block that keeps the name it was written under.
+
+**A generated file inherits its sources' status rather than having one of its own**, so it needs no
+classification at all. Running the generator is still worth the ten seconds, because it is the one
+command that decides the question: a generator that writes nothing has confirmed the sources were
+classified correctly, and one that writes something has found a source you missed.
 
 ### What is checked, and what is not
 

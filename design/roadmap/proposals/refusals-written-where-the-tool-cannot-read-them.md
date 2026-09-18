@@ -70,3 +70,8 @@ Ten blocks were corrected on 2026-09-18 (`nvme`, `gpt`, `dtb`, `ipc`, `asid`, `p
 `board_console` are known to still be wrong** and were deliberately left, because a naming sweep on
 the same evening as ten rulings is how a cheap edit destroys an expensive record. A lane should
 survey the whole tree rather than trust that list.
+
+Two of those ten names have since been replaced by the rulings the corrected blocks recorded:
+`capability_demo_protocol` is `capability_witness_protocol` and `address_space_builder` is
+`address_space_witness`. The list above is an account of which blocks were edited that day, under
+the names they carried then, so it keeps them.

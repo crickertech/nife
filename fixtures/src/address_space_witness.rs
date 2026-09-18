@@ -12,12 +12,10 @@
 //! the double map was refused. `kernel::user::tests` asserts `0b111` and prints the bit meanings
 //! on failure.
 //!
-//! Name: provisional, and ruled: calef ruled **`address_space_witness`** on 2026-09-18. The block
-//! stays `provisional` because the ratified name is not this file's until the rename is performed,
-//! and until then `address_space_builder` belongs on `script/names --unratified` rather than off
-//! it. Coined by milestone 291's lane, from `hello`'s `ADDRESS_SPACE_BUILDER` role (number 19),
-//! whose role constant lowercased was the name. Refused `address_space_builder` and `builder`;
-//! the argument for each is below.
+//! Name: ratified 2026-09-18 (calef, ruling on milestone 291's provisional fixture names), and
+//! performed the same day. Coined by milestone 291's lane, from `hello`'s `ADDRESS_SPACE_BUILDER`
+//! role (number 19), whose role constant lowercased was the name. Refused `address_space_builder`
+//! and `builder`; the argument for each is below.
 //!
 //! **The ruling is that a fixture is named for what it proves, not for what it does.** This tree
 //! already had one of those in `unwritable_clock_witness`, and this file's own prose reached for
@@ -40,10 +38,14 @@
 //! operating system**, which is AGENTS.md's second naming failure mode. Recorded because a
 //! justification that quietly stops being true is worse than one that was never written.
 //!
-//! **Not yet performed**: the name appears in `kernel/src/user.rs`, which milestone 321's lane is
-//! holding (PR #935). Three `bench/radon-2026-09-16/` transcripts also carry it and are evidence,
-//! so they are never edited; the `BUILT` blocks in milestones 291, 295 and 158 are accounts and
-//! keep the name they were written under.
+//! **Performed** on 2026-09-18, across 44 occurrences in 18 files. What kept the old name, and
+//! why: **five** `bench/radon-2026-09-16/jobmix-boot*.log` transcripts, which are machine output
+//! and are evidence (the count was written as three here before the sweep enumerated them, which
+//! is the reason the procedure says to enumerate rather than recall); the `BUILT` blocks in
+//! milestones 291, 295 and 158, which are accounts under the name they were written under; a
+//! captured `script/names --unratified` listing in `design/naming.md`; and the dated list of ten
+//! corrected blocks in the `refusals-written-where-the-tool-cannot-read-them` proposal. `hello`'s
+//! `ADDRESS_SPACE_BUILDER` role constant is a different name and was not touched.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
