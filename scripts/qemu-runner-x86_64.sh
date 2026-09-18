@@ -229,6 +229,33 @@ if [ -n "$NIFE_DISK" ]; then
     fi
 fi
 
+# **NIFE_PCIE_ROOT_PORT puts the NVMe controller behind a PCIe root port** instead of directly on
+# the root complex (milestone 320; the name is PROVISIONAL, a lane's to propose and calef's to
+# ratify). Unset, nothing changes and every existing boot gets the flat `q35` it always had.
+#
+# It exists because `q35` has no bridge in its default configuration and xenon does. The kernel
+# mapped one megabyte of configuration space and enumerated bus 0 for a year, which is exactly
+# right on a flat machine and finds nothing at all on a machine whose M.2 slot is behind a root
+# port. Without this knob the bridge walk milestone 320 built has no topology to walk under QEMU
+# and its only witness would be host tests over a fixture.
+#
+# **What it does NOT give you is a working disk, and that is a finding rather than a limitation of
+# the knob.** A PCI-to-PCI bridge forwards memory transactions only inside the window its own
+# memory base/limit registers describe, and those are written by firmware during ITS enumeration.
+# This machine boots PVH with no firmware at all, so the root port comes up with a zero window and
+# forwards nothing; the controller behind it enumerates, answers configuration reads, and its BAR
+# does not decode. On xenon real firmware programmed both the bus numbers and the windows, and the
+# kernel adopts what it finds (milestone 256), so the same code reaches a real disk there.
+# Programming a bridge's memory window is its own piece of work; see
+# design/roadmap/proposals/a-bridge-window-the-kernel-programs-itself.md.
+#
+# So the claim this knob supports is the enumeration one: the kernel finds a controller on a bus it
+# could not previously see. `user::pci_topology_tests` is the witness.
+if [ -n "$NIFE_PCIE_ROOT_PORT" ] && [ "$NIFE_PCIE_ROOT_PORT" != "1" ]; then
+    echo "qemu-runner-x86_64: NIFE_PCIE_ROOT_PORT=$NIFE_PCIE_ROOT_PORT is not '1'" >&2
+    exit 1
+fi
+
 NVME=""
 if [ -n "$NIFE_NVME" ]; then
     if [ ! -f "$NIFE_NVME" ]; then
@@ -236,6 +263,9 @@ if [ -n "$NIFE_NVME" ]; then
         exit 1
     fi
     NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
+    if [ -n "$NIFE_PCIE_ROOT_PORT" ]; then
+        NVME="-device pcie-root-port,id=nife-rp0,chassis=1,slot=0 $NVME,bus=nife-rp0"
+    fi
 fi
 
 # `-no-reboot` turns a triple fault into an exit instead of a silent reset loop, which is the

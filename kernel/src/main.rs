@@ -350,6 +350,17 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
                         None => " alone (this host bridge reports no TOLUD)",
                     }
                 );
+                // **The topology, read from the bridges, and it must happen here** (milestone 320).
+                // The boot tables still cover the low 4 GiB indiscriminately at this point, so
+                // every bus the MCFG describes is readable without a single mapping; `mmu::init`
+                // a hundred lines down then maps exactly the buses this found. Run after it, this
+                // would read its way off the end of the window it is trying to size.
+                //
+                // It is in the x86 arm rather than beside `memory::init` for the same reason the
+                // BAR census below is: both `virt` boards describe a flat root complex in their
+                // device tree, QEMU puts nothing behind a bridge on either, and a walk there would
+                // print bus 0 and stop. See `pci::survey`.
+                pci::survey();
                 // The census is here, in the x86 arm, because this is the only architecture whose
                 // BARs may already be placed by something else when the kernel arrives. Both
                 // `virt` boards boot with `-bios default` and every BAR is zero, so there would be

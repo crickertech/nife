@@ -297,7 +297,7 @@ where
         direct_map(
             m,
             ecam,
-            ecam + PCI_ECAM_MAPPED.min(ecam_size),
+            ecam + crate::pci::ecam_bytes().min(ecam_size),
             Flags::device(),
         )?;
         direct_map(m, bar, bar + PCI_BAR_MAPPED.min(bar_size), Flags::device())?;
@@ -337,8 +337,10 @@ pub const VIRTIO_SLOTS: u64 = 32;
 /// mistake the fixture witness exists to catch. As on riscv we map (and enumerate) bus 0 only;
 /// QEMU `virt` is a flat root complex, and widening is one constant. The base was `PCI_ECAM_BASE`
 /// here until the first VisionFive 2 boot showed what a QEMU constant costs (DECISIONS §43).
+/// **The floor, not the answer, since milestone 320.** `pci::ecam_buses()` is what the kernel maps
+/// and reads: this value until a survey has run, and the machine's own topology afterwards. On this
+/// architecture no survey runs, so it stays 1 and is the truth here.
 pub const PCI_ECAM_BUSES: u16 = 1;
-pub const PCI_ECAM_MAPPED: u64 = PCI_ECAM_BUSES as u64 * 0x10_0000;
 
 /// How much of the 32-bit PCI memory window the kernel maps and assigns BARs from; the window
 /// itself (base `0x1000_0000` on QEMU `virt`) comes from the machine's `ranges` via
