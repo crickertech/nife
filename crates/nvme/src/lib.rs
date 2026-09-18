@@ -90,7 +90,8 @@
 //! **deratifying this crate's own 2026-08-23 ratification** to do it. The block is written as a
 //! pending rename rather than as the new name, the same shape `board_console` carries for its
 //! ruled `serial_console`: the ratified name is not this crate's until the rename is performed,
-//! and until then `nvme` belongs on `script/names --unratified` rather than off it.
+//! and until then `nvme` belongs on `script/names --unratified` rather than off it. Refused
+//! `nvme`, `nvm_express`, `nvme_driver` and `nvme_server`; the argument for each is below.
 //!
 //! **What it overturns is its own earlier ratification** (2026-08-23, a kernel-dependency crate
 //! naming review), which read: *"the specification's own name for the device family, the same

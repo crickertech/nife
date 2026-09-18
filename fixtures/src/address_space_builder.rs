@@ -16,7 +16,8 @@
 //! stays `provisional` because the ratified name is not this file's until the rename is performed,
 //! and until then `address_space_builder` belongs on `script/names --unratified` rather than off
 //! it. Coined by milestone 291's lane, from `hello`'s `ADDRESS_SPACE_BUILDER` role (number 19),
-//! whose role constant lowercased was the name.
+//! whose role constant lowercased was the name. Refused `address_space_builder` and `builder`;
+//! the argument for each is below.
 //!
 //! **The ruling is that a fixture is named for what it proves, not for what it does.** This tree
 //! already had one of those in `unwritable_clock_witness`, and this file's own prose reached for

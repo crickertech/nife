@@ -21,7 +21,7 @@
 //! Name: provisional, and ruled: calef ruled **`device_tree_blob`** on 2026-09-18
 //! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
 //! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `dtb` belongs on `script/names --unratified` rather than off it.
+//! until then `dtb` belongs on `script/names --unratified` rather than off it. Refused `dtb`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "device tree blob" is,
 //! so it goes, where `pci` stays because "peripheral component interconnect" is not.

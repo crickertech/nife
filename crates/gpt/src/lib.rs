@@ -103,7 +103,8 @@
 //! Name: provisional, and ruled: calef ruled **`globally_unique_identifier_partition_table`** on 2026-09-18
 //! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
 //! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `gpt` belongs on `script/names --unratified` rather than off it.
+//! until then `gpt` belongs on `script/names --unratified` rather than off it. Refused `gpt` and
+//! `guid_partition_table`, the one-level spelling; §154 asks the question again of `GUID`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "GUID partition table" is,
 //! so it goes, where `pci` stays because "peripheral component interconnect" is not. It expands **all the way**, because §154 asks the same question of an acronym left inside an

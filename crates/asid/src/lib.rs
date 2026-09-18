@@ -55,7 +55,7 @@
 //! Name: provisional, and ruled: calef ruled **`address_space_identifier`** on 2026-09-18
 //! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
 //! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `asid` belongs on `script/names --unratified` rather than off it.
+//! until then `asid` belongs on `script/names --unratified` rather than off it. Refused `asid`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "address space identifier" is,
 //! so it goes, where `pci` stays because "peripheral component interconnect" is not.

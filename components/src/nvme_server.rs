@@ -93,6 +93,7 @@
 //! for the whole family rather than for this program alone. The block stays `provisional` because
 //! the ratified name is not this program's until the rename is performed; the argument, the
 //! refusals and what does not move are recorded once, beside the crate, in `crates/nvme`.
+//! Refused `nvme_server` and `nvme_driver`.
 //!
 //! `nvme_server` was §86's name for this program in passing, and §86 said plainly that was not a
 //! ratification. Two things were wrong with it. It carries the unexpanded acronym, which is what

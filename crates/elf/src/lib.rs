@@ -83,6 +83,7 @@
 //! whether the expansion is a phrase people actually say. "executable and linkable format" is not: an
 //! expert meeting those words has to translate them back to `elf` to know what they are looking
 //! at, so spelling it out would cost the reader who knows the term and help nobody. It stays.
+//! Refused `executable_and_linkable_format` (§154).
 //!
 //! Originally ratified 2026-08-01 in the group of standard terms "already right and must not be
 //! touched". That reasoning (recognition bought from outside this project) survives; what changed is

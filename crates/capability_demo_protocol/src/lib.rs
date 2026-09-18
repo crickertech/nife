@@ -44,7 +44,9 @@
 //! Name: provisional, and ruled: calef ruled **`capability_witness_protocol`** on 2026-09-18. The
 //! block stays `provisional` because the ratified name is not this crate's until the rename is
 //! performed, and until then `capability_demo_protocol` belongs on `script/names --unratified`
-//! rather than off it. Coined by milestone 291's lane.
+//! rather than off it. Coined by milestone 291's lane. Refused `capability_demo_protocol`,
+//! `demo_words`, `capability_demo`, and folding these into `crates/abi`; the argument for each is
+//! below.
 //!
 //! **The ruling is the same one as `address_space_witness`, made the same day**: a thing here is
 //! named for what it proves rather than for the occasion of its existence. Every value in this
