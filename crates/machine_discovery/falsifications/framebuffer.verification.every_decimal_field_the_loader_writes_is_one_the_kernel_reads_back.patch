@@ -1,0 +1,31 @@
+Falsifies `machine_discovery::framebuffer::verification::every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back`.
+
+The defect: `parse_decimal` accumulates with a plain multiply and add instead of
+the checked pair.
+
+`u32::MAX` is ten digits and `write_decimal`'s buffer is exactly ten bytes, so the
+encoder has no slack and the decoder's overflow boundary has to sit exactly at
+`4294967295` accepted and `4294967296` refused. With the checks gone the decoder
+does not refuse the second one, it wraps it, and a stride or a height read off a
+boot command line becomes a different number than the one written, with nothing
+saying so.
+
+Under Kani the wrap is a caught arithmetic overflow rather than a silent one, which
+is the point: the same expression in a release kernel wraps quietly.
+
+Expected to fail: the arithmetic-overflow checks on `value * 10 + digit`, and
+behind them `assert_eq!(parse_decimal(text), Some(value))`.
+
+diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
+index 50e1dcfb..9bf50744 100644
+--- a/crates/machine_discovery/src/framebuffer.rs
++++ b/crates/machine_discovery/src/framebuffer.rs
+@@ -307,7 +307,7 @@ fn parse_decimal(text: &str) -> Option<u32> {
+     let mut value = 0u32;
+     for byte in text.bytes() {
+         let digit = byte.checked_sub(b'0').filter(|d| *d < 10)?;
+-        value = value.checked_mul(10)?.checked_add(u32::from(digit))?;
++        value = value * 10 + u32::from(digit);
+     }
+     Some(value)
+ }
