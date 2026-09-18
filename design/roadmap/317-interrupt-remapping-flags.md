@@ -185,3 +185,39 @@ Compare the device trees the two GIC versions produce, which is how the table ab
 - **`ECAP.IR` is a capability bit, not a working unit.** It says QEMU's model advertises interrupt
   remapping. Whether that model's remapping behaves like silicon's is a question no boot here asks,
   and milestone 87's `OptiPlex` (xenon) is where it would get a second witness.
+
+## Follow-on
+
+- **Recorded.** That nothing here remaps an interrupt and that the flag only proves the hardware is
+  present, in `kernel/src/arch/x86_64/iommu.rs`'s `BUGS` section beside the driver, and in this
+  block's own `BUGS`.
+- **Recorded.** That the confinement claim about where a device may *interrupt* is still stated
+  nowhere, in `notes/confinement-claims.md`, whose entry now carries what the flags measured and
+  what is left.
+- **Milestone 227.** The GICv3 driver and its ITS. This block's "What milestone 227 would owe"
+  section is the bill, and `NIFE_GIC=3` is the reproduction; item 1 there (read `compatible`, and
+  report what was found rather than a hardcoded `GICv2`) is worth doing on its own and is not done
+  here because it is 227's file.
+- **Decision.** `design/decisions/86-el0-nvme-driver.md`: who owns the page holding the MSI-X table.
+  calef held it on 2026-09-17 for want of an experiment behind it, and this milestone is that
+  experiment. It is now answerable on x86_64 without any further machinery, and the honest cost of
+  answering it on aarch64 is milestone 227.
+- **Recorded.** That riscv64's own MSI-redirection question (`MSIPTP` on the RISC-V IOMMU) has
+  never been asked, in this block's own `riscv64` section. Nothing is blocked on it and no lane has
+  looked; it belongs to whoever takes the claim above.
+
+## Index row
+
+**Built:** 2026-09-17
+
+An MSI is a memory write to a special address, so DMA remapping does not confine it and a component
+that can write a device's MSI-X table can aim an interrupt at a vector it was never given. DECISIONS
+§86 found the question unaskable here: the x86_64 runner attached `-device intel-iommu` with no
+`intremap=on`, and the aarch64 runner's GICv2 has no ITS. `NIFE_INTREMAP` closes the first, and
+because a green suite with the flag on proves only that the suite does not care, the guest now reads
+`ECAP.IR` and reports it, with a test asserting `GSTS.IRES` stays clear. aarch64 turned out not to
+be one flag away, and finding out how was the point: `gic-version=3` moves `reg[1]` from the CPU
+interface to the redistributor, `memory::init` matches the node by the `intc@` name prefix and never
+reads `compatible`, and the result is a boot that prints `GICv2, cpu interface 0x80a0000` and
+receives no timer tick. Milestone 227's bill is itemised here, and §86's MSI-X ownership decision is
+now answerable on x86_64 without further machinery.
