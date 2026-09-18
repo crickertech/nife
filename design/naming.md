@@ -1150,6 +1150,40 @@ taken against a crate under the name it had that morning, so that sentence is ev
 Read the paragraph, not the heading. The resolution is to keep the old name **and add a clause
 saying why**, which is what that file now carries.
 
+### A path is navigation; a name in an account is a claim
+
+A `BUILT` block keeps the old *name*, because it is an account of what was built under it. It does
+**not** keep a broken *path*. The `asid` rename hit this on 2026-09-18: milestone 15's block cites
+the note that moved, and the lane updated those citations while leaving every use of the name
+itself. **The account rule protects names-as-used-then; it does not protect a link that now goes
+nowhere.**
+
+The test is whether a reader follows it or reads it. A path is followed.
+
+### Expanding an acronym changes what clippy sees
+
+`crates/asid` passed `doc_markdown` for a year. `crates/address_space_identifier` has underscores in
+it, so clippy demands backticks, and three doc comments failed `-D warnings` on text nobody meant to
+touch. **Every acronym expansion under §154 will hit this**, because every expansion introduces
+underscores where there were none.
+
+**Backtick every `crates/<name>` inside a `///` or `//!` before running the gate**, rather than
+discovering it when the gate is red and the diff is large.
+
+### A sweep on `name::` does not catch `](name)`
+
+`kernel/src/arch/riscv64/mmu.rs` carried an intra-doc link whose target was the bare crate name.
+A sweep looking for `asid::` never saw it, and **no gate reports it**: rustdoc warns only when it
+runs, which is not on every build. It is the stale-pointer-upgrade class one level down, so grep
+`](<name>)` as its own pass.
+
+### `components/` is a second workspace, and `cargo check` is blind to it
+
+The main workspace's check does not compile `components/`, so a rename that breaks a consumer there
+is green until something builds it. `gpt` and `dtb` both have consumers in it; `asid` had only the
+kernel, which is why the first three renames never exercised this. **Build both workspaces, or run
+`script/test`, which does.**
+
 ### Two mechanical tells worth ten seconds each
 
 **`git status` must say `R`, not `A`.** A crate rename moves a directory, and `RM crates/old ->
