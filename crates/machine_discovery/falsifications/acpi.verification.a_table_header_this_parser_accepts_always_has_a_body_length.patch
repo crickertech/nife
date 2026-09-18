@@ -1,0 +1,30 @@
+Falsifies `machine_discovery::acpi::verification::a_table_header_this_parser_accepts_always_has_a_body_length`.
+
+The defect: the length guard asks whether the table claims a length at all instead
+of whether it claims one long enough to cover its own header. `SdtHeader::body_len`
+is `length - SDT_HEADER_LEN` with no guard of its own, so a table whose `length`
+field is between 1 and 35 underflows a `usize` to roughly 2^64, and every caller
+that reads `body_len()` bytes after the header walks off the end of the ACPI region.
+
+This is the shape a reader reaches for while tidying: "a length of zero is
+obviously wrong" is true and is not the condition the subtraction needs. The
+file's own test supplies `length = 10`, which this defect still catches, so the
+test stays green while the property is false for `length = 1` through `9` and
+`11` through `35`.
+
+Expected to fail: `assert_eq!(h.length as usize, SDT_HEADER_LEN + h.body_len())`,
+or the arithmetic-overflow check inside `body_len` itself.
+
+diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
+index d4fdb7cf..01fe81d3 100644
+--- a/crates/machine_discovery/src/acpi.rs
++++ b/crates/machine_discovery/src/acpi.rs
+@@ -192,7 +192,7 @@ pub fn parse_sdt_header(bytes: &[u8]) -> Result<SdtHeader, AcpiError> {
+         return Err(AcpiError::Truncated);
+     }
+     let length = u32(bytes, 4);
+-    if (length as usize) < SDT_HEADER_LEN {
++    if length == 0 {
+         return Err(AcpiError::BadLength(length));
+     }
+     Ok(SdtHeader {

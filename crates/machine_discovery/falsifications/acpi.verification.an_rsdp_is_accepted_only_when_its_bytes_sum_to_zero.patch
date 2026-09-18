@@ -1,0 +1,30 @@
+Falsifies `machine_discovery::acpi::verification::an_rsdp_is_accepted_only_when_its_bytes_sum_to_zero`.
+
+The defect: the 20-byte checksum is not checked at all, so a revision-0 RSDP is
+accepted on its signature alone. The RSDP is found by scanning low memory for the
+eight-byte string `RSD PTR `, which is why the module header calls this checksum
+"the whole defence": without it, any sixteen bytes that happen to spell the
+signature hand the kernel a physical address it will follow into somebody's data.
+
+Note that the revision-2 path still checks its own extended checksum, so a
+firmware-shaped RSDP still parses. That is what makes this defect the plausible
+one: every hand-written test in the file that corrupts a byte and expects
+`BadChecksum` is a revision-2 RSDP, so the only test that would fail is one nobody
+wrote.
+
+Expected to fail: `assert!(checksum_ok(&bytes[..RSDP_V1_LEN]))`.
+
+diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
+index d4fdb7cf..e150ccfb 100644
+--- a/crates/machine_discovery/src/acpi.rs
++++ b/crates/machine_discovery/src/acpi.rs
+@@ -126,9 +126,6 @@ pub fn parse_rsdp(bytes: &[u8]) -> Result<Rsdp, AcpiError> {
+     if &bytes[0..8] != RSDP_SIGNATURE {
+         return Err(AcpiError::BadSignature);
+     }
+-    if !checksum_ok(&bytes[..RSDP_V1_LEN]) {
+-        return Err(AcpiError::BadChecksum);
+-    }
+     let revision = bytes[15];
+     let rsdt = u32(bytes, 16);
+ 

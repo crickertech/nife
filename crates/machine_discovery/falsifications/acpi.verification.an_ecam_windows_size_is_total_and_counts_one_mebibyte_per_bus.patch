@@ -1,0 +1,30 @@
+Falsifies `machine_discovery::acpi::verification::an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus`.
+
+**This is the second defect as it actually shipped**, restored: `size()` subtracts
+`start_bus` from `end_bus` in `u64` with nothing checking which is larger. Nothing
+in the MCFG's encoding forbids a window that ends before it begins, and
+`mcfg_entry` reads both bytes straight out of the table without comparing them, so
+a malformed or merely creative MCFG underflows to roughly 2^64 and then multiplies
+by a mebibyte.
+
+The hand-written test builds the one window `q35` produces, buses 0 through 255,
+and that is the only pair anything exercised.
+
+Expected to fail: the arithmetic-overflow check on
+`self.end_bus as u64 - self.start_bus as u64`, and the `assert_eq!(size, 0)` behind
+it.
+
+diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
+index d4fdb7cf..bd35ff4c 100644
+--- a/crates/machine_discovery/src/acpi.rs
++++ b/crates/machine_discovery/src/acpi.rs
+@@ -488,9 +488,6 @@ impl McfgEntry {
+     /// Zero is the honest answer: there is no bus in the range, so there is no configuration space
+     /// to map.
+     pub const fn size(&self) -> u64 {
+-        if self.end_bus < self.start_bus {
+-            return 0;
+-        }
+         (self.end_bus as u64 - self.start_bus as u64 + 1) * 0x10_0000
+     }
+ }

@@ -1,0 +1,29 @@
+Falsifies `machine_discovery::acpi::verification::the_dmar_walk_terminates_and_stays_inside_the_body`.
+
+The defect: the DMAR's minimum structure length becomes two, which is the MADT's
+minimum one table over. The two walks look alike and are not: a MADT entry is a
+one-byte type and a one-byte length, while a DMAR remapping structure is a
+little-endian `u16` type and a `u16` length, so its own header is four bytes. A
+structure claiming a length of two or three advances the cursor inside its own
+header, and the next iteration re-reads the second half of this structure as the
+first half of the next one, forever.
+
+This is the parity failure AGENTS.md rule 5 names, in miniature: a constant copied
+across from the sibling implementation that is correct there and wrong here. The
+file's tests write a zero length and nothing else, so they stay green.
+
+Expected to fail: `assert!(it.at >= last + 4)`.
+
+diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
+index d4fdb7cf..7ca75bbf 100644
+--- a/crates/machine_discovery/src/acpi.rs
++++ b/crates/machine_discovery/src/acpi.rs
+@@ -615,7 +615,7 @@ impl Iterator for DmarStructures<'_> {
+         }
+         let kind = u16(self.body, self.at);
+         let len = u16(self.body, self.at + 2) as usize;
+-        if len < 4 || self.at + len > self.body.len() {
++        if len < 2 || self.at + len > self.body.len() {
+             return None;
+         }
+         let e = &self.body[self.at..self.at + len];

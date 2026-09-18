@@ -1,0 +1,33 @@
+Falsifies `machine_discovery::x86_64::verification::no_length_of_handoff_bytes_makes_the_decode_read_past_its_end`.
+
+The defect: the length check for the version-1 structure is gone, so the memory-map
+fields at offsets 40 and 48 are read out of any handoff whose `version` word says 1
+or more, including one that is only 40 bytes long.
+
+The two facts that have to line up are written by different people: the *length* of
+the buffer is whatever the kernel mapped, and the *version* is a `u32` the loader
+wrote inside it. So the guard is on one number and the offsets it protects are on
+another, four lines apart, and a loader that writes a version-1 header into a
+version-0 allocation is a boot-protocol bug this parser is supposed to survive
+rather than dereference.
+
+`BootInfo::parse` is the first thing the x86 kernel does with a pointer it did not
+choose. The module's own tests supply exactly 40 bytes and exactly 56 bytes; every
+length between the two is the gap this defect lives in.
+
+Expected to fail: the bounds check inside `u64(bytes, 40)`.
+
+diff --git a/crates/machine_discovery/src/x86_64.rs b/crates/machine_discovery/src/x86_64.rs
+index 7ede06e5..3799073c 100644
+--- a/crates/machine_discovery/src/x86_64.rs
++++ b/crates/machine_discovery/src/x86_64.rs
+@@ -120,9 +120,6 @@ impl BootInfo {
+         // would be reading whatever the loader left after its own last field, which is exactly the
+         // kind of plausible garbage this crate exists to keep out of the kernel.
+         let (memmap, memmap_entries) = if version >= 1 {
+-            if bytes.len() < V1_LEN {
+-                return Err(BootInfoError::Truncated);
+-            }
+             (u64(bytes, 40), u32(bytes, 48))
+         } else {
+             (0, 0)
