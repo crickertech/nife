@@ -52,6 +52,40 @@ shift
 # design/roadmap/316-x86-smp-two-cores.md and design/roadmap/161-x86-64-kernel-port.md item 5.
 SMP="${NIFE_SMP:-1}"
 
+# **`NIFE_TCG_THREAD=multi` gives this port parallel cores instead of interleaved ones** (milestone
+# 321). **Provisional name.** Empty by default, which changes nothing: QEMU keeps choosing, and on
+# this host it chooses round-robin.
+#
+# The distinction is not pedantry, and milestone 321 is the case that needed it. TCG has two vCPU
+# models. Round-robin (`thread=single`) runs every guest core on ONE host thread, timeslicing them;
+# multi-threaded TCG (`thread=multi`) gives each guest core its own host thread, so two cores really
+# do execute at the same instant. **On an aarch64 host running an x86_64 guest, QEMU picks
+# round-robin**, so `NIFE_SMP=4` here has never meant four cores running at once, only four cores
+# taking turns. Measured rather than assumed: at `-smp 4` this QEMU (11.1.1) creates 5 threads under
+# `thread=single` and 8 under `thread=multi`.
+#
+# That matters because the failures worth finding on more than one core are the ones that need two
+# cores inside the same instant: a wake that is never delivered, a revocation that reaches one core's
+# state and not another's, a corpse that does not reach the queue the other core is reading. Under
+# round-robin those windows are narrow or absent, which is why `design/fatal-risks.md` risk 2 keeps
+# having to say "found on a bench, invisible in QEMU".
+#
+# # BUGS
+#
+# - **This is a hunting instrument, not a gate, and a red run under it needs confirming before it is
+#   believed.** x86 has a stronger memory model (TSO) than an aarch64 host provides, so a faithful
+#   MTTCG has to insert barriers the guest's own instructions do not carry. QEMU 11.1.1 accepts
+#   `thread=multi` for this pair and issues no warning, and nobody here has audited whether its
+#   barrier placement is complete. So a failure seen only under this knob might be the guest's bug or
+#   might be the emulator's, and the honest next step for one is a bench, not a patch.
+# - **It found nothing yet.** Milestone 321 added it while failing to reproduce a supervision failure
+#   from xenon; twelve runs at `NIFE_SMP=4` with `thread=multi` were green, which is why the default
+#   is unchanged and this is a knob rather than a new posture.
+TCG_THREAD=""
+if [ -n "$NIFE_TCG_THREAD" ]; then
+    TCG_THREAD="-accel tcg,thread=$NIFE_TCG_THREAD"
+fi
+
 # `q35` rather than the older `pc` because it is what the physical target looks like: a PCIe root
 # complex with an ECAM window, an AHCI controller, and the legacy 16550 COM1 at port 0x3f8 that
 # milestone 87's Dell C4PDJ module also presents. One machine model, both paths.
@@ -213,6 +247,7 @@ fi
 set +e
 qemu-system-x86_64 \
     -machine q35 \
+    $TCG_THREAD \
     -cpu "$CPU" \
     -smp "$SMP" \
     -m 256M \
