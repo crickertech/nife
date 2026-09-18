@@ -15,7 +15,7 @@ members = [
     "crates/calendar",
     "crates/memory_corruption_canary_gate",
     "crates/capability",
-    "crates/capability_demo_protocol",
+    "crates/capability_witness_protocol",
     "crates/component_plan",
     "crates/compositor",
     "crates/cpu_set",

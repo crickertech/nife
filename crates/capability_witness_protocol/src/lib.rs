@@ -20,7 +20,7 @@
 //! claim `kernel::user::page_frame_service` wires and asserts.
 //!
 //! ```
-//! use capability_demo_protocol::PAGE_FRAME_SENTINEL;
+//! use capability_witness_protocol::PAGE_FRAME_SENTINEL;
 //!
 //! // The producer, in its own address space.
 //! let mut page = [0u64; 512];
@@ -41,12 +41,9 @@
 //! it. A third program could depend on this crate and read `USED_WORD` for an unrelated purpose,
 //! and the next change to that constant would break it silently. The tree's other `*_proto` crates
 //! have the same property and it has never bitten; recorded here rather than defended.
-//! Name: provisional, and ruled: calef ruled **`capability_witness_protocol`** on 2026-09-18. The
-//! block stays `provisional` because the ratified name is not this crate's until the rename is
-//! performed, and until then `capability_demo_protocol` belongs on `script/names --unratified`
-//! rather than off it. Coined by milestone 291's lane. Refused `capability_demo_protocol`,
-//! `demo_words`, `capability_demo`, and folding these into `crates/abi`; the argument for each is
-//! below.
+//! Name: ratified 2026-09-18 (calef, replacing the provisional `capability_demo_protocol` coined by
+//! milestone 291's lane). Refused `capability_demo_protocol`, `demo_words`, `capability_demo`, and
+//! folding these into `crates/abi`; the argument for each is below.
 //!
 //! **The ruling is the same one as `address_space_witness`, made the same day**: a thing here is
 //! named for what it proves rather than for the occasion of its existence. Every value in this
@@ -72,8 +69,12 @@
 //! The suffixed shape is AGENTS.md rule 7: what two compilation units must agree on has exactly one
 //! definition, in a crate rather than a `#[path]` module.
 //!
-//! **Not yet performed**: this is a crate rename, so it moves a directory, a package name and three
-//! `Cargo.toml` dependency entries as well as the `use` sites in `fixtures/` and `kernel/`.
+//! **Performed 2026-09-18**, in 27 occurrences across 16 files: the directory, the package name,
+//! three `Cargo.toml` dependency entries, the `use` sites in `fixtures/` and `kernel/`, and the
+//! live pointers in `design/naming.md` and one `PROPOSED` proposal. Two occurrences of the old name
+//! were deliberately left standing in
+//! `design/roadmap/proposals/refusals-written-where-the-tool-cannot-read-them.md`, where they are a
+//! dated account of a measurement taken on this crate under the name it had that day.
 //!
 //! The suffix became `_protocol` at milestone 265, three weeks after this block was written and
 //! together with the crates it cites; the `_proto` spellings above are what they were called when

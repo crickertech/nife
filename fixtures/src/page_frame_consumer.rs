@@ -40,7 +40,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
         if mapped {
             // SAFETY: PAGE_FRAME_VA is now a mapped, readable page.
             let seen = unsafe { core::ptr::read_volatile(PAGE_FRAME_VA as *const u64) };
-            read_ok = seen == capability_demo_protocol::PAGE_FRAME_SENTINEL;
+            read_ok = seen == capability_witness_protocol::PAGE_FRAME_SENTINEL;
         }
 
         // Try to map it read/write. We hold it READ only, so the kernel refuses before mapping.

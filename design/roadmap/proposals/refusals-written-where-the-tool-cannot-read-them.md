@@ -20,7 +20,9 @@ serve that purpose.
   `script/names --refused | grep -c screen_console` answers **0**.
 - On 2026-09-18 a maintainer edit to `crates/capability_demo_protocol` moved three previously
   visible refusals into a later paragraph. The tree-wide count fell from 171 to 168, exactly three,
-  which is how the problem was found at all.
+  which is how the problem was found at all. (That crate is `crates/capability_witness_protocol`
+  now, renamed later the same day; the old name stands here and in Scope below because both
+  passages are dated accounts of measurements taken under it.)
 - Restoring those three and pulling seventeen more of that day's rulings into the parsed paragraph
   took the count from 168 to **188**.
 

@@ -1,6 +1,6 @@
 //! **A thread reading the CPU's cycle counter from user mode**, milestone 229.
 //!
-//! Reads the counter twice and reports [`capability_demo_protocol::CYCLE_COUNTER_WORD`] plus both
+//! Reads the counter twice and reports [`capability_witness_protocol::CYCLE_COUNTER_WORD`] plus both
 //! reads. Holds a report endpoint (slot 0) and nothing else: the grant is **not** a capability in
 //! a slot, it is a property of this thread that the context switch writes into a system register
 //! before the thread runs.
@@ -48,7 +48,7 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
     let second = read_cycle_counter();
     send(
         REPORT,
-        capability_demo_protocol::CYCLE_COUNTER_WORD,
+        capability_witness_protocol::CYCLE_COUNTER_WORD,
         first,
         second,
     );

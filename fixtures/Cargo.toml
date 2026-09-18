@@ -355,7 +355,7 @@ bench = false
 abi = { version = "0.1.0", path = "../crates/abi" }
 # The words the milestone 7-19 capability demonstrations agree on, now that each is its own
 # binary (milestone 291). AGENTS.md rule 7: what two binaries must agree on is a crate.
-capability_demo_protocol = { version = "0.1.0", path = "../crates/capability_demo_protocol" }
+capability_witness_protocol = { version = "0.1.0", path = "../crates/capability_witness_protocol" }
 # A program's check that its own ELF image was loaded correctly (milestone 291). Two fixtures
 # need it, so it is a crate rather than a second copy.
 loaded_image_check = { version = "0.1.0", path = "../crates/loaded_image_check" }
