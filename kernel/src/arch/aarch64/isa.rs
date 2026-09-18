@@ -12,7 +12,7 @@
 //!
 //! `mmu::init` has always written `TCR_EL1.IPS` from `ID_AA64MMFR0_EL1.PARange`, with a comment
 //! saying to read it from the hardware rather than guess. It was right, and it was the only one:
-//! the 4 KiB granule the page tables are built on and the ASID width `crates/asid` is built on were
+//! the 4 KiB granule the page tables are built on and the ASID width `crates/address_space_identifier` is built on were
 //! both simply assumed. They are the same register.
 
 use core::sync::atomic::{AtomicU8, AtomicU32, Ordering};
@@ -107,7 +107,7 @@ pub fn init(dtb_ptr: usize) {
         if missing.asid_bits {
             println!(
                 "  asid        : ID_AA64MMFR0_EL1.ASIDBits is a reserved encoding, so the ASID \
-                 width is unknown and crates/asid needs at least 8"
+                 width is unknown and crates/address_space_identifier needs at least 8"
             );
         }
         panic!("required hardware facility is absent");
@@ -273,11 +273,14 @@ mod tests {
     ///
     /// The RISC-V twin of this has to *measure* the number, because RISC-V permits any width
     /// including zero and publishes nothing. ARM mandates 8 or 16, so here it is a read. Same
-    /// assertion either way, and the same consequence if it failed: `crates/asid` hands out 255
+    /// assertion either way, and the same consequence if it failed: `crates/address_space_identifier` hands out 255
     /// numbers on the stated assumption that hardware can tell them apart.
     #[test_case]
     fn the_asid_width_supports_the_allocator() {
-        assert!(get().asid_bits >= 8, "crates/asid assumes at least 8");
+        assert!(
+            get().asid_bits >= 8,
+            "crates/address_space_identifier assumes at least 8"
+        );
     }
 
     /// **`TCR_EL1.IPS` holds what the part reported, and nothing else.**

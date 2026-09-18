@@ -570,7 +570,7 @@ fn asid_tagging_keeps_address_spaces_apart_without_flushes() {
 ///
 /// The test above proves tagging keeps two spaces apart on one core. This one proves the other half
 /// of the contract, the half that is a distributed protocol on one ISA and a single instruction on
-/// the other: when `crates/asid` says "flush, then the number may tag someone else", the flush has
+/// the other: when `crates/address_space_identifier` says "flush, then the number may tag someone else", the flush has
 /// to have reached every core that could be holding an entry wearing it. aarch64's `tlbi aside1is`
 /// broadcasts in hardware. RISC-V's `sfence.vma` affects only the hart that runs it, so `flush_asid`
 /// has to IPI the others through SBI RFENCE and wait for them.

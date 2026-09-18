@@ -64,7 +64,7 @@ pub const USER_STACK_TOP: u64 = USER_STACK_VA + FRAME_SIZE;
 /// throw the whole table away.
 pub struct AddressSpace {
     root: PageFrame,
-    /// **This address space's TLB tag, for life** (milestone 15; crates/asid). Every user
+    /// **This address space's TLB tag, for life** (milestone 15; `crates/address_space_identifier`). Every user
     /// mapping is `nG`, so its TLB entries carry this number, and a context switch flushes
     /// nothing: the other spaces' entries just stop matching. Freed at drop, after
     /// `flush_asid` has made every entry so tagged vanish, which is what makes the number
@@ -245,8 +245,11 @@ impl AddressSpace {
 
 /// The machine's ASID allocator (milestone 15; the crate carries the proofs). Taken alone, at
 /// address-space creation and teardown, holding nothing else that matters; a leaf-adjacent rank.
-static ASIDS: crate::sync::IrqSafeMutex<asid::Allocator> =
-    crate::sync::IrqSafeMutex::new(crate::sync::rank::ASIDS, asid::Allocator::new());
+static ASIDS: crate::sync::IrqSafeMutex<address_space_identifier::Allocator> =
+    crate::sync::IrqSafeMutex::new(
+        crate::sync::rank::ASIDS,
+        address_space_identifier::Allocator::new(),
+    );
 
 /// The most user-built address spaces alive at once (milestone 19b). They are immortal until
 /// 19c wires process death, so this bounds creations for now; the revocation registry's
@@ -435,7 +438,7 @@ impl Drop for AddressSpace {
             crate::memory_region::destroy(region);
         }
 
-        // The ASID contract (crates/asid): invalidate every TLB entry wearing our tag, THEN
+        // The ASID contract (crates/address_space_identifier): invalidate every TLB entry wearing our tag, THEN
         // hand the number back. In the other order, the next owner of this ASID could hit our
         // stale translations, which is exactly the bug tagging exists to prevent.
         mmu::flush_asid(self.asid);

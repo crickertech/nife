@@ -325,7 +325,7 @@ mod tests {
             super::super::mmu::asid_tagging_is_trusted(),
             bits >= super::super::mmu::ASID_BITS_NEEDED as usize,
             "asid_bits={bits}: the trust flag must agree with whether that width holds every \
-             tag crates/asid can hand out",
+             tag crates/address_space_identifier can hand out",
         );
     }
 

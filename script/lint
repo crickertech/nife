@@ -1838,11 +1838,14 @@ echo "==> naming conventions"
 #    starts at four. Names that genuinely end in `d` go in the allow-list WITH a reason, the same
 #    shape as a per-item `#[allow]`.
 #
-#    Allowed: `asid` is Address Space IDentifier, the aarch64/RISC-V hardware term (notes/asids.md).
-# `uuid` is RFC 9562's own term for the object (milestone 111); the trailing d is the last letter of
-# "identifier", not a daemon suffix, and there is no long-running process here at all: the program
-# draws sixteen bytes, prints one line and exits.
-naming_allow=" asid uuid "
+#    Allowed: `uuid` is RFC 9562's own term for the object (milestone 111); the trailing d is the
+# last letter of "identifier", not a daemon suffix, and there is no long-running process here at all:
+# the program draws sixteen bytes, prints one line and exits.
+#
+#    `asid` was the other entry until 2026-09-18, and it left by being renamed rather than by being
+# re-argued: DECISIONS §154 made it `address_space_identifier`, which ends in `r`. An entry that
+# exists only because a name is an acronym the rule cannot read is one the expansion deletes.
+naming_allow=" uuid "
 named_for_a_daemon=""
 for name in \
     $(ls "$(dirname "$0")/../components/src" | sed 's/\.rs$//') \

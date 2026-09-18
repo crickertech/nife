@@ -201,7 +201,7 @@ ported. It could not, honestly, and that was the finding.
 **Milestone 58 closed it**, and the sequencing is the lesson. The flush was not merely slow, it was
 covering for two things: `flush_asid` was local, because `sfence.vma` does not broadcast and RISC-V
 has no hardware equivalent of `tlbi aside1is`; and `satp.ASID` may be zero bits wide on conforming
-hardware where aarch64 mandates eight, so `crates/asid`'s 255 numbers rest on an assumption that
+hardware where aarch64 mandates eight, so `crates/address_space_identifier`'s 255 numbers rest on an assumption that
 holds on one ISA and not the other. So: the SBI RFENCE shootdown first, then the removal, gated on a
 boot-time probe rather than on the specification. The aarch64 witness now runs on both ISAs, and
 `an_asid_flush_reaches_the_other_cores` proves the broadcast half on both. The benchmark did **not**

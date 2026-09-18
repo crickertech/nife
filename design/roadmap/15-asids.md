@@ -4,7 +4,7 @@
 
 **In brief.** 16-bit ASIDs, generation/rollover; stop flushing the whole EL1 TLB per switch
 
-**Why it matters.** perf the real-workload path needs on real silicon. **Built** (8-bit fixed bitmap, no rollover: milestone 14's bounds made generations unnecessary; notes/asids.md)
+**Why it matters.** perf the real-workload path needs on real silicon. **Built** (8-bit fixed bitmap, no rollover: milestone 14's bounds made generations unnecessary; notes/address-space-identifiers.md)
 
 **Deliverable.** Give each address space an ASID so a context switch stops doing `tlbi vmalle1is`
 (discard every EL1 translation, machine-wide) and instead flushes nothing.
@@ -30,7 +30,7 @@ the deferral.
   exhaustion path the generations guard is unreachable here, and machinery whose hard path can never
   run is machinery that rots. If `MAX_SPACES` ever passes 255 the first answer is 16-bit ASIDs, not
   a new algorithm.
-- **Recorded.** `notes/asids.md`: RISC-V permits `satp.ASID` to be zero bits wide, so "255 numbers
+- **Recorded.** `notes/address-space-identifiers.md`: RISC-V permits `satp.ASID` to be zero bits wide, so "255 numbers
   for at most 160 spaces" is an aarch64 fact. A machine that cannot tell the tags apart keeps
   flushing on every switch, and the width is probed at boot.
 - **Proposed.** `design/roadmap/proposals/what-asids-bought.md`, put a number on what ASIDs bought.

@@ -301,7 +301,7 @@ pub fn sbi_remote_sfence_vma(hart_mask: usize, start: usize, size: usize) {
 /// `sfence.vma` is a **local** instruction. It orders and invalidates for the hart that runs it and
 /// says nothing about any other, which is the single largest difference between the two ISAs'
 /// TLB maintenance: aarch64's `tlbi aside1is` broadcasts across the inner-shareable domain in
-/// hardware and needs no software protocol. So the ASID reuse contract (`crates/asid`: flush, then
+/// hardware and needs no software protocol. So the ASID reuse contract (`crates/address_space_identifier`: flush, then
 /// the number may tag someone else) is one instruction there and a distributed protocol here.
 ///
 /// # What is ordered, and by whom

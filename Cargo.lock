@@ -16,6 +16,10 @@ name = "abi"
 version = "0.1.0"
 
 [[package]]
+name = "address_space_identifier"
+version = "0.1.0"
+
+[[package]]
 name = "aho-corasick"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -35,10 +39,6 @@ dependencies = [
  "cpufeatures",
  "zeroize",
 ]
-
-[[package]]
-name = "asid"
-version = "0.1.0"
 
 [[package]]
 name = "base64ct"
@@ -479,7 +479,7 @@ version = "0.1.0"
 dependencies = [
  "aarch64-cpu",
  "abi",
- "asid",
+ "address_space_identifier",
  "bitmap_font",
  "block_roster",
  "boot_ladder",

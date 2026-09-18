@@ -192,7 +192,7 @@ do not abstract the two machines into a common denominator:
   that send IPIs. Two unrelated mechanisms for one intent, neither levelled down to the other.
 - **ASID width.** aarch64 mandates 8 bits, so the context-switch TLB flush disappears entirely.
   RISC-V permits `satp.ASID` to be **zero bits wide**, so the kernel probes the width at boot and
-  keeps flushing on every switch when the field is absent (asids.md). That is per-processor
+  keeps flushing on every switch when the field is absent (address-space-identifiers.md). That is per-processor
   adaptation of exactly the kind Liedtke argued for, and the portable-looking alternative (always
   flush) would have cost aarch64 the win.
 - **`TTBR0`/`TTBR1`.** On aarch64 the kernel lives in `TTBR1` and never moves, so a syscall needs no

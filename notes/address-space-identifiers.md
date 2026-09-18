@@ -1,6 +1,6 @@
 # ASIDs: tagged address spaces
 
-*(Milestone 15. The mechanism behind `crates/asid` and the disappearance of the context-switch
+*(Milestone 15. The mechanism behind `crates/address_space_identifier` and the disappearance of the context-switch
 TLB flush.)*
 
 ## The problem
@@ -21,7 +21,7 @@ hot path of a microkernel: switches are what an IPC-heavy system does all day.
    re-caching the same kernel translation per process.
 2. **The ASID rides in `TTBR0_EL1`'s top bits**, written together with the table root as one
    composed value (`mmu::ttbr0_value`). Installing an address space *is* installing its tag.
-3. **Each address space owns one ASID for life** (`crates/asid`): allocated at creation, freed
+3. **Each address space owns one ASID for life** (`crates/address_space_identifier`): allocated at creation, freed
    at teardown after `tlbi aside1is` has destroyed every entry wearing it. That flush-then-free
    order is the whole reuse contract, stated at the drop site.
 
@@ -63,7 +63,7 @@ machine cannot tell the numbers apart.
 
 ## What is proved, and what is witnessed
 
-Three Kani harnesses in `crates/asid` (`script/verify`), the frontier crate
+Three Kani harnesses in `crates/address_space_identifier` (`script/verify`), the frontier crate
 notes/verification.md predicted:
 
 | Harness | Property |

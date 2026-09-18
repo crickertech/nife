@@ -30,7 +30,7 @@ fn a_cortex_a72_decodes_to_a_cortex_a72() {
     assert_eq!(cpu.pa_bits(), 44, "PARange 0b0100");
     assert_eq!(
         cpu.asid_bits, 16,
-        "ASIDBits 0b0010, and crates/asid needs 8"
+        "ASIDBits 0b0010, and crates/address_space_identifier needs 8"
     );
     assert_eq!(
         cpu.va_bits, 48,
@@ -95,7 +95,7 @@ fn a_machine_without_the_4k_granule_is_refused() {
 /// up to the kind answer.
 ///
 /// ARM defines exactly two values, 8 and 16, so this is unreachable on a conforming part. It is
-/// checked because the failure it guards is silent: `crates/asid` hands out 255 numbers on the
+/// checked because the failure it guards is silent: `crates/address_space_identifier` hands out 255 numbers on the
 /// stated assumption that the hardware can tell them apart, and hardware that cannot puts two
 /// address spaces' TLB entries under one tag. RISC-V has to *measure* this number; here it is
 /// architected, and the only way to get it wrong is to trust an encoding ARM never defined.
@@ -111,7 +111,7 @@ fn a_reserved_asid_encoding_is_refused_rather_than_rounded() {
 /// **`ASIDBits = 0b0000` means 8, and 8 is enough.** Every other test here uses a 16-bit part, so
 /// this is the only witness for ARM's other legal encoding, and it guards both edges at once: the
 /// decoder must not lump `0b0000` in with the reserved values (that would refuse every 8-bit part
-/// ever made), and the requirement check is `< 8`, not `<= 8` (8 is exactly what `crates/asid`
+/// ever made), and the requirement check is `< 8`, not `<= 8` (8 is exactly what `crates/address_space_identifier`
 /// assumes, so a part with exactly 8 must boot).
 #[test]
 fn eight_asid_bits_decode_and_suffice() {

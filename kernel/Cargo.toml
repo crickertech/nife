@@ -19,7 +19,7 @@ workspace = true
 # NOTE: `aarch64-cpu` is NOT here. It is target-gated at the bottom of this file, and the reason is
 # recorded there rather than by its absence.
 abi = { version = "0.1.0", path = "../crates/abi" }
-asid = { version = "0.1.0", path = "../crates/asid" }
+address_space_identifier = { version = "0.1.0", path = "../crates/address_space_identifier" }
 # The bitmap font and the VT engine (milestone 29's text increment). The kernel does not draw
 # anything; it *predicts*. Its display-terminal tests run the same engine over the same script the
 # terminal was sent and compare the framebuffer pixel for pixel, so no process grades its own
