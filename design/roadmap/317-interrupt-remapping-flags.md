@@ -20,58 +20,87 @@ hatch `allow_unsafe_interrupts`.
 the cheap first move. This milestone is those two flags, plus the one thing that makes them worth
 having: a way to tell from **inside the guest** which machine you are on.
 
+**That last part is what turned the milestone around**, and it is worth saying before the detail.
+Both of §86's findings were reached by reading the runner scripts. One of them is wrong. x86_64 has
+been offering interrupt remapping in every boot this tree has ever run, and the only reason nobody
+knew is that no code read the bit. aarch64's finding survives contact with the machine, and the
+machine adds something to it.
+
 **Who owns the page holding the MSI-X table is not decided here.** calef held that decision on
 2026-09-17 for want of an experiment behind it. This is the experiment.
 
-## x86_64: it works, and the suite does not notice
+## x86_64: the premise was false, and that is the finding
 
-`scripts/qemu-runner-x86_64.sh` gains **`NIFE_INTREMAP`** (provisional name). Set it to anything
-non-empty and the VT-d device gains `intremap=on`:
+**§86 said interrupt remapping is off in every x86_64 boot this tree runs. It has been on the
+whole time.**
 
-    -device intel-iommu                # default, unchanged
-    -device intel-iommu,intremap=on    # NIFE_INTREMAP=1
+That section reached its conclusion by reading `scripts/qemu-runner-x86_64.sh`, which attaches
+`-device intel-iommu` with no `intremap=on`. The reading of the file is correct. The conclusion
+drawn from it is not, and the difference only shows up when you boot the machine and read the
+register. `ECAP` printed from inside the guest, QEMU 11.1.1, `q35` under TCG on patagonia:
 
-Run the whole suite either way:
+| invocation | `ECAP` | `IR` (bit 3) |
+|---|---|---|
+| `-device intel-iommu` (the default, and what every boot before this ran) | `0xf00f4a` | **set** |
+| `-device intel-iommu,intremap=on` | `0xf00f4a` | **set** |
+| `-device intel-iommu,intremap=off` | `0xf42` | clear |
 
-    script/test --arch x86_64                    # 214 passed, 70 skipped, exit 0
-    NIFE_INTREMAP=1 script/test --arch x86_64    # 214 passed, 70 skipped, exit 0
+QEMU's `intremap` property is tri-state and defaults to `auto`, which resolves ON when there is no
+in-kernel irqchip to conflict with. patagonia has no KVM, so it has always resolved ON. **Adding
+`intremap=on` is a no-op here.** Nothing in this kernel read `ECAP.IR`, so nobody could have
+noticed, which is the whole reason this lane's first job was to make the guest say what it sees.
 
-**Identical, and that is the finding that needed a second half.** A green suite with the flag on
-proves only that the suite does not care, which is milestone 202's hazard (every confinement test
-is a ritual until somebody breaks the confinement) wearing a new coat. So the guest now reads
-`ECAP.IR` and says what it saw, and the bring-up line differs between the two machines:
+### What the knob actually is, given that
 
-    iommu : VT-d drhd at 0x00000000fed90000, root table default-deny, translating, interrupt remapping absent
-    iommu : VT-d drhd at 0x00000000fed90000, root table default-deny, translating, interrupt remapping offered
+`NIFE_INTREMAP` (provisional name) passes `intremap=` through; `on` and `off` are the only values
+it accepts, and unset leaves QEMU's default. **The useful value is `off`**, because it is the only
+way to reach a machine without the capability, and a comparison needs both sides. The default does
+not move: unset is what the tree already ran, so this adds a knob and changes no existing boot.
+
+The guest reports what it found, which is the part that makes any of this checkable:
+
+    iommu           : VT-d drhd at 0x00000000fed90000, root table default-deny, translating, interrupt remapping offered (unused)
+    iommu           : VT-d drhd at 0x00000000fed90000, root table default-deny, translating, interrupt remapping absent (unused)
 
 `arch::x86_64::iommu::interrupt_remapping_available` is the query; `print_summary` and one test are
-its callers.
+its callers. That test asserts `GSTS.IRES` is clear whatever `ECAP.IR` says, so the claim that
+nothing here remaps an interrupt cannot quietly stop being true.
+
+### The suite passes on both machines
+
+    script/test --arch x86_64                      -> 0
+    NIFE_INTREMAP=off script/test --arch x86_64    -> 0
+
+**A green suite proves nothing about remapping either way**, which is milestone 202's hazard (every
+confinement test is a ritual until somebody breaks the confinement). It proves only that removing
+a capability nothing uses breaks nothing, which is what you would expect and is worth having
+measured rather than assumed.
 
 ### `kernel-irqchip=split` is not needed here, and that is measured
 
 The advice that pairs `intremap=on` with `-machine kernel-irqchip=split` is real and is a **KVM**
 constraint: QEMU refuses interrupt remapping with an in-kernel irqchip. patagonia has no KVM, so
-`q35` under TCG emulates the whole irqchip in the QEMU process and the check never fires. Against
-QEMU 11.1.1, started with `-S` and quit from the monitor so machine init runs and nothing executes:
+`q35` under TCG emulates the whole irqchip in the QEMU process and the check never fires. Started
+with `-S` and quit from the monitor, so machine init runs and nothing executes:
 
-    -machine q35 -device intel-iommu,intremap=on                     # starts, no diagnostic
+    -machine q35 -device intel-iommu,intremap=on                      # starts, no diagnostic
     -machine q35,kernel-irqchip=split -device intel-iommu,intremap=on # starts, no diagnostic
     -machine q35,kernel-irqchip=on -device intel-iommu,intremap=on    # starts, no diagnostic
 
 The runner does not add the flag. A Linux host running this suite under KVM would need it, and
 adding it here would assert a machine fact nobody on this machine can check.
 
-### Why opt-in rather than default-on
+### Default-on versus opt-in, which the correction mostly dissolved
 
-**The flag breaks nothing**, so "it fails the default suite" is not the reason and would be a
-better one if it were true. The reason is that nothing in this tree remaps an interrupt, so
-default-on would give every boot a capability no code reads, and would retire the one thing the
-flag is actually good for: running the same kernel against a machine that has the hardware and a
-machine that does not, and being able to tell which. A default that erases the comparison spends
-the flag to buy nothing.
+The question the brief asked was whether `intremap=on` should be the default. **It is moot: it is
+already the effective default, and stating it changes nothing.** What is left is the real choice,
+which is whether the knob defaults to `on`, `off`, or QEMU's own answer.
 
-It is also the reversible half of the choice (`move fast on what can be undone`). The day something
-here programs an `IRTE`, default-on becomes the obvious call and costs one line.
+**Unset, deferring to QEMU.** Any other default would change every existing x86_64 boot to buy
+nothing: pinning `on` re-states what already happens and would silently become a real change if
+this suite ever ran under KVM, and pinning `off` would remove a capability from every boot to
+protect against nothing, since no code reads it. The knob earns its keep as a way to ask a question
+on purpose, not as a new default posture.
 
 ## aarch64: it cannot be switched yet, and here is precisely why
 
@@ -141,14 +170,17 @@ milestone's work.
 
 ## EXAMPLES
 
-Run the x86_64 suite against a unit that offers interrupt remapping:
+Run the x86_64 suite against a unit that does **not** offer interrupt remapping, which is the side
+of the comparison that needed a flag to reach:
 
-    NIFE_INTREMAP=1 script/test --arch x86_64
+    NIFE_INTREMAP=off script/test --arch x86_64
 
 See what the guest makes of the machine, both ways:
 
-    cargo xtask boot-check --arch x86_64                  # ... interrupt remapping absent
-    NIFE_INTREMAP=1 cargo xtask boot-check --arch x86_64  # ... interrupt remapping offered
+    cargo xtask boot-check --arch x86_64                    # ... interrupt remapping offered
+    NIFE_INTREMAP=off cargo xtask boot-check --arch x86_64  # ... interrupt remapping absent
+
+The `iommu` line is in `target/boot-check-x86_64.log`.
 
 Reproduce aarch64's position in one command:
 
@@ -162,11 +194,15 @@ Compare the device trees the two GIC versions produce, which is how the table ab
 
 ## BUGS
 
-- **Nothing here remaps an interrupt, and the flag only proves the hardware is present.** No
+- **Nothing here remaps an interrupt, and the reported bit only says the hardware offers it.** No
   `IRTE` is allocated or written, `GCMD.IRE` is never set, and no MSI is forged and traced to a
   vector it was not given. `interrupt_remapping_is_reported_and_never_enabled` asserts `GSTS.IRES`
   is clear precisely so this sentence cannot quietly stop being true, but an assertion that
   remapping is *off* is not evidence about what remapping would *do*.
+- **DECISIONS §86 and `notes/confinement-claims.md` both carry the false half of the premise**, and
+  a lane may not edit the former. §86's "interrupt remapping is off in every x86_64 boot this tree
+  runs" needs the correction above; the note's copy of the same sentence has it already. This is
+  flagged for the integrator rather than fixed here.
 - **So the confinement claim is still stated nowhere**, and `notes/confinement-claims.md` still
   carries it as such, now pointing here for the flags. What would settle it is a test in milestone
   202's shape: give a component the MSI-X table page, have it aim an interrupt at a vector it was
@@ -176,6 +212,11 @@ Compare the device trees the two GIC versions produce, which is how the table ab
   starts from a reproduction rather than a rediscovery. It is not a supported configuration, no
   gate runs it, and the runner warns on every use. If it ever stops failing, something in the GIC
   path changed and this block is stale.
+- **The correction is about QEMU under TCG on one machine, not about VT-d.** `intremap`'s `auto`
+  resolving ON is QEMU's behaviour with no in-kernel irqchip. Under KVM it resolves differently and
+  the original reading could well be right there. Nobody has checked what the CI Linux runners do,
+  and milestone 87's `OptiPlex` (xenon) is real silicon whose firmware answers this question in its
+  own way.
 - **`NIFE_INTREMAP` and `NIFE_GIC` are provisional names.** Names are calef's
   (`AGENTS.md`); these follow the existing `NIFE_*` runner-knob convention (`NIFE_SMP`, `NIFE_CPU`,
   `NIFE_EL2`, `NIFE_DISK`) and nothing outside this repository has acted on either.
@@ -188,9 +229,13 @@ Compare the device trees the two GIC versions produce, which is how the table ab
 
 ## Follow-on
 
-- **Recorded.** That nothing here remaps an interrupt and that the flag only proves the hardware is
-  present, in `kernel/src/arch/x86_64/iommu.rs`'s `BUGS` section beside the driver, and in this
-  block's own `BUGS`.
+- **Recorded.** That nothing here remaps an interrupt and that the reported bit only says the
+  hardware offers it, in `kernel/src/arch/x86_64/iommu.rs`'s `BUGS` section beside the driver, and
+  in this block's own `BUGS`.
+- **Decision.** `design/decisions/86-el0-nvme-driver.md` states that interrupt remapping is off in
+  every x86_64 boot this tree runs, and the machine says otherwise. A lane does not edit
+  `design/decisions/`, so the correction is recorded here, in the driver's `BUGS`, and in
+  `notes/confinement-claims.md`, and the integrator owes §86 the amendment.
 - **Recorded.** That the confinement claim about where a device may *interrupt* is still stated
   nowhere, in `notes/confinement-claims.md`, whose entry now carries what the flags measured and
   what is left.
@@ -212,11 +257,13 @@ Compare the device trees the two GIC versions produce, which is how the table ab
 
 An MSI is a memory write to a special address, so DMA remapping does not confine it and a component
 that can write a device's MSI-X table can aim an interrupt at a vector it was never given. DECISIONS
-§86 found the question unaskable here: the x86_64 runner attached `-device intel-iommu` with no
-`intremap=on`, and the aarch64 runner's GICv2 has no ITS. `NIFE_INTREMAP` closes the first, and
-because a green suite with the flag on proves only that the suite does not care, the guest now reads
-`ECAP.IR` and reports it, with a test asserting `GSTS.IRES` stays clear. aarch64 turned out not to
-be one flag away, and finding out how was the point: `gic-version=3` moves `reg[1]` from the CPU
+§86 found the question unaskable here, reasoning from the runner scripts: the x86_64 runner attached
+`-device intel-iommu` with no `intremap=on`, and the aarch64 runner's GICv2 has no ITS. **Booting
+the machine and reading `ECAP` says the first half is false.** QEMU's `intremap` defaults to `auto`,
+which resolves ON with no in-kernel irqchip, so interrupt remapping has been offered in every
+x86_64 boot this tree has ever run and nothing read the bit. The guest now reports it, a test
+asserts `GSTS.IRES` stays clear whatever it says, and `NIFE_INTREMAP=off` is the flag that reaches
+the *other* machine. aarch64's half survives, and turned out not to be one flag away, and finding out how was the point: `gic-version=3` moves `reg[1]` from the CPU
 interface to the redistributor, `memory::init` matches the node by the `intc@` name prefix and never
 reads `compatible`, and the result is a boot that prints `GICv2, cpu interface 0x80a0000` and
 receives no timer tick. Milestone 227's bill is itemised here, and §86's MSI-X ownership decision is

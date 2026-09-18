@@ -101,10 +101,20 @@ attached `-device intel-iommu` with no `intremap=on`, and `scripts/qemu-runner-a
 NVMe controller is brought up with `IEN=0` and no MSI-X table is touched), so nothing has ever come
 near it.
 
-**The first of those three is closed, and the second is measured** (milestone 317, 2026-09-17).
-`NIFE_INTREMAP=1` puts `intremap=on` on the x86_64 runner's VT-d device, the guest reads `ECAP.IR`
-and reports it, and the suite is green both ways, which by itself proves only that the suite does
-not care. aarch64 is **not** one flag away: `gic-version=3` gives QEMU's `virt` an ITS, and it also
+**The first of those three was false, and the machine is what said so** (milestone 317,
+2026-09-17). The x86_64 sentence above is a true reading of the runner script and a wrong
+conclusion, reached without booting it. QEMU's `intremap` property is tri-state and defaults to
+`auto`, which resolves ON when there is no in-kernel irqchip, so on patagonia `ECAP.IR` reads
+**set** on the default machine (`ECAP = 0xf00f4a`) and clear only under an explicit `intremap=off`
+(`0xf42`). **Interrupt remapping has been offered in every x86_64 boot this tree has ever run**,
+and nothing read the bit, so nobody noticed. The guest now reports it,
+`NIFE_INTREMAP=off` is the flag that reaches the machine without it, and one test asserts
+`GSTS.IRES` stays clear whatever `ECAP.IR` says. `design/decisions/86-el0-nvme-driver.md` still
+carries the uncorrected sentence; a lane may not edit that file, so it is flagged rather than
+fixed.
+
+**The second is measured, and it holds.** aarch64 is **not** one flag away: `gic-version=3` gives
+QEMU's `virt` an ITS, and it also
 moves `reg[1]` from the CPU interface to the redistributor, which `memory::init`'s `intc@`
 name-prefix match hands to a GICv2 driver without ever reading `compatible`. The measured result is
 a boot that says `GICv2` while printing a redistributor base, with zero timer ticks. That is
@@ -117,9 +127,10 @@ forges an MSI to see where it lands.
 reach a BAR is the kernel. It goes live the first time a driver leaves the kernel and wants
 interrupts instead of polling, which is what §86 decides. Whatever §86 settles has to say who owns
 the page holding the MSI-X table; the cheap first move was two runner flags, and milestone 317 took
-it. x86_64's boot path survives the hardware being present; aarch64's does not reach the question.
-(`kernel-irqchip=split` turned out not to be needed on patagonia: it is a KVM constraint and there
-is no KVM here. 317's block has the three invocations.) The hazard is the one milestone
+it. x86_64's boot path was already running with the hardware present, so what the flag buys there is
+the machine *without* it; aarch64's does not reach the question at all. (`kernel-irqchip=split`
+turned out not to be needed on patagonia: it is a KVM constraint and there is no KVM here. 317's
+block has the three invocations.) The hazard is the one milestone
 202 (every confinement test is a ritual until somebody breaks the confinement) already caught in
 §31's headline assertion: green after turning the flags on proves nothing by itself, and the
 falsification has to be a driver aiming an interrupt where it was not given one, coming back red.

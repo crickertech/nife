@@ -62,12 +62,19 @@
 //!   not remap interrupts on any architecture yet), but a future PCI MSI driver on x86 would want
 //!   to know this is missing before assuming a remapping table exists to program.
 //!
-//!   **What remains unexercised is the whole of it.** `NIFE_INTREMAP=1` (provisional name) makes
-//!   the runner ask QEMU for a unit that offers the capability, and the reported line changes, so
-//!   the *presence* of the hardware is now a thing this tree can boot against. Nothing yet writes
-//!   an `IRTE`, forges an MSI, or proves that a remapped interrupt lands where the table says it
-//!   should. That is the confinement claim notes/confinement-claims.md carries as stated nowhere,
-//!   and design/roadmap/317-interrupt-remapping-flags.md says what it would take.
+//!   **The unit has been offering it all along, which is a correction and not a feature.**
+//!   DECISIONS §86 recorded that interrupt remapping is off in every `x86_64` boot this tree runs,
+//!   reasoning from the runner attaching `-device intel-iommu` with no `intremap=on`. Reading
+//!   `ECAP` from inside the guest says otherwise: QEMU's `intremap` property defaults to `auto`,
+//!   which resolves ON with no in-kernel irqchip, so `ECAP.IR` reads set on the default machine
+//!   (`0xf00f4a`) and clear only under an explicit `intremap=off` (`0xf42`). Nothing read the bit,
+//!   so nobody noticed. `NIFE_INTREMAP=off` (provisional name) is now the way to reach a machine
+//!   without the capability.
+//!
+//!   **What remains unexercised is the whole of the rest.** Nothing here writes an `IRTE`, forges
+//!   an MSI, or proves that a remapped interrupt lands where the table says it should. That is the
+//!   confinement claim notes/confinement-claims.md carries as stated nowhere, and
+//!   design/roadmap/317-interrupt-remapping-flags.md says what it would take.
 //! - **Invalidation is global, never domain- or device-selective.** Every `attach` invalidates the
 //!   *entire* context cache and the *entire* IOTLB rather than just the entry that changed, which
 //!   is correct (nothing survives that should not) and expensive on a machine with many attached
@@ -455,8 +462,8 @@ mod tests {
     ///
     /// The second states a limit, the shape notes/confinement-claims.md asks for: whatever
     /// `ECAP.IR` says, `GSTS.IRES` is clear, because this driver never sets `GCMD.IRE`. **That is
-    /// what keeps `NIFE_INTREMAP=1` honest.** Turning the flag on and watching the suite stay
-    /// green would otherwise prove nothing; this fails the day somebody enables interrupt
+    /// what keeps `NIFE_INTREMAP` honest.** Booting a machine that offers remapping and watching
+    /// the suite stay green would otherwise prove nothing; this fails the day somebody enables
     /// remapping without also retiring the claim in
     /// design/roadmap/317-interrupt-remapping-flags.md that nothing in this kernel remaps an
     /// interrupt.
