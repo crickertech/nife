@@ -32,12 +32,6 @@
 //! take. See
 //! `design/roadmap/291-one-program-one-job.md`.
 //!
-//! Name: unrecorded, and overdue. Nobody wrote down why `hello` is called `hello` and nobody
-//! needed to while it was a first program: it is the universal name for one, and this was the
-//! first program this kernel ever loaded, on 2026-07-14. It has not been a first program since
-//! milestone 19d and stopped being a catalogue at 291; the rename is calef's and is deferred until
-//! there is something settled to name. See the limitation below.
-//!
 //! # Bugs
 //!
 //! **The name does not describe the contents, and this block used to claim otherwise.** Until
@@ -54,6 +48,12 @@
 //! message: the kernel counts a fault and the spawner waiting on a report waits until its
 //! watchdog. Nothing here can do better, because a program entered at a role it does not have may
 //! not hold a capability to report on.
+//!
+//! Name: unrecorded, and overdue. Nobody wrote down why `hello` is called `hello` and nobody
+//! needed to while it was a first program: it is the universal name for one, and this was the
+//! first program this kernel ever loaded, on 2026-07-14. It has not been a first program since
+//! milestone 19d and stopped being a catalogue at 291; the rename is calef's and is deferred until
+//! there is something settled to name. See the `# Bugs` section above.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks

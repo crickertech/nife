@@ -48,8 +48,17 @@ CITED = re.compile(r"^recorded \([^()]+\)")
 TICKED = re.compile(r"`([^`]+)`")
 PAREN = re.compile(r"\([^()]*\)")
 # A refused name is a bare identifier: a crate, program or script/ entry that could have existed.
-# Anything with a dot, a `::` or a bracket in it is a citation, not a candidate.
-NAMEISH = re.compile(r"[A-Za-z][A-Za-z0-9_/-]*$")
+# Anything with a dot, a `::`, a bracket or a SLASH in it is a citation, not a candidate. The slash
+# joined that list on 2026-09-18, when widening `block` surfaced `crates/gpt`, `fixtures/` and
+# `script/repeat-under-load` as refusals: those are places a thing was refused, not names anybody
+# proposed, and `script/names <name>` is asked about names. A `script/` entry point is recorded
+# under its bare command (`board-console`), never under its path, so nothing real is lost.
+NAMEISH = re.compile(r"[A-Za-z][A-Za-z0-9_-]*$")
+
+# A line that RECORDS a refusal, as against one that mentions the word: `Refused` followed by a
+# backticked candidate name. Used only by `refusals_outside`, which is asked whether a record
+# sits where the parse cannot reach it, not whether a word appears.
+RECORDS_REFUSAL = re.compile(r"\bRefused\s+`[A-Za-z][A-Za-z0-9_-]*`")
 
 # ---- what a READER takes for a header, which is wider than what `block()` can parse -------------
 #
@@ -100,9 +109,26 @@ def _head(prefix):
 def block(text, prefix):
     """The provenance block inside one file's text: the `Name:` line and its continuations, joined.
 
-    A continuation is the next comment line at the same prefix; an EMPTY comment line ends the
-    block. That is why the convention puts the block in a paragraph of its own: it is the only
-    terminator a header can carry without inventing punctuation nobody would remember.
+    A continuation is the next comment line at the same prefix, **across paragraph breaks**: an empty
+    comment line is a break, and the end of the comment run is the terminator.
+
+    **It used to stop at the first empty comment line, and that hid refusals** (DECISIONS §155's
+    sibling finding, 2026-09-18). A block written as one paragraph per argument, which is how the
+    tree's best ones are written, put every refusal after the first break and therefore out of
+    reach: `crates/screen_console` recorded four and `script/names --refused` could see none of
+    them. That defeats the one query milestone 115 exists to serve, *has this name been refused
+    before*, whose worked example is milestone 63 having already refused `system_builder` for a
+    reason nobody could find.
+
+    **The widening was measured before it was made**, because this parse is shared with
+    `script/metrics` and a change here moves a dashboard as well as a gate. Across all 165 surfaces
+    carrying a block, the wider read changes **no** status, date or well-formedness verdict, and
+    makes **91** more refusals visible in `.rs` surfaces alone.
+
+    The cost is that a block now runs to the end of its comment run, so prose after it is read as
+    part of it. Four files put a heading after their block and were moved to the tree's own
+    convention (139 of 143 already had the block last); `script/lint` fails a `Refused` written
+    outside what this reads, which is the remaining shape.
 
     Returns None when the file carries no `Name:` line at all, which every caller reports as a
     problem rather than as a status: a surface with no block has not answered, and reading silence
@@ -120,12 +146,16 @@ def block(text, prefix):
         parts = [m.group(1).strip()]
         for later in lines[i + 1:]:
             if empty.match(later):
-                break
+                parts.append("\n")   # a paragraph break: kept, because it bounds a clause
+                continue
             c = cont.match(later)
             if not c:
-                break
+                break                 # the comment run ended, and so does the block
             parts.append(c.group(1).strip())
-        return " ".join(p for p in parts if p)
+        joined = " ".join(p for p in parts if p)
+        # Collapse the runs a kept break leaves, so the newline is exactly the boundary and never
+        # stray whitespace inside a sentence.
+        return re.sub(r" *\n *", "\n", joined).strip()
     return None
 
 
@@ -185,9 +215,25 @@ def refused_in(text):
     Two rules make this parseable without a syntax nobody would remember. **A reason goes in
     parentheses**, so parenthesized spans are removed before the names are read (otherwise
     `capsh(1)`, cited as the Linux tool that refused `capsh`, reads as a refusal of its own). And
-    **the refusal clause ends at its sentence**, so the prose that follows it can name other things
-    freely: `grant_plan` explains after its list that it is deliberately not named for `swish`, and
-    neither `swish` nor the `dwarden` it compares itself to is a refusal.
+    **the refusal clause ends at its sentence or at a paragraph break**, so the prose that follows it
+    can name other things freely: `grant_plan` explains after its list that it is deliberately not
+    named for `swish`, and neither `swish` nor the `dwarden` it compares itself to is a refusal.
+
+    The paragraph half arrived with the 2026-09-18 widening of [`block`]: once a block spans
+    paragraphs, a clause that ended only at a sentence ran on into the next argument and swept its
+    examples up. A paragraph break is a stronger boundary than a sentence and it is now treated as
+    one.
+
+    **What this still gets wrong, measured rather than guessed.** A name mentioned in backticks
+    *inside* a refusal's own sentence is read as refused too, so `outlaw`'s block, whose clause runs
+    `Refused ...: it collides with ... module also drives `hello`, `flaky` and `worker``, reports
+    four refusals where it made one. Eight of the 273 refusals on 2026-09-18 were of that shape.
+
+    **Ending the clause at a colon as well was tried and refused**: it removes all eight, and 26
+    real refusals with them, including `pci`, `elf` and `mdr`, because `Refused `x`: why` is a form
+    the tree uses constantly. Losing a real refusal is the failure this record exists to prevent;
+    reporting a spurious one is noise a reader can see through by opening the block. So the noise
+    stays, named here rather than discovered.
     """
     out = []
     for chunk in re.split(r"\bRefused\b", text)[1:]:
@@ -195,10 +241,56 @@ def refused_in(text):
         while flat != prev:
             prev = flat
             flat = PAREN.sub(" ", flat)
-        clause = re.split(r"\.\s", flat)[0]
+        clause = re.split(r"\.\s|\n", flat)[0]
         for token in TICKED.findall(clause):
             if NAMEISH.fullmatch(token) and token not in out:
                 out.append(token)
+    return out
+
+
+def refusals_outside(text, prefix):
+    """`(line number, line)` for every `Refused` in this file's comments that [`block`] cannot read.
+
+    The sibling of [`strays`], asking the other half of the same question. `strays` finds a line that
+    reads as a provenance *header* and was not the one parsed; this finds a *refusal* recorded where
+    the parse does not reach, which is the failure milestone 115 exists to prevent: a refused name
+    that is in the file, read by a human, and invisible to `script/names --refused`.
+
+    It was worth a gate because the old parse stopped at the first empty comment line, so a block
+    written one argument per paragraph, which is how the tree's best ones are written, put every
+    refusal out of reach. `crates/screen_console` recorded four and the tool could see none. Nobody
+    noticed for as long as the convention had existed, and it surfaced on 2026-09-18 only because a
+    maintainer edit made the tree-wide count go DOWN by three.
+
+    [`block`] now reads to the end of the comment run, so the remaining shape is narrow: a refusal
+    after the doc comment ends, or in a file whose block is not the last thing in it. Narrow is
+    exactly when a gate earns its keep, because nobody will catch it by eye.
+    """
+    # **This surface's own block marker only**, unlike `strays`. A header wearing the wrong marker is
+    # exactly what `strays` is looking for; a refusal is not, and an item's `///` doc discussing a
+    # refusal elsewhere in the crate is prose rather than a provenance record. Scanning the wider set
+    # reported 35 lines, all of them item docs hundreds of lines below the block.
+    read = block(text, prefix) or ""
+    out = []
+    seen_name = False
+    for number, line in enumerate(text.split("\n"), 1):
+        s = line.strip()
+        if not s.startswith(prefix):
+            continue
+        body = s[len(prefix):].strip()
+        if body.startswith("Name:") or _MARKUP.sub("", body).startswith("Name:"):
+            seen_name = True
+            continue
+        # **The recording form, not the word.** `Refused` also names a return value in this tree
+        # (`regions::destroy_outcome` returns `Refused`), and a module doc that mentions it is prose.
+        # What records a refusal is the word followed by a backticked candidate name, which is the
+        # form `refused_in` reads and the form the convention documents.
+        if not seen_name or not RECORDS_REFUSAL.search(body):
+            continue
+        # A line whose text the parse actually took is fine wherever it sits.
+        if body and body[:40] in read:
+            continue
+        out.append((number, line))
     return out
 
 
