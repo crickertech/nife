@@ -61,13 +61,15 @@ its purchase dates, and its `## Follow-on` says `Outstanding.` with a checked da
 
 ## What a lane builds without any of that
 
-An EL0 `nvme_server` under §86's option 2a, against QEMU's NVMe, which the runner already attaches.
-`crates/nvme` exists (716 lines, host-tested, 25 Kani sites) and `kernel/src/nvme.rs` is the
+An EL0 NVMe server under §86's option 2a, against QEMU's NVMe, which the runner already attaches.
+`crates/non_volatile_memory_express` exists (716 lines, host-tested, 25 Kani sites) and `kernel/src/non_volatile_memory_express.rs` is the
 in-kernel driver milestone 53 built; the work is moving the queue mechanics out to a confined process
 that is handed a doorbell page and a DMA window and nothing else.
 
 **The name is calef's** and a lane should ship a provisional one and say so. `nvme_server` is what
-§86 calls it in passing and that is not a ratification.
+§86 calls it in passing and that is not a ratification. **Settled 2026-09-18**: the program is
+`non_volatile_memory_express`, sharing its crate's name, under DECISIONS §154. The paragraph above
+is kept as the brief the lane worked from.
 
 ## What was built, 2026-09-17
 
@@ -80,10 +82,10 @@ EL0 gets the data path" is one page mapped and another not.
 
 | piece | where it is now |
 |---|---|
-| reset, admin rings by register, enable, IDENTIFY, Create I/O Queue | `kernel/src/nvme.rs`, EL1 |
-| build a command, copy it to the ring, ring the doorbell, watch the phase tag | `components/src/nvme_server.rs`, EL0 |
-| every piece of arithmetic either half does | `crates/nvme`, host-tested, Kani-reachable |
-| what the process is handed and what it is refused | `kernel/src/user/nvme_service.rs`'s `Spawn` literal |
+| reset, admin rings by register, enable, IDENTIFY, Create I/O Queue | `kernel/src/non_volatile_memory_express.rs`, EL1 |
+| build a command, copy it to the ring, ring the doorbell, watch the phase tag | `components/src/non_volatile_memory_express.rs`, EL0 |
+| every piece of arithmetic either half does | `crates/non_volatile_memory_express`, host-tested, Kani-reachable |
+| what the process is handed and what it is refused | `kernel/src/user/non_volatile_memory_express_service.rs`'s `Spawn` literal |
 
 **What the server holds**, and it is the complete list, because a capability system has no ambient
 environment: the request endpoint (RECV, `filesystem_protocol::blk`), a readiness endpoint (WRITE,
@@ -113,7 +115,7 @@ buffer).
   is page 3 of the region rather than page 0.
 - **The initrd, a budget, a filesystem, a network, a clock.**
 
-**The test** is `kernel/src/user/nvme_tests.rs`, one case, green on aarch64, riscv64 and x86_64: a
+**The test** is `kernel/src/user/non_volatile_memory_express_tests.rs`, one case, green on aarch64, riscv64 and x86_64: a
 client holding one endpoint gets the disk's size, persists two neighbouring blocks under different
 patterns, reads each one back byte for byte, is refused a block outside the namespace, gets a flush
 count that moves, and is refused an opcode the server has no verb for. **The second pattern is what
@@ -134,11 +136,11 @@ doorbell *file*, and queue 1's submission tail lands a quarter of a megabyte pas
 reports 0 and every hardware implementation §86 cites is expected to, so **no amount of testing on
 any machine this project owns could have found it**, and on a controller that did report a wide
 stride it would have presented as a panic inside the disk driver rather than as a diagnosis. It is
-now `nvme::MAX_DSTRD`, refused in two places: `Handoff::unpack`, so the data plane cannot be built
+now `non_volatile_memory_express::MAX_DSTRD`, refused in two places: `Handoff::unpack`, so the data plane cannot be built
 around it, and the kernel's own bring-up, so such a controller fails loudly at EL1 naming itself
 rather than starting a process that cannot address its own doorbells.
 
-**What `crates/nvme` gained**, because the rule is that logic stays where the prover reaches it:
+**What `crates/non_volatile_memory_express` gained**, because the rule is that logic stays where the prover reaches it:
 `Handoff` (the three spawn scalars, packed and unpacked), `Handoff::holds_block` (the range check),
 `Handoff::transfer_command` (the whole of what the data plane computes), and `Command::flush`. Three
 new Kani harnesses cover the handoff's round trip, that an accepted handoff's doorbell offsets stay
@@ -175,7 +177,7 @@ weaker, the fourth is partly answered, and two are new.*
   milestone 260 names are changed. That makes an iteration loop expensive in exactly the way the
   netboot work was meant to fix. Unchanged, and it is now the main cost of the remaining step,
   because the software side no longer needs iterating.
-- **`crates/nvme`'s Kani harnesses cover queue mechanics, not confinement**, and that is still true
+- **`crates/non_volatile_memory_express`'s Kani harnesses cover queue mechanics, not confinement**, and that is still true
   of the three this milestone added: they prove the handoff round-trips, that the doorbell offsets
   an accepted handoff produces stay inside the one page mapped, and that no block outside the
   namespace becomes a command. The first two are *about* the confinement's arithmetic rather than
@@ -189,7 +191,7 @@ weaker, the fourth is partly answered, and two are new.*
   a server that computes a PRP backwards from its own base can make the controller overwrite the
   admin submission ring. Not an escape, and §86's option 2a states it in those terms; option 4's
   doorbell validator is what closes it. Recorded beside the feature in
-  `kernel/src/user/nvme_service.rs`'s and `components/src/nvme_server.rs`'s `BUGS`.
+  `kernel/src/user/non_volatile_memory_express_service.rs`'s and `components/src/non_volatile_memory_express.rs`'s `BUGS`.
 - **With `CAP.DSTRD` = 0 the doorbell page carries the admin doorbells too**, so the server can ring
   the admin queue. It cannot *write* the admin submission ring, so the worst available is making the
   controller re-fetch slots the kernel wrote or never filled: the same class as the entry above.
@@ -211,22 +213,24 @@ weaker, the fourth is partly answered, and two are new.*
   so milestone 202's convention (a claim, a test, a replayable falsification) is met by a test rather
   than by an assertion that the IOMMU was on. Checked 2026-09-17.
 - **Recorded.** A transfer is one NVMe command per filesystem block, even for a sixteen-block
-  request, because `nvme::prp_pair` refuses anything needing a PRP list. The virtio block server
+  request, because `non_volatile_memory_express::prp_pair` refuses anything needing a PRP list. The virtio block server
   issues one request for the same range, so this server is slower on bulk by construction. In
-  `components/src/nvme_server.rs`'s `BUGS`.
+  `components/src/non_volatile_memory_express.rs`'s `BUGS`.
 - **Recorded.** The server cannot read `CSTS`, so a hung controller presents as a timeout rather
   than as `CSTS.CFS`. A worse diagnostic than the kernel-resident driver gave, and the direct price
   of not mapping the controller register page. Same `BUGS` section.
 - **Recorded.** One command in flight, inherited from the driver this replaced, so any throughput
   measured against this server is a lower bound on the device rather than a measurement of it.
-  `notes/nvme.md` and the same `BUGS` section.
+  `notes/non-volatile-memory-express.md` and the same `BUGS` section.
 - **Proposed.** `block_roster` still cannot list the NVMe disk: §86 named its NVMe transport kind as
   blocked on who owns the controller, and that is now answered (a process does), so the wire shape
   can be decided. Not taken here because it is something two programs agree on, which is the
   expensive category. `design/roadmap/proposals/a-block-roster-that-can-name-an-nvme-disk.md`.
-- **Recorded.** The program's name. `nvme_server` is provisional in both halves' headers, carried
-  from §86's passing use of it, and is calef's to settle; it sits on `script/names --unratified`
-  rather than blocking anything.
+- **Done.** The program's name. `nvme_server` was provisional in both halves' headers, carried
+  from §86's passing use of it. calef settled it on 2026-09-18 under DECISIONS §154: the program is
+  `non_volatile_memory_express`, sharing its crate's name because
+  `non_volatile_memory_express_server` is 34 bytes against `nifefs`'s 32-byte `NAME_LEN`. Performed
+  the same day; the argument is in the program's own header.
 
 ## Index row
 

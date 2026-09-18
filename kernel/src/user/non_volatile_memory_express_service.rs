@@ -1,9 +1,9 @@
 //! **Wiring for the EL0 NVMe block server** (milestone 261; [DECISIONS §86]'s option 2a,
-//! DECIDED 2026-09-03; notes/nvme.md).
+//! DECIDED 2026-09-03; notes/non-volatile-memory-express.md).
 //!
 //! [DECISIONS §86]: ../../../design/decisions/86-el0-nvme-driver.md
 //!
-//! The kernel half of a split the hardware already draws. `kernel/src/nvme.rs` resets the
+//! The kernel half of a split the hardware already draws. `kernel/src/non_volatile_memory_express.rs` resets the
 //! controller, builds the admin queues by register, IDENTIFYs the namespace and creates the one
 //! I/O queue pair; this file decides what the process that drives that queue pair is handed, and
 //! the whole of the confinement claim is in the [`Spawn`] literal below.
@@ -18,7 +18,7 @@
 //!   round-tripped, so a hang in bring-up is distinguishable from a hang in the first read;
 //! - mapped: **one page of BAR0**, device-typed, the **doorbell page** at `bar0 + 0x1000`;
 //! - mapped: **the data plane's run of its DMA region**, normal memory, read/write: the I/O
-//!   submission ring, the I/O completion ring, and [`crate::nvme::TRANSFER_PAGES`] pages of transfer
+//!   submission ring, the I/O completion ring, and [`crate::non_volatile_memory_express::TRANSFER_PAGES`] pages of transfer
 //!   buffer.
 //!
 //! Denied, and each of these is a decision rather than an omission:
@@ -40,8 +40,8 @@
 //!   remap or revoke them. Milestone 159's TRNG driver made the same choice for the same reason,
 //!   and its own header records that an earlier draft's `DeviceFrame` slot described a thing
 //!   nobody hands over.
-//! - **The physical address of anything but its own data plane.** [`nvme::Handoff`] carries one
-//!   base, and it is page [`crate::nvme::DATA_PLANE_PAGE`] of the region, not page 0.
+//! - **The physical address of anything but its own data plane.** [`non_volatile_memory_express::Handoff`] carries one
+//!   base, and it is page [`crate::non_volatile_memory_express::DATA_PLANE_PAGE`] of the region, not page 0.
 //!
 //! # BUGS
 //!
@@ -69,29 +69,32 @@
 //! this milestone exists to make.
 //!
 //! **One command in flight, so the ring depth buys nothing.** Inherited from the kernel-resident
-//! driver this replaced (notes/nvme.md's `BUGS`), and it is what makes any throughput number
+//! driver this replaced (notes/non-volatile-memory-express.md's `BUGS`), and it is what makes any throughput number
 //! measured against this server a lower bound rather than the device's.
 //!
-//! Name: provisional (milestone 261). `nvme_server` is what §86 calls the program in passing,
-//! which is not a ratification, and this module is named after it.
+//! Name: follows the program (milestone 261; renamed 2026-09-18 under DECISIONS §154). This
+//! module is a `<program>_service` like `entropy_service`, `clock_service` and `virtio_service`,
+//! so its name is the program's plus the suffix and carries no decision of its own. It was
+//! `nvme_service` while the program was `nvme_server`; the ruling and the refusals live once,
+//! beside the crate, in `crates/non_volatile_memory_express`.
 
 use super::*;
 use crate::cap::{Rights, rendezvous_cap};
 use crate::sched::RendezvousId;
 
-/// Where the server's data-plane run is mapped. Must match `components/src/nvme_server.rs`.
+/// Where the server's data-plane run is mapped. Must match `components/src/non_volatile_memory_express.rs`.
 /// Deliberately distinct from the `0x0090_0000` DMA convention `entropy.rs` and
 /// `keyboard_driver.rs` share, and from milestone 159's `0x0094_0000`, so no two of these
 /// constants can mean two things at once.
 const DATA_PLANE_VA: u64 = 0x0000_0000_0098_0000;
 
 /// Where the server's one page of BAR0 is mapped, device-typed. Must match
-/// `components/src/nvme_server.rs`. Far enough above [`DATA_PLANE_VA`] that the data plane's run
+/// `components/src/non_volatile_memory_express.rs`. Far enough above [`DATA_PLANE_VA`] that the data plane's run
 /// can grow without colliding with it.
 const DOORBELL_VA: u64 = 0x0000_0000_009c_0000;
 
 /// How many pages the data plane is mapped: the two I/O rings, then the transfer buffer.
-const DATA_PLANE_PAGES: usize = 2 + crate::nvme::TRANSFER_PAGES as usize;
+const DATA_PLANE_PAGES: usize = 2 + crate::non_volatile_memory_express::TRANSFER_PAGES as usize;
 
 /// Everything one wiring of the server is, from the outside.
 pub struct Wiring {
@@ -109,7 +112,7 @@ pub struct Wiring {
     /// region before it was enabled. False means the driver is as unconfined as its arithmetic.
     pub confined_by_iommu: bool,
     /// **The namespace's size in bytes as the kernel's admin plane read it from IDENTIFY**, which
-    /// is the number [`nvme::Handoff`] carried into ring 3. A test compares the server's answers
+    /// is the number [`non_volatile_memory_express::Handoff`] carried into ring 3. A test compares the server's answers
     /// against *this* rather than against a constant, so the same assertions hold on QEMU's 8 MiB
     /// image and on a 256 GB disk (milestone 318).
     pub size_bytes: u64,
@@ -127,7 +130,7 @@ static SIZE_BYTES: core::sync::atomic::AtomicU64 = core::sync::atomic::AtomicU64
 /// Wire the NVMe server if this boot has not already, else hand back what is already running.
 /// `None` when there is no NVMe controller on the bus, or when one is present and failed
 /// bring-up: both are facts about the machine rather than about this wiring, and
-/// `kernel/src/nvme.rs::bring_up` prints which.
+/// `kernel/src/non_volatile_memory_express.rs::bring_up` prints which.
 pub fn ensure(image: &'static [u8]) -> Option<Wiring> {
     use core::sync::atomic::Ordering;
 
@@ -151,7 +154,7 @@ pub fn ensure(image: &'static [u8]) -> Option<Wiring> {
 
 /// **Bring the controller up in the kernel, then hand its data plane to a process.**
 fn start(image: &'static [u8]) -> Option<Wiring> {
-    let found = crate::nvme::bring_up()?;
+    let found = crate::non_volatile_memory_express::bring_up()?;
     let confined_by_iommu = crate::iommu::active();
     let handoff = found.controller.handoff();
     let words = handoff.pack();
@@ -166,7 +169,7 @@ fn start(image: &'static [u8]) -> Option<Wiring> {
     let ready = crate::sched::create_rendezvous();
     let request = crate::sched::create_rendezvous();
 
-    // `found.controller` is dropped here and that is correct today, because `Nvme` has no `Drop`:
+    // `found.controller` is dropped here and that is correct today, because `NonVolatileMemoryExpress` has no `Drop`:
     // the controller stays enabled and its queues stay where the admin plane put them, which is
     // exactly what a live EL0 data plane needs. **If it ever grows one that resets the
     // controller, this line becomes a bug**, and the fix is to keep the value alive rather than
@@ -196,7 +199,7 @@ fn start(image: &'static [u8]) -> Option<Wiring> {
         run(
             image,
             Spawn {
-                arg0: words[0], // the packed geometry: see `nvme::Handoff`
+                arg0: words[0], // the packed geometry: see `non_volatile_memory_express::Handoff`
                 arg1: words[1], // the data plane's PHYSICAL base: PRP fields speak physical
                 arg2: words[2], // the namespace's size in bytes, the `SIZE` answer
                 grants: &[
@@ -240,12 +243,14 @@ impl Wiring {
     /// # Safety
     /// The server must not be mid-transfer, which every caller gets from the blk contract's own
     /// turn-taking: a request is a `CALL`, so the client is blocked exactly while the server runs.
-    pub unsafe fn transfer_block(&self) -> &'static mut [u8; crate::nvme::BLOCK_SIZE] {
+    pub unsafe fn transfer_block(
+        &self,
+    ) -> &'static mut [u8; crate::non_volatile_memory_express::BLOCK_SIZE] {
         // SAFETY: forwarded from this function's own contract; `transfer_phys` is a frame this
         // wiring allocated and the direct map covers all of RAM.
         unsafe {
             &mut *(crate::arch::mmu::phys_to_virt(self.transfer_phys)
-                as *mut [u8; crate::nvme::BLOCK_SIZE])
+                as *mut [u8; crate::non_volatile_memory_express::BLOCK_SIZE])
         }
     }
 }

@@ -7,7 +7,7 @@
 //! touches. The controller's register file is the future driver's (`kernel/src/user/`-side or
 //! `components/src/`-side, not yet written; see the roadmap doc's "What was deliberately not
 //! built"),
-//! the same split `pci` and `nvme` already use (AGENTS.md rule 7): this crate is host-testable
+//! the same split `pci` and `non_volatile_memory_express` already use (AGENTS.md rule 7): this crate is host-testable
 //! and Kani-reachable precisely because it never dereferences a pointer.
 //!
 //! # This has not run against real silicon
@@ -193,7 +193,9 @@
 //! `entropy_source` (this tree will have a second system on a chip, and the chip qualifier keeps
 //! two drivers apart). **The argument that lost**, when the stem was decided, was the
 //! external-standard exemption, that `trng` follows `nvme` and `pci` as a spec-named device; the
-//! 2026-09-13 amendment to decision 113 ends that exemption for acronym crates. The name joins
+//! 2026-09-13 amendment to decision 113 ends that exemption for acronym crates. (`nvme` is kept
+//! here because it is the spelling the argument was made in; DECISIONS §154 later deratified it
+//! and the crate is `non_volatile_memory_express` now, which is that amendment arriving.) The name joins
 //! `entropy` and `entropy_protocol` rather than colliding with them: the service, the wire contract,
 //! and this, the hardware behind them.
 //!

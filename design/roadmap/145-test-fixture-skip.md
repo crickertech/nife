@@ -10,7 +10,7 @@ the integrator should confirm the number at merge.
 Milestone 16a's on-board test-suite exit (milestone 144's sibling finding, recorded in
 notes/visionfive2.md) ran the kernel's `#[test_case]` suite on the VisionFive 2 for the first
 time. After six real hardware-assumption bugs were found and fixed (PR #380), the suite hit a
-different kind of wall: `kernel/src/nvme.rs`'s end-to-end test expects a synthetic NVMe
+different kind of wall: `kernel/src/non_volatile_memory_express.rs`'s end-to-end test expects a synthetic NVMe
 controller that `xtask` always attaches under QEMU (`NIFE_NVME`), and the board's manual U-Boot
 boot attaches nothing. Its own comment already says why this is not a bug: "the test flow always
 attaches a controller... absence is a lost QEMU flag, not a machine without a disk."
@@ -20,7 +20,7 @@ shape, gated on env vars the QEMU runner scripts set and a bare board boot canno
 
 | File | Fixture | Env var |
 |---|---|---|
-| `kernel/src/nvme.rs` | NVMe controller | `NIFE_NVME` |
+| `kernel/src/non_volatile_memory_express.rs` | NVMe controller | `NIFE_NVME` |
 | `kernel/src/user/credential_tests.rs` | virtio-rng | `NIFE_RNG` |
 | `kernel/src/user/disk_tests.rs` | virtio-rng, disk_surveyor/disk_partitioner programs | `NIFE_RNG` |
 | `kernel/src/user/display_tests.rs` | virtio-gpu-pci | `NIFE_GPU` |

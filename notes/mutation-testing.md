@@ -168,7 +168,10 @@ Two runs on 2026-09-03, and the second is the one to read.
 **The round-robin row is the comparable one, and that is the whole reason the sharding changed.**
 It is a uniform one-eighth sample of every mutant in the tree, so it covers **all 60 crates** and
 its rate estimates the corpus rate. The `slice` row is an alphabetical block, `nvme` through
-`work_steal_slot`, thirteen of whose twenty-one crates did not exist at baseline; it is a rate for
+`work_steal_slot` (the crate is `non_volatile_memory_express` since 2026-09-18, and the old
+spelling is kept here because it is what the shard boundary was computed from; the block would
+start elsewhere in the alphabet today), thirteen of whose twenty-one crates did not exist at
+baseline; it is a rate for
 those crates and not for the tree, and it is kept here only because it was the first shard this
 workflow ever completed.
 

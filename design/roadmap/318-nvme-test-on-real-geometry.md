@@ -3,7 +3,7 @@
 **Status: BUILT 2026-09-17.** Built by a lane on `milestone/318-nvme-test-on-real-geometry`.
 *(Number provisional until the merge queue lands it.)*
 
-`kernel/src/user/nvme_tests.rs::a_confined_el0_process_serves_the_block_interface_end_to_end` is
+`kernel/src/user/non_volatile_memory_express_tests.rs::a_confined_el0_process_serves_the_block_interface_end_to_end` is
 milestone 261's proof and `design/fatal-risks.md` risk 6's decisive experiment. It passed under
 QEMU and **four of its assertions would have failed on xenon's 256 GB Micron**, for reasons with
 nothing to do with confinement. All four now hold on any namespace, and nothing about what the test
@@ -40,7 +40,7 @@ answer against the same number: *the server answers what it was told*, again the
 
 A new assertion guards the degenerate case the other two used to rule out by accident: a namespace
 smaller than two blocks would make everything below it vacuously true, so `start` refuses one
-loudly. `kernel/src/nvme.rs::bring_up` already refuses a zero-block namespace; this says so where
+loudly. `kernel/src/non_volatile_memory_express.rs::bring_up` already refuses a zero-block namespace; this says so where
 the assertions that depend on it are.
 
 **The neighbour assertion became a second pattern.** The property is *the write landed where it
@@ -76,7 +76,7 @@ figure):
    spawned with, which `Handoff::pack` takes from the same field. The assertion is now that the
    handoff is lossless, and `Handoff::pack`/`unpack` are Kani-proved to round-trip. It cannot
    depend on the magnitude.
-2. **`SIZE`.** `components/src/nvme_server.rs` answers the verb out of the unpacked handoff, and
+2. **`SIZE`.** `components/src/non_volatile_memory_express.rs` answers the verb out of the unpacked handoff, and
    the assertion compares against the kernel's copy of the same number. Same argument.
 3. **The size floor.** 256 GB is comfortably more than two 4096-byte blocks.
 4. **Blocks 37 and 38 exist.** `holds_block(38, 4096)` needs `39 * 4096 <= size`, which holds for
@@ -91,7 +91,7 @@ figure):
    The refusal reaches the client as a negative `blk` status, which is what the assertion reads.
 
 The one thing this argument cannot cover is the device answering IDENTIFY with a geometry
-`kernel/src/nvme.rs::bring_up` refuses: a namespace whose LBA size does not divide 4096 into
+`kernel/src/non_volatile_memory_express.rs::bring_up` refuses: a namespace whose LBA size does not divide 4096 into
 `1..=8` logical blocks makes `blocks_per` `None` and the server never starts, and the test skips
 rather than fails. That is pre-existing behaviour, correct, and worth knowing at the bench: **a
 skip is not a pass**, and the transcript distinguishes them.
@@ -121,7 +121,7 @@ they were found:
   coupling is gone; the image may now be any size a controller will take. The file stays 8 MiB
   because a small zero file is cheap and fast to attach, which is a different reason and is what
   the header says now.
-- `notes/nvme.md`'s `EXAMPLES` and its "what the test proves" section both stated the zeros check
+- `notes/non-volatile-memory-express.md`'s `EXAMPLES` and its "what the test proves" section both stated the zeros check
   as the property. Both now state the two-pattern shape and say that nothing is written against the
   runner's image size.
 
@@ -129,7 +129,7 @@ they were found:
 against the tree's own built image through `filesystem_protocol::blank`'s constants, which are
 derived from the partition layout the build produced rather than from a number typed twice; its
 zero-expectations are about blocks the build wrote, not about a disk nobody formatted.
-`crates/nvme`'s host tests use `8 * 1024 * 1024` as a fixture size, which is correct: those are
+`crates/non_volatile_memory_express`'s host tests use `8 * 1024 * 1024` as a fixture size, which is correct: those are
 tests *of* `Handoff`'s arithmetic and pick their own geometry rather than meeting a machine's.
 
 ## BUGS
@@ -175,6 +175,6 @@ where it said and not everywhere* without any claim about what the disk held bef
 computes `size / BLOCK_SIZE`, the first refused block for any size whether or not it divides
 evenly. **Milestone 261's lane flagged the symptom without connecting it**: its bench handoff says
 to check that the namespace reads about 256 GB rather than 8 MiB, which is exactly the number two
-of these assertions were written against. `xtask::mknvmedisk`'s header and `notes/nvme.md` both
+of these assertions were written against. `xtask::mknvmedisk`'s header and `notes/non-volatile-memory-express.md` both
 recorded the now-retired coupling as a reason and are corrected. No other block-device test carries
 the assumption. The 256 GB argument is stated rather than run, because a lane cannot reach xenon.

@@ -314,12 +314,13 @@ test = false
 bench = false
 
 # The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the queue mechanics that
-# used to be `kernel/src/nvme.rs`'s, now a process holding one page of BAR0, a run of DMA pages,
-# and two endpoints. **Provisional name**; §86 calls it this in passing and says that is not a
-# ratification.
+# used to be `kernel/src/non_volatile_memory_express.rs`'s, now a process holding one page of BAR0,
+# a run of DMA pages, and two endpoints. It shares its crate's name, which calef ruled on
+# 2026-09-18 under DECISIONS §154: `non_volatile_memory_express_server` is 34 bytes against
+# `nifefs`'s 32-byte `NAME_LEN`, and the crate-and-program pair is what the sharing means.
 [[bin]]
-name = "nvme_server"
-path = "src/nvme_server.rs"
+name = "non_volatile_memory_express"
+path = "src/non_volatile_memory_express.rs"
 test = false
 bench = false
 
@@ -523,10 +524,10 @@ jh7110_entropy = { version = "0.1.0", path = "../crates/jh7110_entropy" }
 # (milestone 49's BUGS, resolved): the same crate `crates/system_initializer` already depends on.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
 filesystem_protocol = { version = "0.1.0", path = "../crates/filesystem_protocol" }
-# The NVMe queue arithmetic (milestone 53's crate, milestone 261's consumer): nvme_server.rs is
-# the volatile shell of ring copies and doorbell writes over it, the crate/program pair this tree
-# already uses for `jh7110_entropy` and `line_editor`.
-nvme = { version = "0.1.0", path = "../crates/nvme" }
+# The NVMe queue arithmetic (milestone 53's crate, milestone 261's consumer):
+# non_volatile_memory_express.rs is the volatile shell of ring copies and doorbell writes over it,
+# the crate/program pair this tree already uses for `jh7110_entropy` and `line_editor`.
+non_volatile_memory_express = { version = "0.1.0", path = "../crates/non_volatile_memory_express" }
 graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
 line_editor = { version = "0.1.0", path = "../crates/line_editor" }
 network_time_protocol = { version = "0.1.0", path = "../crates/network_time_protocol" }

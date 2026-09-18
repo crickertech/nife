@@ -2542,7 +2542,7 @@ pub mod entropy_service;
 /// milestone 159's TRNG driver established, because the confinement is the claim and the driver is
 /// only what exercises it.
 #[cfg_attr(not(test), allow(dead_code))] // the tests are its callers
-pub mod nvme_service;
+pub mod non_volatile_memory_express_service;
 
 /// **A confined EL0 process drives a real, non-virtio DMA device** (milestone 261).
 ///
@@ -2554,7 +2554,7 @@ pub mod nvme_service;
 /// `cfg(initrd)`: see `kernel/build.rs::declare_initrd_cfg`; the server is a packed program, so a
 /// build without an archive cannot spawn it.
 #[cfg(all(test, initrd))]
-mod nvme_tests;
+mod non_volatile_memory_express_tests;
 
 /// **Randomness that an adversary cannot predict** (milestone 56, DECISIONS §44).
 ///

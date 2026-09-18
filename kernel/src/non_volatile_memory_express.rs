@@ -1,5 +1,5 @@
 //! **The NVMe controller's admin plane** (milestone 53's storage half, narrowed to the admin half
-//! by milestone 261; notes/nvme.md, [DECISIONS §86](../../design/decisions/86-el0-nvme-driver.md)).
+//! by milestone 261; notes/non-volatile-memory-express.md, [DECISIONS §86](../../design/decisions/86-el0-nvme-driver.md)).
 //!
 //! What is left in the kernel after §86's **option 2a**, and the line is the one the hardware
 //! already draws. Creating a queue names the physical address a ring lives at, in a PRP field of
@@ -12,11 +12,11 @@
 //!
 //! **The data path is gone from this file and runs at EL0.** Building a command, copying it into
 //! the submission ring, ringing the doorbell and watching a completion's phase tag are
-//! `components/src/nvme_server.rs`'s now, over the same `crates/nvme` arithmetic this module
+//! `components/src/non_volatile_memory_express.rs`'s now, over the same `crates/non_volatile_memory_express` arithmetic this module
 //! computes with. The bring-up below is still a test of that machinery, because the admin queue
 //! rides the identical ring discipline.
 //!
-//! Rule 2 shapes what is here exactly as it shaped the whole driver before: [`Nvme`] takes the
+//! Rule 2 shapes what is here exactly as it shaped the whole driver before: [`NonVolatileMemoryExpress`] takes the
 //! register window's virtual base and one DMA region, passed in, and reaches for nothing else.
 //! What reaches into the kernel is [`bring_up`], the policy function, which finds the controller
 //! on the bus (`pci::find_nvme_device`), allocates the DMA region, and **confines the device to it
@@ -25,11 +25,13 @@
 //! cannot fetch its first command, and this bring-up is proof the confinement admits exactly what
 //! it should.
 //!
-//! Name: unrecorded. Introduced 2026-08-15 with milestone 53's NVMe block driver, as the volatile
-//! half of the `nvme` crate, the crate/module pairing `pci` and `virtio` already use. Provisional,
-//! awaiting ratification with the crate's name.
+//! Name: ratified 2026-09-17 (calef, DECISIONS §154), performed 2026-09-18. Introduced 2026-08-15
+//! with milestone 53's NVMe block driver as `nvme.rs`, the volatile half of the `nvme` crate, and
+//! it takes its crate's name because that is what the pairing means: `pci` and `virtio` already
+//! sit this way. The argument and the refusals are recorded once, beside the crate, in
+//! `crates/non_volatile_memory_express`.
 
-use nvme::{
+use non_volatile_memory_express::{
     Cap, Command, Completion, CqState, Doorbell, Handoff, IdentifyNamespace, SqState, regs,
 };
 
@@ -49,7 +51,7 @@ pub const BLOCK_SIZE: usize = filesystem_protocol::blk::BLOCK_SIZE;
 ///
 /// The IOMMU confines the device to the whole run, because the controller fetches from both
 /// halves. Splitting the *mappings* is what withholds the admin plane from the driver; see
-/// `components/src/nvme_server.rs`'s "What it holds" for what that does and does not buy.
+/// `components/src/non_volatile_memory_express.rs`'s "What it holds" for what that does and does not buy.
 const ADMIN_SQ_PAGE: u64 = 0;
 const ADMIN_CQ_PAGE: u64 = 1;
 const IDENTIFY_PAGE: u64 = 2;
@@ -97,14 +99,14 @@ pub enum Error {
     UnsupportedNamespace,
     /// CAP describes a controller this driver cannot drive: queues too shallow, a minimum page
     /// size above the kernel's 4 KiB frames, or a doorbell stride whose file would not fit the
-    /// one page of BAR0 an EL0 data plane is mapped (`nvme::MAX_DSTRD`).
+    /// one page of BAR0 an EL0 data plane is mapped (`non_volatile_memory_express::MAX_DSTRD`).
     UnsupportedController,
 }
 
 /// An initialized NVMe controller with one I/O queue pair, ready to be handed to an EL0 data
-/// plane. Constructed only by [`Nvme::new`]; holding one is holding a disk that has already
+/// plane. Constructed only by [`NonVolatileMemoryExpress::new`]; holding one is holding a disk that has already
 /// proven it can answer admin commands, and the authority to create more queues.
-pub struct Nvme {
+pub struct NonVolatileMemoryExpress {
     /// BAR0's virtual base: the register file and, from 0x1000, the doorbells.
     regs: u64,
     /// The doorbell stride from CAP, needed for every ring.
@@ -122,15 +124,19 @@ pub struct Nvme {
     cid: u16,
 }
 
-impl Nvme {
+impl NonVolatileMemoryExpress {
     /// Bring the controller from reset to ready to serve I/O: reset, admin queues, enable,
     /// identify the namespace, create the I/O queue pair. `regs_va` is BAR0's virtual base;
     /// `dma_phys`/`dma_va` name the same zeroed, physically contiguous [`DMA_PAGES`]-page region
     /// through the two address spaces. The caller has already confined the device to that region
     /// if an IOMMU is active; nothing in here can tell, which is the point of the confinement
     /// being outside.
-    pub fn new(regs_va: u64, dma_phys: u64, dma_va: u64) -> Result<Nvme, Error> {
-        let mut c = Nvme {
+    pub fn new(
+        regs_va: u64,
+        dma_phys: u64,
+        dma_va: u64,
+    ) -> Result<NonVolatileMemoryExpress, Error> {
+        let mut c = NonVolatileMemoryExpress {
             regs: regs_va,
             dstrd: 0,
             dma_phys,
@@ -144,14 +150,14 @@ impl Nvme {
             cid: 0,
         };
         let cap = Cap(c.reg64(regs::CAP));
-        // The doorbell stride is checked here as well as in `nvme::Handoff::unpack`, and the
+        // The doorbell stride is checked here as well as in `non_volatile_memory_express::Handoff::unpack`, and the
         // duplication is deliberate: a controller whose doorbell file does not fit the one page
         // this wiring hands an EL0 data plane should fail at bring-up, loudly, naming the
         // controller, rather than as a process that starts and then cannot address its own
         // doorbells. `MAX_DSTRD` is Kani's finding, and its own doc has the arithmetic.
         if cap.max_queue_entries() < ENTRIES as u32
             || cap.min_page_size() > page_frames::FRAME_SIZE
-            || cap.doorbell_stride() > nvme::MAX_DSTRD
+            || cap.doorbell_stride() > non_volatile_memory_express::MAX_DSTRD
         {
             return Err(Error::UnsupportedController);
         }
@@ -159,7 +165,7 @@ impl Nvme {
 
         // A controller that was already enabled (a warm reboot, or a previous test) must be taken
         // down before the admin queue registers may change; RDY follows EN in both directions.
-        if c.reg32(regs::CSTS) & nvme::CSTS_RDY != 0 {
+        if c.reg32(regs::CSTS) & non_volatile_memory_express::CSTS_RDY != 0 {
             c.wr32(regs::CC, 0);
             c.wait_rdy(false)?;
         }
@@ -176,13 +182,18 @@ impl Nvme {
             regs::ACQ,
             dma_phys + ADMIN_CQ_PAGE * page_frames::FRAME_SIZE,
         );
-        c.wr32(regs::CC, nvme::cc_enabled());
+        c.wr32(regs::CC, non_volatile_memory_express::cc_enabled());
         c.wait_rdy(true)?;
 
         // IDENTIFY the namespace: its block count and LBA format are the two facts the block
         // arithmetic below stands on, and refusing an exotic format here beats corrupting it later.
         let prp = dma_phys + IDENTIFY_PAGE * page_frames::FRAME_SIZE;
-        let cmd = Command::identify(c.next_cid(), nvme::CNS_NAMESPACE, NSID, prp);
+        let cmd = Command::identify(
+            c.next_cid(),
+            non_volatile_memory_express::CNS_NAMESPACE,
+            NSID,
+            prp,
+        );
         c.transact(cmd)?;
         // SAFETY: the identify page is ours (inside the region bring_up allocated), and the
         // controller finished writing it before the completion above was posted (NVMe's ordering
@@ -193,7 +204,8 @@ impl Nvme {
                 page_frames::FRAME_SIZE as usize,
             )
         };
-        c.ns = nvme::parse_identify_namespace(data).ok_or(Error::UnsupportedNamespace)?;
+        c.ns = non_volatile_memory_express::parse_identify_namespace(data)
+            .ok_or(Error::UnsupportedNamespace)?;
         if c.ns.blocks == 0 || c.ns.blocks_per(BLOCK_SIZE as u64).is_none() {
             return Err(Error::UnsupportedNamespace);
         }
@@ -219,7 +231,7 @@ impl Nvme {
     }
 
     /// **Everything the EL0 data plane is told**, and the whole of what it could not compute for
-    /// itself. See [`nvme::Handoff`] for why it is three words.
+    /// itself. See [`non_volatile_memory_express::Handoff`] for why it is three words.
     pub fn handoff(&self) -> Handoff {
         Handoff {
             dstrd: self.dstrd,
@@ -255,7 +267,7 @@ impl Nvme {
         // this ring, which is why one barrier a side is enough.
         crate::arch::dma_wmb();
         self.wr32(
-            nvme::doorbell(0, Doorbell::SubmissionTail, self.dstrd),
+            non_volatile_memory_express::doorbell(0, Doorbell::SubmissionTail, self.dstrd),
             self.admin_sq.tail() as u32,
         );
 
@@ -273,7 +285,7 @@ impl Nvme {
                 done = Some(c);
                 break;
             }
-            if self.reg32(regs::CSTS) & nvme::CSTS_CFS != 0 {
+            if self.reg32(regs::CSTS) & non_volatile_memory_express::CSTS_CFS != 0 {
                 return Err(Error::ControllerFatal);
             }
             core::hint::spin_loop();
@@ -288,7 +300,7 @@ impl Nvme {
         // submission ring reuse what the controller has read.
         let new_head = self.admin_cq.pop();
         self.wr32(
-            nvme::doorbell(0, Doorbell::CompletionHead, self.dstrd),
+            non_volatile_memory_express::doorbell(0, Doorbell::CompletionHead, self.dstrd),
             new_head as u32,
         );
         self.admin_sq.note_head(c.sq_head);
@@ -317,10 +329,10 @@ impl Nvme {
     fn wait_rdy(&self, want: bool) -> Result<(), Error> {
         for _ in 0..SPIN_BOUND {
             let csts = self.reg32(regs::CSTS);
-            if csts & nvme::CSTS_CFS != 0 {
+            if csts & non_volatile_memory_express::CSTS_CFS != 0 {
                 return Err(Error::ControllerFatal);
             }
-            if (csts & nvme::CSTS_RDY != 0) == want {
+            if (csts & non_volatile_memory_express::CSTS_RDY != 0) == want {
                 return Ok(());
             }
             core::hint::spin_loop();
@@ -359,7 +371,7 @@ pub struct Found {
     /// BAR0's physical base.
     pub bar0: u64,
     /// The initialized admin plane.
-    pub controller: Nvme,
+    pub controller: NonVolatileMemoryExpress,
 }
 
 /// **Find, confine, and initialize the machine's NVMe disk.** `None` when no controller is on the
@@ -388,13 +400,15 @@ pub fn bring_up() -> Option<Found> {
             }],
         );
     }
-    match Nvme::new(mmu::phys_to_virt(dev.bar0), dma, mmu::phys_to_virt(dma)) {
+    match NonVolatileMemoryExpress::new(mmu::phys_to_virt(dev.bar0), dma, mmu::phys_to_virt(dma)) {
         Ok(controller) => Some(Found {
             bar0: dev.bar0,
             controller,
         }),
         Err(e) => {
-            crate::println!("  nvme: controller present but failed bring-up: {e:?}");
+            crate::println!(
+                "  non_volatile_memory_express: controller present but failed bring-up: {e:?}"
+            );
             None
         }
     }

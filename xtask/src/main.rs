@@ -2660,7 +2660,7 @@ fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
         // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
         // process that drives the machine's NVMe controller from ring 3. Portable, so every
         // archive carries it; the test that spawns it skips on a leg with no controller attached.
-        ("nvme_server", "nvme_server"),
+        ("non_volatile_memory_express", "non_volatile_memory_express"),
         // The credential service and its clients (milestone 56, the credential half). Portable, so
         // both archives carry both: the claim is that holding the verify endpoint does not let you
         // read or write the store, and that has to hold on either instruction set or it is not a
@@ -3587,7 +3587,7 @@ fn initrd_aarch64() -> bool {
         // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
         // process that drives the machine's NVMe controller from ring 3. Portable, so every
         // archive carries it; the test that spawns it skips on a leg with no controller attached.
-        ("nvme_server", "nvme_server"),
+        ("non_volatile_memory_express", "non_volatile_memory_express"),
         // The C seam (milestone 36): the confiner that builds, supervises and checks the foreign
         // component, and the Rust shell that links it.
         ("c_confiner", "c_confiner"),

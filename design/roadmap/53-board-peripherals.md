@@ -1,12 +1,12 @@
 # 53. The board's own peripherals: network and storage on real silicon
 
 **Status: PARTIAL.** The storage half is built for QEMU as of 2026-08-15 (pull request #193): the
-`nvme` crate (queue mechanics, host-tested, 5 Kani harnesses), a rule-2 kernel driver confined
+`non_volatile_memory_express` crate (queue mechanics, host-tested, 5 Kani harnesses), a rule-2 kernel driver confined
 through the IOMMU before enable, class-code enumeration over §18, and an end-to-end boot test on
 both ISAs. What remains of the milestone: the network half (the JH7110's GMAC), the board-side
 PLDA XpressRICH root complex that carries the NVMe driver to the real M.2 slot (now tracked as its
 own milestone, 163, NOT-STARTED), and the EL0
-question, which is §86 (PROPOSED). Scope and honest limits: notes/nvme.md, BUGS included.
+question, which is §86 (PROPOSED). Scope and honest limits: notes/non-volatile-memory-express.md, BUGS included.
 
 **Gate: HARDWARE.** In the second sense: the board is here and this needs hands on it. Bringing up
 an NVMe controller and a real NIC means flashing, a serial console, and power-cycling a board that
@@ -60,13 +60,13 @@ not transfer.
 - **Outstanding.** SD and eMMC, kept in scope as the later path and undecided only in its ordering
   against the network driver. No MSHC or SD driver exists under `kernel/src/drivers/`, and no block
   or decision file has taken the ordering question since 2026-08-15. Checked 2026-09-03.
-- **Done.** The rule-5 parity note this block says it must carry is carried, in `notes/nvme.md`
+- **Done.** The rule-5 parity note this block says it must carry is carried, in `notes/non-volatile-memory-express.md`
   under a heading naming this milestone, stating what ships on all three architectures and what is
   board-specific.
 - **Recorded.** Half the reason NVMe was picked over SD is gone: milestone 55 is REMOVED as of
   2026-08-30, so the backup workload whose sustained sequential write decided the fork no longer
   exists. The root-complex-compounds-into-87 half of that argument survives; the measurement half
-  has no customer, and `notes/nvme.md` still cites 55's storage bench as the thing that will want
+  has no customer, and `notes/non-volatile-memory-express.md` still cites 55's storage bench as the thing that will want
   real queue depth.
 
 ## Index row

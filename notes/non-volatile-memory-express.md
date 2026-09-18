@@ -1,5 +1,11 @@
 # NVMe: the first non-virtio disk
 
+**The tree spells it `non_volatile_memory_express`**, since calef's ruling of 2026-09-17
+(DECISIONS §154) and the rename of 2026-09-18. `NVMe` stays in this page's prose, because that is
+the specification's own name and the word the datasheet, the boot output and QEMU's `-device nvme`
+all print; what moved is the crate, the kernel module, its `NonVolatileMemoryExpress` type, and the
+program. A reader who greps `nvme` and finds nothing is looking for the expansion.
+
 Milestone 53's storage half, decided by calef on 2026-08-15: **NVMe first**, because the backup
 workload (milestone 55) measures sustained sequential write and endurance, which SD media fails,
 and because a real PCIe device driver compounds toward the machines this project actually wants to
@@ -12,20 +18,23 @@ board-side work will reuse.
 
 Three pieces, in the tree's usual split:
 
-- **`crates/nvme`**: the pure logic. Register field decode (CAP), command building (the 64-byte
-  submission entries), the submission/completion ring arithmetic with the phase tag, doorbell
-  addressing, PRP construction, IDENTIFY parsing, and (milestone 261) the spawn handoff and the
-  block-range check the EL0 data plane runs before it builds a command. Host-tested in
-  milliseconds, eight Kani harnesses (`script/verify`), no MMIO anywhere in it.
-- **`kernel/src/nvme.rs`**: the **admin plane's** volatile half, at EL1. Reset, the admin rings by
-  register, enable, IDENTIFY, Create I/O Queue. `Nvme` takes the register window and one DMA
-  region passed in (rule 2); `bring_up()` is the policy that finds the controller, allocates the
-  region, and confines the device.
-- **`components/src/nvme_server.rs`**: the **data plane's** volatile half, at EL0 since milestone
-  261. Copies commands into the I/O submission ring, rings the doorbell, polls the completion
-  ring's phase tag, and serves `filesystem_protocol::blk`. Provisional name.
-- **`kernel/src/user/nvme_service.rs`**: the wiring, and the whole of the confinement claim: what
-  that process is handed and what it is refused, in one `Spawn` literal.
+- **`crates/non_volatile_memory_express`**: the pure logic. Register field decode (CAP), command
+  building (the 64-byte submission entries), the submission/completion ring arithmetic with the
+  phase tag, doorbell addressing, PRP construction, IDENTIFY parsing, and (milestone 261) the
+  spawn handoff and the block-range check the EL0 data plane runs before it builds a command.
+  Host-tested in milliseconds, eight Kani harnesses (`script/verify`), no MMIO anywhere in it.
+- **`kernel/src/non_volatile_memory_express.rs`**: the **admin plane's** volatile half, at EL1.
+  Reset, the admin rings by register, enable, IDENTIFY, Create I/O Queue.
+  `NonVolatileMemoryExpress` takes the register window and one DMA region passed in (rule 2);
+  `bring_up()` is the policy that finds the controller, allocates the region, and confines the
+  device.
+- **`components/src/non_volatile_memory_express.rs`**: the **data plane's** volatile half, at EL0
+  since milestone 261. Copies commands into the I/O submission ring, rings the doorbell, polls the
+  completion ring's phase tag, and serves `filesystem_protocol::blk`. It shares the crate's name
+  rather than carrying a `_server` suffix, which calef ruled on 2026-09-18: the obvious spelling is
+  34 bytes against `nifefs`'s 32-byte `NAME_LEN`, and the program's own header has the argument.
+- **`kernel/src/user/non_volatile_memory_express_service.rs`**: the wiring, and the whole of the
+  confinement claim: what that process is handed and what it is refused, in one `Spawn` literal.
 - **`kernel/src/pci.rs::find_nvme_device`**: enumeration and transport bring-up over the §18 PCIe
   machinery, matching the NVMe **class code** (`01:08:02`) rather than a vendor id, because the
   class triple is the one identity the spec requires of every controller, QEMU's included.
@@ -43,7 +52,8 @@ in the driver's space except what commands point it at.
 3. Every completion carries a **phase tag** that the controller flips each time it laps the ring.
    The ring starts zeroed, so the first lap writes tag 1, the second tag 0, and so on; the driver
    knows which tag means "fresh" and needs no shared index and no interrupt to spot a completion.
-   `crates/nvme`'s `CqState` owns that discipline and a Kani harness proves the flip happens
+   `crates/non_volatile_memory_express`'s `CqState` owns that discipline and a Kani harness
+   proves the flip happens
    exactly at the wrap.
 4. Queue pair 0 (the **admin queue**) is created by plain register writes (`AQA`/`ASQ`/`ACQ`)
    while the controller is disabled; every other pair is created by admin commands (CQ first,
@@ -129,12 +139,14 @@ which architecture is running.
 ## EXAMPLES
 
 Wire the server and move a block through it (this is the boot test, abridged; the full version is
-`kernel/src/user/nvme_tests.rs`). Every one of these calls crosses a rendezvous to an
-unprivileged process; the caller holds one endpoint and no device:
+`kernel/src/user/non_volatile_memory_express_tests.rs`). Every one of these calls crosses a
+rendezvous to an unprivileged process; the caller holds one endpoint and no device:
 
 ```rust
-let disk = nvme_service::ensure(program("nvme_server").unwrap())
-    .expect("an NVMe controller is attached");
+let disk = non_volatile_memory_express_service::ensure(
+    program("non_volatile_memory_express").unwrap(),
+)
+.expect("an NVMe controller is attached");
 // Against the geometry this boot was handed, never a constant: the same line holds for the
 // runner's 8 MiB image and for a 256 GB namespace.
 assert_eq!(disk.blk(blk::SIZE, 0) as u64, disk.size_bytes);
@@ -151,8 +163,10 @@ Run the proof of all of it on all three architectures:
 
 ```sh
 script/test            # the boot test runs in every leg; xtask attaches the controller
-cargo test -p nvme     # the queue mechanics alone, on the host, in milliseconds
-cargo kani -p nvme     # the eight harnesses, ~seconds
+# The queue mechanics alone, on the host, in milliseconds.
+cargo test -p non_volatile_memory_express
+# The eight harnesses, ~seconds.
+cargo kani -p non_volatile_memory_express
 ```
 
 Poke at the controller interactively:
@@ -164,7 +178,8 @@ cargo xtask build && NIFE_NVME=target/nife-nvme.img cargo xtask run
 
 ## What the test proves, and where
 
-`kernel/src/user/nvme_tests.rs::a_confined_el0_process_serves_the_block_interface_end_to_end`, on
+`kernel/src/user/non_volatile_memory_express_tests.rs`'s
+`a_confined_el0_process_serves_the_block_interface_end_to_end`, on
 **all three** architectures (§19; x86_64 joined 2026-08-25, decisions §86's evidence section): the
 controller enumerates over ECAM, comes up confined behind the SMMU (aarch64), the RISC-V IOMMU
 (riscv64), or VT-d (x86_64), answers IDENTIFY with the attached disk's exact size, and then an
@@ -197,7 +212,8 @@ it.
   "What it does not withhold" above: the IOMMU bounds the *controller* to a region that contains
   the admin rings, so the server can aim DMA at them, and with stride 0 it can ring the admin
   doorbell. Neither is an escape and both are option 4's to close.
-- **Nothing but the test serves it over blk IPC.** `nvme_server` speaks the four blk verbs, but
+- **Nothing but the test serves it over blk IPC.** `non_volatile_memory_express` speaks the four
+  blk verbs, but
   `block_roster` has no NVMe transport kind, so `disk_surveyor` cannot list the disk and the FS
   server's default remains virtio-blk, untouched. The wire shape is decidable now that a process
   owns the controller; see `design/roadmap/proposals/a-block-roster-that-can-name-an-nvme-disk.md`.
@@ -207,7 +223,8 @@ it.
 - **The EL0 server cannot read `CSTS`**, so a hung controller presents to it as a bounded-out poll
   answered `EIO` rather than as `CSTS.CFS`. The direct price of not mapping the controller register
   page, and a worse diagnostic than the kernel-resident driver gave.
-- **A doorbell stride above `nvme::MAX_DSTRD` (8) is refused rather than served.** Doorbell N sits
+- **A doorbell stride above `non_volatile_memory_express::MAX_DSTRD` (8) is refused rather than
+  served.** Doorbell N sits
   at `0x1000 + N * (4 << DSTRD)`, so a wide stride scales the doorbell file past the one page of
   BAR0 the server is mapped. Kani found this; QEMU reports 0 and §86 quotes the spec calling 0 "the
   expected doorbell stride value" for hardware, so no controller this project has met would hit it,
@@ -229,5 +246,6 @@ it.
   All fine for the blk unit; a future bulk path (or a 8 KiB+ LBA format) needs PRP lists.
 - **`bring_up` is not idempotent.** A second call re-confines the requester id (leaking the first
   domain's tables, as `iommu::confine` documents) and re-creates queues against a live controller,
-  which the controller will refuse. Call it once; `nvme_service::ensure` holds a once-per-boot flag
+  which the controller will refuse. Call it once; `non_volatile_memory_express_service::ensure`
+  holds a once-per-boot flag
   for exactly this reason, and the boot test does everything in one case.
