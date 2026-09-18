@@ -105,6 +105,21 @@
 //! (was `fs_proto`), `graphics_protocol` (was `gfx_proto`) and `credential_protocol` (was
 //! `cred_proto`). NTP is at least as famous an acronym as NVMe and this tree spells it out.
 //!
+//! **This is the name milestone 265 said would come**, and a reader meeting it beside `pci` and
+//! `gpt` is owed why those two did not move. 265 narrowed the external-standard exemption to a
+//! boundary on 2026-09-13: *a standard's own name stays whole where it names a format or a piece
+//! of hardware (`elf`, `pci`, `dtb`, `gpt`), and expands where it names a network protocol*, and
+//! it closed by saying nothing mechanical can tell the two apart, so the next name that tests the
+//! line comes to calef. This is that name.
+//!
+//! **It lands on the protocol side without the line moving.** NVM Express is not a piece of
+//! hardware and not a format; its own specifications define how host software *communicates* with
+//! non-volatile memory across several transports, PCIe among them but also RDMA and TCP, and NVMe
+//! over TCP has its own RFC. `pci` names the bus the messages travel on and `gpt` names a layout
+//! written to a disk, which is why both stay whole while this expands. **That reconciliation is
+//! the maintainer's reading of calef's boundary rather than calef's own words**; if the intent was
+//! to move the line instead, this paragraph is what needs correcting.
+//!
 //! **Refused `nvm_express`**, which the maintainer recommended and argued was the faithful
 //! spelling, since "NVM Express" is what the standard and its consortium actually call themselves
 //! and `non_volatile_memory_express` expands an acronym nested inside that name. calef's ruling is
