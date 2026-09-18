@@ -1086,6 +1086,48 @@ say, and what this adds, is that the expensive half is not only the name in a re
 the **records**, and a sweep edits those at the same cost as it edits code while destroying
 something a revert cannot restore.
 
+### The refusal count is the gate, and it is one command
+
+**Take `script/names | tail -3` before the rename and again after. The refusal count must not
+move.** A rename neither adds nor removes refusals, so any change is a mistake: a refusal swept into
+a name that no longer exists, or one reformatted out of the block the parser reads.
+
+**It is sharper than reading the diff**, and it is the only thing that would have caught the
+2026-09-18 incident, where a maintainer reformatting a `Name:` block pushed three refusals out of
+the parsed paragraph and the tree-wide count fell from 171 to 168. Nobody was reading for that; the
+number was what spoke. The first performed rename under this procedure
+(`capability_demo_protocol` to `capability_witness_protocol`) held at 273 across the change, which
+is the result to expect.
+
+Contributed by that lane, which was asked what the next rename should do differently and answered
+with this first.
+
+### Enumerating is cheap; classifying is the whole cost
+
+**Hand the next lane the classification, not the file list.** The same lane measured it: enumerating
+27 occurrences across 16 files took two minutes, and deciding whether **one line** was an account or
+a pointer took twenty. A larger rename has proportionally more of the second and not much more of
+the first, so a brief that supplies the list and stops has helped with the cheap half.
+
+**The case the status table does not cover, and it is the one that costs the twenty minutes: a
+dated account inside a live document.** `design/roadmap/proposals/`'s refusals proposal is
+`PROPOSED`, so the table says it moves; the specific sentence in it recorded three measured counts
+taken against a crate under the name it had that morning, so that sentence is evidence and stays.
+Read the paragraph, not the heading. The resolution is to keep the old name **and add a clause
+saying why**, which is what that file now carries.
+
+### Two mechanical tells worth ten seconds each
+
+**`git status` must say `R`, not `A`.** A crate rename moves a directory, and `RM crates/old ->
+crates/new` is what you want. An `A` means the directory was copied rather than moved, which is how
+757 lines of duplicate source once sat outside every workspace and surfaced only as a stray
+`script/names --unratified` entry.
+
+**Never let a sweep near a `Name:` block's `replacing` clause.** `perl -pi` will eat the very
+sentence that records what the name replaced, which is the blind-`sed` scar in miniature. Sweep the
+code against a file list you typed out, then open every `crates/*/src/lib.rs` block by hand. That is
+a small enough set to read.
+
 ### Status decides what moves, not directory
 
 | Kind | Moves? | Why |

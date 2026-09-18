@@ -39,8 +39,8 @@
 //!
 //! Nothing checks that a reader of one of these constants is one of the two parties that agreed on
 //! it. A third program could depend on this crate and read `USED_WORD` for an unrelated purpose,
-//! and the next change to that constant would break it silently. The tree's other `*_proto` crates
-//! have the same property and it has never bitten; recorded here rather than defended.
+//! and the next change to that constant would break it silently. The tree's other `*_protocol`
+//! crates have the same property and it has never bitten; recorded here rather than defended.
 //! Name: ratified 2026-09-18 (calef, replacing the provisional `capability_demo_protocol` coined by
 //! milestone 291's lane). Refused `capability_demo_protocol`, `demo_words`, `capability_demo`, and
 //! folding these into `crates/abi`; the argument for each is below.
