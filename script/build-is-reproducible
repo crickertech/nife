@@ -98,8 +98,11 @@ for leg in a bbbbbbbb; do
         ( cd "$work/$leg/src" \
           && CARGO_TARGET_DIR="$work/$leg/target" \
              cargo build -p "$pkg" --target "$triple" --release >"$work/$leg.log" 2>&1 ) \
-          || { echo "build-is-reproducible: the $leg build FAILED; its log:" >&2
-               tail -20 "$work/$leg.log" >&2
+          || { echo "build-is-reproducible: the $leg build FAILED." >&2
+               # The ERROR, not the tail. `cargo` prints warnings after errors, so `tail` showed a
+               # screen of unused-dependency notes and hid the one line that mattered; that cost a
+               # round trip on the day this was written.
+               grep -B2 -A8 '^error' "$work/$leg.log" >&2 || tail -20 "$work/$leg.log" >&2
                exit 1; }
     done <<TARGET_LIST
 $TARGETS
