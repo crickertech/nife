@@ -1,32 +1,32 @@
 Falsifies `machine_discovery::framebuffer::verification::an_accepted_span_covers_every_pixel_the_geometry_describes`.
 
-The defect: the "is the stride at least one row wide" guard multiplies the width by
-four without saturating.
+**This is the defect as it actually shipped**, restored: the row-width guard
+compares in `u32` with a `saturating_mul` instead of in `u64`.
 
-Why this is the plausible spelling: `self.stride < self.width * 4` is what the
-sentence in the doc says, and the `saturating_mul` reads like defensive noise
-around it. It is not. A width above 2^30 wraps the product to something *small*,
-so the guard passes on geometry it exists to refuse, and `span` then returns
-`stride * height` bytes for a screen whose rows are wider than the stride. The
-console paints inside that span and shears off the end of it.
+Saturating is not the same as correct, and that is the whole lesson. The
+`saturating_mul` was there to stop `width * 4` overflowing a `u32`, and it does. It
+also makes the comparison meaningless above `2^30 - 1`: the product saturates to
+`u32::MAX`, so a stride of `u32::MAX` satisfies a guard that one row of pixels
+genuinely fails, and `span` then hands the console a byte count smaller than a
+single row needs. Every write the console makes is bounded by that number.
 
-The geometry comes out of a boot handoff, and `span` is documented as "the only
-validation a description read out of a boot handoff can be given". Nothing else
-looks at it.
+The crate's own test `a_span_that_cannot_be_computed_is_refused` **asserted the
+defective answer**, for a screen `u32::MAX` wide with a stride of `u32::MAX`, and
+called it "the honest answer" on a 64-bit host. The test and the code agreed because
+both read the same saturating product. That is what a prover is for.
 
-Expected to fail: the arithmetic-overflow check on `self.width * 4`, and behind it
-`assert!(span as u64 >= pixels)`.
+Expected to fail: `assert!(span as u128 >= pixels)`, on a width above `2^30 - 1`.
 
 diff --git a/crates/machine_discovery/src/framebuffer.rs b/crates/machine_discovery/src/framebuffer.rs
-index 99a9386f..a92a23f8 100644
+index 253dc693..ed9b2bcd 100644
 --- a/crates/machine_discovery/src/framebuffer.rs
 +++ b/crates/machine_discovery/src/framebuffer.rs
-@@ -162,7 +162,7 @@ impl Framebuffer {
-     /// only validation a description read out of a boot handoff can be given.
+@@ -171,7 +171,7 @@ impl Framebuffer {
+     /// [`verification::an_accepted_span_covers_every_pixel_the_geometry_describes`].
      #[must_use]
      pub const fn span(&self) -> Option<usize> {
--        if self.width == 0 || self.height == 0 || self.stride < self.width.saturating_mul(4) {
-+        if self.width == 0 || self.height == 0 || self.stride < self.width * 4 {
+-        if self.width == 0 || self.height == 0 || (self.stride as u64) < self.width as u64 * 4 {
++        if self.width == 0 || self.height == 0 || self.stride < self.width.saturating_mul(4) {
              return None;
          }
          match (self.stride as u64).checked_mul(self.height as u64) {
