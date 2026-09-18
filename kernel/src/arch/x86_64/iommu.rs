@@ -55,10 +55,26 @@
 //!   which is what makes this the honest first cut rather than a workaround; bringing up more than
 //!   one is real future work (walking every DRHD, and routing a device to its owning unit by the
 //!   device-scope lists `machine_discovery::acpi::DmarStructures` currently skips).
-//! - **No interrupt remapping.** `ECAP.IR` is read only to size nothing; this driver never sets
-//!   `GCMD.IRE`. MSI/MSI-X delivery is unaffected either way (this kernel does not remap interrupts
-//!   on any architecture yet), but a future PCI MSI driver on x86 would want to know this is
-//!   missing before assuming an interrupt-remapping table exists to program.
+//! - **No interrupt remapping.** `ECAP.IR` is read and *reported* since milestone 317
+//!   ([`interrupt_remapping_available`], and the bring-up line `print_summary` writes), and that
+//!   is all: this driver never sets `GCMD.IRE`, never allocates an interrupt-remapping table, and
+//!   never programs an entry in one. MSI/MSI-X delivery is unaffected either way (this kernel does
+//!   not remap interrupts on any architecture yet), but a future PCI MSI driver on x86 would want
+//!   to know this is missing before assuming a remapping table exists to program.
+//!
+//!   **The unit has been offering it all along, which is a correction and not a feature.**
+//!   DECISIONS §86 recorded that interrupt remapping is off in every `x86_64` boot this tree runs,
+//!   reasoning from the runner attaching `-device intel-iommu` with no `intremap=on`. Reading
+//!   `ECAP` from inside the guest says otherwise: QEMU's `intremap` property defaults to `auto`,
+//!   which resolves ON with no in-kernel irqchip, so `ECAP.IR` reads set on the default machine
+//!   (`0xf00f4a`) and clear only under an explicit `intremap=off` (`0xf42`). Nothing read the bit,
+//!   so nobody noticed. `NIFE_INTREMAP=off` (provisional name) is now the way to reach a machine
+//!   without the capability.
+//!
+//!   **What remains unexercised is the whole of the rest.** Nothing here writes an `IRTE`, forges
+//!   an MSI, or proves that a remapped interrupt lands where the table says it should. That is the
+//!   confinement claim notes/confinement-claims.md carries as stated nowhere, and
+//!   design/roadmap/317-interrupt-remapping-flags.md says what it would take.
 //! - **Invalidation is global, never domain- or device-selective.** Every `attach` invalidates the
 //!   *entire* context cache and the *entire* IOTLB rather than just the entry that changed, which
 //!   is correct (nothing survives that should not) and expensive on a machine with many attached
@@ -95,6 +111,11 @@ const GCMD_WBF: u32 = 1 << 27; // Write Buffer Flush
 const GSTS_TES: u32 = 1 << 31;
 const GSTS_RTPS: u32 = 1 << 30;
 const GSTS_WBFS: u32 = 1 << 27;
+// IRES: interrupt remapping is ENABLED. Read only by the test that asserts it is clear; this
+// driver has no `GCMD_IRE` constant to pair it with, deliberately, because there is nothing here
+// that should be one typo away from turning interrupt remapping on. See this module's BUGS.
+#[cfg(test)]
+const GSTS_IRES: u32 = 1 << 25;
 
 // CAP fields this driver reads. SAGAW is a bitmap (bit N means "AGAW level N is supported"), not
 // an index; bit 2 of the 5-bit field (so bit 10 of the register) is the 48-bit/4-level width
@@ -109,6 +130,13 @@ const CAP_FRO_MASK: u64 = 0x3ff;
 // unit is not required to).
 const ECAP_IRO_SHIFT: u64 = 8; // 10-bit field, in 16-byte units
 const ECAP_IRO_MASK: u64 = 0x3ff;
+
+// ECAP.IR (bit 3): the unit supports interrupt remapping. Read to REPORT, never to act on
+// (this driver does not set `GCMD.IRE`; see BUGS). It is here because milestone 317 needed the
+// machine's own answer to "is interrupt remapping present" to be visible from inside the guest:
+// `-device intel-iommu,intremap=on` is a host-side string, and a boot that cannot tell the two
+// machines apart cannot claim to have exercised either. `print_summary` is where it surfaces.
+const ECAP_IR: u64 = 1 << 3;
 
 // CCMD_REG: context-cache invalidation, register-based (the legacy, non-queued interface every
 // VT-d unit supports). ICC is set to start, cleared by hardware on completion; CIRG selects
@@ -158,6 +186,9 @@ struct Iommu {
     ctx: [Option<u64>; 256],
     rwbf: bool,
     frcd: u64,
+    /// `ECAP.IR`: does this unit offer interrupt remapping? Recorded, never acted on. See the
+    /// constant's comment and this module's BUGS for why a read-only field earns its place.
+    interrupt_remapping: bool,
 }
 
 static IOMMU: IrqSafeMutex<Option<Iommu>> = IrqSafeMutex::new(rank::IOMMU, None);
@@ -225,6 +256,7 @@ pub fn init(base: u64) {
     );
     let rwbf = cap & CAP_RWBF != 0;
     let frcd = ((cap >> CAP_FRO_SHIFT) & CAP_FRO_MASK) << 4;
+    let interrupt_remapping = r64(base, ECAP) & ECAP_IR != 0;
 
     let root = zeroed_page_frame("root table");
 
@@ -241,7 +273,22 @@ pub fn init(base: u64) {
         ctx: [None; 256],
         rwbf,
         frcd,
+        interrupt_remapping,
     });
+}
+
+/// **Does this machine's VT-d unit offer interrupt remapping (`ECAP.IR`)?** `None` when there is
+/// no unit at all, which is a different answer from "a unit that says no".
+///
+/// Nothing in this kernel remaps an interrupt. This exists so the question is *askable* from
+/// inside the guest, which is what milestone 317 is for: without it, turning
+/// `-device intel-iommu,intremap=on` on and watching the suite stay green proves only that the
+/// suite does not care. See design/roadmap/317-interrupt-remapping-flags.md.
+// Two callers: `print_summary` (which a bench boot skips, the same treatment that function already
+// carries) and this module's own test.
+#[cfg_attr(feature = "bench", allow(dead_code))]
+pub fn interrupt_remapping_available() -> Option<bool> {
+    IOMMU.lock().as_ref().map(|s| s.interrupt_remapping)
 }
 
 /// Is the IOMMU up? The portable seam asks this to decide whether attaching is possible.
@@ -257,10 +304,18 @@ pub fn init(base: u64) {
 // `memory::print_summary` already carries, and for the same reason.
 #[cfg_attr(any(test, feature = "bench"), allow(dead_code))]
 pub fn print_summary() {
+    // Asked before the lock below, not through `s`, because `IOMMU` is not reentrant.
+    let remapping = interrupt_remapping_available();
     match IOMMU.lock().as_ref() {
         Some(s) => crate::println!(
-            "  iommu           : VT-d drhd at {:#018x}, root table default-deny, translating",
+            "  iommu           : VT-d drhd at {:#018x}, root table default-deny, translating, \
+             interrupt remapping {} (unused)",
             s.base,
+            if remapping == Some(true) {
+                "offered"
+            } else {
+                "absent"
+            },
         ),
         None => crate::println!(
             "  iommu           : none (this machine's ACPI names no DMAR, or it names no DRHD)",
@@ -389,3 +444,45 @@ pub fn take_fault() -> Option<Fault> {
 // A compile-time check that this module and `Vtd` agree on the level count `CTX_AW_48BIT`
 // promises the hardware: four levels, the same the context entry's AW field selects.
 const _: () = assert!(Vtd::LEVELS == 4);
+
+#[cfg(test)]
+mod tests {
+    //! Milestone 317's half of the interrupt-remapping question, which is the half a boot can
+    //! answer. The other half (does a remapped interrupt land where an `IRTE` says it should)
+    //! needs a driver that programs one, and this tree has none.
+
+    use super::*;
+
+    /// **The unit's interrupt-remapping capability is reported, and remapping is still off.**
+    ///
+    /// Two assertions, and the second is the one with teeth. The first says the machine answered
+    /// at all: a `None` here on a runner that always attaches `-device intel-iommu` would mean the
+    /// DRHD was never found, which every other VT-d test would also fail on, so it is a guard
+    /// rather than a claim.
+    ///
+    /// The second states a limit, the shape notes/confinement-claims.md asks for: whatever
+    /// `ECAP.IR` says, `GSTS.IRES` is clear, because this driver never sets `GCMD.IRE`. **That is
+    /// what keeps `NIFE_INTREMAP` honest.** Booting a machine that offers remapping and watching
+    /// the suite stay green would otherwise prove nothing; this fails the day somebody enables
+    /// remapping without also retiring the claim in
+    /// design/roadmap/317-interrupt-remapping-flags.md that nothing in this kernel remaps an
+    /// interrupt.
+    ///
+    /// It runs identically with the flag and without it, on purpose. A test that only ran under
+    /// the flag would be a test nobody runs.
+    #[test_case]
+    fn interrupt_remapping_is_reported_and_never_enabled() {
+        let Some(offered) = interrupt_remapping_available() else {
+            crate::testing::skip!("this machine's ACPI names no DMAR, so there is no unit to ask");
+        };
+
+        let base = IOMMU.lock().as_ref().expect("a unit answered above").base;
+        let gsts = r32(base, GSTS);
+        assert_eq!(
+            gsts & GSTS_IRES,
+            0,
+            "GSTS.IRES is set: something enabled interrupt remapping (ECAP.IR was {offered}), \
+             and the claim that this kernel never remaps an interrupt is now false",
+        );
+    }
+}

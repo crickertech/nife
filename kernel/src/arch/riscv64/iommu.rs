@@ -21,6 +21,37 @@
 //! `GBPA.ABORT` for the same posture. Sv39 single-stage translation requires the U bit on every
 //! leaf (a device does not "request supervisor privilege"), which is why the seam builds domains
 //! with `user_data` flags; see `paging::domain`.
+//!
+//! # BUGS
+//!
+//! - **The MSI page table is offered and deliberately not used** (milestone 317). `CAPS.MSI_FLAT`
+//!   is set on QEMU's `riscv-iommu-pci` (measured: `CAPS = 0x78c2cf4f10`, bit 22 set, on QEMU
+//!   11.1.1's `virt`), so every device context here is the extended 64-byte format and carries
+//!   `msiptp`, `msi_addr_mask` and `msi_addr_pattern`. [`attach`] writes all four of those words
+//!   **zero**, which is `msiptp.MODE = Off`. No MSI page table is allocated and no entry in one is
+//!   ever programmed.
+//!
+//!   **This is the whole of riscv's position on interrupt confinement, and it is not a gap in the
+//!   same shape as the other two.** MSI confinement lives somewhere different on each
+//!   architecture: a separate IOMMU feature on `x86_64` (`ECAP.IR`, and VT-d intercepts a write to
+//!   the MSI address range so DMA remapping alone does not cover it), a separate *device* on
+//!   aarch64 (the `GICv3` ITS, which this tree's GICv2 machine does not have at all), and here, one
+//!   mode field inside a device context this driver already writes.
+//!
+//!   **What `MODE = Off` means for a transaction is a reading of the spec and not a measurement**,
+//!   and it is flagged as such because this tree has carried a claim from memory before. The
+//!   RISC-V IOMMU specification says MSI address translation is not performed in that mode and the
+//!   transaction is translated as an ordinary memory access, which would mean an MSI-shaped write
+//!   from an attached device is still bounded by the `iosatp` domain rather than escaping it. **No
+//!   boot here has tested that**, nothing forges an MSI, and `MSI page table offered (mode off)`
+//!   in the machine description is a report of the capability bit, not of any behaviour.
+//!   See design/roadmap/317-interrupt-remapping-flags.md.
+//! - **Untestable on the silicon this project owns, which inverts `x86_64`'s position.** The
+//!   comment below on `CAP_MSI_FLAT` notes that real silicon without MSI support reports
+//!   otherwise, and that branch has run zero times: no board shipping the ratified RISC-V IOMMU
+//!   exists (milestone 143), and radon (the `VisionFive` 2) has no IOMMU at all. So this
+//!   architecture is confined in the emulated case and has no second witness, where `x86_64` has
+//!   xenon waiting to provide one.
 
 use crate::arch::mmu::phys_to_virt;
 use crate::sync::{IrqSafeMutex, rank};
@@ -88,6 +119,13 @@ struct Iommu {
     /// Extended (64-byte) device contexts, because the QEMU device reports `MSI_FLAT`. The base
     /// format is 32 bytes; both are handled, decided once at init from the capabilities register.
     dc_bytes: u64,
+    /// `CAPS.MSI_FLAT`: does this unit offer the flat MSI page table? Recorded so the machine
+    /// description can say so, which is milestone 317's parity half: MSI confinement sits in a
+    /// different place on each of the three architectures, and each one has to be able to report
+    /// its own position from inside the guest rather than from a source comment. Kept separate
+    /// from [`Self::dc_bytes`] even though one implies the other today, because `dc_bytes` is a
+    /// layout and this is a capability, and a reader should not have to infer one from the other.
+    msi_flat: bool,
     cq: u64,
     cq_tail: u32,
     // Read by take_fault (the confinement test); no production fault handler yet.
@@ -168,7 +206,8 @@ pub fn init(base: u64) {
     // MSI_FLAT widens the device context from 32 to 64 bytes (the MSI page-table words). QEMU's
     // riscv-iommu-pci reports it, so the extended format is what this driver actually runs; the
     // base format is kept because real silicon without MSI support will report otherwise.
-    let dc_bytes = if caps & CAP_MSI_FLAT != 0 { 64 } else { 32 };
+    let msi_flat = caps & CAP_MSI_FLAT != 0;
+    let dc_bytes = if msi_flat { 64 } else { 32 };
 
     // Little-endian, wire-signaled interrupts off (we poll both queues).
     w32(base, FCTL, 0);
@@ -198,6 +237,7 @@ pub fn init(base: u64) {
         base,
         ddt,
         dc_bytes,
+        msi_flat,
         cq,
         cq_tail: 0,
         fq,
@@ -220,8 +260,10 @@ pub fn init(base: u64) {
 pub fn print_summary() {
     match IOMMU.lock().as_ref() {
         Some(s) => crate::println!(
-            "  iommu           : riscv-iommu at {:#018x}, device directory default-deny, translating",
+            "  iommu           : riscv-iommu at {:#018x}, device directory default-deny, \
+             translating, MSI page table {} (mode off)",
             s.base,
+            if s.msi_flat { "offered" } else { "absent" },
         ),
         None => crate::println!(
             "  iommu           : none (no riscv-iommu-pci function on this machine's bus)",
