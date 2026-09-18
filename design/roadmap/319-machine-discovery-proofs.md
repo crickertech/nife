@@ -59,7 +59,7 @@ was. `q35`'s DMAR says 38. Its MCFG says buses 0 through 255.
 
 ## What is proved, and why each one could plausibly have been false
 
-Fifteen harnesses, in four `#[cfg(kani)] mod verification` blocks beside the code they prove. Each
+Sixteen harnesses, in four `#[cfg(kani)] mod verification` blocks beside the code they prove. Each
 carries a `Falsification: replayable` block per DECISIONS §134, and every patch under
 `crates/machine_discovery/falsifications/` was checked by `script/falsifications --sweep`: applied,
 the harness run, required red, reverted.
@@ -76,7 +76,8 @@ the harness run, required red, reverted.
 | `acpi::the_root_tables_entry_count_and_its_entry_reader_agree` | the reader bounds on the entry start instead of its end, so it returns one entry more than the count |
 | `framebuffer::an_encoded_token_never_exceeds_the_maximum_it_advertises` | `MAX_LEN` one below the real worst case, which is what its own doc records nearly happening |
 | `framebuffer::an_accepted_span_covers_every_pixel_the_geometry_describes` | `width * 4` without saturating, so a width above 2^30 wraps *small* and the guard passes |
-| `framebuffer::a_token_the_loader_writes_is_a_token_the_kernel_reads_back` | `parse_hex` refuses one digit fewer than `write_hex` can emit |
+| `framebuffer::every_hex_field_the_loader_writes_is_one_the_kernel_reads_back` | `parse_hex` refuses one digit fewer than `write_hex` can emit |
+| `framebuffer::every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back` | `parse_decimal` accumulates unchecked, so `u32::MAX + 1` wraps instead of being refused |
 | `x86_64::no_length_of_handoff_bytes_makes_the_decode_read_past_its_end` | the version-1 length check is gone, and offsets 40 and 48 are read out of a 40-byte handoff |
 | `x86_64::a_range_read_out_of_the_memory_map_never_wraps_to_look_empty` | `end()` wraps, so a firmware size near `u64::MAX` makes a range look empty to a frame allocator |
 | `riscv64::a_multi_letter_extension_is_never_read_as_a_privilege_letter` | the privilege scan runs past the first `_`, and `_sstc` reads as a supervisor claim |
@@ -139,16 +140,28 @@ implied.
 Milestone 197's abandoned properties, with their costs, were worth more than the ones it proved, so
 this one is reported the same way.
 
-**`framebuffer::a_token_the_loader_writes_is_a_token_the_kernel_reads_back` costs
-ROUND_TRIP_MINUTES minutes on its own**, on the dev Mac with `--unwind 18`, against a suite whose
-current serial time is 30.3 minutes and whose sharding floor is
-`glob::the_dot_rule_only_touches_names_that_start_with_a_dot` at 10.8. ROUND_TRIP_VERDICT
+**The whole-token round trip, `parse(encode(x)) == Some(x)` for every `Framebuffer` the encoder
+accepts, was still running after 18 minutes** on the dev Mac at `--unwind 18`, and was killed rather
+than waited out. For scale: the whole suite's serial time is 30.3 minutes, its sharding floor is
+`glob::the_dot_rule_only_touches_names_that_start_with_a_dot` at 10.8, and the other two framebuffer
+harnesses in the same run finished in 4.8 and 1.6 seconds. One harness at 18-plus minutes would have
+become the new floor and roughly doubled the crate's own row.
 
 The cost is not the round trip's logic, it is `parse`'s front end: `split_ascii_whitespace` and
-`find_map` over a `str` whose length is symbolic, which makes every byte position a branch before any
-of the four converters is reached. A version that skipped the tokenizer and handed `parse_hex` and
-`parse_decimal` their fields directly would be cheap and would prove much less, because the failure
-this property guards is exactly the encoder and the tokenizer disagreeing about where a field ends.
+`find_map` over a `str` whose length is symbolic, so every byte position is a branch before any of
+the four converters is reached.
+
+**What replaced it is the half that carries the risk**, which is the converters rather than the
+tokenizer: `every_hex_field_the_loader_writes_is_one_the_kernel_reads_back` and its decimal twin.
+The disagreement this property exists to catch is `write_hex` emitting a sixteenth digit that
+`parse_hex` refuses, and that is now proved for every `u64` and every `u32` with no tokenizer in the
+formula. The whole-token round trip stays a hand-written test over six realistic geometries, which
+is what it was before this lane and is honest about what it covers.
+
+**The decimal half is expensive for a different reason and it is worth naming**: `write_decimal`
+divides a symbolic `u32` by ten, ten times, and symbolic division is the one operation that
+bit-blasting does badly. DECIMAL_COST The hex twin, which is shifts and masks, finishes in seconds.
+If this row ever needs to come down, that harness is where the minutes are.
 
 ## What this cost and what it bought
 

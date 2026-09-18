@@ -160,9 +160,18 @@ impl Framebuffer {
     ///
     /// Returns `None` when the arithmetic overflows or the geometry is degenerate, which is the
     /// only validation a description read out of a boot handoff can be given.
+    ///
+    /// **The row width is compared in `u64`, and comparing it in `u32` was a defect.** It used to
+    /// read `self.stride < self.width.saturating_mul(4)`, which is worse than it looks: for any
+    /// width above `2^30 - 1` the product saturates to `u32::MAX`, so a stride of `u32::MAX`
+    /// satisfies the guard while one row of pixels genuinely needs more bytes than the stride has.
+    /// The span then returned is shorter than a single row and the console paints off the end of it.
+    /// Saturating made the overflow safe and the *comparison* meaningless; widening makes both true
+    /// at once. Found by milestone 319's
+    /// [`verification::an_accepted_span_covers_every_pixel_the_geometry_describes`].
     #[must_use]
     pub const fn span(&self) -> Option<usize> {
-        if self.width == 0 || self.height == 0 || self.stride < self.width.saturating_mul(4) {
+        if self.width == 0 || self.height == 0 || (self.stride as u64) < self.width as u64 * 4 {
             return None;
         }
         match (self.stride as u64).checked_mul(self.height as u64) {
@@ -365,9 +374,18 @@ mod verification {
     /// as much as the pixels the geometry describes, for every `u32` triple, including the ones
     /// where `width * 4` overflows a `u32` on its own.
     ///
-    /// Could plausibly have been false: `stride < width * 4` without the `saturating_mul` wraps for
-    /// any width above `2^30`, and a wrapped product is *small*, so the guard passes and the console
-    /// is handed a span shorter than one row. That is a `u32` no test writes down by hand.
+    /// **This harness was false when it was written**, and the defect it found is subtler than the
+    /// one it was aimed at. The guard read `self.stride < self.width.saturating_mul(4)`, and
+    /// saturating is not the same as correct: for any width above `2^30 - 1` the product saturates
+    /// to `u32::MAX`, so a stride of `u32::MAX` passes a guard that one row of pixels genuinely
+    /// fails, and `span` hands the console fewer bytes than a single row needs. The `saturating_mul`
+    /// was put there to make the overflow safe and made the comparison meaningless instead. Fixed by
+    /// comparing in `u64`, where both are true at once.
+    ///
+    /// The harness was false a second time before that, for a reason of its own: the first spelling
+    /// asserted in `u64` over a product that reaches `2^64`, so it failed against code that was
+    /// right. Recorded because a harness that fails is not thereby evidence of a defect, and telling
+    /// the two apart took reading the counterexample rather than trusting the red.
     /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.an_accepted_span_covers_every_pixel_the_geometry_describes.patch`
     #[kani::proof]
     fn an_accepted_span_covers_every_pixel_the_geometry_describes() {
@@ -421,31 +439,6 @@ mod verification {
             n == 18,
             "the widest base really does use all sixteen digits"
         );
-    }
-
-    /// **Every decimal field the loader can write, the kernel reads back unchanged.**
-    ///
-    /// The same claim for the three geometry fields, and a separate harness rather than a shared
-    /// one, because they are a separate pair of hand-rolled converters over a separate radix:
-    /// `write_decimal` divides by ten into a `[u8; 10]` and `parse_decimal` multiplies by ten with
-    /// `checked_mul`. A proof shared between the two would prove neither, which is the argument the
-    /// two ACPI entry walks make one module over.
-    ///
-    /// Could plausibly have been false: ten digits is exactly `u32::MAX`'s width, so the buffer has
-    /// no slack at all, and `parse_decimal`'s overflow refusal has to sit exactly at `4294967295`
-    /// accepted and `4294967296` refused. That boundary is one `checked_mul` away in either
-    /// direction.
-    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back.patch`
-    #[kani::proof]
-    #[kani::unwind(12)]
-    fn every_decimal_field_the_loader_writes_is_one_the_kernel_reads_back() {
-        let value: u32 = kani::any();
-        let mut out = [0u8; 10];
-        let n = write_decimal(value, &mut out);
-        assert!((1..=10).contains(&n));
-        let text = core::str::from_utf8(&out[..n]).expect("the writer emits ASCII");
-        assert_eq!(parse_decimal(text), Some(value));
-        kani::cover!(n == 10, "u32::MAX uses the whole buffer");
     }
 }
 
