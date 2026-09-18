@@ -998,3 +998,103 @@ pub const PMU_CFG_CLEAR_VALUE: usize = 1 << 1;
 /// `SBI_PMU_CFG_FLAG_AUTO_START`, bit 2: start the counter once a matching one is found, so
 /// configure and start are one `ecall` instead of two.
 pub const PMU_CFG_AUTO_START: usize = 1 << 2;
+
+/// Machine-checked proofs over the RISC-V ISA string (DECISIONS §14, milestone 319).
+///
+/// **The parsers here are slice arithmetic and `match`, so totality is not the interesting claim**;
+/// what is interesting is the one place where the grammar is genuinely ambiguous and a reader can
+/// get it wrong in a way no type catches. That is the privilege-letter reading, and the bench paid
+/// for it once already: the VisionFive 2's M/U-only S7 monitor core is marked `"okay"` with
+/// `mmu-type = "riscv,sv39"`, both false, and starting it crashed the firmware (2026-08-14,
+/// notes/visionfive2.md). Its own `riscv,isa` is the only thing that told the truth.
+///
+/// Names: provisional (milestone 319).
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// Letters of symbolic single-letter run. Small on purpose: the property is about where the
+    /// scan stops, and the scan stops at the first `_` however long the run is.
+    const RUN: usize = 4;
+
+    /// **A multi-letter extension can never be mistaken for a privilege letter.**
+    ///
+    /// The grammar's trap, proved rather than commented. `riscv,isa` puts single-letter extensions
+    /// and privilege letters in one undelimited run, then multi-letter extensions after the first
+    /// `_`; QEMU `virt` writes `_sstc`, `_svinval` and `_sdtrig` today, and the mainline JH7110
+    /// dtsi writes `_smstateen`. A decoder that scanned the whole string would read any of those
+    /// leading `s` bytes as "this hart claims supervisor mode".
+    ///
+    /// Why that is not merely untidy: the `Some(false)` answer is the *only* thing that refuses the
+    /// S7, because its `status` and `mmu-type` both lie. A scan that reaches past the first `_`
+    /// turns `Some(false)` into `Some(true)` on any string carrying an `_s` extension, and this
+    /// kernel starts a core with no supervisor mode. [`crate::cpu_list::Cpu::startable`] is the
+    /// consumer and it has no second opinion to fall back on.
+    ///
+    /// The claim is stated as an invariance rather than as a restatement of the code: **appending a
+    /// multi-letter extension to an ISA string never changes what it says about privilege modes**,
+    /// for every single-letter run, and whether or not that run mentions `s` or `u` at all.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/riscv64.verification.a_multi_letter_extension_is_never_read_as_a_privilege_letter.patch`
+    #[kani::proof]
+    #[kani::unwind(16)]
+    fn a_multi_letter_extension_is_never_read_as_a_privilege_letter() {
+        let run: [u8; RUN] = kani::any();
+        // The single-letter run is what precedes the first `_`, and it ends at the string's NUL.
+        // Assuming neither byte appears in it is what makes `run` a run rather than two of them.
+        for &c in &run {
+            kani::assume(c != b'_' && c != 0);
+        }
+
+        let mut bare = [0u8; 4 + RUN];
+        bare[..4].copy_from_slice(b"rv64");
+        bare[4..].copy_from_slice(&run);
+
+        // The same string with `_sstc` after it: a real extension from QEMU's own `virt` today,
+        // whose name begins with the letter this decode must not see.
+        let mut extended = [0u8; 4 + RUN + 5];
+        extended[..4 + RUN].copy_from_slice(&bare);
+        extended[4 + RUN..].copy_from_slice(b"_sstc");
+
+        assert_eq!(
+            supervisor_mode_claim(&bare),
+            supervisor_mode_claim(&extended),
+            "a multi-letter extension says nothing about privilege modes"
+        );
+        kani::cover!(
+            supervisor_mode_claim(&bare) == Some(false),
+            "a run that spells u and not s is the S7, and it must stay refused"
+        );
+    }
+
+    /// **A counter width that is one less than the answer is widened before the one is added.**
+    ///
+    /// This harness exists because its twin one crate-module over was *false*:
+    /// `acpi::Dmar::host_address_width` was `body[0] + 1` in a `u8` and panicked the x86 boot path
+    /// on a firmware byte of `0xff` (see that module's verification). [`CounterInfo::bits`] is the
+    /// identical specification shape, a field the standard defines as one less than the value every
+    /// caller wants, over a word that arrives from firmware through `sbiret.value`. It happens to be
+    /// written correctly, widening to `u32` before the `+ 1`, and the point of proving it is that
+    /// nothing in the code says which of the two shapes it is.
+    ///
+    /// Could plausibly have been false: `raw_width` is a `u8` and the field is six bits, so a `u8`
+    /// return type reads as the natural one and overflows at a width field of 255. It cannot reach
+    /// 255 through `from_raw`'s `& 0x3f` mask, which is the second half of the claim here and is
+    /// exactly the kind of two-places-apart reasoning a prover is better at than a reader.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/riscv64.verification.a_counter_width_is_widened_before_the_specifications_off_by_one_is_undone.patch`
+    #[kani::proof]
+    fn a_counter_width_is_widened_before_the_specifications_off_by_one_is_undone() {
+        let value: u64 = kani::any();
+        let info = CounterInfo::from_raw(value);
+        match info.bits() {
+            Some(bits) => {
+                assert!(!info.firmware);
+                // Six bits of field, so one more than the widest it can hold is 64, which is
+                // exactly the width of `mcycle` on the machines this kernel runs on.
+                assert!((1..=64).contains(&bits));
+                assert_eq!(info.csr(), Some((value & 0xfff) as u16));
+            }
+            None => assert!(info.firmware),
+        }
+        kani::cover!(info.bits() == Some(64), "a 64-bit counter decodes as 64");
+    }
+}

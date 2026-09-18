@@ -51,6 +51,11 @@
 //!   this parser cuts. See `kernel/src/arch/x86_64/iommu.rs`'s own header for what that costs.
 //! - **`Dmar::flags`' `INTR_REMAP` bit is read and never used.** Interrupt remapping is a real VT-d
 //!   feature this parser can report the presence of and this kernel does not build.
+//! - **An MCFG window whose `end_bus` precedes its `start_bus` is reported as written.** Nothing in
+//!   the encoding forbids it and [`mcfg_entry`] does not refuse it, because the bus numbers are the
+//!   firmware's claim and this module reports claims. [`McfgEntry::size`] answers zero for such a
+//!   window, which is what "no bus is in this range" means; a caller that reads `start_bus` and
+//!   `end_bus` itself, as the boot print does, sees the inverted pair.
 
 /// The eight bytes that begin an RSDP. Note the trailing space; it is part of the signature.
 pub const RSDP_SIGNATURE: &[u8; 8] = b"RSD PTR ";
@@ -475,7 +480,17 @@ pub struct McfgEntry {
 impl McfgEntry {
     /// How many bytes of configuration space this window covers. One bus is 1 MiB (32 devices x 8
     /// functions x 4 KiB), and the range is inclusive at both ends.
+    ///
+    /// **A window that ends before it begins covers nothing, and says so rather than panicking.**
+    /// Nothing in the MCFG's encoding stops firmware writing `start_bus = 255, end_bus = 0`, and
+    /// the subtraction underflowed on exactly that until milestone 319's
+    /// `verification::an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus` found it.
+    /// Zero is the honest answer: there is no bus in the range, so there is no configuration space
+    /// to map.
     pub const fn size(&self) -> u64 {
+        if self.end_bus < self.start_bus {
+            return 0;
+        }
         (self.end_bus as u64 - self.start_bus as u64 + 1) * 0x10_0000
     }
 }
@@ -511,7 +526,14 @@ pub fn mcfg_entry(body: &[u8], index: usize) -> Option<McfgEntry> {
 pub struct Dmar {
     /// The machine's physical address width in bits, decoded from the table's
     /// `HostAddressWidth - 1` field (so a table saying 38 means a 39-bit width).
-    pub host_address_width: u8,
+    ///
+    /// **A `u16` for a value no machine puts above 64**, because the byte the table holds ranges
+    /// over `0..=255` and the width it names therefore ranges over `1..=256`. Narrower than the
+    /// field plus one is not a smaller type, it is an addition that can overflow, and firmware
+    /// writing `0xff` here panicked this parser on the boot path until milestone 319's
+    /// `verification::the_dmar_fixed_part_decodes_without_arithmetic_overflow` found it. Widening
+    /// makes the wrong state unrepresentable rather than guarded.
+    pub host_address_width: u16,
     /// Bit 0 is `INTR_REMAP`: the platform also supports interrupt remapping. Reported and not
     /// acted on, the same posture the MADT's `PCAT_COMPAT` bit takes; interrupt remapping is not
     /// built here (milestone 161 roadmap item 6 names it a follow-on, not this item).
@@ -527,7 +549,7 @@ pub fn parse_dmar(body: &[u8]) -> Result<Dmar, AcpiError> {
         return Err(AcpiError::Truncated);
     }
     Ok(Dmar {
-        host_address_width: body[0] + 1,
+        host_address_width: body[0] as u16 + 1,
         flags: body[1],
     })
 }
@@ -631,6 +653,249 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
     let mut w = [0u8; 8];
     w.copy_from_slice(&bytes[at..at + 8]);
     u64::from_le_bytes(w)
+}
+
+/// Machine-checked proofs over the ACPI tables (DECISIONS §14, milestone 319).
+///
+/// These tables are the x86 boot path's untrusted input, and on 2026-09-17 they stopped being
+/// hypothetical: xenon, a Dell workstation, booted nife and this code parsed a real MADT, MCFG
+/// and DMAR written by firmware that had never heard of it (`bench/xenon-2026-09-17/`). Until then
+/// every table this parser had seen was one QEMU wrote for it.
+///
+/// **Two of the harnesses below were false when they were written**, which is the answer to why a
+/// crate with 41 hand-written tests wanted a prover: both defects are in arithmetic over a field a
+/// test would have had to think to write down, and neither is reachable from any table QEMU emits.
+/// [`the_dmar_fixed_part_decodes_without_arithmetic_overflow`] and
+/// [`an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus`] have the details.
+///
+/// **What is deliberately not here**: the whole-table walk from the RSDP down through the XSDT,
+/// which needs a symbolic pointer into memory this crate never holds, and is the same wall
+/// `crates/dtb` records for the structure-block token loop. The leaves and the two self-describing
+/// entry walks are what bounded model checking can reach, so they are what is proved.
+///
+/// Names: provisional (milestone 319). calef names things.
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// Long enough to hold a v2 RSDP, a table header, and a few entries of either walk. Every
+    /// harness here is linear in this, so it is the whole cost knob.
+    const N: usize = 36;
+
+    /// **An RSDP is accepted only when its bytes sum to zero**, for every 36-byte input rather than
+    /// for the handful of corruptions a test can write down.
+    ///
+    /// This is the crate's one genuinely security-shaped claim, and the module header says why: the
+    /// RSDP is found by **scanning memory for an eight-byte string**, so the checksum is the only
+    /// thing between a coincidence and a physical address the kernel will follow. The hand-written
+    /// tests flip one byte in the short range and one in the extended range; this quantifies over
+    /// every byte pattern, including the ones where a second error cancels the first.
+    ///
+    /// Could plausibly have been false: checking the checksum over `bytes.len()` rather than over
+    /// `RSDP_V1_LEN`, or after the revision branch instead of before it, both pass every test in
+    /// this file and both let a 20-byte structure through unchecked.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.an_rsdp_is_accepted_only_when_its_bytes_sum_to_zero.patch`
+    #[kani::proof]
+    fn an_rsdp_is_accepted_only_when_its_bytes_sum_to_zero() {
+        let bytes: [u8; N] = kani::any();
+        if let Ok(r) = parse_rsdp(&bytes) {
+            assert!(checksum_ok(&bytes[..RSDP_V1_LEN]));
+            if r.revision >= 2 {
+                // The extended checksum covers the structure's own length field, which is the part
+                // a caller cannot compute for itself.
+                let length = u32(&bytes, 20) as usize;
+                assert!((RSDP_V1_LEN..=N).contains(&length));
+                assert!(checksum_ok(&bytes[..length]));
+            }
+            // Not vacuous: an accepted RSDP exists.
+            kani::cover!(true, "some byte pattern is a valid RSDP");
+        }
+    }
+
+    /// **A header this parser accepts can always be asked how long its body is.**
+    /// `SdtHeader::body_len` is `length - SDT_HEADER_LEN` with no guard of its own, so the guard in
+    /// [`parse_sdt_header`] is the only thing standing between a table claiming `length = 10` and a
+    /// `usize` underflow on the boot path. This proves the two are exactly matched: every header the
+    /// parser returns has a body length, and it is the length less the header.
+    ///
+    /// Could plausibly have been false: `<=` in place of `<` is fine here, but `length > 0`, or
+    /// dropping the check because "firmware would not do that", is the shape of a change a reader
+    /// makes while tidying, and the crate's own tests only exercise `length = 10` and `length = 60`.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.a_table_header_this_parser_accepts_always_has_a_body_length.patch`
+    #[kani::proof]
+    fn a_table_header_this_parser_accepts_always_has_a_body_length() {
+        let bytes: [u8; N] = kani::any();
+        if let Ok(h) = parse_sdt_header(&bytes) {
+            assert_eq!(h.length as usize, SDT_HEADER_LEN + h.body_len());
+            kani::cover!(h.body_len() > 0, "a table with a body is accepted");
+        }
+    }
+
+    /// **The MADT walk terminates and never reads outside the body**, for every byte pattern.
+    ///
+    /// The entry list is self-describing: each entry carries its own length byte, which is firmware
+    /// telling the parser how far to advance. A length of zero never advances and a length past the
+    /// end reads the next entry out of the middle of this one, so this loop is a hostile input away
+    /// from hanging the boot. The unwind bound is what proves termination: a walk that could fail to
+    /// advance cannot be unrolled to a fixed depth.
+    ///
+    /// Could plausibly have been false: `len < 1` instead of `len < 2` (which accepts the
+    /// zero-advance case as soon as a `type` byte is followed by a `1`), or `>=` in place of `>` in
+    /// the bound check. Both keep every test in this file green.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.the_madt_walk_terminates_and_stays_inside_the_body.patch`
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn the_madt_walk_terminates_and_stays_inside_the_body() {
+        let body: [u8; N] = kani::any();
+        let mut it = madt_entries(&body);
+        let mut seen = 0usize;
+        let mut last = it.at;
+        while it.next().is_some() {
+            // Every step consumes at least the two bytes of its own header, which is what makes the
+            // walk finite; without it this loop would not unroll.
+            assert!(it.at >= last + 2);
+            assert!(it.at <= body.len());
+            last = it.at;
+            seen += 1;
+        }
+        assert!(seen <= N / 2);
+    }
+
+    /// **The DMAR walk terminates and never reads outside the body**, the same claim one table over.
+    ///
+    /// Not a restatement of the MADT harness above and not shareable with it: these are two separate
+    /// `Iterator` implementations over two different encodings (a one-byte length with a minimum of
+    /// two against a little-endian `u16` length with a minimum of four), written months apart. A
+    /// property that held for one and silently not the other is precisely the parity failure
+    /// AGENTS.md rule 5 names, and the only way to know is to state it twice.
+    ///
+    /// Could plausibly have been false: `len < 2` copied across from the MADT, which is the minimum
+    /// for the *other* encoding and lets a four-byte header with a claimed length of two re-read its
+    /// own first half forever.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.the_dmar_walk_terminates_and_stays_inside_the_body.patch`
+    #[kani::proof]
+    #[kani::unwind(12)]
+    fn the_dmar_walk_terminates_and_stays_inside_the_body() {
+        let body: [u8; N] = kani::any();
+        let mut it = dmar_structures(&body);
+        let mut seen = 0usize;
+        let mut last = it.at;
+        while it.next().is_some() {
+            assert!(it.at >= last + 4);
+            assert!(it.at <= body.len());
+            last = it.at;
+            seen += 1;
+        }
+        assert!(seen <= N / 4);
+    }
+
+    /// **No interrupt source override can write outside the sixteen legacy IRQs.**
+    ///
+    /// [`isa_irq_table`] indexes a fixed sixteen-entry array with `source`, a byte straight out of
+    /// the table, and the only thing between firmware writing `source = 200` and an out-of-bounds
+    /// store is one `<` in a chained `if let`. This proves it holds for every body.
+    ///
+    /// Could plausibly have been false: the guard sits in the middle of a four-clause `let`-chain
+    /// added in one commit, and a reader rewriting that chain as a `match` on the entry has to carry
+    /// it across by hand. The existing test covers `source = 200` and nothing else.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.no_override_writes_outside_the_sixteen_legacy_irqs.patch`
+    #[kani::proof]
+    #[kani::unwind(20)]
+    fn no_override_writes_outside_the_sixteen_legacy_irqs() {
+        let body: [u8; N] = kani::any();
+        let table = isa_irq_table(&body);
+        // An IRQ nothing overrode keeps the ISA bus's own convention, so the table is never left
+        // holding an uninitialised-looking entry.
+        kani::cover!(
+            table[0] != IsaIrqRouting::isa_default(0),
+            "some body overrides IRQ 0, which is the case every PC exercises"
+        );
+    }
+
+    /// **The DMAR's fixed part decodes without arithmetic overflow.**
+    ///
+    /// **This harness was false when it was written, and the defect was on the boot path.**
+    /// `host_address_width` was `body[0] + 1` into a `u8`, so a DMAR whose `HostAddressWidth` byte
+    /// is `0xff` panicked `read_dmar` in `kernel/src/arch/x86_64/machine.rs`, which calls
+    /// [`parse_dmar`] directly on firmware bytes. It is the same defect `dtb::be32`'s unchecked
+    /// `at + 4` was, one table over: a field widened by one with no room for the widening. Fixed by
+    /// making [`Dmar::host_address_width`] a `u16`, so the addition cannot overflow at all rather
+    /// than being guarded against.
+    ///
+    /// Could plausibly have been false, and was: every DMAR this parser had ever seen came from
+    /// QEMU's `build_dmar_q35`, which writes 38. Nothing in the encoding stops a vendor writing
+    /// anything else, and xenon is the reminder that vendors do.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.the_dmar_fixed_part_decodes_without_arithmetic_overflow.patch`
+    #[kani::proof]
+    fn the_dmar_fixed_part_decodes_without_arithmetic_overflow() {
+        let body: [u8; N] = kani::any();
+        if let Ok(d) = parse_dmar(&body) {
+            assert_eq!(d.host_address_width, body[0] as u16 + 1);
+        }
+    }
+
+    /// **An ECAM window's size is total, and counts exactly one mebibyte per bus it covers.**
+    ///
+    /// **This harness was also false when it was written.** [`McfgEntry::size`] computed
+    /// `end_bus - start_bus + 1` in `u64`, which underflows for any window whose end precedes its
+    /// start. Nothing in the MCFG's encoding forbids that pair, and `mcfg_entry` reads both bytes
+    /// straight out of the table without comparing them, so a malformed or merely creative MCFG
+    /// panicked whoever asked how big the window was. Fixed by answering zero, which is what "no bus
+    /// is in this range" means; the limitation is recorded in this module's BUGS.
+    ///
+    /// The second clause is what stops this being a totality tautology: it pins the arithmetic to
+    /// 32 devices x 8 functions x 4 KiB per bus, inclusive at both ends, which an off-by-one in
+    /// either direction breaks.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus.patch`
+    #[kani::proof]
+    fn an_ecam_windows_size_is_total_and_counts_one_mebibyte_per_bus() {
+        let start_bus: u8 = kani::any();
+        let end_bus: u8 = kani::any();
+        let e = McfgEntry {
+            base: 0,
+            segment: 0,
+            start_bus,
+            end_bus,
+        };
+        let size = e.size();
+        if start_bus <= end_bus {
+            let buses = end_bus as u64 - start_bus as u64 + 1;
+            assert_eq!(size, buses * 0x10_0000);
+        } else {
+            assert_eq!(size, 0);
+        }
+    }
+
+    /// **The root table's entry count and its entry reader agree, exactly.**
+    ///
+    /// These are two functions doing the same arithmetic in two directions:
+    /// [`root_entry_count`] divides the body length by the pointer width to say how many entries
+    /// there are, and [`root_entry`] multiplies an index by that width to reach one. The kernel
+    /// trusts the first to bound a loop over the second, so a disagreement at the last entry is
+    /// either a table silently half-walked or a `None` the caller reads as the end of the list.
+    /// This proves the boundary is in the same place in both, for every length and index, at both
+    /// pointer widths.
+    ///
+    /// Could plausibly have been false: `root_entry_count`'s `saturating_sub` and `root_entry`'s
+    /// `checked_add` were written for different reasons at different times, and the `+ 1` that
+    /// makes an inclusive count out of an exclusive bound has to be absent from exactly one of them.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/acpi.verification.the_root_tables_entry_count_and_its_entry_reader_agree.patch`
+    #[kani::proof]
+    fn the_root_tables_entry_count_and_its_entry_reader_agree() {
+        let body: [u8; N] = kani::any();
+        let body_len: usize = kani::any();
+        kani::assume(body_len <= N);
+        let body = &body[..body_len];
+        let entries_are_64_bit: bool = kani::any();
+        let index: usize = kani::any();
+
+        let count = root_entry_count((body_len + SDT_HEADER_LEN) as u32, entries_are_64_bit);
+        assert_eq!(
+            root_entry(body, index, entries_are_64_bit).is_some(),
+            index < count,
+            "the count bounds the reader with nothing left over and nothing missing"
+        );
+    }
 }
 
 #[cfg(test)]

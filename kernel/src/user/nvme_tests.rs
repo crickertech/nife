@@ -31,19 +31,38 @@ fn start() -> Option<nvme_service::Wiring> {
             report[0],
             report[2],
         );
+        // **The geometry survived the handoff into ring 3.** Compared against what the kernel's
+        // admin plane read from IDENTIFY, not against a constant: on the runner's image that is
+        // 8 MiB and on xenon's Micron it is 256 GB, and this assertion is about the *handoff*
+        // rather than about either number (milestone 318).
         assert_eq!(
-            report[1],
-            8 * 1024 * 1024,
-            "the namespace size did not survive the spawn handoff into ring 3",
+            report[1], w.size_bytes,
+            "the namespace size did not survive the spawn handoff into ring 3 (the kernel read \
+             {} bytes from IDENTIFY)",
+            w.size_bytes,
         );
     }
+    // A namespace of no blocks would make every assertion below vacuously true, and
+    // `kernel/src/nvme.rs::bring_up` already refuses one; say so here rather than let a silent
+    // zero pass for a pass.
+    assert!(
+        w.size_bytes >= 2 * crate::nvme::BLOCK_SIZE as u64,
+        "the namespace is {} bytes, too small for this test's two blocks",
+        w.size_bytes,
+    );
     Some(w)
 }
 
 /// **The headline.** An unprivileged process drives a real NVMe controller: it answers the disk's
-/// size, persists a block, brings it back byte for byte, and leaves the blocks it was not asked
-/// about alone. Every one of those answers crossed a rendezvous from a client that holds no
+/// size, persists two blocks, brings each back byte for byte, and does not let either write reach
+/// the other's block. Every one of those answers crossed a rendezvous from a client that holds no
 /// device, no doorbell and no DMA page.
+///
+/// **Every assertion here is written against the geometry this boot was handed**, never against a
+/// constant, so the same test proves the same things on QEMU's 8 MiB image and on the 256 GB
+/// namespace in xenon (milestone 318). Nothing here assumes what the disk held beforehand either:
+/// a disk that has ever been used is not a disk of zeros, and a test that only passes on a freshly
+/// wiped one is a test nobody can re-run.
 ///
 /// One test on purpose, for the reason its kernel-resident ancestor gave: bring-up is not
 /// idempotent state to share between cases (a second wiring would reset the controller and
@@ -65,58 +84,69 @@ fn a_confined_el0_process_serves_the_block_interface_end_to_end() {
         "the NVMe server was wired without an IOMMU; the confinement claim is untested"
     );
 
-    // SIZE: the runner's image is 8 MiB (xtask's mknvmedisk), and the server was told the
-    // geometry rather than allowed to ask, since asking means IDENTIFY and IDENTIFY is admin.
+    // SIZE: the server was told the geometry rather than allowed to ask, since asking means
+    // IDENTIFY and IDENTIFY is admin. What it answers must be what the kernel read from IDENTIFY,
+    // whatever disk this leg attached: 8 MiB for xtask's `mknvmedisk`, 256 GB on xenon.
     assert_eq!(
-        disk.blk(filesystem_protocol::blk::SIZE, 0),
-        8 * 1024 * 1024,
+        disk.blk(filesystem_protocol::blk::SIZE, 0) as u64,
+        disk.size_bytes,
         "the server answered the wrong size"
     );
 
-    // WRITE a block whose bytes are a function of their offset, far enough in that a server
-    // confusing block and LBA units (the classic factor-of-8) would land visibly elsewhere.
+    // **Two blocks, two patterns, and each one reads back its own.** The property is that a write
+    // lands where it said and not everywhere; establishing it by reading a neighbour and expecting
+    // zeros would be a claim about the *disk's prior contents*, true only of a freshly-made image,
+    // so the second pattern establishes it instead and assumes nothing (milestone 318). Block 37
+    // is far enough in that a server confusing block and LBA units (the classic factor-of-8) would
+    // land visibly elsewhere, and 38 is its neighbour so a smear of one block's write onto the
+    // next is the nearest thing this can catch.
     const BLOCK: u64 = 37;
-    // SAFETY: the blk contract's turn-taking. A request is a CALL, so this thread holds the
-    // buffer exactly while the server is not running, and vice versa.
-    for (i, b) in unsafe { disk.transfer_block() }.iter_mut().enumerate() {
-        *b = (i as u64 % 251) as u8; // 251 is prime to 4096, so no page-periodic alias
-    }
-    assert_eq!(
-        disk.blk(filesystem_protocol::blk::WRITE, BLOCK),
-        0,
-        "the server refused the write"
-    );
+    // Both functions of the byte's offset, so a server that returns a constant, a shifted copy, or
+    // the other block fails. 251 and 241 are prime to 4096, so neither aliases a page period.
+    let first: fn(usize) -> u8 = |i| (i as u64 % 251) as u8;
+    let second: fn(usize) -> u8 = |i| ((i as u64 % 241) as u8) ^ 0x5a;
 
-    // Clobber the buffer, READ the block back, and every byte must be the function again.
-    // SAFETY: as above.
-    unsafe { disk.transfer_block() }.fill(0xaa);
-    assert_eq!(
-        disk.blk(filesystem_protocol::blk::READ, BLOCK),
-        0,
-        "the server refused the read"
-    );
-    // SAFETY: as above.
-    for (i, b) in unsafe { disk.transfer_block() }.iter().enumerate() {
+    for (block, pattern) in [(BLOCK, first), (BLOCK + 1, second)] {
+        // SAFETY: the blk contract's turn-taking. A request is a CALL, so this thread holds the
+        // buffer exactly while the server is not running, and vice versa.
+        for (i, b) in unsafe { disk.transfer_block() }.iter_mut().enumerate() {
+            *b = pattern(i);
+        }
         assert_eq!(
-            *b,
-            (i as u64 % 251) as u8,
-            "byte {i} of the block came back wrong"
+            disk.blk(filesystem_protocol::blk::WRITE, block),
+            0,
+            "the server refused the write to block {block}"
         );
     }
 
-    // A block this test never wrote is still the image's zeros: the write landed where it said,
-    // not everywhere.
-    assert_eq!(disk.blk(filesystem_protocol::blk::READ, BLOCK + 1), 0);
-    // SAFETY: as above.
-    assert!(unsafe { disk.transfer_block() }.iter().all(|b| *b == 0));
+    // Both writes are done before either read, which is what makes the first read load-bearing: if
+    // block 38's write had gone everywhere, block 37 would come back holding `second`.
+    for (block, pattern) in [(BLOCK, first), (BLOCK + 1, second)] {
+        // Clobber the buffer first, so a read that never reached the device fails rather than
+        // passing on what this thread just staged. SAFETY: as above.
+        unsafe { disk.transfer_block() }.fill(0xaa);
+        assert_eq!(
+            disk.blk(filesystem_protocol::blk::READ, block),
+            0,
+            "the server refused the read of block {block}"
+        );
+        // SAFETY: as above.
+        for (i, b) in unsafe { disk.transfer_block() }.iter().enumerate() {
+            assert_eq!(*b, pattern(i), "byte {i} of block {block} came back wrong");
+        }
+    }
 
     // **A block outside the namespace is refused rather than asked for.** `nvme::Handoff`'s range
     // check is what does it (`crates/nvme`, Kani-proved), and the point is that the refusal
     // happens in the driver's own arithmetic rather than arriving as a controller status nobody
-    // can attribute. 8 MiB is 2048 filesystem blocks, so 2048 is one past the end.
+    // can attribute. The first block past the end is `size / BLOCK_SIZE` for any size: when the
+    // namespace divides evenly that block starts at the end, and when it does not that block's
+    // transfer runs off it, and `holds_block` refuses both.
+    let past_end = disk.size_bytes / crate::nvme::BLOCK_SIZE as u64;
     assert!(
-        disk.blk(filesystem_protocol::blk::READ, 8 * 1024 * 1024 / 4096) < 0,
-        "the server read a block the namespace does not have"
+        disk.blk(filesystem_protocol::blk::READ, past_end) < 0,
+        "the server read block {past_end}, which a namespace of {} bytes does not have",
+        disk.size_bytes,
     );
 
     // **FLUSH answers a count, and the count moves.** The contract's own falsifiability argument:

@@ -1,0 +1,30 @@
+Falsifies `machine_discovery::acpi::verification::the_root_tables_entry_count_and_its_entry_reader_agree`.
+
+The defect: `root_entry`'s bound check compares the body length against the entry's
+*start* offset rather than against its end, so the reader accepts one entry more
+than there is room for and reads four or eight bytes past the body. The kernel
+bounds its walk with `root_entry_count` and dereferences whatever `root_entry`
+returns, so the extra entry is a physical address assembled out of whatever follows
+the RSDT in memory, handed to `parse_sdt_header`.
+
+These are two functions doing the same arithmetic in opposite directions, forty
+lines apart, written for different reasons. The file's test walks an eight-byte
+body at 32-bit width and asserts index 2 is `None`, which this defect still
+answers correctly, because two whole entries is exactly the case where the two
+bounds coincide.
+
+Expected to fail: the `assert_eq!` that the reader returning `Some` and the index
+being below the count are the same condition.
+
+diff --git a/crates/machine_discovery/src/acpi.rs b/crates/machine_discovery/src/acpi.rs
+--- a/crates/machine_discovery/src/acpi.rs
++++ b/crates/machine_discovery/src/acpi.rs
+@@ -226,7 +226,7 @@ pub const fn root_entry_count(length: u32, entries_are_64_bit: bool) -> usize {
+ pub fn root_entry(body: &[u8], index: usize, entries_are_64_bit: bool) -> Option<u64> {
+     let width = if entries_are_64_bit { 8 } else { 4 };
+     let at = index.checked_mul(width)?;
+-    if body.len() < at.checked_add(width)? {
++    if body.len() < at {
+         return None;
+     }
+     Some(if entries_are_64_bit {

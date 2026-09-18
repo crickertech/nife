@@ -1,0 +1,29 @@
+Falsifies `machine_discovery::x86_64::verification::a_range_read_out_of_the_memory_map_never_wraps_to_look_empty`.
+
+The defect: `MemoryEntry::end` wraps instead of saturating.
+
+Both `addr` and `size` are `u64`s straight out of the PVH memory map, and nothing
+in the protocol bounds their sum. A firmware entry whose size is near `u64::MAX`
+wraps to an end *below* its own start, which a frame allocator reads as a range of
+zero or negative length: it hands out nothing where the map described everything,
+and reports no error, because a small range is not a suspicious one.
+
+The doc beside these two lines is the only thing saying why they saturate, and
+`Module::end` next to it is a second copy of the same two lines with the same
+one-sentence justification. That is rung three, and this harness is what turns it
+into rung two.
+
+Expected to fail: `assert!(e.end() >= e.addr)`.
+
+diff --git a/crates/machine_discovery/src/x86_64.rs b/crates/machine_discovery/src/x86_64.rs
+--- a/crates/machine_discovery/src/x86_64.rs
++++ b/crates/machine_discovery/src/x86_64.rs
+@@ -217,7 +217,7 @@ impl MemoryEntry {
+     /// One past the last byte, saturating rather than wrapping so a malformed entry claiming a size
+     /// near `u64::MAX` cannot make a range look empty.
+     pub const fn end(&self) -> u64 {
+-        self.addr.saturating_add(self.size)
++        self.addr.wrapping_add(self.size)
+     }
+ }
+ 

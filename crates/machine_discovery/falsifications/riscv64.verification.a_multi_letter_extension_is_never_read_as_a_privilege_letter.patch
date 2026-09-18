@@ -1,0 +1,37 @@
+Falsifies `machine_discovery::riscv64::verification::a_multi_letter_extension_is_never_read_as_a_privilege_letter`.
+
+The defect: the privilege-letter scan runs over the whole ISA string instead of
+stopping at the first `_`.
+
+`riscv,isa` puts single-letter extensions and privilege letters in one undelimited
+run, then multi-letter extensions after the first `_`. QEMU `virt` writes `_sstc`,
+`_svinval` and `_sdtrig` today; the mainline JH7110 dtsi writes `_smstateen`. A
+scan that reaches past the delimiter reads any of those leading `s` bytes as the
+hart claiming supervisor mode.
+
+What that costs is on record at the bench. The VisionFive 2's vendor firmware marks
+its M/U-only S7 monitor core `"okay"` with `mmu-type = "riscv,sv39"`, both false,
+and starting it crashed the firmware (2026-08-14, notes/visionfive2.md). The hart's
+own `riscv,isa` is the only thing that tells the truth, and `Some(false)` from this
+function is the only thing `Cpu::startable` has to refuse it with. Turn a
+`Some(false)` into a `Some(true)` and this kernel starts a core with no supervisor
+mode, on the machine where that already happened once.
+
+Expected to fail: the `assert_eq!` that appending `_sstc` changes nothing, on a run
+spelling `u` and no `s`.
+
+diff --git a/crates/machine_discovery/src/riscv64.rs b/crates/machine_discovery/src/riscv64.rs
+--- a/crates/machine_discovery/src/riscv64.rs
++++ b/crates/machine_discovery/src/riscv64.rs
+@@ -888,10 +888,7 @@ fn strip_base_prefix(value: &[u8]) -> &[u8] {
+ /// Only the run before the first `_` is scanned, so `_s`-prefixed multi-letter extensions
+ /// (`_sstc`, `_svadu`, `_sdtrig`, all in QEMU's string today) can never read as a bare `s`.
+ pub fn supervisor_mode_claim(value: &[u8]) -> Option<bool> {
+-    let single_letters = strip_base_prefix(value)
+-        .split(|&b| b == b'_')
+-        .next()
+-        .unwrap_or(b"");
++    let single_letters = strip_base_prefix(value);
+     let mut saw_s = false;
+     let mut saw_u = false;
+     for &c in single_letters {

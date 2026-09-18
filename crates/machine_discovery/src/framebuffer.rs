@@ -160,9 +160,18 @@ impl Framebuffer {
     ///
     /// Returns `None` when the arithmetic overflows or the geometry is degenerate, which is the
     /// only validation a description read out of a boot handoff can be given.
+    ///
+    /// **The row width is compared in `u64`, and comparing it in `u32` was a defect.** It used to
+    /// read `self.stride < self.width.saturating_mul(4)`, which is worse than it looks: for any
+    /// width above `2^30 - 1` the product saturates to `u32::MAX`, so a stride of `u32::MAX`
+    /// satisfies the guard while one row of pixels genuinely needs more bytes than the stride has.
+    /// The span then returned is shorter than a single row and the console paints off the end of it.
+    /// Saturating made the overflow safe and the *comparison* meaningless; widening makes both true
+    /// at once. Found by milestone 319's
+    /// `verification::an_accepted_span_covers_every_pixel_the_geometry_describes`.
     #[must_use]
     pub const fn span(&self) -> Option<usize> {
-        if self.width == 0 || self.height == 0 || self.stride < self.width.saturating_mul(4) {
+        if self.width == 0 || self.height == 0 || (self.stride as u64) < self.width as u64 * 4 {
             return None;
         }
         match (self.stride as u64).checked_mul(self.height as u64) {
@@ -312,6 +321,131 @@ fn parse_decimal(text: &str) -> Option<u32> {
     Some(value)
 }
 
+/// Machine-checked proofs over the screen token (DECISIONS §14, milestone 319).
+///
+/// **This is a wire format, which is what makes it worth a prover rather than a test.** The loader
+/// writes the token and the kernel reads it, so the two halves are the kind of agreement AGENTS.md
+/// calls expensive to unship: they are separate binaries, and a description one can write that the
+/// other cannot read is a black screen with nothing to say why.
+///
+/// Names: provisional (milestone 319).
+#[cfg(kani)]
+mod verification {
+    use super::*;
+
+    /// **An encoded token never exceeds the maximum it advertises.**
+    ///
+    /// [`Framebuffer::MAX_LEN`]'s own doc records how close this came: the token was `fb=` when 64
+    /// was chosen, calef ratified the four-characters-longer `screen=` on 2026-09-04, and the worst
+    /// case went to **63 of 64** without anything noticing. The constant is "rounded up rather than
+    /// derived", so nothing in the type system ties it to what [`Framebuffer::encode`] writes, and
+    /// the `put` closure inside `encode` slices `out` without a bound of its own: an overrun is a
+    /// panic in a `no_std` UEFI application, which is the worst place in this system to find one.
+    ///
+    /// Could plausibly have been false: it is one addition away at every field. A sixth field, a
+    /// longer order token, or hex that is not shortest-form all break it, and no test can enumerate
+    /// the `u64` that makes `write_hex` emit its sixteenth digit alongside three ten-digit decimals.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.an_encoded_token_never_exceeds_the_maximum_it_advertises.patch`
+    #[kani::proof]
+    #[kani::unwind(18)]
+    fn an_encoded_token_never_exceeds_the_maximum_it_advertises() {
+        let screen = Framebuffer {
+            base: kani::any(),
+            width: kani::any(),
+            height: kani::any(),
+            stride: kani::any(),
+            order: if kani::any() {
+                PixelOrder::Bgrx
+            } else {
+                PixelOrder::Rgbx
+            },
+        };
+        let mut out = [0u8; Framebuffer::MAX_LEN];
+        let n = screen.encode(&mut out);
+        assert!(n <= Framebuffer::MAX_LEN);
+        kani::cover!(n >= 60, "the worst case really does get close to the bound");
+    }
+
+    /// **A span is refused exactly when the geometry cannot be trusted, and never overflows.**
+    ///
+    /// [`Framebuffer::span`] is the only validation a description read out of a boot handoff gets,
+    /// and the console paints inside whatever it returns. So the claim that matters is not that the
+    /// arithmetic is right but that a `Some` is *sound*: `stride * height` bytes really is at least
+    /// as much as the pixels the geometry describes, for every `u32` triple, including the ones
+    /// where `width * 4` overflows a `u32` on its own.
+    ///
+    /// **This harness was false when it was written**, and the defect it found is subtler than the
+    /// one it was aimed at. The guard read `self.stride < self.width.saturating_mul(4)`, and
+    /// saturating is not the same as correct: for any width above `2^30 - 1` the product saturates
+    /// to `u32::MAX`, so a stride of `u32::MAX` passes a guard that one row of pixels genuinely
+    /// fails, and `span` hands the console fewer bytes than a single row needs. The `saturating_mul`
+    /// was put there to make the overflow safe and made the comparison meaningless instead. Fixed by
+    /// comparing in `u64`, where both are true at once.
+    ///
+    /// **And it was false once before that for a reason of its own**, which is worth recording
+    /// separately: the first spelling asserted `span >= width * 4 * height` in `u64` over a product
+    /// that reaches `2^64`, so it failed against code that was right. A red harness is not by itself
+    /// evidence of a defect, and telling this apart from the real one took reading the
+    /// counterexample rather than trusting the colour.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.an_accepted_span_covers_every_pixel_the_geometry_describes.patch`
+    #[kani::proof]
+    fn an_accepted_span_covers_every_pixel_the_geometry_describes() {
+        let screen = Framebuffer {
+            base: 0,
+            width: kani::any(),
+            height: kani::any(),
+            stride: kani::any(),
+            order: PixelOrder::Bgrx,
+        };
+        if let Some(span) = screen.span() {
+            assert!(screen.width > 0 && screen.height > 0);
+            // **One half of the obvious claim, and the omission is a cost decision made out loud.**
+            // The natural spelling is `span >= width * 4 * height`, which reaches 2^64 at the type
+            // extremes and so has to be done in `u128`: that version proves the same thing and took
+            // **20 minutes** on the dev Mac before it was killed. Restating it as a conjunction did
+            // not help, because the second half (`span == stride * height`) asks the solver to equate
+            // two 64-by-64-bit multiplies, which is the case bit-blasting is worst at: **9 minutes**,
+            // also killed.
+            //
+            // What is left is the half that carries the defect. `span == stride * height` is
+            // `span`'s own definition and proving it restates the function; **`stride >= width * 4`
+            // is the guard**, it is where the `saturating_mul` made the comparison vacuous, and with
+            // it established the rest follows by arithmetic a reader can do. Two seconds.
+            assert!(screen.stride as u64 >= screen.width as u64 * 4);
+            kani::cover!(span > 0, "a real geometry is accepted");
+        }
+    }
+
+    /// **Every hex field the loader can write, the kernel reads back unchanged.**
+    ///
+    /// `write_hex` and `parse_hex` are forty lines apart and neither uses `core::fmt` (the encoder
+    /// doc says why: the only writer is a `no_std` UEFI application with no allocator). The writer
+    /// emits shortest-form digits behind a `0x` prefix; the reader refuses anything longer than
+    /// sixteen digits and anything without the prefix. Nothing but this says the two bounds are the
+    /// same bound.
+    ///
+    /// Could plausibly have been false, and the failure is silent in the direction that matters: a
+    /// reader one digit short of the writer rejects the token, and [`Framebuffer::parse`] is
+    /// documented to read a malformed token **as no screen at all**, so the kernel comes up with a
+    /// black screen and nothing to say why. A base above 2^60 is not hypothetical on a machine whose
+    /// firmware relocated its own windows, which is what xenon does.
+    /// Falsification: replayable `crates/machine_discovery/falsifications/framebuffer.verification.every_hex_field_the_loader_writes_is_one_the_kernel_reads_back.patch`
+    #[kani::proof]
+    #[kani::unwind(18)]
+    fn every_hex_field_the_loader_writes_is_one_the_kernel_reads_back() {
+        let value: u64 = kani::any();
+        let mut out = [0u8; 18];
+        let n = write_hex(value, &mut out);
+        assert!(n <= 18);
+        let text = core::str::from_utf8(&out[..n]).expect("the writer emits ASCII");
+        assert_eq!(parse_hex(text), Some(value));
+        kani::cover!(
+            n == 18,
+            "the widest base really does use all sixteen digits"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{Framebuffer, PixelOrder};
@@ -412,6 +546,14 @@ mod tests {
 
     /// The span is what bounds every write a console makes, so a geometry whose arithmetic
     /// overflows has to be refused rather than truncated.
+    ///
+    /// **This test used to assert the opposite, and it was wrong** (milestone 319). It expected
+    /// `Some(u32::MAX * u32::MAX)` for a screen `u32::MAX` pixels wide with a stride of `u32::MAX`,
+    /// and called it "the honest answer" on a 64-bit host. It is not: four bytes per pixel means
+    /// that row needs four times the stride it has. The old `span` agreed with the test because both
+    /// were reading `width.saturating_mul(4)`, which saturates to `u32::MAX` and makes the
+    /// comparison vacuously true above `2^30 - 1`. A hand-written test that encodes the defect it
+    /// was meant to catch is the thing risk 2 warns about, and it is why this crate wanted a prover.
     #[test]
     fn a_span_that_cannot_be_computed_is_refused() {
         let absurd = Framebuffer {
@@ -421,7 +563,20 @@ mod tests {
             stride: u32::MAX,
             order: PixelOrder::Bgrx,
         };
-        // 4 GiB of rows at 4 GiB each: fine on a 64-bit host, and this is the honest answer there.
-        assert_eq!(absurd.span(), Some(u32::MAX as usize * u32::MAX as usize));
+        assert_eq!(
+            absurd.span(),
+            None,
+            "one row of u32::MAX pixels needs four times this stride"
+        );
+
+        // A stride that does cover the row is computed, and on a 64-bit host it fits.
+        let wide = Framebuffer {
+            // The widest row a u32 stride can cover: four bytes each, so (2^32 - 4) bytes.
+            width: (1 << 30) - 1,
+            stride: u32::MAX,
+            height: 4,
+            ..absurd
+        };
+        assert_eq!(wide.span(), Some(u32::MAX as usize * 4));
     }
 }

@@ -114,9 +114,15 @@ buffer).
 - **The initrd, a budget, a filesystem, a network, a clock.**
 
 **The test** is `kernel/src/user/nvme_tests.rs`, one case, green on aarch64, riscv64 and x86_64: a
-client holding one endpoint gets the disk's size, persists a block, reads it back byte for byte,
-finds an untouched block still zero, is refused a block outside the namespace, gets a flush count
-that moves, and is refused an opcode the server has no verb for. It asserts the IOMMU was active,
+client holding one endpoint gets the disk's size, persists two neighbouring blocks under different
+patterns, reads each one back byte for byte, is refused a block outside the namespace, gets a flush
+count that moves, and is refused an opcode the server has no verb for. **The second pattern is what
+proves a write landed where it said and not everywhere**: an earlier draft read the neighbour and
+expected zeros, which is a claim about the disk's prior contents and true only of a freshly made
+image, so milestone 318 replaced it with a claim the test itself establishes. Every assertion is
+written against the geometry the boot was handed rather than against a constant, so the same case
+proves the same things on QEMU's 8 MiB image and on xenon's 256 GB namespace. It asserts the IOMMU
+was active,
 which matters more here than it did for the kernel-resident driver: with the driver at EL0 the IOMMU
 is the *whole* of what stops a compromised server reaching memory it was not given.
 
