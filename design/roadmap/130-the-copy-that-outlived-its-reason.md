@@ -222,11 +222,10 @@ separate work.
   edit is mechanical; what it needs is a scheduled slot, because that file is one of the three merge
   hotspots every lane wires its test into and a wholesale restructure conflicts with every branch in
   flight.
-- **Proposed.** `design/roadmap/proposals/one-branch-prefix-or-five.md`, decide whether to retire the
-  branch-prefix taxonomy down to `milestone/N-`, the one prefix §90's roadmap-block check actually
-  reads. A grep found nothing else consumes it, so the rest is a gate enforcing a convention with no
-  consumer. `design/decisions/77-branch-prefixes.md` answers which prefixes belong on the list and
-  assumes it stays, so retiring it is calef's call.
+- **Milestone 344.** Whether to retire the branch-prefix taxonomy down to `milestone/N-`, the one
+  prefix §90's roadmap-block check actually reads. Already answered when this bullet was written:
+  calef retired it on 2026-08-18 on exactly that argument, so 344 is `BUILT` and what survives is
+  that `design/decisions/77-branch-prefixes.md` still describes the enforced allowlist as current.
 
 ## Index row
 
