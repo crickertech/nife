@@ -407,6 +407,32 @@ mod tests {
         );
     }
 
+    /// **Every prefix shorter than the structure is refused, and the shortest one that is long
+    /// enough is accepted**, for both of the two sizes a handoff can have.
+    ///
+    /// The acceptance half is the one an "it returns an error" test leaves out, and it is what
+    /// separates `len < V0_LEN` from `len <= V0_LEN`: a guard one byte too tight refuses a
+    /// version-0 handoff that is exactly complete, which no malformed input can show.
+    fn every_short_prefix_is_refused(bytes: &[u8], fixed_len: usize) {
+        for len in 0..fixed_len {
+            assert_eq!(
+                BootInfo::parse(&bytes[..len]),
+                Err(BootInfoError::Truncated),
+                "{len} bytes is short of the {fixed_len} this structure needs",
+            );
+        }
+        BootInfo::parse(&bytes[..fixed_len])
+            .expect("a structure that is exactly complete must not be refused");
+    }
+
+    #[test]
+    fn no_prefix_of_a_handoff_reads_past_its_own_end() {
+        let mut v0 = qemu_q35();
+        v0[4..8].copy_from_slice(&0u32.to_le_bytes());
+        every_short_prefix_is_refused(&v0[..V0_LEN], V0_LEN);
+        every_short_prefix_is_refused(&qemu_q35(), V1_LEN);
+    }
+
     /// Bytes that end inside the structure are refused rather than read past.
     #[test]
     fn a_truncated_structure_is_refused() {
