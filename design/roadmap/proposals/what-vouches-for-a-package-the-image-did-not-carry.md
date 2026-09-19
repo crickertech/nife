@@ -9,7 +9,8 @@ integrator to mint.
 trusted by every system that carries it), so it is in AGENTS.md's irreversible category and this
 gives **options, no winner**. Blocked until answered: running any program that was not packed into
 the image the kernel was built against. Not blocked: the first slice, which rebuilds the image and so
-changes no trust rule.
+changes no trust rule. *(Superseded 2026-09-19: §157 retired that slice, and its rung 3 needs T2 or T3, since under T1
+installing means a host rebuild a stranger cannot do.)*
 
 ## What is being decided
 
@@ -103,4 +104,4 @@ premise §135 rests on, checked.
 ## If calef says no to T2 and T3
 
 Packages remain build inputs to images, which is the first slice. Runtime install, and therefore
-§135's channel for `git` and `nano` reaching a machine by the user's own act, waits.
+§135's channel for `git` and `nano` reaching a machine by the user's own act, waits. *(2026-09-19: that first slice is superseded by DECISIONS §157; see milestone 198's "Rescoped 2026-09-19". Under §157 a "no" here also stops rung 3.)*
