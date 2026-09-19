@@ -5,7 +5,13 @@
 which had been `ROLE_FILE` inside a three-role binary and so had never needed a name of its own.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** `caretaker` is a word five programs already carry and every future narrowing
+**Gate: DECISION.** The decision is
+[§207](../decisions/207-what-a-caretaker-is-when-it-translates.md) *(number provisional)*, written
+up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
+records why the three sections a reader might stop at do not answer this one: §92 decides a
+caretaker's *lifetime*, §56 assumes definition A rather than choosing it, and §106 takes the
+`terminal_sink_caretaker` narrowing as a behaviour rather than as a name.
+`caretaker` is a word five programs already carry and every future narrowing
 program will reach for, so this is a name and names are calef's. It is cheap to settle and expensive
 to leave, because the next lane writing an adapter will copy whichever neighbour it happened to read.
 

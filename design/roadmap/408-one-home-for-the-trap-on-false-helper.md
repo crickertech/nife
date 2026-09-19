@@ -4,9 +4,18 @@
 2026-09-14 by milestone 291's lane, which added seven of the nine copies and said so rather than
 leaving the count to be re-derived. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** The obvious home is `crates/user_rt`, and a public function name there is
-calef's (AGENTS.md, "calef names the crates, the programs, and the shared modules", extended to
-public function and method names on 2026-08-23).
+**Gate: DECISION.** The decision is
+[§206](../decisions/206-one-home-for-the-trap-on-false-helper.md) *(number provisional)*, written up
+2026-09-19 by milestone 435's slice-c lane because this gate named no section. The obvious home is
+`crates/user_rt`, and a public function name there is calef's (AGENTS.md, "calef names the crates,
+the programs, and the shared modules", extended to public function and method names on 2026-08-23).
+
+**Only the name is open, and that is a narrowing this block did not have.**
+[§94](../decisions/94-what-may-live-in-a-library.md) already decided the lift: it asks what
+the language forces to be per-binary and lifts everything else, and its own tell is this case
+exactly, *"a per-binary item whose body is copied verbatim into every binary. If the body is
+identical everywhere, it is not per-binary; only its declaration is."* It was written about 58
+copied panic handlers; nine copied `check`s is the same shape at a seventh the scale.
 
 **Premise re-checked 2026-09-19, still true, with two corrections.**
 `grep -rn 'fn check(ok: bool)'` finds nine copies, the same count, and not the same nine:

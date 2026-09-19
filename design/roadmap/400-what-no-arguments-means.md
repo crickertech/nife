@@ -10,7 +10,10 @@ the proposal priced option A against fifteen. That makes A's cost one word per r
 rather than fifteen, and changes nothing else. *(Number provisional until the merge queue lands
 it.)*
 
-**Gate: DECISION.** Milestone 286 collapsed two enumerations of "the checks that gate a pull
+**Gate: DECISION.** The decision is
+[§201](../decisions/201-what-no-arguments-means.md) *(number provisional)*, written up 2026-09-19 by
+milestone 435's slice-c lane because this gate named no section.
+Milestone 286 collapsed two enumerations of "the checks that gate a pull
 request" into one table inside `script/ci-build`. The table needs a way to say which checks a
 developer waits for before pushing and which only a runner waits for, and **how that is spelled is
 calef's**: it is a name a contributor meets in `CONTRIBUTING.md`, in `--list` output and in every
