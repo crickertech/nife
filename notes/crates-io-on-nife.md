@@ -404,7 +404,7 @@ somebody reading the PAL and this page together.
 | 16b | `process::id` | **CLOSED** 2026-08-18 | 5 | 5 | also a `panic!`; `gix-tempfile`'s fork check |
 | 17 | `process::Command` | no PAL at all | 6 | 10 | `gix-command`, `gix-credentials` |
 | 18 | `env::current_dir` | `Unsupported`, **declined** | 6 | 5 | refuses honestly; it is the namespace question |
-| 19 | `Metadata::modified` | `Unsupported` | 5 | 7 | the server keeps an mtime and §43 gave us a clock to read it against, so the only missing piece is a **wire-format change** to `FSTAT`'s reply, which two programs have to agree on and is not a lane's to make |
+| 19 | `Metadata::modified` | **CLOSED** 2026-09-19, by path | 5 | 7 | bound on `GETMTIME`, which milestone 47's `touch` added on 2026-08-24; the reason column said a wire change was needed for three weeks after it stopped being true. Through an open `File` it still refuses (the verb takes a name); see notes/std.md |
 | 19a | `Path::is_dir` on a directory | was always `false` | (not counted) | | closed with the five above; `create_dir_all` needed it |
 | 20 | `fs::set_permissions` | `Unsupported` | 4 | 3 | |
 | 21 | `TcpListener` | **CLOSED** 2026-08-18 | 4 | 11 | the LISTEN verb landed at milestone 107; the reason column was stale for a fortnight |
@@ -414,7 +414,7 @@ somebody reading the PAL and this page together.
 | 25 | `fs::rename` | **CLOSED**, milestone 64 | 2 | 2 | bound on `RENAME`; undercounted, see BUGS |
 | 26 | `fs::copy` | **CLOSED** 2026-08-17 | 2 | 2 | needs no verb: an open, a read/write loop, two closes |
 | 27 | `fs::canonicalize` | `Unsupported` | 2 | 1 | |
-| 28 | `File::set_times` | `Unsupported` | 2 | 1 | same shape as rank 19: no verb sets an mtime, wire-format, wants a decision |
+| 28 | `File::set_times` | `fs::set_times` **CLOSED** 2026-09-19; `File::set_times` still `Unsupported` | 2 | 1 | `SETMTIME_AT` sets by name, needing `dir::WRITE` and `dir::SETTIME` (§112); a handle has no name, so the `File` form is design/roadmap/proposals/an-mtime-for-an-open-file.md |
 | 29 | `File::try_clone` | `Unsupported` | 2 | 1 | a handle is one session's token (§27) |
 | 30 | `File::lock`/`try_lock` | `Unsupported` | 2 | 1 | `gix-tempfile` |
 | 31 | read/write timeouts | `Unsupported` | 1 | 1 | |
@@ -463,6 +463,12 @@ not change when it arrives.
   `set_permissions`, `Metadata::created`, `File::try_clone`, `File::lock`). Each refuses because
   nothing in §27 backs it, and inventing a backing is the failure mode. `try_lock` is the one that
   will hurt: `gix-tempfile` wants it.
+- **Ranks 19 and 28 closed on 2026-09-19, by path, and the two paragraphs below are what this note
+  said before that.** Milestone 47's `touch` lane added the three mtime verbs on 2026-08-24
+  (DECISIONS §112), which made both rows PAL bindings; this note went on calling them wire-format
+  decisions for three weeks. What is still refused is the open-`File` form of each, because the
+  verbs take a name and a handle has none; that one genuinely is a wire change, and it is proposed
+  in design/roadmap/proposals/an-mtime-for-an-open-file.md.
 - **Rank 19, `Metadata::modified`.** The nearest miss on the list. The FS server keeps an mtime and
   §43 gave us a clock to read it against, so the only missing piece is a **field in `FSTAT`'s
   reply**, which makes it a wire-format change, the expensive and irreversible kind, and not a

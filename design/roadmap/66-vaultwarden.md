@@ -4,7 +4,7 @@
 target rather than a plan, and its value today is that it converts "runs real workloads" from a claim
 into a checklist.
 
-**Gate: DECISION, MILESTONE 64.** (The MILESTONE 107 half cleared 2026-08-04; found stale 2026-08-15.) 64 is named as the prerequisite and this is its
+**Gate: DECISION.** (The MILESTONE 107 half cleared 2026-08-04, found stale 2026-08-15; the MILESTONE 64 half cleared 2026-09-19, when 64 turned BUILT.) 64 was named as the prerequisite and this is its
 extreme case; 107 owns the listen and accept that head the gap table. The decision is the block's
 own: which subset counts as running Vaultwarden has to be settled before the work starts, or the
 goalposts move to wherever the effort lands.

@@ -1,12 +1,15 @@
 # 64. Enough `std` to run somebody else's crate
 
-**Status: PARTIAL** since 2026-08-04 (PR #113), through four passes (2026-08-17, and three on
-2026-08-18). The measurement's deliverable, the prioritised gap list that milestones 99 and 66
+**Status: BUILT** on 2026-09-19 (PR #984), after five passes: the first on 2026-08-04 (PR #113),
+the second on 2026-08-17, three on 2026-08-18, and the last on 2026-09-19, which bound file times
+and closed the one item the Follow-on still called outstanding (below, "The last pass: file
+times"). Every other row on the ranked list is closed, declined with a recorded reason, or owned by
+another milestone or a proposal; the Follow-on names each home. The measurement's deliverable, the prioritised gap list that milestones 99 and 66
 consume, is in `notes/crates-io-on-nife.md`: **50 crates.io crates, 43 built, 7 failed**, where 43 is
 against this tree as it ships and **39 is against it without `entropy_backend`**, which is the number
 this block carried until the third pass.
 
-**Gate: NONE.** The fourth pass had to establish that rather than assume it, because the third
+**No gate held it back**, and the fourth pass had to establish that rather than assume it, because the third
 pass's report said the opposite: *"the ranked list is now genuinely exhausted for a lane under these
 constraints: every remaining row is a decision."* **That sentence was wrong twice**, and this block
 carried a version of it too:
@@ -91,7 +94,9 @@ two programs agree on) and is recorded in notes/std.md rather than guessed at he
 `std::os::unix` fallthrough, wants a **uid** and a **file mtime set** that this system does not have
 in the form the crates ask for, and answering would be a Unix fiction over a capability refusal.
 Rank 3, `thread::spawn`, is this block's own scheduling question, **now decided (§105): declined for
-now**, for want of a customer (see BUGS), and has **no build failures behind it**. Rank 19,
+now**, for want of a customer (see BUGS), and has **no build failures behind it**. *(The next two sentences are the 2026-08-18 reading and are
+wrong now: milestone 47's `touch` added the verbs on 2026-08-24, and both ranks were bound by path
+on 2026-09-19; see "The last pass: file times".)* Rank 19,
 `Metadata::modified`, is one field in `FSTAT`'s reply away and that makes it a wire-format change; it
 wants a `DECISIONS` section and calef, same as rank 2. **Rank 28, `File::set_times`, is the same
 shape as rank 19** and was never triaged by name in an earlier pass: setting an mtime needs a verb
@@ -227,6 +232,46 @@ outside the range is `PermissionDenied` and the granted port asked for twice is 
 accepts no connections. A `std` program that can listen is the difference between "a crate compiles"
 and "a server runs".
 
+## The last pass: file times, which were a binding for three weeks (2026-09-19)
+
+Ranks 19 (`Metadata::modified`) and 28 (`File::set_times`) were carried here as wire-format
+decisions until milestone 47's `touch` lane added `GETMTIME`, `SETMTIME` and `SETMTIME_AT` on
+2026-08-24 (DECISIONS §112). From then on they were a PAL binding, and the PAL's own comments went
+on saying no verb existed. That is the fifth time this milestone has recorded a refusal outliving
+its reason.
+
+**What is bound**, in `patches/std-nife/overlay/std/src/sys/fs/nife.rs`:
+
+| `std` call | verb | answer |
+|---|---|---|
+| `fs::metadata(p).modified()`, `DirEntry::metadata().modified()` | `GETMTIME` by name, after the existing `OPEN`/`FSTAT`/`CLOSE` | bound, files and directories |
+| `fs::set_times(p, ..)`, `set_times_nofollow` | `SETMTIME_AT`, walking with `dir::WRITE \| dir::SETTIME` | bound, whole seconds |
+| `File::metadata().modified()`, `File::set_times`, `File::set_modified` | none: the verbs take a name and a handle has none | `Unsupported`, with a message naming the path form |
+| an access time in `FileTimes` | none | `Unsupported`, and the mtime beside it is not written |
+| `accessed()`, `created()` | none | `Unsupported` |
+
+**The premise checked first**, per AGENTS.md's fourth question: open, read, write, stat, list and
+remove were already bound (milestones 27, 31, 64's first and second passes, 122) and proven by
+`std_exerciser` on all three architectures. The outstanding item was exactly the mtime surface, and
+this pass bound only that.
+
+**Why the `File` forms refuse rather than remember the name they were opened by**: the answer would
+describe whatever holds that name now, so after a rename it would report, or stamp, another file,
+and succeed. That is a wire question (a handle-taking form, which runs into §112 because a file
+handle can never carry `dir::SETTIME`), proposed in
+`design/roadmap/proposals/an-mtime-for-an-open-file.md` rather than decided here.
+
+**Why `set_times` never falls back to `SETMTIME`**: the caller's `SystemTime` is an assertion, which
+§112 put behind `dir::SETTIME`; writing the server's own "now" in its place and reporting success
+would be exactly the silent substitution this PAL refuses everywhere else.
+
+**Proved** by `std_exerciser`'s `file_times`, six new transcript lines pinned byte for byte on
+aarch64, riscv64 and x86_64: the host-made `motd` reads a wall-clock second inside the same window
+`SystemTime::now()` is checked against; a write moves a made file's time forward; a time set by
+name reads back in whole seconds (the half-second is truncated); a directory's time reads back by name and through a
+listing entry; and four refusals (handle metadata, handle set, an access time with nothing changed,
+the granted directory itself) plus a `NotFound` for an empty set on a missing name.
+
 ## BUGS
 
 - **"Runs unmodified" is the claim to be careful with.** A crate that compiles is not a crate that
@@ -270,6 +315,15 @@ and "a server runs".
   trap instruction hiding behind a green build would look exactly like this too, and only reading
   the PAL's neighbouring functions (the third and fourth passes' method) or building a new gate would
   find one.
+- **File times are only as true as the server's clock, and it has none.** `modified()` reports what
+  `GETMTIME` says, and for a file written on this system that is the FS server's per-mount counter,
+  so it reads as early 1970, orders wrongly against files the host tool stamped, and restarts each
+  boot. And because the engine only moves an mtime forward, a nife write to a host-made file does
+  not change its time at all. Proposed as `design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md`; the
+  details are in notes/std.md's file-times `BUGS`.
+- **The open-`File` time forms refuse** (`File::metadata().modified()`, `File::set_times`), because
+  the verbs take a name. `set_times` truncates to whole seconds and refuses an access time whole.
+  None of this is exercised through a grant narrower than the mount root from `std`.
 - **The sweep is a gate now** (`cargo xtask std-aborts`, fourth pass), and it is honest about its
   boundary. It covers `library/std/src/sys/**` only, because `sys` is the platform layer and a panic
   above it (`path.rs`, `thread/scoped.rs`) is a caller's bug that behaves identically on Linux; a
@@ -291,9 +345,16 @@ build them, and report what breaks.
 - **Done.** Ranks 19 and 28 no longer want a decision: milestone 47's mtime lane landed the get,
   set and set-at verbs in `crates/filesystem_protocol`, on
   `design/decisions/112-touch-mtime-authority.md`, decided 2026-08-23.
-- **Outstanding.** What is left of ranks 19 and 28 is a PAL binding rather than a fork: the
-  filesystem shim under `patches/std-nife/overlay/std/src/sys/` still returns unsupported and its
-  comments still say no verb exists, which is now false. Checked 2026-09-03.
+- **Done.** Ranks 19 and 28 are bound by path (2026-09-19, "The last pass: file times" above):
+  `metadata(p).modified()` on `GETMTIME`, `fs::set_times` on `SETMTIME_AT`, and the shim's comments
+  that said no verb existed are corrected.
+- **Proposed.** The open-`File` forms (`File::metadata().modified()`, `File::set_times`) still refuse,
+  because the verbs take a name; a handle-taking form is a wire change and is
+  `design/roadmap/proposals/an-mtime-for-an-open-file.md`.
+- **Proposed.** A file written on nife reads as early 1970, because the FS server stamps its own
+  per-mount counter rather than a wall-clock second (notes/touch.md's `BUGS`, and notes/std.md's
+  file-times `BUGS` where a std reader meets it). Giving the server the clock page is
+  `design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md`.
 - **Recorded.** The exit event still carries no exit code, so a supervisor can tell exit from crash
   and cannot tell `exit(0)` from `exit(1)`. The reasoning lives in `notes/std.md`.
 - **Done.** `env` is seeded now: `design/decisions/111-inert-config-is-a-validated-page.md` and
@@ -317,20 +378,16 @@ build them, and report what breaks.
 
 ## Index row
 
-Fifty crates.io crates measured: **43 build, 7 fail** (2026-08-18), where 39 is the same fifty
-without `entropy_backend`; the gaps are ranked by demand rather than by function count, which is
-the deliverable milestones 99 and 66 consume. The measurement is `script/crate-probes` now rather
-than a prose recipe, after three hand re-derivations produced two wrong headlines (35/15, then
-39/11 read as current). **A green build is not evidence**, and the third pass found the sharp
-version of that: three std calls **abort a nife process** while compiling perfectly
-(`env::temp_dir`, `env::split_paths`, `process::id`), and none of them could appear on a gap list
-built from `Unsupported` counts, because a function that aborts never answers. `tempfile` died in
-the first of them rather than returning the "operation not supported" this row claimed for a
-fortnight. The fourth pass made that reading a check (`cargo xtask std-aborts`, inside `script/test`) and the check found a fourth abort the reading could not: **`std::process::exit`
-was a trap instruction**, so a clean exit reached its supervisor as `EVENT_FAULT`. Closed so far:
-five bindings, then `getrandom` (rank 1, `entropy_backend`), `env` (4), `File::set_len` (8), `fs::copy` (26), and the four aborts. **What remains is not a decision each**, which is what this
-row used to say: `TcpListener` (21) stopped being a contract gap at milestone 107 and is now a PAL
-binding its own doc comment calls *"small and mechanical"*, and it is on the customer path. The
-genuinely decided-elsewhere rows are the `std::os::unix` fallthrough (rank 2, a uid and an mtime
-set this system does not have), `thread::spawn` (3, **decided §105, 2026-08-22: declined for want
-of a customer**), `Metadata::modified` (19, a wire-format change), and everything waiting on `File::open`'s resolution
+**Built:** 2026-09-19
+
+Fifty crates.io crates measured: **43 build, 7 fail** (2026-08-18; 39 without `entropy_backend`),
+ranked by demand, which is the list milestones 99 and 66 consume and is `script/crate-probes` rather
+than a prose recipe. **A green build is not evidence**: four std calls aborted a nife process while
+compiling perfectly (`env::temp_dir`, `env::split_paths`, `process::id`, and `process::exit`, a trap
+instruction that `cargo xtask std-aborts` found), and none could appear on a list built from
+`Unsupported` counts. Closed: the namespace verbs, `getrandom`, `env`, `File::set_len`, `fs::copy`,
+`TcpListener`, the four aborts, and last (2026-09-19) file times by path, `modified()` on `GETMTIME`
+and `fs::set_times` on `SETMTIME_AT`, which had been a binding for three weeks while the PAL said no
+verb existed. Declined with reasons: the `std::os::unix` fallthrough and `thread::spawn` (§105).
+Proposed: an mtime through an open `File` (a wire change), and an FS server that stamps a real time
+rather than a per-mount counter
