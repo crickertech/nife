@@ -257,9 +257,11 @@ fn a_fill_gathers_across_round_trips() {
 /// shape as the virtio tests above skipping when `NIFE_RNG` is unset, one level down the stack:
 /// a real hardware precondition this suite cannot fake, named rather than assumed. Run this test
 /// for real **under TCG** with `script/test --arch aarch64 --cpu neoverse-n2` (verified 2026-08-24
-/// against QEMU 11.0.2). **Not `--cpu max`**: QEMU's `max` model does carry `FEAT_RNG`, but this
-/// kernel refuses to boot on it at all ("no 4 KiB stage-1 granule (`ID_AA64MMFR0_EL1.TGran4`)"), a
-/// QEMU-model quirk unrelated to entropy; `neoverse-n2` (Armv9.0-A) has both.
+/// against QEMU 11.0.2), or with `--cpu max`, which carries `FEAT_RNG` too and passed this test on
+/// 2026-09-19. Until that date `max` could not be used here: the kernel refused to boot on it,
+/// reading its `ID_AA64MMFR0_EL1.TGran4 = 0b0001` (the `FEAT_LPA2` encoding of "supported") as
+/// "no 4 KiB granule". That was a decoder bug, since fixed; `crates/machine_discovery/src/aarch64.rs`
+/// keeps the record.
 ///
 /// **That flag reaches a TCG run and nothing else, which is a narrower fix than it sounds**
 /// (checked 2026-09-10, after the earlier wording here read as though a flag reliably fixed this

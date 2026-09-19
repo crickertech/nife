@@ -206,6 +206,17 @@ through SBI, so it works on both.
   because there is no aarch64 board arriving. If a Pi 4 port happens, `-cpu cortex-a72` versus
   `cortex-a53` is the same exercise and the mechanism is already there.
 
+  **Run by hand, `--cpu max` is the aarch64 model that has found something**, and the matrix would
+  have found it on the first run. Until 2026-09-19 the kernel refused to boot on `max` at all,
+  because `crates/machine_discovery` read `ID_AA64MMFR0_EL1.TGran4 = 0b0001` (4 KiB with
+  `FEAT_LPA2`, a stronger yes) as "no 4 KiB granule"; a real Armv8.7+ part would have been refused
+  the same way. After the fix, `cargo xtask test --arch aarch64 --cpu max` passed on 2026-09-19
+  (325 passed, 2 skipped, both skips unrelated to the model), including the `RNDRRS` entropy test
+  the default `cortex-a72` always skips. So `max` is worth adding if the matrix grows an aarch64
+  leg: it is the model with the most features switched on, which is what `rv64` is to riscv64.
+  That leg is milestone 274's first item (Apple Silicon's own core is untested) and part of
+  milestone 322's (one machine matrix for three architectures).
+
 - **Vendor extensions are advertised, not exercised.** `thead-c906` passing says our code does not
   trip over a machine that lacks standard extensions. It says nothing about the C906's non-standard
   page-table attribute bits, which QEMU models behind `xtheadmae` and which the `virt` machine does

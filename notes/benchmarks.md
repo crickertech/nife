@@ -457,7 +457,10 @@ counter that does not survive virtualization). That needs a real, high-resolutio
 
 - **QEMU-TCG** does not model a cycle counter; `PMCCNTR` returns quantized junk (we saw 0 and 1000),
   and sel4bench's own stability check refuses to continue ("*Benchmarking overhead of a call is not
-  stable*").
+  stable*"). Milestone 74's aarch64 half measured the same thing from this kernel's side on
+  2026-09-19, once it started the counter: without `-icount` it advances in steps of 1000 (about 32
+  per `CNTVCT_EL0` tick), and under `-icount` it is the instruction count (exactly 16 per tick, which
+  is `script/icount`'s `instructions_per_counter_tick`). Neither is a cycle; see notes/pmu.md.
 - **QEMU-HVF** on Apple Silicon does not virtualize the guest PMU, so `PMCCNTR` is unstable there too,
   and the same check stops the run.
 

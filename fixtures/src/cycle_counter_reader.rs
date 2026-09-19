@@ -20,9 +20,12 @@
 //!
 //! # Bugs
 //!
-//! **The counter values are carried and not checked.** QEMU leaves `PMCR_EL0.E` clear, so
-//! `PMCCNTR_EL0` reads zero there forever, and asserting on the number would be asserting on the
-//! emulator rather than on this kernel.
+//! **The counter values are carried here and checked on the kernel side, and only partly.** Since
+//! milestone 74's aarch64 half the kernel starts `PMCCNTR_EL0` on every core, so the kernel's test
+//! asserts the second read is past the first wherever `arch::pmu` reports the counter running (and
+//! always on `x86_64`). It does not assert on riscv64, where the kernel's counter and the `cycle` CSR
+//! this program reads may not be the same counter. Nothing asserts on the size of the difference:
+//! under QEMU it is emulator time.
 //!
 //! Name: provisional (milestone 291). This was `hello`'s `CYCLE_COUNTER_CHILD` role, number 42.
 //! Refused keeping `_child`: nothing builds this program as a child. The kernel's own test starts
@@ -62,6 +65,9 @@ pub extern "C" fn _start(_arg0: u64, _arg1: u64, _arg2: u64) -> ! {
 /// 74's deliverable, and it will want to say what the number means (a frequency, a scaling, a
 /// story about what a "cycle" is on a big.LITTLE part). This is the raw read, in the one program
 /// that needs it today, so that 74 designs the API rather than inheriting one from a test vehicle.
+/// **Its name and promise are calef's**, and the options are in
+/// design/roadmap/proposals/the-aarch64-half-of-74.md; the aarch64 half of 74 started the counter
+/// and left this read where it was on purpose.
 #[cfg(target_arch = "aarch64")]
 fn read_cycle_counter() -> u64 {
     let value: u64;
