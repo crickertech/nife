@@ -1540,6 +1540,42 @@ module point into `hello.rs` for `ep_maker()`, `ep_user()`, `call_server()` and 
 none of which are there either, and they were left alone only because this rename did not touch
 them.
 
+**The seventh rename found the same shape at scale** (`ipc` to `inter_process_communication`,
+2026-09-19). §113 renamed `Endpoint` to `Rendezvous` on 2026-08-23 and nothing moved the prose, so
+nine sites still said `ipc::Endpoint` a month later. A `ipc::` sweep would have turned every one
+into `inter_process_communication::Endpoint`, a type that has never existed. They were classified
+instead: the ones in decided sections are accounts and kept their words with the current name beside
+them, and the ones in notes describing today's code were repointed to `Rendezvous`. Reading those
+lines found two more pointers of the same age (`Rendezvous<Tid>`, and `crates/intrusive` for a
+crate now called `intrusive_fifo`). **A type rename leaves a trail of stale prose, and the next
+crate rename walks straight into it.**
+
+### A tool that does not understand `\b` does not say so
+
+Contributed by the `dtb` and `ipc` renames (2026-09-19), which each lost a count to it. On macOS,
+`git grep` does not support `\b` in its default pattern syntax and **matches nothing**, so
+`git grep -c '\bdtb\b'` reports zero across a tree with eighty-six hits in it. The macOS `sed` drops
+`\b` the same way, so a substitution meant to be word-bounded silently rewrites nothing, or with a
+different pattern rewrites too much. Neither prints a warning.
+
+**Treat a zero as a claim to re-check, never as a result.** Re-run it with `grep -rE` and an
+explicit class (`(^|[^a-z_])ipc::`), or with `git grep -w` where a word match is what you want.
+
+### A `Name:` block can move its own census
+
+The `dtb` block described the crate's files as `.dtb` files, so the rename that wrote the block
+counted it: 88 hits against a census of 86, and two phantom survivors to classify. The block now
+says "the blob files' extension". When the after-census is off by a small number, check the
+provenance block you just wrote before the tree.
+
+### A hand rewrap needs a width check afterwards
+
+Expanding a name lengthens lines, and every rename in this series rewrapped paragraphs by hand or by
+script. Two failures were both invisible to the gates: lines left past the file's hundred columns,
+and a list marker given a second space by a wrap script. After a rewrap, list the added lines longer
+than the file's width (`git diff -U0 | grep '^+[^+]' | awk 'length > 101'`) and read a
+`--word-diff` of the result; the word diff should show only the names you meant to change.
+
 ### The generated roadmap index is not a sweep target, and running the generator proves it
 
 The same lane was briefed to run `script/roadmap --write` after editing, on the reasoning that

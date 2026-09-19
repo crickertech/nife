@@ -185,8 +185,9 @@ kernel/
   src/drivers/         pl011, ns16550: a driver gets a base address and nothing else
   src/                 capabilities, scheduler, IPC, untyped, revocation, the syscall surface
 user/                  EL0: the progenitor, the shell, the console/input/block drivers, servers
-crates/                pure logic, host-tested in milliseconds: caps, ipc, paging, elf,
-                       dtb, pci, frames, slots, nifefs, intrusive, asid, ...
+crates/                pure logic, host-tested in milliseconds: capability, paging, elf, pci,
+                       inter_process_communication, device_tree_blob, page_frames, nifefs,
+                       intrusive_fifo, address_space_identifier, ...
 bench/                 the benchmark suite and committed baselines (all three ISAs)
 script/                normalized entry points (setup, test, console, verify, bench, ...)
 xtask/                 build orchestration (build, run, test, bench, gdb, objdump, image)
