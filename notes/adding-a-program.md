@@ -1,9 +1,10 @@
 # Adding a user program
 
 Task-oriented, because milestone 117's first stranger run found that **no file described this**. It
-reconstructed the steps from `xtask`, the program package's `Cargo.toml` and `grant_plan`, said it
-expected to have got one wrong, and was right to expect that: the two initrd lists are easy to
-half-do.
+used to be long because the tree was: until milestone 150 (2026-09-19) a program's name went into
+seven hand-maintained places and this page was an eighth. It is now **one place for a program, and
+four for one the shell can spawn** (five if it answers in a register), and only the first two of
+those are places you have to remember: the build or a host test sends you to each of the rest. What follows is what survived, not a description of what went.
 
 A program is a `[[bin]]` in one of two packages, running at EL0, linked against `user_mode_runtime`.
 
@@ -101,117 +102,60 @@ bench = false
 `test` and `bench` off are **mandatory**, not tidiness: the default libtest harness needs
 `extern crate test`, which does not exist for a bare-metal target.
 
-### 4. Pack it into all three initrds, in `xtask/src/main.rs`
+**That block is the whole of step 3, and of packing.** `xtask` reads the `[[bin]]` blocks of both
+packages (`declared_programs()`) and packs every one into all three archives, aarch64, riscv64 and
+`x86_64`, under its own name. There is no packing table to edit and no per-architecture filter; see
+"Why it works this way" below for what that replaced and why a program that cannot run on some
+architecture is packed there anyway. **You do not touch the measurement table either**: `xtask`
+hashes every entry of the archive it just packed and writes the table the progenitor measures
+against from that (`write_measure_manifest`).
 
-**Two hand-maintained lists as of 2026-08-27** (this page's fourth correction to this section; see
-`BUGS`), down from three. All three architectures now build both program packages unfiltered, so
-there is no per-program `--bin` list on any of them any more (milestone 175 made that build
-`-p components -p fixtures` rather than `-p user`, which changed nothing about this step):
+The reader is strict on purpose. A key it does not know inside a `[[bin]]` block
+(`required-features`, say) stops the pack with the key named, rather than packing an archive with
+that program silently missing.
 
-- `initrd_aarch64()` (renamed from `mkinitrd()`, 2026-08-27) for aarch64: **one
-  `("your_program", "your_program")` row in its `entries` table.** The pair is `(archive_name,
-  bin_name)` and since milestone 266 they are the same string in every row: `progenitor` retired
-  the one entry whose archive name and binary differed.
-- `initrd_riscv()` for riscv64: the same shape, one `("your_program", "your_program")` row in its
-  own `entries` table (from [`portable_archive_entries`], shared with `initrd_x86()`). **It used to
-  also need a `"--bin", "your_program",` pair in a hand-maintained `cargo build` argument list**,
-  and that was the trap this section warned about through 2026-08-27: the table read an ELF that
-  only the `--bin` list caused cargo to build, so half the edit failed the build with `mkinitrd:
-  cannot read .../your_program: No such file or directory` (or, after the rename, the same failure
-  under `initrd-riscv:`). That list predated riscv64 parity and every program compiling
-  for the riscv64 target; it bought nothing once that was true, and it fell out of step twice in one
-  night (`audit_sink`, milestone 49) before it was deleted. **The trap described in the paragraph
-  below is gone**, not just documented differently.
-- `initrd_x86()` for x86_64: the same shared `entries` table, no `--bin` list, and never had one.
-
-That old trap is not hypothetical, and the file carried its own scar about it before the fix: the
-credential pair (milestone 56) sat in the riscv tables while nobody added them to the `--bin` list,
-so a clean tree could not build them, and a lane's own riscv leg went green on a stale binary its
-target directory still held. The mechanism that let that happen twice more (`audit_sink`) is exactly
-what motivated deleting the list rather than remembering it harder.
-
-**What changed, and why this page was wrong about this function three times running.** It used to
-send you to a `for name in [ ... ]` list and warn you off an older tier of hand-written
-`let name = match read_stripped(...)` blocks; milestone 130 deleted both on 2026-08-17, replacing
-them with the one table and one loop `initrd_riscv()`'s packaging step had always had. That left the
-`--bin` list as the one remaining asymmetry, which run 2 corrected this page to describe on
-2026-08-16 and which 130 then re-broke the next day (see `BUGS`, because the recurrence is the
-finding rather than the accident); the `--bin` list itself is now gone (2026-08-27), which is the
-first time this section has shrunk instead of just moved.
-
-**You do not touch the measurement table.** The progenitor refuses to spawn a program its measurement manifest
-does not vouch for, and a reader who meets that refusal reasonably wonders where to register a new
-one. Nowhere: `xtask` hashes every entry of the archive it just packed and writes the manifest from
-that (`write_measure_manifest`), so the table follows the archive by construction.
-
-### 5. Keep the name under 32 bytes
+### 4. Keep the name under 32 bytes
 
 `nifefs` caps `NAME_LEN` at 32, raised from 24 so `os_primitives_benchmarker` would fit. Raising
 it again costs directory entries per block, so do not let a name spend it.
 
 **There is also a ceiling on how many programs an archive holds**, `nifefs::MAX_FILES`, 127 since
-milestone 291 raised `DIR_BLOCKS` from 6 to 10. You will not meet it adding one program, and it is
-here because it has now been crossed three times by lanes that could not see each other. It fails
-loudly: `write_image` returns `TooManyFiles` and both `initrd_aarch64` and `initrd_riscv` print the
-error, the file count and the size.
+milestone 291 raised `DIR_BLOCKS` from 6 to 10. Every archive packs 87 programs plus up to five
+optional entries as of 2026-09-19, so the headroom is about thirty. It fails loudly: `write_image`
+returns `TooManyFiles` and each `initrd_*` function prints the error, the file count and the size.
 
-### 6. If the shell should be able to spawn it: a `Prog` variant
+### 5. If the shell should be able to spawn it
 
-In `crates/grant_plan/src/lib.rs`, **seven edits**, not the six this page listed until 2026-08-18
-and not the four before that:
+Three edits, and after the first the machine names each of the others.
 
-**In this order**, which is not the order they appear in the file. The first four are the ones
-nothing forces, and doing them first is what makes the last three fall out of a failing build:
+1. **A row in `programs!`** in `crates/grant_plan/src/lib.rs`, with its doc comment:
 
-1. the `Prog` variant itself;
-2. **`PROG_COUNT`**, widened, and the table below says why this one goes second rather than last;
-3. `from_id()`;
-4. `from_name()`, which is how the shell resolves what you type. Without it the program is in the
-   archive, loadable, and unreachable from the prompt, which looks like the program being broken
-   rather than unlisted;
-5. `name()`;
-6. `id()`, the **stable wire id**;
-7. **`manifest()`**, which carries all of the actual meaning: what the shell must grant your program
-   and what it must refuse it. See "What you declare" below.
+   ```rust
+   /// Triples its integer argument (milestone N, `components/src/triple.rs`).
+   Triple { id: 13, name: "triple" },
+   ```
 
-**The wire id is the expensive part.** It is a thing two programs agree on, which CLAUDE.md classes
-as hard to reverse: the shell sends it and the progenitor decodes it, so changing one later is a flag day. The
-code around it is cheap; the number is not.
+   `name` is the `[[bin]]` name. **`id` is the stable wire id**: the shell sends it and the
+   progenitor decodes it, so it is a thing two programs agree on and changing it later is a flag
+   day. Take the next unused number; never reuse a removed program's id (the build refuses a
+   duplicate, and `the_wire_ids_already_shipped_never_move` refuses reuse of any id shipped before
+   milestone 150). The enum, `name()`, `id()`, `from_id()`, `from_name()`, `Prog::ALL` and
+   `PROG_COUNT` are all generated from the row.
+2. **Its `manifest()` arm**, which the compiler asks for (`E0004` in `grant_plan`). This carries all
+   of the actual meaning: see "What you declare" below.
+3. **A line in `SHELL_CHECK_SCRIPT`** in `xtask/src/main.rs`, and the array length the compiler then
+   asks for. The element is a `(&str, &[&str])` pair, one line typed and the substrings its answer
+   must contain: `("triple 21", &["21*3 = 63"]),`. The host test
+   `every_spawnable_program_has_a_shell_check_line` fails until the line exists, and names the one
+   exception it allows (a program a transcript cannot drive, listed with the reason).
 
-**Then expect the build to fail in a crate you did not edit**, and expect that to be the design
-working:
+**And a fourth only if your manifest says `output: OutputSpec::Words`**, meaning the answer is a
+number in a register rather than a stream: an arm in `write_outcome` in `crates/swish/src/lib.rs`
+that renders it. `every_program_that_answers_in_words_renders_its_answer` fails without one. A
+byte-stream program needs nothing there.
 
-```
-error[E0004]: non-exhaustive patterns: `Prog::Triple` not covered
-   --> crates/swish/src/lib.rs:864:11
-```
-
-The shell must say how your program's answer renders, so the compiler asks. Add the arm.
-
-#### Which of the seven the machine will remind you about, and which it will not
-
-**Measured on 2026-08-18 by adding a variant and building after each edit**, because a list that
-tells you what to do says nothing about what happens if you do not.
-
-| edit | what happens if you skip it |
-|---|---|
-| `name()`, `id()`, `manifest()` | **compile error**, all three at once, `E0004` in `grant_plan` itself |
-| the `swish` render arm | **compile error**, `E0004` in a crate you did not edit |
-| `from_id()` | a host test fails, `the progenitor indexes slot N and no program claims it`, **but only if `PROG_COUNT` moved** |
-| `from_name()` | a host test fails, `left: None, right: Some(YourProg)`, **same condition** |
-| `PROG_COUNT` | **nothing at all** |
-
-**`PROG_COUNT` is the keystone, and forgetting it hides the other two.** The sweep in
-`prog_id_round_trips` counts up to that constant, so a variant whose id is past it is a variant the
-sweep never reaches, and the guard beside it (`from_id(PROG_COUNT)` answers `None`) passes *because*
-you forgot. A tree with the variant, the three forced arms, the `swish` arm and nothing else
-**compiles and passes every host test**, and the failure arrives later as a program that cannot be
-spawned from the prompt. Widen `PROG_COUNT` and the same test immediately names both missing arms,
-one after the other.
-
-That is why the list above is ordered the way it is: widen `PROG_COUNT` early and
-`cargo test -p grant_plan` tells you what is still missing. Widen it last and there is nothing left
-to tell you.
+`xtask` refuses to pack an archive when a `programs!` row names a program no `[[bin]]` builds, so
+getting the name wrong in step 1 is a build failure rather than a program that cannot be spawned.
 
 ## What you declare: the manifest
 
@@ -227,31 +171,37 @@ writes is a fixed, publishable property of it. Which file it touches is the call
 **A manifest is as much about refusal as need.** `date`'s row is `Forbidden` throughout, so a memory
 grant aimed at a clock reader stops at the prompt.
 
+## Removing a program
+
+Delete its source file and its `[[bin]]` block. It leaves all three archives at once.
+
+If the shell could spawn it, also delete its `programs!` row. The compiler then points at its
+`manifest()` arm and any `write_outcome` arm that named it; delete those, and its
+`SHELL_CHECK_SCRIPT` lines, which nothing on the host flags (see `BUGS`) and which
+`script/shell-check` answers with `no such program`. **Leave its id unused.** The table's holes are expected: `PROG_COUNT` is
+one past the highest id, not the number of programs.
+
+**What catches a removal you did not mean to make**: `xtask`'s host test
+`every_program_the_tree_loads_by_name_is_declared` fails when the kernel or the progenitor still
+looks the program up by a string literal (`program("name")`, `.read("name")`), naming the file that
+does. Before milestone 150 such a test would `skip!()` with "no such program in this archive" and
+nobody would hear about it.
+
 ## Check your work
 
 ```sh
-cargo xtask build    # the aarch64 archive ONLY, which is the trap below
-script/lint          # the name block, the conventions, the host pass
-script/test          # both ISAs, and it builds the riscv archive
-script/shell-check   # if the shell spawns it: also both ISAs, and much faster than the suite
+script/lint          # the name block, the conventions, and every host test named above
+script/shell-check   # if the shell spawns it: both ISAs, and much faster than the suite
+script/test          # all three architectures
 ```
 
-**`cargo xtask build` does not pack all three archives**, whatever the name suggests, and this page
-claimed it did until 2026-08-18. It runs `initrd_aarch64()` (`mkinitrd()` before 2026-08-27) and
-stops; `initrd_riscv()` and `initrd_x86()` are called by `test()` and by `shell-check` and by
-nothing else, so after a green `cargo xtask build` the files `target/initrd-riscv.img` and
-`target/initrd-x86_64.img` may not exist at all. **A step-4 mistake on the riscv or x86 packaging
-table is invisible to it.** If the shell spawns your program, `script/shell-check` is the cheapest
-thing that catches one on aarch64/riscv64: it builds both archives and boots both prompts, and it
-does not run the kernel suite.
+`cargo xtask build` packs the aarch64 archive only, whatever the name suggests; `initrd_riscv()` and
+`initrd_x86()` are called by `test` and `shell-check`. That no longer hides a packing mistake,
+because all three archives pack one list, but it is still not a check of the other two builds.
 
-If the shell spawns it, add a line to `SHELL_CHECK_SCRIPT` in `xtask/src/main.rs` and bump the array
-length the compiler asks for. The element is a `(&str, &[&str])` pair, one line typed and the
-substrings its answer must contain: `("triple 21", &["21*3 = 63"]),`.
-
-**Then run it once with a deliberately wrong expectation.** A green harness only proves the harness
-did not complain; a red one proves your program was really loaded from the archive, measured,
-granted its endpoint and run at EL0. Verbatim from a run of this page on 2026-08-18:
+**Run shell-check once with a deliberately wrong expectation.** A green harness only proves the
+harness did not complain; a red one proves your program was really loaded from the archive,
+measured, granted its endpoint and run at EL0. Verbatim from a run of this page on 2026-08-18:
 
 ```
 $ triple 21
@@ -260,115 +210,113 @@ $ triple 21
   `triple 21` answered "a process at EL0 computed 21*3 = 63", wanted "21*3 = 64"
 ```
 
+## Why it works this way
+
+Milestone 150, 2026-09-19. The block is
+[design/roadmap/150-program-declaration-data.md](../design/roadmap/150-program-declaration-data.md);
+this section is the reasoning, for the integrator to mint a `design/decisions/` section from.
+
+**The archive list is the `[[bin]]` blocks.** A program has to be declared there for cargo to build
+it, so that was always one of the places; the choice was whether the others could be derived from
+it. Considered and refused:
+
+- *A shared crate holding a `const` table of programs*, which both `xtask` and the kernel could
+  read. It is still a second list beside `Cargo.toml`, only gated rather than hand-copied, so adding
+  a program stays two edits. It would earn its place if the kernel needed the list at runtime, and
+  it does not: everything that loads a program looks it up by name.
+- *`cargo metadata` instead of reading `Cargo.toml`.* Correct by construction, but its output is
+  JSON and `xtask` has no JSON parser. Hand-scanning JSON is no less fragile than hand-scanning the
+  four keys this tree writes in a `[[bin]]` block, and DECISIONS §46 rules out a `serde_json` or
+  `toml` dependency for one list. The scanner refuses what it does not understand instead.
+- *Keeping per-architecture tables and gating them against each other.* The two tables disagreed
+  about two programs when they were deleted, and neither difference was a decision: the shared
+  table's own comment said not to filter by architecture, because an archive entry costs a slot and
+  some bytes, nothing spawns a program by accident, and a test that cannot run somewhere `skip!()`s
+  with the reason. Packing everything everywhere is that rule without a second place to break it.
+
+**The shell's program table is one `macro_rules!` declaration.** The seven-edit `Prog` bookkeeping
+had exactly one edit nothing caught (`PROG_COUNT`), and forgetting it also disarmed the test that
+would have caught two more. Considered and refused:
+
+- *A derive crate that counts variants* (`strum` and the like). DECISIONS §46: a proc-macro
+  dependency in a crate the kernel and the progenitor link, for one count, is the dependency that
+  section exists to refuse.
+- *A `const` table of `(Prog, id, name)` beside a hand-written enum.* Still two lists: nothing
+  stops a variant existing without a row, which is the original bug moved one line down.
+- *Putting `manifest()` inside the declaration too*, for one edit instead of two. It would have
+  worked, and it was refused because the manifest arms are the most commented code in the crate and
+  `rustfmt` does not format inside a macro invocation. The compiler already demands the arm, so
+  moving it buys one fewer edit that was never silent.
+- *Deriving the id from declaration order.* Removing a program would renumber every later one,
+  which is a wire-format change dressed as a deletion. Ids are written, `PROG_COUNT` is one past the
+  highest, and removal leaves a hole.
+
+**The count gate became a set of checks rather than a number.** The block asked for "a gate on
+program count". A pinned total was considered and refused: it would be a hand-maintained number
+that fails on every legitimate addition, which is the shape this milestone removes. What a count was
+for is covered by construction (the archives and `PROG_COUNT` are derived, so neither can be short
+of the declaration) and by three host tests on the relationships that can still go wrong: a
+spawnable program with no binary, a program the tree loads by name with no binary, and a spawnable
+program no shell-check line runs.
+
+**`swish`'s exhaustive `write_outcome` match became a wildcard.** Eleven of its thirteen arms were
+`=> {}`, so the compile error it raised for every new program asked a byte-stream author for a
+keystroke, not a decision. `every_program_that_answers_in_words_renders_its_answer` now asks the
+question it was standing in for, of exactly the programs it applies to. That is rung two in place of
+rung one, deliberately, and it is the one place this milestone went down the ladder.
+
 ## BUGS
 
-- **Nothing gates the three initrd packaging tables against each other.** A program in
-  `initrd_aarch64()`'s `entries` table and not in `initrd_riscv()`'s (or `initrd_x86()`'s, both of
-  which share [`portable_archive_entries`]) builds, boots on aarch64, and is simply absent
-  elsewhere. The parity gate catches it only if a test names the program. **This used to also be
-  true of a hand-maintained `--bin` build list on riscv64** (fixed 2026-08-27: that list is gone,
-  and the riscv64/x86_64 build step is now unfiltered like aarch64's always was), so what remains
-  is narrower than it was, but the packaging-table gap is unchanged.
-  **The two commands you will run first are both blind to it**, which run 4 measured: such a program
-  passes `cargo xtask build` *and* `script/lint`, and is caught first by `script/shell-check` or
-  `script/test`, both of which cost an emulated boot. **And nothing counts programs**, so the
-  suite total is identical with and without one: 1312 tests before `tally` and 1312 after. A
-  program's presence is proven only by a transcript line somebody remembered to write into
-  `SHELL_CHECK_SCRIPT`.
-- **The archives used to boot different binaries under one name, and the sentence saying so was
-  200 lines from where you needed it.** `initrd_aarch64()` packed `hello` under the archive name
-  `init` while `initrd_riscv()` and `initrd_x86()` packed `builder`; `xtask/src/main.rs` stated it
-  in a comment on the aarch64 table's `hello` row rather than on either `("init", ...)` row, and
-  run 4's stranger read both tables in the same minute and still reported the asymmetry as
-  undocumented. **Milestone 266 removed the asymmetry rather than the documentation gap**: every
-  archive now packs one `progenitor`, and every row in both tables is a name repeated.
-- **Removal is the same eight places and has no page.** Taking a program out is clean only while
-  you can still name every file you touched; a half-removed program is a `PROG_COUNT` too large
-  and a progenitor table slot no variant claims, which is the same silent failure as a forgotten
-  `PROG_COUNT`, reached from the other side. There is no `removing-a-program.md` and this page is
-  about adding. Run 4 reverted `tally` to a byte-identical tree and noted that it worked first
-  time only because the eight edits were still in its head.
+- **The `[[bin]]` reader knows four keys** (`name`, `path`, `test`, `bench`), because those are all
+  this tree writes. Anything else in a `[[bin]]` block stops every pack with the key named. That is
+  the intended failure, not an accident, but it means the first program to want
+  `required-features` has to teach `bin_names` in `xtask` what the key means for the archives.
+- **The removal gate is textual.** `every_program_the_tree_loads_by_name_is_declared` reads
+  `program("...")` and `.read("...")` literals in `kernel/src` and
+  `crates/system_initializer/src`. A name built at runtime, or looked up through some other
+  spelling, is invisible to it, and a kernel test that `skip!()`s on a missing program still skips
+  quietly for such a name. It counts what it matched and fails below fifty, so it cannot go blind
+  without saying so.
+- **Nothing on the host checks `SHELL_CHECK_SCRIPT` in the other direction.** A line typing a
+  program that no longer exists is found by `script/shell-check`, at the cost of a boot. And the
+  forward check is a whole-word match on the program's name, which proves a line mentions it, not
+  that the line ran it.
+- **The wire-id pin covers the thirteen ids shipped before 2026-09-19.** A program added after that
+  and later removed leaves an id that only the duplicate check protects, and only while nothing else
+  claims it. The declaration's written id makes a renumbering visible in review; reuse of a
+  post-pin id is not gated. Appending a row to `the_wire_ids_already_shipped_never_move` is how to
+  pin a later one.
+- **Every archive packs every program, including ones that cannot run there**, which is the rule
+  rather than an oversight (see "Why it works this way"). On 2026-09-19 that added `serial_driver`,
+  `jh7110_entropy` and `pmap` to the aarch64 archive and `pmap` to the other two. `pmap` is packed
+  and spawned by nothing (see `crates/pmap`'s `BUGS`); it costs a directory slot, which is what the
+  rule prices it at.
+- **Whether a program may take an argument and an input together is open**, and it is calef's call:
+  [a-program-that-takes-an-argument-and-an-input.md](../design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
+  The tree allows it and nothing uses it. The `crates/swish` sweep that used to go red on it (the
+  "eighth edit site" milestone 117's fifth stranger found) now types every operand a manifest asks
+  for, so the combination needs no edit outside its own declaration.
 - **This page is prose and the code can move without it.** The step that rots first is the manifest
   field list, which is why it is not repeated here: [program-manifest.md](program-manifest.md) has it,
   and the struct in `crates/grant_plan/src/lib.rs` is the authority over both.
-- **Written from having done it, three times, most recently on 2026-08-18.** It began as a
-  second-hand account of a first-hand guess: reconstructed after milestone 117's first stranger
-  reconstructed it, and its own BUGS section asked the first person to add a program against it to
-  correct whatever it got wrong. Every walk since has been that, and each one found the page wrong:
+- **Written from having done it, and wrong most times it was walked.** Every walk before milestone
+  150 found the page wrong, and the reason was structural rather than careless: the fact it described
+  lived in seven hand-maintained places it did not control, so it went stale inside two days, twice.
 
   | walk | program | wrong in |
   |---|---|---|
   | 2026-08-16 (run 2) | `doubler` | the aarch64 tier, the riscv `--bin` list, two of the six `grant_plan` edits, the `provisional` spelling the gate rejects |
   | 2026-08-18 (run 3) | `triangle` | the aarch64 tier again (milestone 130 had deleted both shapes it described), and `manifest()` missing from the `grant_plan` list |
-  | 2026-08-18 (this lane) | a scratch binary, added and removed | `cargo xtask build` claimed to pack both archives and packs one, the `SHELL_CHECK_SCRIPT` example did not compile, and nothing said which of the seven `grant_plan` edits the machine catches |
-  | 2026-08-18 (run 4) | `tally`, added and removed | **nothing.** The first walk of four to find no defect, including `crates/swish/src/lib.rs:864`, which the page quotes by line number and which still is that line |
-  | 2026-08-18 (run 5) | `nth`, kept | an **eighth** edit site the list of seven does not have: a manifest that requires an argument *and* an input fails `the_arg_line_follows_the_manifest_for_every_program` in `crates/swish/src/lib.rs`, in a crate the walker did not edit |
+  | 2026-08-18 (a lane) | a scratch binary, added and removed | `cargo xtask build` claimed to pack both archives and packs one, the `SHELL_CHECK_SCRIPT` example did not compile, and nothing said which of the seven `grant_plan` edits the machine catches |
+  | 2026-08-18 (run 4) | `tally`, added and removed | **nothing.** The first walk of four to find no defect |
+  | 2026-08-18 (run 5) | `nth`, kept | an **eighth** edit site: a manifest that requires an argument *and* an input failed a `crates/swish` sweep the walker had no reason to open |
+  | 2026-09-19 (milestone 150) | `triple`, added and removed | **the count, measured on the new tree.** A plain program was three hand edits and is one. A spawnable program that answers in a register was twelve edits across five files, two of them silent, and is six across four (the `[[bin]]` block, the `programs!` row, then the `manifest()` arm, the `write_outcome` arm, the `SHELL_CHECK_SCRIPT` line and its array length, each demanded by the compiler or a host test). It packed into all three archives with no further edit and answered at both prompts. Removal left a byte-identical tree; the stale `SHELL_CHECK_SCRIPT` line was the one edit nothing on the host named |
 
-  Run 3 recorded its two rather than fixing them, deliberately and per its own convention: a run
-  that stops to fix things stops measuring, and its findings stop being traceable to it (see
-  notes/stranger-test.md). The lane below it did the fixing.
-
-  **One walk-through is not a guarantee and four are not either**, and the next person to add a
-  program should treat a surprise here as this page's bug rather than their own.
+  **One walk-through is not a guarantee**, and the next person to add a program should treat a
+  surprise here as this page's bug rather than their own.
 
   **This table is also a leak, and it is worth knowing about before adding to it.** Milestone
   117's fourth stranger read these rows within half an hour and knew from them that it was at
   least the fourth person walking this page under measurement, which changed how it wrote. The
   rows stay, because deleting them would fabricate a tree and because the page's value is that
   it says how often it has been wrong. See notes/stranger-test.md's `BUGS`.
-- **This page went stale inside two days, twice, which is the finding rather than the accident.** Run
-  2 corrected it on 2026-08-16; milestone 130 falsified step 4 on 2026-08-17; run 3 found it wrong on
-  2026-08-18. The fact it describes lives in seven hand-maintained places and this page is an eighth.
-  By the ladder in AGENTS.md that is a rung-four answer to a rung-one problem, and rewriting the
-  prose a fourth time will not change it. The tracked home for the mechanism is milestone 150
-  ("Adding a program should not need eight hand-maintained lists," minted provisionally 2026-08-22 by
-  milestone 117's handoffs lane, nominated by three successive strangers): a `Prog` variant could
-  carry its archive name and its manifest as data, and both initrd tables could be generated from it.
-- **There is an eighth edit site and it depends on your manifest, so the count above is a lower
-  bound.** Found 2026-08-18 by milestone 117's fifth stranger, which deliberately picked the one
-  manifest combination nothing in the tree had used: a **required argument together with a required
-  input**. `the_arg_line_follows_the_manifest_for_every_program` in `crates/swish/src/lib.rs` sweeps
-  `Prog` and asks each program's manifest whether it takes an argument, which is the generalisation
-  its own doc comment argues for at length. Then it builds the line `"<name> 21"` against
-  `Holdings::default()` and hard-codes everything else, so the planner refuses it for any program
-  that also requires an input, and the sweep goes red on a program whose only sin is a manifest
-  shape nothing had used yet. **A test written to survive the next program added does not survive
-  this one**, and it is in a crate the person adding the program has no reason to open. The
-  stranger repaired it in its own disposable clone and the tree is unchanged: on `main` an
-  argument-plus-input program cannot be added without `crates/swish`'s sweep going red, because
-  that sweep types a single-operand line and never supplies the input operand such a program would
-  also need.
-
-  **Corrected 2026-08-22, milestone 117's second handoffs lane, by testing the claim rather than
-  reading it: the combination is headroom, not a refusal.** `plan_against_with` did carry a
-  comment ruling out file-plus-input on positional-arity grounds and saying nothing about
-  argument-plus-input, which read as though the second case might be the same kind of closed door
-  as the first. It is not, and the two are not analogous: `FileSpec` and `InputSpec` both grant a
-  bare name, so a manifest declaring both would leave the parser with two indistinguishable
-  positions and nothing but order to sort them, which is the real thing `ArgSpec`'s widening is
-  for. `ArgSpec` and `InputSpec` do not share that problem, because `arg` is numeric-shaped and
-  claims a fixed earlier position before `input`'s bare-name fallback ever looks at what remains,
-  exactly the way `arg` and `file` already compose. A host test in `crates/grant_plan/src/lib.rs`
-  (`an_argument_and_an_input_stream_compose_by_the_same_fixed_order`) plans `nth 21 report.txt`
-  against a manifest declaring both and gets a clean grant back with no widening built. The comment
-  at `plan_against_with`'s input operand now says this in place, so the next reader meets the
-  distinction where the code is rather than only here. What is still genuinely undecided is
-  whether the combination is *wanted*: no shipped program needs it, and adding one that does will
-  still need `the_arg_line_follows_the_manifest_for_every_program` in `crates/swish/src/lib.rs`
-  taught to supply an input operand for a program whose manifest asks for one, since that sweep's
-  gap is what turns red today, not the planner.
-- **The program's name is written in six places as of 2026-08-27** (seven before that date; see
-  below) and nothing joins them: the `[[bin]]` block in the package's `Cargo.toml`,
-  `initrd_aarch64()`'s
-  table, `initrd_riscv()`'s table, `initrd_x86()`'s table (the last two share
-  [`portable_archive_entries`]), the seven-part `Prog` table in `grant_plan`, the exhaustive match
-  in `swish`, and `SHELL_CHECK_SCRIPT`. This page is a seventh. Steps 4 and 6 are long because the
-  tree is, not because adding a program is hard. **`initrd_riscv()`'s own hand-maintained `--bin`
-  build list was the seventh site through 2026-08-26**; it is deleted as of 2026-08-27 (this lane),
-  the first of these lists to be removed rather than merely documented, so the count here dropped
-  for the first time instead of only moving. **Two of the remaining six can be skipped in
-  silence**: a missing `initrd_riscv()`/`initrd_x86()` table row, and `from_id()` and `from_name()`
-  when `PROG_COUNT` was forgotten alongside them. Step 6's table is measured rather than reasoned,
-  and a claim about which of these the compiler catches is worth re-measuring rather than quoting:
-  the last such claim written down in this tree was wrong, and it was written in the test that
-  makes it.

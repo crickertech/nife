@@ -2292,14 +2292,16 @@ pub fn plan_against_with(
     // the position after its declared grants can only be the thing feeding it. There is nothing for
     // the parser to classify and no ambiguity to resolve, because a manifest declaring an input
     // never also declares a file (a program that wanted both would need positional arity, which is
-    // the same widening `ArgSpec` is waiting on).
+    // the same widening `ArgSpec` is waiting on; `no_program_declares_both_a_file_and_an_input`
+    // holds every manifest to it since milestone 150).
     //
     // **That widening is `FileSpec` + `InputSpec`'s problem, not `ArgSpec` + `InputSpec`'s.** An
     // argument is numeric-shaped and `arg` above already claims a fixed earlier position, so a
     // manifest declaring both `ArgSpec::Required` and `InputSpec::Required` has nothing left to
     // disambiguate: `arg` takes position 0, `input`'s fallback takes whatever bare name is left,
     // exactly as `arg` and `file` already compose for [`STAMPS_A_FILE`] below. No shipped program
-    // has declared the combination, which is `notes/adding-a-program.md`'s open question, but the
+    // has declared the combination, and whether one should is an open question for calef
+    // (design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md), but the
     // absence is unclaimed headroom rather than a refusal here; see
     // `an_argument_and_an_input_stream_compose_by_the_same_fixed_order` in this module's tests.
     //
@@ -3400,8 +3402,8 @@ mod tests {
     /// numeric-shaped) before `input`'s bare-name fallback ever looks at what is left; see the
     /// `positionals_fill_the_manifest_slots_in_the_order_typed` and
     /// `an_argument_and_an_input_compose_by_the_same_fixed_order` tests below. Kept here rather than
-    /// promoted to a shipped manifest, per notes/adding-a-program.md's own `BUGS` entry: whether the
-    /// combination is *wanted* is calef's call, not this test's.
+    /// promoted to a shipped manifest: whether the combination is *wanted* is calef's call, not
+    /// this test's (design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
     const TAKES_ARG_AND_READS: Manifest = Manifest {
         arg: ArgSpec::Required,
         file: FileSpec::Forbidden,
@@ -4887,6 +4889,25 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// **No manifest declares both a file and an input** (milestone 150). Both take a bare name on
+    /// the command line, so a program declaring both would leave the parser two indistinguishable
+    /// positions and nothing but order to tell them apart; `plan_against_with`'s input operand
+    /// relies on the combination never occurring. That was a sentence in a comment until this
+    /// test; an argument together with an input is a different case and is allowed (see
+    /// design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
+    #[test]
+    fn no_program_declares_both_a_file_and_an_input() {
+        for &p in Prog::ALL {
+            let m = p.manifest();
+            assert!(
+                !(matches!(m.file, FileSpec::Required { .. })
+                    && matches!(m.input, InputSpec::Required { .. })),
+                "{} declares a file and an input, and the command line cannot tell them apart",
+                p.name()
+            );
         }
     }
 
