@@ -33,6 +33,14 @@
 //! - **`VARange` reporting 52 does not mean the kernel could use 52.** ARMv8.2-LVA needs a 64 KiB
 //!   granule and ARMv8.7-LPA2 is a separate feature bit this record does not read. The field is
 //!   reported because it is what the machine says; acting on it is a milestone, not a branch.
+//! - **`TGran4 = 0b0001` is read as "no 4 KiB granule", and it means the opposite.** Arm's
+//!   `ID_AA64MMFR0_EL1` page defines `0b0001` as "4KB granule supports 52-bit input addresses and
+//!   can describe 52-bit output addresses", present when `FEAT_LPA2` is, so it is a *stronger* yes
+//!   than `0b0000`. The `k4` line below treats it as reserved, and so the kernel refuses to boot on
+//!   QEMU's `-cpu max` (`granule : no 4 KiB stage-1 granule`), observed 2026-09-19 by milestone 74's
+//!   aarch64 lane while running the cycle-counter tests across CPU models, and on any real part
+//!   with `FEAT_LPA2`. The fix is to accept `0b0000 | 0b0001` with a host test for each; it is
+//!   recorded rather than made because it is outside that lane's milestone.
 //! - **`TGran16`'s encoding is inverted relative to its siblings.** `TGran4` and `TGran64` spell
 //!   "supported" as `0b0000` and "not supported" as `0b1111`; `TGran16` spells them `0b0001` and
 //!   `0b0000`. A decoder that treats the three uniformly reports 16 KiB backwards on every part in
