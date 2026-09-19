@@ -26,6 +26,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::progress::{BootProgress, Failure, LineFeeder, Stage};
+use crate::stop::{Escape, Report};
 
 /// When to stop.
 #[derive(Debug, Clone)]
@@ -92,6 +93,14 @@ pub enum Outcome {
     Announced(Failure),
     /// It spoke, then stopped, for longer than [`Policy::quiet_after`].
     WentQuiet,
+    /// **A writing mode finished its business** (milestone 324): the escape was acknowledged, or
+    /// the write failed, or the board said there was nothing to stop. What happened is in
+    /// [`Session::stop`], and the exit status is computed from that rather than from this.
+    ///
+    /// It is a fifth way a session can end rather than a kind of [`Outcome::Reached`], because
+    /// `reached soak running` would be true of a session that sent nothing and says nothing about
+    /// the only thing `--stop` was run to find out.
+    Stopped,
     /// The source ended: a replayed log ran out, or the device reported end of file.
     Ended,
     /// [`Policy::total`] elapsed.
@@ -113,6 +122,9 @@ pub struct Session {
     /// The stage that was asked for, kept so the exit status can be computed here rather than
     /// re-derived by every caller.
     pub wanted: Option<Stage>,
+    /// What the writing mode did, if one was asked for (milestone 324). `None` for every reading
+    /// session, which is still every session that does not name a stop mode.
+    pub stop: Option<Report>,
 }
 
 impl Session {
@@ -122,10 +134,16 @@ impl Session {
     /// without the board announcing a failure). `1` the board announced a failure. `2` it went
     /// quiet. `3` the time ran out with the requested stage unreached. Callers add `4` for a port
     /// that could not be opened, which is not a session at all.
+    ///
+    /// **A writing mode adds no status and reuses `3`** (milestone 324). A stop that was asked for
+    /// and not confirmed is the time running out with the requested thing unreached, which is what
+    /// `3` already means; giving it a sixth code would make every bench script that already reads
+    /// these five wrong. A failure the board announced and a hang still win, because those are
+    /// facts about the board and an unconfirmed stop is a fact about this tool.
     #[must_use]
     pub fn exit_code(&self) -> i32 {
-        match &self.outcome {
-            Outcome::Reached(_) => 0,
+        let base = match &self.outcome {
+            Outcome::Reached(_) | Outcome::Stopped => 0,
             Outcome::Announced(_) => 1,
             Outcome::WentQuiet => 2,
             // With no stage requested, running out of time IS the plan, and so is a replayed log
@@ -137,6 +155,10 @@ impl Session {
                     0
                 }
             }
+        };
+        match &self.stop {
+            Some(report) if base == 0 && !report.reached_the_goal() => 3,
+            _ => base,
         }
     }
 
@@ -148,6 +170,13 @@ impl Session {
             Outcome::Reached(stage) => format!("reached {stage}"),
             Outcome::Announced(failure) => format!("failed: {}", failure.describe()),
             Outcome::WentQuiet => format!("went quiet after {reached}"),
+            Outcome::Stopped => match &self.stop {
+                Some(report) => report.describe(),
+                // Unreachable through `watch`, which only sets this outcome from an escape that
+                // has a report. Spelled out rather than unwrapped so a future caller cannot make
+                // the summary panic at a bench.
+                None => "the writing mode ended the session".to_string(),
+            },
             Outcome::Ended => format!("input ended after {reached}"),
             Outcome::RanOut => format!("time ran out after {reached}"),
         };
@@ -193,6 +222,36 @@ pub fn watch<R>(
 where
     R: Read + Send + 'static,
 {
+    watch_with(source, sink, policy, stream_never_ends, None)
+}
+
+/// [`watch`], with a writing mode attached (milestone 324).
+///
+/// The reading half is identical and is deliberately not duplicated: a second copy of this loop
+/// would be a second place for the deadline to be got wrong, and the deadline is the whole
+/// milestone. What `escape` adds is one call per complete line and one check per iteration.
+///
+/// **Complete lines only reach the escape.** The partial tail is offered to
+/// [`BootProgress::observe_partial`] as before, because a stage ratchet is monotone and more bytes
+/// cannot unmake it. Sending a byte is not monotone: it cannot be unsent, so it may only be decided
+/// on evidence that has finished arriving. That asymmetry is the reason the two are fed
+/// differently, and it is the one difference between this function and [`watch`].
+///
+/// # Errors
+///
+/// As [`watch`]. A failure to write to the *board* is not an error here: it is recorded in
+/// [`Session::stop`] and logged, because the board is still talking and the session is still
+/// worth finishing.
+pub fn watch_with<R>(
+    source: R,
+    sink: &mut dyn Write,
+    policy: &Policy,
+    stream_never_ends: bool,
+    mut escape: Option<Escape<'_>>,
+) -> io::Result<Session>
+where
+    R: Read + Send + 'static,
+{
     let (tx, rx) = mpsc::channel();
     // Detached on purpose: it is never joined. It may be parked in `read` when this function
     // returns, and the only thing that unparks it is the process exiting, which closes the
@@ -229,6 +288,12 @@ where
                 let feeding = feeder.feed(&chunk);
                 for line in &feeding.lines {
                     progress.observe_line(line);
+                    // The writing mode, and the only place in this crate a byte goes to the board.
+                    // After `observe_line` so the escape's own log annotation lands below the line
+                    // that provoked it, which is the order a reader of the capture needs.
+                    if let Some(escape) = escape.as_mut() {
+                        escape.observe_line(line, started.elapsed(), &mut *sink)?;
+                    }
                 }
                 // The incomplete tail too, or U-Boot's newline-less `StarFive #` prompt is never
                 // seen. Offered as a *partial*, which is a weaker kind of evidence for the reasons
@@ -266,6 +331,14 @@ where
                 outcome = settled_or(&settling, &progress, Outcome::Ended);
                 break;
             }
+        }
+
+        // The writing mode's own ending, checked before the settle window and before the quiet
+        // timer because it outranks both: a board that has acknowledged the escape has answered
+        // the question this session was run to ask.
+        if escape.as_ref().is_some_and(Escape::finished) {
+            outcome = Outcome::Stopped;
+            break;
         }
 
         if let Some(since) = settling
@@ -324,6 +397,7 @@ where
         bytes,
         elapsed: started.elapsed(),
         wanted: policy.until,
+        stop: escape.as_ref().map(|e| e.report().clone()),
     };
     match error {
         Some(e) => Err(io::Error::new(
@@ -413,6 +487,82 @@ mod tests {
             self.0.drain(..n);
             Ok(n)
         }
+    }
+
+    /// **The writing mode through the real loop** (milestone 324), which is the half the pure
+    /// tests in [`stop`](crate::stop) cannot reach: line assembly from a chunked stream, the
+    /// escape's annotations landing in the same sink as the board's own bytes, and the session
+    /// ending on the acknowledgement rather than on the clock.
+    ///
+    /// The board here is a transcript rather than silicon. No byte this test sends has ever
+    /// reached one; see `stop`'s `BUGS`.
+    #[test]
+    fn a_stop_mode_sends_one_byte_and_ends_on_the_boards_acknowledgement() {
+        let transcript = concat!(
+            "U-Boot SPL 2021.10 (Feb 12 2023 - 20:24:34 +0800)\r\n",
+            "Starting kernel ...\r\n",
+            "nife on RISC-V (rv64, S-mode, Sv39)\r\n",
+            "soak-test: started 4 groups of one responder, 3 callers (20 user threads)\r\n",
+            "soak-test-reboot: THIS BUILD REBOOTS THE BOARD. It soaks for 120s, then asks the \
+             firmware for a cold reboot (SBI SRST reset type 1).\r\n",
+            "soak-test: t=5s beat=1 rounds=100 rate=20/s workers=20 refused=0 mismatch=0 stalled=0\r\n",
+            "soak-test-reboot: DISARMED at t=5s: a byte arrived on this console.\r\n",
+        );
+
+        let mut port: Vec<u8> = Vec::new();
+        let mut log: Vec<u8> = Vec::new();
+        let session = {
+            let escape = Escape::new(1, &mut port);
+            watch_with(
+                SpeaksThenStops::new(transcript),
+                &mut log,
+                // No stage to wait for: with a stop mode the escape is what ends the session, and
+                // this is what `cargo xtask board-console` sets when no `--until` is given.
+                &quick(None, None),
+                true,
+                Some(escape),
+            )
+            .expect("the log is a Vec and the source does not fail")
+        };
+
+        assert_eq!(port, vec![crate::stop::ESCAPE_BYTE], "one byte, once");
+        assert_eq!(session.outcome, Outcome::Stopped);
+        assert_eq!(session.stop, Some(Report::Confirmed));
+        assert_eq!(session.exit_code(), 0);
+
+        let log = String::from_utf8(log).expect("the transcript is ASCII");
+        assert!(
+            log.contains("sending the soak escape"),
+            "the log must show the byte that went out"
+        );
+        assert!(log.contains("0x0d"));
+        assert!(
+            log.contains("soak-test-reboot: DISARMED"),
+            "the board's own bytes are still in the log beside the annotations"
+        );
+    }
+
+    /// A stop that was asked for and never sent is the time running out with the requested thing
+    /// unreached, which is exit 3 and not a quiet success.
+    #[test]
+    fn a_stop_that_never_had_an_armed_loop_to_stop_exits_three() {
+        let mut port: Vec<u8> = Vec::new();
+        let mut log: Vec<u8> = Vec::new();
+        let session = {
+            let escape = Escape::new(1, &mut port);
+            watch_with(
+                SpeaksThenStops::new("nife on RISC-V (rv64, S-mode, Sv39)\r\n"),
+                &mut log,
+                &quick(None, None),
+                true,
+                Some(escape),
+            )
+            .expect("the log is a Vec")
+        };
+
+        assert!(port.is_empty(), "nothing announced an armed reboot loop");
+        assert_eq!(session.stop, Some(Report::NotSent));
+        assert_eq!(session.exit_code(), 3);
     }
 
     fn quick(until: Option<Stage>, quiet_after: Option<Duration>) -> Policy {

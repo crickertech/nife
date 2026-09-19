@@ -24,6 +24,12 @@
 //!   each time (milestone 249), which is the question a self-rebooting soak exists to answer and
 //!   the one nothing that reads a single boot can be asked.
 //!
+//! And one part that **writes**, which every other part of this crate does not (milestone 324):
+//!
+//! - [`stop`] sends the single byte that ends milestone 249's self-rebooting soak, after the board
+//!   has announced an armed reboot loop and never before it, and prints what it sent into the log.
+//!   Its header carries the whole of that argument.
+//!
 //! # This crate is not run under Miri
 //!
 //! `script/undefined-behavior-check` excludes it, the way it already excludes `xtask`, and for cost
@@ -102,8 +108,11 @@
 //! **A missed marker fails toward pessimism, which is the safe direction, and a *matched* one does
 //! not.** The recogniser matches substrings anywhere in a line, so a board that echoes the word
 //! `Starting kernel ...` back at a U-Boot prompt would be read as having handed over. Nothing
-//! guards against a console that repeats its input, and this tool never writes to the port, so
-//! today the only way that happens is a person typing into the same session.
+//! guards against a console that repeats its input. **This used to rest on the crate never
+//! writing; since milestone 324 it rests on what [`stop`] sends instead**: one byte, which cannot
+//! spell a marker, logged in hex beside the line that provoked it so a reader can rule it out by
+//! hand. A future mode that typed whole lines would put the hazard back, which is a reason to keep
+//! the write surface at named commands rather than at a keyboard.
 //!
 //! **It does not recognise an OpenSBI trap dump**, which the failure-triage ladder lists as a real
 //! and specific outcome (the kernel started the S7 and the vendor firmware died in its own
@@ -117,13 +126,22 @@
 //! message is a line nobody has yet agreed to cross, and `Outcome::Reached` is deliberately named
 //! for what it observed rather than for a verdict.
 //!
-//! **It reads and never writes, and on this board that is not enough to boot.** The capture proves
-//! it: the extlinux path ends at `### ERROR ### Please RESET the board ###`, so reaching nife
-//! requires interrupting autoboot and typing the four `StarFive #` commands
-//! `script/board-image` prints. A console that only reads therefore cannot, on its own, get this
-//! board to the state the hardware-gated milestones need. Driving U-Boot is proven to work (calef
-//! did it on 2026-09-01) and is deliberately not here, because whether that is this tool or a
-//! second one is a scope decision that belongs to calef; see the roadmap block.
+//! **It writes only what a named mode sends, and every byte it sends is printed into the log.**
+//! That is the invariant since calef ruled on 2026-09-19 (milestone 324 part 4), and it replaces
+//! *"it reads and never writes"*. Today there is exactly one named mode, [`stop`], and it sends
+//! exactly one byte. **The narrowness is the decision rather than caution about it**: the hazard
+//! is an open keyboard beside U-Boot's autoboot countdown, which milestone 249's lane hit by
+//! detaching the console to send this same byte, at the cost of a power cycle.
+//!
+//! The two reasons this crate had to write have had opposite fates and both are worth keeping.
+//! **The first is gone**: reaching nife once meant interrupting autoboot and typing the four
+//! `StarFive #` commands `script/board-image` prints, because the extlinux path ended at
+//! `### ERROR ### Please RESET the board ###`. Milestone 218 closed that on 2026-09-16, confirmed
+//! by a boot whose countdown expired with nobody typing (`bench/radon-2026-09-16/tour-083200.log`),
+//! so a reader is enough to get radon from power-on to the kernel and nothing here drives U-Boot.
+//! **The second arrived thirteen days earlier from a different direction** and is what [`stop`]
+//! answers: milestone 249's rebooting soak is ended by a byte on this console, and a tool holding
+//! the port could not send one.
 //!
 //! **It does not touch power.** The board is powered by a Kasa strip that was not reachable from
 //! either machine when milestone 216 was written, and the roadmap block declines to decide whether
@@ -178,6 +196,7 @@ pub mod lottery;
 pub mod port;
 pub mod progress;
 pub mod screen;
+pub mod stop;
 pub mod watch;
 
 /// **Fixtures captured before milestone 297 renamed the console markers**, made readable by the

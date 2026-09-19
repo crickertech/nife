@@ -14,6 +14,7 @@
 //!     cargo xtask objdump  disassemble the kernel
 //!     cargo xtask image    build the flat arm64 Image and dump its header
 //!     cargo xtask board-console  read the serial console of a real board, log it, stop on a deadline
+//!                                (and, under --stop, send the one byte that ends a rebooting soak)
 //!     cargo xtask board-script   write the U-Boot script that boots the board without a person at its prompt
 //!
 //! Note that `run` and `test` do NOT invoke QEMU themselves. They just call cargo,
@@ -195,7 +196,7 @@ fn main() -> ExitCode {
             );
             eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
             eprintln!(
-                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|machine|selftest|tour|prompt|none] [--quiet-after <duration>]"
+                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|machine|selftest|tour|prompt|none] [--quiet-after <duration>] [--stop | --stop-after <n>]"
             );
             return ExitCode::FAILURE;
         }
@@ -8810,6 +8811,15 @@ fn board_console() -> ExitCode {
     let mut replay: Option<PathBuf> = None;
     let mut log: Option<PathBuf> = None;
     let mut policy = Policy::default();
+    // **The writing mode** (milestone 324). `None` is every reading session, which is still the
+    // default and still the common case. `Some(n)` is `--stop-after n`, and `--stop` is `Some(1)`:
+    // one mechanism with two spellings, so the two flags cannot disagree about anything.
+    let mut stop_after: Option<usize> = None;
+    // Whether `--for` and `--until` were given, as opposed to left at their defaults. A stop mode
+    // has to know, because it changes both, and silently overriding something a person typed is
+    // worse than refusing it.
+    let mut until_given = false;
+    let mut cap_given = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -8841,8 +8851,33 @@ fn board_console() -> ExitCode {
                 Ok(v) => log = Some(PathBuf::from(v)),
                 Err(code) => return code,
             },
+            // **A writing mode, and the only two the ruling permits** (milestone 324). Each is a
+            // command with a purpose rather than a keyboard, which is the decision rather than
+            // caution about it: milestone 249's lane sent this escape by detaching the console,
+            // hit U-Boot's autoboot countdown with it, and paid a power cycle.
+            "--stop" => {
+                stop_after = Some(1);
+                // Not `i += 2` at the bottom of the loop: this flag takes no value, and the
+                // increment below assumes every argument does.
+                i += 1;
+                continue;
+            }
+            "--stop-after" => match value(i).map(str::parse::<usize>) {
+                Ok(Ok(n)) if n >= 1 => stop_after = Some(n),
+                Ok(_) => {
+                    eprintln!(
+                        "board-console: --stop-after wants a count of draws, 1 or more. \
+                         `--stop` is `--stop-after 1`."
+                    );
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
             "--for" | "--timeout" => match value(i).map(parse_duration) {
-                Ok(Some(d)) => policy.total = d,
+                Ok(Some(d)) => {
+                    policy.total = d;
+                    cap_given = true;
+                }
                 Ok(None) => {
                     eprintln!("board-console: --for wants a duration like 90, 90s, 30m or 2h");
                     return ExitCode::from(4);
@@ -8860,7 +8895,10 @@ fn board_console() -> ExitCode {
                 Err(code) => return code,
             },
             "--until" => match value(i).map(parse_stage) {
-                Ok(Some(stage)) => policy.until = stage,
+                Ok(Some(stage)) => {
+                    policy.until = stage;
+                    until_given = true;
+                }
                 Ok(None) => {
                     eprintln!(
                         "board-console: --until wants spl, opensbi, uboot, handoff, banner, machine, selftest, tour, prompt, soak, or none"
@@ -8874,12 +8912,55 @@ fn board_console() -> ExitCode {
                 eprintln!(
                     "usage: cargo xtask board-console [--port <dev>] [--replay <log>] \
                      [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]\n\
+                     \x20      cargo xtask board-console [--stop | --stop-after <n>]\n\
                      \x20      cargo xtask board-console --tally <log>"
                 );
                 return ExitCode::from(4);
             }
         }
         i += 2;
+    }
+
+    // **What a writing mode changes about the rest of the session** (milestone 324), decided here
+    // rather than inside the crate because these are argument-shaped decisions and the crate's job
+    // is the decision to send.
+    if let Some(n) = stop_after {
+        // A replay has no board on the other end of it. Refused rather than ignored: a person who
+        // typed `--stop --replay` believes a byte is going somewhere, and silently reading a file
+        // instead would be the tool agreeing with them.
+        if replay.is_some() {
+            eprintln!(
+                "board-console: --stop writes to a board and --replay reads a file, so the \
+                 two cannot be combined. Drop --replay to watch a real port."
+            );
+            return ExitCode::from(4);
+        }
+        // Both answer "when does this session end", and a stage would usually answer it first: a
+        // soak is reached long before its reboot loop arms, so `--until soak --stop` would return
+        // before sending anything. Refused rather than overridden, for the reason above.
+        if until_given && policy.until.is_some() {
+            eprintln!(
+                "board-console: --stop and --until both say when the session ends, and \
+                 --until would win before the escape was ever sent. Drop --until; the stop is \
+                 the ending."
+            );
+            return ExitCode::from(4);
+        }
+        policy.until = None;
+        if !cap_given {
+            // **Derived from the kernel's own draw length rather than picked.** One draw is
+            // `kernel/src/soak.rs`'s `REBOOT_AFTER_SECONDS` (120s) plus the twenty-odd seconds a
+            // boot takes, so 150s per draw, and one draw's slack on top for the session that
+            // attaches mid-draw and has to wait the current one out. `--stop-after 50` then gets
+            // the two unattended hours milestone 249's block prices it at.
+            //
+            // This is a default and not an agreement: getting it wrong costs a re-run with
+            // `--for`, never a wrong answer, which is why the number is duplicated here instead of
+            // being hoisted into a shared crate.
+            policy.total = std::time::Duration::from_secs(
+                150 * u64::try_from(n).unwrap_or(u64::MAX / 300) + 120,
+            );
+        }
     }
 
     // The log path is chosen before anything can fail, and it is never optional. A console session
@@ -8949,7 +9030,33 @@ fn board_console() -> ExitCode {
             log_path.display(),
             policy.total
         );
-        watch(device, &mut sink, &policy, true)
+        // The write half of the same descriptor. A second handle rather than a shared one because
+        // `watch` moves its source onto the reader thread, and a tty is happy to be read and
+        // written through two descriptors at once.
+        let mut writer = match stop_after {
+            Some(_) => match device.try_clone() {
+                Ok(w) => Some(w),
+                Err(e) => {
+                    eprintln!(
+                        "board-console: cannot open a write handle on {}: {e}",
+                        path.display()
+                    );
+                    return ExitCode::from(4);
+                }
+            },
+            None => None,
+        };
+        let escape = match (stop_after, writer.as_mut()) {
+            (Some(n), Some(w)) => {
+                eprintln!(
+                    "--- stopping after {n} armed draw(s); one byte will be sent to the board \
+                     and printed into the log ---"
+                );
+                Some(board_console::stop::Escape::new(n, w))
+            }
+            _ => None,
+        };
+        board_console::watch::watch_with(device, &mut sink, &policy, true, escape)
     };
 
     let session = match session {
@@ -8964,6 +9071,14 @@ fn board_console() -> ExitCode {
     let _ = sink.flush();
     eprintln!();
     eprintln!("board-console: {}", session.summary());
+    // The writing mode's own verdict, on its own line, whenever the session did not already end on
+    // it. `--stop` is run to find out one thing and a reader should not have to infer it from an
+    // exit status.
+    if session.outcome != board_console::watch::Outcome::Stopped
+        && let Some(report) = &session.stop
+    {
+        eprintln!("board-console: {}", report.describe());
+    }
     if let Some(line) = session.progress.banner_line() {
         eprintln!("board-console: banner: {line}");
     }
