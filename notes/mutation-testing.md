@@ -1314,3 +1314,62 @@ should reject**: a guard is only tested by tripping it. Closed by
 `a_machine_this_tree_runs_on_is_refused_by_the_guard`, a `should_panic` that trips it with
 `NATIVE_MACHINE`. The runtime panic is the same assertion a `const` context turns into a build
 error, which is what the guard is for.
+
+### `timetable`: 48 survivors, 12 killed, 36 excluded, and `next_after` was not among them
+
+**Before: 134 caught, 48 missed, 12 unviable (73.6% of viable). After: 146 caught, 0 missed
+(100.0%).**
+
+**The headline first, because the block asked for it.** `design/fatal-risks.md`'s risk 2 names
+`next_after` as its strongest counterfactual (the milestone 6 timer drift, proved over code the
+timer does not call), and milestone 326 put this crate second on the list for that reason rather
+than for its rate. **No survivor touched `next_after`, or the phase arithmetic, or the firing
+decision.** Every mutant in that function was caught before this lane touched anything, by
+`next_after_is_strictly_in_the_future_and_keeps_its_phase` and the doctest beside it. That is
+evidence *against* risk 2 in the one place the roadmap thought it most likely, and it is worth
+saying as plainly as a finding would have been.
+
+**Thirty-six of the 48 were the crate's own Kani harnesses, and that is a defect in the
+instrument.** `.cargo/mutants.toml` excludes `verification::` and `proofs::` as module paths,
+because a `#[cfg(kani)]` harness is never compiled by `cargo test` and so always "survives".
+`timetable` puts its harnesses in `src/proofs.rs` rather than in an inline `mod proofs { .. }`, and
+**cargo-mutants names a mutant by the function's path within the file it parsed**: the inline form
+yields `proofs::a_fire_is_strictly_in_the_future`, the file-per-module form yields
+`a_fire_is_strictly_in_the_future` with no prefix, and the regex misses it. So this crate's 73.6%
+was a score with its own proof file counted against it, in the same family as `system_initializer`
+(milestone 244) and `uefi_loader`'s `[[bin]]` half (milestone 280): arithmetic rather than a
+finding. Closed with `**/src/proofs.rs` and `**/src/verification.rs` in `exclude_globs`, a glob
+rather than a regex because the file layout is the thing that differs. `timetable` is the only
+crate in the tree with that layout today; the sibling glob is there so the convention cannot arrive
+unexcluded.
+
+**The twelve real survivors, all in the parser, the admission check and the plan writer.**
+
+- **`Error::line` replaced by a constant `1` (1).** `each_error_points_at_the_line_that_is_wrong`
+  compares whole `Error` values, so the line is checked and the accessor never called. It is what
+  sends a person to the fault. Closed by `error_line_reads_the_number_each_variant_carries`.
+- **The plan writer's millisecond branch (3), never rendered by any test (1).** Every plan in the
+  suite used seconds or minutes, so `nanos / (NANOS_PER_SEC / 1000)` could become `%`, and either
+  `/` could become `*`, with nothing to see it.
+- **The plan writer's length arithmetic (3).** `write_schedule` fills a 32-byte space-filled buffer
+  and emits `buf[..n.max(SCHEDULE_COLUMN)]`, so for any schedule inside twelve columns the returned
+  length does not reach the output at all: `6 + write_interval(..)` under `-`, and
+  `n += unit.len()` under `-=` and under `*=`, were all invisible against `30s` and `1m`. A
+  seven-digit interval pushes past the column, where the first underflows, the second truncates the
+  text and the third pads it.
+- **`e.mem_pages > 0` under `>=` and `e.arg != 0` under `==` (2).** Both were only ever exercised
+  true, so nothing proved the lines are *omitted* for an entry that asks for neither. All eight of
+  the above are closed by `the_plan_prints_milliseconds_long_intervals_and_the_absent_grants`.
+- **`admit`'s `Holdings { dir: held.dir, .. }` with the field deleted (1)**, falling back to the
+  default `false`. A scheduler that holds a directory would have reported every `rm` line as
+  unbackable. Closed by `a_designation_is_backed_by_the_directory_the_scheduler_holds`.
+- **Both `!` in `unbacked`'s `!held.dir` tests (2), and these are the ones with a finding under
+  them.** They survived because **`admit` cannot reach either branch**: it hands
+  `grant_plan::plan` the same `dir` bit `unbacked` then re-tests, so a plan needing a directory the
+  scheduler lacks is refused during planning and never arrives at the check that would name it
+  unbacked. `Unbacked::File` has a second reason, which is that no shipped program declares a
+  `FileSpec::Required`, so `Endowment::file` is `None` for every plan this crate can build. The
+  mutants are killed by calling `unbacked` directly, and the reachability is recorded in a `BUGS`
+  section on `Unbacked` itself, where a reader meets the variants. **Whether `admit` should stop
+  pre-consuming the holding is a behaviour change rather than a test**, so it is recorded and not
+  made.
