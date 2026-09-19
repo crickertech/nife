@@ -253,6 +253,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 192 | PROPOSED | [Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?](192-a-checked-direct-map-reader-for-the-acpi-walk.md) |
 | 193 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](193-nvme-in-the-block-roster.md) |
 | 194 | DECIDED | [Sessions interleave rather than serialize, and a renumber is the price](194-sessions-interleave-rather-than-serialize.md) |
+| 195 | DECIDED | [A reviewed recipe vouches for a package, and the machine's owner may overrule it](195-a-recipe-vouches-and-the-owner-may-overrule.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

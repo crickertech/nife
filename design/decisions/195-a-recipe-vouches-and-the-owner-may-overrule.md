@@ -1,16 +1,64 @@
-# What vouches for a package the boot image did not carry
+# 195. A reviewed recipe vouches for a package, and the machine's owner may overrule it
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's scoping lane
-(`milestone/198-package-manager-scoping`), which found this fork while checking the premise of the
-activation fork; the brief did not name it. Shaped as a `design/decisions/` section for the
-integrator to mint.
+**Status: DECIDED.** calef, 2026-09-19 (21:51 UTC), after reading the prior art with the maintainer:
+**Homebrew's shape, with the owner-vouches escape hatch.** *(Section number provisional until the
+merge queue lands it.)*
 
-**Gate: DECISION.** A trust root is a fact that leaves the machine (a public key, once shipped, is
-trusted by every system that carries it), so it is in AGENTS.md's irreversible category and this
-gives **options, no winner**. Blocked until answered: running any program that was not packed into
-the image the kernel was built against. Not blocked: the first slice, which rebuilds the image and so
-changes no trust rule. *(Superseded 2026-09-19: §157 retired that slice, and its rung 3 needs T2 or T3, since under T1
-installing means a host rebuild a stranger cannot do.)*
+**What that means, and each clause is load-bearing:**
+
+1. **A package's digest lives in a version-controlled recipe**, changed by human review, and the
+   machine trusts the recipes of the **sources it was given**. The boot image's own measurement
+   table (milestone 104) becomes the first source rather than a special case, which is how T1 stops
+   being an answer and becomes an entry.
+2. **Trust is scoped per source the owner opted into**, never one global key. Every system read
+   below does this (a Homebrew tap, a Debian keyring entry, a FreeBSD per-repository fingerprint
+   directory, a pacman `SigLevel`, a Nix substituter), and it is what lets a distribution grow
+   without mastering every package: **anyone may stand up a source, and an owner may opt into it**,
+   which calef named as the point of the model.
+3. **The owner may vouch for a digest no source carries.** This is the escape hatch every system
+   read below keeps: apt's explicit confirmation, pacman's `SigLevel = Optional`, pkg's
+   `SIGNATURE_TYPE=NONE`, Nix's `require-sigs = false` and `trusted-users`. Fuchsia is the only
+   holdout, and it is a vendor-locked phone OS. It is also what lets a person run something they
+   built themselves, which §135's amendment 1 already contemplates.
+4. **No long-lived signing key is held by anyone, for now.** Homebrew held none for years (a
+   SHA-256 in a reviewed formula), and now binds artifacts to the builder with GitHub Actions
+   attestations instead. A third party verifies against **its own** builder identity, not ours. A
+   signature over a source's catalogue is not refused; it is simply not the thing being built
+   first, and it can be added per source without changing clauses 1 to 3.
+
+**What this does not decide**, and each is its own ruling: the package format (whether a package is
+named by name-and-version or by content digest), the activation shape, the transport, and whether
+`crickertech` runs a source at all. **One consequence is worth stating because it couples two
+rulings**: hosting on GitHub (Releases or GHCR, which is what Homebrew does) forces HTTPS, so
+choosing GitHub as the first host is close to choosing to carry a TLS stack, which
+`design/roadmap/proposals/whether-fetching-a-package-needs-tls.md` prices.
+
+**Reversibility.** Clauses 1 to 3 are code and reversible. The irreversible thing this deliberately
+does **not** do is ship a public key in an image somebody else runs, which is why T2 is deferred
+rather than refused.
+
+## The prior art, read 2026-09-19 rather than recalled
+
+| System | What is signed | How a package is accepted | The owner's escape hatch |
+|---|---|---|---|
+| Debian `apt` | the repository's `Release` file, not the `.deb` | signed `Release` to index checksums to package checksum | a prompt: "packages cannot be authenticated" |
+| FreeBSD `pkg` | the repository catalogue | `SIGNATURE_TYPE` `PUBKEY` or `FINGERPRINTS`, with trusted and revoked fingerprint directories | `SIGNATURE_TYPE=NONE` |
+| Arch `pacman` | both packages and databases | packager keys in a keyring, master-key web of trust, default `Required TrustedOnly` | `SigLevel = Optional` or `Never` |
+| Nix | store paths, by a cache's key | `trusted-public-keys`, **or** the path is content-addressed, which needs no signature | `require-sigs = false`, `trusted-users` |
+| Fuchsia | base packages by hashes in the image; later packages by signature at load | content-addressed blobs plus signature verification at load | none, by design |
+| Homebrew | historically nothing: a SHA-256 in a reviewed formula; now also GitHub Actions build attestations | checksum match against the recipe, plus optional attestation against the builder identity | attestation checking is opt-in |
+
+**Two findings from that table shaped the ruling.** Almost nobody signs individual packages: the
+signature, where there is one, is over the *index*, which is what nife's measurement table already
+is. And the owner override is universal rather than a loophole, which answers milestone 104's
+objection directly: the override changes what runs **by the owner's own act**, which is not the
+"measurement that changes nothing" that §104 refused.
+
+Sources, read 2026-09-19: `wiki.debian.org/SecureApt`; `man.freebsd.org` `pkg.conf(5)`;
+`man.archlinux.org` `pacman.conf(5)`; `nix.dev` manual, configuration options;
+`fuchsia.dev` verified execution; `docs.brew.sh/Bottles` and Homebrew's attestation module.
+
+## The proposal as calef ruled on it
 
 ## What is being decided
 
