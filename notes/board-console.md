@@ -1,4 +1,4 @@
-# Reading a board, without a person watching it
+# Reading a board, and the one thing this tool says back
 
 Milestone 216. `script/console` boots a shell in QEMU. `script/board-image` builds the VisionFive
 2 payload and prints the `dd` commands for a card. Between those two there was nothing, so every
@@ -9,6 +9,15 @@ far the boot got, and **stops on a deadline**.
 The last clause is the only hard part. Opening a serial port is a `screen` invocation. Knowing
 when to stop reading is what kept this a milestone.
 
+**And since milestone 324 it writes, under one rule**: *it writes only what a named mode sends,
+and every byte it sends is printed into the log.* calef ruled that on 2026-09-19, replacing this
+note's original *"it reads and never writes to the board"*. There is exactly one named mode today
+and it sends exactly one byte: `--stop`, which ends milestone 249's self-rebooting soak. The
+second clause is the half that makes the first safe, because the log is the artifact a bench run
+is judged from and a byte the board received that the capture does not show makes the capture a
+lie about the run. **This is not a keyboard**, and the narrowness is the decision rather than
+caution about it; "Writing to a board" below has the argument.
+
 ## The commands
 
 ```
@@ -16,6 +25,8 @@ script/board-console                                # watch until the kernel ban
 script/board-console --for 30m --until none         # sustained watching, for a stress run
 script/board-console --port /dev/cu.usbmodemXXXX    # when two adapters are plugged in
 script/board-console --replay target/board-console-1756744000.log   # re-read a capture
+script/board-console --stop                         # end a rebooting soak at its next draw
+script/board-console --stop-after 50                # end one with exactly fifty samples in it
 ```
 
 | flag | default | what it does |
@@ -25,6 +36,18 @@ script/board-console --replay target/board-console-1756744000.log   # re-read a 
 | `--for <duration>` | `120s` | The hard cap. `90`, `90s`, `30m`, `2h`. |
 | `--until <stage>` | `banner` | Stop early at `spl`, `opensbi`, `uboot`, `handoff`, `banner`, `tour`, or `none` to watch the whole duration. |
 | `--quiet-after <duration>` | `15s` | Give up if the board speaks and then stops. `0` disables it. Suppressed once the tour completes, always. |
+| `--stop` | off | `--stop-after 1`. Send the byte that ends milestone 249's rebooting soak, at the next draw. |
+| `--stop-after <n>` | off | Send it at the n-th armed draw this session sees, so the series has exactly n samples. |
+
+**The two stop flags change two other defaults**, because both answer "when does this session
+end" and a stop mode is the answer. `--until` becomes `none` (the escape ends the session, not a
+stage), and an explicit `--until <stage>` alongside a stop is refused rather than overridden: a
+soak is reached long before its reboot loop arms, so `--until soak --stop` would return before
+sending anything. `--for` defaults to `150s` per draw plus two minutes, derived from
+`kernel/src/soak.rs`'s two-minute draw and the twenty-odd seconds a boot takes, so `--stop-after
+50` gets the two unattended hours milestone 249 prices it at. Both are overridable and neither is
+an agreement with anything; getting them wrong costs a re-run. `--stop` with `--replay` is refused
+outright, because a file has no board on the other end of it.
 
 **And one mode that opens no port at all** (milestone 249): `--tally <log>` reads a capture of many
 boots and reports what the thread-placement lottery drew on each. It is `board_console::lottery`
@@ -43,6 +66,93 @@ A bench script needs to tell a hang from a refusal, and a tool with two exit cod
 | 2 | It spoke and then went quiet. **This is what a hang looks like from this end**, and it is the one the multicore risk cares about. |
 | 3 | The time ran out with the requested stage unreached. |
 | 4 | The port could not be opened, or the arguments were wrong. No session happened. |
+
+## Writing to a board, which is one byte and one reason
+
+Milestone 324, parts 1 and 4, on calef's ruling of 2026-09-19. Everything above this heading
+reads. This section is the only part of the tool that writes, and it is worth reading before
+anyone extends it, because the shape is the decision.
+
+### What it sends, and what it will not
+
+One byte, `0x0d`, a carriage return. `kernel/src/soak.rs`'s escape accepts any byte at all, so
+this is a choice inside a contract that is already fixed rather than anything two programs agree
+on. Carriage return because the kernel's own instruction is *"press any key on this console"* and
+Enter is what a person presses when told that: a tool whose byte is the one the documented manual
+procedure produces is running the same experiment the procedure runs. `NUL` was the other
+candidate, refused narrowly, and the reasoning is in `crates/board_console/src/stop.rs` beside the
+constant.
+
+It will not send anything else. There is no mode that types a line, no mode that drives U-Boot,
+and no keyboard. **The hazard is not writing; it is an open keyboard beside a countdown a stray
+byte consumes.** Milestone 249's lane sent this same escape by detaching the console, hit U-Boot's
+autoboot countdown with it, and paid a power cycle. That incident is the argument, not a
+preference about tidiness.
+
+### When it sends, which is the whole of the safety
+
+**Only after the board has printed its arming announcement**, the `THIS BUILD REBOOTS THE BOARD`
+line `kernel/src/soak.rs` prints from `arm_reboot`. Nothing else in a session can cause a byte to
+go out. Four things follow from that one gate:
+
+- **The kernel's own drain is already behind us.** `arm_reboot` calls `console::discard_rx` and
+  *then* prints, so a byte sent any earlier is a byte the kernel deliberately throws away. This is
+  the trap worth knowing about: `soak-test: started` is printed **before** `arm_reboot`, with four
+  more lines between them, about a kilobyte, roughly ninety milliseconds at 115200 baud. A sender
+  triggered on that line would lose the race nearly every time, silently, and the failure would look
+  exactly like a board whose receive path is miswired.
+- **There is a reboot loop to stop.** A plain `--features soak_test` kernel never prints the banner
+  and never polls for an escape.
+- **The board is long past its firmware**, because a kernel that has printed this has been running
+  for the length of a boot tour. The countdown hazard is closed by the gate rather than by the
+  byte.
+- **It counts draws.** One banner per boot of a rebooting build, one-to-one with the
+  `soak-test: started` lines `script/board-console --tally` opens a draw on, so a log produced by
+  `--stop-after n` tallies as exactly n draws.
+
+So the answer to *what if `--stop` is given and the board is powered off, or at a U-Boot prompt, or
+running a kernel with no soak in it* is one answer in all three cases: **nothing is sent**, the
+session ends on its deadline, and the tool says no armed reboot loop announced itself. The cost of
+the gate is one sentence: a session that attaches to a board already mid-draw waits out the rest of
+that draw, up to two minutes, before the next banner arrives.
+
+### What confirms it, and why that is new
+
+The kernel prints `soak-test-reboot: DISARMED` when the escape lands. The tool waits fifteen
+seconds for it (three of the kernel's five-second polls) and the exit status says whether it came:
+`0` confirmed, `3` sent and unacknowledged, `3` never sent. No new exit status was added.
+
+**That closes a gap `kernel/src/soak.rs` states in its own `BUGS` and cannot close from where it
+stands**: *"the escape is a poll of one bit and nothing verifies that the bit can ever be set
+[...] Nothing in this kernel can prove otherwise, because a UART cannot receive a byte it sends."*
+A host holding the far end of the cable is not under that limit, so a confirmed `--stop` is the
+first end-to-end evidence that a board's receive path works. The procedure that kernel BUGS entry
+names as the substitute (press a key on the first boot, confirm `DISARMED` before walking away)
+becomes something a script does and records in the log.
+
+### What the log shows
+
+Three lines, and the ordering is deliberate: the announcement is written and flushed **before** the
+byte goes to the port, so a write that fails reads correctly rather than leaving a log that claims
+a byte nobody sent.
+
+```
+soak-test-reboot: THIS BUILD REBOOTS THE BOARD. It soaks for 120s, then asks the firmware ...
+
+board-console: sending the soak escape to the board now: 1 byte, 0x0d. Draw 50 of 50 armed its
+reboot at +7412.3s and this is the sample the series was asked for.
+board-console: sent 1 byte, 0x0d. Waiting up to 15s for the kernel to say it found it.
+soak-test: t=5s beat=1 rounds=... rate=.../s workers=24 refused=0 mismatch=0 stalled=0
+soak-test-reboot: DISARMED at t=5s: a byte arrived on this console. This board will not reboot
+itself again.
+
+board-console: the board acknowledged the escape and will not reboot itself again. Its own line is
+above; the soak keeps running.
+```
+
+The byte is rendered in hex and never written raw, so the capture stays greppable, cannot move a
+reader's cursor, and cannot be mistaken for something the board said. A host test asserts that no
+line this mode writes into a log reads as a boot marker when that log is replayed.
 
 ## What it recognises, and where each marker came from
 
@@ -213,9 +323,11 @@ graph, and §46 (thin primitives or whole subsystems; we write everything in bet
 one a decision rather than a convenience. A lane does not take that decision. A serial
 configuration call is squarely the "in between" that section refuses: not a thin architectural
 primitive, and nothing like a whole subsystem. `stty(1)` makes the
-same call, is in every base system, and costs a process spawn per session. If this ever needs to
-*write* to the board with flow control, or a non-standard baud, the trade changes and the
-dependency is worth proposing.
+same call, is in every base system, and costs a process spawn per session. **Milestone 324's
+writing mode did not change this**, which is worth saying because it looks like it should have: the
+port is already opened read-write and one byte goes out through an ordinary `write`, with no flow
+control to negotiate and no baud to change. If this ever needs to write *with* flow control, or at
+a non-standard baud, the trade changes and the dependency is worth proposing.
 
 ## Testing it with no board
 
@@ -241,6 +353,15 @@ involved a booting machine.
 - **The real adapter**, with the board off, covers everything except the board: discovery finds
   `/dev/cu.usbmodem*`, the `stty` moves it to 115200 and it reverts on exit, and the deadline
   returns with zero bytes and exit 3.
+- **The writing mode** (milestone 324) is tested against a `Vec<u8>` standing in for the port, so a
+  host test asserts the exact bytes a board would have received and the log entries beside them.
+  Eleven tests in `stop.rs` cover the decision (nothing is written until the board announces an
+  armed reboot loop; one byte, once; the n-th draw and not the one before it), the invariant (the
+  log names the byte in hex, and names it *before* the write, so a failed write reads correctly),
+  the confirmation, a port that refuses the write, and the agreement between this mode's draw count
+  and `--tally`'s. Two more in `watch.rs` run the same thing through the real loop. **What none of
+  them prove is the wire**: no byte has reached a board, and `stop.rs`'s `BUGS` says so where a
+  reader meets it.
 
 **The residue no host test reaches is one claim: that `tcsetattr` actually took.** Nothing on a
 host is a tty, so a test can prove the right arguments were sent and cannot prove the device
@@ -295,6 +416,47 @@ Re-reading a capture, which needs no board and no adapter:
 $ script/board-console --replay target/board-console-1756744100.log
 ```
 
+Ending a rebooting soak from a script, which is the one thing this tool writes for. **No run of
+this against a board exists yet**; what follows is what the code produces, from the transcripts the
+host tests feed it:
+
+```
+$ script/board-console --stop
+--- /dev/cu.usbserial-A28FR8LZ at 115200 baud, logging to target/board-console-1758290000.log, up to 270s ---
+--- stopping after 1 armed draw(s); one byte will be sent to the board and printed into the log ---
+...
+soak-test: started 4 groups of one responder, 3 callers, 1 grinder and 1 tick waiter ...
+soak-test-reboot: THIS BUILD REBOOTS THE BOARD. It soaks for 120s, then asks the firmware ...
+
+board-console: sending the soak escape to the board now: 1 byte, 0x0d. Draw 1 of 1 armed its
+reboot at +24.8s and this is the sample the series was asked for.
+board-console: sent 1 byte, 0x0d. Waiting up to 15s for the kernel to say it found it.
+soak-test-reboot: DISARMED at t=5s: a byte arrived on this console. ...
+
+board-console: the board acknowledged the escape and disarmed its reboot loop (2914 bytes in 30.1s)
+board-console: log at target/board-console-1758290000.log
+$ echo $?
+0
+```
+
+A series with exactly fifty samples in it, which is what milestone 249's distribution wants:
+
+```
+$ script/board-console --stop-after 50 --log target/radon-lottery-$(date +%s).log
+...
+$ script/board-console --tally target/radon-lottery-....log     # reports fifty draws
+```
+
+And the same command against a board that is not running a rebooting soak, which is every case the
+ruling did not cover arriving as one answer:
+
+```
+board-console: time ran out after soak running (184213 bytes in 270.0s)
+board-console: no byte was sent: no armed reboot loop announced itself before the session ended
+$ echo $?
+3
+```
+
 ## BUGS
 
 **The markers are checked against one board, on one day, in four states.** That is much better than
@@ -314,12 +476,12 @@ missed marker reports a healthy board as having got less far than it did.
 
 **A missed marker fails toward pessimism; a matched one does not.** Matching is `contains`
 anywhere in a line, so a console that echoed `Starting kernel ...` back would be read as having
-handed over. Nothing guards against that, and today the only way it happens is a person typing into
-the same session. **This bullet used to rest on the tool never writing, and after 2026-09-19's
-ruling it rests on what the writing mode sends instead**: `--stop` sends one byte, which cannot
-spell a marker, and the mode logs what it sent so a reader can rule it out by hand. A future mode
-that typed whole lines would put this hazard back, which is a reason to keep the write surface at
-named commands rather than a keyboard.
+handed over. Nothing guards against that. **This bullet used to rest on the tool never writing, and
+since milestone 324 landed it rests on what the writing mode sends instead**: `--stop` sends one
+byte, which cannot spell a marker, and the mode logs what it sent, in hex, so a reader can rule it
+out by hand. A host test asserts the same of the mode's own log annotations, which are the other
+text this tool adds to a capture. A future mode that typed whole lines would put this hazard back,
+which is a reason to keep the write surface at named commands rather than a keyboard.
 
 **It does not recognise an OpenSBI trap dump**, which the triage ladder lists as a real and
 specific outcome (the kernel started the S7 and vendor firmware died in its own handler). The
@@ -332,30 +494,37 @@ repeating where the tool is: this reports how far a boot got, and deciding a mil
 the strength of a vendor's boot message is a line nobody has agreed to cross. `Reached` is named
 for what was observed rather than for a verdict.
 
-**It reads and never writes, and the reason that was fatal on this board is gone.** The captured
+**It drives no firmware, and the reason that was fatal on this board is gone.** The captured
 failure was the proof: the extlinux path from power-on ended at `### ERROR ###`, so reaching nife
 meant interrupting autoboot and typing the four `StarFive #` commands. **Milestone 218 closed that
 on 2026-09-16**, confirmed by a boot whose countdown expired with nobody typing
 (`bench/radon-2026-09-16/tour-083200.log`), so a reader is now enough to get radon from power-on to
-the kernel. What is not gone is the next bullet, which arrived from a different direction.
+the kernel, and nothing here types at U-Boot. What is not gone is the next bullet, which arrived
+from a different direction and is what the writing mode answers.
 
-**Because it never writes, it cannot stop a rebooting soak, and that is now something a board does**
-(milestone 249). `--features reboot_soak_test` makes a board cold-reboot every two minutes, and its
-escape is a byte on the console UART: any byte, checked every five seconds. This tool holds the
-port and cannot send one, so the escape is reached by a **person typing**, either into this
-session's terminal or by detaching it first, and detaching a console is not free (notes/soak.md
-records a 6% rate change from doing it mid-run). Two things a writing mode would buy: `--stop`, the
-whole escape from a script; and `--stop-after <n>`, ending a series with exactly the sample it was
-asked for.
+**Stopping a rebooting soak no longer needs a person, and no byte of it has reached a board yet**
+(milestones 249 and 324). `--features reboot_soak_test` makes a board cold-reboot every two
+minutes, and its escape is a byte on the console UART: any byte, checked every five seconds. Until
+milestone 324 this tool held the port and could not send one, so the escape was reached by a
+**person typing**, either into this session's terminal or by detaching it first, and detaching a
+console is not free (notes/soak.md records a 6% rate change from doing it mid-run). `--stop` and
+`--stop-after <n>` are now that escape from a script. **What is not yet proven is the wire.**
+Milestone 324's lane had no board attached to it, so the decision to send is tested against
+captures and the bytes against a buffer standing in for the port, and nothing has tested that a
+write to the descriptor reaches the UART or that the kernel's poll finds it. The first real
+`--stop` is that experiment and its `DISARMED` line is the result.
 
-**calef decided this on 2026-09-19, and the invariant this note's heading states is superseded**:
-the tool writes, but only what a named mode sends, and every byte it sends is printed into the log.
-It stays a mode of this tool rather than a second entry point. The narrowness is the decision rather
-than caution about it, and the argument is an incident: milestone 249's lane sent the escape byte by
-detaching the console and hit U-Boot's autoboot countdown with it, costing a power cycle. The hazard
-is an open keyboard beside a countdown a stray byte consumes, not writing as such. Milestone 324
-part 4 carries the ruling and part 1 is the `--stop` that falls out of it. **Until that lane lands,
-what this note describes above is still what the tool does.**
+**The `--stop` gate costs a draw when a session attaches mid-run.** The byte goes out only on the
+board's arming announcement, which is printed once per boot, so a `--stop` against a board already
+two minutes into a draw waits for that draw's reboot before it can act. Attaching at power-on has
+no such gap. The gate is what makes every other state safe (see "Writing to a board" above), and
+this is its price, stated rather than hidden.
+
+**An unconfirmed send is three faults wearing one report.** The byte may not have left the host,
+the board's receive path may be dead (`kernel/src/soak.rs`'s own `BUGS` says nothing in the kernel
+can tell), or the kernel may be wedged in a way the beat has not yet shown. The tool says the byte
+went out and was not acknowledged, and cannot say which. The surrounding beats in the log separate
+them by hand: beats still arriving with no `DISARMED` points at the receive path.
 
 **It does not touch power.** The board's Kasa strip was not reachable from either machine when
 this was written, and the roadmap block declines to decide whether this tool should ever drive it.
