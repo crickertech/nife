@@ -924,22 +924,21 @@ pub fn write_outcome(e: &Endowment, answer: u64, out: &mut dyn FnMut(&[u8])) {
             write_num(e.mem_pages, out);
             out(b"-page budget you granted (the rest paid for its page tables)\n");
         }
-        // Supervised jobs report through the job frame and the interruptible path, not here; `date`
-        // answers in text and is drained by the byte-stream reader before this is reached. `rm` is
-        // unreachable from the interactive prompt at all (a directory grant needs a caretaker that
-        // shell cannot build, and it says so), and when it is reachable it will report the way
-        // `date` does: diagnostics as text, then an exit status.
-        Prog::InterruptHeeder
-        | Prog::InterruptIgnorer
-        | Prog::Date
-        | Prog::Rm
-        | Prog::Wc
-        | Prog::Mdr
-        | Prog::Ps
-        | Prog::Pgrep
-        | Prog::Uptime
-        | Prog::Printenv
-        | Prog::Uuid => {}
+        // **Every other program answers somewhere else, so there is nothing to render here.** Only a
+        // program whose manifest says `OutputSpec::Words` answers in a register, and those two are
+        // the arms above. Supervised jobs report through the job frame and the interruptible path;
+        // byte-stream programs (`date`, `wc`, `ps`, ...) are drained by the byte-stream reader
+        // before this is reached.
+        //
+        // **A wildcard, deliberately, since milestone 150.** This match used to name all thirteen
+        // programs so that adding one was a compile error here, and eleven times in thirteen the
+        // arm that error asked for was `=> {}`: an edit in a crate the person adding a byte-stream
+        // program had no reason to open, which nominally forced a decision and in practice forced
+        // a keystroke. The question the exhaustive match was really asking ("does your program
+        // answer in a register, and if so, how does it read?") is now asked of exactly the programs
+        // it applies to, by `every_program_that_answers_in_words_renders_its_answer` below, which
+        // fails for a `Words` program that falls through to this arm.
+        _ => {}
     }
 }
 
@@ -1368,8 +1367,8 @@ mod tests {
     use std::string::String;
     use std::vec::Vec;
 
-    use grant_plan::PROG_COUNT;
     use grant_plan::expand::NameSet;
+    use grant_plan::{FileSpec, InputSpec, MemSpec, OutputSpec};
 
     /// Run a renderer and collect what it wrote. Every test below reads the shell's own output,
     /// which is the thing that used to need a booted kernel and a terminal to see at all.
@@ -2060,6 +2059,29 @@ mod tests {
         assert!(!shown(|o| write_preview(&endowment(Prog::Wc), o)).contains("entropy"));
     }
 
+    /// **A program that answers in a register gets a sentence here, or the answer is lost**
+    /// (milestone 150). [`write_outcome`]'s match ends in a wildcard, because byte-stream programs
+    /// have nothing to render there; this is what keeps that wildcard from swallowing the one case
+    /// where it would be wrong. A new `OutputSpec::Words` program with no arm prints nothing at the
+    /// prompt, which is the silence this fails on.
+    #[test]
+    fn every_program_that_answers_in_words_renders_its_answer() {
+        let mut checked = 0;
+        for &p in Prog::ALL {
+            if p.manifest().output != OutputSpec::Words {
+                continue;
+            }
+            let s = shown(|o| write_outcome(&endowment(p), 441, o));
+            assert!(
+                s.contains("441"),
+                "{} answers in a register and write_outcome has no arm to print it:\n{s:?}",
+                p.name()
+            );
+            checked += 1;
+        }
+        assert!(checked > 0, "a sweep over nothing proves nothing");
+    }
+
     #[test]
     fn exactly_one_program_declares_entropy() {
         // The manifest table is the whole of who may draw random bytes at this prompt, so a count
@@ -2068,8 +2090,7 @@ mod tests {
         // DECISIONS §44 exists to prevent, and it would otherwise be visible only to whoever read
         // the diff.
         let mut declared = 0;
-        for id in 0..grant_plan::PROG_COUNT as u64 {
-            let p = Prog::from_id(id).expect("PROG_COUNT and Prog::from_id agree");
+        for &p in Prog::ALL {
             if p.manifest().entropy {
                 assert_eq!(p, Prog::Uuid, "{} declares entropy", p.name());
                 declared += 1;
@@ -2303,19 +2324,39 @@ mod tests {
     /// only `ArgSpec::Required` program) and silently wrong for the next one added: the shell would
     /// print `arg (none)` and then hand the argument over anyway. A test naming `LeastAuthorityDemo` would have
     /// passed against the bug. A test that asks the manifest cannot.
+    ///
+    /// **And the line it types follows the rest of the manifest too** (milestone 150). It used to
+    /// type `<name> 21` against `Holdings::default()` for every program, so a program that required
+    /// an argument *and* an input was refused for the missing input before any table was printed,
+    /// and the sweep went red on a manifest shape nothing had used yet (milestone 117's fifth
+    /// stranger found it). Now the line supplies every operand the manifest asks for that the
+    /// planner can resolve without a boot: a `--mem` at the declared minimum, and a file name for a
+    /// declared input or file, against a shell holding a directory.
     #[test]
     fn the_arg_line_follows_the_manifest_for_every_program() {
-        for id in 0..PROG_COUNT as u64 {
-            let Some(prog) = Prog::from_id(id) else {
-                continue;
-            };
-            let takes_arg = prog.manifest().arg == ArgSpec::Required;
-            let line = std::format!("{} 21", prog.name());
+        let holdings = Holdings {
+            dir: true,
+            ..Holdings::default()
+        };
+        for &prog in Prog::ALL {
+            let m = prog.manifest();
+            let takes_arg = m.arg == ArgSpec::Required;
+            let mut line = String::new();
+            if let MemSpec::Required { min, .. } = m.mem {
+                line.push_str(&std::format!("--mem {min} "));
+            }
+            line.push_str(prog.name());
+            line.push_str(" 21");
+            let wants_a_name = matches!(m.input, InputSpec::Required { .. })
+                || matches!(m.file, FileSpec::Required { .. });
+            if wants_a_name {
+                line.push_str(" report.txt");
+            }
             let s = shown(|o| {
                 write_caps(
                     line.as_bytes(),
                     128,
-                    Holdings::default(),
+                    holdings,
                     None,
                     &mut |_| Ok(NameSet::empty()),
                     o,
