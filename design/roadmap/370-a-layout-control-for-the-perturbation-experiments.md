@@ -214,6 +214,6 @@ evidence of a 19 ns effect with a 193 ns artifact sitting on top of it. **BUILT 
 linker scripts pin that section first in `.text` so both move the whole kernel text and a pad has a
 byte-identical un-padded twin, eight images share one normalised instruction hash that
 `script/fastpath-footprint --layout` prints, and a bench boot names its own image. Building it found that a Cargo feature per size reproduces the
-defect, because a feature name repartitions codegen units and moved 11 KB of unrelated code; and
-that a pad which is never executed can only act through addresses, so E3 tests whether the footprint
-number predicts latency rather than Liedtke's claim about an executed one.
+defect (a feature name repartitions codegen units, moving 11 KB of unrelated code), and that a pad
+never executed can only act through addresses, so E3 tests whether the footprint number predicts
+latency, not Liedtke's claim about an executed footprint.
