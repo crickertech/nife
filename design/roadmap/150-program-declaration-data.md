@@ -212,6 +212,8 @@ milestone 117's handoff."
   three relationship checks in place of a pinned count) is reasoned with what lost in
   `notes/adding-a-program.md` under "Why it works this way", for the integrator to mint a
   `design/decisions/` section at merge. No section exists yet; this lane does not mint one.
+  **Minted by the maintainer on 2026-09-19 as
+  [DECISIONS §158](../decisions/158-a-program-is-declared-once.md).**
 - **Recorded.** The stale `SHELL_CHECK_SCRIPT` line a removal leaves, the textual removal gate, the
   wire-id pin's cut-off date, and the four-key `[[bin]]` reader, in `notes/adding-a-program.md`'s
   `BUGS`.
