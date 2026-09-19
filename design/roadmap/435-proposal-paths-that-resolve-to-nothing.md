@@ -16,6 +16,14 @@ twenty-seven files: milestone blocks (296 has five, 267 and 304 have three each)
 under `design/audit-reports/`, `design/naming.md`, `design/decisions/152-port-range-capability.md`,
 four notes, `kernel/src/pci.rs` and `scripts/qemu-runner-x86_64.sh`.
 
+**A handful of finished blocks also describe the directory in the present tense**, which is a
+smaller defect of the same family: milestone 276's block says `script/roadmap --proposed` "already
+computes" a number, and milestone 301's says `scripts/roadmap_proposals.py` "matches PROPOSED and
+nothing else, so a proposal cannot be retired" in place. Both were true when written. A BUILT block
+is a record of its moment and the tree's convention lets older records describe the past, so these
+want a dated amendment rather than a rewrite, and deciding which of the two they get is part of
+this work.
+
 A citation that resolves to nothing is a broken footnote, which is the defect `script/roadmap`'s
 own `**Recorded.**` path check exists to catch, one directory over. None of these is caught, because
 nothing checks a backticked path outside a follow-on bullet.
