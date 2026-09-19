@@ -233,12 +233,20 @@ triaged would postpone the reading on the grounds that the evidence is good enou
 it. The census *is* the experiment this entry has been waiting for; it is read here, and what it
 found is recorded as owed work rather than as a reason not to read it.
 
-**What is owed, recorded here because this is where a reader meets the claim.** The 771 survivors of
-the 2026-09-14 census are untriaged, the seven regressions above have no owner, and the workflow has
-succeeded exactly once, so a cadence is claimed by one data point. Nothing in `design/roadmap/`
-currently owns any of it: milestone 85 built the instrument and triaged the baseline, 238 repaired
-the workflow's shard indices, 277 bounded the runaway mutant, and 280 explained the two crates that
-made the fall look real. **Turning a score upward is work nobody has been assigned.**
+**What is owed, and it now has a block rather than a sentence.** The 771 survivors of the 2026-09-14
+census are untriaged, the seven regressions above have no owner, and the workflow has succeeded
+exactly once, so a cadence is claimed by one data point. Nothing in `design/roadmap/` owned any of it
+when this verdict was written: milestone 85 built the instrument and triaged the baseline, 238
+repaired the workflow's shard indices, 277 bounded the runaway mutant, and 280 explained the two
+crates that made the fall look real, so three of the four were repairs to the instrument and only one
+ever turned a score. **Milestone 326 was minted the same day for exactly that gap**, ordered
+`capability` first among the regressions and `timetable` next for its 48 survivors, and its own
+definition of done is milestone 85's rule rather than a target percentage, because a percentage
+target can be met by excluding the awkward crates.
+
+**This entry goes back to green when 326's first two parts carry no untriaged survivor**, not when
+the number rises. That is the condition to hold it to, and it is written here so a later reader can
+check the promise against the block.
 
 **The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
 workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped
