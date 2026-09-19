@@ -959,7 +959,7 @@ spelling and pays the cost at the reader's expense once, in an expansion written
 meets it. `crates/user_rt/src/initrd.rs` carries that expansion as of 2026-09-13.
 
 **And the defect the pricing found was not the name.** `initrd` appeared about 1,300 times and was
-expanded in full **exactly once**, in `crates/device_tree_blob`, a crate about device trees rather than the one
+expanded in full **exactly once**, in `crates/dtb` (`crates/device_tree_blob` since 2026-09-19), a crate about device trees rather than the one
 named for the thing. The abbreviation was never the problem; an unexplained abbreviation was, and
 that is rung three rather than a sweep.
 
@@ -1210,7 +1210,7 @@ runs, which is not on every build. It is the stale-pointer-upgrade class one lev
 ### `components/` is a second workspace, and `cargo check` is blind to it
 
 The main workspace's check does not compile `components/`, so a rename that breaks a consumer there
-is green until something builds it. `gpt` and `dtb` both have consumers in it (the `gpt` rename built and ran them); `asid` had only the
+is green until something builds it. `gpt` has consumers in it (the `gpt` rename built and ran them); `dtb` has none, which this line wrongly said it had until the `dtb` lane checked with `git grep`, and `asid` had only the
 kernel, which is why the first three renames never exercised this. **Build both workspaces, or run
 `script/test`, which does.**
 
