@@ -63,6 +63,12 @@ tree. If it does not on a board, that board takes U2 until it does. Rust's UEFI 
 and riscv64 are also recalled, not checked: confirm each exists and at what support tier before
 relying on it.
 
+**The check is five commands at each board's U-Boot prompt with a FAT32 stick in**, written into the
+bench runbooks on 2026-09-19: radon's is notes/visionfive2.md, "To measure at the bench", item 10,
+and argon's is milestone 127's bench list. What the tree already shows for radon: its U-Boot
+(2021.10, StarFive's vendor build) does not initialise USB by itself at boot, and its BootROM cannot
+boot USB at all, so a USB boot there is always U-Boot reading the stick.
+
 **Two axes, and they are independent.** The *target* axis above is what the stick boots. The *host*
 axis is where the program runs: macOS (one universal binary covers Apple Silicon and Intel), Linux
 and Windows, each on x86_64 and arm64. The host axis is ordinary Rust cross-compilation.
