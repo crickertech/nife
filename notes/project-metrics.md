@@ -366,15 +366,51 @@ where a person can read them.
 
 ![Coverage](project-metrics/coverage.svg)
 
-**Empty, and it will stay empty for every week before this page existed.** Coverage is the one metric
-here that cannot be recovered by walking history: it is computed per pull request in CI, stored
-nowhere, and reconstructing it means a full instrumented build at every checkout in the history.
-`script/metrics` is not allowed to build anything, which is what makes eight weeks of backfill cost
-six seconds rather than a machine.
+**Every week but the first is measured, and each was measured by its own tree.** This section
+used to say coverage could not be recovered from history. That was a rule about `script/metrics`,
+which may not build or check anything out, mistaken for a fact about the measurement. On 2026-09-19
+a lane checked out each week's representative commit in a throwaway worktree, ran **that commit's**
+`script/coverage` on **that commit's** pinned nightly, and handed the lcov to
+`script/metrics --coverage-for <WEEK> --coverage-from <lcov>`. That is the same instrument the
+weekly workflow runs, so the backfilled cells mean what the live ones mean.
 
-So the series starts when the weekly workflow first runs, and the empty bars are left visible rather
-than the chart being dropped. A metric quietly omitted is worse than one visibly missing, which is
-the same argument `script/falsifications` makes for its `unfalsified` state one directory over.
+**This is the one series on the page that is not a restatement.** Every other column applies
+today's definitions to an old tree. Coverage applies each week's own: its own crate exclusions and
+its own feature flags, so the scope moves from week to week exactly as it moved at the time.
+
+| week | commit | toolchain | lines hit / found | per cent |
+|---|---|---|---|---|
+| 2026W29 | `a80e5182d54c` | none | | **empty** |
+| 2026W30 | `aef018cdaa3a` | nightly-2026-07-26, **reconstructed** | 1954 / 2114 | 92.4 |
+| 2026W31 | `190268d086f0` | nightly-2026-08-02 | 11019 / 12106 | 91.0 |
+| 2026W32 | `f6fd097488b1` | nightly-2026-08-04 | 15712 / 16746 | 93.8 |
+| 2026W33 | `60698aa1a594` | nightly-2026-08-16 | 20573 / 21976 | 93.6 |
+| 2026W34 | `132f6ad08ade` | nightly-2026-08-23 | 25084 / 26624 | 94.2 |
+| 2026W35 | `685900ec6bf5` | nightly-2026-08-30 | 27330 / 28959 | 94.4 |
+| 2026W36 | `d0b254c5a5e6` | nightly-2026-09-06 | 26066 / 27604 | 94.4 |
+| 2026W37 | `5cd67cd3f193` | nightly-2026-09-13 | 26472 / 27952 | 94.7 |
+| 2026W38 | `5d9d5e4c1f6a` | nightly-2026-09-17 | 26063 / 27525 | 94.7 |
+
+Three things a reader should hold against those numbers:
+
+- **2026W29 is empty because no instrument existed.** `script/coverage` arrived on 2026-07-22.
+  Running a later script on that tree would measure something the week never measured, which is a
+  restatement of a different kind from the rest of this page, and the bar is left missing rather
+  than invented.
+- **2026W30's toolchain is a reconstruction.** Its `rust-toolchain.toml` said `nightly`, unpinned,
+  so the compiler that week actually used is not recorded anywhere. The backfill used the nightly
+  dated on the commit's UTC day, which is what the floating channel resolved to when it was made.
+  Every later week is pinned and was measured on exactly its pin.
+- **2026W36 was the control, and it reproduced.** Its 94.4 was measured by the weekly workflow on
+  2026-09-07 on Linux (cargo-llvm-cov 0.9.0, 26029 of 27571 lines); the backfill on the dev Mac
+  (cargo-llvm-cov 0.8.7) got 26066 of 27604. Both round to 94.4. The 33-line gap is the platform
+  and tool version, and it is the size of error to expect between a live cell and a backfilled one.
+  The tool is today's `cargo-llvm-cov` for every backfilled week, not the version each week had.
+
+2026W38's earlier 94.6 was taken at that week's first Monday commit; it was re-measured at the
+row's current commit, so its cell and the rest of its row now describe the same tree. 2026W31's dip
+is a change of scope rather than of testing: the measured set went from 15 files to 49 that week,
+which is also the week rule 7 turned `#[path]` modules into crates.
 
 The floor `script/coverage` gates on is per file, not this aggregate; the dashed line is that floor
 drawn for scale.
