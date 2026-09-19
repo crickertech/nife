@@ -341,7 +341,10 @@ After 127's steps 1 to 5, read these lines, in this order:
    feeding both counters from one clock.
 2. `firmware left PMCCFILTR_EL0 0x...`. **Write this down whatever it says**: it is the best
    evidence of what seL4's 413 and 426 counted. `0x0` means kernel included; bit 31 set means EL1
-   excluded.
+   excluded. **This line is now the ruling itself**: calef decided on 2026-09-19 that the filter
+   is set to match what argon's firmware left, rather than chosen in advance
+   (design/roadmap/353-the-aarch64-half-of-74.md, decision A). So this reading closes milestone
+   353's decision A, and until it is taken no aarch64 cycle figure is published.
 3. `6 event counters visible`. The A57 implements six; a different number means `HPMN` or firmware.
 4. If the line says `refused` or `disagrees`, the secure world is prohibiting counting on at least
    one core; record which.

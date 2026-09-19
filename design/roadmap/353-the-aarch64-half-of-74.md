@@ -24,6 +24,26 @@ both are facts that leave the machine.
 
 ## Decision A: what `PMCCFILTR_EL0` counts
 
+**Ruled 2026-09-19 (21:34 UTC), calef: wait for argon's firmware value.** The choice is deferred
+until argon's first boot prints `firmware left PMCCFILTR_EL0 0x...`, and then the filter is set to
+match what that firmware left, which is what seL4's published 413 and 426 were counted under
+(Question 3 below reads their source and build for exactly this). Until then the provisional `0`
+stands, the boot line keeps saying `PROVISIONAL`, and **no aarch64 cycle figure is published**,
+milestone 25's included.
+
+**Why this is not a deferral in the bad sense.** Every option below is an argument about what
+seL4's number means; one line of argon's own console output replaces the argument with evidence,
+and that boot is already scheduled work (milestone 127's bring-up). The cost of waiting is that
+milestone 25's aarch64 row stays empty until the first argon evening, which it would anyway: there
+is no aarch64 board number to publish yet.
+
+**What the bench evening owes this block**, beyond reading that line: if firmware left `P` set
+(kernel cycles excluded), say so loudly, because then seL4's figures exclude the kernel and every
+comparison in `notes/benchmarks.md` needs re-reading rather than re-running. If it left `0`, which
+is what QEMU reports, A1 is what argon inherits and the provisional value was right by accident.
+Either way the value goes in this block, the filter stops being provisional, and decision B is
+still open.
+
 ### What is being decided
 
 `PMCCFILTR_EL0` says in which exception levels `PMCCNTR_EL0` increments. Its reset value is
@@ -145,10 +165,12 @@ count the kernel.
 They do cost the same. Nothing here is an effort argument, which is why the table above carries no
 recommendation: it is a question about what nife wants its published numbers to mean.
 
-### What happens if calef says nothing
+### What happened when calef ruled
 
-The provisional A1 stays, the boot line keeps saying `PROVISIONAL`, and milestone 25 cannot publish
-an aarch64 cycle figure. Nothing else waits.
+He took none of A1 to A3 and chose the evidence instead: **wait for argon's firmware value**
+(2026-09-19). The paragraph at the top of this decision is the ruling; this section is kept because
+its prediction held, which is that the provisional A1 stays and milestone 25 cannot publish an
+aarch64 cycle figure until the bench evening.
 
 ## Decision B: the portable user-mode cycle read, its name and its promise
 
