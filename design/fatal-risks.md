@@ -751,6 +751,18 @@ shares. What remains on this edge is unchanged: the boot entry's remaining work 
 orchestrator, schedule rather than restructure. xenon has still not been asked to bring four cores
 online with the fix.
 
+**Milestones 177 and 182 turned BUILT on 2026-09-19, and the paragraph above is now settled the
+way it predicted.** §149 was decided (yes, a kernel-served console endpoint) and milestone 182
+reached a shell over serial on x86_64: `script/shell-check` has a third leg that boots the UEFI
+image a customer's stick carries, types 60 of its 64 lines at the prompt and reads the answers.
+Milestone 177 closed separately, and its defect is the interesting half for this risk: the graphical
+boot hung because two userspace drivers each sent a one-time report that the boot code had stopped
+receiving, so both sat in a blocking send. That is a wiring mistake in a capability protocol, not an
+architecture-shaped cost, and it was identical on aarch64 and riscv64, which is this entry's claim
+holding rather than bending. **So the sentence above that reads "x86_64 has no real interactive boot
+entry point at all" is retired**, and what remains on this edge is what the 2026-09-19 entry for
+milestone 161 says remains: the orchestrator, and xenon confirming four cores with the counting fix.
+
 **It is not the free hour this file first called it**, and the correction is calef's, 2026-08-30,
 asking why it should outrank finishing milestone 16 (real hardware + IOMMU-backed driver
 isolation). `notes/x86-port.md`'s own `BUGS` says why: *"PVH is a hypervisor protocol and no real

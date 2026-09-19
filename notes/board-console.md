@@ -34,7 +34,8 @@ script/board-console --stop-after 50                # end one with exactly fifty
 | `--port <dev>` | the only USB serial adapter in `/dev` | Which device to open. `NIFE_BOARD_PORT` sets it too. Two adapters with no `--port` is an error, not a guess. |
 | `--log <file>` | `target/board-console-<epoch>.log` | Where the bytes go. There is no way to turn it off. |
 | `--for <duration>` | `120s` | The hard cap. `90`, `90s`, `30m`, `2h`. |
-| `--until <stage>` | `banner` | Stop early at `spl`, `opensbi`, `uboot`, `handoff`, `banner`, `tour`, or `none` to watch the whole duration. |
+| `--board <name>` | `radon` | **Which firmware prologue to expect** (milestone 324). `radon` is the VisionFive 2's chain; `xenon` has none, because it boots through PVH straight into our banner. argon has no profile on purpose. |
+| `--until <stage>` | `banner` | Stop early at one of this board's firmware rungs (`spl`, `opensbi`, `uboot`, `handoff` on radon), or at a shared rung: `banner`, `machine`, `selftest`, `tour`, `prompt`, `soak`, `sweep`, `sweep-done`. `none` watches the whole duration. A word this board has no rung for is refused, not waited out. |
 | `--quiet-after <duration>` | `15s` | Give up if the board speaks and then stops. `0` disables it. Suppressed once the tour completes, always. |
 | `--stop` | off | `--stop-after 1`. Send the byte that ends milestone 249's rebooting soak, at the next draw. |
 | `--stop-after <n>` | off | Send it at the n-th armed draw this session sees, so the series has exactly n samples. |
@@ -161,14 +162,31 @@ on a good day" and the failure-triage ladder) or from this tree's own source. **
 checked against the board**, on 2026-09-01, against a captured success and a captured failure that
 now live in `crates/board_console/tests/fixtures/captured/` and are asserted on by the tests.
 
-| stage | marker | source |
-|---|---|---|
-| `spl` | `U-Boot SPL` | runbook, confirmed on the board |
-| `opensbi` | `OpenSBI v` | runbook ("record the version line"), confirmed: `OpenSBI v1.2` |
-| `uboot` | `U-Boot ` followed by a word that is not `SPL`/`TPL`, or `StarFive #` | runbook, confirmed both ways |
-| `handoff` | `Starting kernel ...` | runbook, confirmed |
-| `banner` | `nife on ` | `kernel/src/main.rs`, confirmed |
-| `tour` | `nife: the capability core runs on ` | `kernel/src/main.rs`, confirmed |
+**The first four rows are radon's and live in a board profile** (milestone 324 part 3,
+`crates/board_console/src/board.rs`); the rest are the kernel's and are shared by every board.
+
+| stage | board | marker | source |
+|---|---|---|---|
+| `spl` | radon | `U-Boot SPL` | runbook, confirmed on the board |
+| `opensbi` | radon | `OpenSBI v` | runbook ("record the version line"), confirmed: `OpenSBI v1.2` |
+| `uboot` | radon | `U-Boot ` followed by a word that is not `SPL`/`TPL`, or `StarFive #` | runbook, confirmed both ways |
+| `handoff` | radon | `Starting kernel ...` | runbook, confirmed |
+| `banner` | every | `boot_ladder::BANNER` (`nife on `) | `kernel/src/main.rs`, confirmed |
+| `machine` | every | `boot_ladder::MACHINE` | milestone 268 |
+| `selftest` | every | `boot_ladder::SELF_TEST` | milestone 268 |
+| `tour` | riscv64 | `boot_ladder::TOUR` | `kernel/src/main.rs`, confirmed |
+| `prompt` | every | `boot_ladder::PROMPT` | milestone 268 |
+| `soak` | every | `soak-test: started` | milestone 219 |
+| `sweep` | every | `job_mix::STARTED` | milestone 324, confirmed under QEMU 2026-09-19 |
+| `sweep-done` | every | `job_mix::DONE` | milestone 324, confirmed under QEMU 2026-09-19 |
+
+**xenon's profile is an empty prologue, and that is a measurement rather than a gap.**
+`bench/xenon-2026-09-17/first-light-095500.log` shows nothing before `nife on ` that this tool
+matches, because the machine boots through PVH straight into our banner. A test replays that exact
+file through the xenon profile and asserts the banner, the machine line, the five-of-five verdict
+and the measured-boot refusal, all with no firmware rung climbed at all. That is what the split is
+for: the same radon capture read through xenon's profile reaches the same tour and reports no
+firmware rung, because none of those lines are xenon's to claim.
 
 One more thing is reported and is deliberately **not** a stage: `init/build`, meaning userspace init
 built its child. It cannot be a stage without breaking the ladder, because a card with no archive
@@ -262,6 +280,45 @@ Both captures carry `*** Warning - bad CRC, using default environment`, several
 complaints, and `## Error: "boot2" not defined`, before U-Boot finds `mmc 1:1` and gets on with it.
 The board boots through all of it. Nobody should read those lines as a defect in our payload, and
 whether the environment is worth repairing is somebody else's milestone.
+
+### Telling a finished job-mix sweep from a wedged one
+
+Milestone 324 part 2, found by milestone 168's lane. `script/job-mix` boots a `--features job_mix`
+kernel whose boot tour ends in a sweep over task counts rather than in a halt. Until this milestone
+nothing recognised any of it: a finished sweep and one that stopped partway both ended as the clock
+running out, so they shared an exit status, and `cargo xtask job-mix` had no timeout at all and hung
+forever on a wedge.
+
+Two rungs close that. `sweep` is `job_mix::STARTED`, meaning the pool spawned and the workload
+announced itself. `sweep-done` is `job_mix::DONE`, meaning every point printed and the kernel is
+parking. So:
+
+```
+script/board-console --until sweep-done --for 30m     # at a board
+script/job-mix --arch riscv64 --smp 4                 # under QEMU, same judging, same statuses
+```
+
+returns `0` for a sweep that finished, `1` for one the kernel refused to start (`job-mix: FAILED`),
+`2` for one that spoke and then stopped, and `3` for one still printing when the clock ran out.
+
+**The quiet timer is the hard part, and a sweep is harder than a soak.** A soak beats on the wall
+clock every five seconds whatever the workload is doing, so a missed beat is a missed deadline and
+fifteen seconds is three of them. A sweep speaks only when a subrun ends. The longest subrun is the
+top of `job_mix::TASK_SWEEP`, measured at 4.0 seconds
+(`crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log`,
+249,234,771 ticks on a 62.5 MHz counter), so `script/job-mix` defaults `--quiet-after` to sixty
+seconds, fifteen times that. A board outside that margin will be called wedged when it is merely
+slow; `--quiet-after 0` is the answer and it gives up the wedge detection. This is in both `BUGS`
+sections because it is the one number here a bench operator may have to change.
+
+**And the margin is spent by changes nowhere near it.** It was twenty to one against a 2.6-second
+subrun when this paragraph was first written, earlier on 2026-09-19. Milestone 168 landed the same
+day and took twenty-one repeats of a seven-kind mix where there had been three of a five-kind one,
+which made the slowest subrun half again as long and cost a quarter of the headroom without anybody
+touching `--quiet-after`. A number quoted from a capture is only as current as the capture.
+
+**And `job-mix: done` joins the quiet exemption**, with `tour` and `prompt`, because the kernel
+halts in `wfi` after it. `sweep` deliberately does not: silence during a sweep is the wedge.
 
 ## Two things in the design that are not obvious
 
@@ -416,6 +473,55 @@ Re-reading a capture, which needs no board and no adapter:
 $ script/board-console --replay target/board-console-1756744100.log
 ```
 
+Watching a job-mix sweep, which is the same recogniser under QEMU and is where it was proved
+(milestone 324 part 2, 2026-09-19, aarch64 `virt` with four cores). The three endings, all real
+runs:
+
+```
+$ cargo xtask job-mix --arch aarch64 --smp 4
+...
+job-mix: tasks=32 jobs=4096 repeats=21 ticks_min=228108401 ticks_median=233958411 \
+  ticks_max=249234771 jpm_median=65652
+job-mix: done
+
+job-mix: reached job-mix sweep complete (15924 bytes in 164.9s)
+job-mix: last point tasks=32 jobs=4096 repeats=21 ticks_min=228108401 \
+  ticks_median=233958411 ticks_max=249234771 jpm_median=65652
+$ echo $?
+0
+
+$ cargo xtask job-mix --arch aarch64 --smp 4 --quiet-after 1s
+job-mix: went quiet after job-mix sweep running (8545 bytes in 13.7s)
+job-mix: last point tasks=2 jobs=256 repeats=21 ticks_min=18753659 \
+  ticks_median=20392064 ticks_max=24330391 jpm_median=47077
+$ echo $?
+2
+
+$ cargo xtask job-mix --arch aarch64 --smp 4 --for 30s
+job-mix: time ran out after job-mix sweep running (9437 bytes in 30.0s)
+job-mix: last point tasks=2 jobs=256 repeats=21 ticks_min=19380785 \
+  ticks_median=23557551 ticks_max=51605248 jpm_median=40751
+$ echo $?
+3
+```
+
+The point and summary lines are one line each on a terminal; they are folded here with a trailing
+backslash, which is the only edit made to them.
+
+The second is a wedge manufactured with a one-second quiet window rather than a real one: no sweep
+has wedged on a board, and none has been watched on one. The jobs-per-minute figures are a draw and
+not a result; `notes/job-mix.md` has why.
+
+**These three were re-run on 2026-09-19 after milestone 168 landed, and the numbers moved for a
+reason worth knowing.** The earlier transcripts here showed a whole sweep in 27.9 seconds and a
+`--for 12s` cut at the third point. The sweep now takes 164.9 seconds, because each point is
+twenty-one repeats rather than three and the mix has seven job kinds rather than five, so the same
+wall-clock windows cut it far earlier. The commands did not change; the workload underneath them
+did.
+
+At a board the same question is `script/board-console --until sweep-done --for 30m`, and it returns
+the same statuses because it is the same code.
+
 Ending a rebooting soak from a script, which is the one thing this tool writes for. **No run of
 this against a board exists yet**; what follows is what the code produces, from the transcripts the
 host tests feed it:
@@ -530,16 +636,34 @@ them by hand: beats still arriving with no `DISARMED` points at the receive path
 this was written, and the roadmap block declines to decide whether this tool should ever drive it.
 A tool that power-cycles is a different and more dangerous object than one that reads.
 
-**One board's vocabulary, and it is a prologue rather than the whole ladder.** `Stage`'s lower half
-(`Spl`, `OpenSbi`, `UBoot`, `Handoff`) is the VisionFive 2's boot chain. Its upper half (`Banner`,
-`Machine`, `SelfTest`, `Tour`, `Soak`) is the kernel's own and has been reachable on all three
-architectures since milestone 268, which is why this tool captured xenon on 2026-09-17 with nothing
-added: xenon boots through PVH straight into our banner, so the portable half is its entire boot
-(`bench/xenon-2026-09-17/first-light-095500.log`, and `--replay` of it still reports the banner, the
-machine line, the self-test and the measured-boot refusal). **calef decided on 2026-09-19 that this
-is one tool with a board profile**, the profile being the firmware prologue and nothing else, with
-argon deferred behind milestone 127 rather than written from vendor documentation for a board that
-has never printed a byte. Milestone 324 part 3.
+**The board profile is real now, and exactly one board has ever been checked against one.** calef
+ruled on 2026-09-19 that this is one tool whose profile is the firmware prologue and nothing else,
+and milestone 324 part 3 built it: `crates/board_console/src/board.rs` declares radon's four rungs,
+its two refusals and its relocation note as data, `--board` chooses, and `Stage::Firmware` is what a
+boot reaches while climbing one. What that does **not** do is add evidence. radon's rungs are
+asserted against bytes off the wire on 2026-09-01; xenon's profile says it has no prologue, which
+rests on one capture on one day (`bench/xenon-2026-09-17/first-light-095500.log`) and would miss a
+xenon that fell over inside its own firmware; argon has no profile on purpose, because a Jetson boot
+chain read out of vendor documentation and never watched on a wire is the assertion-shaped-as-
+measurement failure this tree keeps catching. Its prologue stays unwritten until a board prints
+something.
+
+**Nothing gates a profile against the board it claims to describe.** The same gap `crates/boot_ladder`
+records against the kernel, one level out, and the same mechanism: review, plus a capture in
+`tests/fixtures/captured/` for every rung anybody asserts on. A rung declared with a marker no
+machine prints fails in the direction that looks like success.
+
+**A sweep has no heartbeat, so its wedge timer is a guess with headroom.** The sixty-second default
+on `script/job-mix` is twenty times the longest subrun measured on one host under TCG. A board
+slower than twenty-to-one is called wedged when it is merely slow, and `--quiet-after 0` gives up
+the detection to avoid that. Giving the sweep a real wall-clock heartbeat, the way
+`kernel/src/soak.rs` has one, is a kernel change and was not made here.
+
+**No sweep has been watched on a board.** The recogniser was proved against QEMU on 2026-09-19: a
+finished sweep exits 0, one wedged by a one-second quiet window exits 2, one cut off by a
+twelve-second cap exits 3, and a refusal is a host test built from `job_mix::FAILED` rather than
+from a capture, because no kernel here has refused one. radon has never run a sweep this tool
+watched; that is milestone 168's own HARDWARE gate and not something part 2 could close.
 
 **The settle window is two seconds, and two seconds is a guess.** It is long enough for the
 captured measured-boot refusal, which follows the banner within a tour's worth of printing, and
