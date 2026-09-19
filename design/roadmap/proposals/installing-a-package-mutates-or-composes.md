@@ -44,7 +44,7 @@ Reading the code rather than the phrase found that "a namespace" is two differen
 - **The progenitor refuses what the measurement table does not name.** "One rule: the progenitor
   runs nothing it cannot vouch for" (milestone 104). An installed package is, by construction, not in
   a table the kernel vouched for at build time. That is its own fork:
-  `what-vouches-for-a-package-the-image-did-not-carry.md`.
+  DECISIONS §195.
 
 ## Options
 

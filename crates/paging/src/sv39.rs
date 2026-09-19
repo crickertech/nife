@@ -16,6 +16,7 @@
 
 use crate::{
     CAP_DEVICE, CAP_GLOBAL, CAP_KERNEL_EXEC, CAP_USER, CAP_USER_EXEC, CAP_WRITE, Flags, PageFormat,
+    PageSize,
 };
 
 const V: u64 = 1 << 0; // Valid
@@ -113,6 +114,19 @@ impl PageFormat for Sv39 {
         }
         Flags::from_caps(caps)
     }
+
+    /// A megapage (2 MiB, at level 1) or gigapage (1 GiB, at level 0): **the same leaf encoding at
+    /// a higher level**, since Sv39 marks a leaf by R/W/X rather than by position. What changes is
+    /// the PPN: its low 9 (megapage) or 18 (gigapage) bits must be zero, or the hardware raises a
+    /// misaligned-superpage page fault, so the address is masked to the block's alignment.
+    fn block_entry(pa: u64, flags: Flags, size: PageSize) -> Option<u64> {
+        Some(Self::leaf_entry(pa & !(size.bytes() - 1), flags))
+    }
+
+    /// R, W or X set: a leaf, at whatever level. All three clear: a pointer.
+    fn is_block(entry: u64) -> bool {
+        entry & (R | W | X) != 0
+    }
 }
 
 #[cfg(test)]
@@ -192,7 +206,7 @@ mod tests {
 #[cfg(kani)]
 mod verification {
     use super::*;
-    use crate::{Half, PAGE_SIZE};
+    use crate::{Half, PAGE_SIZE, PageSize};
 
     /// **The walk never indexes past a table** (three levels here).
     /// Falsification: unfalsified
@@ -250,6 +264,57 @@ mod verification {
         if crate::is_user_page_va::<Sv39>(va) {
             assert!(Sv39::in_half(Half::Low, va) && !Sv39::in_half(Half::High, va));
         }
+    }
+
+    /// **A megapage or gigapage keeps the address and the permissions apart and is a leaf**, for
+    /// every physical address and every `Flags` constructor. Literals for every bit position: the
+    /// PPN is bits [53:10], and its low 9 (megapage) or 18 (gigapage) bits must be zero, or the
+    /// hardware raises a misaligned-superpage fault on the first access.
+    /// Falsification: replayable `crates/paging/falsifications/sv39.verification.a_block_keeps_address_and_permissions_apart.patch`
+    #[kani::proof]
+    fn a_block_keeps_address_and_permissions_apart() {
+        let pa: u64 = kani::any();
+        kani::assume(pa >> 56 == 0); // Sv39 physical addresses are 56 bits
+        let two_mib: bool = kani::any();
+        let (size, pa_bits) = if two_mib {
+            (PageSize::Size2MiB, 0x00ff_ffff_ffe0_0000u64)
+        } else {
+            (PageSize::Size1GiB, 0x00ff_ffff_c000_0000u64)
+        };
+        let all = [
+            Flags::kernel_code(),
+            Flags::kernel_rodata(),
+            Flags::kernel_data(),
+            Flags::device(),
+            Flags::user_code(),
+            Flags::user_rodata(),
+            Flags::user_data(),
+            Flags::user_device(),
+        ];
+        let i: usize = kani::any();
+        kani::assume(i < all.len());
+        let flags = all[i];
+
+        let block = Sv39::block_entry(pa, flags, size).expect("Sv39 encodes both sizes");
+        // PPN at [53:10] is pa[55:12]; read it out of the word by hand.
+        let ppn_as_address = ((block >> 10) & 0x0000_0fff_ffff_ffff) << 12;
+        assert_eq!(ppn_as_address, pa & pa_bits, "the address left its field");
+        assert_eq!(block & 1, 1, "a block must be valid");
+        assert_ne!(
+            block & 0b1110,
+            0,
+            "R, W or X must be set, or this is a pointer"
+        );
+        assert!(Sv39::is_block(block));
+        assert_eq!(Sv39::leaf_flags(block), flags);
+    }
+
+    /// **No pointer PTE ever reads as a leaf**, for every address.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn a_table_entry_is_never_a_block() {
+        let pa: u64 = kani::any();
+        assert!(!Sv39::is_block(Sv39::table_entry(pa)));
     }
 
     /// **A leaf keeps the address and the permissions apart, and the permissions round-trip.**

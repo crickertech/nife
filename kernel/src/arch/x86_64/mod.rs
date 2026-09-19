@@ -253,6 +253,11 @@ pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
     unsafe { ap_boot::prepare(context) };
 
     let dest = target_cpu as u8;
+    // **Read once, here, before the INIT, and compared against by every wait below.** This is the
+    // whole fix for `ap_boot`'s BUGS #1. The wait loop used to re-read the count after the
+    // STARTUP IPIs and wait for it to move from *that* value, so a core fast enough to check in
+    // during the 200 us settle delays had already moved it: the loop then waited ten seconds for a
+    // second increment nobody would make, returned -1, and the core was online but uncounted.
     let before = crate::smp::online_count();
 
     // The universal INIT-SIPI-SIPI startup algorithm (Intel MP spec, appendix B.4): INIT, a settle
@@ -265,14 +270,10 @@ pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
 
     // **The second STARTUP IPI is conditional, not unconditional.** The MP spec calls for two, "the
     // second is a no-op on a core that already started", meaning a core that has already left the
-    // wait-for-SIPI state is defined to ignore a further one. This port does not fully trust that on
-    // QEMU TCG (see `ap_boot`'s own `BUGS`: a real, unexplained intermittent failure exists when a
-    // third or later secondary starts while an earlier one is already running, and an accepted
-    // second SIPI re-vectoring an already-running core back to the trampoline mid-execution was one
-    // hypothesis for it). Sending the second IPI only when the first evidently has not worked yet
-    // (`online_count` has not moved in the 200 us the spec allows for it to) costs nothing when the
-    // first succeeds and is strictly more conservative than sending it unconditionally, so it is
-    // kept even though a direct test did not show it fixing the deeper issue on its own.
+    // wait-for-SIPI state is defined to ignore a further one (QEMU's `apic_sipi` does exactly
+    // that). Sending the second only when the first evidently has not worked yet costs nothing when
+    // the first succeeds. It was added as a hypothesis for `ap_boot`'s BUGS #1 and was not the fix;
+    // it is kept because it is no less correct than the unconditional form.
     if crate::smp::online_count() == before {
         irq::send_startup(dest, vector);
         busy_wait_us(200);
@@ -287,7 +288,10 @@ pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
     // next. Measured too short once already, at one second: the target core's own vCPU thread had
     // simply not been scheduled by the host yet, and `cpu_start` gave up and reported "did not
     // start" for a core that came up perfectly well a moment later, arriving too late to be counted
-    // and permanently invisible to the roster. This is exactly the host-contention shape
+    // and permanently invisible to the roster. (That diagnosis predates `ap_boot`'s BUGS #1 being
+    // root-caused, and "a core that came up perfectly well" but was not counted is exactly #1's
+    // signature, so it may have been #1 rather than the budget; the ten seconds are kept because a
+    // loaded host really can starve a vCPU thread that long.) This is exactly the host-contention shape
     // `smp::tests::wait_for`'s own sixty-second budget exists for, one level earlier: bring-up
     // itself can be starved the same way a test's own wait can.
     //
@@ -300,10 +304,9 @@ pub fn cpu_start(target_cpu: u64, entry: u64, context: u64) -> i64 {
     // enabled before `bring_up_secondaries` runs) wakes it, which costs at most one tick of latency
     // per check and, unlike the spin, actually yields host CPU time. Measured to turn an occasional
     // full hang (waiting past even a sixty-second budget) into a reliable, clean give-up within the
-    // stated budget when a core does not come up; it did not, on its own, fix the deeper reason a
-    // core sometimes does not come up (`ap_boot`'s own `BUGS`), so it is kept for the failure mode it
-    // does fix rather than claimed as a fix for the one it does not.
-    let before = crate::smp::online_count();
+    // stated budget when a core does not come up. The "deeper reason a core sometimes does not come
+    // up" that this paragraph used to defer to was the re-read `before` fixes above: the cores were
+    // coming up, and this loop was not counting them (`ap_boot`'s BUGS #1).
     let budget = 10 * crate::arch::timer::frequency();
     let start = crate::arch::timer::now();
     while crate::smp::online_count() == before {

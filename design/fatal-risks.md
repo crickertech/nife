@@ -681,7 +681,8 @@ exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a tenet) cla
 the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
 piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board (the
 Jetson TX1, milestone 127) is well documented. **x86_64 is where the risk actually lives**, and not
-because x86 is hard, but because it is newest: milestone 161 is `PARTIAL`, milestone 177's text says
+because x86 is hard, but because it is newest: milestone 161 was unfinished when this was written
+(it is `BUILT` since 2026-09-19; see the dated paragraph below), milestone 177's text says
 x86_64 has no real interactive boot entry point at all, and 166 and 167 are each a piece of the same
 unfinished edge.
 
@@ -736,6 +737,19 @@ under OVMF, and it is the second time that same ordering defect has reached a be
 **What remains on this edge is no longer first light.** It is the two-core defect under firmware,
 the boot entry's remaining work, and the orchestrator, all of which are schedule rather than
 restructure.
+
+**Milestone 161 turned BUILT on 2026-09-19, and that does less to this risk than the status word
+suggests.** The sentence above that called 161 unfinished was true when written. What closed it was
+four follow-on items, none of them first light: 2 MiB and 1 GiB leaves in `crates/paging`, adopted
+by all three architectures' direct maps through the same `PageFormat` seam (a fourth architecture
+would implement two more trait methods, not change the walk, which is this entry's claim holding
+again); `cpu_start` counting a started core as absent (the "two-core defect under firmware" above
+was this counting bug, reproduced at 26 of 40 four-core QEMU boots and gone in 80 of 80 after, and
+fixed in `arch/x86_64/mod.rs`, not in portable code); and `CR4.PGE`/`PCIDE`, measured and left off.
+None of it touched the kernel outside `arch/` except `crates/paging`, which every architecture
+shares. What remains on this edge is unchanged: the boot entry's remaining work and the
+orchestrator, schedule rather than restructure. xenon has still not been asked to bring four cores
+online with the fix.
 
 **Milestones 177 and 182 turned BUILT on 2026-09-19, and the paragraph above is now settled the
 way it predicted.** §149 was decided (yes, a kernel-served console endpoint) and milestone 182

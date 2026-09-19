@@ -19,7 +19,7 @@ an old, vulnerable package list). TLS gives the first two for the connection; it
 first for the *content*, since a compromised mirror serves bad bytes over perfect TLS.
 
 **Integrity of content is the trust fork's job, whatever the transport**
-(`what-vouches-for-a-package-the-image-did-not-carry.md`):
+(DECISIONS §195):
 
 | Trust ruling | Where integrity comes from | Does it need TLS? |
 |---|---|---|

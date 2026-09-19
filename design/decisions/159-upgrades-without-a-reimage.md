@@ -31,7 +31,7 @@ And at 17:41 UTC, on whether a new kernel may need a reboot:
 
 ## What it settles elsewhere
 
-- **Trust (milestone 198's fork, `what-vouches-for-a-package-the-image-did-not-carry.md`): T1 alone
+- **Trust (milestone 198's fork, DECISIONS §195): T1 alone
   is ruled out.** Today the kernel compiles in the digest of the table that vouches for every
   program, so a kernel and its archive are one sealed set; under T1 every package upgrade is a new
   image. The remaining choice is T2 (a publisher's signature checked by a measured userspace

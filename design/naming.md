@@ -949,6 +949,28 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
 
+## A half implies two; a third of anything is an arm
+
+**calef, 2026-09-19**, reading a lane's workflow that called macOS, Linux and Windows each a "half"
+of one program. A count above two in front of the word is not a strong claim or a loose one; it is
+arithmetic that cannot be true, and a reader who meets it stops trusting the sentence around it.
+(This section writes that shape as "three <halves>" wherever it must show it, because `script/lint`
+gates on the literal and a rule whose own text trips its gate is a rule nobody can land.)
+
+**The rule, and it costs nothing to follow.** "Half" is for a genuine two-way split and is often
+exactly right: this tree has honest halves everywhere (a crate's pure half and its host-tools half,
+milestone 74's aarch64 half and riscv64 half). For one branch of a split with three or more, this
+tree's own word is **arm**: `components/src/console.rs` speaks of "its x86 arm", and the boot
+ladder, the console server and the shell-check legs all read that way. "Part", "piece" and "leg" are
+the other honest choices; a "leg" in this tree already means one architecture's run of a gate.
+
+**What is gated and what is not.** `script/lint` reads only the shape that cannot be argued with: a
+count word immediately in front of the word ("three h...", "four h...", and so on). It does not
+judge a "half" whose siblings are a paragraph away, because that needs a reader, and a gate that
+guesses at prose is how this tree lost three checks. The sweep that came with the rule fixed four
+(milestone 22's deliverable, milestone 54's landings, a `filesystem_protocol` doc comment and a
+`timetable_tests` one) and left the honest halves alone.
+
 ## An abbreviation we receive rather than author
 
 calef, 2026-09-13, asking what it would take to rename `initrd` to `initial_ramdisk`. The answer is

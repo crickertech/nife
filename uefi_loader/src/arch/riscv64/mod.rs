@@ -1,0 +1,138 @@
+//! **riscv64: the firmware's device tree, the boot hart, and the Linux RISC-V boot state.**
+//!
+//! The kernel's entry contract is the one OpenSBI's jump and U-Boot's `booti` meet
+//! (`kernel/src/arch/riscv64/boot.s`): S-mode, **paging off**, `a0` = this hart's id, `a1` = the
+//! physical address of the device tree. UEFI runs this loader in S-mode too, possibly with paging
+//! on (an identity map), and it is the only one of the three architectures where the kernel needs
+//! a number the firmware must be asked for: which hart it is running on. UEFI answers that with
+//! `RISCV_EFI_BOOT_PROTOCOL` (read from EDK2's header, `efi::RiscvBootProtocol`); a firmware
+//! without it is asked through the device tree's `/chosen/boot-hartid`, which U-Boot writes.
+//!
+//! **There is no `riscv64` UEFI target in rustc** (`rustc --print target-list`, 2026-09-19, lists
+//! `aarch64-`, `i686-` and `x86_64-unknown-uefi` only). This module is therefore compiled for
+//! `riscv64imac-unknown-none-elf` as a position-independent executable, and `cargo xtask` turns
+//! the ELF into a PE/COFF image (`crates/portable_executable`); see notes/boot-stick.md.
+//!
+//! # BUGS
+//!
+//! - **The kernel is linked for `0x8020_0000`** (`kernel/link-riscv64.ld`), which is QEMU `virt`'s
+//!   RAM and, by the `booti` header's deliberate `text_offset`, radon's. A board whose RAM does not
+//!   contain that address cannot take this payload, and the loader says so with the memory map.
+//! - **Everything the kernel reads early must be below 3 GiB** ([`ALLOCATION_CEILING`]): the boot
+//!   table maps the first three gigapages and nothing above.
+
+use uefi_loader::efi::{self, BootServices, Handle, SUCCESS, SystemTable};
+
+use crate::{Placed, configuration_table, copy_device_tree, exit_boot_services, say, say_decimal};
+
+core::arch::global_asm!(include_str!("leave_uefi.s"));
+
+unsafe extern "C" {
+    /// `leave_uefi.s`: paging off, then `a0` = `hart`, `a1` = `device_tree`, jump.
+    fn riscv64_leave_uefi(entry: u64, hart: u64, device_tree: u64) -> !;
+}
+
+/// **The ceiling on everything the kernel reads before its own page tables are up.** The boot table
+/// in `kernel/src/arch/riscv64/mmu.rs` identity-maps gigapages 0, 1 and 2, so the last byte it
+/// reaches is `0xbfff_ffff`.
+pub const ALLOCATION_CEILING: u64 = 0xbfff_ffff;
+
+/// The firmware's device tree and the boot hart, found before anything moves.
+pub struct Found {
+    device_tree: *const u8,
+    hart: u64,
+}
+
+/// Find the device tree and ask which hart this is.
+pub fn discover(table: &SystemTable, services: &BootServices) -> Result<Found, &'static str> {
+    let device_tree: *const u8 = configuration_table(table)
+        .iter()
+        .find(|entry| entry.vendor_guid == efi::DEVICE_TREE_GUID)
+        .map(|entry| entry.vendor_table.cast())
+        .ok_or("the firmware offers no device tree")?;
+
+    // Which source answered is printed, because on a board it is the first thing to know when the
+    // kernel comes up on the wrong hart: U-Boot has offered each of these at different versions.
+    let hart = if let Some(hart) = boot_hart_from_protocol(services) {
+        say(
+            table,
+            "uefi_loader: boot hart from RISCV_EFI_BOOT_PROTOCOL: ",
+        );
+        hart
+    } else if let Some(hart) = boot_hart_from_device_tree(device_tree) {
+        say(table, "uefi_loader: boot hart from /chosen/boot-hartid: ");
+        hart
+    } else {
+        return Err(
+            "the firmware says neither through RISCV_EFI_BOOT_PROTOCOL nor /chosen/boot-hartid \
+             which hart this is",
+        );
+    };
+    say_decimal(table, hart as u32);
+    say(table, "\r\n");
+    Ok(Found { device_tree, hart })
+}
+
+fn boot_hart_from_protocol(services: &BootServices) -> Option<u64> {
+    let mut interface: *mut core::ffi::c_void = core::ptr::null_mut();
+    if (services.locate_protocol)(
+        &efi::RISCV_BOOT_PROTOCOL_GUID,
+        core::ptr::null_mut(),
+        &mut interface,
+    ) != SUCCESS
+        || interface.is_null()
+    {
+        return None;
+    }
+    let protocol = interface.cast::<efi::RiscvBootProtocol>();
+    let mut hart = 0usize;
+    // SAFETY: `LocateProtocol` succeeded, so the firmware asserts `protocol` is this interface.
+    let status = unsafe { ((*protocol).get_boot_hart_id)(protocol, &mut hart) };
+    (status == SUCCESS).then_some(hart as u64)
+}
+
+fn boot_hart_from_device_tree(device_tree: *const u8) -> Option<u64> {
+    // SAFETY: the firmware installed this table; the header states its length.
+    let header = unsafe { core::slice::from_raw_parts(device_tree, 8) };
+    let total = u32::from_be_bytes([header[4], header[5], header[6], header[7]]) as usize;
+    // SAFETY: as above.
+    let bytes = unsafe { core::slice::from_raw_parts(device_tree, total) };
+    let tree = device_tree_blob::DeviceTreeBlob::from_bytes(bytes).ok()?;
+    let value = tree.node_prop(b"chosen", b"boot-hartid").ok()??;
+    match value.len() {
+        4 => Some(u64::from(u32::from_be_bytes(value.try_into().ok()?))),
+        8 => Some(u64::from_be_bytes(value.try_into().ok()?)),
+        _ => None,
+    }
+}
+
+/// Exit boot services and enter the kernel. Returns only on failure, with a console.
+pub fn hand_over(
+    handle: Handle,
+    table: &SystemTable,
+    services: &BootServices,
+    found: Found,
+    kernel: &Placed,
+    module: Option<(u64, u64)>,
+) -> Result<(), &'static str> {
+    if kernel.end > ALLOCATION_CEILING + 1 {
+        return Err("the kernel is linked above what its own boot table reaches");
+    }
+    let device_tree = copy_device_tree(services, found.device_tree, module)?;
+    say(
+        table,
+        "uefi_loader: kernel placed, exiting boot services\r\n",
+    );
+    exit_boot_services(handle, services)?;
+    // SAFETY: the kernel, the archive and the device tree are placed below the ceiling, and
+    // `leave_uefi.s` documents the state it leaves, which is the one OpenSBI's jump produces.
+    unsafe { riscv64_leave_uefi(kernel.entry, found.hart, device_tree) }
+}
+
+/// Park the hart with `wfi`, which QEMU turns into a real host-thread sleep (AGENTS.md).
+pub fn park() -> ! {
+    loop {
+        // SAFETY: waits for an interrupt; no other effect.
+        unsafe { core::arch::asm!("wfi", options(nomem, nostack)) };
+    }
+}

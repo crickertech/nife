@@ -11,6 +11,12 @@
 //! `script/fastpath-footprint` sums.
 use core::arch::global_asm;
 
+/// One sled unit: `fastpath_pad` alone links exactly this many `nop`s, as it did before the
+/// ladder (milestone 134's layout control) made the count a multiple. See
+/// `crate::fastpath_pad::PAD_UNITS` and, for the zero block after the sled,
+/// `crate::fastpath_pad::SHIFT_BYTES`.
+const UNIT_NOPS: usize = 1448;
+
 unsafe extern "C" {
     /// The nop sled defined below. Never actually called (see `crate::fastpath_pad::maybe_pad`);
     /// declared so the reachable-but-dead call exists in the compiled binary for
@@ -24,10 +30,19 @@ global_asm!(
     .global fastpath_pad_body
     .type fastpath_pad_body, %function
 fastpath_pad_body:
-    .rept 1448
+    .rept {nops}
     nop
     .endr
     ret
+    .if {shift}
+    .global fastpath_layout_shift
+    .type fastpath_layout_shift, %object
+fastpath_layout_shift:
+    .zero {shift}
+    .size fastpath_layout_shift, {shift}
+    .endif
     .popsection
-    "
+    ",
+    nops = const UNIT_NOPS * crate::fastpath_pad::PAD_UNITS,
+    shift = const crate::fastpath_pad::SHIFT_BYTES,
 );

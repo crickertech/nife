@@ -79,6 +79,40 @@ pub const ACPI_10_TABLE_GUID: Guid = Guid {
     d: [0x9a, 0x16, 0x00, 0x90, 0x27, 0x3f, 0xc1, 0x4d],
 };
 
+/// **The flattened device tree's configuration-table entry** (`gFdtTableGuid`, read from EDK2's
+/// `MdePkg/MdePkg.dec` on 2026-09-19). The aarch64 and riscv64 loaders find the machine's device
+/// tree here; U-Boot's `bootefi` and EDK2 both install it.
+///
+/// **EDK2 on aarch64 installs it only when it is not presenting ACPI**, which under QEMU `virt`
+/// means `-machine virt,acpi=off`: with ACPI on, the firmware hides the tree, and a device-tree
+/// kernel has nothing to read. Recorded in notes/boot-stick.md, measured there.
+pub const DEVICE_TREE_GUID: Guid = Guid {
+    a: 0xb1b6_21d5,
+    b: 0xf19c,
+    c: 0x41a5,
+    d: [0x83, 0x0b, 0xd9, 0x15, 0x2c, 0x69, 0xaa, 0xe0],
+};
+
+/// **`RISCV_EFI_BOOT_PROTOCOL`** (`gRiscVEfiBootProtocolGuid`, read from EDK2's
+/// `UefiCpuPkg/UefiCpuPkg.dec`, 2026-09-19), which answers the one question RISC-V has that the
+/// other two architectures do not: which hart is this. The kernel's entry contract wants it in
+/// `a0`, and nothing a UEFI application runs in tells it otherwise.
+pub const RISCV_BOOT_PROTOCOL_GUID: Guid = Guid {
+    a: 0xccd1_5fec,
+    b: 0x6f73,
+    c: 0x4eec,
+    d: [0x83, 0x95, 0x3e, 0x69, 0xe4, 0xb9, 0x40, 0xbf],
+};
+
+/// The protocol's interface: a revision and one function (`RiscVBootProtocol.h` in EDK2).
+#[repr(C)]
+pub struct RiscvBootProtocol {
+    /// `RISCV_EFI_BOOT_PROTOCOL_REVISION`, 0x00010000 for the first.
+    pub revision: u64,
+    /// `GetBootHartId(this, &mut hart)`.
+    pub get_boot_hart_id: extern "efiapi" fn(*mut RiscvBootProtocol, *mut usize) -> Status,
+}
+
 /// The header every UEFI table begins with. Read for nothing here; present so the fields after it
 /// are at their specified offsets.
 #[derive(Clone, Copy)]

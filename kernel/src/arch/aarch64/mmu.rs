@@ -34,7 +34,7 @@ use aarch64_cpu::asm::barrier;
 // file was assuming.
 use aarch64_cpu::registers::{MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1};
 use paging::aarch64::mair;
-use paging::{Aarch64, Flags, Half, MapError, Mapper, PAGE_SIZE, PageTable};
+use paging::{Aarch64, Flags, Half, MapError, Mapper, PAGE_SIZE, PageSize, PageTable};
 
 use crate::{memory, println};
 
@@ -378,6 +378,12 @@ where
 }
 
 /// Map a range of *physical* addresses into the direct map at `pa | KERNEL_VA_BASE`.
+///
+/// **Memory in blocks, devices in pages** (milestone 161). RAM goes in the largest leaf that fits
+/// (`paging::Mapper::map_span` puts a 2 MiB or 1 GiB leaf only where it lies wholly inside the
+/// range, so exactly the same pages are mapped, in a fraction of the table frames). Device windows
+/// stay in 4 KiB pages: they are a handful of pages each, and keeping them small is the same
+/// choice the x86 port makes for its own reasons (`arch/x86_64/mmu.rs`'s BUGS on the MTRRs).
 fn direct_map<A, P>(
     m: &mut Mapper<A, P, Aarch64>,
     pa_start: u64,
@@ -391,8 +397,13 @@ where
     if pa_end <= pa_start {
         return Ok(());
     }
-    let pages = (pa_end - pa_start).div_ceil(PAGE_SIZE);
-    m.map_range(phys_to_virt(pa_start), pa_start, pages, flags)
+    let len = (pa_end - pa_start).next_multiple_of(PAGE_SIZE);
+    let largest = if flags.is_device() {
+        PageSize::Size4KiB
+    } else {
+        PageSize::Size1GiB
+    };
+    m.map_span(phys_to_virt(pa_start), pa_start, len, flags, largest)
 }
 
 /// Walk the tables in software and check the things that would kill us.

@@ -182,6 +182,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   left `.bss` for a region with an unmapped page under each, proven by a page-table walk. Its
   longest-standing BUGS entry, that nothing walks the call graph, closed on 2026-08-16 with
   `script/stack-depth-check`, whose static bound and this note's measurement agree to the byte.
+  Since milestone 134 (2026-09-19) it also measures **per-IPC** depth, the same paint re-armed
+  around each operation: about 600 bytes per kernel thread per round trip in the release build,
+  which moves E1's knee from a capacity story to a set-conflict question.
 - [Reading aarch64 assembly](reading-assembly.md): five rules that decode almost
   everything, the addressing-mode table, and a line-by-line walkthrough of `boot.s`.
   **Start here if a code block looks like noise.**
@@ -1234,6 +1237,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   which of the three machines an evening should be spent on and why radon comes first, what a
   result on each would mean for the fatal risks, and what can go wrong that is not the board. It
   points at each procedure rather than repeating it, so the steps cannot drift from their source.
+- [The boot stick, and the program that makes it](boot-stick.md): DECISIONS §157's first rung,
+  built. `stick_maker`, one download per host with every architecture's boot file inside, and the
+  universal stick it writes (`BOOTX64.EFI`, `BOOTAA64.EFI`, `BOOTRISCV64.EFI`, each firmware booting
+  its own). Why the offer rule is the removable-media bit and not "USB" (two backup disks on the
+  development Mac), copy before erase, how the device tree reaches the aarch64 and riscv64 kernels,
+  the riscv64 ELF-to-PE conversion rustc's missing target forced, what ran on which host, and **the
+  bench steps for radon and argon**.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
