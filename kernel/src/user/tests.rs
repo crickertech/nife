@@ -2606,9 +2606,22 @@ fn init_builds_the_demo_and_passes_it_an_argument() {
 /// the embryo-only rule that a real ABI would go through; `sched`'s own
 /// `a_running_thread_cannot_be_granted_the_cycle_counter` covers that separately.
 ///
-/// The counter values are carried and not checked. QEMU leaves `PMCR_EL0.E` clear, so
-/// `PMCCNTR_EL0` reads zero there forever, and asserting on the number would be asserting on the
-/// emulator rather than on this kernel.
+/// **The two reads are checked where the kernel has said the counter runs, and only there**
+/// (milestone 74's aarch64 half). Until that milestone they were carried and not checked, because
+/// nothing started `PMCCNTR_EL0` and it read zero forever. Now:
+///
+/// - **aarch64**: when `arch::pmu` reports `Running` on every online core, the second read must be
+///   past the first. The thread may be placed on any core and the `yield` between the reads is a
+///   trip through EL1, so the claim holds whatever the (provisional) `PMCCFILTR_EL0` counts, as
+///   long as it counts EL0 or EL1. Where a core refused its counter (`Stuck`) nothing is asserted,
+///   because a stopped counter is the honest answer there and not a failure of the grant.
+/// - **`x86_64`**: the TSC is always running and constant-rate, so the second read must be past the
+///   first, always.
+/// - **riscv64**: not checked. The program reads the `cycle` CSR, and `arch::riscv64::pmu` may have
+///   been handed a different counter (`hpmcounter3` on `rva23s64`), so the kernel has no statement
+///   about the CSR the program reads that a check could lean on.
+///
+/// None of this is a measurement: under QEMU the delta is emulator time.
 #[test_case]
 fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     if !crate::arch::timer::cycle_counter_grantable() {
@@ -2661,6 +2674,34 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
         faults,
         "the granted thread faulted instead of reading cleanly",
     );
+
+    let (first, second) = (message[1], message[2]);
+    if el0_cycle_counter_is_known_to_run() {
+        assert!(
+            second.wrapping_sub(first) > 0 && second.wrapping_sub(first) < u64::MAX / 2,
+            "the granted thread read the cycle counter at {first} and then {second}: the kernel \
+             says the counter runs on every core, so it should have moved forward",
+        );
+    }
+}
+
+/// **Does the kernel have a statement that the counter `cycle_counter_reader` reads is running?**
+/// See the test above for why each architecture answers as it does.
+fn el0_cycle_counter_is_known_to_run() -> bool {
+    #[cfg(target_arch = "aarch64")]
+    {
+        crate::smp::online_cpus().all(|core| {
+            crate::arch::pmu::outcome_on(core) == crate::arch::pmu::CycleCounter::Running
+        })
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        true
+    }
+    #[cfg(target_arch = "riscv64")]
+    {
+        false
+    }
 }
 
 /// **Milestone 19e: init runs a real compute workload and it comes out right.**/// **Milestone 19e: init runs a real compute workload and it comes out right.** The `least_authority_demo`'s

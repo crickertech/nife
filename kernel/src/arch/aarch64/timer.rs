@@ -63,9 +63,7 @@
 
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-use aarch64_cpu::registers::{
-    CNTFRQ_EL0, CNTKCTL_EL1, CNTV_CTL_EL0, CNTV_CVAL_EL0, CNTVCT_EL0, ID_AA64DFR0_EL1,
-};
+use aarch64_cpu::registers::{CNTFRQ_EL0, CNTKCTL_EL1, CNTV_CTL_EL0, CNTV_CVAL_EL0, CNTVCT_EL0};
 use tock_registers::interfaces::{Readable, Writeable};
 
 use crate::cpu::{self, MAX_CPUS};
@@ -133,8 +131,8 @@ static PMU_PRESENT: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; 
 /// without `FEAT_PMUv3` an `mrs` from `PMUSERENR_EL0` is as UNDEFINED as an `msr` to it, so "read
 /// what the hardware holds" is not available on the architecture the way it is for `TTBR0_EL1`.
 /// Nothing else in this kernel writes `PMUSERENR_EL0` after `init`, so the cache cannot go stale
-/// behind our back; `close_cycle_counter_to_el0`'s doc comment is where a future PMU driver would
-/// meet that constraint.
+/// behind our back. `arch::pmu` (milestone 74) writes the PMU's other registers and deliberately
+/// not this one; `close_cycle_counter_to_el0`'s doc comment says why.
 static COUNTER_OPEN: [AtomicBool; MAX_CPUS] = [const { AtomicBool::new(false) }; MAX_CPUS];
 
 /// Start the heartbeat.
@@ -158,6 +156,10 @@ pub fn init() {
     CNTKCTL_EL1.set(CNTKCTL_EL1.get() | EL0VCTEN);
 
     close_cycle_counter_to_el0();
+    // Start this core's cycle counter and check it moves (milestone 74's aarch64 half). Here
+    // because this is the per-core init every core runs, beside the register that says whether EL0
+    // may read the same counter. Init-time only; nothing on the switch path. See arch/aarch64/pmu.rs.
+    super::pmu::init_this_core();
 
     let interval = freq / TICK_HZ;
     INTERVAL.store(interval, Ordering::Relaxed);
@@ -175,8 +177,13 @@ pub fn init() {
 /// virtual counter; `PMUSERENR_EL0` says whether it may also read the fine one (`PMCCNTR_EL0`) and
 /// the event counters. On riscv64 both answers live in a single CSR, `scounteren`, whose `TM` and
 /// `CY` bits this project's per-hart timer init now writes together. This is that same pair, split
-/// across two registers by the ISA rather than by us, so it belongs at the same site. There is no
-/// PMU driver to put it in, and if one arrives it inherits this line rather than the reverse.
+/// across two registers by the ISA rather than by us, so it belongs at the same site.
+///
+/// **`arch::pmu` now exists (milestone 74) and still does not own this line.** It starts the
+/// counter; this decides who may read it from EL0, and that decision is the context switch's
+/// (`set_cycle_counter_grant` below, which `sched` calls as `arch::timer::` on all three ISAs).
+/// Moving the boot-time half into `pmu` would split one register's writers across two files, which
+/// is what makes the `COUNTER_OPEN` cache above safe to keep: nothing but this file writes it.
 ///
 /// # Why writing zero is not a policy change
 ///
@@ -208,8 +215,7 @@ fn close_cycle_counter_to_el0() {
     // `ID_AA64DFR0_EL1.PMUVer` reports it: 0 means no PMU, 0xf means an IMPLEMENTATION DEFINED PMU
     // that does not follow PMUv3 and so does not carry this register either. Both are boards where
     // there is no EL0 cycle-counter door to close.
-    let pmuver = ID_AA64DFR0_EL1.read(ID_AA64DFR0_EL1::PMUVer);
-    if pmuver == 0 || pmuver == 0xf {
+    if !super::pmu::pmuv3_present() {
         return;
     }
     // Milestone 229 reads this back on the context-switch path, where re-reading an ID register
@@ -242,8 +248,9 @@ fn close_cycle_counter_to_el0() {
 /// a measurement build the way `soak_test` is. `kernel/Cargo.toml`'s feature block carries the
 /// reasoning and the measured cost. Milestone 228's closed default at `init` is NOT gated.
 // Asked only by tests today (`sched`'s grant round trip and `user`'s EL0 one), which are the
-// callers that have to skip rather than fault on a part with no counter to grant. Marked rather
-// than deleted: milestone 74's cycle-counter work is the caller that will want it in anger.
+// callers that have to skip rather than fault on a part with no counter to grant. Milestone 74's
+// aarch64 half answers the neighbouring question (does the counter *run*) in `arch::pmu::outcome`,
+// and deliberately did not fold the two: a counter can be grantable and stuck.
 #[cfg_attr(not(test), allow(dead_code))]
 #[cfg(any(test, feature = "cycle_counter_grant"))]
 pub fn cycle_counter_grantable() -> bool {
