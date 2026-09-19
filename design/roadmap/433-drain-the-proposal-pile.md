@@ -182,6 +182,20 @@ It is not a `git mv`, and this block exists partly to say so before four lanes d
    so the integrator regenerates it once at the end. This is the whole collision surface of the pass
    and removing it is why four lanes can run at all.
 
+## Slices, as they land
+
+- **354 to 380, `milestone/433-slice-2`, 2026-09-19.** All 27 promoted, every premise read against
+  the tree before its status was written. Twenty are `NOT-STARTED` and verified, four `SUPERSEDED`
+  (354 by milestone 250 on the day it was filed, 361 by milestone 188's re-measurement, 362 and 364
+  by milestone 303 and the newer x86_64 fixture block), two `BUILT` (375 by the radon bench session
+  the same evening it was proposed, 380 by the §144 amendment the same day), and one `PARTIAL` (378,
+  whose parser and reporting arrived as milestones 161 and 317 and whose xenon reading has not been
+  taken). **Seven of 27 had decayed**, six of them answered by work that landed within a day of the
+  filing. Three more had premises that were narrowed rather than closed and say so in their status
+  lines. Twenty-three follow-on bullets rewritten (22 `**Proposed.**` and one
+  `**Recorded.**`), and the moved path updated in thirteen files outside `design/roadmap/`:
+  `notes/`, `kernel/`, `script/` and one audit report.
+
 ## BUGS
 
 - **A promoted block can still be a graveyard, one directory up.** Numbering does not prioritise;

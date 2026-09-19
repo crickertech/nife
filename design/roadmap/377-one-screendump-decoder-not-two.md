@@ -1,6 +1,10 @@
-# Two screendump decoders, in two crates, reading the same font
+# 377. Two screendump decoders, in two crates, reading the same font
 
-**Status: PROPOSED 2026-09-04.** Written by milestone 243's lane, from its own duplication.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 243 lane, out of its own
+duplication; promoted by milestone 433 on 2026-09-19. Counted against the tree that day and both
+copies are still there: `xtask/src/main.rs` still defines `parse_ppm`, `decode_cell` and
+`scanout_rows` (lines 1562, 1614 and 1644), and `crates/board_console/src/screen.rs` is still the
+second, more general decoder beside them. Nothing has merged them and nothing has drifted yet.
 
 **Gate: NONE.** It is a refactor with a test on each side; what it needs is a lane, not a decision.
 
@@ -42,3 +46,18 @@ colours differ between the two callers. A lane doing this should make the shell-
 before and after with no change to its assertions, and should keep the two colour schemes as data
 rather than unifying them: the terminal's default colours are `video_terminal`'s to choose and the
 kernel console's are `screen_console`'s.
+
+## Index row
+
+Two pieces of code in this tree read a QEMU screendump back into text by matching 7x8 cells against
+`bitmap_font`: milestone 177's three functions inside `xtask`, hardcoded to `graphics_protocol`'s
+geometry and `video_terminal::Attr::DEFAULT`'s colours, and milestone 243's
+`board_console::screen`, which takes any geometry, any 24-bit PPM and the whole printable alphabet
+and tests itself by painting with the crate the kernel links. They are the same function with
+different constants, which is what rule 7 refuses one level down, and it happened because the
+second was written by a lane that had read the crates and the scripts and not eleven thousand lines
+of `xtask`. The reason to merge them is not the lines: there are two copies of "what a character
+looks like on this screen" that can drift apart in ways neither test would see, and only one of
+them asserts itself against the kernel's own painter. The hazard is that it touches milestone 177's
+graphical `shell-check` leg, so the two colour schemes stay data rather than being unified, and the
+leg must pass before and after with no change to its assertions.

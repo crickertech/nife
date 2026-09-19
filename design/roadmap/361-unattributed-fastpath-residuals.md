@@ -11,8 +11,7 @@ baselines were then re-saved against a build that was 6% to 10% smaller on every
 `bench/fastpath-riscv64.txt` and `bench/fastpath-x86_64.txt` now read 5936 and 8122 against the 5106
 and 6639 this file asks to bisect. The bisect was never performed and cannot now be performed
 against those numbers. What remains of the concern is the standing one milestone 237 owns, that a
-baseline moves with nobody attributing it, and it is filed separately as
-`design/roadmap/380-the-ceiling-applies-to-a-number-that-moved.md`.
+baseline can move with nobody attributing it, and 237's block is where it lives.
 
 **Gate: NONE.** The measurement runs on the dev machine under emulation, the tooling
 (`script/fastpath-footprint`) exists, and bisecting a size delta needs no hardware and no decision.

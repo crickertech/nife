@@ -125,10 +125,10 @@ The `ipc_fastpath` half of `script/fastpath-footprint` is a closure with a `COLD
 `syscall_entry` half is flat, summing whole symbols with no way to exclude anything, which is fine
 only while those symbols hold nothing but what a syscall fetches. Three times in two days an
 inlining flip moved bytes that no syscall fetches into that number: `timer::tick` folded into
-`riscv_trap_body` for milestone 133 (+12.1%), `plic::disable` for a one-line toolchain bump
-(+10.4%), and `syscall::dispatch` vanishing into the exception handler for milestone 220 (-35.1%, a
-failure that reads as good news and would have locked in an under-measurement if anyone had taken
-the win). Each was closed with `#[inline(never)]` on the callee, which is a patch on the symptom, and
+`riscv_trap_body` under milestone 133's change, +12.1%; `plic::disable` under a one-line toolchain
+bump, +10.4%; and `syscall::dispatch` vanishing into the exception handler under milestone 220's,
+-35.1%, a failure that reads as good news and would have locked in an under-measurement if anyone
+had taken the win. Each was closed with `#[inline(never)]` on the callee, which is a patch on the symptom, and
 each cost a lane a build and a two-disassembly diff to name one symbol. Any perturbation of the
 kernel crate can hand a lane this failure, in either direction, on any of three ISAs. Reporting the
 delta per symbol when the gate fails is the cheapest item and pays every time; measuring the arms
