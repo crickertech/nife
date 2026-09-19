@@ -29,6 +29,15 @@ footprint from code layout**: the padded build is 1.49% slower on `call_reply` a
 in E3's design rather than in the session, it was equally present on 2026-08-22, and the fix is
 `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`.
 
+**2026-09-19: E1's one estimated input is now measured, and it moves the reading of the knee.** The
+per-IPC kernel stack depth (`kernel/src/ipc_stack_depth.rs`, notes/stack-high-water.md) is about
+**600 bytes per thread per round trip** in the release kernel radon boots, not the 1 to 2 KiB the
+prediction assumed. At that size stacks fill a 32 KB L1d near 54 threads, so capacity does not
+explain a knee at 8 to 16; page-aligned stack tops sharing set indices in radon's 4-way L1D would,
+and so would page-aligned TCBs. Tier B's instruments were re-checked the same day (M5 has one on all
+three ISAs; M6 to M8 have none; M9 has the counter but not the stamps). **What 134 still owes is one
+radon evening for E3 under a layout control**, and "Follow-on" says exactly what it must produce.
+
 
 **Extended the same day, at calef's direction**, and the extension changes what this block is. The
 first draft listed only the experiments runnable today, on the reasoning that a measure we cannot take
@@ -274,10 +283,16 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   cost exists and how it scales; it cannot show what a continuation-based kernel would actually
   recover, because that requires building one. A knee makes the case worth taking seriously rather
   than proving the alternative wins.
-- **The 1 to 2 KiB per-IPC stack figure in E1's prediction is an estimate**, not a measurement.
-  Milestone 84's high-water number (11.4 KiB) covers the deepest chain in the whole suite, which is
-  spawn and teardown rather than IPC. The per-IPC depth should be measured before the prediction is
-  quoted as anything but a sighting shot.
+- ~~**The 1 to 2 KiB per-IPC stack figure in E1's prediction is an estimate**, not a
+  measurement.~~ Measured 2026-09-19 on all three ISAs, debug and release: about 600 bytes per
+  kernel thread per round trip in the release build E1 runs, 0.5 to 1 KiB for an EL0 thread, 2 to
+  4 KiB in the debug build (notes/stack-high-water.md, "Per-IPC depth"). The prediction's
+  arithmetic, redone with the measured figure, puts a pure capacity knee near 54 threads; the
+  observed knee is at 8 to 16, and the entry below is why that does not refute the mechanism.
+- **The per-IPC depth is a QEMU number for a build radon boots with two features QEMU cannot**
+  (`board`, `single_hart`). Depth is a property of the code, so TCG measures it honestly; whether
+  those two features move the IPC path's codegen is one optional board boot, listed in the
+  evening's procedure.
 - **None of this measures the verification argument**, and nothing can. §96's claim that explicit
   continuation state suits a model checker better than an implicit stack is a design argument, and it
   will still be a design argument after every number here exists.
@@ -298,21 +313,50 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   `design/decisions/139-cycle-counter-authority.md` is DECIDED (calef, 2026-09-02, a per-thread
   grant in the spawn manifest) and `design/roadmap/229-the-counter-grant.md` is BUILT the same day;
   `kernel/src/arch/aarch64/timer.rs` opens and closes the counter per thread at the switch.
-- **Outstanding.** Milestone 74's counter driver is still NOT-STARTED, so M5 through M9 have no
-  instrument. The grant opens the register and nothing yet reads it as a benchmark. Checked
-  2026-09-03.
+- **Done.** Narrowed to what is still missing. This item said milestone 74's counter driver was
+  NOT-STARTED so M5 through M9 had no instrument (checked 2026-09-03). Both halves of 74 have since
+  landed (riscv64 2026-09-03, aarch64 2026-09-19 as PR #972), and milestone 309 added x86_64.
+  Re-checked against the tree 2026-09-19, measure by measure, in notes/register-of-measures.md's
+  "Owed" table: **M5 has its instrument on all three ISAs** (every tick row times
+  `bench::cycles_per_tick`; radon's `250.00` of 2026-09-16 makes riscv64 `call_reply` about 1,256
+  cycles). **M9 has its counter** (`arch::pmu::cycles()` in-kernel, all three ISAs) and lacks the
+  phase stamps. **M6, M7 and M8 have nothing**: no code on any ISA programs an event counter, and
+  M7's attribution half needs a data-address sampler neither the A57 nor the U74 has.
+  **`PMCCFILTR_EL0` is provisional** pending calef's decision A in
+  `design/roadmap/proposals/the-aarch64-half-of-74.md`, so **no aarch64 cycle figure is published**
+  before he rules. That touches M5 and M9 on aarch64 and M12 entirely (seL4's 413 and 426 are TX1
+  cycles). It does not touch M6 to M8 as such, since event counters carry their own filter in
+  `PMEVTYPER<n>_EL0`, but that filter will raise the same question when a driver first writes it.
+- **Proposed.** `design/roadmap/proposals/an-event-counter-driver-for-m6-to-m8.md`: one
+  cache-refill and one TLB-refill event per ISA, kernel-internal, read like 74's cycle counter.
+  Milestone 74's scope note held generic events back until a second consumer; M6 to M8 are that
+  consumer. Its first step is finding which events radon's OpenSBI and argon's A57 actually count.
 - **Done.** The silicon this register waits on arrived: `notes/target-hardware.md` lists argon as
   in hand and radon as booting nife and wired as a bench target, which is the small-cache board
   this block names as milestone 127's alternative.
-- **Outstanding.** The small-cache re-run of E1, E3's latency half and E4 is now
-  *runnable* and has still not been *taken*. E1 and E4 were `#[cfg(target_arch = "aarch64")]` and
-  are now built for riscv64 as well; the `single_hart` kernel feature parks radon's other three
-  U74s, because both experiments need one hart and a card has no `-smp 1`; and
-  `script/board-image --bench [--extra-features fastpath_pad]` writes the pair of cards E3
-  compares. The procedure, with a table mapping each observable outcome to what it settles and
-  which milestone it routes to, is **notes/footprint-perturbation.md**. **No number came off radon**: the
-  board was powered off and there was no bench session, so the register's E1/E3/E4 rows still say
-  dev Mac only, correctly. What is outstanding is the session.
+- **Recorded.** A correction, 2026-09-19. This item said the small-cache re-run of E1, E3's latency half and E4
+  was runnable and not taken, and it was stale from the day it was written: the session ran on
+  radon on **2026-09-04** (six interleaved boots, `bench/radon-2026-09-04/`, read in
+  notes/footprint-perturbation.md), and the Status paragraph above already said so. E1 and E4 from
+  that session are single-build sweeps and stand. E3 does not; the next item is what is left.
+- **Outstanding.** The one item between this block and BUILT: **a radon evening for E3 under a
+  layout control.** Its prerequisite is not the board: the control
+  (`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`, cheapest form a
+  sized `fastpath_pad`) is **not built**, and re-running E3 without it reproduces the confound. The
+  evening must produce, on a `board,bench,single_hart` card at the evening's commit: (1) `call_reply`,
+  `ipc_rtt` and `ipc_rtt_el0` at pad size 0 and at least three non-zero sizes, three boots each,
+  interleaved, each ending `bench: done` with `cntfrq 4000000`; (2) the reading per row, monotone
+  with pad size beyond the boot-to-boot spread (footprint), jumping and returning (layout), or
+  inside the spread (neither), written into notes/footprint-perturbation.md and the register's E3
+  row; (3) each boot's `cycles_per_tick` line, so the rows convert to cycles on that commit. **That
+  is sufficient for BUILT**; E1 and E4 re-date for free on the same boots. It combines with
+  milestone 168's job-mix evening by image switching over `--tftp` (the two cannot share one), E3
+  first because it is the interleaved block: notes/footprint-perturbation.md, "The next radon
+  evening", has the order and the log names. **The fork this leaves for calef:** if the layout
+  control is not wanted, E3 can instead be closed as "confounded, not a footprint result" and this
+  block turned BUILT on what exists, at the cost of milestone 188 phase 4 having no footprint
+  evidence either way. The recommendation is to build the control, because phase 4 is a standing
+  verification obligation and E3 is the only instrument pointed at it; it is reversible either way.
 - **Recorded.** A correction found on the way, 2026-09-04, which would otherwise have wasted the
   session. E3's padding
   was reachable only from `sched::ipc_send`. Milestone 188 phase 1 (2026-09-04) split the footprint
@@ -322,9 +366,30 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   tree uses. `sched::ipc_call` now calls `maybe_pad` as well, and both shapes pad to roughly 1.85x
   on both ISAs. The experiment was correct when it was built; the thing it measures moved
   underneath it, which is what a dated instrument does.
-- **Outstanding.** The per-IPC kernel stack depth is still an estimate.
-  `notes/stack-high-water.md` reports a deepest standing path across the whole suite rather than a
-  per-IPC figure, so E1's prediction remains a sighting shot. Checked 2026-09-03.
+- **Done.** 2026-09-19: the per-IPC kernel stack depth is measured rather than estimated:
+  `kernel/src/ipc_stack_depth.rs` (module, `ipc_stack_depth` feature and `ipc-stack-depth:` prefix
+  all **provisional**) paints a thread's own kernel stack around each IPC operation, for kernel
+  threads (E1's shape) and EL0 threads (a service's), on all three ISAs under QEMU, in the debug
+  build `script/test` runs and the release build radon boots. Release, per thread per round trip:
+  about 600 bytes for kernel threads (riscv64 608 client, 576 server), 0.5 to 1 KiB for EL0 threads.
+  Numbers, method, cost and what it misses are in notes/stack-high-water.md, "Per-IPC depth"; the
+  register carries a `dated` row. **What it means for E1 and §96:** the stacks alone would not fill
+  radon's L1d until about 54 threads, so the knee at 8 to 16 is not capacity; it matches a set
+  conflict bound (radon's L1D is 32 KiB, 4-way, VIPT per SiFive's U74-MC manual 21G3.02.00, so at
+  most 8 lines sharing a page offset fit, and every stack top is page-aligned), which the TCB pages
+  would produce equally. §96's performance input therefore stands as measured and its mechanism
+  becomes a testable question rather than an assumption; the next item is the test.
+- **Proposed.** `design/roadmap/proposals/colour-the-kernel-stacks-and-take-e1-again.md`: start
+  each thread's stack a per-slot colour below its top in a feature build and take E1 again on
+  radon. A knee that moves right says the stacks caused it and a process kernel buys it back with
+  colouring; one that stays at 8 says the TCBs (also page-aligned) did, which an event kernel would
+  not remove either. Either is a sharper input to §96 than it has. Can ride on the E3 evening.
+- **Recorded.** notes/qemu.md: `scripts/qemu-bounded.sh` does not bound
+  `scripts/qemu-runner-x86_64.sh`, because that runner does not `exec` QEMU, so the bound kills the
+  shell and orphans the emulator (found when this lane's release boot left one with PPID 1).
+- **Recorded.** notes/stack-high-water.md's BUGS: the instrument copies `os_primitives_benchmarker`'s
+  and `soaker`'s role numbers as local constants, as `bench.rs` and `soak.rs` already do, against
+  AGENTS.md rule 7; and the per-IPC depth is `dated`, not gated.
 - **Milestone 25.** M12, the same measures on seL4 on the same board, is that block, itself PARTIAL
   and gated on hardware and milestone 74, which this one already cites.
 - **Recorded.** E1 measures the process kernel's penalty rather than the event kernel's benefit.
