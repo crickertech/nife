@@ -69,7 +69,6 @@ use aarch64_cpu::registers::{
 use tock_registers::interfaces::{Readable, Writeable};
 
 use crate::cpu::{self, MAX_CPUS};
-use crate::drivers::gic;
 
 /// The EL1 **virtual** timer, as a GIC interrupt ID.
 ///
@@ -162,7 +161,7 @@ pub fn init() {
     let interval = freq / TICK_HZ;
     INTERVAL.store(interval, Ordering::Relaxed);
 
-    gic::enable(TIMER_INTID, 0); // PPI: per-core, target ignored
+    super::irq::enable(TIMER_INTID); // PPI: enabled on this core, no target
 
     start(interval);
 }

@@ -2467,7 +2467,7 @@ fn userspace_init_delegates_an_interrupt_to_a_child() {
 
     // Raise the test interrupt. The rendezvous counts it if the child is not waiting yet (it is
     // still being built), and the child's WAIT drains that pending signal, so there is no race.
-    crate::drivers::gic::send_sgi(INIT_TEST_SGI, crate::cpu::id());
+    crate::arch::irq::send_sgi(INIT_TEST_SGI, crate::cpu::id());
 
     let word = crate::sched::ipc_recv(report)[0];
     assert_eq!(

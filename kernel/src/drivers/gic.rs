@@ -36,6 +36,24 @@
 //!
 //! Get the comparison backwards and you get a machine that takes no interrupts and gives you
 //! no clue why.
+//!
+//! # GICv2 only, and the other version is a sibling
+//!
+//! This file drives GICv2 and nothing else. A GICv3 is `gicv3.rs` beside it (the distributor and
+//! the redistributors) plus `arch/aarch64/gic_cpu_interface.rs` (the `ICC_*` system registers), and
+//! `arch/aarch64/irq.rs` decides which one the machine has from the device tree's `compatible`,
+//! then confirms it against the hardware before either is used (milestone 227).
+//!
+//! # BUGS
+//!
+//! - **[`send_sgi`] issues no barrier before the `SGIR` write.** An SGI tells another core to look
+//!   at memory this core just wrote (the reschedule inbox), and on Arm a Device store is not
+//!   ordered after earlier Normal stores without a `dsb` (Linux's `writel` carries one). The GICv3
+//!   path has it (`gic_cpu_interface::send_sgi`). Here it is recorded rather than added, because
+//!   adding it changes the instruction count of every GICv2 reschedule, and the lane that found it
+//!   (milestone 227) was bound to leave the GICv2 path's counts alone. Nothing has been seen to
+//!   fail from it under TCG, which does not model the reordering; argon, a GIC-400, is where it
+//!   would. The fix is one `dsb ishst` in `arch::irq::send_sgi` ahead of the GICv2 call.
 
 use tock_registers::interfaces::{Readable, Writeable};
 use tock_registers::registers::{ReadOnly, ReadWrite, WriteOnly};
@@ -105,7 +123,12 @@ register_structs! {
         /// Writing the same INTID back says "I'm done". Until you do, the GIC will not deliver
         /// another interrupt of equal or lower priority.
         (0x010 => EOIR: WriteOnly<u32>),
-        (0x014 => @END),
+        (0x014 => _reserved1),
+        /// Identification. `ArchitectureVersion` (bits 19:16) is 2 on a GIC-400 and on QEMU's
+        /// model. Read once at boot (milestone 227) to confirm the device tree named a real CPU
+        /// interface: a GICv3 redistributor frame answers zero at this offset.
+        (0x0fc => IIDR: ReadOnly<u32>),
+        (0x100 => @END),
     }
 }
 
@@ -138,6 +161,17 @@ impl Gic {
         // SAFETY: as above.
         unsafe { &*self.gicc }
     }
+}
+
+/// `GICC_IIDR` at `gicc`, read before anything else is trusted: `arch::irq` hands it to
+/// `machine_discovery::gic::Gic::confirm`, so a tree naming the wrong block fails at boot instead
+/// of booting and taking nothing (milestone 222's measurement).
+///
+/// # Safety
+/// `gicc` must be a mapped device-memory address with at least 256 bytes behind it.
+pub unsafe fn identification(gicc: u64) -> u32 {
+    // SAFETY: per this function's contract.
+    unsafe { (*(gicc as *const CpuInterface)).IIDR.get() }
 }
 
 /// Bring the GIC up.

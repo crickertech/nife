@@ -12,6 +12,11 @@
 // kernel (DECISIONS §4, §17). aarch64 IRQ tests in portable files stay `cfg(test)`, aarch64-only.
 #[cfg(target_arch = "aarch64")]
 pub mod gic;
+// Its GICv3 sibling (milestone 227): the distributor and redistributors, memory-mapped. The GICv3
+// CPU interface is system registers and so lives in `arch/aarch64/gic_cpu_interface.rs`; the
+// aarch64 `arch::irq` adapter picks the version at boot and is the only caller of either.
+#[cfg(target_arch = "aarch64")]
+pub mod gicv3;
 
 // The PL011 UART, aarch64's `virt` console. Used only by the console (via a compile-time alias), so
 // it gates cleanly. RISC-V's `virt` has an NS16550 instead, and so does x86 (at an I/O port rather
