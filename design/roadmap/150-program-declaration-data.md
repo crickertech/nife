@@ -1,8 +1,14 @@
 # 150. Adding a program should not need eight hand-maintained lists
 
-**Status: NOT-STARTED.**
+**Status: BUILT 2026-09-19** (PR #968). A program is declared once: its `[[bin]]` block, plus one
+`programs!` row in `crates/grant_plan` if the shell can spawn it. Everything else is generated from
+those or checked against them. The after count is measured, by adding and removing a scratch
+program (`triple`) and booting it at both prompts; the before count is read off the base tree
+(8bac3637) and the 2026-08-18 walks rather than re-walked. A plain program went from three hand
+edits to one, and a spawnable program that answers in a register from twelve edits across five
+files (two of them silent) to six across four, of which only the first two are unprompted.
 
-**Gate: NONE.** Minted provisionally on 2026-08-22 by milestone 117's handoffs lane; the integrator
+Minted provisionally on 2026-08-22 by milestone 117's handoffs lane; the integrator
 should confirm the number at merge. 147, 148 and 149 were already claimed by other lanes' pull
 requests (147/148 open, 149 merged into this lane's own base commit) as this was written.
 
@@ -15,6 +21,71 @@ riscv64/x86_64 both build the whole `user` package unfiltered, the way aarch64 a
 does not close the milestone: sites 1, 2 (now `initrd_aarch64()`), 4 (`initrd_riscv()`'s/`initrd_x86()`'s
 shared `entries` table), 5, 6, 7 and 8 are all still hand-maintained, and the design question in the
 next section is unchanged. See notes/adding-a-program.md for the corrected count and PR #564.
+
+## What was built
+
+**The archives are generated from `Cargo.toml`.** `xtask`'s `declared_programs()` reads the
+`[[bin]]` blocks of `components/` and `fixtures/` and all three packers (`initrd_aarch64`,
+`initrd_riscv`, `initrd_x86`) pack exactly that list. Both hand-written tables are gone. They had
+drifted when deleted: `serial_driver` and `jh7110_entropy` were absent from aarch64's and `pmap` from
+both, none of it decided, so aarch64's archive gained three programs and the others one. The
+reader is strict (an unknown key in a `[[bin]]` block stops the pack), because a lenient one would
+silently drop a program. This retires sites 2 and 4 of the list below, and site 3 was already gone.
+
+**`Prog` is one `macro_rules!` declaration** (`programs!`, provisional), a row of
+`Variant { id: N, name: "..." }` per program, generating the enum, `name()`, `id()`, `from_id()`,
+`from_name()`, a new `Prog::ALL`, and `PROG_COUNT`. `manifest()` stays a hand-written match because
+the compiler already demands its arm. Ids are written, never positional; `PROG_COUNT` is one past the
+highest id, so a removed program leaves a hole rather than renumbering; duplicate ids or names fail
+the build in a `const` assertion. A host test written before the refactor pins the thirteen shipped
+`(name, id)` pairs and refuses both renumbering and reuse. Site 5 goes from seven edits to two.
+
+**`swish`'s render match is a wildcard** plus a host test that every `OutputSpec::Words` program
+renders its answer. Eleven of thirteen arms were empty, so the compile error it used to raise asked
+most authors for a keystroke. Site 6 now applies only to the programs it means something for.
+
+**The gate on count is three relationship checks rather than a number** (item 4 below). A pinned
+total was refused because it would be a hand-maintained number failing on every legitimate
+addition. Instead: packing refuses a `programs!` row with no `[[bin]]`; a host test refuses a
+program the kernel or the progenitor still loads by string literal after its block is deleted (the
+removal that used to become a test that `skip!()`s forever); and a host test requires every
+spawnable program to have a `SHELL_CHECK_SCRIPT` line or a stated reason. That last one found
+`memory_grant_depleter` had none, and it gained one. Site 7 is now enforced rather than remembered.
+
+**The eighth edit site is closed**: `the_arg_line_follows_the_manifest_for_every_program` types
+every operand a manifest asks for, so an argument-plus-input program needs no edit in `crates/swish`.
+Whether such a program is *wanted* (item 3) is calef's call and is written up as
+[a-program-that-takes-an-argument-and-an-input.md](proposals/a-program-that-takes-an-argument-and-an-input.md),
+recommending the status quo. The neighbouring file-plus-input refusal moved from a comment into a
+host test.
+
+**notes/adding-a-program.md shrank** to what survives (site 8), gained the removal section run 4
+asked for (item 5), and carries the mechanism reasoning with what lost under "Why it works this
+way", for the integrator to mint a `design/decisions/` section from.
+
+### BUGS and honest caveats
+
+- **The removal gate is textual**: it reads `program("...")` and `.read("...")` literals in
+  `kernel/src` and `crates/system_initializer/src`. A name built at runtime is invisible to it. It
+  counts what it matched and fails below fifty, so it cannot pass on nothing.
+- **A stale `SHELL_CHECK_SCRIPT` line is not caught on the host.** Removing a spawnable program
+  leaves its transcript line, which `script/shell-check` then fails at the cost of a boot. The walk
+  measured this: it was the one edit nothing named. Recorded in notes/adding-a-program.md's `BUGS`.
+- **The wire-id pin covers ids shipped before 2026-09-19.** Reuse of a later program's id after that
+  program is removed is not gated; the written id makes a renumbering visible in review only.
+- **The `[[bin]]` reader knows four keys.** The first program to need `required-features` must teach
+  it, by design.
+- **`write_outcome`'s wildcard is rung two where rung one stood.** It is the one place this milestone
+  went down the ladder, deliberately, and the test that replaced it is recorded beside the match.
+- **`cargo xtask build` still packs only aarch64.** That no longer hides a packing mistake, since
+  all three archives pack one list, but it is not a build of the other two.
+
+### Provisional names
+
+`programs!`, `Prog::ALL`, `declared_programs`, `declared_program_blobs`, `bin_names`,
+`check_declared_programs`, `PROGRAM_PACKAGES`, and the test names added in `grant_plan`, `swish` and
+`xtask`. `PROG_COUNT` keeps its name with a changed meaning (one past the highest id, not a count),
+which a reader of the name alone would get wrong once an id is retired; renaming it is calef's call.
 
 ## What this is
 
@@ -131,13 +202,33 @@ the file and line the previous stranger read) and should link to this milestone 
 confirms its number, replacing the current circular pointer at "the tracked home for the mechanism is
 milestone 117's handoff."
 
+## Follow-on
+
+- **Proposed.** `design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md`: item 3,
+  whether a manifest may declare an argument and an input together. The mechanical half is done
+  (the `crates/swish` sweep supplies both); whether the shape is wanted is calef's call, and the
+  proposal recommends the status quo.
+- **Decision.** The mechanism (the `[[bin]]` block as the archive list, `programs!` for `Prog`, and
+  three relationship checks in place of a pinned count) is reasoned with what lost in
+  `notes/adding-a-program.md` under "Why it works this way", for the integrator to mint a
+  `design/decisions/` section at merge. No section exists yet; this lane does not mint one.
+- **Recorded.** The stale `SHELL_CHECK_SCRIPT` line a removal leaves, the textual removal gate, the
+  wire-id pin's cut-off date, and the four-key `[[bin]]` reader, in `notes/adding-a-program.md`'s
+  `BUGS`.
+- **Recorded.** `PROG_COUNT` keeps its name with a changed meaning (one past the highest wire id,
+  not a count of programs), stated in its doc comment in `crates/grant_plan/src/lib.rs`. A rename is
+  a naming decision and is calef's.
+- **Done.** `memory_grant_depleter` had no `SHELL_CHECK_SCRIPT` line; the new coverage test found
+  it and it has one.
+
 ## Index row
 
-Minted provisionally by milestone 117's handoffs lane on 2026-08-22, nominated independently by
-three successive stranger-test runs (3, 4, 5). A program's declaration is spread across eight
-hand-maintained places (a `[[bin]]` block, two initrd builders across four sites, a seven-edit `Prog` variant, a `swish` render arm, `SHELL_CHECK_SCRIPT`, and the note describing the other
-seven), and the compiler silently accepts a variant missing its `PROG_COUNT` bump: the tree
-compiles, every host test passes, and the program simply cannot be spawned. A `Prog` variant
-carrying its archive name and manifest as data, generating both initrd tables the way the
-measurement manifest is already generated, is the shape three strangers converged on without being
-told to.
+**Built:** 2026-09-19
+
+Built 2026-09-19: a program is its `[[bin]]` block (packed into all three archives from `Cargo.toml`)
+plus, if the shell spawns it, one `programs!` row generating `Prog`'s bookkeeping; host tests catch
+the rest, including a removal something still loads by name. Minted provisionally by milestone
+117's handoffs lane on 2026-08-22, nominated independently by
+three successive stranger-test runs (3, 4, 5), when a program's declaration was spread across
+eight hand-maintained places and the compiler silently accepted a variant missing its `PROG_COUNT`
+bump.
