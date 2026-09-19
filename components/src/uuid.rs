@@ -15,10 +15,11 @@
 //! that milestone's `date`.
 //!
 //! It is **`disk_partitioner`'s draw with the disk taken away**. Both call
-//! `gpt::guid::Guid::v4_from_random` over sixteen bytes from the same service, because a GPT gives
-//! every partition a random globally unique id and `crates/gpt` refuses to invent one. The
-//! partitioner also needs a disk capability, which this shell does not hold and cannot attenuate;
-//! the sixteen bytes and the stamping are the half that a prompt can reach today.
+//! `globally_unique_identifier_partition_table::guid::Guid::v4_from_random` over sixteen bytes
+//! from the same service, because a GPT gives every partition a random globally unique id and
+//! `crates/globally_unique_identifier_partition_table` refuses to invent one. The partitioner also
+//! needs a disk capability, which this shell does not hold and cannot attenuate; the sixteen bytes
+//! and the stamping are the half that a prompt can reach today.
 //!
 //! # The capability table
 //!
@@ -43,7 +44,8 @@
 //! `uuid > id.txt` on a boot with no entropy service must leave the file empty, because a file
 //! containing a predictable identifier is worse than a file containing nothing: the first is wrong
 //! and looks right. There is no counter fallback here for the same reason `disk_partitioner` has
-//! none (its `R_NO_ENTROPY`), and the same reason `crates/gpt` will not invent a GUID.
+//! none (its `R_NO_ENTROPY`), and the same reason
+//! `crates/globally_unique_identifier_partition_table` will not invent a GUID.
 //!
 //! # Arguments: none
 //!
@@ -87,16 +89,18 @@
 //! `Guid` "because GPT's spec does, but the spec is Microsoft's spelling of the same object". They
 //! are not the same object in the same layout. A GUID is **mixed-endian**: the first three groups
 //! go on disk little-endian and the last two in the order written, where RFC 9562's UUID is
-//! big-endian throughout. `crates/gpt/src/guid.rs` is built around exactly that trap ("a GUID that
-//! looks plausible, matches nothing, and is byte-reversed in three places out of five") and proves
-//! the round trip for all 2^128 with `a_guid_survives_printing_and_parsing`.
+//! big-endian throughout. `crates/globally_unique_identifier_partition_table/src/guid.rs` is built
+//! around exactly that trap ("a GUID that looks plausible, matches nothing, and is byte-reversed in
+//! three places out of five") and proves the round trip for all 2^128 with
+//! `a_guid_survives_printing_and_parsing`.
 //!
 //! So the refusal stands and is stronger than its old reason: `guid` here would not be a
 //! stylistic borrowing from another vendor, it would assert a byte order this program does not
 //! produce. For the same reason **`crates/gpt` keeps `Guid`** (calef, 2026-09-13, asked directly
 //! whether it should follow this ratification): that name distinguishes two encodings a reader
 //! will otherwise conflate, which is the load-bearing version of the argument §113's amendment
-//! found false for `crates/pci`.
+//! found false for `crates/pci`. (The crate was `gpt` when both of these were written; §154
+//! renamed it `globally_unique_identifier_partition_table` on 2026-09-18, and `Guid` stayed.)
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -106,7 +110,7 @@
 #![no_main]
 
 use entropy_protocol as entropy;
-use gpt::guid::Guid;
+use globally_unique_identifier_partition_table::guid::Guid;
 use user_mode_runtime::{call, exit, granted, send};
 
 /// Slot 0: where the identifier goes. An endpoint with `WRITE`, under the sink contract.

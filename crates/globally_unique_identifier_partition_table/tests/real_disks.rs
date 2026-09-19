@@ -39,8 +39,10 @@
 //! dd if=apple64.img of=apple-64m.tail bs=512 skip=131039 count=33
 //! ```
 
-use gpt::guid::{Guid, types};
-use gpt::{BackupMismatch, Entry, Error, Gpt, MbrProblem, entry};
+use globally_unique_identifier_partition_table::guid::{Guid, types};
+use globally_unique_identifier_partition_table::{
+    BackupMismatch, Entry, Error, Gpt, MbrProblem, entry,
+};
 
 const SGDISK_HEAD: &[u8] = include_bytes!("fixtures/sgdisk-64m.head");
 const SGDISK_TAIL: &[u8] = include_bytes!("fixtures/sgdisk-64m.tail");
@@ -173,7 +175,7 @@ fn macos_leaves_the_partition_names_empty_and_sgdisk_does_not() {
 }
 
 /// The two tools write different CHS bytes in the protective MBR and both are right, which is why
-/// [`gpt::mbr::validate`] does not look at them.
+/// [`globally_unique_identifier_partition_table::mbr::validate`] does not look at them.
 ///
 /// `sgdisk` computes the real cylinder/head/sector of the last block; macOS writes `FE FF FF`, the
 /// "out of range, use LBA" marker. Nothing has read a CHS field in thirty years. A validator
@@ -191,7 +193,7 @@ fn the_two_tools_disagree_about_chs_and_it_does_not_matter() {
             &head[RECORD + 12..RECORD + 16],
             &(BLOCKS as u32 - 1).to_le_bytes()
         );
-        gpt::mbr::validate(&head[..BLOCK], BLOCKS).unwrap();
+        globally_unique_identifier_partition_table::mbr::validate(&head[..BLOCK], BLOCKS).unwrap();
     }
 }
 
@@ -242,7 +244,7 @@ fn creating_the_same_table_from_scratch_matches_sgdisk_byte_for_byte() {
     let original = Gpt::parse(header_block, array).unwrap();
     let parts: Vec<Entry> = original.partitions().map(|(_, e)| e).collect();
 
-    let mut rebuilt_array = [0u8; gpt::ENTRY_ARRAY_BYTES];
+    let mut rebuilt_array = [0u8; globally_unique_identifier_partition_table::ENTRY_ARRAY_BYTES];
     let rebuilt = Gpt::create(
         original.disk_guid(),
         BLOCK,
@@ -358,9 +360,9 @@ fn every_single_bit_corruption_of_the_entry_array_is_caught() {
 /// value it could have held instead. **All 4,177,920, and it passes.**
 ///
 /// `#[ignore]` because it is 163 seconds and the bit-flip version above covers the same ground in
-/// four. Run it with `cargo test -p gpt -- --ignored` after touching anything in the CRC or the
-/// array handling. Left in the tree rather than deleted because "we ran it once and it passed" is a
-/// claim a reader should be able to check.
+/// four. Run it with `cargo test -p globally_unique_identifier_partition_table -- --ignored` after
+/// touching anything in the CRC or the array handling. Left in the tree rather than deleted because
+/// "we ran it once and it passed" is a claim a reader should be able to check.
 #[test]
 #[ignore = "163 seconds: 68 GB of CRC-32. The bit-flip sweep is the gate."]
 fn every_single_byte_corruption_of_the_entry_array_is_caught() {
@@ -398,11 +400,15 @@ fn a_backup_that_belongs_to_another_disk_is_refused_field_by_field() {
         .check_backup(backup_header_block, backup_array)
         .unwrap();
 
-    let mut header = gpt::Header::decode(backup_header_block).unwrap();
+    let mut header =
+        globally_unique_identifier_partition_table::Header::decode(backup_header_block).unwrap();
     let mut block = [0u8; BLOCK];
 
     /// One field of the backup header, damaged, and the mismatch it must produce.
-    type Case = (fn(&mut gpt::Header), BackupMismatch);
+    type Case = (
+        fn(&mut globally_unique_identifier_partition_table::Header),
+        BackupMismatch,
+    );
 
     let cases: [Case; 6] = [
         (|h| h.my_lba += 1, BackupMismatch::MyLba),
@@ -442,14 +448,14 @@ fn a_backup_that_belongs_to_another_disk_is_refused_field_by_field() {
 #[test]
 fn a_hybrid_mbr_is_refused_by_name() {
     let mut block = SGDISK_HEAD[..BLOCK].to_vec();
-    gpt::mbr::validate(&block, BLOCKS).unwrap();
+    globally_unique_identifier_partition_table::mbr::validate(&block, BLOCKS).unwrap();
 
     let second = 446 + 16;
     block[second + 4] = 0x83; // Linux, in the old MBR type space
     block[second + 8..second + 12].copy_from_slice(&2048u32.to_le_bytes());
     block[second + 12..second + 16].copy_from_slice(&8192u32.to_le_bytes());
     assert_eq!(
-        gpt::mbr::validate(&block, BLOCKS),
+        globally_unique_identifier_partition_table::mbr::validate(&block, BLOCKS),
         Err(Error::Mbr(MbrProblem::ExtraRecord { index: 1 }))
     );
 }

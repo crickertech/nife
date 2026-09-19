@@ -4291,12 +4291,14 @@ fn gpt_disk_path() -> String {
 
 /// Build the milestone-57 test disk: a 64 MiB image whose partition table **`sgdisk` wrote**.
 ///
-/// The point of this image is its provenance. `crates/gpt` can lay out a table, and a disk it laid
-/// out would test the reader against the writer, which is the weakest test available: every mistake
-/// made on the way out is made symmetrically on the way in. So the bytes come from the committed
-/// fixture in `crates/gpt/tests/fixtures/`, produced by `sgdisk` 1.0.10 (gptfdisk, C++), and the
-/// guest reads a table this project did not write. The regeneration commands are at the top of
-/// `crates/gpt/tests/real_disks.rs`.
+/// The point of this image is its provenance. `crates/globally_unique_identifier_partition_table`
+/// can lay out a table, and a disk it laid out would test the reader against the writer, which is
+/// the weakest test available: every mistake made on the way out is made symmetrically on the way
+/// in. So the bytes come from the committed fixture in
+/// `crates/globally_unique_identifier_partition_table/tests/fixtures/`, produced by `sgdisk` 1.0.10
+/// (gptfdisk, C++), and the guest reads a table this project did not write. The regeneration
+/// commands are at the top of
+/// `crates/globally_unique_identifier_partition_table/tests/real_disks.rs`.
 ///
 /// The fixture is the first 34 and last 33 blocks of a 64 MiB disk, which is exactly the primary
 /// table and the backup table with the 64 MiB of nothing between them left out. Reconstituting it is
@@ -4305,7 +4307,8 @@ fn gpt_disk_path() -> String {
 fn mkgptdisk() -> bool {
     const BLOCK: usize = 512;
     const BLOCKS: usize = 131_072; // 64 MiB
-    let dir = workspace_root().join("crates/gpt/tests/fixtures");
+    let dir =
+        workspace_root().join("crates/globally_unique_identifier_partition_table/tests/fixtures");
     let (Ok(head), Ok(tail)) = (
         std::fs::read(dir.join("sgdisk-64m.head")),
         std::fs::read(dir.join("sgdisk-64m.tail")),
@@ -4388,8 +4391,8 @@ fn mkblankdisk() -> bool {
 }
 
 /// After a test run, read the blank disk back **from the host** and check what the guest put on it:
-/// the partition table with `crates/gpt`, and the filesystem inside the data partition with the
-/// pinned engine through `tools/redoxfs_host`.
+/// the partition table with `crates/globally_unique_identifier_partition_table`, and the filesystem
+/// inside the data partition with the pinned engine through `tools/redoxfs_host`.
 ///
 /// This is the half a guest-side assertion cannot make. The in-guest check reads the filesystem
 /// through the same block server that wrote it, on the same machine, minutes later; this is a
@@ -4418,11 +4421,16 @@ fn blank_check_after_run() -> bool {
 
     // The table the guest wrote, judged by the parser the guest did not run: this process's own
     // copy, on the host, against the bytes on disk.
-    if let Err(e) = gpt::mbr::validate(&img[..lba], blank::DISK_BLOCKS) {
+    if let Err(e) =
+        globally_unique_identifier_partition_table::mbr::validate(&img[..lba], blank::DISK_BLOCKS)
+    {
         eprintln!("BLANK IMAGE CHECK FAILED: the protective MBR the guest wrote is bad: {e:?}");
         return false;
     }
-    let table = match gpt::Gpt::parse(&img[lba..2 * lba], &img[2 * lba..34 * lba]) {
+    let table = match globally_unique_identifier_partition_table::Gpt::parse(
+        &img[lba..2 * lba],
+        &img[2 * lba..34 * lba],
+    ) {
         Ok(t) => t,
         Err(e) => {
             eprintln!(
@@ -4458,17 +4466,19 @@ fn blank_check_after_run() -> bool {
             }
         }
     }
-    if !parts
-        .iter()
-        .any(|(_, p)| p.type_guid == gpt::guid::types::NIFE_DATA)
-    {
+    if !parts.iter().any(|(_, p)| {
+        p.type_guid == globally_unique_identifier_partition_table::guid::types::NIFE_DATA
+    }) {
         eprintln!("BLANK IMAGE CHECK FAILED: no nife data partition on the guest's disk");
         return false;
     }
 
     // The filesystem inside it, opened by the pinned engine on the host, at the offset the tool
     // works out from the same table this function just checked.
-    let data_type = String::from_utf8_lossy(&gpt::guid::types::NIFE_DATA.to_ascii()).into_owned();
+    let data_type = String::from_utf8_lossy(
+        &globally_unique_identifier_partition_table::guid::types::NIFE_DATA.to_ascii(),
+    )
+    .into_owned();
     let out = capture(
         "cargo",
         &[
@@ -5764,7 +5774,8 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 ///
 /// **"Miri-clean" means the sampled paths.** An interpreter runs roughly a thousand times slower
 /// than the silicon, so the exhaustive suites gate themselves down under `cfg(miri)`: `network_time_protocol`
-/// strides its 10^9-value sweep, `gpt` skips its 460k-parse corruption sweeps, `calendar` and
+/// strides its 10^9-value sweep, `globally_unique_identifier_partition_table` skips its 460k-parse
+/// corruption sweeps, `calendar` and
 /// `glob` shrink their strides and scales, `credentialer` derives at Argon2's floor (each site says so,
 /// next to the test). What Miri certifies is every path the sampled suite executes, not the
 /// exhaustive claims; those remain native-only.
@@ -5772,7 +5783,8 @@ fn kernel_test_elf(target: &str, who: &str) -> Option<String> {
 /// The two out-of-workspace test surfaces stay out deliberately: `tools/redoxfs_host` and
 /// `redoxfs_server` spend their runtime inside the vendored RedoxFS engine, and a finding in vendored
 /// code lands in the vendor pin, not in a crate this tree can fix (vendor/README.md). Extra args
-/// are forwarded to `cargo miri test`, so `cargo xtask undefined-behavior-check -p gpt` narrows the run.
+/// are forwarded to `cargo miri test`, so `cargo xtask undefined-behavior-check -p
+/// globally_unique_identifier_partition_table` narrows the run.
 fn undefined_behavior_check() -> bool {
     eprintln!("--- host tests under Miri (aliasing, provenance, uninitialized reads) ---");
     let mut args = vec![
@@ -9641,9 +9653,10 @@ const IH_COMP_NONE: u8 = 0;
 /// fails on the machine that does not is exactly the newcomer trap AGENTS.md's third principle
 /// names. The format is 64 bytes and two CRCs, so writing it costs less than requiring it.
 ///
-/// The CRC is `gpt`'s, which is the tree's one definition of IEEE CRC-32 and is Kani-proved equal
-/// to its own bitwise form. Reaching into the partition-table crate for it reads oddly and is
-/// still the right call: a second copy of a checksum is a second place to be wrong.
+/// The CRC is `globally_unique_identifier_partition_table`'s, which is the tree's one definition of
+/// IEEE CRC-32 and is Kani-proved equal to its own bitwise form. Reaching into the partition-table
+/// crate for it reads oddly and is still the right call: a second copy of a checksum is a second
+/// place to be wrong.
 fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
     // A script image's payload is a size table, then the text. `source` reads the first u32 as the
     // script's length and skips two u32s to reach the bytes (u-boot `cmd/source.c`), so one script
@@ -9660,7 +9673,8 @@ fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
     let mut header: Vec<u8> = Vec::with_capacity(UIMAGE_HEADER_LEN);
     header.extend_from_slice(&UIMAGE_MAGIC.to_be_bytes());
     // The header CRC covers the header with this field read as zero, so it is written zero here
-    // and patched below, the same shape `gpt`'s header CRC has.
+    // and patched below, the same shape `globally_unique_identifier_partition_table`'s header CRC
+    // has.
     header.extend_from_slice(&0u32.to_be_bytes());
     // Timestamp. Zero rather than the wall clock, so rebuilding the same payload produces the same
     // bytes and a card can be diffed against the tree. Nothing on the boot path reads it.
@@ -9673,7 +9687,9 @@ fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
     // Load address and entry point: meaningless for a script, and zero is what mkimage writes.
     header.extend_from_slice(&0u32.to_be_bytes());
     header.extend_from_slice(&0u32.to_be_bytes());
-    header.extend_from_slice(&gpt::crc::crc32(&data).to_be_bytes());
+    header.extend_from_slice(
+        &globally_unique_identifier_partition_table::crc::crc32(&data).to_be_bytes(),
+    );
     header.push(IH_OS_LINUX);
     header.push(IH_ARCH_RISCV);
     header.push(IH_TYPE_SCRIPT);
@@ -9688,7 +9704,7 @@ fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
         "the legacy header is 64 bytes"
     );
 
-    let header_crc = gpt::crc::crc32(&header);
+    let header_crc = globally_unique_identifier_partition_table::crc::crc32(&header);
     header[4..8].copy_from_slice(&header_crc.to_be_bytes());
 
     header.extend_from_slice(&data);
@@ -10359,7 +10375,11 @@ pub const GET: u64 = 1;
             data.len(),
             "the header states the payload length"
         );
-        assert_eq!(be(24), gpt::crc::crc32(data), "data CRC");
+        assert_eq!(
+            be(24),
+            globally_unique_identifier_partition_table::crc::crc32(data),
+            "data CRC"
+        );
 
         // The header CRC is over the header with its own field zeroed, so the check has to zero it
         // again; a test that compared the stored value with a CRC of the stored value would pass on
@@ -10367,7 +10387,11 @@ pub const GET: u64 = 1;
         let mut header = image[..UIMAGE_HEADER_LEN].to_vec();
         let stored = u32::from_be_bytes(header[4..8].try_into().unwrap());
         header[4..8].copy_from_slice(&0u32.to_be_bytes());
-        assert_eq!(stored, gpt::crc::crc32(&header), "header CRC");
+        assert_eq!(
+            stored,
+            globally_unique_identifier_partition_table::crc::crc32(&header),
+            "header CRC"
+        );
 
         // `source` reads the first u32 as the script length and starts the text after the pair.
         assert_eq!(

@@ -177,7 +177,7 @@ dependencies = [
  "entropy_protocol",
  "environment_protocol",
  "filesystem_protocol",
- "gpt",
+ "globally_unique_identifier_partition_table",
  "grant_plan",
  "graphics_protocol",
  "jh7110_entropy",
@@ -401,7 +401,7 @@ name = "glob"
 version = "0.1.0"
 
 [[package]]
-name = "gpt"
+name = "globally_unique_identifier_partition_table"
 version = "0.1.0"
 
 [[package]]
@@ -1089,7 +1089,7 @@ dependencies = [
  "compositor",
  "documentation",
  "filesystem_protocol",
- "gpt",
+ "globally_unique_identifier_partition_table",
  "graphics_protocol",
  "measured_boot",
  "nifefs",

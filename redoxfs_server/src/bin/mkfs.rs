@@ -27,7 +27,7 @@
 //!
 //! 1. Reads the partition table off the disk it holds and finds the **nife data partition**
 //!    by type GUID (DECISIONS §45). Nothing here trusts a partition *name*: on any disk a Mac
-//!    touched there is not one (notes/gpt.md).
+//!    touched there is not one (notes/globally-unique-identifier-partition-table.md).
 //! 2. Draws sixteen random bytes, and stops if it cannot.
 //! 3. Creates the filesystem **inside that partition**, through a [`PartitionDisk`] whose block
 //!    zero is the partition's first block and whose `size` is the partition's length, so the engine
@@ -80,8 +80,8 @@ extern crate alloc;
 use entropy_protocol as entropy;
 use filesystem_protocol::fixture::blank;
 use filesystem_protocol::{blk, req};
-use gpt::Gpt;
-use gpt::guid::types;
+use globally_unique_identifier_partition_table::Gpt;
+use globally_unique_identifier_partition_table::guid::types;
 use redoxfs::{BLOCK_SIZE, Disk, FileSystem};
 use redoxfs_server::Server;
 use syscall::error::{EIO, Error, Result};
@@ -290,9 +290,10 @@ fn check(first_block: u64, blocks: u64) -> ! {
 /// in RedoxFS blocks. `None` when there is no disk at all; `Some((_, 0))` when there is a disk and
 /// no such partition.
 ///
-/// The table is read with `crates/gpt`, the same parser `disk_surveyor` uses and the same one whose
-/// host tests run against tables `sgdisk` and macOS `diskutil` wrote. **The partition is found by
-/// type GUID**, never by name: macOS writes no GPT partition names at all (notes/gpt.md).
+/// The table is read with `crates/globally_unique_identifier_partition_table`, the same parser
+/// `disk_surveyor` uses and the same one whose host tests run against tables `sgdisk` and macOS
+/// `diskutil` wrote. **The partition is found by type GUID**, never by name: macOS writes no GPT
+/// partition names at all (notes/globally-unique-identifier-partition-table.md).
 fn data_partition() -> Option<(u64, u64)> {
     let size = blk_call(blk::SIZE, 0);
     if size <= 0 {

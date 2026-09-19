@@ -6,7 +6,8 @@
 itself is measured, and nothing external blocks it.
 
 **In brief.** `script/undefined-behavior-check` runs the test suite under Miri, which is roughly
-three orders of magnitude slower than native. `glob`, `network_time_protocol`, `calendar` and `gpt` already
+three orders of magnitude slower than native. `glob`, `network_time_protocol`, `calendar` and
+`globally_unique_identifier_partition_table` already
 handle this by sampling their exhaustive loops under `cfg(miri)` rather than running them whole.
 `compositor` has **six full-screen per-pixel sweeps** and only one of them has been strided; it fell
 from over 44 minutes to **57 seconds**. The other five are untouched and are now the whole remaining
@@ -42,7 +43,7 @@ skipped.
 ## Where it came from
 
 Milestone 238's `## Follow-on`: *"Sample `compositor`'s six full-screen per-pixel sweeps under
-`cfg(miri)`, the way `glob`, `network_time_protocol`, `calendar` and `gpt` already sample theirs. One was
+`cfg(miri)`, the way `glob`, `network_time_protocol`, `calendar` and `globally_unique_identifier_partition_table` already sample theirs. One was
 strided and fell from 44+ minutes to 57 seconds; the other five are untouched and are now the whole
 remaining cost of `script/undefined-behavior-check`. The budget was raised to 240 minutes instead of
 tuned, so the true end-to-end cost has never been measured."*

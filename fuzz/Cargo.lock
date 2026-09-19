@@ -46,7 +46,7 @@ version = "0.0.0"
 dependencies = [
  "dtb",
  "elf",
- "gpt",
+ "globally_unique_identifier_partition_table",
  "libfuzzer-sys",
  "nifefs",
 ]
@@ -63,7 +63,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpt"
+name = "globally_unique_identifier_partition_table"
 version = "0.1.0"
 
 [[package]]

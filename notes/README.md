@@ -835,7 +835,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   **would any test notice if this line were wrong?** cargo-mutants (pinned in
   `.cargo-mutants-version`, exclusions with reasons in `.cargo/mutants.toml`) rewrites one function
   at a time and reruns the tests; the survivors are the product. The per-crate baseline, the
-  calibration verdict on the exhaustive crates (`network_time_protocol`, `gpt`), the three-way triage rule
+  calibration verdict on the exhaustive crates (`network_time_protocol`, `globally_unique_identifier_partition_table`), the three-way triage rule
   (write the test, record the exclusion, or defer on the record), and why the weekly `mutation
   testing` workflow is a report rather than a gate.
 - [Falsification records](falsification.md): milestone 194, building DECISIONS §134, and the answer
@@ -1130,7 +1130,7 @@ in the code or the conversation doesn't make sense, it belongs here.
   `partitions DEVICE`), which deleted the partition-slicing workaround from xtask, and corrected the
   premise on the way: the engine's header scan meant a partitioned disk read whole never failed, it
   quietly opened whichever filesystem lay in the first 256 MiB.
-- [The GUID Partition Table](gpt.md): milestone 57 lane one (`crates/gpt`). The map that says where
+- [The GUID Partition Table](globally-unique-identifier-partition-table.md): milestone 57 lane one (`crates/globally_unique_identifier_partition_table`). The map that says where
   a filesystem starts: the protective MBR, the header, the entry array, the backup, and the four
   CRC-32s that make a GPT **a format that can tell you it is broken**. Why the crate does no I/O, the
   mixed-endian GUID trap, and why `last_lba` being inclusive is the off-by-one a casual test misses.
@@ -1141,10 +1141,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   target: the version-4 stamp the crate applies to bytes it did not generate, and why a partitioner
   reads every block before it writes one.
 - [Block devices: what is attached, and what holding one means](block-devices.md): milestone 57's
-  block-device lane, which is where `crates/gpt` stopped being wired to nothing. The guest reads a
+  block-device lane, which is where `crates/globally_unique_identifier_partition_table` stopped being wired to nothing. The guest reads a
   partition table **`sgdisk` wrote** off a virtio-blk device, backup half included, and the only real
   arithmetic (a GPT counts in 512-byte blocks, the block service moves 4096) lives host-tested in
-  `gpt::span`. The design claim is the split: a **read-only roster page** says what drives are
+  `globally_unique_identifier_partition_table::span`. The design claim is the split: a **read-only roster page** says what drives are
   attached, an **endpoint** says you may read and write one of them, and the roster deliberately
   carries no capacity because a size is a fact about a device you hold. The negative control is what
   makes that a claim: the same program writes to the roster's exact address and dies. Also the three

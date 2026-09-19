@@ -1,6 +1,6 @@
 # The GUID Partition Table
 
-Milestone 57 lane one, `crates/gpt`. The map that says where a filesystem starts, how to read one,
+Milestone 57 lane one, `crates/globally_unique_identifier_partition_table`. The map that says where a filesystem starts, how to read one,
 how to write one, and how to tell a broken one from a good one.
 
 (The three letters are the UEFI disk format and predate the machine-learning sense of them by about
@@ -39,7 +39,7 @@ zeros, which is the only thing that marks it, and not (this is the trap) its LBA
 
 ## The crate does no I/O, and that is the whole design
 
-Nothing in `crates/gpt` reads or writes a block device. Every function takes bytes the caller
+Nothing in `crates/globally_unique_identifier_partition_table` reads or writes a block device. Every function takes bytes the caller
 already has and returns bytes the caller is about to place. Same discipline as `dtb` and `elf`, and
 the reason is not tidiness: it is that the crate then compiles for the host, so its tests run in
 milliseconds against disks that real tools made, instead of inside a QEMU boot. `#![no_std]`, no
@@ -97,7 +97,7 @@ than the header claimed and then declaring the table good.
 The tests run against two tables this crate did not write, from implementations that share no code:
 `sgdisk` 1.0.10 (gptfdisk, C++) and macOS `diskutil`. Both are committed as the first 34 and last 33
 blocks of a 64 MiB image, about 34 KB each. Regeneration commands are at the top of
-`crates/gpt/tests/real_disks.rs`.
+`crates/globally_unique_identifier_partition_table/tests/real_disks.rs`.
 
 A parser that only round-trips its own output proves nothing, because every mistake it makes going
 in it makes symmetrically coming out. What the two independent writers bought:
@@ -132,7 +132,7 @@ this is a decision somebody can make later with the error already named.
 
 ## The nife partition type GUID
 
-`EC5CC08B-D749-4434-AC38-A274C50385BA`, `gpt::guid::types::NIFE_DATA`, a nife data partition
+`EC5CC08B-D749-4434-AC38-A274C50385BA`, `globally_unique_identifier_partition_table::guid::types::NIFE_DATA`, a nife data partition
 holding a RedoxFS volume. A random version-4 GUID generated on 2026-07-30 and **fixed forever**: a
 type GUID's whole job is to not collide with anybody else's and there is no registry to ask. See
 DECISIONS §45 for why it is never to change; the short version is that the recovery story ("the
@@ -162,7 +162,7 @@ load is a serial dependency in the loop. That is the number that decided the tes
 
 ### Proved, symbolically
 
-`script/verify` runs nine harnesses over `gpt`, about 96 seconds in total on an M-series laptop:
+`script/verify` runs nine harnesses over `globally_unique_identifier_partition_table`, about 96 seconds in total on an M-series laptop:
 
 | harness | what it quantifies over | time |
 |---|---|---|
@@ -225,7 +225,7 @@ Stated plainly, because a demonstrator's docs are part of the deliverable:
 - **No I/O, by design.** Somebody still has to read LBA 1. That is the block-device lane of
   milestone 57, and it is separate on purpose. **Built 2026-08-03** (notes/block-devices.md):
   `disk_surveyor` reads the table off a virtio-blk device, backup half included, on both ISAs. The
-  crate gained one module for it, `gpt::span`, which computes *where* to read when the disk's
+  crate gained one module for it, `globally_unique_identifier_partition_table::span`, which computes *where* to read when the disk's
   logical block (512) and the block service's transfer unit (4096) are different numbers. That is
   arithmetic, not I/O, and it lives here because three open-coded divisions in a driver is how an
   off-by-one gets blamed on a CRC.

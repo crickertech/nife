@@ -18,11 +18,12 @@
 //! **A device and a partition, not only an image file** (milestone 110). Every read verb takes a
 //! [`Volume`], which is either the whole file (the bytes at offset zero are the filesystem, which is
 //! what an image is) or one partition inside it, found by reading the GUID partition table with
-//! `crates/gpt`. The offset then lives in the [`PartitionDisk`] the engine is handed, so block zero
-//! of the filesystem is the partition's first block and nothing above the disk layer knows a
-//! partition was involved. That is the same shape the board's own `mkfs` uses, and the point is that
-//! a disk pulled out of the machine at 2am can be read where it lies instead of being `dd`ed into an
-//! image first, on a laptop that may not have room for it.
+//! `crates/globally_unique_identifier_partition_table`. The offset then lives in the
+//! [`PartitionDisk`] the engine is handed, so block zero of the filesystem is the partition's first
+//! block and nothing above the disk layer knows a partition was involved. That is the same shape
+//! the board's own `mkfs` uses, and the point is that a disk pulled out of the machine at 2am can
+//! be read where it lies instead of being `dd`ed into an image first, on a laptop that may not have
+//! room for it.
 //!
 //! **No key handling, deliberately** (roadmap milestone 57, decided 2026-07-30). RedoxFS supports
 //! encryption and this volume does not use it: encryption belongs at the Time Machine layer, where
@@ -42,7 +43,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use filesystem_protocol::xattr;
-use gpt::{Gpt, Guid};
+use globally_unique_identifier_partition_table::{Gpt, Guid};
 use redoxfs::{BLOCK_SIZE, Disk, DiskFile, FileSystem, Node, Transaction, TreeData, TreePtr};
 use syscall::error::{EIO, Error};
 
@@ -54,7 +55,7 @@ pub mod host_xattr;
 /// logical block size this crate handles, which covers the protective MBR, the primary header and
 /// the whole 16 KiB entry array on a 4Kn drive and covers them eight times over on a 512-byte one.
 /// One read, then both candidate block sizes are tried against the same bytes.
-const TABLE_BYTES: usize = 34 * gpt::MAX_BLOCK_SIZE;
+const TABLE_BYTES: usize = 34 * globally_unique_identifier_partition_table::MAX_BLOCK_SIZE;
 
 /// Which partition to read, when the path names a device rather than an image.
 ///
@@ -72,8 +73,8 @@ pub enum PartitionSelector {
     /// this way and a person with a listing in front of them should not have to.
     ///
     /// **Not the partition name.** GPT names are cosmetic and frequently absent: macOS writes none
-    /// at all (notes/gpt.md), so a selector keyed on one would fail on exactly the disk the recovery
-    /// story is about.
+    /// at all (notes/globally-unique-identifier-partition-table.md), so a selector keyed on one
+    /// would fail on exactly the disk the recovery story is about.
     Type(Guid),
 }
 
@@ -293,15 +294,19 @@ fn read_head(file: &File, path: &Path) -> Result<Vec<u8>, String> {
 /// guess fails on the signature rather than reading a plausible wrong table, because at the wrong
 /// offset there is no `EFI PART`.
 fn parse_table<'a>(head: &'a [u8], path: &Path) -> Result<(Gpt<'a>, usize), String> {
-    let mut first: Option<(usize, gpt::Error)> = None;
-    for block_size in [gpt::MIN_BLOCK_SIZE, gpt::MAX_BLOCK_SIZE] {
+    let mut first: Option<(usize, globally_unique_identifier_partition_table::Error)> = None;
+    for block_size in [
+        globally_unique_identifier_partition_table::MIN_BLOCK_SIZE,
+        globally_unique_identifier_partition_table::MAX_BLOCK_SIZE,
+    ] {
         let Some(header_block) = head.get(block_size..2 * block_size) else {
             continue;
         };
         // The header is decoded on its own first, because its `PartitionEntryLBA` is what says where
         // the array starts; passing the array from a hardcoded LBA 2 would be right on every disk
         // anyone has written and wrong on the one that is not.
-        let header = match gpt::Header::decode(header_block) {
+        let header = match globally_unique_identifier_partition_table::Header::decode(header_block)
+        {
             Ok(h) => h,
             Err(e) => {
                 first.get_or_insert((block_size, e));
@@ -538,12 +543,14 @@ pub fn partitions(device: &Path) -> Result<TableInfo, String> {
     let mut out = Vec::new();
     for (index, entry) in table.partitions() {
         // 4 bytes per UTF-16 code unit is always enough (`name_utf8`), so this cannot overflow.
-        let mut label = [0u8; 4 * gpt::entry::NAME_UNITS];
+        let mut label = [0u8; 4 * globally_unique_identifier_partition_table::entry::NAME_UNITS];
         let written = entry.name_utf8(&mut label).unwrap_or(0);
         out.push(PartitionInfo {
             number: index + 1,
             type_guid: entry.type_guid,
-            type_name: gpt::guid::types::name(entry.type_guid),
+            type_name: globally_unique_identifier_partition_table::guid::types::name(
+                entry.type_guid,
+            ),
             first_lba: entry.first_lba,
             last_lba: entry.last_lba,
             bytes: entry.blocks().unwrap_or(0) * block_size as u64,

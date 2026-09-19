@@ -180,7 +180,10 @@ fn take_selector(args: &mut Vec<String>) -> Result<Option<PartitionSelector>, St
             }
             "--partition-type" => {
                 let value = value_for(&flag, inline, &mut it)?;
-                let guid = gpt::Guid::try_from_ascii(value.as_bytes()).ok_or_else(|| {
+                let guid = globally_unique_identifier_partition_table::Guid::try_from_ascii(
+                    value.as_bytes(),
+                )
+                .ok_or_else(|| {
                     format!("--partition-type wants a 36-character type GUID, not {value:?}")
                 })?;
                 PartitionSelector::Type(guid)
@@ -217,7 +220,8 @@ fn value_for(
 ///
 /// The type is printed by name where this project recognises it and as a raw GUID where it does not,
 /// because an unrecognised GUID is a string somebody can look up and "unknown" is not. The name
-/// column is empty on most real disks: macOS writes no GPT partition names at all (notes/gpt.md).
+/// column is empty on most real disks: macOS writes no GPT partition names at all
+/// (notes/globally-unique-identifier-partition-table.md).
 fn table(device: &str) -> Result<(), String> {
     let table = redoxfs_host::partitions(Path::new(device))?;
     println!(

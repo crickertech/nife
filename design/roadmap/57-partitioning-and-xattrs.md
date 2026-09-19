@@ -7,7 +7,7 @@ the xattr gap milestone 55 surfaced. **Nearly all of this is testable in QEMU ag
 no board**, so it is schedulable before 2026-08-21 rather than waiting on hardware.
 
 **Status, taken from the tree on 2026-08-03 rather than from this entry.** The reading half is done
-end to end: `crates/gpt` parses and writes tables, `disk_surveyor` reads a real one off a virtio-blk
+end to end: `crates/globally_unique_identifier_partition_table` parses and writes tables, `disk_surveyor` reads a real one off a virtio-blk
 device on both ISAs, `crates/block_roster` answers "what drives are attached" as a read-only mapping,
 the extended-attribute layer and its host recovery half are built, and `tools/redoxfs_host` extracts.
 **What is left is writing on the target**, and both halves of it are gated on the same thing:
@@ -103,7 +103,7 @@ had. Take a status from the merged tree.
 
 | Need | Status | Note |
 |---|---|---|
-| **GPT parsing** | **Built** 2026-07-30 | `crates/gpt`, proved against tables `sgdisk` and macOS `diskutil` wrote. Mandatory even if we never write one: you cannot find a partition on a real disk without reading the table |
+| **GPT parsing** | **Built** 2026-07-30 | `crates/globally_unique_identifier_partition_table`, proved against tables `sgdisk` and macOS `diskutil` wrote. Mandatory even if we never write one: you cannot find a partition on a real disk without reading the table |
 | GPT writing | **Built** 2026-07-30 | `Gpt::create`, `write_primary_header`, `write_backup_header`, `mbr::write`. Re-emitting `sgdisk`'s table reproduces its bytes exactly. What it will not do is invent a unique GUID, which is the row below |
 | **Reading a table on the target** | **Built** 2026-08-03 | `disk_surveyor` over the block service, both ISAs, against an image built from the `sgdisk` fixture. notes/block-devices.md |
 | Block device enumeration | **Built** 2026-08-03 | `crates/block_roster`: a read-only page the kernel writes, listing what is attached and deliberately **not** how big it is. Listing and holding are different authorities, and the negative control writes to the roster and dies |
@@ -111,7 +111,7 @@ had. Take a status from the merged tree.
 | `mkfs` on the target | Blocked on entropy **and a pin divergence** | The finding below. Not blocked on `std`, which is what it looked like |
 
 **What remains is the write half, and both halves of it are the same wall**: an identifier that must
-be unique needs randomness, and neither `crates/gpt` nor a `no_std` RedoxFS has any. The difference
+be unique needs randomness, and neither `crates/globally_unique_identifier_partition_table` nor a `no_std` RedoxFS has any. The difference
 between the two is that partitioning needs only plumbing (an entropy endpoint into the program that
 does it) while `mkfs` also needs a change inside `vendor/redoxfs`, which is a decision.
 
@@ -134,7 +134,7 @@ clock. A `Header::new_with_uuid(size, uuid: [u8; 16])` does for randomness exact
 parameters do for time, and the caller (which has an entropy capability) supplies it.
 
 **The same problem appears twice in this milestone, and has the same answer both times.**
-notes/gpt.md already records that `crates/gpt` will not invent a partition GUID, for the identical
+notes/globally-unique-identifier-partition-table.md already records that `crates/globally_unique_identifier_partition_table` will not invent a partition GUID, for the identical
 reason: "a GUID that is not random is not unique, this crate has no randomness, and inventing one
 from a counter would be worse than refusing." Partitioning and formatting on the target are both
 gated on plumbing the entropy service to the program that does them, and neither is gated on `std`.
@@ -149,13 +149,13 @@ target-side version is then a capability demonstration rather than a prerequisit
 milliseconds, and it has real Kani targets: CRC round-trip, primary and backup headers agreeing,
 entry-array bounds, and refusing a table whose entries overlap.
 
-**Built 2026-07-30: `crates/gpt`**, the parsing and writing halves both. Parse, validate (four CRC-32s,
+**Built 2026-07-30: `crates/globally_unique_identifier_partition_table`**, the parsing and writing halves both. Parse, validate (four CRC-32s,
 the geometry, overlapping partitions, the protective MBR, the backup against the primary) and create,
 with no I/O at all: the caller supplies blocks and receives blocks, so the whole thing is host-tested.
 Seven Kani harnesses in `script/verify`. The claim that makes it credible is that it is tested against
 **two real tables this project did not write**, from `sgdisk` and from macOS `diskutil`, committed as
 fixtures; re-emitting `sgdisk`'s table reproduces its bytes exactly, and so does rebuilding it from
-scratch. Two findings landed in notes/gpt.md: **macOS writes no GPT partition names at all**, so
+scratch. Two findings landed in notes/globally-unique-identifier-partition-table.md: **macOS writes no GPT partition names at all**, so
 nothing may identify a partition by its label, and the two tools disagree about the protective MBR's
 CHS fields, which is why those are not validated. The nife partition type GUID is DECISIONS §45.
 That sentence used to end "what remains on this milestone is unchanged: the transaction check for
@@ -294,7 +294,7 @@ scale, and so did the block-device lane.
   program behind a per-file grant could not reach its own file's attributes. 61 closed it and found
   the general defect underneath: nothing made a caretaker and the contract agree.
 - **Milestone 110.** `tools/redoxfs_host` reads a whole-device image and a real drive has a
-  partition table at offset zero. `crates/gpt` and the recovery verbs both existed here and nothing
+  partition table at offset zero. `crates/globally_unique_identifier_partition_table` and the recovery verbs both existed here and nothing
   joined them; 110 is that join, and the index calls it this milestone's residual.
 - **Refused.** Extending the RedoxFS on-disk format for extended attributes, in favour of layering
   them in the FS server. Normally the layer is dismissible because on Linux anything can open the
@@ -322,7 +322,7 @@ scale, and so did the block-device lane.
   the on-disk format version, so a bump to a different format strands every image already written
   and is a migration rather than an upgrade. The operational rule that follows is to keep the
   recovery tool, or its exact source pin, with the backup.
-- **Recorded.** `notes/gpt.md` records that `crates/gpt` will not invent a partition GUID, because a
+- **Recorded.** `notes/globally-unique-identifier-partition-table.md` records that `crates/globally_unique_identifier_partition_table` will not invent a partition GUID, because a
   GUID that is not random is not unique, the crate has no randomness, and inventing one from a
   counter would be worse than refusing. The same note carries the two fixture findings: macOS writes
   no GPT partition names, and the two tools disagree about the protective MBR's CHS fields.
@@ -346,6 +346,6 @@ scale, and so did the block-device lane.
 **Built:** 2026-08-03
 
 you cannot find a partition without reading the table, and all of it is testable in QEMU before
-the board lands. Built: the host recovery tool (`ls`/`cat`/`extract`/`xattr`), `crates/gpt`, the **extended-attribute layer**, and (2026-08-03) **reading a real table on the target** plus **block-device enumeration**, which is a read-only roster page. What is left is the **write**
+the board lands. Built: the host recovery tool (`ls`/`cat`/`extract`/`xattr`), `crates/globally_unique_identifier_partition_table`, the **extended-attribute layer**, and (2026-08-03) **reading a real table on the target** plus **block-device enumeration**, which is a read-only roster page. What is left is the **write**
 half, and it is one decision rather than a task: partitioning and on-target `mkfs` both need
 randomness, and the `mkfs` half needs a new divergence from the RedoxFS pin

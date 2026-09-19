@@ -16,7 +16,8 @@
 //!
 //! The kernel never reads a partition table. It finds a device, confines it, and hands over
 //! endpoints; every byte of GPT judgement happens in userspace, in a crate whose tests run on the
-//! host against tables `sgdisk` and macOS `diskutil` wrote (notes/gpt.md).
+//! host against tables `sgdisk` and macOS `diskutil` wrote
+//! (notes/globally-unique-identifier-partition-table.md).
 //!
 //! # The pages are capabilities now (milestone 108, notes/frames.md)
 //!

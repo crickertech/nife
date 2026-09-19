@@ -244,7 +244,7 @@ rediscovering that a device tree begins `d0 0d fe ed`. With a sixty-second budge
 past the magic check. But `fuzz/seeds/` holds one small ELF per machine and nothing else, because
 the seeds this project needs
 **already exist in the tree**: `crates/dtb/tests/fixtures/` holds three real device trees dumped from
-the boards we boot, and `crates/gpt/tests/fixtures/` holds two real disks formatted by `sgdisk` and
+the boards we boot, and `crates/globally_unique_identifier_partition_table/tests/fixtures/` holds two real disks formatted by `sgdisk` and
 by Apple's Disk Utility. `script/fuzz` passes those directories to libFuzzer as extra corpus
 arguments. Copying them under `fuzz/` would create a second copy that can drift from the first.
 
@@ -274,7 +274,7 @@ and nothing else.
 **Dictionaries are committed** (`fuzz/dictionaries/*.dict`), and they are the cheap half of a
 grammar. A device tree's structure block is a stream of 32-bit tokens; a fuzzer that has to discover
 by bit-flipping that `\x00\x00\x00\x01` opens a node spends its whole budget in the first three
-branches. `crates/gpt`'s dictionary deliberately does *not* try to help with the CRC-32, which is
+branches. `crates/globally_unique_identifier_partition_table`'s dictionary deliberately does *not* try to help with the CRC-32, which is
 what the seeds are for.
 
 **The working corpus is not committed** (`fuzz/corpus/`, gitignored). libFuzzer writes every input
@@ -424,5 +424,5 @@ doing; not done.
 
 - notes/verification.md, the proofs and their bounds. Read it first; this note is its complement.
 - notes/scripts.md, where `script/fuzz` sits in the front door.
-- notes/device-tree.md, notes/elf.md, notes/gpt.md, notes/nifefs.md for what each parser is for.
+- notes/device-tree.md, notes/elf.md, notes/globally-unique-identifier-partition-table.md, notes/nifefs.md for what each parser is for.
 - `deny.toml` and `script/supply-chain`, milestone 42's first two legs.

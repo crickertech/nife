@@ -57,12 +57,12 @@
 //! Reading, given a way to fetch blocks:
 //!
 //! ```
-//! # use gpt::{Gpt, guid::types};
-//! # let disk = gpt::testing::sample_disk();
+//! # use globally_unique_identifier_partition_table::{Gpt, guid::types};
+//! # let disk = globally_unique_identifier_partition_table::testing::sample_disk();
 //! # let (header_block, entry_array) = (&disk[512..1024], &disk[1024..1024 + 16384]);
 //! let table = Gpt::parse(header_block, entry_array)?;
 //! for (index, part) in table.partitions() {
-//!     let mut label = [0u8; 4 * gpt::entry::NAME_UNITS];
+//!     let mut label = [0u8; 4 * globally_unique_identifier_partition_table::entry::NAME_UNITS];
 //!     let n = part.name_utf8(&mut label)?;
 //!     println!(
 //!         "{}: {} blocks of {}, {:?}",
@@ -72,16 +72,16 @@
 //!         core::str::from_utf8(&label[..n]).unwrap(),
 //!     );
 //! }
-//! # Ok::<(), gpt::Error>(())
+//! # Ok::<(), globally_unique_identifier_partition_table::Error>(())
 //! ```
 //!
 //! Writing, which is four block ranges the caller then puts on the disk:
 //!
 //! ```
-//! # use gpt::{Entry, Gpt, guid::{Guid, types}};
+//! # use globally_unique_identifier_partition_table::{Entry, Gpt, guid::{Guid, types}};
 //! # let disk_guid = Guid::ZERO;
 //! # let part_guid = Guid::ZERO;
-//! let mut array = [0u8; gpt::ENTRY_ARRAY_BYTES];
+//! let mut array = [0u8; globally_unique_identifier_partition_table::ENTRY_ARRAY_BYTES];
 //! let table = Gpt::create(
 //!     disk_guid,
 //!     512,
@@ -95,20 +95,20 @@
 //! table.write_primary_header(&mut block)?; // to LBA 1
 //! table.write_backup_header(&mut block)?;  // to table.backup_header_lba()
 //! let bytes = table.entry_array();          // to LBA 2 and to table.backup_entry_lba()
-//! # Ok::<(), gpt::Error>(())
+//! # Ok::<(), globally_unique_identifier_partition_table::Error>(())
 //! ```
 //!
-//! See notes/gpt.md for the format walk-through and the surprises the fixtures pinned.
+//! See notes/globally-unique-identifier-partition-table.md for the format walk-through and the
+//! surprises the fixtures pinned.
 //!
-//! Name: provisional, and ruled: calef ruled **`globally_unique_identifier_partition_table`** on 2026-09-18
-//! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
-//! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `gpt` belongs on `script/names --unratified` rather than off it. Refused `gpt` and
+//! Name: ratified 2026-09-18 (calef, `design/decisions/` §154), **deratifying the 2026-08-01
+//! ratification** to do it, and performed on 2026-09-18. Refused `gpt` and
 //! `guid_partition_table`, the one-level spelling; §154 asks the question again of `GUID`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "GUID partition table" is,
-//! so it goes, where `pci` stays because "peripheral component interconnect" is not. It expands **all the way**, because §154 asks the same question of an acronym left inside an
-//! expansion and "globally unique identifier" is spoken too.
+//! so it goes, where `pci` stays because "peripheral component interconnect" is not. It expands
+//! **all the way**, because §154 asks the same question of an acronym left inside an expansion and
+//! "globally unique identifier" is spoken too.
 //!
 //! The 2026-08-01 block called this one of the standard terms "already right and must not be
 //! touched". That was an exemption rather than a test, and §154 records the three-layer
@@ -117,7 +117,14 @@
 //! **Known cost**: datasheets, error messages and this kernel's own output say `gpt`, so a reader
 //! grepping the word the machine printed will not find this identifier. Weighed and accepted.
 //!
-//! **Not yet performed**: milestones 320 and 321 are live lanes in files a sweep would touch.
+//! **What the rename did not move, and why.** 636 occurrences of the three letters before, 421
+//! after, not counting this paragraph. Of the 421: 136 are UEFI's own vocabulary (`GPT`, the GUID
+//! Partition Table, the GPT header), 130 are the `Gpt` type, which the ruling did not name, 31 are
+//! the test disk image and the `xtask` helpers that build it (`nifefs-gpt.img`, `mkgptdisk`), 13
+//! are the fuzz target `gpt_table`, 10 are `gptfdisk`, somebody else's tool, 30 sit in
+//! `design/decisions/`, 3 in bench transcripts and photographs, and 68 are the old name inside an
+//! account, a measurement or a refusal. The `Gpt` type and the fuzz target are the two a later
+//! ruling might still move; both name the format rather than this crate, which is why they stayed.
 
 #![no_std]
 // milestone 68's ratchet is workspace-wide (§107); this crate opts out until its 23-item
@@ -878,7 +885,8 @@ impl core::fmt::Display for Error {
 
 // =================================================================================================
 // Machine-checked proofs (Kani). Behind `#[cfg(kani)]`, so an ordinary build or test never sees
-// them; only `cargo kani` (script/verify) sets that cfg. See notes/verification.md and notes/gpt.md.
+// them; only `cargo kani` (script/verify) sets that cfg. See notes/verification.md and
+// notes/globally-unique-identifier-partition-table.md.
 //
 // The division of labour with the tests is deliberate and is the one `network_time_protocol` argued for:
 // **where a domain is small enough to count, the tests count it, exhaustively, and that is a
@@ -898,8 +906,9 @@ mod verification {
     use super::*;
 
     /// The buffer length the CRC harnesses quantify over. **Measured, not guessed**; the timings
-    /// are in notes/gpt.md. CRC-32 is a shift-and-xor over every bit of the input, so the formula
-    /// grows with the byte count and the solver time grows with the formula.
+    /// are in notes/globally-unique-identifier-partition-table.md. CRC-32 is a shift-and-xor over
+    /// every bit of the input, so the formula grows with the byte count and the solver time grows
+    /// with the formula.
     ///
     /// What the bound buys is not "CRC-32 is correct for short inputs". It is the *structure*: that
     /// the table-driven implementation and the bitwise definition agree, and that a changed byte

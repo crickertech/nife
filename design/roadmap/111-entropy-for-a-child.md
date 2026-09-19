@@ -16,7 +16,7 @@ program a person types to partition a disk, and on the same day a milestone was 
 xenon's NVMe so nife can drive it (the EL0 NVMe driver §86 decided, whose number the integrator
 mints at merge; it is deliberately not cited by number here, because a number this block guessed
 would be one the roadmap gate could not resolve). A GPT gives every partition a random globally unique id and
-`crates/gpt` refuses to invent one, so the moment that disk is partitioned from a prompt this is on
+`crates/globally_unique_identifier_partition_table` refuses to invent one, so the moment that disk is partitioned from a prompt this is on
 the path.
 
 **The ranking argument against a lane was that this has no consumer today**, and calef's answer is
@@ -116,7 +116,7 @@ sink, and the process ends normally rather than faulting on a `CALL` that cannot
 That direction is the one carrying the claim, and randomness is the authority where it is hardest to
 check by looking: a process that draws a key and a process that hardcodes one make the same syscalls
 and produce output of the same shape. Only taking the capability away tells them apart, which is why
-`crates/gpt` refuses to invent a GUID and `disk_partitioner` reports `R_NO_ENTROPY` instead of
+`crates/globally_unique_identifier_partition_table` refuses to invent a GUID and `disk_partitioner` reports `R_NO_ENTROPY` instead of
 falling back to a counter.
 
 `crates/swish` also gates the visibility half on the host: `caps date` and `caps wc` carry no entropy

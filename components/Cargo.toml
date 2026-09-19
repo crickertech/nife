@@ -501,7 +501,7 @@ virtio = { version = "0.1.0", path = "../crates/virtio" }
 socket_protocol = { version = "0.1.0", path = "../crates/socket_protocol" }
 bitmap_font = { version = "0.1.0", path = "../crates/bitmap_font" }
 block_roster = { version = "0.1.0", path = "../crates/block_roster" }
-gpt = { version = "0.1.0", path = "../crates/gpt" }
+globally_unique_identifier_partition_table = { version = "0.1.0", path = "../crates/globally_unique_identifier_partition_table" }
 calendar = { version = "0.1.0", path = "../crates/calendar" }
 grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }
 clock_protocol = { version = "0.1.0", path = "../crates/clock_protocol" }

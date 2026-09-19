@@ -39,8 +39,9 @@ const P_RW_REFUSED: u64 = 1 << 0;
 const R_HOLDING: u64 = 0x_48_4F_4C_44_47;
 
 /// The layout `sgdisk` 1.0.10 wrote into the fixture the test image is built from
-/// (`crates/gpt/tests/real_disks.rs` has the exact commands). Three partitions on a 64 MiB disk,
-/// the third of them a nife data partition (DECISIONS §45) starting at block 30720.
+/// (`crates/globally_unique_identifier_partition_table/tests/real_disks.rs` has the exact
+/// commands). Three partitions on a 64 MiB disk, the third of them a nife data partition (DECISIONS
+/// §45) starting at block 30720.
 const PARTITIONS: u64 = 3;
 const NIFE_FIRST_LBA: u64 = 30720;
 
@@ -49,8 +50,8 @@ const NIFE_FIRST_LBA: u64 = 30720;
 /// This is the half of milestone 57 that is not optional. A block device hands a kernel an
 /// undifferentiated run of blocks, and which of them is a filesystem is written in the partition
 /// table and nowhere else, so an OS that cannot read a GPT cannot find a filesystem on a disk it did
-/// not create. `crates/gpt` has been able to parse one since 2026-07-30 and was wired to nothing;
-/// this is the wire.
+/// not create. `crates/globally_unique_identifier_partition_table` has been able to parse one since
+/// 2026-07-30 and was wired to nothing; this is the wire.
 ///
 /// What makes the assertion worth something is where the bytes came from: the image is built from
 /// the committed `sgdisk` fixture, so the table under test was written by gptfdisk, in C++, by
@@ -60,7 +61,7 @@ const NIFE_FIRST_LBA: u64 = 30720;
 /// The backup check is the one that would have been easy to skip and is the reason this reads a
 /// second, differently-aligned run of blocks at the far end of the disk: 33 logical blocks ending on
 /// the last block, which begins partway into a filesystem block at an offset that depends on the
-/// disk's size (`gpt::span`).
+/// disk's size (`globally_unique_identifier_partition_table::span`).
 #[test_case]
 fn the_disk_surveyor_reads_a_table_gptfdisk_wrote() {
     let Some(w) = disk_service::start(fs_service::blk_server_image(), surveyor_image()) else {
@@ -284,11 +285,12 @@ fn entropy_rendezvous() -> Option<crate::sched::RendezvousId> {
 /// stack, and then read the disk.
 ///
 /// The entropy half is the one worth reading twice. A GPT partition and a RedoxFS volume each carry
-/// an identifier that must be globally unique, and neither `crates/gpt` nor a `no_std` RedoxFS has
-/// any randomness: the crate refuses to invent a GUID (notes/gpt.md) and the engine's `Header::new`
-/// is std-gated because it calls `getrandom` (vendor/README.md divergence 4). So "no entropy
-/// rendezvous" is not a policy this code enforces. It is something the programs genuinely cannot do,
-/// and what is under test is that they say so rather than making a value up.
+/// an identifier that must be globally unique, and neither
+/// `crates/globally_unique_identifier_partition_table` nor a `no_std` RedoxFS has any randomness:
+/// the crate refuses to invent a GUID (notes/globally-unique-identifier-partition-table.md) and the
+/// engine's `Header::new` is std-gated because it calls `getrandom` (vendor/README.md divergence
+/// 4). So "no entropy rendezvous" is not a policy this code enforces. It is something the programs
+/// genuinely cannot do, and what is under test is that they say so rather than making a value up.
 #[test_case]
 fn the_write_half_needs_a_disk_and_an_entropy_rendezvous_and_holds_nothing_else() {
     if fs_service::mkfs_image().is_none() {

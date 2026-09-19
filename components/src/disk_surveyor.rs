@@ -24,9 +24,10 @@
 //! # What it does
 //!
 //! Reads LBA 1 of the disk it holds and parses the GUID Partition Table there, then checks the
-//! backup table at the far end of the disk against it, then reports. `crates/gpt` does every byte
-//! of the judging; this file is the I/O and nothing else, which is why the parser is host-tested
-//! against tables written by `sgdisk` and macOS `diskutil` and this program is tested by being run.
+//! backup table at the far end of the disk against it, then reports.
+//! `crates/globally_unique_identifier_partition_table` does every byte of the judging; this file is
+//! the I/O and nothing else, which is why the parser is host-tested against tables written by
+//! `sgdisk` and macOS `diskutil` and this program is tested by being run.
 //!
 //! Reading the table is the part that is not optional. A block device hands you an undifferentiated
 //! run of blocks, and **which of them is a filesystem is written in the table and nowhere else**, so
@@ -59,14 +60,17 @@
 //! # BUGS
 //!
 //! - **The logical block size is assumed to be 512.** Every disk this project has met reports 512,
-//!   `crates/gpt` handles 4096 and is tested at it, and the block service does not carry the
-//!   device's logical block size on the wire, so there is nothing here to read it from. A 4Kn disk
-//!   would be read as though its LBA 1 were at byte 512, which is a wrong answer rather than an
-//!   error. The fix is a field in `filesystem_protocol::blk`, not a change here.
+//!   `crates/globally_unique_identifier_partition_table` handles 4096 and is tested at it, and the
+//!   block service does not carry the device's logical block size on the wire, so there is nothing
+//!   here to read it from. A 4Kn disk would be read as though its LBA 1 were at byte 512, which is
+//!   a wrong answer rather than an error. The fix is a field in `filesystem_protocol::blk`, not a
+//!   change here.
 //! - **It does not write.** Partitioning a disk from nife needs a unique GUID per partition,
-//!   which needs randomness, which this program is not endowed with. `crates/gpt` refuses to invent
-//!   one and notes/gpt.md says why. That is milestone 57's remaining half and it is a decision
-//!   rather than a task; see design/roadmap/57-partitioning-and-xattrs.md.
+//!   which needs randomness, which this program is not endowed with.
+//!   `crates/globally_unique_identifier_partition_table` refuses to invent one and
+//!   notes/globally-unique-identifier-partition-table.md says why. That is milestone 57's remaining
+//!   half and it is a decision rather than a task; see
+//!   design/roadmap/57-partitioning-and-xattrs.md.
 //! - **No hot plug.** The roster is written once at wiring time and never again.
 //!
 //! Name: ratified 2026-08-03 (calef, milestone 57). The lane shipped it provisionally and calef
@@ -83,9 +87,10 @@
 
 use block_roster::{Roster, TRANSPORT_MMIO, TRANSPORT_PCI};
 use filesystem_protocol::{blk, req};
-use gpt::Gpt;
-use gpt::guid::types;
-use gpt::span::Span;
+use globally_unique_identifier_partition_table::entry::NAME_UNITS;
+use globally_unique_identifier_partition_table::guid::types;
+use globally_unique_identifier_partition_table::span::Span;
+use globally_unique_identifier_partition_table::{Gpt, mbr};
 use user_mode_runtime::mapped_window::MappedWindow;
 use user_mode_runtime::{call, send};
 
@@ -150,7 +155,8 @@ pub const F_PRIMARY: u64 = 1 << 3;
 pub const F_BACKUP: u64 = 1 << 4;
 /// A partition of type `NIFE_DATA` is on the disk (DECISIONS §45).
 pub const F_NIFE: u64 = 1 << 5;
-/// Every partition's name decoded as UTF-8 (`sgdisk` writes them; macOS does not, notes/gpt.md).
+/// Every partition's name decoded as UTF-8 (`sgdisk` writes them; macOS does not,
+/// notes/globally-unique-identifier-partition-table.md).
 pub const F_NAMES: u64 = 1 << 6;
 
 /// The probe's announcement, so a fault that never reached the write is distinguishable from the
@@ -272,7 +278,7 @@ fn read_table(block_count: u64, partitions: &mut u64, nife_first_lba: &mut u64) 
     // Reborrowed immutably from here on, so this and the backup buffer can be live at once.
     let primary: &[u8] = head_buf;
 
-    if gpt::mbr::validate(&primary[..LBA as usize], block_count).is_ok() {
+    if mbr::validate(&primary[..LBA as usize], block_count).is_ok() {
         flags |= F_MBR;
     }
     let Ok(table) = Gpt::parse(
@@ -317,7 +323,7 @@ fn read_table(block_count: u64, partitions: &mut u64, nife_first_lba: &mut u64) 
             flags |= F_NIFE;
             *nife_first_lba = part.first_lba;
         }
-        let mut label = [0u8; 4 * gpt::entry::NAME_UNITS];
+        let mut label = [0u8; 4 * NAME_UNITS];
         if part.name_utf8(&mut label).is_ok() {
             named += 1;
         }

@@ -109,7 +109,7 @@ The worklist, largest first, so the next person can take one crate and turn its 
 | `smb_proto` (removed 2026-08-30) | 52 |
 | `multicast_dns_protocol` (removed 2026-09-15) | 41 |
 | `pci` | 24 |
-| `gpt` | 23 |
+| `globally_unique_identifier_partition_table` | 23 |
 | `grant_plan` | 22 |
 | `compositor` | 19 |
 

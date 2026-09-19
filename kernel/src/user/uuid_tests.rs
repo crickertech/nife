@@ -64,8 +64,9 @@ fn chunk(out: RendezvousId, buf: &mut [u8; 16]) -> Option<usize> {
 /// So the assertions are about **silence**. Not one byte of the 36-character identifier reaches the
 /// sink, the whole stream is the one sentence, and the process ends normally rather than faulting
 /// on a `CALL` that could not succeed. A `uuid` that fell back to a counter, a boot-time seed or a
-/// monotonic tick would pass no part of this, which is exactly the fallback `crates/gpt` refuses to
-/// provide and `disk_partitioner` refuses to invent.
+/// monotonic tick would pass no part of this, which is exactly the fallback
+/// `crates/globally_unique_identifier_partition_table` refuses to provide and `disk_partitioner`
+/// refuses to invent.
 ///
 /// Arch-neutral, so **both ISAs run literally this test** (DECISIONS §19): what is under test is
 /// the capability model's answer to an empty slot, which is not instruction-set-specific.

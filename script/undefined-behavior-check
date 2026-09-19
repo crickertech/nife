@@ -6,13 +6,15 @@
 #
 # **"Miri-clean" means the sampled paths.** The interpreter is roughly a thousand times slower
 # than native, so the exhaustive suites gate themselves down under `cfg(miri)`: network_time_protocol strides
-# its 10^9-value sweep, gpt skips its 460k-parse corruption sweeps. Each site says so next to the
-# test, and the note carries the full exclusion list. The exhaustive claims stay native-only.
+# its 10^9-value sweep, globally_unique_identifier_partition_table skips its 460k-parse corruption
+# sweeps. Each site says so next to the test, and the note carries the full exclusion list. The
+# exhaustive claims stay native-only.
 #
 # Not in script/test and not in script/ci-build's table, on purpose: the sampled run is minutes where the host tests
 # are milliseconds, and the class of bug it catches moves at the pace of `unsafe` blocks, not of
 # commits. Cadence is the weekly miri workflow plus on demand, here. Extra args go to
-# `cargo miri test`, so `script/undefined-behavior-check -p gpt` narrows the run.
+# `cargo miri test`, so `script/undefined-behavior-check -p
+# globally_unique_identifier_partition_table` narrows the run.
 #
 # Name: ratified 2026-08-03 (calef), replacing `miri`. Refused `miri` (it names the tool rather than
 # the function) and `sanitize` (in a project whose thesis is confining hostile input, that reads as

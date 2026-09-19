@@ -354,7 +354,7 @@ missed all three, and the round trip between an encoder and its decoder is the s
 different clothes. The narrowing is therefore weaker than its hit rate suggests.
 
 It is also noisy in the other direction: several candidates it flagged are legitimate agreement
-claims, and `gpt::crc32_matches_its_bitwise_definition`, which is the model of a *good* harness,
+claims, and `globally_unique_identifier_partition_table::crc32_matches_its_bitwise_definition`, which is the model of a *good* harness,
 is one of them.
 
 So the narrowing is a worklist, not a verdict, exactly as the block predicted. Every harness was
@@ -370,7 +370,7 @@ risk wants the pattern rather than 135 rows:
   out, `paging`'s `the_indices_and_offset_tile_the_address` reconstructs the address by hand.
   This is the shape every rewrite above converged on.
 - **Two independent implementations are compared on purpose.**
-  `gpt::crc32_matches_its_bitwise_definition` is the clearest: a table-driven CRC against the
+  `globally_unique_identifier_partition_table::crc32_matches_its_bitwise_definition` is the clearest: a table-driven CRC against the
   bitwise definition, where a self-consistent wrong table is the exact defect it exists to catch.
   `capability::subset_matches_allows` and `calendar::the_calendar_algorithms_are_mutual_inverses`
   are the same move.

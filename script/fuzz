@@ -15,11 +15,12 @@
 #   script/fuzz --list              the targets and what each one is for
 #
 # **Seeds are passed as read-only corpus directories, never copied.** `crates/dtb/tests/fixtures`
-# holds three real device trees dumped from the boards we boot, and `crates/gpt/tests/fixtures` holds
-# two real disks formatted by `sgdisk` and by Apple's Disk Utility. Those are already in the tree with
-# their own reason to exist, and duplicating their bytes under `fuzz/seeds/` would create a second
-# copy that can drift from the first. libFuzzer writes only to the FIRST corpus directory it is
-# given, so the fixtures stay untouched.
+# holds three real device trees dumped from the boards we boot, and
+# `crates/globally_unique_identifier_partition_table/tests/fixtures` holds two real disks formatted
+# by `sgdisk` and by Apple's Disk Utility. Those are already in the tree with their own reason to
+# exist, and duplicating their bytes under `fuzz/seeds/` would create a second copy that can drift
+# from the first. libFuzzer writes only to the FIRST corpus directory it is given, so the fixtures
+# stay untouched.
 #
 # Not part of script/lint or script/test, on purpose. Both are gates a developer waits on, and a
 # minute per target is not a wait either of them should grow.
@@ -98,7 +99,7 @@ for target in $targets; do
     fi
     case "$target" in
         dtb_walk) set -- "$@" crates/dtb/tests/fixtures ;;
-        gpt_table) set -- "$@" crates/gpt/tests/fixtures ;;
+        gpt_table) set -- "$@" crates/globally_unique_identifier_partition_table/tests/fixtures ;;
     esac
 
     # A dictionary where the format has one. It is the cheap half of a grammar: without it the
