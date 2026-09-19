@@ -1,0 +1,22 @@
+# Milestone 168's HVF cross-check, attempted on patagonia (Apple M3, 4+4 cores, QEMU 11.1.1), 2026-09-19.
+# Five attempts, each started only when pgrep -l qemu was empty. All five were refused identically before
+# the kernel ran, so this file keeps one attempt's header and the refusal; the other four differed only in timestamps.
+# Command: script/job-mix --hvf --release --smp 4
+# host before: 2026-09-19T16:21:03Z  9:21  up 4 days, 18:05, 3 users, load averages: 5.19 4.67 3.62
+# other qemu before: 
+# top:  %CPU COMM
+# top:  58.5 /Users/calef/.rustup/toolchains/nightly-2026-09-17-aarch64-apple-darwin/bin/clippy-driver
+# top:  51.6 /System/Library/PrivateFrameworks/XprotectFramework.framework/Versions/A/XPCServices/XprotectService.xpc/Contents/MacOS/XprotectService
+# top:   7.5 claude
+# top:   5.9 /usr/libexec/sysmond
+# top:   5.1 /usr/libexec/syspolicyd
+# exit: 3
+# host after: 2026-09-19T16:21:16Z  9:21  up 4 days, 18:05, 3 users, load averages: 5.31 4.71 3.65
+# other qemu after: 
+--- job-mix: aarch64, a rehearsal; the number is taken on radon (notes/job-mix.md) ---
+qemu-system-aarch64: HVF does not support GICv2 emulation
+qemu-runner-aarch64: QEMU refused virt,accel=hvf,gic-version=2,iommu=smmuv3 (its own message is above).
+qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. HVF and the GIC version this kernel drives
+  are not compatible in this QEMU: kernel/src/drivers/gic.rs speaks GICv2 only, HVF wants
+  GICv3. See the BUGS section of notes/interrupts.md, which carries the measurement and
+  what a GICv3 driver would be. script/ci-build skips this leg out loud rather than failing;

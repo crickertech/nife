@@ -8705,9 +8705,27 @@ fn job_mix_sweep() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(2).collect();
     let mut arch = "aarch64".to_string();
     let mut smp: Option<String> = None;
+    // `--hvf` and `--release` (added 2026-09-19 for the HVF cross-check in notes/job-mix.md): the
+    // two flags the tree already spells this way, `run`'s and `bench`'s, rather than new ones. HVF
+    // is aarch64 on an Apple host only, and release is what `script/board-image` builds for radon,
+    // so the cross-check runs the optimisation level the board does.
+    let mut hvf = false;
 
     let mut i = 0;
     while i < args.len() {
+        match args[i].as_str() {
+            "--hvf" => {
+                hvf = true;
+                i += 1;
+                continue;
+            }
+            "--release" => {
+                RELEASE.store(true, Ordering::Relaxed);
+                i += 1;
+                continue;
+            }
+            _ => {}
+        }
         let value = |i: usize| -> Result<&str, ExitCode> {
             args.get(i + 1).map(String::as_str).ok_or_else(|| {
                 eprintln!("job-mix: {} wants a value", args[i]);
@@ -8725,11 +8743,21 @@ fn job_mix_sweep() -> ExitCode {
             },
             other => {
                 eprintln!("job-mix: unknown argument {other}");
-                eprintln!("usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>]");
+                eprintln!(
+                    "usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>] [--hvf] [--release]"
+                );
                 return ExitCode::from(4);
             }
         }
         i += 2;
+    }
+
+    if hvf && arch != "aarch64" {
+        eprintln!("job-mix: --hvf runs the Apple core, so it is aarch64 only");
+        return ExitCode::from(4);
+    }
+    if hvf {
+        maybe_hvf();
     }
 
     let (target, runner, initrd) = match arch.as_str() {
@@ -8739,8 +8767,13 @@ fn job_mix_sweep() -> ExitCode {
             }
             (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
         }
+        // **`mkdisk` here too, not only on aarch64** (found 2026-09-19 by the lane that closed
+        // milestone 168's sampling hole): the riscv64 runner refuses a `NIFE_DISK` naming a missing
+        // file, so on a fresh worktree `--arch riscv64` died before the kernel printed a line, and
+        // it only ever passed on a checkout where an aarch64 run had made the image first. The
+        // sweep reads no disk; the runner's own check is what needs it.
         "riscv64" => {
-            if !initrd_riscv() {
+            if !(mkdisk() && initrd_riscv()) {
                 return ExitCode::from(4);
             }
             (

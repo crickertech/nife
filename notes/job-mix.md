@@ -2,12 +2,12 @@
 
 *(Milestone 168. Names in this page are **provisional**, per the naming tenet; calef names things.)*
 
-**Nothing in this page has run on radon.** It was written on 2026-09-04 with the board powered off
-and no bench session available, which is the same condition `notes/x86-uefi-boot.md` and
-`notes/soak.md`'s rebooting-soak section were written in, and the same reason the procedure below is
-as detailed as it is. Every claim here is either about code in this tree, which was built,
-host-tested and rehearsed under QEMU on all three architectures, or is a question for the bench,
-which is marked as one.
+**This page was written before any boot and has since been used for five.** It was written on
+2026-09-04 with the board powered off; five radon boots on 2026-09-16 followed its procedure and
+produced the Results row below, and the lane that closed the instrument's two holes rewrote the
+procedure on 2026-09-19 from what that session taught. Everything else here is either about code in
+this tree, built, host-tested and rehearsed under QEMU on all three architectures, or is a question
+for the bench, marked as one.
 
 ## What this instrument is for, in one paragraph
 
@@ -182,10 +182,12 @@ count. Four methodological properties do the work, and this instrument keeps all
 per-task ordering, a task-count sweep, and a throughput metric.
 
 **It keeps none of AIM7's 53 jobs**, which name Unix services this system does not have and should
-not grow in order to be measured. Five jobs stand in for AIM7's categories: a compute grind, a
-32 KiB working-set walk, a null syscall, a yield burst, and a `CALL`/`REPLY` round trip against a
-shared server. `crates/job_mix`'s `BUGS` records the three categories that are still missing (file
-operations, process creation, page mapping) and why each was refused.
+not grow in order to be measured. Seven jobs stand in for AIM7's categories: a compute grind, a
+32 KiB working-set walk, a null syscall, a yield burst, a `CALL`/`REPLY` round trip against a
+shared server, and (since 2026-09-19) a page-mapping job and a process-creation job that build
+their objects from a per-task untyped budget. `crates/job_mix`'s `BUGS` records the one category
+still missing (disk-file operations) and why, and
+`design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md` carries the options.
 
 **So this is not AIM7 and no number from it is comparable with an AIM7 number.** It is an
 AIM7-*shaped* instrument for a capability microkernel.
@@ -196,102 +198,217 @@ AIM7-*shaped* instrument for a capability microkernel.
 script/job-mix                          # aarch64
 script/job-mix --arch riscv64 --smp 4   # radon's architecture and core count
 script/job-mix --arch x86_64            # xenon's
+script/job-mix --release                # the optimisation level script/board-image builds
 ```
 
-Each takes a few minutes under TCG and prints the placement census, three repeats per subrun, and
-one summary line per sweep point. **The magnitudes are fiction** (TCG models no cache) and the
-rehearsal exists to prove the mechanism, not to produce a result.
+Each prints the placement census, 21 `job-mix-repeat:` lines per subrun, one result line per sweep
+point and seven `job-mix-kind:` lines under each. **The magnitudes are fiction** (TCG models no
+cache) and the rehearsal exists to prove the mechanism, not to produce a result. A job the kernel
+refuses (a map or spawn budget too small, say) ends the run with `job-mix: FAILED` and exit 1, so a
+green rehearsal also proves the budgets fit on that architecture.
 
-Rehearsed on 2026-09-04, on patagonia, all three architectures, sweep complete on each.
+Rehearsed on 2026-09-04 (five-job mix, best of three) and again on **2026-09-19** (seven-job mix,
+median of 21) on patagonia, all three architectures, sweep complete on each: aarch64 in 115
+seconds, riscv64 with four harts in 188, x86_64 in 173. The riscv64 run took 20 seconds with the
+old instrument the same day; seven times the repeats accounts for most of that growth.
 
-## The bench procedure on radon, in order
+## What changed on 2026-09-19, and how to tell an old transcript from a new one
 
-The steps below are new only where they have to be. Everything about writing a card, attaching a
-console and getting U-Boot to hand over is `notes/bench-runbook.md`'s and `notes/visionfive2.md`'s,
-and repeating it here would give it somewhere to drift to.
+**Two things changed at once, and each on its own would make old and new numbers incomparable.**
 
-### 1. Build the card
+1. **The statistic.** Each sweep point used to be the **best of three** repeats. It is now the
+   **median of 21**, with the fastest and slowest beside it. The reason is the five radon boots
+   below: at `tasks=4` the best of three moved 29% between boots of one image because the spread
+   *within* a boot was 37%, and a minimum drawn from a wide distribution is the statistic that
+   moves most. Resampling those boots' own repeats, the median of 21 puts `tasks=4`'s boot-to-boot
+   spread at about 4%, inside the band the stable points already had. `job_mix::REPEATS` carries
+   the table and milestone 168's block the method. Board time was the argument for varying the
+   count by point, and it does not survive arithmetic: at 21 repeats the timed windows total
+   seconds on radon.
+2. **The mix.** Seven job kinds instead of five: `MAP` (user page mapping) and `SPAWN` (process
+   creation) took one slot each from the four non-IPC kinds. See `crates/job_mix`'s header.
+
+**How the lines differ**, so nobody has to diff a transcript by eye:
+
+| | before 2026-09-19 | from 2026-09-19 |
+|---|---|---|
+| started line | `one job is one of 5 kinds` | `one job is one of 7 kinds` |
+| sampling line | (none) | `job-mix: each point is the median of 21 repeats, ...` |
+| point line | `job-mix: tasks=4 jobs=512 ticks=<best> jpm=<from best>` | `job-mix: tasks=4 jobs=512 repeats=21 ticks_min= ticks_median= ticks_max= jpm_median=` |
+| repeat lines | three per point | 21 per point, same format |
+| per-kind lines | (none) | `job-mix-kind: tasks=4 kind=spawn jobs= ticks= per_job= region_ticks=` |
+
+**The field names changed on purpose.** `jpm=` and `ticks=` do not occur on a new point line, so a
+script written against an old transcript finds nothing rather than silently reading a median as a
+best. `jpm_median` is not comparable with an old `jpm` even at the same task count: different
+statistic, different mix.
+
+**What a `job-mix-kind:` line says.** For one sweep point, summed over every released task and all
+21 repeats: how many jobs of that kind ran, the ticks they took (self-timed by each task, preemption
+included), the average per job, and for `map` and `spawn` the ticks spent inside `SPLIT` and
+`DESTROY`, which take the kernel's one memory-region lock. That last column exists because the jobs
+were first refused for fear they would measure the allocator rather than the scheduler; it lets a
+reader see how much of them does. The kinds whose `per_job` grows fastest with `tasks` are the kernel
+paths that get more expensive under load, which is the attribution a risk 4 verdict will want.
+
+## The next bench evening on radon, start to finish
+
+**What it is for.** The five boots of 2026-09-16 established the curve's shape and showed that
+`tasks=4` was not yet a number. This evening produces the first sweep whose every point is a
+number, with the two jobs that block deepest in the kernel in the mix. **Its result is what
+`design/fatal-risks.md`'s risk 4 gets a verdict from**, so the procedure asks for more than the
+last one did.
+
+Everything about the card, the console and U-Boot is `notes/bench-runbook.md`'s,
+`notes/visionfive2.md`'s and milestone 257's (network boot); this page does not copy it.
+
+### 0. Before power
+
+- `lsof /dev/cu.*`: one capture per serial port. Two split the byte stream silently, which cost a
+  boot on 2026-09-16 (`notes/bench-runbook.md`'s `BUGS`).
+- `pgrep -l qemu` on patagonia is irrelevant to radon's numbers, but a busy TFTP server is not:
+  leave the host alone while a boot fetches.
+
+### 1. Build the image once, from a commit that has this page's 2026-09-19 section
 
 ```sh
+git log -1 --format=%h                  # write this down; it goes in the Results row
+script/board-image --job-mix --tftp     # network boot, the 2026-09-16 workflow (milestone 257)
+# or, with the card in patagonia:
 script/board-image --job-mix --card /Volumes/NIFE
 ```
 
 **The archive is not optional** and a mismatched pair halts at `MEASURED BOOT REFUSED`, which cost a
 boot on 2026-09-01; `--card` copies all three files as a set for that reason (milestone 217).
+`--job-mix` and `--soak` are refused together: both replace the end of the boot tour.
 
-`--job-mix` and `--soak` are refused together: both replace the end of the boot tour, and a card built
-from an ambiguous command is a card nobody can reproduce.
-
-### 2. Attach the console before power
+### 2. Attach the console, then power on
 
 ```sh
-script/board-console --for 30m --until none --log target/radon-job-mix-$(date +%s).log
+script/board-console --for 30m --until none --log bench/radon-$(date -u +%F)/jobmix-boot1.log
 ```
 
 115200 8N1, a WCH CH343 at `/dev/cu.usbmodem*` on patagonia. `--until none` because this run ends by
-halting rather than by reaching a stage the console recognises: read the log for `job-mix: done`.
+halting rather than by reaching a stage the console recognises (milestone 324): read the log for
+`job-mix: done`. The sweep itself should take under a minute on radon (about eleven seconds of
+timed windows at the old mix's rates, before the two heavier jobs; not yet measured), so most of a
+boot is U-Boot and the fetch.
 
-**The console has no recogniser for this run**, which is a deliberate limitation and not an
-oversight; see this page's `BUGS`.
+### 3. Check the boot is the new instrument before reading any number
 
-### 3. Power on, and read the census before anything else
+The started line must say **`one of 7 kinds`** and the next line **`median of 21 repeats`**. If
+either is missing the image is older than this page and the boot is not comparable with anything
+this evening is for. Then read the census (`job-mix-census:` lines), which says where the 34
+threads landed.
 
-The first thing worth looking at is not a number, it is the arrangement:
+### 4. Boots: at least five, power-cycling between
 
-```text
-job-mix-census: core=0 threads=8 T2 T11 T13 ...
-job-mix-census: core=1 threads=10 S1 T0 T7 ...
+Five is the floor because it is what 2026-09-16 used and the two evenings should be comparable in
+design. Nothing can power-cycle radon remotely (milestone 224); this is a person at the bench.
+
+### 5. Clean each log before committing it
+
+```sh
+LC_ALL=C tr -cd '\11\12\15\40-\176' < raw.log > bench/radon-<date>/jobmix-bootN.log
 ```
 
-**This is the load-bearing step of the whole procedure.** `notes/soak.md` records four runs on this
-board whose rates span **fifteenfold**, and milestone 240's census explains them: the rate tracks
-how the boot-time placement lottery landed. A jobs-per-minute figure recorded without the census
-that produced it is not a measurement, it is a draw.
+The console writes bytes that are not UTF-8 under sustained output and `grep` then silently reports
+nothing (`notes/bench-runbook.md`'s `BUGS`). Read with `LC_ALL=C grep -a` until they are cleaned.
 
-### 4. Record the sweep
+### 6. What to read, in this order
 
-Six lines, one per subrun:
-
-```text
-job-mix: tasks=1 jobs=128 ticks=... jpm=...
-...
-job-mix: tasks=32 jobs=4096 ticks=... jpm=...
+```sh
+cd bench/radon-<date>
+grep -ah '^job-mix: tasks=' jobmix-boot*.log            # six points per boot
+grep -ah '^job-mix-kind: tasks=32 ' jobmix-boot*.log    # which kinds slowed at the top
+grep -ah '^job-mix-kind: tasks=1 ' jobmix-boot1.log     # and what they cost alone
 ```
 
-Record all six, plus the `job-mix-repeat:` lines behind them (the spread between repeats is
-information on a board where nothing else is running, and the summary throws it away), plus the
-census, plus the `cntfrq` from the started line.
+1. **Is every point a number now?** For each `tasks`, compare `jpm_median` across the boots. The
+   bar this change was built to clear is **under 10% boot-to-boot at every point**, `tasks=4`
+   included (the resampling predicts about 4%). If `tasks=4` is still wide, the median did not fix
+   it and the reason is new: record the spread and do not quote the point.
+2. **Is `ticks_max` far from `ticks_median` on one boot only?** One outlier boot is the placement
+   lottery (`notes/soak.md`, milestone 240); compare its census with the others'.
+3. **The shape.** Throughput against task count, from the medians. Record where it stops rising,
+   and whether anything past that point **declines**. On 2026-09-16, with the old mix, it rose to
+   about 4 tasks and then plateaued without declining through 32.
+4. **Which kinds pay.** For each kind, `per_job` at `tasks=32` over `per_job` at `tasks=1`. Kinds
+   that never enter the kernel (`compute`, `touch`) grow only by preemption; a kernel-entering kind
+   growing much faster than they do is kernel cost under load. For `map` and `spawn`, subtract
+   `region_ticks` to separate the region lock from the rest.
 
-### 5. Do it again, at least five times, power-cycling between
+### 7. What the answer means for risk 4
 
-**One boot is one draw.** Five to ten boots is the minimum that says anything, and it is the same
-argument milestone 249 makes for the rebooting soak. If the spread across boots is larger than the
-shape of the curve within a boot, the curve is not the finding and the lottery is.
+| What the medians show | Reading for `design/fatal-risks.md` risk 4 |
+|---|---|
+| rises to the core count, then flat or rising through 32, every point within 10% across boots | **no architectural per-crossing cost visible at this scale on this silicon**; the risk's decisive experiment ran and the defence held, within the caveats in the Warton section above |
+| a knee followed by a **decline**, repeatable across boots | a cost exists and grows with load; the `job-mix-kind:` lines say which path. Milestone 188 (the IPC fastpath) is the follow-on if it is `round_trip` |
+| points still wider than 10% across boots | not a verdict; record the spread and say which point failed |
 
-Nothing can power-cycle radon remotely (milestone 224): its Kasa KP303 answers the vendor app and is
-invisible to ARP from both patagonia and cordoba, so this is a person at the bench.
+**Who writes the verdict.** The risk's entry in `design/fatal-risks.md` is edited from these numbers
+by whoever holds that file, not by a lane and not from QEMU. This table is the reading this page
+suggests; it is not the verdict.
+
+### 8. Record it
+
+A row in this page's Results table, the row in `notes/register-of-measures.md`, and milestone 168's
+block: date, boots, commit, the six medians from one representative boot plus the boot-to-boot
+spread per point, and the census summary.
 
 ## What each outcome means
 
 | What the log shows | What it means | Where it routes |
 |---|---|---|
-| `job-mix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --job-mix --card ...`, which packs the archive before the kernel for exactly this reason |
+| `job-mix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --job-mix ...`, which packs the archive before the kernel for exactly this reason |
 | `job-mix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
-| the census, then nothing, ever | a task or a server wedged before the first subrun finished | the hang case. `crates/job_mix`'s `ROUND_TRIP` job is the only one that blocks on another process; a wedged echo server looks exactly like this |
-| `jpm` roughly flat across the whole sweep | this machine's scheduling is not the bottleneck at 32 tasks | **the honest negative**, and it is a result: §96's performance argument does not bite at this scale on this silicon |
-| `jpm` rising and then falling, with a knee | throughput collapsing under task count | the positive result. Record where the knee is and compare it against milestone 134's E1 knee (8 to 11% by 64 to 96 threads on the dev Mac) |
-| `jpm` varying more between boots than across the sweep | the placement lottery dominates | not a result about §96 at all. More boots, and read `notes/soak.md`'s milestone 240 section |
-| `job-mix: done` and six clean points | the sweep ran | record it in this page's own table, below, and in `notes/register-of-measures.md`'s dated row |
+| `job-mix: FAILED: could not create task N's 25-page budget` | the kernel could not carve a task's untyped region | memory again, before any subrun; the same routing as the line above |
+| `job-mix: FAILED: task N could not finish a map job` (or `spawn`) | the kernel refused a verb inside the job; the error is printed | a budget constant is too small for this machine (`job_mix::MAP_REGION_PAGES`, `CHILD_PAGES`), since QEMU passes on all three architectures. Record the error and raise the constant |
+| the census, then nothing, ever | a task, a server or a child wedged before the first subrun finished | the hang case. `ROUND_TRIP` blocks on a server and `SPAWN` on a child; either wedged looks exactly like this |
+| `jpm_median` roughly flat across the whole sweep | this machine's scheduling is not the bottleneck at 32 tasks | **the honest negative**, and it is a result: see step 7 |
+| `jpm_median` rising and then falling, with a knee | throughput collapsing under task count | the positive result. Record where the knee is, which `job-mix-kind:` lines grew, and compare against milestone 134's E1 knee (8 to 11% by 64 to 96 threads on the dev Mac) |
+| `jpm_median` varying more between boots than across the sweep | the placement lottery dominates | not a result about §96 at all. More boots, and read `notes/soak.md`'s milestone 240 section |
+| `job-mix: done` and six clean points | the sweep ran | step 8 |
 
 ## Results
 
-**None.** No run of this instrument on real silicon has happened. This section exists so that the
-first one has somewhere to go that is not a pull request body, and so that its absence is visible
-rather than inferred.
+| Date | Machine | Boots | Instrument | Census summary | jpm at 1 / 32 | Notes |
+|---|---|---|---|---|---|---|
+| 2026-09-16 | radon (4 harts, 4 MHz `rdtime`) | 5 | five-job mix, **best of 3** | 32 tasks and 2 servers over 4 cores, 6 to 10 threads a core | 319,013 to 319,072 / 1,032,586 to 1,060,264 | shape solid (1.96x at 2 tasks, plateau past 8, no decline at 32); `tasks=4` spread 29.4% across boots, so **not a number**. Transcripts `bench/radon-2026-09-16/jobmix-boot*.log`; the per-point table is milestone 168's block |
 
-| Date | Machine | Boots | Census summary | jpm at 1 / 32 | Notes |
-|---|---|---|---|---|---|
-| | | | | | |
+**A reading the new statistic changes, recorded before any new boot.** The 2026-09-16 `tasks=2`
+repeats are **bimodal**: five near 98,000 ticks and ten near 111,000, across the five boots. The best
+of three reported the fast mode on every boot, which is where "1.96x at 2 tasks, nearly free" came
+from. The median of the same fifteen samples is in the slow mode, which would read about 1.73x. So
+the first seven-job evening may well show a less generous `tasks=2` than the old table, and that is
+the statistic being honest about the old one rather than the kernel getting slower.
+
+## A cross-check on the Apple cores, attempted 2026-09-19, and why it did not run
+
+**This was never going to be a result, and in the event it produced no numbers at all.** The idea
+(calef's, 2026-09-19) was to run the seven-job sweep under QEMU with Apple's Hypervisor.framework on
+patagonia, where four vCPUs run on four real cores at once, as a cross-check on the curve's *shape*
+and on whether the median holds `tasks=4` still. HVF timing cannot decide anything for §96 or risk
+4, because macOS schedules the vCPUs underneath the guest; it could only say whether the shape
+appears on real cores other than radon's.
+
+`script/job-mix` gained `--hvf` and `--release` for it (the spellings `cargo xtask run` and
+`cargo xtask bench` already use). Five attempts, each started only when no other QEMU was running
+on the host, were all refused before the kernel ran:
+
+```text
+qemu-system-aarch64: HVF does not support GICv2 emulation
+```
+
+QEMU 11.1.1 on this host refuses HVF with a GICv2, and `kernel/src/drivers/gic.rs` speaks only
+GICv2 (`notes/hvf-leg.md`, `notes/interrupts.md`'s `BUGS`). So there is no machine for this
+cross-check until **milestone 227** (a GICv3 driver) lands. The transcript is
+`bench/patagonia-hvf-2026-09-19/jobmix-hvf-refused.log`. The flags stay, because the command that
+will take the cross-check once 227 lands is then already written:
+
+```sh
+script/job-mix --hvf --release --smp 4    # alone on the host: check `pgrep -l qemu` first
+```
 
 ## What this instrument cannot settle, said plainly
 
@@ -307,8 +424,9 @@ path rather than the whole kernel.
 - **`crates/board_console` has no recogniser for this run**, so `script/board-console` cannot tell a
   finished sweep from a wedged one and the operator reads the log. Adding a `Stage` for it was
   refused in this lane: the console's recogniser is a small piece of shared judgment that the soak
-  and the boot sequence both depend on, and growing it for a run nobody has taken yet would be
-  guessing at what the failure modes are. Proposed as follow-on work in this milestone's block.
+  and the boot sequence both depend on, and growing it for a run nobody had taken would have been
+  guessing at what the failure modes are. Five boots have now been taken; milestone 324 owns the
+  recogniser, and the 2026-09-19 line formats (above) are what it should match.
 - **There is no committed baseline and no `--check`.** `script/bench` gates because its icount counts
   are deterministic; a sweep whose entire subject is scheduling under contention is not, on any
   accelerator this tree has. A gate here would be asserting a tolerance nobody has measured.
@@ -324,5 +442,11 @@ path rather than the whole kernel.
 - **The mix proportions are chosen, not derived.** AIM7 ships workfiles for four machine roles and
   nobody here has one for a capability microkernel. A different mix gives a different number, and no
   result from this instrument should be quoted without saying which mix produced it.
+- **The repeat count was sized from the five-job mix's distribution**, because no seven-job run
+  on silicon exists yet. The map and spawn jobs may widen or narrow `tasks=4`'s spread. Step 6.1
+  of the procedure is the check, and if 21 is not enough the count is one constant
+  (`job_mix::REPEATS`).
+- **The HVF cross-check has no machine** until milestone 227 gives the kernel a GICv3 driver; see
+  the section above. `script/job-mix --hvf` exits 3 with QEMU's own refusal until then.
 - **This page has not been followed end to end by its author**, the same caveat
   `notes/bench-runbook.md` carries about every procedure it points at.
