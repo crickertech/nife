@@ -1384,7 +1384,10 @@ mod tests {
 
         let wc = reg.rows()[1].endowment().expect("and `wc report.txt`");
         let grant_plan::line::Source::File(f) = wc.source else {
-            panic!("`wc report.txt` resolves its operand to a file: {:?}", wc.source);
+            panic!(
+                "`wc report.txt` resolves its operand to a file: {:?}",
+                wc.source
+            );
         };
         e.dir = None;
         e.file = Some(f);
@@ -1419,7 +1422,10 @@ mod tests {
         assert!(s.contains("every 1500ms  least_authority_demo 7"), "{s}");
         assert!(s.contains("every 1234567ms  least_authority_demo 0"), "{s}");
         assert!(s.contains("      arg      7\n"), "{s}");
-        assert!(!s.contains("arg      0"), "a zero argument is not a grant: {s}");
+        assert!(
+            !s.contains("arg      0"),
+            "a zero argument is not a grant: {s}"
+        );
         assert!(
             !s.contains("cap 1"),
             "neither entry asked for memory, so nothing is split: {s}"

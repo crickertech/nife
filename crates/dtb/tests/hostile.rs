@@ -820,7 +820,7 @@ fn every_walkers_stack_edge_is_ignored_rather_than_indexed() {
         b.begin_node(b"bus");
     }
     // Depth 16: the first depth no walker may record for.
-    b.prop(b"clock-frequency", &cell32(0x2FAF_080));
+    b.prop(b"clock-frequency", &cell32(0x02FA_F080));
     b.prop(b"compatible", b"deep,thing\0");
     b.prop(b"phandle", &cell32(7));
     for _ in 0..16 {
@@ -831,7 +831,10 @@ fn every_walkers_stack_edge_is_ignored_rather_than_indexed() {
 
     // Each returns rather than panicking, and each says "not found" rather than answering from a
     // depth it stopped tracking.
-    assert_eq!(dt.node_prop_compatible(b"deep,thing", b"clock-frequency"), Ok(None));
+    assert_eq!(
+        dt.node_prop_compatible(b"deep,thing", b"clock-frequency"),
+        Ok(None)
+    );
     assert_eq!(dt.node_prop_inherited(b"bus", b"clock-frequency"), Ok(None));
     assert_eq!(dt.phandle_prop(7, b"clock-frequency"), Ok(None));
     assert_eq!(dt.node_prop(b"bus", b"clock-frequency"), Ok(None));
@@ -848,7 +851,7 @@ fn every_walkers_stack_edge_is_ignored_rather_than_indexed() {
 /// no such property"; a walker that kept the stale slot answers with the first sibling's bytes,
 /// which is a property read off the wrong device.
 #[test]
-fn a_sibling_does_not_answer_with_the_node_befores_property() {
+fn a_sibling_does_not_answer_with_its_predecessors_property() {
     // `node_prop_compatible`: matched by `compatible`.
     let mut b = Blob::new();
     b.begin_node(b"");
