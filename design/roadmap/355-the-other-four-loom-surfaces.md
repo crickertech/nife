@@ -1,6 +1,13 @@
-# Four crates were lifted so loom could search them, and nothing checks that the callers still call it
+# 355. Four crates were lifted so loom could search them, and nothing checks that the callers still call it
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 136's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+milestone 136's block; promoted by milestone 433 on 2026-09-19. The premise was checked against the
+tree that day and holds, with one correction the reader needs. `script/lint`'s caller pin names
+`crates/memory_regions` and nothing else, so four of the five loom-searched crates are still
+unpinned. All four have been renamed since this was written (2026-08-23), and the names in the body
+below are the old ones: `steal_request` is `crates/work_steal_slot`, `wake_handshake` is
+`crates/thread_wake_handshake`, `canary_gate` is `crates/memory_corruption_canary_gate`, and
+`clock_proto` is `crates/clock_protocol`. `script/interleaving-check` searches all five.
 
 **Gate: NONE.** Milestone 136 built the mechanism for one crate and it works, so the pattern to
 copy is in the tree. The block declines to choose between copying it four times and generalising
@@ -57,3 +64,15 @@ declines to pick."*
 The same block also records, honestly, that nothing checks a newly pinned item is actually searched
 by loom: the failure message asks for it in words, which is rung four and says so. Whichever shape
 this takes inherits that hole and should say so where a reader meets it.
+
+## Index row
+
+Four crates were lifted out of their callers so loom could search their concurrent transitions, and
+nothing checks that the callers still route through the lifted code, so a caller that grows a second
+path around the searched surface keeps the proof's name without its coverage. Milestone 136 closed
+this for `crates/memory_regions` with a three-piece gate in `script/lint`; the other four
+(`work_steal_slot`, `clock_protocol`, `thread_wake_handshake`, `memory_corruption_canary_gate`) have
+no gate at all. The fork is whether to copy that gate four times or build one mechanism that pins a
+loom-searched surface to its callers, and milestone 136 declined to pick. It fails silently, which
+is what makes it worth a gate rather than a note: nothing goes red, the harnesses stay, and the
+searched surface quietly stops covering the caller.

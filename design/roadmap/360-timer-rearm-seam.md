@@ -1,6 +1,13 @@
-# `crates/timetable`'s proved `next_after` is not what the timer calls, so nothing runs the proof
+# 360. `crates/timetable`'s proved `next_after` is not what the timer calls, so nothing runs the proof
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 197's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+milestone 197's block; promoted by milestone 433 on 2026-09-19. Checked against the tree that day
+and the counterfactual is intact: `timetable::next_after` has exactly one caller in the tree,
+`crates/timetable/src/lib.rs`'s own `Timetable::due`, and nothing on the kernel timer path reaches it.
+One correction to the body's "every ISA restates the arithmetic": two do, not three.
+`kernel/src/arch/aarch64/timer.rs::rearm` and `kernel/src/arch/riscv64/timer.rs::rearm` each compute
+`fired + interval` with their own copy of the skip-rather-than-catch-up rule, while x86_64 arms the
+local APIC in periodic mode and the hardware reloads, so there is no software re-arm there to lift.
 
 **Gate: DECISION.** Where the seam goes is calef's call, and it is the whole of the work rather than
 a detail of it. Too high and the arch layer keeps the milestone 6 drift bug it has today; too low
@@ -40,3 +47,16 @@ Milestone 197 (`user/` and `xtask` are out of reach of the prover) named it and 
 `next_after` is what the timer actually calls. Where the seam goes is calef's: too high and the arch
 layer keeps the milestone 6 drift bug, too low and every ISA restates it. Until it moves, the tree's
 sharpest counterfactual is a property proved over code that nothing runs."*
+
+## Index row
+
+The timer re-arm arithmetic is written inside the register access, per architecture.
+`crates/timetable::next_after` computes the same thing, is proved by Kani, and nothing on the running
+path calls it. That is the sharpest counterfactual the verification story has and it currently points
+the wrong way: `script/verify` reports it green beside proofs that do bind, with no way for a reader
+to tell the two apart. The bug on the other side is concrete, since milestone 6's drift defect lives
+in the per-architecture re-arm and lives there once per ISA. Where the seam goes is calef's call and
+is the whole of the work rather than a detail of it: too high and the arch layer keeps the drift bug,
+too low and every ISA restates the arithmetic the crate exists to hold. A lane can put the two
+re-arms side by side and say what `next_after`'s signature would have to become, which is really the
+question of what crosses it: a deadline, a delta, or a raw counter value.

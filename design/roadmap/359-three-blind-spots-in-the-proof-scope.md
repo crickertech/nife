@@ -1,6 +1,12 @@
-# The proof-scope predicate runs the whole suite for changes that cannot reach a harness
+# 359. The proof-scope predicate runs the whole suite for changes that cannot reach a harness
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 119's block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 247 sweep, from
+milestone 119's block; promoted by milestone 433 on 2026-09-19. Read against `script/verify` that
+day and the two open cases are both still open: the attribution loop still ends
+`needed.append((f, "not attributable to a crate; runs by default"))` with no classification for a
+binary file, and the header still lists `Cargo.lock` among the paths it cannot attribute, with the
+comment beside `cargo metadata` explaining that registry packages have no file a diff can name. The
+third blind spot stays fixed: `script/` and `scripts/` are both recognised, commented in place.
 
 **Gate: NONE.** The predicate is one Python block inside `script/verify`, it has no dependency on
 any other milestone, and a change to it is exercised by the wiring it lives in.
@@ -46,3 +52,17 @@ classification beside the documentation one. The `Cargo.lock` case needs `cargo 
 sides of the diff, or a parse of the lockfile's own package list, and it should keep failing toward
 running when anything about the comparison is unavailable, which is the posture the surrounding
 code already takes.
+
+## Index row
+
+`script/verify --affected-since <base>` decides whether a pull request needs the Kani suite by
+attributing every changed file to a crate and asking whether that crate is in a harness crate's
+dependency closure. What it cannot attribute runs the proofs, which is the right default and is
+where the false positives come from. Two of milestone 119's three blind spots remain: any
+`Cargo.lock` touch proves everything, and a binary file falls through to "not attributable to a
+crate". The prover is the merge queue's long pole, a group build goes green while `verify` is still
+running every time, and 119 priced fixing these above adding shards because `glob`'s proofs are
+atomic at 15.0 minutes and more runners cannot divide one harness. The two cases are not equal: the
+binary one is a classification beside the documentation one, while `Cargo.lock` means reading which
+package versions the diff actually moved, and it should keep failing toward running when the
+comparison is unavailable.

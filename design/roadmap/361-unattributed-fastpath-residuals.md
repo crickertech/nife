@@ -1,6 +1,18 @@
-# The riscv64 and x86_64 fastpath residuals are unattributed, so their baselines cannot be re-saved
+# 361. The riscv64 and x86_64 fastpath residuals are unattributed, so their baselines cannot be re-saved
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 237's block.
+**Status: SUPERSEDED.** 2026-09-19, by milestone 188's phases 1 to 3, which re-measured and
+re-recorded all three baselines on 2026-09-04 (pull request #732). Filed as a proposal on
+2026-09-03 by the milestone 247 sweep, from milestone 237's block, and re-measured by the pull
+request #716 lane on 2026-09-04. Checked on 2026-09-19: the numbers this file is written against no
+longer exist. Milestone 188 phase 1 split the single `ipc_fastpath` figure into `ipc_send_recv` and
+`ipc_call_reply`, because the shape the system runs is `CALL` and the gate was measuring
+`SEND`/`RECV`; `ipc_fastpath` survives as the worse of the two, derived and unchecked. All three
+baselines were then re-saved against a build that was 6% to 10% smaller on every shape, and
+`bench/fastpath-riscv64.txt` and `bench/fastpath-x86_64.txt` now read 5936 and 8122 against the 5106
+and 6639 this file asks to bisect. The bisect was never performed and cannot now be performed
+against those numbers. What remains of the concern is the standing one milestone 237 owns, that a
+baseline moves with nobody attributing it, and it is filed separately as
+`design/roadmap/380-the-ceiling-applies-to-a-number-that-moved.md`.
 
 **Gate: NONE.** The measurement runs on the dev machine under emulation, the tooling
 (`script/fastpath-footprint`) exists, and bisecting a size delta needs no hardware and no decision.
@@ -65,3 +77,14 @@ re-record those baselines in the commit that does it. riscv64 sits at 5132 again
 and x86_64 at 6687 against 6639, and neither gap is bisected to a milestone, so re-saving them
 today would be the absorb-the-growth move this block exists to refuse. Only aarch64 was
 re-recorded here."*
+
+## Index row
+
+Two of three fastpath footprint baselines had drifted with nobody able to say why, and milestone 237
+exists to refuse exactly the move of re-saving a baseline because the number moved. Milestone 188
+overtook it: phases 1 to 3 changed what the gate measures (two IPC shapes rather than one merged
+figure), cut 6% to 10% off every shape by reading `#[cold]` out of the workspace's own source, and
+re-recorded all three baselines against the smaller numbers on 2026-09-04. The residuals named here
+cannot be bisected against baselines that no longer exist. Promoted and disposed of in one act by
+milestone 433, with the measurement it carried (all three ISAs drifting, x86_64 the fastest at 1.9%
+against a 5% bound) left in the body as the record of what was true on 2026-09-04.

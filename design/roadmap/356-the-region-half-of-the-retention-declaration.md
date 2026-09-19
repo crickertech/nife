@@ -1,7 +1,13 @@
-# Retention declares the thread capability and says nothing about the region
+# 356. Retention declares the thread capability and says nothing about the region
 
-**Status: PROPOSED 2026-09-03.** Found by the `maintainer/spawn-retention-field` lane while
-building DECISIONS §142's answer, which is the reciprocal half of `ChildEndowment`.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the
+`maintainer/spawn-retention-field` lane, while building DECISIONS §142's answer; promoted by
+milestone 433 on 2026-09-19. Premise checked against the tree that day and unchanged:
+`crates/supervision_protocol/src/lib.rs` still declares `Retention` with exactly two variants
+(`Nothing` and `ThreadControlBlock { reason }`), the region is named only in prose there ("after
+`START` the only authority over this child is the region it was built from"), and §142 has been
+DECIDED since 2026-09-03 with nothing added about the region. The three spawn paths this file names
+as disagreeing still disagree.
 
 **Gate: DECISION.** What a spawner keeps of a child's *region* is a convention with the same shape
 as §142's, and §40 (there is no reaper of last resort) already records the open question this would
@@ -55,3 +61,17 @@ than a lane:
 The third is a real answer and may be the right one. What is not an answer is the present state,
 where the endowment reads as a complete account of the authority in play and is silent about the
 capability that carries most of it.
+
+## Index row
+
+DECISIONS §142 gave `ChildEndowment` a `retention` field so one struct literal states both what a
+child is given and what its spawner keeps. What it states is the disposal of the child's
+`ThreadControlBlock`, which the tree's own audit showed is inert after `START`. The capability that
+actually decides whether a child can be ended is the region it was built from, and the endowment
+says nothing about it: `components/src/spawner.rs`, `fixtures/src/c_confiner.rs` and
+`components/src/timetable.rs` drop the region when the child runs while `crates/system_initializer`
+keeps its across the child's life, both correct for what they do and neither stated where a reader
+of the endowment can see it. §40's first recorded caveat is the same question in other words.
+Whether the declaration widens is calef's, which is why the gate is DECISION: three shapes are
+written out here and the third, leaving it out and saying so in `Retention`'s own docs, is a real
+answer.

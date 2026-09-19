@@ -117,16 +117,16 @@ That call is calef's, so the block says so rather than moving.
 
 ## Follow-on
 
-- **Proposed.** `IN-PROGRESS`, `NOT-STARTED`, `OPTIONAL` and `RECORDED` are still outside this, as
-  the `BUGS` above says, and the sweep found a worked example of a false one: milestone 75 reads
-  NOT-STARTED on a `DECISION` gate for a decision made 2026-09-02 and built twice that week, and
-  three blocks cite it as a live blocker.
-  `design/roadmap/proposals/the-statuses-the-follow-on-gate-does-not-cover.md`.
+- **Milestone 357.** `IN-PROGRESS`, `NOT-STARTED`, `OPTIONAL` and `RECORDED` are still outside
+  this, as the `BUGS` above says, and the sweep found a worked example of a false one: milestone 75
+  reads NOT-STARTED on a `DECISION` gate for a decision made 2026-09-02 and built twice that week,
+  and three blocks cite it as a live blocker.
+  `design/roadmap/357-the-statuses-the-follow-on-gate-does-not-cover.md`.
 - **Proposed.** The ten stale claims the sweep found in code comments, rustdocs and notes, where no
   gate reads them, are
   `design/roadmap/proposals/claims-the-sweep-found-false-outside-the-roadmap.md`.
-- **Proposed.** Milestone 139's log-page walk, which round 8 asked to have minted and nobody did, is
-  `design/roadmap/proposals/the-unsafe-log-page-walk-in-revoke.md`.
+- **Milestone 358.** Milestone 139's log-page walk, which round 8 asked to have minted and nobody
+  did, is `design/roadmap/358-the-unsafe-log-page-walk-in-revoke.md`.
 - **Done.** Two of milestone 117's own handoffs had rotted a second time and were fixed here by
   deleting the duplicated fact rather than re-copying it: `CONTRIBUTING.md` no longer lists
   `script/gates`' stages and `script/setup` no longer repeats the toolchain date.

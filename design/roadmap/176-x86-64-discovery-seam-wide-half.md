@@ -97,10 +97,11 @@ Piece 1 is complete and independent of this.
   that the interrupt controller and the PCIe ECAM range were still `None` on x86_64, after
   milestones 161 and 165 had wired both. Corrected here, and it now names only the device windows
   that are genuinely absent.
-- **Proposed.** `design/roadmap/proposals/virtio-rng-on-the-x86-64-runner.md`, attach a virtio-rng
+- **Milestone 362.** `design/roadmap/362-virtio-rng-on-the-x86-64-runner.md`, attach a virtio-rng
   function to the x86_64 test runner and wire it, so the NTP client has a nonce source there; four
-  of `ntp_tests.rs`'s six tests skip on x86_64 without one. Milestone 215's block proposes this as
-  one item in a larger x86_64 fixture lane, so take it there rather than as a second piece of work.
+  of `ntp_tests.rs`'s six tests skip on x86_64 without one. That block is SUPERSEDED, on its own
+  instruction: the larger x86_64 fixture lane it asked to be folded into is numbered now and names
+  the RNG among its devices, so the work is there rather than in two places.
 
 ## Index row
 

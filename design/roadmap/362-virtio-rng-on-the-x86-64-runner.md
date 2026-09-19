@@ -1,6 +1,13 @@
-# The x86_64 runner has no RNG, so four of six NTP tests skip there
+# 362. The x86_64 runner has no RNG, so four of six NTP tests skip there
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 176's block.
+**Status: SUPERSEDED.** 2026-09-19, by the proposal `the-rest-of-the-x86-64-fixture-set`, which
+milestone 433 numbers 420 and which names the RNG as one of its six devices. Filed as a proposal on
+2026-09-03 by the milestone 247 sweep, from milestone 176's block. Checked on 2026-09-19 and the
+underlying gap is real: `scripts/qemu-runner-x86_64.sh` still attaches no RNG and says so in its own
+header ("no NIC, no GPU, no RNG"). This file's own instruction is what disposes of it, and it was
+written knowing this would happen: *"whoever promotes either should merge the two rather than run
+two lanes at the same fixture file"*. The larger lane is now numbered, so this one is the duplicate
+rather than the placeholder.
 
 **Gate: NONE.** It is a line in `scripts/qemu-runner-x86_64.sh` plus its wiring, and both the device
 and the client exist on the other architectures already.
@@ -13,7 +20,7 @@ NTP client has a nonce source on that architecture. Without one, four of the six
 own bullet says so: milestone 215 proposes attaching the rest of the x86_64 test fixtures (the
 RedoxFS image, the GPT and blank disks, the NIC, the GPU, the keyboard and the RNG) as one lane, and
 the RNG is one line of it. That larger lane now has a proposal of its own,
-`design/roadmap/proposals/x86-64-test-fixtures.md`, written by the same sweep. This file exists so
+`design/roadmap/364-x86-64-test-fixtures.md`, written by the same sweep. This file exists so
 the item is not lost while that larger proposal is written; whoever promotes either should merge the
 two rather than run two lanes at the same fixture file.
 
@@ -40,3 +47,13 @@ Milestone 215's Follow-on names the larger lane: *"Attach the rest of the x86_64
 that a function's interrupt works ... each a line in `scripts/qemu-runner-x86_64.sh` plus its
 wiring, starting with making the FS server's disk lookup transport-blind. The measure is the 36
 tests taking a 'no RedoxFS disk attached' arm."*
+
+## Index row
+
+Four of the six tests in `ntp_tests.rs` skip on x86_64 because the runner gives the NTP client no
+nonce source, which is one `-device virtio-rng-pci` line plus its wiring. Filed as a placeholder by
+the milestone 247 sweep so the item would not be lost while the larger x86_64 fixture lane was
+written up, with the instruction that whoever promoted either should merge the two. That larger lane
+now exists and names the RNG among its six devices, so this is the duplicate. A skipped test reads
+as a passing suite, and nobody outside can tell "the NTP client works on x86_64" from "the runner
+never gave it entropy".

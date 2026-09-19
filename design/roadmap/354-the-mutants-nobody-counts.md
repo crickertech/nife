@@ -1,7 +1,16 @@
-# An unviable mutant is a hole in the measurement that reads as a pass
+# 354. An unviable mutant is a hole in the measurement that reads as a pass
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 246 lane (measured boot's refusal path is
-tested by nothing, and one mutant turns it off), which hit it by accident.
+**Status: SUPERSEDED.** 2026-09-19, by milestone 250, which carries the same title and more of the
+argument. Filed as a proposal on 2026-09-03 by the milestone 246 lane. Checked on 2026-09-19:
+milestone 250 was minted by calef on the day this file was written, before
+`design/roadmap/proposals/` existed, and its block holds every part of this one (the `Verdict`
+worked example, the nine unviable mutants in `measured_boot`, the ledger that counts missed,
+equivalent and hang and not unviable, the anti-gaming test) plus two things this file never had: the
+`uefi_loader::image::parse` disposition of 2026-09-04, and the reverse defect of 154 mutants scored
+MISSED in "0s build + 0s test" behind `required-features`. This file's own last paragraph said so.
+Milestone 326, which triages the 2026-09-14 census's 771 survivors, is a different question and does
+not cover this one: a survivor is a mutant that ran, and the subject here is a mutant that never
+built.
 
 **Gate: NONE.** `cargo mutants --list` already reports what this needs, and no run is required to
 get the count.
@@ -32,3 +41,10 @@ value and exactly the dangerous wrong answer, an absence where there was a refus
 
 **Superseded in part:** milestone 250 was minted from this on the day it was written, before the
 `proposals/` directory existed. This file is the record of where it came from.
+
+## Index row
+
+Filed 2026-09-03 by the milestone 246 lane and superseded on arrival: calef minted milestone 250
+from it the same day, under the same title, before the proposals directory existed. The work lives
+there, with two worked examples this file never carried. Promoted and disposed of in one act by
+milestone 433, because a proposal cannot be retired in place and a deleted one is not a record.

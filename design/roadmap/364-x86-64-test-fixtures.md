@@ -1,6 +1,15 @@
-# Most x86_64 tests take a "no RedoxFS disk attached" arm, because the runner attaches little
+# 364. Most x86_64 tests take a "no RedoxFS disk attached" arm, because the runner attaches little
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 215's block.
+**Status: SUPERSEDED.** 2026-09-19, in two parts. The first piece this file names, making the FS
+server's disk lookup transport-blind and attaching the RedoxFS image, was built by milestone 303 on
+2026-09-16. The rest was restated by the milestone 303 lane the same day as the proposal
+`the-rest-of-the-x86-64-fixture-set`, which milestone 433 numbers 420, with the device list
+itemised and the structural obstacle recorded as gone. Filed here on 2026-09-03 by the milestone 247
+sweep, from milestone 215's block. Checked on 2026-09-19: `scripts/qemu-runner-x86_64.sh` now
+attaches two `virtio-blk-pci` functions and an NVMe controller and still no NIC, GPU, keyboard or
+RNG, and the tree carries 50 `skip!("no RedoxFS disk attached")` sites rather than the 36 this file
+counted, which is the measure growing rather than the gap closing. The work is real and it lives in
+the newer block.
 
 **Gate: NONE.** The blocker is gone. Milestone 215 made a PCI function's interrupt reach a userspace
 driver on x86_64, and it did the whole thing on patagonia under QEMU's `q35`, so nothing here waits
@@ -35,3 +44,13 @@ interrupt works: the RedoxFS image, the GPT and blank disks, the NIC, the GPU, t
 RNG, each a line in `scripts/qemu-runner-x86_64.sh` plus its wiring, starting with making the FS
 server's disk lookup transport-blind. The measure is the 36 tests taking a 'no RedoxFS disk
 attached' arm."*
+
+## Index row
+
+`scripts/qemu-runner-x86_64.sh` started a much barer machine than the other two runners, so most
+x86_64 tests passed by taking an early-exit arm and the suite reported a green leg over an untested
+surface. Milestone 303 took the first piece named here on 2026-09-16 (the transport-blind disk
+lookup and the RedoxFS image) and the milestone 303 lane restated the remainder the same day with
+the device list itemised, so this block is the older half of a pair. Promoted and disposed of in one
+act by milestone 433. The measure it proposed is worth keeping: the count of tests taking a "no
+RedoxFS disk attached" arm, which was 36 when this was written and is 50 now.

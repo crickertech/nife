@@ -1,7 +1,14 @@
-# `NOT-STARTED` is the third status that can be false, and milestone 75 is the proof
+# 357. `NOT-STARTED` is the third status that can be false, and milestone 75 is the proof
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 252 sweep, from milestone 134's and
-milestone 16's blocks, which both trip over the same stale block.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-03 by the milestone 252 sweep; promoted by
+milestone 433 on 2026-09-19. Both halves checked against the tree that day and both still hold.
+`design/roadmap/75-cycle-counter-authority.md` still reads `NOT-STARTED` with `Gate: DECISION`,
+though DECISIONS §139 answered that decision on 2026-09-02 and milestone 74's own gate line now
+opens *"Both halves of this line are under correction"* and says in full why 75's status is false.
+`script/roadmap`'s `ANSWERS` tuple is still `BUILT`, `REMOVED` and `PARTIAL`. One count in the body
+below has moved: `SUPERSEDED` was minted on 2026-09-15, so the uncovered statuses are now five
+rather than the three the title claims (`NOT-STARTED`, `IN-PROGRESS`, `OPTIONAL`, `RECORDED`,
+`SUPERSEDED`), and `IN-PROGRESS` keeps the one mechanical check it was given on 2026-08-17.
 
 **Gate: NONE.** Fixing milestone 75's status is a paragraph and a word, and the design question
 behind it is answerable by reading `script/roadmap` and the four uncovered statuses.
@@ -36,3 +43,17 @@ into the readiness report a maintainer uses to brief lanes.
   is a legitimate outcome rather than a failure. Milestone 252's own block reserves the same right.
 - **`OPTIONAL` and `RECORDED` are deliberately off the work list**, so a stale one costs less than a
   stale `NOT-STARTED`, which is offered to lanes as ready work.
+
+## Index row
+
+Milestone 247 gated `BUILT` and `REMOVED`, milestone 252 gated `PARTIAL`, and the rest of the status
+vocabulary rots with nothing watching it. `design/roadmap/75-cycle-counter-authority.md` is the
+proof: it reads `NOT-STARTED` with `Gate: DECISION` for a decision calef made on 2026-09-02 and a
+mechanism two milestones built the same week, three blocks cite it as a live blocker, and milestone
+74 carries `MILESTONE 75` in its own gate line, so the staleness propagates into the readiness report
+a maintainer briefs lanes from. Fixing 75 is a word and a paragraph and is worth doing on its own.
+The question behind it is whether a `NOT-STARTED` block can be checked at all: a `PARTIAL` block
+enumerates work so a gate can demand the enumeration, while a `NOT-STARTED` block asserts that
+nothing has been done and the tree cannot see that. The one mechanical handle that exists is a
+`DECISION` gate whose decision file reads `DECIDED`, and making a gate line name that file is a real
+check with a real cost.
