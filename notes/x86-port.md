@@ -896,6 +896,11 @@ drift the first time somebody added a program to one of them. x86 builds the who
 rather than naming binaries, which is both shorter and self-maintaining now that everything
 compiles for the target.
 
+**Superseded by milestone 150 (2026-09-19):** there is no table at all now. All three packers pack
+every `[[bin]]` in `components/Cargo.toml` and `fixtures/Cargo.toml` (`declared_programs()` in
+`xtask`), so the drift this paragraph guarded against between two callers cannot happen between
+three either. See notes/adding-a-program.md.
+
 `read_stripped`'s cache tag is the latent bug. It namespaces stripped copies by the target directory
 a binary came from, and an `x86_64-unknown-none` path fell through to `"host"`, sharing a filename
 with every aarch64 build of the same program. Nothing had noticed because nothing ever asked for

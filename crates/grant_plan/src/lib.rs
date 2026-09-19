@@ -83,279 +83,345 @@ pub mod word;
 use expand::{Expansion, Name, NameSet};
 use line::{Sink, Source};
 
-/// A program the shell can spawn. The set is small and closed in phase 1; each variant carries a
-/// static [`Manifest`] and a stable wire id for [`spawnproto`].
+/// **Declare the programs the shell can spawn, once** (milestone 150; name provisional).
 ///
-/// This is deliberately an enum and not a string lookup at the grant boundary: the shell resolves
-/// a typed program once, and everything downstream (the manifest check, the wire id the progenitor decodes)
-/// speaks the type, not the name. A name that does not resolve is [`Refusal::NoSuchProgram`], the
-/// "there is nothing there to name" shape of no-ambient-authority applied to programs themselves.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Prog {
-    /// Squares its integer argument and reports the answer. Needs no memory grant.
-    LeastAuthorityDemo,
-    /// Spends a granted untyped budget: maps pages until the budget is exhausted and reports how
-    /// many it got. The program that makes `--mem` *real* rather than parsed-and-ignored: the
-    /// number it reports is the authority the command line handed it.
-    MemoryGrantDepleter,
-    /// A long-running job that *heeds* the cooperative interrupt: it works forever, polling its
-    /// interrupt flag between work units, and on `^C` cleans up and exits (DECISIONS §24). The
-    /// cooperative tier made visible: the first `^C` stops it gracefully.
-    InterruptHeeder,
-    /// A runaway that ignores the interrupt entirely: a tight loop that never checks its flag. Only
-    /// the forcible tier (the shell tearing its region down) ends it. The case the cooperative tier
-    /// cannot reach, and the reason the second `^C` exists.
-    InterruptIgnorer,
-    /// Print the wall-clock time (milestone 51, `components/src/date.rs`). It takes nothing from the
-    /// command line: no argument, no memory, no file. **Its whole authority is a read-only mapping
-    /// of the clock page, which the progenitor endows and this shell cannot**, and that asymmetry is why
-    /// [`Manifest::clock`] exists: the grant is real, it is just not something a person designates.
-    /// The interactive boot starts a clock service and hands the progenitor the page, so `date` at the prompt
-    /// prints a time; on a machine whose RTC the service did not believe it prints "the time is
-    /// unknown: the machine has no clock it believes", which is the other true sentence.
-    Date,
-    /// **Remove a name, and with `-r` the tree under it** (milestone 47, `components/src/rm.rs`).
-    ///
-    /// A **program, not a builtin**, and that is Unix's shape rather than a divergence from it.
-    /// `cd`, `pwd` and `ls` are builtins here because the shell is rebinding what it already holds;
-    /// `rm -r` is a destructive loop, not a rebinding. A builtin would run with the shell's **entire
-    /// endowment**, while a program takes an explicit attenuated grant, so `caps rm -r logs` prints
-    /// the subtree at risk before anything happens and a bug in the recursion can only reach what it
-    /// was handed. See [`DirSpec`].
-    Rm,
-    /// **Count what arrives on its input** (milestone 50, `components/src/wc.rs`): lines, words and
-    /// bytes, printed as one line of text.
-    ///
-    /// The first program that declares [`InputSpec::Required`], and the reason that spec exists.
-    /// `wc` with nothing feeding it would block on a receive forever, and the shell can see that at
-    /// the prompt: the manifest says it reads a stream, so a line that gives it none is
-    /// [`Refusal::InputRequired`] before anything is spawned. Unix cannot make that check, because
-    /// there fd 0 always exists and "nobody is ever going to write to it" is not a property of the
-    /// command line.
-    ///
-    /// Its output is [`OutputSpec::Bytes`] because it has to be: `wc`'s answer is text, so `echo a
-    /// | wc | wc` composes, and a program that reported a number in a register could not be on the
-    /// left of a pipe at all.
-    ///
-    /// And because it declares an input and declares no file, it is also the program that gives the
-    /// **input operand** its meaning: `wc report.txt` is `wc < report.txt` with the operator left
-    /// out, resolved by [`plan_against_with`] into a [`line::Source::File`]. See that function for
-    /// why what the child holds is narrower than a per-file capability rather than the same thing.
-    Wc,
-    /// **Render markdown for a terminal** (milestone 40, `components/src/mdr.rs`,
-    /// notes/documentation.md).
-    ///
-    /// The same manifest as [`Prog::Wc`]: a stream in, a stream out, and nothing else. `doc
-    /// notes/glob.md` reads like Unix's `man` and is not: the name is a designation the *shell*
-    /// resolves against the directory it holds, and what arrives at the program is bytes. A viewer
-    /// that opened the page it renders would be a viewer that could open any page.
-    ///
-    /// **Provisional name.**
-    Mdr,
-    /// **List the processes in the supervision domain it was spawned into** (milestone 126,
-    /// `components/src/ps.rs`, notes/process-view.md).
-    ///
-    /// The reason [`Manifest::domain`] exists, and the same asymmetry [`Prog::Date`] made for the
-    /// clock: the grant is real and it is not something a person designates on the line. There is
-    /// no `/proc` here to name and no pid space to scan, so what `ps` can see is decided entirely
-    /// by which supervision endpoint the progenitor put in its capability table, and `caps ps` prints that.
-    Ps,
-    /// **Name the members of that same domain that match, and do nothing to them** (milestone 126,
-    /// `components/src/pgrep.rs`, notes/process-view.md).
-    ///
-    /// [`Prog::Ps`]'s manifest exactly, down to the field, and that is the declaration doing the
-    /// work rather than a coincidence. On Unix `pgrep` and `pkill` are one lookup with two endings,
-    /// so a program that can find a process can end it. Here the two manifests being identical is
-    /// the readable form of **a domain names its members and does not act on them** (calef,
-    /// 2026-08-17): the finding program is granted no authority the listing program lacks, and there
-    /// is no `Prog::Pkill` for it to be compared against, because a tid is a name and no method
-    /// turns one into a capability.
-    ///
-    /// `ArgSpec::Forbidden` is [`Prog::Date`]'s deliberate under-declaration, for the same reason
-    /// and with the same consequence: `pgrep` reads a state mask out of a register the shell cannot
-    /// set, so at this prompt it takes the default and names every member. Nothing in this system
-    /// delivers *bytes* from a command line to a program, so a pattern is not something the line can
-    /// carry until [`ArgSpec`] grows the positional arity milestone 47 deferred; see `crates/pgrep`'s
-    /// `BUGS`.
-    Pgrep,
-    // **There was a `Watch` here until milestone 281** (`user/src/watch.rs`, `crates/watch`, both
-    // deleted 2026-09-13), and the reason it went is a test worth reusing rather than a one-off.
-    //
-    // **Two programs are two programs when they hold different authority.** `Watch`'s manifest was
-    // [`Prog::Ps`]'s with one field changed, and the program held the same three slots from the same
-    // named constants (`REPORT`, [`DOMAIN_SLOT`], [`DIAGNOSTICS_SLOT`]) while being, literally,
-    // `ps`'s own loop. In a capability system that settles "one program or two" without appealing to
-    // taste: there was no boundary there to draw. The refresh needed no capability of its own
-    // either, because the interval was a yield-spin over the ambient monotonic counter and this
-    // kernel has no timed wait, so even the least-authority argument for keeping them apart was
-    // absent.
-    //
-    // That argued for folding it into `ps` as a flag, which is what milestone 281 was minted to do.
-    // calef then took it one step further: the flag's entire content was a busy-wait over a table of
-    // two columns that barely changes, so **deleting it buys the same simplification and costs
-    // nothing anyone was using**. Milestone 282 (DECISIONS §150) adds per-thread scheduled CPU time
-    // as a fourth `abi::rendezvous::SURVEY` word, and once there is something worth watching and
-    // something to rank by, the live view is rebuilt properly as `top`.
-    //
-    // **Neither `watch` nor `crates/watch` was ever ratified**, and that was deliberate rather than
-    // an oversight: calef declined to rule on both while this milestone might retire them, which it
-    // did. The name was wrong on its own terms too. Upstream `watch` re-runs an arbitrary command,
-    // which this one never could (spawning by name is the shell's own capability and is granted to
-    // nothing the shell spawns), so the program was never in `watch`'s family. It was a very thin
-    // member of `top`'s, which is the shape 282 makes it worth rebuilding as.
-    /// **Print how long the ambient monotonic counter has been running** (milestone 126,
-    /// `components/src/uptime.rs`, `crates/uptime`).
-    ///
-    /// [`Prog::LeastAuthorityDemo`]'s manifest, not [`Prog::Date`]'s: `user_mode_runtime::monotonic_nanos` is granted to
-    /// **every** process unconditionally (`kernel/src/arch/*/timer.rs`'s documented, deliberate
-    /// exception to DECISIONS §10's no-ambient-authority rule), so this program needed no clock
-    /// capability, no domain, no memory, no file, nothing beyond the report channel every spawn
-    /// carries. The one member of milestone 126's "machine-wide statistics" row that turned out to
-    /// be pure wiring rather than a design fork; see design/roadmap/126-who-else-is-running.md.
-    Uptime,
-    /// **Print the inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
-    /// §111; `components/src/printenv.rs`).
-    ///
-    /// The reason [`Manifest::config`] exists, and the same asymmetry [`Prog::Date`] made for the
-    /// clock: the grant is real and it is not something a person designates on the line. Before
-    /// this program, the page existed and could be assembled and mapped
-    /// (`crates/environment_protocol`), but nothing in the shell's program table declared wanting one,
-    /// so `caps`'s preview of it had nothing to show and no boot granted it outside a kernel test
-    /// harness standing in for a std program. `date` before `Prog::Date` existed is the position
-    /// this section of the roadmap named; `printenv` is this milestone's `date`.
-    ///
-    /// Takes no argument, no memory, no file: its whole authority is the read-only page. `TZ`,
-    /// `LANG` and `TERM` print as `KEY=value` when the key is present and `KEY (unset)` when the
-    /// page is valid but does not carry it (`environment_protocol`'s validated-domain shape makes both
-    /// states distinguishable from a page nobody has assembled at all, which reads as
-    /// "no configuration was granted").
-    ///
-    /// **Provisional name**, Unix's own for exactly this (`printenv(1)`/`env(1)` with no
-    /// arguments): a term of art already right, per this tree's own naming convention for
-    /// standard terms.
-    Printenv,
-    /// **Print a version-4 UUID drawn from the entropy service** (milestone 111, `components/src/uuid.rs`).
-    ///
-    /// The reason [`Manifest::entropy`] exists, and [`Prog::Date`]'s asymmetry a fourth time: the
-    /// grant is real and no token on the line designates it. Before this program the entropy
-    /// service existed, answered, and was reachable only by something the *system* spawned
-    /// (`credentialer` at boot, `disk_partitioner` under the kernel's own test harness), so a
-    /// program that needed randomness could not be run by a person. `date` before [`Prog::Date`]
-    /// existed is the position notes/entropy.md's `BUGS` described; this is that milestone's
-    /// `date`.
-    ///
-    /// **It is `disk_partitioner`'s draw with the disk taken away**, which is what makes it an
-    /// honest consumer rather than a demonstration. Both call
-    /// `globally_unique_identifier_partition_table::guid::Guid::v4_from_random` over sixteen bytes
-    /// from the same service, because a GPT gives every partition a random globally unique id and
-    /// `crates/globally_unique_identifier_partition_table` refuses to invent one. The partitioner
-    /// needs a disk capability this shell does not hold and cannot attenuate; the sixteen bytes and
-    /// the stamping are the half that does not, so this program is the part of that path a prompt
-    /// can reach today.
-    ///
-    /// Takes no argument, no memory, no file: its whole authority is the client view of the entropy
-    /// service. `OutputSpec::BytesAndDiagnostics` for [`Prog::Ps`]'s reason, and here the second
-    /// stream carries the one sentence that matters: a boot with no entropy service must leave
-    /// `uuid > id.txt` **empty** and say why on the terminal, because a file containing a
-    /// predictable identifier is worse than a file containing nothing.
-    ///
-    /// **Provisional name.** RFC 9562's own term for the object, and
-    /// `crates/globally_unique_identifier_partition_table` calls the same sixteen bytes a `Guid`
-    /// because that is what GPT's spec calls them.
-    Uuid,
+/// Each row is `Variant { id: N, name: "archive_name" }`, and from the rows this generates the
+/// enum and everything that used to be a hand-maintained copy of it: [`Prog::name`], [`Prog::id`],
+/// [`Prog::from_id`], [`Prog::from_name`], [`Prog::ALL`] and [`PROG_COUNT`]. Adding a program is a
+/// row here plus its [`Prog::manifest`] arm, which the compiler demands (`E0004`); removing one is
+/// deleting the row, and the compiler then points at every arm that named it.
+///
+/// **The id is written, never derived from position**, because it is a thing two programs agree
+/// on (the shell sends it, the progenitor decodes it). A position-derived id would renumber every
+/// later program the day an earlier one was removed. So removal leaves a hole, [`PROG_COUNT`] is
+/// one past the highest id rather than the number of rows, and `the_wire_ids_already_shipped_never_move`
+/// pins the ids that shipped before this table existed. Two rows with one id, or one name, fail
+/// the build at the `const` assertions below rather than at a prompt.
+///
+/// A `macro_rules!` rather than a derive because DECISIONS §46 refuses a proc-macro dependency for
+/// this, and a `const` table beside a hand-written enum would still be two lists nothing joins.
+/// notes/adding-a-program.md has what else was considered.
+macro_rules! programs {
+    (
+        $(#[$enum_meta:meta])*
+        pub enum Prog {
+            $(
+                $(#[$meta:meta])*
+                $variant:ident { id: $id:literal, name: $name:literal },
+            )*
+        }
+    ) => {
+        $(#[$enum_meta])*
+        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+        pub enum Prog {
+            $(
+                $(#[$meta])*
+                $variant,
+            )*
+        }
+
+        /// One past the highest wire id [`Prog::id`] can answer, which is the size of the table
+        /// the progenitor indexes with it (`[Option<Elf>; PROG_COUNT]`). **Not the number of
+        /// programs**: a removed program's id stays a hole rather than being reused, so the two
+        /// differ as soon as one is removed, and [`Prog::from_id`] answers `None` for a hole.
+        /// Computed from the declarations, so it cannot be forgotten; until milestone 150 it was a
+        /// literal a person widened, and forgetting to was the one edit nothing caught.
+        pub const PROG_COUNT: usize = one_past_highest(&[$($id),*]);
+
+        const _: () = assert!(all_distinct_ids(&[$($id),*]), "two programs share a wire id");
+        const _: () = assert!(all_distinct_names(&[$($name),*]), "two programs share a name");
+
+        impl Prog {
+            /// Every program, in declaration order. Sweep this rather than `0..PROG_COUNT`, which
+            /// has holes once a program has been removed.
+            pub const ALL: &'static [Prog] = &[$(Prog::$variant),*];
+
+            /// Resolve a program by the name typed on the command line.
+            ///
+            /// Builtins are matched first by [`parse`], so a program named `help`, `echo`, `caps`
+            /// or `time` would be unreachable. The program namespace must not contain any of those
+            /// names.
+            pub fn from_name(name: &[u8]) -> Option<Prog> {
+                $(
+                    if name == $name.as_bytes() {
+                        return Some(Prog::$variant);
+                    }
+                )*
+                None
+            }
+
+            /// The name the progenitor loads it by in the initrd (nifefs), and the shell prints.
+            /// It is also the `[[bin]]` name in `components/` or `fixtures/`, which `xtask`
+            /// checks every time it packs an archive.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $(Prog::$variant => $name,)*
+                }
+            }
+
+            /// The stable wire id the shell sends and the progenitor decodes ([`spawnproto`]).
+            pub fn id(self) -> u64 {
+                match self {
+                    $(Prog::$variant => $id,)*
+                }
+            }
+
+            /// The inverse of [`id`](Prog::id): the progenitor turns the wire id back into a
+            /// program.
+            pub fn from_id(id: u64) -> Option<Prog> {
+                match id {
+                    $($id => Some(Prog::$variant),)*
+                    _ => None,
+                }
+            }
+        }
+    };
 }
 
-/// The number of programs [`Prog::id`] can name, which is the size of the table the progenitor indexes with
-/// it. The progenitor's array is `[Option<&Elf>; COUNT]`, so adding a variant without widening the array is
-/// an out-of-bounds panic in the progenitor rather than a compile error; the constant is here so both inits
-/// can be written against one number.
-pub const PROG_COUNT: usize = 13;
+/// [`PROG_COUNT`]'s arithmetic, `const` so the table size is known where the progenitor declares
+/// its array.
+const fn one_past_highest(ids: &[u64]) -> usize {
+    let mut next = 0;
+    let mut i = 0;
+    while i < ids.len() {
+        if ids[i] as usize >= next {
+            next = ids[i] as usize + 1;
+        }
+        i += 1;
+    }
+    next
+}
+
+const fn all_distinct_ids(ids: &[u64]) -> bool {
+    let mut i = 0;
+    while i < ids.len() {
+        let mut j = i + 1;
+        while j < ids.len() {
+            if ids[i] == ids[j] {
+                return false;
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+    true
+}
+
+const fn all_distinct_names(names: &[&str]) -> bool {
+    let mut i = 0;
+    while i < names.len() {
+        let mut j = i + 1;
+        while j < names.len() {
+            if same_bytes(names[i].as_bytes(), names[j].as_bytes()) {
+                return false;
+            }
+            j += 1;
+        }
+        i += 1;
+    }
+    true
+}
+
+const fn same_bytes(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut k = 0;
+    while k < a.len() {
+        if a[k] != b[k] {
+            return false;
+        }
+        k += 1;
+    }
+    true
+}
+
+programs! {
+    /// A program the shell can spawn. The set is small and closed in phase 1; each variant carries a
+    /// static [`Manifest`] and a stable wire id for [`spawnproto`].
+    ///
+    /// This is deliberately an enum and not a string lookup at the grant boundary: the shell resolves
+    /// a typed program once, and everything downstream (the manifest check, the wire id the progenitor decodes)
+    /// speaks the type, not the name. A name that does not resolve is [`Refusal::NoSuchProgram`], the
+    /// "there is nothing there to name" shape of no-ambient-authority applied to programs themselves.
+    pub enum Prog {
+        /// Squares its integer argument and reports the answer. Needs no memory grant.
+        LeastAuthorityDemo { id: 0, name: "least_authority_demo" },
+        /// Spends a granted untyped budget: maps pages until the budget is exhausted and reports how
+        /// many it got. The program that makes `--mem` *real* rather than parsed-and-ignored: the
+        /// number it reports is the authority the command line handed it.
+        MemoryGrantDepleter { id: 1, name: "memory_grant_depleter" },
+        /// A long-running job that *heeds* the cooperative interrupt: it works forever, polling its
+        /// interrupt flag between work units, and on `^C` cleans up and exits (DECISIONS §24). The
+        /// cooperative tier made visible: the first `^C` stops it gracefully.
+        InterruptHeeder { id: 2, name: "interrupt_heeder" },
+        /// A runaway that ignores the interrupt entirely: a tight loop that never checks its flag. Only
+        /// the forcible tier (the shell tearing its region down) ends it. The case the cooperative tier
+        /// cannot reach, and the reason the second `^C` exists.
+        InterruptIgnorer { id: 3, name: "interrupt_ignorer" },
+        /// Print the wall-clock time (milestone 51, `components/src/date.rs`). It takes nothing from the
+        /// command line: no argument, no memory, no file. **Its whole authority is a read-only mapping
+        /// of the clock page, which the progenitor endows and this shell cannot**, and that asymmetry is why
+        /// [`Manifest::clock`] exists: the grant is real, it is just not something a person designates.
+        /// The interactive boot starts a clock service and hands the progenitor the page, so `date` at the prompt
+        /// prints a time; on a machine whose RTC the service did not believe it prints "the time is
+        /// unknown: the machine has no clock it believes", which is the other true sentence.
+        Date { id: 4, name: "date" },
+        /// **Remove a name, and with `-r` the tree under it** (milestone 47, `components/src/rm.rs`).
+        ///
+        /// A **program, not a builtin**, and that is Unix's shape rather than a divergence from it.
+        /// `cd`, `pwd` and `ls` are builtins here because the shell is rebinding what it already holds;
+        /// `rm -r` is a destructive loop, not a rebinding. A builtin would run with the shell's **entire
+        /// endowment**, while a program takes an explicit attenuated grant, so `caps rm -r logs` prints
+        /// the subtree at risk before anything happens and a bug in the recursion can only reach what it
+        /// was handed. See [`DirSpec`].
+        // `rm` stopped being a builtin in milestone 47's rmdir lane, which is what makes this
+        // name reachable: a builtin would have shadowed it, because `parse` matches those first.
+        Rm { id: 5, name: "rm" },
+        /// **Count what arrives on its input** (milestone 50, `components/src/wc.rs`): lines, words and
+        /// bytes, printed as one line of text.
+        ///
+        /// The first program that declares [`InputSpec::Required`], and the reason that spec exists.
+        /// `wc` with nothing feeding it would block on a receive forever, and the shell can see that at
+        /// the prompt: the manifest says it reads a stream, so a line that gives it none is
+        /// [`Refusal::InputRequired`] before anything is spawned. Unix cannot make that check, because
+        /// there fd 0 always exists and "nobody is ever going to write to it" is not a property of the
+        /// command line.
+        ///
+        /// Its output is [`OutputSpec::Bytes`] because it has to be: `wc`'s answer is text, so `echo a
+        /// | wc | wc` composes, and a program that reported a number in a register could not be on the
+        /// left of a pipe at all.
+        ///
+        /// And because it declares an input and declares no file, it is also the program that gives the
+        /// **input operand** its meaning: `wc report.txt` is `wc < report.txt` with the operator left
+        /// out, resolved by [`plan_against_with`] into a [`line::Source::File`]. See that function for
+        /// why what the child holds is narrower than a per-file capability rather than the same thing.
+        Wc { id: 6, name: "wc" },
+        /// **Render markdown for a terminal** (milestone 40, `components/src/mdr.rs`,
+        /// notes/documentation.md).
+        ///
+        /// The same manifest as [`Prog::Wc`]: a stream in, a stream out, and nothing else. `doc
+        /// notes/glob.md` reads like Unix's `man` and is not: the name is a designation the *shell*
+        /// resolves against the directory it holds, and what arrives at the program is bytes. A viewer
+        /// that opened the page it renders would be a viewer that could open any page.
+        ///
+        /// **Provisional name.**
+        Mdr { id: 7, name: "mdr" },
+        /// **List the processes in the supervision domain it was spawned into** (milestone 126,
+        /// `components/src/ps.rs`, notes/process-view.md).
+        ///
+        /// The reason [`Manifest::domain`] exists, and the same asymmetry [`Prog::Date`] made for the
+        /// clock: the grant is real and it is not something a person designates on the line. There is
+        /// no `/proc` here to name and no pid space to scan, so what `ps` can see is decided entirely
+        /// by which supervision endpoint the progenitor put in its capability table, and `caps ps` prints that.
+        Ps { id: 8, name: "ps" },
+        /// **Name the members of that same domain that match, and do nothing to them** (milestone 126,
+        /// `components/src/pgrep.rs`, notes/process-view.md).
+        ///
+        /// [`Prog::Ps`]'s manifest exactly, down to the field, and that is the declaration doing the
+        /// work rather than a coincidence. On Unix `pgrep` and `pkill` are one lookup with two endings,
+        /// so a program that can find a process can end it. Here the two manifests being identical is
+        /// the readable form of **a domain names its members and does not act on them** (calef,
+        /// 2026-08-17): the finding program is granted no authority the listing program lacks, and there
+        /// is no `Prog::Pkill` for it to be compared against, because a tid is a name and no method
+        /// turns one into a capability.
+        ///
+        /// `ArgSpec::Forbidden` is [`Prog::Date`]'s deliberate under-declaration, for the same reason
+        /// and with the same consequence: `pgrep` reads a state mask out of a register the shell cannot
+        /// set, so at this prompt it takes the default and names every member. Nothing in this system
+        /// delivers *bytes* from a command line to a program, so a pattern is not something the line can
+        /// carry until [`ArgSpec`] grows the positional arity milestone 47 deferred; see `crates/pgrep`'s
+        /// `BUGS`.
+        Pgrep { id: 9, name: "pgrep" },
+        // **There was a `Watch` here until milestone 281** (`user/src/watch.rs`, `crates/watch`, both
+        // deleted 2026-09-13), and the reason it went is a test worth reusing rather than a one-off.
+        //
+        // **Two programs are two programs when they hold different authority.** `Watch`'s manifest was
+        // [`Prog::Ps`]'s with one field changed, and the program held the same three slots from the same
+        // named constants (`REPORT`, [`DOMAIN_SLOT`], [`DIAGNOSTICS_SLOT`]) while being, literally,
+        // `ps`'s own loop. In a capability system that settles "one program or two" without appealing to
+        // taste: there was no boundary there to draw. The refresh needed no capability of its own
+        // either, because the interval was a yield-spin over the ambient monotonic counter and this
+        // kernel has no timed wait, so even the least-authority argument for keeping them apart was
+        // absent.
+        //
+        // That argued for folding it into `ps` as a flag, which is what milestone 281 was minted to do.
+        // calef then took it one step further: the flag's entire content was a busy-wait over a table of
+        // two columns that barely changes, so **deleting it buys the same simplification and costs
+        // nothing anyone was using**. Milestone 282 (DECISIONS §150) adds per-thread scheduled CPU time
+        // as a fourth `abi::rendezvous::SURVEY` word, and once there is something worth watching and
+        // something to rank by, the live view is rebuilt properly as `top`.
+        //
+        // **Neither `watch` nor `crates/watch` was ever ratified**, and that was deliberate rather than
+        // an oversight: calef declined to rule on both while this milestone might retire them, which it
+        // did. The name was wrong on its own terms too. Upstream `watch` re-runs an arbitrary command,
+        // which this one never could (spawning by name is the shell's own capability and is granted to
+        // nothing the shell spawns), so the program was never in `watch`'s family. It was a very thin
+        // member of `top`'s, which is the shape 282 makes it worth rebuilding as.
+        /// **Print how long the ambient monotonic counter has been running** (milestone 126,
+        /// `components/src/uptime.rs`, `crates/uptime`).
+        ///
+        /// [`Prog::LeastAuthorityDemo`]'s manifest, not [`Prog::Date`]'s: `user_mode_runtime::monotonic_nanos` is granted to
+        /// **every** process unconditionally (`kernel/src/arch/*/timer.rs`'s documented, deliberate
+        /// exception to DECISIONS §10's no-ambient-authority rule), so this program needed no clock
+        /// capability, no domain, no memory, no file, nothing beyond the report channel every spawn
+        /// carries. The one member of milestone 126's "machine-wide statistics" row that turned out to
+        /// be pure wiring rather than a design fork; see design/roadmap/126-who-else-is-running.md.
+        Uptime { id: 10, name: "uptime" },
+        /// **Print the inert-configuration page** (milestone 47's environment-variable fork, DECISIONS
+        /// §111; `components/src/printenv.rs`).
+        ///
+        /// The reason [`Manifest::config`] exists, and the same asymmetry [`Prog::Date`] made for the
+        /// clock: the grant is real and it is not something a person designates on the line. Before
+        /// this program, the page existed and could be assembled and mapped
+        /// (`crates/environment_protocol`), but nothing in the shell's program table declared wanting one,
+        /// so `caps`'s preview of it had nothing to show and no boot granted it outside a kernel test
+        /// harness standing in for a std program. `date` before `Prog::Date` existed is the position
+        /// this section of the roadmap named; `printenv` is this milestone's `date`.
+        ///
+        /// Takes no argument, no memory, no file: its whole authority is the read-only page. `TZ`,
+        /// `LANG` and `TERM` print as `KEY=value` when the key is present and `KEY (unset)` when the
+        /// page is valid but does not carry it (`environment_protocol`'s validated-domain shape makes both
+        /// states distinguishable from a page nobody has assembled at all, which reads as
+        /// "no configuration was granted").
+        ///
+        /// **Provisional name**, Unix's own for exactly this (`printenv(1)`/`env(1)` with no
+        /// arguments): a term of art already right, per this tree's own naming convention for
+        /// standard terms.
+        Printenv { id: 11, name: "printenv" },
+        /// **Print a version-4 UUID drawn from the entropy service** (milestone 111, `components/src/uuid.rs`).
+        ///
+        /// The reason [`Manifest::entropy`] exists, and [`Prog::Date`]'s asymmetry a fourth time: the
+        /// grant is real and no token on the line designates it. Before this program the entropy
+        /// service existed, answered, and was reachable only by something the *system* spawned
+        /// (`credentialer` at boot, `disk_partitioner` under the kernel's own test harness), so a
+        /// program that needed randomness could not be run by a person. `date` before [`Prog::Date`]
+        /// existed is the position notes/entropy.md's `BUGS` described; this is that milestone's
+        /// `date`.
+        ///
+        /// **It is `disk_partitioner`'s draw with the disk taken away**, which is what makes it an
+        /// honest consumer rather than a demonstration. Both call
+        /// `globally_unique_identifier_partition_table::guid::Guid::v4_from_random` over sixteen bytes
+        /// from the same service, because a GPT gives every partition a random globally unique id and
+        /// `crates/globally_unique_identifier_partition_table` refuses to invent one. The partitioner
+        /// needs a disk capability this shell does not hold and cannot attenuate; the sixteen bytes and
+        /// the stamping are the half that does not, so this program is the part of that path a prompt
+        /// can reach today.
+        ///
+        /// Takes no argument, no memory, no file: its whole authority is the client view of the entropy
+        /// service. `OutputSpec::BytesAndDiagnostics` for [`Prog::Ps`]'s reason, and here the second
+        /// stream carries the one sentence that matters: a boot with no entropy service must leave
+        /// `uuid > id.txt` **empty** and say why on the terminal, because a file containing a
+        /// predictable identifier is worse than a file containing nothing.
+        ///
+        /// **Provisional name.** RFC 9562's own term for the object, and
+        /// `crates/globally_unique_identifier_partition_table` calls the same sixteen bytes a `Guid`
+        /// because that is what GPT's spec calls them.
+        Uuid { id: 12, name: "uuid" },
+    }
+}
 
 impl Prog {
-    /// Resolve a program by the name typed on the command line.
-    ///
-    /// Builtins are matched first by [`parse`], so a program named `help`, `echo`, `caps` or `time`
-    /// would be unreachable. The program namespace must not contain any of those names.
-    pub fn from_name(name: &[u8]) -> Option<Prog> {
-        match name {
-            b"least_authority_demo" => Some(Prog::LeastAuthorityDemo),
-            b"memory_grant_depleter" => Some(Prog::MemoryGrantDepleter),
-            b"interrupt_heeder" => Some(Prog::InterruptHeeder),
-            b"interrupt_ignorer" => Some(Prog::InterruptIgnorer),
-            b"date" => Some(Prog::Date),
-            // `rm` stopped being a builtin in milestone 47's rmdir lane, which is what makes this
-            // line reachable: a builtin would have shadowed it, because `parse` matches those
-            // first.
-            b"rm" => Some(Prog::Rm),
-            b"wc" => Some(Prog::Wc),
-            b"mdr" => Some(Prog::Mdr),
-            b"ps" => Some(Prog::Ps),
-            b"pgrep" => Some(Prog::Pgrep),
-            b"uptime" => Some(Prog::Uptime),
-            b"printenv" => Some(Prog::Printenv),
-            b"uuid" => Some(Prog::Uuid),
-            _ => None,
-        }
-    }
-
-    /// The name the progenitor loads it by in the initrd (nifefs), and the shell prints.
-    pub fn name(self) -> &'static str {
-        match self {
-            Prog::LeastAuthorityDemo => "least_authority_demo",
-            Prog::MemoryGrantDepleter => "memory_grant_depleter",
-            Prog::InterruptHeeder => "interrupt_heeder",
-            Prog::InterruptIgnorer => "interrupt_ignorer",
-            Prog::Date => "date",
-            Prog::Rm => "rm",
-            Prog::Wc => "wc",
-            Prog::Mdr => "mdr",
-            Prog::Ps => "ps",
-            Prog::Pgrep => "pgrep",
-            Prog::Uptime => "uptime",
-            Prog::Printenv => "printenv",
-            Prog::Uuid => "uuid",
-        }
-    }
-
-    /// The stable wire id the shell sends and the progenitor decodes ([`spawnproto`]).
-    pub fn id(self) -> u64 {
-        match self {
-            Prog::LeastAuthorityDemo => 0,
-            Prog::MemoryGrantDepleter => 1,
-            Prog::InterruptHeeder => 2,
-            Prog::InterruptIgnorer => 3,
-            Prog::Date => 4,
-            Prog::Rm => 5,
-            Prog::Wc => 6,
-            Prog::Mdr => 7,
-            Prog::Ps => 8,
-            Prog::Pgrep => 9,
-            Prog::Uptime => 10,
-            Prog::Printenv => 11,
-            Prog::Uuid => 12,
-        }
-    }
-
-    /// The inverse of [`id`](Prog::id): the progenitor turns the wire id back into a program.
-    pub fn from_id(id: u64) -> Option<Prog> {
-        match id {
-            0 => Some(Prog::LeastAuthorityDemo),
-            1 => Some(Prog::MemoryGrantDepleter),
-            2 => Some(Prog::InterruptHeeder),
-            3 => Some(Prog::InterruptIgnorer),
-            4 => Some(Prog::Date),
-            5 => Some(Prog::Rm),
-            6 => Some(Prog::Wc),
-            7 => Some(Prog::Mdr),
-            8 => Some(Prog::Ps),
-            9 => Some(Prog::Pgrep),
-            10 => Some(Prog::Uptime),
-            11 => Some(Prog::Printenv),
-            12 => Some(Prog::Uuid),
-            _ => None,
-        }
-    }
-
     /// The program's declared endowment: what the shell must (and must not) grant it.
     pub fn manifest(self) -> Manifest {
         match self {
@@ -2226,14 +2292,16 @@ pub fn plan_against_with(
     // the position after its declared grants can only be the thing feeding it. There is nothing for
     // the parser to classify and no ambiguity to resolve, because a manifest declaring an input
     // never also declares a file (a program that wanted both would need positional arity, which is
-    // the same widening `ArgSpec` is waiting on).
+    // the same widening `ArgSpec` is waiting on; `no_program_declares_both_a_file_and_an_input`
+    // holds every manifest to it since milestone 150).
     //
     // **That widening is `FileSpec` + `InputSpec`'s problem, not `ArgSpec` + `InputSpec`'s.** An
     // argument is numeric-shaped and `arg` above already claims a fixed earlier position, so a
     // manifest declaring both `ArgSpec::Required` and `InputSpec::Required` has nothing left to
     // disambiguate: `arg` takes position 0, `input`'s fallback takes whatever bare name is left,
     // exactly as `arg` and `file` already compose for [`STAMPS_A_FILE`] below. No shipped program
-    // has declared the combination, which is `notes/adding-a-program.md`'s open question, but the
+    // has declared the combination, and whether one should is an open question for calef
+    // (design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md), but the
     // absence is unclaimed headroom rather than a refusal here; see
     // `an_argument_and_an_input_stream_compose_by_the_same_fixed_order` in this module's tests.
     //
@@ -3334,8 +3402,8 @@ mod tests {
     /// numeric-shaped) before `input`'s bare-name fallback ever looks at what is left; see the
     /// `positionals_fill_the_manifest_slots_in_the_order_typed` and
     /// `an_argument_and_an_input_compose_by_the_same_fixed_order` tests below. Kept here rather than
-    /// promoted to a shipped manifest, per notes/adding-a-program.md's own `BUGS` entry: whether the
-    /// combination is *wanted* is calef's call, not this test's.
+    /// promoted to a shipped manifest: whether the combination is *wanted* is calef's call, not
+    /// this test's (design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
     const TAKES_ARG_AND_READS: Manifest = Manifest {
         arg: ArgSpec::Required,
         file: FileSpec::Forbidden,
@@ -4782,51 +4850,103 @@ mod tests {
         assert!(filesystem_protocol::nameset::encode(&widest, &mut buf).is_some());
     }
 
-    /// **Every id the progenitor can index resolves, and round trips through both names.**
+    /// **The wire ids already shipped, pinned** (milestone 150, written before the bookkeeping was
+    /// generated so that the generation had something to be wrong against).
     ///
-    /// The loop is over `0..PROG_COUNT` rather than over a written-out list of variants, and that is
-    /// the fix for a hazard this test had twice. The list said "every variant" in its own comment and
-    /// was short of `Wc` once; by milestone 126 it was also short of `Doc`, `Ps` and `Pgrep`, so the
-    /// three newest programs were the three nothing here checked. A list somebody has to extend is
-    /// the bottom rung of CLAUDE.md's ladder.
+    /// [`Prog::id`] is a thing two programs agree on: the shell sends it and the progenitor decodes
+    /// it, so a renumbering is a flag day rather than a refactor. Two rules, both checked per row:
+    /// **a name keeps its id** while it exists, and **an id is never reused** by another name once
+    /// its program is gone. Removing a program therefore leaves this table alone and its id a hole;
+    /// a program added later needs no row here, because its id is a literal in its own declaration
+    /// and a change to that literal is visible in review. Rows are only ever appended, and only if
+    /// someone wants a later id pinned the same way.
+    #[test]
+    fn the_wire_ids_already_shipped_never_move() {
+        const SHIPPED: [(&str, u64); 13] = [
+            ("least_authority_demo", 0),
+            ("memory_grant_depleter", 1),
+            ("interrupt_heeder", 2),
+            ("interrupt_ignorer", 3),
+            ("date", 4),
+            ("rm", 5),
+            ("wc", 6),
+            ("mdr", 7),
+            ("ps", 8),
+            ("pgrep", 9),
+            ("uptime", 10),
+            ("printenv", 11),
+            ("uuid", 12),
+        ];
+        for (name, id) in SHIPPED {
+            match Prog::from_name(name.as_bytes()) {
+                Some(p) => assert_eq!(p.id(), id, "`{name}` was renumbered from {id}"),
+                None => {
+                    if let Some(other) = Prog::from_id(id) {
+                        panic!(
+                            "wire id {id} belonged to `{name}` and is now reused by `{}`",
+                            other.name()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// **No manifest declares both a file and an input** (milestone 150). Both take a bare name on
+    /// the command line, so a program declaring both would leave the parser two indistinguishable
+    /// positions and nothing but order to tell them apart; `plan_against_with`'s input operand
+    /// relies on the combination never occurring. That was a sentence in a comment until this
+    /// test; an argument together with an input is a different case and is allowed (see
+    /// design/roadmap/proposals/a-program-that-takes-an-argument-and-an-input.md).
+    #[test]
+    fn no_program_declares_both_a_file_and_an_input() {
+        for &p in Prog::ALL {
+            let m = p.manifest();
+            assert!(
+                !(matches!(m.file, FileSpec::Required { .. })
+                    && matches!(m.input, InputSpec::Required { .. })),
+                "{} declares a file and an input, and the command line cannot tell them apart",
+                p.name()
+            );
+        }
+    }
+
+    /// **Every program round trips through its id and its name, and every other id is a hole.**
     ///
-    /// **What this actually catches, corrected 2026-08-18 by measurement rather than by reading.**
-    /// The sentence here used to claim that a variant added without an arm in [`Prog::from_id`]
-    /// fails here, and one added without widening [`PROG_COUNT`] fails the `from_name` sweep below.
-    /// The first half is true only on a condition it did not state, and the second half is false.
-    /// Adding a variant with a new id and skipping [`Prog::from_id`], [`Prog::from_name`] **and**
-    /// [`PROG_COUNT`] compiles and passes every test in this crate: the sweep counts up to the
-    /// constant, so it never reaches the new id, and `from_id(PROG_COUNT)` answers `None` precisely
-    /// *because* the arm is missing. Widening [`PROG_COUNT`] is what arms this test, and it then
-    /// names both missing arms in turn.
+    /// Since milestone 150 the id, the name and [`PROG_COUNT`] are generated from one declaration
+    /// (`programs!`), so the failures this test used to exist for (an arm missing from
+    /// `from_id` or `from_name`, and [`PROG_COUNT`] not widened, which hid both) cannot be written
+    /// any more. What is left is worth keeping as a statement of the contract the progenitor relies
+    /// on: it sizes its table by [`PROG_COUNT`] and indexes it by id, so every declared id must fit,
+    /// and an id nothing declares must decode to `None` rather than to a neighbour.
     ///
-    /// So [`PROG_COUNT`] is the keystone rather than one item of three, and nothing in this crate
-    /// enforces it: Rust gives no way to count an enum's variants without a derive macro this tree
-    /// has not taken. That is a real gap and it is recorded where a reader meets it, in
-    /// notes/adding-a-program.md's `BUGS` and in its step 6, which says to edit the constant first
-    /// and let this test find the rest.
+    /// The history is in git and in notes/adding-a-program.md: this test's own doc comment once
+    /// claimed it caught a forgotten [`PROG_COUNT`], and measurement on 2026-08-18 found it could
+    /// not, because the sweep counted up to the constant it was meant to check.
     #[test]
     fn prog_id_round_trips() {
-        for id in 0..PROG_COUNT as u64 {
-            let p = Prog::from_id(id).unwrap_or_else(|| {
-                panic!("the progenitor indexes slot {id} and no program claims it")
-            });
-            assert_eq!(
-                p.id(),
-                id,
-                "{p:?} does not answer to the id it decoded from"
+        assert!(!Prog::ALL.is_empty(), "a sweep over nothing proves nothing");
+        for &p in Prog::ALL {
+            assert!(
+                (p.id() as usize) < PROG_COUNT,
+                "{p:?}'s id {} does not fit the progenitor's table of {PROG_COUNT}",
+                p.id()
             );
+            assert_eq!(Prog::from_id(p.id()), Some(p));
             assert_eq!(Prog::from_name(p.name().as_bytes()), Some(p));
         }
+        for id in 0..PROG_COUNT as u64 + 8 {
+            if let Some(p) = Prog::from_id(id) {
+                assert!(Prog::ALL.contains(&p));
+                assert_eq!(
+                    p.id(),
+                    id,
+                    "{p:?} does not answer to the id it decoded from"
+                );
+            }
+        }
         assert_eq!(Prog::from_id(PROG_COUNT as u64), None);
-        assert_eq!(Prog::from_id(99), None);
-        // And no program is reachable by a name the progenitor cannot load it by, which is the other direction:
-        // a variant with an id and no `from_name` arm would be unspawnable and invisible above.
-        assert_eq!(
-            Prog::from_name(b"pgrep"),
-            Some(Prog::Pgrep),
-            "the newest program is not reachable from the prompt",
-        );
+        assert_eq!(Prog::from_name(b"no_such_program"), None);
     }
 
     #[test]
