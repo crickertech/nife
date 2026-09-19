@@ -189,15 +189,21 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   walk in `crates/filesystem_protocol/src/lib.rs` has two mutants no `cargo test` can kill, because
   its checker is `rustc`. The same object as the Kani harnesses, without a module path to exclude by.
 
-- **Outstanding.** *`machine_discovery`'s 55 new survivors, found by the census of 2026-09-19 after
-  this lane had finished the eight crates it knew about.* It is part 1's category rather than part
-  3's: a baseline crate that regressed, 22 survivors to 77, at 86.2%. Checked before filing here, so
-  a lane does not re-derive it: its Kani harnesses are inline `mod verification` blocks in `acpi.rs`,
-  `framebuffer.rs`, `riscv64.rs` and `x86_64.rs`, which the `verification::` exclusion does match, so
-  these are real untested code and not the miscount that inflated `timetable`. Milestone 319 proved
-  the crate on 2026-09-17 and the parsing around the proofs did not get tests. **This single crate
-  accounts for the corpus falling** from 91.7% to 91.4% while 208 survivors were being removed
-  elsewhere, which is `design/fatal-risks.md` risk 3's whole amber argument in one row.
+- **Outstanding.** *`machine_discovery`'s 77 survivors, at 86.2%, found by the census of 2026-09-19
+  after this lane had finished the eight crates it knew about.* It is part 3's category rather than
+  part 1's: a crate whose survivors accumulated as it grew, from 212 mutants at the August baseline
+  to 693 today, not one that regressed. Its Kani harnesses are inline `mod verification` blocks in
+  `acpi.rs`, `framebuffer.rs`, `riscv64.rs` and `x86_64.rs`, which the `verification::` exclusion does
+  match, so these are real untested code and not the miscount that inflated `timetable`. **One
+  exception**, found by milestone 438: `x86_64.rs:314` is a `const` inside a proof module, and a
+  `const` gets no module path in its mutant name, so the exclusion misses it and no test can kill
+  code `cargo test` never compiles.
+
+  **This bullet first said 55 of these arrived in two days with milestone 319, and that was false.**
+  The maintainer read `script/mutation --report`'s `(baseline missed)` column as the previous census
+  when it is the **2026-08-03** baseline. Milestone 438 replayed 319's own pull request: it
+  introduced **4**, and the crate already carried **73**. Kept here rather than corrected away,
+  because the column is still six weeks stale and the next reader will make the same mistake.
 
 ## Index row
 
