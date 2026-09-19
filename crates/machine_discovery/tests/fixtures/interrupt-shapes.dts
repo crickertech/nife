@@ -6,8 +6,8 @@
  * isa::interrupt_id, and nothing else reads this tree.
  *
  * Regenerate:
- *     dtc -I dts -O dtb -o crates/isa/tests/fixtures/interrupt-shapes.dtb \
- *         crates/isa/tests/fixtures/interrupt-shapes.dts
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/interrupt-shapes.dtb \
+ *         crates/machine_discovery/tests/fixtures/interrupt-shapes.dts
  */
 
 / {
