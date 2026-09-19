@@ -3,8 +3,12 @@
 **Status: NOT-STARTED.** Minted 2026-08-31 from milestone 121's (`ripgrep`: enumeration as a
 capability) lane, which hit it the hard way. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** `USER_STACK_VA` is a protocol constant in two `_proto` crates, so moving it is a
-change two programs agree on, which AGENTS.md puts in the expensive category.
+**Gate: DECISION.** `USER_STACK_VA` is a constant several programs reason about, so moving it is a
+change two programs agree on, which AGENTS.md puts in the expensive category. It is
+[§171](../decisions/171-where-a-program-image-starts.md) (where a program image starts, and where
+the stack goes), written up 2026-09-19 by milestone 435's lane, which re-measured the spread: the
+symbol appears in 23 files, the protocol-side reference is `counter_frequency_protocol` rather than
+the two crates named below, and `user/link.ld` is now `crates/user_mode_runtime/link.ld`.
 
 **In brief.** `user/link.ld` links a program at `0x40_0000`, `USER_STACK_VA` is `0x50_0000`, and 32
 std stack pages sit below it. **So a program image has under 896 KiB.** `ripgrep`'s `.text` alone is

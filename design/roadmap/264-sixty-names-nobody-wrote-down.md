@@ -210,17 +210,18 @@ needs a file of its own; what is listed here is where to read it and what happen
   for `swish-check`, naming the program actually driven, with `prompt-check` the alternative if he
   would rather name the surface. Two loose ends the rename carries without closing: the cargo feature
   is spelled `shell`, and `cargo xtask shell-check` is the same string one level along.
-- **Proposed.** `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md`. The 2026-09-05
-  acronym test reaches at least seven of the sixty and this milestone deliberately settled none of
-  them, because design/naming.md already says the sweep is its own milestone and one lane spelling one
-  acronym out would leave a program disagreeing with a crate calef ratified. Each affected block asks
-  the question and records the answer as open.
-- **Proposed.** `design/roadmap/proposals/a-provenance-token-that-agrees-with-its-own-prose.md`. The
-  21-block sorting bug this milestone found was invisible to every gate, because `script/names
-  --check` validates that a block's leading token parses and never that it is the right one. A block
-  saying "provisional" or "not yet put to calef" in prose while its token says `unrecorded` is
-  mechanically detectable, and it is a false entry in the one record whose job is saying what is
-  prepared.
+- **Milestone 388.** The 2026-09-05 acronym test reaches at least seven of the sixty and this
+  milestone deliberately settled none of them, because design/naming.md already says the sweep is
+  its own milestone and one lane spelling one acronym out would leave a program disagreeing with a
+  crate calef ratified. Each affected block asks the question and records the answer as open.
+  Numbered on 2026-09-19 by milestone 433's drain of the pile.
+- **Milestone 386.** The 21-block sorting bug this milestone found was invisible to every gate,
+  because `script/names --check` validates that a block's leading token parses and never that it is
+  the right one. A block saying "provisional" or "not yet put to calef" in prose while its token
+  says `unrecorded` is mechanically detectable, and it is a false entry in the one record whose job
+  is saying what is prepared. Numbered on 2026-09-19 by milestone 433's drain of the pile, by which
+  time the 21 instances had been cleared and one `unrecorded` name of 222 was left, so what is
+  numbered is the regression guard.
 - **Recorded.** **`fixtures/src/hello.rs` carries the `init_boot` role on aarch64 and the name does not
   say so**, in that program's own block. Not proposed as a rename: `hello` is right for what it was
   and the gap is that the thing grew, which is a fact to record rather than a naming error.

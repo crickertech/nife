@@ -210,13 +210,61 @@ about.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, 2026-09-19. AMBER, and the amber half is two findings a census bought that no
-sample could.** Ruled by calef against the run of 2026-09-14, closing the re-read this entry had been
-waiting on since 2026-08-03.
+**Status: MEASURED, 2026-09-19. AMBER**, re-read the same day against a census run on purpose rather
+than against the scheduled one. calef ruled amber on the 2026-09-14 numbers, milestone 326 then
+triaged everything the amber half named, and he asked for a fresh census before deciding whether it
+went green. It did not go green, and the reason is the useful part.
 
-**The green half is the arithmetic, and it is better than the entry feared.** Like for like, the 38
-crates the baseline covers scored **93.6% against 92.4%**: the score went *up* over a month in which
-2,529 commits landed. The whole corpus, 64 crates, is **91.7%**. There was no fall.
+**The score fell, with the worklist finished.** Run
+[35421192143](https://github.com/crickertech/nife/actions/runs/35421192143), eight shards, all green,
+dispatched against the branch carrying milestone 326's work.
+
+| | crates | viable | killed |
+|---|---|---|---|
+| baseline, 2026-08-03 | 38 | 5,141 | 92.4% |
+| census, 2026-09-14 | 64 | 9,277 | 91.7% |
+| **census, 2026-09-19** | **62** | **8,925** | **91.4%** |
+| like-for-like, 2026-09-14 | 38 | 6,552 | 93.6% |
+| **like-for-like, 2026-09-19** | **37** | **6,472** | **92.6%** |
+
+**Like for like it lost a full point**, 93.6 to 92.6, in five days that included 77 new tests, 49
+argued equivalences and a fix to the instrument that stopped counting `timetable`'s own Kani
+harnesses against it. Survivors across the corpus fell 771 to 563 and the score still went down.
+
+**The condition this entry set for going green was the wrong test, and that is worth recording
+because it was the maintainer's wording, not calef's.** It read *"when 326's first two parts carry no
+untriaged survivor"*. Those parts are done: `timetable` is 146 caught and zero survivors,
+`memory_regions`, `elf`, `nifefs`, `dma_validator` and `bitmap_font` are all at zero. Taking that
+condition literally would have turned this entry green on a tree whose score had just fallen. **A
+finished worklist is not the same claim as a suite that catches bugs**, and this entry exists to tell
+those apart.
+
+**The fall is real and its cause is not attributed, which is a weaker claim than this entry first
+made.** The maintainer wrote that one crate accounted for it, `machine_discovery` going from 22
+survivors to 77 in the two days since milestone 319 proved it. **That was wrong, and the error is
+worth keeping because the trap behind it will catch the next reader.** `script/mutation --report`'s
+`(baseline missed)` column is `.cargo/mutants-baseline.txt`, whose own header reads *"Run of
+2026-08-03"*. It is not the previous census. So "22 to 77" was six weeks of growth, not two days of
+regression, and the same applies to every delta read out of that column (`paging` +5,
+`filesystem_protocol` +3).
+
+**Milestone 438 measured it against historical trees and the arithmetic closes exactly.** Replaying
+`cargo mutants --in-diff` against milestone 319's own pull request reports **4** survivors, and
+`machine_discovery` carried **73** on the commit immediately before it merged. 73 + 4 = 77, the
+census's number to the unit. 319 did not introduce them; they accumulated while the crate grew from
+212 mutants at the August baseline to 693 today.
+
+**What is actually known, stated at the strength the evidence supports.** Two whole-corpus runs of
+the same instrument, five days apart, put the like-for-like rate at 93.6% and then 92.6%, and the fix
+that landed between them (no longer counting `timetable`'s own Kani harnesses against it) should have
+pushed the rate *up*. So the fall is real. **Which crates caused it is unknown**, because the
+2026-09-14 census's per-crate numbers were never written into the tree: the only per-crate record
+here is the August baseline, which is why the mistake above was available to make at all. That gap is
+the first thing to close, and it is a worklist entry rather than a verdict.
+
+**It stays amber on the fall alone.** A rate that drops a point between two censuses, with a
+correction in it that should have raised it, is not a tree whose suite is demonstrably keeping up.
+What this entry can no longer say is *why*, and it should not pretend otherwise.
 
 **The first amber half: seven crates regressed, and three of the baseline's five perfect crates lost
 that score.** `memory_regions` 100% to 88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%, with
@@ -254,9 +302,12 @@ ever turned a score. **Milestone 326 was minted the same day for exactly that ga
 definition of done is milestone 85's rule rather than a target percentage, because a percentage
 target can be met by excluding the awkward crates.
 
-**This entry goes back to green when 326's first two parts carry no untriaged survivor**, not when
-the number rises. That is the condition to hold it to, and it is written here so a later reader can
-check the promise against the block.
+**What would move this entry now, stated better than the condition it replaces.** Not a finished
+worklist, and not a single number either. **Two consecutive censuses where the like-for-like rate
+does not fall**, which is the smallest claim that distinguishes a suite keeping up from a triage pass
+that happened recently. One census is a point; two is a direction, and the direction is what this
+entry is about. The instrument now runs weekly and has completed twice, so this costs waiting rather
+than work.
 
 **The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
 workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped

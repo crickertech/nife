@@ -33,6 +33,12 @@ const QEMU_RISCV: &[u8] =
     include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 const CLUSTERED: &[u8] = include_bytes!("fixtures/clustered-cpus.dtb");
 const NO_PSCI: &[u8] = include_bytes!("fixtures/no-psci.dtb");
+/// Eighteen cores, a `/cpus` whose `#address-cells` is two bytes rather than four, one `reg` of
+/// the same shape, and a two-cell `timebase-frequency`: the properties that are shorter or wider
+/// than the decoder reading them, and the one machine size the record cannot hold.
+const MANY_HARTS: &[u8] = include_bytes!("fixtures/many-harts.dtb");
+/// A `/psci` node stating only `method`, and a `reg` one cell short of the two `/cpus` declares.
+const PARTIAL_PSCI: &[u8] = include_bytes!("fixtures/partial-psci.dtb");
 
 fn cpus(bytes: &[u8]) -> CpuList {
     let dt = device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture should parse");
@@ -227,4 +233,108 @@ fn both_architectures_answer_the_same_call() {
         "the RISC-V binding has no enable-method: SBI HSM is the only mechanism",
     );
     assert!(riscv.cpus()[0].usable, "the riscv tree says status = okay");
+}
+
+/// **Eighteen cores in a sixteen-slot record: `described` is the machine's and `len` is ours.**
+///
+/// The test above states the same property on a fixture that does not overflow, which proves the
+/// two numbers agree and nothing about what happens when they cannot. This is the other half, and
+/// it is the only place `truncated` is ever true: a predicate that answered `false` for every tree
+/// in the suite is a predicate no caller could rely on.
+#[test]
+fn a_machine_with_more_cores_than_fit_says_so() {
+    let list = cpus(MANY_HARTS);
+
+    assert_eq!(list.described, 18, "the tree describes eighteen");
+    assert_eq!(list.len, MAX_CPU_NODES, "the record holds sixteen");
+    assert!(list.truncated(), "and a caller has to be able to see that");
+    assert_eq!(
+        list.cpus().last().map(|c| c.hwid),
+        Some(0xf),
+        "the prefix that fit is the first sixteen, in tree order",
+    );
+}
+
+/// **A `#address-cells` shorter than one cell is a malformed tree, and the fallback is one cell.**
+///
+/// The CPU bindings require the property, so there is no correct reading of two bytes of it; what
+/// there is, is a decoder that must not read the two bytes that follow it in the blob. One cell is
+/// the overwhelmingly common shape and the documented fallback.
+#[test]
+fn an_address_cells_property_too_short_to_hold_a_cell_falls_back_to_one() {
+    assert_eq!(cpus(MANY_HARTS).address_cells, 1);
+}
+
+/// **A `reg` too short for the width `/cpus` declares yields no hardware id, at either width.**
+///
+/// Zero is the documented direction: it collides with the boot core, which every caller skips,
+/// rather than naming some other core to start. The failure this refuses is the opposite one,
+/// reading the bytes that follow the property and starting whatever number they spell.
+#[test]
+fn a_reg_shorter_than_its_declared_width_has_no_hardware_id() {
+    let one_cell = cpus(MANY_HARTS);
+    assert_eq!(one_cell.address_cells, 1);
+    assert_eq!(
+        one_cell.cpus()[11].hwid,
+        0,
+        "cpu@b states two bytes where one cell is four",
+    );
+    assert_eq!(one_cell.cpus()[10].hwid, 0xa, "and its neighbours decode");
+    assert_eq!(one_cell.cpus()[12].hwid, 0xc);
+
+    let two_cells = cpus(PARTIAL_PSCI);
+    assert_eq!(two_cells.address_cells, 2);
+    assert_eq!(
+        two_cells.cpus()[1].hwid,
+        0,
+        "cpu@1 states one cell where /cpus declares two",
+    );
+}
+
+/// **A two-cell `timebase-frequency` decodes as one 64-bit number.**
+///
+/// The RISC-V binding allows either width. QEMU writes one cell, which is what every other fixture
+/// here holds, so the wider arm has never been read; a counter above 4 GHz needs it, and a decoder
+/// that dropped the arm would report no timebase at all and send the timer back to a constant.
+#[test]
+fn a_two_cell_timebase_decodes_as_one_number() {
+    assert_eq!(cpus(MANY_HARTS).timebase_hz, Some(0x1_0200_0000));
+}
+
+/// **A `/psci` node that states only its conduit is a node, not an absent one.**
+///
+/// The two answers are different and a caller says different things about them: `Ok(None)` is a
+/// machine with no PSCI at all (spin-table bring-up, or a uniprocessor), while this is a machine
+/// whose firmware published a conduit and no function id, on which starting a core is impossible
+/// for a reason a boot line can name. A decoder demanding all three properties before believing in
+/// the node would report this machine as the first kind.
+#[test]
+fn a_psci_node_stating_only_its_conduit_is_still_a_node() {
+    let psci = psci(PARTIAL_PSCI).expect("the node exists, incomplete as it is");
+
+    assert_eq!(psci.conduit, Some(Conduit::Hvc));
+    assert_eq!(psci.cpu_on, None, "no cpu_on property and no 0.2 claim");
+    assert!(!psci.cpu_on_from_property);
+    assert!(!psci.standard);
+    assert!(
+        !psci.can_start_a_core(),
+        "both halves are needed, and only one is here",
+    );
+}
+
+/// **The names the boot line prints are the spellings the bindings use.**
+///
+/// They are the only thing a person reading a transcript has to go on when a core does not start,
+/// and a boot line that printed the wrong conduit, or printed nothing, would send whoever is at
+/// the bench looking at the wrong exception level. Both enums are here because both reach the same
+/// line.
+#[test]
+fn the_boot_lines_words_are_the_bindings_own() {
+    assert_eq!(Conduit::Hvc.name(), "hvc");
+    assert_eq!(Conduit::Smc.name(), "smc");
+
+    assert_eq!(EnableMethod::Unstated.name(), "unstated");
+    assert_eq!(EnableMethod::Psci.name(), "psci");
+    assert_eq!(EnableMethod::SpinTable.name(), "spin-table");
+    assert_eq!(EnableMethod::Other.name(), "other");
 }

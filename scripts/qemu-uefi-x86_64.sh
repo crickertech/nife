@@ -160,6 +160,8 @@ TIMEOUT="${NIFE_UEFI_TIMEOUT:-90}"
 #   - `intel-iommu`, so the confinement test has a unit to fault on, and so the two boots differ in
 #     the firmware rather than in the machine.
 #   - the NVMe controller, for the same reason it is on the PVH runner (decisions §86).
+#   - the RedoxFS disk (a second virtio-blk-pci function), for `script/shell-check`'s x86_64 leg,
+#     only when NIFE_UEFI_REDOXFS is set (see below).
 #
 # Each is attached only when its variable names an image, exactly as on the PVH runner, so a plain
 # `scripts/qemu-uefi-x86_64.sh target/esp` is still the bare tour machine.
@@ -171,6 +173,25 @@ if [ -n "$NIFE_DISK" ]; then
         exit 1
     fi
     DISK="-drive file=$PCI_DISK,if=none,format=raw,id=hd1 -device virtio-blk-pci,drive=hd1,disable-legacy=on,iommu_platform=on"
+    # The RedoxFS fixture as the SECOND function, when a caller asks with NIFE_UEFI_REDOXFS=1
+    # (name provisional). Added by milestone 182, whose `shell-check` leg boots this runner and
+    # types `>`, `<` and `rm` at the prompt, all of which need a filesystem the progenitor mounts.
+    #
+    # **Opt-in rather than the PVH runner's attach-when-present, and that is a recorded defect, not
+    # a design.** Attached whenever the image existed, `uefi-test` failed
+    # `dir_capability_tests::a_full_directory_capability_does_everything_inside_and_nothing_outside`
+    # (2026-09-19): the full directory capability "could not do what it was granted". The same test
+    # passes on the PVH leg a minute earlier, which wrote to the SAME image, so the likeliest reading
+    # is `mkredoxfs`'s own second-boot case (a mount of an image a previous boot wrote) rather than
+    # anything about firmware. Not investigated; milestone 182's block records it.
+    if [ -n "$NIFE_UEFI_REDOXFS" ]; then
+        REDOXFS_DISK="${NIFE_DISK%.img}-redoxfs.img"
+        if [ ! -f "$REDOXFS_DISK" ]; then
+            echo "qemu-uefi-x86_64: $REDOXFS_DISK does not exist (run mkredoxfs first)" >&2
+            exit 1
+        fi
+        DISK="$DISK -drive file=$REDOXFS_DISK,if=none,format=raw,id=hd2 -device virtio-blk-pci,drive=hd2,disable-legacy=on,iommu_platform=on"
+    fi
 fi
 
 NVME=""

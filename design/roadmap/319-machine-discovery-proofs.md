@@ -223,7 +223,7 @@ the `<module.path>.<harness>.patch` convention in DECISIONS §134 needs no speci
 Reported as proposals rather than as prose, per AGENTS.md's rule that identified work leaves the lane
 in a tracked form:
 
-- **Proposed.** `design/roadmap/proposals/a-checked-direct-map-reader-for-the-acpi-walk.md`. The volatile half's seam is narrower than it looked. `kernel/src/arch/x86_64/machine.rs`'s ACPI
+- **Milestone 423.** The volatile half's seam is narrower than it looked. `kernel/src/arch/x86_64/machine.rs`'s ACPI
    walk is 836 lines, but with this crate proved, what is left on the kernel side of the seam is
    *reading N bytes at a physical address through the direct map* and handing them here. Every
    decision about what those bytes mean is now in a proved crate. That suggests the design decision
@@ -231,7 +231,7 @@ in a tracked form:
    the direct-map read itself gets a checked accessor with a bound, which is the same question
    `dtb::Dtb::from_ptr` already answered on the other two architectures. Wants a lane, and wants
    calef on the accessor's name.
-- **Proposed.** `design/roadmap/proposals/a-sweep-for-specification-fields-that-are-one-less.md`. The DMAR defect's family should be swept for. `field + 1` where the field is a byte and the
+- **Milestone 426.** The DMAR defect's family should be swept for. `field + 1` where the field is a byte and the
    value is a byte is a shape, not an incident: this lane found it twice in two crates (broken in
    `acpi::parse_dmar`, correct in `riscv64::CounterInfo::bits`) with nothing at either site saying
    which it was. `cargo mutants --list` will not find it, because the mutation is in the type rather

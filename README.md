@@ -75,6 +75,22 @@ you came for.
 **If you read only two**, make them 3 and 4: the rules, and the idea. Everything else you can look up
 when it bites.
 
+**Looking it up is one command**, and it is the one to reach for before you grep:
+
+```
+$ script/apropos syscall
+     25  design/decisions/124-x86-64-syscall-abi.md        124. Ratify the x86_64 syscall ABI
+      3  design/decisions/08-process-model-deferred.md     8. Process model / syscall ABI: DEFERRED ...
+    ...
+      5  crates/abi/src/lib.rs                             crate abi
+```
+
+It searches every note, decision and roadmap block plus every crate's and program's own module
+header, and prints the path to open. It exists because five strangers in a row doing ordinary work
+never reached a `design/decisions/` file, `notes/net.md`, or `crates/abi/src/lib.rs` (the syscall
+numbers, on one screen), though none of them is hidden. One word per search; its own header lists
+what else it cannot do.
+
 ## What the badge means
 
 The CI badge above is green only when **every** gate passes:
@@ -90,9 +106,12 @@ The CI badge above is green only when **every** gate passes:
 | `script/fmt --check`, coverage | Formatting, and an 80%-per-file line-coverage floor on the host crates. |
 
 CI runs on an **aarch64** runner deliberately: this kernel targets a weakly-ordered machine, and a
-missing `Acquire`/`Release` passes on an x86_64 host and fails only on real ARM. Both the Rust
-toolchain and QEMU are pinned to exact versions, so "the tests passed" means the same thing on a
-laptop and on a runner.
+missing `Acquire`/`Release` passes on an x86_64 host and fails only on real ARM. The Rust toolchain
+is pinned to an exact nightly everywhere. QEMU is pinned to an exact version (`.qemu-version`) on CI
+and on Linux, where `script/ci-qemu` builds it; **on macOS it is whatever Homebrew ships**, because
+Homebrew cannot install an older release, and `script/qemu-check` warns rather than fails when the
+two differ. So on a Mac "the tests passed" means the same thing as on a runner only up to that
+emulator difference, which `script/qemu-check`'s header prices.
 
 ## What it does
 

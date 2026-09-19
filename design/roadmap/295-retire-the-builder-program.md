@@ -1,6 +1,6 @@
 # 295. Retire `components/src/builder.rs`
 
-**Status: BUILT** 2026-09-14. Promoted from `design/roadmap/proposals/retire-the-builder-program.md`,
+**Status: BUILT** 2026-09-14. Promoted from `design/roadmap/295-retire-the-builder-program.md`,
 which was written on 2026-09-14 to ask calef one sentence and which carries this block's whole
 argument in its git history. *(Number provisional until the merge queue lands it.)*
 
@@ -47,13 +47,13 @@ than demonstrating a floor. So the tree keeps *userspace composes a process* and
 Where that half went is the question this milestone was told to answer rather than assume, and the
 answer is **half-proved, and the missing half is real**:
 
-- **Proved.** `fixtures/src/address_space_builder.rs` holds the *same two capabilities* `builder`
+- **Proved.** `fixtures/src/address_space_witness.rs` holds the *same two capabilities* `builder`
   held, a memory region in slot 0 and a report line in slot 1, and from those retypes an address
   space, retypes a frame, maps the frame into the space it built, and proves the kernel enforces
   break-before-make inside it. `kernel::user::tests::a_process_can_build_an_address_space_from_el0`
   asserts the verdict `0b111` on **both** architectures whose test kernel can load a user ELF, under
   `script/test`. That is more coverage than `builder` ever had: nothing that runs on a pull request
-  ever executed `builder` (`design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md`).
+  ever executed `builder` (milestone 406, `design/roadmap/406-nothing-in-ci-boots-the-riscv-tour.md`).
 - **Proved, but from the wrong side.**
   `kernel::user::tests::a_process_can_build_start_and_run_a_child_thread` drives the whole sequence
   (retype an address space and a TCB, map code and stack, insert the report rendezvous, configure,
@@ -64,7 +64,7 @@ answer is **half-proved, and the missing half is real**:
 - **Not proved anywhere.** Those two facts joined: a userspace program holding **exactly two**
   capabilities reading an ELF out of an archive by name, laying its segments down, retyping a TCB,
   endowing, configuring and starting it. That was `builder`'s body.
-  `address_space_builder` gets two verbs in from userspace and stops where milestone 19b stopped,
+  `address_space_witness` gets two verbs in from userspace and stops where milestone 19b stopped,
   with nothing running in the space it built, because threads were 19c's object.
   `fixtures/src/os_primitives_benchmarker.rs` starts a child from userspace and is a benchmark
   holding more than two; `crates/supervision_proto`'s `build_child` is the loader every one of them
@@ -75,8 +75,8 @@ answer is **half-proved, and the missing half is real**:
 `least_authority_demo` ("named for the property") and `crates/grant_plan` ("reasons about it") as
 where to look. Both are about a **child's** authority: `least_authority_demo` holds one capability
 and `grant_plan` decides what a shell grants. `builder`'s claim was about the **composer's**
-authority, which is a different property, and neither carries it. Written up as
-`design/roadmap/proposals/composing-a-process-from-two-capabilities.md`.
+authority, which is a different property, and neither carries it. Written up as milestone 404,
+`design/roadmap/404-composing-a-process-from-two-capabilities.md`.
 
 ## The eight sites
 
@@ -166,9 +166,9 @@ moves is one nobody can check.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/composing-a-process-from-two-capabilities.md`: the
-  minimality half of the claim is proved for the first two verbs and for none of the rest. This is
-  the risk option (b) accepted, priced after looking rather than before.
+- **Milestone 404.** The minimality half of the claim is proved for the first two verbs and for
+  none of the rest. This is the risk option (b) accepted, priced after looking rather than before.
+  Numbered on 2026-09-19 by milestone 433's drain of the pile.
 - **Recorded.** The synthetic fixture
   `crates/board_console/tests/fixtures/synthetic/qemu-soak-then-silence.log` still contains an
   `init/build` line, describing a boot shape no kernel produces any more. It is a recogniser test
@@ -209,4 +209,4 @@ moves is one nobody can check.
 
 **Built:** 2026-09-14
 
-Promoted from the 2026-09-14 proposal that asked calef one sentence and got it: *"Retire builder"*, option (b). Milestone 20's richer-initrd demo composed a child from **exactly two** capabilities and printed the tour's `init/build` line; milestone 268 item 4 made the default riscv64 boot hand over to the progenitor, which makes the same claim at the scale of a whole system on the same boot, so the step was making it twice. Eight surveyed sites, all real, one path stale (`crates/user_rt` is `user_mode_runtime` since 285), plus two live-code citations the survey missed. The accepted risk was priced rather than assumed: the minimality half is **half-proved**, by `fixtures/src/address_space_builder.rs` holding the same two capabilities on both ISAs under `script/test`, and proved nowhere past the address space, which is `design/roadmap/proposals/composing-a-process-from-two-capabilities.md`. The proposal's guess at where the claim went was checked and was wrong: `least_authority_demo` and `grant_plan` are about a **child's** authority, not a composer's. Closed unasked: the one unmeasured child-loader that ran on the shipped board path. `userspace_ran()` keeps its matcher for the VisionFive 2 capture and its doc now says it reads history, not a live board.
+Promoted from the 2026-09-14 proposal that asked calef one sentence and got it: *"Retire builder"*, option (b). Milestone 20's richer-initrd demo composed a child from **exactly two** capabilities and printed the tour's `init/build` line; milestone 268 item 4 made the default riscv64 boot hand over to the progenitor, which makes the same claim at the scale of a whole system on the same boot, so the step was making it twice. Eight surveyed sites, all real, one path stale (`crates/user_rt` is `user_mode_runtime` since 285), plus two live-code citations the survey missed. The accepted risk was priced rather than assumed: the minimality half is **half-proved**, by `fixtures/src/address_space_witness.rs` holding the same two capabilities on both ISAs under `script/test`, and proved nowhere past the address space, which is milestone 404. The proposal's guess at where the claim went was checked and was wrong: `least_authority_demo` and `grant_plan` are about a **child's** authority, not a composer's. Closed unasked: the one unmeasured child-loader that ran on the shipped board path. `userspace_ran()` keeps its matcher for the VisionFive 2 capture and its doc now says it reads history, not a live board.

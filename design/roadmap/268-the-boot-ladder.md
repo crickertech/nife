@@ -3,7 +3,10 @@
 **Status: PARTIAL.** Minted 2026-09-09 by calef, from milestone 267's measurement and the parity
 review that followed it. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION, MILESTONE 182.** The ladder itself is decided (calef, 2026-09-09, in
+**Gate: NONE.** *(2026-09-19, milestone 182's lane, edited because `script/roadmap` refuses a gate
+on a BUILT milestone: DECISIONS §149 was resolved 2026-09-15, milestone 299 put a prompt on x86_64,
+and milestone 182 is BUILT with a `shell-check` leg typing at it. The rest of this paragraph is the
+record of what the gate was.)* The ladder itself is decided (calef, 2026-09-09, in
 conversation) and nothing in it is a design fork. What is gated is only its **last rung on
 x86_64**: that architecture cannot reach a prompt until DECISIONS §149 says how `swish` gets a
 console there. Milestone 182's entry point, the other half of this gate, was built on 2026-09-14
@@ -169,13 +172,12 @@ prints, and not a marker that exists on one architecture, which is the defect be
   packs every portable program and `std_exerciser` ran there at milestone 184; and the same day the progenitor itself was loaded
   from the archive and ran at ring 3 on `x86_64`. The two passages are kept as written because they
   are the record of the reasoning; the retirement they discussed went ahead anyway.
-- **Proposed.** `design/roadmap/proposals/one-machine-description-not-two.md`. **Trim the
+- **Milestone 409.** **Trim the
   duplicated bring-up narrative on riscv64 and `x86_64`**, now that the
   machine description answers the same questions in one block on every architecture. The constraint
   to respect is the one that put those lines there: a `test` or `bench` boot compiles the description
   out and still has to say what machine it ran on.
-- **Proposed.**
-  `design/roadmap/proposals/the-machine-description-should-say-the-screen-geometry.md`. **A
+- **Milestone 411.** **A
   machine-description line for the framebuffer's geometry.**
   `console::print_summary` reports a screen's address and length, which is what the kernel holds; the
   width, height and pixel order arrive in the handoff and are printed by the `x86_64` arm alone. A
@@ -432,8 +434,8 @@ transcript is kept as the record of the first pass.
   the description then answers the same questions again in one block. The duplication is noise
   rather than a defect, and trimming the arms' copies is not free: the riscv64 arm's `isa` and
   `firmware` lines exist so that `test` and `bench` boots, which compile the description out, still
-  report what machine they ran on. Proposed in
-  `design/roadmap/proposals/one-machine-description-not-two.md`, which is listed under Follow-on
+  report what machine they ran on. It is milestone 409
+  (`design/roadmap/409-one-machine-description-not-two.md`), which is listed under Follow-on
   above.
 - **Closed 2026-09-14: "Nothing proves an architecture ran the right five checks."** See "Second
   pass". What remains is narrower and is recorded in `boot_ladder::SELF_TEST_CHECKS`'s own doc: the

@@ -586,7 +586,9 @@ pub extern "C" fn _start(role: u64, dma_phys: u64, arg2: u64) -> ! {
         // in this address space, from our own mapping of the surface, after the device reported the
         // transfer complete: a second independent account of what reached the hardware, from a
         // different process than the one that wrote the pixels. Status, not contract; rung two can
-        // ignore it (notes/framebuffer-contract.md).
+        // ignore it (notes/framebuffer-contract.md). **Its spawner cannot**: this `send` blocks
+        // until received, and nothing is in `RECV` on `DISPLAY` meanwhile, so a spawner that never
+        // takes it stops every flush after the first (milestone 177's hang, which this line was).
         if !reported_flush && gfx::op(w0) == gfx::display::FLUSH && r0 == 0 {
             reported_flush = true;
             let digest = gfx::checksum(surface_pixel);

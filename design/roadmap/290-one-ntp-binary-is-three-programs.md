@@ -231,16 +231,18 @@ three new names ratified and carrying eight refusals between them.
 - **Done.** The entropy-service isolation defect above, found here and fixed here, with the
   reproduction recorded at the base commit so a reader can tell it apart from this milestone's own
   work.
-- **Proposed.** `design/roadmap/proposals/six-copies-of-the-shared-frame-accessors.md`.
-- **Proposed.** `design/roadmap/proposals/a-service-report-nobody-is-obliged-to-drain.md`. `entropy`, `mdns_responder`, `net_transport`, `socket_test_client`,
-  `network_time_client` and `network_time_test_server` each carry their own `r8`/`w8`/`r16le`/`w16le`
-  over `user_rt::mapped_window::MappedWindow`, plus their own `PAGE_FRAME_VA` and their own
-  `write_payload`/`read_payload` against `socket_proto`'s offsets. Milestone 139 already did the hard
-  half by removing the `unsafe` from every call site; what is left is six copies of the arithmetic
-  that turns an absolute VA back into an offset. The natural home is `socket_proto` for the four that
-  speak the socket contract, since the offsets are already there, and the two DMA users are a
-  different shape and should be priced separately. This lane did not do it because it spans six
-  programs and this milestone is about three.
+- **Milestone 410.** Six programs each carry their own copy of the accessors that turn an absolute
+  virtual address back into a `MappedWindow` offset, and this lane's split of the `ntp` binary added
+  the sixth; `multicast_dns_responder`'s retirement at milestone 298 has since left five.
+- **Milestone 402.** `entropy_service::ensure` hands its first caller a `Wiring` whose `ready`
+  endpoint must be drained, because the service announces itself with a blocking send, and nothing
+  in the type says so. This lane hit it in `ntp_tests` and fixed that one caller; the general
+  remedy, making the obligation unrepresentable rather than documented, is 402. Numbered on
+  2026-09-19 by milestone 433's drain of the pile. **The prose on this bullet was not this
+  bullet's**: until 2026-09-19 it described the six shared-frame accessors, which is the subject of
+  the bullet directly above this one, and the mismatch predates this pass. The displaced paragraph
+  was not carried anywhere, because the shared-frame block that bullet names already states all of
+  it and more, with the table of six programs the paragraph only listed.
 - **Recorded.** Milestone 265's table row and its `ntp` exception paragraph, both named in the
   section above. Neither is editable from this lane, so they are recorded here and in this lane's
   report, and they are the maintainer's at merge.

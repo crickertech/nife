@@ -1061,7 +1061,7 @@ Every item is a device or a toolchain, and none is `user_mode_runtime` any more.
   `-redoxfs.img` fixture as a second `virtio-blk-pci` function, and `virtio::find_block_device_n`
   spans virtio-mmio and virtio-pci so a wiring on a machine with no mmio bus can find it. What is
   still missing is the rest of the fixture set (milestone 37's crash disk, milestone 57's GPT and
-  blank disks); see design/roadmap/proposals/the-rest-of-the-x86-64-fixture-set.md.
+  blank disks); see design/roadmap/420-the-rest-of-the-x86-64-fixture-set.md.
 - ~~**No `std`**~~: closed by milestone 184. `x86_64-unknown-nife` and its farm exist, and
   `std_exerciser` passes here. `std::fs` runs since milestone 303 gave the FS service a disk;
   `std::net` is compiled and unexercised for the NIC reason above. See notes/std.md.
@@ -1231,7 +1231,7 @@ only that core's `secondary_main` can print, one line above `smp: cpu N did not 
 26 of 40 four-core boots showed it before the fix; 80 of 80 boots at three, four and eight cores
 brought every core online after it. It also reached two cores (the first secondary is as able to be
 quick as any other), which is the UEFI leg's one-in-three failure recorded in
-`design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`.
+`design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`.
 `ap_boot.rs`'s BUGS has the evidence, including the instrumented build that settled it.
 
 ## The direct map in blocks (2026-09-19)

@@ -1228,7 +1228,8 @@ in the code or the conversation doesn't make sense, it belongs here.
   stick can boot has one. What was chosen (the firmware's linear framebuffer, carried across the
   handoff on PVH's own command line), what the alternatives cost against **both** halves of the
   problem (a human watching a boot, and a gate reading a machine), what it does not solve, and the
-  bench procedure for a machine nobody in a lane can reach.
+  bench procedure for a machine nobody in a lane can reach. Since milestone 400 (number provisional)
+  the shell's prompt reaches that screen too, beside the serial console.
 - [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md):
   which of the three machines an evening should be spent on and why radon comes first, what a
   result on each would mean for the fatal risks, and what can go wrong that is not the board. It

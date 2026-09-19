@@ -195,9 +195,11 @@ deliberately, so that a rename moves one set of words and not two.
   `design/decisions/55-shell-holds-the-redirect.md` (*"the `fs_subtree_caretaker` init would build per
   invocation"*). `design/init-and-granular-spawn.md` is a fourth of a different kind: 40 occurrences
   and the old name in its own filename, cited from nine places.
-- **Proposed.** `design/roadmap/proposals/the-six-init-roles-in-hello.md`. The six role constants
-  above, their functions, and the `kernel/src/user/tests.rs` duplicates, with `PARENT_*` recommended
-  and three alternatives refused. Held out of this milestone because a name is calef's.
+- **Milestone 399.** The six role constants above, their functions, and the
+  `kernel/src/user/tests.rs` duplicates, with `PARENT_*` recommended and three alternatives refused.
+  Held out of this milestone because a name is calef's. Numbered on 2026-09-19 by milestone 433's
+  drain of the pile and `SUPERSEDED` in the same act by milestone 405, which turns these six
+  parents into programs with their own names; 399 keeps the refusals and 405 carries them forward.
 
 ## Index row
 

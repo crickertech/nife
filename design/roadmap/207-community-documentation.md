@@ -5,9 +5,19 @@ pull request template and the issue templates shipped the same day; the code of 
 content-reports setting are calef's and remain open. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: DECISION.** What is left is policy rather than files. Two of the four always were, and the
-first was answered on the day this was minted: **calef enabled issues**, so they are a channel. The
-second is still open, and it is who a code of conduct names as its enforcement contact.
+**Gate: NONE.** **This carried `DECISION` until 2026-09-19 and both things it named had been done
+for weeks, which is recorded here rather than silently fixed.** The gate said two policy questions
+were open: who a code of conduct names as its enforcement contact, and the content-reports setting.
+`CODE_OF_CONDUCT.md` shipped on 2026-08-31 (commit `7ffa8f3b`) with an enforcement section naming an
+address and a subject line, saying outright that it is one person with no rota and that it becomes a
+role address when there is a second maintainer; and GitHub's community profile reports
+`content_reports_enabled` true, so calef delivered the one item no pull request could. Both are
+recorded as `Done` in this block's own **Follow-on** section, and the gate was left pointing at
+them. That is [§76](../decisions/76-roadmap-status-versus-tree.md)'s defect class again, and it is
+the second time this block has had it: its gap table and its gate disagreed for three weeks about
+TCP listen and accept. The gate is read when ranking work and the follow-on list is read when
+picking it up, so the two audiences saw different answers. **What is left needs nobody**: nothing
+verifies the issue forms render, which is a gate to write rather than a decision to take.
 
 **In brief.** Measured against `repos/crickertech/nife/community/profile` on 2026-08-31: `README`,
 `CONTRIBUTING` and `LICENSE` are present; **`CODE_OF_CONDUCT`, an issue template and a pull request

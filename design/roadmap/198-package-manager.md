@@ -17,6 +17,15 @@ The argument is in
 [DECISIONS §156](../decisions/156-the-package-manager-waits-on-a-decision-not-milestone-23.md). Milestone 39
 keeps its own gate; this ruling does not touch it.
 
+**A second half of that fork was already ruled and this gate did not say so**, found by milestone
+435's first slice on the same day.
+[§151](../decisions/151-repository-goal-is-independent-release.md) (the goal of the repository
+split is independent release and third-party programs) took the goal on 2026-09-15, and names this
+milestone's own sentence in doing it. What §151 deliberately leaves open is **the order**, when the
+split happens and against what preconditions, and it lists a package format existing so `basalt` has
+something to assemble as one of them, which is this milestone. The format, the activation shape and
+the repository split are still not this block's and are deliberately not raised here.
+
 **In brief.** calef, 2026-08-30: *"I don't think we expose nife to third parties (aka other
 customers) until we have a package manager and a trivial install process."* And, in the same breath,
 that he wants it **early, to make our own lives easier**.
@@ -94,14 +103,14 @@ claim about PCs, and each rung's last exit criterion is that second machine.
 | Rung | Ships | Exit criterion a stranger could check | Milestones and proposals on it |
 |---|---|---|---|
 | **1a. A prompt from a stick, on xenon, over serial** | Nothing new: the pieces are built | xenon boots `\EFI\BOOT\BOOTX64.EFI` from a FAT32 stick, `$` appears on the serial console, and `echo hello` answers; transcript filed under `bench/` | 87 (BUILT), 299 (BUILT: the x86 prompt over serial, proven under QEMU), 182 (PARTIAL: its third `shell-check` leg), 243 |
-| **1b. The prompt on the screen** | A pre-set-framebuffer driver behind the framebuffer contract | Under OVMF, `board_console::screen` reads `$` back off the framebuffer; on xenon, the prompt is on the monitor and a serial keystroke echoes there | [the-shell-on-the-firmware-screen.md](proposals/the-shell-on-the-firmware-screen.md) (new, found by this lane); shares its driver with 157 |
+| **1b. The prompt on the screen** | A pre-set-framebuffer driver behind the framebuffer contract | Under OVMF, `board_console::screen` reads `$` back off the framebuffer; on xenon, the prompt is on the monitor and a serial keystroke echoes there | [400](400-the-shell-on-the-firmware-screen.md) (PARTIAL: built and gated under OVMF, xenon outstanding; found by this lane); shares its driver with 157 |
 | **1c. A USB keyboard** | xHCI, enumeration, HID boot protocol | xenon with a monitor and a USB keyboard, no serial cable: `echo hello` | 242 (NOT-STARTED), which closes 192 (PARTIAL) |
 | **1d. A PC that is not xenon** | Nothing new if 1a to 1c hold | The same stick on one fleet machine reaches `$` at its own keyboard and monitor | 243's fleet; [a-stick-that-boots-with-secure-boot-on.md](proposals/a-stick-that-boots-with-secure-boot-on.md) (new) for machines whose owner will not turn Secure Boot off |
-| **2a. Installed onto a disk, under QEMU** | An installer; the boot mounting the nife partition off NVMe | OVMF boots the stick image with an empty NVMe attached; the installer names the disk, asks, partitions, formats and copies; the machine reboots **with the stick detached**, reaches `$`, and reads back a file written before the reboot. One `cargo xtask` gate | [the-installer-a-stick-runs-to-put-itself-on-the-disk.md](proposals/the-installer-a-stick-runs-to-put-itself-on-the-disk.md) (new); [a-block-roster-that-can-name-an-nvme-disk.md](proposals/a-block-roster-that-can-name-an-nvme-disk.md) (existing); 57's partitioner and `mkfs` (BUILT) |
+| **2a. Installed onto a disk, under QEMU** | An installer; the boot mounting the nife partition off NVMe | OVMF boots the stick image with an empty NVMe attached; the installer names the disk, asks, partitions, formats and copies; the machine reboots **with the stick detached**, reaches `$`, and reads back a file written before the reboot. One `cargo xtask` gate | [the-installer-a-stick-runs-to-put-itself-on-the-disk.md](proposals/the-installer-a-stick-runs-to-put-itself-on-the-disk.md) (new); [milestone 421](421-a-block-roster-that-can-name-an-nvme-disk.md) (existing); 57's partitioner and `mkfs` (BUILT) |
 | **2b. Installed onto xenon's disk** | The bench half | The 2a sequence on xenon's Micron 2450, photographed, stick removed before the second boot | 261 (PARTIAL: the disk wipe, calef's, then one bench boot) |
 | **3a. A package over the LAN, under QEMU** | The package client this milestone is; a host-side recipe that produces a package; a small HTTP client | A package absent from the image is fetched from a host on the same network over plain HTTP, verified by digest, installed onto the running system, run, still present after a reboot, and removed | this block, after the format, activation and trust rulings; the scoping lane's recipe idea (item 1 of the superseded slice) survives here as the producer half |
 | **3b. The network card xenon has** | An Intel I219 (`e1000e` family) driver in 261's shape | Under QEMU `-device e1000e` behind `intel-iommu`, milestone 30's DHCP and TCP gates pass through the new driver; on xenon, a lease from the house router and a measured transfer | [a-driver-for-the-network-card-a-pc-actually-has.md](proposals/a-driver-for-the-network-card-a-pc-actually-has.md) (new) |
-| **3c. Over the internet** | Name resolution; the transport the ruling picks; a public repository | From xenon's installed system, a package fetched from the public repository by host name, verified and installed | [a-name-resolver-and-who-holds-it.md](proposals/a-name-resolver-and-who-holds-it.md) (existing, which now has a consumer); [whether-fetching-a-package-needs-tls.md](proposals/whether-fetching-a-package-needs-tls.md) (new); `a-tls-stack-and-which-one.md` (existing) if the ruling is HTTPS |
+| **3c. Over the internet** | Name resolution; the transport the ruling picks; a public repository | From xenon's installed system, a package fetched from the public repository by host name, verified and installed | [milestone 384](384-a-name-resolver-and-who-holds-it.md) (existing, which now has a consumer); [whether-fetching-a-package-needs-tls.md](proposals/whether-fetching-a-package-needs-tls.md) (new); `a-tls-stack-and-which-one.md` (existing) if the ruling is HTTPS |
 | **4. The web page** | A published release and a page | A stranger with a PC, a USB stick and no prior knowledge follows the page to rung 3c's result; the stranger harness (`notes/stranger-test.md`) runs against the **download**, not the build | calef's act; the preconditions below |
 
 ### Order, and which rungs are too big

@@ -717,9 +717,10 @@ One thing that is not a step, and is now resolved rather than owed:
 - **Done.** Item 6's "no PCI device is confined through it yet" is closed by that same disk: it
   goes through `-device intel-iommu` with `iommu_platform=on`, and milestone 215 records the IOMMU
   escape test running on x86_64 for the first time and passing.
-- **Proposed.** The fixtures still missing from that runner (RedoxFS, GPT and blank disks, NIC,
-  GPU, keyboard, RNG, and a transport-blind FS-server disk lookup) are
-  `design/roadmap/proposals/x86-64-test-fixtures.md`.
+- **Milestone 364.** The fixtures still missing from that runner (RedoxFS, GPT and blank disks,
+  NIC, GPU, keyboard, RNG, and a transport-blind FS-server disk lookup) are
+  `design/roadmap/364-x86-64-test-fixtures.md`, which milestone 303 and a newer block have since
+  taken over; that one is SUPERSEDED and says where each half went.
 - **Milestone 184.** The skip that wanted an `x86_64-unknown-nife` target and a `std` farm is no
   longer milestone 27's tail; it has its own block.
 - **Recorded.** The five UART skips stay skipped by design: DECISIONS §121 keeps x86's legacy port
@@ -789,7 +790,8 @@ re-read the online count after the STARTUP IPIs and waited for it to move again,
 checked in during the 200 µs settle delay was counted absent. Fixed by reading the count once,
 before the INIT. After: **40 of 40** at `-smp 4`, **20 of 20** at `-smp 8`, **20 of 20** at `-smp 3`,
 all cores online. It could reach two cores as well, which is plausibly the UEFI leg's one-in-three
-(`proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`, not measured here).
+(milestone [412](412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md), whose
+question 2 this answers: `ap_boot`'s "third or later" bound was wrong. Not measured here.)
 
 **4. SMP failure (3).** Already fixed by milestone 316 (`BOOT_CPU_ID`); verified in the tree.
 

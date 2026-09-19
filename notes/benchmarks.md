@@ -3230,7 +3230,7 @@ architectures a gross regression forces a save, and on the third nothing ever fo
   that assumed it was would be wrong about these.
 
 The mechanism this argues for is written up separately, since it is calef's call:
-`design/roadmap/proposals/sub-tripwire-drift-accumulates-across-baseline-saves.md`.
+`design/roadmap/415-sub-tripwire-drift-accumulates-across-baseline-saves.md`.
 
 ## 2026-09-19: `CR4.PGE` and `CR4.PCIDE`, and why this tree cannot yet measure either (milestone 161)
 

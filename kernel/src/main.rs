@@ -1262,7 +1262,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
         sched::note_boot_stage(9);
 
         // **The clock the `hw entropy` step is measured with**
-        // (design/roadmap/proposals/time-the-hw-entropy-step.md, milestone 159's own follow-on).
+        // (design/roadmap/306-time-the-hw-entropy-step.md, milestone 159's own follow-on).
         //
         // Read here, on the line after the `pcie` print, because the gap a bench session has been
         // timing by eye is exactly `pcie` to `hw entropy`: those two lines are adjacent in the
@@ -2026,7 +2026,7 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
 /// above is what explains.
 // riscv64-only because the JH7110 is; `allow(dead_code)` because the boot tour that calls it is
 // itself compiled out of the shell and bench builds, the same way `image_for_virtio` below is.
-/// **Counter ticks as microseconds** (design/roadmap/proposals/time-the-hw-entropy-step.md), for
+/// **Counter ticks as microseconds** (design/roadmap/306-time-the-hw-entropy-step.md), for
 /// the boot tour's `hw entropy` line.
 ///
 /// Microseconds rather than milliseconds because the interesting half of the number is an IPC round

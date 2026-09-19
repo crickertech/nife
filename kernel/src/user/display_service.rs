@@ -284,6 +284,9 @@ fn wire_driver(
 /// contract promised it would, so what it needs from rung one is a display endpoint to CALL and the
 /// frames the device scans out. Nothing about the driver changes, which is the claim
 /// notes/framebuffer-contract.md made when it said routing was by endpoint.
+///
+/// The caller must receive `FLUSHED` on the report endpoint after the client's first flush, or
+/// the driver never serves a second one; see [`start_terminal`].
 pub fn start_driver(driver_image: &'static [u8]) -> Option<(RendezvousId, RendezvousId, u64)> {
     wire_driver(driver_image, 0, 0)
 }
@@ -302,6 +305,13 @@ pub struct TerminalWiring {
     /// The scanout frames, so the kernel can read the picture back through the direct map and
     /// grade it against a value it computed itself.
     pub surface: u64,
+    /// **What a caller hands back to end it**: the threads, the region its endpoints live in, and
+    /// the map budgets. Filled by [`start_screen_terminal`], whose endpoints come out of a region
+    /// for exactly this reason (a server parked in `RECV` on the kernel's own endpoint chunks
+    /// cannot be woken to die; `user::holding`'s BUGS). **Empty on the virtio path**, which
+    /// predates it and which no caller tears down. The surface and the output page are not in it:
+    /// they are frames rather than regions, and a caller that releases this frees them after.
+    pub held: super::holding::Holding,
 }
 
 /// **Wire and spawn the GPU driver with a terminal on the whole scanout** (milestone 29's
@@ -316,6 +326,16 @@ pub struct TerminalWiring {
 /// What it adds over `painter`'s wiring is two things, and both are the terminal contract's, not
 /// the framebuffer's: an endpoint it **serves** (the terminal contract's IPC half), and a page an
 /// application writes bytes into (DECISIONS §10's control-by-message, bulk-by-shared-page split).
+///
+/// **The caller must receive three reports, not two, or the screen freezes after one frame**
+/// (milestone 177). `driver_report` carries `UP` and then, once the terminal's first flush (its
+/// blank grid) is served, `FLUSHED`; `term_report` carries `TERM_UP`. All three are blocking
+/// `SEND`s, and the driver sends `FLUSHED` from inside its serving loop, so a caller that stops
+/// after `UP` and `TERM_UP` leaves the driver parked there and every later flush unanswered. That is
+/// the bug the real boot shipped with. **This is a foot gun kept on purpose, at rung three**: the
+/// tests that call this read the digest `FLUSHED` carries as the driver-side witness, so the
+/// function cannot swallow it for them, and the boot, the only other caller, takes it in
+/// `kernel::user::boot_graphical_terminal`. [`start_driver`] has the same obligation.
 pub fn start_terminal(
     driver_image: &'static [u8],
     term_image: &'static [u8],
@@ -339,17 +359,46 @@ pub fn start_terminal(
     );
 
     let (driver_report, display_ep, surface) = wire_driver(driver_image, 0, 0)?;
+    let t = spawn_terminal(
+        term_image,
+        display_ep,
+        surface,
+        &crate::sched::create_rendezvous,
+    );
+    Some(TerminalWiring {
+        driver_report,
+        term_report: t.term_report,
+        term: t.term,
+        out: t.out,
+        surface,
+        held: super::holding::Holding::new(),
+    })
+}
 
+/// **`display_terminal` on a display endpoint and a surface somebody else already serves**: the
+/// half of [`start_terminal`] that does not care which driver is on the other side, shared with
+/// [`start_screen_terminal`] so the terminal's authority is written down once. Returns
+/// `(its report endpoint, the endpoint it serves, its output page)`.
+///
+/// `endpoint` makes its two endpoints: the kernel's own chunks on the virtio path, a region the
+/// caller can reclaim on the firmware-screen path (see [`start_screen_terminal`]). The terminal's
+/// thread and its map budget come back beside them, for a caller that tears it down.
+fn spawn_terminal(
+    term_image: &'static [u8],
+    display_ep: RendezvousId,
+    surface: u64,
+    endpoint: &dyn Fn() -> RendezvousId,
+) -> SpawnedTerminal {
     let out = crate::memory::alloc_zeroed()
         .expect("no output-page frame for the display terminal")
         .addr();
 
-    let term_report = crate::sched::create_rendezvous();
-    let term = crate::sched::create_rendezvous();
+    let term_report = endpoint();
+    let term = endpoint();
     let budget =
         crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the terminal");
 
-    crate::sched::spawn(move || {
+    let tid = crate::sched::spawn(move || {
         crate::sched::grant_at(TERM_SLOT_REPORT, rendezvous_cap(term_report, Rights::WRITE))
             .expect("terminal slot 0 was occupied");
         // CALL the driver.
@@ -381,12 +430,154 @@ pub fn start_terminal(
     })
     .expect("could not spawn the display terminal");
 
-    Some(TerminalWiring {
-        driver_report,
+    SpawnedTerminal {
         term_report,
         term,
         out,
+        tid,
+        budget,
+    }
+}
+
+/// What [`spawn_terminal`] started, including what a teardown needs.
+struct SpawnedTerminal {
+    term_report: RendezvousId,
+    term: RendezvousId,
+    out: u64,
+    tid: crate::thread::ThreadId,
+    budget: u64,
+}
+
+/// Where `framebuffer_driver` finds the covered part of the aperture. **Must match
+/// `components/src/framebuffer_driver.rs`'s `APERTURE_VA`.**
+const SCREEN_APERTURE_VA: u64 = 0x0000_0000_4000_0000;
+
+/// **The most aperture pages this wiring maps**: 8 MiB, four 2 MiB page-table windows. The tables
+/// come out of the driver's own address-space budget (`AS_OVERHEAD`, sixteen pages shared with its
+/// image and stack), so this is a bound rather than a preference. It is far more than the surface
+/// needs: 344 rows at a 3840-pixel pitch is 1,290 pages. A screen whose covered rows would need
+/// more is refused rather than mapped short.
+const MAX_APERTURE_PAGES: u64 = 2048;
+
+// The firmware screen driver's capability table. Must match components/src/framebuffer_driver.rs.
+const SCREEN_SLOT_REPORT: u64 = 0;
+const SCREEN_SLOT_DISPLAY: u64 = 1;
+const SCREEN_SLOT_BUDGET: u64 = 2;
+const SCREEN_SLOT_SURFACE: u64 = 3;
+const _: () = assert!(SCREEN_SLOT_SURFACE < abi::fault::FAULT_EP_SLOT);
+
+/// **The terminal on a screen the firmware already set up** (the shell on the firmware screen,
+/// milestone 198's rung 1b): `framebuffer_driver` serving the framebuffer contract over `screen`,
+/// and `display_terminal` on it exactly as [`start_terminal`] wires it over virtio-gpu. `None`, with
+/// nothing spawned, when the screen cannot show a surface or its covered rows would need more than
+/// [`MAX_APERTURE_PAGES`].
+///
+/// **`screen` must already be off the kernel's console** (`console::yield_screen`): the driver this
+/// spawns paints the aperture, and two painters on one screen is the defect that function exists to
+/// make unrepresentable.
+///
+/// The driver's world is its `Spawn` below, and the security argument is what it lacks: no
+/// interrupt, no DMA, no transport, no physical address, and only the rows of the screen its
+/// surface can reach (`screen_console::Aperture::span`), mapped at spawn so it holds no name for
+/// them. The terminal's world is byte for byte the virtio path's.
+pub fn start_screen_terminal(
+    driver_image: &'static [u8],
+    term_image: &'static [u8],
+    screen: machine_discovery::framebuffer::Framebuffer,
+) -> Option<TerminalWiring> {
+    let aperture = screen_console::Aperture::new(
+        &screen,
+        graphics_protocol::WIDTH,
+        graphics_protocol::HEIGHT,
+    )?;
+    // The aperture need not start on a page: the run is mapped from the page that holds pixel
+    // (0, 0), and the driver is told how far into it that pixel is.
+    let offset = screen.base % FRAME_SIZE;
+    let pages = (offset + aperture.span() as u64).div_ceil(FRAME_SIZE);
+    if pages > MAX_APERTURE_PAGES {
+        crate::println!(
+            "  screen    : not handed on: {pages} pages of aperture exceed this wiring's \
+             {MAX_APERTURE_PAGES}"
+        );
+        return None;
+    }
+
+    // The surface: RAM, the contract's run of frames, shared by the driver and the terminal. The
+    // same allocation `wire_driver` makes, minus the ring page, because nothing here is a device's
+    // DMA: the driver copies it with the CPU.
+    let surface =
+        crate::memory::alloc_contiguous_zeroed(graphics_protocol::SURFACE_PAGE_FRAMES as usize)
+            .expect("no contiguous surface for the framebuffer driver")
+            .addr();
+
+    // **The four endpoints come out of a region of their own**, `virtio_service::wire_net_server`'s
+    // shape and for its reason: both programs park in `RECV` for good, and reclaiming the region
+    // their endpoints live in is the only thing that wakes them to die. The boot never tears this
+    // down; the suite does, because every service a test leaves standing is frames and region slots
+    // a later test cannot have (`user::holding`). One page per endpoint, and one spare.
+    let ep_region =
+        crate::memory_region::create(5).expect("no endpoint region for the screen terminal");
+    let endpoint = || {
+        crate::sched::create_rendezvous_from(ep_region)
+            .expect("no endpoint for the screen terminal")
+    };
+    let display_ep = endpoint(); // terminal WRITE (CALL) -> driver READ
+    let driver_report = endpoint();
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the driver");
+    let (size, layout) = aperture.to_words();
+    let device = DeviceRun {
+        va: SCREEN_APERTURE_VA,
+        phys: screen.base - offset,
+        pages,
+    };
+    let driver_tid = crate::sched::spawn(move || {
+        crate::sched::grant_at(
+            SCREEN_SLOT_REPORT,
+            rendezvous_cap(driver_report, Rights::WRITE),
+        )
+        .expect("screen driver slot 0 was occupied");
+        crate::sched::grant_at(
+            SCREEN_SLOT_DISPLAY,
+            rendezvous_cap(display_ep, Rights::READ),
+        )
+        .expect("screen driver slot 1 was occupied");
+        crate::sched::grant_at(SCREEN_SLOT_BUDGET, memory_region_cap(budget))
+            .expect("screen driver slot 2 was occupied");
+        grant_run(
+            SCREEN_SLOT_SURFACE,
+            surface,
+            SURFACE_RUN,
+            "the framebuffer driver",
+        );
+        run_with_device_run(
+            driver_image,
+            Spawn {
+                arg0: size,
+                arg1: layout,
+                arg2: offset, // where pixel (0, 0) is in the first mapped page
+                grants: &[],  // every one of them is placed above, at its own slot
+                maps: &[],
+            },
+            device,
+        )
+    })
+    .expect("could not spawn the framebuffer driver");
+
+    let t = spawn_terminal(term_image, display_ep, surface, &endpoint);
+    let mut held = super::holding::Holding::new();
+    held.add_thread(driver_tid);
+    held.add_thread(t.tid);
+    held.add_region(ep_region);
+    held.add_region_after_death(budget);
+    held.add_region_after_death(t.budget);
+    Some(TerminalWiring {
+        driver_report,
+        term_report: t.term_report,
+        term: t.term,
+        out: t.out,
         surface,
+        held,
     })
 }
 
