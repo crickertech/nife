@@ -764,13 +764,13 @@ Nothing splits a block. `PageSize`, `map_block`, `map_span`, `InsideBlock` and `
   Five carry replayable falsification patches, swept red. notes/verification.md has the table.
 - **Recorded, not fixed:** the kernel does not read the MTRRs, so a block over RAM relies on firmware
   keeping that RAM one memory type (`mmu.rs`'s BUGS).
-- **The fastpath moved by four bytes on aarch64, and by nothing on the other two.** `syscall_entry`
-  goes 1,504 to 1,508 bytes, which is the `is_block` test the walk now makes at each level above the
-  leaf, inlined into `syscall::dispatch`; measured by neutralising the test and remeasuring
-  (1,504 again). riscv64 and x86_64 are byte-identical to the base commit on all four figures. The
-  gate's riscv64 `syscall_entry` and x86_64 numbers already sat above `bench/fastpath-*.txt` before
-  this lane (measured at the base commit: riscv64 1,870 against a 1,828 baseline, x86_64 1,701
-  against 1,637), so that drift is `main`'s and is left for whoever re-saves those baselines.
+- **The fastpath is byte-identical to `main` on all three architectures**, measured after merging
+  it: aarch64 5,356 / 7,028 / 1,504, riscv64 4,644 / 5,948 / 1,870, x86_64 6,256 / 8,190 / 1,701,
+  the same figures `script/fastpath-footprint` reports for `main` alone. On the pre-merge tree the
+  block check the walk now makes cost aarch64's `syscall_entry` four bytes (1,504 to 1,508, measured
+  by neutralising the check and remeasuring); merging `main` moved the inlining and it is gone.
+  The gate's riscv64 and x86_64 `syscall_entry` figures sit above `bench/fastpath-*.txt` and did so
+  before this lane, so that drift is `main`'s and is left for whoever re-saves those baselines.
 
 **2. `CR4.PGE` and `CR4.PCIDE`.** Measured with an initrd attached, so the EL0 benches that switch
 `CR3` actually ran on x86_64: icount tick counts were byte-identical with PGE on and off on every
