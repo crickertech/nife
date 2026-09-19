@@ -94,8 +94,8 @@ doc = false
 bench = false
 
 [[bin]]
-name = "gpt_table"
-path = "fuzz_targets/gpt_table.rs"
+name = "globally_unique_identifier_partition_table"
+path = "fuzz_targets/globally_unique_identifier_partition_table.rs"
 test = false
 doc = false
 bench = false

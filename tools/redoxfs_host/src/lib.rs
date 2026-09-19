@@ -43,7 +43,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use filesystem_protocol::xattr;
-use globally_unique_identifier_partition_table::{Gpt, Guid};
+use globally_unique_identifier_partition_table::{GloballyUniqueIdentifierPartitionTable, Guid};
 use redoxfs::{BLOCK_SIZE, Disk, DiskFile, FileSystem, Node, Transaction, TreeData, TreePtr};
 use syscall::error::{EIO, Error};
 
@@ -293,7 +293,10 @@ fn read_head(file: &File, path: &Path) -> Result<Vec<u8>, String> {
 /// this project has written, and then at 4096, which is what a native-4K drive reports. A wrong
 /// guess fails on the signature rather than reading a plausible wrong table, because at the wrong
 /// offset there is no `EFI PART`.
-fn parse_table<'a>(head: &'a [u8], path: &Path) -> Result<(Gpt<'a>, usize), String> {
+fn parse_table<'a>(
+    head: &'a [u8],
+    path: &Path,
+) -> Result<(GloballyUniqueIdentifierPartitionTable<'a>, usize), String> {
     let mut first: Option<(usize, globally_unique_identifier_partition_table::Error)> = None;
     for block_size in [
         globally_unique_identifier_partition_table::MIN_BLOCK_SIZE,
@@ -315,7 +318,7 @@ fn parse_table<'a>(head: &'a [u8], path: &Path) -> Result<(Gpt<'a>, usize), Stri
         };
         let array_at = (header.entry_array_lba as usize).saturating_mul(block_size);
         let array = head.get(array_at..).unwrap_or(&[]);
-        match Gpt::parse(header_block, array) {
+        match GloballyUniqueIdentifierPartitionTable::parse(header_block, array) {
             Ok(table) => return Ok((table, block_size)),
             Err(e) => {
                 first.get_or_insert((block_size, e));
@@ -402,8 +405,9 @@ impl Volume<'_> {
         };
 
         let start = entry.first_lba * lba;
-        // `Gpt::parse` has already rejected an entry whose last LBA is below its first, so this
-        // cannot be `None`; the arm exists so that a change there cannot turn into an offset of zero.
+        // `GloballyUniqueIdentifierPartitionTable::parse` has already rejected an entry whose last
+        // LBA is below its first, so this cannot be `None`; the arm exists so that a change there
+        // cannot turn into an offset of zero.
         let len = entry
             .blocks()
             .ok_or_else(|| format!("{}: that partition has no length", path.display()))?

@@ -71,7 +71,7 @@ coverage the project does not have.
 |---|---|---|
 | `dtb_walk` | firmware (QEMU, OpenSBI, a board's ROM) | parsed **before anything else exists**, on both ISAs, from a pointer in a register; a panic here is a kernel that cannot boot and cannot say why. Kani reaches the leaf readers and not the walkers. |
 | `elf_parse` | any binary a user asks to run | the only parser that **loads what it parses**: its output becomes page-table entries. The whole-parse totality proof is recorded as intractable. |
-| `gpt_table` | a disk somebody else formatted | decides which LBA range is a filesystem. Heavily checked already, which is the point: the gap is *combinations* of hostile fields, which neither the proofs nor the single-byte mutation tests can build. |
+| `globally_unique_identifier_partition_table` | a disk somebody else formatted | decides which LBA range is a filesystem. Heavily checked already, which is the point: the gap is *combinations* of hostile fields, which neither the proofs nor the single-byte mutation tests can build. |
 | `nifefs_roundtrip` | (structured) the writer's own output | not a panic hunt. Asserts that **what goes in comes out**, which is the property `write_image`'s truncation bug violated until 2026-08-01 and its NUL bug until 2026-08-02. |
 
 ### And the ones deliberately not fuzzed
@@ -188,6 +188,10 @@ already has `cpu-matrix` as precedent for "its own runner, not a slower gate".
 | `nifefs_roundtrip` | 21,469,277 | 35,722 |
 | **total** | **317,296,022** | |
 
+The target was named `gpt_table` when this table was measured; it has been
+`globally_unique_identifier_partition_table` since calef's 2026-09-19 ruling that a fuzz target
+follows the crate it fuzzes. The row keeps the name the run printed.
+
 The spread is the shape of each parser rather than noise: `elf_parse` rejects most inputs in its first
 fifteen lines and returns, while `dtb_walk` runs seven full walks over a blob for every input it
 accepts. **The slowest target is the floor, so a minute buys at least a million inputs on every
@@ -208,6 +212,9 @@ gpt_table              1,548,246 execs    25,381/s
 nifefs_roundtrip    1,763,965 execs    28,917/s
 ==> fuzz: no crashes in 4 targets at 60s each
 ```
+
+That transcript is the run's own output, so it keeps `gpt_table`, the target's name at the time
+(now `globally_unique_identifier_partition_table`).
 
 56 million inputs in four minutes of runner time.
 
@@ -383,10 +390,11 @@ sixty seconds from the committed seeds found nothing, and fifteen minutes found 
 is `crates/dtb/tests/hostile.rs`, which runs on every `script/test`.
 
 **Only panics and hangs are caught, plus whatever a target asserts.** A parser that returns the
-*wrong answer* without panicking is invisible to `dtb_walk`, `elf_parse` and `gpt_table`, because
-those three assert nothing beyond "it returned". `nifefs_roundtrip` is the one target with a real
-property, and it is the one that found a silent-corruption bug. That asymmetry is a hint about where
-the next targets should go, not a fact about fuzzing.
+*wrong answer* without panicking is invisible to `dtb_walk`, `elf_parse` and
+`globally_unique_identifier_partition_table`, because those three assert nothing beyond "it
+returned". `nifefs_roundtrip` is the one target with a real property, and it is the one that found a
+silent-corruption bug. That asymmetry is a hint about where the next targets should go, not a fact
+about fuzzing.
 
 **The needles in `dtb_walk` are a fixed list.** The kernel's real lookups (`intc`, `plic`, `pl031`,
 `virtio_mmio`) plus the empty prefix. A `pub fn` that panics for some *other* prefix would not be
@@ -408,17 +416,18 @@ turned bug 2 from a silent wrap into a crash.
 That keeps the budget on the accepted region, and it means the target cannot notice if a *rejection*
 regresses. The crate's host tests cover that instead.
 
-**One block size.** `gpt_table` fixes 512 bytes because `Gpt::parse` takes the block size from the
-header block's length and the fixtures are 512-byte disks. 4K-native disks exist and take a different
-path through `array_blocks`.
+**One block size.** `globally_unique_identifier_partition_table` fixes 512 bytes because
+`GloballyUniqueIdentifierPartitionTable::parse` takes the block size from the header block's length
+and the fixtures are 512-byte disks. 4K-native disks exist and take a different path through
+`array_blocks`.
 
-**`gpt_table` barely reaches `check_backup`.** The input is one contiguous disk prefix, so the
-harness passes the *primary* header and array as the backup, which fails on the first field
-comparison (`my_lba != alternate_lba`) almost every time. Everything past that comparison, which is
-seven more fields and a second `check_entry_array`, is effectively untested by this target. Reaching
-it wants the input split into a head and a tail, which the committed `.head`/`.tail` fixture pair is
-already shaped for and which would cost those fixtures their status as directly-usable seeds. Worth
-doing; not done.
+**`globally_unique_identifier_partition_table` barely reaches `check_backup`.** The input is one
+contiguous disk prefix, so the harness passes the *primary* header and array as the backup, which
+fails on the first field comparison (`my_lba != alternate_lba`) almost every time. Everything past
+that comparison, which is seven more fields and a second `check_entry_array`, is effectively
+untested by this target. Reaching it wants the input split into a head and a tail, which the
+committed `.head`/`.tail` fixture pair is already shaped for and which would cost those fixtures
+their status as directly-usable seeds. Worth doing; not done.
 
 ## See also
 

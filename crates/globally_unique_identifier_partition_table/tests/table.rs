@@ -7,8 +7,8 @@
 
 use globally_unique_identifier_partition_table::guid::{Guid, types};
 use globally_unique_identifier_partition_table::{
-    DEFAULT_ENTRY_COUNT, ENTRY_ARRAY_BYTES, Entry, Error, Gpt, Header, MbrProblem, block_size_ok,
-    entry, mbr, testing,
+    DEFAULT_ENTRY_COUNT, ENTRY_ARRAY_BYTES, Entry, Error, GloballyUniqueIdentifierPartitionTable,
+    Header, MbrProblem, block_size_ok, entry, mbr, testing,
 };
 
 const BLOCK: usize = 512;
@@ -51,7 +51,13 @@ fn build_on(block_size: usize, blocks: u64, partitions: &[Entry]) -> Result<Disk
         backup_buf: [0; 4096],
         array: [0; ENTRY_ARRAY_BYTES],
     };
-    let table = Gpt::create(DISK, block_size, blocks, partitions, &mut disk.array)?;
+    let table = GloballyUniqueIdentifierPartitionTable::create(
+        DISK,
+        block_size,
+        blocks,
+        partitions,
+        &mut disk.array,
+    )?;
     table.write_protective_mbr(&mut disk.mbr_buf[..block_size])?;
     table.write_primary_header(&mut disk.header_buf[..block_size])?;
     table.write_backup_header(&mut disk.backup_buf[..block_size])?;
@@ -68,7 +74,7 @@ fn a_table_we_build_is_a_table_we_parse() {
         .unwrap();
     let disk = build(&[part]).unwrap();
 
-    let table = Gpt::parse(disk.header(), &disk.array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &disk.array).unwrap();
     table.check_backup(disk.backup(), &disk.array).unwrap();
     table.check_protective_mbr(disk.mbr()).unwrap();
 
@@ -95,7 +101,7 @@ fn a_table_we_build_is_a_table_we_parse() {
 fn a_4k_native_disk_works_and_the_geometry_moves() {
     let part = Entry::new(types::LINUX_FILESYSTEM, PART, 256, 4000);
     let disk = build_on(4096, 8192, &[part]).unwrap();
-    let table = Gpt::parse(disk.header(), &disk.array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &disk.array).unwrap();
 
     assert_eq!(table.block_size(), 4096);
     assert_eq!(table.entry_array_blocks(), 4, "16 KiB in 4 KiB blocks");
@@ -148,7 +154,7 @@ fn an_unused_entry_is_not_a_partition_however_it_looks() {
 
     let real = Entry::new(types::NIFE_DATA, PART, 2048, 4096);
     let disk = build(&[ghost, real]).expect("the ghost does not collide");
-    let table = Gpt::parse(disk.header(), &disk.array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &disk.array).unwrap();
     assert_eq!(table.partitions().count(), 1);
     assert_eq!(
         table.partitions().next().unwrap().0,
@@ -193,7 +199,7 @@ fn a_partition_of_exactly_one_block_is_legal() {
     let one = Entry::new(types::NIFE_DATA, PART, 2048, 2048);
     let disk = build(&[one]).expect("first_lba == last_lba is one block, not none");
 
-    let table = Gpt::parse(disk.header(), &disk.array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &disk.array).unwrap();
     let (_, e) = table.partitions().next().unwrap();
     assert_eq!((e.first_lba, e.last_lba), (2048, 2048));
 }
@@ -205,13 +211,14 @@ fn a_partition_of_exactly_one_block_is_legal() {
 fn a_disk_too_small_for_its_own_table_is_refused() {
     let mut array = [0u8; ENTRY_ARRAY_BYTES];
     assert_eq!(
-        Gpt::create(DISK, BLOCK, 67, &[], &mut array).err(),
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, 67, &[], &mut array).err(),
         Some(Error::DiskTooSmall {
             blocks: 67,
             need: 68
         })
     );
-    let table = Gpt::create(DISK, BLOCK, 68, &[], &mut array).unwrap();
+    let table =
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, 68, &[], &mut array).unwrap();
     assert_eq!(table.first_usable_lba(), 34);
     assert_eq!(table.last_usable_lba(), 34, "exactly one usable block");
 }
@@ -219,21 +226,22 @@ fn a_disk_too_small_for_its_own_table_is_refused() {
 #[test]
 fn the_entry_array_buffer_sets_the_entry_count() {
     let mut small = [0u8; 4 * entry::SIZE];
-    let table = Gpt::create(DISK, BLOCK, 1024, &[], &mut small).unwrap();
+    let table =
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, 1024, &[], &mut small).unwrap();
     assert_eq!(table.entry_count(), 4);
     assert_eq!(table.entry_array_blocks(), 1, "512 bytes is one block");
     assert_eq!(table.first_usable_lba(), 3);
 
     let mut ragged = [0u8; 100];
     assert_eq!(
-        Gpt::create(DISK, BLOCK, 1024, &[], &mut ragged).err(),
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, 1024, &[], &mut ragged).err(),
         Some(Error::EntryArrayShape { have: 100 })
     );
 
     let mut four = [0u8; 4 * entry::SIZE];
     let five = [Entry::new(types::NIFE_DATA, PART, 10, 20); 5];
     assert_eq!(
-        Gpt::create(DISK, BLOCK, 1024, &five, &mut four).err(),
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, 1024, &five, &mut four).err(),
         Some(Error::TooManyPartitions { given: 5, room: 4 })
     );
 }
@@ -268,9 +276,11 @@ fn every_single_byte_corruption_of_a_small_table_is_caught() {
     let part = Entry::new(types::NIFE_DATA, PART, 8, 900)
         .with_name("small")
         .unwrap();
-    let table = Gpt::create(DISK, BLOCK, 1024, &[part], &mut array).unwrap();
+    let table =
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, 1024, &[part], &mut array)
+            .unwrap();
     table.write_primary_header(&mut header).unwrap();
-    Gpt::parse(&header, &array).expect("the clean table parses");
+    GloballyUniqueIdentifierPartitionTable::parse(&header, &array).expect("the clean table parses");
 
     let mut cases = 0u32;
     let mut corrupt_header = [0u8; BLOCK];
@@ -282,7 +292,7 @@ fn every_single_byte_corruption_of_a_small_table_is_caught() {
             corrupt_header.copy_from_slice(&header);
             corrupt_header[position] = value;
             assert!(
-                Gpt::parse(&corrupt_header, &array).is_err(),
+                GloballyUniqueIdentifierPartitionTable::parse(&corrupt_header, &array).is_err(),
                 "header byte {position} -> {value:#04x}"
             );
             cases += 1;
@@ -297,7 +307,7 @@ fn every_single_byte_corruption_of_a_small_table_is_caught() {
             }
             corrupt_array[position] = value;
             assert!(
-                Gpt::parse(&header, &corrupt_array).is_err(),
+                GloballyUniqueIdentifierPartitionTable::parse(&header, &corrupt_array).is_err(),
                 "array byte {position} -> {value:#04x}"
             );
             cases += 1;
@@ -307,15 +317,15 @@ fn every_single_byte_corruption_of_a_small_table_is_caught() {
     assert_eq!(cases, (BLOCK + 4 * entry::SIZE) as u32 * 255);
 }
 
-/// Handing the backup header to `Gpt::parse` is refused rather than half-accepted. It is a valid
-/// header with a correct CRC describing the same disk, so nothing but the `my_lba` check tells it
-/// apart. Getting this wrong means a recovery tool that reads the last block and believes it has
-/// the primary.
+/// Handing the backup header to `GloballyUniqueIdentifierPartitionTable::parse` is refused rather
+/// than half-accepted. It is a valid header with a correct CRC describing the same disk, so nothing
+/// but the `my_lba` check tells it apart. Getting this wrong means a recovery tool that reads the
+/// last block and believes it has the primary.
 #[test]
 fn the_backup_header_is_not_a_primary() {
     let disk = build(&[Entry::new(types::NIFE_DATA, PART, 2048, 4096)]).unwrap();
     assert_eq!(
-        Gpt::parse(disk.backup(), &disk.array).err(),
+        GloballyUniqueIdentifierPartitionTable::parse(disk.backup(), &disk.array).err(),
         Some(Error::NotPrimary { my_lba: BLOCKS - 1 })
     );
     // It is still a valid header on its own terms, which is why the check has to be explicit.
@@ -326,7 +336,11 @@ fn the_backup_header_is_not_a_primary() {
 fn a_short_entry_array_is_a_caller_error_not_a_corrupt_disk() {
     let disk = build(&[Entry::new(types::NIFE_DATA, PART, 2048, 4096)]).unwrap();
     assert_eq!(
-        Gpt::parse(disk.header(), &disk.array[..ENTRY_ARRAY_BYTES - 1]).err(),
+        GloballyUniqueIdentifierPartitionTable::parse(
+            disk.header(),
+            &disk.array[..ENTRY_ARRAY_BYTES - 1]
+        )
+        .err(),
         Some(Error::EntryArrayLen {
             need: ENTRY_ARRAY_BYTES,
             have: ENTRY_ARRAY_BYTES - 1
@@ -335,7 +349,7 @@ fn a_short_entry_array_is_a_caller_error_not_a_corrupt_disk() {
     // Extra bytes are fine: a caller reading whole blocks usually has some.
     let mut padded = [0u8; ENTRY_ARRAY_BYTES + 512];
     padded[..ENTRY_ARRAY_BYTES].copy_from_slice(&disk.array);
-    assert!(Gpt::parse(disk.header(), &padded).is_ok());
+    assert!(GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &padded).is_ok());
 }
 
 #[test]
@@ -526,7 +540,8 @@ fn block_sizes_are_powers_of_two_between_512_and_4096() {
 #[test]
 fn the_documentation_sample_is_a_valid_disk() {
     let disk = testing::sample_disk();
-    let table = Gpt::parse(&disk[512..1024], &disk[1024..]).unwrap();
+    let table =
+        GloballyUniqueIdentifierPartitionTable::parse(&disk[512..1024], &disk[1024..]).unwrap();
     table.check_protective_mbr(&disk[..512]).unwrap();
     assert_eq!(table.partitions().count(), 1);
 }
@@ -555,7 +570,7 @@ fn parse_patched(patch: impl FnOnce(&mut [u8])) -> Result<(), Error> {
     let mut block: [u8; BLOCK] = disk.header().try_into().unwrap();
     patch(&mut block);
     reforge(&mut block);
-    Gpt::parse(&block, &disk.array).map(|_| ())
+    GloballyUniqueIdentifierPartitionTable::parse(&block, &disk.array).map(|_| ())
 }
 
 fn set_u64(block: &mut [u8], offset: usize, value: u64) {
@@ -644,18 +659,21 @@ fn the_usable_range_stops_before_the_backup_array() {
 fn the_entry_array_shape_guards_are_exact() {
     // Empty is not a shape: there is no entry count to derive.
     assert_eq!(
-        Gpt::create(DISK, BLOCK, BLOCKS, &[], &mut []).err(),
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, BLOCKS, &[], &mut []).err(),
         Some(Error::EntryArrayShape { have: 0 })
     );
     // Longer than an entry but not a whole number of them.
     assert_eq!(
-        Gpt::create(DISK, BLOCK, BLOCKS, &[], &mut [0u8; 200]).err(),
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, BLOCKS, &[], &mut [0u8; 200])
+            .err(),
         Some(Error::EntryArrayShape { have: 200 })
     );
     // Exactly one entry is the smallest legal array, and it holds exactly one partition.
     let one = Entry::new(types::NIFE_DATA, PART, 2048, 4096);
     let mut array = [0u8; entry::SIZE];
-    let table = Gpt::create(DISK, BLOCK, BLOCKS, &[one], &mut array).unwrap();
+    let table =
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, BLOCKS, &[one], &mut array)
+            .unwrap();
     assert_eq!(table.partitions().count(), 1);
 }
 
@@ -665,7 +683,7 @@ fn the_entry_array_shape_guards_are_exact() {
 #[test]
 fn a_wrong_mbr_is_refused_through_the_wrapper_too() {
     let disk = build(&[]).unwrap();
-    let table = Gpt::parse(disk.header(), &disk.array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &disk.array).unwrap();
     let zeros = [0u8; BLOCK];
     assert!(table.check_protective_mbr(&zeros).is_err());
 }
@@ -715,7 +733,9 @@ fn a_header_the_size_of_its_block_is_legal() {
 fn a_partition_on_the_first_usable_block_is_inside_the_range() {
     let mut array = [0u8; ENTRY_ARRAY_BYTES];
     let part = Entry::new(types::NIFE_DATA, PART, 34, 4096);
-    let table = Gpt::create(DISK, BLOCK, BLOCKS, &[part], &mut array).unwrap();
+    let table =
+        GloballyUniqueIdentifierPartitionTable::create(DISK, BLOCK, BLOCKS, &[part], &mut array)
+            .unwrap();
     assert_eq!(table.partitions().next().unwrap().1.first_lba, 34);
 }
 
@@ -725,7 +745,7 @@ fn a_partition_on_the_first_usable_block_is_inside_the_range() {
 #[test]
 fn a_protective_record_in_a_later_slot_is_still_protective() {
     let disk = build(&[]).unwrap();
-    let table = Gpt::parse(disk.header(), &disk.array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(disk.header(), &disk.array).unwrap();
     let mut block = [0u8; BLOCK];
     block[..disk.mbr().len()].copy_from_slice(disk.mbr());
     // Move record 0 to record 2 (16 bytes each, table at offset 446), zeroing slot 0.

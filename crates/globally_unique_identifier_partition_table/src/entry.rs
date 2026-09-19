@@ -4,9 +4,9 @@
 //!
 //! [`Entry::decode`] is **total**: every one of the 2^1024 bit patterns is a valid `Entry` value,
 //! and the round trip back through [`Entry::encode`] returns the bytes it started with. That is a
-//! deliberate layering, the same one `network_time_protocol` makes: decoding judges nothing, so it needs no
-//! error type, and every rule about whether an entry makes *sense* on a particular disk lives in
-//! [`crate::Gpt`] where the disk's geometry is known.
+//! deliberate layering, the same one `network_time_protocol` makes: decoding judges nothing, so it
+//! needs no error type, and every rule about whether an entry makes *sense* on a particular disk
+//! lives in [`crate::GloballyUniqueIdentifierPartitionTable`] where the disk's geometry is known.
 //!
 //! # The name is UTF-16, and the name is optional
 //!
@@ -56,8 +56,9 @@ mod at {
 
 /// One partition entry, decoded.
 ///
-/// Also the type used to *describe* a partition to [`crate::Gpt::create`]: what you want written
-/// and what you read back are the same thing, so there is no second "spec" struct to keep in sync.
+/// Also the type used to *describe* a partition to
+/// [`crate::GloballyUniqueIdentifierPartitionTable::create`]: what you want written and what you
+/// read back are the same thing, so there is no second "spec" struct to keep in sync.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Entry {
     /// What the partition is for. All zeros means the entry is unused; see
@@ -129,8 +130,8 @@ impl Entry {
     /// How many blocks the partition covers. `last_lba` is inclusive, hence the `+ 1`.
     ///
     /// `None` when `last_lba < first_lba`, which is a malformed entry rather than an empty
-    /// partition. [`crate::Gpt`] rejects those, so a partition obtained from a parsed table always
-    /// has a size.
+    /// partition. [`crate::GloballyUniqueIdentifierPartitionTable`] rejects those, so a partition
+    /// obtained from a parsed table always has a size.
     pub const fn blocks(&self) -> Option<u64> {
         if self.last_lba < self.first_lba {
             None

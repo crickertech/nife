@@ -41,7 +41,7 @@
 
 use globally_unique_identifier_partition_table::guid::{Guid, types};
 use globally_unique_identifier_partition_table::{
-    BackupMismatch, Entry, Error, Gpt, MbrProblem, entry,
+    BackupMismatch, Entry, Error, GloballyUniqueIdentifierPartitionTable, MbrProblem, entry,
 };
 
 const SGDISK_HEAD: &[u8] = include_bytes!("fixtures/sgdisk-64m.head");
@@ -74,7 +74,8 @@ fn name_of(part: &Entry) -> String {
 #[test]
 fn sgdisk_writes_a_table_we_accept_whole() {
     let (header, array) = primary(SGDISK_HEAD);
-    let table = Gpt::parse(header, array).expect("sgdisk writes a valid GPT");
+    let table = GloballyUniqueIdentifierPartitionTable::parse(header, array)
+        .expect("sgdisk writes a valid GPT");
 
     assert_eq!(table.block_size(), BLOCK);
     assert_eq!(table.block_count(), BLOCKS);
@@ -122,7 +123,7 @@ fn sgdisk_writes_a_table_we_accept_whole() {
 #[test]
 fn sgdisks_backup_and_protective_mbr_check_out() {
     let (header, array) = primary(SGDISK_HEAD);
-    let table = Gpt::parse(header, array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(header, array).unwrap();
     let (backup_array, backup_header) = backup(SGDISK_TAIL);
 
     table.check_backup(backup_header, backup_array).unwrap();
@@ -132,7 +133,8 @@ fn sgdisks_backup_and_protective_mbr_check_out() {
 #[test]
 fn macos_writes_a_table_we_accept_whole() {
     let (header, array) = primary(APPLE_HEAD);
-    let table = Gpt::parse(header, array).expect("diskutil writes a valid GPT");
+    let table = GloballyUniqueIdentifierPartitionTable::parse(header, array)
+        .expect("diskutil writes a valid GPT");
     let (backup_array, backup_header) = backup(APPLE_TAIL);
     table.check_backup(backup_header, backup_array).unwrap();
     table.check_protective_mbr(&APPLE_HEAD[..BLOCK]).unwrap();
@@ -163,14 +165,14 @@ fn macos_writes_a_table_we_accept_whole() {
 #[test]
 fn macos_leaves_the_partition_names_empty_and_sgdisk_does_not() {
     let (header, array) = primary(APPLE_HEAD);
-    let apple = Gpt::parse(header, array).unwrap();
+    let apple = GloballyUniqueIdentifierPartitionTable::parse(header, array).unwrap();
     for (index, part) in apple.partitions() {
         assert_eq!(part.name, [0u16; entry::NAME_UNITS], "entry {index}");
         assert_eq!(name_of(&part), "");
     }
 
     let (header, array) = primary(SGDISK_HEAD);
-    let sgdisk = Gpt::parse(header, array).unwrap();
+    let sgdisk = GloballyUniqueIdentifierPartitionTable::parse(header, array).unwrap();
     assert!(sgdisk.partitions().all(|(_, p)| !name_of(&p).is_empty()));
 }
 
@@ -206,7 +208,7 @@ fn the_two_tools_disagree_about_chs_and_it_does_not_matter() {
 #[test]
 fn re_emitting_sgdisks_table_reproduces_it_exactly() {
     let (header_block, array) = primary(SGDISK_HEAD);
-    let table = Gpt::parse(header_block, array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(header_block, array).unwrap();
     let (backup_array, backup_header_block) = backup(SGDISK_TAIL);
 
     let mut out = [0u8; BLOCK];
@@ -241,11 +243,11 @@ fn re_emitting_sgdisks_table_reproduces_it_exactly() {
 #[test]
 fn creating_the_same_table_from_scratch_matches_sgdisk_byte_for_byte() {
     let (header_block, array) = primary(SGDISK_HEAD);
-    let original = Gpt::parse(header_block, array).unwrap();
+    let original = GloballyUniqueIdentifierPartitionTable::parse(header_block, array).unwrap();
     let parts: Vec<Entry> = original.partitions().map(|(_, e)| e).collect();
 
     let mut rebuilt_array = [0u8; globally_unique_identifier_partition_table::ENTRY_ARRAY_BYTES];
-    let rebuilt = Gpt::create(
+    let rebuilt = GloballyUniqueIdentifierPartitionTable::create(
         original.disk_guid(),
         BLOCK,
         original.block_count(),
@@ -292,7 +294,8 @@ fn creating_the_same_table_from_scratch_matches_sgdisk_byte_for_byte() {
 )]
 fn every_single_byte_corruption_of_the_header_is_caught() {
     let (header_block, array) = primary(SGDISK_HEAD);
-    Gpt::parse(header_block, array).expect("the clean fixture parses");
+    GloballyUniqueIdentifierPartitionTable::parse(header_block, array)
+        .expect("the clean fixture parses");
 
     let mut corrupt = [0u8; BLOCK];
     let mut checked = 0u32;
@@ -304,7 +307,7 @@ fn every_single_byte_corruption_of_the_header_is_caught() {
             corrupt.copy_from_slice(header_block);
             corrupt[position] = value;
             assert!(
-                Gpt::parse(&corrupt, array).is_err(),
+                GloballyUniqueIdentifierPartitionTable::parse(&corrupt, array).is_err(),
                 "byte {position} changed to {value:#04x} was accepted"
             );
             checked += 1;
@@ -338,7 +341,7 @@ fn every_single_byte_corruption_of_the_header_is_caught() {
 )]
 fn every_single_bit_corruption_of_the_entry_array_is_caught() {
     let (header_block, array) = primary(SGDISK_HEAD);
-    let clean = Gpt::parse(header_block, array).unwrap();
+    let clean = GloballyUniqueIdentifierPartitionTable::parse(header_block, array).unwrap();
     let len = clean.entry_array().len();
     assert_eq!(len, 16384);
 
@@ -348,7 +351,7 @@ fn every_single_bit_corruption_of_the_entry_array_is_caught() {
         for mask in [1u8, 2, 4, 8, 16, 32, 64, 128, 255] {
             corrupt[position] = original ^ mask;
             assert!(
-                Gpt::parse(header_block, &corrupt).is_err(),
+                GloballyUniqueIdentifierPartitionTable::parse(header_block, &corrupt).is_err(),
                 "entry-array byte {position} xor {mask:#04x} was accepted"
             );
         }
@@ -367,7 +370,10 @@ fn every_single_bit_corruption_of_the_entry_array_is_caught() {
 #[ignore = "163 seconds: 68 GB of CRC-32. The bit-flip sweep is the gate."]
 fn every_single_byte_corruption_of_the_entry_array_is_caught() {
     let (header_block, array) = primary(SGDISK_HEAD);
-    let len = Gpt::parse(header_block, array).unwrap().entry_array().len();
+    let len = GloballyUniqueIdentifierPartitionTable::parse(header_block, array)
+        .unwrap()
+        .entry_array()
+        .len();
 
     let mut corrupt = array[..len].to_vec();
     for position in 0..len {
@@ -378,7 +384,7 @@ fn every_single_byte_corruption_of_the_entry_array_is_caught() {
             }
             corrupt[position] = value;
             assert!(
-                Gpt::parse(header_block, &corrupt).is_err(),
+                GloballyUniqueIdentifierPartitionTable::parse(header_block, &corrupt).is_err(),
                 "entry-array byte {position} changed to {value:#04x} was accepted"
             );
         }
@@ -394,7 +400,7 @@ fn every_single_byte_corruption_of_the_entry_array_is_caught() {
 #[test]
 fn a_backup_that_belongs_to_another_disk_is_refused_field_by_field() {
     let (header_block, array) = primary(SGDISK_HEAD);
-    let table = Gpt::parse(header_block, array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(header_block, array).unwrap();
     let (backup_array, backup_header_block) = backup(SGDISK_TAIL);
     table
         .check_backup(backup_header_block, backup_array)
@@ -462,13 +468,14 @@ fn a_hybrid_mbr_is_refused_by_name() {
 
 /// The primary of one fixture with the backup of the other is caught immediately.
 ///
-/// The disk GUIDs differ, which is the first thing [`Gpt::check_backup`] compares that can differ
-/// between two disks of the same size. Two 64 MiB images with identical geometry is the case where
-/// a lazier check (sizes match, so it must be fine) would say yes.
+/// The disk GUIDs differ, which is the first thing
+/// [`GloballyUniqueIdentifierPartitionTable::check_backup`] compares that can differ between two
+/// disks of the same size. Two 64 MiB images with identical geometry is the case where a lazier
+/// check (sizes match, so it must be fine) would say yes.
 #[test]
 fn one_disks_primary_with_a_foreign_backup_is_caught() {
     let (header, array) = primary(SGDISK_HEAD);
-    let table = Gpt::parse(header, array).unwrap();
+    let table = GloballyUniqueIdentifierPartitionTable::parse(header, array).unwrap();
     let (apple_array, apple_header) = backup(APPLE_TAIL);
     assert_eq!(
         table.check_backup(apple_header, apple_array),
