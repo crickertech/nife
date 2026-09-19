@@ -99,3 +99,13 @@ fn malformed_shapes_are_refused_not_guessed() {
     assert_eq!(interrupt_id::of_node(&dt, b"oddcells@").unwrap(), None);
     assert_eq!(interrupt_id::of_node(&dt, b"short@").unwrap(), None);
 }
+
+/// **PPI 16 is refused, and 16 is the number that has to be got exactly right.** The bank holds
+/// sixteen lines, 0 through 15, so 16 is the first one that is not a PPI; folded into the bank it
+/// becomes INTID 32, which is SPI 0, a line a different device owns. `badppi@` above is 99, which
+/// any reading of the bound turns away, so it proves the refusal happens without proving where.
+#[test]
+fn the_first_number_past_the_ppi_bank_is_refused() {
+    let dt = tree(INTERRUPT_SHAPES);
+    assert_eq!(interrupt_id::of_node(&dt, b"edgeppi@").unwrap(), None);
+}

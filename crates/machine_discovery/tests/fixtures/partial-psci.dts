@@ -1,0 +1,51 @@
+/dts-v1/;
+
+/*
+ * A hand-written device tree, NOT a dump from any board.
+ *
+ * Two shapes between "no /psci node" (no-psci.dtb) and "a complete one" (every other fixture),
+ * because the decoder has an answer for each and nothing exercised either:
+ *
+ *   /psci  states only `method`. It is a node this decoder could not make sense of rather than an
+ *          absent node, which is a different answer: `Ok(Some(..))` with `cpu_on` unknown, and a
+ *          machine on which starting a core is impossible for a reason a boot line can name. A
+ *          decoder that required all three properties before believing there was a node at all
+ *          would report this machine as having no PSCI.
+ *   cpu@1  reg is one cell where /cpus declares two, so the hardware id is short of the width the
+ *          parent states and cannot be decoded. The other two-cell fixture (clustered-cpus) has
+ *          every reg the full width.
+ *
+ * Regenerate with:
+ *
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/partial-psci.dtb \
+ *                          crates/machine_discovery/tests/fixtures/partial-psci.dts
+ */
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	compatible = "nife,cpu-list-test";
+
+	psci {
+		method = "hvc";
+	};
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			reg = <0x0 0x0>;
+			status = "okay";
+			enable-method = "psci";
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			reg = <0x1>;
+			status = "okay";
+			enable-method = "psci";
+		};
+	};
+};
