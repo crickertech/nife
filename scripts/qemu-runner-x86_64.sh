@@ -17,7 +17,7 @@
 # block lookup spans both buses now. The rest are wired one at a time as the port reaches them, and
 # adding a device to this file before the kernel can drive it only produces a boot that looks richer
 # than it is. See design/roadmap/161-x86-64-kernel-port.md and
-# design/roadmap/proposals/the-rest-of-the-x86-64-fixture-set.md.
+# design/roadmap/420-the-rest-of-the-x86-64-fixture-set.md.
 #
 # The kernel halts with `hlt` (arch::halt), so QEMU does not exit on its own. Bound any interactive
 # run with scripts/qemu-bounded.sh (see CLAUDE.md, "Never leave QEMU running").

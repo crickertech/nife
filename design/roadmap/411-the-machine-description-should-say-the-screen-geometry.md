@@ -1,9 +1,16 @@
-# The machine description should say the screen's geometry, not just its address
+# 411. The machine description should say the screen's geometry, not just its address
 
-**Status: PROPOSED 2026-09-14.** Found by milestone 268's lane while writing
-`kernel/src/console.rs`'s `print_summary`.
+**Status: NOT-STARTED.** Promoted from the proposal
+`the-machine-description-should-say-the-screen-geometry`, filed 2026-09-14 by milestone 268's lane
+while writing `kernel/src/console.rs`'s `print_summary`. *(Number provisional until the merge queue
+lands it.)*
 
 **Gate: NONE.** It reads the tree and touches one function.
+
+**Premise re-checked 2026-09-19 and still true, to the line.** `console::print_summary` still prints
+`and a screen, {len} bytes of framebuffer at {pixels}` out of the two fields `KernelConsole::screen`
+keeps, and the width, height and pixel order still appear only in the x86_64 arm's own `screen`
+line.
 
 ## In brief
 
@@ -45,4 +52,15 @@ nor the `ScreenConsole`'s cell grid. Either keep the geometry beside the pointer
 `ScreenConsole` for its own grid, and print both in the description's console answer. Then the
 `x86_64` arm's `screen` line can say only what it says *early* (that a screen was found before
 anything else was up), which is the split
-`design/roadmap/proposals/one-machine-description-not-two.md` is about.
+milestone 409 (design/roadmap/409-one-machine-description-not-two.md) is about.
+
+## Index row
+
+The machine description answers what console a machine has on all three architectures and, where
+there is a framebuffer, says where it is and how many bytes it is; it cannot say the width, the
+height or the pixel order, which are the three numbers that decide whether a picture will be legible
+or scrambled. Those arrive in the boot handoff and are printed by the x86_64 arm alone, so the fact
+exists on one architecture, in the wrong instrument. A board with a monitor and no serial port is
+exactly the machine this description was written for: xenon's first light was photographed off the
+screen, and a photograph is ambiguous about the one thing the description does not carry. The other
+two architectures grow a display path at milestone 157, so this wants doing once rather than twice.

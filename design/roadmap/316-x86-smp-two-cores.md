@@ -106,7 +106,8 @@ runs of the one and twelve of the other is not a proof, and a flake that fires o
 more than twelve to be called gone; it is enough to say the half-the-time failure is not
 half-the-time any more.
 
-**Neither `BUGS` #1 nor the UEFI two-core start flake fired once.** `design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`
+**Neither `BUGS` #1 nor the UEFI two-core start flake fired once.** Milestone 412
+(`design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`)
 records `smp: cpu 1 did not start (firmware returned -1)` at one run in three from a three-run
 sample; this campaign saw **26 two-core boots and zero** such lines, 8 of them under OVMF. That is
 incidental evidence rather than the dedicated `cargo xtask uefi-boot` measurement the proposal asks
@@ -156,7 +157,8 @@ than an answer to it.
 - **The two-core suite is not clean**, per the section above, and `NIFE_SMP` therefore still
   defaults to 1 in `scripts/qemu-runner-x86_64.sh`. Nothing in CI gates two cores, and nothing here
   changes that. The two-core result above is a measurement on one host, not a promise.
-- **`design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`
+- **Milestone 412
+  (`design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`)
   is a separate failure and was not addressed.** Its signature is `smp: cpu 1 did not start
   (firmware returned -1)`, a core that never starts at all, which is a different thing from a core
   that starts and is then misidentified. This lane's campaign is incidental evidence about its rate

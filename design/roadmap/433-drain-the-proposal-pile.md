@@ -212,6 +212,18 @@ It is not a `git mv`, and this block exists partly to say so before four lanes d
   with the prose on the wrong one, and milestone 265's `**Proposed.**` bullet for the unswept
   truncations named a proposal that holds a different subject, which the gate accepted because the
   check is path-shaped.
+- **408 to 432, `milestone/433-slice-4`, done.** 25 promoted. **Three of the 25 had a decayed
+  premise, one in eight**, which is a lower rate than the five-of-five sample this block was minted
+  on and is what the newest quarter of the pile was expected to show. 430 was already `BUILT`,
+  closed by commit `c1a177c` on **the same day it was filed**; 431 is `SUPERSEDED`, filed on a
+  premise milestone 319 had falsified the day before and restating work milestone 423 already
+  carries correctly; 415 is `PARTIAL`, because its item 1 landed as `ba99c83` hours after it was
+  written, and its closing section argued from a toolchain-bump decision calef had already ruled on
+  as milestone 302. The other 22 are `NOT-STARTED` and each says what was checked. Three counts
+  moved without changing any work (408's nine copies are not the same nine, 410 is five where the
+  title says six, 416's "roughly 35" occurrences are 80), and 418's central premise is false for a
+  reason no sweep was needed to find: `VTD_ADDR_MASK` is a `const` literal and `cargo mutants`
+  rewrites functions.
 
 ## BUGS
 

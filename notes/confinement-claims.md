@@ -164,7 +164,7 @@ the thing that turns any such bug into a full one. `arch::x86_64::init` now sets
 core whose CPUID offers it and prints a line either way. **There is still no test**, because a
 falsification would need ring 0 to survive its own page fault, and `SMAP` (its sibling, per-access
 and not free) stays off with the reason `mmu::permit_kernel_access_to_user_pages` records; both are
-one proposed milestone (`design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`).
+milestone 424 (design/roadmap/424-a-ring-0-that-provably-cannot-execute-ring-3-pages.md).
 
 ## What breaking them found
 

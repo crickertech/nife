@@ -164,7 +164,7 @@ edits are marked as such in it, and they are named in the Follow-on below.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/a-cadence-job-whose-healthy-state-is-red.md`: nothing
+- **Milestone 422.** Nothing
   notices a scheduled workflow that has been red for the same reason four weeks running, and for
   `audit-cadence` that is precisely the state the mechanism exists to produce. `script/cadence-check`
   asks when a workflow last succeeded, which cannot distinguish a firing tripwire from a broken one.
@@ -174,7 +174,7 @@ edits are marked as such in it, and they are named in the Follow-on below.
   against a threshold of 15. It sits on `design/fatal-risks.md`'s risk 7 path. It was routed through
   a proposal rather than a lane brief because the lens was calef's call and 112 milestones is more
   tree than one lens can hold.
-- **Proposed.** `design/roadmap/proposals/the-documentation-sweep-the-worklist-already-ranks.md`: the
+- **Milestone 427.** The
   documentation sweep the same run says is due, arriving with its scope already computed by
   `script/audits --worklist`. The eight dead `components/` and `fixtures/` citations in the second
   BUGS entry above are a starting scope.

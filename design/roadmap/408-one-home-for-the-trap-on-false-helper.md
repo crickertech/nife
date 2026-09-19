@@ -1,11 +1,20 @@
-# One home for `fn check(ok: bool)`, which nine programs now write out by hand
+# 408. One home for `fn check(ok: bool)`, which nine programs now write out by hand
 
-**Status: PROPOSED 2026-09-14.** Filed by milestone 291's lane, which added seven of the nine
-copies and is saying so rather than leaving the count to be re-derived.
+**Status: NOT-STARTED.** Promoted from the proposal `one-home-for-the-trap-on-false-helper`, filed
+2026-09-14 by milestone 291's lane, which added seven of the nine copies and said so rather than
+leaving the count to be re-derived. *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The obvious home is `crates/user_rt`, and a public function name there is
 calef's (AGENTS.md, "calef names the crates, the programs, and the shared modules", extended to
 public function and method names on 2026-08-23).
+
+**Premise re-checked 2026-09-19, still true, with two corrections.**
+`grep -rn 'fn check(ok: bool)'` finds nine copies, the same count, and not the same nine:
+`fixtures/src/memory_region_depleter.rs` no longer carries one and `fixtures/src/hello.rs` does.
+`components/src/block_driver.rs` still reaches the trap through `panic!()` rather than
+`user_mode_runtime::trap()`, so the two spellings of "say no" this file names have not converged.
+And the crate called `crates/user_rt` below is `crates/user_mode_runtime` since milestone 285, which
+changes where the function would go and nothing about the decision the gate names.
 
 ## The duplicate
 
@@ -47,3 +56,14 @@ mode: half the tree checks something. `require` is the kernel's own word for the
 opposite reasons: the first is unusual enough to need explaining, the second reads as a modal verb
 at the call site. A public name on `user_rt` is also the most-read function name this tree could
 add, which is a reason to spend a decision on it rather than to take one.
+
+## Index row
+
+Nine programs each write out the same three-line `fn check(ok: bool)` over
+`user_mode_runtime::trap()`, typed again rather than shared, so `script/lint` check 5 never sees
+them: seven arrived with milestone 291's split of `hello` into programs, and two of the nine already
+disagree about what saying no means, since `components/src/block_driver.rs` panics where the rest
+trap. The obvious home is `crates/user_mode_runtime`, which every program in the tree links, and
+that makes this the most-read function name the tree could add. `check` is one of the generic words
+design/naming.md calls a failure mode, `require` is the kernel's own word for the same shape, and
+the name is the whole decision, which is why this is gated on calef rather than on a lane.

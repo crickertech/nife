@@ -1,11 +1,19 @@
-# Two loader names the tree still carries, and neither one exists
+# 416. Two loader names the tree still carries, and neither one exists
 
-**Status: PROPOSED 2026-09-15.** Surfaced by the lane that performed milestone 166's ratified
-`spawn_progenitor` -> `spawn_hello` rename (PR #884), which found them while enumerating and
-deliberately did not sweep them.
+**Status: NOT-STARTED.** Promoted from the proposal `the-two-loader-names-the-tree-still-carries`,
+filed 2026-09-15 by the lane that performed milestone 166's ratified
+`spawn_progenitor` -> `spawn_hello` rename (PR #884), which found these while enumerating and
+deliberately did not sweep them. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** `boot_progenitor` is already ratified (calef, 2026-09-15), so nothing here waits on a
 naming decision. It is bounded cleanup with a discipline attached, not a fork.
+
+**Premise re-checked 2026-09-19 and the count has grown, which is why this file said to re-enumerate
+rather than trust it.** Neither `fn riscv_shell_boot` nor `fn spawn_init` exists anywhere in the
+tree. `riscv_shell_boot` appears **48 times across 25 files** and `spawn_init` **32 times across 22
+files**, against the roughly 35 occurrences counted mid-rename on one branch. The sites span
+`design/`, `notes/`, `kernel/`, `components/` and `xtask/`, and include the test-wiring hotspot this
+file's `BUGS` warns about.
 
 ## The finding
 
@@ -61,3 +69,15 @@ followed apply, and they are why this cannot be a single `sed`:
 - **The count is provisional** for the reason stated above, and the sweep touches the same
   test-wiring hotspot (`kernel/src/user/tests.rs`, `xtask/src/main.rs`) where lanes collide, so it
   wants to run when nothing else is in those files.
+
+## Index row
+
+Two function names survive in prose and code comments after the functions themselves are gone:
+`riscv_shell_boot` became `boot_progenitor` when milestone 166 unified the per-architecture boot
+loaders, and `spawn_init` was already stale before that. Re-counted 2026-09-19 at 48 and 32
+occurrences across 40-odd files, against the roughly 35 the filing lane saw mid-rename. A reader who
+greps either one finds prose describing a function that exists nowhere, with nothing saying what it
+became, which is the newcomer principle failing in the way this tree cares about most. The edits are
+mechanical and the judgment is the whole job: a `BUILT` block narrating history keeps the old name, a
+measurement table keeps the name it was measured under, a quotation never moves, and `spawn_init`
+may not have one successor at all.

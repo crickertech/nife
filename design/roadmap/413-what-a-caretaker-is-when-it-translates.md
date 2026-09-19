@@ -1,12 +1,19 @@
-# What a `caretaker` is, when the thing it holds is not the thing it hands out
+# 413. What a `caretaker` is, when the thing it holds is not the thing it hands out
 
-**Status: PROPOSED 2026-09-14.** Found by the milestone 292 lane while naming the program that puts a
-file behind a byte sink, which had been `ROLE_FILE` inside a three-role binary and so had never
-needed a name of its own.
+**Status: NOT-STARTED.** Promoted from the proposal `what-a-caretaker-is-when-it-translates`, filed
+2026-09-14 by the milestone 292 lane while naming the program that puts a file behind a byte sink,
+which had been `ROLE_FILE` inside a three-role binary and so had never needed a name of its own.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** `caretaker` is a word five programs already carry and every future narrowing
 program will reach for, so this is a name and names are calef's. It is cheap to settle and expensive
 to leave, because the next lane writing an adapter will copy whichever neighbour it happened to read.
+
+**Premise re-checked 2026-09-19 and still true.** The tree still carries both definitions:
+`fs_file_caretaker`, `fs_subtree_caretaker` and `fs_nameset_caretaker` narrow, and
+`terminal_sink_caretaker` translates. `script/names file_sink` still reports the name as
+provisional, still records `file_sink_caretaker` as refused on collision, and its own closing
+sentence still routes the inconsistency here. Nothing has been ratified since.
 
 ## The two definitions, both in the tree, both load-bearing
 
@@ -59,3 +66,16 @@ becomes the honest name and the collision is a cost to accept rather than a reas
 Anything about `byte_sink_protocol`, which is a wire contract named for what it carries and survived the
 2026-09-13 structural-versus-current sweep on its own terms. Nor about `fs_subtree_caretaker` and
 `fs_nameset_caretaker`, which are definition A under either answer.
+
+## Index row
+
+`caretaker` is spelled two ways in this tree and both are load-bearing. Under the narrowing
+definition a caretaker serves the same protocol its client speaks and takes away authority rather
+than vocabulary, which is `fs_file_caretaker`, `fs_subtree_caretaker` and `fs_nameset_caretaker`;
+under the translating one it speaks one protocol and hands out another, which is
+`terminal_sink_caretaker`, a name calef ratified on 2026-08-03. Milestone 292 needed the word for
+the file-behind-a-sink program, refused `file_sink_caretaker` on collision with the existing and
+different `fs_file_caretaker`, and shipped `file_sink` provisionally, which is a local answer to a
+global question. What a decision settles is which definition the word carries, whether there is a
+second word owed for the translating shape, and whether a caretaker's name says what it holds or
+what it hands out.

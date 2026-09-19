@@ -1,9 +1,17 @@
-# A cadence job whose healthy state is red, and nothing that notices it repeating
+# 422. A cadence job whose healthy state is red, and nothing that notices it repeating
 
-**Status: PROPOSED 2026-09-17.** Found by milestone 311, which was minted to fix a path and found
-that the path was the smaller half.
+**Status: NOT-STARTED.** Promoted from the proposal `a-cadence-job-whose-healthy-state-is-red`,
+filed 2026-09-17 by milestone 311, which was minted to fix a path and found that the path was the
+smaller half. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** It reads GitHub's run history, the same source `script/cadence-check` already reads.
+
+**Premise re-checked 2026-09-19 and still true, and the overdue run is now five weeks long.**
+`scripts/trunk-health.sh` still reports nothing about a repeated failure, and `script/cadence-check`
+still asks only when a workflow last succeeded. `script/audits --due` still names `documentation`,
+whose last sweep is 2026-08-17 and whose milestone trigger now reads +122 against a threshold of 10.
+The security sibling is the one thing that moved: it was audited on 2026-09-17 and is no longer due,
+so `documentation` is now the only standing example.
 
 ## In brief
 
@@ -79,3 +87,17 @@ decoration, and the workflow's own header and `design/audit-reports/README.md`'s
 say that closing this by editing the index is the one thing that makes the mechanism a lie. The
 ambiguity is the cost of a correct design, and the fix is a second signal rather than a quieter
 first one.
+
+## Index row
+
+`.github/workflows/audit-cadence.yml` reports that an audit is due by failing, which is deliberate
+and correct, and the consequence nobody priced is that red is ambiguous: a firing tripwire and a
+`FileNotFoundError` are the same row in the Actions tab, and so are four consecutive weeks of the
+same true report. An audit was overdue every week for a month, the mechanism said so on schedule
+every time, and no audit ran, which is milestone 92's tripwire firing four times into a process that
+still depended on somebody remembering. `script/cadence-check` cannot cover it, because a job whose
+healthy state is red has no green to be stale against and a job that never succeeded is reported for
+ever. The proposal is to report a repeat rather than a colour, from `scripts/trunk-health.sh` rather
+than a scheduled workflow that would die the way its subjects die. What makes it a block rather than
+a brief is the open question of who the report is for, since running an audit is a lane and a day
+and there is no pull request to hang the finding on.

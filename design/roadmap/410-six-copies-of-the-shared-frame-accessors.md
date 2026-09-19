@@ -1,12 +1,20 @@
-# Six copies of the shared-frame accessors
+# 410. Six copies of the shared-frame accessors
 
-**Status: PROPOSED 2026-09-14.** Counted by milestone 290, which added the sixth copy and is saying
-so rather than hiding it. Five existed before; the split of the `ntp` binary into three programs put
-the client's half and the test server's half in separate files, and each needs the same accessors.
+**Status: NOT-STARTED.** Promoted from the proposal `six-copies-of-the-shared-frame-accessors`,
+filed 2026-09-14 by milestone 290, which added the sixth copy and said so rather than hiding it.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** A lane can close this. It is a refactor inside userspace with no wire format, no
 syscall surface and no name calef has not already ruled on, unless a new crate is wanted, in which
 case the name is his.
+
+**Premise re-checked 2026-09-19: five copies, not six, and this file already records why.**
+`multicast_dns_responder` went at milestone 298 and the table below struck it out at the time. The
+five that remain are `components/src/socket_test_client.rs`, `components/src/network_time_client.rs`
+and `fixtures/src/network_time_test_server.rs`, which carry the absolute-VA accessors the title is
+about, plus `components/src/entropy.rs` and `components/src/net_transport.rs`, which take an offset
+rather than a VA and are the virtio pair this file says to price separately. The title keeps the
+count it was filed under.
 
 ## What is duplicated
 
@@ -70,3 +78,15 @@ Four programs constructing one type from `socket_protocol`, their local accessor
 existing socket and network time tests green on both ISAs with no test changed. If the virtio
 pair is done in the same lane, `crates/virtio`'s own host tests too. Any new type is a name calef has
 not ruled on, so it ships provisional and says so.
+
+## Index row
+
+Six programs each carried their own copy of the same accessors over
+`user_mode_runtime::mapped_window::MappedWindow`, turning an absolute virtual address back into the
+offset the window bounds-checks; the retirement of `multicast_dns_responder` at milestone 298 left
+five. The three that speak the socket contract belong beside the offsets they already use in
+`crates/socket_protocol`; the two virtio DMA users read descriptor rings instead, and this block's
+own instruction is to price them separately rather than force one abstraction over both. The part
+that is not mechanical is that `PAGE_FRAME_VA` is genuinely per-program, since each address space is
+its own, so the type is constructed with its base and a lane that hoisted the constant into the
+crate would be inventing an agreement that does not exist.

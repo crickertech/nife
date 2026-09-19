@@ -57,8 +57,8 @@ where the problem is.
 two open reasons: AP-bring-up flakiness at three or more cores, and a boot-core-identity bug that
 makes `smp::tests::every_secondary_runs_scheduled_work` fail **about half the time at two**. Both
 are recorded in `arch::x86_64::ap_boot`'s own `BUGS` (#1 and #3). Separately,
-`design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md` records
-the UEFI leg's two-core assertion failing one run in three.
+milestone 412 (design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md)
+records the UEFI leg's two-core assertion failing one run in three.
 
 So a new two-core port test would ride on a configuration where an existing SMP test is already
 flaky. **Two ways to sequence it, and they are not close enough to pick without calef:**

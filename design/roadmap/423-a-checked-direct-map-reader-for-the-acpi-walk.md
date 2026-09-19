@@ -1,9 +1,20 @@
-# A checked direct-map reader for the x86 ACPI walk
+# 423. A checked direct-map reader for the x86 ACPI walk
 
-**Status: PROPOSED 2026-09-17.** Found by milestone 319, which proved the parsing half and so
-narrowed what the volatile half is actually for.
+**Status: NOT-STARTED.** Promoted from the proposal `a-checked-direct-map-reader-for-the-acpi-walk`,
+filed 2026-09-17 by milestone 319, which proved the parsing half and so narrowed what the volatile
+half is actually for. *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** It is a new accessor at a trust boundary, so its shape and its name are calef's.
+
+**Premise re-checked 2026-09-19 and still true, and this block subsumes milestone 431.**
+`kernel/src/arch/x86_64/machine.rs` is 847 lines with no bounded accessor: `read_acpi` still takes a
+firmware-supplied hint and each table body is still a raw pointer plus a length the table itself
+supplied. `crates/machine_discovery` is proved (21 harnesses, its own `script/verify` row), so the
+narrowing this block is built on holds.
+
+**Milestone 431 was filed a day later restating the pre-319 framing** (that the parsing half carries
+no harnesses and appears in no `script/verify` row, which stopped being true on 2026-09-17), and its
+surviving claim is this block's. It is `SUPERSEDED` by this one and by milestone 319.
 
 ## In brief
 
@@ -50,3 +61,17 @@ nothing here should re-litigate what a table means.
 
 Nothing is blocked. This is the last unproved reach of the x86 discovery path, and it is the one
 place left where a firmware number reaches a dereference with no proved step between.
+
+## Index row
+
+Milestone 304 named `kernel/src/arch/x86_64/machine.rs`'s ACPI walk as its strongest remaining
+target and declined it: 836 lines over firmware-supplied lengths, checksums and counts, whose
+volatile half reads raw pointers into the direct map. Milestone 319 changed the size of that
+question rather than answering it, by proving `crates/machine_discovery`, so every decision about
+what the bytes mean now lives where Kani reaches and what is left on the kernel side is one
+operation repeated: read N bytes at a physical address through the direct map and hand them to a
+parser. The question is whether that accessor takes a bound and what it does when the bound is
+exceeded, since an RSDT whose `length` field says 64 KiB is a 64 KiB read at whatever the RSDP
+pointed at. The other two architectures answer it: `dtb::Dtb::from_ptr` takes the blob's own length
+and validates the header before anything is read. Whether the bound is per-read or a region
+capability the walk holds is the part that could go either way, and the accessor's name is calef's.

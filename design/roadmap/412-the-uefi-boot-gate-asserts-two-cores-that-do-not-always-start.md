@@ -1,9 +1,21 @@
-# `script/test`'s UEFI leg asserts two cores online, and the second one does not always start
+# 412. `script/test`'s UEFI leg asserts two cores online, and the second one does not always start
 
-**Status: PROPOSED 2026-09-14.**
+**Status: NOT-STARTED.** Promoted from the proposal
+`the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start`, filed 2026-09-14 by milestone 294's
+lane. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** Nothing is owed and nothing is missing. It is a measurement and a decision about a
 gate's assertion, both of which a lane can do today.
+
+**Premise re-checked 2026-09-19 and still true, with evidence that arrived after it was filed.**
+`xtask/src/main.rs` still sets `NIFE_SMP=2` for the UEFI tour and still asserts
+`smp: 2 core(s) online` unconditionally, and `ap_boot.rs`'s "third or later" bound is untouched:
+milestone 316 fixed that module's `BUGS` #3 (`boot_cpu_id` answering the wrong question) and left #1
+open. **316 also supplies a second sample this block should reconcile rather than ignore**: 26
+two-core boots, eight of them under OVMF, with zero `cpu 1 did not start` lines. 316's own `BUGS`
+says that is incidental evidence about a different failure mode and not the dedicated
+`cargo xtask uefi-boot` measurement step 1 asks for, which is why this stays work rather than
+becoming an answer.
 
 **Found by milestone 294's lane, which had no business being anywhere near it.** That lane changed
 markdown, `script/roadmap` and one comment in `script/lint`, and nothing `cargo xtask` builds. Its
@@ -55,3 +67,15 @@ running `script/test` on an x86_64 host.
    trampoline page the loader asked for was usable, which is what its own comment says). Retrying
    the boot, or asserting one core, both weaken it. A gate that fails one time in three is worse
    than either, and a gate that is *known* to fail one time in three and stays that way is worst.
+
+## Index row
+
+`cargo xtask uefi-boot` asserts `smp: 2 core(s) online` unconditionally, and milestone 294's lane
+saw `smp: cpu 1 did not start (firmware returned -1)` once in three runs on one tree, one machine
+and one commit. `arch::x86_64::ap_boot`'s `BUGS` bounds that flake at three cores and above, and the
+comment beside `NIFE_SMP=2` reasons from the same bound, so either the bound is wrong or this is a
+second failure mode that prints the same line; the recorded one is a secondary brought up beside an
+already-running one, which cannot be what happens at two. Nothing in CI boots the x86_64 UEFI image,
+so only a lane running `script/test` on an x86_64 host ever meets it. The work is a rate first, then
+which record to correct, then what the gate should assert, and that last part is the one worth
+arguing: a gate known to fail one run in three and left that way is worse than either alternative.

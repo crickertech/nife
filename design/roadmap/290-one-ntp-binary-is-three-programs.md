@@ -231,7 +231,9 @@ three new names ratified and carrying eight refusals between them.
 - **Done.** The entropy-service isolation defect above, found here and fixed here, with the
   reproduction recorded at the base commit so a reader can tell it apart from this milestone's own
   work.
-- **Proposed.** `design/roadmap/proposals/six-copies-of-the-shared-frame-accessors.md`.
+- **Milestone 410.** Six programs each carry their own copy of the accessors that turn an absolute
+  virtual address back into a `MappedWindow` offset, and this lane's split of the `ntp` binary added
+  the sixth; `multicast_dns_responder`'s retirement at milestone 298 has since left five.
 - **Milestone 402.** `entropy_service::ensure` hands its first caller a `Wiring` whose `ready`
   endpoint must be drained, because the service announces itself with a blocking send, and nothing
   in the type says so. This lane hit it in `ntp_tests` and fixed that one caller; the general

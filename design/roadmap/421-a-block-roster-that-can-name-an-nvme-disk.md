@@ -1,11 +1,18 @@
-# The block roster cannot name an NVMe disk, and the reason it could not has just gone away
+# 421. The block roster cannot name an NVMe disk, and the reason it could not has just gone away
 
-**Status: PROPOSED 2026-09-17.** Written by the milestone 261 lane (the EL0 NVMe server), which
-closed the question this was waiting on and deliberately did not take the work, because the work is
-a wire shape and that is the expensive category.
+**Status: NOT-STARTED.** Promoted from the proposal `a-block-roster-that-can-name-an-nvme-disk`,
+filed 2026-09-17 by the milestone 261 lane (the EL0 NVMe server), which closed the question this was
+waiting on and deliberately did not take the work, because the work is a wire shape and that is the
+expensive category. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** QEMU's NVMe is attached on every leg of all three runners already
 (`NIFE_NVME`), and the surveyor's two clients run there today.
+
+**Premise re-checked 2026-09-19 and still true.** `crates/block_roster` still encodes exactly two
+transport kinds, `TRANSPORT_MMIO` and `TRANSPORT_PCI`, in the four bytes at offset 4 of an entry,
+and `transport_name` still matches those two alone. There is no NVMe kind and no entry the surveyor
+could fill in from
+`kernel/src/user/non_volatile_memory_express_service.rs`.
 
 ## What the work is
 
@@ -52,3 +59,17 @@ is the first test of whether the roster's shape is about *block devices* or abou
 The transport kind's spelling, since it is a wire value two programs read, and whether an NVMe entry
 carries anything a virtio one does not (a namespace id, a controller identity). Both are the kind of
 question §86 already routed to him rather than to a lane.
+
+## Index row
+
+`block_roster` is the read-only listing a process holds when it may know what block devices exist
+without holding any of them, and it has a transport kind for virtio and none for NVMe, so
+`disk_surveyor` cannot list the machine's NVMe disk: the one device whose driver is a confined
+process is the one the roster cannot see. §86 listed this as blocked on who owns the controller,
+because a roster entry for a kernel-resident driver and one for a confined EL0 server differ in what
+a holder may then ask for, and milestone 261 answered it by putting the data plane in a process that
+serves `filesystem_protocol::blk` on a request endpoint, which is the shape the virtio entries
+already point at. What it settles is whether the roster's shape is about block devices or about
+virtio, since milestone 57's claim that listing and holding are different powers has only ever been
+exercised against one transport. The transport kind's spelling is a wire value two programs read and
+is calef's, along with whether an NVMe entry carries a namespace id or a controller identity.
