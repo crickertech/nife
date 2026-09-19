@@ -150,7 +150,7 @@ unvouched-binary hazard and a design fork that surfaced only because calef asked
 
 A block whose status is `BUILT`, `REMOVED` or `PARTIAL` carries the section, and
 `script/roadmap --check` fails on one that does not. It is a bullet list, and each bullet opens with
-one of eight dispositions:
+one of seven dispositions, six of which any block may use and `Outstanding.` only a `PARTIAL` one:
 
 | Bullet opens | Means | Must resolve to |
 |---|---|---|

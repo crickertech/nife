@@ -89,6 +89,12 @@ longer applies, since there is one caller now. The module stays a module anyway:
 reader meets the explanation of why a column on a live dashboard is permanently zero going forward,
 and folding fifty lines of a dead record form into the middle of the dashboard would bury that.
 
+### `design/roadmap/README.md`, one word
+
+The disposition table still introduced itself as "one of eight dispositions" after its own row for
+`Proposed.` was deleted. Seven now, six of which any block may use and `Outstanding.` only a
+`PARTIAL` one, which is the count the table has actually had since the ruling.
+
 ### `script/fatal-risks`
 
 Check 6b asked whether a proposal cited by a risk entry had changed after the entry was last dated,
