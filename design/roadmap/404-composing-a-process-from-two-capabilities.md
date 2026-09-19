@@ -13,7 +13,7 @@ milestone 265. **The gate token was `DESIGN`, which is not in the roadmap's gate
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§183](../decisions/183-composing-a-process-from-two-capabilities.md) *(number provisional)*,
+[§184](../decisions/184-composing-a-process-from-two-capabilities.md) *(number provisional)*,
 written up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. (This
 block's status paragraph already records one token correction, from `DESIGN`, which is not in the
 roadmap's gate vocabulary; the section is the other half of that repair, since a token in the

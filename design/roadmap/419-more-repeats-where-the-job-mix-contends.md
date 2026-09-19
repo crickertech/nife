@@ -6,7 +6,7 @@ boots each landed outside the range the first three had established. *(Number pr
 merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§189](../decisions/189-job-mix-repeats-and-what-the-line-reports.md) *(number provisional)*,
+[§190](../decisions/190-job-mix-repeats-and-what-the-line-reports.md) *(number provisional)*,
 written up 2026-09-19 by milestone 435's slice-c lane because this gate named no section.
 `job_mix::REPEATS` decides how long every bench evening takes on every board,
 and the `job-mix-repeat:` line it produces is output two programs read (`script/job-mix`'s

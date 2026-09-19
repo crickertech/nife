@@ -100,9 +100,9 @@ pub const USED_WORD: u64 = 0x5A;
 
 /// The word the cycle-counter reader reports when it read the counter without being killed for it.
 ///
-/// **The word is the whole result, and the counter value is not.** An ungranted read of
-/// `PMCCNTR_EL0` or the `cycle` CSR traps, and this kernel turns that into a fault that ends the
-/// thread, so a program that gets as far as sending anything is a program the grant reached. What
-/// it read is uninteresting: QEMU leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however
-/// often you ask it.
+/// **The word is the grant's result.** An ungranted read of `PMCCNTR_EL0` or the `cycle` CSR
+/// traps, and this kernel turns that into a fault that ends the thread, so a program that gets as
+/// far as sending anything is a program the grant reached. The two counter reads ride in words 1
+/// and 2, and the kernel's test checks they moved forward only where the kernel itself says the
+/// counter runs (milestone 74; the reasoning is on the test).
 pub const CYCLE_COUNTER_WORD: u64 = 0xC1C1E;

@@ -7,7 +7,7 @@ the vocabulary has no word for a block whose subject is gone, and minting one is
 
 **Gate: DECISION.** The configuration half needs nothing and has a precedent to copy. The secret
 half is a fork calef must rule on, stated in full below and now in
-[§163](../decisions/163-where-a-stored-secret-comes-from.md) (where a stored secret comes from on a
+[§164](../decisions/164-where-a-stored-secret-comes-from.md) (where a stored secret comes from on a
 boot that is not a test), written up 2026-09-19 by milestone 435's lane: **where a secret physically
 comes from on a real boot.** That section carries the second question this block leaves to calef as
 well, which is whether the block is re-aimed or retired now that its subject is gone. The two are one milestone because they are one act, and because splitting them would

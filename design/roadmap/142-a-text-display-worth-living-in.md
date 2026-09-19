@@ -11,7 +11,7 @@ decision is the font and the dependency that renders it, below. **Half of that w
 2026-08-20 and this gate did not say so until 2026-09-19**:
 [§104](../decisions/104-the-font-and-the-palette.md) (the rich-text font is DejaVu Sans Mono, and
 the palette is Solarized) chose both the family and the palette. What is left is
-[§164](../decisions/164-the-rasteriser-and-how-many-faces.md) (the rasteriser dependency, and
+[§165](../decisions/165-the-rasteriser-and-how-many-faces.md) (the rasteriser dependency, and
 whether the glyph atlas ships one face or four), written up by milestone 435's lane: §46 makes the
 crate a decision, and §104 is silent on faces. **Increments one and two need neither** and are
 built; they were the larger half of the deliverable and none of it is aesthetic.

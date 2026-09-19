@@ -102,4 +102,4 @@ a whole system state, which A3 gets only if the table of entries is itself versi
 
 Nothing is installed at runtime; packages are build inputs to an image, and a new program arrives by
 reflashing. That is the first slice, and it is a complete answer for us as builders. It is not an
-answer for a customer who wants `git` without rebuilding their system.
+answer for a customer who wants `git` without rebuilding their system. *(2026-09-19: that first slice is superseded by DECISIONS §157; see milestone 198's "Rescoped 2026-09-19". Under §157 a "no" here also stops rung 3.)*

@@ -1679,6 +1679,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // See smp.rs and DECISIONS §11.
     smp::bring_up_secondaries();
 
+    // Whether this machine has a running cycle counter (milestone 74's aarch64 half). Every core
+    // started and checked its own in `timer::init`; this is the one line that reports them all,
+    // here because it is the first point every core has answered. Every build prints it, test and
+    // bench included, for the reason the riscv64 boot gives: whether the machine has one is a fact
+    // about the machine, and the test and bench transcripts are where QEMU's answer gets read.
+    arch::pmu::print_summary();
+
     #[cfg(test)]
     test_main();
 

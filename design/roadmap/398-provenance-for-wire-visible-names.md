@@ -15,7 +15,7 @@ since not every one of the 77 is agreed between two binaries.
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§180](../decisions/180-provenance-for-wire-visible-names.md) *(number provisional)*, written up
+[§181](../decisions/181-provenance-for-wire-visible-names.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. What counts as a
 surface is a scope question, and scope decides how large the worklist calef is handed becomes.
 Whether to widen at all is his call, not a lane's.

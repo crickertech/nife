@@ -6,7 +6,7 @@ into a checklist.
 
 **Gate: DECISION, MILESTONE 64.** (The MILESTONE 107 half cleared 2026-08-04; found stale 2026-08-15.) 64 is named as the prerequisite and this is its
 extreme case; 107 owns the listen and accept that head the gap table. The decision is the block's
-own and is now [§159](../decisions/159-what-counts-as-running-vaultwarden.md) (which subset counts
+own and is now [§160](../decisions/160-what-counts-as-running-vaultwarden.md) (which subset counts
 as running Vaultwarden), written up 2026-09-19 by milestone 435's lane: which subset counts has to
 be settled before the work starts, or the goalposts move to wherever the effort lands. Until then
 this gate had named no decision anywhere a reader could open, while the ask sat in this block's own

@@ -123,4 +123,4 @@ by content, which is a judgement, not an effort question.
 
 The first slice still builds, because it needs no format: it composes whole images from source on
 the host, which is C1 by default. Nothing can be installed onto a running system, and nothing leaves
-the tree as a package.
+the tree as a package. *(2026-09-19: that first slice is superseded by DECISIONS §157; see milestone 198's "Rescoped 2026-09-19". Under §157 a "no" here also stops rung 3.)*
