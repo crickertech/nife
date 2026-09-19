@@ -152,6 +152,18 @@ names**: a QEMU whose parent is a live harness is somebody's gate in flight, not
 `scripts/qemu-bounded-selftest.sh` checks all of this against a real emulator, including that
 `perl`'s alarm is still swallowed. It is in no gate; run it if you touch the bounding script.
 
+**It does not bound `scripts/qemu-runner-x86_64.sh`, and it looks as if it does** (found
+2026-09-19 by milestone 134's per-IPC stack-depth lane, when the maintainer reaped a halted
+`qemu-system-x86_64` with PPID 1 that the lane had started through
+`scripts/qemu-bounded.sh 240 scripts/qemu-runner-x86_64.sh ...`). The killer signals `$CHILD`,
+the process it started. The aarch64 and riscv64 runners end in `exec qemu-system-...`, so their
+child *is* QEMU. The x86_64 runner deliberately does not `exec` (its own comment: it has to turn
+`isa-debug-exit`'s odd status back into 0 afterwards), so its child is a shell with QEMU beneath
+it; the bound kills the shell on time and QEMU is re-parented to launchd, halted and holding
+nothing but a core's worth of memory. Until one of the two scripts changes (the runner trapping
+TERM and HUP and forwarding them to QEMU would be the smaller fix), **after bounding an x86_64
+run, `pgrep -l qemu-system-x86` and walk the parent chain**, and treat a PPID of 1 as yours.
+
 **A kernel does not exit.** That is the root of it: `cargo test` terminates because the test
 build asks the host to exit via [semihosting](semihosting.md), but a normal boot halts
 forever, by design, exactly like real hardware. So every interactive run must be bounded, and

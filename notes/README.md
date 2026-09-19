@@ -182,6 +182,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   left `.bss` for a region with an unmapped page under each, proven by a page-table walk. Its
   longest-standing BUGS entry, that nothing walks the call graph, closed on 2026-08-16 with
   `script/stack-depth-check`, whose static bound and this note's measurement agree to the byte.
+  Since milestone 134 (2026-09-19) it also measures **per-IPC** depth, the same paint re-armed
+  around each operation: about 600 bytes per kernel thread per round trip in the release build,
+  which moves E1's knee from a capacity story to a set-conflict question.
 - [Reading aarch64 assembly](reading-assembly.md): five rules that decode almost
   everything, the addressing-mode table, and a line-by-line walkthrough of `boot.s`.
   **Start here if a code block looks like noise.**

@@ -110,6 +110,7 @@ row pretending to be one.
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
 | E3: IPC fastpath footprint doubled, and the latency it costs | **2026-09-04 (radon, 6 boots); confounded, see below**; 2026-08-22 (dev Mac) | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
 | E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | **2026-09-04 (radon, 6 boots)**; 2026-08-23 (dev Mac) | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
+| per-IPC kernel stack depth, per shape and role (milestone 134) | **2026-09-19 (QEMU, all three ISAs, debug and release)** | debug: `script/test`, the `ipc-stack-depth:` lines of `one_ipc_reaches_a_measured_depth_into_its_kernel_stack`; release: a `bench,ipc_stack_depth` kernel booted on one hart (notes/stack-high-water.md, "Per-IPC depth") |
 | multi-tasking throughput, jobs per minute against task count (milestone 168) | **2026-09-16 (radon, 5 boots; old instrument, `tasks=4` not a number)** | `script/board-image --job-mix --tftp`, then `script/board-console`, by `notes/job-mix.md`'s bench-evening procedure; the rehearsal is `script/job-mix` |
 
 **E1, E3 and E4 re-taken on radon, 2026-09-04, which is the board all three were designed
@@ -133,6 +134,18 @@ notes/footprint-perturbation.md.
   built. This flaw
   was present in the 2026-08-22 dev-Mac reading too; the small cache made it visible rather than
   causing it.
+
+**The per-IPC kernel stack depth, taken 2026-09-19, retires E1's one estimated input.** E1's
+prediction assumed "roughly 1 to 2 KiB" of kernel stack per IPC. Measured by painting each
+thread's own stack around each operation: in the **release** kernel radon boots, one round trip
+reaches about **600 bytes** of each kernel thread's stack (riscv64: 608 client, 576 server, E1's
+SEND/RECV shape), and 0.5 to 1 KiB for EL0 threads, trap frame included; the debug build reaches
+2 to 4 KiB. It is `dated` rather than gated because it had never existed before and nothing
+depends on its value yet. **What it changes about E1 is the reading, not the curve**: at 600 bytes
+a thread, stacks fill a 32 KB L1d near 54 threads, not 16, so capacity does not explain radon's
+knee at 8 to 16. Page-aligned stack tops sharing set indices would (at most 8 lines per page offset
+in radon's 32 KiB 4-way L1D), and so would page-aligned TCBs. notes/stack-high-water.md carries the
+arithmetic and the colouring experiment that separates the two.
 
 **E1 through E4, taken 2026-08-22 (milestone 134's Tier A lane).** All four ran on the dev Mac
 under HVF; none of the four needed silicon, which is what the block promised, but three of them
@@ -252,10 +265,24 @@ with a consumer gets a relation; a number with only a reader gets printed.**
 
 ## Owed
 
-Eight measures (M5 through M12, "Tier B") are defined and cannot be taken here: all eight need the
-cycle counters of milestone 74, the authority question of milestone 75, or silicon with a real PMU.
-E1 through E4 ("Tier A") no longer belong in this section: all four ran 2026-08-22 and are `dated`
-rows above.
+Eight measures (M5 through M12, "Tier B") are defined here, and as of 2026-09-19 the blocker is no
+longer the same one for all of them. E1 through E4 ("Tier A") no longer belong in this section: all
+four ran 2026-08-22 and are `dated` rows above.
+
+| measure | its instrument, checked against the tree 2026-09-19 | what is still missing |
+|---|---|---|
+| M5, cycles per IPC round trip | **exists on all three ISAs**: every tick row times `bench::cycles_per_tick` (milestone 74's two halves, milestone 309 for x86_64) | on riscv64, nothing: radon read `250.00` on 2026-09-16, so `call_reply` is about 1,256 cycles. On aarch64, argon's session and calef's `PMCCFILTR_EL0` ruling (the-aarch64-half-of-74, decision A) before any figure is published |
+| M6, I-cache misses per IPC | none | an event-counter driver: nothing programs `PMEVTYPER<n>_EL0` or an SBI PMU cache event on any ISA (aarch64's boot line now reports six event counters visible, and none is used) |
+| M7, D-cache misses per IPC in the stack region | half: the per-IPC stack depth (row above) bounds the bytes, not the misses | the same event-counter driver, and for the attribution half a data-address sampler that neither the A57 nor the U74 has; expect M7 to become "misses rise with thread count" plus the depth, rather than attribution |
+| M8, TLB misses per IPC | none | the same event-counter driver |
+| M9, per-phase cycles across one IPC | the counter: `arch::pmu::cycles()` is readable in-kernel on all three ISAs (riscv64 configures the boot hart only) | phase stamps at trap entry, dispatch, rendezvous, switch and exit, in a build that measures nothing else; not built |
+| M10 to M12 | as milestone 134's block says | unchanged |
+
+**Which of these calef's `PMCCFILTR_EL0` ruling touches:** M5 and M9 on aarch64, and M12 (seL4's
+413 and 426 are TX1 cycle counts, so the comparison is exactly the number the filter decides). M6
+to M8 count events rather than cycles, and `PMCCFILTR_EL0` filters only the cycle counter; each event
+counter has its own filter in `PMEVTYPER<n>_EL0`, which will raise the same question when a driver
+first writes one.
 
 They are **not duplicated into this table**, because they already have a home that carries each
 one's instrument, its prediction, and what its outcome settles:

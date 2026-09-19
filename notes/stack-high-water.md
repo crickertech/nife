@@ -50,7 +50,9 @@ and the top are the stack's high-water mark. The scan is an iterative loop with 
 so it needs no meaningful depth itself.
 
 Test builds only, deliberately. Painting 24 KiB on every thread spawn would perturb the spawn
-benchmark, and the report goes through the test output channel anyway. The code is in
+benchmark, and the report goes through the test output channel anyway. (The two primitives, `paint`
+and `high_water`, are also compiled under the `ipc_stack_depth` feature since 2026-09-19, for the
+per-IPC section below; the whole-suite report stays test-only.) The code is in
 `kernel/src/stack.rs` (paint, scan, report), with call sites in `kernel_main` (boot stack),
 `smp::bring_up_secondaries` (secondary stacks), and `thread::KernelStack` (thread stacks, painted
 at allocation, scanned in `Drop`); `sched::scan_live_thread_stacks` covers the stacks nothing ever
@@ -346,8 +348,142 @@ clothes of a bound.** `MAX_ENDPOINTS` is 512 because that is a sensible ceiling 
 nothing about that number was ever a claim about how much stack a function may use. The two got tied
 together by the convenient shape, and the connection was invisible until something measured it.
 
+## Per-IPC depth: how much of its kernel stack one IPC touches (milestone 134, 2026-09-19)
+
+Everything above measures the deepest a stack **ever** went over a whole suite, which is spawn and
+teardown. Milestone 134's E1 needed a different number: how many bytes of a thread's kernel stack
+**one IPC** reaches, because its prediction of where IPC latency bends against thread count was
+arithmetic on "roughly 1 to 2 KiB" per IPC, and that figure was an estimate.
+
+### The instrument
+
+`kernel/src/ipc_stack_depth.rs` (module, feature and line prefix all **provisional**). The same
+paint and scan as the rest of this note, re-armed per operation: just before one SEND, RECV, CALL,
+RECV_CAP or REPLY the thread paints its own kernel stack up to a margin below its live `sp`, and just
+after it scans. 256 samples per operation, reported as median, min and max, each as a distance from
+the stack's top.
+
+- **Kernel threads**, E1's own shape (`bench.rs`'s `ipc_rtt`, `call_reply` and
+  `ipc_thread_scaling` are all kernel-thread pairs): the thread wraps each call.
+- **EL0 threads**, the shape every service runs (`os_primitives_benchmarker`'s SEND/RECV pair and
+  `soaker`'s CALL/REPLY pair): a user thread cannot paint, so `syscall::dispatch` ends with a call
+  that, for a registered thread only, scans what the finishing syscall reached and paints for the
+  next. An EL0 thread's trap frame sits at the very top of its kernel stack, so the distance from the
+  top is the whole of what one syscall touches.
+
+**It measures its own reach first.** A `null` series wraps an operation that does nothing; its
+median must equal its floor (the shallowest value the paint can read), or the margin is too small
+for the build and every other line is contaminated. That check found both of this lane's own
+mistakes: a single 512-byte margin put every **release** series exactly on its floor (the release IPC
+path is shallower than 512 bytes below the measuring frame), and 256 bytes was too small for the
+**debug** build, whose paint loop keeps real calls. The margin is now 512 in debug and 64 in
+release, and both are checked on every run rather than trusted.
+
+**What it costs:** nothing in any default build. Every piece is `any(test, feature =
+"ipc_stack_depth")`, including the call in `dispatch`, so `script/fastpath-footprint`, `script/bench`
+and the icount tripwire build none of it. In the test build an unregistered syscall pays one relaxed
+load. A measured operation pays a paint of up to 24 KiB before it, which is why this is never on in a
+build that times anything, and why a series stops painting once it is full. The frames the
+instrument itself occupies sit above the paint and are never counted; the null line is the proof.
+
+**What it cannot see:**
+
+- **Interrupt nesting.** A tick that lands mid-operation puts a trap frame on the thread's stack,
+  so every series has a tail. That tail is the `max` column; the per-IPC figure is the median. The
+  null series shows the tail's size directly: in the debug suite (four cores, a busy machine) its
+  median sits at the floor and its max 800 to 1,000 bytes below it, with nothing running but the
+  instrument; in the single-hart release boots no null sample showed a tail at all.
+- **Anything shallower than the instrument.** An operation that never goes below the measuring
+  frame's own margin reads `AT FLOOR: at most N`, an upper bound rather than a depth. In release,
+  the non-blocking EL0 operations do this (the SEND or REPLY that finds its partner waiting): what
+  is true of them is that they reach no deeper than about 420 to 700 bytes, trap frame included.
+- **Real hardware.** Depth is a property of the code, not the clock, so QEMU is a valid place to
+  measure it, and TCG is fine: nothing here is a time. The build is what matters, which is why both
+  are measured: `script/test`'s debug kernel, and the release kernel with `bench` that radon boots
+  (built exactly as `script/board-image` builds it, minus `board` and `single_hart`, which the board
+  needs and QEMU cannot boot). Whether those two features move the IPC path is one optional board
+  boot away (notes/footprint-perturbation.md, "The next radon evening").
+- **Which bytes are hot.** A depth is how far the path *can* reach on this stack; it is not a count
+  of lines touched, and it is not a miss count. That is milestone 134's M7.
+
+### The numbers
+
+Release kernel, `bench,ipc_stack_depth`, single hart (the bench runner's `NIFE_SMP=1`), QEMU TCG,
+two boots per architecture, 2026-09-19. Bytes from the stack's top; each role's figure is the
+median of its **deeper** operation, because in a strict ping-pong every thread blocks once per round
+trip and the blocking path is the deep one. A range is the two boots disagreeing (below).
+
+| shape | role | aarch64 | riscv64 | x86_64 | of which below the call site |
+|---|---|---|---|---|---|
+| kernel threads, SEND/RECV (E1's shape) | client | 560 | 608 | 440 to 504 | 320 / 352 / 168 to 248 |
+| | server | 544 | 576 | 424 to 472 | 320 / 352 / 168 to 248 |
+| kernel threads, CALL/REPLY | client | 640 | 672 | 584 | 416 / 448 / 344 |
+| | server | 576 | 592 | 488 | 400 / 400 / 296 |
+| EL0, SEND/RECV | each end | 736 to 832 | 832 to 928 | 472 | (all of it) |
+| EL0, CALL/REPLY | client | 928 | 1,024 | 648 | (all of it) |
+| | server | 912 | 976 | 600 | (all of it) |
+
+Debug kernel (`script/test`, `-smp 4`), same method, same day, one or two runs per architecture:
+
+| shape | role | aarch64 | riscv64 | x86_64 |
+|---|---|---|---|---|
+| kernel threads, SEND/RECV | client / server, deeper op | 2,088 to 2,408 / 2,216 | 2,056 / 1,880 | 2,216 / 2,024 |
+| kernel threads, CALL/REPLY | client / server | 2,232 / 2,248 | 2,184 / 2,232 | 2,040 / 2,104 |
+| EL0, SEND/RECV | deeper op, either end | 3,272 to 3,608 | 3,480 | 2,712 to 3,048 |
+| EL0, CALL/REPLY | client / server | 3,496 / 3,688 | 3,704 / 3,896 | 2,936 / 3,144 |
+
+**The ranges are the SEND/RECV shape only, and they are about which operation blocks rather than
+how deep any one path is.** In a SEND/RECV ping-pong either the SEND or the following RECV of a
+thread finds its partner not yet waiting and takes the blocking path, and which one does is settled
+by where each thread happens to be when the loop starts. The two paths differ by a few hundred
+bytes, so the "deeper op" moves between them from boot to boot, even on one hart. The same depth
+values recur (the min and max columns of one run are the medians of the other); what does not
+recur is the assignment. CALL/REPLY has no such freedom, since CALL always blocks, and every
+CALL/REPLY row repeated to the byte on every run.
+
+**Three readings.**
+
+1. **The estimate was high by about 2x for the build that matters.** E1 ran the release kernel on
+   radon. There, one round trip reaches about **600 bytes** of each thread's kernel stack (riscv64
+   kernel threads, E1's own shape), roughly **ten 64-byte lines**, not 1 to 2 KiB. The debug build
+   reaches 2 to 2.4 KiB, so an estimate calibrated against debug-build frames would have been
+   right for the wrong kernel.
+2. **At 600 bytes a thread, capacity does not explain E1's knee.** Stacks alone would fill a 32 KB
+   L1d at about 32,768 / 600, **roughly 54 threads**. radon's knee is between 8 and 16 threads
+   (notes/footprint-perturbation.md), where the stacks total 5 to 10 KB.
+3. **Page alignment might.** Every thread's stack top is a page boundary (`KernelStack`, slots
+   `STACK_SLOT_SPAN` apart), so every thread's ~ten hot lines sit at **the same ten page offsets**.
+   radon's U74 L1 D-cache is 32 KiB, 4-way, virtually indexed, 64-byte lines (SiFive U74-MC Core
+   Complex Manual 21G3.02.00, "L1 Data Cache", read 2026-09-19), so a way is 8 KiB and the set index
+   is VA bits 6 to 12. Bit 12 of a stack's top page alternates with the slot index (the stride is
+   seven pages, an odd number), so there are two colours of four ways: **at most 8 threads' hot
+   stack lines can be resident at once**, whatever the total footprint. The general form, for any
+   cache of at most 8 ways and 64-byte lines: a 32 KiB cache holds at most 32 KiB / 4 KiB = 8 lines
+   that share a page offset. That puts a knee at 8 threads, which is where radon's curve starts
+   bending (1.20x at 8, 1.68x at 16, then flat).
+
+**Reading 3 is a hypothesis, not a finding**, and it has a competitor this note cannot rule out:
+every thread's TCB is also on its own page (`sched::spawn_on`'s "own TCB page"), so hot TCB fields
+alias in exactly the same way. The two predict the same knee. What separates them is cheap: offset
+each thread's initial stack pointer by a per-slot colour (slot index times about 640 bytes, modulo a
+page) and re-run E1. If the knee moves right, the stacks were the cause and a **process kernel can
+buy it back with colouring**, without becoming an event kernel. If it stays at 8, the TCBs (or
+something else page-aligned) are, and an event kernel's shared stack would not remove it either.
+Recorded as a proposed milestone in design/roadmap/134-the-measurements-that-decide.md's Follow-on.
+
 ## BUGS
 
+- **The per-IPC depth instrument measures two EL0 programs whose role numbers it copies.**
+  `ipc_stack_depth.rs` spells `os_primitives_benchmarker`'s roles (3, 4) and `soaker`'s (0, 1) as
+  local constants, as `bench.rs` and `soak.rs` already do. AGENTS.md rule 7 says a number two binaries
+  agree on belongs in a crate; this is the third copy of the first pair and the second of the other.
+  A renumbering in either fixture would make the test spawn the wrong role and fail on samples, not
+  silently, but the fix is a protocol crate per fixture and it is not this lane's to mint.
+- **Per-IPC depth is not in a gate.** The test asserts that every line is a measurement (enough
+  samples, median above the floor, a clean null line) and nothing about the values, because they
+  had never existed before 2026-09-19. The release figures are the ones a decision would quote and
+  they come from a bench boot no CI job runs. Promote to a ceiling (`count-at-most` shape) only if
+  something starts depending on the value, which the colouring experiment above would be.
 - Depth reached before `paint_boot_stack` runs (a handful of early-boot frames) and never reached
   again is invisible, bounded below by the printed paint floor.
 - **The static frame sizes above are per function, not per call chain.** `-Z emit-stack-sizes` says

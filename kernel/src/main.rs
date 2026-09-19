@@ -42,6 +42,8 @@ mod fastpath_pad;
 mod icount;
 mod interrupt_stack;
 mod iommu;
+#[cfg(any(test, feature = "ipc_stack_depth"))]
+mod ipc_stack_depth;
 mod kmem;
 mod memory;
 mod panic;

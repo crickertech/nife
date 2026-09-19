@@ -22,6 +22,75 @@ that the board columns were empty on purpose. They are filled now. The static fo
 still measured on patagonia with `objdump` and no emulator, and the 2026-08-22 figures are still
 labelled as dev-Mac runs.)*
 
+## The next radon evening: what milestone 134 still owes, and how it shares a night with 168
+
+*(Added 2026-09-19 by milestone 134's per-IPC stack-depth lane. calef may book one evening for
+this page and notes/job-mix.md together, so this section says what each half needs and in what
+order, and it does not copy either procedure.)*
+
+**What is already taken and does not need the board again.** E1 and E4 ran on radon on
+2026-09-04 and both are single-build sweeps, so the layout confound below does not touch them;
+they are quotable as they stand. The per-IPC kernel stack depth, which E1's prediction used to
+estimate, is now measured (notes/stack-high-water.md, "Per-IPC depth"), and depth is a property of
+the code rather than of timing, so QEMU measured the same release riscv64 kernel radon boots.
+
+**What is owed is E3, and only E3 under a layout control.** Re-running E3 as it is built today
+would reproduce the 2026-09-04 confound exactly (this page's BUGS: a second card or a second board
+changes nothing about layout, so it would look like confirmation). The control is
+`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`, **and it is not
+built**. Its cheapest form is `fastpath_pad` taking a size rather than a boolean, so E3 becomes a
+dose-response over at least four sizes; footprint predicts a monotone curve and layout does not.
+
+So the evening this milestone needs has one hard prerequisite on patagonia before anyone walks to
+the bench: **the layout control exists and `script/fastpath-footprint` confirms each pad size on
+the exact commit to be booted.** Without it, spend the evening on milestone 168 alone.
+
+### What the evening must produce for milestone 134 to turn BUILT
+
+1. **E3 as a dose-response**: `call_reply`, `ipc_rtt` and `ipc_rtt_el0` at pad size 0 and at three
+   or more non-zero sizes, **three boots per size, interleaved** (0, 1, 2, 3, 0, 1, 2, 3, ...), on a
+   `board,bench,single_hart` card, every boot ending in `bench: done` with `cntfrq 4000000`.
+2. **The reading**, recorded in this page's results and the register's E3 row: for each row,
+   whether the effect rises monotonically with pad size beyond the boot-to-boot spread
+   (footprint), jumps and returns (layout), or stays inside the spread (neither). Only the first is
+   a footprint result, and only it routes to milestone 188 phase 4 by the outcome table below.
+3. **The `cycles_per_tick` line from every boot**, which each bench boot already prints, so the E3
+   rows convert to cycles (M5) on the evening's own commit rather than on 2026-09-16's.
+
+Everything else a `--bench` boot prints (E1's `ipc_scale_*`, E4's `appdisp_*`) re-dates those two
+rows for free and is worth keeping in the capture, but 134 does not wait on it.
+
+**Optional, one boot, if there is time:** a card built with `--extra-features ipc_stack_depth`
+prints the per-IPC depth lines on the board itself. It should reproduce the QEMU release numbers
+to the byte (the `board` and `single_hart` features are the only differences); a disagreement would
+mean one of them changes the IPC path's codegen, which nothing currently expects. Its timing rows
+are not results, since the instrument paints on every sample.
+
+### Sharing the night with milestone 168
+
+The two cannot share an image: `script/board-image` refuses `--bench` with `--job-mix`, because both
+replace the end of the boot tour. They share everything else, and the network boot (milestone 257)
+makes switching cheap: `--tftp` means each image change is a rebuild on patagonia and a power cycle,
+with no card written.
+
+| order | what | boots | why this order |
+|---|---|---|---|
+| 1 | on patagonia: `git log -1 --format=%h`, then `script/fastpath-footprint --arch riscv64` at each pad size | none | the one check that invalidates the whole E3 block if it fails, and it needs no board |
+| 2 | E3 dose-response, `script/board-image --bench --tftp [--extra-features ...]` per size | 3 per size, interleaved | interleaving is the design (this page, step 5), so it goes first while the room and the board are at one temperature for the whole block |
+| 3 | milestone 168's job mix, `script/board-image --job-mix --tftp` | at least 5 | notes/job-mix.md, "The next bench evening on radon", steps 0 to 8, unchanged |
+| 4 | optional: one `--bench --extra-features ipc_stack_depth` boot | 1 | last, because it answers a question nothing is blocked on |
+
+Keep the captures apart by name, since both land in `bench/radon-<date>/`: `bench-e3-<size>-<n>.log`
+for this page and `jobmix-boot<n>.log` for 168's, and write down the commit hash once per image
+(`board-image` echoes its `features:` line, and nothing on the board says which build it booted).
+The console rules are notes/job-mix.md's step 0 for both halves: one capture per serial port, and
+clean each log with `tr` before committing it.
+
+**Time**, as far as it is measured: a bench boot took about 75 seconds on 2026-09-04 (this page's
+BUGS); a job-mix boot is "under a minute of sweep" plus U-Boot and the fetch, not yet measured. Four
+pad sizes at three boots each is twelve bench boots, so the E3 block is roughly half an hour of
+boots plus rebuilds, and the job mix after it about as long.
+
 ## What the session measured, 2026-09-04
 
 **Six boots on radon, interleaved unpadded/padded, one card written six times**, exactly the order
@@ -424,6 +493,14 @@ be: an inference from a perturbation, not an observation of a cache.
 Wiring the PMU into these rows is a separate piece of work and it is not in this lane; see
 `design/roadmap/374-cycles-per-ipc-on-the-bench-card.md`.
 
+**Since 2026-09-16 the conversion exists without that wiring.** radon measured
+`cycles_per_tick 250.00` (milestone 74's block, transcript `bench/radon-2026-09-16/bench-134300.log`),
+so every tick row above converts at 250 cycles per tick: the unpadded `call_reply` is about 1,254
+cycles and the padded one 1,272. And the 2026-09-04 capture answers the question that proposal said
+to wait for, which is whether the 250 ns quantum was the binding problem: it was not. The
+within-condition spread was 0 to 2 ticks against a gap of 74, so E3's difficulty is the layout
+confound, not the ruler.
+
 ## EXAMPLES
 
 ### The whole session, as a shell transcript
@@ -488,12 +565,10 @@ read `ipc_thread_scaling skipped` twenty minutes later.
   microSD card in one VisionFive 2 on one evening, and the layout confound above is the reason to
   care: a different card or a different board would not change the layout, so it would reproduce
   the same artifact and look like confirmation.
-- **`single_hart` has never been booted on hardware either.** It compiles on all three
-  architectures and its mechanism is one early return in `bring_up_secondaries` after the online
-  mask is set, which is the ordering the x86 bring-up already proved matters. What is untested is
-  a *board* boot with three U74s left parked by us rather than by firmware. They are left exactly
-  as OpenSBI handed them over, which is the same state they are in before `bring_up_secondaries`
-  runs on any boot, so the expectation is that nothing notices.
+- ~~**`single_hart` has never been booted on hardware either.**~~ Superseded by the entry two
+  above, which records six hardware boots on 2026-09-04 in which nothing noticed. The two entries
+  contradicted each other from that day until 2026-09-19; this one was written before the session
+  and the other after it, and only the other was updated.
 - **Nothing in CI compiles this card, or any card.** `board`, `soak_test`, `job_mix`,
   `reboot_soak_test`,
   `single_hart` and `fastpath_pad` are built when a person runs `script/board-image`, minutes before
