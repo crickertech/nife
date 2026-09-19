@@ -6,8 +6,8 @@ but the one whose success statement is unanswerable. **A capability microkernel 
 own source history is a machine that does real work**, and the demo needs no explanation to any
 audience that has ever used a computer.
 
-**Gate: MILESTONE 64.** The first fork is decided (gitoxide, calef, 2026-08-04), and the block
-sequences the work after 64 measures what a real crate needs, because 64's probe crates are the
+**Gate: NONE.** (MILESTONE 64 cleared 2026-09-19, when 64 turned BUILT.) The first fork is decided
+(gitoxide, calef, 2026-08-04), and the block sequences the work after 64 measures what a real crate needs, because 64's probe crates are the
 cheap version of this milestone's first week.
 
 **Why this is a better *first* real workload than Vaultwarden**, which the roadmap already calls

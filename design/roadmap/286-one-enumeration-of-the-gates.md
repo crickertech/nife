@@ -7,7 +7,7 @@ places the gating set was written down. *(Number provisional until the merge que
 pass, with a tier saying whether a developer waits for it; with no arguments it runs that tier,
 cheapest first, and with names it runs exactly those, which is how `.github/workflows/ci.yml` fans
 them into parallel jobs. The tier names and what "no arguments" means are **provisional pending
-calef**: milestone 400, `design/roadmap/400-what-no-arguments-means.md`, states the options, their
+calef**: milestone 440, `design/roadmap/440-what-no-arguments-means.md`, states the options, their
 costs and the recommendation.
 
 ## The defect, and how it was already failing
@@ -144,7 +144,7 @@ now records that it asserted the opposite for a month.
   check out of it; `CONTRIBUTING.md`, `.github/pull_request_template.md`, `notes/scripts.md`,
   `notes/check-inventory.md`, `notes/hvf-leg.md`, `notes/instruction-clock.md` and the six sibling
   scripts that referred to the old name are current.
-- **Milestone 400.** What "no arguments" means and what the two tiers are called is calef's, and
+- **Milestone 440.** What "no arguments" means and what the two tiers are called is calef's, and
   the mechanism shipped under the recommendation. Numbered on 2026-09-19 by milestone 433's drain
   of the pile.
 - **Recorded.** A CI job can still bypass the table, and the gate that would catch it is refused for

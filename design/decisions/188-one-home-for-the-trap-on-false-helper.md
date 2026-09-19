@@ -68,7 +68,7 @@ the point where a pattern is a convention.
 must not be recovered from", and a reader who has met `trust::require` meets the same idea at EL0
 under the same name. The risk is the mirror of the reason, and it should be weighed: one word
 meaning two related things at two privilege levels is either a recognition or a collision, and §31's
-refusal of `witness` and milestone 400's refusal of `runner` are both cases where this tree decided
+refusal of `witness` and milestone 440's refusal of `runner` are both cases where this tree decided
 a second sense cost more than it bought. The difference here is that the two senses are the *same*
 idea rather than two unrelated ones.
 

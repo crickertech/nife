@@ -809,3 +809,14 @@ is the whole difference between a bring-up and a stare.
 - **A stale `.efi` on a stick is silent.** The loader embeds the kernel, so a stick that was written
   last week boots last week's kernel with nothing to say so. `cargo xtask uefi-image` rebuilds both
   every time, which moves the hazard to the copy step rather than removing it.
+- **`uefi-test` can go red after its own suite has passed, and the message around it points at the
+  wrong cause.** Milestone 117's sixth stranger run (2026-09-19, on the dev Mac, two other lanes
+  gating beside it) saw the kernel suite under OVMF print `test result: ok. 215 passed, 71 skipped`
+  and then `uefi-test: qemu exited Some(1), not 3`, so `script/test` failed at its last step. The
+  lines QEMU printed just before it, `vtd_iova_to_sspte: detected sspte permission error` and
+  `vtd_iommu_translate: detected translation failure`, read as the cause and are not: they are the
+  deliberate DMA-escape tests' faults, and a clean re-run of `cargo xtask uefi-test` an hour later on
+  the same machine and the same Homebrew QEMU 11.1.1 printed the same two lines and passed. The
+  stranger concluded the QEMU version was to blame, which that re-run does not support. That the two
+  lines are expected is written in milestone 215's block and nowhere a reader meets the failure. What made QEMU exit 1 rather than 3 is unmeasured: one red
+  in two runs is a rate nobody has taken yet.

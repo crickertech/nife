@@ -1,4 +1,4 @@
-# 400. What `script/ci-build` with no arguments should mean
+# 440. What `script/ci-build` with no arguments should mean
 
 **Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
 the milestone calef minted the same day; numbered 2026-09-19 by milestone 433's drain of the
@@ -19,6 +19,13 @@ developer waits for before pushing and which only a runner waits for, and **how 
 calef's**: it is a name a contributor meets in `CONTRIBUTING.md`, in `--list` output and in every
 row of the table. The mechanism is built and shipped under the recommendation below; only the
 spelling and the default are open.
+
+**It was numbered 400 for four hours and is 440 because another session got there first.** That
+session landed its own milestone 400 (the shell on the firmware screen) while this branch waited in
+the queue, so both meanings of "milestone 400" existed in the tree at once and the citations had to
+be sorted by hand: seven of them meant this block and five meant the other. §194 rules that the
+interleaving stays and the renumber is its price, which this is the fifth instance of in one
+evening and the first in milestone numbers rather than section numbers. 
 
 **In brief.** `script/ci-build` now carries one row per check, each with a tier. With no arguments
 it runs the `local` tier in the table's order, cheapest first. With names it runs exactly those,

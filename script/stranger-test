@@ -167,7 +167,15 @@
 # container and is a separate run; `--commit` plus a container image is the shape it would take.
 #
 # **It still does not run itself, and nothing will.** `--due` and the weekly workflow close the
-# *scheduling* half: something now knows when a run is owed and says so loudly. The run is still a
+# *scheduling* half: something now knows when a run is owed and says so. **Whether anyone hears it
+# is not closed, and run 6 is the evidence.** The run came due on 2026-09-17; the workflow runs on
+# Mondays, so it was green on 2026-09-14 and could not go red before 2026-09-21. Run 6 happened on
+# 2026-09-19 because a maintainer briefed a lane, not because anything fired. And red would not
+# have reached a person: a scheduled workflow's failure is an entry in the Actions tab, and
+# `script/cadence-check`, the watcher that exists to read those, reports a workflow as DEAD only
+# once it has not *succeeded* for fifteen days, treating "due" and "broken" as one state. The audit
+# cadence, whose red means the same thing as this one's, had failed five Mondays running by
+# 2026-09-19 with nobody acting on it. So "red means run the test" has no reader yet. The run is still a
 # person deciding to spend half an hour and the budget, and that is not a limitation to fix later.
 # An earlier draft of this entry pointed at milestone 129 as the machinery a schedule would use;
 # that was wrong in a way worth recording rather than deleting, because 129 is *nife's own* cron and
@@ -202,6 +210,51 @@
 # repository, which would invalidate every SHA this tree cites; a shallow clone would close it and
 # would itself be a visible difference from the repository a real newcomer gets. This is the largest
 # unclosed hole in the instrument and it is a deliberate trade rather than an oversight.
+#
+# **The CLI's default model refused the task, three times out of three, and run 6 used another.**
+# On 2026-09-19 `claude-opus-5[1m]` (twice) and `claude-opus-5` (once) each stopped within three
+# turns with "safeguards flagged this message ... `[reasoning_extraction]`", after reading nothing
+# but `README.md` or `git log`. The `--smoke` task passed on the same model, so it is the task text
+# that trips it, not the tree. Run 6 was conducted with `--model sonnet` (`claude-sonnet-5`), which
+# ran to the end. **So the model is a variable between runs now, not a constant**, and nothing
+# recorded which model runs 1 to 5 used; `record.json` should carry it. Rewording the task text
+# might avoid the refusal and would cost the comparability of six runs, which is the decision this
+# file already says is above a lane. The harness now stops instead of debriefing a session that
+# was refused (it used to put both debriefs to it and write a summary that read as a short run).
+#
+# **A stranger that backgrounds its work and ends its turn to wait ends the run.** `claude -p`
+# finishes at the first turn that ends, and the CLI now gives a stranger tools to run things in
+# the background and to schedule a wake-up. Run 6's stranger started an x86_64 re-test and a
+# `script/shell-check` in the background, wrote "Waiting for both background runs to complete",
+# and the session ended: **no write-up was produced**, and both runs were killed at teardown. The
+# debriefs recovered most of what the write-up would have said, because they resume the session.
+# This is the failure AGENTS.md records for lanes ("ending a turn to wait for the notification"),
+# met by a process that never read AGENTS.md. Two remedies, neither taken here: deny the
+# background and wake-up tools on the stranger's command line (a harness change that removes an
+# affordance a real contributor's agent would have), or say in the task text to block (a task text
+# change). Both are the operator's call at the next run.
+#
+# **It isolates a tree, not a machine, and run 6 wrote to the machine.** The stranger, believing a
+# QEMU version mismatch had failed a gate, ran `brew install meson`, downloaded QEMU 11.0.2 and
+# built it into `$HOME/.cache/nife-qemu`, which `scripts/qemu-path.sh` puts on PATH for **every
+# checkout on the machine** whose `.qemu-version` matches: the two lanes gating beside it would
+# have switched emulators mid-run. The operator killed the first build and made the directory
+# read-only; the stranger found the permission error, ran `chmod u+w` on it, rebuilt and installed.
+# After the run the operator removed the prefix and uninstalled `meson`, which is what "record and
+# restore" means for state this script does not know about. **The toolchain link is the only
+# machine-global state this harness restores, and it is not the only one a stranger can reach.**
+# A stranger with a shell has the account; a container is the only real answer, and B2 wants one
+# anyway.
+#
+# **`script/lint` announces the withholding.** In the clone, the lint step "the stranger test's run
+# record" runs `--check`, which prints "notes/stranger-test.md is missing, so there is no rubric to
+# ask and no answer key to withhold." Run 6's stranger read that line and concluded, correctly, that
+# an answer key had been withheld from its checkout. The message was written for an operator who ran
+# this from the wrong directory; in a clone it tells the stranger what the harness did.
+#
+# **The journal lands where the stranger decides `./` is.** Run 6's wrote `journal.md` in the
+# harness root, a sibling of `logs/` and `bin/`, rather than in `run/` beside the clone, so the path
+# the summary prints was empty. Nothing shows it listed the root; it is a place it could have.
 #
 # **One stranger is one data point and an agent is not a person.** It will not get bored, will not
 # give up out of frustration, and will read further before asking than a human would, so every
@@ -679,7 +732,32 @@ fi
 status=0
 ( cd "$RUN" && printf '%s' "$TASK" | PATH="$BIN:$PATH" claude "$@" ) \
     > "$LOGS/stream.jsonl" 2> "$LOGS/stderr.log" || status=$?
-[ "$status" -eq 0 ] || echo "==> The stranger exited $status; the transcript is still readable"
+# **A stranger that never ran is not debriefed.** Run 6's first three attempts (2026-09-19) were
+# each refused by the model's safeguards within three turns, and the harness went on to put the
+# contamination and rubric questions to a session that had read the README and nothing else, then
+# wrote a summary that looked like a short run. A refusal or an API error ends the run here, loudly,
+# with the transcript kept; a stranger that worked and merely exited non-zero is still debriefed.
+if [ "$status" -ne 0 ]; then
+    echo "==> The stranger exited $status; the transcript is still readable"
+    if python3 - "$LOGS/stream.jsonl" <<'PY2'
+import json, sys
+for line in open(sys.argv[1]):
+    try:
+        event = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    if event.get("type") == "result" and (event.get("is_error") or
+                                          event.get("stop_reason") == "refusal"):
+        print(f"==> Its result is an error, not a run: {(event.get('result') or '')[:200]}")
+        sys.exit(0)
+sys.exit(1)
+PY2
+    then
+        echo "stranger-test: nothing to debrief. See the BUGS entry on refusals in this file's header;" >&2
+        echo "               --model picks another model, and that is a change to the instrument." >&2
+        exit 1
+    fi
+fi
 
 echo "==> Debrief, pass 1: contamination"
 ( cd "$RUN" && printf '%s' "$DEBRIEF_Q" | PATH="$BIN:$PATH" claude --safe-mode -p --resume "$session" ) \

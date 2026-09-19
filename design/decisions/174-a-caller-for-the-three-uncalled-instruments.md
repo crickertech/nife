@@ -52,7 +52,7 @@ Read against that, the three sort themselves:
 ## The neighbouring decision, which is open in the same sweep
 
 `script/ci-build`'s own header says, in capitals, that **the tier tags and the no-argument meaning
-are PROVISIONAL pending calef**, and points at **milestone 400** (*What `script/ci-build` with no
+are PROVISIONAL pending calef**, and points at **milestone 440** (*What `script/ci-build` with no
 arguments should mean*), which is also one of milestone 435's 45 blocks and is held by another
 slice. 400 decides how a tier is *spelled* and what no arguments *defaults to*; this decides which
 tier three specific checks take. They are separable and they are cheaper to answer together, since

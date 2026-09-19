@@ -1,18 +1,20 @@
 # 177. Wire the graphical terminal stack into the real interactive boot
 
-**Status: PARTIAL.** Minted 2026-08-26, from tracing the user story "boot to a login prompt,
-land in a `swish` prompt on a real terminal" against the actual code rather than the roadmap's own
-framing, and finding no milestone owns the gap this surfaced. **Pieces 1-4 built and merged
-2026-08-27** (`milestone/177-boot-wiring-build`): the kernel-side graphical stack, the direct
-`kbd` -> `line_editor` grant (option A, decided), `line_editor`'s `display_terminal` output
-adapter, and device attachment, all wired and code-reviewed correct. **Not yet reaching a working
-prompt**: a real, pre-existing driver bug (a second `FLUSH` through `components/src/gpu_driver.rs`'s real
-boot path hangs) blocks the graphical boot from completing; recorded in
-`notes/framebuffer-contract.md`'s own BUGS section rather than held on. **Piece 5 (x86_64's entry
-point) split off as its own milestone**, [182](182-x86-64-interactive-boot.md), once the lane
-found it needs a from-scratch ELF-loading boot path, not wiring.
+**Status: BUILT** 2026-09-19. Minted 2026-08-26, from tracing the user story "boot to a login
+prompt, land in a `swish` prompt on a real terminal" against the actual code rather than the
+roadmap's own framing, and finding no milestone owns the gap this surfaced. **Pieces 1-4 built and
+merged 2026-08-27** (`milestone/177-boot-wiring-build`): the kernel-side graphical stack, the direct
+`kbd` -> `line_editor` grant (option A, decided), `line_editor`'s `display_terminal` output adapter,
+and device attachment. **The prompt reached the screen on 2026-09-19** (`milestone/177-second-flush`),
+once the hang that had stopped it for three weeks was root-caused: not the GPU driver's interrupt
+handling, as recorded at the time, but the boot never receiving two drivers' one-time status
+reports, so each sat in a blocking `SEND` (see "The second flush, root-caused" below).
+`script/shell-check --graphical` and `--graphical-serial` are green on aarch64 and riscv64 and run
+in CI. **Piece 5 (x86_64's entry point) split off as its own milestone**,
+[182](182-x86-64-interactive-boot.md), once the lane found it needs a from-scratch ELF-loading boot
+path, not wiring.
 
-**Gate: NONE.** Was `Gate: DECISION` (2026-08-27, an investigation lane found piece 1's own plan
+The input-routing fork was `Gate: DECISION` (2026-08-27, an investigation lane found piece 1's own plan
 does not fit and piece 2 cannot be built until the input-routing fork below is answered); decided
 the same day, calef: **Option A**, a direct `kbd` -> `line_editor` grant, fixed at spawn, no
 compositor in this path. See "The investigation, 2026-08-27" below for the full reasoning and the
@@ -166,7 +168,7 @@ since there is no UART to pipe a transcript from) does not yet reach a working p
 `FLUSH` through the real boot's own driver instance hangs, diagnosed as likely a pre-existing
 characteristic of `components/src/gpu_driver.rs`'s completion-IRQ handling rather than something this
 milestone's wiring introduced, and recorded in `notes/framebuffer-contract.md`'s own BUGS section
-rather than held on. The existing plain-console boot is unaffected and re-verified working on both
+rather than held on. (That diagnosis was wrong; see "The second flush, root-caused" below.) The existing plain-console boot is unaffected and re-verified working on both
 architectures throughout.
 
 ## What this does not decide
@@ -182,7 +184,7 @@ against the real boot path here).
 
 The graphical half of the login-to-`kilo` user story ([DECISIONS
 §131](../decisions/131-hold-at-rung-two.md)'s "kick-ass terminal, something I'll love working
-with"), once the display-driver hang above is resolved. Independent of [milestone
+with"), now that the display-driver hang above is resolved (2026-09-19). Independent of [milestone
 169](169-kilo-editor.md) (`kilo`'s raw-keystroke primitive sits at the `DECISIONS §21`
 line-discipline contract level, which both `console` and `display_terminal` already speak
 identically) and of milestone 49's login-boot-wiring piece (unblocked 2026-08-26, DECISIONS §120
@@ -192,14 +194,49 @@ on the input-routing fork this milestone already answered (option A), the same d
 investigation found before the split: x86_64 has no fallback UART path at all (DECISIONS §121,
 permanently kernel-resident), so its only possible route is through the graphical stack this
 milestone builds.
+## The second flush, root-caused (2026-09-19)
+
+**What was recorded, and why it was wrong.** The 2026-08-27 lane saw `display_terminal` blocked in
+`CALL` to the driver with nothing receiving, and wrote down the best-supported guess: the driver
+stuck on its own completion interrupt. Milestone 400's `framebuffer_driver` then served the same
+contract to the same terminal with no interrupt at all, and that looked like confirmation.
+
+**What the boot was doing, read from a thread dump rather than inferred.** `gpu_driver` sends
+`graphics_protocol::status::FLUSHED` once, after replying to its first flush, and `SEND` blocks until
+received. The terminal's first flush is its blank grid, painted *before* it sends `TERM_UP`, and
+`kernel::user::boot_graphical_terminal` took `UP` and `TERM_UP` and nothing else. So the driver
+parked in that `SEND`, and the terminal's second `FLUSH` queued behind it for ever. A kernel thread
+dumping every thread twenty seconds into the boot showed the driver `Blocked` as a `Sender` on its
+report endpoint and the terminal awaiting a `Reply` on the display endpoint, each endpoint with one
+sender and no receiver; receiving on the report endpoint returned `FLUSHED`, and ten seconds later
+the driver was back in `RECV` and the terminal's flush had been served.
+`notes/framebuffer-contract.md`'s BUGS has the dump verbatim. `framebuffer_driver` works because it
+sends no `FLUSHED`, not because it has no interrupt.
+
+**The keyboard had the same bug one step later.** `keyboard_driver` sends `KEYBOARD_UP` before its
+first `WAIT`, and the boot dropped the report endpoint `keyboard_service::start_direct` returned.
+With the display fixed, the prompt appeared and `sendkey` still never echoed.
+
+**The fix, at each cause.** The boot receives `FLUSHED` after `TERM_UP` and asserts it.
+`keyboard_service::start_direct` receives `KEYBOARD_UP` itself and no longer returns the endpoint, so
+no caller can drop it (rung one: there is nothing left to forget). The GPU side stays at rung three,
+on purpose and marked as a foot gun at `display_service::start_terminal`, at `FLUSHED`'s own
+definition and at the driver's `send`: the three test spawners read the digest `FLUSHED` carries, so
+the wiring function cannot swallow it for them. No wire change, no new barrier, no driver change.
+
+**What the leg proves, and its cost.** `script/ci-build`'s `shell-check-graphical` row runs
+`--graphical` (a virtio keyboard, `sendkey`) and `--graphical-serial` (no keyboard, the byte typed
+down the UART) on both architectures: a `$ ` prompt decoded off a `screendump`, then `$ a` after one
+key. 47 seconds for all four boots against a warm target directory on the dev Mac, appended to CI's
+`build + test` job beside `shell-check`, whose `--features shell` kernels it reuses. It proves one
+key, not `SHELL_CHECK_SCRIPT`; that limit is recorded in the leg's own doc.
+
 ## Follow-on
 
-- **Outstanding.** The second flush through `components/src/gpu_driver.rs`'s real boot path still does
-  not return. `notes/framebuffer-contract.md`'s `BUGS` carries it, it is not root-caused, and no
-  roadmap block owns it. Checked 2026-09-03: nothing has touched that file since the rename commit.
-- **Outstanding.** `script/shell-check --graphical` therefore still does not reach a working
-  prompt. The leg exists in `xtask/src/main.rs` and is written red on purpose, and neither
-  `script/gates` nor CI runs it. Checked 2026-09-03.
+- **Done.** (2026-09-19) The second flush through `components/src/gpu_driver.rs`'s real boot path
+  returns; root-caused and fixed above.
+- **Done.** (2026-09-19) `script/shell-check --graphical` reaches and types at a working prompt on
+  aarch64 and riscv64, and runs in `script/ci-build` and CI as `shell-check-graphical`.
 - **Done.** Whether the swap is unconditional or a runtime choice is settled by what was built:
   `crates/system_initializer` branches on whether the display-terminal endpoint was granted, and
   the kernel's graphical boot returns nothing when the bus has no GPU, so both paths coexist and
@@ -216,9 +253,12 @@ milestone builds.
 
 ## Index row
 
-The real interactive boot spawns the plain UART `console`/`input` pair; the framebuffer contract,
-compositor, VT engine and virtio keyboard are all built and proven but only under the test
-harness, since neither the GPU nor the keyboard is in `BootEndowment`'s device grants. Device
-attachment and the program swap are built and merged (2026-08-27); a pre-existing display-driver
-bug (a second `FLUSH` hangs) still blocks a working prompt, recorded rather than held on. x86_64's
+**Built:** 2026-09-19
+
+The real interactive boot brings up the graphical terminal stack whenever a GPU is attached:
+`gpu_driver`, `display_terminal`, and a keystroke source (a virtio keyboard in `MODE_DIRECT`, or the
+board's UART) wired kernel-side straight to `line_editor`, with no compositor in the path. A prompt
+reaches the screen and a typed key echoes on aarch64 and riscv64, proven in CI by
+`script/shell-check --graphical` and `--graphical-serial`. The three-week hang that blocked it was the
+boot never receiving two drivers' one-time status reports, not the GPU's interrupt handling. x86_64's
 own entry point split off as milestone 182.

@@ -39,6 +39,9 @@ doc-valid-idents = [
     "NVMe",
     "SMMUv3",
     "GICv2",
+    # Its successors, the same category and spelled the same way by Arm (milestone 227).
+    "GICv3",
+    "GICv4",
     "NTPv4",
     # [MS-NLMP]'s name for the protocol itself (milestone 65). The values inside it
     # (`NTOWFv2`, `NTProofStr`, `SessionBaseKey`) are backticked in the source instead: they name

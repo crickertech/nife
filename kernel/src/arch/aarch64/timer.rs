@@ -67,7 +67,6 @@ use aarch64_cpu::registers::{CNTFRQ_EL0, CNTKCTL_EL1, CNTV_CTL_EL0, CNTV_CVAL_EL
 use tock_registers::interfaces::{Readable, Writeable};
 
 use crate::cpu::{self, MAX_CPUS};
-use crate::drivers::gic;
 
 /// The EL1 **virtual** timer, as a GIC interrupt ID.
 ///
@@ -164,7 +163,7 @@ pub fn init() {
     let interval = freq / TICK_HZ;
     INTERVAL.store(interval, Ordering::Relaxed);
 
-    gic::enable(TIMER_INTID, 0); // PPI: per-core, target ignored
+    super::irq::enable(TIMER_INTID); // PPI: enabled on this core, no target
 
     start(interval);
 }
@@ -287,6 +286,19 @@ pub fn cycle_counter_grantable() -> bool {
 /// only way back to EL0 from this path is the `eret` that ends the return-to-user sequence, which
 /// is a context-synchronizing event by definition. Linux's arm64 per-task hook for the same
 /// register writes it the same way, for the same reason.
+///
+/// # BUGS
+///
+/// **Under QEMU with Hypervisor.framework, closing does not close.** Measured 2026-09-19 by
+/// milestone 227's lane on QEMU 11.1.1, `gic-version=3`, an Apple M-series core, in the first HVF
+/// run this machine could make since milestone 222 took the leg away: `user::tests::
+/// a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` fails its negative half,
+/// "an ungranted thread read the cycle counter and was NOT stopped", with this register at zero.
+/// The likeliest reading is that the PMU access traps out to the hypervisor and is answered there
+/// without consulting the guest's `PMUSERENR_EL0`; which layer answers it (QEMU's `hvf` sysreg
+/// handler or Apple's framework) was not established. Under TCG the same test passes. So the claim
+/// this function makes holds on TCG and is untested on silicon; HVF is not evidence either way, and
+/// milestone 74's cycle-counter measurement should not treat an HVF run as one.
 ///
 /// **Built only under `test` or `--features cycle_counter_grant`** (milestone 237): the grant is
 /// a measurement build the way `soak_test` is. `kernel/Cargo.toml`'s feature block carries the

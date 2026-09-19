@@ -105,10 +105,17 @@ const MODE_DIRECT: u64 = 1;
 /// `components/src/input.rs`'s UART driver already holds `WRITE` on for the plain-console boot: a
 /// keyboard and a serial line are both "one input source" to the line discipline.
 ///
-/// Returns the driver's report endpoint, or `None` if no virtio-input function is on the bus. No
-/// input ring and no doorbell exist in this wiring: nothing here plays the compositor, because
-/// there is no compositor in this path.
-pub fn start_direct(image: &'static [u8], target: RendezvousId) -> Option<RendezvousId> {
+/// Returns once the driver is **running and has posted its buffers**, or `None` if no virtio-input
+/// function is on the bus. No input ring and no doorbell exist in this wiring: nothing here plays
+/// the compositor, because there is no compositor in this path.
+///
+/// **The driver's report is taken here, and the endpoint never leaves this function** (milestone
+/// 177). `keyboard_driver` `SEND`s `KEYBOARD_UP` before its first `WAIT`, and a `SEND` blocks until
+/// somebody receives it. This used to return the report endpoint, and the one caller discarded it,
+/// so on every graphical boot with a keyboard the driver sat parked in that `SEND` and no key ever
+/// reached the screen. Receiving it here means no caller can repeat that: there is nothing left to
+/// forget.
+pub fn start_direct(image: &'static [u8], target: RendezvousId) -> Option<()> {
     let d = crate::pci::find_input_device()?;
 
     // Zeroed so no stale descriptor and no stale event is ever visible to the device.
@@ -155,7 +162,14 @@ pub fn start_direct(image: &'static [u8], target: RendezvousId) -> Option<Rendez
     })
     .expect("could not spawn the keyboard driver");
 
-    Some(report)
+    let [tag, ..] = crate::sched::ipc_recv(report);
+    assert_eq!(
+        tag,
+        video_terminal::status::KEYBOARD_UP,
+        "the keyboard driver did not come up ({tag:#x}; a 0xDEAD_.. word's low byte names the \
+         step, see components/src/keyboard_driver.rs)",
+    );
+    Some(())
 }
 
 impl Wiring {

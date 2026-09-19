@@ -1,6 +1,6 @@
 # 183. What `script/ci-build` with no arguments means, and what the two tiers are called
 
-**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 400's
+**Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 440's
 `DECISION` gate naming no section. The mechanism is built and shipped under the recommendation
 below; only the spelling and the default are open. *(Section number provisional until the merge
 queue lands it.)*
@@ -107,5 +107,5 @@ half of *move fast on what can be undone*.
 
 ## What is blocked until this is answered
 
-**Nothing.** The tags are provisional and say so in three places. Milestone 400 is the only thing
+**Nothing.** The tags are provisional and say so in three places. Milestone 440 is the only thing
 waiting, and a `**Proposed.**` bullet in milestone 286's block points at it.

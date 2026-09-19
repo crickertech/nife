@@ -16,11 +16,18 @@ emits nothing between subruns.
 A soak does not have this problem. `kernel/src/soak.rs` prints a heartbeat on a wall clock, so the
 watcher's quiet timer is sized against *the heartbeat interval*, which is a number the kernel
 chooses. A sweep's quiet timer has to be sized against **the slowest subrun anyone has seen**, which
-is a number nobody chooses and which changes with the board. The lane measured 2.6 seconds for the
-longest subrun on QEMU (163,224,570 ticks on a 62.5 MHz counter) against a 60-second default: a
-ratio of twenty to one, picked to be safe rather than to be right.
+is a number nobody chooses, which changes with the board, **and which moved by half again in one
+day**. The longest subrun on QEMU measures **4.0 seconds** (249,234,771 ticks on a 62.5 MHz counter)
+against a 60-second default: a ratio of fifteen to one, picked to be safe rather than to be right.
 
-**So a board slower than twenty times QEMU reads as wedged when it is merely slow**, and there is no
+**That figure is the argument, and this block first stated it wrong.** It was minted quoting 2.6
+seconds and a ratio of twenty to one, taken from a capture made hours earlier. Milestone 168's lane
+had meanwhile taken the sweep from three repeats of a five-kind mix to 21 of a seven-kind one, and a
+re-capture from the merged kernel on 2026-09-19 gave 4.0 seconds. **So a quarter of the watcher's
+margin was spent by a change that went nowhere near the watcher**, and nobody could have noticed,
+because the margin is a constant on one side and an emergent property of the workload on the other.
+
+**A board slower than fifteen times QEMU reads as wedged when it is merely slow**, and there is no
 way to tell the two apart from outside. radon is the case that matters, because it is the board the
 sweep exists to run on and nobody has watched one there yet.
 
@@ -47,15 +54,20 @@ green on both branches. A heartbeat is a new line rather than an edited one for 
 ## Follow-on
 
 - **Recorded.** *The limitation as it stands today*, in the `BUGS` sections of `script/job-mix`,
-  `crates/board_console/src/lib.rs` and `notes/job-mix.md`, each naming the twenty-to-one ratio and
-  the fact that no sweep has been watched on a board.
+  `crates/board_console/src/progress.rs` and `notes/job-mix.md`, each naming the fifteen-to-one
+  ratio and the fact that no sweep has been watched on a board.
+- **Milestone 324.** Where the measurement comes from, and where the ratio was corrected from twenty
+  to fifteen when the fixture was re-captured against the merged kernel.
 
 ## Index row
 
 `crates/board_console` can tell a finished job-mix sweep from a wedged one since milestone 324, but
 not a wedged one from a slow one, because a sweep prints nothing between subruns. Its quiet timer is
-therefore sized against the slowest subrun anyone has measured, 2.6 seconds on QEMU against a
-60-second default, which is twenty to one and is a guess rather than a choice. `kernel/src/soak.rs`
+therefore sized against the slowest subrun anyone has measured, 4.0 seconds on QEMU against a
+60-second default, which is fifteen to one and is a guess rather than a choice. That ratio was
+twenty to one until milestone 168 took the sweep to 21 repeats of a seven-kind mix, which spent a
+quarter of the margin without going near the watcher, and is the clearest argument that a threshold
+derived from a workload is the wrong shape. `kernel/src/soak.rs`
 already solves this by printing a heartbeat on a wall clock, which makes the watcher's threshold a
 number the kernel picks. The work is that heartbeat in the supervisor, and it is a kernel change,
 which is why the lane that found it recorded it instead. The board it matters for is radon, where no

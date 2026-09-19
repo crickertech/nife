@@ -55,7 +55,7 @@ today, which is itself worth noticing: `components/` and `fixtures/` carry no su
 **`tools/` is already spent.** `tools/redoxfs_host` exists in this worktree and is a host build
 tool, which is a different meaning of the word. Taking `tools/` for EL0 programs would give one
 directory name two senses, which is the ground §154 and naming.md's recognition argument already
-refuse elsewhere (milestone 400's block makes the same refusal of `runner` on a measured 163 files).
+refuse elsewhere (milestone 440's block makes the same refusal of `runner` on a measured 163 files).
 
 The alternatives, so they are refused on the record rather than silently: `bin/` is Unix's and says
 nothing about authority, which is the §39 failure wearing a different hat; `commands/`,

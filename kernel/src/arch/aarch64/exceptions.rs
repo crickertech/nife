@@ -18,9 +18,8 @@ use aarch64_cpu::asm::barrier;
 use aarch64_cpu::registers::{ESR_EL1, FAR_EL1, VBAR_EL1};
 use tock_registers::interfaces::{Readable, Writeable};
 
-use super::timer;
+use super::{irq, timer};
 use crate::arch::{UserFault, UserFaultAccess};
-use crate::drivers::gic;
 use crate::println;
 
 /// The interrupted CPU state, as saved by `SAVE_CONTEXT` in `vectors.s`.
@@ -576,12 +575,12 @@ fn user_fault(frame: &TrapFrame, esr: u64) -> ! {
 /// increment. Nothing allocates. Nothing takes a lock above rank GIC.
 fn handle_irq(_frame: &mut TrapFrame) {
     // Reading IAR is what ACKNOWLEDGES the interrupt. It has a side effect, so exactly once.
-    let intid = gic::acknowledge();
+    let intid = irq::acknowledge();
 
     // 1023: the GIC changed its mind between raising the line and us getting here. Do nothing,
     // and in particular do NOT signal end-of-interrupt: completing an interrupt we never took
     // corrupts the GIC's priority stack.
-    if intid == gic::SPURIOUS {
+    if intid == irq::SPURIOUS {
         SPURIOUS_IRQS.fetch_add(1, Ordering::Relaxed);
         return;
     }
@@ -613,7 +612,7 @@ fn handle_irq(_frame: &mut TrapFrame) {
             // privilege still own an interrupt. See notes/interrupts.md.
             if let Some(ep) = crate::sched::irq_route(other) {
                 ROUTED_IRQS.fetch_add(1, Ordering::Relaxed);
-                gic::disable(other);
+                irq::disable(other);
                 crate::sched::irq_notify(ep);
             } else {
                 UNEXPECTED_IRQS.fetch_add(1, Ordering::Relaxed);
@@ -624,7 +623,7 @@ fn handle_irq(_frame: &mut TrapFrame) {
 
     // Until this is written, the GIC will not deliver another interrupt of equal or lower
     // priority. Forget it and the timer fires exactly once and then never again.
-    gic::end_of_interrupt(intid);
+    irq::end_of_interrupt(intid);
 
     // --- and preemption used to be here ---
     //

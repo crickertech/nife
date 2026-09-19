@@ -4,6 +4,23 @@
 #   script/apropos capability          what this tree says about capabilities, strongest first
 #   script/apropos syscall             ... and where the syscall numbers actually are
 #
+# EXAMPLES
+#
+#     $ script/apropos syscall
+#     844 pages, 11023655 bytes of documentation in this repository
+#
+#     searching for: syscall
+#
+#          25  design/decisions/124-x86-64-syscall-abi.md        124. Ratify the x86_64 syscall ABI
+#           3  design/decisions/08-process-model-deferred.md     8. Process model / syscall ABI: ...
+#         ...
+#           5  crates/abi/src/lib.rs                             crate abi
+#         ...
+#       16 of 278 pages, strongest first
+#
+# The number is how many times the page says the word; the order is how densely it says it (see
+# BUGS). Open the path it prints: the result is where the page lives, not a copy of it.
+#
 # Milestone 40 built a documentation service for the *guest*: an inverted index over markdown, a
 # reader that merges shards, and an `apropos` builtin at the nife prompt. That index was pointed at
 # the six pages the filesystem image installs, because a guest can only search what it holds. A
@@ -34,26 +51,32 @@
 #   across a hyphen would manufacture a term out of every hyphenated phrase in the corpus. A path is
 #   not searchable either: `notes/glob.md` folds to `notesglobmd`, which no page says.
 # - **One word per search.** There is no phrase query and no intersection of two terms.
-# - **Ranking is occurrence count and nothing else**, so a long page mentioning a word in passing
-#   can outrank a short page about it. See `crates/documentation/src/index.rs`'s BUGS.
+# - **The printed number is not what the list is sorted by.** Results are ranked by density,
+#   occurrences divided by the page's length (`documentation::index::score`), so a short page about
+#   a word beats a long page that mentions it in passing; but the column printed beside each result
+#   is the raw occurrence count, so the list reads as unsorted (34, then 5, then 44). This entry
+#   said "ranking is occurrence count and nothing else" until 2026-09-19, which had stopped being
+#   true. See `crates/documentation/src/index.rs`'s BUGS.
+# - **A path longer than 72 bytes is truncated in the result**, because the page record is the
+#   guest's fixed layout (`documentation::index::PATH_MAX`). Six roadmap and decision filenames are
+#   past it. The search exits 1 only when one of those is in the results it printed, and names it;
+#   until 2026-09-19 any long path anywhere in the corpus failed every search, with six warnings,
+#   whatever the word, which is how milestone 117's sixth run found it: the tool it was about to
+#   put in front of a newcomer failed on the example chosen for the README.
 # - **Sixteen results, always**, because that is the guest reader's fixed table
 #   (`documentation::index::RESULTS_MAX`) and this uses the guest reader. The line under the results says
 #   how many pages matched in total.
 # - **It rebuilds the whole index on every run** (about a second). There is no cache, because a
 #   cache that can be stale is worse here than a second of work.
 # - **The first stranger it was built for never ran it, and had the name in front of it three
-#   times.** Milestone 117's run 5 (2026-08-18) is the first onboarding run against a tree
-#   containing this script, and this script exists because three earlier runs could not reach
-#   `notes/net.md`, `notes/capabilities.md`, any `design/decisions/` file, or
-#   `crates/abi/src/lib.rs`. Run 5 listed `script/`, so `apropos` was the first name in that
-#   listing; it read the guest's `apropos` builtin in `crates/swish/src/lib.rs`; and it read the
-#   `apropos photosynthesis` line in `SHELL_CHECK_SCRIPT`. It ran neither this nor anything like
-#   it, reached no `design/decisions/` file and never opened `notes/net.md`, which is the exact
-#   gap this was written to close. **The reason is placement, not the tool**: the only page that
-#   says what this does is `notes/scripts.md`, and no stranger in five runs has opened it. A
-#   search tool nobody is told about is a search tool nobody uses, and the honest reading is that
-#   this is currently written for people who already know the tree. Recorded rather than fixed,
-#   because where it should be named is a claim about the reading order and those are calef's.
+#   times.** Milestone 117's run 5 (2026-08-18) listed `script/`, read the guest's `apropos` builtin
+#   in `crates/swish/src/lib.rs` and read `apropos photosynthesis` in `SHELL_CHECK_SCRIPT`, and ran
+#   none of them, so it reached no `design/decisions/` file and never opened `notes/net.md`, the gap
+#   this was written to close. The reason was placement: the only page that said what this does was
+#   `notes/scripts.md`, which no stranger had opened. **Placed 2026-09-19**, in `README.md`'s
+#   start-here order and in `CONTRIBUTING.md`, each with an example. Whether that is enough is the
+#   next stranger run's measurement rather than this entry's claim; notes/stranger-test.md has the
+#   record.
 #
 # Name: ratified 2026-09-14 (calef, working the unratified worklist). Minted by milestone 40's
 # lane on 2026-08-18. It is deliberately the same word

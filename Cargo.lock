@@ -192,6 +192,7 @@ dependencies = [
  "pmap",
  "ps",
  "schedule_store",
+ "screen_console",
  "smoltcp",
  "socket_protocol",
  "supervision_protocol",
