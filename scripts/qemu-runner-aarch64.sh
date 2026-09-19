@@ -32,12 +32,11 @@ set -e
 # same ISA (aarch64). Two consequences:
 #
 #   - HVF runs the PHYSICAL core, so `-cpu host` is mandatory; you cannot ask for an emulated a72.
-#   - gic-version is STATED rather than left to QEMU, so a future QEMU default cannot swap in a
-#     GICv3 our driver does not speak. QEMU emulates the GIC either way (Apple cores use their own
-#     AIC natively) and injects interrupts through HVF, so the MMIO GICv2 driver keeps working.
-#     It used to be spelled as a literal 2 on both paths and now reads `$GIC`, whose default is 2
-#     and whose only other value is milestone 317's deliberately-broken GICv3 probe below; the
-#     property this comment claims is unchanged.
+#   - gic-version is STATED rather than left to QEMU, and under HVF it is **3**: QEMU 11.1.1
+#     refuses `gic-version=2` with HVF outright ("HVF does not support GICv2 emulation", milestone
+#     222). The kernel drives both since milestone 227 and reads which one it has from the device
+#     tree, so the version is the runner's choice rather than a constraint on the kernel. See
+#     NIFE_GIC below for the TCG default and why it stays 2.
 #
 # NIFE_CPU overrides the TCG model (milestone 59, the parity twin of the riscv runner's flag).
 # Under HVF there is nothing to override: the guest runs on the physical Apple core, so `-cpu host`
@@ -65,38 +64,36 @@ if [ -n "$NIFE_EL2" ]; then
     VIRT_EL2=",virtualization=on"
 fi
 
-# **NIFE_GIC=3 asks for a GICv3, and this kernel CANNOT DRIVE ONE** (milestone 317; the name is
-# PROVISIONAL, a lane's to propose and calef's to ratify). It exists so that milestone 227's lane
-# can reproduce the failure in one command instead of rediscovering it, and so that the failure has
-# an artifact rather than living in a lane report. It is not a supported configuration and the
-# default does not move.
+# **NIFE_GIC picks the interrupt controller: 2 (the TCG default) or 3** (milestone 317 added the
+# flag to reproduce a failure; milestone 227 made the kernel drive what it asks for). The name is
+# PROVISIONAL, a lane's to propose and calef's to ratify.
 #
-# The reason interrupt remapping wanted it: GICv2 has no ITS, so there is no MSI translation path
-# on this machine and a confinement claim about where a device may *interrupt* cannot be exercised
-# here at all. `gic-version=3` gives QEMU's `virt` an `its@8080000` node where `gic-version=2`
-# gives `v2m@8020000`. That much is free; driving it is not.
+# The kernel no longer cares which: `machine_discovery::gic` reads the device tree's `compatible`
+# (`arm,cortex-a15-gic` for 2, `arm,gic-v3` for 3), and `arch::irq::init` confirms it against the
+# hardware before driving it, panicking with both sides named if they disagree. Before 227 a
+# GICv3 booted, printed `interrupts ON` and took no interrupts at all (`notes/interrupts.md`).
 #
-# **What breaks, measured on QEMU 11.1.1 rather than reasoned about** (`dumpdtb`, both versions):
+# **Why TCG stays at 2.** Every recorded TCG measurement (the icount tripwire's baselines, the
+# fastpath footprint, the benchmark history) was taken on a GICv2, and argon (the Jetson TX1) is a
+# GIC-400, so the default keeps the machine those numbers describe and the silicon this kernel
+# ships on next. HVF has no such choice, since QEMU refuses it a GICv2; so under HVF the default
+# is 3, and asking for 2 there reaches the probe below and its explanation.
 #
-#     gic-version=2  intc@8000000  compatible = "arm,cortex-a15-gic"
-#                    reg = <0x8000000 0x10000  0x8010000 0x10000>   GICD, GICC
-#     gic-version=3  intc@8000000  compatible = "arm,gic-v3"
-#                    reg = <0x8000000 0x10000  0x80a0000 0xf60000>  GICD, GICR
-#
-# `memory::init` finds the node by the `intc@` NAME PREFIX and ignores `compatible`, so it matches
-# either one and hands `reg[1]` to `arch::aarch64::irq::init` as the "CPU interface". On a GICv3
-# `reg[1]` is the redistributor frame array, which has an entirely different register layout, and
-# `drivers::gic`'s GICv2 MMIO writes land on it. Nothing refuses the mismatch: the name matched,
-# two regions were present, and the driver has no idea the hardware changed underneath it.
-#
-# **So the honest statement of aarch64's position is that it is not one flag away.** See
-# design/roadmap/317-interrupt-remapping-flags.md for what milestone 227 would owe.
-GIC="${NIFE_GIC:-2}"
-if [ "$GIC" != "2" ]; then
-    echo "qemu-runner-aarch64: NIFE_GIC=$GIC. This kernel's GIC driver is GICv2-only and nothing" >&2
-    echo "  checks the device tree's compatible string, so this boot drives a GICv3 redistributor" >&2
-    echo "  with GICv2 register offsets. Expected to fail; see milestones 227 and 317." >&2
+# The machine differs in one other way worth knowing: `gic-version=3` gives QEMU's `virt` an ITS
+# (`its@8080000`) where 2 gives a GICv2m frame, and under HVF QEMU gives a GICv2m frame either way.
+# Nothing in the kernel drives either (milestone 317 wants the ITS for interrupt remapping).
+if [ "$NIFE_ACCEL" = "hvf" ]; then
+    GIC="${NIFE_GIC:-3}"
+else
+    GIC="${NIFE_GIC:-2}"
 fi
+case "$GIC" in
+    2|3) ;;
+    *)
+        echo "qemu-runner-aarch64: NIFE_GIC=$GIC is not a GIC version this kernel drives (2 or 3)" >&2
+        exit 1
+        ;;
+esac
 
 if [ "$NIFE_ACCEL" = "hvf" ]; then
     # iommu=smmuv3 is on BOTH paths since milestone 81, and this is a correction: it used to be
@@ -124,8 +121,8 @@ else
     CPU="${NIFE_CPU:-cortex-a72}"
 fi
 
-# **The probe** (milestone 222). HVF and the GIC version this kernel's driver speaks are not
-# always compatible, and when they are not, QEMU refuses to start the machine at all:
+# **The probe** (milestone 222). HVF and a GIC version are not always compatible, and when they
+# are not, QEMU refuses to start the machine at all:
 #
 #     qemu-system-aarch64: HVF does not support GICv2 emulation
 #
@@ -168,11 +165,11 @@ probe_machine() {
 
 explain_probe_failure() {
     echo "qemu-runner-aarch64: QEMU refused $MACHINE (its own message is above)." >&2
-    echo "qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. HVF and the GIC version this kernel drives" >&2
-    echo "  are not compatible in this QEMU: kernel/src/drivers/gic.rs speaks GICv2 only, HVF wants" >&2
-    echo "  GICv3. See the BUGS section of notes/interrupts.md, which carries the measurement and" >&2
-    echo "  what a GICv3 driver would be. script/ci-build skips this leg out loud rather than failing;" >&2
-    echo "  run it if you want the rest of the suite." >&2
+    echo "qemu-runner-aarch64: THIS IS NOT YOUR CHANGE. This QEMU will not start that machine under" >&2
+    echo "  HVF. The kernel drives GICv2 and GICv3 (milestone 227), and HVF on QEMU 11.1.1 accepts only" >&2
+    echo "  GICv3, which is this runner's HVF default; if NIFE_GIC=2 is set, unset it. Otherwise the" >&2
+    echo "  refusal is QEMU's own, quoted above. script/ci-build skips this leg out loud rather than" >&2
+    echo "  failing; notes/hvf-leg.md has the history." >&2
 }
 
 # NIFE_PROBE asks the question and answers nothing else: exit 0 if this machine starts, non-zero

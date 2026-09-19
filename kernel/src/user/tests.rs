@@ -2618,8 +2618,20 @@ fn a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults() {
     // **The negative half, and it does not run on x86_64**, where `rdtsc` is ambient by DECISIONS
     // 139 part 3 and an ungranted read is not an error. Skipping it there is the stated exception
     // to DECISIONS §19 showing up in a test rather than a gap in one.
+    //
+    // **And it does not run on an Apple core**, which this kernel can only ever meet under a
+    // hypervisor (an Apple core's own interrupt controller is AIC, which it does not drive). There
+    // the negative half was measured failing on 2026-09-19 (milestone 227's first HVF run): with
+    // `PMUSERENR_EL0` at zero an EL0 read of `PMCCNTR_EL0` was answered rather than refused, so the
+    // hypervisor, not this kernel, decides the outcome and the assertion would be about QEMU's
+    // HVF. `arch::timer::set_cycle_counter_grant`'s BUGS carries the measurement. The positive half
+    // below still runs.
+    #[cfg(target_arch = "aarch64")]
+    let under_apple_hypervisor = crate::arch::isa::get().implementer == 0x61;
+    #[cfg(target_arch = "riscv64")]
+    let under_apple_hypervisor = false;
     #[cfg(not(target_arch = "x86_64"))]
-    {
+    if !under_apple_hypervisor {
         let before = USER_FAULTS.load(Ordering::Relaxed);
         spawn_bare(cycle_counter_image(), 0, 0).expect("spawn failed");
         assert!(
