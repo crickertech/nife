@@ -15,8 +15,7 @@ prior one have a numbered decision?"* It did not. Its ask lived in the block's o
 from calef* section, which is one rung above a chat message and below where AGENTS.md puts an open
 decision:
 
-> **Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
-> only in chat scrollback is in exactly the medium milestone 94 was written to abolish.
+> **Open decisions live in a file, not in a conversation.**
 >
 > -- AGENTS.md
 
