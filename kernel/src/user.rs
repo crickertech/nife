@@ -842,7 +842,7 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 ///
 /// **It was the whole milestone 7-19 role catalogue until milestone 291**, thirty-one roles in one
 /// binary. Twenty-two of them are their own programs or `block_driver`'s roles now; nine are left,
-/// and `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md` is what would
+/// and milestone 405, `design/roadmap/405-nine-init-roles-and-the-entry-the-kernel-picks.md`, is what would
 /// take them, since splitting them is a change to [`spawn_hello`]'s choice of entry rather
 /// than to `fixtures/`.
 ///
@@ -890,7 +890,7 @@ pub const PROGENITOR_ROLE: u64 = 27;
 /// five capabilities those roles use.
 ///
 /// **`hello` still has nine roles**, and splitting them is a follow-on to milestone 291
-/// (`design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`): six are separate
+/// (milestone 405, `design/roadmap/405-nine-init-roles-and-the-entry-the-kernel-picks.md`): six are separate
 /// programs waiting to happen, and each would need its own archive entry named here.
 ///
 /// Name: ratified 2026-09-15 (calef, this header). Refused keeping `spawn_progenitor`, the name

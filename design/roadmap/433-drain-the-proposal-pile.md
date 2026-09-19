@@ -182,6 +182,19 @@ It is not a `git mv`, and this block exists partly to say so before four lanes d
    so the integrator regenerates it once at the end. This is the whole collision surface of the pass
    and removing it is why four lanes can run at all.
 
+## Slices, as each one lands
+
+- **Slice 3, 381 to 407, done 2026-09-19** on `milestone/433-slice-3`. 27 promoted: 26
+  `NOT-STARTED` and one `SUPERSEDED` (399, by 405, which turns the six role constants it renames
+  into programs). **6 of 27 had a premise decayed enough to change what the block claims**, and 11
+  more needed a factual correction in prose. The sharpest is 406, whose title is now false as
+  written: `script/boot-check` landed the same day it was filed and does boot the default riscv64
+  kernel on every pull request, leaving only the tour past the self-test verdict unasserted. Two
+  defects found that predate the pass: milestone 290 carried two adjacent `**Proposed.**` bullets
+  with the prose on the wrong one, and milestone 265's `**Proposed.**` bullet for the unswept
+  truncations named a proposal that holds a different subject, which the gate accepted because the
+  check is path-shaped.
+
 ## BUGS
 
 - **A promoted block can still be a graveyard, one directory up.** Numbering does not prioritise;

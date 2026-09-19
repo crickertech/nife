@@ -1,10 +1,18 @@
-# Composing a process from two capabilities is proved for two verbs and no more
+# 404. Composing a process from two capabilities is proved for two verbs and no more
 
-**Status: PROPOSED 2026-09-14.** Found by milestone 295's lane while performing calef's ruling to
-retire `components/src/builder.rs`. That milestone was told to record where the minimality claim went
-and to say plainly if it went nowhere. It went **half** somewhere, and this is the other half.
+**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 295's lane, while
+performing calef's ruling to retire `components/src/builder.rs`; numbered 2026-09-19 by milestone
+433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**:
+`fixtures/src/address_space_witness.rs` still holds exactly two capabilities and still stops where
+milestone 19b stopped, `kernel::user::tests::a_process_can_build_start_and_run_a_child_thread` still
+drives the whole sequence from the kernel side, and nothing joins the two. Two corrections that do
+not touch the argument: the fixture was `address_space_builder.rs` when this was written and was
+renamed on 2026-09-18, and `crates/supervision_proto` has been `crates/supervision_protocol` since
+milestone 265. **The gate token was `DESIGN`, which is not in the roadmap's gate vocabulary**; it is
+`DECISION`, which is what it meant, and the prose below is unchanged.
+*(Number provisional until the merge queue lands it.)*
 
-**Gate: DESIGN.** What the replacement should *be* is the open question, and the options differ in
+**Gate: DECISION.** What the replacement should *be* is the open question, and the options differ in
 cost by an order of magnitude. Nothing is blocked on it: the tree is no worse off than it was the
 hour before `builder` was deleted, because nothing on a pull request ever ran `builder` either.
 
@@ -32,7 +40,7 @@ That is **more** coverage than `builder` ever had, and it is worth saying out lo
 reason this is a proposal rather than an alarm: `script/test`'s riscv64 leg, `script/cpu-matrix`,
 `script/shell-check`, `script/bench --riscv --check` and `script/icount` all park before the tour, so
 no pull-request check has ever executed `builder`
-(`design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md`).
+(milestone 406, `design/roadmap/406-nothing-in-ci-boots-the-riscv-tour.md`).
 
 ## What is proved nowhere
 
@@ -55,7 +63,7 @@ and the child runs and reports, on both architectures. It is a kernel-side test:
 it from a fixed endowment.
 
 `fixtures/src/os_primitives_benchmarker.rs` starts a child from userspace and holds more than two
-capabilities; it is a benchmark. `crates/supervision_proto`'s `build_child` is the one loader they
+capabilities; it is a benchmark. `crates/supervision_protocol`'s `build_child` is the one loader they
 all share, and every caller of it is endowed for its job rather than trimmed to a floor.
 
 **So the gap is a join, not a hole.** Two verbs from userspace at a two-capability floor
@@ -101,3 +109,24 @@ with extra steps.
 Nothing. Recorded so that the risk milestone 295 accepted stays visible instead of becoming the kind
 of fact that lives only in a merged pull request body, which is the failure
 `notes/untracked-work-sweep.md` exists to name.
+
+## Index row
+
+`builder` carried two claims wearing one sentence, and retiring it kept one of them. That userspace
+rather than the kernel composes a process is carried by the progenitor, on every architecture that
+runs one, on the boot a card performs, and is better off than it was. That it does so *from an
+authority you can count on one hand* lost its only carrier, because `builder` held exactly two
+capabilities where the progenitor is also granted the NS16550 and the UART's interrupt line.
+`fixtures/src/address_space_witness.rs` holds the same two capabilities and proves more than
+`builder` ever did, on every pull request rather than on a boot no check performs, but it stops
+where milestone 19b stopped: nothing runs in the space it builds. The remaining verbs are all
+proved, from the kernel side, by `a_process_can_build_start_and_run_a_child_thread`, which calls the
+kernel entry points directly rather than through a granted budget. So the gap is a join rather than
+a hole: two verbs from userspace at a two-capability floor, and the whole sequence from the kernel,
+with `builder` the only thing that was ever both. Four options, priced: extend the witness to run
+something in the space it builds (an afternoon, the recommendation, and the one thing in it that is
+calef's is that the fixture's name would stop describing it); a second fixture that leaves 19b's
+reading alone, at the cost of another program in every archive; a host-side crate that decides
+whether a capability set suffices for a verb sequence, which is the only option producing a proof
+and does not witness the kernel permitting anything; or deciding the claim is not worth a carrier,
+which is legitimate and costs a demonstrator the one boot step a stranger could read.

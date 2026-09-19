@@ -1,7 +1,19 @@
-# One definition of the numbers a kernel test and its program agree on
+# 407. One definition of the numbers a kernel test and its program agree on
 
-**Status: PROPOSED 2026-09-14.** Written by milestone 293's lane, which reduced one instance of
-this and then measured the rest of it.
+**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 293's lane, which
+reduced one instance of this and then measured the rest of it; numbered 2026-09-19 by milestone
+433's drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true,
+and the tree's counter-example is still in it**: `kernel/src/user/live_swap_tests.rs` still
+re-declares `ROLE_DIRECT`, `ROLE_QUEUED` and `ROLE_HUNG` locally although `crates/swap_protocol`
+publishes all three. An independent re-count on 2026-09-19, over `ROLE_*`, `RPT_*`, `F_*` and
+`TERM_MAGIC` declared on both sides of a spawn, found **25 kernel/program file pairs sharing 79
+constant names**; that is a similar method rather than the same one, so it is not byte-comparable
+with the 19 pairs and 76 names below, and what it establishes is that the shape has not shrunk.
+**Three crate names in the table have moved** and the work has to read the current ones:
+`swap_proto` is `crates/swap_protocol`, `login_proto` is `crates/login_protocol`, and
+`components/src/ntp.rs` was split into three programs by milestone 290, so that row's program side
+is now `network_time_client` and its siblings. *(Number provisional until the merge queue lands
+it.)*
 
 **Gate: DECISION.** The sweep itself is mechanical and a lane could start it today; what it cannot
 settle is the crate names, and there is no useful half of this work that does not create one. See
@@ -77,3 +89,24 @@ hand-copied in three files. 293 removed the credential half of
 its own instance (three copies of three identity/secret pairs, one of which said in a comment that
 it had *chosen* to match another) and left the behaviour-number half, because fixing one pair inside
 a hotspot three other lanes were in would have been a partial fix in the worst possible place.
+
+## Index row
+
+AGENTS.md rule 7 says anything two binaries must agree on is a crate and never a copy, and
+seventy-six constants across nineteen file pairs are copies, each held in line by a `// must match`
+comment: role numbers, report tags and report flag bits shared between a kernel test's wiring and
+the program it spawns, with `login_service.rs` and its test client sharing fifteen on their own. A
+comment is rung four of the ladder for a fact with a rung-one answer sitting beside it, and the
+failure it permits is silent and specific: a role number changed on one side spawns a different
+role, and a flag bit changed on one side makes a test assert against a bit nothing sets, both of
+which read as a bug in the code under test rather than as a mismatch. It is not hypothetical, and
+the counter-example is the strongest argument for a gate rather than a convention:
+`crates/swap_protocol` already publishes three role numbers with real doc comments and
+`kernel/src/user/live_swap_tests.rs` re-declares all three locally anyway. The shape is built and
+works three times over, in `swap_protocol`, `job_mix` and `schedule_store`, so what is missing is
+not a design but the sweep. What a lane cannot decide is the crate names, and there is no useful
+half of this work that does not create one: these numbers are not part of any shipped wire
+contract, so putting a test client's behaviour numbers into a protocol crate would widen what a real
+client is written against with something no real client needs. Two shapes are priced so the question
+arrives answered: one crate per pair, following the precedent and costing nineteen names, or one
+crate for all of them, costing one name and making it a grab bag of unrelated numbers.
