@@ -144,9 +144,9 @@ further runs produced no paint fault at all.
 **It is verified rather than gated, and the difference is honest.** `scripts/qemu-runner-x86_64.sh`
 still defaults `NIFE_SMP` to 1, because other failures on this port are open and either can fail a
 two-core run. The boot-core-identity bug that made `smp::tests::every_secondary_runs_scheduled_work`
-fail about half the time at two was fixed by milestone 316; what remains is the AP-bring-up
-flakiness at three or more cores (`ap_boot`'s `BUGS` #1) and, not an SMP bug at all, the one-tick
-port-revocation window that makes `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`
+fail about half the time at two was fixed by milestone 316, and the AP-bring-up flake (`ap_boot`'s
+`BUGS` #1, a started core counted as absent) by milestone 161 on 2026-09-19; what remains is, not
+an SMP bug at all, the one-tick port-revocation window that makes `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write`
 intermittently red at two cores (milestone 313's audited window, milestone 315's target). All are
 recorded in `arch::x86_64::ap_boot`'s `BUGS`. So CI does not exercise this code, and will not until
 the default can move.

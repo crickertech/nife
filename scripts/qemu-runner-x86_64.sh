@@ -41,15 +41,19 @@ shift
 # "which core am I" from CPUID on every call, and now reads a record `boot.s` stamps once on the
 # boot processor, the shape riscv64's BOOT_HARTID already had.
 #
-# The default still stays where it was, and on 2026-09-17 the reason changed a second time. Two
-# things can still fail a two-core run. The AP-bring-up flakiness at three or more cores (ap_boot's
-# BUGS #1) is unchanged and unexplained. And the two-core suite is not clean for a reason that is
-# not an SMP bug at all: `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes
-# red intermittently because `PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core
+# The AP-bring-up flake (ap_boot's BUGS #1, a core reported "did not start" that had started) is
+# FIXED too (milestone 161, 2026-09-19): `cpu_start` re-read the online count after the STARTUP IPIs
+# and waited for it to move again, so a core that checked in during the settle delay was counted as
+# absent. It reached two cores as well as three, which is the UEFI leg's one-in-three.
+#
+# The default still stays where it was, for one reason, and it is not an SMP bug at all:
+# `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes red intermittently at
+# two cores, because `PortRange::REVOKE` resets the TSS I/O bitmap on the revoker's core
 # only, so a holder on the other core keeps the ports for up to one tick. That is milestone 313's
 # audited window, recorded at `sched::delete_port_range_caps_impl`, and milestone 315 closes it.
 # `arch::x86_64::ap_boot`'s own BUGS section is the authoritative account; see also
 # design/roadmap/316-x86-smp-two-cores.md and design/roadmap/161-x86-64-kernel-port.md item 5.
+# DECISIONS §153 is the rule for moving it: close milestone 315, then default to 2.
 SMP="${NIFE_SMP:-1}"
 
 # **`NIFE_TCG_THREAD=multi` gives this port parallel cores instead of interleaved ones** (milestone

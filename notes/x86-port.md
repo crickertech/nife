@@ -1218,6 +1218,22 @@ register dump showing a perfectly correct GDT, TSS and IDT. Nothing about the sy
 cause. The fix saves and restores the base around the reload, inside `segments::init`, so the
 ordering constraint stops existing rather than being documented for callers to remember.
 
+## The SMP bug that was a counting bug (2026-09-19)
+
+For a month `arch::x86_64::ap_boot`'s BUGS #1 said a secondary core "fails intermittently", with two
+refuted hypotheses beside it. **No core was failing.** `cpu_start` read the online count before the
+INIT, then read it *again* after the STARTUP IPIs and waited for it to move from the second value; a
+core that checked in during the 200 µs settle delay had already moved it, so the loop waited ten
+seconds for an increment nobody would make and reported a running core as absent. The tell had been
+in every failing transcript: the "failed" core printed its own `cr4.smep : set on core N` line, which
+only that core's `secondary_main` can print, one line above `smp: cpu N did not start`.
+
+26 of 40 four-core boots showed it before the fix; 80 of 80 boots at three, four and eight cores
+brought every core online after it. It also reached two cores (the first secondary is as able to be
+quick as any other), which is the UEFI leg's one-in-three failure recorded in
+`design/roadmap/proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`.
+`ap_boot.rs`'s BUGS has the evidence, including the instrumented build that settled it.
+
 ## The direct map in blocks (2026-09-19)
 
 `crates/paging` maps 2 MiB and 1 GiB leaves now (`PageSize`, `Mapper::map_span`, `map_block`), and

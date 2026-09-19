@@ -14,29 +14,44 @@
 //!
 //! # BUGS
 //!
-//! **Two separate, unresolved failures were found bringing this up, and neither is root-caused.**
-//! Both are why `scripts/qemu-runner-x86_64.sh` still defaults `NIFE_SMP` to 1 rather than to a
-//! count that actually starts anything: the mechanism in this file is built and does what it
-//! says, but nothing downstream of "a second core exists" has been shown safe yet.
+//! **Three failures were found bringing this up, and all three are now root-caused and fixed.**
+//! They are kept here because this is where each was found and where a reader meets the symptom.
+//! `scripts/qemu-runner-x86_64.sh` still defaults `NIFE_SMP` to 1, and the one thing now holding it
+//! there is not a bring-up bug at all (see the end of #3).
 //!
-//! **1. A third or later secondary, brought up while an earlier one is already online and
-//! running, fails intermittently and non-deterministically** (measured extensively on QEMU TCG).
-//! At `-smp 3` and above, exactly one secondary typically fails to reach `secondary_main`'s online
-//! mark, and *which* one varies run to run (not always the last-attempted, not always a fixed id);
-//! the total online count then falls one short and stays there. Instrumented with raw port-I/O
-//! checkpoints inside the trampoline (bypassing the console lock entirely), the failing core is
-//! seen to reach 64-bit long mode (`ap_long_mode_entry`, past the GDT loads and the
-//! `CR3`/`EFER`/`CR0` sequence) but never reach the checkpoint immediately before
-//! `jmp secondary_main`, a five-instruction gap (`mov rsp, [rip+...]`, `cpuid`, `shr`, `movzx`)
-//! that does nothing unusual and is identical to what the succeeding core(s) just executed.
-//! Neither of this port's two working hypotheses survived a direct test: routing `cpu_start`'s
-//! wait through `hlt` instead of a tight spin (in case CPU 0's own busy-loop was starving the
-//! target vCPU thread of host time under TCG) changed the failure from an occasional full hang to
-//! a reliable "gives up cleanly, boot continues", but did not stop the underlying core from
-//! failing to start; and copying the trampoline's code bytes only once instead of once per
-//! `STARTUP` IPI (in case QEMU's self-modifying-code detection was mishandling a
-//! rewrite-and-re-execute of a page another vCPU might be concurrently running from) made no
-//! measurable difference either.
+//! **1. A secondary was reported "did not start" when it had started. FIXED 2026-09-19 (milestone
+//! 161).** The symptom as first recorded: at `-smp 3` and above, one secondary per boot typically
+//! failed to come online, *which* one varied, and the online count fell one short. Two hypotheses
+//! were tested and refuted (a `hlt` wait instead of a spin, in case CPU 0 starved the target's vCPU
+//! thread; copying the trampoline once instead of per `STARTUP` IPI, in case of QEMU's
+//! self-modifying-code detection), and both changes are kept on their own merits.
+//!
+//! **Neither hypothesis could have worked, because no core was failing.** Reproduced 2026-09-19 on
+//! patagonia at `-smp 4`, plain boot, bounded, 40 runs: **26 of 40 had a core reported as not
+//! started** (cores 1, 2 and 3 all took turns, including the *first* secondary, so "third or
+//! later" was never the boundary), and the transcript of the very first failure gave it away: the
+//! "failed" core printed its own `cr4.smep : set on core 2` line, which only `secondary_main` on
+//! that core can print, one line *before* `smp: cpu 2 did not start`. An instrumented build then
+//! printed the count at each point of `super::cpu_start`, and in all three failures of ten it read
+//! the same: **online count at the INIT = n, at the wait loop = n + 1, now = n + 1.**
+//!
+//! `cpu_start` read the online count before the INIT and then *read it again* just before its wait
+//! loop, after the `STARTUP` IPIs and their 200 us settle delays, and waited for the count to move
+//! from that second value. A core fast enough to check in during those delays had already moved
+//! it, so the loop waited its full ten seconds for a second increment that nobody would make,
+//! returned -1, and `smp::bring_up_secondaries` counted an online, running core as absent. Under
+//! TCG "fast enough" is a matter of which vCPU thread the host schedules when, which is why it was
+//! intermittent and why which core it hit varied. (The earlier port-I/O checkpoint evidence, a core
+//! reaching long mode and "never reaching" the checkpoint before `jmp secondary_main`, is not
+//! reproduced by anything above and is best read as the instrumentation losing a race of its
+//! own; it is recorded rather than explained.)
+//!
+//! **The fix is one line removed**: the count is read once, before the INIT, and every wait
+//! compares against that. Measured after, same host, same bounded loop: **40 of 40 boots at
+//! `-smp 4`, 20 of 20 at `-smp 8` (this kernel's `MAX_CPUS`) and 20 of 20 at `-smp 3` brought every
+//! core online**, against 14 of 40 before. All of it is QEMU TCG; the defect is in this port's own
+//! code rather than in the emulator, so there is no reason to expect silicon to differ, but xenon
+//! has not been asked.
 //!
 //! **2. Two cores crashed under the kernel's own test suite's real scheduler workload. FIXED
 //! 2026-08-25 (milestone 161's SMP-crash lane); root cause was a missing cross-core TLB
@@ -91,9 +106,9 @@
 //! RISC-V's `BOOT_HARTID` already had and this port was missing. Both symptoms went with it, and
 //! the suite reaches `test result: ok. 245 passed` at two cores.
 //!
-//! **`NIFE_SMP` still defaults to 1**, and milestone 316 changed *which* open thing holds it there.
-//! #1 remains open. And the two-core suite is not yet clean for a reason that is not an SMP
-//! bring-up bug at all: `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes
+//! **`NIFE_SMP` still defaults to 1**, and milestones 316 and 161 changed *which* open thing holds
+//! it there: #1 and #3 are both closed. The two-core suite is not yet clean for a reason that is not
+//! an SMP bring-up bug at all: `user::x86_port_tests::a_revoked_holder_faults_on_its_next_port_write` goes
 //! red intermittently at two cores, because `sched::delete_port_range_caps_impl` resets the TSS I/O
 //! bitmap on **the revoker's core only**, so a holder running on the other core keeps the ports for
 //! up to one tick. That window is milestone 313's audit's, recorded and accepted at that function,
@@ -104,12 +119,13 @@
 //! #2's fix is verified rather than gated: `user::tests::an_asid_flush_reaches_the_other_cores`,
 //! the portable test milestone 58 wrote for exactly this property, **fails on this port without
 //! the shootdown and passes with it**. It cannot be a CI gate until the default moves, and the
-//! default cannot move until #1 and the revocation window are answered.
+//! default cannot move until the revocation window is answered (DECISIONS §153: close milestone
+//! 315, then default to 2).
 //!
-//! Whether #1 is specific to QEMU TCG's emulation or a real bug in this port's own code is exactly
-//! the kind of question milestone 87's real hardware would settle, and as of 2026-09-17 that
-//! hardware exists and has booted: xenon printed `nife machine: x86_64, 4 processor(s)`
-//! (`bench/xenon-2026-09-17/first-light-095500.log`). #1 has never been tried on silicon.
+//! #1 was this port's own bug and not TCG's, so milestone 87's hardware is no longer needed to
+//! settle it; xenon (`bench/xenon-2026-09-17/first-light-095500.log`, four processors) has still
+//! never been asked to bring all four online, and the line to read there is `smp: 4 core(s)
+//! online`.
 
 use super::mmu::phys_to_virt;
 

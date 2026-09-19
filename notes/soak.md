@@ -1087,7 +1087,8 @@ hour count inherited from a tool's default.
   a mutation sweep beside a soak can produce a false `WentQuiet`. `--quiet-after` is the knob, and
   not running a soak beside other heavy work is the better answer (`AGENTS.md`'s memory ceiling).
 - **`--arch x86_64` soaks one core** unless `--smp` says otherwise, because that runner defaults to
-  one and its SMP bring-up has two open bugs (`arch::x86_64::ap_boot`'s BUGS #1 and #3). Its
+  one, and it stays there until milestone 315 closes the port-revocation window (DECISIONS §153;
+`arch::x86_64::ap_boot`'s BUGS #1 and #3, the bring-up bugs this line used to cite, are fixed). Its
   `crossings=0` says so out loud, and a single-core soak is not a multicore soak.
 - **A soak build is not the binary that ships**, so its timing is not the shipping binary's timing.
   The numbers above quantify it. This is normal and accepted, and it is stated here because the
