@@ -1,6 +1,6 @@
 # 295. Retire `components/src/builder.rs`
 
-**Status: BUILT** 2026-09-14. Promoted from `design/roadmap/proposals/retire-the-builder-program.md`,
+**Status: BUILT** 2026-09-14. Promoted from `design/roadmap/295-retire-the-builder-program.md`,
 which was written on 2026-09-14 to ask calef one sentence and which carries this block's whole
 argument in its git history. *(Number provisional until the merge queue lands it.)*
 

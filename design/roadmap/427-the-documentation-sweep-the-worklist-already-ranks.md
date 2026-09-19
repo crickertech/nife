@@ -55,7 +55,7 @@ AGENTS.md's rename rule, which says a record of the past keeps the old name; two
 are fixed in 311. Separating those two categories needs a reader, which is the whole argument for
 routing this to a sweep rather than to a gate, and `script/lint`'s own comment on the matter says so.
 
-`design/roadmap/proposals/a-backticked-path-that-does-not-resolve.md` is the standing proposal for
+`design/roadmap/383-a-backticked-path-that-does-not-resolve.md` is the standing proposal for
 gating this class tree-wide. It is worth reading alongside, and it is worth noting that **its own
 enumeration of root directories still lists `user/`**, three days after that directory stopped
 existing, which is a small exhibit for why the sweep is due.

@@ -160,13 +160,16 @@ Those magnitudes are a Linux container under TCG and are not comparable with any
 
 ## Follow-on
 
-- **Proposed.** The six names that still spell the *workload* rather than the command
+- **Recorded.** The six names that still spell the *workload* rather than the command
   (`crates/soak_page`, `fixtures/src/soaker.rs`, `kernel/src/soak.rs`, `notes/soak.md`,
   `board_console`'s `Stage::Soak` and `--until soak`, and `script/board-image --soak`). Each is a
   name calef has not been asked about and this lane refused to decide for him; the seam a reader
-  meets is in this block's `BUGS`. **No file was written under `design/roadmap/proposals/`**,
-  because a developer lane does not add files under `design/` outside its own block, so the ask is
-  in this lane's report for the integrator to file. That is rung four and says so.
+  meets is in this block's `BUGS`. This bullet read `**Proposed.**` and named no file, because a
+  developer lane does not add files under `design/` outside its own block and the ask sat in the
+  lane's report for an integrator to file. **Milestone 433 drained the proposal directory to zero on
+  2026-09-19**, so filing one now would reopen the pile for an item that is a naming decision rather
+  than a milestone's worth of work. It is recorded here instead and put to calef directly, which is
+  where a naming decision belongs; the six paths above are the whole of it.
 - **Recorded.** `design/roadmap/297-soak-becomes-soak-test.md`: four `PROPOSED` proposals still name
   `soak` and `reboot_soak` as live cargo features, and one carries a build command
   (`board,soak,reboot_soak`) that will now fail. By `design/naming.md`'s status table they should

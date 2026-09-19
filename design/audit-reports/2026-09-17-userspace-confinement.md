@@ -280,7 +280,7 @@ Finding 3's fix is a control-register bit with a boot line for evidence. The tes
 a claim rather than a setting needs the kernel to survive its own page fault, which is also what
 turning SMAP on would need for its own test. Both belong to one lane, and the SMAP half owes the
 syscall-path measurement the existing `BUGS` entry asks for. Proposed in
-`design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`.
+`design/roadmap/424-a-ring-0-that-provably-cannot-execute-ring-3-pages.md`.
 
 ### 7. MINTED, outside the lens: the `x86_64` boot-stack gate fires on a filtered run and not on the suite
 
@@ -295,7 +295,7 @@ same test sits about 9 KiB deeper when it is the only one selected. Nothing in t
 either number. It is not a confinement matter and not this lane's to fix; it matters because a
 filtered run is how a person reproduces one failure and how `script/falsifications --sweep` replays
 every kernel record, and a gate that fires only there would report a red for the wrong reason.
-Proposed in `design/roadmap/proposals/a-stack-gate-that-fires-only-on-a-filtered-run.md`.
+Proposed in `design/roadmap/425-a-stack-gate-that-fires-only-on-a-filtered-run.md`.
 
 ## Is any confinement claim in this tree false as stated?
 
