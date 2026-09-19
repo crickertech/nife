@@ -124,7 +124,7 @@ riscv64 loader is linked as a static position-independent ELF and `crates/portab
 (provisional) turns it into PE/COFF: one section per segment, the ELF's 241 `R_RISCV_RELATIVE`
 relocations turned into `IMAGE_REL_BASED_DIR64` fixups. It booted on its first run under EDK2.
 
-All three are one loader source, `uefi_loader`, with the architecture-specific halves under
+All three are one loader source, `uefi_loader`, with the architecture-specific arms under
 `uefi_loader/src/arch/`. The kernel is not modified on any architecture and cannot tell which loader
 started it.
 
