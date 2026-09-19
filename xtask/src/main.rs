@@ -3105,8 +3105,13 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
 ///   base came from a table read at a high physical address) is what makes the whole chain a gate
 ///   rather than the three separate facts it is made of.
 ///
+/// - **the shell on the screen, answering a serial keystroke** (the shell on the firmware screen,
+///   milestone 198's rung 1b). The screen is read three times: the kernel's tour (milestone 243),
+///   the prompt once the userspace terminal has taken the screen over, and the answer to a command
+///   typed on COM1. See [`screen_watch`].
+///
 /// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
-/// the three rather than by hanging the gate.
+/// the three rather than by hanging the gate. It is stopped as soon as the screen has answered.
 fn uefi_boot() -> bool {
     if !uefi_image() {
         return false;
@@ -3121,6 +3126,12 @@ fn uefi_boot() -> bool {
     // surviving `mmu::init`, and the glyphs. The serial transcript below would be identical if the
     // screen were black.
     //
+    // **And then the shell on it** (the shell on the firmware screen, milestone 198's rung 1b): the
+    // same poller keeps reading until the prompt is on the screen, types one command on the SERIAL
+    // line, and reads its answer back off the SCREEN. That is the whole rung in one exchange: the
+    // console server writes both surfaces, the keystrokes still arrive over COM1, and what reaches
+    // the monitor is the shell and not the kernel. So it needs the runner's stdin, which is COM1.
+    //
     // In /tmp rather than under target/, because a unix socket path is capped at 104 bytes by the
     // OS and a worktree checkout plus `target/` gets close. Same reason `gpu_shot` does it.
     let sock = format!("/tmp/nife-uefi-screen-{}.sock", std::process::id());
@@ -3128,13 +3139,8 @@ fn uefi_boot() -> bool {
         std::path::PathBuf::from(format!("/tmp/nife-uefi-screen-{}.ppm", std::process::id()));
     let _ = std::fs::remove_file(&sock);
     let _ = std::fs::remove_file(&shot);
-    let seen = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
-    let watcher = {
-        let (sock, shot, seen) = (sock.clone(), shot.clone(), std::sync::Arc::clone(&seen));
-        std::thread::spawn(move || screen_watch(&sock, &shot, &seen))
-    };
 
-    let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
+    let mut child = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(esp_dir())
         .current_dir(workspace_root())
         .env("NIFE_SCREEN_MON", &sock)
@@ -3157,16 +3163,43 @@ fn uefi_boot() -> bool {
         // The suite below is where the devices belong.
         .env_remove("NIFE_DISK")
         .env_remove("NIFE_NVME")
-        .output()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
     {
-        Ok(o) => o,
+        Ok(c) => c,
         Err(e) => {
             eprintln!("uefi-boot: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
             return false;
         }
     };
-    let transcript = String::from_utf8_lossy(&output.stdout).into_owned()
-        + &String::from_utf8_lossy(&output.stderr);
+    // Both streams collected on threads of their own, because the watcher below decides when the
+    // boot has said enough and a blocking read here would decide it instead.
+    let collect = |mut from: Box<dyn std::io::Read + Send>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = from.read_to_end(&mut bytes);
+            String::from_utf8_lossy(&bytes).into_owned()
+        })
+    };
+    let stdout = collect(Box::new(child.stdout.take().expect("piped stdout")));
+    let stderr = collect(Box::new(child.stderr.take().expect("piped stderr")));
+    let serial = child.stdin.take().expect("piped stdin");
+    let watcher = {
+        let (sock, shot) = (sock.clone(), shot.clone());
+        std::thread::spawn(move || screen_watch(&sock, &shot, serial))
+    };
+    let screen = watcher.join().unwrap_or_default();
+    // **Stop the machine once the screen has answered**, rather than waiting out the runner's
+    // bound: the kernel never exits, and everything asserted below has been printed by the time the
+    // prompt answered a command. SIGTERM to the wrapper, which is the signal `qemu-bounded.sh`
+    // forwards to QEMU; its own killer is the backstop if this is lost.
+    let _ = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status();
+    let _ = child.wait();
+    let transcript = stdout.join().unwrap_or_default() + &stderr.join().unwrap_or_default();
     print!("{transcript}");
 
     let mut ok = true;
@@ -3184,6 +3217,10 @@ fn uefi_boot() -> bool {
         "smp: 2 core(s) online",
         // And a device interrupt still landing on the boot core with two local APICs present.
         "device irq  : pit irq 0 -> gsi 2",
+        // The kernel handed the screen to a userspace terminal and both halves came up (the shell
+        // on the firmware screen). Said on the UART because the screen has been handed away by
+        // the time it is printed.
+        "served by framebuffer_driver, a 132x43 terminal on it",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
@@ -3205,15 +3242,13 @@ fn uefi_boot() -> bool {
         ok = false;
     }
 
-    // --- What was on the SCREEN, which is the whole of milestone 243 ---
-    let _ = watcher.join();
+    // --- What was on the SCREEN: milestone 243's tour, then the shell ---
     let _ = std::fs::remove_file(&sock);
-    let screen = seen.lock().ok().and_then(|s| s.clone());
-    match screen {
+    match &screen.tour {
         Some(text) => {
             let rows = text.lines().filter(|l| !l.is_empty()).count();
             eprintln!(
-                "uefi-boot: read {rows} non-blank row(s) of text back off the framebuffer, ending"
+                "uefi-boot: read {rows} non-blank row(s) of the tour back off the framebuffer, ending"
             );
             let tail: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
             for line in tail.iter().rev().take(3).rev() {
@@ -3222,10 +3257,41 @@ fn uefi_boot() -> bool {
         }
         None => {
             eprintln!(
-                "uefi-boot: nothing readable was ever on the screen. The serial transcript above \
+                "uefi-boot: the tour was never readable on the screen. The serial transcript above \
                  says whether the kernel ran at all; if it did, the framebuffer path is what broke \
                  (the loader's LocateProtocol, the pixel order, the stride, or the mapping \
                  surviving mmu::init). Last dump: {}",
+                shot.display()
+            );
+            ok = false;
+        }
+    }
+    match (&screen.prompt, &screen.answer) {
+        (Some(_), Some(text)) => {
+            eprintln!(
+                "uefi-boot: the shell is on the screen, and `{UEFI_SCREEN_COMMAND}` typed on the \
+                 serial line answered there:"
+            );
+            for line in text.lines().filter(|l| !l.is_empty()) {
+                eprintln!("uefi-boot:   | {line}");
+            }
+        }
+        (Some(text), None) => {
+            eprintln!(
+                "uefi-boot: the prompt reached the screen, but `{UEFI_SCREEN_COMMAND}` typed on the \
+                 serial line never answered there. Last screen read:"
+            );
+            for line in text.lines().filter(|l| !l.is_empty()) {
+                eprintln!("uefi-boot:   | {line}");
+            }
+            ok = false;
+        }
+        (None, _) => {
+            eprintln!(
+                "uefi-boot: the shell's prompt never reached the screen. If the transcript has the \
+                 prompt, the console server is not writing to the screen terminal; if it has the \
+                 `served by framebuffer_driver` line, the terminal came up and drew nothing \
+                 readable. Last dump: {}",
                 shot.display()
             );
             ok = false;
@@ -3249,45 +3315,90 @@ fn uefi_boot() -> bool {
 /// whatever it hands over to next; it sits a few dozen rows above the bottom, well inside the 100.
 const UEFI_SCREEN_MARKER: &str = boot_ladder::SELF_TEST;
 
-/// **Poll the QEMU monitor until the tour's last line is on the screen** (milestone 243).
+/// The command `uefi-boot` types on the serial line once the prompt is on the screen, and
+/// [`UEFI_SCREEN_ANSWER`] the line it must print there. Words that appear nowhere in the boot, so
+/// finding the answer cannot be finding something the tour said.
+const UEFI_SCREEN_COMMAND: &str = "echo typed on the wire";
+/// What [`UEFI_SCREEN_COMMAND`] prints, as a whole screen row.
+const UEFI_SCREEN_ANSWER: &str = "typed on the wire";
+
+/// What the screen showed, stage by stage. Each is the decoded screen at the moment that stage was
+/// seen, or `None` when it never was.
+#[derive(Default)]
+struct ScreenReadings {
+    /// The kernel's tour, with [`UEFI_SCREEN_MARKER`] on it (milestone 243).
+    tour: Option<String>,
+    /// The shell's prompt, a row that starts `$ `.
+    prompt: Option<String>,
+    /// [`UEFI_SCREEN_ANSWER`] as a whole row, after [`UEFI_SCREEN_COMMAND`] was typed.
+    answer: Option<String>,
+}
+
+/// **Poll the QEMU monitor through three stages of what the screen shows** (milestone 243, then
+/// the shell on the firmware screen).
 ///
-/// Runs on its own thread beside the boot, because the kernel halts rather than exiting and the
-/// runner therefore does not return until its own timeout fires: by then QEMU is gone and there is
-/// nothing left to photograph. Stops on three conditions, and each is a different answer.
+/// Runs on its own thread beside the boot, because the kernel never exits and the runner therefore
+/// does not return until its own timeout fires: by then QEMU is gone and there is nothing left to
+/// photograph. The stages, in the order they must happen:
 ///
-/// - The marker decoded: success, and the text is left in `seen`.
-/// - The monitor stopped answering after having answered once: QEMU is gone, and no later dump can
-///   be better than the last one.
-/// - The deadline: something is wrong that this loop cannot name.
+/// 1. **The tour's marker.** The kernel paints the boot tour until it hands the screen to the
+///    userspace terminal, which clears it. So this stage has a window (from the self-test verdict
+///    to the handover, a couple of seconds under TCG) and is polled faster than the others;
+///    missing it is a failure, because it is milestone 243's claim.
+/// 2. **The prompt.** A row starting `$ `, which the kernel's tour never prints.
+/// 3. **The answer.** [`UEFI_SCREEN_COMMAND`] is written to `serial` (COM1), and a row equal to
+///    [`UEFI_SCREEN_ANSWER`] must appear. The command's own echo is `$ echo ...`, a different row,
+///    so this row is only there if the shell ran the command and its output reached the screen.
 ///
-/// A dump that fails to decode is never fatal here. `screendump` writes the file asynchronously, so
-/// a read that lands mid-write is short and ordinary; the retry is the answer, not a diagnosis.
-fn screen_watch(sock: &str, shot: &Path, seen: &std::sync::Mutex<Option<String>>) {
+/// Stops early when the monitor stops answering after having answered once (QEMU is gone and no
+/// later dump can be better), and at a deadline that bounds the whole watch. A dump that fails to
+/// decode is never fatal: `screendump` writes the file asynchronously, so a read that lands
+/// mid-write is short and ordinary, and the retry is the answer.
+fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -> ScreenReadings {
+    use std::io::Write;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
     let mut answered = false;
+    let mut seen = ScreenReadings::default();
+    let mut typed = false;
     while std::time::Instant::now() < deadline {
         if !screendump(sock, shot) {
             if answered {
-                return;
+                break;
             }
             std::thread::sleep(std::time::Duration::from_millis(500));
             continue;
         }
         answered = true;
-        // A screen that decodes but does not hold the marker is deliberately NOT stored: an
-        // incomplete picture must not read as a pass. The dump file itself is the artefact, and
-        // the caller prints its path on failure.
-        if let Ok(bytes) = std::fs::read(shot)
-            && let Ok(text) = board_console::screen::read(&bytes)
-            && text.contains(UEFI_SCREEN_MARKER)
-        {
-            if let Ok(mut slot) = seen.lock() {
-                *slot = Some(text);
+        // A screen that decodes but does not hold what the stage wants is deliberately NOT stored:
+        // an incomplete picture must not read as a pass. The dump file itself is the artefact,
+        // and the caller prints its path on failure.
+        let text = std::fs::read(shot)
+            .ok()
+            .and_then(|bytes| board_console::screen::read(&bytes).ok());
+        if let Some(text) = text {
+            if seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
+                seen.tour = Some(text.clone());
             }
-            return;
+            if seen.prompt.is_none() && text.lines().any(|l| l.starts_with("$ ")) {
+                seen.prompt = Some(text.clone());
+            }
+            if typed && text.lines().any(|l| l == UEFI_SCREEN_ANSWER) {
+                seen.answer = Some(text);
+                break;
+            }
+            // Typed once, after the prompt is on the screen: the line editor echoes a keystroke
+            // the moment it arrives, so typing earlier would be typing into the boot.
+            if seen.prompt.is_some() && !typed {
+                typed = writeln!(serial, "{UEFI_SCREEN_COMMAND}")
+                    .and_then(|()| serial.flush())
+                    .is_ok();
+            }
         }
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Stage 1 has a window; the others wait on a person-speed shell.
+        let pause = if seen.tour.is_none() { 50 } else { 500 };
+        std::thread::sleep(std::time::Duration::from_millis(pause));
     }
+    seen
 }
 
 /// **Run the kernel suite under real firmware** (milestone 195), rather than the tour
@@ -5831,14 +5942,13 @@ fn shell_check() -> bool {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
-        // x86_64 has no shell leg. Not because it lacks userspace (it has had real userspace
-        // running since milestone 161 item 4 landed); because nothing boots it straight to a real
-        // interactive shell prompt. aarch64 has `spawn_init`, riscv64 has `riscv_shell_boot`;
-        // x86_64 has neither, so there is nothing for this gate to type at yet. See milestone 177's
-        // own third piece (found 2026-08-27, tracing a "both boards" claim that turned out to mean
-        // aarch64/riscv64 only) for where building that entry point is scoped.
+        // The third leg (milestone 182), since milestone 299 gave x86_64 a userspace console to
+        // reach a prompt through. It boots under OVMF rather than PVH; see `shell_check_leg`.
+        Some("x86_64") => ArchLegs::X86_64,
         Some(other) => {
-            eprintln!("shell-check: --arch {other} is not an architecture (aarch64 or riscv64)");
+            eprintln!(
+                "shell-check: --arch {other} is not an architecture (aarch64, riscv64 or x86_64)"
+            );
             return false;
         }
     };
@@ -5860,6 +5970,15 @@ fn shell_check() -> bool {
     // socket and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
     if graphical || graphical_serial {
+        // No x86_64 graphical leg: milestone 192's x86 half is not built, and the screen x86_64
+        // does have (the firmware's, milestone 400) is read by `cargo xtask uefi-boot` instead.
+        if legs == ArchLegs::X86_64 {
+            eprintln!(
+                "shell-check: there is no graphical leg on x86_64; `cargo xtask uefi-boot` reads \
+                 the shell off the firmware's screen"
+            );
+            return false;
+        }
         let keystrokes = if graphical_serial {
             Keystrokes::Serial
         } else {
@@ -5873,10 +5992,13 @@ fn shell_check() -> bool {
         }
         return true;
     }
-    if legs.aarch64() && !shell_check_leg(false) {
+    if legs.aarch64() && !shell_check_leg("aarch64") {
         return false;
     }
-    if legs.riscv64() && !shell_check_leg(true) {
+    if legs.riscv64() && !shell_check_leg("riscv64") {
+        return false;
+    }
+    if legs.x86_64() && !shell_check_leg("x86_64") {
         return false;
     }
     true
@@ -6274,6 +6396,39 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
+/// **The lines the `x86_64` leg does not type, each with the reason** (milestone 182, under the rule
+/// milestone 150 added: an omitted line carries a stated reason, or it is a gap nobody can see).
+///
+/// A function over the line rather than a second table, so a line added to [`SHELL_CHECK_SCRIPT`]
+/// is typed on `x86_64` by default and an omission is the thing that has to be argued for. `None`
+/// means the line runs.
+fn shell_check_x86_omits(line: &str) -> Option<&'static str> {
+    // `uuid` draws from the entropy service, and the progenitor builds that service only from a
+    // virtio-rng the kernel found. The kernel finds one only on a virtio-mmio slot
+    // (`kernel::user::boot_virtio_rng_device`), `q35` has no mmio bus, and nothing drives
+    // `virtio-rng-pci` on x86_64 yet (DECISIONS §120's stopgap is QEMU-only on every architecture;
+    // x86_64's real source is `rdrand`/`rdseed`, not wired to the service). So these four lines
+    // would test the absence of a device, and the two "empty second stream" checks would fail on
+    // it. `caps uuid` stays: it is a preview of the manifest and needs no device.
+    match line {
+        "uuid > id.txt" | "wc < id.txt" | "uuid 2> ent.txt" | "wc < ent.txt" => Some(
+            "x86_64 has no entropy device the progenitor can build a service from (virtio-rng is \
+             found on virtio-mmio only, and q35 has none)",
+        ),
+        _ => None,
+    }
+}
+
+/// The first thing `x86_hand_over` prints (`kernel/src/main.rs`), where the `x86_64` leg starts
+/// reading for faults; see `after_hand_over` in [`shell_check_leg`]. The same sentence
+/// `uefi_boot` requires.
+const X86_HAND_OVER_START: &str = "nife: handing the system to the userspace progenitor.";
+
+/// The last thing `x86_hand_over` prints (`kernel/src/main.rs`) once the progenitor has outlived
+/// its ten-second watch, which is the ordinary interactive outcome. The `x86_64` leg waits for it
+/// before typing; see [`shell_check_leg`]'s doc.
+const X86_HAND_OVER_REPORT: &str = "as a port capability (milestone 299).";
+
 /// How long to wait for the banner, for one line's echo, and for the whole transcript. Generous:
 /// under TCG on a loaded machine a cold boot to the prompt is seconds, and a gate that flakes on a
 /// busy laptop is a gate people learn to ignore.
@@ -6549,37 +6704,71 @@ fn boot_claim_complaint(
     }
 }
 
-/// One architecture's leg of [`shell_check`].
-fn shell_check_leg(riscv: bool) -> bool {
+/// One architecture's leg of [`shell_check`]: `aarch64`, `riscv64` or `x86_64`.
+///
+/// # The `x86_64` leg boots under firmware (milestone 182)
+///
+/// **Under OVMF, from the same `\EFI\BOOT\BOOTX64.EFI` `cargo xtask uefi-image` stages for a
+/// USB stick**, not through QEMU's PVH `-kernel` loader. That image is the thing a customer boots
+/// (DECISIONS §157, milestone 198's rung 1), so it is the one worth typing at: the loader, the
+/// firmware's memory map and ACPI tables, and the console server's tee onto the firmware's screen
+/// (milestone 400) are all on the path, and the PVH boot has none of them. What it costs over PVH
+/// is recorded in milestone 182's block, measured rather than asserted.
+///
+/// Three `x86_64` differences, each forced by the machine rather than chosen:
+///
+/// - **The default kernel, not `--features shell`.** `x86_64` has no early hand-over: every boot
+///   runs the tour and then hands over (milestone 268), and `uefi_image` builds exactly that.
+/// - **The kernel's hand-over report lands after the prompt.** `x86_hand_over` watches the
+///   progenitor for ten seconds and then prints two lines, so the transcript does not end in `$ `
+///   until something is typed. The leg waits for that report and then presses Enter once, so the
+///   report cannot splice into a typed line's echo and the first line meets a fresh prompt.
+/// - **No virtio-rng.** Every entropy device the kernel can find is virtio-mmio and `q35` has no
+///   mmio bus, so the progenitor builds no entropy service. [`shell_check_x86_omits`] names the
+///   lines that need one.
+fn shell_check_leg(arch: &str) -> bool {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    let arch = if riscv { "riscv64" } else { "aarch64" };
+    let riscv = arch == "riscv64";
+    let x86 = arch == "x86_64";
     eprintln!();
-    eprintln!("--- shell-check ({arch}): boot `--features shell` and type at the prompt ---");
+    eprintln!(
+        "--- shell-check ({arch}): boot {} and type at the prompt ---",
+        if x86 {
+            "the UEFI image under OVMF"
+        } else {
+            "`--features shell`"
+        }
+    );
 
     // The same build the interactive boot takes, because a gate that builds something else is
     // gating something else. The FS server first (`user()` packs the initrd by reading the ELF off
     // disk), then the RedoxFS image, because the runner attaches the disk only when the file is
     // there and `<` and `>` need one.
     let target = if riscv { RISCV_TARGET } else { TARGET };
-    let built = if riscv {
+    let built = if x86 {
+        // `uefi_image` packs the archive, builds the kernel against it, and stages the loader;
+        // the FS server has to exist first so the archive carries it.
+        redoxfs_server_build(X86_TARGET) && mkdisk() && mkredoxfs() && uefi_image()
+    } else if riscv {
         redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
     } else {
         redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
-    } && run(
-        "cargo",
-        &[
-            "build",
-            "-p",
-            "kernel",
-            "--features",
-            "shell",
-            "--target",
-            target,
-        ],
-    );
+    } && (x86
+        || run(
+            "cargo",
+            &[
+                "build",
+                "-p",
+                "kernel",
+                "--features",
+                "shell",
+                "--target",
+                target,
+            ],
+        ));
     if !built {
         return false;
     }
@@ -6587,20 +6776,40 @@ fn shell_check_leg(riscv: bool) -> bool {
     // The runner directly rather than through `cargo run`, so the process this owns **is** QEMU
     // (the runner script `exec`s it). A `cargo run` in between would leave the emulator alive when
     // the kill lands on cargo, which is the leak CLAUDE.md's QEMU rule exists about.
-    let mut cmd = Command::new(if riscv {
-        "scripts/qemu-runner-riscv64.sh"
+    let mut cmd = if x86 {
+        // OVMF, one core (the runner's default, for `ap_boot`'s BUGS #3). The runner bounds itself
+        // with `qemu-bounded.sh`; the bound here is every wait below added up, so it only ever
+        // fires on a leg that has already failed.
+        let mut c = Command::new("scripts/qemu-uefi-x86_64.sh");
+        c.arg(esp_dir());
+        c.env(
+            "NIFE_UEFI_TIMEOUT",
+            (SHELL_CHECK_BOOT_SECS * 2
+                + SHELL_CHECK_LINE_SECS * (SHELL_CHECK_SCRIPT.len() as u64 + 2))
+                .to_string(),
+        );
+        c.env_remove("NIFE_NVME");
+        // The RedoxFS disk, which `>`, `<`, `ls` and `rm` need; opt-in on this runner, and its
+        // header says why.
+        c.env("NIFE_UEFI_REDOXFS", "1");
+        c
     } else {
-        RUNNER
-    });
-    cmd.arg(format!("target/{target}/{}/kernel", profile_dir()));
-    cmd.env(
-        "NIFE_INITRD",
-        if riscv {
-            riscv_initrd_path()
+        let mut c = Command::new(if riscv {
+            "scripts/qemu-runner-riscv64.sh"
         } else {
-            initrd_path()
-        },
-    );
+            RUNNER
+        });
+        c.arg(format!("target/{target}/{}/kernel", profile_dir()));
+        c.env(
+            "NIFE_INITRD",
+            if riscv {
+                riscv_initrd_path()
+            } else {
+                initrd_path()
+            },
+        );
+        c
+    };
     cmd.env("NIFE_DISK", disk_path());
     // A virtio-rng device (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng
     // stopgap"), unlike the GPU/keyboard/NVMe flags above `test()` sets: this is the interactive
@@ -6679,6 +6888,23 @@ fn shell_check_leg(riscv: bool) -> bool {
         false
     };
 
+    // **What the checks below read, which on x86_64 starts at the hand-over.** The x86_64 kernel
+    // runs its tour before handing over (milestone 268), and the tour's userspace demonstration
+    // kills two threads on purpose (`x86_userspace_demo`'s supervised deaths, reported as "died
+    // at pc ..., delivered to its supervisor"). Those are the kernel's fault path working, printed
+    // before any process this gate is about exists, so the fault check and the "was the kernel
+    // writing during the boot" test both start where the progenitor does. The other two legs boot
+    // `--features shell`, which has no tour, so for them this is the whole transcript.
+    let after_hand_over = |t: &str| -> String {
+        if x86 {
+            t.find(X86_HAND_OVER_START)
+                .map_or(t, |at| &t[at..])
+                .to_string()
+        } else {
+            t.to_string()
+        }
+    };
+
     // Everything below must reach the kill, so failures are recorded rather than returned.
     let mut failed: Vec<String> = Vec::new();
     // The banner is the first claim: the progenitor built the console, the line editor, the input driver and
@@ -6707,7 +6933,7 @@ fn shell_check_leg(riscv: bool) -> bool {
         // A missing marker means a missing marker. The transcript is printed below; that is the
         // evidence, and this line's job is to say which string was wanted and how close it came.
         if let Some(complaint) = boot_claim_complaint(
-            &transcript_now(&seen),
+            &after_hand_over(&transcript_now(&seen)),
             "giving the construction budget away",
             "construction budget dropped; retype answers NoSuchSlot",
             "construction budget NOT dropped",
@@ -6722,14 +6948,37 @@ fn shell_check_leg(riscv: bool) -> bool {
         // sentence is what this gate reads. The other branch names the programs it refused, so a
         // boot that quietly stopped spawning half the prompt's commands fails here.
         if let Some(complaint) = boot_claim_complaint(
-            &transcript_now(&seen),
+            &after_hand_over(&transcript_now(&seen)),
             "measuring the programs it loads",
             "every program measured against the archive table",
             "measurement refused",
         ) {
             failed.push(complaint);
         }
+        // **x86_64: let the kernel finish its hand-over report first**, then press Enter for a
+        // fresh prompt (this function's doc says why). The report is the boot thread's last
+        // output, so after it the shell is the UART's only writer until something faults.
+        let mut ready = true;
+        if x86 {
+            ready = false;
+            if !wait_after(0, X86_HAND_OVER_REPORT, SHELL_CHECK_BOOT_SECS) {
+                failed.push(format!(
+                    "the kernel never printed its hand-over report ({X86_HAND_OVER_REPORT:?}), so \
+                     the progenitor did not outlive `x86_hand_over`'s watch"
+                ));
+            } else if writeln!(stdin).is_err() || stdin.flush().is_err() {
+                failed.push("could not press Enter at the prompt".to_string());
+            } else {
+                ready = true;
+            }
+        }
         for (line, _) in SHELL_CHECK_SCRIPT {
+            if !ready {
+                break;
+            }
+            if x86 && shell_check_x86_omits(line).is_some() {
+                continue;
+            }
             if !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
                 failed.push(format!(
                     "the prompt never came back to take `{line}`; the line before it did not finish"
@@ -6754,7 +7003,8 @@ fn shell_check_leg(riscv: bool) -> bool {
         }
     }
 
-    let transcript = seen.lock().expect("transcript lock").clone();
+    let whole = seen.lock().expect("transcript lock").clone();
+    let transcript = after_hand_over(&whole);
     // The transcript is printed on failure below, because that is when somebody needs it. This
     // prints it on success too, and it exists because the notes in this tree quote real prompt
     // sessions: `NIFE_SHOW_TRANSCRIPT=1 script/shell-check --arch aarch64` is where the EXAMPLES
@@ -6762,7 +7012,7 @@ fn shell_check_leg(riscv: bool) -> bool {
     // what they remember the shell saying.
     if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
         eprintln!("--- shell-check ({arch}) transcript ---");
-        eprintln!("{transcript}");
+        eprintln!("{whole}");
     }
     if failed.is_empty() {
         // Walked in order with a moving cursor, not searched. The script types `wc < gate.txt`
@@ -6771,6 +7021,9 @@ fn shell_check_leg(riscv: bool) -> bool {
         // truncated.
         let mut cursor = 0usize;
         for (line, want) in SHELL_CHECK_SCRIPT {
+            if x86 && shell_check_x86_omits(line).is_some() {
+                continue;
+            }
             match shell_check_answer(&transcript, cursor, line) {
                 Some((answer, next)) => {
                     cursor = next;
@@ -6851,6 +7104,20 @@ fn shell_check_leg(riscv: bool) -> bool {
     match transcript.lines().rfind(|l| l.contains(SLOT_GAUGE)) {
         Some(line) => {
             eprintln!("shell-check ({arch}):{}", line.trim_end());
+            // **On x86_64 this line is stale, and says so** (milestone 182). The gauge is printed
+            // from the scheduler's idle loop, and x86_64's input driver polls COM1 and yields
+            // rather than blocking (milestone 299), so once it starts the run queue is never empty
+            // and the idle loop never runs again. What prints is the mark at the hand-over, before
+            // the progenitor has built anything. A temporary instrument on 2026-09-19 read 17 of
+            // 24 at this leg's peak; milestone 182's BUGS has it. The `ABOVE` check below cannot
+            // fire here for the same reason, which is a gate that cannot fail, stated rather than
+            // hidden.
+            if x86 {
+                eprintln!(
+                    "shell-check (x86_64): that gauge is the mark at the hand-over, not the peak: \
+                     the idle loop that prints it never runs again while the input driver polls"
+                );
+            }
             if line.contains("ABOVE") {
                 failed.push(format!(
                     "this boot used more capability slots than the tree records: {:?}. The \
@@ -6870,11 +7137,37 @@ fn shell_check_leg(riscv: bool) -> bool {
         )),
     }
 
-    let _ = child.kill();
+    // SIGTERM rather than `kill()`'s SIGKILL on x86_64: that runner is `qemu-bounded.sh`, which
+    // forwards TERM to QEMU (the other two runners `exec` the emulator, so the kill is QEMU's).
+    if x86 {
+        let _ = Command::new("kill")
+            .args(["-TERM", &child.id().to_string()])
+            .status();
+    } else {
+        let _ = child.kill();
+    }
     let _ = child.wait();
     let _ = reader.join();
 
     if failed.is_empty() {
+        // The four lines x86_64 omits are four jobs (two `uuid`s and the two `wc`s reading
+        // what they wrote); see [`shell_check_x86_omits`].
+        let jobs = if x86 { "seventeen" } else { "twenty-one" };
+        if x86 {
+            let omitted: Vec<&str> = SHELL_CHECK_SCRIPT
+                .iter()
+                .map(|(line, _)| *line)
+                .filter(|line| shell_check_x86_omits(line).is_some())
+                .collect();
+            eprintln!(
+                "shell-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
+                 of {} lines, omitting {}: {:?}",
+                SHELL_CHECK_SCRIPT.len() - omitted.len(),
+                SHELL_CHECK_SCRIPT.len(),
+                omitted.len(),
+                omitted,
+            );
+        }
         eprintln!(
             "shell-check ({arch}): the prompt booted, piped, redirected, appended, named a \
              file to a reader, read the clock, timed a command with a clock of its own, kept \
@@ -6886,14 +7179,14 @@ fn shell_check_leg(riscv: bool) -> bool {
              documentation store and got back pages a following line could then designate, \
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
              a && past a command that succeeded and not past one it refused, and ran \
-             twenty-one jobs through the progenitor's six-job pool after the progenitor gave its construction \
+             {jobs} jobs through the progenitor's six-job pool after the progenitor gave its construction \
              budget away"
         );
         return true;
     }
     eprintln!();
     eprintln!("--- shell-check ({arch}) transcript ---");
-    eprintln!("{transcript}");
+    eprintln!("{whole}");
     eprintln!("--- shell-check ({arch}) FAILED ---");
     for f in &failed {
         eprintln!("  {f}");
