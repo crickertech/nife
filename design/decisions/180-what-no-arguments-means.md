@@ -1,4 +1,4 @@
-# 201. What `script/ci-build` with no arguments means, and what the two tiers are called
+# 180. What `script/ci-build` with no arguments means, and what the two tiers are called
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 400's
 `DECISION` gate naming no section. The mechanism is built and shipped under the recommendation

@@ -1,4 +1,4 @@
-# 207. Which of two definitions `caretaker` carries, and what the translating shape is called
+# 186. Which of two definitions `caretaker` carries, and what the translating shape is called
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 413's
 `DECISION` gate naming no section. Filed 2026-09-14 by the milestone 292 lane while naming the

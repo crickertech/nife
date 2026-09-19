@@ -1,4 +1,4 @@
-# 198. Whether `components/` splits again, for the tools a person invokes
+# 177. Whether `components/` splits again, for the tools a person invokes
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 395's
 `DECISION` gate naming no section. Milestone 175 asked this question in its own block and correctly

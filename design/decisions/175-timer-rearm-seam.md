@@ -1,4 +1,4 @@
-# 183. Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have
+# 175. Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 360's
 `DECISION` gate and found it naming no section. Milestone 197 named the fork and declined to take

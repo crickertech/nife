@@ -1,4 +1,4 @@
-# 182. Whether AGENTS.md quotes measured numbers at all
+# 174. Whether AGENTS.md quotes measured numbers at all
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 350's
 `DECISION` gate and found it naming no section. Milestone 234's series produced the evidence and the

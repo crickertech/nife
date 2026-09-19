@@ -1,4 +1,4 @@
-# 181. Offering the two RedoxFS patches upstream, and under whose name
+# 173. Offering the two RedoxFS patches upstream, and under whose name
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 347's
 `DECISION` gate and found it naming no section. Milestone 32's block named the work and the

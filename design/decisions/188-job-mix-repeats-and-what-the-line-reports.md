@@ -1,4 +1,4 @@
-# 209. Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point
+# 188. Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 419's
 `DECISION` gate naming no section. Filed 2026-09-16 by the maintainer from the five-boot job-mix

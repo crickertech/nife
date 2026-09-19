@@ -1,4 +1,4 @@
-# 179. Which caller each of the three uncalled instruments gets
+# 171. Which caller each of the three uncalled instruments gets
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 341's
 `DECISION` gate and found it naming no section. The finding is milestone 232's audit, and the

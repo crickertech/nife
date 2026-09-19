@@ -1,4 +1,4 @@
-# 178. Narrowing the root of the shell's namespace: a verb on the wire, or a shallower root
+# 170. Narrowing the root of the shell's namespace: a verb on the wire, or a shallower root
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 328's
 `DECISION` gate and found it naming no section. The fork is milestone 31's, stated in that block

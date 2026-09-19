@@ -1,4 +1,4 @@
-# 204. Where a riscv64 tour-boot check runs, what it asserts, and what it is called
+# 183. Where a riscv64 tour-boot check runs, what it asserts, and what it is called
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 406's
 `DECISION` gate naming no section. *(Section number provisional until the merge queue lands it.)*

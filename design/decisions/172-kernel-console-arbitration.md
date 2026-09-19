@@ -1,4 +1,4 @@
-# 180. Where the kernel's own output goes once userspace owns the console
+# 172. Where the kernel's own output goes once userspace owns the console
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 342's
 `DECISION` gate and found it naming no section. Milestone 230 named the fork while fixing something

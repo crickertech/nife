@@ -1,4 +1,4 @@
-# 206. What the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand
+# 185. What the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 408's
 `DECISION` gate naming no section. Filed 2026-09-14 by milestone 291's lane, which added seven of

@@ -1,4 +1,4 @@
-# 177. Whether a `credential_protocol` verify endpoint names the identity it asks about
+# 169. Whether a `credential_protocol` verify endpoint names the identity it asks about
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice B, which read milestone 327's
 `DECISION` gate and found it naming no section. The question itself is older: milestone 54's block

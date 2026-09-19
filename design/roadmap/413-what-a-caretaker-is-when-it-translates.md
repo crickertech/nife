@@ -6,7 +6,7 @@ which had been `ROLE_FILE` inside a three-role binary and so had never needed a 
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§207](../decisions/207-what-a-caretaker-is-when-it-translates.md) *(number provisional)*, written
+[§186](../decisions/186-what-a-caretaker-is-when-it-translates.md) *(number provisional)*, written
 up 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
 records why the three sections a reader might stop at do not answer this one: §92 decides a
 caretaker's *lifetime*, §56 assumes definition A rather than choosing it, and §106 takes the

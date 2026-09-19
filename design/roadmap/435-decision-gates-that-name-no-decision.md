@@ -109,7 +109,7 @@ had since answered it, which took a grep of `design/decisions/` per block and fo
 ## Slice B, fifteen blocks, resolved 2026-09-19
 
 `224 241 260 271 327 328 330 335 340 341 342 347 350 360 388`, on `milestone/435-slice-b`, with
-sections minted in a reserved range of twenty numbers beginning at §177. **Every number here is
+sections minted in a reserved range of twenty numbers beginning at §169. **Every number here is
 provisional until the
 merge queue lands it.**
 
@@ -132,8 +132,8 @@ ruleset edit is `DECIDED` and unperformed and whose `BUGS` predicted this block)
 ([§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md), which rules four of
 that block's five names by name).
 
-**Seven were genuinely owed** and are written up `PROPOSED`: §177 (327), §178 (328), §179 (341),
-§180 (342), §181 (347), §182 (350), §183 (360).
+**Seven were genuinely owed** and are written up `PROPOSED`: §169 (327), §170 (328), §171 (341),
+§172 (342), §173 (347), §174 (350), §175 (360).
 
 **The rate differs sharply between the aged blocks and the promoted ones**, which is a measurement
 about milestone 433's drain rather than about these blocks. Of the four numbered under 327, **three
@@ -148,7 +148,7 @@ booted since 2026-09-05, so half of milestone 241's trigger has fired, and miles
 constant, `KERNEL_WRITER_ANCHORS`, that exists nowhere in the tree.
 
 **And one thing the reserved ranges cost, which the integrator has to resolve rather than a lane.**
-`script/decisions --check` fails on a gap in the numbering, so a slice minting from §177 upward
+`script/decisions --check` fails on a gap in the numbering, so a slice minting from §169 upward
 while the twenty numbers below it are held by another lane is red on its own branch by
 construction. The numbers are
 provisional for exactly this reason; closing the gap is a renumber at merge, in the same breath as
@@ -161,7 +161,7 @@ every other global name.
 makes this slice the cleanest available measurement of whether that drain carried bad tokens across.
 
 **It did not.** Fourteen of the fifteen owed a decision that nobody had written down, and became
-§§197-210 (`PROPOSED`, numbers provisional). **Zero tokens were wrong.** One, milestone 391, was the
+§§176-210 (`PROPOSED`, numbers provisional). **Zero tokens were wrong.** One, milestone 391, was the
 third outcome: a decision already existed and the gate did not cite it, and the decision is §149,
 which refused this exact question on the ground that the general case must not be settled on the
 narrow one's momentum and said to answer it when milestone 269 gives it a consumer. So 391 gets a
@@ -173,7 +173,7 @@ retitling to calef. Milestone 415 was suspected of carrying a token that had gon
 the suspicion turns out to be backwards: the item that needed nobody's permission is the one that
 landed, so what remains is more purely `DECISION` than when the gate was written. A **different**
 argument that the token is too strong does exist, on the block's own reversibility paragraph, and
-§208 puts it to calef as its first question rather than a lane deciding it.
+§187 puts it to calef as its first question rather than a lane deciding it.
 
 **What that rate means for the other two slices, which hold aged blocks rather than fresh ones.**
 Fourteen of fifteen is a high owed-decision rate, and the reason is visible in the blocks: a

@@ -1,4 +1,4 @@
-# 203. What carries the claim that userspace composes a process from an authority you can count on one hand
+# 182. What carries the claim that userspace composes a process from an authority you can count on one hand
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 404's
 `DECISION` gate naming no section. The gap was opened deliberately by milestone 295, performing

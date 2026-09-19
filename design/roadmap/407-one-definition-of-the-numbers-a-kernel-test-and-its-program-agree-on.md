@@ -16,7 +16,7 @@ is now `network_time_client` and its siblings. *(Number provisional until the me
 it.)*
 
 **Gate: DECISION.** The decision is
-[§205](../decisions/205-crates-for-the-numbers-a-kernel-test-and-its-program-agree-on.md) *(number
+[§184](../decisions/184-crates-for-the-numbers-a-kernel-test-and-its-program-agree-on.md) *(number
 provisional)*, written up 2026-09-19 by milestone 435's slice-c lane because this gate named no
 section. The sweep itself is mechanical and a lane could start it today; what it cannot
 settle is the crate names, and there is no useful half of this work that does not create one. See

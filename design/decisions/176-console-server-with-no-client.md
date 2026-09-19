@@ -1,4 +1,4 @@
-# 197. Whether the tour boot keeps starting a console server that has no client
+# 176. Whether the tour boot keeps starting a console server that has no client
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 394's
 `DECISION` gate naming no section. The ask lived only inside that block, and one rung further out:

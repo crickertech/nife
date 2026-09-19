@@ -1,4 +1,4 @@
-# 202. Does the host test pass run on a second architecture, and at what cadence?
+# 181. Does the host test pass run on a second architecture, and at what cadence?
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 403's
 `DECISION` gate naming no section. Milestone 288 fixed four instances of "a test that states a fact

@@ -1,4 +1,4 @@
-# 208. Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?
+# 187. Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?
 
 **Status: PROPOSED.** Raised 2026-09-19 by milestone 435's slice-c lane, which found milestone 415's
 `DECISION` gate naming no section and its gate prose gone stale. The audit behind it is the
