@@ -586,7 +586,7 @@ measurements rather than asserted, and this is the measurement that most weakens
   `TRANSFER_PAGES = 16`. Step 1 chose record level 1 on 4 KiB evidence and step 3 then made 64 KiB
   the default request, so step 1's 5.13x is a ratio about a contract the system no longer uses, and
   a headline number here describes a configuration nothing ships.
-- **Proposed.** `design/roadmap/proposals/frames-a-client-reads-itself.md`, design the
+- **Milestone 337.** Design the
   capability-shaped way past the ~13 us per-request residual: grant the client frames it can read
   directly instead of one IPC round trip per request, which is what `mmap` over a page cache buys
   Linux. Frames are already capabilities here, so the primitive exists and nobody has drawn the

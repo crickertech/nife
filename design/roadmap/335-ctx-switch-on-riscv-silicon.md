@@ -1,6 +1,11 @@
-# The ctx_switch number on real RISC-V silicon
+# 335. The ctx_switch number on real RISC-V silicon
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 58's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 58's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** `bench/baseline-riscv64.txt` still carries `ctx_switch 495050 5000` from QEMU and no
+radon run exists: none of `bench/radon-2026-09-04`, `bench/radon-2026-09-05` or
+`bench/radon-2026-09-16` has a `ctx_switch` row. `notes/riscv-tlb-shootdown.md` line 189 also still
+says the VisionFive 2 "has not arrived", which stopped being true on 2026-08-14.
 
 **Gate: HARDWARE, DECISION.** HARDWARE because only a core with a genuinely ASID-tagged TLB can
 charge the right price, which means radon, the VisionFive 2, with a person at the bench rig.
@@ -47,3 +52,17 @@ wrong (that is an aarch64 board). Somebody still has to say which board leg owns
 
 `notes/riscv-tlb-shootdown.md`'s BUGS section states the constraint: *"QEMU cannot exercise the case
 the probe measures for the reason a real core would."*
+
+## Index row
+
+Milestone 58 removed the unconditional `sfence.vma` from `write_satp` behind a probe, which is the
+whole reason ASIDs exist on RISC-V, and the number that would show the win has never been taken.
+QEMU's softmmu TLB is not ASID-tagged and flushes wholesale whenever `satp.ASID` changes, so it
+charges for the added probe gate and credits nothing for the removed flush; icount came back +1.2% on
+`ctx_switch`, which is the measurement reading backwards. So a milestone exists whose entire
+justification is a performance claim that has never been measured, against this project's own
+standard of measuring rather than arguing. The second cost is the record: milestone 58's block sends
+a future reader to milestone 24 for this number and milestone 24 is an aarch64 board that can never
+produce it, so the one pointer that exists is wrong. Both arms are reachable from one build through
+`asid_tagging_is_trusted()`; what is missing is a run on radon over the bench rig, and a ruling on
+which board leg owns a RISC-V number.

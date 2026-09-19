@@ -1,6 +1,11 @@
-# Colour and the pager: the spawn protocol's other two thirds
+# 334. Colour and the pager: the spawn protocol's other two thirds
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 40's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 40's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** DECISIONS §106 is still the only narrowing that shipped, `components/src/mdr.rs` still
+carries "No pager, and the reason is authority rather than effort" in its own module doc, and nothing
+in the spawn wiring tells a stage it ends at a real screen. No program in this tree colours its
+output.
 
 **Gate: DECISION.** Both halves widen a protocol two programs agree on, which is the same shape as
 DECISIONS §106 itself and the same reason §106 was calef's. A spawn-protocol bit is on a wire, so it
@@ -43,3 +48,17 @@ these two: *"DECISIONS §106 took the narrowing for a tail stage's primary outpu
 the same bit to 'tell this stage it ends at a real screen' ... or to granting one line of input
 without granting the keyboard. Both still want the wiring bit this entry originally scoped for all
 three."*
+
+## Index row
+
+DECISIONS §106 narrowed the spawn protocol for a tail stage's primary output, which is what lets
+`doc <page>` render at the prompt with no `| wc` in front of it, and built the narrowest slice that
+unblocked that one command. Two thirds of the original scope are untaken: a bit telling a stage that
+it ends at a real screen, which is the honest capability-shaped replacement for `isatty` and is what
+colour needs, and a way to grant one line of input without granting the keyboard, which is what a
+pager needs. The first is what stops this system growing a dishonest `isatty`, since Unix decides
+about colour by asking the kernel what a file descriptor is attached to and a capability system can
+say it properly as a bit the spawner passes. The second blocks the pager outright: holding the
+keyboard is exactly the authority a confined viewer should not have, there is no way to express the
+narrower thing, and so `mdr` renders and cannot page. Both widen a protocol two programs agree on,
+so both are calef's.

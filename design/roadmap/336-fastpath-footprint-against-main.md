@@ -1,6 +1,13 @@
-# Should the fastpath footprint gate compare against `main` instead of a stored baseline
+# 336. Should the fastpath footprint gate compare against `main` instead of a stored baseline
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 237's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 237's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+the build is still owed.** DECISIONS §144 answered the question on 2026-09-04 (both shapes, with the
+ceiling at 16 KiB on `max(ipc_send_recv, ipc_call_reply) + syscall_entry`) and nothing has been built
+against it: `script/fastpath-footprint` still compares against `bench/fastpath-aarch64.txt`,
+`bench/fastpath-riscv64.txt` and `bench/fastpath-x86_64.txt` at a 5% tolerance, with no delta against
+`main` and no absolute ceiling anywhere in the script. The reasoning below is kept as the record of
+what §144 was deciding between.
 
 **Gate: NONE.** **Answered by DECISIONS §144 on 2026-09-04: both, with the ceiling at 16 KiB.** What
 remains is building it, and the two designs no longer share no code, because the delta half replaces
@@ -51,8 +58,8 @@ machinery, and whether the extra check earns its keep is part of the same decisi
 
 PR #716 is the daily toolchain bump: one line of `rust-toolchain.toml`, no kernel source. It failed
 the `syscall_entry` check at 10.4% on riscv64 because the newer compiler inlined a device-interrupt
-helper into the trap handler (the full account is in
-`a-flat-entry-set-counts-bytes-no-syscall-fetches.md`).
+helper into the trap handler (the full account is in the
+`a-flat-entry-set-counts-bytes-no-syscall-fetches` proposal, which milestone 433 numbers 368).
 
 **A delta-against-`main` gate would have failed this too, and for a worse reason.** `main` would
 have been built under the *old* pin, so the comparison would have attributed the entire 194 bytes to
@@ -61,7 +68,8 @@ baseline at least made the reference explicit and stable enough to diff against 
 not decide the question, and it is one case rather than a pattern; it is offered because it is the
 kind of case the delta option is supposed to be immune to and is not.
 
-The same lane's measurements on the other side are in `unattributed-fastpath-residuals.md`: all
+The same lane's measurements on the other side are in the `unattributed-fastpath-residuals`
+proposal, which milestone 433 numbers 361: all
 three `ipc_fastpath` baselines are now stale, aarch64 having gone stale again within a week of
 milestone 237 re-recording it, which is this proposal's own failure mode recurring on schedule.
 
@@ -72,3 +80,16 @@ rather than a stored baseline file. It is calef's call and has costs on both sid
 measured 'within bound' against the same stale baseline and neither re-saved it, so aarch64 headroom
 fell from 3.9 points to 1.5 with nothing firing. This milestone fixed the instance, not the
 mechanism."*
+
+## Index row
+
+`script/fastpath-footprint` measures the IPC fastpath's code size against a stored baseline file,
+which somebody has to remember to re-record when growth is understood and accepted, and it has
+already failed the way that fails: two lanes each measured "within bound" against the same stale
+baseline and neither re-saved it, so aarch64 headroom fell from 3.9 points to 1.5 with nothing
+firing. Milestone 237 fixed that instance and explicitly not the mechanism. DECISIONS §144 ruled on
+2026-09-04 that the gate gets **both** shapes, a delta check against `main` that cannot go stale and
+replaces the baseline files, plus an absolute ceiling of 16 KiB per architecture that only calef
+raises, because they catch different failures: a delta alone lets absolute size grow without limit,
+and the gate is named for an absolute property. This is the building, which nobody has done; all
+three baselines were stale again within a week of 237 re-recording one.
