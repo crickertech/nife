@@ -262,6 +262,53 @@ lane's, not the stranger's, and each is falsifiable.
 3. The build half is green first try with no change to the tree, and the B2 row measures nothing
    again, because the machine has the pinned nightly, both QEMUs and a warm cargo cache.
 
+### What run 6 changes, decided 2026-09-19 before the run
+
+**Nothing about the instrument changes, on purpose.** Run 6 is `script/stranger-test --commit
+origin/main`, the same command as run 5, with the task text, the debrief and the rubric exactly as
+run 5 left them. It is the first run in thirty-two days and the first the cadence owed: `--due`
+exited 1 on 2026-09-19 with "Run 5 was 32 days ago and the cadence is 30". Whether the cadence is
+what *caused* this run is its own question, answered in the run's record rather than assumed here.
+
+**What is new is the tree, and a great deal of it.** Between run 5's clone (`a5a75f46`, 2026-08-19)
+and this one (`ebe6b784`, 2026-09-19) about 2,500 commits landed, touching 714 files. The changes a
+stranger doing this task is most likely to meet:
+
+- **Milestone 150 was BUILT today.** A program is now one `[[bin]]` block rather than eight
+  hand-maintained lists, and `notes/adding-a-program.md` was rewritten around it. Three strangers
+  nominated this; run 6 is the first to walk the result, on the day it landed.
+- **Milestone 175 split `user/` into `components/` and `fixtures/`**, so every earlier run's
+  directory names are stale in its own record.
+- **`script/gates` is gone.** Milestone 286 replaced it with `script/ci-build`, whose table is the
+  one list of checks, and `CONTRIBUTING.md` now calls it the one command to remember. Run 4's best
+  unforced result came from that paragraph's predecessor.
+- **Run 5's handoffs landed**: `std-aborts` now asserts its dep-info paths are under this
+  worktree's `farm_dir()`, which is the defect that contaminated run 5 in its first ten minutes.
+- **Naming moved to `design/naming.md`** (§155), and most of the tree's names were ratified on
+  2026-09-14. `AGENTS.md` is 65 KB, about what it was.
+- **`script/apropos` is still not named in `README.md`'s start-here order or in
+  `CONTRIBUTING.md`.** This lane moves it there, and the clone is cut from `main` before that
+  change, deliberately, so run 6 measures the placement run 5 measured and the next run measures
+  the fix.
+
+**The machine is shared, and the operator knows it.** Two other lanes are running QEMU on this
+machine (the stick program and milestone 182), so a timing leg that goes red here may be the host.
+The load-average print run 3 bought has never fired in a recorded run; this is its best chance yet.
+**One deliberate contamination, disclosed**: the harness is launched with `VERIFY_JOBS=2` in its
+environment, so a stranger that runs `script/verify` shares the machine's memory budget with the
+other two lanes instead of taking all of it. The stranger can see that only by running `env`.
+
+**Four predictions, registered so the result cannot be read generously afterwards.**
+
+1. The stranger does not run `script/apropos`, and does not open `notes/net.md`, so M2 is absent
+   or partly answered for the fourth run in six.
+2. It adds a program, and the walk of `notes/adding-a-program.md` finds at least one thing wrong,
+   because the page was rewritten today and no stranger has walked it.
+3. `script/test` is green without any change to the tree. If it is red, the failure names this
+   machine rather than accusing another checkout's source, because run 5's `farm_dir()` fix is in.
+4. It reads `CONTRIBUTING.md` before `AGENTS.md`, and opens `AGENTS.md` late or not at all, as
+   run 5 did.
+
 ## The rubric, written 2026-08-14, before the first run
 
 Two halves. Only the first is mechanical.
