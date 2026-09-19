@@ -247,6 +247,57 @@ milestone 157's U-Boot aperture will pass it with nothing to remember.
 console, `screendump` with no device argument writes console 0, and the suite's machine already has a
 virtio-gpu there.
 
+### The gate's first red run, and the line that made it readable
+
+**CI found a wiring bug this lane had already been told about and had dismissed**, which is worth
+recording at more length than the fix deserves, because the dismissal is the reusable part.
+
+`cargo xtask test`'s riscv64 leg exports `NIFE_INITRD` pointing at the riscv64 archive, explicitly,
+with a comment saying it has to; `cargo()` exports the **aarch64** one, because it is the aarch64
+path's helper. `screen_boot` went through `cargo()` and never overrode it, so the riscv64 leg handed
+a riscv kernel an aarch64 archive.
+
+**That bug had two faces and only the harmless one was visible locally.** With the aarch64 archive on
+disk (which it always is, after any other leg has run) the boot carried on and printed
+`MEASURED BOOT REFUSED: 'progenitor' is not what this kernel image was built against`. The lane read
+that as noise, because the gate's own assertion still passed: the tour was on the screen, which is
+what the gate checks. In the `cpu matrix (riscv64)` job, which builds no aarch64 archive, the second
+face appeared and QEMU would not start at all: `could not load ramdisk`. Five models, one cause, none
+of it about a CPU model.
+
+**The lesson is the one this tree keeps relearning**: a line the machine printed outranks a gate that
+went green, and a refusal message inside a passing run is still a refusal. `MEASURED BOOT REFUSED`
+was telling the truth an hour before CI repeated it more loudly.
+
+**What the fix is:** the archive is chosen per architecture at the spawn, the way every other riscv64
+caller in `xtask` already does it. Verified by reproducing CI's condition rather than by reasoning,
+with `target/initrd.img` moved out of the tree: `cargo xtask screen-boot riscv64` then exits 0 and
+reads 45 rows off the screen, and the tour reaches further than before, because the progenitor now
+composes userspace instead of refusing the archive.
+
+**And the screen legs no longer run under `--cpu`**, which is a cost decision made on its own merits
+rather than a way around the failure (the failure reproduces on `rv64` too, and is fixed). The matrix
+runs this suite five times to narrow the **ISA**; nothing on the screen path varies with `-cpu`. The
+`fw_cfg` conversation is byte moves and MMIO stores and `screen_console` is integer arithmetic and
+byte stores, and every instruction either one uses has already been executed on that same model by
+the three hundred tests above it. Five more emulated boots would buy a claim that cannot differ
+between models. The leg still runs on every ordinary `script/test`, `--arch riscv64` included.
+
+**The gate's own second diagnostic line is why this was quick to read**, and it is the shape worth
+copying into other gates:
+
+```text
+screen-boot: nothing decodable was ever on the screen (did QEMU get a ramfb and a monitor?)
+screen-boot: the tour never reached the SERIAL line either, so this is a boot failure and not a screen one
+```
+
+The second line is a **control**, not a detail. A screen gate that only says "the screen was blank"
+sends the next reader into the framebuffer path, which is where this lane would have gone and where
+nothing was wrong. Checking the serial transcript for the same marker costs one `contains` and
+separates "this milestone's mechanism is broken" from "the machine did not boot", which are different
+people's afternoons. Any gate that reads a machine through one channel should assert the same fact
+through the channel it is replacing, and say which one failed.
+
 ## BUGS
 
 - **The mechanism is one idea and two discoveries.** A linear framebuffer painted by

@@ -218,6 +218,31 @@ the suite's machine already has a virtio-gpu there. A boot carrying both would b
 whichever QEMU happened to order first, and the gate would mean something different depending on
 QEMU's version.
 
+**Two things the first red CI run settled**, both worth knowing before touching this gate.
+
+**The archive is chosen per architecture at the spawn.** `cargo()` exports `NIFE_INITRD` pointing at
+the aarch64 archive, and every riscv64 caller in `xtask` has to override it. `screen_boot` did not,
+at first, which on a machine with the aarch64 archive already on disk produced
+`MEASURED BOOT REFUSED` inside an otherwise passing run, and in a CI job that never built one
+produced `could not load ramdisk` and no boot at all. A refusal message inside a green gate is still
+a refusal.
+
+**The screen legs do not run under `--cpu`.** `script/cpu-matrix` runs the riscv64 suite five times
+to narrow the ISA, and nothing on this path varies with `-cpu`: byte moves, MMIO stores and integer
+arithmetic, all of it already executed on that model by the suite above. The leg runs on every
+ordinary `script/test`, `--arch riscv64` included.
+
+**The gate says which channel failed, and that is the part worth copying.** Its second diagnostic
+line checks the *serial* transcript for the same marker it could not find on the screen:
+
+```text
+screen-boot: nothing decodable was ever on the screen (did QEMU get a ramfb and a monitor?)
+screen-boot: the tour never reached the SERIAL line either, so this is a boot failure and not a screen one
+```
+
+Without that line a blank screen sends the next reader into the framebuffer path. It costs one
+`contains` and separates "this mechanism is broken" from "the machine did not boot".
+
 **What it does not claim.** `ramfb` is QEMU's; no real board has one. It proves the arch-neutral
 console and the arch-neutral discovery *type* on all three architectures, and it proves nothing about
 the DC8200 on the VisionFive 2. That is milestone 157, and the shape of the change it needs is one
