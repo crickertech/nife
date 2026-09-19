@@ -8985,8 +8985,13 @@ fn job_mix_sweep() -> ExitCode {
             }
             (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
         }
+        // **`mkdisk` here too, not only on aarch64** (found 2026-09-19 by the lane that closed
+        // milestone 168's sampling hole): the riscv64 runner refuses a `NIFE_DISK` naming a missing
+        // file, so on a fresh worktree `--arch riscv64` died before the kernel printed a line, and
+        // it only ever passed on a checkout where an aarch64 run had made the image first. The
+        // sweep reads no disk; the runner's own check is what needs it.
         "riscv64" => {
-            if !initrd_riscv() {
+            if !(mkdisk() && initrd_riscv()) {
                 return ExitCode::from(4);
             }
             (
