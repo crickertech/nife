@@ -78,7 +78,7 @@ twin); and `scripts/qemu-runner-x86_64.sh` carries `intel-iommu` with a recorded
 it is not here: the two IOMMU drivers rhyme and their proofs do not. `arch/aarch64/iommu.rs` carries
 two Kani harnesses over its entry-building arithmetic and the RISC-V side carries none, so on
 riscv64 the boot-time confinement test is the whole of the assurance, on one board. That is
-`design/roadmap/proposals/the-riscv-iommu-driver-has-no-proof.md`, and it is a parity gap under §19
+milestone 432 (design/roadmap/432-the-riscv-iommu-driver-has-no-proof.md), and it is a parity gap under §19
 rather than a coverage gap this matrix could close.
 - `sbsa-ref`. Describes itself by **ACPI with no device tree**, which is the discovery seam x86_64
   already exercises and aarch64 never has.

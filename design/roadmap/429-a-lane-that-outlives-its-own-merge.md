@@ -1,9 +1,18 @@
 # 429. A lane that outlives its own merge, and the checklist line that would end it
 
-**Status: PROPOSED 2026-09-18.** Found by the maintainer when milestone 310's lane reported
-"ready for review, all gates green" about a pull request that had merged **18 hours earlier**.
+**Status: NOT-STARTED.** Promoted from the proposal `a-lane-that-outlives-its-own-merge`, filed
+2026-09-18 by the maintainer when milestone 310's lane reported "ready for review, all gates green"
+about a pull request that had merged 18 hours earlier. *(Number provisional until the merge queue
+lands it.)*
 
 **Gate: NONE.** It is a line on a checklist and a habit, not code.
+
+**Premise re-checked 2026-09-19 and still true.** `AGENTS.md`'s merge checklist still reads prune
+the worktree, delete the branch, relink `nife-dev`, `git worktree prune`, and every piece of
+identified work has a home. It still does not say stop the lane, so the maintainer still tidies
+everything a lane owns except the lane itself. Note that the line this block proposes lands in
+`AGENTS.md`, which a developer does not edit, so the change is the maintainer's or calef's to make
+even though the gate is `NONE`.
 
 ## What happened
 
@@ -72,7 +81,20 @@ there, and it is honest about being one.
 isolation model, and the isolation is what makes concurrent lanes safe at all.
 
 **Not an argument against long gates.** The three-hour Miri run is the cost of the answer; see
-`design/roadmap/proposals/what-the-weekly-miri-run-should-cost.md`.
+milestone 428 (design/roadmap/428-what-the-weekly-miri-run-should-cost.md).
 
 **Not specific to Miri.** Any gate long enough for the tree to move under a lane produces this, and
 `script/verify` is the queue's long pole for the same reason.
+
+## Index row
+
+Milestone 310's lane ran for 18 hours, roughly 17 of them blocked inside two three-hour Miri runs.
+While it was blocked the maintainer merged its pull request, deleted its branch, pruned its worktree
+and relinked `nife-dev`; the lane finished, saw its own gates green, and reported that its work was
+ready to merge. Everything it said was true when it started waiting and stale by the time it spoke,
+and it then cost a second person's attention and a four-way verification pass. No mechanism caught
+it because a lane has no visibility outside its own worktree, which is the isolation that lets
+several run at once, and because nothing ends a lane except the lane. The proposal is one line on
+the merge checklist, notify rather than kill where the tooling allows it so a lane mid-thought can
+report what it knows, and it is honest that it cannot be higher than rung three: a long gate and an
+independent merge are both legitimate and their overlap is a race no type can rule out.

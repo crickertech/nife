@@ -1,13 +1,19 @@
 # 419. `tasks=4` needs more repeats, not more power cycles, and `REPEATS` is one constant for the whole sweep
 
-**Status: PROPOSED 2026-09-16.** Written by the maintainer from the five-boot job-mix session on
-radon, where the fourth and fifth boots each landed outside the range the first three had
-established.
+**Status: NOT-STARTED.** Promoted from the proposal `more-repeats-where-the-job-mix-contends`, filed
+2026-09-16 by the maintainer from the five-boot job-mix session on radon, where the fourth and fifth
+boots each landed outside the range the first three had established. *(Number provisional until the
+merge queue lands it.)*
 
 **Gate: DECISION.** `job_mix::REPEATS` decides how long every bench evening takes on every board,
 and the `job-mix-repeat:` line it produces is output two programs read (`script/job-mix`'s
 rehearsal and `crates/board_console`'s recogniser). Changing how many there are, or making the
 count vary per sweep point, changes both.
+
+**Premise re-checked 2026-09-19 and still true.** `job_mix::REPEATS` is still `3`, one constant for
+the whole sweep, and milestone 168 is still `PARTIAL` for the reason this block names: its status
+line says it does not turn `BUILT` until `tasks=4` has a number, and it still does not have one. The
+interim this block recommends, option 4, is what 168's block now does.
 
 **In brief.** Milestone 168's sweep reports the **best of three** repeats per sweep point. At
 `tasks=4` the underlying distribution is wide enough that the best of three is itself a coin flip:
@@ -56,3 +62,16 @@ option 4, which is what milestone 168's block now does.
 
 **Blocked until it is answered:** milestone 168 turning `BUILT`. Its own status line says it does
 not, until a number exists, and `tasks=4` does not yet have one.
+
+## Index row
+
+Milestone 168's sweep reports the best of three repeats per sweep point, and at `tasks=4` the
+underlying distribution is wide enough that the best of three is itself a coin flip: five boots of
+an identical image ranged from 766,361 to 991,671 jobs per minute, a 29.4% spread, while one boot's
+three repeats on their own spanned a range containing the whole boot-to-boot spread. The variance is
+within a boot, so power cycling does not reduce it. `tasks=4` is where `ECHO_SERVERS = 2` first
+produces contention with too few samples to average it, and `tasks=32` is already stable at 2.7% and
+would pay for repeats it does not need, so the obvious fix turns one constant into a table that
+`board_console`'s recogniser has to stop assuming is fixed. The recommendation is to report the
+spread rather than the best, because a benchmark whose subject is contention should not keep only
+the least-contended sample, and that changes a line two programs read, which makes it calef's.

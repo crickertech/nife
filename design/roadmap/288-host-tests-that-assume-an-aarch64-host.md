@@ -205,7 +205,7 @@ cuts both ways here, and the honest statement is that the aarch64 and riscv64 ho
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/which-qemu-a-red-post-run-check-was-run-under.md`: the
+- **Milestone 414.** The
   post-run referees fail different sets under 8.2.2 and 11.0.2 on one machine, and nothing in their
   output says which emulator produced them, so a reader cannot tell an environment failure from a
   regression without re-running. Found by this lane's control table above, which is not what it was

@@ -1,9 +1,16 @@
 # 430. Refusals written where `script/names` cannot read them
 
-**Status: PROPOSED 2026-09-18.** Found by the maintainer while recording calef's rulings, by
-noticing that the refusal count went **down** by three after a commit that added one.
+**Status: BUILT 2026-09-18.** Promoted from the proposal
+`refusals-written-where-the-tool-cannot-read-them`, filed 2026-09-18 by the maintainer, who noticed
+the refusal count go **down** by three after a commit that added one. Closed the same day by commit
+`c1a177c`, before this file was read again. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** It is a gate and a sweep, and needs no hardware and no decision to start.
+**Premise re-checked 2026-09-19 and it had already been answered**, which is why this block is
+`BUILT` rather than `NOT-STARTED`. The file was filed and closed inside one day, and this pass found
+the two exhibits it opens with, `screen_console`'s four refusals and `board_console`'s three,
+visible to `script/names --refused` without either file's `Name:` block having moved. What closed it
+is recorded below, under "What closed it, and it was the same day", and the text above is kept as
+the account of the defect rather than rewritten.
 
 ## In brief
 
@@ -71,7 +78,73 @@ Ten blocks were corrected on 2026-09-18 (`nvme`, `gpt`, `dtb`, `ipc`, `asid`, `p
 the same evening as ten rulings is how a cheap edit destroys an expensive record. A lane should
 survey the whole tree rather than trust that list.
 
+**Both are right now, and not by being edited.** Re-checked 2026-09-19:
+`script/names --refused | grep -c screen_console` answers **4**, where this section recorded 0, and
+`board_console`'s three are visible too. Neither file's `Name:` block moved. Option 2 is what
+changed underneath them, and the section below says so.
+
 Two of those ten names have since been replaced by the rulings the corrected blocks recorded:
 `capability_demo_protocol` is `capability_witness_protocol` and `address_space_builder` is
 `address_space_witness`. The list above is an account of which blocks were edited that day, under
 the names they carried then, so it keeps them.
+
+## What closed it, and it was the same day
+
+**Commit `c1a177c`, 2026-09-18**, "The `Name:` block parser stopped at the first blank line, and
+that hid 91 refusals". It took options 2 and 3 together and did option 1's sweep where it was still
+needed, which is the combination this block recommended without being able to say that option 2
+would survive its own survey.
+
+- **Option 2, the parser.** The parse reads to the end of the comment run rather than to the first
+  blank `//!` line, so every block written one argument per paragraph became readable at once. The
+  worry this block raised about it was measured rather than argued away: across all 165 surfaces
+  carrying a block, no status, date or well-formedness verdict moved, which mattered because
+  `script/metrics` shares the parser and a change there moves a dashboard as well as a gate. A
+  paragraph break now bounds a refusal clause and a slash disqualifies a refused name.
+- **Option 3, the gate.** `script/names --check` reports a refusal recorded where the parse cannot
+  read it, the sibling of its strays check, proved to fire on a stray and to ignore one the parse
+  reads. Narrowing it enough to know that `Refused` as a return-value name is prose cost two passes.
+  It is in `script/names` rather than `script/lint`, which is the better home: the check is about
+  this parser, and it runs wherever the parser does.
+- **Option 1, where it was still owed.** Four files that put a heading after their block were moved
+  to the convention 139 of 143 already followed, and `hello.rs`'s block reference moved with the
+  limitation it names.
+
+**The count**: 182 tree-wide before, 273 after, and 273 on 2026-09-19. The four `screen_console`
+refusals this block opened with are visible, and so are `board_console`'s three, without either
+file's block being touched.
+
+## BUGS
+
+- **A name in backticks inside a refusal's own sentence reads as refused too**, which is eight of
+  the 273. Ending the clause at a colon removes all eight and takes 26 real refusals with them,
+  including `pci`, `elf` and `mdr`, because `Refused ``x``: why` is a form this tree uses
+  constantly. Losing a real refusal is the failure the record exists to prevent and a spurious one
+  is noise a reader sees through by opening the block, so the trade is deliberate.
+- **The gate catches a refusal outside the block, not a block nobody wrote.** A name with no
+  provenance at all is a different check (`script/names --unratified`, a worklist), and neither can
+  see a refusal that was never written down anywhere.
+
+## Follow-on
+
+- **Done.** Options 2 and 3, and option 1 where it was still owed, all in commit `c1a177c` on
+  2026-09-18. The gate was proved to fire on a stray and to ignore one the parse reads.
+- **Recorded.** The eight backticked names inside refusal sentences that read as refused, in the
+  `BUGS` section above, with the arithmetic that says why tightening the clause costs more than it
+  buys.
+
+## Index row
+
+**Built:** 2026-09-18
+
+`script/names`' `Name:` block parser stopped at the first blank `//!` line, so a block written one
+argument per paragraph, which is how this tree's best ones are written, put every refusal after the
+first break out of reach: `crates/screen_console` recorded four and the tool could see none of
+them. That defeats the one query milestone 115 exists to serve, has this name been refused before,
+whose worked example is milestone 63 having already refused `system_builder` for a reason nobody
+could find, and the failure is silent in the direction that hurts, because the block still looks
+complete to a reader. It surfaced only by arithmetic, when a maintainer edit moved the tree-wide
+count **down** by exactly three. Commit `c1a177c` widened the parse to the end of the comment run
+after measuring that no status, date or well-formedness verdict moves across all 165 surfaces, since
+`script/metrics` shares the parser, and added the gate that lasts: `script/names --check` reports a
+refusal written where the parse cannot read it. 182 refusals visible before, 273 after.

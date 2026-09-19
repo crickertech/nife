@@ -1,12 +1,20 @@
 # 432. The RISC-V IOMMU driver has no counterpart to the SMMU's proofs
 
-**Status: PROPOSED 2026-09-18.** Written from milestone 322's confirmation pass, which went looking
-for an unexercised IOMMU configuration, found that all three architectures already boot behind one,
-and turned up this instead: the two drivers rhyme and their proofs do not.
+**Status: NOT-STARTED.** Promoted from the proposal `the-riscv-iommu-driver-has-no-proof`, filed
+2026-09-18 from milestone 322's confirmation pass, which went looking for an unexercised IOMMU
+configuration, found that all three architectures already boot behind one, and turned up this
+instead. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** The harnesses would sit beside `arch/riscv64/iommu.rs` the way
 `arch/aarch64/iommu.rs`'s already do, and `script/verify` already reaches that tree since milestone
 193. Nothing has to be bought, decided or ported first.
+
+**Premise re-checked 2026-09-19 and still true, by count.**
+`kernel/src/arch/aarch64/iommu.rs` carries two `kani::proof` harnesses and
+`kernel/src/arch/riscv64/iommu.rs` carries **zero**. `notes/iommu.md`'s "What is proved, as against
+tested" still says the RISC-V IOMMU has no counterpart, and still records that the register offsets
+and bit constants are not proved and cannot be. This is the newest block in milestone 433's promotion
+and the only one of the twenty-five whose premise needed no qualification at all.
 
 **In brief.** `notes/iommu.md`, "What is proved, as against tested", names it plainly: **the RISC-V
 IOMMU has no counterpart** to the aarch64 proofs. `arch/aarch64/iommu.rs` carries two Kani harnesses
@@ -47,3 +55,17 @@ be**: nothing in this tree can check a constant against Arm IHI 0070, or against
 specification, so a misreading of the document makes the code and the proof wrong together. Whatever
 is written here inherits that, and should say so where a reader meets it rather than implying a
 completeness it cannot have.
+
+## Index row
+
+`arch/aarch64/iommu.rs` carries two Kani harnesses over its entry-building arithmetic, both
+falsified before they were believed, one of them replayable in `kernel/falsifications/`. The RISC-V
+driver writes its device context in 64-bit stores with no split, so the property those prove does
+not apply to it, and **nothing was written in its place**: the boot-time confinement test is the
+whole of the assurance on that side, on exactly one board, and the same note says what that test
+cannot do, which is prove the kernel wrote the right entry, since a wrong entry that still confines
+this device on this board is invisible to it. §19 makes architectural parity a gate rather than an
+aspiration and this is a parity gap in the boundary milestone 35 calls the one isolation boundary we
+test instead of prove. The work is not porting the aarch64 harnesses, which would prove a hazard
+RISC-V does not have; finding the right property is most of it, and writing it down is the
+deliverable even if the harness that follows is short.

@@ -173,7 +173,7 @@ split too.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/what-a-caretaker-is-when-it-translates.md`: `caretaker`
+- **Milestone 413.** `caretaker`
   carries two incompatible definitions in this tree, one that narrows a protocol and one that
   translates between two, and this lane had to name a translating adapter without being able to say
   which. It shipped as `file_sink` on a collision argument, which is a local answer to a global

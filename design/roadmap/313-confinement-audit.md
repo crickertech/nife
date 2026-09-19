@@ -94,9 +94,9 @@ code was touched and a comment in a shared crate is code that was touched.
   that `x86_64` boots secondaries.
 - **Milestone 323.**: a kernel
   record per architecture, so a portable confinement test can carry evidence on every leg it runs on.
-- **Proposed.** `design/roadmap/proposals/a-ring-0-that-provably-cannot-execute-ring-3-pages.md`: the
+- **Milestone 424.** The
   test finding 3 could not have, and SMAP with the syscall-path number its `BUGS` asks for.
-- **Proposed.** `design/roadmap/proposals/a-stack-gate-that-fires-only-on-a-filtered-run.md`: the
+- **Milestone 425.** The
   boot-stack high-water that is 62456 for one test run alone and 53144 for the suite that contains it.
 - **Recorded.** The one-tick cross-core window on a revoked `x86_64` port range, in
   `kernel/src/arch/x86_64/segments.rs`'s `revoke_installed_port_grant` `BUGS` section and in the

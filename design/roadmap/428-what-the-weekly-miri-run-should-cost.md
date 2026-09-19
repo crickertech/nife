@@ -1,8 +1,9 @@
 # 428. What the weekly Miri run should cost
 
-**Status: PROPOSED 2026-09-17.** Raised by the milestone 310 lane on the first measurement of a
-run that actually finished. The cadence itself is calef's call; the measurement and the cut below
-are not.
+**Status: NOT-STARTED.** Promoted from the proposal `what-the-weekly-miri-run-should-cost`, filed
+2026-09-17 by the milestone 310 lane on the first measurement of a run that actually finished. The
+cadence itself is calef's call; the measurement and the cut are not. *(Number provisional until the
+merge queue lands it.)*
 
 **Gate: NONE.** A lane can start today and get most of the value: collecting per-crate wall clocks
 and sampling the crates that dominate are `cfg(miri)` gates at the test site, the convention five
@@ -10,6 +11,12 @@ crates in this tree already follow, and neither needs a ruling. Only the last st
 changing the weekly cadence or tightening `timeout-minutes`, and it is the cheapest step of the
 three. Nothing is blocked meanwhile: the job is green as of milestone 310 and finishes inside its
 current budget.
+
+**Premise re-checked 2026-09-19 and still true.**
+`.github/workflows/undefined-behavior-check.yml` still runs on `cron: "0 6 * * 1"` with
+`timeout-minutes: 240`, and nothing in the tree collects a per-crate wall clock: the number this
+block says is missing is still missing, which is what makes the argument below an argument rather
+than a decision.
 
 ## The question the workflow asks and nobody has answered
 
@@ -77,3 +84,17 @@ Nothing. The job is green as of milestone 310 and the 240-minute budget accommod
 run, so this is optimisation rather than repair. It is written down because it is a question the
 workflow's own header raises, and a question that lives only in a lane's report is in the medium
 AGENTS.md abolished.
+
+## Index row
+
+`.github/workflows/undefined-behavior-check.yml` says in its own header that its 240-minute budget
+is deliberately generous rather than tuned and asks to be tightened once a full run has been timed,
+which nothing had ever done, because the job had never once succeeded. Milestone 310 fixed that and
+measured it: about three hours, 3:09:41 on patagonia and 2:58:13 on `ubuntu-24.04-arm`, at 47% CPU
+because most of it is one interpreter thread, so more cores buy no wall clock back and two very
+different machines agreeing within eleven minutes makes three hours the job's cost rather than one
+laptop's. The cost is concentrated rather than spread, which is why running it less often is the
+wrong lever and running less of it is the right one: `board_console` alone was 55 minutes against
+four for the rest of the workspace, and five crates already gate their exhaustive sweeps down under
+`cfg(miri)`. What is missing is the per-crate number, which `cargo miri test` prints already and
+nobody has collected, and which turns the argument into a decision.

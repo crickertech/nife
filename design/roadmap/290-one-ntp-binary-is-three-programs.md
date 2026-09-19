@@ -231,7 +231,9 @@ three new names ratified and carrying eight refusals between them.
 - **Done.** The entropy-service isolation defect above, found here and fixed here, with the
   reproduction recorded at the base commit so a reader can tell it apart from this milestone's own
   work.
-- **Proposed.** `design/roadmap/proposals/six-copies-of-the-shared-frame-accessors.md`.
+- **Milestone 410.** Six programs each carry their own copy of the accessors that turn an absolute
+  virtual address back into a `MappedWindow` offset, and this lane's split of the `ntp` binary added
+  the sixth; `multicast_dns_responder`'s retirement at milestone 298 has since left five.
 - **Proposed.** `design/roadmap/proposals/a-service-report-nobody-is-obliged-to-drain.md`. `entropy`, `mdns_responder`, `net_transport`, `socket_test_client`,
   `network_time_client` and `network_time_test_server` each carry their own `r8`/`w8`/`r16le`/`w16le`
   over `user_rt::mapped_window::MappedWindow`, plus their own `PAGE_FRAME_VA` and their own
