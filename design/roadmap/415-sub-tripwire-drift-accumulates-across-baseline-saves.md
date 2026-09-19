@@ -22,7 +22,7 @@ stays refused for the reason milestone 25 already established.
 
 `cargo xtask bench --check` fails at >10% drift **against the last saved baseline**, and `--save`
 rewrites that baseline. So N successive sub-threshold steps accumulate and the gate never fires.
-The audit in [notes/benchmarks.md](../../../notes/benchmarks.md) walked every `--save` event in the
+The audit in [notes/benchmarks.md](../../notes/benchmarks.md) walked every `--save` event in the
 history of all three baseline files, from git alone with no emulation, and the accumulation is real
 and measurable:
 
