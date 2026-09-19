@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- SYNTHESIZED, not captured: no USB flash stick was attached when these fixtures were taken. It is the captured disk-image document with the bus, name and size of a SanDisk Ultra stick written in, on the documented behaviour that a flash stick sets the SCSI removable-media bit. Replace it with a real capture (diskutil info -plist diskN) the first time one is at hand. -->
+<plist version="1.0">
+<dict>
+	<key>BusProtocol</key>
+	<string>USB</string>
+	<key>DeviceIdentifier</key>
+	<string>disk8</string>
+	<key>Ejectable</key>
+	<true/>
+	<key>IORegistryEntryName</key>
+	<string>SanDisk Ultra Media</string>
+	<key>Internal</key>
+	<false/>
+	<key>MediaName</key>
+	<string>Ultra</string>
+	<key>OSInternalMedia</key>
+	<false/>
+	<key>Removable</key>
+	<true/>
+	<key>RemovableMedia</key>
+	<true/>
+	<key>RemovableMediaOrExternalDevice</key>
+	<true/>
+	<key>Size</key>
+	<integer>30752636928</integer>
+	<key>TotalSize</key>
+	<integer>30752636928</integer>
+	<key>VirtualOrPhysical</key>
+	<string>Physical</string>
+	<key>WholeDisk</key>
+	<true/>
+</dict>
+</plist>

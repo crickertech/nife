@@ -132,6 +132,19 @@ awk -F: -v floor="$floor" '
         # correctness is gated by the build working at all, loudly and immediately, which is a
         # stronger signal than a line count.
         if (file ~ /\/build\.rs$/) { next }
+        # **The host half of `stick_maker`, and its entry point** (the stick program, 2026-09-19).
+        # The decisions of that program are all in files this floor measures: the offer rule
+        # (disk.rs), what each host says about its disks (macos.rs, linux.rs, windows.rs), and the
+        # whole conversation with the person, tested against a fake host (cli.rs). What is exempt
+        # only runs the tools of a host, and none of it can run here: this is an unprivileged Linux
+        # process, with no diskutil, no kernel32, and no block device it may erase as root. Each
+        # half is run for real on its own host instead, by scripts/stick-maker-proof.sh (macOS)
+        # and .github/workflows/stick-maker-hosts.yml (Linux on a loop device, and Windows), which
+        # is where a regression in it would show. src/main.rs is the dozen lines that hand cli::run
+        # the real machine; a test never executes the main of a binary, in the same structural
+        # sense that a successful build never executes the failure paths of a build script.
+        # (No apostrophes in this block: it sits inside the single-quoted awk program.)
+        if (index(file, "/stick_maker/src/host/") || file ~ /\/stick_maker\/src\/main\.rs$/) { next }
         if (found > 0 && $2 * 100 < found * floor) {
             printf "coverage: %s: %.1f%% line coverage is under the %d%% floor\n",
                 file, $2 * 100 / found, floor
