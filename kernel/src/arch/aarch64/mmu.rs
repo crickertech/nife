@@ -267,11 +267,14 @@ where
     direct_map(m, UART_BASE, UART_BASE + UART_SIZE, Flags::device())?;
 
     // 6. The interrupt controller, also device memory, and its address comes from the device
-    // tree rather than a constant. Both blocks: the machine-wide distributor and the per-core
-    // CPU interface.
-    if let Some(((gicd, gicd_size), (gicc, gicc_size))) = memory::gic_regions() {
-        direct_map(m, gicd, gicd + gicd_size, Flags::device())?;
-        direct_map(m, gicc, gicc + gicc_size, Flags::device())?;
+    // tree rather than a constant. Both blocks: the machine-wide distributor, and then either a
+    // GICv2's per-core CPU interface or a GICv3's redistributor array (milestone 227), mapped at
+    // its full length because which frame belongs to which core is read from the frames. A GICv3's
+    // CPU interface is system registers and needs no mapping.
+    if let Some(found) = memory::gic_regions() {
+        let (gicd, second) = (found.distributor(), found.second_region());
+        direct_map(m, gicd.start, gicd.start + gicd.size, Flags::device())?;
+        direct_map(m, second.start, second.start + second.size, Flags::device())?;
     }
 
     // 7. The virtio-mmio window, as device memory. **The kernel maps it only to ENUMERATE it**

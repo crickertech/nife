@@ -11,35 +11,53 @@ rather than four cores running at once. Apple's Hypervisor.framework runs the sa
 EL1 on the physical Apple Silicon core, four vCPUs on four host threads, and until the RISC-V board
 arrives it is the only real silicon this project can test on at all.
 
-## This leg does not run on QEMU 11.1.1, and the reason is the GIC
+## The leg runs again on a GICv3 (milestone 227), with one flaky test
 
-Read this before the rest of the page, because everything below it describes runs from QEMU 11.0.2
-and they no longer happen on this machine.
+Read this before the rest of the page: everything below it describes runs from QEMU 11.0.2 on a
+GICv2, and that machine no longer starts here.
 
 ```
 qemu-system-aarch64: HVF does not support GICv2 emulation
 ```
 
-That is QEMU refusing `virt,gic-version=2,accel=hvf`, reproduced on 2026-09-02 with **no nife
-kernel involved at all**. HVF wants a GICv3; `kernel/src/drivers/gic.rs` speaks GICv2 and only
-GICv2 (see the BUGS section of [interrupts.md](interrupts.md)), so there is no GIC version this
-QEMU and this kernel both accept, and the leg has no machine to run on.
+That is QEMU 11.1.1 refusing `virt,gic-version=2,accel=hvf`, reproduced on 2026-09-02 with no nife
+kernel involved. From then until milestone 227 the leg had no machine to run on, because the kernel
+drove GICv2 only; `script/ci-build` skipped it out loud (milestone 222) and this machine had no
+accelerated coverage at all.
 
-**What happens now** (milestone 222):
+**Since milestone 227 (2026-09-19) the kernel drives GICv3 too**, and the runner asks HVF for one
+(`gic-version=3`; TCG keeps 2). [interrupts.md](interrupts.md) has the driver. Measured on the first
+runs, an Apple M-series core, QEMU 11.1.1:
 
-- `script/ci-build` **skips the leg and says so**, in the same line it already used for a host with no
-  Hypervisor.framework, naming QEMU's own refusal. Its closing line says the run was TCG only.
-- `script/test --hvf` **still fails**, because you asked for it by name, but it fails with a
-  paragraph saying the breakage is not yours and pointing here.
-- `cargo xtask test --hvf` asks the same question **before** it constructs the scanout referee and
-  the two network probers, which otherwise each report their own failure about a QEMU that never
-  started, burying the real reason under three that are not.
-- All of these answers come from one probe in `scripts/qemu-runner-aarch64.sh`, which starts that script's
-  own machine string paused and quits it. Nothing tests a QEMU version number, so the day QEMU or
-  this kernel changes, the answer changes with it and nobody has to remember to update a check.
+| | result |
+|---|---|
+| boot, four cores over PSCI | yes; `interrupts : GICv3 ...`, ticks on every core |
+| the kernel suite, full run | **322 passed, 3 skipped** on the final run, exit 0; one test hung in two earlier runs |
+| the scanout and inbound checks | pass (compositor, terminal text, test pattern; both listeners) |
+| `script/bench --real` | runs to completion |
 
-**What it would take to get the leg back**: a GICv3 driver, which is a milestone rather than a flag.
-See [interrupts.md](interrupts.md) for the measurement and what it found.
+Two things failed on the way there, and neither is the GIC:
+
+- **An EL0 cycle-counter read is not refused under HVF** with `PMUSERENR_EL0` at zero. The
+  hypervisor answers it, so the negative half of
+  `user::tests::a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` skips on an
+  Apple core now, and `arch::timer::set_cycle_counter_grant`'s BUGS carries the measurement. This is
+  milestone 74's finding as much as this leg's: an HVF run is not evidence about that register.
+- **`user::tests::a_std_program_serves_a_granted_listening_port` hung in two of three full `--hvf`
+  runs**, and passes when run alone and in every TCG run. The std program aborts (its
+  `__rust_abort`, so a panic), the kernel test then waits for a report that never comes, and the
+  watchdog calls it a lost-wakeup hang. The likeliest reading, from `probe_inbound` and the std
+  `accept`, is timing: the host prober holds one connection open until the run ends, and if that
+  connection was opened in the gap between the hand-written listener and the std one, the std
+  listener's bounded `accept` expires with the prober stuck on a connection nobody will accept.
+  Under TCG the gap is shaped differently. This is not established. `script/ci-build` names this
+  failure when the leg goes red, so a contributor can tell it is not theirs.
+
+**What still happens when the machine will not start** (milestone 222's machinery, unchanged):
+`script/ci-build` skips the leg and says so; `script/test --hvf` fails with a paragraph saying the
+breakage is not yours; `cargo xtask test --hvf` asks before standing up its referees. All of it
+comes from one probe in `scripts/qemu-runner-aarch64.sh` that starts the runner's own machine
+string paused and quits it, so nothing tests a QEMU version number.
 
 ## How to run it
 

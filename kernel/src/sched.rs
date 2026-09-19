@@ -4707,7 +4707,7 @@ mod tests {
     /// Enable the test interrupt at the controller. Nothing is raised yet.
     #[cfg(target_arch = "aarch64")]
     fn arm_test_irq(intid: u32) {
-        crate::drivers::gic::enable(intid, 0); // SGI: per-core, target ignored
+        crate::arch::irq::enable(intid); // SGI: per-core, no target
     }
 
     #[cfg(target_arch = "riscv64")]
@@ -4731,7 +4731,7 @@ mod tests {
     fn raise_test_irq(intid: u32) {
         // Self, by asking rather than by assuming core 0: the test thread runs wherever the
         // scheduler put it, and a fixed target is the count-as-index disease in miniature.
-        crate::drivers::gic::send_sgi(intid, crate::cpu::id());
+        crate::arch::irq::send_sgi(intid, crate::cpu::id());
     }
 
     #[cfg(target_arch = "riscv64")]

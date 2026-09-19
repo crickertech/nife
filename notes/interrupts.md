@@ -452,46 +452,90 @@ agent disproved it by measurement rather than argument.
 under TCG. That length is legitimate work, not a symptom, which is precisely what makes it awkward for
 the watchdogs: see the per-test ceiling discussion in [scheduler.md](scheduler.md).
 
-## BUGS: this is a GICv2 driver, and an aarch64 board port is a new interrupt controller
+## Two GICs: which one this machine has, and how the kernel knows
 
-Named here because this is where a reader meets the feature, and until 2026-08-01 the fact lived
-only in a comment inside `scripts/qemu-runner-aarch64.sh`, which is the last place someone choosing a board
-would look.
+*(Milestone 227, 2026-09-19. Until then this section was headed "BUGS: this is a GICv2 driver", and
+the measurement that made that heading dangerous is kept below.)*
 
-`kernel/src/drivers/gic.rs` implements **GICv2 and only GICv2**. The QEMU runner pins
-`gic-version=2` deliberately, so that a future QEMU changing its default cannot quietly hand us a
-controller we do not drive. That pin is protection, not support.
+The kernel drives **GICv2 and GICv3**, and picks between them at boot from the device tree. The
+interesting question for an aarch64 board is still which interrupt controller it has rather than
+which CPU, but the answer is now a driver the tree already carries rather than a port: a GIC-400
+(Raspberry Pi 4, the Jetson TX1 that is argon) and a GIC-500 or GIC-600 (i.MX8M, most server
+parts) are both covered. Apple Silicon is not a GIC at all (it has AIC), which is why an Apple core
+only ever meets this kernel under a hypervisor that emulates one.
 
-**So the interesting question for an aarch64 board is not which CPU it has, it is which interrupt
-controller.** A Raspberry Pi 4 is a GIC-400, which is GICv2, and would work. Most server-class
-aarch64 and many modern SoCs are GICv3, which would not: GICv3 moves CPU-interface access from MMIO
-to system registers (`ICC_*`), which is a different driver rather than a different base address.
-Apple Silicon is not a GIC at all; it uses AIC.
+| | GICv2 | GICv3 |
+|---|---|---|
+| found by | `compatible` = `arm,gic-400`, `arm,cortex-a15-gic` or `arm,cortex-a7-gic` | `compatible` = `arm,gic-v3` |
+| distributor | `drivers/gic.rs` | `drivers/gicv3.rs` |
+| per-core private interrupts | banked in the distributor | a redistributor frame per core, found by its `GICR_TYPER` affinity (`drivers/gicv3.rs`) |
+| CPU interface | banked MMIO, `drivers/gic.rs` | `ICC_*` system registers, `arch/aarch64/gic_cpu_interface.rs` |
+| SPI routing | `GICD_ITARGETSR`, an 8-bit core mask | `GICD_IROUTER`, the target core's affinity |
+| SGI | an `GICD_SGIR` store | an `ICC_SGI1R_EL1` write, `dsb ishst` before it |
+| confirmed at boot by | `GICC_IIDR.ArchitectureVersion` from the block the tree calls the CPU interface | `GICD_PIDR2.ArchRev`, then `ICC_SRE_EL1.SRE` sticking |
 
-### Why there is no aarch64 CPU-model matrix, unlike RISC-V's (milestone 59, DECISIONS §53)
+**One place holds both.** `arch/aarch64/irq.rs` reads the version (`machine_discovery::gic`,
+host-tested against QEMU's own GICv2, GICv3 and HVF trees), asks the hardware whether the tree is
+right, and only then initializes a driver. Every other caller in the kernel (the IRQ handler, the
+timer, the scheduler's reschedule SGI, the tests) names `arch::irq` and never a driver, so the
+choice is made once. The split between `drivers/` and `arch/` is DECISIONS §4 rule 1: the ICC
+registers are `msr`/`mrs`, so they are architecture code, while everything behind a pointer stays a
+driver that is handed its addresses. `design/roadmap/227-gicv3-driver.md` has the placement and what
+lost.
 
-The asymmetry is real and worth stating, because "we did it for RISC-V" is the obvious argument for
-doing it here and it is wrong.
+### How to run each
 
-- **We already test on a conservative real core.** The aarch64 runner uses `-cpu cortex-a72`, an
-  ARMv8.0-A chip, not QEMU's `max`. RISC-V's default was the maximalist model, which is what made a
-  matrix worth building there. Here the emulator is *less* capable than a modern board, and code
-  that runs on an A72 runs on an A76.
-- **aarch64 has architectural feature discovery and RISC-V does not.** The `ID_AA64*` registers are
-  mandatory and readable at EL1, and this kernel already uses them: `arch/aarch64/mmu.rs` reads
-  `ID_AA64MMFR0_EL1::PARange` and feeds it to `TCR_EL1::IPS` rather than assuming a physical address
-  range. That is why milestone 60 (ISA discovery) is a RISC-V milestone specifically; RISC-V omitted
-  CPUID on purpose and left discovery to a device-tree string.
+```sh
+script/test --arch aarch64                    # GICv2, the TCG default and the one CI runs
+NIFE_GIC=3 script/test --arch aarch64         # GICv3 under TCG
+script/test --hvf                             # GICv3 on the physical core; HVF refuses a GICv2
+NIFE_GIC=3 cargo xtask boot-check --arch aarch64   # the boot self-test's verdict, one GICv3 boot
+```
 
-### What no CPU matrix catches on either ISA
+The boot line says which one it found:
 
-**Memory ordering.** Different microarchitectures reorder differently, and a missing
-`Acquire`/`Release` can pass on one core and fail on another. **QEMU's TCG does not faithfully model
-reordering**, so no `-cpu` value tests it. That class is covered by a different mechanism and
-`ci.yml` says so: CI runs on a real aarch64 runner, because a missing barrier passes on an x86_64
-host and fails only on real ARM. Real silicon is the test; an emulator cannot be.
+```
+  interrupts      : GICv2, distributor 0x0000000008000000, cpu interface 0x0000000008010000
+  interrupts      : GICv3, distributor 0x0000000008000000, redistributors 0x00000000080a0000, cpu interface in system registers
+```
 
-### The measurement, taken 2026-09-02, and it is worse than an error message
+**Why TCG stays at 2.** Every recorded TCG number (the icount tripwire's baselines, the fastpath
+footprint, the benchmark history) was taken on a GICv2, and argon is a GIC-400. HVF has no choice:
+QEMU 11.1.1 refuses `gic-version=2` with HVF, so the runner asks for 3 there.
+
+### The gate against silent loss
+
+A GIC assumption that stops being true now fails loudly, at three points:
+
+- **An `intc@` node whose binding is not a GIC this kernel knows** panics in `memory::init`, naming
+  the `compatible` it found. It used to be driven as a GICv2 on the strength of its name.
+- **A tree the hardware contradicts** panics in `arch::irq::init` before any configuration write,
+  naming the version claimed and the revision read. This is the check that would have stopped
+  milestone 222's boot: a GICv2 claim over a redistributor frame reads `GICC_IIDR` as zero.
+- **A core with no redistributor, or whose `ICC_SRE_EL1.SRE` will not set**, panics as it comes
+  online. And `arch::irq::tests::every_online_core_takes_its_own_timer_ticks` holds every core, not
+  only the test's own, to taking interrupts; injecting "secondaries never enable Group 1" fails it
+  naming core 1.
+
+### BUGS
+
+- **`ID_AA64PFR0_EL1.GIC` reads zero under HVF** on an Apple core while QEMU emulates the GICv3
+  system registers behind it (measured 2026-09-19: `0x1101000010110011`). The first draft of the
+  boot check required that field and refused to boot there. The check now rests on the
+  distributor's revision and on `SRE` sticking, which is what Linux measures too.
+- **No ITS**, so no LPIs and no MSI translation on a GICv3. Milestone 317 wants it for interrupt
+  remapping; under HVF QEMU offers a GICv2m frame instead of an ITS anyway.
+- **The GICv2 SGI has no barrier before its `SGIR` store**, which the GICv3 path has. Recorded in
+  `drivers/gic.rs`, unchanged so the GICv2 path's counts stay still.
+- **The EL2 half (`boot.s` opening `ICC_SRE_EL2`) cannot be proven on QEMU**, whose `ICC_SRE_EL2`
+  reads as set whether or not the step runs. It is Linux's sequence, and the EL1 assertion is what
+  would catch a board where it matters.
+
+### The measurement, taken 2026-09-02, and why this used to be the most dangerous line in the file
+
+Until milestone 227 the runner's `gic-version=2` pin was protection rather than support, and this
+section said so. The measurement below is what made it load-bearing, and it is kept because it is
+the shape the gates above exist to make impossible.
 
 This section used to say `-machine virt,gic-version=3` had never been booted here, that it was one
 command, and that it would turn "our driver does not support it" from an assumption into a recorded
@@ -518,38 +562,42 @@ do nothing, and the real CPU interface (`ICC_*`, system registers) is never enab
 the distributor routes is then delivered to a core that has not agreed to receive any.
 
 **So the honest statement of the limitation is not "GICv3 is unsupported", it is "GICv3 boots and
-silently loses every interrupt".** That is the more dangerous shape, and it is why the QEMU runner's
-`gic-version=2` pin is load-bearing rather than tidy: without it, a QEMU that changed its default
-would produce a kernel that came up and then quietly stopped preempting anything.
+silently loses every interrupt".** That was the more dangerous shape, and it was why the QEMU runner's
+`gic-version=2` pin was load-bearing rather than tidy: without it, a QEMU that changed its default
+would have produced a kernel that came up and then quietly stopped preempting anything.
 
-### What a GICv3 driver would actually be
+### What a GICv3 driver would actually be, priced in advance, and what it turned out to be
 
-Measured from the failure above rather than estimated from the specification, and recorded here
-because milestone 222 declined to build it under its own number and proposed it instead:
+Milestone 222 priced it from the failure: a version decision at init, a redistributor per core, a
+system-register CPU interface under `arch/aarch64/`, affinity routing, and both drivers coexisting
+behind roughly ten call sites. Milestone 227 built exactly that list and found two things the
+pricing did not have: **SGIs must stay permanently enabled** on a GICv3, because QEMU's GICv2 model
+and the GIC-400 treat them that way and the Irq capability's mask-on-fire, unmask-on-ACK protocol
+relied on it without saying so; and **the ID register that says whether a core has the system
+registers is not believed by HVF** (see BUGS above). The call sites all moved to `arch::irq`.
 
-- **A version decision at init.** `memory::gic_regions()` returns two blocks whichever version is
-  present, so nothing today reads the `compatible` string. Discovery has to come first, or the wrong
-  driver is chosen silently, which is exactly the failure above.
-- **A redistributor per core.** `GICR_WAKER` (clear `ProcessorSleep`, wait for `ChildrenAsleep`),
-  then the SGI/PPI frame at a fixed offset for `IGROUPR0`, `ISENABLER0` and `IPRIORITYR`. GICv2 had
-  all of this in one banked page; GICv3 gives every core its own frame at its own address.
-- **A system-register CPU interface.** `ICC_SRE_EL1`, `ICC_PMR_EL1`, `ICC_IGRPEN1_EL1`,
-  `ICC_IAR1_EL1`, `ICC_EOIR1_EL1`, `ICC_SGI1R_EL1`. This is the part that is a different driver
-  rather than a different base address, and it puts `msr`/`mrs` in the path, so it belongs under
-  `arch/aarch64/` by rule 1 rather than in `drivers/` where the MMIO GICv2 lives.
-- **Affinity routing.** `GICD_CTLR.ARE_NS`, and SPI targets move from `GICD_ITARGETSR` (an
-  eight-bit CPU-interface mask, and therefore eight cores) to `GICD_IROUTER` (an affinity value).
-  `send_sgi` stops being an MMIO write and becomes an `ICC_SGI1R_EL1` write with an affinity-encoded
-  target list.
-- **Both drivers live at once**, since GICv2 is what the runner, the CI matrix and every recorded
-  measurement use, and argon's generation is GICv2. Roughly ten call sites across `arch/aarch64/`,
-  `sched.rs` and `user/tests.rs` reach `drivers::gic::` directly and would need to reach a chosen
-  implementation instead.
+### Why there is no aarch64 CPU-model matrix, unlike RISC-V's (milestone 59, DECISIONS §53)
 
-That is a driver with its own tests and its own dispatch, not a runner flag, which is why milestone
-222 took the loud skip and left this to be minted deliberately. The immediate payoff is real: it is
-what would put the HVF leg back, since HVF refuses GICv2 outright on QEMU 11.1.1 (see
-[hvf-leg.md](hvf-leg.md)).
+The asymmetry is real and worth stating, because "we did it for RISC-V" is the obvious argument for
+doing it here and it is wrong.
+
+- **We already test on a conservative real core.** The aarch64 runner uses `-cpu cortex-a72`, an
+  ARMv8.0-A chip, not QEMU's `max`. RISC-V's default was the maximalist model, which is what made a
+  matrix worth building there. Here the emulator is *less* capable than a modern board, and code
+  that runs on an A72 runs on an A76.
+- **aarch64 has architectural feature discovery and RISC-V does not.** The `ID_AA64*` registers are
+  mandatory and readable at EL1, and this kernel already uses them: `arch/aarch64/mmu.rs` reads
+  `ID_AA64MMFR0_EL1::PARange` and feeds it to `TCR_EL1::IPS` rather than assuming a physical address
+  range. That is why milestone 60 (ISA discovery) is a RISC-V milestone specifically; RISC-V omitted
+  CPUID on purpose and left discovery to a device-tree string.
+
+### What no CPU matrix catches on either ISA
+
+**Memory ordering.** Different microarchitectures reorder differently, and a missing
+`Acquire`/`Release` can pass on one core and fail on another. **QEMU's TCG does not faithfully model
+reordering**, so no `-cpu` value tests it. That class is covered by a different mechanism and
+`ci.yml` says so: CI runs on a real aarch64 runner, because a missing barrier passes on an x86_64
+host and fails only on real ARM. Real silicon is the test; an emulator cannot be.
 
 # Interrupts or polling: why every confined driver in this tree polls
 
@@ -586,7 +634,7 @@ source, and this note inherits the caveat rather than laundering it.)
 | | where MSI remapping lives | state here |
 |---|---|---|
 | `x86_64` | a separate IOMMU feature, `intremap=on` | **off** in every boot; the runner sets `-device intel-iommu` without it |
-| `aarch64` | a separate *device*, the GICv3 ITS | **absent**; the runner uses `gic-version=2`, and milestone 227 is `NOT-STARTED` |
+| `aarch64` | a separate *device*, the GICv3 ITS | **absent**: the TCG runner uses `gic-version=2`, which has none, and milestone 227's GICv3 driver does not drive the ITS a `gic-version=3` machine offers |
 | `riscv64` | **inside the IOMMU's own device context** (`CAP_MSI_FLAT`, widening it 32 → 64 bytes) | **already driven**, `arch/riscv64/iommu.rs` handles both formats |
 
 So on two of three architectures an IRQ-driven EL0 driver **would not be confined**, whatever the
