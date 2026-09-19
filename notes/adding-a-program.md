@@ -214,7 +214,8 @@ $ triple 21
 
 Milestone 150, 2026-09-19. The block is
 [design/roadmap/150-program-declaration-data.md](../design/roadmap/150-program-declaration-data.md);
-this section is the reasoning, for the integrator to mint a `design/decisions/` section from.
+this section is the reasoning, and
+[DECISIONS §158](../design/decisions/158-a-program-is-declared-once.md) is the record minted from it.
 
 **The archive list is the `[[bin]]` blocks.** A program has to be declared there for cargo to build
 it, so that was always one of the places; the choice was whether the others could be derived from
