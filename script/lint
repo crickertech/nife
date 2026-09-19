@@ -1003,7 +1003,7 @@ MUTEOF
 # to prefer it: `script/coverage`'s per-feature line is now belt and braces rather than the mechanism.
 #
 # **Not the same question as the four-list problem beside it**, which is worth saying because the two
-# read alike. `design/roadmap/proposals/the-host-excluded-crate-set-lives-in-four-places.md` is about
+# read alike. Milestone 393, `design/roadmap/393-the-host-excluded-crate-set-lives-in-four-places.md`, is about
 # which CRATES cannot compile for the host, restated in four files where one derives it. This is
 # about a crate that compiles perfectly well and a feature of it that a single-package test run does
 # not turn on. Solving either leaves the other exactly where it was.

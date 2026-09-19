@@ -46,7 +46,7 @@ So this milestone is where that decision gets made, with a real consumer in hand
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/kernel-introspection-over-an-endpoint.md`. It has no
+- **Milestone 391.** Numbered on 2026-09-19 by milestone 433's drain of the pile. It has no
   `DECISIONS` section yet, and that is deliberate rather than an omission:
   `design/decisions/149-kernel-served-console-endpoint.md` separated it from the console case so the
   general question would not be settled on the momentum of the narrow one, and said it should be
