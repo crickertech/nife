@@ -16,7 +16,8 @@ from calef* section, which is one rung above a chat message and below where AGEN
 decision:
 
 > **Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
-> only in chat scrollback is in exactly the medium milestone 94 was written to abolish.
+> only in chat scrollback is in exactly the medium milestone 94 was written to abolish, and on
+> 2026-08-04 five of them accumulated there in one day while that milestone was being built.
 >
 > -- AGENTS.md
 
@@ -69,6 +70,54 @@ the whole block, and then finds only a paragraph addressed to one person.
    each option costs measured rather than asserted.
 4. **Or cite the decision that exists**, in the gate paragraph, where a reader meets the gate.
 5. **Cite the new section from the block's gate paragraph** either way, so the two records agree.
+
+## Slice B, fifteen blocks, resolved 2026-09-19
+
+`224 241 260 271 327 328 330 335 340 341 342 347 350 360 388`, on `milestone/435-slice-b`, with
+sections minted in a reserved range of twenty numbers beginning at §177. **Every number here is
+provisional until the
+merge queue lands it.**
+
+**Five tokens were wrong**, which is a third of the slice and is the answer to the question this
+milestone could not ask in advance:
+
+- **224** and **260** wait on a person at a machine, which is `HARDWARE`'s second sense. 224's gate
+  had been contradicting the status line directly above it since calef answered it on 2026-09-04.
+- **271** confused its output with its gate: the `CR4.PCIDE` ruling is what the milestone delivers,
+  and the measurement behind it needs xenon, because icount charges the added gate and credits
+  nothing for the removed flush. Milestone 335 already measured exactly that on the riscv64 twin.
+- **330** read a provisional name as a blocker, which is the opposite of what `design/naming.md`
+  makes a provisional name for. It is now `NONE` and startable.
+- **335** carried a second token for a question the tree had answered by practice: board numbers
+  live in `bench/<board>-<date>/`.
+
+**Three already had their decision** and gained a citation rather than a file: **241** (calef's own
+dated deferral, quoted in the gate), **340** ([§97](../decisions/97-advisory-checks.md), whose
+ruleset edit is `DECIDED` and unperformed and whose `BUGS` predicted this block), and **388**
+([§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md), which rules four of
+that block's five names by name).
+
+**Seven were genuinely owed** and are written up `PROPOSED`: §177 (327), §178 (328), §179 (341),
+§180 (342), §181 (347), §182 (350), §183 (360).
+
+**The rate differs sharply between the aged blocks and the promoted ones**, which is a measurement
+about milestone 433's drain rather than about these blocks. Of the four numbered under 327, **three
+carried a wrong token and one already cited its decision, and none owed a new file.** Of the eleven
+numbered 327 or above, **seven owed a decision**, two already had one and two were wrong. The
+promotion carried tokens across unchanged and that was right: the proposals it drained were mostly
+written by lanes that had met a real fork, while the older blocks had drifted away from gates that
+were true when they were set.
+
+**Two premise corrections found on the way**, both recorded in the blocks themselves. xenon has
+booted since 2026-09-05, so half of milestone 241's trigger has fired, and milestone 330 cited a
+constant, `KERNEL_WRITER_ANCHORS`, that exists nowhere in the tree.
+
+**And one thing the reserved ranges cost, which the integrator has to resolve rather than a lane.**
+`script/decisions --check` fails on a gap in the numbering, so a slice minting from §177 upward
+while the twenty numbers below it are held by another lane is red on its own branch by
+construction. The numbers are
+provisional for exactly this reason; closing the gap is a renumber at merge, in the same breath as
+every other global name.
 
 ## BUGS
 
