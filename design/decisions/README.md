@@ -251,6 +251,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 190 | PROPOSED | [Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point](190-job-mix-repeats-and-what-the-line-reports.md) |
 | 191 | PROPOSED | [Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?](191-a-checked-direct-map-reader-for-the-acpi-walk.md) |
 | 192 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](192-nvme-in-the-block-roster.md) |
+| 193 | DECIDED | [Sessions interleave rather than serialize, and a renumber is the price](193-sessions-interleave-rather-than-serialize.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
