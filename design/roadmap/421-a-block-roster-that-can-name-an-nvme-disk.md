@@ -5,8 +5,22 @@ filed 2026-09-17 by the milestone 261 lane (the EL0 NVMe server), which closed t
 waiting on and deliberately did not take the work, because the work is a wire shape and that is the
 expensive category. *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** QEMU's NVMe is attached on every leg of all three runners already
-(`NIFE_NVME`), and the surveyor's two clients run there today.
+**Gate: DECISION.** calef, 2026-09-19, correcting the token this block carried on promotion. The
+hardware is not the constraint and never was: QEMU's NVMe is attached on every leg of all three
+runners already (`NIFE_NVME`), and the surveyor's two clients run there today. What stops a lane is
+below, under *What is needed from calef*, and it is the expensive category rather than a preference:
+**a transport kind is a wire value two programs read**, so shipping the wrong spelling cannot be
+un-shipped, and whether an NVMe entry carries a namespace id or a controller identity is the same
+kind of question. §86 routed both to him rather than to a lane, and milestone 261's own lane closed
+the question this block was waiting on and then **deliberately did not take the work**, for exactly
+this reason.
+
+**The token was `NONE` from 2026-09-17 to 2026-09-19**, which is recorded rather than quietly fixed
+because it is the failure mode the gate vocabulary exists to prevent. `NONE` put the block on
+`script/roadmap --ready`, the list a lane picks work from, while its own last section said a decision
+was owed; a lane taking it would have reached the wire shape and either stopped or guessed. Milestone
+433's slice 4 found it while promoting the file, flagged it, and correctly did not change a gate,
+because changing one was not in that pass's method.
 
 **Premise re-checked 2026-09-19 and still true.** `crates/block_roster` still encodes exactly two
 transport kinds, `TRANSPORT_MMIO` and `TRANSPORT_PCI`, in the four bytes at offset 4 of an entry,
