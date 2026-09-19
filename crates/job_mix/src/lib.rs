@@ -178,6 +178,67 @@
 #![no_std]
 #![deny(missing_docs)]
 
+// **The console markers, which are a contract and not a wording** (milestone 324 part 2).
+//
+// Everything below this comment and above `COMPUTE` is text that leaves the machine and is read
+// back by something that is not the machine: `crates/board_console` on a bench or in CI, and
+// `cargo xtask job-mix` under QEMU. `crates/boot_ladder` holds the boot tour's markers for exactly
+// this reason and its header carries the argument; these are the sweep's, and they lived as three
+// private `const`s in `kernel/src/job_mix.rs` plus four string literals in `xtask/src/main.rs`
+// until this milestone. Three copies of a contract agreeing by a reader having checked is milestone
+// 268's finding 3, and the fix is the one that milestone found: there is one of them.
+//
+// They are **stable heads**, on `boot_ladder`'s rule and for its reason: the head is what a matcher
+// keys on and never changes, the tail carries the numbers and is free to improve. A contract on
+// the whole line would make every improvement to the diagnosis a breaking change.
+//
+// Names provisional (milestone 324): they are printed and matched, so they are a contract, and
+// calef names public items. Spelled as bare nouns to match `boot_ladder`'s `BANNER`, `MACHINE`,
+// `TOUR`; the kernel's own `START_MARKER` and `DONE_MARKER` spellings were retired into these
+// rather than moved, because `job_mix::START_MARKER` says *marker* twice.
+
+/// **The sweep has begun**: `job-mix: started <n> tasks and <m> servers on <c> online core(s), ...`.
+///
+/// Printed by `kernel/src/job_mix.rs` once the whole pool has spawned, so reaching it means every
+/// task and every echo server exists. A reader that finds this and then nothing has a sweep that
+/// wedged rather than a kernel that refused, and telling those two apart is what milestone 324's
+/// part 2 is for.
+pub const STARTED: &str = "job-mix: started";
+
+/// **The sweep ran to its end**: `job-mix: done`, on a line of its own.
+///
+/// The kernel parks in `wfi` afterwards rather than exiting, so this line is the only thing that
+/// says a sweep finished. Silence after it is the correct end state; silence before it is not.
+pub const DONE: &str = "job-mix: done";
+
+/// **The kernel would not start the sweep**: `job-mix: FAILED: <why>`.
+///
+/// Three cases print it (no `job_mix_task` in the archive, and either kind of spawn failing), all
+/// of them before [`STARTED`], and all of them followed by a halt. The tail names which.
+pub const FAILED: &str = "job-mix: FAILED: ";
+
+/// **One point of the sweep completed**: `job-mix: tasks=<n> jobs=<j> ticks=<t> jpm=<r>`.
+///
+/// One per entry in [`TASK_SWEEP`], printed after that entry's [`REPEATS`] subruns, carrying the
+/// best of them. Counting these is how a reader knows how far along a sweep is.
+pub const POINT: &str = "job-mix: tasks=";
+
+/// **One measured subrun finished**: `job-mix-repeat: tasks=<n> repeat=<r> ticks=<t>`.
+///
+/// Finer than [`POINT`] by a factor of [`REPEATS`], and it is the finest progress a sweep emits.
+/// That matters to a watcher: a sweep has **no wall-clock heartbeat** the way
+/// `kernel/src/soak.rs` does, so the longest silence a healthy sweep can produce is one subrun at
+/// the top of [`TASK_SWEEP`], and anything deciding that a sweep is wedged has to allow for it.
+pub const SUBRUN: &str = "job-mix-repeat: ";
+
+/// **A placement-census line**: `job-mix-census: ...`, printed at sweep start.
+///
+/// Its own word rather than `job-mix:` on purpose, the same split `kernel/src/soak.rs` makes: a
+/// census is neither the start of a run nor a result, and a watcher keying on the result prefix
+/// should not have to be proven harmless against it. The `-census` suffix is outside both
+/// [`STARTED`] and [`POINT`], which is what makes that true rather than hoped.
+pub const CENSUS: &str = "job-mix-census:";
+
 /// A compute-bound arithmetic loop, [`COMPUTE_ITERS`] iterations. No syscall.
 pub const COMPUTE: u8 = 0;
 /// A walk over [`TOUCH_WORDS`] words of the task's own memory, read and written. No syscall.
