@@ -199,12 +199,30 @@ overhead: they are what milestone 400's "the serial console now waits for the sc
 measured at the prompt instead of described. Would UEFI still win if both cost the same? Yes; this
 was not decided on effort, and the cost it does carry is stated so it can be weighed.
 
-**What it costs CI.** `script/ci-build`'s `shell-check` row runs every leg, so CI's `build + test`
-job gains this one with no workflow change. That job took 12.6 to 13.4 minutes green on the three
-most recent runs, against a 30-minute timeout; the leg adds about six minutes on patagonia and
-probably more on a GitHub runner. Not yet measured in CI; the first green run of this pull request
-is that measurement. `.github/workflows/ci.yml` says where the leg goes if it pushes the job
-toward its timeout.
+**What it costs CI, and the per-line bound it needed.** `script/ci-build`'s `shell-check` row runs
+every leg, so CI's `build + test` job gains this one with no workflow change. The first CI run
+(35463884897) went red on it: `caps ps`, 16.7 s on patagonia, did not finish inside the 30 s
+per-line bound the other legs use. Nothing was wrong but speed, so the leg's bound was measured
+rather than raised by feel (every leg now prints its line count, total and three slowest lines):
+
+| leg | lines | total | slowest line |
+|---|---|---|---|
+| aarch64 | 64 | 6.9 s | 0.3 s |
+| riscv64 | 64 | 7.3 s | 0.6 s |
+| x86_64 (OVMF) | 60 | 321.1 s | 24.7 s (`xargs caps rm globmany/m-*.txt`), 16.7 s (`caps ps`) |
+
+That CI runner was 1.5x to 1.8x slower than patagonia on this leg, so the x86_64 bound is **90 s**
+(`SHELL_CHECK_X86_LINE_SECS`): 3.6x the slowest local line, 2x that line at CI's worst ratio. The
+cost is the screen path, milestone 400's console waiting for each write to be painted and copied
+into an uncacheable aperture, as debug builds under TCG; the other two legs run the same shell
+over TCG in under a second a line. A real PC pays that copy in native stores (milliseconds per
+scroll, not measured on silicon). Recorded in 400's BUGS, where the blocking design is.
+
+**Expected CI runtime.** In that run the x86_64 leg started 10.5 minutes into the job. At 1.75x
+patagonia it takes about 10 minutes, and `boot-check` about one more, so the job should finish near
+**22 minutes against its 30-minute timeout**: 8 minutes of margin, measured by one run, and the
+first thing to watch. If it closes, the leg moves to a job of its own (`.github/workflows/ci.yml`
+says so where the step is), or the flush cost comes down in milestone 400's code.
 
 ### What differs from the other two legs, and why
 
@@ -279,8 +297,9 @@ this milestone does not build.
 - **An x86_64 prompt holds a host core at 100%.** Same cause: the idle loop never runs, so the core
   never halts. QEMU used 76 CPU-seconds in 78 wall-seconds sitting at the prompt with nothing typed.
   On a PC that is a fan and a battery. Recorded in `components/src/input.rs`; proposed in Follow-on.
-- **The x86_64 leg is four times slower than the other two**, because the console waits for the
-  screen (above). A wedged screen terminal would stall this leg's serial transcript as well, which is
+- **The x86_64 leg is about forty times slower per line than the other two**, because the console
+  waits for the screen (above), and so it carries a 90 s per-line bound where they carry 30 s: a
+  real hang on that leg is reported a minute later. A wedged screen terminal would stall this leg's serial transcript as well, which is
   milestone 400's BUGS entry, not a new one.
 - **`x86_hand_over` still watches for ten seconds** before its summary, and on this path the summary
   lands after the prompt. The leg orders around it; a person at a serial console sees two kernel lines

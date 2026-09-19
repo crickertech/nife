@@ -6446,6 +6446,35 @@ const X86_HAND_OVER_REPORT: &str = "as a port capability (milestone 299).";
 const SHELL_CHECK_BOOT_SECS: u64 = 120;
 const SHELL_CHECK_LINE_SECS: u64 = 30;
 
+/// **The `x86_64` leg's per-line bound, three times the others', and measured rather than chosen**
+/// (milestone 182, 2026-09-19).
+///
+/// Under OVMF the console server hands every write to the screen terminal and waits for it to be
+/// drawn (milestone 400), so a line costs what its output costs to paint and copy, not what the
+/// shell costs to run it. Measured on patagonia, one run each, typed to prompt-back:
+///
+/// | leg | 60 or 64 lines | slowest line |
+/// |---|---|---|
+/// | `aarch64` | 6.9 s | `apropos capability` 0.3 s |
+/// | `riscv64` | 7.3 s | `apropos capability` 0.6 s |
+/// | `x86_64` | 321.1 s | `xargs caps rm globmany/m-*.txt` 24.7 s, then `caps ps` 16.7 s |
+///
+/// CI's runner was 1.5x to 1.8x slower than patagonia on this leg (run 35463884897: the guest's
+/// `date` ran 119 s into the leg against 80 s here, and `caps ps`, 16.7 s here, did not finish in
+/// 30 s there), which is how the 30 s bound went red on a line that has no defect. 90 s is 3.6x
+/// the slowest local line and 2x that line at CI's worst measured ratio. A real hang still fails,
+/// ninety seconds later than it would elsewhere.
+///
+/// **Which part is the emulator's.** The same shell over TCG answers every line in under a second
+/// on the other two legs, so the whole difference is the screen path: `display_terminal` paints
+/// the damaged cells (the whole 924x344 surface on every scroll) and `framebuffer_driver` copies
+/// them into an uncacheable aperture one word at a time, both as unoptimised debug builds, each
+/// store through TCG. A real PC pays the same copy in native stores at uncacheable speed, which is
+/// milliseconds per scroll rather than seconds and is not measured on silicon
+/// (`framebuffer_driver`'s BUGS). Milestone 400's BUGS records the design half: the console
+/// blocks on the screen.
+const SHELL_CHECK_X86_LINE_SECS: u64 = 90;
+
 /// How many foreign characters [`find_marker`] will step over inside one marker before it gives up.
 ///
 /// The intruder is one kernel fault report, three lines and about 150 characters. 400 is that with
@@ -6785,7 +6814,7 @@ fn shell_check_leg(arch: &str) -> bool {
         c.env(
             "NIFE_UEFI_TIMEOUT",
             (SHELL_CHECK_BOOT_SECS * 2
-                + SHELL_CHECK_LINE_SECS * (SHELL_CHECK_SCRIPT.len() as u64 + 2))
+                + SHELL_CHECK_X86_LINE_SECS * (SHELL_CHECK_SCRIPT.len() as u64 + 2))
                 .to_string(),
         );
         c.env_remove("NIFE_NVME");
@@ -6972,6 +7001,15 @@ fn shell_check_leg(arch: &str) -> bool {
                 ready = true;
             }
         }
+        // **How long each line took**, typed to prompt-back, so every run reports its own margin
+        // against the per-line bound rather than leaving it to be guessed after a red one.
+        let line_secs = if x86 {
+            SHELL_CHECK_X86_LINE_SECS
+        } else {
+            SHELL_CHECK_LINE_SECS
+        };
+        let mut took: Vec<(&str, Duration)> = Vec::new();
+        let mut previous: Option<(&str, Instant)> = None;
         for (line, _) in SHELL_CHECK_SCRIPT {
             if !ready {
                 break;
@@ -6979,18 +7017,22 @@ fn shell_check_leg(arch: &str) -> bool {
             if x86 && shell_check_x86_omits(line).is_some() {
                 continue;
             }
-            if !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
+            if !wait_for_prompt(line_secs) {
                 failed.push(format!(
                     "the prompt never came back to take `{line}`; the line before it did not finish"
                 ));
                 break;
             }
+            if let Some((prev, typed)) = previous {
+                took.push((prev, typed.elapsed()));
+            }
+            previous = Some((line, Instant::now()));
             let at = mark();
             if writeln!(stdin, "{line}").is_err() || stdin.flush().is_err() {
                 failed.push(format!("could not type `{line}` at the prompt"));
                 break;
             }
-            if !wait_after(at, &format!("{line}\n"), SHELL_CHECK_LINE_SECS) {
+            if !wait_after(at, &format!("{line}\n"), line_secs) {
                 failed.push(format!("the prompt never echoed `{line}`"));
                 break;
             }
@@ -6998,9 +7040,31 @@ fn shell_check_leg(arch: &str) -> bool {
         // One more, for the last line: every other answer is bounded by the next line's wait, and
         // the last one has no next line. Without this the transcript is read while the final
         // command is still running.
-        if failed.is_empty() && !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
+        if failed.is_empty() && !wait_for_prompt(line_secs) {
             failed.push("the prompt never came back after the last line".to_string());
         }
+        if let (true, Some((prev, typed))) = (failed.is_empty(), previous) {
+            took.push((prev, typed.elapsed()));
+        }
+        // Every line's time, in script order, beside the transcript when that was asked for.
+        if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
+            for (l, d) in &took {
+                eprintln!("shell-check ({arch}): {:6.2}s  {l}", d.as_secs_f64());
+            }
+        }
+        took.sort_by_key(|t| std::cmp::Reverse(t.1));
+        let total: Duration = took.iter().map(|(_, d)| *d).sum();
+        eprintln!(
+            "shell-check ({arch}): {} lines in {:.1}s; slowest, against a {line_secs}s \
+             bound per line: {}",
+            took.len(),
+            total.as_secs_f64(),
+            took.iter()
+                .take(3)
+                .map(|(l, d)| format!("`{l}` {:.1}s", d.as_secs_f64()))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
     }
 
     let whole = seen.lock().expect("transcript lock").clone();

@@ -245,7 +245,8 @@ jobs:
       # **Milestone 182 added a third leg that does not fit that arithmetic**: x86_64 under OVMF,
       # about six minutes on patagonia (every byte the shell prints is also drawn on the firmware
       # screen before the console acknowledges it). This job ran about 13 minutes green before it,
-      # against the 30-minute timeout below. Kept here rather than split out for the same
+      # against the 30-minute timeout below; about ten minutes on this runner, so the job should end
+      # near 22 (milestone 182's block has the measurement). Kept here rather than split out for the same
       # runner-concurrency reason; if it pushes the job near the timeout, the x86_64 leg is the one
       # to move to a job of its own.
       #
