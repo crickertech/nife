@@ -4,9 +4,15 @@
 lands it.)*
 
 **Gate: DECISION, MILESTONE 23.** Milestone 39 (repository structure for a loosely-coupled OS)
-carries the structural fork with a recommendation and no ruling, and inherits milestone 23's gate;
-this block does not re-open either. What it adds is that the decision now has a consumer, which it
-did not when 39 was filed as `RECORDED`.
+carries the structural fork and inherits milestone 23's gate; this block does not re-open either.
+**Half of that fork has been ruled since 2026-09-15 and this gate did not say so until 2026-09-19**:
+[§151](../decisions/151-repository-goal-is-independent-release.md) (the goal of the repository split
+is independent release and third-party programs) took the goal, and names this milestone's own
+sentence in doing it. What §151 deliberately leaves open is **the order**, when the split happens
+and against what preconditions, and it lists a package format existing so `basalt` has something to
+assemble as one of them, which is this milestone. So the remaining decision under this token is that
+ordering ruling, and it is calef's. The format, the activation shape and the repository split are
+still not this block's and are deliberately not raised here.
 
 **In brief.** calef, 2026-08-30: *"I don't think we expose nife to third parties (aka other
 customers) until we have a package manager and a trivial install process."* And, in the same breath,
