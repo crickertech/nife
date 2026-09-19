@@ -1,12 +1,15 @@
 # 433. Drain the proposal pile to zero, and keep it there
 
-**Status: IN-PROGRESS** on `maintainer/drain-the-proposal-pile`, with the per-slice lanes branching
-from it. Minted 2026-09-19 by calef, who ruled the pile should not exist:
+**Status: BUILT** 2026-09-19, in one evening by four lanes. The directory
+`design/roadmap/proposals/` is empty and `script/roadmap` no longer prints a proposal count at all.
+Minted the same day by calef, who ruled the pile should not exist:
 *"We should promote them all to milestones and then close them versus leave them as proposals. We
 want to drive proposals to zero."* *(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Everything this needs is a number, and the number is the integrator's to assign. It
-is assigned below, once, for all 106.
+**It carried `Gate: NONE` while it was open**, on the argument that everything it needed was a
+number and the number is the integrator's to assign. The line is gone because a finished block's
+gate can only be stale. The assignment it pointed at is below, and it stands: 327 to 432, once, for
+all 106.
 
 ## Why the pile should not exist, in calef's own earlier words
 
@@ -225,6 +228,52 @@ It is not a `git mv`, and this block exists partly to say so before four lanes d
   reason no sweep was needed to find: `VTD_ADDR_MASK` is a `const` literal and `cargo mutants`
   rewrites functions.
 
+## What the pass measured, which overturns this block's own argument
+
+**The decay is same-day, not slow**, and that is the finding worth keeping. This block was written
+saying premises rot between filing and promotion, so promotion is where to catch it. Four slices
+measured it and the shape is different:
+
+| slice | promoted | disposition changed | carried something false |
+|---|---|---|---|
+| 1 (oldest quarter) | 27 | 2 | 8 |
+| 2 | 27 | 7 | 12 |
+| 3 | 27 | 6 | 17 |
+| 4 (newest quarter) | 25 | 3 | 9 |
+| **total** | **106** | **18 (17%)** | **46 (43%)** |
+
+Slice 2 put the mechanism in one sentence and slice 3's numbers agreed with it independently:
+**six of slice 2's seven and four of slice 3's six were answered within a day of filing**, several by
+the very lane that wrote the proposal and then finished the work that same evening. So the pile's
+cost is not that proposals rot slowly while nobody promotes them. **It is that a proposal is filed
+and answered inside a day and the file is never told.**
+
+**That changes the remedy, and the change is worth stating because it makes an earlier ruling
+weaker.** Draining at every merge, which this block assumed as the steady state, would have caught
+almost none of these: the answer usually arrived before the next merge. What would catch them is the
+lane that does the work closing the proposal it just answered, in the same commit. That is a habit
+at the thing rather than a sweep over the pile, and it is the same rung the `BUGS` convention
+already occupies.
+
+**And the honest note on my own sample.** This block was minted partly on five proposals read by
+hand, all five of which had decayed. The measured disposition-changing rate is **17%**, so that
+sample overestimated it by a factor of five. The wider measure is the one that holds up: **43% of
+the pile carried something false**, which is what a lane would have worked from.
+
+**One defect class the gate cannot see, found by two lanes independently.** The `**Proposed.**`
+check is path-shaped: it verifies the named file exists and never that the file holds the work the
+bullet describes. Milestone 290 carried a bullet whose prose belonged to the bullet above it, and
+milestone 265 carried one naming a proposal about a different subject. Both passed every build for
+weeks. Both surfaced only because an edit broke the path check for an unrelated reason.
+
+**A second blind spot in the same family.** The gate checks `**Proposed.**` bullets and nothing
+else, so **33 prose citations of a proposal path across 38 files** were invisible to it and were
+swept by hand at integration. They all resolved, because promotion kept the slug in the filename.
+About thirty more did not, and those are older rot this pass surfaced rather than caused: proposals
+deleted by earlier promotions, this morning's cluster drain among them, whose slugs have no numbered
+file because the work was folded into a cluster block. Mapping those is not mechanical and is not
+done here.
+
 ## BUGS
 
 - **A promoted block can still be a graveyard, one directory up.** Numbering does not prioritise;
@@ -244,7 +293,35 @@ It is not a `git mv`, and this block exists partly to say so before four lanes d
   assigning all 106 in one place, and the alternative (assign as each is verified) reintroduces the
   collision this whole directory exists to avoid.
 
+## Follow-on
+
+- **Recorded.** *The `**Proposed.**` check is path-shaped and cannot tell whether the file it names
+  holds the work the bullet describes.* Two bullets in this pass were wrong in exactly that way
+  (milestones 290 and 265) and both passed every build for weeks. Recorded in
+  `design/roadmap/README.md`'s disposition table, beside the check it limits, and in this block's
+  section above. A gate that could tell would have to read prose, which is the thing milestone 247
+  already refused to try.
+- **Recorded.** *About thirty citations of proposals deleted by earlier promotions still dangle*,
+  because those slugs have no numbered file: the work was folded into a cluster block rather than
+  promoted one to one. Recorded in `design/roadmap/README.md` beside the promotion rule, which is
+  now "keep the slug" precisely so this cannot recur. Mapping the older ones wants a reading of each
+  cluster block and is not mechanical.
+- **Decision.** *Whether `**Proposed.**` should survive as a disposition word at all.* A follow-on
+  bullet is a permanent record and the file it names is, by this block's rule, ephemeral: it exists
+  only between a lane writing it and the next integrator numbering it. That is a vocabulary
+  question, so it is calef's, and it is written up in
+  `design/decisions/140-follow-on-disposition-vocabulary.md`'s own terms rather than minted here.
+- **Recorded.** *Nothing stops the pile refilling*, and this block's `BUGS` says the assumed steady
+  state (an integrator drains it at every merge) is rung four. The measurement above weakens that
+  further: the answer usually arrives before the next merge, so the habit that would work is the
+  lane closing the proposal it just answered. Recorded in `design/roadmap/README.md`.
+- **Milestone 326.** The two mutation-testing proposals in the pile (354 and 418) were both checked
+  against milestone 326's live triage rather than assumed either way, and neither is covered by it:
+  354 is about a mutant that never built, and 418 is about a constant `cargo mutants` cannot mutate.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 The `design/roadmap/proposals/` directory was a number-assignment queue, ratified 2026-09-03 on the
 argument that the collision is in the number rather than the authority. It reached 106 files and
