@@ -502,7 +502,7 @@ rather than a function: there is nothing to extract and call. It stays, with the
 expiry recorded at the harness.
 
 Two more were looked at and dismissed on sight, and are named so nobody re-derives them.
-`dma_validator`'s `walk` and `ipc`'s `seed` look like harness-side reimplementations and are not:
+`dma_validator`'s `walk` and `inter_process_communication`'s `seed` look like harness-side reimplementations and are not:
 `walk` calls the real `shadow_one_head` and `seed` builds its symbolic state through the real
 `push_back`. `component_plan::declares_by_core_eq` is the good version in its purest form, an
 independent implementation of `str_eq` standing on the expectation side on purpose.

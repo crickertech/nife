@@ -64,7 +64,7 @@ shared primitive means they now pass an explicit `0`, a strict tightening rather
 change. **Measured from the diff: 14 `unsafe {` blocks removed, 9 added, net -5**, entirely inside
 `crates/user_rt/src/lib.rs`.
 
-**`crates/ipc` read in full: no reduction found, and that is the milestone's own predicted outcome
+**`crates/inter_process_communication` read in full: no reduction found, and that is the milestone's own predicted outcome
 for at least one target.** Production code carries exactly three `unsafe` blocks, one each inside
 `send`, `recv` and `remove_sender`, and each already asserts a genuinely different fact (which of
 two queues, which node, under what caller contract) rather than the same fact copied three times --
@@ -191,7 +191,7 @@ each file. What is not collapsed is *across* files: the wording of each file's c
 ("this VA is our device mapping, handed to us at spawn, for the whole lifetime of this process"),
 which looks like the same invariant copied, but reading closely it is not: each asserts a genuinely
 different fact (a different VA, a different device, a different offset table), the same shape
-`crates/ipc`'s three call sites turned out to have in round 2 ("which of two queues, which node,
+`crates/inter_process_communication`'s three call sites turned out to have in round 2 ("which of two queues, which node,
 under what caller contract... there is no §94 shape to collapse here"). A shared `RegisterBlock`
 type wrapping these would relocate the assertion from "a local `rd`/`wr` function" to "a shared
 type's constructor," not collapse it, which is this milestone's own named anti-pattern.
@@ -599,7 +599,7 @@ registers this milestone investigated and deliberately left unmigrated (the NS16
 express; `clock.rs` and `driver.rs`, each already collapsed to one function apiece); the remaining
 `from_raw_parts` sites are deliberate-fault test programs (`flaky.rs`, `outlaw.rs`) and one-off
 writes (`memory_grant_depleter.rs`, `swapper.rs`) this milestone's own text already names as not having a §94
-shape to collapse; and `crates/ipc`'s three call sites are DECIDED as genuinely distinct (round 2).
+shape to collapse; and `crates/inter_process_communication`'s three call sites are DECIDED as genuinely distinct (round 2).
 So: **no single number, but a bounded one** -- somewhere between roughly 160 (if the `invoke`
 cluster turns out to need no wrapper at all) and roughly 260 (if it turns out nearly all of it is
 real per-call obligation and stays exactly as it is), and the only way to narrow that range further
@@ -755,7 +755,7 @@ clusters collapsed
 
 Rounds 1 through 7 worked `user/` and `crates/`. **None of them went near `kernel/src`**, and by
 2026-09-01 that had become the largest unworked pool in the tree: **242 blocks outside
-`kernel/src/arch/`**, against `user/`'s 162 after round 7, `crates/user_rt`'s 64 and `crates/ipc`'s
+`kernel/src/arch/`**, against `user/`'s 162 after round 7, `crates/user_rt`'s 64 and `crates/inter_process_communication`'s
 44 (settled in round 2). This block's own opening measurement recorded the kernel at 203 on
 2026-08-18; it had grown to 242 while six rounds went through userspace. It is also the part
 DECISIONS §14 (the project's direction: a verified-Rust capability microkernel) calls verified, which is what this milestone's own "Why
@@ -786,7 +786,7 @@ Categorised by what the first token inside each block is (the same stripping-and
 | `q.push_back` / `inbox.push_back` | 8 | `sched.rs`'s run-queue handoff; a design fork, see below |
 | `mmu::activate_user` | 6 | test fixtures in `user/tests.rs`, which another lane holds this session |
 | `dtb::Dtb::from_ptr` | 5 | **the §94 shape; all 5 collapsed this round** (see below) |
-| `crate::stack::paint` / `high_water` | 9 | three stacks, three different facts each; the `crates/ipc` shape, no collapse available |
+| `crate::stack::paint` / `high_water` | 9 | three stacks, three different facts each; the `crates/inter_process_communication` shape, no collapse available |
 | `drivers::plic::init` | 3 | MMIO init, one per boot path |
 | everything else | 42 | one-offs: `force_unlock`, `ManuallyDrop::drop`, `from_utf8_unchecked`, `assume_init`, the fastpath pad, `Thread::spawn_into` |
 
@@ -867,7 +867,7 @@ cinched than was gained.
 - **The three stack helpers** (`crate::stack::paint`, `high_water`, 9 blocks across
   `interrupt_stack.rs`, `smp.rs`, `thread.rs`, `stack.rs`). The comments rhyme and the facts do not:
   an interrupt-stack slot, a not-yet-handed-out `KernelStack`, and a secondary core's boot stack are
-  three different ownership arguments. The `crates/ipc` shape from round 2.
+  three different ownership arguments. The `crates/inter_process_communication` shape from round 2.
 - **`kernel/src/user/tests.rs` (14 blocks) and the `mmu::activate_user` fixtures.** Left alone for a
   scheduling reason rather than a technical one: AGENTS.md names that file the tree's merge hotspot
   and another lane held it this session. A later round should read it; nothing here says it is
@@ -911,7 +911,7 @@ invent.
 
 ## What is still open
 
-**`crates/ipc`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
+**`crates/inter_process_communication`'s unsafe is settled**: read in full, genuinely per-call-site distinct, no further work
 indicated there (see round 2 above).
 
 **The broader `user/` survey this milestone's BUGS section calls for is still not complete**, and is
@@ -1115,7 +1115,7 @@ proofs and the type system are standing aside and a person's comment is the whol
 - **Done.** The framebuffer and graphics cluster is settled rather than narrowed: round 4 measured
   the bounds check at 4 aarch64 ticks and about 0.6 riscv64 ticks per access, flat across volumes,
   then migrated all four sites round 3 named.
-- **Recorded.** `crates/ipc`'s three production blocks each assert a different fact under a
+- **Recorded.** `crates/inter_process_communication`'s three production blocks each assert a different fact under a
   different caller contract, so there is no §94 shape to collapse and nothing further is indicated
   there.
 - **Recorded.** The NS16550 halves of the console and input programs stay hand-written, because the

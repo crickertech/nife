@@ -445,15 +445,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "intrusive_fifo"
-version = "0.1.0"
-
-[[package]]
-name = "ipc"
+name = "inter_process_communication"
 version = "0.1.0"
 dependencies = [
  "intrusive_fifo",
 ]
+
+[[package]]
+name = "intrusive_fifo"
+version = "0.1.0"
 
 [[package]]
 name = "jh7110_clock_and_reset"
@@ -502,8 +502,8 @@ dependencies = [
  "generational_table",
  "grant_plan",
  "graphics_protocol",
+ "inter_process_communication",
  "intrusive_fifo",
- "ipc",
  "jh7110_clock_and_reset",
  "jh7110_entropy",
  "job_mix",

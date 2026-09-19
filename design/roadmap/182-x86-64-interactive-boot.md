@@ -24,7 +24,7 @@ no userspace console server to talk to. §121 does make the driver kernel-reside
 stands. What was missed is that `swish` never talks to a UART on any architecture: it talks to a
 **console server over an endpoint**. So the question was never "can x86 have a userspace console
 driver" (it cannot) but "can something else answer on that endpoint", and a kernel thread can:
-`ipc::Rendezvous` is generic over `T: Node`, privilege-free, and kernel threads already exist.
+`inter_process_communication::Rendezvous` is generic over `T: Node`, privilege-free, and kernel threads already exist.
 
 **Two consequences.** Milestone 177 is **no longer a prerequisite** for this milestone, which
 restores the agreed order of software parity before hardware parity. And the route is **serial**,

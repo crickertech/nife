@@ -40,7 +40,7 @@ having already refused `system_builder` for a reason nobody could find.
 
 There is a second, sharper case: **a name that is refused and still live**. `script/names` reports
 those as a NOTE, which is how a reader learns that `pci` is refused somewhere and used anyway, or
-that `ipc` is queued for a rename. A hidden refusal drops the name out of that list, so the queue of
+that a crate is queued for a rename (`ipc` was, until its rename on 2026-09-19). A hidden refusal drops the name out of that list, so the queue of
 outstanding renames silently under-reports.
 
 ## The options

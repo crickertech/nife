@@ -21,7 +21,7 @@ this ISA an `ecall` arrives through the same handler as a page fault and a timer
 bytes really are on a syscall's path. But that handler has arms, and **the timer arm is not one a
 syscall fetches.**
 
-Milestone 133 changed `sched::reap_region_objects` and `crates/ipc`. It touches no timer, no trap
+Milestone 133 changed `sched::reap_region_objects` and `crates/inter_process_communication`. It touches no timer, no trap
 path, and no syscall. LLVM nonetheless decided to inline `arch::riscv64::timer::tick` into
 `riscv_trap_body` in the new build and not the old one, which put **226 bytes** (1870 to 2096, 12.1%
 against a 5% bound) onto a number that measures the syscall path. Confirmed by diffing the two
