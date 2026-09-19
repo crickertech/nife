@@ -168,6 +168,25 @@ and this page fails the build until it is brought back into agreement.
 
 ## BUGS
 
+**An untracked file is invisible to this check, and a green run says nothing about it.** The walk is
+`git ls-files "*.md"`, so a file that has been written but not yet `git add`ed is not in the corpus:
+the check reads the tracked tree, reports honestly about it, and exits 0. Found on 2026-09-19, the
+expensive way. A maintainer wrote a new roadmap block containing a block quote that ended
+mid-sentence, ran `script/citations --check`, read exit 0, committed and pushed. The quote had never
+been read. The same run after the commit failed on it, and a lane that had branched from the pushed
+commit reported the gate red on its own base.
+
+**It is the pattern this tree keeps meeting, which is an absent failure signal read as a pass**, and
+the same shape as `script/decisions` silently skipping a binary file and `script/roadmap`'s
+merged-branch check spending a day unable to fail. Nothing here is wrong: a check over the tracked
+tree is the right corpus, since that is what a reader clones. What is wrong is reading its exit code
+as a statement about the working directory.
+
+**The habit that fixes it costs nothing: stage before you check.** `git add -A` and then run the
+gate, or run it again after committing and before pushing. `script/lint` does not have this hole for
+the same files because it is invoked on a committed tree in CI, which is why the defect survives
+locally and not on a pull request.
+
 **A gloss is optional, so an unglossed citation is checked by nothing here.** This is the honest
 limit and it was a deliberate choice, measured rather than assumed. Requiring a gloss on the first
 mention of each number in each file means **2,911 sites**, every one of which has to be read to know
