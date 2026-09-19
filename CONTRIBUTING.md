@@ -40,6 +40,18 @@ do need these, and each one will otherwise cost you a rewrite:
 
 The reading order for everything else is at the top of [`README.md`](README.md#start-here).
 
+**When you need a specific answer rather than an order, search for it.** `script/apropos <word>`
+searches every note, decision and roadmap block, and every crate's and program's module header, and
+prints the path of each page that says the word:
+
+```sh
+script/apropos socket      # notes/net.md, the socket decisions, and the program that serves them
+script/apropos syscall     # the syscall decisions, and crates/abi/src/lib.rs, which holds the numbers
+```
+
+It is one word at a time and whole words only; `script/apropos`'s own header says what else it
+cannot do.
+
 ## Getting it building
 
 ```sh

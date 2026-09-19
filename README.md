@@ -75,6 +75,22 @@ you came for.
 **If you read only two**, make them 3 and 4: the rules, and the idea. Everything else you can look up
 when it bites.
 
+**Looking it up is one command**, and it is the one to reach for before you grep:
+
+```
+$ script/apropos syscall
+     25  design/decisions/124-x86-64-syscall-abi.md        124. Ratify the x86_64 syscall ABI
+      3  design/decisions/08-process-model-deferred.md     8. Process model / syscall ABI: DEFERRED ...
+    ...
+      5  crates/abi/src/lib.rs                             crate abi
+```
+
+It searches every note, decision and roadmap block plus every crate's and program's own module
+header, and prints the path to open. It exists because five strangers in a row doing ordinary work
+never reached a `design/decisions/` file, `notes/net.md`, or `crates/abi/src/lib.rs` (the syscall
+numbers, on one screen), though none of them is hidden. One word per search; its own header lists
+what else it cannot do.
+
 ## What the badge means
 
 The CI badge above is green only when **every** gate passes:
