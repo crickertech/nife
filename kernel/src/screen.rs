@@ -66,7 +66,6 @@
 //!   `arch::x86_64::machine::attach_screen` and a real aperture rather than guest RAM. The two do
 //!   not share a code path and deliberately share a *type*.
 
-use firmware_configuration::RAMFB;
 use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
 
 use crate::drivers::ramfb::{self, FirmwareConfiguration, SCRATCH_LEN};
@@ -193,11 +192,6 @@ pub fn is_kernel_memory(screen: &Framebuffer) -> bool {
     let end = screen.base + screen.span().unwrap_or(0) as u64;
     start < hi && lo < end
 }
-
-/// The name of the file the emulator publishes, re-exported so the one boot line that mentions it
-/// and the driver that looks for it cannot disagree about its spelling.
-#[cfg_attr(target_arch = "x86_64", allow(dead_code))]
-pub const RAMFB_FILE: &[u8] = RAMFB;
 
 /// **The boot tour's screen line**, for the two architectures that call [`attach`].
 ///

@@ -1232,7 +1232,10 @@ in the code or the conversation doesn't make sense, it belongs here.
   handoff on PVH's own command line), what the alternatives cost against **both** halves of the
   problem (a human watching a boot, and a gate reading a machine), what it does not solve, and the
   bench procedure for a machine nobody in a lane can reach. Since milestone 400 (number provisional)
-  the shell's prompt reaches that screen too, beside the serial console.
+  the shell's prompt reaches that screen too, beside the serial console. Since 2026-09-19 the two
+  board architectures have a screen as well, through QEMU's `ramfb` (the guest owns the pixels and
+  tells the emulator where they are), and the window between the firmware and the kernel is bounded
+  by a line the loader paints, which is as much as a window with no console and no IDT can be.
 - [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md):
   which of the three machines an evening should be spent on and why radon comes first, what a
   result on each would mean for the fatal risks, and what can go wrong that is not the board. It

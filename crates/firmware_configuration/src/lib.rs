@@ -78,6 +78,14 @@
 //! assert!(parsed.is(RAMFB));
 //! ```
 //!
+//! Name: provisional, coined by milestone 243's lane on 2026-09-19, unrecorded (calef has not ruled
+//! on it). QEMU, Linux, EDK2 and U-Boot all spell this interface `fw_cfg`; this tree spells crate
+//! names out (`address_space_identifier`, `inter_process_communication`), and an acronym only its
+//! author can expand is the failure `design/naming.md` names. The refusals: `fw_cfg` is the outside
+//! world's name and is the abbreviation the convention refuses; `qemu_firmware_config` puts a vendor
+//! in the name of an interface other emulators also implement, and abbreviates anyway;
+//! `firmware_config` splits the difference and still abbreviates.
+//!
 //! # BUGS
 //!
 //! - **Nothing here checks that the device is real.** A machine with no `fw_cfg` node in its device
@@ -114,7 +122,7 @@ pub const COMMAND_LEN: usize = 16;
 /// **What the device is being asked to do**, the low bits of a command's control word.
 ///
 /// Named here rather than left as literals at the call site because the device reports back through
-/// the same word: it clears the ones it has honoured and sets [`ERROR`] if it refused, so a driver
+/// the same word: it clears the ones it has honoured and sets [`control::ERROR`] if it refused, so a driver
 /// polling for completion is reading these same bits in the other direction.
 pub mod control {
     /// The device refused. Set by the device, never by the guest.
@@ -196,21 +204,29 @@ impl DmaCommand {
 
     /// Read a control word the device wrote back.
     ///
-    /// `Ok(true)` means the transfer finished, `Ok(false)` that it has not yet, and `Err(())` that
-    /// the device set [`control::ERROR`]. Three states rather than two because a driver that
+    /// `Ok(true)` means the transfer finished, `Ok(false)` that it has not yet, and [`Refused`]
+    /// that the device set [`control::ERROR`]. Three states rather than two because a driver that
     /// treated the error as "not finished yet" would spin forever on a refusal, which is the one
     /// failure this interface can produce that looks exactly like a slow machine.
     ///
     /// # Errors
     ///
     /// When the device set [`control::ERROR`].
-    pub const fn settled(word: u32) -> Result<bool, ()> {
+    pub const fn settled(word: u32) -> Result<bool, Refused> {
         if word & control::ERROR != 0 {
-            return Err(());
+            return Err(Refused);
         }
         Ok(word == 0)
     }
 }
+
+/// The device set [`control::ERROR`] on a transfer.
+///
+/// A type of its own rather than `()`, so that a caller matching on the outcome has a name to match
+/// against and a reader of the signature is told what went wrong rather than only that something
+/// did.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Refused;
 
 /// **One file the device publishes**, as it appears in the directory at [`DIRECTORY_KEY`].
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -337,8 +353,11 @@ mod tests {
     fn a_refusal_is_not_a_slow_machine() {
         assert_eq!(DmaCommand::settled(0), Ok(true));
         assert_eq!(DmaCommand::settled(control::READ), Ok(false));
-        assert_eq!(DmaCommand::settled(control::ERROR), Err(()));
-        assert_eq!(DmaCommand::settled(control::ERROR | control::READ), Err(()));
+        assert_eq!(DmaCommand::settled(control::ERROR), Err(Refused));
+        assert_eq!(
+            DmaCommand::settled(control::ERROR | control::READ),
+            Err(Refused)
+        );
     }
 
     #[test]

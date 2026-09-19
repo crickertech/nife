@@ -12,8 +12,6 @@ narrated, and it cannot be narrated (see below); and a gate can read a screen un
 all three, while reading a *real* serial-less machine is milestone 369 and has always been its own
 block.
 
-**Gate: NONE.** Everything it needs is a design question rather than a dependency.
-
 ## What was built, and what it does not cover
 
 **The mechanism chosen is the firmware's own linear framebuffer.** UEFI's
@@ -152,11 +150,11 @@ replacing it is harder than it looks.
   `shell-check` leg carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this
   milestone wrote a second, more general one in `board_console::screen`.
   `design/roadmap/377-one-screendump-decoder-not-two.md`.
-- **Closed 2026-09-19.** Problem 3, early boot. The premise was checked and half of it is true:
+- **Done.** Problem 3, early boot, closed 2026-09-19. The premise was checked and half of it is true:
   `kernel/src/arch/x86_64/boot.s` writes to no device and cannot, because it is a 32-bit
   instruction stream with no idea where the screen is and no IDT, so a fault in it is a triple
   fault and a reset. What *can* be done is done by the stage before it. See the section below.
-- **Closed 2026-09-19.** aarch64 and riscv64 have a screen under QEMU, through `ramfb`. The
+- **Done.** aarch64 and riscv64 have a screen under QEMU, closed 2026-09-19,, through `ramfb`. The
   arch-neutral halves needed no change, which was the claim they were written to make good on.
   Milestone 157 remains the board half. See the section below.
 - **Recorded.** The aperture is mapped uncacheable and scrolling reads it back, which is slow on real
@@ -260,6 +258,8 @@ virtio-gpu there.
   the network is the failure**, and no answer here escapes that entirely.
 
 ## Index row
+
+**Built:** 2026-09-19
 
 the boot tour is on the screen on all three architectures, read back off the framebuffer by a gate
 that decodes the glyphs: a UEFI aperture on x86_64 and a `ramfb` the guest supplies on the two

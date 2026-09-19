@@ -101,10 +101,11 @@ impl FirmwareConfiguration {
     /// # Safety
     ///
     /// `registers` must name a mapped `fw_cfg` MMIO block (QEMU's `qemu,fw-cfg-mmio`), and
-    /// `scratch`/`scratch_physical` must name one region of at least [`SCRATCH_LEN`] bytes, aligned
-    /// to eight, that is writable by this kernel and readable by the device. Nothing here can check
-    /// any of that: the device tree asserted the first and the caller's own address arithmetic the
-    /// second.
+    /// `scratch`/`scratch_physical` must name one region of at least [`SCRATCH_LEN`] bytes that is
+    /// writable by this kernel and readable by the device. **No alignment is required**: every
+    /// access here is a byte, deliberately, so that the caller's region is the caller's business.
+    /// Nothing here can check any of this: the device tree asserted the first and the caller's own
+    /// address arithmetic the second.
     #[must_use]
     pub const unsafe fn new(registers: u64, scratch: *mut u8, scratch_physical: u64) -> Self {
         Self {
@@ -137,6 +138,11 @@ impl FirmwareConfiguration {
             // that say what the transfer is, and the device would then read a stale or half-written
             // command. Nothing else in this kernel orders the two, because nothing else writes a
             // structure a device reads without going through the virtio ring's own barriers.
+            // PAIR: none in this tree, and none possible. The other half is QEMU's `fw_cfg`
+            // device model reading guest memory, which is host code with no fence a lint could
+            // find. This is the device-facing leg of the same shape `components/src/compositor.rs`
+            // `flush` has (a fence whose partner is a driver-to-device write), one step further
+            // out: there the partner is our own driver, here it is the emulator.
             core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
             let high = ((address >> 32) as u32).to_be();
             let low = ((address & 0xffff_ffff) as u32).to_be();
@@ -145,20 +151,30 @@ impl FirmwareConfiguration {
         }
 
         for _ in 0..MAX_POLLS {
-            // SAFETY: the first four bytes of the caller's scratch, which the device writes the
-            // control word back into. Read volatile, because the value changes underneath this
-            // kernel without any store it can see.
-            let word = u32::from_be(unsafe { (self.scratch.cast::<u32>()).read_volatile() });
+            // Byte at a time and reassembled, rather than one `u32` read. The interface is
+            // big-endian, so the bytes have to be reordered either way, and reading them
+            // individually means this driver asks nothing of the caller's alignment: a `*mut u32`
+            // read of a region somebody else allocated is an alignment assumption nothing checks.
+            let mut raw = [0u8; 4];
+            for (i, byte) in raw.iter_mut().enumerate() {
+                // SAFETY: the first four bytes of the caller's scratch, which the device writes the
+                // control word back into. Volatile, because the value changes underneath this
+                // kernel without any store it can see.
+                *byte = unsafe { self.scratch.add(i).read_volatile() };
+            }
+            let word = u32::from_be_bytes(raw);
             match DmaCommand::settled(word) {
                 Ok(true) => {
-                    // Pairs with the fence above: everything the device wrote into the data buffer
-                    // must be visible to the loads that follow this, and the load that observed the
-                    // cleared word does not by itself order them on a weak machine.
+                    // PAIR: the `fence(SeqCst)` a few lines above, in this same function, which is
+                    // the release leg of the same transaction. Everything the device wrote into the
+                    // data buffer must be visible to the loads that follow this, and the volatile
+                    // load that observed the cleared control word does not by itself order them on
+                    // a weakly ordered machine.
                     core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
                     return Ok(());
                 }
                 Ok(false) => core::hint::spin_loop(),
-                Err(()) => return Err(Error::Refused),
+                Err(firmware_configuration::Refused) => return Err(Error::Refused),
             }
         }
         Err(Error::Hung)
