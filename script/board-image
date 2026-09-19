@@ -6,6 +6,8 @@
 #   script/board-image --job-mix              # the multi-tasking workload sweep instead of a halt (168)
 #   script/board-image --bench                # the microbenchmark suite instead of a halt, one hart (134)
 #   script/board-image --bench --extra-features fastpath_pad   # ...and E3's padded fastpath
+#   NIFE_FASTPATH_PAD=0 NIFE_FASTPATH_SHIFT=1640 script/board-image --bench --extra-features fastpath_pad
+#                                             # ...one image of E3's layout control (134)
 #   script/board-image --soak --reboot        # ...and the board cold-reboots every two minutes (249)
 #   script/board-image --card /Volumes/NIFE   # and copy the matched set onto an already-formatted card
 #   script/board-image --tftp                 # a boot script that fetches over the network first (257)
@@ -174,6 +176,22 @@ fi
 # feature set is echoed below and it is the one line worth copying into the log beside the numbers.
 if [ -n "$EXTRA" ]; then FEATURES="$FEATURES,$EXTRA"; fi
 
+# **E3's layout control reads two variables, and only with `fastpath_pad`** (milestone 134,
+# kernel/build.rs). Set without the feature they would be silently ignored and the operator would
+# boot a kernel that is not the image they asked for, so that is refused. With it, their values join
+# the `features:` line below, because nothing else here records which E3 image was built.
+E3=""
+if [ -n "${NIFE_FASTPATH_PAD:-}${NIFE_FASTPATH_SHIFT:-}" ]; then
+    case ",$FEATURES," in
+        *,fastpath_pad,*) ;;
+        *) echo "board-image: NIFE_FASTPATH_PAD/NIFE_FASTPATH_SHIFT are set but fastpath_pad is not in the features; add --extra-features fastpath_pad or unset them" >&2
+           exit 2 ;;
+    esac
+fi
+case ",$FEATURES," in
+    *,fastpath_pad,*) E3=" (NIFE_FASTPATH_PAD=${NIFE_FASTPATH_PAD:-1} NIFE_FASTPATH_SHIFT=${NIFE_FASTPATH_SHIFT:-0})" ;;
+esac
+
 # Checked before the build rather than after it, so a typo costs a message instead of four minutes
 # of cargo. The refusals are narrow on purpose: this writes into a directory somebody named, and
 # the only paths it declines are the ones where "somebody named it" is not plausible.
@@ -250,7 +268,7 @@ SIZE="$(wc -c < "$IMG" | tr -d ' ')"
 ARCHIVE_SIZE="$(wc -c < "$OUT/nife-initrd.img" | tr -d ' ')"
 echo
 echo "built:"
-echo "  features: $FEATURES"
+echo "  features: $FEATURES$E3"
 echo "  $IMG  ($SIZE bytes, Image header verified)"
 echo "  $OUT/nife-initrd.img  ($ARCHIVE_SIZE bytes, the userspace archive this kernel measures)"
 if [ "$TFTP" = yes ]; then
