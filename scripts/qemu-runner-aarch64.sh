@@ -466,6 +466,19 @@ if [ -n "$NIFE_NVME" ]; then
     NVME="-drive file=$NIFE_NVME,if=none,format=raw,id=nvme0 -device nvme,serial=nife-nvme,drive=nvme0"
 fi
 
+# **A `ramfb` when NIFE_SCREEN is set** (milestone 243). The one thing this `virt` board can present
+# that looks like a screen the firmware left running: the guest allocates the pixels and tells QEMU
+# where they are over `fw_cfg`, and QEMU scans them out. `kernel/src/screen.rs` is the guest half.
+#
+# Off by default, and a test-leg/gate device only, for the two reasons the GPU line above gives and
+# one of its own: `ramfb` adds a QEMU **console**, and `screendump` with no device argument writes
+# console 0, so a boot carrying both a virtio-gpu and a ramfb is a boot whose screendump means
+# whichever QEMU ordered first. `cargo xtask screen-boot` therefore attaches this one alone.
+SCREEN=""
+if [ -n "$NIFE_SCREEN" ]; then
+    SCREEN="-device ramfb"
+fi
+
 # A QEMU monitor on a unix socket, when NIFE_GPU_MON names one (milestone 29). This is how the
 # **scanout** gets proven rather than only the framebuffer: `screendump` writes a PPM of the scanout
 # and it works with -display none (verified against QEMU 11.0.2), so the host can see the pixels the
@@ -474,9 +487,16 @@ fi
 #
 # The path must stay under 104 bytes: that is the OS limit on a unix socket path, and a worktree
 # checkout plus target/ gets close, which is why xtask puts the socket in /tmp and not in target/.
+
+# NIFE_SCREEN_MON is the same socket for the `ramfb` gate (milestone 243), named apart so that the
+# two gates cannot both think they own console 0. Exactly one of the two is ever set; if both were,
+# the GPU's wins, because two `-monitor` options is a QEMU error and a silent preference is easier
+# to diagnose than a machine that will not start.
 MON=""
 if [ -n "$NIFE_GPU_MON" ]; then
     MON="-monitor unix:$NIFE_GPU_MON,server,nowait"
+elif [ -n "$NIFE_SCREEN_MON" ]; then
+    MON="-monitor unix:$NIFE_SCREEN_MON,server,nowait"
 fi
 
 # Number of cores. Four by default, the SMP tests' shape (§11); NIFE_SMP moves it, and the
@@ -493,7 +513,7 @@ SMP="${NIFE_SMP:-4}"
 # the suite, which is the "unrelated test failing to get memory" shape disk_service.rs and
 # fs_service.rs already narrate from 128 MiB days. The kernel asserts this size in memory.rs, so
 # a drift between the two files fails loudly rather than silently changing what the suite means.
-# shellcheck disable=SC2086  # $INITRD, $DISK, $NET, $GPU, $KBD, $RNG and $NVME are deliberately word-split or empty
+# shellcheck disable=SC2086  # $INITRD, $DISK, $NET, $GPU, $SCREEN, $KBD, $RNG and $NVME are deliberately word-split or empty
 exec qemu-system-aarch64 \
     -machine "$MACHINE" \
     -cpu "$CPU" \
@@ -508,6 +528,7 @@ exec qemu-system-aarch64 \
     $DISK \
     $NET \
     $GPU \
+    $SCREEN \
     $KBD \
     $RNG \
     $NVME \
