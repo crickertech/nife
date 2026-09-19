@@ -7600,7 +7600,7 @@ fn bench() -> bool {
     // no disk, no HVF); everything else -- the icount instrument, the parsing, the table, the
     // baseline gate -- is shared through run_bench. See bench_riscv.
     if std::env::args().any(|a| a == "--riscv") {
-        return bench_riscv(check, save);
+        return bench_riscv(check, save, &features);
     }
 
     // The third architecture (milestone 161; DECISIONS §121's amendment, the TSS I/O-bitmap
@@ -7616,7 +7616,7 @@ fn bench() -> bool {
     // 2026-08-24 section already used, and the `real`+`check`/`save` refusal above already
     // covers `--x86 --real --check`.
     if std::env::args().any(|a| a == "--x86") {
-        return bench_x86(real, check, save);
+        return bench_x86(real, check, save, &features);
     }
 
     // `--smp`: boot the full 4-hart machine under HVF so the multi-hart throughput bench
@@ -7713,7 +7713,7 @@ fn bench() -> bool {
 /// not wall-clock. No HVF (there is no RISC-V hypervisor on this host) and no disk (the bench boot
 /// runs no virtio); it just needs the riscv initrd carrying `os_primitives_benchmarker` + `coremark`. Its baseline is a
 /// separate file, since the counts differ by ISA. `cargo xtask bench --riscv [--check|--save]`.
-fn bench_riscv(check: bool, save: bool) -> bool {
+fn bench_riscv(check: bool, save: bool, features: &str) -> bool {
     if !initrd_riscv()
         || !run(
             "cargo",
@@ -7721,8 +7721,13 @@ fn bench_riscv(check: bool, save: bool) -> bool {
                 "build",
                 "-p",
                 "kernel",
+                // `features` and not "bench": it carries `--extra-features` too (E3's
+                // `fastpath_pad`, milestone 134). This arm hardcoded "bench" until 2026-09-19, so
+                // `--riscv --real --extra-features fastpath_pad` built an UN-padded kernel and
+                // printed numbers for it, which is the silently-wrong shape this tree fears most.
+                // riscv64 is the ISA radon runs, so it is the arm the flag mattered on.
                 "--features",
-                "bench",
+                features,
                 "--target",
                 RISCV_TARGET,
             ],
@@ -7784,15 +7789,18 @@ fn bench_riscv(check: bool, save: bool) -> bool {
 ///
 /// `scripts/qemu-runner-x86_64.sh` attaches no disk and builds no initrd, so this needs neither
 /// `mkdisk` nor `user()`. `cargo xtask bench --x86 [--real] [--check|--save]`.
-fn bench_x86(real: bool, check: bool, save: bool) -> bool {
+fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     if !run(
         "cargo",
         &[
             "build",
             "-p",
             "kernel",
+            // As in `bench_riscv`: `features` carries `--extra-features`, which this arm also
+            // dropped on the floor. `fastpath_pad` does not build on x86_64 today
+            // (`script/fastpath-footprint`'s BUGS), so cargo refuses rather than mismeasures.
             "--features",
-            "bench",
+            features,
             "--target",
             X86_TARGET,
         ],
