@@ -174,7 +174,7 @@ The allocator harnesses build a small allocator over a *symbolic* bitmap directl
 module is inside the crate, so it can reach the private fields), rather than through `new`, which
 fills the bitmap all-used. The scan loops are bounded by pinning `total = 8`, so `unwind(9)` suffices.
 
-Four in `crates/dtb/src/lib.rs`, the device-tree parser's leaf readers (the whole-parse token loop
+Four in `crates/device_tree_blob/src/lib.rs`, the device-tree parser's leaf readers (the whole-parse token loop
 is the same BMC wall as ELF, so the leaves are what get proved):
 
 | Harness | Property |
@@ -188,7 +188,7 @@ near-`usize::MAX` offset from a corrupt blob returns `Truncated` instead of pani
 integration tests against a real QEMU device tree are unchanged, so the hardening is faithful. This
 is the elf lesson reused: prove (and here, harden) the loopless leaves; the walk stays on the tests.
 
-Six in `crates/ipc/src/lib.rs`, the synchronous-rendezvous state machine (the decision core of
+Six in `crates/inter_process_communication/src/lib.rs`, the synchronous-rendezvous state machine (the decision core of
 `sched.rs`'s `Endpoint`, extracted as pure logic; **restated over the intrusive queues** at
 milestone 14 phase A.3, so the rewire did not demote proved code back to argued code: the same
 six properties, now over real `intrusive::Fifo`s with TCB-shaped nodes, composing with the
@@ -206,19 +206,20 @@ A non-empty queue is modeled with a single waiter (the decision and the invarian
 whether a queue is empty, never its length), which keeps the `VecDeque` reasoning tractable.
 
 **Phase 2 is done.** `kernel/src/sched.rs`'s six IPC functions no longer hand-roll the rendezvous
-branch six times; they call `ipc::Endpoint<Tid>` (the same generic type, so the queues are the
-kernel's real endpoint state, not a model kept in sync) for the *decision*, and spend their own code
-only on the bookkeeping the queues cannot express: mailboxes, waking a thread onto a run queue, the
-one-shot Reply that leaves a caller blocked. The full QEMU suite (102 tests, including the Call/Reply,
-frame-delegation, and revocation tests) passes unchanged, so the rewire is faithful: the kernel's IPC
-path *is* the proved logic now, not a parallel copy of it. This is the first place a proof reaches all
-the way into the running kernel rather than staying in a host crate.
+branch six times; they call `inter_process_communication::Rendezvous<Thread>` (the same generic
+type, so the queues are the kernel's real endpoint state, not a model kept in sync) for the
+*decision*, and spend their own code only on the bookkeeping the queues cannot express: mailboxes,
+waking a thread onto a run queue, the one-shot Reply that leaves a caller blocked. The full QEMU
+suite (102 tests, including the Call/Reply, frame-delegation, and revocation tests) passes
+unchanged, so the rewire is faithful: the kernel's IPC path *is* the proved logic now, not a
+parallel copy of it. This is the first place a proof reaches all the way into the running kernel
+rather than staying in a host crate.
 
 **Phase 3, the one-shot Reply, needed no rewire at all.** "One reply, to this caller, exactly once"
 (DECISIONS §12) decomposes into three legs, and it is worth recording which kind of evidence each
 one rests on:
 
-1. **The endpoint forgets a collected caller**: `a_collected_sender_is_forgotten` in `crates/ipc`.
+1. **The endpoint forgets a collected caller**: `a_collected_sender_is_forgotten` in `crates/inter_process_communication`.
    A `CALL`er queues as a sender and blocks; the server's receive pops it destructively, so from
    that moment the kernel-minted Reply capability is the *only* name for the blocked caller
    anywhere in the system. (The caller is never in the receiver queue: `ipc_call` does not `recv`,
@@ -234,8 +235,9 @@ one rests on:
    an inspection argument, backed end-to-end by the QEMU test in which the call server invokes its
    Reply twice and the kernel refuses the second (`fixtures/src/hello.rs`, `call_server`).
 
-No rewire because `capability::CapabilityTable` and `ipc::Endpoint` already *are* the kernel's capability table and endpoint
-state; the proofs landed on code the kernel was running all along.
+No rewire because `capability::CapabilityTable` and `inter_process_communication::Rendezvous`
+already *are* the kernel's capability table and endpoint state; the proofs landed on code the kernel
+was running all along.
 
 Three in `crates/generational_table/src/lib.rs`, the generational thread table (milestone 14 phase A; see
 notes/generational-names.md):
@@ -283,7 +285,7 @@ notes/prior-art.md, and proved because the kernel-side parse is TCB code):
 | `the_validation_implies_reads_slice_is_in_bounds` | for every entry value and image length, parse's acceptance check makes `read`'s slice arithmetic safe: no panic, bytes inside the image |
 | `a_short_image_is_refused_not_indexed` | any image under one block is `Truncated` before a byte past the length check is touched |
 
-Whole-parse totality hit the same wall as ELF and dtb below (a one-block symbolic image put
+Whole-parse totality hit the same wall as ELF and `device_tree_blob` below (a one-block symbolic image put
 CBMC past 20 CPU-minutes), and was decomposed the same way; the module comment records what is
 deliberately unproved and why it is sound anyway.
 
@@ -303,7 +305,7 @@ userspace virtio driver's DMA: on every `NOTIFY` the kernel walks the driver's d
 any whose buffer escapes the driver's granted region (or is indirect), and copies the validated ones
 into a kernel-private **shadow ring** the device reads, so the driver cannot touch what the device
 acts on. The logic was lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it)
-so it could be proved, the same Phase-2 move `memory_regions` and `ipc` made; the kernel's QEMU attacker
+so it could be proved, the same Phase-2 move `memory_regions` and `inter_process_communication` made; the kernel's QEMU attacker
 suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged and green, so
 the extraction is faithful.
 
@@ -475,6 +477,35 @@ Stated for a skeptic in one sentence, which is how it should be stated: *every a
 device through a virtqueue descriptor is provably confined to the driver's grant; addresses that reach
 a device inside a command payload are confined by the IOMMU alone, that confinement is tested rather
 than proved, and on a board without an IOMMU it does not exist.*
+
+### Blocks: 2 MiB and 1 GiB leaves (milestone 161, 2026-09-19)
+
+`crates/paging` gained a second and third leaf size so the direct map stops costing 0.2% of RAM in
+page tables (560 KiB to 60 KiB on QEMU's 256 MiB x86 machine; 8,252 KiB to 64 KiB at 4 GiB). The
+proofs follow the domain builder's shape above: **the decision that makes a block safe is pulled out
+as loopless arithmetic and proved for every input**, and the walk that writes it stays tested.
+
+| Harness | Property |
+|---|---|
+| `verification::a_chosen_leaf_is_aligned_and_inside_the_span` | **soundness**: every leaf `Mapper::map_span` writes is aligned at both ends, no larger than the caller allowed, and lies wholly inside what is left of the span, so blocks map no byte the equivalent pages would not |
+| `verification::the_chosen_leaf_is_the_largest_that_fits` | **completeness**: no fitting larger leaf is passed over; soundness alone is satisfied by always answering 4 KiB |
+| `x86_64` / `aarch64` / `sv39` `::a_block_keeps_address_and_permissions_apart` | each format's block encoding, over every `u64` address and every `Flags` constructor: the address in its architectural field, nothing set below the block's alignment (reserved on x86, `RES0` on aarch64, a misaligned-superpage fault on Sv39), the format's block marker as a literal bit pattern, and the flags round-tripping; on x86 also W^X on the hardware bits |
+| `x86_64` / `aarch64` / `sv39` `::a_table_entry_is_never_a_block` | no table pointer ever reads as a block, so the walk never stops at a table or descends into a block |
+
+Every assertion is spelled in literals, for milestone 211's and 307's reason. The five
+`replayable` records were swept red on 2026-09-19 (`script/falsifications --sweep paging`: 13 swept,
+0 survivors).
+
+**One lesson worth keeping, because it cost a quarter of an hour.** The first version of
+`PageSize::largest_fitting` looped over the sizes and tested alignment with `%`. CBMC was still
+solving `the_chosen_leaf_is_the_largest_that_fits` after ten minutes; written as two `if`s and a mask
+test, it proves in 0.05 s. Both changes went in together, so which one mattered is not isolated; the
+harnesses themselves still use `%` (`is_multiple_of`) in their assumptions and prove in well under a
+second, which points at the loop.
+
+**The residual is the usual one**: the proofs cover the leaf choice and the encodings, not `Mapper`
+writing the block into a built table. That is tested on all three formats
+(`crates/paging/tests/blocks.rs`) and booted.
 
 ## The calendar, and where BMC's cost actually is
 
@@ -648,9 +679,9 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**170 harnesses** <!--count:kani-harnesses--> **across 26 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
+**178 harnesses** <!--count:kani-harnesses--> **across 26 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
 `kernel/src/arch/x86_64/irq.rs`, which **only the x86_64 job runs**: the count is of the tree, not of
-any one run, and no single host compiles all 170. It fell to 148 from 151 across 26 on
+any one run, and no single host compiles all 178. (Milestone 161 added eight on 2026-09-19, the block-leaf proofs in `crates/paging`.) It fell to 148 from 151 across 26 on
 2026-09-15, when milestone 298 retired `multicast_dns_protocol` and its three. This line said 67 for
 a while after it was 69, then "a few minutes" for a month after that stopped being true, then 107
 after it was 119. Both counts now carry a `<!--count:-->` marker and `script/lint` re-derives them

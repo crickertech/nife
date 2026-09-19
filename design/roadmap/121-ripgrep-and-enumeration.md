@@ -2,7 +2,9 @@
 
 **Status: PARTIAL.** Minted 2026-08-13 by calef.
 
-**Gate: MILESTONE 64.** 64 measured the crates.io surface and bound `read_dir`. The second half of
+**Gate: MILESTONE 205.** (MILESTONE 64 cleared 2026-09-19, when 64 turned BUILT; what stops every
+outstanding item below is 205, a way to hand a foreign program its arguments.) 64 measured the
+crates.io surface and bound `read_dir`. The second half of
 this gate was `MILESTONE 122`, which landed on 2026-08-18: `std` now holds a directory handle and a
 walker can open what it lists, and `std::fs::Dir` is the object `cap-std` would bind to. What 122
 leaves this milestone is the half of its own recommendation it could not discharge, because pricing

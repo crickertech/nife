@@ -182,7 +182,10 @@ mtime probes are not (yet) independently witnessed from the host, see `BUGS`.
   clock page (the same authority `date` itself holds) so `SETMTIME` records a real wall-clock second
   is a follow-up, not started here: it is a new capability grant to a process that currently holds
   none beyond the block-IPC endpoint, and DECISIONS §43's own read/set split argues for exactly the
-  narrow, read-only half.
+  narrow, read-only half. **Since 2026-09-19 it reaches `std` too**: milestone 64 bound
+  `Metadata::modified` to `GETMTIME`, so every std program reading a file this system wrote gets the
+  counter as a `SystemTime` in early 1970 (notes/std.md, file times). Proposed as
+  design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md.
 - **`-t` accepts RFC 3339, not Unix's compact `[[CC]YY]MMDDhhmm[.ss]]`.** See "`-t`'s syntax" above
   for why. A script written against Unix's `touch -t` syntax will not work unmodified here.
 - **No `-c` (don't create)**, because Unix's `-c` exists to suppress the create half, and there is

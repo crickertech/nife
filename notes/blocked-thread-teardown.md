@@ -27,7 +27,7 @@ own block, which says what was built; the fork this note exists for (proposals A
 end a **blocked thread**, and whether anybody should) is untouched and is milestone 133's.
 
 *The code this note reads: `kernel/src/sched.rs` (`schedule`, `ipc_call`, `ipc_reply`,
-`set_ipc_aborted`, `reap_region_objects`), `crates/ipc/src/lib.rs` (`drain_waiters`,
+`set_ipc_aborted`, `reap_region_objects`), `crates/inter_process_communication/src/lib.rs` (`drain_waiters`,
 `remove_sender`), `crates/thread_wake_handshake/src/lib.rs` (`park`, `abort`, `try_wake`), and
 `kernel/src/thread.rs`'s `WaitRole`.*
 

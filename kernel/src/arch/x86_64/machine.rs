@@ -4,7 +4,7 @@
 //! Deliberately thin. Everything that decides what a byte means is in the crate, host-tested; what
 //! is here is the part that cannot be: turning the physical address the loader put in `ebx` into
 //! bytes this kernel can look at, through the direct map. That is the same division `console.rs`
-//! and `memory.rs` make with `crates/dtb` on the other two architectures.
+//! and `memory.rs` make with `crates/device_tree_blob` on the other two architectures.
 //!
 //! # BUGS
 //!
@@ -714,7 +714,7 @@ const LOW_MEGABYTE: u64 = 0x0010_0000;
 /// than [`MAX_RAM_REGIONS`] gets the first that many, and saying how many were taken is what makes
 /// that visible rather than silent.
 pub fn bring_up_memory(info: &BootInfo) -> usize {
-    let mut ram = [dtb::Region { start: 0, size: 0 }; MAX_RAM_REGIONS];
+    let mut ram = [device_tree_blob::Region { start: 0, size: 0 }; MAX_RAM_REGIONS];
     let mut count = 0;
 
     for i in 0..info.memmap_entries as usize {
@@ -735,7 +735,7 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
         if end <= start {
             continue;
         }
-        ram[count] = dtb::Region {
+        ram[count] = device_tree_blob::Region {
             start,
             size: end - start,
         };
@@ -753,14 +753,14 @@ pub fn bring_up_memory(info: &BootInfo) -> usize {
     // **The count is what the array is sliced to**, rather than the array being sized to the worst
     // case and passed whole: an all-zero `Region` is a reservation of nothing at address zero, and
     // `bring_up_page_frames` would dutifully take it.
-    let mut forbidden = [dtb::Region { start: 0, size: 0 }; 2];
-    forbidden[0] = dtb::Region {
+    let mut forbidden = [device_tree_blob::Region { start: 0, size: 0 }; 2];
+    forbidden[0] = device_tree_blob::Region {
         start: crate::memory::image_start(),
         size: crate::memory::image_end() - crate::memory::image_start(),
     };
     let mut forbidden_count = 1;
     if let Some(m) = initrd(info) {
-        forbidden[forbidden_count] = dtb::Region {
+        forbidden[forbidden_count] = device_tree_blob::Region {
             start: m.addr,
             size: m.size,
         };

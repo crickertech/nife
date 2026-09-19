@@ -91,6 +91,52 @@ fn a_machine_without_the_4k_granule_is_refused() {
     );
 }
 
+/// **`TGran4` has two encodings that mean "yes", and the second is the stronger one.** `0b0001` is
+/// Arm's "4KB granule supports 52-bit input addresses and can describe 52-bit output addresses",
+/// present with `FEAT_LPA2`. Until 2026-09-19 the decoder read it as reserved and refused to boot on
+/// QEMU's `-cpu max`, which reports it. This kernel's tables are 4 KiB and 48-bit, and an LPA2 part
+/// walks those unchanged, so both values must boot.
+///
+/// The other two rows hold the edges: `0b1111` is Arm's "not supported", and `0b0010` is one Arm
+/// has not defined, read as absent rather than trusted (the same default `ASIDBits` uses).
+#[test]
+fn every_four_kib_granule_encoding_decodes() {
+    for (tgran4, supported) in [
+        (0b0000, true),
+        (0b0001, true),
+        (0b1111, false),
+        (0b0010, false),
+    ] {
+        // 64 KiB yes, 16 KiB yes, 16-bit ASIDs, 48-bit PA: only the 4 KiB field varies.
+        let cpu = Isa::decode(0, mmfr0(tgran4, 0b0000, 0b0001, 0b0010, 0b0101), 0, 0);
+        assert_eq!(cpu.granules.k4, supported, "TGran4 {tgran4:#06b}");
+        assert_eq!(
+            cpu.missing_requirements().granule_4k,
+            !supported,
+            "TGran4 {tgran4:#06b} decides the boot"
+        );
+        assert!(
+            cpu.granules.k64 && cpu.granules.k16,
+            "the 4 KiB field leaked into its neighbours"
+        );
+    }
+}
+
+/// **`TGran16`'s LPA2 value, `0b0010`, is also a yes**, and it is the inverted field's version of
+/// the encoding above. It was already decoded correctly; this is its witness, so the two LPA2
+/// values are tested side by side and a uniform rewrite cannot pass one and break the other.
+#[test]
+fn the_sixteen_kib_lpa2_encoding_is_supported() {
+    let cpu = Isa::decode(0, mmfr0(0b0000, 0b0000, 0b0010, 0b0010, 0b0101), 0, 0);
+    assert!(cpu.granules.k16, "0b0010 is 16 KiB with FEAT_LPA2");
+    assert!(
+        !Isa::decode(0, mmfr0(0b0000, 0b0000, 0b0011, 0b0010, 0b0101), 0, 0)
+            .granules
+            .k16,
+        "0b0011 is not defined for TGran16"
+    );
+}
+
 /// **A reserved `ASIDBits` encoding decodes to zero and stops the boot**, rather than being rounded
 /// up to the kind answer.
 ///

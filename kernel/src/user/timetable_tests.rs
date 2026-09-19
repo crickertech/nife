@@ -235,7 +235,7 @@ fn line(ep: RendezvousId, buf: &mut [u8; 256]) -> Option<usize> {
 /// that were admitted really run under supervision, and the entries that were refused never run at
 /// all** (milestone 129).
 ///
-/// One test, because the three halves are one claim and none of them means anything alone. A
+/// One test, because the three parts are one claim and none of them means anything alone. A
 /// scheduler that fires proves nothing about authority; a printed plan proves nothing if what fires
 /// disagrees with it; and a refusal proves nothing unless something else in the same document did
 /// fire, since a scheduler that fired *nothing* would satisfy it trivially.

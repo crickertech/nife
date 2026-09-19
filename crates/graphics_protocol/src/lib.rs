@@ -358,6 +358,10 @@ pub mod status {
     /// taken in a different address space from the client that wrote them and after the device
     /// reported the transfer complete. It is status, not part of the client contract: a client cannot
     /// ask for it and rung two's compositor can ignore it entirely.
+    ///
+    /// **The spawner cannot ignore it.** It is a blocking `SEND` from inside the driver's serving
+    /// loop, so until somebody receives it the driver serves no second flush. Milestone 177's
+    /// graphical boot took `UP` and never took this, and its screen froze on the first frame.
     pub const FLUSHED: u64 = 0xD15_0002;
 
     /// The client's verdict: `send(REPORT, PAINTED, digest, first_mismatch)`, where `digest` is

@@ -17,16 +17,17 @@ use machine_discovery::interrupt_id;
 const QEMU_RISCV_VIRT: &[u8] = include_bytes!("fixtures/qemu-riscv64-virt-smp4.dtb");
 const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");
 const JH7110_VENDOR: &[u8] = include_bytes!("fixtures/jh7110-vendor.dtb");
-// The aarch64 machine's tree lives with the dtb crate's fixture tests; reuse it rather than
-// committing a second copy that could drift from the one the parser is proven against.
-const QEMU_AARCH64_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt.dtb");
+// The aarch64 machine's tree lives with the `device_tree_blob` crate's fixture tests; reuse it
+// rather than committing a second copy that could drift from the one the parser is proven against.
+const QEMU_AARCH64_VIRT: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt.dtb");
 
 /// The console node's name, as `kernel/src/console.rs` pins it: both QEMU riscv64 `virt` and the
 /// JH7110 spell UART0 exactly this way.
 const RISCV_UART: &[u8] = b"serial@10000000";
 
-fn tree(bytes: &[u8]) -> dtb::Dtb<'_> {
-    dtb::Dtb::from_bytes(bytes).expect("fixture is a valid device tree")
+fn tree(bytes: &[u8]) -> device_tree_blob::DeviceTreeBlob<'_> {
+    device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture is a valid device tree")
 }
 
 /// **QEMU `virt` says 10**, the number the old constant hardcoded: on the machine the constant
@@ -98,4 +99,14 @@ fn malformed_shapes_are_refused_not_guessed() {
     assert_eq!(interrupt_id::of_node(&dt, b"badtype@").unwrap(), None);
     assert_eq!(interrupt_id::of_node(&dt, b"oddcells@").unwrap(), None);
     assert_eq!(interrupt_id::of_node(&dt, b"short@").unwrap(), None);
+}
+
+/// **PPI 16 is refused, and 16 is the number that has to be got exactly right.** The bank holds
+/// sixteen lines, 0 through 15, so 16 is the first one that is not a PPI; folded into the bank it
+/// becomes INTID 32, which is SPI 0, a line a different device owns. `badppi@` above is 99, which
+/// any reading of the bound turns away, so it proves the refusal happens without proving where.
+#[test]
+fn the_first_number_past_the_ppi_bank_is_refused() {
+    let dt = tree(INTERRUPT_SHAPES);
+    assert_eq!(interrupt_id::of_node(&dt, b"edgeppi@").unwrap(), None);
 }

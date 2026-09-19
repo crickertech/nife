@@ -152,6 +152,18 @@ names**: a QEMU whose parent is a live harness is somebody's gate in flight, not
 `scripts/qemu-bounded-selftest.sh` checks all of this against a real emulator, including that
 `perl`'s alarm is still swallowed. It is in no gate; run it if you touch the bounding script.
 
+**It does not bound `scripts/qemu-runner-x86_64.sh`, and it looks as if it does** (found
+2026-09-19 by milestone 134's per-IPC stack-depth lane, when the maintainer reaped a halted
+`qemu-system-x86_64` with PPID 1 that the lane had started through
+`scripts/qemu-bounded.sh 240 scripts/qemu-runner-x86_64.sh ...`). The killer signals `$CHILD`,
+the process it started. The aarch64 and riscv64 runners end in `exec qemu-system-...`, so their
+child *is* QEMU. The x86_64 runner deliberately does not `exec` (its own comment: it has to turn
+`isa-debug-exit`'s odd status back into 0 afterwards), so its child is a shell with QEMU beneath
+it; the bound kills the shell on time and QEMU is re-parented to launchd, halted and holding
+nothing but a core's worth of memory. Until one of the two scripts changes (the runner trapping
+TERM and HUP and forwarding them to QEMU would be the smaller fix), **after bounding an x86_64
+run, `pgrep -l qemu-system-x86` and walk the parent chain**, and treat a PPID of 1 as yours.
+
 **A kernel does not exit.** That is the root of it: `cargo test` terminates because the test
 build asks the host to exit via [semihosting](semihosting.md), but a normal boot halts
 forever, by design, exactly like real hardware. So every interactive run must be bounded, and
@@ -160,3 +172,18 @@ forever, by design, exactly like real hardware. So every interactive run must be
 ---
 
 *Add to this file as new QEMU concepts come up.*
+
+## BUGS
+
+- **On macOS the pinned version is not available, and building it by hand has a trap.** `.qemu-version`
+  pins the version CI and Linux build (`script/ci-qemu`); Homebrew ships only its current release
+  and `script/ci-qemu` refuses to run on macOS, so a Mac runs whatever Homebrew has and
+  `script/qemu-check` warns. Milestone 117's sixth stranger run built the pinned 11.0.2 by hand and
+  found that `script/ci-qemu`'s configure line does not link on this SDK: `hw/display/apple-gfx.m`
+  needs `--disable-cocoa --disable-pvg`. Nothing in the tree says so, because nothing in the tree has
+  built QEMU on a Mac. And a QEMU installed into `$HOME/.cache/nife-qemu` is honoured by
+  `scripts/qemu-path.sh` on macOS too, for every checkout on the account, which is how a build meant
+  for one clone changes the emulator under every other lane.
+- **A kernel's serial log is binary to `grep`.** The test logs carry the guest's control bytes, so
+  `grep FAILED log` says `Binary file log matches` or nothing, rather than the line. Use `grep -a`.
+

@@ -59,18 +59,18 @@ fn set_current_thread_id(tid: ThreadId) {
 
 /// A synchronous IPC rendezvous point: the two wait queues and the pending-signal count.
 ///
-/// **The state machine is the `ipc` crate**, which owns the queues and the decision logic (send,
-/// recv, signal) and carries machine-checked proofs of its one invariant, "at most one wait queue is
-/// ever non-empty" (DECISIONS §14, milestone 18; notes/verification.md). The six IPC functions below
-/// decide *what* to do by calling the proved logic and spend their own code only on the bookkeeping
-/// the queues cannot express (mailboxes, waking a thread onto a run queue, the one-shot Reply that
-/// leaves a caller blocked).
+/// **The state machine is the `inter_process_communication` crate**, which owns the queues and the
+/// decision logic (send, recv, signal) and carries machine-checked proofs of its one invariant, "at
+/// most one wait queue is ever non-empty" (DECISIONS §14, milestone 18; notes/verification.md). The
+/// six IPC functions below decide *what* to do by calling the proved logic and spend their own code
+/// only on the bookkeeping the queues cannot express (mailboxes, waking a thread onto a run queue,
+/// the one-shot Reply that leaves a caller blocked).
 ///
 /// Intrusive as of milestone 14 phase A.3: a wait-queue entry is the TCB itself, threaded through
 /// the same link the run queues use, so blocking on an rendezvous cannot allocate and "a thread waits
 /// on one rendezvous at a time" is physical (one link). The safety contract for the pointers is the
 /// queue discipline at [`thread_control_block_ptr`].
-type Rendezvous = ipc::Rendezvous<Thread>;
+type Rendezvous = inter_process_communication::Rendezvous<Thread>;
 
 /// The most threads that can be alive at once, whole machine (milestone 14 phase A). A documented
 /// limit of the image rather than a heap that can be exhausted: spawn past it fails cleanly, the
@@ -1715,7 +1715,7 @@ fn deliver_death(sched: &mut IpcTables, corpse: ThreadId, ep: RendezvousId, msg:
     // joins the sender queue below it stays put, since nothing wakes or reaps a Dead thread until
     // the supervisor drains it and revokes. Same pointer discipline as ipc_send.
     match unsafe { rendezvous.send(me) } {
-        ipc::Send::Rendezvous(receiver) => {
+        inter_process_communication::Send::Rendezvous(receiver) => {
             // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
             let receiver = unsafe { (*receiver.as_ptr()).id };
             let r = sched.threads.get_mut(receiver).unwrap();
@@ -1724,7 +1724,7 @@ fn deliver_death(sched: &mut IpcTables, corpse: ThreadId, ep: RendezvousId, msg:
             trace::record(trace::Event::Served, receiver, 8);
             wake(sched, receiver);
         }
-        ipc::Send::Blocked => {
+        inter_process_communication::Send::Blocked => {
             // The corpse is parked on the sender queue now, its mailbox already holding `msg`.
             // Record the parking so a dump shows where the death message waits.
             if let Some(t) = sched.threads.get_mut(corpse) {
@@ -2525,7 +2525,7 @@ pub fn ipc_send(ep: RendezvousId, msg: [u64; 3]) {
         // SAFETY: `me` is the running thread (live, on no queue), and if queued it stays live:
         // a thread queued on an rendezvous is Blocked, which the reaper never touches. See thread_control_block_ptr.
         match unsafe { rendezvous.send(me) } {
-            ipc::Send::Rendezvous(receiver) => {
+            inter_process_communication::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
                 let r = sched.threads.get_mut(receiver).unwrap();
@@ -2535,7 +2535,7 @@ pub fn ipc_send(ep: RendezvousId, msg: [u64; 3]) {
                 wake(sched, receiver);
                 false
             }
-            ipc::Send::Blocked => {
+            inter_process_communication::Send::Blocked => {
                 // `send` has already queued `current` as a sender; we record why it is parked.
                 let me = sched.threads.get_mut(current).unwrap();
                 me.mailbox = msg;
@@ -2572,8 +2572,8 @@ pub fn ipc_recv(ep: RendezvousId) -> [u64; 5] {
         // SAFETY: as in ipc_send: the running thread, and Blocked-while-queued keeps it live.
         match unsafe { rendezvous.recv(me) } {
             // An interrupt already fired while we were not waiting. Take it and do not block.
-            ipc::Recv::Signal => Some([1, 0, 0, 0, 0]),
-            ipc::Recv::FromSender(sender) => {
+            inter_process_communication::Recv::Signal => Some([1, 0, 0, 0, 0]),
+            inter_process_communication::Recv::FromSender(sender) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let sender = unsafe { (*sender.as_ptr()).id };
                 let msg = sched.threads.get(sender).unwrap().mailbox;
@@ -2607,7 +2607,7 @@ pub fn ipc_recv(ep: RendezvousId) -> [u64; 5] {
                 }
                 Some(msg)
             }
-            ipc::Recv::Blocked => {
+            inter_process_communication::Recv::Blocked => {
                 // `recv` has already queued `current` as a receiver.
                 let me = sched.threads.get_mut(current).unwrap();
                 me.handshake.park((ep, WaitRole::Receiver)); // only a delivering sender may wake us
@@ -2665,7 +2665,7 @@ pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
         };
         // SAFETY: as in ipc_send.
         match unsafe { rendezvous.send(me) } {
-            ipc::Send::Rendezvous(receiver) => {
+            inter_process_communication::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
                 let r = sched.threads.get_mut(receiver).unwrap();
@@ -2676,7 +2676,7 @@ pub fn ipc_send_cap(ep: RendezvousId, data: u64, cap: crate::cap::Cap) {
                 wake(sched, receiver);
                 false
             }
-            ipc::Send::Blocked => {
+            inter_process_communication::Send::Blocked => {
                 // `send` queued `current`; we park the data word and the capability to hand over.
                 let me = sched.threads.get_mut(current).unwrap();
                 me.mailbox = [data, 0, 0, 0, 0];
@@ -2713,8 +2713,8 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
         // SAFETY: as in ipc_send.
         match unsafe { rendezvous.recv(me) } {
             // An interrupt signal is not a delegation; it carries no capability.
-            ipc::Recv::Signal => Some([1, NO_CAP, 0]),
-            ipc::Recv::FromSender(sender) => {
+            inter_process_communication::Recv::Signal => Some([1, NO_CAP, 0]),
+            inter_process_communication::Recv::FromSender(sender) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let sender = unsafe { (*sender.as_ptr()).id };
                 let msg = sched.threads.get(sender).unwrap().mailbox;
@@ -2745,7 +2745,7 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
                 // SEND_CAP, whose sender parked mailbox[1] = 0).
                 Some([msg[0], slot, msg[1]])
             }
-            ipc::Recv::Blocked => {
+            inter_process_communication::Recv::Blocked => {
                 let me = sched.threads.get_mut(current).unwrap();
                 me.handshake.park((ep, WaitRole::Receiver)); // only a delivering sender may wake us
                 trace::record(trace::Event::BlockSelf, current, ep as u8);
@@ -2822,7 +2822,7 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
         };
         // SAFETY: as in ipc_send; a caller queued here is Blocked until its Reply arrives.
         match unsafe { rendezvous.send(me) } {
-            ipc::Send::Rendezvous(receiver) => {
+            inter_process_communication::Send::Rendezvous(receiver) => {
                 // SAFETY: wait-queue entries are live Blocked threads; the id revalidates it.
                 let receiver = unsafe { (*receiver.as_ptr()).id };
                 // A server is parked in RECV_CAP: hand it the reply cap and the two words now.
@@ -2833,7 +2833,7 @@ pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
                 trace::record(trace::Event::Served, receiver, 5);
                 wake(sched, receiver);
             }
-            ipc::Send::Blocked => {
+            inter_process_communication::Send::Blocked => {
                 // No server yet; `send` queued us as a sender. Park the words and ride the reply cap
                 // in `outgoing_cap` so the eventual RECV_CAP hands it over and, seeing a Reply, leaves
                 // us blocked (see ipc_recv_cap).
@@ -4707,7 +4707,7 @@ mod tests {
     /// Enable the test interrupt at the controller. Nothing is raised yet.
     #[cfg(target_arch = "aarch64")]
     fn arm_test_irq(intid: u32) {
-        crate::drivers::gic::enable(intid, 0); // SGI: per-core, target ignored
+        crate::arch::irq::enable(intid); // SGI: per-core, no target
     }
 
     #[cfg(target_arch = "riscv64")]
@@ -4731,7 +4731,7 @@ mod tests {
     fn raise_test_irq(intid: u32) {
         // Self, by asking rather than by assuming core 0: the test thread runs wherever the
         // scheduler put it, and a fixed target is the count-as-index disease in miniature.
-        crate::drivers::gic::send_sgi(intid, crate::cpu::id());
+        crate::arch::irq::send_sgi(intid, crate::cpu::id());
     }
 
     #[cfg(target_arch = "riscv64")]

@@ -6,7 +6,7 @@
 **The finding.** `cfg(kani)` is set by the model checker and by nothing else. `script/lint` never
 compiles those modules, so `clippy::undocumented_unsafe_blocks` and `unsafe_op_in_unsafe_fn` cannot
 fire inside them at all. The tree has **14 `unsafe {}` blocks under `#[cfg(kani)]`**, in
-`crates/intrusive` and `crates/ipc`. `intrusive`'s two both carry SAFETY comments.
+`crates/intrusive` and `crates/inter_process_communication`. `intrusive`'s two both carry SAFETY comments.
 **Eleven of `ipc`'s twelve do not**, and the gate has never said so.
 
 The one exception worth naming is `ipc`'s `seed`, which is an `unsafe fn` under `#[cfg(kani)]`: it

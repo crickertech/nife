@@ -34,7 +34,7 @@ use aarch64_cpu::asm::barrier;
 // file was assuming.
 use aarch64_cpu::registers::{MAIR_EL1, SCTLR_EL1, TCR_EL1, TTBR0_EL1, TTBR1_EL1};
 use paging::aarch64::mair;
-use paging::{Aarch64, Flags, Half, MapError, Mapper, PAGE_SIZE, PageTable};
+use paging::{Aarch64, Flags, Half, MapError, Mapper, PAGE_SIZE, PageSize, PageTable};
 
 use crate::{memory, println};
 
@@ -267,11 +267,14 @@ where
     direct_map(m, UART_BASE, UART_BASE + UART_SIZE, Flags::device())?;
 
     // 6. The interrupt controller, also device memory, and its address comes from the device
-    // tree rather than a constant. Both blocks: the machine-wide distributor and the per-core
-    // CPU interface.
-    if let Some(((gicd, gicd_size), (gicc, gicc_size))) = memory::gic_regions() {
-        direct_map(m, gicd, gicd + gicd_size, Flags::device())?;
-        direct_map(m, gicc, gicc + gicc_size, Flags::device())?;
+    // tree rather than a constant. Both blocks: the machine-wide distributor, and then either a
+    // GICv2's per-core CPU interface or a GICv3's redistributor array (milestone 227), mapped at
+    // its full length because which frame belongs to which core is read from the frames. A GICv3's
+    // CPU interface is system registers and needs no mapping.
+    if let Some(found) = memory::gic_regions() {
+        let (gicd, second) = (found.distributor(), found.second_region());
+        direct_map(m, gicd.start, gicd.start + gicd.size, Flags::device())?;
+        direct_map(m, second.start, second.start + second.size, Flags::device())?;
     }
 
     // 7. The virtio-mmio window, as device memory. **The kernel maps it only to ENUMERATE it**
@@ -375,6 +378,12 @@ where
 }
 
 /// Map a range of *physical* addresses into the direct map at `pa | KERNEL_VA_BASE`.
+///
+/// **Memory in blocks, devices in pages** (milestone 161). RAM goes in the largest leaf that fits
+/// (`paging::Mapper::map_span` puts a 2 MiB or 1 GiB leaf only where it lies wholly inside the
+/// range, so exactly the same pages are mapped, in a fraction of the table frames). Device windows
+/// stay in 4 KiB pages: they are a handful of pages each, and keeping them small is the same
+/// choice the x86 port makes for its own reasons (`arch/x86_64/mmu.rs`'s BUGS on the MTRRs).
 fn direct_map<A, P>(
     m: &mut Mapper<A, P, Aarch64>,
     pa_start: u64,
@@ -388,8 +397,13 @@ where
     if pa_end <= pa_start {
         return Ok(());
     }
-    let pages = (pa_end - pa_start).div_ceil(PAGE_SIZE);
-    m.map_range(phys_to_virt(pa_start), pa_start, pages, flags)
+    let len = (pa_end - pa_start).next_multiple_of(PAGE_SIZE);
+    let largest = if flags.is_device() {
+        PageSize::Size4KiB
+    } else {
+        PageSize::Size1GiB
+    };
+    m.map_span(phys_to_virt(pa_start), pa_start, len, flags, largest)
 }
 
 /// Walk the tables in software and check the things that would kill us.

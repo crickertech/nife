@@ -121,7 +121,7 @@ The alternative is a **fixed-capacity ring** in each endpoint: simpler to reason
 prove, but it invents a new failure mode ("queue full: what now, drop the blocker?") that no
 amount of tuning removes honestly.
 
-The wrinkle is milestone 18: `crates/ipc` proves the rendezvous over real `VecDeque`s, and the
+The wrinkle is milestone 18: `crates/inter_process_communication` proves the rendezvous over real `VecDeque`s, and the
 kernel runs that proved code. Whatever replaces the `VecDeque` must move the proofs with it,
 same properties over the new structure, or the rewire quietly demotes proved code back to
 argued code. The decision core only ever asks "is the queue empty" and "pop the head", so the

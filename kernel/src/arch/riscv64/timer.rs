@@ -62,9 +62,14 @@ static TIMEBASE_HZ: AtomicU64 = AtomicU64::new(0);
 /// `sleep` that returns at the wrong time, with nothing anywhere reporting a fault.
 pub fn init_frequency(dtb_ptr: usize) {
     // SAFETY: the pointer OpenSBI handed us in `a1`, named through the boot table's direct map.
-    // `Dtb::from_ptr` re-checks the magic, and this runs on the same map `memory::init` uses.
-    let dt = unsafe { dtb::Dtb::from_ptr(super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) }
-        .expect("device tree is unreadable");
+    // `DeviceTreeBlob::from_ptr` re-checks the magic, and this runs on the same map `memory::init`
+    // uses.
+    let dt = unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(
+            super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8
+        )
+    }
+    .expect("device tree is unreadable");
     let list =
         machine_discovery::cpu_list::CpuList::from_device_tree(&dt).expect("cannot read /cpus");
     let hz = list
@@ -592,9 +597,12 @@ mod tests {
 
         let ptr = crate::DTB.load(O::Relaxed);
         // SAFETY: the pointer firmware handed us, already parsed twice on this boot.
-        let dt =
-            unsafe { dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
-                .expect("device tree is unreadable");
+        let dt = unsafe {
+            device_tree_blob::DeviceTreeBlob::from_ptr(
+                crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8
+            )
+        }
+        .expect("device tree is unreadable");
         let stated = machine_discovery::cpu_list::CpuList::from_device_tree(&dt)
             .expect("cannot read /cpus")
             .timebase_hz

@@ -16,11 +16,15 @@ pub mod context;
 pub mod exceptions;
 #[cfg(feature = "fastpath_pad")]
 mod fastpath_pad;
+// The GICv3 CPU interface, `ICC_*` system registers (milestone 227). Private: `irq` is its only
+// caller, and the one place that knows which GIC version this machine has.
+mod gic_cpu_interface;
 pub mod interrupts;
 pub mod iommu;
 pub mod irq;
 pub mod isa;
 pub mod mmu;
+pub mod pmu;
 pub mod semihosting;
 pub mod timer;
 

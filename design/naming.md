@@ -338,13 +338,14 @@ directory entries per block, and nothing else now that `Fs` no longer holds an e
 limit pick a name, and do not spend a format change on bytes nothing needs.** 32 clears the longest
 settled name by seven bytes, which is a budget rather than the three bytes that were left before.
 
-## Crates
+## What `crates/` holds
 
 `crates/` holds four audiences under one directory, and **naming does not distinguish them**, which
 is a known gap rather than a decision.
 
-- **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `frames`, `regions`,
-  `slots`, `asid`, `intrusive`, `ipc`, `dma_validator`, `measured_boot`, `user_mode_heap`.
+- **Kernel logic**, host-tested and Kani-reachable: `capability`, `paging`, `page_frames`,
+  `memory_regions`, `generational_table`, `address_space_identifier`, `intrusive_fifo`,
+  `inter_process_communication`, `dma_validator`, `measured_boot`, `user_mode_heap`.
 - **Wire contracts**, spelled `*_protocol` and checked for it by `script/lint`:
   `filesystem_protocol`, `socket_protocol`, `byte_sink_protocol`, `credential_protocol`,
   `clock_protocol`, `entropy_protocol`, `graphics_protocol`, `environment_protocol`,
@@ -357,7 +358,8 @@ is a known gap rather than a decision.
   to differentiate from prototype."*). `proto` is a truncation rather than an abbreviation, and it
   is equally short for `prototype`, which this tree uses for a real thing. Wherever a dated passage
   below spells a crate `_proto`, that is what it was called then and the passage is left alone.
-- **Format and hardware parsers**: `elf`, `dtb`, `pci`, `gpt`, `nifefs`.
+- **Format and hardware parsers**: `elf`, `device_tree_blob`, `pci`,
+  `globally_unique_identifier_partition_table`, `nifefs`.
 - **Userspace libraries**: `user_mode_runtime`, `grant_plan`, `virtio`, `video_terminal`, `line_editor`,
   `bitmap_font`, `glob`, `calendar`, `credentialer`, `compositor`, `coremark`, `c_seam`.
 
@@ -368,7 +370,9 @@ composition itself; `line_editor` is a sans-IO editor with a `line_editor::proto
 either to `*_proto` would promise a wire definition and deliver an algorithm, which is exactly the
 kind of claim §39 is about. The `*_proto` check is right to leave them alone.
 
-What the names actually do, over the 39 directories under `crates/`:
+What the names actually do, over the 39 directories under `crates/` **on 2026-08-01**, when this
+census was taken. It has not been re-taken (there were 68 on 2026-09-19), and the names in it are
+the ones those directories had that day:
 
 - **One word where one word will do**, which is 21 of the 39: `abi`, `capability`, `compositor`,
   `elf`, `frames`, `ipc`, `paging`, `regions`, `slots`, `virtio`.
@@ -672,6 +676,28 @@ one of them would get it wrong. The check reports the contradiction and never fa
 refused word can legitimately survive as ordinary English and a gate that fires on prose is a gate
 people learn to skip.
 
+**Those two captures print the worklist two different ways, and that was a defect, fixed
+2026-09-19.** The `--check` line counted `recorded + unrecorded`, the table's last line and
+`--unratified` counted `provisional` as well, and neither census line listed `provisional` at all,
+so the three numbers shown did not add up to the total. The captures above keep their numbers
+because they are evidence of what the tool printed; at 126 names there happened to be no
+provisional ones, which is why the two lines agree there and why nobody saw it until milestone
+117's fourth stranger added a program with a provisional name and watched it vanish from the
+gate's count. **Every line now prints the one worklist, which is exactly what `--unratified`
+lists**, `provisional` included, because that command sorts provisional names first in every tier
+(their author has already said they are wrong, §89) and a count that dropped them hid the part of
+the worklist worth reading first. The census names all four states and all four kinds, so it sums:
+
+```
+$ script/names --check 2>/dev/null
+names: 222 names carry provenance (68 crates, 89 programs, 10 packages, 55 scripts)
+names: 153 ratified, 41 provisional, 27 recorded, 1 unrecorded, 273 refusals recorded beside them
+names: 69 still want calef (script/names --unratified), which is a worklist and not a failure
+
+$ script/names --unratified | head -1
+UNRATIFIED (69 of 222), in the order worth working through
+```
+
 ### BUGS
 
 - **It checks that a name carries a reason, never that the reason is still true.** A block whose
@@ -923,6 +949,28 @@ Two limits worth stating rather than discovering: the checks read the filesystem
 than the things, so a component whose name is fine and whose behaviour is a daemon is not its
 problem.
 
+## A half implies two; a third of anything is an arm
+
+**calef, 2026-09-19**, reading a lane's workflow that called macOS, Linux and Windows each a "half"
+of one program. A count above two in front of the word is not a strong claim or a loose one; it is
+arithmetic that cannot be true, and a reader who meets it stops trusting the sentence around it.
+(This section writes that shape as "three <halves>" wherever it must show it, because `script/lint`
+gates on the literal and a rule whose own text trips its gate is a rule nobody can land.)
+
+**The rule, and it costs nothing to follow.** "Half" is for a genuine two-way split and is often
+exactly right: this tree has honest halves everywhere (a crate's pure half and its host-tools half,
+milestone 74's aarch64 half and riscv64 half). For one branch of a split with three or more, this
+tree's own word is **arm**: `components/src/console.rs` speaks of "its x86 arm", and the boot
+ladder, the console server and the shell-check legs all read that way. "Part", "piece" and "leg" are
+the other honest choices; a "leg" in this tree already means one architecture's run of a gate.
+
+**What is gated and what is not.** `script/lint` reads only the shape that cannot be argued with: a
+count word immediately in front of the word ("three h...", "four h...", and so on). It does not
+judge a "half" whose siblings are a paragraph away, because that needs a reader, and a gate that
+guesses at prose is how this tree lost three checks. The sweep that came with the rule fixed four
+(milestone 22's deliverable, milestone 54's landings, a `filesystem_protocol` doc comment and a
+`timetable_tests` one) and left the honest halves alone.
+
 ## An abbreviation we receive rather than author
 
 calef, 2026-09-13, asking what it would take to rename `initrd` to `initial_ramdisk`. The answer is
@@ -959,7 +1007,7 @@ spelling and pays the cost at the reader's expense once, in an expansion written
 meets it. `crates/user_rt/src/initrd.rs` carries that expansion as of 2026-09-13.
 
 **And the defect the pricing found was not the name.** `initrd` appeared about 1,300 times and was
-expanded in full **exactly once**, in `crates/dtb`, a crate about device trees rather than the one
+expanded in full **exactly once**, in `crates/dtb` (`crates/device_tree_blob` since 2026-09-19), a crate about device trees rather than the one
 named for the thing. The abbreviation was never the problem; an unexplained abbreviation was, and
 that is rung three rather than a sweep.
 
@@ -1102,13 +1150,16 @@ names review that performed six renames.
 | Carries the name | Moves? | Why |
 |---|---|---|
 | The crate directory, package name, dependency entries | **Yes** | They *are* the name |
-| A **note filename** (`notes/asids.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **note named for the crate** (`notes/asids.md`, `notes/gpt.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **note named for the concept or for another thing** (`notes/ipc-naming.md`, about inter-process communication; `notes/ipc-tables-lock-inventory.md`, about the `IPC_TABLES` lock §118 named) | **No** | The ownership test below: it keeps its name when our crate is deleted. The earlier wording of the row above said only "a note filename", and read that way it would have renamed both of these |
 | A **roadmap slug** (`design/roadmap/15-asids.md`) | **No** | Exempt, standing rule: roadmap titles and slugs are drafts, and the number is what people cite |
 | A **hardware field or wire name** (`satp.ASID`, `NVMe 1.4 §3.1`) | **Never** | A citation of somebody else's specification |
+| A **public type named for the acronym** (`Gpt`, `Dtb`) | **Yes** | calef, 2026-09-19: a reader meets the type far more often than the crate, so leaving it short leaves most of the acronym in place. `Nvme` had already moved with its family. **`Guid` stays** under its own 2026-09-13 ruling, which is about byte order rather than length |
+| A **fuzz target named for the crate** (`gpt_table`, `dtb_walk`) | **Yes** | calef, 2026-09-19: named for what it fuzzes |
 | A **`BUILT` block, a transcript, a dated account** | **Never** | The status table above |
 
 **The note half has a cost the crate half does not: every citation of the old path breaks.**
-`notes/gpt.md` is cited by 18 files, `notes/ipc-naming.md` by 24. `script/lint` check 4c verifies that
+`notes/gpt.md` was cited by 18 files when it moved. `script/lint` check 4c verifies that
 a markdown *link* target resolves, so it catches those; it does **not** catch a path written in prose
 outside a link, and both forms exist in this tree. Grep for both.
 
@@ -1207,7 +1258,7 @@ runs, which is not on every build. It is the stale-pointer-upgrade class one lev
 ### `components/` is a second workspace, and `cargo check` is blind to it
 
 The main workspace's check does not compile `components/`, so a rename that breaks a consumer there
-is green until something builds it. `gpt` and `dtb` both have consumers in it; `asid` had only the
+is green until something builds it. `gpt` has consumers in it (the `gpt` rename built and ran them); `dtb` has none, which this line wrongly said it had until the `dtb` lane checked with `git grep`, and `asid` had only the
 kernel, which is why the first three renames never exercised this. **Build both workspaces, or run
 `script/test`, which does.**
 
@@ -1537,6 +1588,42 @@ module point into `hello.rs` for `ep_maker()`, `ep_user()`, `call_server()` and 
 none of which are there either, and they were left alone only because this rename did not touch
 them.
 
+**The seventh rename found the same shape at scale** (`ipc` to `inter_process_communication`,
+2026-09-19). §113 renamed `Endpoint` to `Rendezvous` on 2026-08-23 and nothing moved the prose, so
+nine sites still said `ipc::Endpoint` a month later. A `ipc::` sweep would have turned every one
+into `inter_process_communication::Endpoint`, a type that has never existed. They were classified
+instead: the ones in decided sections are accounts and kept their words with the current name beside
+them, and the ones in notes describing today's code were repointed to `Rendezvous`. Reading those
+lines found two more pointers of the same age (`Rendezvous<Tid>`, and `crates/intrusive` for a
+crate now called `intrusive_fifo`). **A type rename leaves a trail of stale prose, and the next
+crate rename walks straight into it.**
+
+### A tool that does not understand `\b` does not say so
+
+Contributed by the `dtb` and `ipc` renames (2026-09-19), which each lost a count to it. On macOS,
+`git grep` does not support `\b` in its default pattern syntax and **matches nothing**, so
+`git grep -c '\bdtb\b'` reports zero across a tree with eighty-six hits in it. The macOS `sed` drops
+`\b` the same way, so a substitution meant to be word-bounded silently rewrites nothing, or with a
+different pattern rewrites too much. Neither prints a warning.
+
+**Treat a zero as a claim to re-check, never as a result.** Re-run it with `grep -rE` and an
+explicit class (`(^|[^a-z_])ipc::`), or with `git grep -w` where a word match is what you want.
+
+### A `Name:` block can move its own census
+
+The `dtb` block described the crate's files as `.dtb` files, so the rename that wrote the block
+counted it: 88 hits against a census of 86, and two phantom survivors to classify. The block now
+says "the blob files' extension". When the after-census is off by a small number, check the
+provenance block you just wrote before the tree.
+
+### A hand rewrap needs a width check afterwards
+
+Expanding a name lengthens lines, and every rename in this series rewrapped paragraphs by hand or by
+script. Two failures were both invisible to the gates: lines left past the file's hundred columns,
+and a list marker given a second space by a wrap script. After a rewrap, list the added lines longer
+than the file's width (`git diff -U0 | grep '^+[^+]' | awk 'length > 101'`) and read a
+`--word-diff` of the result; the word diff should show only the names you meant to change.
+
 ### The generated roadmap index is not a sweep target, and running the generator proves it
 
 The same lane was briefed to run `script/roadmap --write` after editing, on the reasoning that
@@ -1601,21 +1688,6 @@ by mistake.
   first and the vendored file not at all, and the gate caught it. Edit both, in the same commit.
 - **The measured-boot manifest is still `target/init-measure-<arch>.txt`.** It is a build artifact
   name, not a crate reference; `kernel/build.rs` reads it and turns it into `TRUST_ROOT`.
-- **`script/lint`'s naming worklist under-counts by exactly the `provisional` names, and then names
-  the command that prints the other number.** Found 2026-08-18 by milestone 117's fourth stranger,
-  while walking `notes/adding-a-program.md` with a program whose name it had marked provisional
-  because both `AGENTS.md` and that page tell a newcomer to. Two summary lines compute the same
-  quantity differently: the `--check` path prints `len(recorded) + len(unrecorded)` and the default
-  listing prints `len(provisional) + len(recorded) + len(unrecorded)`. So the gate says
-  `names: 82 still want calef (script/names --unratified)` and `script/names --unratified` answers
-  `UNRATIFIED (86 of 162)`. The census line above it drops them too: `76 ratified, 15 recorded, 67
-  unrecorded` sums to 158 of 162, and a reader who adds the three numbers up is told four names do
-  not exist. **`provisional` is the state whose author has already said the name is wrong**, which
-  §89 calls the shortest conversation available, so under-reporting it hides the part of the
-  worklist worth reading first. Recorded rather than fixed because the run that found it was
-  measuring, not repairing, and because which number the gate should print is a decision about what
-  the worklist is for.
-
 - **Note filenames did not move**, and that is the rule rather than an oversight:
   [fs-server.md](../notes/fs-server.md), [shell.md](../notes/shell.md), [shell-navigation.md](../notes/shell-navigation.md) and
   [line-discipline.md](../notes/line-discipline.md) are markdown, so they stay lowercase-hyphenated even

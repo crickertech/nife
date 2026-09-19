@@ -1,6 +1,6 @@
 # Concept notes
 
-*Name: ratified (§75 covers this directory). `notes` predates every convention here and stays for the reason `elf` and `dtb` stay: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing.*
+*Name: ratified (§75 covers this directory). `notes` predates every convention here and stays for the reason `elf` stays: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing. (This said `elf` and `dtb` until 2026-09-19, when DECISIONS §154 expanded `dtb` to `device_tree_blob`; `notes` is an ordinary English word and was never an acronym, so §154 does not reach it.)*
 
 Running glossary for nife. Written as concepts come up, not up front. If something
 in the code or the conversation doesn't make sense, it belongs here.
@@ -65,8 +65,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   `BUGS` sections (where rising is good), the falsification ratio, `unsafe` density, and the fatal
   risks put to an experiment. Every row is a restatement under today's definitions rather than what
   was reported at the time, which is stated on the page because a dashboard is exactly the artifact
-  that stops a reader asking. Coverage is the one series that cannot be recovered from history and
-  is left visibly empty. Name of the page ratified; the script's and the data directory's are
+  that stops a reader asking. Coverage is the exception: each week is measured by its own
+  `script/coverage` on its own pinned nightly, backfilled on 2026-09-19, with 2026W29 left
+  visibly empty because the script did not exist yet. Name of the page ratified; the script's and the data directory's are
   provisional.
 
 - [Citations that name what they cite](citations.md): why a footnote in this tree carries a name
@@ -181,6 +182,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   left `.bss` for a region with an unmapped page under each, proven by a page-table walk. Its
   longest-standing BUGS entry, that nothing walks the call graph, closed on 2026-08-16 with
   `script/stack-depth-check`, whose static bound and this note's measurement agree to the byte.
+  Since milestone 134 (2026-09-19) it also measures **per-IPC** depth, the same paint re-armed
+  around each operation: about 600 bytes per kernel thread per round trip in the release build,
+  which moves E1's knee from a capacity story to a set-conflict question.
 - [Reading aarch64 assembly](reading-assembly.md): five rules that decode almost
   everything, the addressing-mode table, and a line-by-line walkthrough of `boot.s`.
   **Start here if a code block looks like noise.**
@@ -1227,11 +1231,19 @@ in the code or the conversation doesn't make sense, it belongs here.
   stick can boot has one. What was chosen (the firmware's linear framebuffer, carried across the
   handoff on PVH's own command line), what the alternatives cost against **both** halves of the
   problem (a human watching a boot, and a gate reading a machine), what it does not solve, and the
-  bench procedure for a machine nobody in a lane can reach.
+  bench procedure for a machine nobody in a lane can reach. Since milestone 400 (number provisional)
+  the shell's prompt reaches that screen too, beside the serial console.
 - [The bench runbook: which machine, in what order, and what an evening buys](bench-runbook.md):
   which of the three machines an evening should be spent on and why radon comes first, what a
   result on each would mean for the fatal risks, and what can go wrong that is not the board. It
   points at each procedure rather than repeating it, so the steps cannot drift from their source.
+- [The boot stick, and the program that makes it](boot-stick.md): DECISIONS §157's first rung,
+  built. `stick_maker`, one download per host with every architecture's boot file inside, and the
+  universal stick it writes (`BOOTX64.EFI`, `BOOTAA64.EFI`, `BOOTRISCV64.EFI`, each firmware booting
+  its own). Why the offer rule is the removable-media bit and not "USB" (two backup disks on the
+  development Mac), copy before erase, how the device tree reaches the aarch64 and riscv64 kernels,
+  the riscv64 ELF-to-PE conversion rustc's missing target forced, what ran on which host, and **the
+  bench steps for radon and argon**.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload

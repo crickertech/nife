@@ -82,6 +82,9 @@ pub mod cpu_list;
 // kernel in one command-line token, and milestone 157's U-Boot handoff has the identical sentence
 // to say on aarch64. x86_64 is its first consumer, not its owner.
 pub mod framebuffer;
+// Which Arm interrupt controller (milestone 227): aarch64's question, but a device-tree binding
+// read plus a pure cross-check of raw ID-register words, so it is host logic like `plic` beside it.
+pub mod gic;
 pub mod interrupt_id;
 pub mod plic;
 pub mod riscv64;

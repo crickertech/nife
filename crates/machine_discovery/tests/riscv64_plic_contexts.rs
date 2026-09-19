@@ -15,14 +15,15 @@ const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");
 /// dtsi rather than measuring the real firmware tree. See the fixture's own header for the full
 /// story and notes/visionfive2.md's BUGS section.
 const VISIONFIVE2_UBOOT: &[u8] = include_bytes!("fixtures/visionfive2-uboot-control.dtb");
-/// The suite's own machine, single-hart, shared with the `dtb` crate's fixtures.
-const QEMU_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-riscv64-virt.dtb");
+/// The suite's own machine, single-hart, shared with the `device_tree_blob` crate's fixtures.
+const QEMU_VIRT: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 /// The same machine at `-smp 4`, which is what `script/test` boots; dumped with
 /// `qemu-system-riscv64 -machine virt,dumpdtb=... -smp 4`.
 const QEMU_VIRT_SMP4: &[u8] = include_bytes!("fixtures/qemu-riscv64-virt-smp4.dtb");
 
-fn tree(bytes: &[u8]) -> dtb::Dtb<'_> {
-    dtb::Dtb::from_bytes(bytes).expect("fixture is a valid device tree")
+fn tree(bytes: &[u8]) -> device_tree_blob::DeviceTreeBlob<'_> {
+    device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture is a valid device tree")
 }
 
 /// **Hart h's S context is `2h` on this board.** The S7 contributes only an M context (context 0),
@@ -72,7 +73,8 @@ fn qemu_virt_contexts_match_the_old_formula() {
 /// back to its formula and the machine boots as before.
 #[test]
 fn a_machine_without_a_plic_is_an_empty_map() {
-    const AARCH64: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt-smp4.dtb");
+    const AARCH64: &[u8] =
+        include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt-smp4.dtb");
     let ctx = PlicContexts::from_device_tree(&tree(AARCH64)).expect("no PLIC is not an error");
     assert!(ctx.is_empty());
     assert_eq!(ctx.s_context(0), None);
@@ -103,4 +105,44 @@ fn visionfive2_uboot_control_dtb_is_read_despite_the_older_compatible_string() {
         );
     }
     assert_eq!(ctx.len(), 4);
+}
+
+const PLIC_SHAPES: &[u8] = include_bytes!("fixtures/plic-shapes.dtb");
+
+/// **Three ways the two walks can fall out of step, in one tree.**
+///
+/// The context map is stitched from two lists that align only by tree order: the `riscv,cpu-intc`
+/// nodes in one, the PLIC's `interrupts-extended` entries in the other. Every fixture above keeps
+/// them aligned by construction, so nothing tested what keeps them aligned.
+///
+/// * The PLIC here is named `interrupt-controller@c000000`, the spelling the JH7110 uses, and it
+///   is declared **before** `/cpus`. Both JH7110 fixtures declare theirs after, so a walk that
+///   failed to filter the PLIC out by `compatible` still got the right answer there; here it would
+///   take slot zero and shift every hart down one.
+/// * `cpu@0`'s controller has no `phandle`, so no entry can name it. It still consumes its hart's
+///   slot: a walk that did not count it would hand `cpu@1`'s context to `cpu@0`.
+/// * `cpu@10`'s hardware id is 16, which is `MAX_CONTEXT_HARTS` exactly. The tree names an S
+///   context for it and the record has no slot to put it in, so the answer is "the tree did not
+///   say" rather than a write past the array.
+#[test]
+fn the_context_walk_stays_aligned_with_the_hart_walk() {
+    let ctx = PlicContexts::from_device_tree(&tree(PLIC_SHAPES)).expect("the PLIC wiring parses");
+
+    assert_eq!(
+        ctx.s_context(0),
+        None,
+        "cpu@0's controller has no phandle, so no entry names it",
+    );
+    assert_eq!(ctx.s_context(1), Some(0), "the first entry is cpu@1's");
+    assert_eq!(ctx.s_context(3), Some(2), "the third entry is cpu@3's");
+    assert_eq!(
+        ctx.s_context(16),
+        None,
+        "hart 16 is one past the sixteen this record holds",
+    );
+    assert_eq!(ctx.len(), 2);
+    assert!(
+        !ctx.is_empty(),
+        "two contexts is not none, and every other test here asks only the other way",
+    );
 }

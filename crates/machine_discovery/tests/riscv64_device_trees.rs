@@ -2,9 +2,9 @@
 //!
 //! Four trees, and each is here for a reason no other one covers:
 //!
-//! * **QEMU's own `virt`**, borrowed from the `dtb` crate's fixtures so the two crates cannot
-//!   disagree about what the machine we test on says. This is the tree the RISC-V suite actually
-//!   boots against, and the surprise in it is the whole argument for the milestone.
+//! * **QEMU's own `virt`**, borrowed from the `device_tree_blob` crate's fixtures so the two crates
+//!   cannot disagree about what the machine we test on says. This is the tree the RISC-V suite
+//!   actually boots against, and the surprise in it is the whole argument for the milestone.
 //! * **`mixed-cpus`**, hand-written, for the shapes QEMU never produces: the deprecated
 //!   `riscv,isa` string, the `g` abbreviation, and harts that differ from each other.
 //! * **`narrow-machine`**, hand-written, so the refusal path has a witness rather than only a
@@ -15,10 +15,11 @@
 
 use machine_discovery::riscv64::*;
 
-/// The device tree of the machine the RISC-V suite boots on, shared with the `dtb` crate's own
-/// fixtures rather than copied, so a regenerated tree cannot leave the two crates testing
-/// different machines.
-const QEMU_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-riscv64-virt.dtb");
+/// The device tree of the machine the RISC-V suite boots on, shared with the `device_tree_blob`
+/// crate's own fixtures rather than copied, so a regenerated tree cannot leave the two crates
+/// testing different machines.
+const QEMU_VIRT: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 const MIXED: &[u8] = include_bytes!("fixtures/mixed-cpus.dtb");
 const NARROW: &[u8] = include_bytes!("fixtures/narrow-machine.dtb");
 const WIDE_FIRST: &[u8] = include_bytes!("fixtures/wide-hart-first.dtb");
@@ -26,7 +27,8 @@ const WIDE_FIRST: &[u8] = include_bytes!("fixtures/wide-hart-first.dtb");
 /// Read the tree only. The `sbi` half of the record stays at its default, which is "no firmware
 /// answered", because a device tree cannot speak for the firmware.
 fn parse_tree(bytes: &[u8]) -> Isa {
-    let dt = dtb::Dtb::from_bytes(bytes).expect("fixture is a valid device tree");
+    let dt = device_tree_blob::DeviceTreeBlob::from_bytes(bytes)
+        .expect("fixture is a valid device tree");
     Isa::from_device_tree(&dt).expect("the CPU nodes parse")
 }
 
@@ -271,7 +273,7 @@ fn firmware_that_cannot_be_asked_is_not_a_failure() {
 fn a_silent_tree_is_not_a_failure() {
     // The aarch64 `virt` tree, which has `cpu@` nodes but no RISC-V properties on them: the
     // closest thing in the tree to firmware that does not describe its ISA.
-    let bytes = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt.dtb");
+    let bytes = include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt.dtb");
     let cpu = parse(bytes);
 
     assert!(cpu.harts > 0, "it does have CPU nodes");

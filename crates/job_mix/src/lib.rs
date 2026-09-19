@@ -46,7 +46,7 @@
 //! measuring a shim. The mix below keeps AIM7's *categories* instead, expressed in this kernel's own
 //! primitives, and [`BUGS`](self#bugs) records which categories are still missing.
 //!
-//! # The five jobs
+//! # The seven jobs
 //!
 //! | job | AIM7 category | what it costs here |
 //! |---|---|---|
@@ -55,8 +55,18 @@
 //! | [`NULL_SYSCALL`] | (the trap itself) | EL0 to EL1 and back, the cheapest kernel entry |
 //! | [`YIELD`] | (scheduling pressure) | a full context switch through the ready queue |
 //! | [`ROUND_TRIP`] | pipe I/O | `CALL` to a shared server and its `REPLY`: two rendezvous |
+//! | [`MAP`] | user virtual-memory operations (mapping) | split a region, build a space, 32 `MAP_INTO`s, `DESTROY` |
+//! | [`SPAWN`] | process creation | build two children from EL0, `RECV` each one's exit, reclaim |
 //!
-//! **[`ROUND_TRIP`] is the one that answers §96 and the other four are what make it a workload.**
+//! [`MAP`] and [`SPAWN`] were added on 2026-09-19. They are the two jobs whose kernel path goes
+//! deepest and takes a lock other tasks' same job also wants (the memory-region table), and
+//! [`SPAWN`] is the one where a task blocks on a thread that did not exist a moment before. Both use
+//! only verbs and capability kinds that existed already: each task is granted its own untyped
+//! budget ([`SLOT_BUDGET`]) and builds the objects it maps or starts, the shape
+//! `os_primitives_benchmarker`'s `map_el0` and `spawn_el0` loops already had. No syscall, method or
+//! object type was added for them.
+//!
+//! **[`ROUND_TRIP`] is the one that answers §96 and the other six are what make it a workload.**
 //! A process kernel's cost is the kernel stack a blocking thread leaves behind, so the quantity that
 //! matters is how many *distinct* stacks the machine cycles through and how much of the cache each
 //! displaces between visits. [`COMPUTE`] and [`TOUCH`] are what displace it: they are the
@@ -88,18 +98,29 @@
 //!   something to treat "with scepticism until it can be satisfactorily explained" and never
 //!   running the cache simulation that would have explained it. Quote the 20% with that attached
 //!   or do not quote it.
-//! - **Three of AIM7's categories are absent: disk-file operations, process creation, and page
-//!   mapping.** Each was refused for a stated reason rather than overlooked. A filesystem job needs
-//!   a disk attached and would make the instrument's availability depend on the runner's storage,
-//!   which is the thing that keeps `script/bench`'s `fs_*` rows out of the gated set. A spawn job
-//!   costs an address space per iteration and the tree's own `spawn_el0` benchmark exists to
-//!   reclaim them one at a time; at 32 concurrent tasks it would measure the memory-region
-//!   allocator rather than the scheduler. A map job needs a per-task address-space capability that
-//!   the spawn path does not currently hand out. **All three are real gaps in fidelity**, and the
-//!   honest reading of a result from this mix is that it covers the compute, memory, trap,
-//!   scheduling and IPC categories and no others. **Closing them would make a better likeness of
-//!   AIM7 in general and would not make a number from it comparable with Warton's**, for the two
-//!   reasons the bullets above give.
+//! - **One of AIM7's categories is still absent: disk-file operations.** Page mapping and process
+//!   creation were added on 2026-09-19 ([`MAP`], [`SPAWN`]); the disk job was not, for two reasons
+//!   checked against the tree: nothing nife runs on radon can read a disk (every file-service path
+//!   starts at a virtio block device), and the file service maps one shared channel into every
+//!   client, which 32 concurrent tasks would race on. Both, and the options, are in
+//!   `design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`. The honest
+//!   reading of a result from this mix is that it covers compute, user memory, the trap,
+//!   scheduling, IPC, mapping and process creation, and no filesystem. **Closing it would make a
+//!   better likeness of AIM7 in general and would not make a number from it comparable with
+//!   Warton's**, for the two reasons the bullets above give.
+//! - **[`MAP`] and [`SPAWN`] both take the kernel's one memory-region lock**, so at the top of the
+//!   sweep part of what they measure is that lock rather than the map or spawn path. That was the
+//!   stated reason they were first refused. It is now measured rather than feared: each task times
+//!   its `SPLIT` and `DESTROY` calls separately and the supervisor prints them as `region_ticks` on
+//!   every `job-mix-kind:` line, so a reader can subtract it. Under QEMU (which is no result, only a
+//!   proof the accounting works) the region calls were 20 to 35% of a map job and 9 to 27% of a
+//!   spawn job on aarch64, with the share **falling** as tasks rose, because the rest of the job
+//!   (waiting for a child to be scheduled) grew faster. What it is on radon is a bench question.
+//! - **The per-kind breakdown is self-timed and includes preemption.** A job's ticks are wall time
+//!   from its first instruction to its last, so a task descheduled mid-job charges the wait to that
+//!   job's kind. That is the quantity a multi-tasking benchmark wants (which kinds get slower under
+//!   load), and it is why the per-kind totals do not add up to the subrun's wall clock times the
+//!   task count.
 //! - **The mix proportions are chosen, not derived.** AIM7 ships workfiles for four machine roles
 //!   (multiuser, compute server, large database, file server) and nobody here has one for a
 //!   capability microkernel. [`MIX`] is a flat-ish spread with the IPC job weighted up, on the
@@ -178,6 +199,90 @@
 #![no_std]
 #![deny(missing_docs)]
 
+// **The console markers, which are a contract and not a wording** (milestone 324 part 2).
+//
+// Everything below this comment and above `COMPUTE` is text that leaves the machine and is read
+// back by something that is not the machine: `crates/board_console` on a bench or in CI, and
+// `cargo xtask job-mix` under QEMU. `crates/boot_ladder` holds the boot tour's markers for exactly
+// this reason and its header carries the argument; these are the sweep's, and they lived as four
+// private `const`s in `kernel/src/job_mix.rs` plus four string literals in `xtask/src/main.rs`
+// until this milestone. Three copies of a contract agreeing by a reader having checked is milestone
+// 268's finding 3, and the fix is the one that milestone found: there is one of them.
+//
+// **What is shared is the head, and the fields inside the line are not.** That is the gap
+// `crates/board_console`'s `SweepPoint` carries a `BUGS` entry for, and 2026-09-19 is the day it
+// cost something: the tail of [`POINT`] gained four field names and lost two, every marker here
+// still matched, and the recogniser silently read nothing.
+//
+// They are **stable heads**, on `boot_ladder`'s rule and for its reason: the head is what a matcher
+// keys on and never changes, the tail carries the numbers and is free to improve. A contract on
+// the whole line would make every improvement to the diagnosis a breaking change.
+//
+// Names provisional (milestone 324): they are printed and matched, so they are a contract, and
+// calef names public items. Spelled as bare nouns to match `boot_ladder`'s `BANNER`, `MACHINE`,
+// `TOUR`; the kernel's own `START_MARKER` and `DONE_MARKER` spellings were retired into these
+// rather than moved, because `job_mix::START_MARKER` says *marker* twice.
+
+/// **The sweep has begun**: `job-mix: started <n> tasks and <m> servers on <c> online core(s), ...`.
+///
+/// Printed by `kernel/src/job_mix.rs` once the whole pool has spawned, so reaching it means every
+/// task and every echo server exists. A reader that finds this and then nothing has a sweep that
+/// wedged rather than a kernel that refused, and telling those two apart is what milestone 324's
+/// part 2 is for.
+pub const STARTED: &str = "job-mix: started";
+
+/// **The sweep ran to its end**: `job-mix: done`, on a line of its own.
+///
+/// The kernel parks in `wfi` afterwards rather than exiting, so this line is the only thing that
+/// says a sweep finished. Silence after it is the correct end state; silence before it is not.
+pub const DONE: &str = "job-mix: done";
+
+/// **The kernel would not start the sweep**: `job-mix: FAILED: <why>`.
+///
+/// Three cases print it (no `job_mix_task` in the archive, and either kind of spawn failing), all
+/// of them before [`STARTED`], and all of them followed by a halt. The tail names which.
+pub const FAILED: &str = "job-mix: FAILED: ";
+
+/// **One point of the sweep completed**: `job-mix: tasks=<n> jobs=<j> repeats=<k> ticks_min=<a>
+/// ticks_median=<b> ticks_max=<c> jpm_median=<r>`.
+///
+/// One per entry in [`TASK_SWEEP`], printed after that entry's [`REPEATS`] subruns, carrying their
+/// [`Spread`] and the jobs-per-minute figure computed from the median. Counting these is how a
+/// reader knows how far along a sweep is.
+///
+/// **The tail changed on 2026-09-19 and this is the record of it.** Until then it was
+/// `ticks=<t> jpm=<r>`, the best of three; [`REPEATS`] explains why the statistic is now the median
+/// of 21 and why the two ends are printed beside it. The head did not move, so a transcript from
+/// either side of that date is still recognisably a sweep, and the two statistics are not
+/// comparable. A reader with an older log has `ticks=` and `jpm=` and should say which it is
+/// quoting.
+pub const POINT: &str = "job-mix: tasks=";
+
+/// **One measured subrun finished**: `job-mix-repeat: tasks=<n> repeat=<r> ticks=<t>`.
+///
+/// Finer than [`POINT`] by a factor of [`REPEATS`], and it is the finest progress a sweep emits.
+/// That matters to a watcher: a sweep has **no wall-clock heartbeat** the way
+/// `kernel/src/soak.rs` does, so the longest silence a healthy sweep can produce is one subrun at
+/// the top of [`TASK_SWEEP`], and anything deciding that a sweep is wedged has to allow for it.
+pub const SUBRUN: &str = "job-mix-repeat: ";
+
+/// **A placement-census line**: `job-mix-census: ...`, printed at sweep start.
+///
+/// Its own word rather than `job-mix:` on purpose, the same split `kernel/src/soak.rs` makes: a
+/// census is neither the start of a run nor a result, and a watcher keying on the result prefix
+/// should not have to be proven harmless against it. The `-census` suffix is outside both
+/// [`STARTED`] and [`POINT`], which is what makes that true rather than hoped.
+pub const CENSUS: &str = "job-mix-census:";
+
+/// **One job kind's share of one sweep point**: `job-mix-kind: tasks=<n> kind=<name> jobs=<j>
+/// ticks=<t> per_job=<p> region_ticks=<r>`.
+///
+/// [`JOB_KINDS`] of these after each [`POINT`], summed over every task and every repeat at that
+/// point. Its own word rather than `job-mix:` for [`CENSUS`]'s reason: a watcher counting [`POINT`]
+/// lines should not have to be proven harmless against it, and the `-kind` suffix is what makes
+/// that true rather than hoped. Name provisional (2026-09-19), the same standing as the six above.
+pub const KIND: &str = "job-mix-kind:";
+
 /// A compute-bound arithmetic loop, [`COMPUTE_ITERS`] iterations. No syscall.
 pub const COMPUTE: u8 = 0;
 /// A walk over [`TOUCH_WORDS`] words of the task's own memory, read and written. No syscall.
@@ -188,10 +293,32 @@ pub const NULL_SYSCALL: u8 = 2;
 pub const YIELD: u8 = 3;
 /// [`ROUND_TRIP_CALLS`] `CALL`/`REPLY` round trips against a shared server.
 pub const ROUND_TRIP: u8 = 4;
+/// **User page mapping** (added 2026-09-19): [`MAP_CALLS`] `MAP_INTO`s into an address space the
+/// task builds for the job from its own budget, then one `DESTROY` of the whole thing. AIM7's
+/// virtual-memory category, and the first job in the mix whose kernel path takes a lock every other
+/// task's same job also takes (the memory-region table, `kernel/src/memory_region.rs`'s `REGIONS`).
+pub const MAP: u8 = 5;
+/// **Process creation** (added 2026-09-19): [`SPAWN_CALLS`] children built from EL0 through the
+/// granular verbs, run to exit, reaped and reclaimed. AIM7's process-creation category, and the job
+/// that blocks deepest: the parent waits in `RECV` on a thread that did not exist a moment before.
+pub const SPAWN: u8 = 6;
 
 /// How many job kinds there are. A counted claim: the table in this crate's header has one row per
-/// kind, and [`MIX`] must contain each of them at least once.
-pub const JOB_KINDS: usize = 5;
+/// kind, [`KIND_NAMES`] one name per kind, and [`MIX`] must contain each of them at least once.
+pub const JOB_KINDS: usize = 7;
+
+/// The word each kind is printed as on a `job-mix-kind:` line, indexed by kind. Provisional (this
+/// lane's coinage, 2026-09-19): they are console strings a reader greps for, so they follow the rule
+/// the markers do and are spelled the way a reader meets them, which is lower case.
+pub const KIND_NAMES: [&str; JOB_KINDS] = [
+    "compute",
+    "touch",
+    "null_syscall",
+    "yield",
+    "round_trip",
+    "map",
+    "spawn",
+];
 
 /// **The workfile, in AIM7's sense**: the multiset of jobs one task runs per round, and therefore
 /// the proportions. Sixteen entries so a round is long enough to time and short enough that a task
@@ -199,23 +326,28 @@ pub const JOB_KINDS: usize = 5;
 ///
 /// The weighting is stated rather than derived (see this crate's `BUGS`): [`ROUND_TRIP`] gets a
 /// quarter of the mix because IPC is the primitive this kernel exists to be fast at, and the other
-/// four split the rest evenly.
+/// six split the rest evenly, two each.
+///
+/// **Changed 2026-09-19, and a transcript says which mix it ran.** Until then the mix had five kinds
+/// (three each of the first four, four round trips); [`MAP`] and [`SPAWN`] took one slot from each
+/// of those four. The `job-mix: started` line prints [`JOB_KINDS`], so a five-kind transcript and a
+/// seven-kind one cannot be mistaken for each other, and they are not comparable point for point.
 pub const MIX: [u8; 16] = [
     COMPUTE,
     TOUCH,
     NULL_SYSCALL,
     YIELD,
     ROUND_TRIP,
+    MAP,
+    SPAWN,
+    ROUND_TRIP,
     COMPUTE,
     TOUCH,
     NULL_SYSCALL,
     YIELD,
     ROUND_TRIP,
-    COMPUTE,
-    TOUCH,
-    ROUND_TRIP,
-    NULL_SYSCALL,
-    YIELD,
+    MAP,
+    SPAWN,
     ROUND_TRIP,
 ];
 
@@ -251,6 +383,46 @@ pub const YIELD_CALLS: u64 = 64;
 /// `CALL`/`REPLY` round trips in one [`ROUND_TRIP`] job.
 pub const ROUND_TRIP_CALLS: u64 = 32;
 
+/// `MAP_INTO`s in one [`MAP`] job, each of one frame at a fresh page-aligned address in the job's
+/// own target space. 32 is inside one leaf page table on every architecture, so the job pays for
+/// its tables once and then the map path proper; sized so one job costs the same order as a
+/// [`ROUND_TRIP`] job on radon (`map_el0` there is about 1.5 us a map, `ipc_rtt_el0` about 6 us).
+pub const MAP_CALLS: u64 = 32;
+
+/// Pages split off a task's budget for one [`MAP`] job: the address-space object, the one frame
+/// being aliased, the page tables down to one leaf table, and the mapping-record pages revocation
+/// needs to find every mapping again. **Sized to fit with a margin, by running it, not derived**:
+/// the kernel refuses a mapping whose record it cannot afford (`OutOfMemory`), the task reports that
+/// as `job-mix: FAILED`, and `script/job-mix` on all three architectures is what says this is enough.
+pub const MAP_REGION_PAGES: u64 = 16;
+
+/// Children one [`SPAWN`] job builds, runs and reclaims, one at a time. Two, because a spawn is the
+/// heaviest thing in the mix (`spawn_el0` on radon is about 65 us a child) and two already make it
+/// the most expensive job per call; one child per job would leave the parent's own `RECV` on a
+/// brand-new thread as the whole of it.
+pub const SPAWN_CALLS: u64 = 2;
+
+/// Pages split off a task's budget for one child: its address space and page tables, its stack
+/// page, its thread object and the revocation records. `os_primitives_benchmarker`'s `CHILD_PAGES`,
+/// the same child, measured there.
+pub const CHILD_PAGES: u64 = 10;
+
+/// **The untyped budget each task is granted, in pages**, and the reason it is one region per task
+/// rather than one shared: two tasks splitting one region would interleave their `SPLIT`s, and a
+/// region reclaims only in the order it was split (DECISIONS §16), so the first `DESTROY` out of
+/// order would be refused and the job would be measuring a protocol error.
+///
+/// One page for the child code frame the task keeps for the whole run, eight for the page tables
+/// that frame's own mapping may need in the task's address space, and the larger of the two jobs'
+/// transient regions, since a task runs one job at a time and each gives back everything it split.
+pub const TASK_BUDGET_PAGES: u64 = 1
+    + 8
+    + if MAP_REGION_PAGES > CHILD_PAGES {
+        MAP_REGION_PAGES
+    } else {
+        CHILD_PAGES
+    };
+
 /// The largest task pool the supervisor builds, and therefore the length of its go-endpoint array.
 ///
 /// 32, against `sched::MAX_THREADS`'s 256 and against the 64 user threads the soak already builds
@@ -266,9 +438,70 @@ pub const MAX_TASKS: usize = 32;
 /// visible on a log axis. 1 is the control: a single task with the whole machine.
 pub const TASK_SWEEP: [usize; 6] = [1, 2, 4, 8, 16, MAX_TASKS];
 
-/// Measured repeats per subrun. The **best** is kept, for `kernel/src/bench.rs`'s stated reason:
-/// the minimum is the least host-contended sample, and everything above it is somebody else's load.
-pub const REPEATS: usize = 3;
+/// **Measured repeats per subrun, and the statistic is their median, not their best** (changed
+/// 2026-09-19; it was three repeats and the best of them until then).
+///
+/// **Why the median.** The best of N is `kernel/src/bench.rs`'s rule and it is right there: on a
+/// busy dev Mac the minimum is the least host-contended sample and everything above it is somebody
+/// else's load. Here the contention *is* the subject. On radon the tasks' own contention for
+/// [`ECHO_SERVERS`] spreads a subrun's time over a wide distribution (37% within one boot at
+/// `tasks=4`), and a minimum drawn from a wide distribution is the statistic that moves most with
+/// the sample count: the more repeats, the luckier the best one gets. A median converges instead.
+///
+/// **Why 21, from the five radon boots of 2026-09-16 rather than from taste.** Resampling the fifteen
+/// `tasks=4` repeats those boots produced, five simulated boots of N repeats each give a
+/// boot-to-boot spread of the reported figure of about 22% for the best of 3 (29.4% was observed),
+/// 17% for the median of 3, 5.1% for the median of 15 and 4.2% for the median of 21, where
+/// `tasks=16` and `tasks=32` already sat at 2.7 to 6.7% with three. 21 brings the worst point into
+/// the band the stable points were in, and it is odd so the median is a sample rather than an
+/// average of two. The method and the figures are in milestone 168's block.
+///
+/// **One count for every point, and the table that would have saved time was refused.** Varying the
+/// count by sweep point was proposed because board time was thought to be the cost, and it is not:
+/// the whole sweep's timed windows at 21 repeats come to about eleven seconds on radon at the old mix's rates,
+/// against a boot that takes minutes. A table would buy seconds and cost a reader a second thing to
+/// hold. The cost that does grow is the TCG rehearsal's, which is minutes, and is paid once per
+/// architecture by a gate, not by anybody at a bench.
+pub const REPEATS: usize = 21;
+
+// A task's budget holds what it keeps plus the larger of the two transient regions, so no job is
+// ever refused a split the budget was sized to allow. A relation between constants in one file, so
+// the compiler checks it (AGENTS.md's ladder, rung one).
+const _: () = assert!(TASK_BUDGET_PAGES > MAP_REGION_PAGES && TASK_BUDGET_PAGES > CHILD_PAGES);
+
+/// The median, and the two ends, of one sweep point's repeats: what a `job-mix:` point line carries.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Spread {
+    /// The fastest repeat, in ticks. It is printed so the spread stays visible; it is not the result.
+    pub min: u64,
+    /// The middle repeat, in ticks. **This is the result**, and it is what `jpm_median` is made from.
+    pub median: u64,
+    /// The slowest repeat, in ticks.
+    pub max: u64,
+}
+
+// An odd count, so the median is one of the samples rather than a mean of the middle two. A mean
+// would be a tick count no subrun ever took, and on a bimodal point (`tasks=2` on radon has two
+// modes about 14% apart) it would be a figure between the modes that describes neither.
+const _: () = assert!(REPEATS % 2 == 1);
+
+/// Sort `samples` in place and return its [`Spread`], or `None` for an empty slice.
+///
+/// In place and allocation-free because the caller is a kernel thread with a fixed array. For an
+/// even length the median is the lower of the middle two, a sample rather than a mean, for the
+/// reason the assertion above [`REPEATS`] gives; the sweep never passes one, but a test might.
+#[must_use]
+pub fn spread(samples: &mut [u64]) -> Option<Spread> {
+    if samples.is_empty() {
+        return None;
+    }
+    samples.sort_unstable();
+    Some(Spread {
+        min: samples[0],
+        median: samples[(samples.len() - 1) / 2],
+        max: samples[samples.len() - 1],
+    })
+}
 
 /// Shared servers the [`ROUND_TRIP`] job calls. More than one so that the sweep's larger subruns are
 /// not measuring a single server's serialization; fewer than the task count so that the endpoint is
@@ -291,6 +524,27 @@ pub const SLOT_ECHO: u64 = 2;
 /// call: a compromised echo server can only answer wrongly, which is the least authority that does
 /// the job.
 pub const SLOT_SERVE: u64 = 0;
+/// Mixer slot 3: the task's own untyped budget, [`TASK_BUDGET_PAGES`] long, which the [`MAP`] and
+/// [`SPAWN`] jobs split their transient objects from and give back whole. A region and not a
+/// narrower object because both jobs have to create objects, and creating is what a region is for.
+pub const SLOT_BUDGET: u64 = 3;
+/// Mixer slot 4: the endpoint the [`SPAWN`] job's children report on, one per task so no task can
+/// receive another's child. The task holds it `READ | WRITE | GRANT` and inserts a `WRITE` view
+/// into each child, the shape `os_primitives_benchmarker`'s spawn loop already has.
+pub const SLOT_CHILD_DONE: u64 = 4;
+
+/// Go word 0 on a task's go endpoint: run one subrun.
+pub const GO_RUN: u64 = 0;
+/// Go word 1: answer with the last subrun's per-kind breakdown, [`JOB_KINDS`] messages of
+/// `[kind, ticks, region_ticks]`. Sent after the supervisor has stopped the clock, so the breakdown
+/// costs the timed window nothing.
+pub const GO_BREAKDOWN: u64 = 1;
+
+/// The first word of a subrun report from a task that could not finish it: a job's syscall was
+/// refused. The second word is the refusal (a negative `abi::Error` as `u64`) and the third is the
+/// task's index with the failing kind in bits 32 and up, so the supervisor can say which job on
+/// which task failed rather than stalling on a task that stopped.
+pub const REPORT_FAILED: u64 = u64::MAX;
 
 // **More tasks than servers, checked by the compiler rather than by a test.** The [`ROUND_TRIP`]
 // job's endpoint has to be contended at the top of the sweep or the instrument is measuring an idle
@@ -336,6 +590,21 @@ pub fn jobs_per_minute(jobs: u64, ticks: u64, hz: u64) -> u64 {
     }
     let n = u128::from(jobs) * 60 * u128::from(hz) / u128::from(ticks);
     u64::try_from(n).unwrap_or(u64::MAX)
+}
+
+/// How many jobs of `kind` one task runs in one subrun: its count in [`MIX`] times
+/// [`ROUNDS_PER_TASK`]. The denominator a `job-mix-kind:` line's per-job figure is made with.
+#[must_use]
+pub fn jobs_of_kind(kind: u8) -> u64 {
+    let mut n = 0u64;
+    let mut i = 0;
+    while i < MIX_LEN {
+        if MIX[i] == kind {
+            n += 1;
+        }
+        i += 1;
+    }
+    n * ROUNDS_PER_TASK
 }
 
 #[cfg(test)]
@@ -436,5 +705,54 @@ mod tests {
             assert!(w[0] < w[1], "the sweep is not increasing at {w:?}");
         }
         assert!(TASK_SWEEP[0] >= 1);
+    }
+
+    /// The median is the middle sample and the ends are the ends, whatever order they arrive in.
+    #[test]
+    fn a_spread_is_the_middle_sample_and_the_ends() {
+        let mut v = [181_408, 132_148, 149_654];
+        assert_eq!(
+            spread(&mut v),
+            Some(Spread {
+                min: 132_148,
+                median: 149_654,
+                max: 181_408
+            })
+        );
+    }
+
+    /// **The case the median exists for.** A bimodal point (radon's `tasks=2`, five fast repeats
+    /// and ten slow ones across five boots) reports a slow-mode sample, where the best-of rule
+    /// reported whichever fast repeat a boot happened to draw.
+    #[test]
+    fn a_bimodal_point_reports_its_majority_mode() {
+        let mut v = [
+            97_672, 97_778, 98_076, 98_109, 98_713, 111_005, 111_113, 111_256, 111_268, 111_400,
+            111_427, 111_496, 111_513, 111_568, 112_124,
+        ];
+        let s = spread(&mut v).expect("fifteen samples");
+        assert_eq!(s.median, 111_256);
+        assert_eq!(s.min, 97_672);
+    }
+
+    /// An even count takes the lower middle, a sample and never a mean of two.
+    #[test]
+    fn an_even_count_takes_a_sample_not_a_mean() {
+        let mut v = [4, 1, 3, 2];
+        assert_eq!(spread(&mut v).expect("four").median, 2);
+        assert_eq!(spread(&mut []), None);
+    }
+
+    /// Every kind has a printable name and runs at least once a round, so every `job-mix-kind:`
+    /// line has a nonzero denominator.
+    #[test]
+    fn every_kind_is_named_and_counted() {
+        let mut total = 0;
+        for kind in 0..JOB_KINDS as u8 {
+            assert!(!KIND_NAMES[kind as usize].is_empty());
+            assert!(jobs_of_kind(kind) >= ROUNDS_PER_TASK);
+            total += jobs_of_kind(kind);
+        }
+        assert_eq!(total, JOBS_PER_TASK);
     }
 }

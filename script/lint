@@ -721,11 +721,16 @@ echo "==> roadmap status"
 # line. It opens a serial port and spawns `stty`, so it is `std` by nature and cannot document for
 # a bare-metal target any more than `xtask` can. Both are still documented, on the pass that suits
 # them; the exclusion is about the target, not about skipping them.
+#
+# `stick_maker` (the stick program, 2026-09-19) is the third, and for the same reason: it is a
+# host program that runs `diskutil` and reads sysfs. This list is typed out where `script/drift`
+# derives the same set from each crate's `no_std` attribute; the next host-only crate will fail
+# here exactly as this one did, and deriving it would make that unrepresentable.
 echo "==> rustdoc (broken intra-doc links)"
 DOCFLAGS="-D rustdoc::broken_intra_doc_links -D rustdoc::invalid_html_tags"
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --workspace --exclude xtask \
-    --exclude board_console --target aarch64-unknown-none-softfloat
-RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console
+    --exclude board_console --exclude stick_maker --target aarch64-unknown-none-softfloat
+RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet -p xtask -p board_console -p stick_maker
 RUSTDOCFLAGS="$DOCFLAGS" cargo doc --no-deps --quiet --manifest-path redoxfs_server/Cargo.toml --lib
 
 # The decision index (design/decisions/README.md and one file per decision, milestone 114): its
@@ -2763,6 +2768,32 @@ if missing or orphans or stale:
 
 print(f"verify table: {len(table)} crates, exactly the ones carrying harnesses")
 PY
+
+# **A count above two in front of the word "halves"**, which is a claim that cannot be true and is
+# therefore checkable without judgement. Found 2026-09-19 by calef, reading a lane's workflow that
+# called macOS, Linux and Windows each a "half" of one program; a sweep found four more in the tree
+# (a deliverable in "three <halves>", four of them landing over three days, a test pinning "all
+# three <halves>", three <halves> that are one claim). The examples are written with the angle
+# brackets on purpose: a gate whose own comment spells the forbidden shape fires on itself, which
+# design/roadmap/94-untracked-work.md hit first and script/lint line 660 already records.
+#
+# The tree has ~3,500 uses of half/halves and nearly all are honest two-way splits, so this reads
+# ONLY the arithmetic-impossible shape: a count word immediately before the word. It does not judge
+# whether a "half" far from its subject has two siblings, because that needs a reader, and a gate
+# that guesses at prose is how script/lint lost three checks. The word this tree uses for one branch
+# of a multi-way split is "arm" (components/src/console.rs: "its x86 arm"), and
+# design/naming.md says so under "A half implies two".
+#
+# `git grep` does not understand `\b` and silently matches nothing (design/naming.md records the
+# same trap costing two renames a count), so the boundaries here are POSIX classes.
+echo "==> halves that are not halves"
+if git grep -nEi '(^|[^[:alnum:]_])(three|four|five|six|seven|eight|nine|ten|several|many)[[:space:]]+halves([^[:alnum:]_]|$)' \
+    -- '*.md' '*.rs' '*.yml' '*.toml' 'script/*' 'scripts/*' ':!vendor' ':!patches'; then
+    echo "lint: a count above two in front of that word. Two things have halves; three have arms," >&2
+    echo "      parts or pieces (design/naming.md, \"A half implies two\")." >&2
+    exit 1
+fi
+echo "halves: none counted above two"
 
 # Spelling, over prose AND code. The documentation is part of the deliverable here, so a typo in a
 # note is a defect in the product. Configuration and the honest assessment of what this found are in

@@ -12,7 +12,7 @@ license.workspace = true
 [dev-dependencies]
 # The fixture-witness tests (tests/qemu_virt_dtb.rs) parse the riscv virt device tree to hold
 # the kernel's PCI hardcodes and the INTx swizzle against the machine's own routing table.
-dtb = { version = "0.1.0", path = "../dtb" }
+device_tree_blob = { version = "0.1.0", path = "../device_tree_blob" }
 
 [lints]
 workspace = true

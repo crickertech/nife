@@ -11,8 +11,8 @@ tree**, committed for their own reasons and tested by their own tests:
 
 | Target | Seeds from | What they are |
 |---|---|---|
-| `dtb_walk` | `crates/dtb/tests/fixtures/` | three real device trees, dumped from the boards we boot |
-| `gpt_table` | `crates/globally_unique_identifier_partition_table/tests/fixtures/` | two real disks, formatted by `sgdisk` and by Apple's Disk Utility |
+| `device_tree_blob_walk` | `crates/device_tree_blob/tests/fixtures/` | three real device trees, dumped from the boards we boot |
+| `globally_unique_identifier_partition_table` | `crates/globally_unique_identifier_partition_table/tests/fixtures/` | two real disks, formatted by `sgdisk` and by Apple's Disk Utility |
 | `elf_parse` | here | the three files below, because nothing else in the tree is a small ELF |
 | `nifefs_roundtrip` | nothing | the input is a *structure*, not bytes; the fuzzer builds file sets from scratch and reaches the interesting shapes immediately |
 
@@ -105,5 +105,5 @@ PY
 
 **Crash artifacts.** When a target finds a crash, the input becomes a host test in the crate that
 owns the bug, where it runs in milliseconds forever and where a reader meets it next to the code.
-`crates/dtb/tests/hostile.rs` is the worked example. A hand-built blob with a docstring saying what
+`crates/device_tree_blob/tests/hostile.rs` is the worked example. A hand-built blob with a docstring saying what
 it attacks is worth more than a 7,642-byte file named after its SHA-1.

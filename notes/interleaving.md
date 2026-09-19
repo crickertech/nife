@@ -35,7 +35,7 @@ have no atomic protocol at all**, and finding that out is most of what the surve
 
 | Candidate | What it actually is | Reachable by loom |
 |---|---|---|
-| The IPC sender queue (`crates/ipc`) | zero atomics. `Endpoint` is plain data under the `SCHED` `IrqSafeMutex` | nothing to explore |
+| The IPC sender queue (`crates/inter_process_communication`) | zero atomics. `Endpoint` is plain data under the `SCHED` `IrqSafeMutex` | nothing to explore |
 | `crates/intrusive_fifo` (the run queues) | zero atomics. Single-owner with interrupts masked, plus an `UnsafeCell` | nothing to explore |
 | `crates/generational_table` (the thread table) | zero atomics. Under `SCHED` | nothing to explore **as atomics**, and that reading was too narrow: `crates/memory_regions` is a `generational_table` table under a lock, and its protocol had a real double free in it. See the note under `thread_wake_handshake` below, and the `memory_regions` section |
 | The reaper handoff (`PerCpu::switched_from`) | one `AtomicU64`, both accesses `Relaxed`, written and read **by the same core** with interrupts masked. The atomic is interior mutability, not synchronisation | nothing to explore |
@@ -82,7 +82,7 @@ is a message: the thief claims a one-slot mailbox in the victim with a compare-e
 pokes it with a reschedule interrupt, and the victim swaps the slot back to zero at its next
 scheduler entry and hands one thread into the thief's inbox. The slot was an `AtomicU32` field on
 `PerCpu` with the compare-exchange written inline in `sched.rs`; it is now a crate, and the kernel
-calls it rather than keeping a copy of the protocol. Same Phase-2 move `memory_regions`, `ipc` and
+calls it rather than keeping a copy of the protocol. Same Phase-2 move `memory_regions`, `inter_process_communication` and
 `dma_validator` made for Kani.
 
 | Harness | Property |

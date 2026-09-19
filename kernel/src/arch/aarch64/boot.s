@@ -235,8 +235,7 @@ _boot_el1:
 //
 // **Not here, and deliberately:** `SCTLR_EL2` is left alone, because the arm64 boot protocol
 // requires the MMU and caches to be off on entry and this kernel takes that contract rather than
-// re-proving it; `ICC_SRE_EL2` is a GICv3 register and `kernel/src/drivers/gic.rs` speaks GICv2
-// only (notes/aarch64-board-survey.md); and `CNTFRQ_EL0` is writable only at the highest
+// re-proving it; and `CNTFRQ_EL0` is writable only at the highest
 // implemented level and is firmware's to set, so writing our own guess would replace a real
 // number with an invented one.
 .global enter_el1
@@ -276,11 +275,31 @@ enter_el1:
     //    is one instruction to make the answer definite rather than inherited.
     msr     hstr_el2, xzr
 
-    // 5. MDCR_EL2 = 0: no debug or PMU traps to EL2. This is the one on milestone 74's path
-    //    (the PMU counters half): MDCR_EL2.TPM traps every EL1 access to `PMCCNTR_EL0`, its
-    //    reset value is UNKNOWN, and a trap into an EL2 with no vector table is a hang with no
-    //    console output at all.
-    msr     mdcr_el2, xzr
+    // 5. MDCR_EL2: no debug or PMU traps to EL2, and every event counter handed to EL1. This is
+    //    the one on milestone 74's path (the PMU counters half): MDCR_EL2.TPM traps every EL1
+    //    access to `PMCCNTR_EL0`, its reset value is UNKNOWN, and a trap into an EL2 with no
+    //    vector table is a hang with no console output at all.
+    //
+    //    **Every field is zero except HPMN (bits 4:0), and HPMN is not zero on purpose.** It says
+    //    how many event counters EL1 may use, and zero is a RESERVED value unless the part has
+    //    FEAT_HPMN0, which the Cortex-A57 on argon (Armv8.0) does not: the Arm ARM makes the
+    //    split CONSTRAINED UNPREDICTABLE, and EL1's `PMCR_EL0.N` reads HPMN back. This wrote 0 from
+    //    2026-09-02, when the drop was built, until milestone 74's boot line found it on
+    //    2026-09-19 by printing `0 event counters visible` under `NIFE_EL2=1` and 6 without it. Linux's `init_el2`
+    //    (`arch/arm64/include/asm/el2_setup.h`) does exactly this, HPMN = `PMCR_EL0.N` read at
+    //    EL2, where N is the real count. Gated on `ID_AA64DFR0_EL1.PMUVer` like every other PMU
+    //    access in this kernel, because `PMCR_EL0` is UNDEFINED without PMUv3; there, HPMN is
+    //    RES0 and zero is right. The cycle counter is not an event counter and never depended on
+    //    this; nothing in this kernel uses an event counter yet either.
+    mov     x0, xzr
+    mrs     x1, id_aa64dfr0_el1
+    ubfx    x1, x1, #8, #4              // PMUVer
+    cbz     x1, 5f                      // 0: no PMU
+    cmp     x1, #0xf
+    b.eq    5f                          // 0xf: IMPLEMENTATION DEFINED, not PMUv3
+    mrs     x0, pmcr_el0
+    ubfx    x0, x0, #11, #5             // PMCR_EL0.N, the implemented count, as HPMN
+5:  msr     mdcr_el2, x0
 
     // 6. MDSCR_EL1 = 0: no EL1 debug exceptions armed (MDE, SS). Reset UNKNOWN, and a bootloader
     //    that was itself debugged can leave single-stepping on. Linux zeroes this on the same
@@ -316,6 +335,29 @@ enter_el1:
     //    field of this register still tags the EL1 TLB entries we are about to create, so a
     //    stale value would tag them with a number nothing invalidates by name.
     msr     vttbr_el2, xzr
+
+    // 9a. The GICv3 system-register interface (milestone 227). **Without this an EL1 kernel on a
+    //     GICv3 cannot reach its own CPU interface**: `ICC_SRE_EL2.Enable` (bit 3) clear makes
+    //     every EL1 write of `ICC_SRE_EL1.SRE` read back as zero, and `ICC_SRE_EL2.SRE` (bit 0) is
+    //     this level's own switch. Both set, then `isb` and read back; only if SRE stuck is
+    //     `ICH_HCR_EL2` zeroed, which turns the virtual CPU interface off so nothing is diverted to
+    //     it. That is Linux's `__init_el2_gicv3` (arch/arm64/include/asm/el2_setup.h, v6.16),
+    //     including the guard: `ID_AA64PFR0_EL1.GIC` (bits 27:24) zero means the core has no
+    //     system-register interface, the registers do not exist, and touching them is UNDEFINED.
+    //     So a GICv2 machine, argon's, skips the whole step. `gic_cpu_interface::init_this_cpu`
+    //     asserts the EL1 half actually stuck.
+    mrs     x0, id_aa64pfr0_el1
+    ubfx    x0, x0, #24, #4
+    cbz     x0, 8f
+    mrs     x0, icc_sre_el2
+    orr     x0, x0, #(1 << 0)           // SRE
+    orr     x0, x0, #(1 << 3)           // Enable: EL1 may use the system registers too
+    msr     icc_sre_el2, x0
+    isb
+    mrs     x0, icc_sre_el2
+    tbz     x0, #0, 8f
+    msr     ich_hcr_el2, xzr
+8:
 
     // 10. And go. SPSR_EL2 = 0x3c5 is D, A, I and F masked (bits 9:6) with M[3:0] = 0b0101,
     //     which is EL1h: EL1 using SP_EL1, the same stack pointer arrangement `_boot_el1` and

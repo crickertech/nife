@@ -10,9 +10,10 @@
 //! tail of the block. It has no idea how big the disk is, where the partitions are, or whether it
 //! is looking at the primary or the backup, so it cannot judge any of that.
 //!
-//! Every judgement that needs the *disk* is in [`crate::Gpt`]. The split matters because the backup
-//! header has to be decodable on its own terms before anything can compare it against the primary,
-//! and because it puts every geometry rule in one function instead of scattering them.
+//! Every judgement that needs the *disk* is in [`crate::GloballyUniqueIdentifierPartitionTable`].
+//! The split matters because the backup header has to be decodable on its own terms before anything
+//! can compare it against the primary, and because it puts every geometry rule in one function
+//! instead of scattering them.
 
 use crate::crc::crc32_pieces;
 use crate::guid::Guid;
@@ -60,8 +61,9 @@ mod at {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Header {
     /// The LBA this header was read from, according to the header. 1 for a primary, the last block
-    /// of the disk for a backup. Checked against where it actually came from by [`crate::Gpt`],
-    /// which is what makes a header that was copied to the wrong place detectable.
+    /// of the disk for a backup. Checked against where it actually came from by
+    /// [`crate::GloballyUniqueIdentifierPartitionTable`], which is what makes a header that was
+    /// copied to the wrong place detectable.
     pub my_lba: u64,
     /// Where the *other* copy of this header lives.
     pub alternate_lba: u64,

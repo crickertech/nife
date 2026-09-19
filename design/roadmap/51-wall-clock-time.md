@@ -41,7 +41,7 @@ anyway". Milestone 47's `mkdir`/`create` work will want them, so this unblocks t
 
 ## The time source, and it is two drivers because parity is a gate
 
-Verified from the DTB fixtures in `crates/dtb/tests/fixtures/`, not assumed:
+Verified from the DTB fixtures in `crates/device_tree_blob/tests/fixtures/`, not assumed:
 
 | Platform | Device | Address |
 |---|---|---|
@@ -49,7 +49,7 @@ Verified from the DTB fixtures in `crates/dtb/tests/fixtures/`, not assumed:
 | QEMU `virt`, riscv64 | `google,goldfish-rtc` | `0x101000` |
 | VisionFive 2 | its own RTC (board bring-up, milestone 16a) | via DTB |
 
-Two small drivers, both discovered through `crates/dtb` rather than hardcoded, both following rule 2
+Two small drivers, both discovered through `crates/device_tree_blob` rather than hardcoded, both following rule 2
 (a driver takes a base address and knows nothing else). Neither is large; the point is that shipping
 one and not the other is the bug rule 5 exists to catch.
 

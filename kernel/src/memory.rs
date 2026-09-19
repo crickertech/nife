@@ -5,11 +5,10 @@
 //! ask this for their memory, and there is nothing underneath it to ask.
 //!
 //! The allocator itself lives in the `frames` crate and the device tree parser in
-//! `dtb`, because both are pure logic and belong in host-testable crates (DECISIONS §7).
-//! What's left here is the part that can only happen on the real machine: the
-//! **bootstrap**.
+//! `device_tree_blob`, because both are pure logic and belong in host-testable crates (DECISIONS
+//! §7). What's left here is the part that can only happen on the real machine: the **bootstrap**.
 
-use dtb::Region;
+use device_tree_blob::Region;
 use page_frames::{FRAME_SIZE, PageFrame, PageFrameAllocator, Stats};
 
 use crate::arch::mmu::{phys_to_virt, virt_to_phys};
@@ -55,19 +54,27 @@ pub fn init() {
         .expect("cannot read the memory reservations");
     let reserved = &reserved[..reserved_count];
 
-    // The interrupt controller. Two register blocks, and the order is part of the binding:
-    // distributor first, then the per-core CPU interface. Milestone 5 wants both.
-    {
-        let mut gic = [Region { start: 0, size: 0 }; 4];
-        let n = dtb
-            .node_reg(b"intc@", &mut gic)
-            .expect("cannot read the GIC's reg");
-        if n >= 2 {
-            *GIC_REGIONS.lock() = (
-                Some((gic[0].start, gic[0].size)),
-                Some((gic[1].start, gic[1].size)),
-            );
-        }
+    // The interrupt controller, aarch64's GIC, found by its BINDING (milestone 227). It used to be
+    // found by the node-name prefix `intc@`, taking `reg[0]` and `reg[1]` as distributor and CPU
+    // interface. That is true of a GICv2 and false of a GICv3, whose `reg[1]` is the redistributor
+    // array, and milestone 222 measured the result: a kernel that booted, printed `interrupts ON`,
+    // and took none. `machine_discovery::gic` reads `compatible` instead, and an `intc@` node with a
+    // binding it does not know is refused here, by name, rather than driven on a guess.
+    // `arch::irq::init` then asks the hardware whether the tree is right before using it.
+    //
+    // aarch64 only: on RISC-V the interrupt controllers are the PLIC below and each hart's
+    // `riscv,cpu-intc`, neither of which is this question.
+    #[cfg(target_arch = "aarch64")]
+    match machine_discovery::gic::discover(&dtb) {
+        Ok(found) => *GIC_REGIONS.lock() = found,
+        Err(machine_discovery::gic::Refusal::UnknownController { compatible }) => panic!(
+            "the device tree's interrupt controller is {:?}, which is not a GIC this kernel drives \
+             (it drives {:?} and {:?}); refusing to guess",
+            core::str::from_utf8(compatible).unwrap_or("<not UTF-8>"),
+            machine_discovery::gic::GICV2_COMPATIBLE,
+            machine_discovery::gic::GICV3_COMPATIBLE,
+        ),
+        Err(refusal) => panic!("cannot read the device tree's GIC: {refusal:?}"),
     }
 
     // The RISC-V interrupt controller (milestone 20): the PLIC. Found by its binding, because the
@@ -245,10 +252,10 @@ pub fn init() {
 ///
 /// # BUGS
 ///
-/// - **The type at this seam is still the device tree's.** `Region` is `dtb::Region`, which is a
-///   plain `{ start, size }` pair and means nothing device-tree-specific, but a machine with no
-///   device tree naming a device-tree type is a smell rather than a design. Moving it belongs with
-///   the wider seam.
+/// - **The type at this seam is still the device tree's.** `Region` is `device_tree_blob::Region`,
+///   which is a plain `{ start, size }` pair and means nothing device-tree-specific, but a machine
+///   with no device tree naming a device-tree type is a smell rather than a design. Moving it
+///   belongs with the wider seam.
 /// - **At most `MAX_REGIONS` RAM regions.** More than that indexes past the map below. Both `virt`
 ///   boards describe one; q35 describes three. A caller with more must decide what to drop, because
 ///   this cannot.
@@ -492,19 +499,17 @@ pub fn is_page_frame_used(frame: PageFrame) -> Option<bool> {
     ALLOCATOR.lock().as_ref()?.is_used(frame)
 }
 
-/// Where the interrupt controller is, as the device tree describes it.
+/// **The interrupt controller, as the device tree describes it**: which GIC version its binding
+/// names, and its register blocks in the roles that version gives them, all **physical**. Stashed
+/// at `init` because that is the only moment we have the device tree parsed, and milestone 5 needs
+/// it much later. `None` on a machine whose tree names no GIC, and always on RISC-V and `x86_64`.
 ///
-/// (distributor, `cpu_interface`), both **physical**. Stashed at `init` because that is the only
-/// moment we have the device tree parsed, and milestone 5 needs it much later.
-#[cfg_attr(target_arch = "riscv64", allow(dead_code))] // riscv has a PLIC, not a GIC
-pub fn gic_regions() -> Option<((u64, u64), (u64, u64))> {
-    let g = GIC_REGIONS.lock();
-    g.0.map(|d| {
-        (
-            d,
-            g.1.expect("a GIC with a distributor but no CPU interface"),
-        )
-    })
+/// Until milestone 227 this was a bare (distributor, CPU interface) pair taken from whatever node
+/// was named `intc@`, which is why a GICv3 machine's redistributor was once driven as a CPU
+/// interface. The version travelling with the addresses is what keeps that from recurring.
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))] // riscv has a PLIC, x86 an APIC
+pub fn gic_regions() -> Option<machine_discovery::gic::Gic> {
+    *GIC_REGIONS.lock()
 }
 
 /// The PLIC's register block (start, size), both **physical**, from the device tree. `None` on
@@ -723,9 +728,10 @@ static RAM: IrqSafeMutex<RamMap> = IrqSafeMutex::new(
     },
 );
 
-/// (distributor, cpu interface), each (base, size). Physical.
-type GicRegions = (Option<(u64, u64)>, Option<(u64, u64)>);
-static GIC_REGIONS: IrqSafeMutex<GicRegions> = IrqSafeMutex::new(rank::RAM, (None, None));
+/// The GIC the device tree names, with its version (milestone 227). Physical addresses.
+#[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
+static GIC_REGIONS: IrqSafeMutex<Option<machine_discovery::gic::Gic>> =
+    IrqSafeMutex::new(rank::RAM, None);
 
 /// The PLIC's single register block, from the device tree (milestone 20). `None` on aarch64 (no such
 /// node) and until `init` has run.

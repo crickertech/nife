@@ -109,7 +109,7 @@ jh7110_entropy = { version = "0.1.0", path = "../crates/jh7110_entropy" }
 # kernel driver. On radon the TRNG's register file read as all zeros on 2026-09-04 because
 # nothing had ungated its clocks, which is the whole reason this is a dependency.
 jh7110_clock_and_reset = { version = "0.1.0", path = "../crates/jh7110_clock_and_reset" }
-dtb = { version = "0.1.0", path = "../crates/dtb" }
+device_tree_blob = { version = "0.1.0", path = "../crates/device_tree_blob" }
 pci = { version = "0.1.0", path = "../crates/pci" }
 # The NVMe queue mechanics (milestone 53's storage half): pure logic, host-tested and proved; the
 # kernel's non_volatile_memory_express module is its volatile half, the same split as `pci` above.
@@ -117,7 +117,7 @@ non_volatile_memory_express = { version = "0.1.0", path = "../crates/non_volatil
 elf = { version = "0.1.0", path = "../crates/elf" }
 page_frames = { version = "0.1.0", path = "../crates/page_frames" }
 intrusive_fifo = { version = "0.1.0", path = "../crates/intrusive_fifo" }
-ipc = { version = "0.1.0", path = "../crates/ipc" }
+inter_process_communication = { version = "0.1.0", path = "../crates/inter_process_communication" }
 # What machine is this (milestone 60). The kernel reads the device tree and the ID registers; every
 # decoding of what it finds lives in the crate, host-tested against a real device tree and against
 # words a real part reports, because a parser proved only inside a booting kernel is a parser proved
@@ -164,8 +164,8 @@ generational_table = { version = "0.1.0", path = "../crates/generational_table" 
 spin = { version = "0.12", default-features = false, features = ["spin_mutex"] }
 # The work-steal handshake (milestone 80): the one lock-free cross-core protocol in the scheduler,
 # lifted out of `cpu.rs` so a model checker can reach it. The kernel calls the checked type rather
-# than keeping a second copy of the compare-exchange, the same move `memory_regions`, `ipc` and
-# `dma_validator` made for Kani. See notes/interleaving.md.
+# than keeping a second copy of the compare-exchange, the same move `memory_regions`,
+# `inter_process_communication` and `dma_validator` made for Kani. See notes/interleaving.md.
 work_steal_slot = { version = "0.1.0", path = "../crates/work_steal_slot" }
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
 # The scheduler's block/wake handshake, so the kernel calls the loom-searched transitions rather
@@ -316,7 +316,28 @@ cycle_counter_grant = []
 # --extra-features fastpath_pad` can compare the padded build against the un-padded baseline while
 # the two run byte-identical IPC work. Off by default: an ordinary build never links the padding
 # in. See kernel/src/fastpath_pad.rs. Name provisional.
+#
+# **Sized, and shiftable, by environment rather than by more features** (milestone 134's layout
+# control, 2026-09-19). `NIFE_FASTPATH_PAD=<units>` sets the sled's length in units of what this
+# feature has always linked (unset is 1, the sled the 2026-09-04 session booted),
+# and `NIFE_FASTPATH_SHIFT=<bytes>` appends unreferenced zeros after it, which moves the same code
+# the pad moves and adds nothing reachable. kernel/build.rs reads both, and only when this feature
+# is on, so an ordinary build cannot see them. The linker scripts place the sled's section first in
+# `.text`, so both numbers move the whole kernel text and a pad and a shift of equal displacement
+# produce identical binaries apart from the sled's own bytes. Not features because a feature's
+# *name* enters cargo's `-C metadata` hash, which reorders codegen units: seven sibling features
+# were built and measured, and each reshuffled up to 11 KB of code ahead of the sled, drowning the
+# shift it was meant to control. notes/footprint-perturbation.md has the procedure.
 fastpath_pad = []
+# Milestone 134's per-IPC kernel stack depth (kernel/src/ipc_stack_depth.rs): paints a thread's own
+# kernel stack before each IPC operation and scans it after, so the deepest byte one SEND, RECV,
+# CALL, RECV_CAP or REPLY reaches is a measurement rather than E1's estimate. `script/test` builds it
+# unconditionally (every piece is `any(test, feature = "ipc_stack_depth")`, the `cycle_counter_grant`
+# shape, so the path cannot rot); this feature exists so the **release** kernel, which is what radon
+# boots and what E1 ran on, can be measured too, by a bench boot that prints the same lines. Off by
+# default and in every build that measures time or footprint: it adds a call at the end of
+# `syscall::dispatch`. See notes/stack-high-water.md. Name provisional.
+ipc_stack_depth = []
 # The single-hart boot (milestone 134's E1/E3/E4 on radon): `smp::bring_up_secondaries` marks the
 # boot core online and starts nobody, so the kernel runs on one hart on a machine that seats four.
 #

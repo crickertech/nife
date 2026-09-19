@@ -411,14 +411,16 @@ fn top() -> u64 {
 // claim "the stacks are big enough" was an argument, not a measurement. So: paint every
 // kernel-owned stack with a pattern before use, and at the end of the test suite scan each for the
 // deepest overwritten word. Test builds only, deliberately: painting 16 KiB per thread spawn would
-// perturb the spawn benchmark, and the report goes through the test channel anyway.
+// perturb the spawn benchmark, and the report goes through the test channel anyway. `paint` and
+// `high_water` are also built with the `ipc_stack_depth` feature, whose per-operation measurement
+// (crate::ipc_stack_depth) needs them in the release bench kernel; nothing else here is.
 //
 // A watermark sees only exercised paths. An unexercised deep path stays invisible, the same limit
 // coverage has. See notes/stack-high-water.md.
 
 /// The paint word. Not zero (fresh `.bss` is zeroes, and a stack full of zeroes would read as
 /// untouched), not a plausible pointer or length, and not one of the canary words.
-#[cfg(test)]
+#[cfg(any(test, feature = "ipc_stack_depth"))]
 const PAINT: u64 = 0x5AFE_57AC_5AFE_57AC;
 
 /// Paint `[bottom, top)` with [`PAINT`].
@@ -432,7 +434,7 @@ const PAINT: u64 = 0x5AFE_57AC_5AFE_57AC;
 /// It was a safe fn until milestone 112, with that requirement written as a `// SAFETY:` comment
 /// naming "the caller". Three call sites, and any other safe code in the kernel could have written
 /// this pattern over an arbitrary address range.
-#[cfg(test)]
+#[cfg(any(test, feature = "ipc_stack_depth"))]
 pub unsafe fn paint(bottom: u64, top: u64) {
     let mut p = bottom as *mut u64;
     while (p as u64) < top {
@@ -467,7 +469,7 @@ pub unsafe fn paint(bottom: u64, top: u64) {
 /// defect (a safe fn dereferencing an address range built from its own arguments) written in the
 /// passive voice, "a mapped stack region", which names the obligation without naming anybody who
 /// owes it. Passive voice hides the defect from the pattern that found the rest of it.
-#[cfg(test)]
+#[cfg(any(test, feature = "ipc_stack_depth"))]
 pub unsafe fn high_water(bottom: u64, top: u64) -> u64 {
     let mut p = bottom as *const u64;
     while (p as u64) < top {

@@ -38,10 +38,12 @@ Foundation has never validated, which is the "seL4 only boots there" failure wit
 
 ## Requirements, traced to the tree
 
-- **GICv2.** `kernel/src/drivers/gic.rs` speaks GICv2 only: memory-mapped GICD plus banked GICC,
-  no redistributor, no system-register CPU interface. **The kernel does not drive GICv3**, and that
-  is a real constraint this survey records: a GICv3-only board (any recent Rockchip or i.MX8M)
-  buys a new interrupt-controller driver before the first interrupt.
+- **GICv2, and since milestone 227 GICv3.** When this survey was taken `kernel/src/drivers/gic.rs`
+  spoke GICv2 only, and a GICv3-only board (any recent Rockchip or i.MX8M) bought a new
+  interrupt-controller driver before the first interrupt; the tables below are priced that way.
+  **As of 2026-09-19 the kernel drives GICv3 too** (`drivers/gicv3.rs`,
+  `arch/aarch64/gic_cpu_interface.rs`, `notes/interrupts.md`), proven under QEMU's TCG and under
+  HVF but on no GICv3 silicon, so the "new GICv3 driver" cells below are now "an unproven one".
 - **PL011 or NS16550 UART.** `kernel/src/drivers/pl011.rs` and `ns16550.rs`; the 16550 driver
   already parameterizes `reg-shift` and `reg-io-width` (built for the JH7110's DW-8250), which is
   exactly the shape Tegra's 8250-compatible UART needs.
@@ -184,5 +186,7 @@ into self-refereed seL4 numbers on a configuration seL4's own CI never exercises
 - None of these boards advances the aarch64 IOMMU story (BCM2711 has no SMMU, and Tegra's SMMU is
   NVIDIA's own design, not an SMMUv3), so milestone 16b's aarch64-on-silicon half remains ungated
   by this purchase, whatever is chosen.
-- This note records that the kernel drives GICv2 only. If that ever changes, the candidate table's
-  i.MX8MM disqualifier weakens and the survey should be re-read before being cited.
+- This note recorded that the kernel drives GICv2 only, and said the i.MX8MM's disqualifier would
+  weaken if that changed. **It changed on 2026-09-19 (milestone 227)**, so the survey should be
+  re-read before being cited: the i.MX8MM's GIC cost is now a proving run rather than a driver, and
+  its UART driver is the item left.

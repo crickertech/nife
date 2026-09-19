@@ -84,6 +84,7 @@ version = "0.1.0"
 dependencies = [
  "bitmap_font",
  "boot_ladder",
+ "job_mix",
  "machine_discovery",
  "screen_console",
 ]
@@ -191,6 +192,7 @@ dependencies = [
  "pmap",
  "ps",
  "schedule_store",
+ "screen_console",
  "smoltcp",
  "socket_protocol",
  "supervision_protocol",
@@ -295,6 +297,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "device_tree_blob"
+version = "0.1.0"
+
+[[package]]
 name = "digest"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -315,10 +321,6 @@ version = "0.1.0"
 dependencies = [
  "documentation",
 ]
-
-[[package]]
-name = "dtb"
-version = "0.1.0"
 
 [[package]]
 name = "elf"
@@ -445,28 +447,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "intrusive_fifo"
-version = "0.1.0"
-
-[[package]]
-name = "ipc"
+name = "inter_process_communication"
 version = "0.1.0"
 dependencies = [
  "intrusive_fifo",
 ]
 
 [[package]]
+name = "intrusive_fifo"
+version = "0.1.0"
+
+[[package]]
 name = "jh7110_clock_and_reset"
 version = "0.1.0"
 dependencies = [
- "dtb",
+ "device_tree_blob",
 ]
 
 [[package]]
 name = "jh7110_entropy"
 version = "0.1.0"
 dependencies = [
- "dtb",
+ "device_tree_blob",
 ]
 
 [[package]]
@@ -493,8 +495,8 @@ dependencies = [
  "counter_frequency_protocol",
  "cpu_set",
  "credential_protocol",
+ "device_tree_blob",
  "dma_validator",
- "dtb",
  "elf",
  "entropy_protocol",
  "environment_protocol",
@@ -502,8 +504,8 @@ dependencies = [
  "generational_table",
  "grant_plan",
  "graphics_protocol",
+ "inter_process_communication",
  "intrusive_fifo",
- "ipc",
  "jh7110_clock_and_reset",
  "jh7110_entropy",
  "job_mix",
@@ -582,7 +584,7 @@ dependencies = [
 name = "machine_discovery"
 version = "0.1.0"
 dependencies = [
- "dtb",
+ "device_tree_blob",
 ]
 
 [[package]]
@@ -667,7 +669,7 @@ version = "0.1.0"
 name = "pci"
 version = "0.1.0"
 dependencies = [
- "dtb",
+ "device_tree_blob",
 ]
 
 [[package]]
@@ -691,6 +693,10 @@ version = "0.1.0"
 dependencies = [
  "abi",
 ]
+
+[[package]]
+name = "portable_executable"
+version = "0.1.0"
 
 [[package]]
 name = "proc-macro2"
@@ -812,6 +818,13 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stick_maker"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+]
 
 [[package]]
 name = "subtle"
@@ -997,8 +1010,11 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "uefi_loader"
 version = "0.1.0"
 dependencies = [
+ "device_tree_blob",
  "elf",
  "machine_discovery",
+ "measured_boot",
+ "nifefs",
 ]
 
 [[package]]
@@ -1090,9 +1106,11 @@ dependencies = [
  "documentation",
  "filesystem_protocol",
  "globally_unique_identifier_partition_table",
+ "grant_plan",
  "graphics_protocol",
  "measured_boot",
  "nifefs",
+ "portable_executable",
  "video_terminal",
 ]
 

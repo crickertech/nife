@@ -14,7 +14,7 @@ written, because a reader needs to see what was counted; this paragraph is the c
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§177](../decisions/177-a-third-program-directory.md) *(number provisional)*, written up 2026-09-19
+[§180](../decisions/180-a-third-program-directory.md) *(number provisional)*, written up 2026-09-19
 by milestone 435's slice-c lane because this gate named no section.
 A top-level directory holding a Cargo package is named exactly as the package,
 so this is a name, and names are calef's. It is also the most expensive kind of name in this tree:

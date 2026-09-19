@@ -62,7 +62,7 @@ libfuzzer-sys = "0.4"
 # The crates under test. Path dependencies with no version on purpose: they resolve to the bytes in
 # this repository, which git pins harder than semver would (see deny.toml's `allow-wildcard-paths`).
 nifefs = { path = "../crates/nifefs" }
-dtb = { path = "../crates/dtb" }
+device_tree_blob = { path = "../crates/device_tree_blob" }
 elf = { path = "../crates/elf" }
 globally_unique_identifier_partition_table = { path = "../crates/globally_unique_identifier_partition_table" }
 
@@ -80,8 +80,8 @@ debug-assertions = true
 overflow-checks = true
 
 [[bin]]
-name = "dtb_walk"
-path = "fuzz_targets/dtb_walk.rs"
+name = "device_tree_blob_walk"
+path = "fuzz_targets/device_tree_blob_walk.rs"
 test = false
 doc = false
 bench = false
@@ -94,8 +94,8 @@ doc = false
 bench = false
 
 [[bin]]
-name = "gpt_table"
-path = "fuzz_targets/gpt_table.rs"
+name = "globally_unique_identifier_partition_table"
+path = "fuzz_targets/globally_unique_identifier_partition_table.rs"
 test = false
 doc = false
 bench = false

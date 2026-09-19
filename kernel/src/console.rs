@@ -38,12 +38,12 @@ const UART_PHYS: u64 = 0x1000_0000; // NS16550
 const UART_PORT: usize = crate::arch::mmu::COM1_PORT;
 
 /// The console UART's node name in the device tree, pinned beside `UART_PHYS` and carrying its
-/// address in the unit suffix. Same hardcode-with-a-witness stance as the address itself: on
-/// riscv, both QEMU `virt` and the JH7110 spell UART0 exactly this way, and the fixture test
-/// (`crates/machine_discovery/tests/riscv64_jh7110.rs`) is the witness; on aarch64 it is QEMU `virt`'s PL011
-/// node, witnessed by `crates/dtb/tests/qemu_aarch64_virt.rs`. Two readers: this file's
-/// `configure_from_dtb` (riscv, the register shape) and `memory::init` (both, the interrupt
-/// line), which is why it is `pub(crate)` rather than local to either.
+/// address in the unit suffix. Same hardcode-with-a-witness stance as the address itself: on riscv,
+/// both QEMU `virt` and the JH7110 spell UART0 exactly this way, and the fixture test
+/// (`crates/machine_discovery/tests/riscv64_jh7110.rs`) is the witness; on aarch64 it is QEMU
+/// `virt`'s PL011 node, witnessed by `crates/device_tree_blob/tests/qemu_aarch64_virt.rs`. Two
+/// readers: this file's `configure_from_dtb` (riscv, the register shape) and `memory::init` (both,
+/// the interrupt line), which is why it is `pub(crate)` rather than local to either.
 #[cfg(target_arch = "aarch64")]
 pub(crate) const UART_NODE: &[u8] = b"pl011@9000000";
 #[cfg(target_arch = "riscv64")]
@@ -87,6 +87,8 @@ const UART_BASE: usize = UART_PORT;
 struct Screen {
     /// The cursor and the geometry. Holds no pixels; see the `screen_console` crate.
     console: ScreenConsole,
+    /// Who paints it now. See [`Painter`].
+    painter: Painter,
     /// The framebuffer's address **in the kernel's direct map**, and its length in bytes.
     ///
     /// A raw address rather than a `&'static mut [u8]`, because a slice would be a live mutable
@@ -94,6 +96,24 @@ struct Screen {
     /// a slice for the duration of one write and no longer.
     pixels: usize,
     len: usize,
+}
+
+/// **Who paints the screen** (the shell on the firmware screen, milestone 198's rung 1b).
+///
+/// One aperture, and at any moment exactly one process that writes it. Two painters on one
+/// framebuffer interleave the way milestone 230 found two UART writers did, except that on a
+/// screen the splice is pixels and nobody can read either message. So the handover is a state
+/// here rather than a convention somewhere else: [`KernelConsole::write_str`] paints only while
+/// this says [`Painter::Kernel`], and [`yield_screen`] is the one way out of it, which it takes
+/// once.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Painter {
+    /// `print!` tees into it: the boot tour, milestone 243.
+    Kernel,
+    /// A userspace terminal has it (`framebuffer_driver`, spawned by
+    /// `kernel::user::boot_screen_terminal`). The kernel's own lines go to the UART alone, until a
+    /// panic takes it back ([`reclaim_screen_for_panic`]).
+    Terminal,
 }
 
 /// The kernel console: a UART, and since milestone 243 optionally a screen.
@@ -109,13 +129,15 @@ struct KernelConsole {
 impl core::fmt::Write for KernelConsole {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
         self.uart.write_str(s)?;
-        if let Some(screen) = self.screen.as_mut() {
+        if let Some(screen) = self.screen.as_mut()
+            && screen.painter == Painter::Kernel
+        {
             // SAFETY: `pixels` is the direct-map address of a framebuffer whose physical range was
             // validated by `machine_discovery::framebuffer::Framebuffer::span` before it was
             // recorded, and which `arch::mmu::map_everything` maps for the life of the kernel.
-            // `len` is that same span. Nothing else in the kernel writes to it: the display service
-            // hands *userspace* framebuffers out, and this one is not among them (see
-            // `attach_screen`).
+            // `len` is that same span. Nothing else writes to it while the painter is the kernel:
+            // the one userspace process that ever paints it is spawned only after
+            // [`yield_screen`] has moved the painter off this arm.
             let bytes =
                 unsafe { core::slice::from_raw_parts_mut(screen.pixels as *mut u8, screen.len) };
             screen.console.write(bytes, s);
@@ -236,10 +258,64 @@ pub unsafe fn attach_screen(found: Framebuffer, virt: u64) -> Option<(u32, u32)>
     let size = console.size();
     guard.screen = Some(Screen {
         console,
+        painter: Painter::Kernel,
         pixels: virt as usize,
         len,
     });
     Some(size)
+}
+
+/// **Stop painting the screen and say which screen it was** (the shell on the firmware screen,
+/// milestone 198's rung 1b), for the one caller that hands it to a userspace terminal.
+///
+/// The screen is cleared first, under the same lock every `print!` takes, so the driver that paints
+/// next starts from black rather than from the boot tour's last page, and so no kernel line can land
+/// between the clear and the handover. After this returns the kernel writes its own lines to the
+/// UART alone.
+///
+/// `None` when there is no screen, and **also when it has already been yielded**: a second caller
+/// gets nothing, which is what makes two userspace painters unrepresentable rather than merely
+/// unlikely. The caller must spawn nothing that paints the aperture until this has returned
+/// `Some`.
+pub fn yield_screen() -> Option<Framebuffer> {
+    let mut guard = CONSOLE.lock();
+    let screen = guard.screen.as_mut()?;
+    if screen.painter != Painter::Kernel {
+        return None;
+    }
+    // SAFETY: as `write_str`'s: the validated span, mapped for the life of the kernel, and the
+    // painter is still the kernel, so nothing else writes it.
+    let bytes = unsafe { core::slice::from_raw_parts_mut(screen.pixels as *mut u8, screen.len) };
+    screen.console.clear(bytes);
+    screen.painter = Painter::Terminal;
+    Some(screen.console.screen())
+}
+
+/// **Take the screen back to say why the kernel is dying.** Panic path only.
+///
+/// On a machine with no serial port the screen is the only place a panic can be read, and a panic
+/// after the shell came up would otherwise be written to a UART that is not there. So the dying
+/// kernel clears the screen and paints again, and the cost is recorded rather than avoided: the
+/// panic halts only the core that panicked, so a flush already in progress on another core, or one
+/// a still-running shell asks for afterwards, can paint the terminal's corner of the screen over
+/// the top of the panic text. That is a garbled panic where there would otherwise be none at all,
+/// and the UART copy is unaffected. Stopping the other cores is the panic path's job and it does
+/// not do it yet.
+///
+/// Call after `force_unlock`, before printing.
+pub fn reclaim_screen_for_panic() {
+    let mut guard = CONSOLE.lock();
+    let Some(screen) = guard.screen.as_mut() else {
+        return;
+    };
+    if screen.painter == Painter::Kernel {
+        return;
+    }
+    // SAFETY: as `write_str`'s. The userspace painter may still be writing; see the doc above for
+    // why that is accepted on this path and no other.
+    let bytes = unsafe { core::slice::from_raw_parts_mut(screen.pixels as *mut u8, screen.len) };
+    screen.console.clear(bytes);
+    screen.painter = Painter::Kernel;
 }
 
 /// **Re-shape the console UART from the device tree** (RISC-V; the VisionFive 2 prep,

@@ -7,7 +7,7 @@
 //! isolation boundary in the system that was attacker-tested but never machine-checked. This crate
 //! is that logic, lifted out of `kernel/src/virtio.rs` so Kani can prove it and the kernel then
 //! *calls* the proved code rather than keeping a parallel copy (the discipline in
-//! notes/verification.md, the same move `regions` and `ipc` made).
+//! notes/verification.md, the same move `regions` and `inter_process_communication` made).
 //!
 //! The core property, proved for every input in the `#[cfg(kani)]` module: **no descriptor the
 //! device can read out of the shadow ring references memory outside `[base, base + size)`**, in

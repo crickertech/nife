@@ -34,6 +34,17 @@ SECTIONS
         /* _start must be first: QEMU enters the payload at its physical base. KEEP() so
          * dead-code elimination cannot delete an entry point nothing calls. */
         KEEP(*(.text.boot))
+        /* **E3's padding sled, and only when it exists** (milestone 370, the layout control).
+         * Nothing else pins where the linker drops `.text.fastpath_pad_body` among the kernel's
+         * other `.text.*` inputs, and it has moved: on 2026-09-04 it landed ahead of the whole
+         * trap path, and by 2026-09-19 it landed past all but 5% of the fastpath's bytes, so how
+         * much of the hot path a pad perturbed was redrawn every commit. Placed first, a pad of N
+         * bytes moves the whole kernel text by N, which is the same perturbation
+         * `NIFE_FASTPATH_SHIFT` applies, so E3's two ladders differ only in whether the bytes are
+         * inside the footprint the gate counts. **An ordinary build has no such section**, so this
+         * line matches nothing and the default link order is unchanged (checked: the default boot
+         * image is byte-identical across it). See kernel/src/fastpath_pad.rs. */
+        *(.text.fastpath_pad_body)
         *(.text .text.*)
         . = ALIGN(4096);
         __text_end = .;

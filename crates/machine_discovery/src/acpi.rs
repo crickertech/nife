@@ -8,9 +8,9 @@
 //!
 //! # The shape, and how it differs from a device tree
 //!
-//! A device tree is one blob with one root and a tree of nodes, and `crates/dtb` walks it. ACPI is a
-//! **linked structure of independent tables**, each with its own signature and checksum, reached
-//! from a root pointer that is not itself a table:
+//! A device tree is one blob with one root and a tree of nodes, and `crates/device_tree_blob` walks
+//! it. ACPI is a **linked structure of independent tables**, each with its own signature and
+//! checksum, reached from a root pointer that is not itself a table:
 //!
 //! ```text
 //!   RSDP  ("RSD PTR ")            found by scanning low memory, or handed over by the loader
@@ -670,8 +670,9 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
 ///
 /// **What is deliberately not here**: the whole-table walk from the RSDP down through the XSDT,
 /// which needs a symbolic pointer into memory this crate never holds, and is the same wall
-/// `crates/dtb` records for the structure-block token loop. The leaves and the two self-describing
-/// entry walks are what bounded model checking can reach, so they are what is proved.
+/// `crates/device_tree_blob` records for the structure-block token loop. The leaves and the two
+/// self-describing entry walks are what bounded model checking can reach, so they are what is
+/// proved.
 ///
 /// Names: provisional (milestone 319). calef names things.
 #[cfg(kani)]
@@ -817,10 +818,10 @@ mod verification {
     /// **This harness was false when it was written, and the defect was on the boot path.**
     /// `host_address_width` was `body[0] + 1` into a `u8`, so a DMAR whose `HostAddressWidth` byte
     /// is `0xff` panicked `read_dmar` in `kernel/src/arch/x86_64/machine.rs`, which calls
-    /// [`parse_dmar`] directly on firmware bytes. It is the same defect `dtb::be32`'s unchecked
-    /// `at + 4` was, one table over: a field widened by one with no room for the widening. Fixed by
-    /// making [`Dmar::host_address_width`] a `u16`, so the addition cannot overflow at all rather
-    /// than being guarded against.
+    /// [`parse_dmar`] directly on firmware bytes. It is the same defect `device_tree_blob::be32`'s
+    /// unchecked `at + 4` was, one table over: a field widened by one with no room for the
+    /// widening. Fixed by making [`Dmar::host_address_width`] a `u16`, so the addition cannot
+    /// overflow at all rather than being guarded against.
     ///
     /// Could plausibly have been false, and was: every DMAR this parser had ever seen came from
     /// QEMU's `build_dmar_q35`, which writes 38. Nothing in the encoding stops a vendor writing
@@ -986,6 +987,55 @@ mod tests {
         t[SDT_HEADER_LEN..len].copy_from_slice(body);
         seal(&mut t, 9, len);
         t
+    }
+
+    /// **Every prefix shorter than a structure's fixed part is refused, and the shortest one that
+    /// is long enough is accepted.** One loop per parser, over every length from nothing to one
+    /// byte short.
+    ///
+    /// Both halves are the property, and the second is the one an "it returns an error" test
+    /// leaves out. A guard written `<=` rather than `<` refuses a structure that is exactly long
+    /// enough, and no malformed input can expose that: only the boundary length can. These four
+    /// parsers read firmware bytes on the x86 boot path, where a guard one byte too loose reads
+    /// past the buffer and a guard one byte too tight loses a table the machine really has.
+    fn every_short_prefix_is_refused<T: core::fmt::Debug + PartialEq>(
+        bytes: &[u8],
+        fixed_len: usize,
+        parse: impl Fn(&[u8]) -> Result<T, AcpiError>,
+    ) {
+        for len in 0..fixed_len {
+            assert_eq!(
+                parse(&bytes[..len]),
+                Err(AcpiError::Truncated),
+                "{len} bytes is short of the {fixed_len} this structure needs",
+            );
+        }
+        assert!(
+            parse(&bytes[..fixed_len]).is_ok(),
+            "{fixed_len} bytes is exactly enough and must not be refused",
+        );
+    }
+
+    /// A revision-0 RSDP, which is the whole 20-byte structure and has no extended half.
+    fn rsdp_v1() -> [u8; RSDP_V1_LEN] {
+        let mut b = [0u8; RSDP_V1_LEN];
+        b[0..8].copy_from_slice(RSDP_SIGNATURE);
+        b[9..15].copy_from_slice(b"BOCHS ");
+        b[15] = 0; // revision 0: RSDT only
+        b[16..20].copy_from_slice(&0x7ffe_1a40u32.to_le_bytes());
+        seal(&mut b, 8, RSDP_V1_LEN);
+        b
+    }
+
+    #[test]
+    fn no_parser_reads_past_a_table_that_ends_early() {
+        every_short_prefix_is_refused(&rsdp_v1(), RSDP_V1_LEN, parse_rsdp);
+        every_short_prefix_is_refused(&rsdp_v2(), RSDP_V2_LEN, parse_rsdp);
+        // An empty body, so the header's own length field is exactly the header length: the case
+        // that separates `length < SDT_HEADER_LEN` from `length <= SDT_HEADER_LEN`.
+        every_short_prefix_is_refused(&sdt(b"APIC", &[]), SDT_HEADER_LEN, parse_sdt_header);
+        every_short_prefix_is_refused(&q35_madt_body(), MADT_FIXED_LEN, parse_madt);
+        every_short_prefix_is_refused(&q35_dmar_body(), DMAR_FIXED_LEN, parse_dmar);
     }
 
     /// A table header's length must at least cover its own header, or the body length underflows.
@@ -1245,6 +1295,171 @@ mod tests {
         assert_eq!(table[0].gsi, 2, "the well-formed override still applied");
     }
 
+    /// **A revision-2 RSDP whose XSDT pointer is zero still uses the RSDT.**
+    ///
+    /// Both halves of the choice have to hold: firmware that claims ACPI 2.0 and then writes no
+    /// extended pointer has published exactly one root table, and following the zero would send
+    /// the kernel to physical address 0. Every other fixture here has both fields set, where the
+    /// revision alone decides and the second half of the condition is never asked.
+    #[test]
+    fn a_revision_2_rsdp_with_no_xsdt_falls_back_to_the_rsdt() {
+        let mut b = rsdp_v2();
+        b[24..32].copy_from_slice(&0u64.to_le_bytes());
+        seal(&mut b, 32, RSDP_V2_LEN);
+        let r = parse_rsdp(&b).expect("well-formed, just without an XSDT");
+        assert_eq!(r.revision, 2);
+        assert_eq!(r.xsdt, 0);
+        assert_eq!(
+            r.root_table(),
+            (0x7ffe_1a40, false),
+            "a null XSDT is not a root table, whatever the revision claims",
+        );
+    }
+
+    /// **The shortest entry the MADT's list can hold is still read.**
+    ///
+    /// Two bytes, a type and a length, and the list ends exactly where the body does. Every other
+    /// MADT here has entries this decoder acts on, which are eight bytes and up, so the walk's own
+    /// bounds have only ever been asked about lengths with room to spare either side.
+    #[test]
+    fn the_shortest_entry_the_list_can_hold_is_read_to_the_last_byte() {
+        let mut body = [0u8; MADT_FIXED_LEN + 2];
+        body[MADT_FIXED_LEN] = 9; // a type this decoder does not act on
+        body[MADT_FIXED_LEN + 1] = 2; // the shortest self-describing length there is
+
+        let mut it = madt_entries(&body);
+        assert_eq!(it.next(), Some(MadtEntry::Other(9)));
+        assert_eq!(it.next(), None);
+    }
+
+    /// **An entry of a kind this decoder reads, too short to hold that kind's fields, is reported
+    /// by its type rather than decoded.**
+    ///
+    /// The four guards are the only thing between a malformed table and a read past the entry: a
+    /// four-byte processor entry has no flags word, and decoding one anyway reads whatever follows
+    /// it in the list. Firmware writes these lengths; nothing else checks them.
+    #[test]
+    fn an_entry_too_short_for_its_own_kind_is_not_decoded() {
+        for kind in [0u8, 1, 2, 5] {
+            let mut body = [0u8; MADT_FIXED_LEN + 4];
+            body[MADT_FIXED_LEN] = kind;
+            body[MADT_FIXED_LEN + 1] = 4;
+
+            let mut it = madt_entries(&body);
+            assert_eq!(
+                it.next(),
+                Some(MadtEntry::Other(kind)),
+                "a four-byte entry of type {kind} holds none of that type's fields",
+            );
+            assert_eq!(it.next(), None);
+        }
+    }
+
+    /// **The local APIC address override decodes**, which is the one entry kind nothing else here
+    /// reads. A machine whose local APIC sits above 4 GiB can say so only in this entry, because
+    /// the fixed part's field is 32 bits wide; a decoder that reported it as an unrecognised type
+    /// would use the 32-bit address and touch memory that is not the APIC.
+    #[test]
+    fn a_local_apic_address_override_carries_a_64_bit_address() {
+        let mut body = [0u8; MADT_FIXED_LEN + 12];
+        body[MADT_FIXED_LEN] = 5;
+        body[MADT_FIXED_LEN + 1] = 12;
+        body[MADT_FIXED_LEN + 4..MADT_FIXED_LEN + 12]
+            .copy_from_slice(&0x0000_0001_fee0_0000u64.to_le_bytes());
+
+        let mut it = madt_entries(&body);
+        assert_eq!(
+            it.next(),
+            Some(MadtEntry::LocalApicAddressOverride(0x1_fee0_0000)),
+        );
+        assert_eq!(it.next(), None);
+    }
+
+    /// **An override naming source 16 is ignored**, and 16 is the number that has to be exact.
+    /// There are sixteen legacy IRQs, so 16 is the first value that is not one of them, and a
+    /// bound read as inclusive writes past the sixteen-entry table. The existing refusal test uses
+    /// 200, which any reading of the bound turns away.
+    #[test]
+    fn an_override_for_the_first_source_past_the_legacy_sixteen_is_ignored() {
+        let mut body = q35_madt_body();
+        body[41] = 16;
+        let table = isa_irq_table(&body);
+        for (irq, routing) in table.iter().enumerate().skip(1) {
+            assert_eq!(*routing, IsaIrqRouting::isa_default(irq as u8));
+        }
+        assert_eq!(table[0].gsi, 2, "the well-formed override still applied");
+    }
+
+    /// **A window's size counts the buses between its ends, inclusive at both.**
+    ///
+    /// Three cases, and the single-bus one is the point: equal bus numbers are a window of one
+    /// mebibyte rather than an empty one, which is what separates "ends before it begins" from
+    /// "ends where it begins". The four-bus case starts away from bus zero, where a sum and a
+    /// difference stop agreeing.
+    #[test]
+    fn an_ecam_window_counts_the_buses_between_its_ends_inclusive() {
+        let one = McfgEntry {
+            base: 0,
+            segment: 0,
+            start_bus: 7,
+            end_bus: 7,
+        };
+        assert_eq!(one.size(), 0x10_0000, "one bus is one mebibyte");
+
+        let four = McfgEntry {
+            base: 0,
+            segment: 0,
+            start_bus: 2,
+            end_bus: 5,
+        };
+        assert_eq!(four.size(), 4 * 0x10_0000, "buses 2, 3, 4 and 5");
+
+        let backwards = McfgEntry {
+            base: 0,
+            segment: 0,
+            start_bus: 8,
+            end_bus: 7,
+        };
+        assert_eq!(
+            backwards.size(),
+            0,
+            "nothing in the MCFG's encoding stops firmware writing this",
+        );
+    }
+
+    /// **A second window, on a segment that is not zero, read from its own offsets.**
+    ///
+    /// One window at bus 0 on segment 0 hides every offset inside the entry, because each byte a
+    /// wrong offset would reach is also zero: the segment can be read from the base's low half and
+    /// still answer 0. Distinct values in every field are what make the offsets load-bearing.
+    #[test]
+    fn a_second_ecam_window_is_read_from_its_own_offsets() {
+        let mut body = [0u8; MCFG_FIXED_LEN + 2 * MCFG_ENTRY_LEN];
+        body[8..16].copy_from_slice(&0xb000_0000u64.to_le_bytes());
+        body[16..18].copy_from_slice(&0x0102u16.to_le_bytes());
+        body[18] = 0;
+        body[19] = 255;
+        let at = MCFG_FIXED_LEN + MCFG_ENTRY_LEN;
+        body[at..at + 8].copy_from_slice(&0xc000_0000u64.to_le_bytes());
+        body[at + 8..at + 10].copy_from_slice(&0x0304u16.to_le_bytes());
+        body[at + 10] = 16;
+        body[at + 11] = 31;
+
+        let first = mcfg_entry(&body, 0).expect("two windows");
+        assert_eq!(
+            first.segment, 0x0102,
+            "the segment is its own field, not the base's low half",
+        );
+
+        let second = mcfg_entry(&body, 1).expect("two windows");
+        assert_eq!(second.base, 0xc000_0000);
+        assert_eq!(second.segment, 0x0304);
+        assert_eq!(second.start_bus, 16);
+        assert_eq!(second.end_bus, 31);
+        assert_eq!(second.size(), 16 * 0x10_0000);
+        assert_eq!(mcfg_entry(&body, 2), None);
+    }
+
     /// The MCFG entry q35 produces: bus 0 through 255 at 0xb0000000.
     #[test]
     fn the_mcfg_gives_the_ecam_window_and_its_size() {
@@ -1319,6 +1534,43 @@ mod tests {
                 register_base: 0xfed9_0000,
             }))
         );
+        assert_eq!(it.next(), None);
+    }
+
+    /// **Two of the shortest structures the list can hold, both read.**
+    ///
+    /// Four bytes each, a type and a length and nothing else, and the second one is what proves
+    /// the walk advances by the length it read rather than jumping to the end. Every other DMAR
+    /// here holds a single sixteen-byte DRHD, where a cursor that advanced wrongly and a walk that
+    /// stopped early are indistinguishable from the right answer.
+    #[test]
+    fn two_shortest_remapping_structures_are_both_read() {
+        let mut body = [0u8; DMAR_FIXED_LEN + 8];
+        let d = DMAR_FIXED_LEN;
+        body[d..d + 2].copy_from_slice(&7u16.to_le_bytes());
+        body[d + 2..d + 4].copy_from_slice(&4u16.to_le_bytes());
+        body[d + 4..d + 6].copy_from_slice(&8u16.to_le_bytes());
+        body[d + 6..d + 8].copy_from_slice(&4u16.to_le_bytes());
+
+        let mut it = dmar_structures(&body);
+        assert_eq!(it.next(), Some(DmarEntry::Other(7)));
+        assert_eq!(it.next(), Some(DmarEntry::Other(8)));
+        assert_eq!(it.next(), None);
+    }
+
+    /// **A DRHD too short to hold its own register base is reported by its type**, not decoded.
+    /// The guard is the only thing between a malformed table and reading eight bytes that are not
+    /// there, and what a decoded one would yield is an MMIO address the IOMMU driver then writes
+    /// to.
+    #[test]
+    fn a_drhd_too_short_for_its_own_fields_is_reported_by_type() {
+        let mut body = [0u8; DMAR_FIXED_LEN + 8];
+        let d = DMAR_FIXED_LEN;
+        body[d..d + 2].copy_from_slice(&0u16.to_le_bytes()); // type 0: DRHD
+        body[d + 2..d + 4].copy_from_slice(&8u16.to_le_bytes());
+
+        let mut it = dmar_structures(&body);
+        assert_eq!(it.next(), Some(DmarEntry::Other(0)));
         assert_eq!(it.next(), None);
     }
 

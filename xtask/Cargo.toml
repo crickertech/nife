@@ -31,6 +31,9 @@ globally_unique_identifier_partition_table = { version = "0.1.0", path = "../cra
 # The measured-boot hash (milestone 22 phase B.1): the build and the kernel measure the progenitor through the
 # same implementation, so there is one definition of the digest.
 measured_boot = { version = "0.1.0", path = "../crates/measured_boot" }
+# The riscv64 boot file's ELF-to-PE conversion (`cargo xtask stick`), since rustc has no riscv64
+# UEFI target. Ours, no dependencies.
+portable_executable = { version = "0.1.0", path = "../crates/portable_executable" }
 # The framebuffer contract (milestone 29): the host-side scanout check compares QEMU's screendump
 # against the same pattern the guest painted, from the same definition, so the two cannot drift.
 graphics_protocol = { version = "0.1.0", path = "../crates/graphics_protocol" }
@@ -55,3 +58,7 @@ compositor = { version = "0.1.0", path = "../crates/compositor" }
 # pixel-for-pixel claim rather than an impression. Text is the case where eyeballing is most
 # tempting and least sufficient.
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
+# The programs the shell can spawn (milestone 150): the packer refuses to build an archive missing
+# one, because a `Prog` whose binary is not packed compiles, passes every host test and cannot be
+# spawned. `no_std` with one in-tree dependency (`glob`), so it costs the host build nothing.
+grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }

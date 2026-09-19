@@ -59,7 +59,7 @@ All 33 `unsafe fn`s are in `kernel/` and `crates/`. **the program packages have 
 milestone spec's "across `kernel/`, `crates/`, and `user/`".
 
 Twenty-two have at least one explicit `unsafe {}` in the body. Every one of those blocks has a
-SAFETY comment, and clippy reproves it on each run, with the single exception of `ipc`'s `seed`,
+SAFETY comment, and clippy reproves it on each run, with the single exception of `inter_process_communication`'s `seed`,
 which is `#[cfg(kani)]` and therefore never compiled by the gate (see BUGS below). The other
 **eleven have no unsafe block at all**, and since the lint is clean, that means their bodies
 contain **no unsafe operation**:
@@ -113,8 +113,8 @@ fn that would be unsound if the sentence were false.
 **2. `#[cfg(kani)]` code is invisible to both lints. FIXED in milestone 113**, and the section below
 records what the gate found. `cfg(kani)` is set by the model checker and by nothing else, so
 `script/lint` never compiled those modules and neither lint could fire in them. The tree has 14
-`unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive_fifo` and `crates/ipc`. `intrusive_fifo`'s two
-both carry SAFETY comments. **Eleven of `ipc`'s twelve do not**, and the gate had never said so. A
+`unsafe {}` blocks under `#[cfg(kani)]`, in `crates/intrusive_fifo` and `crates/inter_process_communication`. `intrusive_fifo`'s two
+both carry SAFETY comments. **Eleven of `inter_process_communication`'s twelve do not**, and the gate had never said so. A
 real fix is a gate rather than a pass of comments (a clippy invocation with `--cfg kani`, or
 `-D warnings` on the `script/verify` build); adding the comments alone leaves nothing to stop the
 next harness from skipping them.
@@ -144,10 +144,11 @@ that there was nothing left to argue about.
 clippy-driver. `undocumented_unsafe_blocks` is a `clippy::` lint and simply does not exist in that
 compiler, so no amount of `-D warnings` can make it fire. This was measured rather than reasoned
 about: `RUSTFLAGS="-D warnings" cargo kani -p ipc --only-codegen` compiles clean while thirteen
-undocumented unsafe sites sit in the file. The same command *does* fail on a deliberately added
-unused variable, so `RUSTFLAGS` reaches Kani and the gate would be real for **rustc** lints
-(`unsafe_op_in_unsafe_fn` among them). It is only the clippy half, which is the half this milestone
-is about, that it cannot reach.
+undocumented unsafe sites sit in the file. (That is the command as it was run, when the crate was
+`ipc`; it is `-p inter_process_communication` since the 2026-09-19 rename.) The same command
+*does* fail on a deliberately added unused variable, so `RUSTFLAGS` reaches Kani and the gate would
+be real for **rustc** lints (`unsafe_op_in_unsafe_fn` among them). It is only the clippy half,
+which is the half this milestone is about, that it cannot reach.
 
 So `script/lint` grew a fourteenth clippy configuration. The tree's `#[cfg(kani)]` modules are all in
 `crates/`, so it is the host pass's package selection with three flags added:
@@ -163,8 +164,8 @@ cargo clippy --workspace --exclude kernel --exclude user --exclude user_mode_run
 without the crate that provides them rustc stops at `use of unresolved module or unlinked crate
 kani`. `scripts/kani-lint-shim/` is that crate, built by `script/lint` with two plain `rustc`
 invocations before the pass runs. The surface it has to cover is small, which is what makes this
-cheap: across 26 packages <!--count:harness-crates--> and 170 harnesses <!--count:kani-harnesses-->
-the tree uses exactly **five** Kani items, `any`, `proof` (170) <!--count:kani-harnesses-->,
+cheap: across 26 packages <!--count:harness-crates--> and 178 harnesses <!--count:kani-harnesses-->
+the tree uses exactly **five** Kani items, `any`, `proof` (178) <!--count:kani-harnesses-->,
 `assume`, `unwind` and `cover!`, and no `Arbitrary` derive, no contracts, no
 `any_where`. The four unmarked counts that used to sit here (287, 71, 33 and 21) were taken over
 `crates/` on one day and were stale before milestone 212 rescoped the two that carry markers; the
@@ -201,7 +202,7 @@ gates in one line.
 
 | Crate | Sites | Shape |
 |---|---|---|
-| `ipc` | 11 blocks + 1 `unsafe impl` | the harness's `seed`, and every call into `send`/`recv` |
+| `inter_process_communication` | 11 blocks + 1 `unsafe impl` | the harness's `seed`, and every call into `send`/`recv` |
 | `intrusive_fifo` | 1 `unsafe impl` | `Node for N` in the proof module (its two blocks were already commented) |
 
 The other thirteen are ordinary clippy, in crates nobody suspected: `doc_markdown` (4),
@@ -221,7 +222,7 @@ DECISIONS §61 records why a generated pass is the wrong instrument here: the li
 comment exists, never that it is true, so a false comment passes the gate and misleads a reader who
 now believes somebody checked. The eleven are worth reading as an example of the alternative.
 
-Every `unsafe` call in `ipc`'s proof module discharges the same two obligations, and they are stated
+Every `unsafe` call in `inter_process_communication`'s proof module discharges the same two obligations, and they are stated
 once in the module's own doc rather than eleven times: **the nodes outlive the endpoint** (declared
 in one `let` before `e`, and locals drop in reverse declaration order) and **no node is on a queue
 when it is passed** (each `N::new()` starts with a null link, and no harness hands the same node to

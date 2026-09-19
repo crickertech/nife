@@ -1,6 +1,11 @@
 # 117. The stranger test: could someone build this and understand it without asking
 
-**Status: PARTIAL.** Minted 2026-08-05 by calef, to put the third principle to a test rather than
+**Status: BUILT 2026-09-19.** Run 6 went on 2026-09-19 and its findings have homes;
+`script/apropos` is placed where a newcomer meets it; `script/names` counts its worklist one way.
+See `## Run 6 and the three outstanding items, 2026-09-19` below for what that does and does not
+settle, and in particular that the cadence has never actually fired.
+
+Minted 2026-08-05 by calef, to put the third principle to a test rather than
 leave it as an aspiration. The rubric was written 2026-08-14 (notes/stranger-test.md), run 1 went the
 same day, run 2 went 2026-08-16 (pull request #219), runs 3 and 4 went 2026-08-18, and **run 5 went
 2026-08-18, the first conducted through `script/stranger-test` rather than rebuilt by hand.** Five
@@ -9,7 +14,7 @@ been seen twice: `CONTRIBUTING.md` at the repository root, and a reading order a
 `README.md`, both still **provisional**, because a reading order is a claim about what matters and
 those are calef's.
 
-**Gate: NONE.** Run 4 said the blocker was the missing recurrence mechanism rather than the
+What held it until then: run 4 said the blocker was the missing recurrence mechanism rather than the
 worklist; that mechanism was built the same day and **run 5 is the evidence it works**. Run 5 then
 said the only remaining thing was a cadence, and **calef decided it on 2026-08-18: monthly.**
 
@@ -581,6 +586,60 @@ rather than only here.
 is wanted at all. Nothing here decides that; it only removes the false impression that deciding it
 requires widening `ArgSpec` first.
 
+## Run 6 and the three outstanding items, 2026-09-19
+
+**Why this is `BUILT` now, and the one way it is not.** The block's own test for `BUILT` was a run 6
+conducted under the cadence rather than because somebody thought of it. Run 6 happened, two days
+after `--due` began exiting 1, and its record is in notes/stranger-test.md. **It did not happen
+because the cadence fired**: the weekly workflow could not go red before 2026-09-21, and a
+maintainer's brief is what started it. That is recorded rather than glossed, and its home is a
+proposal (`design/roadmap/proposals/a-due-cadence-reaches-nobody.md`) rather than this block,
+because the gap is shared with the audit cadence, which has been red five Mondays running with
+nobody acting: it is a fault in how any scheduled "due" reaches a person, not in the stranger test.
+What this milestone owns (the instrument, the rubric, the harness, the cadence sentence, the
+tripwire and six runs through it) exists and has been exercised; what it does not own is the
+watcher.
+
+**Run 6's headline results**, in full in the note:
+
+- **Milestone 150 worked on first contact.** The stranger added a program through the one-place
+  declaration the day it landed, every edit the page names was demanded by the compiler or a named
+  host test, and nobody nominated "eight hand-maintained lists" for the first time in four runs.
+- **The largest cost was a confident wrong diagnosis the tree invited.** An intermittent
+  `uefi-test` red after a passing suite, two expected VT-d fault lines printed just before it, and
+  a documented QEMU version gap led the stranger to build and install the pinned QEMU into an
+  account-wide prefix, which would have changed the emulator under two other lanes. The operator's
+  re-run passed on the same QEMU. Homed in notes/x86-uefi-boot.md's and notes/qemu.md's `BUGS`
+  and in `design/roadmap/proposals/uefi-test-exits-one-after-a-passing-suite.md`.
+- **The instrument changed under it.** The CLI's default model refused the task three times out
+  of three, so run 6 ran on `claude-sonnet-5`; the stranger ended its session waiting on
+  background work and wrote no write-up; and `script/lint` in the clone announced the withheld
+  answer key. All in `script/stranger-test`'s `BUGS`; the harness now stops rather than debrief a
+  refused session.
+- **M2 is absent for the fourth run in six**, `notes/net.md` still unopened, and `script/apropos`
+  still never run. That was the tree it was handed: the placement below is the change, and run 7
+  is the measurement.
+
+**The three items this block's follow-on carried, closed:**
+
+1. **Run 6**: conducted, scored, recorded, every finding given a home (fixed here, a `BUGS` entry
+   at the feature, or a proposal). Four fixed here because each was a sentence a stranger
+   believed: `CONTRIBUTING.md`'s two-ISA claim in five places, `README.md`'s claim that QEMU is
+   pinned exactly on every machine, the missing warning that a bare `cargo build` fails on the
+   host, and `script/stranger-test` debriefing a refused session.
+2. **`script/apropos` placed**, in `README.md` directly after the start-here order and in
+   `CONTRIBUTING.md` beside its pointer to that order, each with an invocation checked against
+   the tree (`syscall` reaches `crates/abi/src/lib.rs`, `socket` reaches `notes/net.md`). Placing
+   it found that it **exited 1 on every search**, because six filenames had grown past the guest
+   record's 72-byte path; it now fails only when a result it printed is truncated. Its `BUGS` also
+   said ranking was occurrence count, and it is density.
+3. **`script/names` counts one worklist.** The gate line said `recorded + unrecorded` (28) beside
+   a pointer to `--unratified`, which lists 69; the census lines left `provisional` out and so did
+   not sum. The three-category number is right, because `--unratified` sorts provisional names
+   first as the shortest conversation calef can have, and design/naming.md defines the worklist as
+   that listing. Refusals stay at 273. design/naming.md's `BUGS` entry is gone and its captures say
+   what changed.
+
 ## Scope note
 
 **Not a documentation rewrite.** The tree's documentation is unusually good and this milestone must
@@ -597,15 +656,20 @@ human would before asking. So the result is a **lower bound** on the friction a 
 the milestone should say so wherever it reports a number.
 ## Follow-on
 
-- **Outstanding.** Run 6 has not happened. `notes/stranger-test.md`'s newest heading is run 5 on
-  2026-08-18 and the 30-day cadence in that note puts the next one at roughly 2026-09-17, so
-  nothing owes one yet and nothing else can move this block to BUILT. Checked 2026-09-03.
-- **Outstanding.** Where `script/apropos` should be named is still unanswered and still costing what
-  it was measured to cost: `README.md`'s start-here order names eight things and none of them is
-  `apropos`, and `CONTRIBUTING.md` never mentions it either. Checked 2026-09-03.
-- **Outstanding.** Run 4's naming-worklist finding is unfixed: `script/names` still counts two
-  categories on the gate line and three on the default listing, and `design/naming.md`'s `BUGS`
-  still carries the entry. Checked 2026-09-03.
+- **Done.** Run 6 went on 2026-09-19 and is recorded in notes/stranger-test.md with every finding
+  homed; see the section above.
+- **Done.** `script/apropos` is named in `README.md` and `CONTRIBUTING.md`, with examples, and no
+  longer fails every search on six long filenames.
+- **Done.** `script/names` prints one worklist count everywhere (69 of 222 today), provisional
+  included, and design/naming.md's `BUGS` entry is removed.
+- **Proposed.** A due cadence reaches nobody, and the watcher cannot tell due from dead:
+  `design/roadmap/proposals/a-due-cadence-reaches-nobody.md`.
+- **Proposed.** `uefi-test` can exit 1 after its own suite passed:
+  `design/roadmap/proposals/uefi-test-exits-one-after-a-passing-suite.md`.
+- **Recorded.** The CLI's default model refuses the task text, a stranger that waits on background
+  work ends its own run, a stranger can write to the machine, and `script/lint` announces the
+  withholding: all in `script/stranger-test`'s `BUGS`, each naming what would change it and whose
+  call that is.
 - **Done.** Run 4's placement finding about the two archives' `init` is fixed at the table rather
   than 200 lines away: the `hello` entry in `xtask/src/main.rs` now carries the comment that
   riscv's "init" is the `builder` demo, on the row that needs it.
@@ -635,10 +699,13 @@ the milestone should say so wherever it reports a number.
 
 ## Index row
 
+**Built:** 2026-09-19
+
 The third principle says a newcomer must succeed without asking anyone, and nothing held it. An
 agent with no context is handed the repository and nothing else; its questions are the deliverable
-and its confident wrong answers are the worse defect. One pass measures, two show whether the
-fixes worked. Five runs; `script/stranger-test` is the harness and, since calef's monthly cadence
-of 2026-08-18, a weekly workflow says when the next one is owed. Run 5's handoffs are landed or
-tracked (2026-08-22, milestone 150 minted for the design fork). Remaining: only a run 6, conducted
-when the cadence next owes one (`script/stranger-test --due`, not before roughly 2026-09-17)
+and its confident wrong answers are the worse defect. Six runs through 2026-09-19;
+`script/stranger-test` is the harness and a weekly workflow says when the next one is owed, monthly
+per calef (2026-08-18). Run 6 found milestone 150's one-place program declaration working on first
+contact and a stranger that provisioned the machine chasing a wrong diagnosis the tree invited;
+`script/apropos` is now placed where newcomers start. The cadence has never fired on its own: how a
+"due" reaches a person is a proposal shared with the audit cadence

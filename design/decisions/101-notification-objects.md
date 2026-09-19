@@ -49,11 +49,12 @@ narrowing solves one instance for one program; a notification object solves the 
 
 ### The kernel already has half the mechanism
 
-`ipc::Endpoint` already carries a **pending-signal count**: `signal()` wakes a waiting receiver or
-counts the signal so it is not lost; `recv` drains a pending signal first. IRQ capabilities are
-bound to endpoints via `bind_irq`, and `irq_notify` calls `endpoint.signal()`. The proved invariant
-("at most one wait queue is ever non-empty") holds for signals because a signal never queues the
-signaller - it is deliberately not a rendezvous.
+`ipc::Endpoint` (`inter_process_communication::Rendezvous` since §113 and 2026-09-19) already
+carries a **pending-signal count**: `signal()` wakes a waiting receiver or counts the signal so it
+is not lost; `recv` drains a pending signal first. IRQ capabilities are bound to endpoints via
+`bind_irq`, and `irq_notify` calls `endpoint.signal()`. The proved invariant ("at most one wait
+queue is ever non-empty") holds for signals because a signal never queues the signaller - it is
+deliberately not a rendezvous.
 
 What exists today:
 - `signal()` on `ipc::Endpoint` - wakes a receiver or increments `pending`

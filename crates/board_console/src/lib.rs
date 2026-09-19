@@ -18,11 +18,22 @@
 //! - [`screen`] turns a screendump of nife's framebuffer console back into the text that was drawn
 //!   into it, so that [`progress`] judges a monitor exactly as it judges a cable.
 //!
+//! And one part that is data rather than code (milestone 324 part 3):
+//!
+//! - [`board`] declares each board's **firmware prologue**, which is the only thing about this tool
+//!   that is a board's rather than the kernel's. calef's ruling of 2026-09-19 is in its header.
+//!
 //! And one part that reads a capture after the fact rather than a board in front of it:
 //!
 //! - [`lottery`] takes a log of *many* boots and reports what the thread-placement lottery drew
 //!   each time (milestone 249), which is the question a self-rebooting soak exists to answer and
 //!   the one nothing that reads a single boot can be asked.
+//!
+//! And one part that **writes**, which every other part of this crate does not (milestone 324):
+//!
+//! - [`stop`] sends the single byte that ends milestone 249's self-rebooting soak, after the board
+//!   has announced an armed reboot loop and never before it, and prints what it sent into the log.
+//!   Its header carries the whole of that argument.
 //!
 //! # This crate is not run under Miri
 //!
@@ -102,8 +113,11 @@
 //! **A missed marker fails toward pessimism, which is the safe direction, and a *matched* one does
 //! not.** The recogniser matches substrings anywhere in a line, so a board that echoes the word
 //! `Starting kernel ...` back at a U-Boot prompt would be read as having handed over. Nothing
-//! guards against a console that repeats its input, and this tool never writes to the port, so
-//! today the only way that happens is a person typing into the same session.
+//! guards against a console that repeats its input. **This used to rest on the crate never
+//! writing; since milestone 324 it rests on what [`stop`] sends instead**: one byte, which cannot
+//! spell a marker, logged in hex beside the line that provoked it so a reader can rule it out by
+//! hand. A future mode that typed whole lines would put the hazard back, which is a reason to keep
+//! the write surface at named commands rather than at a keyboard.
 //!
 //! **It does not recognise an OpenSBI trap dump**, which the failure-triage ladder lists as a real
 //! and specific outcome (the kernel started the S7 and the vendor firmware died in its own
@@ -117,13 +131,22 @@
 //! message is a line nobody has yet agreed to cross, and `Outcome::Reached` is deliberately named
 //! for what it observed rather than for a verdict.
 //!
-//! **It reads and never writes, and on this board that is not enough to boot.** The capture proves
-//! it: the extlinux path ends at `### ERROR ### Please RESET the board ###`, so reaching nife
-//! requires interrupting autoboot and typing the four `StarFive #` commands
-//! `script/board-image` prints. A console that only reads therefore cannot, on its own, get this
-//! board to the state the hardware-gated milestones need. Driving U-Boot is proven to work (calef
-//! did it on 2026-09-01) and is deliberately not here, because whether that is this tool or a
-//! second one is a scope decision that belongs to calef; see the roadmap block.
+//! **It writes only what a named mode sends, and every byte it sends is printed into the log.**
+//! That is the invariant since calef ruled on 2026-09-19 (milestone 324 part 4), and it replaces
+//! *"it reads and never writes"*. Today there is exactly one named mode, [`stop`], and it sends
+//! exactly one byte. **The narrowness is the decision rather than caution about it**: the hazard
+//! is an open keyboard beside U-Boot's autoboot countdown, which milestone 249's lane hit by
+//! detaching the console to send this same byte, at the cost of a power cycle.
+//!
+//! The two reasons this crate had to write have had opposite fates and both are worth keeping.
+//! **The first is gone**: reaching nife once meant interrupting autoboot and typing the four
+//! `StarFive #` commands `script/board-image` prints, because the extlinux path ended at
+//! `### ERROR ### Please RESET the board ###`. Milestone 218 closed that on 2026-09-16, confirmed
+//! by a boot whose countdown expired with nobody typing (`bench/radon-2026-09-16/tour-083200.log`),
+//! so a reader is enough to get radon from power-on to the kernel and nothing here drives U-Boot.
+//! **The second arrived thirteen days earlier from a different direction** and is what [`stop`]
+//! answers: milestone 249's rebooting soak is ended by a byte on this console, and a tool holding
+//! the port could not send one.
 //!
 //! **It does not touch power.** The board is powered by a Kasa strip that was not reachable from
 //! either machine when milestone 216 was written, and the roadmap block declines to decide whether
@@ -138,9 +161,25 @@
 //! gated at runtime by the speed read-back, which runs on every real session rather than only when
 //! somebody runs the tests.
 //!
-//! **One board's vocabulary.** The stages are the VisionFive 2's boot chain. An aarch64 or `x86_64`
-//! board would want the same shape with different banners, and whether that is one tool with a
-//! profile or three tools is an open design question the roadmap block names and does not answer.
+//! **The board profile is the firmware prologue, and exactly one board has been checked against
+//! one** (milestone 324 part 3). calef ruled on 2026-09-19 that this is one tool with a profile
+//! rather than a tool per board, and [`board`] is that ruling: radon's four firmware rungs, its two
+//! refusals and its relocation note are declared as data, and everything from [`progress::Stage::Banner`]
+//! up is shared by every board and always was. What the profile does not do is add evidence.
+//! radon's rungs are asserted against bytes off the wire; xenon's *absence* of a prologue rests on
+//! one capture on one day; argon has none on purpose, because a boot chain read out of vendor
+//! documentation for a board that has never printed a byte is a guess wearing a measurement's
+//! clothes. [`board`]'s own `BUGS` carries all of it.
+//!
+//! **A job-mix sweep can now be told from a wedged one, and none has been watched on a board**
+//! (milestone 324 part 2). [`progress::Stage::Sweep`] and [`progress::Stage::SweepDone`] read
+//! `crates/job_mix`'s own markers, so `script/job-mix` and `script/board-console` judge with one
+//! recogniser and return the same five statuses. It was proved under QEMU on 2026-09-19 in all four
+//! outcomes a machine can produce (finished, wedged, out of time, and a refusal built from the
+//! shared constant), and radon has never run a sweep this tool watched: that is milestone 168's own
+//! HARDWARE gate. The sweep has **no wall-clock heartbeat**, unlike a soak, so its quiet timer is
+//! sized against the slowest subrun rather than against a deadline; [`progress::Stage::Sweep`] and
+//! `script/job-mix`'s `BUGS` carry the measured number and what it costs a slow board.
 
 //! # Name
 //!
@@ -174,10 +213,12 @@
 //! chosen before that is answered is a name that may be answering it by accident. Not put to
 //! calef.
 
+pub mod board;
 pub mod lottery;
 pub mod port;
 pub mod progress;
 pub mod screen;
+pub mod stop;
 pub mod watch;
 
 /// **Fixtures captured before milestone 297 renamed the console markers**, made readable by the

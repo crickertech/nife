@@ -136,7 +136,171 @@
 
 #![no_std]
 
-use machine_discovery::framebuffer::Framebuffer;
+use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
+
+/// **Where a surface lands on a firmware screen**: the arithmetic a driver needs to copy a
+/// rectangle of pixels it was handed onto a screen the firmware set up (the shell on the firmware
+/// screen, rung 1b of milestone 198; `components/src/framebuffer_driver.rs` is its one caller).
+///
+/// The other half of this crate paints *text* into a framebuffer. This paints *pixels* someone
+/// else already drew, and it lives here rather than in the driver because every framebuffer bug in
+/// history is a stride bug and a stride bug is only catchable on the host: the driver is a
+/// ring-3 program with no test harness, and this is a pure function of five numbers.
+///
+/// What it holds is the part of the screen a surface covers: the surface's size clipped to the
+/// screen's, placed at the screen's top-left corner, plus the screen's stride and byte order. A
+/// surface larger than the screen loses its right and bottom edges; a surface smaller than the
+/// screen leaves the rest of it alone.
+///
+/// **Name provisional** (the shell on the firmware screen's lane). "Aperture" is the word the
+/// tree already uses for the firmware's framebuffer as a device window
+/// (`kernel/src/arch/x86_64/machine.rs`, milestone 243).
+///
+/// # Examples
+///
+/// ```
+/// use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
+/// use screen_console::Aperture;
+///
+/// // A 4x2 screen with four bytes of padding per row, and a 3x3 surface: the surface is clipped
+/// // to three columns and two rows.
+/// let screen = Framebuffer { base: 0, width: 4, height: 2, stride: 20, order: PixelOrder::Rgbx };
+/// let aperture = Aperture::new(&screen, 3, 3).expect("a screen and a surface both bigger than 0");
+/// assert_eq!(aperture.size(), (3, 2));
+///
+/// // Copy the whole visible part of a surface whose every pixel is pure red, 0x00ff0000.
+/// let mut pixels = [0u8; 40];
+/// assert!(aperture.copy(0, 0, 3, 2, |_, _| 0x00ff_0000, |at, word| {
+///     pixels[at..at + 4].copy_from_slice(&word.to_le_bytes());
+/// }));
+/// // An rgbx screen stores red in its first byte, and the fourth column was never touched.
+/// assert_eq!(&pixels[0..4], &[0xff, 0, 0, 0]);
+/// assert_eq!(&pixels[12..16], &[0, 0, 0, 0]);
+///
+/// // A rectangle that leaves the visible part is refused rather than clipped.
+/// assert!(!aperture.copy(0, 0, 4, 2, |_, _| 0, |_, _| {}));
+/// ```
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Aperture {
+    width: u32,
+    height: u32,
+    stride: u32,
+    order: PixelOrder,
+}
+
+impl Aperture {
+    /// The part of `screen` a `surface_width` by `surface_height` surface covers, or `None` when the
+    /// screen's own geometry does not close ([`Framebuffer::span`]) or either size is zero.
+    #[must_use]
+    pub fn new(screen: &Framebuffer, surface_width: u32, surface_height: u32) -> Option<Self> {
+        screen.span()?;
+        Self::checked(
+            screen.width.min(surface_width),
+            screen.height.min(surface_height),
+            screen.stride,
+            screen.order,
+        )
+    }
+
+    /// The one validation both constructors share: a non-empty rectangle whose every row fits in
+    /// the stride, and whose last byte is addressable.
+    fn checked(width: u32, height: u32, stride: u32, order: PixelOrder) -> Option<Self> {
+        if width == 0 || height == 0 || (stride as u64) < width as u64 * 4 {
+            return None;
+        }
+        let aperture = Self {
+            width,
+            height,
+            stride,
+            order,
+        };
+        aperture.checked_span()?;
+        Some(aperture)
+    }
+
+    /// The covered part, in pixels: `(width, height)`. This is what the driver answers a client's
+    /// `INFO` with, so the client lays its grid out over what can actually be seen.
+    #[must_use]
+    pub const fn size(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
+    /// How many bytes from pixel (0, 0) a copy can reach: the last covered row's last pixel, plus
+    /// one. **This, and not the screen's whole span, is what the driver needs mapped**, so a driver
+    /// is never handed the rows of the screen it will never paint.
+    #[must_use]
+    pub fn span(&self) -> usize {
+        self.checked_span().unwrap_or(0)
+    }
+
+    fn checked_span(&self) -> Option<usize> {
+        let bytes = (self.stride as u64)
+            .checked_mul(self.height as u64 - 1)?
+            .checked_add(self.width as u64 * 4)?;
+        usize::try_from(bytes).ok()
+    }
+
+    /// **Two words that carry this across a spawn**, for a driver that is told its geometry in
+    /// registers because it holds no capability that could describe it. [`Self::from_words`] is
+    /// the other half, and the pair lives here so the kernel that packs and the driver that
+    /// unpacks are one definition rather than two that could drift (AGENTS.md rule 7).
+    #[must_use]
+    pub const fn to_words(&self) -> (u64, u64) {
+        let order = match self.order {
+            PixelOrder::Bgrx => 0,
+            PixelOrder::Rgbx => 1,
+        };
+        (
+            self.width as u64 | (self.height as u64) << 32,
+            self.stride as u64 | order << 32,
+        )
+    }
+
+    /// The inverse of [`Self::to_words`], validated the same way [`Self::new`] is, because the
+    /// words crossed a process boundary and the driver should not paint on the strength of a
+    /// geometry it cannot check.
+    #[must_use]
+    pub fn from_words(size: u64, layout: u64) -> Option<Self> {
+        let order = match layout >> 32 {
+            0 => PixelOrder::Bgrx,
+            1 => PixelOrder::Rgbx,
+            _ => return None,
+        };
+        Self::checked(size as u32, (size >> 32) as u32, layout as u32, order)
+    }
+
+    /// **Copy one rectangle of a surface onto the screen.** `read(x, y)` is the surface's pixel in
+    /// the tree's usual `0x00RRGGBB` spelling; `write(offset, word)` stores `word` at `offset`
+    /// bytes from the screen's pixel (0, 0), already in the screen's byte order.
+    ///
+    /// Returns `false`, having written nothing, when the rectangle is empty or leaves the covered
+    /// part: **refused rather than clamped**, the same stance the framebuffer contract takes
+    /// (`graphics_protocol::rect_in_surface`), because a clamp would absorb a client's coordinate
+    /// bug silently.
+    pub fn copy(
+        &self,
+        x: u32,
+        y: u32,
+        w: u32,
+        h: u32,
+        read: impl Fn(u32, u32) -> u32,
+        mut write: impl FnMut(usize, u32),
+    ) -> bool {
+        let fits = |start: u32, len: u32, limit: u32| {
+            len > 0 && start.checked_add(len).is_some_and(|end| end <= limit)
+        };
+        if !fits(x, w, self.width) || !fits(y, h, self.height) {
+            return false;
+        }
+        for row in y..y + h {
+            let line = row as usize * self.stride as usize;
+            for col in x..x + w {
+                write(line + col as usize * 4, self.order.store(read(col, row)));
+            }
+        }
+        true
+    }
+}
 
 /// A cursor on a screen, and the arithmetic that puts a byte under it.
 ///
@@ -189,6 +353,17 @@ impl ScreenConsole {
     #[must_use]
     pub const fn size(&self) -> (u32, u32) {
         (self.cols, self.rows)
+    }
+
+    /// The screen this console paints, as the boot handoff described it.
+    ///
+    /// For the one caller that gives the screen away (the kernel's console, when a userspace
+    /// terminal takes it over): what it hands on is the description it was itself given, so the
+    /// driver that paints next and the console that painted before cannot disagree about the
+    /// geometry. **Name provisional** (the shell on the firmware screen).
+    #[must_use]
+    pub const fn screen(&self) -> Framebuffer {
+        self.screen
     }
 
     /// How many bytes of framebuffer this console addresses, which is what a caller has to map and
@@ -462,6 +637,143 @@ mod tests {
             };
             assert!(ScreenConsole::new(found).is_none(), "{width}x{height}");
         }
+    }
+
+    /// **The aperture copies through the stride, not the width**, and leaves the padding alone.
+    /// A copy that multiplied by the width would put row 1 twelve bytes early, which is the shear
+    /// `the_padding_between_rows_is_never_written` guards against in the text painter.
+    #[test]
+    fn an_aperture_copies_through_the_stride_and_never_touches_the_padding() {
+        use super::Aperture;
+        const PAD: u32 = 12;
+        let (found, mut pixels) = screen(2, 1, PAD, PixelOrder::Bgrx);
+        pixels.fill(0xa5);
+        let aperture = Aperture::new(&found, 1000, 1000).expect("a real screen");
+        assert_eq!(
+            aperture.size(),
+            (found.width, found.height),
+            "clipped to the screen"
+        );
+        let (w, h) = aperture.size();
+        // Every surface pixel a function of its coordinate, so a misplaced pixel is a wrong value.
+        let surface = |x: u32, y: u32| (y << 8) | x;
+        assert!(aperture.copy(0, 0, w, h, surface, |at, word| {
+            pixels[at..at + 4].copy_from_slice(&word.to_le_bytes());
+        }));
+        for y in 0..h {
+            for x in 0..w {
+                assert_eq!(pixel(&found, &pixels, x, y), surface(x, y), "({x},{y})");
+            }
+            let pad = (y * found.stride + w * 4) as usize;
+            assert_eq!(
+                &pixels[pad..pad + PAD as usize],
+                &[0xa5; PAD as usize],
+                "row {y}"
+            );
+        }
+        assert_eq!(aperture.span(), ((h - 1) * found.stride + w * 4) as usize);
+    }
+
+    /// Clipping takes the smaller of the two sizes on each axis independently, and a rectangle
+    /// that leaves the clipped part, or is empty, or overflows `u32`, is refused with nothing
+    /// written.
+    #[test]
+    fn an_aperture_is_the_smaller_of_screen_and_surface_and_refuses_what_leaves_it() {
+        use super::Aperture;
+        let found = Framebuffer {
+            base: 0,
+            width: 1280,
+            height: 800,
+            stride: 1280 * 4,
+            order: PixelOrder::Bgrx,
+        };
+        let aperture = Aperture::new(&found, 924, 344).expect("a real screen");
+        assert_eq!(
+            aperture.size(),
+            (924, 344),
+            "the surface is smaller: it wins"
+        );
+        let narrow = Framebuffer {
+            width: 800,
+            stride: 800 * 4,
+            ..found
+        };
+        assert_eq!(
+            Aperture::new(&narrow, 924, 344)
+                .expect("a real screen")
+                .size(),
+            (800, 344),
+            "a narrow screen clips the surface's width and not its height"
+        );
+        for (x, y, w, h) in [
+            (0, 0, 925, 1),
+            (0, 0, 1, 345),
+            (923, 0, 2, 1),
+            (0, 0, 0, 1),
+            (0, 0, 1, 0),
+            (u32::MAX, 0, 2, 1),
+        ] {
+            assert!(
+                !aperture.copy(
+                    x,
+                    y,
+                    w,
+                    h,
+                    |_, _| 0,
+                    |_, _| panic!("wrote for ({x},{y},{w},{h})")
+                ),
+                "({x},{y},{w},{h}) should have been refused"
+            );
+        }
+        assert!(Aperture::new(&found, 0, 344).is_none(), "an empty surface");
+    }
+
+    /// The words that carry an aperture across a spawn come back as the same aperture, both byte
+    /// orders survive, and words describing an impossible geometry are refused rather than
+    /// believed.
+    #[test]
+    fn an_aperture_survives_the_trip_through_two_words() {
+        use super::Aperture;
+        for order in [PixelOrder::Bgrx, PixelOrder::Rgbx] {
+            let found = Framebuffer {
+                base: 0,
+                width: 1920,
+                height: 1080,
+                stride: 7680,
+                order,
+            };
+            let aperture = Aperture::new(&found, 924, 344).expect("a real screen");
+            let (size, layout) = aperture.to_words();
+            assert_eq!(Aperture::from_words(size, layout), Some(aperture));
+        }
+        // A stride narrower than the row, and an order this tree has no name for.
+        assert_eq!(Aperture::from_words(10 | 10 << 32, 39), None);
+        assert_eq!(Aperture::from_words(10 | 10 << 32, 40 | 2 << 32), None);
+        assert_eq!(Aperture::from_words(0, 40), None);
+    }
+
+    /// An rgbx screen gets its red and blue exchanged on the way in, which is the byte-order half
+    /// of the copy and the half a grey test pattern cannot see.
+    #[test]
+    fn an_aperture_stores_in_the_screens_byte_order() {
+        use super::Aperture;
+        let (found, mut pixels) = screen(1, 1, 0, PixelOrder::Rgbx);
+        let aperture = Aperture::new(&found, 1, 1).expect("one pixel");
+        assert!(aperture.copy(
+            0,
+            0,
+            1,
+            1,
+            |_, _| 0x0011_2233,
+            |at, word| {
+                pixels[at..at + 4].copy_from_slice(&word.to_le_bytes());
+            }
+        ));
+        assert_eq!(
+            &pixels[0..4],
+            &[0x11, 0x22, 0x33, 0x00],
+            "bytes R, G, B, unused"
+        );
     }
 
     /// A framebuffer slice shorter than the geometry claims must truncate the picture, never panic.

@@ -1,17 +1,20 @@
 # 382. Three of AIM7's job categories are missing from the multi-tasking workload
 
-**Status: NOT-STARTED.** Filed 2026-09-04 as an unnumbered proposal by milestone 168's lane, from
-`crates/job_mix`'s own `BUGS`; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
-**Premise re-read against the tree on 2026-09-19 and still true**: `crates/job_mix` still ships the
-five jobs and no others, and its `BUGS` section still names disk-file operations, process creation
-and page mapping as absent with the same three reasons. One thing did move, and it weakens the
-argument rather than the premise: a 2026-09-13 correction to that same `BUGS` section established
-that **Warton's own AIM7 run had the filesystem jobs disabled** (section 5.4, the ramdisk was too
-small), so the disk-file gap is not a gap against the number this crate exists to chase. The
-process-creation and page-mapping gaps are untouched by that, and they are the two the argument
-below actually rests on. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT** 2026-09-19, by milestone 168's own lane, in a different session and on the same
+day this block was numbered. Two of the three categories landed: the job mix gained **page mapping**
+and **process creation**, which are the two the argument below actually rested on. The third, the
+disk-file category, is deliberately still absent and has its own proposal; see `## Follow-on`.
 
-**Gate: NONE.** For the design; the *result* it improves is still milestone 168's `HARDWARE`. The
+**The work and the number were minted by two sessions that could not see each other.** This branch
+promoted the proposal to a numbered block while that lane was absorbing its content into milestone
+168 and deleting the file. calef's ruling from milestone 433 decides which survives: a proposal is
+promoted and then closed, because **a numbered block marked BUILT is a record and a deleted file is
+nothing**. So the number stays, the status moves, and milestone 168 cites the block rather than a
+path that no longer exists. Filed 2026-09-04 as an unnumbered proposal by milestone 168's lane, from
+`crates/job_mix`'s own `BUGS`; numbered 2026-09-19 by milestone 433's drain. *(Number provisional
+until the merge queue lands it.)*
+
+**It carried `Gate: NONE`** for the design, with the *result* it improves still behind milestone 168's `HARDWARE`. The line is gone because a finished block's gate can only be stale. The
 jobs themselves are ordinary userspace work and develop under QEMU.
 
 **In brief.** `crates/job_mix` keeps AIM7's four methodological properties and stands in for its
@@ -48,7 +51,24 @@ Nothing. Milestone 168's instrument works and its result is interpretable, with 
 in `crates/job_mix`'s `BUGS` and in `notes/job-mix.md` where a reader meets the number. What is at
 stake is how much weight a flat curve can carry.
 
+## Follow-on
+
+- **Milestone 168.** Where the work landed: *"The second hole"* and *"What changed on 2026-09-19"*
+  in that block, with the refusals this one recorded answered there. The map job did not need a new
+  capability, and the spawn job's allocator share is now printed.
+- **Proposed.** The **disk-file category**, which is the one of the three that did not land and is
+  not simply deferred. A 2026-09-13 correction to `crates/job_mix`'s `BUGS` established that
+  **Warton's own AIM7 run had the filesystem jobs disabled** (section 5.4, the ramdisk was too
+  small), so the gap is not a gap against the number this crate exists to chase. Its own proposal is
+  `design/roadmap/proposals/a-disk-file-job-mix-needs-a-disk-radon-can-drive.md`, which names the
+  harder half: a disk radon can actually drive.
+- **Recorded.** *No seven-job sweep has run on silicon.* Every claim about the new instrument is a
+  resampling of the old one's data, and the map and spawn jobs may change `tasks=4`'s distribution.
+  Recorded in milestone 168's `BUGS`, where a reader meets the instrument.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 `crates/job_mix` keeps AIM7's four methodological properties and stands in for its categories with
 five jobs: a compute grind, a working-set walk, a null syscall, a yield burst and an IPC round trip.

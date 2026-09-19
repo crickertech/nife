@@ -4,6 +4,10 @@
 #   script/job-mix                          # aarch64
 #   script/job-mix --arch riscv64           # the architecture radon runs
 #   script/job-mix --arch riscv64 --smp 4   # radon's core count
+#   script/job-mix --release                # the optimisation level script/board-image builds
+#   script/job-mix --hvf --release --smp 4  # the Apple cores (aarch64); refused until milestone 227
+#   script/job-mix --for 20m                # a slower host, or a debug build under TCG
+#   script/job-mix --quiet-after 0          # a host so slow a subrun outlasts the wedge timer
 #
 # `design/decisions/96-process-kernel-or-event-kernel.md` asks whether this kernel should keep a
 # kernel stack per thread. Three of its four inputs are settled; the fourth is performance, and the
@@ -22,14 +26,33 @@
 # What it boots is `--features job_mix`, where the boot tour ends in the sweep instead of a halt.
 # See kernel/src/job_mix.rs and fixtures/src/job_mix_task.rs.
 #
-# Exit statuses:
+# Exit statuses, which are `script/board-console`'s because the judging is its code (milestone
+# 324 part 2). Every line of the boot is written to a log under target/, and that log replays
+# through `script/board-console --replay`:
 #
-#   0  the sweep completed and printed every point
-#   1  the kernel refused to start the sweep (`job-mix: FAILED`, printed above)
-#   3  QEMU ended before the sweep finished
+#   0  the sweep completed and printed every point (`job-mix: done`)
+#   1  the kernel refused to start the sweep (`job-mix: FAILED`), or announced any other failure
+#   2  it spoke and then went quiet: the sweep wedged partway, which is what a multicore defect
+#      looks like from here. **This one is new**, and it is why part 2 exists: a wedged sweep used
+#      to be indistinguishable from a finished one.
+#   3  the time ran out with `job-mix: done` unreached
 #   4  the build failed, or the arguments were wrong
 #
 # BUGS
+#
+# - **A sweep has no heartbeat, so the wedge timer is a guess with headroom.** `kernel/src/soak.rs`
+#   prints on the wall clock every five seconds whatever it is doing, so a missed beat is a missed
+#   deadline and fifteen seconds is three of them. A sweep speaks only when a subrun ends, and the
+#   longest subrun is the top of `job_mix::TASK_SWEEP`: 4.0 seconds on the machine
+#   `crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log` was
+#   taken on (249,234,771 ticks on a 62.5 MHz counter). `--quiet-after` defaults to sixty seconds,
+#   fifteen times that, and a host or a board outside that margin will be called wedged when it is
+#   merely slow. `--quiet-after 0` is the answer, and it costs the wedge detection this milestone
+#   added. Giving the sweep a real heartbeat is a kernel change and is not proposed here.
+#   **The margin was twenty to one against a 2.6-second subrun until 2026-09-19**, when milestone
+#   168 took twenty-one repeats of a seven-kind mix instead of three of a five-kind one. Nothing
+#   about that change was near this default; a number quoted from a capture is only as current as
+#   the capture.
 #
 # - **A jobs-per-minute figure from one boot is a draw, not a result.** notes/soak.md records four
 #   runs on radon whose rates span fifteenfold, and milestone 240's census explains them: the
@@ -51,8 +74,20 @@
 #   until 2026-09-14 and the second half was false**: `soak` has been in that loop since it was
 #   written. A BUGS section that overstates is the failure mode AGENTS.md names, so it is corrected
 #   rather than quietly narrowed.
+# - **`--hvf` does not run on this project's QEMU (11.1.1) today.** QEMU refuses HVF with a GICv2
+#   and the kernel drives only GICv2, so the run exits 3 with QEMU's own message. Milestone 227 (a
+#   GICv3 driver) is the fix; notes/job-mix.md's cross-check section has the 2026-09-19 attempt.
+# - **The output changed on 2026-09-19**: each point is the median of 21 repeats, printed as
+#   `ticks_median=` and `jpm_median=` beside the ends, and a `job-mix-kind:` line per job kind
+#   follows each point. A transcript from before then says `ticks=` and `jpm=`, is the best of 3 of
+#   a five-job mix, and is not comparable. notes/job-mix.md has the table.
 # - **This sweep and `script/soak-test` are alternatives, not a stack.** Both replace the end of the boot
-#   tour, and a build carrying both features would run this one and never soak.
+#   tour, and a build carrying both features would run this one and never soak. `board_console`'s
+#   `Stage` orders `Sweep` above `Soak` for that reason and for no other: the enum has to order them
+#   somehow and nothing ever compares them.
+# - **Nothing here has run against a board.** The recogniser was proved against QEMU captures on
+#   2026-09-19; radon has never run a sweep this tool watched, which is milestone 168's own gate
+#   (HARDWARE) and not something part 2 could close.
 # - **No result from this instrument is comparable with `script/bench`'s.** The mix, the task count
 #   and the metric are all different, and the jobs are not the primitives.
 #

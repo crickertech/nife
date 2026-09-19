@@ -14,6 +14,7 @@
 //!     cargo xtask objdump  disassemble the kernel
 //!     cargo xtask image    build the flat arm64 Image and dump its header
 //!     cargo xtask board-console  read the serial console of a real board, log it, stop on a deadline
+//!                                (and, under --stop, send the one byte that ends a rebooting soak)
 //!     cargo xtask board-script   write the U-Boot script that boots the board without a person at its prompt
 //!
 //! Note that `run` and `test` do NOT invoke QEMU themselves. They just call cargo,
@@ -24,6 +25,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::sync::atomic::{AtomicBool, Ordering};
+
+mod stick;
 
 const TARGET: &str = "aarch64-unknown-none-softfloat";
 const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";
@@ -127,6 +130,11 @@ fn main() -> ExitCode {
         "uefi-boot" => uefi_boot(),
         // Milestone 195: the same firmware, the kernel's test binary instead of its tour.
         "uefi-test" => uefi_test(),
+        // The stick (DECISIONS §157): every architecture's boot file, sealed, and `stick_maker`
+        // built around them; then the same directory booted under all three firmwares. See
+        // xtask/src/stick.rs and notes/boot-stick.md. Names provisional (2026-09-19).
+        "stick" => stick::stick(),
+        "stick-boot" => stick::stick_boot(),
         // The documentation store (milestone 40): build it, print what it costs, and optionally
         // answer a query against it with the same reader the guest uses.
         "manual" => manual_store(std::env::args().nth(2)),
@@ -180,7 +188,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|stick|stick-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");
@@ -195,7 +203,7 @@ fn main() -> ExitCode {
             );
             eprintln!("       cargo xtask icount [--arch aarch64|riscv64]");
             eprintln!(
-                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|machine|selftest|tour|prompt|none] [--quiet-after <duration>]"
+                "       cargo xtask board-console [--port <dev>] [--replay <log>] [--log <file>] [--for <duration>] [--until spl|opensbi|uboot|handoff|banner|machine|selftest|tour|prompt|none] [--quiet-after <duration>] [--stop | --stop-after <n>]"
             );
             return ExitCode::FAILURE;
         }
@@ -2503,235 +2511,183 @@ fn riscv_initrd_path() -> String {
         .to_string()
 }
 
-/// **The archive both non-aarch64 ports pack**, one table shared by two callers (milestone 161).
+/// The packages a program can live in (milestone 175's split). See notes/adding-a-program.md for
+/// which one a new program belongs in.
+const PROGRAM_PACKAGES: [&str; 2] = ["components", "fixtures"];
+
+/// **Every program this tree builds, read from the one place it is declared** (milestone 150; name
+/// provisional): the `[[bin]]` blocks in `components/Cargo.toml` and `fixtures/Cargo.toml`, which
+/// cargo needs anyway. All three archives pack exactly this list, so a program is added to them by
+/// adding its `[[bin]]` block and removed by deleting it.
 ///
-/// RISC-V's archive and `x86_64`'s are the same list of programs, and that is a claim rather than a
-/// convenience: every entry here is portable, so a test that passes on one instruction set and not
-/// the other has found a bug rather than a fixture gap. Duplicating the list would have made the
-/// two drift the first time somebody added a program to one of them, which is CLAUDE.md rule 7's
-/// argument (what two things must agree on gets one definition) applied to a table instead of a
-/// wire format.
+/// **This replaced two hand-maintained tables**, `initrd_aarch64()`'s own and the
+/// `portable_archive_entries()` riscv64 and `x86_64` shared. By 2026-09-19 they disagreed about two
+/// programs nobody had decided to leave out (`serial_driver` and `jh7110_entropy` were missing from
+/// aarch64's) and both had missed a third (`pmap`, built and packed nowhere). That was drift rather
+/// than policy, because the rule the shared table's own comment stated is the one this implements:
 ///
-/// `(archive_name, bin_name)`, and since milestone 266 the two are **the same in every row**: the
-/// archive entry `init` was the last place a name meant a different binary depending on the board,
-/// and one progenitor retired it. The pair is kept rather than collapsed to a list because it is
-/// what would let an exception be data instead of a special case in the loop, and because
-/// [`initrd_aarch64`] beside it has the same shape.
+/// **Not filtered per architecture, deliberately.** Several programs cannot do their job everywhere
+/// (`console`, `input` and `keyboard_driver` need port I/O a ring-3 process cannot reach on
+/// `x86_64`, DECISIONS §121; `serial_driver` drives riscv64's UART; `jh7110_entropy` is radon's).
+/// They are packed anyway: an archive entry costs a directory slot and some bytes, nothing spawns a
+/// program by accident, and the tests that would spawn them `skip!()` with the reason. A
+/// per-architecture filter would put the same fact in two places and let them disagree, which is
+/// what the two tables did.
 ///
-/// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
-/// on `x86_64`: `console`, `input` and `keyboard_driver` all need a device a ring-3 process cannot
-/// reach (COM1 and the PS/2 ports are port I/O, DECISIONS §121).
+/// **Order does not matter.** The progenitor looks entries up by name and [`measurement_table`] is
+/// sorted, so this is `Cargo.toml` order and nothing depends on it.
 ///
-/// **`gpu_driver` was in that list until 2026-09-09 and did not belong there**, which mattered
-/// because it made `x86_64`'s display look foreclosed by a ratified decision when it is not.
-/// virtio-gpu is PCIe, its BARs are memory, and the driver does not map registers at all: it holds
-/// a kernel-mediated `Virtio` capability (`components/src/gpu_driver.rs`). §121 explicitly grants MMIO
-/// devices the mapping-based capability on every architecture. The real reason it does not run
-/// there is that `scripts/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci` onto the bus, which
-/// `kernel/src/user/display_tests.rs` states correctly beside its own skip. A missing device in a
-/// runner script, not a capability that cannot exist. They are packed anyway: an archive entry costs a directory slot and some
-/// bytes, nothing spawns a program by accident, and the tests that would spawn them `skip!()` with
-/// the reason. A per-architecture filter here would put the same fact in two places and let them
-/// disagree.
+/// Refuses, rather than packing a partial archive, when a `[[bin]]` block has a shape
+/// [`bin_names`] does not understand, and when something else in the tree names a program no
+/// `[[bin]]` builds: see [`check_declared_programs`].
+fn declared_programs() -> Result<&'static [String], String> {
+    // Read once per `xtask` run: `test` packs three archives, and they must pack the same list.
+    static DECLARED: std::sync::OnceLock<Result<Vec<String>, String>> = std::sync::OnceLock::new();
+    let declared = DECLARED.get_or_init(|| {
+        let mut names = Vec::new();
+        for package in PROGRAM_PACKAGES {
+            let path = workspace_root().join(package).join("Cargo.toml");
+            let text = std::fs::read_to_string(&path)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            names.extend(bin_names(&text).map_err(|e| format!("{}: {e}", path.display()))?);
+        }
+        check_declared_programs(&names)?;
+        Ok(names)
+    });
+    declared.as_deref().map_err(Clone::clone)
+}
+
+/// Read the stripped ELF of every [`declared_programs`] entry for one archive, `elf` mapping a
+/// program name to where this architecture's build put it. `None` after saying why on stderr,
+/// prefixed with `archive` so a failure names which of the three packers hit it.
+fn declared_program_blobs(
+    archive: &str,
+    elf: impl Fn(&str) -> String,
+) -> Option<Vec<(&'static str, Vec<u8>)>> {
+    let names = match declared_programs() {
+        Ok(names) => names,
+        Err(e) => {
+            eprintln!("{archive}: {e}");
+            return None;
+        }
+    };
+    let mut blobs = Vec::with_capacity(names.len());
+    for name in names {
+        match read_stripped(&elf(name)) {
+            Ok(b) => blobs.push((name.as_str(), b)),
+            Err(e) => {
+                eprintln!("{archive}: cannot read {}: {e}", elf(name));
+                return None;
+            }
+        }
+    }
+    Some(blobs)
+}
+
+/// The `name` of every `[[bin]]` table in a `Cargo.toml`, in order.
 ///
-/// Order is preserved from the hand-written table this was lifted out of. It is not load-bearing
-/// (the progenitor looks entries up by name) but the measurement table is computed over this sequence, so
-/// reordering would churn two manifests for nothing.
+/// **A reader for the subset of TOML this tree writes, and strict about it**, because DECISIONS
+/// §46 keeps a TOML parser out of `xtask` for one list and a lenient scanner would be the worst of
+/// both: it would silently skip the block it did not understand, and that program would be missing
+/// from every archive. So a key it does not know inside a `[[bin]]` block is an error naming the key.
+/// `required-features` in particular would mean cargo does not build the binary by default, which
+/// is a thing the packer has to be taught rather than guess.
+fn bin_names(manifest: &str) -> Result<Vec<String>, String> {
+    let mut names = Vec::new();
+    let mut in_bin = false;
+    let mut current: Option<String> = None;
+    let finish = |in_bin: bool, current: &mut Option<String>, names: &mut Vec<String>| {
+        if !in_bin {
+            return Ok(());
+        }
+        match current.take() {
+            Some(n) => {
+                names.push(n);
+                Ok(())
+            }
+            None => Err("a [[bin]] block with no `name`".to_string()),
+        }
+    };
+    for (i, raw) in manifest.lines().enumerate() {
+        let line = raw.trim();
+        if line.starts_with('[') {
+            finish(in_bin, &mut current, &mut names)?;
+            in_bin = line == "[[bin]]";
+            continue;
+        }
+        if !in_bin || line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(format!(
+                "line {}: not `key = value` inside a [[bin]] block",
+                i + 1
+            ));
+        };
+        match key.trim() {
+            "name" => {
+                let value = value.trim();
+                let name = value
+                    .strip_prefix('"')
+                    .and_then(|v| v.strip_suffix('"'))
+                    .filter(|v| !v.contains('"'))
+                    .ok_or_else(|| format!("line {}: `name` is not a plain string", i + 1))?;
+                current = Some(name.to_string());
+            }
+            "path" | "test" | "bench" => {}
+            other => {
+                return Err(format!(
+                    "line {}: `{other}` in a [[bin]] block, which `xtask`'s bin_names does not \
+                     know how to pack; teach it what the key means for the archives",
+                    i + 1
+                ));
+            }
+        }
+    }
+    finish(in_bin, &mut current, &mut names)?;
+    Ok(names)
+}
+
+/// **What the declared list must agree with, checked every time an archive is packed.**
 ///
-/// Name provisional (milestone 161): calef names things, and this one is read by anyone adding a
-/// program to the second and third architectures.
-fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
-    &[
-        // **The first process** (milestone 266). Packed under this name on all three architectures,
-        // and the kernel's `riscv_shell_boot` looks it up by it.
-        ("progenitor", "progenitor"),
-        // **The milestone 7-19 capability demonstrations, one program each** (milestone 291).
-        // Every one of these was a role of `hello`, selected by the word the kernel put in `x0`;
-        // none of them reads that word now. They are packed on every architecture because what
-        // they demonstrate is the kernel's, not a board's.
-        ("image_self_checker", "image_self_checker"),
-        ("console_test_client", "console_test_client"),
-        ("memory_region_depleter", "memory_region_depleter"),
-        ("delegation_granter", "delegation_granter"),
-        ("delegation_receiver", "delegation_receiver"),
-        ("page_frame_producer", "page_frame_producer"),
-        ("page_frame_consumer", "page_frame_consumer"),
-        ("call_server", "call_server"),
-        ("call_client", "call_client"),
-        ("frame_revoker", "frame_revoker"),
-        ("rendezvous_minter", "rendezvous_minter"),
-        ("rendezvous_peer", "rendezvous_peer"),
-        ("address_space_witness", "address_space_witness"),
-        ("cycle_counter_reader", "cycle_counter_reader"),
-        ("least_authority_demo", "least_authority_demo"),
-        ("serial_driver", "serial_driver"),
-        ("os_primitives_benchmarker", "os_primitives_benchmarker"),
-        ("coremark", "coremark"),
-        ("console", "console"),
-        ("input", "input"),
-        ("swish", "swish"),
-        ("line_editor", "line_editor"),
-        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
-        ("rmle", "rmle"),
-        ("terminal_sink_caretaker", "terminal_sink_caretaker"),
-        ("block_driver", "block_driver"),
-        ("allocator_exerciser", "allocator_exerciser"),
-        ("net_stack", "net_stack"),
-        ("memory_grant_depleter", "memory_grant_depleter"),
-        ("fs_test_client", "fs_test_client"),
-        ("fs_file_caretaker", "fs_file_caretaker"),
-        ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("interrupt_heeder", "interrupt_heeder"),
-        ("interrupt_ignorer", "interrupt_ignorer"),
-        // The sustained multicore workload (milestone 219): the program `--features soak_test` builds a
-        // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
-        // because the whole premise is that the same workload runs on QEMU and on all three boards.
-        ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
-        // every archive for the soaker's own reason, that the instrument develops under QEMU and
-        // the number is taken on a board.
-        ("job_mix_task", "job_mix_task"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): a progenitor that hands its
-        // construction authority to a spawner and its restart policy to a supervisor, then drops the
-        // budget. Portable, so both archives carry all four.
-        ("root_supervisor", "root_supervisor"),
-        ("spawner", "spawner"),
-        ("sub_server_supervisor", "sub_server_supervisor"),
-        ("flaky", "flaky"),
-        // The interactive boot's undertaker (milestone 22, the interactive increment): the progenitor
-        // endows every job it builds with one supervision endpoint and this collects the corpses, so
-        // a job's region comes back to the progenitor's budget. Portable, so both archives carry it.
-        ("job_undertaker", "job_undertaker"),
-        // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
-        // into the surface it serves. Portable, so both archives carry both.
-        ("gpu_driver", "gpu_driver"),
-        ("painter", "painter"),
-        // The C seam (milestone 36): the confiner and the Rust shell that links fixtures/c/c_seam.c.
-        // The C is compiled for this ISA by fixtures/build.rs, so the riscv shell carries riscv C.
-        ("c_confiner", "c_confiner"),
-        ("c_shim", "c_shim"),
-        // The compositor and a window client (milestone 33, rung two). Portable, so both archives
-        // carry both: the isolation this rung proves is a property of the kernel's mappings, and it
-        // has to hold on either ISA or it is not a property.
-        ("compositor", "compositor"),
-        ("window", "window"),
-        // The display terminal (milestone 29's text increment): one binary, two wirings. Portable,
-        // so both archives carry it and both ISAs run literally the same test.
-        ("display_terminal", "display_terminal"),
-        // The keyboard driver (milestone 29's input). Portable, so both archives carry it.
-        ("keyboard_driver", "keyboard_driver"),
-        // Live component replacement (milestone 23): the operator, the two instances of the
-        // swappable component (the second computes its answers in C), the client that talks across
-        // the swap, and the queue broker for the opt-in rung. Portable, so both archives carry all
-        // five and both ISAs run literally the same swap.
-        ("swapper", "swapper"),
-        ("rust_swappable", "rust_swappable"),
-        ("c_swappable", "c_swappable"),
-        ("chatty", "chatty"),
-        ("broker", "broker"),
-        // The clock service (milestone 51). Portable, so both archives carry it: it holds both RTC
-        // drivers and the kernel tells it which one the machine has.
-        ("clock", "clock"),
-        // `date` (milestone 51). Portable for the same reason the service is: it reads a page and
-        // formats it, and neither half knows which instruction set it is on.
-        ("date", "date"),
-        // `printenv` (milestone 47's environment-variable fork, DECISIONS §111). `date`'s own
-        // shape, one manifest field over: it reads a page and prints it, and neither half knows
-        // which instruction set it is on.
-        ("printenv", "printenv"),
-        ("rm", "rm"),
-        // The disk surveyor (milestone 57): reads the block-device roster it was granted and the
-        // partition table of the one disk it holds. Portable, so both archives carry it and both
-        // ISAs read literally the same table off literally the same image.
-        ("disk_surveyor", "disk_surveyor"),
-        // The disk partitioner (milestone 57's write half): writes the table the surveyor reads,
-        // and refuses to without an entropy endpoint. Portable, so both archives carry it.
-        ("disk_partitioner", "disk_partitioner"),
-        // The entropy service (milestone 56). Portable, so both archives carry it: it holds the
-        // virtio-rng driver, and the wiring tells it which bus the device came off.
-        ("entropy", "entropy"),
-        // The JH7110 TRNG driver (milestone 159): the entropy backend for real riscv64 hardware,
-        // beside `entropy`'s virtio-rng one. Packed into both archives for the reason the list's
-        // header gives: nothing spawns a program by accident, and the boot tour's wiring resolves
-        // to a skip on any machine whose device tree has no `starfive,jh7110-trng` node, which is
-        // every machine but radon (the `StarFive` VisionFive 2).
-        ("jh7110_entropy", "jh7110_entropy"),
-        // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
-        // process that drives the machine's NVMe controller from ring 3. Portable, so every
-        // archive carries it; the test that spawns it skips on a leg with no controller attached.
-        ("non_volatile_memory_express", "non_volatile_memory_express"),
-        // The credential service and its clients (milestone 56, the credential half). Portable, so
-        // both archives carry both: the claim is that holding the verify endpoint does not let you
-        // read or write the store, and that has to hold on either instruction set or it is not a
-        // claim.
-        ("credentialer", "credentialer"),
-        ("credentialer_test_client", "credentialer_test_client"),
-        // The login service (milestone 49): authenticates against the credential service and mints
-        // a fresh directory capability and budget rather than mutating an identity. Portable, so
-        // both archives carry both, and the claim (a capability set produced rather than an
-        // identity mutated) holds on either instruction set or it is not a claim.
-        ("login", "login"),
-        ("login_test_client", "login_test_client"),
-        // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
-        // its blocking send never parks the whole service.
-        ("audit_sink", "audit_sink"),
-        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
-        // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
-        // both archives carry it and the same guest tests run against either ISA.
-        ("identity_provisioner", "identity_provisioner"),
-        // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
-        // both archives carry it and the same guest tests run against either ISA.
-        ("session_reviver", "session_reviver"),
-        // The network time client (milestone 51), and the two test-only programs it used to carry as
-        // `arg0` roles of one binary until milestone 290 split them out into `fixtures/`. Portable,
-        // so both archives carry all three and both ISAs run the same tests.
-        ("network_time_client", "network_time_client"),
-        ("network_time_test_server", "network_time_test_server"),
-        ("unwritable_clock_witness", "unwritable_clock_witness"),
-        // The outlaw (milestone 19's user-test port): the privilege-boundary programs
-        // kernel::user::tests used to hand-assemble as aarch64 machine code.
-        ("outlaw", "outlaw"),
-        // **`hello` under its own name**, which since milestone 266 is the only name it has on any
-        // board. It held the whole milestone 7-19 role catalogue (the printing client, the untyped
-        // demo, the granter and receiver, the call server) until milestone 291 split that into the
-        // fourteen programs above; what is left is milestone 19d's and 19e's init roles, which
-        // `spawn_hello` enters on aarch64. aarch64 used to pack it as `init` because there it
-        // also carried the boot role; that role is `progenitor` now, and the alias went with it.
-        ("hello", "hello"),
-        // The sink contract's ends (milestone 50), three programs since milestone 292. Portable, so
-        // both archives carry them: the claim is that a program cannot tell what its output slot
-        // holds, and that has to hold on either instruction set or it is not a claim.
-        ("sink_transcript_writer", "sink_transcript_writer"),
-        ("file_sink", "file_sink"),
-        ("file_source", "file_source"),
-        // The consumer (milestone 50). Both archives, for the sink's reason: `date | wc` has to
-        // compose on either instruction set or it is not a claim about the system.
-        ("wc", "wc"),
-        // The viewer (milestone 40). Both archives for the sink's reason: `doc page.md | wc` is a
-        // claim about how the streams compose, and a claim that holds on one instruction set is not
-        // one.
-        ("mdr", "mdr"),
-        // The process listing (milestone 126). Both archives: "a program cannot enumerate the
-        // machine" is a claim about this system, not about an instruction set.
-        ("ps", "ps"),
-        // The filter over that listing (milestone 126). Same reason, and one more: "naming a member
-        // confers nothing over it" is a property of the rights model and holds on both.
-        ("pgrep", "pgrep"),
-        // The scheduler (milestone 129). Both archives: "a scheduled entry can do exactly what it
-        // was granted" is a claim about the capability model, and one that held on one instruction
-        // set would not be one.
-        ("timetable", "timetable"),
-        // Elapsed time on the ambient monotonic counter (milestone 126). Both archives: the
-        // counter it reads is granted unconditionally on every ISA
-        // (kernel/src/arch/*/timer.rs), so the "needed no new capability" claim is about the
-        // capability model and has to hold on both or it is not one.
-        ("uptime", "uptime"),
-        // A version-4 UUID drawn from the entropy service (milestone 111). Both archives: "a
-        // program's dependence on randomness is visible in what it holds" is a claim about the
-        // capability model, and `printenv` is already the same shape one field over.
-        ("uuid", "uuid"),
-    ]
+/// - It is not empty and it holds `progenitor`, so a scanner that stopped finding blocks fails
+///   here rather than packing an archive that boots nothing (a gate that computes the set it
+///   judges goes blind when the set empties; see
+///   design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md).
+/// - No name is declared twice, across both packages.
+/// - Every program `grant_plan` lets the shell spawn is built. Before milestone 150 a `Prog` whose
+///   binary was not packed compiled, passed every host test, and could not be spawned, and nothing
+///   said so until a boot.
+/// - Every program the kernel measures at boot ([`boot_programs`]) is built.
+fn check_declared_programs(names: &[String]) -> Result<(), String> {
+    let has = |n: &str| names.iter().any(|m| m == n);
+    if !has("progenitor") {
+        return Err(format!(
+            "found {} programs and no `progenitor`: the [[bin]] reader is looking at the wrong \
+             files or no longer understands them",
+            names.len()
+        ));
+    }
+    let mut sorted: Vec<&String> = names.iter().collect();
+    sorted.sort();
+    if let Some(w) = sorted.windows(2).find(|w| w[0] == w[1]) {
+        return Err(format!("`{}` is declared by two [[bin]] blocks", w[0]));
+    }
+    for p in grant_plan::Prog::ALL {
+        if !has(p.name()) {
+            return Err(format!(
+                "grant_plan declares `{}` spawnable from the shell, and no [[bin]] in {} builds it",
+                p.name(),
+                PROGRAM_PACKAGES.join(" or ")
+            ));
+        }
+    }
+    for b in boot_programs() {
+        if !has(b) {
+            return Err(format!("`{b}` is a boot program and no [[bin]] builds it"));
+        }
+    }
+    Ok(())
 }
 
 /// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the
@@ -2749,8 +2705,8 @@ fn initrd_riscv() -> bool {
     // **Builds the whole package rather than naming binaries** (fixed 2026-08-27; see
     // [`initrd_x86`]'s doc comment, which used to describe this as the one structural
     // difference between the two). The `--bin` list this used to carry predated every program
-    // in `user/` compiling for this target, and had to be kept in step with
-    // `portable_archive_entries` by hand; it fell out of step twice in one night when
+    // in `user/` compiling for this target, and had to be kept in step with the packing table
+    // (itself generated since milestone 150, see [`declared_programs`]) by hand; it fell out of step twice in one night when
     // `audit_sink` (milestone 49) landed in `Cargo.toml` and the packaging table but not here,
     // and CI caught it both times with "cannot read .../audit_sink: No such file or directory".
     // Verified 2026-08-27: `cargo build -p user --target riscv64imac-unknown-none-elf`, unfiltered,
@@ -2779,21 +2735,10 @@ fn initrd_riscv() -> bool {
             .display()
             .to_string()
     };
-    // Read each bin's ELF into an owned buffer, then pack. The archive name comes first, the bin
-    // name second; since milestone 266 every row is a name repeated, because `progenitor` retired
-    // the one entry whose name and binary differed. `progenitor`/`console`/`input`/`shell` are the
-    // interactive-shell system (parity D).
-    let entries = portable_archive_entries();
-    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
-    for &(archive_name, bin_name) in entries {
-        match read_stripped(&bin(bin_name)) {
-            Ok(b) => blobs.push((archive_name, b)),
-            Err(e) => {
-                eprintln!("initrd-riscv: cannot read {}: {e}", bin(bin_name));
-                return false;
-            }
-        }
-    }
+    // Every declared program, packed under its own name (milestone 150).
+    let Some(mut blobs) = declared_program_blobs("initrd-riscv", bin) else {
+        return false;
+    };
     // The std demo (milestone 27), built through the nife-dev toolchain for the riscv custom
     // target, rides along when present, exactly as on aarch64. `test` builds it first.
     if let Ok(bytes) = read_stripped(
@@ -2864,15 +2809,15 @@ fn x86_initrd_path() -> String {
 }
 
 /// **Build the `x86_64` userspace archive** (milestone 161, item 4's hand-off). The third archive,
-/// packing the same programs RISC-V's does out of [`portable_archive_entries`], built for
+/// packing the same programs the other two do ([`declared_programs`]), built for
 /// `x86_64-unknown-none`.
 ///
 /// **It builds the whole package rather than naming binaries.** This used to be the one structural
 /// difference from [`initrd_riscv`], whose `--bin` list predated every program in `user/` compiling
 /// for its target and had to be kept in step with the table by hand; that list is gone as of
 /// 2026-08-27 and `initrd_riscv` now builds unfiltered too, the same way this function always has.
-/// A program added to `user/Cargo.toml` and to the shared table is packed here (and by
-/// `initrd_riscv`) with no third edit, on either architecture.
+/// Since milestone 150 there is no packing table either: a `[[bin]]` block is packed here and by
+/// both siblings with no second edit.
 ///
 /// ```text
 /// cargo xtask initrd-x86
@@ -2932,17 +2877,9 @@ fn initrd_x86() -> bool {
             .display()
             .to_string()
     };
-    let entries = portable_archive_entries();
-    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
-    for &(archive_name, bin_name) in entries {
-        match read_stripped(&bin(bin_name)) {
-            Ok(b) => blobs.push((archive_name, b)),
-            Err(e) => {
-                eprintln!("initrd-x86: cannot read {}: {e}", bin(bin_name));
-                return false;
-            }
-        }
-    }
+    let Some(mut blobs) = declared_program_blobs("initrd-x86", bin) else {
+        return false;
+    };
     // The FS server and `mkfs` (milestone 164), on exactly the terms `initrd_riscv` carries them:
     // present iff something built them for this target, absent from a bare `initrd-x86`, and
     // `test` builds them first. Until milestone 164 they could not be built for this target at
@@ -3176,8 +3113,13 @@ fn uefi_stage(kernel: &str, esp: &std::path::Path, what: &str) -> bool {
 ///   base came from a table read at a high physical address) is what makes the whole chain a gate
 ///   rather than the three separate facts it is made of.
 ///
+/// - **the shell on the screen, answering a serial keystroke** (the shell on the firmware screen,
+///   milestone 198's rung 1b). The screen is read three times: the kernel's tour (milestone 243),
+///   the prompt once the userspace terminal has taken the screen over, and the answer to a command
+///   typed on COM1. See [`screen_watch`].
+///
 /// The boot is bounded by the runner script; a kernel that hangs fails this by producing none of
-/// the three rather than by hanging the gate.
+/// the three rather than by hanging the gate. It is stopped as soon as the screen has answered.
 fn uefi_boot() -> bool {
     if !uefi_image() {
         return false;
@@ -3192,6 +3134,12 @@ fn uefi_boot() -> bool {
     // surviving `mmu::init`, and the glyphs. The serial transcript below would be identical if the
     // screen were black.
     //
+    // **And then the shell on it** (the shell on the firmware screen, milestone 198's rung 1b): the
+    // same poller keeps reading until the prompt is on the screen, types one command on the SERIAL
+    // line, and reads its answer back off the SCREEN. That is the whole rung in one exchange: the
+    // console server writes both surfaces, the keystrokes still arrive over COM1, and what reaches
+    // the monitor is the shell and not the kernel. So it needs the runner's stdin, which is COM1.
+    //
     // In /tmp rather than under target/, because a unix socket path is capped at 104 bytes by the
     // OS and a worktree checkout plus `target/` gets close. Same reason `gpu_shot` does it.
     let sock = format!("/tmp/nife-uefi-screen-{}.sock", std::process::id());
@@ -3199,13 +3147,8 @@ fn uefi_boot() -> bool {
         std::path::PathBuf::from(format!("/tmp/nife-uefi-screen-{}.ppm", std::process::id()));
     let _ = std::fs::remove_file(&sock);
     let _ = std::fs::remove_file(&shot);
-    let seen = std::sync::Arc::new(std::sync::Mutex::new(None::<String>));
-    let watcher = {
-        let (sock, shot, seen) = (sock.clone(), shot.clone(), std::sync::Arc::clone(&seen));
-        std::thread::spawn(move || screen_watch(&sock, &shot, &seen))
-    };
 
-    let output = match Command::new("scripts/qemu-uefi-x86_64.sh")
+    let mut child = match Command::new("scripts/qemu-uefi-x86_64.sh")
         .arg(esp_dir())
         .current_dir(workspace_root())
         .env("NIFE_SCREEN_MON", &sock)
@@ -3228,16 +3171,43 @@ fn uefi_boot() -> bool {
         // The suite below is where the devices belong.
         .env_remove("NIFE_DISK")
         .env_remove("NIFE_NVME")
-        .output()
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
     {
-        Ok(o) => o,
+        Ok(c) => c,
         Err(e) => {
             eprintln!("uefi-boot: failed to run scripts/qemu-uefi-x86_64.sh: {e}");
             return false;
         }
     };
-    let transcript = String::from_utf8_lossy(&output.stdout).into_owned()
-        + &String::from_utf8_lossy(&output.stderr);
+    // Both streams collected on threads of their own, because the watcher below decides when the
+    // boot has said enough and a blocking read here would decide it instead.
+    let collect = |mut from: Box<dyn std::io::Read + Send>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = from.read_to_end(&mut bytes);
+            String::from_utf8_lossy(&bytes).into_owned()
+        })
+    };
+    let stdout = collect(Box::new(child.stdout.take().expect("piped stdout")));
+    let stderr = collect(Box::new(child.stderr.take().expect("piped stderr")));
+    let serial = child.stdin.take().expect("piped stdin");
+    let watcher = {
+        let (sock, shot) = (sock.clone(), shot.clone());
+        std::thread::spawn(move || screen_watch(&sock, &shot, serial))
+    };
+    let screen = watcher.join().unwrap_or_default();
+    // **Stop the machine once the screen has answered**, rather than waiting out the runner's
+    // bound: the kernel never exits, and everything asserted below has been printed by the time the
+    // prompt answered a command. SIGTERM to the wrapper, which is the signal `qemu-bounded.sh`
+    // forwards to QEMU; its own killer is the backstop if this is lost.
+    let _ = Command::new("kill")
+        .args(["-TERM", &child.id().to_string()])
+        .status();
+    let _ = child.wait();
+    let transcript = stdout.join().unwrap_or_default() + &stderr.join().unwrap_or_default();
     print!("{transcript}");
 
     let mut ok = true;
@@ -3255,6 +3225,10 @@ fn uefi_boot() -> bool {
         "smp: 2 core(s) online",
         // And a device interrupt still landing on the boot core with two local APICs present.
         "device irq  : pit irq 0 -> gsi 2",
+        // The kernel handed the screen to a userspace terminal and both halves came up (the shell
+        // on the firmware screen). Said on the UART because the screen has been handed away by
+        // the time it is printed.
+        "served by framebuffer_driver, a 132x43 terminal on it",
     ] {
         if !transcript.contains(wanted) {
             eprintln!("uefi-boot: the boot transcript is missing {wanted:?}");
@@ -3276,15 +3250,13 @@ fn uefi_boot() -> bool {
         ok = false;
     }
 
-    // --- What was on the SCREEN, which is the whole of milestone 243 ---
-    let _ = watcher.join();
+    // --- What was on the SCREEN: milestone 243's tour, then the shell ---
     let _ = std::fs::remove_file(&sock);
-    let screen = seen.lock().ok().and_then(|s| s.clone());
-    match screen {
+    match &screen.tour {
         Some(text) => {
             let rows = text.lines().filter(|l| !l.is_empty()).count();
             eprintln!(
-                "uefi-boot: read {rows} non-blank row(s) of text back off the framebuffer, ending"
+                "uefi-boot: read {rows} non-blank row(s) of the tour back off the framebuffer, ending"
             );
             let tail: Vec<&str> = text.lines().filter(|l| !l.is_empty()).collect();
             for line in tail.iter().rev().take(3).rev() {
@@ -3293,10 +3265,41 @@ fn uefi_boot() -> bool {
         }
         None => {
             eprintln!(
-                "uefi-boot: nothing readable was ever on the screen. The serial transcript above \
+                "uefi-boot: the tour was never readable on the screen. The serial transcript above \
                  says whether the kernel ran at all; if it did, the framebuffer path is what broke \
                  (the loader's LocateProtocol, the pixel order, the stride, or the mapping \
                  surviving mmu::init). Last dump: {}",
+                shot.display()
+            );
+            ok = false;
+        }
+    }
+    match (&screen.prompt, &screen.answer) {
+        (Some(_), Some(text)) => {
+            eprintln!(
+                "uefi-boot: the shell is on the screen, and `{UEFI_SCREEN_COMMAND}` typed on the \
+                 serial line answered there:"
+            );
+            for line in text.lines().filter(|l| !l.is_empty()) {
+                eprintln!("uefi-boot:   | {line}");
+            }
+        }
+        (Some(text), None) => {
+            eprintln!(
+                "uefi-boot: the prompt reached the screen, but `{UEFI_SCREEN_COMMAND}` typed on the \
+                 serial line never answered there. Last screen read:"
+            );
+            for line in text.lines().filter(|l| !l.is_empty()) {
+                eprintln!("uefi-boot:   | {line}");
+            }
+            ok = false;
+        }
+        (None, _) => {
+            eprintln!(
+                "uefi-boot: the shell's prompt never reached the screen. If the transcript has the \
+                 prompt, the console server is not writing to the screen terminal; if it has the \
+                 `served by framebuffer_driver` line, the terminal came up and drew nothing \
+                 readable. Last dump: {}",
                 shot.display()
             );
             ok = false;
@@ -3320,45 +3323,90 @@ fn uefi_boot() -> bool {
 /// whatever it hands over to next; it sits a few dozen rows above the bottom, well inside the 100.
 const UEFI_SCREEN_MARKER: &str = boot_ladder::SELF_TEST;
 
-/// **Poll the QEMU monitor until the tour's last line is on the screen** (milestone 243).
+/// The command `uefi-boot` types on the serial line once the prompt is on the screen, and
+/// [`UEFI_SCREEN_ANSWER`] the line it must print there. Words that appear nowhere in the boot, so
+/// finding the answer cannot be finding something the tour said.
+const UEFI_SCREEN_COMMAND: &str = "echo typed on the wire";
+/// What [`UEFI_SCREEN_COMMAND`] prints, as a whole screen row.
+const UEFI_SCREEN_ANSWER: &str = "typed on the wire";
+
+/// What the screen showed, stage by stage. Each is the decoded screen at the moment that stage was
+/// seen, or `None` when it never was.
+#[derive(Default)]
+struct ScreenReadings {
+    /// The kernel's tour, with [`UEFI_SCREEN_MARKER`] on it (milestone 243).
+    tour: Option<String>,
+    /// The shell's prompt, a row that starts `$ `.
+    prompt: Option<String>,
+    /// [`UEFI_SCREEN_ANSWER`] as a whole row, after [`UEFI_SCREEN_COMMAND`] was typed.
+    answer: Option<String>,
+}
+
+/// **Poll the QEMU monitor through three stages of what the screen shows** (milestone 243, then
+/// the shell on the firmware screen).
 ///
-/// Runs on its own thread beside the boot, because the kernel halts rather than exiting and the
-/// runner therefore does not return until its own timeout fires: by then QEMU is gone and there is
-/// nothing left to photograph. Stops on three conditions, and each is a different answer.
+/// Runs on its own thread beside the boot, because the kernel never exits and the runner therefore
+/// does not return until its own timeout fires: by then QEMU is gone and there is nothing left to
+/// photograph. The stages, in the order they must happen:
 ///
-/// - The marker decoded: success, and the text is left in `seen`.
-/// - The monitor stopped answering after having answered once: QEMU is gone, and no later dump can
-///   be better than the last one.
-/// - The deadline: something is wrong that this loop cannot name.
+/// 1. **The tour's marker.** The kernel paints the boot tour until it hands the screen to the
+///    userspace terminal, which clears it. So this stage has a window (from the self-test verdict
+///    to the handover, a couple of seconds under TCG) and is polled faster than the others;
+///    missing it is a failure, because it is milestone 243's claim.
+/// 2. **The prompt.** A row starting `$ `, which the kernel's tour never prints.
+/// 3. **The answer.** [`UEFI_SCREEN_COMMAND`] is written to `serial` (COM1), and a row equal to
+///    [`UEFI_SCREEN_ANSWER`] must appear. The command's own echo is `$ echo ...`, a different row,
+///    so this row is only there if the shell ran the command and its output reached the screen.
 ///
-/// A dump that fails to decode is never fatal here. `screendump` writes the file asynchronously, so
-/// a read that lands mid-write is short and ordinary; the retry is the answer, not a diagnosis.
-fn screen_watch(sock: &str, shot: &Path, seen: &std::sync::Mutex<Option<String>>) {
+/// Stops early when the monitor stops answering after having answered once (QEMU is gone and no
+/// later dump can be better), and at a deadline that bounds the whole watch. A dump that fails to
+/// decode is never fatal: `screendump` writes the file asynchronously, so a read that lands
+/// mid-write is short and ordinary, and the retry is the answer.
+fn screen_watch(sock: &str, shot: &Path, mut serial: std::process::ChildStdin) -> ScreenReadings {
+    use std::io::Write;
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
     let mut answered = false;
+    let mut seen = ScreenReadings::default();
+    let mut typed = false;
     while std::time::Instant::now() < deadline {
         if !screendump(sock, shot) {
             if answered {
-                return;
+                break;
             }
             std::thread::sleep(std::time::Duration::from_millis(500));
             continue;
         }
         answered = true;
-        // A screen that decodes but does not hold the marker is deliberately NOT stored: an
-        // incomplete picture must not read as a pass. The dump file itself is the artefact, and
-        // the caller prints its path on failure.
-        if let Ok(bytes) = std::fs::read(shot)
-            && let Ok(text) = board_console::screen::read(&bytes)
-            && text.contains(UEFI_SCREEN_MARKER)
-        {
-            if let Ok(mut slot) = seen.lock() {
-                *slot = Some(text);
+        // A screen that decodes but does not hold what the stage wants is deliberately NOT stored:
+        // an incomplete picture must not read as a pass. The dump file itself is the artefact,
+        // and the caller prints its path on failure.
+        let text = std::fs::read(shot)
+            .ok()
+            .and_then(|bytes| board_console::screen::read(&bytes).ok());
+        if let Some(text) = text {
+            if seen.tour.is_none() && text.contains(UEFI_SCREEN_MARKER) {
+                seen.tour = Some(text.clone());
             }
-            return;
+            if seen.prompt.is_none() && text.lines().any(|l| l.starts_with("$ ")) {
+                seen.prompt = Some(text.clone());
+            }
+            if typed && text.lines().any(|l| l == UEFI_SCREEN_ANSWER) {
+                seen.answer = Some(text);
+                break;
+            }
+            // Typed once, after the prompt is on the screen: the line editor echoes a keystroke
+            // the moment it arrives, so typing earlier would be typing into the boot.
+            if seen.prompt.is_some() && !typed {
+                typed = writeln!(serial, "{UEFI_SCREEN_COMMAND}")
+                    .and_then(|()| serial.flush())
+                    .is_ok();
+            }
         }
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Stage 1 has a window; the others wait on a person-speed shell.
+        let pause = if seen.tour.is_none() { 50 } else { 500 };
+        std::thread::sleep(std::time::Duration::from_millis(pause));
     }
+    seen
 }
 
 /// **Run the kernel suite under real firmware** (milestone 195), rather than the tour
@@ -3492,196 +3540,13 @@ const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 /// that already called this function changed. **Name and subcommand provisional**, per this
 /// repo's naming convention: calef's call to confirm or redirect.
 fn initrd_aarch64() -> bool {
-    // **One table, one loop**, the shape `initrd_riscv` has always had (milestone 130). This
-    // function used to do the same job three ways at once: nineteen hand-rolled `let` bindings of
-    // seven identical lines each, then a loop over a name array doing exactly the same thing, then
-    // a hand-written vector re-listing the nineteen by the same string literals. Adding a program
-    // meant editing four places that all said its name, and the two that were prose rather than
-    // data were the two that drifted.
-    //
-    // `(archive_name, bin_name)`, and since milestone 266 every row is a name repeated: the kernel
-    // loads **`progenitor`**, and `hello` is packed under its own name for the 19d test roles the
-    // boot path shares. The pair is kept rather than collapsed to a list because it is what would
-    // let an exception be data instead of a special case in the loop.
-    //
-    // Order is preserved from the hand-written vector it replaces. It is not load-bearing (the progenitor
-    // looks entries up by name) but the measurement table is computed over this sequence, so
-    // reordering would churn the manifest for nothing.
-    let entries: &[(&str, &str)] = &[
-        // **The first process** (milestone 266). Until then this row read `("init", "hello")` and
-        // aarch64's boot was a role of the demo catalogue.
-        ("progenitor", "progenitor"),
-        // **Milestone 19d's and 19e's init roles, under `hello`'s name.** `spawn_hello` enters
-        // it directly for them, so it is in `boot_programs` and measured. It held the whole
-        // milestone 7-19 catalogue until 291 split that into the fourteen programs below.
-        ("hello", "hello"),
-        // **The milestone 7-19 capability demonstrations, one program each** (milestone 291).
-        // Every one of these was a role of `hello`, selected by the word the kernel put in `x0`;
-        // none of them reads that word now. They are packed on every architecture because what
-        // they demonstrate is the kernel's, not a board's.
-        ("image_self_checker", "image_self_checker"),
-        ("console_test_client", "console_test_client"),
-        ("memory_region_depleter", "memory_region_depleter"),
-        ("delegation_granter", "delegation_granter"),
-        ("delegation_receiver", "delegation_receiver"),
-        ("page_frame_producer", "page_frame_producer"),
-        ("page_frame_consumer", "page_frame_consumer"),
-        ("call_server", "call_server"),
-        ("call_client", "call_client"),
-        ("frame_revoker", "frame_revoker"),
-        ("rendezvous_minter", "rendezvous_minter"),
-        ("rendezvous_peer", "rendezvous_peer"),
-        ("address_space_witness", "address_space_witness"),
-        ("cycle_counter_reader", "cycle_counter_reader"),
-        ("least_authority_demo", "least_authority_demo"),
-        ("console", "console"),
-        ("input", "input"),
-        ("swish", "swish"),
-        // The line discipline between the console and the shell (milestone 28).
-        ("line_editor", "line_editor"),
-        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
-        ("rmle", "rmle"),
-        // The terminal's sink adapter (milestone 50), so a declared second stream has somewhere to
-        // go that is not the shell's own output slot.
-        ("terminal_sink_caretaker", "terminal_sink_caretaker"),
-        // The virtio driver (milestone 9), packed here since milestone 291. This is the same
-        // portable binary the other two archives carry; aarch64 used to reach the identical logic
-        // through seven roles of `hello` instead, which is the duplicate 291 removed. The driver
-        // logic was already one `crates/virtio` for both shapes, so what died was a second
-        // dispatch table, not a second driver.
-        ("block_driver", "block_driver"),
-        // The compute workload (19e) and the EL0 microbenchmark program.
-        ("coremark", "coremark"),
-        ("os_primitives_benchmarker", "os_primitives_benchmarker"),
-        // Proves the user_mode_runtime heap (milestone 27).
-        ("allocator_exerciser", "allocator_exerciser"),
-        ("net_stack", "net_stack"),
-        ("memory_grant_depleter", "memory_grant_depleter"),
-        ("fs_test_client", "fs_test_client"),
-        ("fs_file_caretaker", "fs_file_caretaker"),
-        ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("interrupt_heeder", "interrupt_heeder"),
-        ("interrupt_ignorer", "interrupt_ignorer"),
-        // The sustained multicore workload (milestone 219): the program `--features soak_test` builds a
-        // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
-        // because the whole premise is that the same workload runs on QEMU and on all three boards.
-        ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
-        // every archive for the soaker's own reason, that the instrument develops under QEMU and
-        // the number is taken on a board.
-        ("job_mix_task", "job_mix_task"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): a progenitor that hands its
-        // construction authority to a spawner and its restart policy to a supervisor, then drops
-        // the budget.
-        ("root_supervisor", "root_supervisor"),
-        ("spawner", "spawner"),
-        ("sub_server_supervisor", "sub_server_supervisor"),
-        ("flaky", "flaky"),
-        // The interactive boot's undertaker (milestone 22, the interactive increment): one endpoint
-        // capability and nothing else, so a job's region comes back to the progenitor's budget.
-        ("job_undertaker", "job_undertaker"),
-        // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
-        // into the surface it serves.
-        ("gpu_driver", "gpu_driver"),
-        ("painter", "painter"),
-        // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
-        // process that drives the machine's NVMe controller from ring 3. Portable, so every
-        // archive carries it; the test that spawns it skips on a leg with no controller attached.
-        ("non_volatile_memory_express", "non_volatile_memory_express"),
-        // The C seam (milestone 36): the confiner that builds, supervises and checks the foreign
-        // component, and the Rust shell that links it.
-        ("c_confiner", "c_confiner"),
-        ("c_shim", "c_shim"),
-        // The compositor and its window client (milestone 33, rung two).
-        ("compositor", "compositor"),
-        ("window", "window"),
-        // The display terminal (milestone 29's text increment): one binary, two wirings.
-        ("display_terminal", "display_terminal"),
-        // The keyboard driver (milestone 29's input).
-        ("keyboard_driver", "keyboard_driver"),
-        // Live component replacement (milestone 23): the operator, the two instances of the
-        // swappable component (the second computes its answers in C), the client that talks across
-        // the swap, and the queue broker for the opt-in rung.
-        ("swapper", "swapper"),
-        ("rust_swappable", "rust_swappable"),
-        ("c_swappable", "c_swappable"),
-        ("chatty", "chatty"),
-        ("broker", "broker"),
-        // The clock service (milestone 51) and the program that reads the page it publishes.
-        ("clock", "clock"),
-        ("date", "date"),
-        // `printenv` (milestone 47's environment-variable fork, DECISIONS §111): `date`'s own
-        // shape, one manifest field over.
-        ("printenv", "printenv"),
-        // `rm` (milestone 47's rmdir lane): the first program endowed a directory capability.
-        ("rm", "rm"),
-        // The disk surveyor and the partitioner (milestone 57): the same disk authority pointed in
-        // each direction, and the partitioner refuses to write without an entropy endpoint.
-        ("disk_surveyor", "disk_surveyor"),
-        ("disk_partitioner", "disk_partitioner"),
-        // The nameset caretaker (milestone 47's globbing lane): a directory capability attenuated
-        // to the names a pattern matched.
-        ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("entropy", "entropy"),
-        // The credential service and its clients (milestone 56, the credential half).
-        ("credentialer", "credentialer"),
-        ("credentialer_test_client", "credentialer_test_client"),
-        // The login service (milestone 49): authenticates against the credential service and mints
-        // a fresh directory capability and budget rather than mutating an identity.
-        ("login", "login"),
-        ("login_test_client", "login_test_client"),
-        // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
-        // its blocking send never parks the whole service.
-        ("audit_sink", "audit_sink"),
-        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
-        // secret into the credential store and MKDIRs its home subtree as one act.
-        ("identity_provisioner", "identity_provisioner"),
-        // The boot-time re-deriver (milestone 152's third piece, provisional name): a
-        // root_supervisor-shaped boot-only process that reads the durable schedule store's
-        // manifest and re-derives every identity it names, then deletes its own capabilities.
-        ("session_reviver", "session_reviver"),
-        // The network time client (milestone 51) and the two test-only programs milestone 290 split
-        // out of its binary into `fixtures/`.
-        ("network_time_client", "network_time_client"),
-        ("network_time_test_server", "network_time_test_server"),
-        ("unwritable_clock_witness", "unwritable_clock_witness"),
-        // The outlaw (milestone 19's user-test port): the privilege-boundary programs
-        // kernel::user::tests used to hand-assemble.
-        ("outlaw", "outlaw"),
-        // The sink contract's ends (milestone 50): the writer that cannot tell what it is writing
-        // to, the file behind the slot, and the read-back. Three programs since milestone 292.
-        ("sink_transcript_writer", "sink_transcript_writer"),
-        ("file_sink", "file_sink"),
-        ("file_source", "file_source"),
-        // `wc` (milestone 50): the right-hand side of a pipe, and the first program that reads a
-        // stream.
-        ("wc", "wc"),
-        // `mdr` (milestone 40): the markdown renderer, a filter from markdown to styled text.
-        ("mdr", "mdr"),
-        // `ps` (milestone 126): the process listing over a supervision domain.
-        ("ps", "ps"),
-        // `pgrep` (milestone 126): that listing, filtered to the members a selector names.
-        // It must ship with `ps` because the two together are the claim.
-        ("pgrep", "pgrep"),
-        // `timetable` (milestone 129): scheduled execution whose every entry is a grant.
-        ("timetable", "timetable"),
-        // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
-        // every process unconditionally.
-        ("uptime", "uptime"),
-        // `uuid` (milestone 111): a version-4 UUID drawn from the entropy service, and the first
-        // program a person can type that needs randomness at all.
-        ("uuid", "uuid"),
-    ];
-    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
-    for &(archive_name, bin_name) in entries {
-        match read_stripped(&bin_elf(bin_name)) {
-            Ok(b) => blobs.push((archive_name, b)),
-            Err(e) => {
-                eprintln!("initrd-aarch64: cannot read {}: {e}", bin_elf(bin_name));
-                return false;
-            }
-        }
-    }
+    // **No table** since milestone 150: every `[[bin]]` in `components/` and `fixtures/`, the
+    // same list the other two archives pack ([`declared_programs`]). This function carried its own
+    // hand-written table before that, and an older three-way copy of it before milestone 130; the
+    // table had drifted from riscv64's and `x86_64`'s by two programs when it was deleted.
+    let Some(blobs) = declared_program_blobs("initrd-aarch64", bin_elf) else {
+        return false;
+    };
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The std demo (milestone 27) rides along IFF it has been built (`cargo xtask std-exerciser`, which
     // `test` runs). It builds through a separate toolchain and target, so an interactive `run` that
@@ -4407,6 +4272,7 @@ fn mkblankdisk() -> bool {
 /// is a fact about this table's current order.
 fn blank_check_after_run() -> bool {
     use filesystem_protocol::fixture::blank;
+    use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
 
     let path = blank_disk_path();
     let Ok(img) = std::fs::read(&path) else {
@@ -4427,7 +4293,7 @@ fn blank_check_after_run() -> bool {
         eprintln!("BLANK IMAGE CHECK FAILED: the protective MBR the guest wrote is bad: {e:?}");
         return false;
     }
-    let table = match globally_unique_identifier_partition_table::Gpt::parse(
+    let table = match GloballyUniqueIdentifierPartitionTable::parse(
         &img[lba..2 * lba],
         &img[2 * lba..34 * lba],
     ) {
@@ -4961,8 +4827,8 @@ impl ArchLegs {
 
 /// Host tests first, then the kernel under QEMU.
 ///
-/// The host crates (`dtb`, `frames`) hold the pure logic and run in *milliseconds* with no
-/// emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
+/// The host crates (`device_tree_blob`, `frames`) hold the pure logic and run in *milliseconds*
+/// with no emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
 /// seconds booting QEMU. See DECISIONS §7.
 ///
 /// Four flags narrow what runs, and all four default to today's behaviour:
@@ -5965,6 +5831,12 @@ fn boot_check_leg(arch: &str, target: &str, runner: &str, inject: bool) -> bool 
         // reported as the panic rather than as a success. `watch`'s own doc records the capture
         // this defends against.
         settle: std::time::Duration::from_secs(2),
+        // **No prologue, and that is the honest profile for an emulator** (milestone 324 part 3).
+        // There is no firmware on the `virt` or `q35` machines to print `U-Boot SPL`, so xenon's
+        // empty prologue describes what this gate watches better than radon's four rungs do. It
+        // changes no behaviour, since an absent marker is never matched either way; it changes
+        // what a report says the tool was expecting.
+        board: &board_console::board::XENON,
     };
 
     let log_path = format!(
@@ -6084,14 +5956,13 @@ fn shell_check() -> bool {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
-        // x86_64 has no shell leg. Not because it lacks userspace (it has had real userspace
-        // running since milestone 161 item 4 landed); because nothing boots it straight to a real
-        // interactive shell prompt. aarch64 has `spawn_init`, riscv64 has `riscv_shell_boot`;
-        // x86_64 has neither, so there is nothing for this gate to type at yet. See milestone 177's
-        // own third piece (found 2026-08-27, tracing a "both boards" claim that turned out to mean
-        // aarch64/riscv64 only) for where building that entry point is scoped.
+        // The third leg (milestone 182), since milestone 299 gave x86_64 a userspace console to
+        // reach a prompt through. It boots under OVMF rather than PVH; see `shell_check_leg`.
+        Some("x86_64") => ArchLegs::X86_64,
         Some(other) => {
-            eprintln!("shell-check: --arch {other} is not an architecture (aarch64 or riscv64)");
+            eprintln!(
+                "shell-check: --arch {other} is not an architecture (aarch64, riscv64 or x86_64)"
+            );
             return false;
         }
     };
@@ -6113,6 +5984,15 @@ fn shell_check() -> bool {
     // socket and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
     if graphical || graphical_serial {
+        // No x86_64 graphical leg: milestone 192's x86 half is not built, and the screen x86_64
+        // does have (the firmware's, milestone 400) is read by `cargo xtask uefi-boot` instead.
+        if legs == ArchLegs::X86_64 {
+            eprintln!(
+                "shell-check: there is no graphical leg on x86_64; `cargo xtask uefi-boot` reads \
+                 the shell off the firmware's screen"
+            );
+            return false;
+        }
         let keystrokes = if graphical_serial {
             Keystrokes::Serial
         } else {
@@ -6126,10 +6006,13 @@ fn shell_check() -> bool {
         }
         return true;
     }
-    if legs.aarch64() && !shell_check_leg(false) {
+    if legs.aarch64() && !shell_check_leg("aarch64") {
         return false;
     }
-    if legs.riscv64() && !shell_check_leg(true) {
+    if legs.riscv64() && !shell_check_leg("riscv64") {
+        return false;
+    }
+    if legs.x86_64() && !shell_check_leg("x86_64") {
         return false;
     }
     true
@@ -6141,7 +6024,7 @@ fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 63] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -6516,8 +6399,49 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 63] = [
     ("least_authority_demo 6", &["6*6 = 36"]),
     ("least_authority_demo 7", &["7*7 = 49"]),
     ("least_authority_demo 8", &["8*8 = 64"]),
+    // **The one spawnable program that answers in a register and had no line** until milestone
+    // 150's coverage test (`every_spawnable_program_has_a_shell_check_line`) asked. After the six
+    // above, so their count is unchanged; the page count it reports depends on page-table overhead,
+    // so the assertion is the sentence that says the grant was spent rather than the number.
+    (
+        "memory_grant_depleter --mem 4",
+        &["-page budget you granted"],
+    ),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
+
+/// **The lines the `x86_64` leg does not type, each with the reason** (milestone 182, under the rule
+/// milestone 150 added: an omitted line carries a stated reason, or it is a gap nobody can see).
+///
+/// A function over the line rather than a second table, so a line added to [`SHELL_CHECK_SCRIPT`]
+/// is typed on `x86_64` by default and an omission is the thing that has to be argued for. `None`
+/// means the line runs.
+fn shell_check_x86_omits(line: &str) -> Option<&'static str> {
+    // `uuid` draws from the entropy service, and the progenitor builds that service only from a
+    // virtio-rng the kernel found. The kernel finds one only on a virtio-mmio slot
+    // (`kernel::user::boot_virtio_rng_device`), `q35` has no mmio bus, and nothing drives
+    // `virtio-rng-pci` on x86_64 yet (DECISIONS §120's stopgap is QEMU-only on every architecture;
+    // x86_64's real source is `rdrand`/`rdseed`, not wired to the service). So these four lines
+    // would test the absence of a device, and the two "empty second stream" checks would fail on
+    // it. `caps uuid` stays: it is a preview of the manifest and needs no device.
+    match line {
+        "uuid > id.txt" | "wc < id.txt" | "uuid 2> ent.txt" | "wc < ent.txt" => Some(
+            "x86_64 has no entropy device the progenitor can build a service from (virtio-rng is \
+             found on virtio-mmio only, and q35 has none)",
+        ),
+        _ => None,
+    }
+}
+
+/// The first thing `x86_hand_over` prints (`kernel/src/main.rs`), where the `x86_64` leg starts
+/// reading for faults; see `after_hand_over` in [`shell_check_leg`]. The same sentence
+/// `uefi_boot` requires.
+const X86_HAND_OVER_START: &str = "nife: handing the system to the userspace progenitor.";
+
+/// The last thing `x86_hand_over` prints (`kernel/src/main.rs`) once the progenitor has outlived
+/// its ten-second watch, which is the ordinary interactive outcome. The `x86_64` leg waits for it
+/// before typing; see [`shell_check_leg`]'s doc.
+const X86_HAND_OVER_REPORT: &str = "as a port capability (milestone 299).";
 
 /// How long to wait for the banner, for one line's echo, and for the whole transcript. Generous:
 /// under TCG on a loaded machine a cold boot to the prompt is seconds, and a gate that flakes on a
@@ -6535,6 +6459,35 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 63] = [
 /// budget) has not been made.
 const SHELL_CHECK_BOOT_SECS: u64 = 120;
 const SHELL_CHECK_LINE_SECS: u64 = 30;
+
+/// **The `x86_64` leg's per-line bound, three times the others', and measured rather than chosen**
+/// (milestone 182, 2026-09-19).
+///
+/// Under OVMF the console server hands every write to the screen terminal and waits for it to be
+/// drawn (milestone 400), so a line costs what its output costs to paint and copy, not what the
+/// shell costs to run it. Measured on patagonia, one run each, typed to prompt-back:
+///
+/// | leg | 60 or 64 lines | slowest line |
+/// |---|---|---|
+/// | `aarch64` | 6.9 s | `apropos capability` 0.3 s |
+/// | `riscv64` | 7.3 s | `apropos capability` 0.6 s |
+/// | `x86_64` | 321.1 s | `xargs caps rm globmany/m-*.txt` 24.7 s, then `caps ps` 16.7 s |
+///
+/// CI's runner was 1.5x to 1.8x slower than patagonia on this leg (run 35463884897: the guest's
+/// `date` ran 119 s into the leg against 80 s here, and `caps ps`, 16.7 s here, did not finish in
+/// 30 s there), which is how the 30 s bound went red on a line that has no defect. 90 s is 3.6x
+/// the slowest local line and 2x that line at CI's worst measured ratio. A real hang still fails,
+/// ninety seconds later than it would elsewhere.
+///
+/// **Which part is the emulator's.** The same shell over TCG answers every line in under a second
+/// on the other two legs, so the whole difference is the screen path: `display_terminal` paints
+/// the damaged cells (the whole 924x344 surface on every scroll) and `framebuffer_driver` copies
+/// them into an uncacheable aperture one word at a time, both as unoptimised debug builds, each
+/// store through TCG. A real PC pays the same copy in native stores at uncacheable speed, which is
+/// milliseconds per scroll rather than seconds and is not measured on silicon
+/// (`framebuffer_driver`'s BUGS). Milestone 400's BUGS records the design half: the console
+/// blocks on the screen.
+const SHELL_CHECK_X86_LINE_SECS: u64 = 90;
 
 /// How many foreign characters [`find_marker`] will step over inside one marker before it gives up.
 ///
@@ -6794,37 +6747,71 @@ fn boot_claim_complaint(
     }
 }
 
-/// One architecture's leg of [`shell_check`].
-fn shell_check_leg(riscv: bool) -> bool {
+/// One architecture's leg of [`shell_check`]: `aarch64`, `riscv64` or `x86_64`.
+///
+/// # The `x86_64` leg boots under firmware (milestone 182)
+///
+/// **Under OVMF, from the same `\EFI\BOOT\BOOTX64.EFI` `cargo xtask uefi-image` stages for a
+/// USB stick**, not through QEMU's PVH `-kernel` loader. That image is the thing a customer boots
+/// (DECISIONS §157, milestone 198's rung 1), so it is the one worth typing at: the loader, the
+/// firmware's memory map and ACPI tables, and the console server's tee onto the firmware's screen
+/// (milestone 400) are all on the path, and the PVH boot has none of them. What it costs over PVH
+/// is recorded in milestone 182's block, measured rather than asserted.
+///
+/// Three `x86_64` differences, each forced by the machine rather than chosen:
+///
+/// - **The default kernel, not `--features shell`.** `x86_64` has no early hand-over: every boot
+///   runs the tour and then hands over (milestone 268), and `uefi_image` builds exactly that.
+/// - **The kernel's hand-over report lands after the prompt.** `x86_hand_over` watches the
+///   progenitor for ten seconds and then prints two lines, so the transcript does not end in `$ `
+///   until something is typed. The leg waits for that report and then presses Enter once, so the
+///   report cannot splice into a typed line's echo and the first line meets a fresh prompt.
+/// - **No virtio-rng.** Every entropy device the kernel can find is virtio-mmio and `q35` has no
+///   mmio bus, so the progenitor builds no entropy service. [`shell_check_x86_omits`] names the
+///   lines that need one.
+fn shell_check_leg(arch: &str) -> bool {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    let arch = if riscv { "riscv64" } else { "aarch64" };
+    let riscv = arch == "riscv64";
+    let x86 = arch == "x86_64";
     eprintln!();
-    eprintln!("--- shell-check ({arch}): boot `--features shell` and type at the prompt ---");
+    eprintln!(
+        "--- shell-check ({arch}): boot {} and type at the prompt ---",
+        if x86 {
+            "the UEFI image under OVMF"
+        } else {
+            "`--features shell`"
+        }
+    );
 
     // The same build the interactive boot takes, because a gate that builds something else is
     // gating something else. The FS server first (`user()` packs the initrd by reading the ELF off
     // disk), then the RedoxFS image, because the runner attaches the disk only when the file is
     // there and `<` and `>` need one.
     let target = if riscv { RISCV_TARGET } else { TARGET };
-    let built = if riscv {
+    let built = if x86 {
+        // `uefi_image` packs the archive, builds the kernel against it, and stages the loader;
+        // the FS server has to exist first so the archive carries it.
+        redoxfs_server_build(X86_TARGET) && mkdisk() && mkredoxfs() && uefi_image()
+    } else if riscv {
         redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
     } else {
         redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
-    } && run(
-        "cargo",
-        &[
-            "build",
-            "-p",
-            "kernel",
-            "--features",
-            "shell",
-            "--target",
-            target,
-        ],
-    );
+    } && (x86
+        || run(
+            "cargo",
+            &[
+                "build",
+                "-p",
+                "kernel",
+                "--features",
+                "shell",
+                "--target",
+                target,
+            ],
+        ));
     if !built {
         return false;
     }
@@ -6832,20 +6819,40 @@ fn shell_check_leg(riscv: bool) -> bool {
     // The runner directly rather than through `cargo run`, so the process this owns **is** QEMU
     // (the runner script `exec`s it). A `cargo run` in between would leave the emulator alive when
     // the kill lands on cargo, which is the leak CLAUDE.md's QEMU rule exists about.
-    let mut cmd = Command::new(if riscv {
-        "scripts/qemu-runner-riscv64.sh"
+    let mut cmd = if x86 {
+        // OVMF, one core (the runner's default, for `ap_boot`'s BUGS #3). The runner bounds itself
+        // with `qemu-bounded.sh`; the bound here is every wait below added up, so it only ever
+        // fires on a leg that has already failed.
+        let mut c = Command::new("scripts/qemu-uefi-x86_64.sh");
+        c.arg(esp_dir());
+        c.env(
+            "NIFE_UEFI_TIMEOUT",
+            (SHELL_CHECK_BOOT_SECS * 2
+                + SHELL_CHECK_X86_LINE_SECS * (SHELL_CHECK_SCRIPT.len() as u64 + 2))
+                .to_string(),
+        );
+        c.env_remove("NIFE_NVME");
+        // The RedoxFS disk, which `>`, `<`, `ls` and `rm` need; opt-in on this runner, and its
+        // header says why.
+        c.env("NIFE_UEFI_REDOXFS", "1");
+        c
     } else {
-        RUNNER
-    });
-    cmd.arg(format!("target/{target}/{}/kernel", profile_dir()));
-    cmd.env(
-        "NIFE_INITRD",
-        if riscv {
-            riscv_initrd_path()
+        let mut c = Command::new(if riscv {
+            "scripts/qemu-runner-riscv64.sh"
         } else {
-            initrd_path()
-        },
-    );
+            RUNNER
+        });
+        c.arg(format!("target/{target}/{}/kernel", profile_dir()));
+        c.env(
+            "NIFE_INITRD",
+            if riscv {
+                riscv_initrd_path()
+            } else {
+                initrd_path()
+            },
+        );
+        c
+    };
     cmd.env("NIFE_DISK", disk_path());
     // A virtio-rng device (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng
     // stopgap"), unlike the GPU/keyboard/NVMe flags above `test()` sets: this is the interactive
@@ -6924,6 +6931,23 @@ fn shell_check_leg(riscv: bool) -> bool {
         false
     };
 
+    // **What the checks below read, which on x86_64 starts at the hand-over.** The x86_64 kernel
+    // runs its tour before handing over (milestone 268), and the tour's userspace demonstration
+    // kills two threads on purpose (`x86_userspace_demo`'s supervised deaths, reported as "died
+    // at pc ..., delivered to its supervisor"). Those are the kernel's fault path working, printed
+    // before any process this gate is about exists, so the fault check and the "was the kernel
+    // writing during the boot" test both start where the progenitor does. The other two legs boot
+    // `--features shell`, which has no tour, so for them this is the whole transcript.
+    let after_hand_over = |t: &str| -> String {
+        if x86 {
+            t.find(X86_HAND_OVER_START)
+                .map_or(t, |at| &t[at..])
+                .to_string()
+        } else {
+            t.to_string()
+        }
+    };
+
     // Everything below must reach the kill, so failures are recorded rather than returned.
     let mut failed: Vec<String> = Vec::new();
     // The banner is the first claim: the progenitor built the console, the line editor, the input driver and
@@ -6952,7 +6976,7 @@ fn shell_check_leg(riscv: bool) -> bool {
         // A missing marker means a missing marker. The transcript is printed below; that is the
         // evidence, and this line's job is to say which string was wanted and how close it came.
         if let Some(complaint) = boot_claim_complaint(
-            &transcript_now(&seen),
+            &after_hand_over(&transcript_now(&seen)),
             "giving the construction budget away",
             "construction budget dropped; retype answers NoSuchSlot",
             "construction budget NOT dropped",
@@ -6967,26 +6991,62 @@ fn shell_check_leg(riscv: bool) -> bool {
         // sentence is what this gate reads. The other branch names the programs it refused, so a
         // boot that quietly stopped spawning half the prompt's commands fails here.
         if let Some(complaint) = boot_claim_complaint(
-            &transcript_now(&seen),
+            &after_hand_over(&transcript_now(&seen)),
             "measuring the programs it loads",
             "every program measured against the archive table",
             "measurement refused",
         ) {
             failed.push(complaint);
         }
+        // **x86_64: let the kernel finish its hand-over report first**, then press Enter for a
+        // fresh prompt (this function's doc says why). The report is the boot thread's last
+        // output, so after it the shell is the UART's only writer until something faults.
+        let mut ready = true;
+        if x86 {
+            ready = false;
+            if !wait_after(0, X86_HAND_OVER_REPORT, SHELL_CHECK_BOOT_SECS) {
+                failed.push(format!(
+                    "the kernel never printed its hand-over report ({X86_HAND_OVER_REPORT:?}), so \
+                     the progenitor did not outlive `x86_hand_over`'s watch"
+                ));
+            } else if writeln!(stdin).is_err() || stdin.flush().is_err() {
+                failed.push("could not press Enter at the prompt".to_string());
+            } else {
+                ready = true;
+            }
+        }
+        // **How long each line took**, typed to prompt-back, so every run reports its own margin
+        // against the per-line bound rather than leaving it to be guessed after a red one.
+        let line_secs = if x86 {
+            SHELL_CHECK_X86_LINE_SECS
+        } else {
+            SHELL_CHECK_LINE_SECS
+        };
+        let mut took: Vec<(&str, Duration)> = Vec::new();
+        let mut previous: Option<(&str, Instant)> = None;
         for (line, _) in SHELL_CHECK_SCRIPT {
-            if !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
+            if !ready {
+                break;
+            }
+            if x86 && shell_check_x86_omits(line).is_some() {
+                continue;
+            }
+            if !wait_for_prompt(line_secs) {
                 failed.push(format!(
                     "the prompt never came back to take `{line}`; the line before it did not finish"
                 ));
                 break;
             }
+            if let Some((prev, typed)) = previous {
+                took.push((prev, typed.elapsed()));
+            }
+            previous = Some((line, Instant::now()));
             let at = mark();
             if writeln!(stdin, "{line}").is_err() || stdin.flush().is_err() {
                 failed.push(format!("could not type `{line}` at the prompt"));
                 break;
             }
-            if !wait_after(at, &format!("{line}\n"), SHELL_CHECK_LINE_SECS) {
+            if !wait_after(at, &format!("{line}\n"), line_secs) {
                 failed.push(format!("the prompt never echoed `{line}`"));
                 break;
             }
@@ -6994,12 +7054,35 @@ fn shell_check_leg(riscv: bool) -> bool {
         // One more, for the last line: every other answer is bounded by the next line's wait, and
         // the last one has no next line. Without this the transcript is read while the final
         // command is still running.
-        if failed.is_empty() && !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
+        if failed.is_empty() && !wait_for_prompt(line_secs) {
             failed.push("the prompt never came back after the last line".to_string());
         }
+        if let (true, Some((prev, typed))) = (failed.is_empty(), previous) {
+            took.push((prev, typed.elapsed()));
+        }
+        // Every line's time, in script order, beside the transcript when that was asked for.
+        if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
+            for (l, d) in &took {
+                eprintln!("shell-check ({arch}): {:6.2}s  {l}", d.as_secs_f64());
+            }
+        }
+        took.sort_by_key(|t| std::cmp::Reverse(t.1));
+        let total: Duration = took.iter().map(|(_, d)| *d).sum();
+        eprintln!(
+            "shell-check ({arch}): {} lines in {:.1}s; slowest, against a {line_secs}s \
+             bound per line: {}",
+            took.len(),
+            total.as_secs_f64(),
+            took.iter()
+                .take(3)
+                .map(|(l, d)| format!("`{l}` {:.1}s", d.as_secs_f64()))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
     }
 
-    let transcript = seen.lock().expect("transcript lock").clone();
+    let whole = seen.lock().expect("transcript lock").clone();
+    let transcript = after_hand_over(&whole);
     // The transcript is printed on failure below, because that is when somebody needs it. This
     // prints it on success too, and it exists because the notes in this tree quote real prompt
     // sessions: `NIFE_SHOW_TRANSCRIPT=1 script/shell-check --arch aarch64` is where the EXAMPLES
@@ -7007,7 +7090,7 @@ fn shell_check_leg(riscv: bool) -> bool {
     // what they remember the shell saying.
     if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
         eprintln!("--- shell-check ({arch}) transcript ---");
-        eprintln!("{transcript}");
+        eprintln!("{whole}");
     }
     if failed.is_empty() {
         // Walked in order with a moving cursor, not searched. The script types `wc < gate.txt`
@@ -7016,6 +7099,9 @@ fn shell_check_leg(riscv: bool) -> bool {
         // truncated.
         let mut cursor = 0usize;
         for (line, want) in SHELL_CHECK_SCRIPT {
+            if x86 && shell_check_x86_omits(line).is_some() {
+                continue;
+            }
             match shell_check_answer(&transcript, cursor, line) {
                 Some((answer, next)) => {
                     cursor = next;
@@ -7096,6 +7182,20 @@ fn shell_check_leg(riscv: bool) -> bool {
     match transcript.lines().rfind(|l| l.contains(SLOT_GAUGE)) {
         Some(line) => {
             eprintln!("shell-check ({arch}):{}", line.trim_end());
+            // **On x86_64 this line is stale, and says so** (milestone 182). The gauge is printed
+            // from the scheduler's idle loop, and x86_64's input driver polls COM1 and yields
+            // rather than blocking (milestone 299), so once it starts the run queue is never empty
+            // and the idle loop never runs again. What prints is the mark at the hand-over, before
+            // the progenitor has built anything. A temporary instrument on 2026-09-19 read 17 of
+            // 24 at this leg's peak; milestone 182's BUGS has it. The `ABOVE` check below cannot
+            // fire here for the same reason, which is a gate that cannot fail, stated rather than
+            // hidden.
+            if x86 {
+                eprintln!(
+                    "shell-check (x86_64): that gauge is the mark at the hand-over, not the peak: \
+                     the idle loop that prints it never runs again while the input driver polls"
+                );
+            }
             if line.contains("ABOVE") {
                 failed.push(format!(
                     "this boot used more capability slots than the tree records: {:?}. The \
@@ -7115,11 +7215,37 @@ fn shell_check_leg(riscv: bool) -> bool {
         )),
     }
 
-    let _ = child.kill();
+    // SIGTERM rather than `kill()`'s SIGKILL on x86_64: that runner is `qemu-bounded.sh`, which
+    // forwards TERM to QEMU (the other two runners `exec` the emulator, so the kill is QEMU's).
+    if x86 {
+        let _ = Command::new("kill")
+            .args(["-TERM", &child.id().to_string()])
+            .status();
+    } else {
+        let _ = child.kill();
+    }
     let _ = child.wait();
     let _ = reader.join();
 
     if failed.is_empty() {
+        // The four lines x86_64 omits are four jobs (two `uuid`s and the two `wc`s reading
+        // what they wrote); see [`shell_check_x86_omits`].
+        let jobs = if x86 { "seventeen" } else { "twenty-one" };
+        if x86 {
+            let omitted: Vec<&str> = SHELL_CHECK_SCRIPT
+                .iter()
+                .map(|(line, _)| *line)
+                .filter(|line| shell_check_x86_omits(line).is_some())
+                .collect();
+            eprintln!(
+                "shell-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
+                 of {} lines, omitting {}: {:?}",
+                SHELL_CHECK_SCRIPT.len() - omitted.len(),
+                SHELL_CHECK_SCRIPT.len(),
+                omitted.len(),
+                omitted,
+            );
+        }
         eprintln!(
             "shell-check ({arch}): the prompt booted, piped, redirected, appended, named a \
              file to a reader, read the clock, timed a command with a clock of its own, kept \
@@ -7131,14 +7257,14 @@ fn shell_check_leg(riscv: bool) -> bool {
              documentation store and got back pages a following line could then designate, \
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
              a && past a command that succeeded and not past one it refused, and ran \
-             twenty-one jobs through the progenitor's six-job pool after the progenitor gave its construction \
+             {jobs} jobs through the progenitor's six-job pool after the progenitor gave its construction \
              budget away"
         );
         return true;
     }
     eprintln!();
     eprintln!("--- shell-check ({arch}) transcript ---");
-    eprintln!("{transcript}");
+    eprintln!("{whole}");
     eprintln!("--- shell-check ({arch}) FAILED ---");
     for f in &failed {
         eprintln!("  {f}");
@@ -7264,14 +7390,9 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     // **The serial arm attaches no virtio-rng**, and that is the point of it rather than an
     // omission: `NIFE_RNG` is a QEMU-only stopgap (DECISIONS §120) and none of the three target
     // machines has such a device, so an option-A leg standing in for a board should not have one
-    // either. The device arm keeps it, unchanged, because that is milestone 177's leg.
-    //
-    // It also currently makes the difference between a prompt and no prompt, which is how the
-    // asymmetry got noticed: **the interactive boot traps in the progenitor on both architectures whenever
-    // a virtio-rng is attached**, so `shell_check_leg`'s own plain legs are red on `main` for a
-    // reason that has nothing to do with either graphical leg. Reproduced at 8167d806 on
-    // nightly-2026-09-01 as well as -09-02, so it is not the toolchain bump. See
-    // design/roadmap/192-keyboard-on-real-silicon.md's own note; it is nobody's milestone yet.
+    // either. The device arm keeps it, unchanged, because that is milestone 177's leg. (A trap in
+    // the progenitor whenever a virtio-rng was attached, recorded here on 2026-09-02, no longer
+    // reproduces: on 2026-09-19 both arms reached a prompt, the device arm with the RNG attached.)
     if keystrokes == Keystrokes::Device {
         cmd.env("NIFE_RNG", "1");
     }
@@ -7492,7 +7613,7 @@ fn bench() -> bool {
     // no disk, no HVF); everything else -- the icount instrument, the parsing, the table, the
     // baseline gate -- is shared through run_bench. See bench_riscv.
     if std::env::args().any(|a| a == "--riscv") {
-        return bench_riscv(check, save);
+        return bench_riscv(check, save, &features);
     }
 
     // The third architecture (milestone 161; DECISIONS §121's amendment, the TSS I/O-bitmap
@@ -7508,7 +7629,7 @@ fn bench() -> bool {
     // 2026-08-24 section already used, and the `real`+`check`/`save` refusal above already
     // covers `--x86 --real --check`.
     if std::env::args().any(|a| a == "--x86") {
-        return bench_x86(real, check, save);
+        return bench_x86(real, check, save, &features);
     }
 
     // `--smp`: boot the full 4-hart machine under HVF so the multi-hart throughput bench
@@ -7605,7 +7726,7 @@ fn bench() -> bool {
 /// not wall-clock. No HVF (there is no RISC-V hypervisor on this host) and no disk (the bench boot
 /// runs no virtio); it just needs the riscv initrd carrying `os_primitives_benchmarker` + `coremark`. Its baseline is a
 /// separate file, since the counts differ by ISA. `cargo xtask bench --riscv [--check|--save]`.
-fn bench_riscv(check: bool, save: bool) -> bool {
+fn bench_riscv(check: bool, save: bool, features: &str) -> bool {
     if !initrd_riscv()
         || !run(
             "cargo",
@@ -7613,8 +7734,13 @@ fn bench_riscv(check: bool, save: bool) -> bool {
                 "build",
                 "-p",
                 "kernel",
+                // `features` and not "bench": it carries `--extra-features` too (E3's
+                // `fastpath_pad`, milestone 134). This arm hardcoded "bench" until 2026-09-19, so
+                // `--riscv --real --extra-features fastpath_pad` built an UN-padded kernel and
+                // printed numbers for it, which is the silently-wrong shape this tree fears most.
+                // riscv64 is the ISA radon runs, so it is the arm the flag mattered on.
                 "--features",
-                "bench",
+                features,
                 "--target",
                 RISCV_TARGET,
             ],
@@ -7676,15 +7802,18 @@ fn bench_riscv(check: bool, save: bool) -> bool {
 ///
 /// `scripts/qemu-runner-x86_64.sh` attaches no disk and builds no initrd, so this needs neither
 /// `mkdisk` nor `user()`. `cargo xtask bench --x86 [--real] [--check|--save]`.
-fn bench_x86(real: bool, check: bool, save: bool) -> bool {
+fn bench_x86(real: bool, check: bool, save: bool, features: &str) -> bool {
     if !run(
         "cargo",
         &[
             "build",
             "-p",
             "kernel",
+            // As in `bench_riscv`: `features` carries `--extra-features`, which this arm also
+            // dropped on the floor. `fastpath_pad` does not build on x86_64 today
+            // (`script/fastpath-footprint`'s BUGS), so cargo refuses rather than mismeasures.
             "--features",
-            "bench",
+            features,
             "--target",
             X86_TARGET,
         ],
@@ -8438,14 +8567,36 @@ fn tree_apropos(term: Option<String>) -> bool {
             ranked.offered()
         );
     }
-    for p in &long {
+    // **Only a path this search printed can fail it.** Until 2026-09-19 any over-long path anywhere
+    // in the corpus made every search exit 1 with a warning per file, whatever the term: six
+    // roadmap and decision filenames had grown past the record, so the tool a newcomer is pointed
+    // at failed on its own README example. The rule above still holds for a result somebody is
+    // shown (a path they cannot open is worse than no result, so that exits 1 and names it); a path
+    // that never reached the output is a fact about the corpus and gets one line, not a failure.
+    let max = documentation::index::PATH_MAX;
+    let shown: Vec<&String> = long
+        .iter()
+        .filter(|p| {
+            ranked
+                .results()
+                .iter()
+                .any(|f| p.as_bytes().starts_with(f.origin()) && f.origin().len() == max)
+        })
+        .collect();
+    for p in &shown {
         eprintln!(
-            "apropos: {p} is longer than the {} bytes a page record holds, so its result would be \
-             truncated",
-            documentation::index::PATH_MAX
+            "apropos: {p} is longer than the {max} bytes a page record holds, so the result above \
+             that names it is truncated"
         );
     }
-    long.is_empty()
+    if long.len() > shown.len() {
+        eprintln!(
+            "apropos: {} other paths are longer than the {max} bytes a page record holds; none \
+             is in these results",
+            long.len() - shown.len()
+        );
+    }
+    shown.is_empty()
 }
 
 /// One document offered to the tree index: where it lives, what it is called, and its text.
@@ -8681,6 +8832,20 @@ fn board_console() -> ExitCode {
     let mut replay: Option<PathBuf> = None;
     let mut log: Option<PathBuf> = None;
     let mut policy = Policy::default();
+    // **The writing mode** (milestone 324). `None` is every reading session, which is still the
+    // default and still the common case. `Some(n)` is `--stop-after n`, and `--stop` is `Some(1)`:
+    // one mechanism with two spellings, so the two flags cannot disagree about anything.
+    let mut stop_after: Option<usize> = None;
+    // Whether `--for` and `--until` were given, as opposed to left at their defaults. A stop mode
+    // has to know, because it changes both, and silently overriding something a person typed is
+    // worse than refusing it.
+    let mut until_given = false;
+    let mut cap_given = false;
+    // **`--until` is resolved after the loop** (milestone 324 part 3), because four of its words
+    // name rungs of a board's firmware prologue and `--board` may come after it on the line.
+    // Parsing it in place would make argument order load-bearing, which is the kind of thing
+    // nobody remembers.
+    let mut until_word: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -8712,8 +8877,33 @@ fn board_console() -> ExitCode {
                 Ok(v) => log = Some(PathBuf::from(v)),
                 Err(code) => return code,
             },
+            // **A writing mode, and the only two the ruling permits** (milestone 324). Each is a
+            // command with a purpose rather than a keyboard, which is the decision rather than
+            // caution about it: milestone 249's lane sent this escape by detaching the console,
+            // hit U-Boot's autoboot countdown with it, and paid a power cycle.
+            "--stop" => {
+                stop_after = Some(1);
+                // Not `i += 2` at the bottom of the loop: this flag takes no value, and the
+                // increment below assumes every argument does.
+                i += 1;
+                continue;
+            }
+            "--stop-after" => match value(i).map(str::parse::<usize>) {
+                Ok(Ok(n)) if n >= 1 => stop_after = Some(n),
+                Ok(_) => {
+                    eprintln!(
+                        "board-console: --stop-after wants a count of draws, 1 or more. \
+                         `--stop` is `--stop-after 1`."
+                    );
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
             "--for" | "--timeout" => match value(i).map(parse_duration) {
-                Ok(Some(d)) => policy.total = d,
+                Ok(Some(d)) => {
+                    policy.total = d;
+                    cap_given = true;
+                }
                 Ok(None) => {
                     eprintln!("board-console: --for wants a duration like 90, 90s, 30m or 2h");
                     return ExitCode::from(4);
@@ -8730,27 +8920,109 @@ fn board_console() -> ExitCode {
                 }
                 Err(code) => return code,
             },
-            "--until" => match value(i).map(parse_stage) {
-                Ok(Some(stage)) => policy.until = stage,
-                Ok(None) => {
-                    eprintln!(
-                        "board-console: --until wants spl, opensbi, uboot, handoff, banner, machine, selftest, tour, prompt, soak, or none"
-                    );
-                    return ExitCode::from(4);
+            "--until" => match value(i) {
+                Ok(v) => {
+                    until_word = Some(v.to_string());
+                    until_given = true;
                 }
+                Err(code) => return code,
+            },
+            // **Which board is on the other end** (milestone 324 part 3). It chooses the firmware
+            // prologue and nothing else: everything from the kernel banner up is shared, which is
+            // what calef's ruling settled and what `crates/board_console::board` implements.
+            "--board" => match value(i) {
+                Ok(v) => match board_console::board::profile(v) {
+                    Some(p) => policy.board = p,
+                    None => {
+                        eprintln!(
+                            "board-console: unknown board {v}. Known: {}.",
+                            board_console::board::PROFILES
+                                .iter()
+                                .map(|p| p.name)
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                        eprintln!(
+                            "board-console: argon has no profile on purpose; it has never booted \
+                             nife and a prologue read out of vendor documentation would be a guess."
+                        );
+                        return ExitCode::from(4);
+                    }
+                },
                 Err(code) => return code,
             },
             other => {
                 eprintln!("board-console: unknown argument {other}");
                 eprintln!(
                     "usage: cargo xtask board-console [--port <dev>] [--replay <log>] \
-                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]\n\
+                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>] \
+                     [--board <name>]\n\
+                     \x20      cargo xtask board-console [--stop | --stop-after <n>]\n\
                      \x20      cargo xtask board-console --tally <log>"
                 );
                 return ExitCode::from(4);
             }
         }
         i += 2;
+    }
+
+    // `--until`, now that `--board` is known. A word this board has no rung for is refused rather
+    // than watched for: `--until spl` against a machine with no SPL can only ever end in the time
+    // running out, and a refusal that names the words it does know costs the operator nothing.
+    if let Some(word) = &until_word {
+        match parse_stage(policy.board, word) {
+            Some(stage) => policy.until = stage,
+            None => {
+                eprintln!(
+                    "board-console: --until {word} is not a stage {} reaches. Known: {}.",
+                    policy.board.name,
+                    stage_words(policy.board)
+                );
+                return ExitCode::from(4);
+            }
+        }
+    }
+
+    // **What a writing mode changes about the rest of the session** (milestone 324), decided here
+    // rather than inside the crate because these are argument-shaped decisions and the crate's job
+    // is the decision to send.
+    if let Some(n) = stop_after {
+        // A replay has no board on the other end of it. Refused rather than ignored: a person who
+        // typed `--stop --replay` believes a byte is going somewhere, and silently reading a file
+        // instead would be the tool agreeing with them.
+        if replay.is_some() {
+            eprintln!(
+                "board-console: --stop writes to a board and --replay reads a file, so the \
+                 two cannot be combined. Drop --replay to watch a real port."
+            );
+            return ExitCode::from(4);
+        }
+        // Both answer "when does this session end", and a stage would usually answer it first: a
+        // soak is reached long before its reboot loop arms, so `--until soak --stop` would return
+        // before sending anything. Refused rather than overridden, for the reason above.
+        if until_given && policy.until.is_some() {
+            eprintln!(
+                "board-console: --stop and --until both say when the session ends, and \
+                 --until would win before the escape was ever sent. Drop --until; the stop is \
+                 the ending."
+            );
+            return ExitCode::from(4);
+        }
+        policy.until = None;
+        if !cap_given {
+            // **Derived from the kernel's own draw length rather than picked.** One draw is
+            // `kernel/src/soak.rs`'s `REBOOT_AFTER_SECONDS` (120s) plus the twenty-odd seconds a
+            // boot takes, so 150s per draw, and one draw's slack on top for the session that
+            // attaches mid-draw and has to wait the current one out. `--stop-after 50` then gets
+            // the two unattended hours milestone 249's block prices it at.
+            //
+            // This is a default and not an agreement: getting it wrong costs a re-run with
+            // `--for`, never a wrong answer, which is why the number is duplicated here instead of
+            // being hoisted into a shared crate.
+            policy.total = std::time::Duration::from_secs(
+                150 * u64::try_from(n).unwrap_or(u64::MAX / 300) + 120,
+            );
+        }
     }
 
     // The log path is chosen before anything can fail, and it is never optional. A console session
@@ -8820,7 +9092,33 @@ fn board_console() -> ExitCode {
             log_path.display(),
             policy.total
         );
-        watch(device, &mut sink, &policy, true)
+        // The write half of the same descriptor. A second handle rather than a shared one because
+        // `watch` moves its source onto the reader thread, and a tty is happy to be read and
+        // written through two descriptors at once.
+        let mut writer = match stop_after {
+            Some(_) => match device.try_clone() {
+                Ok(w) => Some(w),
+                Err(e) => {
+                    eprintln!(
+                        "board-console: cannot open a write handle on {}: {e}",
+                        path.display()
+                    );
+                    return ExitCode::from(4);
+                }
+            },
+            None => None,
+        };
+        let escape = match (stop_after, writer.as_mut()) {
+            (Some(n), Some(w)) => {
+                eprintln!(
+                    "--- stopping after {n} armed draw(s); one byte will be sent to the board \
+                     and printed into the log ---"
+                );
+                Some(board_console::stop::Escape::new(n, w))
+            }
+            _ => None,
+        };
+        board_console::watch::watch_with(device, &mut sink, &policy, true, escape)
     };
 
     let session = match session {
@@ -8835,6 +9133,14 @@ fn board_console() -> ExitCode {
     let _ = sink.flush();
     eprintln!();
     eprintln!("board-console: {}", session.summary());
+    // The writing mode's own verdict, on its own line, whenever the session did not already end on
+    // it. `--stop` is run to find out one thing and a reader should not have to infer it from an
+    // exit status.
+    if session.outcome != board_console::watch::Outcome::Stopped
+        && let Some(report) = &session.stop
+    {
+        eprintln!("board-console: {}", report.describe());
+    }
     if let Some(line) = session.progress.banner_line() {
         eprintln!("board-console: banner: {line}");
     }
@@ -8910,14 +9216,23 @@ fn parse_duration(text: &str) -> Option<std::time::Duration> {
 /// `none` is not a formality: sustained watching with nothing to wait for is what
 /// `design/fatal-risks.md`'s multicore entry (risk 5) needs, and it is the case a boot check
 /// cannot cover.
-fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
+///
+/// **It takes a board** (milestone 324 part 3), because four of these words name rungs of a
+/// firmware prologue and a prologue belongs to a board. `spl` against xenon is not a stage this
+/// tool is missing, it is a line that machine will never print, and answering it with `None` here
+/// is what turns a two-minute wait into a refusal that says so.
+fn parse_stage(
+    board: &'static board_console::board::Profile,
+    text: &str,
+) -> Option<Option<board_console::progress::Stage>> {
     use board_console::progress::Stage;
+    // The firmware prologue first, because a board may name a rung whatever it likes and the
+    // portable words below are not a board's to redefine.
+    if let Some(rung) = board.rung(text) {
+        return Some(Some(Stage::Firmware(rung)));
+    }
     match text {
         "none" => Some(None),
-        "spl" => Some(Some(Stage::Spl)),
-        "opensbi" => Some(Some(Stage::OpenSbi)),
-        "uboot" => Some(Some(Stage::UBoot)),
-        "handoff" => Some(Some(Stage::Handoff)),
         "banner" => Some(Some(Stage::Banner)),
         // Milestone 268's three rungs. `selftest` is the one to reach for: unlike `tour` it is
         // printed by every architecture, and unlike `banner` it means the kernel proved something
@@ -8930,8 +9245,30 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
         // announced itself, which answers "did this build actually start soaking" in seconds
         // rather than making the operator watch a beat go by.
         "soak" => Some(Some(Stage::Soak)),
+        // Milestone 324 part 2, and `sweep-done` is the one a bench script wants: it is the only
+        // answer that separates a finished sweep from a wedged one. `sweep` alone answers the
+        // quicker question, whether this build started sweeping at all.
+        "sweep" => Some(Some(Stage::Sweep)),
+        "sweep-done" => Some(Some(Stage::SweepDone)),
         _ => None,
     }
+}
+
+/// The `--until` words this board understands, for the message printed when one is refused.
+fn stage_words(board: &'static board_console::board::Profile) -> String {
+    let mut words: Vec<&str> = board.keys().collect();
+    words.extend([
+        "banner",
+        "machine",
+        "selftest",
+        "tour",
+        "prompt",
+        "soak",
+        "sweep",
+        "sweep-done",
+        "none",
+    ]);
+    words.join(", ")
 }
 
 /// **The QEMU rehearsal of milestone 168's multi-tasking workload sweep.** Boot a
@@ -8943,16 +9280,73 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
 /// radon, by `notes/job-mix.md`'s procedure. What this proves is that the workload runs, that the
 /// sweep completes, and that the output is the shape the bench evening will read.
 ///
-/// The marker loop is `run_bench`'s, for `run_bench`'s reason: the kernel parks in `wfi` rather
-/// than exiting, so the host side owns the process and tears it down when it sees the done line.
-/// See `script/job-mix`.
+/// **The judging is `board_console`'s**, not this function's (milestone 324 part 2), which is the
+/// same move `soak_test` below already made and for the same reason: a second reader drifts from
+/// the bench-side one the first time either changes, and the cheapest way for two things to agree
+/// is for there to be one of them. What stood here instead was a loop over `starts_with("job-mix")`
+/// with no timeout at all, so a sweep that wedged mid-subrun hung this command forever and a
+/// finished sweep and a dead one shared an exit status. That is the limitation milestone 168's lane
+/// filed and milestone 324's part 2 names.
+///
+/// The kernel parks in `wfi` rather than exiting, so the host side owns the process and tears it
+/// down; that half is `run_bench`'s and is unchanged. See `script/job-mix`.
 fn job_mix_sweep() -> ExitCode {
+    use std::io::Write;
+    use std::time::Duration;
+
+    use board_console::progress::Stage;
+    use board_console::watch::{Policy, watch};
+
     let args: Vec<String> = std::env::args().skip(2).collect();
     let mut arch = "aarch64".to_string();
     let mut smp: Option<String> = None;
+    let mut log: Option<PathBuf> = None;
+    let mut policy = Policy {
+        // Ten minutes. The whole sweep is eighteen subruns and took well under a minute on the
+        // machine this was written on; the cap is for the run that never finishes, and a cap that
+        // is too generous costs a slow failure where one that is too tight costs a wrong answer.
+        total: Duration::from_secs(600),
+        until: Some(Stage::SweepDone),
+        // **Sized against a subrun, not against a heartbeat**, which is the one way a sweep is
+        // harder to watch than a soak. `kernel/src/soak.rs` beats on the wall clock every five
+        // seconds whatever it is doing, so fifteen is three missed beats. A sweep speaks only when
+        // a subrun ends, and the longest is the top of `job_mix::TASK_SWEEP`: measured at
+        // 249,234,771 ticks on a 62.5 MHz counter, which is 4.0 seconds, in the capture at
+        // `crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log`.
+        // Sixty seconds is fifteen times that, which is headroom for a slower host and still names
+        // a wedge inside a minute. It was twenty times a 2.6-second subrun until milestone 168
+        // took twenty-one repeats of a seven-kind mix instead of three of a five-kind one, which
+        // is the margin being spent by a change nowhere near this line. Overridable, because the
+        // number is a default rather than an agreement.
+        quiet_after: Some(Duration::from_secs(60)),
+        // Nothing this kernel prints after `job-mix: done` can change the verdict: it halts. The
+        // settle window exists for the measured-boot refusal that arrives *after* the awaited rung,
+        // and a sweep that has printed its last point is past every such gate.
+        settle: Duration::from_secs(0),
+        // An emulator has no firmware prologue to climb; see `boot_check`'s note.
+        board: &board_console::board::XENON,
+    };
+    // `--hvf` and `--release` (added 2026-09-19 for the HVF cross-check in notes/job-mix.md): the
+    // two flags the tree already spells this way, `run`'s and `bench`'s, rather than new ones. HVF
+    // is aarch64 on an Apple host only, and release is what `script/board-image` builds for radon,
+    // so the cross-check runs the optimisation level the board does.
+    let mut hvf = false;
 
     let mut i = 0;
     while i < args.len() {
+        match args[i].as_str() {
+            "--hvf" => {
+                hvf = true;
+                i += 1;
+                continue;
+            }
+            "--release" => {
+                RELEASE.store(true, Ordering::Relaxed);
+                i += 1;
+                continue;
+            }
+            _ => {}
+        }
         let value = |i: usize| -> Result<&str, ExitCode> {
             args.get(i + 1).map(String::as_str).ok_or_else(|| {
                 eprintln!("job-mix: {} wants a value", args[i]);
@@ -8968,13 +9362,47 @@ fn job_mix_sweep() -> ExitCode {
                 Ok(v) => smp = Some(v.to_string()),
                 Err(code) => return code,
             },
+            "--log" => match value(i) {
+                Ok(v) => log = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--for" | "--timeout" => match value(i).map(parse_duration) {
+                Ok(Some(d)) => policy.total = d,
+                Ok(None) => {
+                    eprintln!("job-mix: --for wants a duration like 90, 90s, 30m or 2h");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--quiet-after" => match value(i).map(parse_duration) {
+                // Zero disables it, for the operator who knows their board is slower than any
+                // number written here and would rather wait out the cap than be told it wedged.
+                Ok(Some(d)) => policy.quiet_after = if d.is_zero() { None } else { Some(d) },
+                Ok(None) => {
+                    eprintln!("job-mix: --quiet-after wants a duration, or 0 to disable");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
             other => {
                 eprintln!("job-mix: unknown argument {other}");
-                eprintln!("usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>]");
+                eprintln!(
+                    "usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>] \
+                     [--hvf] [--release] [--for <duration>] [--quiet-after <duration>] \
+                     [--log <file>]"
+                );
                 return ExitCode::from(4);
             }
         }
         i += 2;
+    }
+
+    if hvf && arch != "aarch64" {
+        eprintln!("job-mix: --hvf runs the Apple core, so it is aarch64 only");
+        return ExitCode::from(4);
+    }
+    if hvf {
+        maybe_hvf();
     }
 
     let (target, runner, initrd) = match arch.as_str() {
@@ -8984,8 +9412,13 @@ fn job_mix_sweep() -> ExitCode {
             }
             (TARGET, "scripts/qemu-runner-aarch64.sh", initrd_path())
         }
+        // **`mkdisk` here too, not only on aarch64** (found 2026-09-19 by the lane that closed
+        // milestone 168's sampling hole): the riscv64 runner refuses a `NIFE_DISK` naming a missing
+        // file, so on a fresh worktree `--arch riscv64` died before the kernel printed a line, and
+        // it only ever passed on a checkout where an aarch64 run had made the image first. The
+        // sweep reads no disk; the runner's own check is what needs it.
         "riscv64" => {
-            if !initrd_riscv() {
+            if !(mkdisk() && initrd_riscv()) {
                 return ExitCode::from(4);
             }
             (
@@ -9022,6 +9455,33 @@ fn job_mix_sweep() -> ExitCode {
         return ExitCode::from(4);
     }
 
+    // The log is not optional, for `soak-test`'s reason: a console session whose evidence exists
+    // only in a terminal that has since scrolled is the failure this tree keeps writing down, and a
+    // capture can be re-read with `script/board-console --replay`.
+    let log_path = log.unwrap_or_else(|| {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        PathBuf::from(format!("target/job-mix-{arch}-{stamp}.log"))
+    });
+    if let Some(parent) = log_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        eprintln!("job-mix: cannot create {}: {e}", parent.display());
+        return ExitCode::from(4);
+    }
+    let file = match std::fs::File::create(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("job-mix: cannot write {}: {e}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let mut sink = Tee {
+        file,
+        terminal: std::io::stdout(),
+    };
+
     let mut cmd = Command::new(runner);
     cmd.arg(format!(
         "{}/target/{target}/{}/kernel",
@@ -9033,10 +9493,14 @@ fn job_mix_sweep() -> ExitCode {
         cmd.env("NIFE_SMP", n);
     }
     cmd.stdout(std::process::Stdio::piped());
+    // The runner's diagnostics stay on this terminal rather than joining the captured stream, so
+    // that a replay of the log sees what a serial cable would have seen. `soak_test`'s reason.
     cmd.stderr(std::process::Stdio::inherit());
 
     eprintln!(
-        "--- job-mix: {arch}, a rehearsal; the number is taken on radon (notes/job-mix.md) ---"
+        "--- job-mix: {arch}, a rehearsal; the number is taken on radon (notes/job-mix.md), \
+         logging to {} ---",
+        log_path.display()
     );
     let mut child = match cmd.spawn() {
         Ok(c) => c,
@@ -9052,26 +9516,10 @@ fn job_mix_sweep() -> ExitCode {
         return ExitCode::from(4);
     };
 
-    use std::io::BufRead;
-    let mut done = false;
-    let mut points = 0usize;
-    let mut failed = false;
-    for line in std::io::BufReader::new(stdout).lines() {
-        let Ok(line) = line else { break };
-        if line.starts_with("job-mix") {
-            println!("{line}");
-        }
-        if line.contains("job-mix: FAILED") {
-            failed = true;
-        }
-        if line.starts_with("job-mix: tasks=") {
-            points += 1;
-        }
-        if line.trim_end() == "job-mix: done" {
-            done = true;
-            break;
-        }
-    }
+    // `false`, not `true`: a pipe from a process really does end when that process dies, which a
+    // serial port never does.
+    let session = watch(stdout, &mut sink, &policy, false);
+
     // The children first and then the wrapper, `run_bench`'s order and for its reason: the x86
     // runner does not `exec`, so killing the wrapper alone orphans the emulator.
     let _ = Command::new("pkill")
@@ -9079,22 +9527,49 @@ fn job_mix_sweep() -> ExitCode {
         .status();
     let _ = child.kill();
     let _ = child.wait();
+    let _ = sink.flush();
 
-    if failed {
-        eprintln!("job-mix: the kernel refused to start the sweep; see the lines above");
-        return ExitCode::from(1);
-    }
-    if !done {
-        eprintln!("job-mix: QEMU ended before printing `job-mix: done`; {points} point(s) printed");
-        return ExitCode::from(3);
-    }
+    let session = match session {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("job-mix: {e}");
+            eprintln!("job-mix: log at {}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+
     eprintln!();
-    eprintln!("job-mix: the sweep completed, {points} point(s).");
+    eprintln!("job-mix: {}", session.summary());
+    match session.progress.sweep_point() {
+        // The spread and not the median alone: the kernel prints the two ends so a figure is
+        // never quoted without them, and a summary that dropped them here would undo that at the
+        // one line a person reads instead of the log.
+        Some(point) => eprintln!(
+            "job-mix: last point tasks={} jobs={} repeats={} ticks_min={} ticks_median={} \
+             ticks_max={} jpm_median={}",
+            point.tasks,
+            point.jobs,
+            point.repeats,
+            point.ticks_min,
+            point.ticks_median,
+            point.ticks_max,
+            point.jpm_median
+        ),
+        // Said out loud rather than left as an absence, because an empty tail is exactly what a
+        // kernel that refused and a kernel that wedged before its first point both look like.
+        None => eprintln!("job-mix: no point of the sweep was measured"),
+    }
+    eprintln!("job-mix: log at {}", log_path.display());
+    // Said on every clean run, on purpose, for `soak_test`'s reason: this is the sentence that gets
+    // dropped when a number is quoted.
     eprintln!(
         "job-mix: these magnitudes are NOT the measurement. TCG models no cache and HVF puts a \
          host scheduler under every guest thread; DECISIONS \u{a7}96's number is taken on radon."
     );
-    ExitCode::SUCCESS
+    // **The same five statuses `script/board-console` returns**, computed by the same code. `2` is
+    // new here and it is part 2's whole point: a sweep that spoke and then stopped is a hang, where
+    // before this it was indistinguishable from one that finished.
+    ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
 }
 
 /// **The QEMU half of milestone 219's sustained run.** Boot a `--features soak_test` kernel, watch it
@@ -9130,6 +9605,8 @@ fn soak_test() -> ExitCode {
         until: None,
         quiet_after: Some(Duration::from_secs(15)),
         settle: Duration::from_secs(0),
+        // An emulator has no firmware prologue to climb; see `boot_check`'s note above.
+        board: &board_console::board::XENON,
     };
 
     let mut i = 0;
@@ -10700,5 +11177,133 @@ booti() {{ echo CALL booti $*; }}
         assert!(!neither.contains("CALL fdt"), "{neither}");
         assert!(neither.contains("payload came from none"), "{neither}");
         assert!(neither.contains("still at the prompt"), "{neither}");
+    }
+
+    /// The `[[bin]]` reader against the shape both packages write, and the two it must refuse
+    /// rather than skip (milestone 150): a key it does not know, and a block with no name.
+    #[test]
+    fn bin_names_reads_the_blocks_and_refuses_what_it_does_not_understand() {
+        let manifest = "[package]\nname = \"components\"\n\n# a comment\n[[bin]]\n\
+                        name = \"wc\"\npath = \"src/wc.rs\"\ntest = false\nbench = false\n\n\
+                        [[bin]]\nname = \"date\"\npath = \"src/date.rs\"\n\n\
+                        [dependencies]\nname = \"not a bin\"\n";
+        assert_eq!(bin_names(manifest).unwrap(), ["wc", "date"]);
+
+        let gated = "[[bin]]\nname = \"x\"\nrequired-features = [\"y\"]\n";
+        let e = bin_names(gated).unwrap_err();
+        assert!(e.contains("required-features"), "{e}");
+
+        let nameless = "[[bin]]\npath = \"src/x.rs\"\n[[bin]]\nname = \"y\"\n";
+        assert!(bin_names(nameless).unwrap_err().contains("no `name`"));
+    }
+
+    /// **The tree's own declaration reads, and agrees with everything that checks it** (milestone
+    /// 150): the two `Cargo.toml`s parse, every program `grant_plan` lets the shell spawn has a
+    /// binary, and so do the boot programs. This is what `initrd_*` runs before packing, run here
+    /// so `script/lint`'s host pass catches a disagreement without building an archive.
+    #[test]
+    fn the_declared_programs_agree_with_grant_plan_and_the_boot_list() {
+        let names = declared_programs().unwrap_or_else(|e| panic!("{e}"));
+        // A floor, not a pin: a reader that silently stopped at the first package would still
+        // find `progenitor`, and would pack a third of the system.
+        assert!(names.len() > 60, "only {} programs declared", names.len());
+        for p in grant_plan::Prog::ALL {
+            assert!(names.iter().any(|n| n == p.name()), "{}", p.name());
+        }
+    }
+
+    /// **Every program something in the tree loads by name is one the tree builds** (milestone
+    /// 150's gate on removal). Deleting a `[[bin]]` block takes the program out of all three
+    /// archives at once, which is the point; this is what stops that being silent when a kernel
+    /// test or the progenitor still asks for it by name. Without it, the test would `skip!()` with
+    /// "no such program in this archive" forever, or the progenitor would fail at boot.
+    ///
+    /// **A textual scan, and rung two rather than rung one**: it reads `program("name")` and
+    /// `.read("name")` string literals out of `kernel/src` and `crates/system_initializer/src`, the
+    /// two places that look programs up in an archive. A name built at runtime, or looked up by some
+    /// other spelling, is invisible to it. The set it judges is counted, so a scan that stopped
+    /// matching fails here rather than passing on nothing.
+    #[test]
+    fn every_program_the_tree_loads_by_name_is_declared() {
+        // Archive entries packed from outside `components/` and `fixtures/`, each present only
+        // when its own build ran (see the `initrd_*` functions).
+        const BUILT_ELSEWHERE: [&str; 4] = ["redoxfs_server", "mkfs", "std_exerciser", "rg"];
+        let declared = declared_programs().unwrap_or_else(|e| panic!("{e}"));
+        fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(&workspace_root().join("kernel/src"), &mut files);
+        walk(
+            &workspace_root().join("crates/system_initializer/src"),
+            &mut files,
+        );
+        let mut named = std::collections::BTreeSet::new();
+        for file in &files {
+            let text = std::fs::read_to_string(file).unwrap();
+            for opener in ["program(\"", ".read(\""] {
+                for (at, _) in text.match_indices(opener) {
+                    let rest = &text[at + opener.len()..];
+                    let Some(end) = rest.find("\")") else {
+                        continue;
+                    };
+                    let name = &rest[..end];
+                    if !name.is_empty()
+                        && name
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                    {
+                        named.insert((name.to_string(), file.clone()));
+                    }
+                }
+            }
+        }
+        assert!(
+            named.len() > 50,
+            "the scan found only {} lookups; it has stopped matching the tree",
+            named.len()
+        );
+        for (name, file) in &named {
+            assert!(
+                declared.iter().any(|d| d == name) || BUILT_ELSEWHERE.contains(&name.as_str()),
+                "{} looks up `{name}` by name, and no [[bin]] in components/ or fixtures/ builds it",
+                file.display()
+            );
+        }
+    }
+
+    /// **Every program the shell can spawn is spawned by `script/shell-check`, or says why not**
+    /// (milestone 150). Before this, a program's presence in the booted system was proven only by a
+    /// transcript line somebody remembered to type, and three of thirteen had none. The check is a
+    /// token match (the program's name as a whole word anywhere in a line), which is weaker than
+    /// "the line ran it" and is enough to make forgetting loud.
+    #[test]
+    fn every_spawnable_program_has_a_shell_check_line() {
+        // Programs a transcript cannot drive, each with the reason. Both run until interrupted,
+        // and this gate types lines; it has no way to send `^C`.
+        const UNSCRIPTED: [&str; 2] = ["interrupt_heeder", "interrupt_ignorer"];
+        for p in grant_plan::Prog::ALL {
+            let name = p.name();
+            let scripted = SHELL_CHECK_SCRIPT
+                .iter()
+                .any(|(line, _)| line.split_whitespace().any(|w| w == name));
+            assert!(
+                scripted != UNSCRIPTED.contains(&name),
+                "`{name}`: {}",
+                if scripted {
+                    "scripted now, so take it off UNSCRIPTED"
+                } else {
+                    "the shell can spawn it and SHELL_CHECK_SCRIPT never does; add a line (see \
+                     notes/adding-a-program.md), or add it to UNSCRIPTED with the reason"
+                }
+            );
+        }
     }
 }

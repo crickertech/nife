@@ -42,6 +42,8 @@ mod fastpath_pad;
 mod icount;
 mod interrupt_stack;
 mod iommu;
+#[cfg(any(test, feature = "ipc_stack_depth"))]
+mod ipc_stack_depth;
 mod kmem;
 mod memory;
 mod panic;
@@ -96,18 +98,19 @@ pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsiz
 /// **The boot device tree, parsed**, or the parse error if this machine did not hand us one.
 ///
 /// **This exists so the "is that pointer real" argument is made once.** Five places used to read
-/// [`DTB`] (or take the same value as an argument) and hand it to `dtb::Dtb::from_ptr` under a
-/// hand-written `// SAFETY:` comment, each rewording the same two facts: the pointer is the one
-/// firmware put in `x0`/`a1` and [`kernel_main`] stashed here before anything else ran, and it is
-/// physical, so it is named through the direct map. That is one fact about this module's own
-/// static, and this module is the only place it can be checked. Milestone 139 round 8, and
-/// DECISIONS §94's rule about a body copied verbatim into every caller.
+/// [`DTB`] (or take the same value as an argument) and hand it to
+/// `device_tree_blob::DeviceTreeBlob::from_ptr` under a hand-written `// SAFETY:` comment, each
+/// rewording the same two facts: the pointer is the one firmware put in `x0`/`a1` and
+/// [`kernel_main`] stashed here before anything else ran, and it is physical, so it is named
+/// through the direct map. That is one fact about this module's own static, and this module is the
+/// only place it can be checked. Milestone 139 round 8, and DECISIONS §94's rule about a body
+/// copied verbatim into every caller.
 ///
 /// Returns `Err` rather than panicking, because two of the callers legitimately continue without a
 /// tree: the early RISC-V console keeps its defaults, and `x86_64` stores a PVH `hvm_start_info`
 /// pointer in [`DTB`] rather than an FDT, so the magic check inside `from_ptr` is what tells those
 /// callers apart from a real failure. Callers that cannot continue keep their own `expect`.
-pub fn device_tree() -> Result<dtb::Dtb<'static>, dtb::Error> {
+pub fn device_tree() -> Result<device_tree_blob::DeviceTreeBlob<'static>, device_tree_blob::Error> {
     let phys = DTB.load(core::sync::atomic::Ordering::Relaxed) as u64;
     // SAFETY: `kernel_main` stores the boot pointer here as its first statement, before any of
     // this function's callers can run, and firmware's blob stays where it is for the life of the
@@ -115,7 +118,9 @@ pub fn device_tree() -> Result<dtb::Dtb<'static>, dtb::Error> {
     // physical addresses and we are running virtual), so the direct map names it. `from_ptr`
     // re-checks the magic before trusting anything else in the blob, which is what makes a wrong
     // pointer survivable rather than fatal.
-    unsafe { dtb::Dtb::from_ptr(arch::mmu::phys_to_virt(phys) as *const u8) }
+    unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(arch::mmu::phys_to_virt(phys) as *const u8)
+    }
 }
 
 /// The kernel's Rust entry point, called from `_start` once we have a stack and a
@@ -1675,6 +1680,13 @@ pub extern "C" fn kernel_main(boot_info_pointer: usize) -> ! {
     // Core 0 has IRQs on by now, so it keeps ticking while it waits for the others to check in.
     // See smp.rs and DECISIONS §11.
     smp::bring_up_secondaries();
+
+    // Whether this machine has a running cycle counter (milestone 74's aarch64 half). Every core
+    // started and checked its own in `timer::init`; this is the one line that reports them all,
+    // here because it is the first point every core has answered. Every build prints it, test and
+    // bench included, for the reason the riscv64 boot gives: whether the machine has one is a fact
+    // about the machine, and the test and bench transcripts are where QEMU's answer gets read.
+    arch::pmu::print_summary();
 
     #[cfg(test)]
     test_main();

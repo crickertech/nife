@@ -2,12 +2,13 @@
 //! update, wiring the login stack into the real interactive boot).
 //!
 //! `components/src/login.rs` sends one [`login_protocol::ATTRIBUTED`] message per successful login on its
-//! `AUDIT` endpoint, and that send is a plain, blocking rendezvous (`crates/ipc`'s own model): it
-//! does not return until something receives it. Nothing in a real interactive boot was reading that
-//! endpoint before this program existed, so `login`'s very first successful login would have parked
-//! its whole thread inside that `send` forever, unable to reclaim the connection it just served or
-//! accept the next one. This process is the receiver, on `job_undertaker`'s own pattern: one
-//! endpoint capability, `READ`, and nothing else.
+//! `AUDIT` endpoint, and that send is a plain, blocking rendezvous
+//! (`crates/inter_process_communication`'s own model): it does not return until something receives
+//! it. Nothing in a real interactive boot was reading that endpoint before this program existed, so
+//! `login`'s very first successful login would have parked its whole thread inside that `send`
+//! forever, unable to reclaim the connection it just served or accept the next one. This process
+//! is the receiver, on `job_undertaker`'s own pattern: one endpoint capability, `READ`, and nothing
+//! else.
 //!
 //! # What it does with a message once it has one
 //!

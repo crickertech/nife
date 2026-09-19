@@ -69,6 +69,15 @@
 #                                         # measure THAT binary. Never implies --save: a padded
 #                                         # build's numbers are an experiment's reading, not a new
 #                                         # baseline, so they print and are never checked or written.
+#   NIFE_FASTPATH_PAD=0 NIFE_FASTPATH_SHIFT=1640 \
+#     script/fastpath-footprint --arch riscv64 --features board,bench,single_hart,fastpath_pad --layout
+#                                         # milestone 134's layout control: also print a hash of the
+#                                         # hot path's instructions with addresses normalised away
+#                                         # (equal across every E3 image, which is the proof they run
+#                                         # the same code), where each hot symbol landed, its L1i set
+#                                         # on riscv64, and where the data sections start. The two
+#                                         # variables size the pad and the shift (kernel/build.rs).
+#                                         # Changes nothing without the flag.
 #
 # Name: provisional. `fastpath` is the field's own word for the thing measured: it is what seL4
 # calls its hand-written common-case IPC path, so a reader who knows the literature meets a term
@@ -114,11 +123,13 @@ cd "$(dirname "$0")/.."
 save=""
 arches="aarch64 riscv64 x86_64"
 features=""
+layout=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --save) save=1 ;;
         --arch) shift; arches="$1" ;;
         --features) shift; features="$1" ;;
+        --layout) layout=1 ;;
         *) echo "script/fastpath-footprint: unknown argument $1" >&2; exit 2 ;;
     esac
     shift
@@ -178,7 +189,9 @@ for arch in $arches; do
         | grep -oE 'fn [a-z_0-9]+' | sed 's/fn //' | sort -u | tr '\n' ' ')
 
     ARCH="$arch" DIS="$tmp/dis.txt" BASE="bench/fastpath-$arch.txt" SAVE="$save" \
-        COLD_FNS="$cold_fns" NOCHECK="$features" python3 - <<'PYEOF' || status=1
+        COLD_FNS="$cold_fns" NOCHECK="$features" LAYOUT="$layout" \
+        NM="$tools/llvm-nm" ELF="target/$target/release/kernel" \
+        LAYOUT_OUT="target/fastpath-layout-$arch${features:+-$(echo "$features" | tr ',' '+')}-pad${NIFE_FASTPATH_PAD:-1}-shift${NIFE_FASTPATH_SHIFT:-0}.txt" python3 - <<'PYEOF' || status=1
 import os, re, sys, collections
 
 arch, dis_path, base_path, save = os.environ["ARCH"], os.environ["DIS"], os.environ["BASE"], os.environ["SAVE"]
@@ -383,6 +396,188 @@ for label, _ in SHAPES:
 print(f"    ipc_fastpath   {closure_total:6d} bytes, the worse of the two shapes")
 print(f"    syscall_entry  {entry_total:6d} bytes over {len(entry_syms)} symbols (flat, no closure)")
 print(f"    total          {total:6d} bytes ({total/1024:.2f} KiB), an upper bound")
+
+# **`--layout`: where the hot path landed, and proof that nothing else moved** (milestone 134's
+# layout control, 2026-09-19; notes/footprint-perturbation.md). E3 compares kernels that differ in
+# where code sits, so each image needs two facts before it is worth a boot: that it executes the
+# same instructions as its siblings, and where its hot symbols fall in radon's L1i.
+#
+# The first is a hash of the instruction text of every hot symbol (both closures plus the entry
+# set, minus E3's own sled), with **address operands normalised and nothing else**. The classes
+# are exactly the ones a diff between two pad sizes turned up, and the count of lines each one
+# touched is printed so the normalisation is visible rather than trusted: a direct call or branch
+# target (kept as a function-relative offset, or as the callee's name), an `auipc`/`adrp` page or
+# upper immediate, and the low-12 immediate that pairs with one (tracked by register). A real
+# constant, a register, a mnemonic or an instruction count cannot hide in those classes.
+#
+# The second is per-symbol addresses and, on riscv64, set indices for the U74's L1i: 32 KiB, 2-way,
+# 64-byte lines, virtually indexed (SiFive U74-MC Core Complex Manual 21G3.02.00, §4.2.2), so 256
+# sets indexed by VA bits 6 to 13. `mod8` is there because §4.2.6 of the same manual says the BTB
+# predicts a taken branch or jump without a bubble only when the target is 8-byte aligned. Other
+# ISAs print addresses without sets: no L1i geometry here was read off a manual for them.
+if os.environ.get("LAYOUT"):
+    import hashlib
+    hot = (set().union(*shape_syms.values()) | set(entry_syms)) - {"fastpath_pad_body"}
+    starts = sorted(start.items(), key=lambda kv: kv[1])
+    by_addr = {}
+    for s, a in start.items():
+        by_addr.setdefault(a, s)
+
+    def norm_name(n):
+        n = re.sub(r"\.llvm\.\d+", "", re.sub(r"Cs[0-9A-Za-z]+_", "", n))
+        # `.Lpcrel_hi388` renumbers, and aarch64's `adr` names constants `anon.<cgu hash>.N`,
+        # whose hash follows the codegen unit and so the feature set.
+        n = re.sub(r"^anon\.[0-9a-f]+\.", "anon.", n)
+        return re.sub(r"^(\.L[A-Za-z_]+?)\d+", r"\1", n)
+
+    def short(n):
+        n = norm_name(n)
+        if not n.startswith("_R"):
+            return n
+        toks, i = [], 0
+        while i < len(n):
+            m = re.match(r"(\d+)", n[i:])
+            if m:
+                k = int(m.group(1)); i += len(m.group(1))
+                toks.append(n[i:i + k]); i += k
+            else:
+                i += 1
+        toks = [t for t in toks if re.match(r"^[A-Za-z_]\w*$", t)]
+        return "::".join(toks[-2:]) if toks else n
+
+    # One pass over the disassembly, keeping only hot symbols' instructions.
+    text, cur = collections.defaultdict(list), None
+    for line in open(dis_path, encoding="utf8", errors="replace"):
+        line = line.rstrip("\n")
+        m = SYMHDR.match(line)
+        if m:
+            if not m.group(2).startswith(".L"):
+                cur = m.group(2)
+            continue
+        a = re.match(r"^([0-9a-f]+):\s*(.*)$", line)
+        if a and cur in hot:
+            text[cur].append((int(a.group(1), 16), a.group(2)))
+
+    counts = collections.Counter()
+    TARGET = re.compile(r"0x([0-9a-f]+) <([^>]+)>")
+    UPPER = re.compile(r"^(auipc|adrp)\s+(\w+),")
+    h = hashlib.sha256()
+    out = open(os.environ["LAYOUT_OUT"], "w")
+    ninsn = 0
+    for s in sorted(hot, key=norm_name):
+        lo, hi = start[s], start[s] + size[s]
+        # Registers holding an `auipc`/`adrp` result. One stays in the set until an instruction
+        # redefines it, because LLVM keeps such a base live and loads through it several times
+        # (`riscv_trap_body` does, through `s3`); "consumed on first use" missed exactly that.
+        pending = set()
+        for addr, ins in text.get(s, []):
+            ninsn += 1
+            ins = re.sub(r"\s+", " ", ins.strip())
+            m = UPPER.match(ins)
+            if m:
+                pending.add(m.group(2))
+                ins = f"{m.group(1)} {m.group(2)}, UPPER"
+                counts["upper"] += 1
+                h.update((ins + "\n").encode())
+                out.write(ins + "\n")
+                continue
+            # A low-12 of zero prints as an alias, so fold the two that occur back into the form
+            # the non-zero case takes: `mv a1, a1` is `addi a1, a1, 0`, `jalr ra` is `jalr 0(ra)`,
+            # and aarch64's `mov x8, x8` is `add x8, x8, #0`.
+            al = re.match(r"^(mv|mov) (\w+), (\w+)$", ins)
+            if al and al.group(3) in pending:
+                ins = ("addi" if al.group(1) == "mv" else "add") + f" {al.group(2)}, {al.group(3)}, 0x0"
+            al = re.match(r"^jalr (\w+)( <.*)?$", ins)
+            if al and al.group(1) in pending:
+                ins = f"jalr 0x0({al.group(1)})" + (al.group(2) or "")
+            t = TARGET.search(ins)
+            if t:
+                tgt = int(t.group(1), 16)
+                if lo <= tgt < hi:
+                    rep = f"<@+{tgt - lo:#x}>"
+                else:
+                    rep = "<" + norm_name(re.sub(r"\+0x[0-9a-f]+$", "", t.group(2))) + ">"
+                # `jalr 0x52(ra) <callee>` after `auipc ra`: the offset is the pair's low half.
+                ins = re.sub(r"-?0x[0-9a-f]+(\(\w+\))", r"LO\1", ins[:t.start()]) + rep
+                counts["target"] += 1
+            for r in sorted(pending):
+                # `addi a1, a1, -0x3a`, `ld a0, -0x3b4(s3)`, `add x8, x8, #0x10`,
+                # `ldr x0, [x8, #0x20]`: the low-12 immediate that pairs with an upper.
+                pat = (rf"(-?0x[0-9a-f]+|-?\d+)\({r}\)|(\b{r}, )(#?-?0x[0-9a-f]+|#?-?\d+)$"
+                       rf"|(\[{r}, )#-?0x[0-9a-f]+\]")
+                new, n = re.subn(pat, lambda mm: (f"LO({r})" if mm.group(1) is not None
+                                 else (mm.group(2) + "LO") if mm.group(2)
+                                 else mm.group(4) + "LO]"), ins)
+                if n:
+                    ins = new
+                    counts["lo12"] += n
+            # A write to a tracked register ends its tracking (after its own immediate was
+            # normalised above, so `addi a0, a0, LO` counts and then a0 is an ordinary pointer).
+            # The destination is the first operand except for stores and branches, which have none.
+            mn, _, ops = ins.partition(" ")
+            if not re.match(r"^(s[bhwd]|fs[wd]|sc\.|st|b|j|c?bn?z|tbn?z|ret|cmp|tst)", mn):
+                dest = ops.split(",")[0].strip()
+                pending.discard(dest)
+            # Any annotation left (a call through `jalr LO(ra) <callee>`) names its symbol the
+            # normalised way: crate disambiguators and LLVM's hash suffixes change with features.
+            ins = re.sub(r"<([^>@][^>]*)>", lambda mm: "<" + norm_name(mm.group(1)) + ">", ins)
+            h.update((ins + "\n").encode())
+            out.write(ins + "\n")
+
+    out.close()
+    print(f"    layout: normalised text in {os.environ['LAYOUT_OUT']}")
+    print(f"    layout: code hash {h.hexdigest()[:16]} over {ninsn} instructions in {len(hot)} "
+          f"hot symbols (sled excluded; normalised {counts['target']} targets, "
+          f"{counts['upper']} upper, {counts['lo12']} low-12)")
+    if "fastpath_pad" in os.environ.get("NOCHECK", "").split(","):
+        print(f"    layout: NIFE_FASTPATH_PAD={os.environ.get('NIFE_FASTPATH_PAD', '1 (unset)')} "
+              f"NIFE_FASTPATH_SHIFT={os.environ.get('NIFE_FASTPATH_SHIFT', '0 (unset)')}")
+    # The sections after `.text` are page-aligned, so they move in whole pages when `.text` crosses
+    # a boundary. That is a layout channel of its own: radon's L1d is 32 KiB 4-way, an 8 KiB way,
+    # so an odd number of pages moves every static to a different set (U74-MC manual §4.4.1).
+    import subprocess
+    sect = {}
+    for ln in subprocess.run([os.environ["NM"], os.environ["ELF"]], capture_output=True,
+                             text=True).stdout.splitlines():
+        f = ln.split()
+        if len(f) == 3 and f[2] in ("__text_end", "__data_start", "__bss_start", "__image_end"):
+            sect[f[2]] = int(f[0], 16)
+    if sect:
+        print("    layout: " + "  ".join(f"{k} {v:#x}" for k, v in sorted(sect.items(), key=lambda kv: kv[1])))
+    pad = [s for s in start if s == "fastpath_pad_body"]
+    blk = [s for s in start if s == "fastpath_layout_shift"]
+    if pad:
+        print(f"    layout: fastpath_pad_body at {start[pad[0]]:#x}, {size[pad[0]]} bytes"
+              + (f"; fastpath_layout_shift at {start[blk[0]]:#x}" if blk else ""))
+        # **How much of the hot path this pad actually moves, which is not a constant.** Nothing
+        # pins where the linker puts the sled among the kernel's `.text.*` inputs, and it has moved
+        # across commits: on 2026-09-04 the whole trap path was linked after it, and on 2026-09-19
+        # the roots and the trap path were before it while the capability-table insert and the
+        # paging mapper were after. Only the symbols after it move when the pad grows, so this line
+        # is what says whether an E3 image perturbs the path at all.
+        moved = [s for s in hot if start[s] > start[pad[0]]]
+        share = 100 * sum(size[s] for s in moved) / max(1, sum(size[s] for s in hot))
+        print(f"    layout: the sled precedes {len(moved)} of {len(hot)} hot symbols, "
+              f"{share:.0f}% of their bytes; only those move when it grows")
+    SETS = {"riscv64": 256}.get(arch)
+    listed = [s for s in hot if SHAPES[1][1].search(s) or s in entry_syms]
+    for s in sorted(listed, key=lambda x: start[x]):
+        a = start[s]
+        where = f"set {(a >> 6) % SETS:3d}  " if SETS else ""
+        print(f"    layout: {a:#x}  {where}line+{a & 63:2d}  mod8 {a & 7}  {short(s)}")
+    lines = set()
+    for s in hot:
+        lines.update(range(start[s] >> 6, (start[s] + size[s] - 1 >> 6) + 1))
+    pages = {ln >> 6 for ln in lines}
+    aligned = sum(1 for s in hot if start[s] % 8 == 0)
+    summary = (f"    layout: {len(lines)} lines over {len(pages)} pages; "
+               f"{aligned} of {len(hot)} hot symbols start 8-byte aligned")
+    if SETS:
+        per = collections.Counter(ln % SETS for ln in lines)
+        over = sum(1 for n in per.values() if n > 2)
+        excess = sum(n - 2 for n in per.values() if n > 2)
+        summary += f"; {len(per)} of {SETS} L1i sets hold hot lines, {over} hold more than 2 ({excess} lines past the ways)"
+    print(summary)
 
 # **What is checked.** The two shapes and the entry set. `ipc_fastpath` is recorded and printed but
 # not checked on its own, because it is the max of two numbers that are each already checked: a

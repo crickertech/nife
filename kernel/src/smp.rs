@@ -300,7 +300,7 @@ pub fn read_cpu_list() {
 /// it", the same thing `enabled` says.
 ///
 /// x86-only: ACPI is x86's discovery mechanism, not a portable one, the same reason
-/// `arch::machine::Acpi` itself lives under `arch/x86_64/` rather than beside `dtb`.
+/// `arch::machine::Acpi` itself lives under `arch/x86_64/` rather than beside `device_tree_blob`.
 #[cfg(target_arch = "x86_64")]
 pub fn seat_cpus_from_acpi(cpus: &[(u8, bool)]) {
     let mut startable = 0;
@@ -737,14 +737,14 @@ mod tests {
         // answer from "this machine has no cores".
         //
         // **x86_64 always skips here, not just when its roster is empty.** Its own roster
-        // (`smp::seat_cpus_from_acpi`, milestone 161's SMP item) is real and `described_count()`
-        // is nonzero on it from boot (`every_core_the_tree_described_is_running` and
+        // (`smp::seat_cpus_from_acpi`, milestone 161's SMP item) is real and `described_count()` is
+        // nonzero on it from boot (`every_core_the_tree_described_is_running` and
         // `all_secondaries_came_online` below both run and pass there), but *this* test's
-        // independent re-read is device-tree-specific (`dtb::Dtb::from_ptr` on `crate::DTB`), and
-        // `crate::DTB` on x86 holds PVH's `hvm_start_info` pointer, not an FDT blob: parsing it as
-        // one would not skip, it would panic. An ACPI-based independent re-read (walking the MADT
-        // again and comparing) would give this test the same power there; nobody has written it
-        // yet, so this fixture genuinely is not on that boot.
+        // independent re-read is device-tree-specific (`device_tree_blob::DeviceTreeBlob::from_ptr`
+        // on `crate::DTB`), and `crate::DTB` on x86 holds PVH's `hvm_start_info` pointer, not an
+        // FDT blob: parsing it as one would not skip, it would panic. An ACPI-based independent
+        // re-read (walking the MADT again and comparing) would give this test the same power there;
+        // nobody has written it yet, so this fixture genuinely is not on that boot.
         if super::described_count() == 0 || cfg!(target_arch = "x86_64") {
             crate::testing::skip!(
                 "nothing has read this machine's core roster from a device tree (either \

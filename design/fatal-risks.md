@@ -89,6 +89,16 @@ checked for unique commits before deleting. By then half of it was stale (it sai
 unbuilt, and riscv64 had been run), which is why it was rewritten here rather than merged. AGENTS.md
 already names the failure: *nobody reads branches.*
 
+**2026-09-19: milestone 64 (enough `std` to run somebody else's crate) turned BUILT, and it moves
+this risk very little.** Its last pass bound file times by path (`Metadata::modified` on `GETMTIME`,
+`std::fs::set_times` on `SETMTIME_AT`), which was the one item its block still called outstanding.
+Nothing above depended on it: `ripgrep` stops at the missing argument vector (milestone 205), not at
+`std::fs`. What it adds is one more std surface that answers rather than refuses, with a caveat a
+stranger's program can trip over: a file written on nife reports an mtime in early 1970, because the
+FS server stamps a per-mount counter (notes/std.md; proposed as
+design/roadmap/proposals/a-filesystem-server-that-knows-the-time.md). Written by the milestone 64
+lane, which does not normally edit this file; the status check requires the entry to know.
+
 ## 2. The proofs prove trivia, and the real bugs live where Kani cannot reach
 
 **The claim:** the verification half of DECISIONS §14 is real but narrow, and narrow in the direction
@@ -229,17 +239,32 @@ condition literally would have turned this entry green on a tree whose score had
 finished worklist is not the same claim as a suite that catches bugs**, and this entry exists to tell
 those apart.
 
-**One crate accounts for the fall and it was not one of the eight.** `machine_discovery` went from 22
-survivors to **77**, at 86.2%, and its Kani harnesses are inline `mod verification` blocks that the
-exclusions do catch, so those 77 are real untested code rather than miscounted proofs. It is the
-crate milestone 319 proved on 2026-09-17: the proofs landed, the parsing around them did not get
-tests, and two days later the census found it. `paging` added 5 and `filesystem_protocol` 3. Against
-them, where triage was spent earlier: `line_editor` −42, `grant_plan` −20, `glob` −14, `pci` −8.
+**The fall is real and its cause is not attributed, which is a weaker claim than this entry first
+made.** The maintainer wrote that one crate accounted for it, `machine_discovery` going from 22
+survivors to 77 in the two days since milestone 319 proved it. **That was wrong, and the error is
+worth keeping because the trap behind it will catch the next reader.** `script/mutation --report`'s
+`(baseline missed)` column is `.cargo/mutants-baseline.txt`, whose own header reads *"Run of
+2026-08-03"*. It is not the previous census. So "22 to 77" was six weeks of growth, not two days of
+regression, and the same applies to every delta read out of that column (`paging` +5,
+`filesystem_protocol` +3).
 
-**So the shape of the risk is now measured rather than argued.** Triage works where it is applied and
-the tree adds untested code faster than triage removes it. That is a rate problem, not a quality
-floor, and it is why this stays amber: the number is good, the derivative is not, and a green verdict
-would claim the second.
+**Milestone 438 measured it against historical trees and the arithmetic closes exactly.** Replaying
+`cargo mutants --in-diff` against milestone 319's own pull request reports **4** survivors, and
+`machine_discovery` carried **73** on the commit immediately before it merged. 73 + 4 = 77, the
+census's number to the unit. 319 did not introduce them; they accumulated while the crate grew from
+212 mutants at the August baseline to 693 today.
+
+**What is actually known, stated at the strength the evidence supports.** Two whole-corpus runs of
+the same instrument, five days apart, put the like-for-like rate at 93.6% and then 92.6%, and the fix
+that landed between them (no longer counting `timetable`'s own Kani harnesses against it) should have
+pushed the rate *up*. So the fall is real. **Which crates caused it is unknown**, because the
+2026-09-14 census's per-crate numbers were never written into the tree: the only per-crate record
+here is the August baseline, which is why the mistake above was available to make at all. That gap is
+the first thing to close, and it is a worklist entry rather than a verdict.
+
+**It stays amber on the fall alone.** A rate that drops a point between two censuses, with a
+correction in it that should have raised it, is not a tree whose suite is demonstrably keeping up.
+What this entry can no longer say is *why*, and it should not pretend otherwise.
 
 **The first amber half: seven crates regressed, and three of the baseline's five perfect crates lost
 that score.** `memory_regions` 100% to 88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%, with
@@ -656,7 +681,8 @@ exactly what DECISIONS §4 rule 1 and §19 (architectural parity is a tenet) cla
 the VisionFive 2 booted the full tour on three harts on 2026-08-14, which is the single strongest
 piece of evidence in the tree that the HAL is real. aarch64 is the development ISA and its board (the
 Jetson TX1, milestone 127) is well documented. **x86_64 is where the risk actually lives**, and not
-because x86 is hard, but because it is newest: milestone 161 is `PARTIAL`, milestone 177's text says
+because x86 is hard, but because it is newest: milestone 161 was unfinished when this was written
+(it is `BUILT` since 2026-09-19; see the dated paragraph below), milestone 177's text says
 x86_64 has no real interactive boot entry point at all, and 166 and 167 are each a piece of the same
 unfinished edge.
 
@@ -711,6 +737,31 @@ under OVMF, and it is the second time that same ordering defect has reached a be
 **What remains on this edge is no longer first light.** It is the two-core defect under firmware,
 the boot entry's remaining work, and the orchestrator, all of which are schedule rather than
 restructure.
+
+**Milestone 161 turned BUILT on 2026-09-19, and that does less to this risk than the status word
+suggests.** The sentence above that called 161 unfinished was true when written. What closed it was
+four follow-on items, none of them first light: 2 MiB and 1 GiB leaves in `crates/paging`, adopted
+by all three architectures' direct maps through the same `PageFormat` seam (a fourth architecture
+would implement two more trait methods, not change the walk, which is this entry's claim holding
+again); `cpu_start` counting a started core as absent (the "two-core defect under firmware" above
+was this counting bug, reproduced at 26 of 40 four-core QEMU boots and gone in 80 of 80 after, and
+fixed in `arch/x86_64/mod.rs`, not in portable code); and `CR4.PGE`/`PCIDE`, measured and left off.
+None of it touched the kernel outside `arch/` except `crates/paging`, which every architecture
+shares. What remains on this edge is unchanged: the boot entry's remaining work and the
+orchestrator, schedule rather than restructure. xenon has still not been asked to bring four cores
+online with the fix.
+
+**Milestones 177 and 182 turned BUILT on 2026-09-19, and the paragraph above is now settled the
+way it predicted.** §149 was decided (yes, a kernel-served console endpoint) and milestone 182
+reached a shell over serial on x86_64: `script/shell-check` has a third leg that boots the UEFI
+image a customer's stick carries, types 60 of its 64 lines at the prompt and reads the answers.
+Milestone 177 closed separately, and its defect is the interesting half for this risk: the graphical
+boot hung because two userspace drivers each sent a one-time report that the boot code had stopped
+receiving, so both sat in a blocking send. That is a wiring mistake in a capability protocol, not an
+architecture-shaped cost, and it was identical on aarch64 and riscv64, which is this entry's claim
+holding rather than bending. **So the sentence above that reads "x86_64 has no real interactive boot
+entry point at all" is retired**, and what remains on this edge is what the 2026-09-19 entry for
+milestone 161 says remains: the orchestrator, and xenon confirming four cores with the counting fix.
 
 **It is not the free hour this file first called it**, and the correction is calef's, 2026-08-30,
 asking why it should outrank finishing milestone 16 (real hardware + IOMMU-backed driver

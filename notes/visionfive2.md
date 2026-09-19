@@ -873,6 +873,29 @@ Facts documentation could not settle, each an explicit measurement, none guessed
    procedure and a table of what each of the five possible lines means. This is the first real,
    non-virtio device a confined userspace process on this project has been asked to drive, which
    makes it `design/fatal-risks.md`'s risk 6 rather than a driver.
+10. **Whether this U-Boot can boot from a USB stick, and through UEFI** (added 2026-09-19, from
+   DECISIONS §157: the customer's stick should be the bench's stick too). Nothing in the tree says,
+   and the boot log is suggestive rather than decisive: U-Boot 2021.10's init lists `MMC` and `Net`
+   and **no USB line** (`bench/radon-2026-09-04/probe-234257.log`), so it does not bring USB up by
+   itself. The BootROM cannot boot USB at all (the boot-mode table above has no USB row), so "radon
+   boots from USB" means U-Boot, loaded from flash as today, reads nife from the stick. Recalled,
+   not read: the USB 3 ports sit behind a VL805 PCIe controller, and whether this vendor build
+   drives it is the open question. With a FAT32 stick in a USB port, at `StarFive #`:
+
+   ```
+   usb start
+   usb storage
+   fatls usb 0:1 /
+   help bootefi
+   printenv boot_targets
+   ```
+
+   | Result | Meaning |
+   |---|---|
+   | `usb storage` lists the stick and `fatls` shows its files | radon reads USB; a nife boot from the stick is one boot script or one `bootefi` away |
+   | `usb start` finds no storage, or the command is missing | this firmware cannot; the next step is a newer StarFive U-Boot in SPI flash, recoverable over UART (boot mode 1:1) |
+   | `help bootefi` prints usage | the universal stick's premise holds on radon; notes/boot-stick.md, "At the bench", has the two commands that then boot it |
+   | `boot_targets` contains `usb` | U-Boot scans USB unprompted, with no script |
 
 ## BUGS
 

@@ -1,0 +1,250 @@
+
+nife on aarch64 (EL1, MMU off: physical addresses until mmu::init)
+  smp: 4 core(s) in the device tree
+  smp: psci over hvc, CPU_ON 0xc4000003 (the node's own id, from the device tree)
+  smp: 4 core(s) online
+  cycles      : PMCCNTR_EL0 running on 4 of 4 cores (54604 over 2031 ticks at boot), 6 event counters visible, PMCCFILTR_EL0 0x0 PROVISIONAL (EL0+EL1 counted, EL2 not)
+  cycles      : firmware left PMCCFILTR_EL0 0x0 on this core before it was overwritten
+
+nife
+  exception level : EL1  (entered here)
+  cpu             : Arm part 0xd08 r0p3
+                  : 44-bit PA, 48-bit VA available, 16-bit ASIDs, granules 4K 64K
+  stack top       : 0xffff000040135000
+  firmware handoff: 0x0000000048c00000  (device tree)
+  processors      : 4 online of 4 described, boot cpu hwid 0x0
+  memory          : 256 MiB total, 234 MiB free (22468 KiB in use)
+  console         : PL011 at 0xffff000009000000, interrupt line 33
+                  : no screen; this console is the UART alone
+  interrupts      : GICv2, distributor 0x0000000008000000, cpu interface 0x0000000008010000
+  timer           : 100 Hz tick, counter at 62 MHz, interrupts ON
+  initrd          : 11505664 bytes at 0x0000000048000000, a nifefs archive of 91 program(s)
+  pcie            : ecam 0x0000004010000000..0x4020000000, bar window 0x10000000..0x3eff0000
+  iommu           : SMMUv3 at 0x0000000009050000, stream table default-deny, translating
+  mmu             : on, kernel in TTBR1 at 0xffff000000000000, TTBR0 free for userspace
+  stack guard     : 0xffff000040124000 (unmapped; a stack overflow faults here)
+  scheduler       : 5 thread(s), round robin, preemptive
+nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz
+  self-test       : exceptions ok      a breakpoint was caught and stepped over (1)
+  self-test       : mapping    ok      0xffff000090000000 -> 0x409f8000, read back 0xc0ffee, unmapped
+  self-test       : frames     ok      one frame out and back at 0x409f8000; used 5619 -> Some(5620) -> Some(5619)
+  self-test       : timer      ok      the 62MHz counter advanced 1250006 and 2 tick(s) arrived in ~20ms
+  self-test       : scheduler  ok      thread 5 ran and carried its captured state (0x268026802680268)
+nife self-test: 5 of 5 passed
+  capability slots: 2 of 24 at peak
+  half a second later, having spawned two threads that NEVER yield:
+
+    thread 1 (hostile) :    1178168 iterations
+    thread 2 (polite)  :    1243040 iterations
+    preemptions        :        202
+
+  neither asked to be interrupted. both were.
+
+  and now the other side of the boundary:
+
+    virtio : block device at 0xa003600, INTID 75, handing it to a driver at EL0
+
+      a driver at EL0 read the file 'motd' off a virtio disk,
+      through a nifefs superblock it parsed itself,
+      woken by the device's interrupt delivered as a message.
+      the kernel issued no virtio command and touched no DMA.
+    pcie   : virtio-blk at 00:01.0, INTID 36, same driver, same confinement
+      the same file, over the transport real hardware uses.
+
+  user thread 12884901894 killed: Data abort from a lower EL
+    pc 0x000000000040007c   far 0xffff00004011a0d8   user sp 0x0000000000500fa0   esr 0x9200000f
+  the kernel is fine.
+  capability slots: 3 of 24 at peak
+    outlaw : reached 0xffff00004011a0d8, was killed, kernel survived (1 fault)
+    initrd : 11505664 bytes at 0x48000000, from the device tree
+
+  milestone 11: a process mapped 23 pages out of an untyped it was handed,
+  and the kernel's used-frame count went 5723 -> 5723 (it did not move).
+  a process cannot make the kernel allocate, so it cannot exhaust it.
+
+job-mix: started 32 tasks and 2 servers on 4 online core(s), cntfrq=62500000 Hz
+job-mix: one job is one of 7 kinds (16 per round, 8 rounds per task per subrun); see crates/job_mix for the mix and what it deliberately leaves out
+job-mix: this measures THIS kernel under multi-tasking load; it compares nothing against an event kernel and does not decide design/decisions/96-process-kernel-or-event-kernel.md
+job-mix: each point is the median of 21 repeats, with the fastest and slowest beside it (since 2026-09-19); a transcript before that date printed the best of 3 as ticks= and jpm=, which is a different statistic from a different mix and is not comparable with jpm_median=
+job-mix-census: where the kernel placed each thread at spawn: S=echo server, T=task
+job-mix-census: core=0 threads=10 S0 S1 T5 T6 T8 T16 T23 T24 T25 T30
+job-mix-census: core=1 threads=8 T1 T2 T7 T14 T18 T20 T28 T29
+job-mix-census: core=2 threads=9 T0 T4 T9 T11 T12 T17 T22 T26 T27
+job-mix-census: core=3 threads=7 T3 T10 T13 T15 T19 T21 T31
+job-mix-census: placement decides throughput on real silicon by up to fifteenfold (notes/soak.md, milestone 240), so a jobs-per-minute figure from ONE boot is a draw and not a result; notes/job-mix.md's procedure asks for repeated boots
+  capability slots: 9 of 24 at peak
+job-mix-repeat: tasks=1 repeat=0 ticks=14627517
+job-mix-repeat: tasks=1 repeat=1 ticks=12814303
+job-mix-repeat: tasks=1 repeat=2 ticks=13124499
+job-mix-repeat: tasks=1 repeat=3 ticks=13789468
+job-mix-repeat: tasks=1 repeat=4 ticks=12049625
+job-mix-repeat: tasks=1 repeat=5 ticks=12352260
+job-mix-repeat: tasks=1 repeat=6 ticks=12794141
+job-mix-repeat: tasks=1 repeat=7 ticks=12893249
+job-mix-repeat: tasks=1 repeat=8 ticks=13711017
+job-mix-repeat: tasks=1 repeat=9 ticks=13176579
+job-mix-repeat: tasks=1 repeat=10 ticks=13842127
+job-mix-repeat: tasks=1 repeat=11 ticks=13527000
+job-mix-repeat: tasks=1 repeat=12 ticks=14070882
+job-mix-repeat: tasks=1 repeat=13 ticks=12659442
+job-mix-repeat: tasks=1 repeat=14 ticks=13531945
+job-mix-repeat: tasks=1 repeat=15 ticks=14173543
+job-mix-repeat: tasks=1 repeat=16 ticks=13706238
+job-mix-repeat: tasks=1 repeat=17 ticks=12882704
+job-mix-repeat: tasks=1 repeat=18 ticks=12543559
+job-mix-repeat: tasks=1 repeat=19 ticks=12789178
+job-mix-repeat: tasks=1 repeat=20 ticks=12803900
+job-mix: tasks=1 jobs=128 repeats=21 ticks_min=12049625 ticks_median=13124499 ticks_max=14627517 jpm_median=36572
+job-mix-kind: tasks=1 kind=compute jobs=336 ticks=5296182 per_job=15762 region_ticks=0
+job-mix-kind: tasks=1 kind=touch jobs=336 ticks=3255642 per_job=9689 region_ticks=0
+job-mix-kind: tasks=1 kind=null_syscall jobs=336 ticks=4227796 per_job=12582 region_ticks=0
+job-mix-kind: tasks=1 kind=yield jobs=336 ticks=4936261 per_job=14691 region_ticks=0
+job-mix-kind: tasks=1 kind=round_trip jobs=672 ticks=160802215 per_job=239289 region_ticks=0
+job-mix-kind: tasks=1 kind=map jobs=336 ticks=28680123 per_job=85357 region_ticks=10273053
+job-mix-kind: tasks=1 kind=spawn jobs=336 ticks=70259867 per_job=209106 region_ticks=14145874
+job-mix-repeat: tasks=2 repeat=0 ticks=18712858
+job-mix-repeat: tasks=2 repeat=1 ticks=19007837
+job-mix-repeat: tasks=2 repeat=2 ticks=18069855
+job-mix-repeat: tasks=2 repeat=3 ticks=18073793
+job-mix-repeat: tasks=2 repeat=4 ticks=18865969
+job-mix-repeat: tasks=2 repeat=5 ticks=19084947
+job-mix-repeat: tasks=2 repeat=6 ticks=17747176
+job-mix-repeat: tasks=2 repeat=7 ticks=18654003
+job-mix-repeat: tasks=2 repeat=8 ticks=19145939
+job-mix-repeat: tasks=2 repeat=9 ticks=18018754
+job-mix-repeat: tasks=2 repeat=10 ticks=19671740
+job-mix-repeat: tasks=2 repeat=11 ticks=17885610
+job-mix-repeat: tasks=2 repeat=12 ticks=17786794
+job-mix-repeat: tasks=2 repeat=13 ticks=17804138
+job-mix-repeat: tasks=2 repeat=14 ticks=18118673
+job-mix-repeat: tasks=2 repeat=15 ticks=17453306
+job-mix-repeat: tasks=2 repeat=16 ticks=17623352
+job-mix-repeat: tasks=2 repeat=17 ticks=17702905
+job-mix-repeat: tasks=2 repeat=18 ticks=18972719
+job-mix-repeat: tasks=2 repeat=19 ticks=18258261
+job-mix-repeat: tasks=2 repeat=20 ticks=17431508
+job-mix: tasks=2 jobs=256 repeats=21 ticks_min=17431508 ticks_median=18073793 ticks_max=19671740 jpm_median=53115
+job-mix-kind: tasks=2 kind=compute jobs=672 ticks=11097867 per_job=16514 region_ticks=0
+job-mix-kind: tasks=2 kind=touch jobs=672 ticks=6098991 per_job=9075 region_ticks=0
+job-mix-kind: tasks=2 kind=null_syscall jobs=672 ticks=15863010 per_job=23605 region_ticks=0
+job-mix-kind: tasks=2 kind=yield jobs=672 ticks=25739617 per_job=38303 region_ticks=0
+job-mix-kind: tasks=2 kind=round_trip jobs=1344 ticks=453386353 per_job=337341 region_ticks=0
+job-mix-kind: tasks=2 kind=map jobs=672 ticks=72109359 per_job=107305 region_ticks=21429456
+job-mix-kind: tasks=2 kind=spawn jobs=672 ticks=171743535 per_job=255570 region_ticks=32573643
+job-mix-repeat: tasks=4 repeat=0 ticks=34116434
+job-mix-repeat: tasks=4 repeat=1 ticks=34321842
+job-mix-repeat: tasks=4 repeat=2 ticks=38339196
+job-mix-repeat: tasks=4 repeat=3 ticks=33923537
+job-mix-repeat: tasks=4 repeat=4 ticks=33586054
+job-mix-repeat: tasks=4 repeat=5 ticks=32173482
+job-mix-repeat: tasks=4 repeat=6 ticks=30415782
+job-mix-repeat: tasks=4 repeat=7 ticks=33174303
+job-mix-repeat: tasks=4 repeat=8 ticks=33249996
+job-mix-repeat: tasks=4 repeat=9 ticks=31835263
+job-mix-repeat: tasks=4 repeat=10 ticks=33542294
+job-mix-repeat: tasks=4 repeat=11 ticks=33818002
+job-mix-repeat: tasks=4 repeat=12 ticks=34045881
+job-mix-repeat: tasks=4 repeat=13 ticks=32796470
+job-mix-repeat: tasks=4 repeat=14 ticks=33323990
+job-mix-repeat: tasks=4 repeat=15 ticks=32544023
+job-mix-repeat: tasks=4 repeat=16 ticks=31018534
+job-mix-repeat: tasks=4 repeat=17 ticks=33120535
+job-mix-repeat: tasks=4 repeat=18 ticks=36492608
+job-mix-repeat: tasks=4 repeat=19 ticks=32955918
+job-mix-repeat: tasks=4 repeat=20 ticks=34947983
+job-mix: tasks=4 jobs=512 repeats=21 ticks_min=30415782 ticks_median=33323990 ticks_max=38339196 jpm_median=57616
+job-mix-kind: tasks=4 kind=compute jobs=1344 ticks=21644412 per_job=16104 region_ticks=0
+job-mix-kind: tasks=4 kind=touch jobs=1344 ticks=12556559 per_job=9342 region_ticks=0
+job-mix-kind: tasks=4 kind=null_syscall jobs=1344 ticks=46989809 per_job=34962 region_ticks=0
+job-mix-kind: tasks=4 kind=yield jobs=1344 ticks=210430683 per_job=156570 region_ticks=0
+job-mix-kind: tasks=4 kind=round_trip jobs=2688 ticks=1785079254 per_job=664091 region_ticks=0
+job-mix-kind: tasks=4 kind=map jobs=1344 ticks=179041025 per_job=133215 region_ticks=47106241
+job-mix-kind: tasks=4 kind=spawn jobs=1344 ticks=484325731 per_job=360361 region_ticks=73169064
+job-mix-repeat: tasks=8 repeat=0 ticks=67927147
+job-mix-repeat: tasks=8 repeat=1 ticks=64677208
+job-mix-repeat: tasks=8 repeat=2 ticks=65713213
+job-mix-repeat: tasks=8 repeat=3 ticks=62143008
+job-mix-repeat: tasks=8 repeat=4 ticks=64769871
+job-mix-repeat: tasks=8 repeat=5 ticks=61531856
+job-mix-repeat: tasks=8 repeat=6 ticks=62891492
+job-mix-repeat: tasks=8 repeat=7 ticks=64011989
+job-mix-repeat: tasks=8 repeat=8 ticks=62550056
+job-mix-repeat: tasks=8 repeat=9 ticks=64026341
+job-mix-repeat: tasks=8 repeat=10 ticks=64802979
+job-mix-repeat: tasks=8 repeat=11 ticks=67104839
+job-mix-repeat: tasks=8 repeat=12 ticks=63705514
+job-mix-repeat: tasks=8 repeat=13 ticks=65267930
+job-mix-repeat: tasks=8 repeat=14 ticks=62644839
+job-mix-repeat: tasks=8 repeat=15 ticks=63980489
+job-mix-repeat: tasks=8 repeat=16 ticks=62750254
+job-mix-repeat: tasks=8 repeat=17 ticks=63407748
+job-mix-repeat: tasks=8 repeat=18 ticks=56216831
+job-mix-repeat: tasks=8 repeat=19 ticks=69492101
+job-mix-repeat: tasks=8 repeat=20 ticks=60859999
+job-mix: tasks=8 jobs=1024 repeats=21 ticks_min=56216831 ticks_median=63980489 ticks_max=69492101 jpm_median=60018
+job-mix-kind: tasks=8 kind=compute jobs=2688 ticks=44901498 per_job=16704 region_ticks=0
+job-mix-kind: tasks=8 kind=touch jobs=2688 ticks=26416821 per_job=9827 region_ticks=0
+job-mix-kind: tasks=8 kind=null_syscall jobs=2688 ticks=118827500 per_job=44206 region_ticks=0
+job-mix-kind: tasks=8 kind=yield jobs=2688 ticks=907253418 per_job=337519 region_ticks=0
+job-mix-kind: tasks=8 kind=round_trip jobs=5376 ticks=7724024684 per_job=1436760 region_ticks=0
+job-mix-kind: tasks=8 kind=map jobs=2688 ticks=419494345 per_job=156061 region_ticks=105003913
+job-mix-kind: tasks=8 kind=spawn jobs=2688 ticks=1188866955 per_job=442286 region_ticks=147896150
+job-mix-repeat: tasks=16 repeat=0 ticks=110719845
+job-mix-repeat: tasks=16 repeat=1 ticks=120058761
+job-mix-repeat: tasks=16 repeat=2 ticks=122553321
+job-mix-repeat: tasks=16 repeat=3 ticks=122391332
+job-mix-repeat: tasks=16 repeat=4 ticks=122610770
+job-mix-repeat: tasks=16 repeat=5 ticks=124727395
+job-mix-repeat: tasks=16 repeat=6 ticks=118766548
+job-mix-repeat: tasks=16 repeat=7 ticks=117651630
+job-mix-repeat: tasks=16 repeat=8 ticks=122206713
+job-mix-repeat: tasks=16 repeat=9 ticks=124194302
+job-mix-repeat: tasks=16 repeat=10 ticks=128031128
+job-mix-repeat: tasks=16 repeat=11 ticks=123741520
+job-mix-repeat: tasks=16 repeat=12 ticks=123547066
+job-mix-repeat: tasks=16 repeat=13 ticks=118605187
+job-mix-repeat: tasks=16 repeat=14 ticks=126534964
+job-mix-repeat: tasks=16 repeat=15 ticks=122607653
+job-mix-repeat: tasks=16 repeat=16 ticks=119813525
+job-mix-repeat: tasks=16 repeat=17 ticks=116973127
+job-mix-repeat: tasks=16 repeat=18 ticks=117248316
+job-mix-repeat: tasks=16 repeat=19 ticks=123383608
+job-mix-repeat: tasks=16 repeat=20 ticks=120480063
+job-mix: tasks=16 jobs=2048 repeats=21 ticks_min=110719845 ticks_median=122391332 ticks_max=128031128 jpm_median=62749
+job-mix-kind: tasks=16 kind=compute jobs=5376 ticks=101132180 per_job=18811 region_ticks=0
+job-mix-kind: tasks=16 kind=touch jobs=5376 ticks=56572714 per_job=10523 region_ticks=0
+job-mix-kind: tasks=16 kind=null_syscall jobs=5376 ticks=279146925 per_job=51924 region_ticks=0
+job-mix-kind: tasks=16 kind=yield jobs=5376 ticks=2660022151 per_job=494795 region_ticks=0
+job-mix-kind: tasks=16 kind=round_trip jobs=10752 ticks=32531003587 per_job=3025576 region_ticks=0
+job-mix-kind: tasks=16 kind=map jobs=5376 ticks=935146697 per_job=173948 region_ticks=216616465
+job-mix-kind: tasks=16 kind=spawn jobs=5376 ticks=3030650401 per_job=563737 region_ticks=327863753
+job-mix-repeat: tasks=32 repeat=0 ticks=243161172
+job-mix-repeat: tasks=32 repeat=1 ticks=244477295
+job-mix-repeat: tasks=32 repeat=2 ticks=239571044
+job-mix-repeat: tasks=32 repeat=3 ticks=239662222
+job-mix-repeat: tasks=32 repeat=4 ticks=230892312
+job-mix-repeat: tasks=32 repeat=5 ticks=231864050
+job-mix-repeat: tasks=32 repeat=6 ticks=230116661
+job-mix-repeat: tasks=32 repeat=7 ticks=237725577
+job-mix-repeat: tasks=32 repeat=8 ticks=232120106
+job-mix-repeat: tasks=32 repeat=9 ticks=234297904
+job-mix-repeat: tasks=32 repeat=10 ticks=228108401
+job-mix-repeat: tasks=32 repeat=11 ticks=232548074
+job-mix-repeat: tasks=32 repeat=12 ticks=233958411
+job-mix-repeat: tasks=32 repeat=13 ticks=247299783
+job-mix-repeat: tasks=32 repeat=14 ticks=229179038
+job-mix-repeat: tasks=32 repeat=15 ticks=228546033
+job-mix-repeat: tasks=32 repeat=16 ticks=249234771
+job-mix-repeat: tasks=32 repeat=17 ticks=238200262
+job-mix-repeat: tasks=32 repeat=18 ticks=237233326
+job-mix-repeat: tasks=32 repeat=19 ticks=232191228
+job-mix-repeat: tasks=32 repeat=20 ticks=233743670
+job-mix: tasks=32 jobs=4096 repeats=21 ticks_min=228108401 ticks_median=233958411 ticks_max=249234771 jpm_median=65652
+job-mix-kind: tasks=32 kind=compute jobs=10752 ticks=214082383 per_job=19910 region_ticks=0
+job-mix-kind: tasks=32 kind=touch jobs=10752 ticks=122529006 per_job=11395 region_ticks=0
+job-mix-kind: tasks=32 kind=null_syscall jobs=10752 ticks=615908006 per_job=57283 region_ticks=0
+job-mix-kind: tasks=32 kind=yield jobs=10752 ticks=9580908330 per_job=891081 region_ticks=0
+job-mix-kind: tasks=32 kind=round_trip jobs=21504 ticks=133590959959 per_job=6212377 region_ticks=0
+job-mix-kind: tasks=32 kind=map jobs=10752 ticks=2117011436 per_job=196894 region_ticks=497768836
+job-mix-kind: tasks=32 kind=spawn jobs=10752 ticks=7424412093 per_job=690514 region_ticks=688227133
+job-mix: done

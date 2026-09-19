@@ -179,11 +179,11 @@ to all three shapes; where they differ is not the scheduler:
 
 - A `SYS_SLEEP` and a timer object need nothing beyond the above.
 - **A deadline on `Endpoint::RECV`/`CALL` needs exactly one thing more**: a targeted unlink from an
-  endpoint's wait queue. `crates/intrusive`'s `Fifo` is **singly linked** and its API is `push_back`,
-  `pop_front`, `is_empty`, `len`; `ipc::Endpoint` adds only `drain_waiters`, which drains all of them.
-  Removing one waiter is a new O(queue length) method on a crate carrying machine-checked proofs, so
-  the proofs move with it. The census says that queue can hold **97 of 128 threads** at the suite's
-  peak, so the walk is not always short.
+  endpoint's wait queue. `crates/intrusive_fifo`'s `Fifo` is **singly linked** and its API is
+  `push_back`, `pop_front`, `is_empty`, `len`; `inter_process_communication::Rendezvous` adds only
+  `drain_waiters`, which drains all of them. Removing one waiter is a new O(queue length) method on
+  a crate carrying machine-checked proofs, so the proofs move with it. The census says that queue
+  can hold **97 of 128 threads** at the suite's peak, so the walk is not always short.
 - **The half that looked harder is already built.** `wake_handshake`'s undelivered-wake gate (boot 8)
   would refuse a timeout wake, and `Handshake::abort()` already passes that gate for precisely this
   reason: `set_ipc_aborted` + `wake` is the pair revocation already uses on a drained waiter. A

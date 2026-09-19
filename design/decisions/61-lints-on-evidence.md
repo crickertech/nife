@@ -29,7 +29,7 @@ where a reader looks for the function's first action. The lint is enforcing a ge
 code it constrains), and the convention is better.
 
 `format_code_in_doc_comments` is the same lesson inside code rather than around it. It collapsed a
-deliberately aligned column of trailing comments in `crates/gpt`'s module example, destroying the
+deliberately aligned column of trailing comments in `crates/globally_unique_identifier_partition_table`'s module example, destroying the
 call-to-destination mapping the example existed to show. A doc example is written to be read as much
 as run, so its alignment is authored meaning; a formatter cannot tell that from incidental spacing.
 

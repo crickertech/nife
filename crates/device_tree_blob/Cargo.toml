@@ -1,0 +1,8 @@
+[package]
+name = "device_tree_blob"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true

@@ -71,7 +71,11 @@ information across VM boundaries, and it is real work to save and restore across
 is commonly left unvirtualized:
 
 - **QEMU-TCG** (pure emulation, our deterministic `icount` mode) has no real cycles to count, it just
-  translates code, so `PMCCNTR` returns quantized junk (we saw 0 and 1000).
+  translates code, so `PMCCNTR` returns quantized junk (we saw 0 and 1000). Measured again on
+  2026-09-19 once this kernel started the counter (below): without `-icount` it moves in steps of
+  1000, about 32 per generic-timer tick; under `-icount` it *is* the instruction count, 16 per tick at
+  QEMU's 62.5 MHz `CNTFRQ`. Both move, so both pass the kernel's did-it-move check, and neither is a
+  cycle.
 - **Apple HVF** does not virtualize the guest PMU, so a guest's `PMCCNTR` reads are unstable.
 
 Either way a single-shot cycle measurement has no usable clock. This is why `sel4bench` (single-shot,
@@ -84,3 +88,47 @@ The lesson worth keeping: **the coarse, boring generic timer is the one that sur
 Choosing it plus long loops, back at milestone 19e, is what makes our cross-OS numbers possible on a
 laptop instead of only on hardware. See notes/benchmarks.md for how the two instruments are used, and
 notes/abi.md for how EL0 got read access to the generic timer.
+
+## How this kernel starts it, and what it prints (milestone 74's aarch64 half)
+
+Until 2026-09-19 this kernel never started the counter. `PMCR_EL0.E` and `PMCNTENSET_EL0.C` were
+never written, so `PMCCNTR_EL0` was a stopped counter that a thread holding milestone 229's grant
+could read legally and get the same number from every time. `kernel/src/arch/aarch64/pmu.rs` now does
+this on every core, from `timer::init`, gated on `ID_AA64DFR0_EL1.PMUVer` the way the `PMUSERENR_EL0`
+write beside it is:
+
+1. `PMCCFILTR_EL0 = 0`, **a provisional value**: EL0 and EL1 counted, EL2 not. What it should be is
+   calef's (design/roadmap/proposals/the-aarch64-half-of-74.md), because it decides what every
+   published cycle number means.
+2. `PMCR_EL0 = E | C | LC`, assigned rather than read-modify-written, so a divide-by-64 bit firmware
+   left set cannot survive.
+3. `PMCNTENSET_EL0` bit 31, the cycle counter's own enable.
+4. Read the counter across 100 generic-timer ticks and refuse it if it did not move.
+
+The boot prints one line after the secondaries are up, in every build:
+
+```
+  cycles      : PMCCNTR_EL0 running on 4 of 4 cores (33000 over 1125 ticks at boot), 6 event counters visible, PMCCFILTR_EL0 0x0 PROVISIONAL (EL0+EL1 counted, EL2 not)
+```
+
+and the other answers it can give are `enabled but did not advance ...; refused` (the `Stuck`
+outcome), `no PMUv3 (ID_AA64DFR0_EL1.PMUVer 0x0); ticks only`, and a second line naming any core that
+disagrees with the boot core. `script/bench` prints the probe that converts every tick-denominated row:
+
+```
+  probe: cycles_per_tick 16.00 (10000226 cycles over 625003 ticks at cntfrq 62500000)
+```
+
+That line is the emulator's instruction count, not a measurement, and the exact 16 is the tell. On
+argon the ratio should be near the core clock over 19.2 MHz and **not** a clean integer.
+
+### BUGS
+
+- **Nothing here has run on silicon.** argon's bench procedure is milestone 127's.
+- **`PMCCFILTR_EL0` is provisional**, and no aarch64 cycle figure is a result until calef rules.
+- **The `Stuck` refusal has never fired.** Every QEMU `-cpu` this tree boots models PMUv3 and moves
+  the counter, and `-cpu cortex-a72,pmu=off` takes the no-PMU path instead. The first machine that
+  can exercise it is one whose secure firmware prohibits Non-secure counting.
+- **HVF could not be tried.** This QEMU refuses HVF with a GICv2 (`HVF does not support GICv2
+  emulation`), and this kernel's GIC driver is GICv2-only, so what HVF does to a started counter is
+  still the unmeasured claim in the section above.

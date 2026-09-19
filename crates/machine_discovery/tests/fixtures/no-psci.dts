@@ -10,8 +10,8 @@
  *
  * Regenerate with:
  *
- *     dtc -I dts -O dtb -o crates/isa/tests/fixtures/no-psci.dtb \
- *                          crates/isa/tests/fixtures/no-psci.dts
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/no-psci.dtb \
+ *                          crates/machine_discovery/tests/fixtures/no-psci.dts
  */
 
 / {
