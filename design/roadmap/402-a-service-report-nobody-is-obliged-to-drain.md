@@ -1,7 +1,15 @@
-# A service report nobody is obliged to drain
+# 402. A service report nobody is obliged to drain
 
-**Status: PROPOSED 2026-09-14.** Found by milestone 290, which hit one instance of it, fixed that
-instance, and is proposing the general remedy rather than pretending one caller was the problem.
+**Status: NOT-STARTED.** Filed 2026-09-14 as an unnumbered proposal by milestone 290, which hit one
+instance, fixed that instance, and proposed the general remedy rather than pretending one caller was
+the problem; numbered 2026-09-19 by milestone 433's drain of the proposal pile. **Premise re-read
+against the tree on 2026-09-19 and still true**: `kernel/src/user/entropy_service.rs`'s `ensure`
+still returns a `Wiring` whose `ready` is `Some` for the first caller on a bus and `None` for every
+later one, the announcement is still a blocking send, and dropping the `Wiring` still compiles.
+`entropy_service::ensure` has callers in six kernel test and service modules (`disk_tests`,
+`credential_tests`, `entropy_tests`, `identity_provisioning_tests`, `ntp_tests` and `std_service`),
+any of which can become the first caller when a filter changes what runs.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** A lane can close this. It is kernel-side test wiring with no syscall surface, no wire
 format and no new name.
@@ -67,3 +75,22 @@ the *caller* is not looking. It is how this one survived.
 `script/test --arch aarch64 --test <each entropy or ntp test name>`, run one at a time, all green,
 plus the full suite unchanged on all three architectures. The one-at-a-time run is the whole point:
 the defect is invisible to any run that includes `entropy_tests`.
+
+## Index row
+
+`kernel/src/user/entropy_service.rs`'s `ensure` wires the service once per boot and hands the first
+caller a `Wiring` carrying a `ready` endpoint, and the service announces itself with a blocking
+send. So the first caller is under an obligation the type does not express: drain `ready`, or the
+service parks inside its own startup and never reaches its request loop, and every later `ensure`
+gets `ready: None` and cannot rescue it. Nothing says so, `wait_for_ready` is a method a caller may
+ignore, and dropping the `Wiring` compiles. What it cost was measured rather than imagined:
+`ntp_tests`'s `machine_has_no_entropy()` discarded the result, so running any NTP exchange test on
+its own hung, with the failure surfacing two frames away as the test server never seeing a request.
+It was invisible in every whole-suite run because `entropy_tests` sorts before `ntp_tests` and
+drains the report first, which means one test file was correct only because of another test file's
+name. One fix is not the fix, because any of the six modules calling `ensure` can become the first
+caller when a filter changes what runs. The strongest option is rung one: `ensure` receives on
+`ready` itself and returns the report alongside the wiring, so no caller can get it wrong, at the
+cost of blocking where it returns today. Documenting it is refused as rung four, in the file the
+caller is not reading, which is how this one survived. What closes it is each entropy and NTP test
+run one at a time, which is the only kind of run the defect is visible to.
