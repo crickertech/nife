@@ -1,0 +1,211 @@
+# 400. The shell on the firmware's screen, because on a PC with no serial port the prompt went nowhere
+
+**Status: PARTIAL.** Built 2026-09-19 on `milestone/shell-on-the-firmware-screen` (pull request
+#980): under OVMF the shell's prompt is on the screen, a command typed on the serial line answers
+there, and `cargo xtask uefi-boot` reads both back off the framebuffer. **What remains is the bench
+half of the exit criterion**, the same stick on xenon with a monitor, which only a person at xenon
+can do (the procedure is below). *(Number provisional until the merge queue lands it; this block
+was `design/roadmap/proposals/the-shell-on-the-firmware-screen.md`, found by milestone 198's rungs
+lane, and that file is deleted by the commit that wrote this one.)*
+
+**Gate: HARDWARE.** calef at xenon with a monitor attached; everything a lane can do is done.
+
+**In brief.** Milestone 243 put the *kernel's* boot tour on a UEFI machine's framebuffer. Since
+milestone 299 the console is a userspace process that writes COM1 by port I/O and nothing else, so on
+a PC with no serial port (every laptop, most desktops) the tour scrolled past and **the prompt was
+never seen**. This is rung 1b of milestone 198's trivial install (DECISIONS §157): the output half of
+"a PC with a monitor and a keyboard, no serial cable". Milestone 242 (USB host and HID) is the input
+half; keystrokes stay on the serial line until it lands.
+
+## What was built
+
+```text
+  swish ─► line_editor ─► console ──out──► COM1                       (unchanged: every gate reads this)
+                             │
+                             └──OP_WRITE──► display_terminal ──FLUSH──► framebuffer_driver ──copy──► the firmware's aperture
+                                             (unchanged)                 (new)
+```
+
+| Piece | Where | What it is |
+|---|---|---|
+| A driver behind the framebuffer contract | `components/src/framebuffer_driver.rs` (**name provisional**) | serves `graphics_protocol`'s `INFO`/`FLUSH` over a screen the firmware already set up: a flush is a copy of the damage rectangle from the surface (RAM) into the aperture, at the screen's stride and in its byte order |
+| The copy's arithmetic, host-tested | `screen_console::Aperture` (**name provisional**) | the surface clipped to the screen, the span a driver needs mapped, two words that carry it across a spawn, and the copy; five host tests, one doctest |
+| The kernel's wiring | `display_service::start_screen_terminal`, `user::boot_screen_terminal`, `user::run_with_device_run` and `user::DeviceRun` (**all provisional**) | spawns the driver and `display_terminal`, and grants the progenitor slots 10 and 11 with slot 12 empty |
+| The handover | `console::yield_screen`, `console::reclaim_screen_for_panic` | see below |
+| The tee | `components/src/console.rs`'s `MODE_SCREEN`, `crates/system_initializer`'s `has_screen` | the console server writes every byte to COM1 and then to the terminal |
+| The gate | `cargo xtask uefi-boot`'s `screen_watch` | three stages read off the screen: the tour, the prompt, and the answer to a serial command |
+| Arch-neutral proof of the driver | `display_tests::a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver` | a pretend screen in RAM the OVMF gate cannot produce: narrower than the surface, taller, padded, rgbx, not page-aligned; runs on all three architectures |
+
+**Measured under OVMF, 2026-09-19** (`cargo xtask uefi-boot`, exit 0):
+
+```text
+  screen    : handing the framebuffer to a userspace terminal
+  screen    : 924x344 pixels of it served by framebuffer_driver, a 132x43 terminal on it
+uefi-boot: read 94 non-blank row(s) of the tour back off the framebuffer, ending
+uefi-boot:   |   screen    : handing the framebuffer to a userspace terminal
+uefi-boot: the shell is on the screen, and `echo typed on the wire` typed on the serial line answered there:
+uefi-boot:   | nife capability shell. naming a resource in a command IS granting it.
+uefi-boot:   | ...
+uefi-boot:   | $ echo typed on the wire
+uefi-boot:   | typed on the wire
+uefi-boot:   | $ ?
+```
+
+The `?` is the cursor block, which matches no glyph and decodes as `?` by `board_console::screen`'s
+own rule.
+
+## The decisions this made, and what lost
+
+**S1 was the proposal's recommendation, and the premise check changed where its client sits.** The
+proposal priced three shapes: S1, a pre-set-buffer driver behind the framebuffer contract serving
+`display_terminal`; S2, the console server painting pixels itself with `screen_console`; S3, the
+kernel painting for the shell. **S1 was built.** It is the one terminal engine for every screen (a
+full VT, so `line_editor`'s editing escapes land correctly, which S2's `screen_console` has no parser
+for), and the driver is the one milestone 157 describes for the boards. S3 stays refused on §121's
+reversal. Would S1 still win if S2 cost the same? Yes, for those two reasons; this was not decided on
+effort.
+
+**What the proposal assumed and the code did not support**: that S1 plugs into milestone 192's
+graphical seam (`boot_graphical_terminal`, with the UART as the keystroke source). It cannot, without
+breaking the constraint the brief put first. **A graphical boot has no console server**:
+`line_editor` prints to `display_terminal` alone, so the shell's output would leave COM1, and every
+xenon gate and serial transcript reads COM1. So the terminal's client is the **console server**
+rather than `line_editor`: it writes each byte to the UART, then hands the same bytes to the terminal
+with one `OP_WRITE`. The alternatives, and why each lost:
+
+- **`line_editor` with two outputs** (the display terminal and the console). Two output paths in the
+  line discipline where one exists, and a second capability pair in the program whose job is editing
+  rather than delivery. Lost on elegance: the console server is already the thing whose job is "put
+  this stream on the machine's output devices", and the kernel's own console (`kernel/src/console.rs`,
+  "both, not either") is the precedent for one console feeding two surfaces.
+- **The graphical path as it is, serial output dropped.** Lost outright: it breaks xenon's gates.
+- **`display_terminal` or the driver holding COM1 too.** Lost: a device in a program whose authority
+  today is pixels and an endpoint.
+
+The console server gains **no device** for this, one endpoint and one page, the authority any
+program printing to that terminal holds, which is also why this is not S2 wearing another name.
+
+**How the aperture reaches the driver: a spawn-time mapping, not a capability.** Rule 2 is honoured
+(nothing reaches into a kernel global; the geometry arrives in its argument registers and the pages
+are mapped before `_start`). A capability was not available: `DeviceFrame` names one page and a
+screen is a thousand, `PageFrame` names RAM the allocator owns and would free, and a `DeviceFrame`
+run would be new syscall surface, which is calef's. Milestone 261's NVMe server and milestone 159's
+TRNG made the same choice for the same reason, and it has a least-authority upside: the driver holds
+no name for the screen, so it cannot map it twice, delegate it, or hand it on. **Only the rows the
+surface can reach are mapped** (`Aperture::span`), not the whole screen. `user::DeviceRun` exists
+because the kernel has no heap to build a thousand-entry `Mapping` slice in; it is a kernel-internal
+struct, not ABI.
+
+**The handover between the kernel's tee and the userspace terminal.** Two painters on one aperture is
+the defect milestone 230 found on the UART, with pixels in place of bytes. So:
+
+1. The kernel console's screen carries a `Painter` state, `Kernel` or `Terminal`, and `print!`
+   paints only while it says `Kernel`.
+2. `console::yield_screen` is the only way to `Terminal`, it is taken **once** (a second caller gets
+   `None`, so two userspace painters are unrepresentable rather than unlikely), it clears the screen
+   under the same lock every `print!` takes, and it returns the `Framebuffer` the driver needs. The
+   driver is spawned only after it returns, so there is no instant with two painters.
+3. After the handover the kernel's own lines go to the UART alone. The line announcing the handover
+   is printed *before* the yield, so it is the last kernel line on the screen.
+4. **A panic takes the screen back** (`console::reclaim_screen_for_panic`, first thing in the panic
+   handler after the lock is broken): clear, and paint the panic. On a machine with no serial port the
+   screen is the only place a panic can be read. The cost is recorded rather than avoided: the panic
+   halts only its own core, so another core's flush can paint over the top of the panic text.
+
+This is the shape `proposals/kernel-console-arbitration.md` (the kernel and the console server on
+one UART, a `DECISION`) lists as one of its options ("a claim the server takes and the kernel respects
+except in a panic"), applied to the screen only. **It does not decide that proposal**: the UART is
+still written by both, and that is still calef's fork.
+
+**Why the kernel clears on yield rather than the driver.** The driver maps only the rows its surface
+can reach, so it cannot clear the rest of a taller screen; the kernel already has the whole aperture
+mapped and is the party whose text is being removed.
+
+**The FLUSH hang milestone 177 recorded does not occur here.** `notes/framebuffer-contract.md`'s BUGS
+records a second `FLUSH` through the real boot's virtio-gpu driver that never returns, not
+root-caused, with the driver's completion interrupt as the best hypothesis. Every prompt, echo and
+answer on this path is a further flush through the same `display_terminal`, and all of them return,
+which is evidence (not proof) that the hang lives in `gpu_driver`'s interrupt handling and not in the
+contract or the terminal. Recorded there too.
+
+## Parity (rule 5)
+
+**x86_64 and UEFI only, as a scope note rather than a port.** Everything added is arch-neutral: the
+driver, `Aperture`, the tee, the handover and `boot_screen_terminal` compile and run on all three,
+and the driver's arithmetic is exercised on all three by the RAM-screen test. What aarch64 and
+riscv64 lack is a screen the kernel console was told about, which is milestone 157's U-Boot
+`simple-framebuffer` discovery; when that calls `console::attach_screen`, this path needs no change.
+
+## The bench step: xenon, with a monitor
+
+**Not done by this lane; no xenon result is claimed.** It is also the first real-hardware reading
+of milestone 243's open xenon defect (below).
+
+1. `cargo xtask uefi-image`, then copy `target/esp/EFI/BOOT/BOOTX64.EFI` to a FAT32 stick as
+   `/EFI/BOOT/BOOTX64.EFI` (`notes/x86-uefi-boot.md`'s bench section; Secure Boot off).
+2. Boot xenon from the stick with the **monitor attached and the serial cable connected**, and
+   `script/board-console` (or any terminal at 115200) on patagonia.
+3. **What the monitor should show, in order**: the loader's lines; the screen clearing and the
+   kernel's tour; the screen clearing a second time; then, in the **top-left corner only** (132x43
+   cells, 924x344 pixels, whatever the panel's size), the shell's banner and `$ `.
+4. **What the serial console should show**: the same tour, the two `screen    :` lines, and the same
+   banner and `$ `. Type `echo typed on the wire` on the serial console. The monitor should show
+   `$ echo typed on the wire`, then `typed on the wire`, then a fresh `$ `.
+5. Photograph the monitor after step 4 and file it with the serial log under `bench/`.
+
+**Reading the result against milestone 243's grid.** On 2026-09-04 and 2026-09-17 xenon's monitor
+showed a regular leaning grid instead of the kernel's tour (`crates/screen_console`'s BUGS, a pitch
+disagreement suspected and not measured). This path writes the **same** aperture at the **same**
+stride through a **different** mapping: 4 KiB user pages, uncacheable, where the kernel writes
+through its direct map. So:
+
+| Tour | Shell | Reading |
+|---|---|---|
+| grid | grid | the geometry (the stride) is wrong, as 243 suspects; the mapping is not the cause |
+| grid | readable | the kernel's mapping of the aperture is the cause, not the stride |
+| readable | readable | this rung is done on xenon; 243's grid did not reproduce |
+| readable | missing or garbled | this milestone's defect: the serial log's `screen    :` lines say whether the driver came up |
+
+Also worth a stopwatch: how long `ls` of a full directory takes to scroll on the monitor, since every
+scroll is a full-surface copy through an uncacheable mapping (BUGS).
+
+## Follow-on
+
+- **Outstanding.** The xenon bench step above; `HARDWARE`, calef's.
+- **Outstanding.** A second PC (milestone 198's rung 1d), which is the same stick on a fleet machine
+  and turns a claim about one Dell into a claim about PCs.
+- **Recorded.** The terminal is 132x43 in the top-left corner on any screen: the surface is the
+  contract's compile-time size (`components/src/framebuffer_driver.rs`'s BUGS).
+- **Recorded.** Every flush is a CPU copy through an uncacheable mapping, not measured on silicon (the
+  driver's BUGS; milestone 243's PAT entry).
+- **Recorded.** After the handover the kernel's own output (a user fault report, the progenitor's exit
+  line) reaches the UART only; a panic reclaims the screen and can be overdrawn by another core
+  (`kernel/src/console.rs`, `reclaim_screen_for_panic`'s doc).
+- **Recorded.** The tour stage of `uefi-boot` now has a window: the kernel paints the tour only until
+  the handover clears it, so the watcher polls every ~200 ms until it has the tour. Measured
+  comfortable under TCG on this machine; a much faster host or a slower screendump could miss it, and
+  the gate fails loudly rather than passing (`xtask`'s `screen_watch`).
+- **Recorded.** On an x86 boot that has a virtio-gpu, `boot_graphical_terminal` still spawns the
+  virtio stack and then returns `None` (its serial keystroke source, `input_service::start_direct`,
+  refuses x86, a doc-comment reason milestone 299 made stale), and this path takes the firmware
+  screen as well. Harmless (the virtio terminal idles) and reachable only by attaching a GPU to the
+  UEFI runner by hand. Its home is milestone 192's x86 half.
+- **Milestone 182.** `script/shell-check` still has no x86_64 leg, and its `--arch` refusal says x86
+  has no prompt, which milestone 299 made untrue. That is milestone 182's third leg, already tracked there.
+- **Proposed.** Two screendump decoders, `design/roadmap/proposals/one-screendump-decoder-not-two.md`
+  (existing).
+
+## BUGS
+
+- **Nothing here has run on real silicon.** It is proved under OVMF and, for the driver's arithmetic,
+  on a RAM screen on all three architectures.
+- **Keystrokes are the serial line's.** A PC with no serial port shows the prompt and cannot type at
+  it until milestone 242.
+- **Whether the firmware left the screen in a mode the monitor is showing** is the firmware's choice
+  (`uefi_loader` never calls `SetMode`), and a stranger's machine may differ from xenon.
+
+## Index row
+
+the shell's prompt and output on a UEFI PC's monitor, beside the serial console, through a second
+driver behind the framebuffer contract; proved under OVMF by a gate that types on the serial line and
+reads the answer off the screen, and waiting on xenon with a monitor

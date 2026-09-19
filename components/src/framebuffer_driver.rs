@@ -51,8 +51,9 @@
 //! - **One client, no arbitration.** Whoever holds the display endpoint draws; that is the
 //!   contract's rung-one shape and the compositor is what multiplexes it.
 //!
-//! Name: **provisional** (the shell on the firmware screen's lane), in the `<device>_driver` shape
-//! `gpu_driver`, `block_driver` and `keyboard_driver` take, the device being a linear framebuffer.
+//! Name: provisional. Introduced 2026-09-19 by the shell on the firmware screen's lane, in the
+//! `<device>_driver` shape `gpu_driver`, `block_driver` and `keyboard_driver` take, the device
+//! being a linear framebuffer.
 //! Considered `screen_driver`, which names a thing every display driver drives, and
 //! `firmware_screen_driver`, which names who set it up rather than what it is and would be wrong on
 //! the boards, where U-Boot sets it up.
@@ -115,8 +116,9 @@ pub extern "C" fn _start(size: u64, layout: u64, offset: u64) -> ! {
     // the call just above, and `SURFACE_BYTES` is inside it (`graphics_protocol`'s own arithmetic).
     let surface = unsafe { MappedWindow::new(SURFACE_VA, gfx::SURFACE_BYTES as u64) };
     // SAFETY: the kernel mapped every page from APERTURE_VA through `offset + span` device-typed
-    // and writable before this program's first instruction (`display_service::start_screen`), and
-    // the geometry that span was computed from is the one `from_words` just validated.
+    // and writable before this program's first instruction
+    // (`display_service::start_screen_terminal`), and the geometry that span was computed from is
+    // the one `from_words` just validated.
     let screen = unsafe { MappedWindow::new(APERTURE_VA + offset, aperture.span() as u64) };
 
     send(

@@ -150,6 +150,32 @@ uefi-boot: booted under OVMF from \EFI\BOOT\BOOTX64.EFI
 **`-display none` suppresses the host window, not the emulated adapter**, which is why any of this
 works headlessly: OVMF finds a GOP here for the same reason a real machine's firmware finds one.
 
+## The shell on the screen, too (milestone 400, provisional number)
+
+Everything above is the **kernel's** voice. Since milestone 299 the console is a userspace process
+writing COM1, so until milestone 400 the tour reached the screen and the shell's prompt did not. Now
+it does, beside the serial console rather than instead of it:
+
+```text
+  swish ─► line_editor ─► console ──out──► COM1
+                             └──OP_WRITE──► display_terminal ──FLUSH──► framebuffer_driver ──copy──► the aperture
+```
+
+- **`framebuffer_driver`** serves the same framebuffer contract `gpu_driver` does, over the screen
+  the firmware left running: a flush is a CPU copy from the surface into the aperture
+  (`screen_console::Aperture`, host-tested). It holds only the aperture rows its 924x344 surface can
+  reach, as a spawn-time mapping.
+- **The console server tees**: every byte it writes to COM1 it then hands `display_terminal`, so both
+  surfaces say the same thing and every serial gate is unchanged.
+- **The kernel hands the screen over once** (`console::yield_screen`): it clears it under the console
+  lock, stops painting, and only then is the driver spawned. After that the kernel's own lines reach
+  the UART only, except a panic, which takes the screen back to be read.
+
+The gate is `cargo xtask uefi-boot`'s second and third stages: the prompt on the screen, and the
+answer to `echo typed on the wire` typed on the serial line. The block has the decisions, what lost,
+and xenon's bench step:
+[400-the-shell-on-the-firmware-screen.md](../design/roadmap/400-the-shell-on-the-firmware-screen.md).
+
 ## The bench: booting a serial-less machine
 
 **This has not been done.** Everything above is QEMU with real firmware in the loop, which is as far
@@ -200,7 +226,11 @@ Everything is on the monitor. Nothing else is connected.
    refuse it, and the loader started. It also prints the screen it found.
 2. **The screen clears**, which is the kernel's console arming.
 3. The boot tour, beginning `nife on x86_64 (long mode, ring 0, 4-level paging)`, with a
-   `screen      :` line naming the geometry, and ending `nife x86_64: boot complete, halting.`
+   `screen      :` line naming the geometry, and ending with
+   `screen    : handing the framebuffer to a userspace terminal`.
+4. **The screen clears a second time** and the shell's banner and `$ ` appear in the top-left corner
+   (a 132x43 terminal whatever the panel's size). There is no keyboard yet on a machine without a
+   serial port (milestone 242), so the prompt is as far as it goes.
 
 **Photograph the screen at that point.** That is the record, and it is the only record this machine
 can produce today (see `BUGS`).
@@ -219,6 +249,7 @@ Each row rules out everything above it.
 | The loader's lines, screen clears, then **nothing** | the kernel died between `ExitBootServices` and its first `println!` | the hardest case, and the one this milestone does not fix. See below |
 | Text, but sheared or in the wrong colours | the stride or the pixel order | the `screen :` line says what the loader read; compare against the machine's real mode |
 | The machine reboots in a loop | a triple fault | build with no archive (`NIFE_UEFI_INITRD` unset) to halve what is copied |
+| The tour, the second clear, then **nothing** | the userspace terminal took the screen and drew nothing | milestone 400's defect; on a machine with a serial port its two `screen    :` lines say whether the driver came up |
 
 **The screen clearing and then staying black is the honest remaining hole**, and it is deliberate
 rather than an oversight: `console::attach_screen` clears, because a boot tour written over a vendor

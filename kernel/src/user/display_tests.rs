@@ -501,3 +501,136 @@ fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
          more than once",
     );
 }
+
+/// **A screen the firmware set up shows the terminal, through `framebuffer_driver`** (the shell
+/// on the firmware screen, milestone 198's rung 1b).
+///
+/// The OVMF gate (`cargo xtask uefi-boot`) proves the whole chain on one geometry: 1280x800, bgrx,
+/// an unpadded stride, a page-aligned aperture. This proves the driver's arithmetic on the
+/// geometry that gate cannot produce, on **all three architectures**, because it needs no device:
+/// the "screen" is RAM the kernel poisons, describes to the driver as a firmware framebuffer, and
+/// reads back through its own direct map. Every property is one a real machine could present and
+/// OVMF does not:
+///
+/// - **narrower than the surface** (700 pixels against the contract's 924), so the driver answers
+///   `INFO` with the clipped width and the terminal lays out 100 columns, not 132;
+/// - **taller than the surface**, so the rows past 344 must never be written (and are never
+///   mapped: `screen_console::Aperture::span`);
+/// - **a padded stride**, whose padding must survive;
+/// - **rgbx**, so red and blue must be exchanged on the way in, checked on a red and a blue cell
+///   because every grey in the default picture reads the same in both orders;
+/// - **not page-aligned**, so the driver's sub-page offset is what lands pixel (0, 0).
+///
+/// # What it does not prove
+///
+/// That a real screen scans this out: the OVMF gate and the bench step in the milestone's block do.
+/// And the RAM here is mapped device-typed into the driver and cacheable in the kernel's direct
+/// map, an attribute alias QEMU does not model and silicon would; this is a test of arithmetic
+/// and wiring, not of memory types.
+#[test_case]
+fn a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver() {
+    use machine_discovery::framebuffer::{Framebuffer, PixelOrder};
+
+    let driver = program("framebuffer_driver").expect("no framebuffer_driver in the archive");
+    let terminal = program("display_terminal").expect("no display_terminal in the archive");
+
+    const WIDTH: u32 = 700;
+    const HEIGHT: u32 = 400;
+    const PAD: u32 = 64;
+    const STRIDE: u32 = WIDTH * 4 + PAD;
+    const OFFSET: u64 = 0x140;
+    const POISON: u8 = 0xa5;
+    let bytes = (OFFSET + STRIDE as u64 * HEIGHT as u64) as usize;
+    let frames = bytes.div_ceil(FRAME_SIZE as usize);
+    let phys = crate::memory::alloc_contiguous_zeroed(frames)
+        .expect("no frames for a pretend screen")
+        .addr();
+    let at = |offset: usize| (mmu::phys_to_virt(phys) + OFFSET) as usize + offset;
+    for i in 0..bytes - OFFSET as usize {
+        // SAFETY: inside the frames just allocated, which nothing else has a name for yet.
+        unsafe { core::ptr::write_volatile(at(i) as *mut u8, POISON) };
+    }
+    let screen = Framebuffer {
+        base: phys + OFFSET,
+        width: WIDTH,
+        height: HEIGHT,
+        stride: STRIDE,
+        order: PixelOrder::Rgbx,
+    };
+
+    let w = display_service::start_screen_terminal(driver, terminal, screen)
+        .expect("a 700x400 screen should be wired");
+    let [tag, geometry, ..] = sched::ipc_recv(w.driver_report);
+    assert_eq!(
+        tag,
+        gfx::status::UP,
+        "the framebuffer driver reported {tag:#x}"
+    );
+    assert_eq!(
+        geometry,
+        WIDTH as u64 | ((gfx::HEIGHT as u64) << 32),
+        "the covered part is the narrower width and the shorter height",
+    );
+    let cols = WIDTH / bitmap_font::GLYPH_W;
+    let rows = gfx::HEIGHT / bitmap_font::GLYPH_H;
+    let [tag, dims, ..] = sched::ipc_recv(w.term_report);
+    assert_eq!(
+        tag,
+        video_terminal::status::TERM_UP,
+        "the terminal reported {tag:#x}"
+    );
+    assert_eq!(
+        dims,
+        cols as u64 | ((rows as u64) << 32),
+        "the terminal laid its grid out over the covered part"
+    );
+
+    // A red cell and a blue cell, then the usual greeting.
+    const TEXT: &[u8] = b"\x1b[41m \x1b[44m \x1b[0m\r\n";
+    w.print(TEXT);
+    w.print(video_terminal::script::GREETING);
+
+    static mut EXPECT: video_terminal::Vt =
+        video_terminal::Vt::new(video_terminal::script::COLS, video_terminal::script::ROWS);
+    let expect_ptr = &raw mut EXPECT;
+    // SAFETY: this `#[test_case]` runs once, to completion, and nothing else can reach `EXPECT`.
+    let expect: &mut video_terminal::Vt = unsafe { &mut *expect_ptr };
+    expect.reset_to(cols, rows);
+    expect.feed(TEXT);
+    expect.feed(video_terminal::script::GREETING);
+
+    let read = |offset: usize| {
+        // SAFETY: inside the pretend screen allocated above; the offsets below stay in it.
+        unsafe { core::ptr::read_volatile(at(offset) as *const u32) }
+    };
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            let got = read((y * STRIDE + x * 4) as usize);
+            let want = if y < gfx::HEIGHT {
+                PixelOrder::Rgbx.store(expect.pixel(x, y))
+            } else {
+                u32::from_ne_bytes([POISON; 4])
+            };
+            assert_eq!(
+                got, want,
+                "the screen is wrong at ({x},{y}): {got:#010x}, expected {want:#010x}",
+            );
+        }
+        for pad in 0..PAD / 4 {
+            assert_eq!(
+                read((y * STRIDE + WIDTH * 4 + pad * 4) as usize),
+                u32::from_ne_bytes([POISON; 4]),
+                "row {y}'s stride padding was written",
+            );
+        }
+    }
+    // The negative control for the byte order: the red cell's paper really is red in the engine,
+    // so an rgbx screen must hold it with blue's byte position, and a driver that forgot to swap
+    // would have been caught above.
+    let red = expect.pixel(1, 1);
+    assert_ne!(
+        red,
+        PixelOrder::Rgbx.store(red),
+        "the red cell is channel-symmetric: the byte-order check above is inert",
+    );
+}
