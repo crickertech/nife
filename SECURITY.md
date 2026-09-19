@@ -68,7 +68,7 @@ reach past the boundaries the kernel enforces. Anything that breaks one of these
   finding in this file.
 - **IPC.** Anything that lets a message reach an endpoint the sender cannot name, a reply
   capability be used twice or by the wrong thread, or a server be confused about which client it is
-  answering (DECISIONS §12, §26; `crates/ipc`).
+  answering (DECISIONS §12, §26; `crates/inter_process_communication`).
 - **The syscall surface.** Any `svc`/`ecall` argument, from EL0, that panics the kernel, corrupts
   kernel state, leaks kernel memory, or costs unbounded kernel time. The surface is deliberately
   narrow and every method is meant to validate its own inputs (DECISIONS §4 rule 3, §16).

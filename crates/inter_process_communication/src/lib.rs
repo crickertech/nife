@@ -29,7 +29,7 @@
 //! ```
 //! use core::ptr::NonNull;
 //! use intrusive_fifo::Node;
-//! use ipc::{Rendezvous, Recv, Send};
+//! use inter_process_communication::{Rendezvous, Recv, Send};
 //!
 //! struct ThreadControlBlock {
 //!     next: Option<NonNull<ThreadControlBlock>>,
@@ -73,7 +73,7 @@
 //! ```
 //! # use core::ptr::NonNull;
 //! # use intrusive_fifo::Node;
-//! # use ipc::{Rendezvous, Recv};
+//! # use inter_process_communication::{Rendezvous, Recv};
 //! # struct ThreadControlBlock { next: Option<NonNull<ThreadControlBlock>> }
 //! # unsafe impl Node for ThreadControlBlock {
 //! #     fn next(&self) -> Option<NonNull<Self>> { self.next }
@@ -100,10 +100,8 @@
 //! assert!(ep.is_idle());
 //! ```
 //!
-//! Name: provisional, and ruled: calef ruled **`inter_process_communication`** on 2026-09-18
-//! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
-//! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `ipc` belongs on `script/names --unratified` rather than off it. Refused `ipc`.
+//! Name: ratified 2026-09-18 (calef, `design/decisions/` §154), **deratifying the 2026-08-01
+//! ratification** to do it, and performed 2026-09-19. Refused `ipc`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "inter-process communication" is,
 //! so it goes, where `pci` stays because "peripheral component interconnect" is not.
@@ -112,7 +110,20 @@
 //! touched". That was an exemption rather than a test, and §154 records the three-layer
 //! contradiction the exemptions left behind.
 //!
-//! **Not yet performed**: milestones 320 and 321 are live lanes in files a sweep would touch.
+//! **Performed 2026-09-19**, the last of §154's renames. No public type or fuzz target carried the
+//! acronym, so only the crate moved. **IPC the concept did not move with it**: it keeps its name
+//! when this crate is deleted, so the lock §118 named and its type, the syscall-path
+//! `ipc_send`/`ipc_recv`/`ipc_call`/`ipc_reply` family, `notes/ipc-naming.md` and the word in prose
+//! all stay.
+//!
+//! Census of lowercase `ipc` as a word, outside this file: 206 before, 138 after. Of the
+//! survivors, 61 name the concept's own files (`notes/ipc-naming.md`,
+//! `notes/ipc-tables-lock-inventory.md`, roadmap and decision slugs), 35 are in `design/decisions/`
+//! or `design/naming.md`, which this rename did not edit, 25 are the old name in an account or a
+//! measurement, 9 are the concept in code (`bench`'s "ipc server", `board_console`'s `ipc` field),
+//! and 5 are `ipc::Endpoint` pointers that were already stale when `Endpoint` became `Rendezvous`
+//! (§113) and were deliberately not repointed. The last three are a quoted command and the clause
+//! beside it, and `README.md`'s crate list, whose other entries are stale too.
 
 #![cfg_attr(not(test), no_std)]
 

@@ -26,7 +26,7 @@ glob 110 14 6 5
 globally_unique_identifier_partition_table 423 5 1 36
 grant_plan 367 26 20 76
 intrusive_fifo 4 3 0 4
-ipc 24 5 0 4
+inter_process_communication 24 5 0 4
 machine_discovery 147 22 3 40
 line_editor 183 46 2 6
 measured_boot 118 9 4 6

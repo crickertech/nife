@@ -322,10 +322,10 @@ pub extern "C" fn _start(behaviour: u64, identity: u64, secret: u64) -> ! {
     let mut hint = 0u64;
 
     // **Prove the terminal, before anything else touches `budget`/`region`.** `send` on a plain
-    // rendezvous only returns once a receiver is actually matched (`crates/ipc`'s own model), so
-    // this blocks until the kernel test's own `sched::ipc_recv(w.term_ep)` catches it -- a stronger
-    // proof than `RECV_CAP` alone, which would pass even for a capability naming a dead or wrong
-    // object.
+    // rendezvous only returns once a receiver is actually matched
+    // (`crates/inter_process_communication`'s own model), so this blocks until the kernel test's
+    // own `sched::ipc_recv(w.term_ep)` catches it -- a stronger proof than `RECV_CAP` alone, which
+    // would pass even for a capability naming a dead or wrong object.
     if behaviour == HOLD_TERMINAL {
         send(term_ep, TERM_MAGIC, 0, 0);
         flags |= F_TERM_WORKS;

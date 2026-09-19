@@ -188,7 +188,7 @@ near-`usize::MAX` offset from a corrupt blob returns `Truncated` instead of pani
 integration tests against a real QEMU device tree are unchanged, so the hardening is faithful. This
 is the elf lesson reused: prove (and here, harden) the loopless leaves; the walk stays on the tests.
 
-Six in `crates/ipc/src/lib.rs`, the synchronous-rendezvous state machine (the decision core of
+Six in `crates/inter_process_communication/src/lib.rs`, the synchronous-rendezvous state machine (the decision core of
 `sched.rs`'s `Endpoint`, extracted as pure logic; **restated over the intrusive queues** at
 milestone 14 phase A.3, so the rewire did not demote proved code back to argued code: the same
 six properties, now over real `intrusive::Fifo`s with TCB-shaped nodes, composing with the
@@ -218,7 +218,7 @@ the way into the running kernel rather than staying in a host crate.
 (DECISIONS §12) decomposes into three legs, and it is worth recording which kind of evidence each
 one rests on:
 
-1. **The endpoint forgets a collected caller**: `a_collected_sender_is_forgotten` in `crates/ipc`.
+1. **The endpoint forgets a collected caller**: `a_collected_sender_is_forgotten` in `crates/inter_process_communication`.
    A `CALL`er queues as a sender and blocks; the server's receive pops it destructively, so from
    that moment the kernel-minted Reply capability is the *only* name for the blocked caller
    anywhere in the system. (The caller is never in the receiver queue: `ipc_call` does not `recv`,
@@ -303,7 +303,7 @@ userspace virtio driver's DMA: on every `NOTIFY` the kernel walks the driver's d
 any whose buffer escapes the driver's granted region (or is indirect), and copies the validated ones
 into a kernel-private **shadow ring** the device reads, so the driver cannot touch what the device
 acts on. The logic was lifted out of `kernel/src/virtio.rs::validate_and_shadow` (which now calls it)
-so it could be proved, the same Phase-2 move `memory_regions` and `ipc` made; the kernel's QEMU attacker
+so it could be proved, the same Phase-2 move `memory_regions` and `inter_process_communication` made; the kernel's QEMU attacker
 suite (the DMA-escape and indirect-escape end-to-end tests, on both ISAs) is unchanged and green, so
 the extraction is faithful.
 
