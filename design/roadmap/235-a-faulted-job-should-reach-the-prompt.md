@@ -95,8 +95,8 @@ legs.
   calef's, and milestone 233's no-thread-killed assertion in `script/shell-check` has to learn to
   except it. The scaffold that proved this milestone was a patch to `components/src/least_authority_demo.rs` and was
   removed afterwards, so nothing stops the lost prompt returning.
-- **Proposed.** `design/roadmap/proposals/how-many-programs-can-fault.md`, Count which of the tree's
-  68 programs can fault under a shell, so the exposure of this defect class is a number rather than
+- **Milestone 339.** Count which of the tree's
+  programs can fault under a shell, so the exposure of this defect class is a number rather than
   a guess. Every program that can fault hit this path and nobody has looked, so there is no way to
   say whether the fix mattered to two programs or to forty.
 

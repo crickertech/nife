@@ -1,6 +1,12 @@
-# The kernel and the `console` server drive one UART from two address spaces, and nothing arbitrates
+# 342. The kernel and the `console` server drive one UART from two address spaces, and nothing arbitrates
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 230's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 230's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** Nothing in `design/decisions/` answers it: §149 (may the kernel answer on an endpoint)
+decided how a program *reaches* a console server and was itself dissolved by §121's reopening, which
+is a different question. `script/shell-check`'s own `BUGS` still describes the interleaving as a live
+defect in the system rather than in the script, and milestone 243's `BUGS` still records that it "has
+its own home", which is this block.
 
 **Gate: DECISION.** Where the kernel's own output goes once userspace owns the console is a design
 fork rather than a bug to fix, and it is calef's. The options are genuinely different systems, not
@@ -40,3 +46,20 @@ where the kernel's own output goes once userspace owns the console. Today the ke
 `console` server drive the same UART from two address spaces with nothing arbitrating, so the
 streams interleave at byte granularity. It corrupts every bench session on argon, radon and xenon,
 and 243's BUGS points at a home that does not exist."*
+
+## Index row
+
+Once the `console` server owns the console, two address spaces write to the same UART with no
+arbitration between them: the kernel writes directly, because a kernel that cannot print during a
+fault is a kernel nobody can debug, and the server writes on behalf of userspace, and the streams
+interleave at byte granularity. It corrupts every bench session on argon, radon and xenon, where a
+serial log is the only thing those machines can say and milestone 216 built a tool whose whole
+contract is recognising a boot sequence in that stream; interleaved bytes break that contract in the
+least visible way available, because the log is present, it looks like output, and the line being
+matched has a kernel message spliced through the middle of it. Deciding it means saying where kernel
+output goes: a second port, a buffer the server drains, a claim the server takes and the kernel
+respects except in a panic, or something else. Those are genuinely different systems, and the choice
+binds every architecture and every future console consumer. A lane can price the options before the
+ruling: what the kernel writes after userspace takes the console is a measurable list, whether each
+board has a second usable port is a hardware fact, and what a buffered path costs during a panic is
+the constraint that probably decides it.
