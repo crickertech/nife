@@ -3,16 +3,26 @@
 **Status: NOT-STARTED.** Minted 2026-08-30 by calef. *(Number provisional until the merge queue
 lands it.)*
 
-**Gate: DECISION, MILESTONE 23.** Milestone 39 (repository structure for a loosely-coupled OS)
-carries the structural fork and inherits milestone 23's gate; this block does not re-open either.
-**Half of that fork has been ruled since 2026-09-15 and this gate did not say so until 2026-09-19**:
-[§151](../decisions/151-repository-goal-is-independent-release.md) (the goal of the repository split
-is independent release and third-party programs) took the goal, and names this milestone's own
-sentence in doing it. What §151 deliberately leaves open is **the order**, when the split happens
-and against what preconditions, and it lists a package format existing so `basalt` has something to
-assemble as one of them, which is this milestone. So the remaining decision under this token is that
-ordering ruling, and it is calef's. The format, the activation shape and the repository split are
-still not this block's and are deliberately not raised here.
+**Gate: DECISION.** The decisions are the package format, the activation shape and trust, each in
+its own proposal under "Scoped 2026-09-19" below. **Ruled by calef on 2026-09-19 (16:32 UTC):
+`MILESTONE 23` is dropped from this line.** It read `DECISION, MILESTONE 23`, inherited through
+milestone 39, until then. That made a loop: this block waited on milestone 23, whose one residual
+(state handoff, §116) is declined until a customer exists, and no second customer can be accepted
+until this block exists. The scoping lane checked what a first slice would need from milestone 39's
+repository split and found only an SDK gap (an outside author needs this repository cloned to get
+the toolchain), which is a candidate milestone of its own rather than a reason to wait on the split.
+The argument is in
+[DECISIONS §156](../decisions/156-the-package-manager-waits-on-a-decision-not-milestone-23.md). Milestone 39
+keeps its own gate; this ruling does not touch it.
+
+**A second half of that fork was already ruled and this gate did not say so**, found by milestone
+435's first slice on the same day.
+[§151](../decisions/151-repository-goal-is-independent-release.md) (the goal of the repository
+split is independent release and third-party programs) took the goal on 2026-09-15, and names this
+milestone's own sentence in doing it. What §151 deliberately leaves open is **the order**, when the
+split happens and against what preconditions, and it lists a package format existing so `basalt` has
+something to assemble as one of them, which is this milestone. The format, the activation shape and
+the repository split are still not this block's and are deliberately not raised here.
 
 **In brief.** calef, 2026-08-30: *"I don't think we expose nife to third parties (aka other
 customers) until we have a package manager and a trivial install process."* And, in the same breath,
@@ -76,7 +86,7 @@ built, and the gate line above is left as minted because changing it is the firs
 
 | Fork | Proposal | Shape |
 |---|---|---|
-| The gate | [what-the-package-manager-waits-on.md](proposals/what-the-package-manager-waits-on.md) | **Recommends** `Gate: DECISION` alone. The loop is real (198 waits on 23, whose residual waits on a customer, who waits on 198), and nothing in a first slice needs the split's timing. One real dependency was found, on a downloadable toolchain rather than on the split |
+| The gate | [DECISIONS §156](../decisions/156-the-package-manager-waits-on-a-decision-not-milestone-23.md) | **Decided 2026-09-19 by calef, as recommended:** `Gate: DECISION` alone. The loop is real (198 waits on 23, whose residual waits on a customer, who waits on 198), and nothing in a first slice needs the split's timing. One real dependency was found, on a downloadable toolchain rather than on the split |
 | Package format | [what-a-package-is-on-disk-and-on-the-wire.md](proposals/what-a-package-is-on-disk-and-on-the-wire.md) | Options, no winner: members of the boot archive, one archive file per package, or content-addressed. The measurement table is already a name-to-digest document |
 | Activation | [installing-a-package-mutates-or-composes.md](proposals/installing-a-package-mutates-or-composes.md) | Options, no winner: mutate, compose a union view, or only widen what may be spawned. The program namespace is sealed at boot, and the spawner gives the file service away, so nothing that builds processes can read an installed program today |
 | Trust (found, not briefed) | [what-vouches-for-a-package-the-image-did-not-carry.md](proposals/what-vouches-for-a-package-the-image-did-not-carry.md) | Options, no winner: the image always, a publisher's signature checked in userspace, or the owner. The measured chain makes every runtime-installed package unvouched by construction |
@@ -122,5 +132,5 @@ install, and he wants both **early, to make our own lives easier**. That makes p
 is vacant partly because a second customer could not be accepted if one appeared. The early half
 is what earns it, since the builders pay for its absence today, hand-wiring per program what a
 package would install once (milestone 40 already ships "installed by the package that owns it",
-against no package). Gate: DECISION, MILESTONE 23, inherited from milestone 39, which now has a
-consumer.
+against no package). Gate: DECISION (the format, activation and trust forks); `MILESTONE 23` was
+dropped by calef on 2026-09-19 because it closed a loop (§156).

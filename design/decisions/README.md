@@ -214,7 +214,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 153 | DECIDED | [How a two-core x86_64 test earns its place, when two-core x86_64 is not yet trustworthy](153-two-core-x86-test-sequencing.md) |
 | 154 | DECIDED | [The acronym test is whether the phrase is spoken, applied recursively](154-the-acronym-test-is-whether-the-phrase-is-spoken.md) |
 | 155 | DECIDED | [The naming conventions move out of the constitution, and the note becomes the rule](155-naming-conventions-move-out-of-the-constitution.md) |
-| 156 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](156-nvme-in-the-block-roster.md) |
+| 156 | DECIDED | [What the package manager waits on: a decision, not milestone 23 and not the repository split](156-the-package-manager-waits-on-a-decision-not-milestone-23.md) |
 | 157 | PROPOSED | [What a subshell copies, given that a capability set cannot always be copied](157-what-a-subshell-copies.md) |
 | 158 | PROPOSED | [Which subset counts as running Vaultwarden](158-what-counts-as-running-vaultwarden.md) |
 | 159 | PROPOSED | [Whether a holder can give up a mapping, and what gives it up](159-giving-up-a-mapping.md) |
@@ -248,6 +248,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 187 | PROPOSED | [Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?](187-what-a-baseline-save-must-record.md) |
 | 188 | PROPOSED | [Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point](188-job-mix-repeats-and-what-the-line-reports.md) |
 | 189 | PROPOSED | [Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?](189-a-checked-direct-map-reader-for-the-acpi-walk.md) |
+| 190 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](190-nvme-in-the-block-roster.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

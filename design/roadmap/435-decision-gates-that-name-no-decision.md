@@ -254,7 +254,7 @@ reader can open, so the ask exists only as a paragraph inside the block, address
 AGENTS.md says open decisions live in a file rather than in a conversation, and a roadmap block is
 rung three rather than the rung four of chat scrollback, which is why this went unnoticed. calef
 found it by asking whether milestone 421's freshly corrected gate had a decision behind it; it did
-not, and §156 was minted on the spot. Twenty-four of the forty-five arrived the same evening from
+not, and a decision was minted on the spot (now §190; it was minted as §156 and another session's queue landed a different §156 first, which is why anything global stays provisional until the queue lands it). Twenty-four of the forty-five arrived the same evening from
 milestone 433's drain, which carried each proposal's gate token across unchanged. The work is a
 reading per block and one of three outcomes: correct a token that is wrong, write up a fork that is
 genuinely owed, or cite a decision that already exists.
