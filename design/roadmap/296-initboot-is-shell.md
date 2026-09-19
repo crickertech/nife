@@ -126,8 +126,8 @@ carrying the meaning.
 The per-feature clippy loop is `for feat in shell bench icount board fastpath_pad soak
 cycle_counter_grant`, on two targets, and `initboot` came out of it.
 
-`design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md` is the class of failure this
-could have been, and milestone 265 is the worked example: a check that computed the set it judged
+Milestone 401, `design/roadmap/401-a-gate-that-selects-the-set-it-judges.md`, is the class of
+failure this could have been, and milestone 265 is the worked example: a check that computed the set it judged
 passed by checking **zero** crates on the one change that was its subject, going blind instead of
 red. This loop cannot do that, and the comment above it now says so: the list is **written out, not
 globbed**, so an entry leaving is visible in the diff, and every iteration echoes its own `==>` line,

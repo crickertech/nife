@@ -280,10 +280,10 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
   request.
 - **Done.** `script/lint` check 3's glob, which this rename would have left selecting nothing. Fixed
   in the same pull request, with the hazard written into the check's comment.
-- **Proposed.** `design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md`, for the class
-  that glob belongs to. One instance is a fix; the question of how many other gates pick their own
-  subject with a pattern that is allowed to stop matching is a lane, and this milestone measured only
-  what it tripped over.
+- **Milestone 401.** The class that glob belongs to. One instance is a fix; the question of how
+  many other gates pick their own subject with a pattern that is allowed to stop matching is a lane,
+  and this milestone measured only what it tripped over. Numbered on 2026-09-19 by milestone 433's
+  drain of the pile.
 - **Recorded.** The other truncations nobody has swept for, in this block's `BUGS` where a reader
   meets the rename: `design/roadmap/265-proto-is-a-truncation-not-an-abbreviation.md` says `_rt`,
   `_cli` and any other suffix are untouched and that nobody has checked. It is the same shape as the

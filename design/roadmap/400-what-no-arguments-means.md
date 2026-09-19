@@ -1,7 +1,14 @@
-# What `script/ci-build` with no arguments should mean
+# 400. What `script/ci-build` with no arguments should mean
 
-**Status: PROPOSED 2026-09-13.** Written by milestone 286's lane, out of the milestone calef minted
-the same day.
+**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 286's lane, out of
+the milestone calef minted the same day; numbered 2026-09-19 by milestone 433's drain of the
+proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**: `script/ci-build`
+still carries the `local`/`ci` tier column, still runs the `local` tier on the no-argument path, and
+its own header still says in capitals that the tier tags and the no-argument meaning are
+**PROVISIONAL** pending calef. The table has grown since: **17 rows, 9 `local` and 8 `ci`**, where
+the proposal priced option A against fifteen. That makes A's cost one word per row on seventeen rows
+rather than fifteen, and changes nothing else. *(Number provisional until the merge queue lands
+it.)*
 
 **Gate: DECISION.** Milestone 286 collapsed two enumerations of "the checks that gate a pull
 request" into one table inside `script/ci-build`. The table needs a way to say which checks a
@@ -107,3 +114,23 @@ means something else is the expensive half of `AGENTS.md`'s *move fast on what c
 
 Nothing. The tags are provisional and say so in `script/ci-build`'s header, in `notes/scripts.md`
 and in milestone 286's block. A `**Proposed.**` bullet in that block points here.
+
+## Index row
+
+Milestone 286 collapsed two enumerations of "the checks that gate a pull request" into one table
+inside `script/ci-build`, with a tier column saying which checks a developer waits for before
+pushing and which only a runner waits for. How that column is spelled is calef's, because it is a
+name a contributor meets in `CONTRIBUTING.md`, in `--list` output and in every row. It cannot mean
+everything: `script/verify` is about 47 minutes of Kani, and the retired `script/gates` carried the
+sentence that decides it, which has to survive the milestone that deleted the file, that **a gate
+people skip is not a gate**. So the no-argument path is a subset and the only question is how the
+subset is named and defended. Four options are priced, and the tempting one is refused on the
+newcomer principle rather than on mechanism: deriving the set from what the machine can do now
+removes the hand-maintained tag and makes two contributors run different sets from the same command,
+neither able to say what the other's green meant. The shipped pair is `local` and `ci`, and the
+strongest argument against it is that `ci` names a deployment rather than a property, so it would
+be wrong the day this repository stopped using GitHub Actions while the check was untouched.
+`runner` is the obvious fix and is not available: this tree already spends it in two senses across
+163 files, including four entry points named for it, and a third sense costs a reader the
+recognition. The tags are cheap to change; the default is not, because `CONTRIBUTING.md` now tells a
+stranger this is the one command to remember.
