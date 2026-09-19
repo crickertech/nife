@@ -1,9 +1,14 @@
-# Getting nife hosts onto the tailnet, which mostly does not need nife
+# 389. Getting nife hosts onto the tailnet, which mostly does not need nife
 
-**Status: PROPOSED 2026-09-05.** calef asked whether a milestone covered Tailscale: *"Our lab is
-largely dependent upon it for multiple use cases, so adding nife hosts into a tailscale network is
-going to be important before too long."* Nothing in this tree mentions `tailscale`, `wireguard`,
-`headscale`, `vpn`, `curve25519` or `chacha20`.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal after calef asked whether a
+milestone covered Tailscale; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
+**Premise re-read against the tree on 2026-09-19 and still true**: nothing in this repository
+implements or depends on `tailscale`, `wireguard`, `headscale`, `curve25519` or `chacha20`, and the
+five places Tailscale is named are all the same finding recorded below (the CGNAT default-route
+hazard, in `xtask/src/main.rs`, milestone 257's block, `notes/visionfive2.md` and
+`notes/x86-uefi-boot.md`). The two things this sits behind are both still absent: there is no
+resolver (milestone 384) and no TLS (milestone 387). *(Number provisional until the merge queue
+lands it.)*
 
 **Gate: NONE.** The reason is the finding rather than a formality: the near-term answer needs no
 nife work at all, so nothing here waits on anybody.
@@ -68,7 +73,7 @@ maintenance relationship this project should not take on for a convenience.
 
 Tailscale's data plane **is** WireGuard: Curve25519, ChaCha20-Poly1305, BLAKE2s, over UDP. That is
 bounded and well specified where the control plane is neither, and
-[§46](../../decisions/46-dependency-rule.md) puts the crypto squarely on the take side. It would put
+[§46](../decisions/46-dependency-rule.md) puts the crypto squarely on the take side. It would put
 a nife host on the lab network cryptographically with no coordination plane at all.
 
 **And it is the third instance of one pattern in a single evening**, which is what makes it worth
@@ -76,8 +81,8 @@ writing down rather than filing as networking work:
 
 | ambient on Unix | a capability here |
 |---|---|
-| `/etc/resolv.conf`: any program resolves any name | a resolver grant that answers for one domain (`a-name-resolver-and-who-holds-it.md`) |
-| `/etc/ssl/certs`: any program verifies against all ~150 authorities | a trust store granted as the roots one peer chains to (`a-tls-stack-and-which-one.md`) |
+| `/etc/resolv.conf`: any program resolves any name | a resolver grant that answers for one domain (milestone 384) |
+| `/etc/ssl/certs`: any program verifies against all ~150 authorities | a trust store granted as the roots one peer chains to (milestone 387) |
 | a tailnet: joining puts **every process on the box** on the whole network | a peer grant: a program given a tunnel to one peer cannot reach the rest of the tailnet |
 
 **The third row is the one a Tailscale user would feel.** Tailscale's own ACLs are enforced at the
@@ -96,7 +101,7 @@ which is why this is a proposal with no milestone attached.
 - A nife host that must be reachable **when the subnet router is not**, which is a real gap the
   moment anything depends on a board being up while cordoba is not.
 - Or the confined-peer demonstration being wanted for its own sake, which is
-  [§145](../../decisions/145-compartmentalization-at-process-cost.md)'s question rather than this
+  [§145](../decisions/145-compartmentalization-at-process-cost.md)'s question rather than this
   one's.
 
 ## BUGS
@@ -110,3 +115,23 @@ which is why this is a proposal with no milestone attached.
   is calef's network decision rather than a nife one.
 - **This is not a customer**, and saying it came from the lab should not be read as filling the
   ranking function's vacancy. It is a lab convenience with real value and no workload behind it.
+
+## Index row
+
+calef asked whether a milestone covered Tailscale, since the lab depends on it for several things
+and nife hosts will need to be reachable. The finding is that the near-term answer needs no nife
+work at all: a subnet router is Tailscale's own designed answer for devices that cannot run the
+client, so a machine already on the tailnet advertises the route covering the bench LAN and every
+tailnet device reaches radon and xenon. cordoba is the right one to do it, because patagonia sleeps
+and a subnet router that is asleep is a subnet that is gone. A native client is the wrong target and
+their documentation says why: `tailscaled` is Go, it wants `/dev/net/tun`, and the mode for machines
+without one degrades to a SOCKS5 proxy, which is "nife processes can egress" rather than "nife hosts
+are on the tailnet"; the coordination protocol is also not a stable public API. The interesting
+middle is WireGuard, which is Tailscale's data plane and is bounded and well specified where the
+control plane is neither. This block also carries the hazard joining a tailnet already caused: a
+default route through the tailnet makes "what is my own address" answer with a CGNAT address nothing
+on the bench LAN can reach, which cost milestone 257 a correct server discovery. And it carries the
+third instance of one pattern in a single evening, beside milestones 384 and 387: joining a tailnet
+puts every process on the box on the whole network, where a peer grant would put that boundary
+inside the machine. It is a lab convenience with real value and no workload behind it, and it does
+not fill the ranking function's vacancy.

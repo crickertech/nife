@@ -1,6 +1,14 @@
-# The kernel's own spawn cannot put a capability at the slot a manifest names
+# 390. The kernel's own spawn cannot put a capability at the slot a manifest names
 
-**Status: PROPOSED 2026-09-05.** Written by milestone 111's lane, which hit it and worked around it.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 111's lane, which
+hit this and worked around it; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
+**Premise re-read against the tree on 2026-09-19 and still true, to the digit**: `kernel::user::Spawn`
+in `kernel/src/user.rs` still carries `arg0`, `arg1`, `arg2`, `grants` and `maps` and no `placed`,
+its `grants` field still documents "granted into slots 0, 1, 2, ... in order", and there are still
+exactly 91 `Spawn { .. }` literals in `kernel/`. The three named slots are still
+`grant_plan::DOMAIN_SLOT` at 7, `DIAGNOSTICS_SLOT` at 8 and `ENTROPY_SLOT` at 9, and the userspace
+builder this would mirror is still `supervision_protocol`'s `placed: &'a [(u64, u64, u64)]` loop.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** The mechanism already exists one layer up
 (`supervision_protocol::ChildEndowment::placed`) and the kernel side is a field and a loop. What needs
@@ -70,3 +78,22 @@ field and update 91 sites once. The first is better and is why this is a lane ra
 It does not make `Spawn` a second implementation of the loader. Init stays the ELF loader the shell
 directs (milestone 19d), and this changes only what the kernel's own test-support spawn can express
 about a table it is already filling.
+
+## Index row
+
+`kernel::user::Spawn` grants capabilities into a child's table at slots 0, 1, 2 and so on in order,
+and offers no way to place one at a slot the caller names, so no test under `script/test` can spawn a
+program holding any of the three named slots (`grant_plan::DOMAIN_SLOT` at 7, `DIAGNOSTICS_SLOT` at
+8, `ENTROPY_SLOT` at 9). The only builder that can place at a named slot runs in userspace inside
+`crates/system_initializer`, which means every claim about a named slot's *endowed* direction is
+proven by `script/shell-check` alone: one gate rather than the suite, on two architectures rather
+than three. That makes it a total parity gap rather than a per-ISA one, which is the case DECISIONS
+§19 is about, and shell-check is a boot rather than a unit, so it can say the row printed and cannot
+say the capability carried exactly `WRITE` and not `READ`. Milestone 126 found a real
+`READ`-instead-of-`ENUMERATE` over-grant on a named slot by reading code, and nothing in the suite
+would have caught it. It already costs the tree twice, in `date`'s declared second stream and in
+milestone 111's entropy endowment, and a fourth named slot inherits the gap for free. The shape is a
+`placed` field beside `grants` and a loop that reads the same as
+`supervision_protocol::build_child`'s, since it is the same operation on the same table; the only
+real work is giving `Spawn` a `new()` so the 91 existing literals can end in `..Spawn::new()` and
+the next field after this one is free.
