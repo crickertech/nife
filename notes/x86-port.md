@@ -1218,6 +1218,16 @@ register dump showing a perfectly correct GDT, TSS and IDT. Nothing about the sy
 cause. The fix saves and restores the base around the reload, inside `segments::init`, so the
 ordering constraint stops existing rather than being documented for callers to remember.
 
+## The direct map in blocks (2026-09-19)
+
+`crates/paging` maps 2 MiB and 1 GiB leaves now (`PageSize`, `Mapper::map_span`, `map_block`), and
+the direct map's RAM uses them: **560 KiB of page tables on QEMU's 256 MiB became 60 KiB**, and at
+4 GiB, 8,252 KiB became 64 KiB. 1 GiB leaves are used only where `CPUID` leaf 0x80000001 reports
+`Page1GB` (`mmu::largest_leaf`); `-cpu qemu64` does not, and boots in 2 MiB blocks. Device windows
+and firmware reservations stay in 4 KiB pages, because this kernel does not read the MTRRs and a
+large page spanning two memory types is undefined (`mmu.rs`'s BUGS). aarch64 and riscv64 adopted the
+same rule for their direct maps in the same change, so this is not an x86 difference.
+
 ## What the gates cover, and what they do not
 
 `script/lint` runs clippy over the x86_64 kernel binary at `-D warnings`, which covers every line of

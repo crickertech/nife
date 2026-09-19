@@ -47,11 +47,16 @@
 //!
 //! # BUGS
 //!
-//! - **The direct map is built out of 4 KiB leaves**, because the shared `Mapper` maps 4 KiB pages
-//!   and nothing else. That is 8 bytes of page table per 4 KiB of physical memory, or 0.2% of RAM:
-//!   512 KiB of tables for QEMU's 256 MiB, and ~64 MiB on a 32 GiB machine. Linux uses 2 MiB and
-//!   1 GiB leaves for exactly this map. Fixing it is a change to `crates/paging` (a leaf size in
-//!   the format trait) that all three architectures would want, not an x86 patch.
+//! - **The direct map's RAM is built out of blocks, but its memory type is not checked against the
+//!   MTRRs.** Each RAM claim is mapped with the largest leaf that fits ([`largest_leaf`]: 1 GiB
+//!   where `CPUID` offers `Page1GB`, else 2 MiB), which took QEMU's 256 MiB from 560 KiB of page
+//!   tables to 60 KiB (milestone 161; 4 KiB leaves cost 0.2% of RAM, ~64 MiB on a 32 GiB
+//!   machine). The SDM leaves the memory type undefined when one large page spans two MTRR ranges
+//!   of different types, and this kernel never reads the MTRRs, so it relies on firmware keeping
+//!   every range it calls usable RAM write-back throughout, which is what firmware does and what
+//!   Linux checks rather than assumes (`mtrr_type_lookup`'s "uniform" answer). Device windows and
+//!   firmware reservations stay in 4 KiB leaves for the same reason: they are where mixed types
+//!   live, and they are a few hundred pages.
 //!
 //! - **`mmu::init` must allocate its page tables from the low 4 GiB**, because that is all the boot
 //!   tables' direct map reaches and the mapper writes every table through it. The frame allocator
@@ -97,7 +102,7 @@
 use core::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
 use paging::x86_64::{Ia32e, Vtd};
-use paging::{Flags, Half, MapError, Mapper, PAGE_SIZE, PageTable};
+use paging::{Flags, Half, MapError, Mapper, PAGE_SIZE, PageSize, PageTable};
 
 use crate::memory;
 
@@ -290,12 +295,17 @@ pub fn print_summary() {
             KERNEL_VA_BASE,
             DIRECT_MAP_BASE,
         );
-        // The cost, measured rather than asserted, because this map is built out of 4 KiB leaves
-        // and the module's BUGS section says what that is worth on a bigger machine. On QEMU's
-        // 256 MiB it is the number to watch if the direct map ever grows a second consumer.
+        // The cost, measured rather than asserted, and the leaf size that set it: RAM goes in the
+        // largest block the machine offers and everything else in 4 KiB pages (this module's
+        // BUGS). On QEMU's 256 MiB it was 560 KiB in pages alone.
         crate::println!(
-            "                  : {} KiB of page tables, no identity map, guard pages are holes",
+            "                  : {} KiB of page tables (ram in {} blocks), no identity map, guard pages are holes",
             TABLE_FRAMES.load(Ordering::Relaxed) * PAGE_SIZE / 1024,
+            match largest_leaf() {
+                PageSize::Size1GiB => "1 GiB",
+                PageSize::Size2MiB => "2 MiB",
+                PageSize::Size4KiB => "4 KiB",
+            },
         );
     }
 }
@@ -311,8 +321,25 @@ pub fn print_summary() {
 static KERNEL_ROOT: AtomicU64 = AtomicU64::new(0);
 
 /// How many frames the fine map cost, root and intermediate tables together. Reported on every
-/// boot rather than left to be estimated: see this module's BUGS on 4 KiB leaves.
+/// boot rather than left to be estimated: it is the number blocks exist to shrink.
 static TABLE_FRAMES: AtomicU64 = AtomicU64::new(0);
+
+/// **The largest leaf this machine's direct map may use**: 1 GiB where `CPUID` leaf 0x80000001
+/// reports `Page1GB` (EDX bit 26), 2 MiB everywhere else, since every long-mode CPU has 2 MiB
+/// pages. Asked of the hardware rather than assumed, because a `PS` bit in a PDPT entry on a CPU
+/// without `Page1GB` is a reserved bit, and the fault it raises is taken through tables that
+/// cannot describe the fault handler. The extended range's own maximum (leaf 0x80000000) is
+/// checked first, because a leaf past it returns another leaf's answer rather than zeros.
+fn largest_leaf() -> PageSize {
+    const PAGE_1GB: u32 = 1 << 26;
+    if super::isa::cpuid(0x8000_0000).eax >= 0x8000_0001
+        && super::isa::cpuid(0x8000_0001).edx & PAGE_1GB != 0
+    {
+        PageSize::Size1GiB
+    } else {
+        PageSize::Size2MiB
+    }
+}
 
 /// Serializes edits to the kernel's live tables: two CPUs must not mutate them at once. Same role
 /// and lock rank as the other two architectures' `KERNEL_MMU`.
@@ -1221,10 +1248,13 @@ where
         if failed.is_some() {
             return;
         }
+        // Blocks for memory, pages for devices: see this module's BUGS on the MTRRs.
         let result = if c.guarded {
             guarded_direct_map(m, c.lo, c.hi, c.flags)
+        } else if c.flags.is_device() {
+            direct_map(m, c.lo, c.hi, c.flags, PageSize::Size4KiB)
         } else {
-            direct_map(m, c.lo, c.hi, c.flags)
+            direct_map(m, c.lo, c.hi, c.flags, largest_leaf())
         };
         if let Err(err) = result {
             failed = Some(MapFailure {
@@ -1327,12 +1357,15 @@ where
     m.map_range(va_start, virt_to_phys(va_start), pages, flags)
 }
 
-/// Map a range of *physical* addresses into the direct map at [`phys_to_virt`].
+/// Map a range of *physical* addresses into the direct map at [`phys_to_virt`], in leaves no
+/// larger than `largest`. `paging::Mapper::map_span` puts a block only where it lies wholly inside
+/// the range, so this maps exactly the pages it always did, in fewer entries.
 fn direct_map<A, P>(
     m: &mut Mapper<A, P, Ia32e>,
     pa_start: u64,
     pa_end: u64,
     flags: Flags,
+    largest: PageSize,
 ) -> Result<(), MapError>
 where
     A: FnMut() -> Option<u64>,
@@ -1341,8 +1374,8 @@ where
     if pa_end <= pa_start {
         return Ok(());
     }
-    let pages = (pa_end - pa_start).div_ceil(PAGE_SIZE);
-    m.map_range(phys_to_virt(pa_start), pa_start, pages, flags)
+    let len = (pa_end - pa_start).next_multiple_of(PAGE_SIZE);
+    m.map_span(phys_to_virt(pa_start), pa_start, len, flags, largest)
 }
 
 /// Walk the tables in software and check the things that would kill us, **before** the hardware bets
