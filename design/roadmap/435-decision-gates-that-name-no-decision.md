@@ -1,12 +1,18 @@
 # 435. Forty-five milestones are gated on a decision nobody wrote down
 
-**Status: IN-PROGRESS** on `maintainer/drain-the-proposal-pile`, with per-slice lanes branching from
-it. Minted 2026-09-19 by calef, from a question he asked about one block that turned out to be true
-of forty-five. *(Number provisional until the merge queue lands it.)*
+**Status: BUILT** 2026-09-19, in one evening by three lanes. All forty-five blocks were read, and
+every one of them resolved to one of the three outcomes: 33 decisions written up as
+[§157](../decisions/157-what-a-subshell-copies.md) to
+[§189](../decisions/189-a-checked-direct-map-reader-for-the-acpi-walk.md), 6 blocks that already had a decision and
+gained a citation, and 6 gate tokens that were simply wrong. Minted the same day by calef, from a
+question he asked about one block that turned out to be true of forty-five.
+*(Number provisional until the merge queue lands it.)*
 
-**Gate: NONE.** Reading a block and deciding whether its token is wrong or its decision is owed needs
-nobody's permission. Writing a decision up is not the same as answering it, and this milestone does
-not answer any of them.
+**It carried `Gate: NONE` while it was open**, on the argument that reading a block and deciding
+whether its token is wrong or its decision is owed needs nobody's permission, and that writing a
+fork up is not the same as answering it. The line is gone because a finished block's gate can only
+be stale. What the work produced is a queue for calef, not an answer: all 33 sections are
+`PROPOSED`.
 
 ## Where it came from, which is one question about one block
 
@@ -161,7 +167,8 @@ every other global name.
 makes this slice the cleanest available measurement of whether that drain carried bad tokens across.
 
 **It did not.** Fourteen of the fifteen owed a decision that nobody had written down, and became
-§§176-210 (`PROPOSED`, numbers provisional). **Zero tokens were wrong.** One, milestone 391, was the
+§§176-189 (`PROPOSED`; the lane reserved a range of twenty and the integrator compacted it at
+merge, which is the renumber slice B's last paragraph predicted). **Zero tokens were wrong.** One, milestone 391, was the
 third outcome: a decision already existed and the gate did not cite it, and the decision is §149,
 which refused this exact question on the ground that the general case must not be settled on the
 narrow one's momentum and said to answer it when milestone 269 gives it a consumer. So 391 gets a
@@ -213,7 +220,34 @@ the promoted quarter rather than as a prediction for the other 21.
   rate. What this milestone buys is one sweep and a convention stated where the gate vocabulary
   lives; keeping it true is a habit.
 
+## Follow-on
+
+- **Done.** *Milestone 75 carried the same defect and the filter could not see it.* Its gate defers
+  to a question [§139](../decisions/139-cycle-counter-authority.md) answered on 2026-09-02, under a
+  title identical to the block's own, and the block still read `NOT-STARTED` with `Gate: DECISION`.
+  It was outside the forty-five because its gate paragraph happens to cite §10 and so counted as
+  citing a decision. Corrected in this milestone's own commit: the gate is `NONE` and the block
+  cites §139.
+- **Done.** *Thirty-three forks that lived as paragraphs addressed to one person now live as files.*
+  That is the whole of this milestone's output and its home is `design/decisions/`, one `PROPOSED`
+  section each, listed by `script/decisions --unanswered`. Answering them is calef's and is not this
+  block's to hold open; the `BUGS` section above is honest that writing them up makes his queue
+  longer to read before it makes it shorter.
+- **Recorded.** *Milestone 406's title is false by its own first sentence*, found by slice c's lane,
+  which judged the gate and correctly left the retitling alone. A title is a name, so it is calef's
+  and it does not become a decision file. Recorded in 406's own status line, where a reader meets
+  the claim before they meet anything else in the block.
+- **Recorded.** *Nothing stops the next block gating on an unwritten decision.* A gate that tried
+  would have to read prose for intent, which is priced in this block's `BUGS` and in the roadmap
+  README's gate vocabulary, where the convention now lives beside the tokens it constrains.
+- **Recorded.** *A slice minting into a reserved range is red on its own branch by construction*,
+  because `script/decisions --check` fails on a hole and a lane must not renumber into another
+  lane's range to go green. Recorded in slice B's paragraph above; it resolves at merge and only at
+  merge, and it did.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 Fifty-eight milestones carry a `DECISION` gate and forty-five of them name no decision anywhere a
 reader can open, so the ask exists only as a paragraph inside the block, addressed to one person.
