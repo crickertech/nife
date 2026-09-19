@@ -7,8 +7,9 @@ integrator to mint.
 **Gate: DECISION.** How installation reaches a running system is the contract every package, every
 program author and every future installer is written against, so it is irreversible in AGENTS.md's
 sense. **Options, no winner.** Blocked until answered: installing anything onto a running system.
-Not blocked: whole-image composition on the host (`what-trivial-install-means.md`), which activates
-nothing at runtime.
+**On the install path since 2026-09-19**: DECISIONS §157 defines a trivial install as growing by
+installing packages over the internet, which is installing onto a running system. (This line said
+whole-image composition was not blocked, which is still true of composition alone.)
 
 ## What is being decided
 
