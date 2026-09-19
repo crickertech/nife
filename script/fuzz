@@ -8,19 +8,19 @@
 # own job rather than a slot in a gate somebody waits on, and a longer run is a flag rather than a
 # different tool.
 #
-#   script/fuzz                     every target, 60 seconds each
-#   script/fuzz --time 900          every target, 15 minutes each
-#   script/fuzz dtb_walk            one target, 60 seconds
-#   script/fuzz --time 0 dtb_walk   one target, until it finds something or you stop it
-#   script/fuzz --list              the targets and what each one is for
+#   script/fuzz                                  every target, 60 seconds each
+#   script/fuzz --time 900                       every target, 15 minutes each
+#   script/fuzz device_tree_blob_walk            one target, 60 seconds
+#   script/fuzz --time 0 device_tree_blob_walk   one target, until it finds something or you stop it
+#   script/fuzz --list                           the targets and what each one is for
 #
-# **Seeds are passed as read-only corpus directories, never copied.** `crates/dtb/tests/fixtures`
-# holds three real device trees dumped from the boards we boot, and
-# `crates/globally_unique_identifier_partition_table/tests/fixtures` holds two real disks formatted
-# by `sgdisk` and by Apple's Disk Utility. Those are already in the tree with their own reason to
-# exist, and duplicating their bytes under `fuzz/seeds/` would create a second copy that can drift
-# from the first. libFuzzer writes only to the FIRST corpus directory it is given, so the fixtures
-# stay untouched.
+# **Seeds are passed as read-only corpus directories, never copied.**
+# `crates/device_tree_blob/tests/fixtures` holds three real device trees dumped from the boards we
+# boot, and `crates/globally_unique_identifier_partition_table/tests/fixtures` holds two real disks
+# formatted by `sgdisk` and by Apple's Disk Utility. Those are already in the tree with their own
+# reason to exist, and duplicating their bytes under `fuzz/seeds/` would create a second copy that
+# can drift from the first. libFuzzer writes only to the FIRST corpus directory it is given, so the
+# fixtures stay untouched.
 #
 # Not part of script/lint or script/test, on purpose. Both are gates a developer waits on, and a
 # minute per target is not a wait either of them should grow.
@@ -34,7 +34,7 @@ cd "$(dirname "$0")/.."
 
 # Every target, in the order they cost us the most if they are wrong: the device tree is parsed before
 # anything else exists, and the ELF loader maps what it parses.
-targets="dtb_walk elf_parse globally_unique_identifier_partition_table nifefs_roundtrip"
+targets="device_tree_blob_walk elf_parse globally_unique_identifier_partition_table nifefs_roundtrip"
 
 usage() {
     cat <<'EOF'
@@ -52,7 +52,7 @@ while [ $# -gt 0 ]; do
         --time) seconds="$2"; shift 2 ;;
         --time=*) seconds="${1#--time=}"; shift ;;
         --list)
-            echo "dtb_walk             device tree, parsed at boot from firmware bytes"
+            echo "device_tree_blob_walk  device tree, parsed at boot from firmware bytes"
             echo "elf_parse            ELF64 headers, and the loader maps what it parses"
             echo "globally_unique_identifier_partition_table  GUID partition table, off a disk somebody else formatted"
             echo "nifefs_roundtrip  the archive writer and reader agree (a property, not a panic)"
@@ -98,7 +98,7 @@ for target in $targets; do
         set -- "$@" "fuzz/seeds/$target"
     fi
     case "$target" in
-        dtb_walk) set -- "$@" crates/dtb/tests/fixtures ;;
+        device_tree_blob_walk) set -- "$@" crates/device_tree_blob/tests/fixtures ;;
         globally_unique_identifier_partition_table)
             set -- "$@" crates/globally_unique_identifier_partition_table/tests/fixtures ;;
     esac

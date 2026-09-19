@@ -670,11 +670,11 @@ mod tests {
 
 /// Machine-checked proofs (`script/verify`; notes/verification.md).
 ///
-/// The initrd is parsed by the KERNEL (kernel/src/user.rs `program`), which puts this parser
-/// inside the TCB on externally-supplied bytes, the same position the dtb parser is in. And the
-/// same wall: the first attempt proved the WHOLE parse over a symbolic image, on the theory
-/// that a 15-entry bounded loop is tractable; CBMC disagreed (20+ CPU-minutes and climbing), so
-/// as in dtb the proof is decomposed to what converges and carries the weight:
+/// The initrd is parsed by the KERNEL (kernel/src/user.rs `program`), which puts this parser inside
+/// the TCB on externally-supplied bytes, the same position the `device_tree_blob` parser is in. And
+/// the same wall: the first attempt proved the WHOLE parse over a symbolic image, on the theory
+/// that a 15-entry bounded loop is tractable; CBMC disagreed (20+ CPU-minutes and climbing), so as
+/// in `device_tree_blob` the proof is decomposed to what converges and carries the weight:
 ///
 /// - the **validation-implies-safe-read** arithmetic, for every entry value and image length
 ///   (no symbolic arrays; this is the kernel-facing guarantee), and

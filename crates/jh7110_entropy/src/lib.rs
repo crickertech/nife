@@ -483,17 +483,19 @@ pub struct Discovered {
 /// **`Ok(None)` is not a parse failure, it is the honest answer on every machine this repository
 /// currently boots under CI**: QEMU's riscv64 `virt` board has no TRNG node under either spelling,
 /// so this function must return `None` against it, and the fixture test below pins exactly that
-/// against the same `.dtb` `crates/dtb`'s own tests already boot-verify against. Discovery is the
-/// one piece of "does this device exist at all" this crate can prove without silicon: it is a pure
-/// query over bytes, and a device tree dumped from the real board (once someone captures one) is a
-/// drop-in fixture for the same test, not a new code path.
+/// against the same `.dtb` `crates/device_tree_blob`'s own tests already boot-verify against.
+/// Discovery is the one piece of "does this device exist at all" this crate can prove without
+/// silicon: it is a pure query over bytes, and a device tree dumped from the real board (once
+/// someone captures one) is a drop-in fixture for the same test, not a new code path.
 ///
 /// **Two spellings are tried, mainline's first** ([`COMPATIBLE`], then [`COMPATIBLE_VENDOR`]), and
 /// the order is the whole of the policy: a tree that carries both is describing itself in the
 /// language the binding standardised, and that is the one to believe. Trying the vendor string at
 /// all is milestone 239's finding; [`COMPATIBLE_VENDOR`] carries the evidence that it names the
 /// same register block.
-pub fn discover(tree: &dtb::Dtb<'_>) -> Result<Option<Discovered>, dtb::Error> {
+pub fn discover(
+    tree: &device_tree_blob::DeviceTreeBlob<'_>,
+) -> Result<Option<Discovered>, device_tree_blob::Error> {
     for compatible in [COMPATIBLE, COMPATIBLE_VENDOR] {
         if let Some(found) = discover_as(tree, compatible)? {
             return Ok(Some(found));
@@ -507,10 +509,10 @@ pub fn discover(tree: &dtb::Dtb<'_>) -> Result<Option<Discovered>, dtb::Error> {
 /// unrelated node under the other spelling can never contribute a `reg` or an `interrupts` to this
 /// answer.
 fn discover_as(
-    tree: &dtb::Dtb<'_>,
+    tree: &device_tree_blob::DeviceTreeBlob<'_>,
     compatible: &'static [u8],
-) -> Result<Option<Discovered>, dtb::Error> {
-    let mut regions = [dtb::Region { start: 0, size: 0 }; 1];
+) -> Result<Option<Discovered>, device_tree_blob::Error> {
+    let mut regions = [device_tree_blob::Region { start: 0, size: 0 }; 1];
     let n = tree.node_reg_compatible(compatible, &mut regions)?;
     if n == 0 {
         return Ok(None);
@@ -832,11 +834,12 @@ mod tests {
 
     const JH7110_TRNG_PRESENT: &[u8] = include_bytes!("../tests/fixtures/jh7110-trng-present.dtb");
     const QEMU_RISCV64_VIRT: &[u8] =
-        include_bytes!("../../dtb/tests/fixtures/qemu-riscv64-virt.dtb");
+        include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 
     #[test]
     fn discover_finds_the_device_on_a_tree_shaped_like_the_real_board() {
-        let tree = dtb::Dtb::from_bytes(JH7110_TRNG_PRESENT).expect("fixture parses");
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(JH7110_TRNG_PRESENT)
+            .expect("fixture parses");
         let found = discover(&tree)
             .expect("no parse error")
             .expect("the node is there");
@@ -866,7 +869,8 @@ mod tests {
     /// commands that settle it.
     #[test]
     fn discover_finds_the_device_under_the_vendor_uboots_own_spelling() {
-        let tree = dtb::Dtb::from_bytes(JH7110_TRNG_VENDOR_UBOOT).expect("fixture parses");
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(JH7110_TRNG_VENDOR_UBOOT)
+            .expect("fixture parses");
         let found = discover(&tree)
             .expect("no parse error")
             .expect("the vendor tree describes the device under its own compatible");
@@ -894,10 +898,11 @@ mod tests {
     /// **The negative case this milestone can actually prove without hardware.** QEMU's riscv64
     /// `virt` machine (the board every kernel test in this repository boots against) has no
     /// `starfive,jh7110-trng` node, so `discover` must say so rather than finding a false match at
-    /// some unrelated node's `reg`. This is `crates/dtb/tests/fixtures/qemu-riscv64-virt.dtb`
-    /// itself, the same bytes `crates/dtb/tests/qemu_riscv64_virt.rs` already boot-verifies, so a
-    /// green result here is a claim about the tree this project actually runs, not a claim about a
-    /// tree nobody has looked at.
+    /// some unrelated node's `reg`. This is
+    /// `crates/device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb` itself, the same bytes
+    /// `crates/device_tree_blob/tests/qemu_riscv64_virt.rs` already boot-verifies, so a green
+    /// result here is a claim about the tree this project actually runs, not a claim about a tree
+    /// nobody has looked at.
     /// **No byte is ever served twice**, across as many refills as it takes to drain several
     /// generations. The generator hands out a distinct byte per call, so a cursor that wrapped
     /// instead of refilling, or a refill that did not reset the cursor, shows up as a repeat here
@@ -992,7 +997,8 @@ mod tests {
 
     #[test]
     fn discover_finds_nothing_on_qemus_virt_board() {
-        let tree = dtb::Dtb::from_bytes(QEMU_RISCV64_VIRT).expect("fixture parses");
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(QEMU_RISCV64_VIRT)
+            .expect("fixture parses");
         assert_eq!(discover(&tree).expect("no parse error"), None);
     }
 }

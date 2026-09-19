@@ -37,7 +37,7 @@
 //! Name: provisional (`interrupt_id` for the module, following `cpu_list`'s pattern of a shared
 //! question beside the two arch records; the GIC spelling "INTID" is where the noun comes from).
 
-use dtb::{Dtb, Error};
+use device_tree_blob::{DeviceTreeBlob, Error};
 
 /// The GIC's SPI bank base: `interrupts = <0 n ...>` means INTID `32 + n`.
 const GIC_SPI_BASE: u32 = 32;
@@ -50,7 +50,7 @@ const GIC_PPI_BASE: u32 = 16;
 /// understand (see the module's BUGS). The caller owns the fallback, and should say which source
 /// won: a transcript that names the number's origin is diagnosable at a bench, one that does not
 /// already cost a boot (notes/visionfive2.md).
-pub fn of_node(dt: &Dtb<'_>, node: &[u8]) -> Result<Option<u32>, Error> {
+pub fn of_node(dt: &DeviceTreeBlob<'_>, node: &[u8]) -> Result<Option<u32>, Error> {
     let Some(interrupts) = dt.node_prop(node, b"interrupts")? else {
         return Ok(None);
     };

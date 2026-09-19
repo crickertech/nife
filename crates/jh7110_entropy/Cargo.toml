@@ -16,7 +16,7 @@ license.workspace = true
 # address and knows nothing else).
 
 [dependencies]
-dtb = { version = "0.1.0", path = "../dtb" }
+device_tree_blob = { version = "0.1.0", path = "../device_tree_blob" }
 
 [lints]
 workspace = true

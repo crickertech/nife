@@ -3,10 +3,11 @@
 //! **`initrd` is *initial ramdisk*: a filesystem image the bootloader leaves in RAM before the
 //! kernel starts, readable before any storage driver exists.** It is written out here because the
 //! abbreviation appears about 1,300 times in this tree and, until 2026-09-13, was expanded exactly
-//! once, in `crates/dtb`, which is a crate about device trees rather than the one named for the
-//! thing. The bootstrap problem it solves is circular: starting the first userspace program means
-//! reading a file, which needs a filesystem, which needs a block driver, which in this system is
-//! itself a userspace program. The bootloader breaking that circle is the whole mechanism.
+//! once, in `crates/device_tree_blob`, which is a crate about device trees rather than the one
+//! named for the thing. The bootstrap problem it solves is circular: starting the first userspace
+//! program means reading a file, which needs a filesystem, which needs a block driver, which in
+//! this system is itself a userspace program. The bootloader breaking that circle is the whole
+//! mechanism.
 //!
 //! **The name is not ours to change**, and `design/naming.md` records the refusal: the kernel finds
 //! this region by reading `linux,initrd-start` out of a device tree QEMU generates, and every run

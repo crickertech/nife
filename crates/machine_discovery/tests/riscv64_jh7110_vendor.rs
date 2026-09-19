@@ -18,8 +18,8 @@ use machine_discovery::riscv64::*;
 
 const VENDOR: &[u8] = include_bytes!("fixtures/jh7110-vendor.dtb");
 
-fn tree(bytes: &[u8]) -> dtb::Dtb<'_> {
-    dtb::Dtb::from_bytes(bytes).expect("fixture is a valid device tree")
+fn tree(bytes: &[u8]) -> device_tree_blob::DeviceTreeBlob<'_> {
+    device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture is a valid device tree")
 }
 
 /// **The S7's lies do not narrow the machine.** Same shape as the mainline fixture's test, reached

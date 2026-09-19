@@ -44,9 +44,9 @@ being the whole story:
    slice offsets, is past what the solver can do. What is proved is `check_segment_bounds`, the leaf
    arithmetic, factored out so bounded model checking can reach it. The proved leaf and the unproved
    shell are exactly the split a fuzzer covers from the other side.
-2. **`crates/dtb`.** Four harnesses, all on `be32`/`be64`, the leaf readers. The seven *walkers*
-   above them are unbounded loops over a symbolic blob carrying a depth counter and two 16-entry
-   per-depth arrays. Both of the bugs found on 2026-08-02 were in that unproved region, and one of
+2. **`crates/device_tree_blob`.** Four harnesses, all on `be32`/`be64`, the leaf readers. The seven
+   *walkers* above them are unbounded loops over a symbolic blob carrying a depth counter and two
+   16-entry per-depth arrays. Both of the bugs found on 2026-08-02 were in that unproved region, and one of
    them was an out-of-bounds index into one of those arrays.
 3. **`crates/nifefs`.** `Fs::parse` is proved total, with no bound on the image size at all
    (`the_validation_implies_reads_slice_is_in_bounds`). Fuzzing it for panics would be burning CI
@@ -69,7 +69,7 @@ coverage the project does not have.
 
 | Target | Input comes from | Why it earns a target |
 |---|---|---|
-| `dtb_walk` | firmware (QEMU, OpenSBI, a board's ROM) | parsed **before anything else exists**, on both ISAs, from a pointer in a register; a panic here is a kernel that cannot boot and cannot say why. Kani reaches the leaf readers and not the walkers. |
+| `device_tree_blob_walk` | firmware (QEMU, OpenSBI, a board's ROM) | parsed **before anything else exists**, on both ISAs, from a pointer in a register; a panic here is a kernel that cannot boot and cannot say why. Kani reaches the leaf readers and not the walkers. |
 | `elf_parse` | any binary a user asks to run | the only parser that **loads what it parses**: its output becomes page-table entries. The whole-parse totality proof is recorded as intractable. |
 | `globally_unique_identifier_partition_table` | a disk somebody else formatted | decides which LBA range is a filesystem. Heavily checked already, which is the point: the gap is *combinations* of hostile fields, which neither the proofs nor the single-byte mutation tests can build. |
 | `nifefs_roundtrip` | (structured) the writer's own output | not a panic hunt. Asserts that **what goes in comes out**, which is the property `write_image`'s truncation bug violated until 2026-08-01 and its NUL bug until 2026-08-02. |
@@ -118,6 +118,10 @@ OSI approved and FSF free and reads as BSD-3-Clause and MIT stapled together, an
 links it.
 
 ## The three bugs
+
+The first two were found in the crate when it was named `dtb` and its type `Dtb`, and the headings
+keep those names as the account of where each bug was. Both are `device_tree_blob` and
+`DeviceTreeBlob` since 2026-09-18.
 
 ### 1. `dtb::Dtb::node_reg` indexed past its cell stack (out-of-bounds panic)
 
@@ -188,15 +192,16 @@ already has `cpu-matrix` as precedent for "its own runner, not a slower gate".
 | `nifefs_roundtrip` | 21,469,277 | 35,722 |
 | **total** | **317,296,022** | |
 
-The target was named `gpt_table` when this table was measured; it has been
-`globally_unique_identifier_partition_table` since calef's 2026-09-19 ruling that a fuzz target
-follows the crate it fuzzes. The row keeps the name the run printed.
+The targets were named `gpt_table` and `dtb_walk` when this table was measured; they have been
+`globally_unique_identifier_partition_table` and `device_tree_blob_walk` since calef's 2026-09-19
+ruling that a fuzz target follows the crate it fuzzes. The rows keep the names the run printed.
 
 The spread is the shape of each parser rather than noise: `elf_parse` rejects most inputs in its first
-fifteen lines and returns, while `dtb_walk` runs seven full walks over a blob for every input it
-accepts. **The slowest target is the floor, so a minute buys at least a million inputs on every
-target**, and four to six million per CI run, from a corpus already past every magic-number check.
-CI's runner is a different machine; the order of magnitude is what the budget is chosen against.
+fifteen lines and returns, while `device_tree_blob_walk` runs seven full walks over a blob for every
+input it accepts. **The slowest target is the floor, so a minute buys at least a million inputs on
+every target**, and four to six million per CI run, from a corpus already past every magic-number
+check. CI's runner is a different machine; the order of magnitude is what the budget is chosen
+against.
 
 None of the four crashed in those forty minutes, which is the "not yet" this note's BUGS section
 insists on rather than a result.
@@ -213,8 +218,8 @@ nifefs_roundtrip    1,763,965 execs    28,917/s
 ==> fuzz: no crashes in 4 targets at 60s each
 ```
 
-That transcript is the run's own output, so it keeps `gpt_table`, the target's name at the time
-(now `globally_unique_identifier_partition_table`).
+That transcript is the run's own output, so it keeps `dtb_walk` and `gpt_table`, the targets' names
+at the time (now `device_tree_blob_walk` and `globally_unique_identifier_partition_table`).
 
 56 million inputs in four minutes of runner time.
 
@@ -226,10 +231,10 @@ way with a fifteen-minute budget, it found the panic after **13,124,546 executio
 minutes**, which is the same order as the original discovery.
 
 So the sixty-second job is a sweep, not a guarantee, and a bug of this depth is outside it. **What
-actually keeps these two bugs from coming back is `crates/dtb/tests/hostile.rs`**, which runs in
-milliseconds on every `script/test` on both ISAs. That is the division of labour: the fuzzer finds
-things once, and a host test holds them forever. A CI fuzz job that had to catch every regression it
-ever found would need a budget nobody would pay.
+actually keeps these two bugs from coming back is `crates/device_tree_blob/tests/hostile.rs`**,
+which runs in milliseconds on every `script/test` on both ISAs. That is the division of labour: the
+fuzzer finds things once, and a host test holds them forever. A CI fuzz job that had to catch every
+regression it ever found would need a budget nobody would pay.
 
 **What the job is for, so it is not mistaken for something else: it is a shallow sweep, not a search
 and not a guarantee.** A minute per target from the committed seeds re-covers the ground those seeds
@@ -246,14 +251,15 @@ Every run starts from exactly the committed seeds, which is the same starting po
 
 Three kinds of input, and they are kept apart because they have different reasons to exist.
 
-**Seeds are committed, and they are read-only.** A fuzzer starting from `[]` spends its first minutes
-rediscovering that a device tree begins `d0 0d fe ed`. With a sixty-second budget it would never get
-past the magic check. But `fuzz/seeds/` holds one small ELF per machine and nothing else, because
-the seeds this project needs
-**already exist in the tree**: `crates/dtb/tests/fixtures/` holds three real device trees dumped from
-the boards we boot, and `crates/globally_unique_identifier_partition_table/tests/fixtures/` holds two real disks formatted by `sgdisk` and
-by Apple's Disk Utility. `script/fuzz` passes those directories to libFuzzer as extra corpus
-arguments. Copying them under `fuzz/` would create a second copy that can drift from the first.
+**Seeds are committed, and they are read-only.** A fuzzer starting from `[]` spends its first
+minutes rediscovering that a device tree begins `d0 0d fe ed`. With a sixty-second budget it would
+never get past the magic check. But `fuzz/seeds/` holds one small ELF per machine and nothing else,
+because the seeds this project needs **already exist in the tree**:
+`crates/device_tree_blob/tests/fixtures/` holds three real device trees dumped from the boards we
+boot, and `crates/globally_unique_identifier_partition_table/tests/fixtures/` holds two real disks
+formatted by `sgdisk` and by Apple's Disk Utility. `script/fuzz` passes those directories to
+libFuzzer as extra corpus arguments. Copying them under `fuzz/` would create a second copy that can
+drift from the first.
 
 The exception is `fuzz/seeds/elf_parse/minimal_rx_<machine>.elf`, 120 bytes each, because nothing else
 in the tree is a small ELF (our real binaries are over a megabyte). They are hand-assembled, and
@@ -291,9 +297,9 @@ It is machine-generated, machine-specific, and unbounded.
 **Crash artifacts are not committed either**, and that is the discipline rather than an omission.
 When a target finds a crash, **the input becomes a host test in the crate that owns the bug**, where
 it runs in milliseconds on every `script/test` forever and where a reader meets it next to the code.
-`crates/dtb/tests/hostile.rs` and `nifefs`'s `a_name_with_a_nul_in_it_is_refused` are the two
-written this way. A hand-built 200-byte blob with a docstring explaining what it attacks is worth
-more than a 7,642-byte artifact named after its SHA-1.
+`crates/device_tree_blob/tests/hostile.rs` and `nifefs`'s `a_name_with_a_nul_in_it_is_refused` are
+the two written this way. A hand-built 200-byte blob with a docstring explaining what it attacks is
+worth more than a 7,642-byte artifact named after its SHA-1.
 
 ## EXAMPLES
 
@@ -312,15 +318,15 @@ script/fuzz --list
 **Hunt properly, on a machine you are not using:**
 
 ```sh
-script/fuzz --time 3600 dtb_walk        # one hour on one target
-script/fuzz --time 0 elf_parse          # until it finds something, or you press ^C
+script/fuzz --time 3600 device_tree_blob_walk   # one hour on one target
+script/fuzz --time 0 elf_parse                 # until it finds something, or you press ^C
 ```
 
 **Reproduce a crash.** libFuzzer writes the failing input to `fuzz/artifacts/<target>/` and prints
 the command. Re-running the target with a *file* argument replays that one input instead of fuzzing:
 
 ```sh
-cargo fuzz run dtb_walk fuzz/artifacts/dtb_walk/crash-b93bbc15...
+cargo fuzz run device_tree_blob_walk fuzz/artifacts/device_tree_blob_walk/crash-b93bbc15...
 ```
 
 **See what the input actually was**, which matters for a structured target like
@@ -339,7 +345,7 @@ cargo fuzz fmt nifefs_roundtrip fuzz/artifacts/nifefs_roundtrip/crash-0ad4fab2..
 **Shrink it before writing the test:**
 
 ```sh
-cargo fuzz tmin dtb_walk fuzz/artifacts/dtb_walk/crash-b93bbc15...
+cargo fuzz tmin device_tree_blob_walk fuzz/artifacts/device_tree_blob_walk/crash-b93bbc15...
 ```
 
 **Then throw the artifact away and write the test.** That is the last step and it is the one that
@@ -349,7 +355,7 @@ in a year. Delete `fuzz/artifacts/<target>/` when you are done.
 **Prune a corpus that has grown** (fuzzing eats disk; a long run's corpus is not small):
 
 ```sh
-cargo fuzz cmin dtb_walk         # keep the smallest input per edge
+cargo fuzz cmin device_tree_blob_walk   # keep the smallest input per edge
 rm -rf fuzz/corpus fuzz/artifacts
 ```
 
@@ -378,28 +384,29 @@ do. Reaching that panic needs a device tree **seventeen levels deep** whose *onl
 the bottom, and the seed corpus is real device trees, which are three deep. A mutational fuzzer
 explores outward from what it has; deep recursive structure is what it is worst at synthesizing. A
 grammar-based generator (`arbitrary`-derived structure that emits well-formed trees) would reach it,
-and is the obvious next step for `dtb_walk`.
+and is the obvious next step for `device_tree_blob_walk`.
 
 **A green fuzz run means "not yet", never "correct".** Sixty seconds of no crashes is evidence about
 sixty seconds. Nothing here is a proof, and nothing here should be quoted as one; the proofs are in
 notes/verification.md and they say what they cover.
 
-**The CI job would not re-find either `dtb` bug.** Measured, not assumed: with both fixes reverted,
-sixty seconds from the committed seeds found nothing, and fifteen minutes found the overflow after
-13.1 million executions. The job is a sweep over ground the seeds reach quickly. The regression guard
-is `crates/dtb/tests/hostile.rs`, which runs on every `script/test`.
+**The CI job would not re-find either `device_tree_blob` bug.** Measured, not assumed: with both
+fixes reverted, sixty seconds from the committed seeds found nothing, and fifteen minutes found the
+overflow after 13.1 million executions. The job is a sweep over ground the seeds reach quickly. The
+regression guard is `crates/device_tree_blob/tests/hostile.rs`, which runs on every `script/test`.
 
 **Only panics and hangs are caught, plus whatever a target asserts.** A parser that returns the
-*wrong answer* without panicking is invisible to `dtb_walk`, `elf_parse` and
+*wrong answer* without panicking is invisible to `device_tree_blob_walk`, `elf_parse` and
 `globally_unique_identifier_partition_table`, because those three assert nothing beyond "it
 returned". `nifefs_roundtrip` is the one target with a real property, and it is the one that found a
 silent-corruption bug. That asymmetry is a hint about where the next targets should go, not a fact
 about fuzzing.
 
-**The needles in `dtb_walk` are a fixed list.** The kernel's real lookups (`intc`, `plic`, `pl031`,
-`virtio_mmio`) plus the empty prefix. A `pub fn` that panics for some *other* prefix would not be
-found. Letting the fuzzer choose the needle would mean structuring the input, which would stop the
-committed `.dtb` fixtures from working as seeds; that trade is worth revisiting with a grammar.
+**The needles in `device_tree_blob_walk` are a fixed list.** The kernel's real lookups (`intc`,
+`plic`, `pl031`, `virtio_mmio`) plus the empty prefix. A `pub fn` that panics for some *other*
+prefix would not be found. Letting the fuzzer choose the needle would mean structuring the input,
+which would stop the committed `.dtb` fixtures from working as seeds; that trade is worth revisiting
+with a grammar.
 
 **`node_prop` matches at any depth and `node_reg` now stops at 16.** The two lookups disagree about
 how deep a device tree can be, which is a behavioural wart rather than a bug: `node_prop` keeps no

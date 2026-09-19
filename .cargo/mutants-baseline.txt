@@ -16,7 +16,7 @@ cred 127 3 1 16
 credential_protocol 72 2 0 13
 nifefs 107 0 0 8
 dma_validator 79 0 0 6
-dtb 294 1 20 10
+device_tree_blob 294 1 20 10
 elf 98 0 0 4
 entropy_protocol 21 2 0 0
 page_frames 93 3 1 12

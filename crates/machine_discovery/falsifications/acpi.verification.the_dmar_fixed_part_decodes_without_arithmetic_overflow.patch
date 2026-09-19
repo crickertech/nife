@@ -7,7 +7,7 @@ than after it. A DMAR whose `HostAddressWidth` byte is `0xff` overflows, and
 firmware bytes reached through the direct map, so the panic is on the x86 boot
 path with nothing above it to catch one.
 
-It is the same shape as `dtb::be32`'s unchecked `at + 4`, one table over, and it
+It is the same shape as `device_tree_blob::be32`'s unchecked `at + 4`, one table over, and it
 survived because every DMAR this parser had ever seen was written by QEMU's
 `build_dmar_q35`, which writes 38. Nothing in the encoding stops a vendor writing
 anything else. xenon's first boot on 2026-09-17 is the reminder that this parser

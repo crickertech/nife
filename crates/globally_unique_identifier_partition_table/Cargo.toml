@@ -7,7 +7,7 @@ license.workspace = true
 # The GUID Partition Table (UEFI 2.10 §5.3), as pure computation: parse a table, validate one,
 # build one. No I/O of any kind, so it compiles for the host and its tests run in milliseconds
 # against disks made by real tools (`sgdisk` and macOS's `diskutil`, both committed as fixtures),
-# the same split `dtb` makes for the device tree. Milestone 57's mandatory half: you cannot find a
+# the same split `device_tree_blob` makes for the device tree. Milestone 57's mandatory half: you cannot find a
 # partition on a real disk without reading the table. See
 # notes/globally-unique-identifier-partition-table.md.
 

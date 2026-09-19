@@ -20,7 +20,7 @@ Milestone 319 found both spellings within one crate:
 - **Correct.** `machine_discovery::riscv64::CounterInfo::bits` reads
   `Some(self.raw_width as u32 + 1)` for the SBI PMU counter width, widening first.
 
-`dtb::be32`'s unchecked `at + 4` (milestone 18) is the same family one step removed.
+`device_tree_blob::be32`'s unchecked `at + 4` (milestone 18) is the same family one step removed.
 
 ## Why a sweep rather than a gate
 

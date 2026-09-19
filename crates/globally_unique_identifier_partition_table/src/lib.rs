@@ -12,10 +12,10 @@
 //! # This crate does no I/O, on purpose
 //!
 //! Nothing here reads or writes a block device. Every function takes a byte buffer the caller
-//! filled and returns bytes the caller will place. That is the same discipline `dtb` and `elf`
-//! follow, and the reason is not purity: it is that the whole crate then compiles for the host and
-//! its tests run in milliseconds against real disks made by real tools, instead of inside a QEMU
-//! boot (DECISIONS §7, §14).
+//! filled and returns bytes the caller will place. That is the same discipline `device_tree_blob`
+//! and `elf` follow, and the reason is not purity: it is that the whole crate then compiles for the
+//! host and its tests run in milliseconds against real disks made by real tools, instead of inside
+//! a QEMU boot (DECISIONS §7, §14).
 //!
 //! It also allocates nothing and has no `unsafe`. The entry array is a caller-supplied buffer, so a
 //! kernel can hand it a stack array and a userspace tool can hand it a `Vec`.

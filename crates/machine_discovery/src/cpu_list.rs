@@ -31,10 +31,11 @@
 //!   predicate, kept here (one copy, host-testable against the board fixtures) and applied by
 //!   `smp::read_cpu_list`, which is still the only place it has any effect.
 //! - **The `/cpus` node is found by name, not by binding.** There is no `compatible` on it to match;
-//!   the device tree specification names the node itself. Same simplification [`dtb::Dtb::node_reg`]
-//!   records, and here it is not a simplification at all.
+//!   the device tree specification names the node itself. Same simplification
+//!   [`device_tree_blob::DeviceTreeBlob::node_reg`] records, and here it is not a simplification at
+//!   all.
 
-use dtb::{Dtb, Error};
+use device_tree_blob::{DeviceTreeBlob, Error};
 
 /// The most `cpu@` nodes [`CpuList::from_device_tree`] will record.
 ///
@@ -181,7 +182,7 @@ impl CpuList {
     /// cores, and the answer is an empty list ([`len`](CpuList::len) of zero) rather than a failure,
     /// because the kernel asking the question is demonstrably running on one of them. An `Err` here
     /// means the blob itself is malformed, which is a different thing entirely.
-    pub fn from_device_tree(dt: &Dtb<'_>) -> Result<CpuList, Error> {
+    pub fn from_device_tree(dt: &DeviceTreeBlob<'_>) -> Result<CpuList, Error> {
         let mut list = CpuList {
             address_cells: cpus_address_cells(dt)?,
             ..CpuList::default()
@@ -224,7 +225,7 @@ impl CpuList {
 /// nothing is 2, and using it here would be following the letter into the wrong answer: the CPU
 /// bindings *require* `/cpus` to declare this, so an absent property is a malformed tree, and the
 /// overwhelmingly common shape (every tree QEMU emits, on both architectures) is one cell.
-fn cpus_address_cells(dt: &Dtb<'_>) -> Result<u32, Error> {
+fn cpus_address_cells(dt: &DeviceTreeBlob<'_>) -> Result<u32, Error> {
     match dt.node_prop(b"cpus", b"#address-cells")? {
         Some(bytes) if bytes.len() >= 4 => {
             Ok(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
@@ -274,7 +275,7 @@ pub(crate) fn is_okay(value: &[u8]) -> bool {
 /// machine whose harts genuinely differ, so reading only the first is a simplification and not a
 /// correct general answer. The kernel treats the counter as machine-wide either way, so the honest
 /// place to record that limitation is here rather than at the call site.
-fn timebase_hz(dt: &Dtb<'_>) -> Result<Option<u64>, Error> {
+fn timebase_hz(dt: &DeviceTreeBlob<'_>) -> Result<Option<u64>, Error> {
     if let Some(bytes) = dt.node_prop(b"cpus", b"timebase-frequency")? {
         return Ok(cells_to_u64(bytes));
     }

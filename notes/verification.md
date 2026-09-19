@@ -174,7 +174,7 @@ The allocator harnesses build a small allocator over a *symbolic* bitmap directl
 module is inside the crate, so it can reach the private fields), rather than through `new`, which
 fills the bitmap all-used. The scan loops are bounded by pinning `total = 8`, so `unwind(9)` suffices.
 
-Four in `crates/dtb/src/lib.rs`, the device-tree parser's leaf readers (the whole-parse token loop
+Four in `crates/device_tree_blob/src/lib.rs`, the device-tree parser's leaf readers (the whole-parse token loop
 is the same BMC wall as ELF, so the leaves are what get proved):
 
 | Harness | Property |
@@ -283,7 +283,7 @@ notes/prior-art.md, and proved because the kernel-side parse is TCB code):
 | `the_validation_implies_reads_slice_is_in_bounds` | for every entry value and image length, parse's acceptance check makes `read`'s slice arithmetic safe: no panic, bytes inside the image |
 | `a_short_image_is_refused_not_indexed` | any image under one block is `Truncated` before a byte past the length check is touched |
 
-Whole-parse totality hit the same wall as ELF and dtb below (a one-block symbolic image put
+Whole-parse totality hit the same wall as ELF and `device_tree_blob` below (a one-block symbolic image put
 CBMC past 20 CPU-minutes), and was decomposed the same way; the module comment records what is
 deliberately unproved and why it is sound anyway.
 

@@ -27,7 +27,7 @@ field says 64 KiB is a 64 KiB read at whatever physical address the RSDP pointed
 between the firmware's number and the dereference says how much of the direct map is legitimately
 readable.
 
-The analogous question is answered on the other two architectures. `dtb::Dtb::from_ptr` takes the
+The analogous question is answered on the other two architectures. `device_tree_blob::DeviceTreeBlob::from_ptr` takes the
 blob's own length, validates the header before anything else is read, and every reader below it is
 proved total (`be32_is_total`, `be64_is_total`, milestone 18). The x86 walk has no equivalent
 because ACPI is not one blob: it is a linked structure of independent tables, each reached from a
