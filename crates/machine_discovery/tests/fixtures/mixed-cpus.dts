@@ -17,8 +17,8 @@
  *
  * Regenerate with:
  *
- *     dtc -I dts -O dtb -o crates/isa/tests/fixtures/mixed-cpus.dtb \
- *                          crates/isa/tests/fixtures/mixed-cpus.dts
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/mixed-cpus.dtb \
+ *                          crates/machine_discovery/tests/fixtures/mixed-cpus.dts
  */
 
 / {

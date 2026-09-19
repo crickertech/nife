@@ -7,7 +7,12 @@ fault-handling milestone" that has never existed.
 **Gate: DECISION.** What a production kernel does when a confined device faults is a fork with
 three answers and different politics (print and continue, fault the driver process, disable the
 device), and the block argues for the second without taking it. The small half, clearing the
-overflow bit on drain, needs no decision and has a witness in milestone 29's flood.
+overflow bit on drain, needs no decision and has a witness in milestone 29's flood, and should not
+wait on this. The large half is
+[§163](../decisions/163-where-a-device-fault-is-delivered.md) (where a confined device's IOMMU fault
+is delivered), written up 2026-09-19 by milestone 435's lane; this gate had named no decision since
+the block was raised, which is the same shape as the three documents deferring to a milestone that
+did not exist.
 
 **The finding.** An IOMMU stops a device that reaches outside its grant and records the attempt in a
 fault queue. Milestone 16b built both drivers and proved the stop happens on both ISAs. Nothing

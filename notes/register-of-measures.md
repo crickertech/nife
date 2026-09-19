@@ -128,8 +128,9 @@ notes/footprint-perturbation.md.
 - **E3 separated cleanly and cannot be attributed.** The padded build is 1.49% slower on
   `call_reply` and **3.01% faster** on `ipc_rtt_el0`, both non-overlapping across three boots each.
   Resident dead code cannot make anything faster, so the experiment is measuring code layout summed
-  with footprint and reporting the total. **Do not quote an E3 number as a footprint result** until
-  `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md` exists. This flaw
+  with footprint and reporting the total. **Do not quote an E3 number as a footprint result** until the control
+  `design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md` specifies has been
+  built. This flaw
   was present in the 2026-08-22 dev-Mac reading too; the small cache made it visible rather than
   causing it.
 

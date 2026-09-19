@@ -1,0 +1,56 @@
+/dts-v1/;
+
+/*
+ * A hand-written device tree, NOT a dump from any board.
+ *
+ * Three shapes no other fixture has, all of them properties that are shorter than the decoder
+ * that reads them, plus the one machine size the record cannot hold:
+ *
+ *   /cpus  #address-cells is TWO BYTES, not four. The CPU bindings require the property, so a
+ *          malformed one is a malformed tree; `cpus_address_cells` falls back to one cell rather
+ *          than reading past the property's end.
+ *   /cpus  timebase-frequency is TWO CELLS. The RISC-V binding allows either width and QEMU
+ *          writes one; a machine whose counter runs above 4 GHz needs two, and nothing else here
+ *          exercises that arm.
+ *   cpu@11 reg is TWO BYTES, short of the one cell `#address-cells` implies, so its hardware id
+ *          cannot be decoded and is reported as zero (cpu_list's own documented direction).
+ *   EIGHTEEN cpu@ nodes, which is two more than MAX_CPU_NODES. `described` keeps counting and
+ *          `cpus` holds the prefix that fit, which is what `CpuList::truncated` is for and what
+ *          no other fixture can show.
+ *
+ * Regenerate with:
+ *
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/many-harts.dtb \
+ *                          crates/machine_discovery/tests/fixtures/many-harts.dts
+ */
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	compatible = "nife,cpu-list-test";
+
+	cpus {
+		#address-cells = [00 01];
+		#size-cells = <0>;
+		timebase-frequency = <0x1 0x02000000>;
+
+		cpu@0  { device_type = "cpu"; reg = <0x0>;  status = "okay"; };
+		cpu@1  { device_type = "cpu"; reg = <0x1>;  status = "okay"; };
+		cpu@2  { device_type = "cpu"; reg = <0x2>;  status = "okay"; };
+		cpu@3  { device_type = "cpu"; reg = <0x3>;  status = "okay"; };
+		cpu@4  { device_type = "cpu"; reg = <0x4>;  status = "okay"; };
+		cpu@5  { device_type = "cpu"; reg = <0x5>;  status = "okay"; };
+		cpu@6  { device_type = "cpu"; reg = <0x6>;  status = "okay"; };
+		cpu@7  { device_type = "cpu"; reg = <0x7>;  status = "okay"; };
+		cpu@8  { device_type = "cpu"; reg = <0x8>;  status = "okay"; };
+		cpu@9  { device_type = "cpu"; reg = <0x9>;  status = "okay"; };
+		cpu@a  { device_type = "cpu"; reg = <0xa>;  status = "okay"; };
+		cpu@b  { device_type = "cpu"; reg = [00 0b]; status = "okay"; };
+		cpu@c  { device_type = "cpu"; reg = <0xc>;  status = "okay"; };
+		cpu@d  { device_type = "cpu"; reg = <0xd>;  status = "okay"; };
+		cpu@e  { device_type = "cpu"; reg = <0xe>;  status = "okay"; };
+		cpu@f  { device_type = "cpu"; reg = <0xf>;  status = "okay"; };
+		cpu@10 { device_type = "cpu"; reg = <0x10>; status = "okay"; };
+		cpu@11 { device_type = "cpu"; reg = <0x11>; status = "okay"; };
+	};
+};

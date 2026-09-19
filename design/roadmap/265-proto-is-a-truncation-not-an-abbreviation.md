@@ -92,7 +92,7 @@ rule with a boundary, and nothing mechanical can tell a format from a protocol. 
 tests it comes to calef.
 
 **The `ntp` program was to stay `ntp`, and the exception expired before this milestone ran.**
-`design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md` named this exact pair as a
+Milestone 388, `design/roadmap/388-an-acronym-sweep-the-tree-can-do-at-once.md`, named this exact pair as a
 reason not to work one name at a time: *"Spelling out the program alone leaves the pair disagreeing;
 spelling out the crate alone overturns a ratification as a side effect of tidying a program."* This
 block accepted the disagreement, on the ground that `AGENTS.md` leaves the length of a typed command
@@ -280,14 +280,18 @@ moved: `PROPOSED`, `NOT-STARTED` and `PARTIAL` blocks, every file under
   request.
 - **Done.** `script/lint` check 3's glob, which this rename would have left selecting nothing. Fixed
   in the same pull request, with the hazard written into the check's comment.
-- **Proposed.** `design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md`, for the class
-  that glob belongs to. One instance is a fix; the question of how many other gates pick their own
-  subject with a pattern that is allowed to stop matching is a lane, and this milestone measured only
-  what it tripped over.
-- **Proposed.** The other truncations nobody has swept for. Named but not taken here, and it is the
-  same shape as the acronym question:
-  `design/roadmap/proposals/an-acronym-sweep-the-tree-can-do-at-once.md` is the list that already
-  exists for acronyms, and its `BUGS` carries the names still waiting on calef.
+- **Milestone 401.** The class that glob belongs to. One instance is a fix; the question of how
+  many other gates pick their own subject with a pattern that is allowed to stop matching is a lane,
+  and this milestone measured only what it tripped over. Numbered on 2026-09-19 by milestone 433's
+  drain of the pile.
+- **Recorded.** The other truncations nobody has swept for, in this block's `BUGS` where a reader
+  meets the rename: `design/roadmap/265-proto-is-a-truncation-not-an-abbreviation.md` says `_rt`,
+  `_cli` and any other suffix are untouched and that nobody has checked. It is the same shape as the
+  acronym question, and milestone 388 is the list that already exists for acronyms, with its `BUGS`
+  carrying the names still waiting on calef. **The disposition was `**Proposed.**` until 2026-09-19
+  and was wrong then**: that word names the proposal file holding *this* work, and the file it named
+  holds the acronym question instead, so the gate passed on the path's shape rather than on what it
+  held.
 
 ## Index row
 

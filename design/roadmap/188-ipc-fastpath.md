@@ -10,11 +10,16 @@ does: the gate that says we are over target is measuring an IPC shape that essen
 program in this tree performs, and the largest single item it reports on aarch64 is a symbol of
 which 94% is never fetched.
 
-**Gate: DECISION.** Phase 4 only; phases 1 to 3 needed nobody and are done. Phases 1 to 3 below are a lane's own call and need nobody. Phase 4, a second
-hand-written path through the kernel's IPC, is calef's: it is a standing verification obligation and
-a permanent maintenance cost, and this block recommends against starting it until phases 1 to 3 have
-reported and milestone 74 (cycle counters) on milestone 127 (the seL4 machine) can observe whether
-it bought anything.
+**Gate: DECISION.** Phase 4 only; phases 1 to 3 were a lane's own call, needed nobody, and are done.
+**The decision is [§95](../decisions/95-a-proven-ipc-fastpath.md) (a hand-written IPC fastpath, and
+whether it can stay proven), and this gate did not cite it until 2026-09-19.** It is `DECIDED`, and
+what calef decided is *"don't decide yet"*, in two tiers: the eligibility predicate and its proof in
+`crates/ipc` are ratified as buildable now, and the fastpath itself stays gated on the one
+measurement that would justify it, which is milestone 74 (cycle counters) on milestone 127 (the seL4
+machine). So the token stays `DECISION` because the spend is still calef's, and a reader now reaches
+the reasoning instead of re-deriving it: phase 4 is a standing verification obligation and a
+permanent maintenance cost, and this block recommends against starting it until phases 1 to 3 have
+reported and the measurement exists.
 
 ## The starting numbers, and where each comes from
 
@@ -554,7 +559,7 @@ under a 193 ns artifact is not what anyone should buy one with.
 
 **What would decide it is a layout control**, and it is cheap: run `fastpath_pad` at several sizes
 rather than as a boolean, because footprint predicts a monotonic dose response and layout does not.
-Written up as `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`.
+Written up as `design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`.
 
 **One thing the session did settle, in phase 4's disfavour but not against it.** The board can now
 resolve these differences at all: `bench: cycles_per_tick 250.00` from milestone 74's riscv64 PMU,
@@ -579,16 +584,17 @@ The measurement is precise. It is the attribution that is missing.
   Run 2026-09-04, six interleaved boots; notes/footprint-perturbation.md. It did not decide phase 4,
   for the reason the section above gives: the comparison cannot separate footprint from code layout,
   and the layout artifact is ten times the footprint effect.
-- **Proposed.** A layout control for the perturbation experiments, which is what E3 now needs before
-  any reading of it can be attributed to footprint.
-  `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`. Until it exists,
-  no E3 number should be quoted as a footprint result, this block's included.
-- **Proposed.** DECISIONS §144's 16 KiB ceiling is stated over "the sum of `ipc_fastpath` and
+- **Milestone 370.** A layout control for the perturbation experiments, which is what E3 now needs
+  before any reading of it can be attributed to footprint.
+  `design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`. Until that control is
+  built, no E3 number should be quoted as a footprint result, this block's included.
+- **Milestone 380.** DECISIONS §144's 16 KiB ceiling was stated over "the sum of `ipc_fastpath` and
   `syscall_entry`", and this milestone changed both terms. The honest subject is now
   `max(ipc_send_recv, ipc_call_reply) + syscall_entry`, which is what the gate prints as `total`,
   and the headroom §144 recorded was measured on the smaller shape (x86_64 is now 60% of the
-  ceiling, not 51%). `design/decisions/` is not a lane's to amend, so it is written up as
-  `design/roadmap/proposals/the-ceiling-applies-to-a-number-that-moved.md` for whoever holds §144.
+  ceiling, not 51%). `design/decisions/` is not a lane's to amend, so it was written up as
+  `design/roadmap/380-the-ceiling-applies-to-a-number-that-moved.md` for whoever holds §144, and
+  they folded it into §144 the same day, which is why that block is BUILT.
 - **Outstanding.** Phase 4 itself, the hand-written fastpath. Untouched, gated on calef, and the
   section above says what would decide it. Checked against the tree: `kernel/src/sched.rs` has one
   path through `ipc_call`, `ipc_recv_cap` and `ipc_reply` and no second one.

@@ -146,10 +146,10 @@ right reason.
 
 ## Follow-on
 
-- **Proposed.** `PROGRAM_MEASUREMENTS` is one instance of a kind `script/names` does not enumerate:
-  a name two programs agree on, carried in a string constant, ratifiable by nobody because nothing
-  lists it. Written up as `design/roadmap/proposals/provenance-for-wire-visible-names.md`, which
-  argues the scope question rather than assuming the answer is "widen".
+- **Milestone 398.** `PROGRAM_MEASUREMENTS` is one instance of a kind `script/names` does not
+  enumerate: a name two programs agree on, carried in a string constant, ratifiable by nobody
+  because nothing lists it. 398 argues the scope question rather than assuming the answer is
+  "widen". Numbered on 2026-09-19 by milestone 433's drain of the pile.
 - **Refused.** Fixing `user/src/job_mix_task.rs` and `user/src/serial_driver.rs` here. They are the
   two specimens this gate was designed against and they belong to pull request #825, which was
   already open when this lane was briefed. Duplicating a two-file record fix to make one's own gate

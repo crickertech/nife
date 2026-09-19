@@ -7,7 +7,7 @@ days. *(Number provisional until the merge queue lands it.)*
 
 `script/fastpath-footprint` compares the IPC fastpath's code size against a **stored baseline file**
 per architecture and fails at a 5% tolerance. The proposal
-`design/roadmap/proposals/fastpath-footprint-against-main.md` asked whether it should instead compare
+`design/roadmap/336-fastpath-footprint-against-main.md` asked whether it should instead compare
 against `main` at pull-request time. **The answer is both, and the reason each is needed is that they
 catch different failures.**
 

@@ -106,3 +106,43 @@ fn visionfive2_uboot_control_dtb_is_read_despite_the_older_compatible_string() {
     }
     assert_eq!(ctx.len(), 4);
 }
+
+const PLIC_SHAPES: &[u8] = include_bytes!("fixtures/plic-shapes.dtb");
+
+/// **Three ways the two walks can fall out of step, in one tree.**
+///
+/// The context map is stitched from two lists that align only by tree order: the `riscv,cpu-intc`
+/// nodes in one, the PLIC's `interrupts-extended` entries in the other. Every fixture above keeps
+/// them aligned by construction, so nothing tested what keeps them aligned.
+///
+/// * The PLIC here is named `interrupt-controller@c000000`, the spelling the JH7110 uses, and it
+///   is declared **before** `/cpus`. Both JH7110 fixtures declare theirs after, so a walk that
+///   failed to filter the PLIC out by `compatible` still got the right answer there; here it would
+///   take slot zero and shift every hart down one.
+/// * `cpu@0`'s controller has no `phandle`, so no entry can name it. It still consumes its hart's
+///   slot: a walk that did not count it would hand `cpu@1`'s context to `cpu@0`.
+/// * `cpu@10`'s hardware id is 16, which is `MAX_CONTEXT_HARTS` exactly. The tree names an S
+///   context for it and the record has no slot to put it in, so the answer is "the tree did not
+///   say" rather than a write past the array.
+#[test]
+fn the_context_walk_stays_aligned_with_the_hart_walk() {
+    let ctx = PlicContexts::from_device_tree(&tree(PLIC_SHAPES)).expect("the PLIC wiring parses");
+
+    assert_eq!(
+        ctx.s_context(0),
+        None,
+        "cpu@0's controller has no phandle, so no entry names it",
+    );
+    assert_eq!(ctx.s_context(1), Some(0), "the first entry is cpu@1's");
+    assert_eq!(ctx.s_context(3), Some(2), "the third entry is cpu@3's");
+    assert_eq!(
+        ctx.s_context(16),
+        None,
+        "hart 16 is one past the sixteen this record holds",
+    );
+    assert_eq!(ctx.len(), 2);
+    assert!(
+        !ctx.is_empty(),
+        "two contexts is not none, and every other test here asks only the other way",
+    );
+}

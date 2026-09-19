@@ -7,8 +7,8 @@ places the gating set was written down. *(Number provisional until the merge que
 pass, with a tier saying whether a developer waits for it; with no arguments it runs that tier,
 cheapest first, and with names it runs exactly those, which is how `.github/workflows/ci.yml` fans
 them into parallel jobs. The tier names and what "no arguments" means are **provisional pending
-calef**: `design/roadmap/proposals/what-no-arguments-means.md` states the options, their costs and
-the recommendation.
+calef**: milestone 400, `design/roadmap/400-what-no-arguments-means.md`, states the options, their
+costs and the recommendation.
 
 ## The defect, and how it was already failing
 
@@ -144,19 +144,22 @@ now records that it asserted the opposite for a month.
   check out of it; `CONTRIBUTING.md`, `.github/pull_request_template.md`, `notes/scripts.md`,
   `notes/check-inventory.md`, `notes/hvf-leg.md`, `notes/instruction-clock.md` and the six sibling
   scripts that referred to the old name are current.
-- **Proposed.** What "no arguments" means and what the two tiers are called is calef's, and the
-  mechanism shipped under the recommendation: `design/roadmap/proposals/what-no-arguments-means.md`.
+- **Milestone 400.** What "no arguments" means and what the two tiers are called is calef's, and
+  the mechanism shipped under the recommendation. Numbered on 2026-09-19 by milestone 433's drain
+  of the pile.
 - **Recorded.** A CI job can still bypass the table, and the gate that would catch it is refused for
   now; in this block's `BUGS`, with the reason.
 - **Recorded.** Live references to the retired name in blocks a lane may not edit, handed to
   the integrator with file, line and replacement: `design/roadmap/274-apple-silicon-isa-support.md`
   (a `NOT-STARTED` block, so live intent) and
-  `design/roadmap/proposals/instruments-nothing-runs.md` (a `PROPOSED` proposal whose `Gate:` line
-  asks which instrument joins the retired script). The other fifteen blocks and the four
+  `design/roadmap/341-instruments-nothing-runs.md`, whose `Gate:` line asked which instrument joins
+  the retired script and was corrected when milestone 433 numbered it on 2026-09-19. The other fifteen blocks and the four
   `design/roadmap/README.md` rows are accounts and keep the old name.
-- **Proposed.** `script/bootstrap` conflates installing what is missing with verifying the
-  environment is adequate, and the second failing is what costs a developer the whole local tier:
-  `design/roadmap/proposals/bootstrap-installs-and-also-judges.md`.
+- **Milestone 397.** `script/bootstrap` conflates installing what is missing with verifying the
+  environment is adequate, and the second failing is what costs a developer the whole local tier.
+  Numbered on 2026-09-19 by milestone 433's drain of the pile, with the note that milestone 287's
+  Linux source-build fallback landed the same day this was written and covers the container failure
+  it was measured on.
 - **Recorded.** `notes/scripts.md` claimed `script/lint`'s row was the longest markdown line in the
   repository; the counted-claim marker vouches for the number and nothing vouched for which line
   carried it, and it had moved to `design/roadmap/README.md`. Corrected in place.

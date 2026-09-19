@@ -130,10 +130,11 @@ split than NVMe was:
 
 ## Follow-on
 
-- **Proposed.** Nothing turns a device back off: this tree can now enable a clock and release a
-  reset and cannot do either in reverse, so a driver that dies leaves its device clocked forever.
-  The mechanism is small and the authority question is not, which is why it is a proposal rather
-  than a `BUGS` line alone. `design/roadmap/proposals/nothing-turns-a-device-back-off.md`.
+- **Milestone 376.** Nothing turns a device back off: this tree can now enable a clock and release
+  a reset and cannot do either in reverse, so a driver that dies leaves its device clocked forever.
+  The mechanism is small and the authority question is not, which is why it carries a `DECISION`
+  gate rather than a `BUGS` line alone.
+  `design/roadmap/376-nothing-turns-a-device-back-off.md`.
 - **Recorded.** Parent clocks are not programmed. The STG domain's own bus clock comes from the
   SYSCRG at `0x1302_0000` and nothing here touches it; Linux's clock framework walks parents
   automatically and this does not, relying on firmware having left the bus clocks running. It is
@@ -152,7 +153,7 @@ split than NVMe was:
   crate made LLVM fold `syscall::dispatch` into the aarch64 exception handler, so the gate reported
   `syscall_entry` 35% smaller while the code a syscall fetches was identical. Closed the way the
   tree already closes this, with `#[inline(never)]` and the reasoning beside it, and written up in
-  `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`, which owns the
+  `design/roadmap/368-a-flat-entry-set-counts-bytes-no-syscall-fetches.md`, which owns the
   mechanism question.
 - **Refused.** A general JH7110 clock driver covering all five domains and every clock. The
   milestone's own `BUGS` named unbounded scope as its main risk and the two ends differ by an

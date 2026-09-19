@@ -245,20 +245,30 @@ before the kernel ran, `HVF does not support GICv2 emulation`, because `kernel/s
 GICv2 only. **Milestone 227** (a GICv3 driver) is what gives this cross-check a machine. Transcript
 `bench/patagonia-hvf-2026-09-19/jobmix-hvf-refused.log`; `notes/job-mix.md` has the section.
 
-### Two proposals absorbed, and deleted
+### Two proposals absorbed, and closed as the milestones they had become
 
-- `design/roadmap/proposals/three-aim7-job-categories-the-job-mix-does-not-have.md` (2026-09-04):
+**They were deleted by the lane that absorbed them and restored as numbered blocks at merge**, both
+on 2026-09-19, because another session had promoted them hours earlier under milestone 433's drain
+and the two sessions could not see each other. calef's ruling there decides it: a proposal is
+promoted and then closed, since **a numbered block marked BUILT is a record and a deleted file is
+nothing**. So each is `BUILT` below rather than absent, with what it bought and what it did not.
+
+- [**Milestone 382**](382-three-aim7-job-categories-the-job-mix-does-not-have.md) (filed 2026-09-04):
   three AIM7 categories missing, why each was refused, and the order to add them (map, spawn, then
   disk as a second mix). Its content is "The second hole" above, and the refusals it recorded are answered there:
   the map job did not need a new capability, the spawn job's allocator share is now printed, and the
   disk mix has its own proposal.
-- `design/roadmap/proposals/more-repeats-where-the-job-mix-contends.md` (2026-09-16): `tasks=4`
+- [**Milestone 419**](419-more-repeats-where-the-job-mix-contends.md) (filed 2026-09-16): `tasks=4`
   needs more repeats, not more power cycles, with four options and a recommendation of reporting
   the spread. What was built is its options 1 and 3 together (a uniform 21, and the median with the
   ends beside it); its option 2, a per-point table, was refused above on measured board time. It
   marked itself `Gate: DECISION` because the line format changes; the maintainer's brief for this
   lane assigned the change, both readers are in-tree, and it is recorded here so the decision is
-  visible rather than implied.
+  visible rather than implied. **That gate had a written-up section by the end of the same day**,
+  [§191](../decisions/191-job-mix-repeats-and-what-the-line-reports.md), from milestone 435's sweep
+  of forty-five blocks whose `DECISION` gate named no decision. It stays `PROPOSED`: what shipped
+  here is now a ratification or an overrule for calef rather than an open fork, and a lane cannot
+  close that difference by building one of the options.
 
 ## BUGS
 

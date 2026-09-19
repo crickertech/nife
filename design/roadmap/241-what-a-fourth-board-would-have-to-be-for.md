@@ -9,6 +9,22 @@ until the merge queue lands it.)*
 making the decision and making the purchase are two different things. But I think we defer both
 because we don't have enough to know what we need from a fourth board to drive a decision."*
 
+**The decision this gate names is calef's own, it is dated, and it is quoted above**, which is
+why milestone 435's sweep leaves the token where it is and mints no `design/decisions/` section for
+it. This block is one of the 45 that sweep counted as naming no section and no `§`, and it is a
+false positive of that count rather than a gap: what a numbered section would hold (what is being
+decided, the options, the recommendation, what is blocked) is already here, and the status of it is
+*answered with "not yet"* rather than *pending*. Filing a deferral as `**Status: PROPOSED.**` would
+put a question calef has closed back on the queue that exists to show him what is open.
+
+**One premise has changed since this was written, and it is half the trigger below.** This block
+says argon and xenon have never booted. **xenon has**: first light 2026-09-05, and
+`nife self-test: 5 of 5 passed` at 09:55 UTC on 2026-09-17, which turned milestone 87 `BUILT`
+(`bench/xenon-2026-09-17/first-light-095500.log`). **argon still has not**; `notes/target-hardware.md`
+records it as *"in hand"* and nothing in `bench/` carries its name. So the trigger's precondition is
+half met and the block's own argument for the discipline stands unchanged: the machine that has
+never printed a byte is still the one a fourth board would be bought ahead of.
+
 **The separation is his correction and it matters.** The maintainer had called this block a purchase,
 which is what its own gate line said. It is not: the title asks **what a fourth board would have to
 be for**, which is criteria, and a purchase is downstream of criteria. Conflating them makes the

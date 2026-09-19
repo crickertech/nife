@@ -130,10 +130,12 @@ Proposed provisionally, with the refusals: see the block in `components/src/buil
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md`: no pull-request
-  check boots the default riscv64 kernel with its archive, so the tour's builder step, its device-IRQ
-  step and its banner are asserted by nothing that runs automatically. That is what made a live step
-  look dead.
+- **Milestone 406.** No pull-request check boots the default riscv64 kernel **with its archive**,
+  so the tour's builder step, its device-IRQ step and its banner are asserted by nothing that runs
+  automatically. That is what made a live step look dead. Numbered on 2026-09-19 by milestone 433's
+  drain of the pile, with the headline narrowed: `script/boot-check` (milestone 268, the same day
+  this bullet was written) does boot the default kernel on every pull request, with no initrd, so
+  what is left unasserted is the tour past the self-test verdict.
 - **Recorded.** The unmeasured child load stays in `notes/trusted-init.md`'s "Still not covered",
   where it already lived, with one caveat added there rather than given a second home: that note
   groups the three uncovered loaders as "test or demo programs rather than the shipped system", and
@@ -160,9 +162,10 @@ from the tree; these two bullets are the first thing it found.)*
 - **Nothing in CI asserts that the builder step ran.** `script/test`'s riscv64 leg returns at the
   `#[cfg(test)]` arm before the tour; `script/cpu-matrix` runs that same suite; `script/shell-check`
   boots the shell build; `script/bench --riscv --check` parks before the tour. The only callers are
-  `script/soak`, `script/job-mix` and a board, and none of those runs on a pull request. This is why
-  the step looked vestigial: it is not unused, it is **unasserted**, and the two are indistinguishable
-  from a grep. Written up as `design/roadmap/proposals/nothing-in-ci-boots-the-riscv-tour.md`.
+  `script/soak-test`, `script/job-mix` and a board, and none of those runs on a pull request. This
+  is why the step looked vestigial: it is not unused, it is **unasserted**, and the two are
+  indistinguishable from a grep. Written up as milestone 406,
+  `design/roadmap/406-nothing-in-ci-boots-the-riscv-tour.md`.
 - **`builder` loads its child unmeasured.** Already recorded in `notes/trusted-init.md`'s "Still not
   covered", and this milestone raises what it costs rather than fixing it: that note prices the gap as
   affecting "test or demo programs rather than the shipped system", and on the board path `builder` is

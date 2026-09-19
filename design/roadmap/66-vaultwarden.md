@@ -6,8 +6,11 @@ into a checklist.
 
 **Gate: DECISION, MILESTONE 64.** (The MILESTONE 107 half cleared 2026-08-04; found stale 2026-08-15.) 64 is named as the prerequisite and this is its
 extreme case; 107 owns the listen and accept that head the gap table. The decision is the block's
-own: which subset counts as running Vaultwarden has to be settled before the work starts, or the
-goalposts move to wherever the effort lands.
+own and is now [§161](../decisions/161-what-counts-as-running-vaultwarden.md) (which subset counts
+as running Vaultwarden), written up 2026-09-19 by milestone 435's lane: which subset counts has to
+be settled before the work starts, or the goalposts move to wherever the effort lands. Until then
+this gate had named no decision anywhere a reader could open, while the ask sat in this block's own
+`BUGS` section addressed to one person.
 
 ## Why this application
 
@@ -27,7 +30,7 @@ Machine backups **and** their passwords is a home server, not an exhibit.
 | `std::thread` | 4 of 6 PAL functions answer `Unsupported` |
 | `std::fs` | 32 of 54 answer `Unsupported` (milestone 64) |
 | async runtime | none. Vaultwarden uses Rocket, which uses tokio: timers, wakers, and a reactor |
-| TLS | none, and there is still no crypto stack beyond `argon2`, `subtle` and `aes`. `rustls` needs entropy (have it) and a large crypto surface. The fork between `rustls` and a confined OpenSSL is `design/roadmap/proposals/a-tls-stack-and-which-one.md`; **server-side TLS is this block's, and client-side has three other consumers that do not need it to be a server** |
+| TLS | none, and there is still no crypto stack beyond `argon2`, `subtle` and `aes`. `rustls` needs entropy (have it) and a large crypto surface. The fork between `rustls` and a confined OpenSSL is milestone 387, `design/roadmap/387-a-tls-stack-and-which-one.md`; **server-side TLS is this block's, and client-side has two other consumers that do not need it to be a server** (387 removed the third, milestone 198, on the ground that a package manager wants signature verification rather than a transport) |
 | SQLite | a **C library**, so the §31 seam plus real filesystem locking |
 
 **The listen/accept question was the interesting one and it has been answered**, which is why the

@@ -161,11 +161,11 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 100 | AMENDED | [The terminal font](100-the-terminal-font.md) |
 | 101 | DECIDED | [Notification objects: async multiplexing without wait-any](101-notification-objects.md) |
 | 102 | DECIDED | [A Frame names a run of pages](102-frame-names-a-run.md) |
-| 104 | DECIDED | [The rich-text font is DejaVu Sans Mono, and the palette is Solarized](104-the-font-and-the-palette.md) |
-| 107 | DECIDED | [`missing_docs` moves to `workspace.lints.rust`, opt-out rather than opt-in](107-missing-docs-workspace-wide.md) |
 | 103 | SUPERSEDED BY 102 | [What a `Frame` names](103-what-a-frame-names.md) |
+| 104 | DECIDED | [The rich-text font is DejaVu Sans Mono, and the palette is Solarized](104-the-font-and-the-palette.md) |
 | 105 | DECIDED | [`std::thread::spawn` stays declined, until a customer needs it](105-thread-spawn-decline-for-now.md) |
 | 106 | DECIDED | [Take the `terminal_sink_caretaker` narrowing: an unredirected tail stage's output goes to the screen, not the shell](106-tail-output-narrowing.md) |
+| 107 | DECIDED | [`missing_docs` moves to `workspace.lints.rust`, opt-out rather than opt-in](107-missing-docs-workspace-wide.md) |
 | 108 | DECIDED | [Disabling a user's login credentials kills their durable session](108-credential-revocation-kills-durable-session.md) |
 | 109 | DECIDED | [Attribution is a property of a channel, not of a capability](109-attribution-is-a-channel-property.md) |
 | 110 | DECIDED | [Hard links are declined, for want of a customer](110-hard-links-declined.md) |
@@ -218,6 +218,41 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 157 | DECIDED | [A trivial install is a web page, a USB drive, and packages over the internet](157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md) |
 | 158 | DECIDED | [A program is declared once: the archives read `Cargo.toml`, and the shell's table is one macro](158-a-program-is-declared-once.md) |
 | 159 | DECIDED | [Lab machines upgrade like user machines, and only a new kernel needs a reboot](159-upgrades-without-a-reimage.md) |
+| 160 | PROPOSED | [What a subshell copies, given that a capability set cannot always be copied](160-what-a-subshell-copies.md) |
+| 161 | PROPOSED | [Which subset counts as running Vaultwarden](161-what-counts-as-running-vaultwarden.md) |
+| 162 | PROPOSED | [Whether a holder can give up a mapping, and what gives it up](162-giving-up-a-mapping.md) |
+| 163 | PROPOSED | [Where a confined device's IOMMU fault is delivered](163-where-a-device-fault-is-delivered.md) |
+| 164 | PROPOSED | [Whether the kernel resolves a tid it already sent to the supervisor that received it](164-resolving-a-tid-a-supervisor-holds.md) |
+| 165 | PROPOSED | [Where a stored secret comes from on a boot that is not a test](165-where-a-stored-secret-comes-from.md) |
+| 166 | PROPOSED | [The rasteriser dependency, and whether the glyph atlas ships one face or four](166-the-rasteriser-and-how-many-faces.md) |
+| 167 | PROPOSED | [What a profiling session's grant names](167-what-a-profiling-session-may-name.md) |
+| 168 | PROPOSED | [Where a proof-gated credential rotation verb lives](168-where-a-rotation-verb-lives.md) |
+| 169 | PROPOSED | [Whether a clipboard exists here, and what it is scoped to](169-whether-a-clipboard-exists.md) |
+| 170 | PROPOSED | [How a foreign program is told what to do](170-how-a-foreign-program-is-told-what-to-do.md) |
+| 171 | PROPOSED | [Where a program image starts, and where the stack goes](171-where-a-program-image-starts.md) |
+| 172 | PROPOSED | [Whether a `credential_protocol` verify endpoint names the identity it asks about](172-credential-endpoint-per-resource.md) |
+| 173 | PROPOSED | [Narrowing the root of the shell's namespace: a verb on the wire, or a shallower root](173-narrowing-the-namespace-root.md) |
+| 174 | PROPOSED | [Which caller each of the three uncalled instruments gets](174-a-caller-for-the-three-uncalled-instruments.md) |
+| 175 | PROPOSED | [Where the kernel's own output goes once userspace owns the console](175-kernel-console-arbitration.md) |
+| 176 | PROPOSED | [Offering the two RedoxFS patches upstream, and under whose name](176-offering-the-redoxfs-patches-upstream.md) |
+| 177 | PROPOSED | [Whether AGENTS.md quotes measured numbers at all](177-measured-numbers-in-the-front-door-file.md) |
+| 178 | PROPOSED | [Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have](178-timer-rearm-seam.md) |
+| 179 | PROPOSED | [Whether the tour boot keeps starting a console server that has no client](179-console-server-with-no-client.md) |
+| 180 | PROPOSED | [Whether `components/` splits again, for the tools a person invokes](180-a-third-program-directory.md) |
+| 181 | PROPOSED | [May `script/bootstrap` say "installed everything I could, and this machine is still not good enough" without failing?](181-bootstrap-provisions-and-judges.md) |
+| 182 | PROPOSED | [Is a string two binaries agree on a name for `script/names`' purposes, or is it data?](182-provenance-for-wire-visible-names.md) |
+| 183 | PROPOSED | [What `script/ci-build` with no arguments means, and what the two tiers are called](183-what-no-arguments-means.md) |
+| 184 | PROPOSED | [Does the host test pass run on a second architecture, and at what cadence?](184-an-x86-64-host-in-the-host-pass.md) |
+| 185 | PROPOSED | [What carries the claim that userspace composes a process from an authority you can count on one hand](185-composing-a-process-from-two-capabilities.md) |
+| 186 | PROPOSED | [Where a riscv64 tour-boot check runs, what it asserts, and what it is called](186-where-the-riscv-tour-check-runs.md) |
+| 187 | PROPOSED | [One crate per kernel-test pair, or one crate for all of them?](187-crates-for-the-numbers-a-kernel-test-and-its-program-agree-on.md) |
+| 188 | PROPOSED | [What the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand](188-one-home-for-the-trap-on-false-helper.md) |
+| 189 | PROPOSED | [Which of two definitions `caretaker` carries, and what the translating shape is called](189-what-a-caretaker-is-when-it-translates.md) |
+| 190 | PROPOSED | [Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?](190-what-a-baseline-save-must-record.md) |
+| 191 | PROPOSED | [Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point](191-job-mix-repeats-and-what-the-line-reports.md) |
+| 192 | PROPOSED | [Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?](192-a-checked-direct-map-reader-for-the-acpi-walk.md) |
+| 193 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](193-nvme-in-the-block-roster.md) |
+| 194 | DECIDED | [Sessions interleave rather than serialize, and a renumber is the price](194-sessions-interleave-rather-than-serialize.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
