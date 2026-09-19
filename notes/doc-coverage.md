@@ -94,8 +94,8 @@ of those 404, crate by crate, re-measuring the same way after every batch: **235
 a hard gate, so those crates cannot regress:
 
 `abi`, `address_space_identifier`, `bitmap_font`, `block_roster`, `c_seam`, `calendar`, `memory_corruption_canary_gate`, `capability`,
-`clock_protocol`, `component_plan`, `coremark`, `cpu_set`, `cred`, `credential_protocol`, `dma_validator`, `dtb`,
-`elf`, `entropy_protocol`, `page_frames`, `filesystem_protocol`, `graphics_protocol`, `glob`, `intrusive_fifo`, `ipc`, `line_editor`,
+`clock_protocol`, `component_plan`, `coremark`, `cpu_set`, `cred`, `credential_protocol`, `dma_validator`, `device_tree_blob`,
+`elf`, `entropy_protocol`, `page_frames`, `filesystem_protocol`, `graphics_protocol`, `glob`, `inter_process_communication`, `intrusive_fifo`, `line_editor`,
 `manual`, `measured_boot`, `nifefs`, `network_time_protocol`, `non_volatile_memory_express`, `paging`, `pgrep`,
 `ps`, `memory_regions`, `byte_sink_protocol`, `generational_table`, `socket_protocol`, `work_steal_slot`, `supervision_protocol`,
 `swap_protocol`, `swish`, `system_initializer`, `timetable`, `user_mode_heap`, `user_mode_runtime`, `video_terminal`,

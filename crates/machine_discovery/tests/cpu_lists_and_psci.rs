@@ -8,8 +8,8 @@
 //! * **QEMU aarch64 `virt` with `virtualization=on`**, which is the *only* configuration on this
 //!   laptop that produces `method = "smc"`. It is a real dump, not a hand-edit, and it is the whole
 //!   evidence that the conduit is a machine property rather than a constant.
-//! * **QEMU riscv64 `virt`**, borrowed from the `dtb` crate's fixtures, for the `timebase-frequency`
-//!   the RISC-V timer used to hardcode.
+//! * **QEMU riscv64 `virt`**, borrowed from the `device_tree_blob` crate's fixtures, for the
+//!   `timebase-frequency` the RISC-V timer used to hardcode.
 //! * **A hand-written clustered tree**, for the shapes QEMU cannot emit: two address cells, a
 //!   non-contiguous hardware id, a disabled core, a spin-table core, more cores than the kernel's
 //!   ceiling, and PSCI 0.1 with its own published function id.
@@ -22,12 +22,15 @@ use machine_discovery::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
 use machine_discovery::cpu_list::{CpuList, EnableMethod, MAX_CPU_NODES};
 
 /// The machine `script/test` boots on aarch64, at the `-smp 4` the runner passes.
-const QEMU_VIRT_SMP4: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt-smp4.dtb");
+const QEMU_VIRT_SMP4: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt-smp4.dtb");
 /// The same board with `virtualization=on`, which moves the conduit to `smc`.
-const QEMU_VIRT_SMC: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt-smc.dtb");
+const QEMU_VIRT_SMC: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt-smc.dtb");
 /// The RISC-V machine, borrowed rather than copied so a regenerated tree cannot leave two crates
 /// testing different bytes.
-const QEMU_RISCV: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-riscv64-virt.dtb");
+const QEMU_RISCV: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 const CLUSTERED: &[u8] = include_bytes!("fixtures/clustered-cpus.dtb");
 const NO_PSCI: &[u8] = include_bytes!("fixtures/no-psci.dtb");
 /// Eighteen cores, a `/cpus` whose `#address-cells` is two bytes rather than four, one `reg` of
@@ -38,12 +41,12 @@ const MANY_HARTS: &[u8] = include_bytes!("fixtures/many-harts.dtb");
 const PARTIAL_PSCI: &[u8] = include_bytes!("fixtures/partial-psci.dtb");
 
 fn cpus(bytes: &[u8]) -> CpuList {
-    let dt = dtb::Dtb::from_bytes(bytes).expect("fixture should parse");
+    let dt = device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture should parse");
     CpuList::from_device_tree(&dt).expect("cpu list should decode")
 }
 
 fn psci(bytes: &[u8]) -> Option<Psci> {
-    let dt = dtb::Dtb::from_bytes(bytes).expect("fixture should parse");
+    let dt = device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture should parse");
     Psci::from_device_tree(&dt).expect("psci node should decode")
 }
 

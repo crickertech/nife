@@ -93,7 +93,7 @@ because it was written wrong.
 `reap_region_objects` grows a phase that acts on it: a resident that is `Blocked` and off its
 kernel stack is unlinked from whatever queue holds it, every outstanding `Object::Reply` naming it
 is deleted from every capability table, and its state is written straight to `Finished`. It is
-never woken and never runs another instruction. `crates/ipc` gains `Rendezvous::remove_receiver`,
+never woken and never runs another instruction. `crates/inter_process_communication` gains `Rendezvous::remove_receiver`,
 `remove_sender`'s twin.
 
 **The authority is unchanged**, which is why proposal A was the one that could ship without
@@ -125,7 +125,7 @@ checked against the mutation it is meant to catch:
   in its slot and fails that test **and only that test**, which is the point of having it: a change
   that traded a permanent block for a forgeable reply would pass every capacity assertion above it.
 
-`crates/ipc` gains a Kani harness, `removing_a_waiter_preserves_the_invariant`, whose interesting
+`crates/inter_process_communication` gains a Kani harness, `removing_a_waiter_preserves_the_invariant`, whose interesting
 case is the miss rather than the hit, because the kernel asks both queues on every victim.
 
 ## Follow-on

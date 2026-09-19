@@ -1,11 +1,8 @@
 [package]
-name = "ipc"
+name = "device_tree_blob"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
-
-[dependencies]
-intrusive_fifo = { version = "0.1.0", path = "../intrusive_fifo" }
 
 [lints]
 workspace = true

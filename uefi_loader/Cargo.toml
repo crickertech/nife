@@ -56,7 +56,7 @@ elf = { version = "0.1.0", path = "../crates/elf" }
 # spellings of one token with nothing keeping them in step.
 #
 # It is not a §46 decision: `machine_discovery` is ours, in this workspace, and its own single
-# dependency (`dtb`) is ours and has none.
+# dependency (`device_tree_blob`) is ours and has none.
 # Every encoder in `handoff` is tested by decoding its output with the crate the KERNEL decodes
 # with, so the two cannot drift apart without a host test failing in milliseconds. This is the same
 # rule `byte_sink_protocol`, `grant_plan` and `clock_protocol` are held to: no party keeps its own copy of

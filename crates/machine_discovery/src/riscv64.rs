@@ -54,7 +54,7 @@
 //!   trap and in `sync_icache`: a check that fails on the board we are buying is worse than no
 //!   check. `M`, `A` and `C` carry no such ambiguity, so they are the ones that gate the boot.
 
-use dtb::{Dtb, Error};
+use device_tree_blob::{DeviceTreeBlob, Error};
 
 /// The most CPU nodes [`Isa::from_device_tree`] will read. Sixteen is twice the kernel's
 /// `MAX_CPUS` and costs one pointer pair each on the stack; a machine with more is reported as
@@ -677,7 +677,7 @@ impl Isa {
 
     /// Read the CPU nodes. Fills the tier-1 fields and leaves `asid_bits` and `sbi` at their
     /// defaults for the kernel to complete.
-    pub fn from_device_tree(dt: &Dtb<'_>) -> Result<Isa, Error> {
+    pub fn from_device_tree(dt: &DeviceTreeBlob<'_>) -> Result<Isa, Error> {
         let mut extensions = [None; MAX_HARTS];
         let harts = dt.node_props(b"cpu@", b"riscv,isa-extensions", &mut extensions)?;
 

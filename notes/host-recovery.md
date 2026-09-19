@@ -384,8 +384,9 @@ wrong. `blank_check_after_run` closes that, because the table it reads was writt
   of a device from the host is a real thing to want and is not this: it would be the first path in
   this tool that can destroy a partition it was not aimed at.
 - **The backup table is not consulted.** If the primary header is damaged the tool says the disk has
-  no table, while `Gpt::check_backup` exists and the backup copy is probably intact. Reading the
-  backup when the primary fails is the obvious next thing and is not built.
+  no table, while `GloballyUniqueIdentifierPartitionTable::check_backup` exists and the backup copy
+  is probably intact. Reading the backup when the primary fails is the obvious next thing and is not
+  built.
 
 ## What this does not do, and where it goes next
 

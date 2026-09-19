@@ -4407,6 +4407,7 @@ fn mkblankdisk() -> bool {
 /// is a fact about this table's current order.
 fn blank_check_after_run() -> bool {
     use filesystem_protocol::fixture::blank;
+    use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
 
     let path = blank_disk_path();
     let Ok(img) = std::fs::read(&path) else {
@@ -4427,7 +4428,7 @@ fn blank_check_after_run() -> bool {
         eprintln!("BLANK IMAGE CHECK FAILED: the protective MBR the guest wrote is bad: {e:?}");
         return false;
     }
-    let table = match globally_unique_identifier_partition_table::Gpt::parse(
+    let table = match GloballyUniqueIdentifierPartitionTable::parse(
         &img[lba..2 * lba],
         &img[2 * lba..34 * lba],
     ) {
@@ -4961,8 +4962,8 @@ impl ArchLegs {
 
 /// Host tests first, then the kernel under QEMU.
 ///
-/// The host crates (`dtb`, `frames`) hold the pure logic and run in *milliseconds* with no
-/// emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
+/// The host crates (`device_tree_blob`, `frames`) hold the pure logic and run in *milliseconds*
+/// with no emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
 /// seconds booting QEMU. See DECISIONS §7.
 ///
 /// Four flags narrow what runs, and all four default to today's behaviour:

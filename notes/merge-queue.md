@@ -176,6 +176,15 @@ standing duty rather than something the watcher does for you. `gh pr list --sear
 `gh pr list --json number,mergeStateStatus,statusCheckRollup` for `DIRTY`/`CONFLICTING` or a
 `FAILURE` conclusion instead.
 
+**Two fields that lie to a session watching one pull request**, both met on 2026-09-19 watching
+#965. `autoMergeRequest` goes **null the moment GitHub enqueues** the pull request, so "auto-merge
+is off" reads exactly like "dropped from the queue" when it means the opposite. And
+`statusCheckRollup` keeps every run, including the ones a newer push **cancelled**, so a
+`CANCELLED` conclusion is usually a superseded run sitting beside its own `SUCCESS`. Ask the queue
+itself instead: `gh api graphql` for
+`pullRequest(number: N) { mergeQueueEntry { state position } }`, where no entry while open means
+out of the queue, and treat only `FAILURE` and `TIMED_OUT` as failures.
+
 **Deliberately not automated further.** calef declined an unattended scheduled agent on 2026-08-26:
 he would rather this shut down when the session driving it does than run standing on a timer with
 nobody watching. Resolving a conflict or a check failure needs the reading and judgment a person

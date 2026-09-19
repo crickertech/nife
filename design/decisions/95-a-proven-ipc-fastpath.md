@@ -10,10 +10,11 @@ not one word covering both. **Option 3, the fastpath itself**, is what stays und
 milestone 74's cycle counters and milestone 127's Jetson TX1 to produce the one measurement that
 would justify it, and neither exists yet, so building it now would be arguing on an estimate rather
 than measuring, exactly the move this project's benchmark discipline refuses. **Option 2, the
-eligibility predicate and its proof in `crates/ipc`, is ratified as buildable now**: it is cheap,
-touches no syscall surface, and turns "the fastpath would be correct" from an argument into a
-harness whether or not a fastpath is ever built on top of it. A lane may pursue Option 2 without
-further sign-off; Option 3 stays gated on the measurement per this decision's own text.
+eligibility predicate and its proof in `crates/inter_process_communication`, is ratified as
+buildable now**: it is cheap, touches no syscall surface, and turns "the fastpath would be correct"
+from an argument into a harness whether or not a fastpath is ever built on top of it. A lane may
+pursue Option 2 without further sign-off; Option 3 stays gated on the measurement per this
+decision's own text.
 
 **What is blocked until this is answered:** nothing is blocked. The gate holds the number still, and
 `ipc_fastpath` at 5.6 KiB against a 4 KiB target is a gap that is not widening. This is a decision
@@ -41,9 +42,10 @@ transitive dependency closure, and **`cargo kani` never compiles the kernel.** S
 
 What we have instead is better than it sounds, and notes/verification.md names the property: the
 decision core is a pure crate and **the kernel calls it rather than keeping a copy.**
-`crates/ipc::Endpoint` is the kernel's real endpoint state, not a model kept in sync, which is why
-that note calls it "the first place a proof reaches all the way into the running kernel". Six
-harnesses cover the rendezvous decisions, including `send_rendezvous_iff_a_receiver_waited`.
+`crates/ipc::Endpoint` (`inter_process_communication::Rendezvous` since §113 and 2026-09-19) is the
+kernel's real endpoint state, not a model kept in sync, which is why that note calls it "the first
+place a proof reaches all the way into the running kernel". Six harnesses cover the rendezvous
+decisions, including `send_rendezvous_iff_a_receiver_waited`.
 
 So the question is not "can Kani prove the fastpath". It is **"can the fastpath be built so that the
 part which decides is still the proved part".**
@@ -57,7 +59,8 @@ both paths individually look correct.
 
 It is also exactly what a pure predicate kills. The shape:
 
-1. Add an eligibility predicate to `crates/ipc`, beside the state machine it is about.
+1. Add an eligibility predicate to `crates/inter_process_communication`, beside the state machine
+   it is about.
 2. Prove, in the same inductive-step style as the six existing harnesses, that **eligible implies the
    general path would have returned `Rendezvous` with the same partner**.
 3. Require the kernel's fastpath to call that predicate rather than reimplement it, which is the
@@ -161,9 +164,10 @@ is a design fork even though no new syscall number appears.
    and the cost of being over it is unmeasured, because nothing here models a cache. Cheapest, and it
    keeps the claim "the IPC decision the kernel runs is the proved one" completely unqualified.
 2. **The predicate and the proof first, with no fastpath.** Land the eligibility predicate and its
-   harness in `crates/ipc`, and have the existing slowpath call it as a no-op assertion. This buys
-   nothing in bytes and makes the later fastpath a mechanical change against a proved precondition.
-   It is also the honest way to find out whether the obligation is as small as this file claims.
+   harness in `crates/inter_process_communication`, and have the existing slowpath call it as a
+   no-op assertion. This buys nothing in bytes and makes the later fastpath a mechanical change
+   against a proved precondition. It is also the honest way to find out whether the obligation is as
+   small as this file claims.
 3. **A Rust fastpath behind the proved predicate**, direct-switching to the receiver, bailing to the
    slowpath on anything unusual, with a differential gate. This is seL4's shape and the only option
    that closes the gap.

@@ -121,7 +121,7 @@ trust chain bought for nothing.
 
 ### zip and 7z: **defer zip, refuse 7z**
 
-`zip` is a container plus DEFLATE plus CRC-32, and this tree already has the CRC-32 (`crates/gpt`
+`zip` is a container plus DEFLATE plus CRC-32, and this tree already has the CRC-32 (`crates/globally_unique_identifier_partition_table`
 implements the zlib polynomial). So once inflate exists, zip is close to free and can be revisited
 against a consumer. `7z` is LZMA-based, has no consumer, and inherits the xz argument.
 

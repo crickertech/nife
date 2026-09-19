@@ -638,9 +638,9 @@ pub fn msix_cap(bdf: Bdf, read32: &mut dyn FnMut(Bdf, u64) -> u32) -> Option<Msi
 /// The INTx swizzle on QEMU's `virt` boards: the legacy interrupt pin of the function at device
 /// `d` using pin `p` (1=INTA..4=INTD) lands on PLIC/GIC input `base + ((d + p - 1) % 4)`. This is
 /// the standard bridge swizzle the PCI spec prescribes for a flat bus, and QEMU's generic ECAM
-/// bridge implements exactly it; the dtb crate's fixture test cross-checks this formula against
-/// the machine's own `interrupt-map`, so if a future board routes differently the host tests say
-/// so before the kernel misroutes an interrupt.
+/// bridge implements exactly it; this crate's `tests/qemu_virt_dtb.rs` cross-checks this formula
+/// against the machine's own `interrupt-map`, so if a future board routes differently the host
+/// tests say so before the kernel misroutes an interrupt.
 pub fn intx_irq(base: u32, dev: u8, pin: u8) -> u32 {
     // Total for every input, proved in the verification module. Pins are 1-based (1=INTA); the
     // saturating_sub means a (contract-violating) pin of 0 behaves as INTA instead of

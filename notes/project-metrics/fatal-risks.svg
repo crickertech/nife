@@ -1,8 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="860" height="380" viewBox="0 0 860 380" role="img" aria-label="The nine things that would kill nife">
 <style>
   .bg{fill:#ffffff} .fg{fill:#1f2328} .mut{fill:#59636e} .grid{stroke:#d1d9e0}
+  .seg{stroke:#ffffff;stroke-width:1}
+  .val{paint-order:stroke;stroke:#ffffff;stroke-width:3px;stroke-linejoin:round}
+  .s0{fill:#2a78d6}  .s1{fill:#eb6834}  .s2{fill:#1baf7a}  .s3{fill:#eda100}  .s4{fill:#e87ba4}  .s5{fill:#008300}  .s6{fill:#4a3aa7}  .s7{fill:#e34948}
   @media (prefers-color-scheme: dark){
-    .bg{fill:#0d1117} .fg{fill:#e6edf3} .mut{fill:#9198a1} .grid{stroke:#30363d}}
+    .bg{fill:#0d1117} .fg{fill:#e6edf3} .mut{fill:#9198a1} .grid{stroke:#30363d}
+    .seg{stroke:#0d1117} .val{stroke:#0d1117} .s0{fill:#3987e5} .s1{fill:#d95926} .s2{fill:#199e70} .s3{fill:#c98500} .s4{fill:#d55181} .s5{fill:#008300} .s6{fill:#9085e9} .s7{fill:#e66767}}
   text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
 </style>
 <rect class="bg" width="860" height="380"/>
@@ -18,23 +22,27 @@
 <text class="mut" x="56" y="127.5" font-size="10" text-anchor="end">7.5</text>
 <line class="grid" x1="64" y1="58.0" x2="650.0" y2="58.0" stroke-width="1"/>
 <text class="mut" x="56" y="61.0" font-size="10" text-anchor="end">10</text>
-<text class="mut" x="96.6" y="342" font-size="10" text-anchor="middle">2026W29</text>
-<text class="mut" x="161.7" y="342" font-size="10" text-anchor="middle">2026W30</text>
-<text class="mut" x="226.8" y="342" font-size="10" text-anchor="middle">2026W31</text>
-<text class="mut" x="291.9" y="342" font-size="10" text-anchor="middle">2026W32</text>
-<text class="mut" x="357.0" y="342" font-size="10" text-anchor="middle">2026W33</text>
-<text class="mut" x="422.1" y="342" font-size="10" text-anchor="middle">2026W34</text>
-<text class="mut" x="487.2" y="342" font-size="10" text-anchor="middle">2026W35</text>
-<rect x="530.8" y="191.0" width="43.0" height="133.0" fill="#0072B2"/>
-<rect x="530.8" y="84.6" width="43.0" height="106.4" fill="#E69F00"/>
-<text class="mut" x="552.3" y="342" font-size="10" text-anchor="middle">2026W36</text>
-<text class="fg" x="552.3" y="79.6" font-size="10" text-anchor="middle">9</text>
-<rect x="596.0" y="191.0" width="43.0" height="133.0" fill="#0072B2"/>
-<rect x="596.0" y="84.6" width="43.0" height="106.4" fill="#E69F00"/>
-<text class="mut" x="617.4" y="342" font-size="10" text-anchor="middle">2026W38</text>
-<text class="fg" x="617.4" y="79.6" font-size="10" text-anchor="middle">9</text>
-<rect x="672" y="64" width="11" height="11" fill="#0072B2"/>
-<text class="fg" x="689" y="74" font-size="11">experiment run</text>
-<rect x="672" y="83" width="11" height="11" fill="#E69F00"/>
-<text class="fg" x="689" y="93" font-size="11">not yet tested</text>
+<text class="mut" x="93.3" y="342" font-size="10" text-anchor="middle">2026W29</text>
+<text class="mut" x="151.9" y="342" font-size="10" text-anchor="middle">2026W30</text>
+<text class="mut" x="210.5" y="342" font-size="10" text-anchor="middle">2026W31</text>
+<text class="mut" x="269.1" y="342" font-size="10" text-anchor="middle">2026W32</text>
+<text class="mut" x="327.7" y="342" font-size="10" text-anchor="middle">2026W33</text>
+<text class="mut" x="386.3" y="342" font-size="10" text-anchor="middle">2026W34</text>
+<text class="mut" x="444.9" y="342" font-size="10" text-anchor="middle">2026W35</text>
+<rect class="seg s0" x="484.2" y="191.0" width="38.7" height="133.0"><title>2026W36, experiment run: 5</title></rect>
+<path class="seg s1" d="M484.2,191.0 V88.6 Q484.2,84.6 488.2,84.6 H518.8 Q522.8,84.6 522.8,88.6 V191.0 Z"><title>2026W36, not yet tested: 4</title></path>
+<text class="mut" x="503.5" y="342" font-size="10" text-anchor="middle">2026W36</text>
+<text class="fg val" x="503.5" y="79.6" font-size="10" text-anchor="middle">9</text>
+<rect class="seg s0" x="542.8" y="191.0" width="38.7" height="133.0"><title>2026W37, experiment run: 5</title></rect>
+<path class="seg s1" d="M542.8,191.0 V88.6 Q542.8,84.6 546.8,84.6 H577.4 Q581.4,84.6 581.4,88.6 V191.0 Z"><title>2026W37, not yet tested: 4</title></path>
+<text class="mut" x="562.1" y="342" font-size="10" text-anchor="middle">2026W37</text>
+<text class="fg val" x="562.1" y="79.6" font-size="10" text-anchor="middle">9</text>
+<rect class="seg s0" x="601.4" y="191.0" width="38.7" height="133.0"><title>2026W38, experiment run: 5</title></rect>
+<path class="seg s1" d="M601.4,191.0 V88.6 Q601.4,84.6 605.4,84.6 H636.0 Q640.0,84.6 640.0,88.6 V191.0 Z"><title>2026W38, not yet tested: 4</title></path>
+<text class="mut" x="620.7" y="342" font-size="10" text-anchor="middle">2026W38</text>
+<text class="fg val" x="620.7" y="79.6" font-size="10" text-anchor="middle">9</text>
+<rect class="s0" x="672" y="64" width="11" height="11" rx="2"/>
+<text class="fg" y="74" font-size="11"><tspan x="689" dy="0">experiment run</tspan></text>
+<rect class="s1" x="672" y="83" width="11" height="11" rx="2"/>
+<text class="fg" y="93" font-size="11"><tspan x="689" dy="0">not yet tested</tspan></text>
 </svg>

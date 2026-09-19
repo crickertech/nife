@@ -178,11 +178,11 @@ refused the program with `SegmentsOverlap`. Every earlier program happened to ha
 data. The surveyor's 44 KiB of table buffers are all `.bss`, so it was the first to meet it.
 
 **One stack page is not enough**, and the symptom is not a stack overflow. A debug-build
-`Gpt::parse` walking 128 entries (an `Entry` is 128 bytes by value) plus a second `Header::decode`
-for the backup overran the single mapped stack page by about 200 bytes, which presents as a data
-abort on the program's own `sp` and then, thirty seconds later, as the lost-wakeup watchdog, because
-the test was still waiting on a report from a process that had died. `spawn_fs_client` records
-exactly this twice; it is now three times.
+`GloballyUniqueIdentifierPartitionTable::parse` walking 128 entries (an `Entry` is 128 bytes by
+value) plus a second `Header::decode` for the backup overran the single mapped stack page by about
+200 bytes, which presents as a data abort on the program's own `sp` and then, thirty seconds later,
+as the lost-wakeup watchdog, because the test was still waiting on a report from a process that had
+died. `spawn_fs_client` records exactly this twice; it is now three times.
 
 **`MAX_DEVICES` again**, the sixth bump. Every milestone that wires one more confined device costs a
 table slot forever, because a transport is never unregistered. The constant's comment now says the

@@ -32,7 +32,7 @@ narrow.
 
 The alternative is a **kernel thread parked on a rendezvous**, answering questions. That mechanism
 was verified while deciding the console case (`design/decisions/149-kernel-served-console-endpoint.md`):
-`ipc::Rendezvous` is generic over `T: Node` and has no privilege level in it, and kernel threads
+`inter_process_communication::Rendezvous` is generic over `T: Node` and has no privilege level in it, and kernel threads
 already exist. **It needs no new object type and no new syscall number.**
 
 ## The argument that makes this more than tidiness

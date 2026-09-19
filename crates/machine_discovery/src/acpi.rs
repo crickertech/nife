@@ -8,9 +8,9 @@
 //!
 //! # The shape, and how it differs from a device tree
 //!
-//! A device tree is one blob with one root and a tree of nodes, and `crates/dtb` walks it. ACPI is a
-//! **linked structure of independent tables**, each with its own signature and checksum, reached
-//! from a root pointer that is not itself a table:
+//! A device tree is one blob with one root and a tree of nodes, and `crates/device_tree_blob` walks
+//! it. ACPI is a **linked structure of independent tables**, each with its own signature and
+//! checksum, reached from a root pointer that is not itself a table:
 //!
 //! ```text
 //!   RSDP  ("RSD PTR ")            found by scanning low memory, or handed over by the loader
@@ -670,8 +670,9 @@ fn u64(bytes: &[u8], at: usize) -> u64 {
 ///
 /// **What is deliberately not here**: the whole-table walk from the RSDP down through the XSDT,
 /// which needs a symbolic pointer into memory this crate never holds, and is the same wall
-/// `crates/dtb` records for the structure-block token loop. The leaves and the two self-describing
-/// entry walks are what bounded model checking can reach, so they are what is proved.
+/// `crates/device_tree_blob` records for the structure-block token loop. The leaves and the two
+/// self-describing entry walks are what bounded model checking can reach, so they are what is
+/// proved.
 ///
 /// Names: provisional (milestone 319). calef names things.
 #[cfg(kani)]
@@ -817,10 +818,10 @@ mod verification {
     /// **This harness was false when it was written, and the defect was on the boot path.**
     /// `host_address_width` was `body[0] + 1` into a `u8`, so a DMAR whose `HostAddressWidth` byte
     /// is `0xff` panicked `read_dmar` in `kernel/src/arch/x86_64/machine.rs`, which calls
-    /// [`parse_dmar`] directly on firmware bytes. It is the same defect `dtb::be32`'s unchecked
-    /// `at + 4` was, one table over: a field widened by one with no room for the widening. Fixed by
-    /// making [`Dmar::host_address_width`] a `u16`, so the addition cannot overflow at all rather
-    /// than being guarded against.
+    /// [`parse_dmar`] directly on firmware bytes. It is the same defect `device_tree_blob::be32`'s
+    /// unchecked `at + 4` was, one table over: a field widened by one with no room for the
+    /// widening. Fixed by making [`Dmar::host_address_width`] a `u16`, so the addition cannot
+    /// overflow at all rather than being guarded against.
     ///
     /// Could plausibly have been false, and was: every DMAR this parser had ever seen came from
     /// QEMU's `build_dmar_q35`, which writes 38. Nothing in the encoding stops a vendor writing

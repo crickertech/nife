@@ -5,11 +5,10 @@
 //! ask this for their memory, and there is nothing underneath it to ask.
 //!
 //! The allocator itself lives in the `frames` crate and the device tree parser in
-//! `dtb`, because both are pure logic and belong in host-testable crates (DECISIONS §7).
-//! What's left here is the part that can only happen on the real machine: the
-//! **bootstrap**.
+//! `device_tree_blob`, because both are pure logic and belong in host-testable crates (DECISIONS
+//! §7). What's left here is the part that can only happen on the real machine: the **bootstrap**.
 
-use dtb::Region;
+use device_tree_blob::Region;
 use page_frames::{FRAME_SIZE, PageFrame, PageFrameAllocator, Stats};
 
 use crate::arch::mmu::{phys_to_virt, virt_to_phys};
@@ -245,10 +244,10 @@ pub fn init() {
 ///
 /// # BUGS
 ///
-/// - **The type at this seam is still the device tree's.** `Region` is `dtb::Region`, which is a
-///   plain `{ start, size }` pair and means nothing device-tree-specific, but a machine with no
-///   device tree naming a device-tree type is a smell rather than a design. Moving it belongs with
-///   the wider seam.
+/// - **The type at this seam is still the device tree's.** `Region` is `device_tree_blob::Region`,
+///   which is a plain `{ start, size }` pair and means nothing device-tree-specific, but a machine
+///   with no device tree naming a device-tree type is a smell rather than a design. Moving it
+///   belongs with the wider seam.
 /// - **At most `MAX_REGIONS` RAM regions.** More than that indexes past the map below. Both `virt`
 ///   boards describe one; q35 describes three. A caller with more must decide what to drop, because
 ///   this cannot.

@@ -69,8 +69,12 @@ static PSCI_ID_FROM_PROPERTY: AtomicU8 = AtomicU8::new(0);
 pub fn init(dtb_ptr: usize) {
     // SAFETY: the pointer firmware handed us, whose magic `memory::init` has already checked (it
     // runs first and panics otherwise), named through the boot map's direct region.
-    let dt = unsafe { dtb::Dtb::from_ptr(super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) }
-        .expect("device tree is unreadable");
+    let dt = unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(
+            super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8
+        )
+    }
+    .expect("device tree is unreadable");
     match Psci::from_device_tree(&dt).expect("cannot read /psci") {
         None => PSCI_CONDUIT.store(PSCI_ABSENT, Ordering::Relaxed),
         Some(psci) => {

@@ -40,7 +40,7 @@ zeros, which is the only thing that marks it, and not (this is the trap) its LBA
 ## The crate does no I/O, and that is the whole design
 
 Nothing in `crates/globally_unique_identifier_partition_table` reads or writes a block device. Every function takes bytes the caller
-already has and returns bytes the caller is about to place. Same discipline as `dtb` and `elf`, and
+already has and returns bytes the caller is about to place. Same discipline as `device_tree_blob` and `elf`, and
 the reason is not tidiness: it is that the crate then compiles for the host, so its tests run in
 milliseconds against disks that real tools made, instead of inside a QEMU boot. `#![no_std]`, no
 allocation, no `unsafe`, and the entry array is a caller-supplied buffer so a kernel can hand it a
@@ -53,8 +53,8 @@ The layering inside it is worth stating, because it is what makes the proofs pos
 | `Entry::decode` | nothing | no. Every one of 2^1024 bit patterns is an entry |
 | `Header::decode_fields` | nothing | no. Nine fields at nine offsets |
 | `Header::decode` | one block on its own terms | signature, revision, size, both reserved regions, its own CRC |
-| `Gpt::parse` | the table against the disk | array CRC, usable range, partitions off the end, partitions that overlap |
-| `Gpt::check_backup` | the two copies against each other | nine fields, by name |
+| `GloballyUniqueIdentifierPartitionTable::parse` | the table against the disk | array CRC, usable range, partitions off the end, partitions that overlap |
+| `GloballyUniqueIdentifierPartitionTable::check_backup` | the two copies against each other | nine fields, by name |
 | `mbr::validate` | LBA 0 | signature, the protective record, hybrid MBRs |
 
 `Entry::decode` being total is the same trick `network_time_protocol` uses: decoding judges nothing, so the
@@ -118,9 +118,9 @@ in it makes symmetrically coming out. What the two independent writers bought:
   spec does not require it; it is just what everybody does.
 
 Re-emitting `sgdisk`'s table reproduces its bytes exactly, and *rebuilding* it from its parsed
-description with `Gpt::create` also reproduces its bytes exactly, which is the strongest available
-statement about the writer: not "our writer agrees with our reader" but "our writer agrees with
-gptfdisk".
+description with `GloballyUniqueIdentifierPartitionTable::create` also reproduces its bytes exactly,
+which is the strongest available statement about the writer: not "our writer agrees with our reader"
+but "our writer agrees with gptfdisk".
 
 ## Hybrid MBRs are refused, deliberately
 
@@ -207,12 +207,13 @@ and it is a better decomposition anyway: the layout and the integrity are differ
 
 The same reasoning moved the create-then-parse harness. A byte-level version has four symbolic CRC
 chains in it and did not finish either. The byte-level identity is proved instead where it can be
-proved *completely*, in `tests/real_disks.rs`: `Gpt::create` reproduces `sgdisk`'s 512-byte header,
-its backup header and its 16 KiB array exactly. What that test cannot do is vary the disk size, so
-the harness takes that dimension and asserts every geometry rule `Gpt::parse` enforces on what
-`Gpt::create` produced, for **every** `u64` disk size. A writer that emits a table its own reader
-rejects is the worst failure available to this crate, and an unusual disk size is exactly where it
-would hide.
+proved *completely*, in `tests/real_disks.rs`: `GloballyUniqueIdentifierPartitionTable::create`
+reproduces `sgdisk`'s 512-byte header, its backup header and its 16 KiB array exactly. What that
+test cannot do is vary the disk size, so the harness takes that dimension and asserts every geometry
+rule `GloballyUniqueIdentifierPartitionTable::parse` enforces on what
+`GloballyUniqueIdentifierPartitionTable::create` produced, for **every** `u64` disk size. A writer
+that emits a table its own reader rejects is the worst failure available to this crate, and an
+unusual disk size is exactly where it would hide.
 
 `overlap_is_exactly_sharing_a_block` is the one that is complete rather than bounded, because it is
 pure integer comparison. It states the property as its definition (the intersection is non-empty)
@@ -246,9 +247,10 @@ Stated plainly, because a demonstrator's docs are part of the deliverable:
   reserves, leaving the other 122 exactly as they arrived. That is pure computation, so it belongs
   here; the randomness stays in the program that holds an entropy endpoint. The section below is
   what uses it.
-- **No alignment policy.** `Gpt::create` places partitions exactly where it is told. The 2048-block
-  (1 MiB) convention that keeps a partition off an SSD erase-block boundary is policy, and a format
-  crate that silently moved a partition would be doing policy behind its caller's back.
+- **No alignment policy.** `GloballyUniqueIdentifierPartitionTable::create` places partitions
+  exactly where it is told. The 2048-block (1 MiB) convention that keeps a partition off an SSD
+  erase-block boundary is policy, and a format crate that silently moved a partition would be doing
+  policy behind its caller's back.
 - **Entry sizes over 128 bytes are read as 128.** The spec allows the entry to grow; nothing writes
   a bigger one, and decoding the first 128 bytes and ignoring the rest is what a reader that does
   not know a later revision can honestly do.

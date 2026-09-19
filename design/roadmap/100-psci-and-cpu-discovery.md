@@ -13,10 +13,10 @@ facts are compiled in:
 | The function id is `0xC400_0003` | `const PSCI_CPU_ON` | `/psci`'s `compatible` (the id set moved between PSCI 0.1 and 0.2) |
 | The core list is `0..MAX_CPUS`, and `MAX_CPUS` is 4 | `kernel/src/cpu.rs:30`, iterated in `bring_up_secondaries` | `/cpus` |
 
-Everywhere else the machine describes itself. `crates/dtb` already parses the tree, milestone 60
+Everywhere else the machine describes itself. `crates/device_tree_blob` already parses the tree, milestone 60
 (ISA discovery) reads the ISA out of it on both architectures, `crates/pci` holds its own hardcodes
 against the tree in a host test, and the console's hardcoded UART base is checked against
-`dtb`'s answer in `crates/dtb/tests/qemu_aarch64_virt.rs`. **The parser is not what is missing.**
+`dtb`'s answer in `crates/device_tree_blob/tests/qemu_aarch64_virt.rs`. **The parser is not what is missing.**
 `Fdt::node_prop` and `Fdt::node_reg` already answer both questions; what is missing is the call.
 
 **Two failure shapes, and only one of them is certain.** The core-list half is a guaranteed silent
@@ -76,6 +76,6 @@ reports more; changing the ceiling is a separate decision with a memory cost att
 **Built:** 2026-08-04
 
 The conduit (`hvc`), the function id, and the core list (`0..MAX_CPUS`, and `MAX_CPUS` is 4) are
-compiled in, where `/psci` and `/cpus` state all three and `crates/dtb` can already read them. The
+compiled in, where `/psci` and `/cpus` state all three and `crates/device_tree_blob` can already read them. The
 core-list half is a guaranteed silent no-op on a bigger board; the conduit half's failure is
 board-specific and untested. Milestones 24 and 88 both boot a machine that is not `virt`

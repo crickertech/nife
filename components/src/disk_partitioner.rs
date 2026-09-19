@@ -36,11 +36,11 @@
 //!
 //! # What it writes
 //!
-//! The layout is `filesystem_protocol::fixture::blank`, three partitions on a 64 MiB disk in the 2048-block
-//! alignment every real tool uses. Placement is this program's decision and not the crate's:
-//! `Gpt::create` validates a layout and refuses to move one, because alignment is policy and a
-//! format library that quietly relocated a partition would be doing policy behind its caller's
-//! back.
+//! The layout is `filesystem_protocol::fixture::blank`, three partitions on a 64 MiB disk in the
+//! 2048-block alignment every real tool uses. Placement is this program's decision and not the
+//! crate's: `GloballyUniqueIdentifierPartitionTable::create` validates a layout and refuses to move
+//! one, because alignment is policy and a format library that quietly relocated a partition would
+//! be doing policy behind its caller's back.
 //!
 //! Every block written is **read first** and the table bytes laid over it. That matters on a disk
 //! that is not blank: the primary table is 34 logical blocks and the transfer unit is eight of
@@ -71,7 +71,8 @@
 //!   and no way to ask for a different type GUID; the layout is the fixture's. What this
 //!   demonstrates is the *authority*, and a command line is the smaller half of the work left.
 //! - **Nothing here is crash-atomic.** A kill partway through leaves a disk with one copy of the
-//!   table written and the other stale, which `Gpt::check_backup` reports as a mismatch. Real
+//!   table written and the other stale, which
+//!   `GloballyUniqueIdentifierPartitionTable::check_backup` reports as a mismatch. Real
 //!   partitioners have the same property; the difference is that milestone 37 measured the
 //!   filesystem's crash behaviour and nothing has measured this one's.
 //! - **The unique GUIDs are not checked for collision against the disk's existing table**, because
@@ -116,7 +117,9 @@ use filesystem_protocol::{blk, req};
 use globally_unique_identifier_partition_table::entry::{Entry, NAME_UNITS};
 use globally_unique_identifier_partition_table::guid::{Guid, types};
 use globally_unique_identifier_partition_table::span::Span;
-use globally_unique_identifier_partition_table::{ENTRY_ARRAY_BYTES, Gpt, PRIMARY_HEADER_LBA, mbr};
+use globally_unique_identifier_partition_table::{
+    ENTRY_ARRAY_BYTES, GloballyUniqueIdentifierPartitionTable, PRIMARY_HEADER_LBA, mbr,
+};
 use user_mode_runtime::{call, send};
 
 /// Slot 0: where the verdict goes. An endpoint with `WRITE`.
@@ -168,8 +171,9 @@ pub const F_NAMES: u64 = 1 << 4;
 /// Every partition's unique GUID is distinct, non-zero, and stamped version 4.
 pub const F_UNIQUE: u64 = 1 << 5;
 
-/// The entry array under construction, and the buffer `Gpt::create` writes into. 16 KiB, so it goes
-/// in `.bss` rather than on the one-page stack.
+/// The entry array under construction, and the buffer
+/// `GloballyUniqueIdentifierPartitionTable::create` writes into. 16 KiB, so it goes in `.bss`
+/// rather than on the one-page stack.
 static mut ARRAY: [u8; ENTRY_ARRAY_BYTES] = [0; ENTRY_ARRAY_BYTES];
 /// The primary table as read back: LBA 0..33 is 34 logical blocks, which is five transfer blocks.
 static mut PRIMARY: [u8; 5 * blk::BLOCK_SIZE] = [0; 5 * blk::BLOCK_SIZE];
@@ -220,7 +224,7 @@ fn partition() -> ! {
     }
 
     // The disk's own size, asked of the disk rather than assumed. A layout that does not fit is a
-    // refusal from `Gpt::create`, not a truncated table.
+    // refusal from `GloballyUniqueIdentifierPartitionTable::create`, not a truncated table.
     let size = call(BLK, req(blk::SIZE), 0).0 as i64;
     if size <= 0 || !(size as u64).is_multiple_of(LBA) {
         send(REPORT, R_DISK_FAILED, 2, size as u64);
@@ -229,14 +233,20 @@ fn partition() -> ! {
     let block_count = size as u64 / LBA;
 
     let array = array();
-    let Ok(table) = Gpt::create(guids[0], LBA as usize, block_count, &parts, array) else {
+    let Ok(table) = GloballyUniqueIdentifierPartitionTable::create(
+        guids[0],
+        LBA as usize,
+        block_count,
+        &parts,
+        array,
+    ) else {
         send(REPORT, R_DISK_FAILED, 3, block_count);
         user_mode_runtime::exit()
     };
 
     // One logical block of scratch, built and written one at a time: the MBR, the primary header,
     // and the backup header are each 512 bytes at a known LBA, and the entry array is written
-    // straight out of the buffer `Gpt::create` filled.
+    // straight out of the buffer `GloballyUniqueIdentifierPartitionTable::create` filled.
     let mut block = [0u8; LBA as usize];
     let entries: &[u8] = table.entry_array();
 
@@ -297,7 +307,7 @@ fn verify() -> ! {
     if mbr::validate(&head[..LBA as usize], block_count).is_ok() {
         flags |= F_MBR;
     }
-    let Ok(table) = Gpt::parse(
+    let Ok(table) = GloballyUniqueIdentifierPartitionTable::parse(
         &head[LBA as usize..2 * LBA as usize],
         &head[2 * LBA as usize..],
     ) else {

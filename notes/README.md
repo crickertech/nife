@@ -1,6 +1,6 @@
 # Concept notes
 
-*Name: ratified (§75 covers this directory). `notes` predates every convention here and stays for the reason `elf` and `dtb` stay: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing.*
+*Name: ratified (§75 covers this directory). `notes` predates every convention here and stays for the reason `elf` stays: it is the plain word for what the files are, and renaming it would spend a reader's recognition to buy nothing. (This said `elf` and `dtb` until 2026-09-19, when DECISIONS §154 expanded `dtb` to `device_tree_blob`; `notes` is an ordinary English word and was never an acronym, so §154 does not reach it.)*
 
 Running glossary for nife. Written as concepts come up, not up front. If something
 in the code or the conversation doesn't make sense, it belongs here.
@@ -65,8 +65,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   `BUGS` sections (where rising is good), the falsification ratio, `unsafe` density, and the fatal
   risks put to an experiment. Every row is a restatement under today's definitions rather than what
   was reported at the time, which is stated on the page because a dashboard is exactly the artifact
-  that stops a reader asking. Coverage is the one series that cannot be recovered from history and
-  is left visibly empty. Name of the page ratified; the script's and the data directory's are
+  that stops a reader asking. Coverage is the exception: each week is measured by its own
+  `script/coverage` on its own pinned nightly, backfilled on 2026-09-19, with 2026W29 left
+  visibly empty because the script did not exist yet. Name of the page ratified; the script's and the data directory's are
   provisional.
 
 - [Citations that name what they cite](citations.md): why a footnote in this tree carries a name

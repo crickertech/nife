@@ -36,7 +36,7 @@ boundary) was checked and correctly left untouched -- a real in-tree homonym, no
 Verified: every host-testable crate builds and its full test suite (including doctests) passes; the
 kernel builds clean for both `aarch64-unknown-none-softfloat` and `riscv64imac-unknown-none-elf`;
 `user`, `fs_server` and `xtask` build clean; the two Kani-proof-bearing crates that reference the
-renamed type (`crates/ipc`, 6 harnesses, and `crates/capability`, 12 harnesses) both verify
+renamed type (`crates/inter_process_communication`, 6 harnesses, and `crates/capability`, 12 harnesses) both verify
 successfully post-rename, satisfying milestone 69's proof obligation. `notes/ipc-naming.md` updated
 to describe `Rendezvous` as the current name, with a provenance line for a reader who remembers
 `Endpoint`, and its "Family resemblance" section left untouched because it never named the old
@@ -74,7 +74,7 @@ got a provenance line the same way `notes/ipc-naming.md` did; its "acronym colli
 as Thread Control Block vs. Trusted Computing Base) is unaffected either way, since both senses are
 already informal usage. Verified the same four ways as `Endpoint`: full host test suite green
 (including doctests), both kernel targets build clean, `user`/`fs_server`/`xtask` build clean, and
-`crates/ipc` (6 harnesses) plus `crates/capability` (12 harnesses) both re-verify under Kani
+`crates/inter_process_communication` (6 harnesses) plus `crates/capability` (12 harnesses) both re-verify under Kani
 post-rename.
 
 `Aspace`/`AddressSpace`, plus its decided companion `FreeVas`/`FreeAddressSpace`
@@ -201,7 +201,7 @@ The compositor collision §113 named (`Untyped`/`Region` colliding with the comp
 damaged-screen-rectangle "region") was checked directly: `crates/compositor/src/lib.rs` never
 mentions `MemoryRegion`, so there is no adjacency for a reader to misread. Verified the same four
 ways as `Endpoint` and `Tcb`: full host test suite green (including doctests), both kernel targets
-build clean, `user`/`redoxfs_server`/`xtask` build clean, `crates/ipc` (6 harnesses) and
+build clean, `user`/`redoxfs_server`/`xtask` build clean, `crates/inter_process_communication` (6 harnesses) and
 `crates/capability` (12 harnesses) both re-verify under Kani post-rename, `script/lint` clean
 (including two `clippy::doc_markdown` fixes the rename itself triggered: `MEMORY_REGION` and
 `MemoryRegion` need backticks where the old `UNTYPED`/`Untyped` spellings did not, since clippy's

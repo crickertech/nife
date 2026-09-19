@@ -50,8 +50,12 @@ static ISA: IrqSafeMutex<Option<Isa>> = IrqSafeMutex::new(rank::ISA, None);
 pub fn init(dtb_ptr: usize) {
     // SAFETY: the same pointer `memory::init` has already validated the magic of, named through the
     // boot table's direct map because we are running virtual.
-    let dt = unsafe { dtb::Dtb::from_ptr(super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) }
-        .expect("device tree is unreadable");
+    let dt = unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(
+            super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8
+        )
+    }
+    .expect("device tree is unreadable");
 
     let mut cpu = Isa::from_device_tree(&dt).expect("cannot read the CPU nodes");
     cpu.sbi = probe_sbi();

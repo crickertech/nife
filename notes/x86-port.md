@@ -146,7 +146,7 @@ That is the whole diff above `arch/`. A new ISA was a new directory.
 
 ## What the loader hands over, and what it does not
 
-`machine_discovery::x86_64` decodes `hvm_start_info`, host-tested, for the same reason `crates/dtb`
+`machine_discovery::x86_64` decodes `hvm_start_info`, host-tested, for the same reason `crates/device_tree_blob`
 exists rather than a device-tree reader living in `arch/aarch64/`: a parser proved only inside a
 booting kernel is proved by nothing that runs in milliseconds. The kernel side
 (`arch/x86_64/machine.rs`) does nothing but turn a physical address into bytes through the direct
@@ -280,7 +280,7 @@ about each other, which is the shape this should not be left in:
 | PCIe ECAM window | `memory::init` -> `PCI_REGIONS` | ACPI MCFG -> `machine::Acpi` -> `memory::record_pci_regions` -> `PCI_REGIONS` (**shared consumer**, milestone 165). The BAR/mem32 half of the same static has no ACPI or AML source and stays a hardcoded constant (`arch::mmu::PCI_BAR_PHYS`); see that milestone for why. |
 | Console UART interrupt | `memory::init` -> `UART_IRQ` | discoverable now (`Acpi::isa_irqs[4]` is COM1's), unwired |
 
-The type at the seam is another loose end worth naming: `Region` is `dtb::Region`, which is a plain
+The type at the seam is another loose end worth naming: `Region` is `device_tree_blob::Region`, which is a plain
 `{ start, size }` pair and means nothing device-tree-specific, but a machine with no device tree
 naming a device-tree type is a smell rather than a design.
 

@@ -31,14 +31,16 @@ consequence for the shell unstated.
 
 ## What the tree already provides, measured rather than assumed
 
-- The endpoint object is `Object::Rendezvous`, and the kernel's is
-  `type Rendezvous = ipc::Rendezvous<Thread>` (`kernel/src/sched.rs:73`).
-- `crates/ipc`'s rendezvous is **generic over `T: Node`** and host-testable, with no privilege level
-  anywhere in it. `ThreadControlBlock` is what implements `Node`.
+- The endpoint object is `Object::Rendezvous`, and the kernel's is `type Rendezvous =
+  inter_process_communication::Rendezvous<Thread>` (`kernel/src/sched.rs:73`).
+- `crates/inter_process_communication`'s rendezvous is **generic over `T: Node`** and
+  host-testable, with no privilege level anywhere in it. `ThreadControlBlock` is what implements
+  `Node`.
 - **The kernel already has kernel threads**, which run a closure on their own stack
   (`kernel/src/thread.rs`, "starts a kernel thread's closure").
-- `crates/ipc`'s own doc names the parked-server case as the ordinary one: a thread queued on a
-  rendezvous is permanently `Blocked`, "and the commonest such thread is a server".
+- `crates/inter_process_communication`'s own doc names the parked-server case as the ordinary one:
+  a thread queued on a rendezvous is permanently `Blocked`, "and the commonest such thread is a
+  server".
 
 So the mechanism needs **no new object type, no new syscall number, and no change to the surface**
 (§10, §16). That is the strongest argument here and it is worth stating plainly: this is the option
@@ -113,10 +115,11 @@ rather than in the abstract.
 
 ## BUGS
 
-- **The kernel-thread-parks-on-a-rendezvous mechanism is verified at the data-structure level only.**
-  `crates/ipc` is generic and privilege-free, and kernel threads exist, but nothing here has proved
-  the kernel's own receive path is free of an assumption that the receiver entered from EL0. A lane
-  will find that, and if the assumption exists this becomes a larger fork than it reads as.
+- **The kernel-thread-parks-on-a-rendezvous mechanism is verified at the data-structure level
+  only.** `crates/inter_process_communication` is generic and privilege-free, and kernel threads
+  exist, but nothing here has proved the kernel's own receive path is free of an assumption that the
+  receiver entered from EL0. A lane will find that, and if the assumption exists this becomes a
+  larger fork than it reads as.
 - **Nothing in this section prices the denial-of-service work**, which is named as a shape and not as
   a design.
 - **This is the first kernel-resident IPC server in the tree**, so there is no in-tree precedent to

@@ -12,10 +12,10 @@
 //! # This crate does no I/O, on purpose
 //!
 //! Nothing here reads or writes a block device. Every function takes a byte buffer the caller
-//! filled and returns bytes the caller will place. That is the same discipline `dtb` and `elf`
-//! follow, and the reason is not purity: it is that the whole crate then compiles for the host and
-//! its tests run in milliseconds against real disks made by real tools, instead of inside a QEMU
-//! boot (DECISIONS §7, §14).
+//! filled and returns bytes the caller will place. That is the same discipline `device_tree_blob`
+//! and `elf` follow, and the reason is not purity: it is that the whole crate then compiles for the
+//! host and its tests run in milliseconds against real disks made by real tools, instead of inside
+//! a QEMU boot (DECISIONS §7, §14).
 //!
 //! It also allocates nothing and has no `unsafe`. The entry array is a caller-supplied buffer, so a
 //! kernel can hand it a stack array and a userspace tool can hand it a `Vec`.
@@ -47,20 +47,22 @@
 //! - [`entry::Entry::decode`] judges nothing. It is **total**, every bit pattern decodes, and the
 //!   round trip is the identity. There is no such thing as a malformed entry, only an entry that
 //!   makes no sense on a particular disk.
-//! - [`Gpt::parse`] is where the disk shows up, and therefore where every geometry rule lives: the
-//!   array CRC, the usable range, partitions that run off the end, partitions that overlap.
-//! - [`Gpt::check_backup`] compares the two copies. A disk whose halves disagree has had something
-//!   happen to it and is not to be trusted.
+//! - [`GloballyUniqueIdentifierPartitionTable::parse`] is where the disk shows up, and therefore
+//!   where every geometry rule lives: the array CRC, the usable range, partitions that run off the
+//!   end, partitions that overlap.
+//! - [`GloballyUniqueIdentifierPartitionTable::check_backup`] compares the two copies. A disk whose
+//!   halves disagree has had something happen to it and is not to be trusted.
 //!
 //! # Using it
 //!
 //! Reading, given a way to fetch blocks:
 //!
 //! ```
-//! # use globally_unique_identifier_partition_table::{Gpt, guid::types};
+//! # use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
+//! # use globally_unique_identifier_partition_table::guid::types;
 //! # let disk = globally_unique_identifier_partition_table::testing::sample_disk();
 //! # let (header_block, entry_array) = (&disk[512..1024], &disk[1024..1024 + 16384]);
-//! let table = Gpt::parse(header_block, entry_array)?;
+//! let table = GloballyUniqueIdentifierPartitionTable::parse(header_block, entry_array)?;
 //! for (index, part) in table.partitions() {
 //!     let mut label = [0u8; 4 * globally_unique_identifier_partition_table::entry::NAME_UNITS];
 //!     let n = part.name_utf8(&mut label)?;
@@ -78,11 +80,13 @@
 //! Writing, which is four block ranges the caller then puts on the disk:
 //!
 //! ```
-//! # use globally_unique_identifier_partition_table::{Entry, Gpt, guid::{Guid, types}};
+//! # use globally_unique_identifier_partition_table::Entry;
+//! # use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
+//! # use globally_unique_identifier_partition_table::guid::{Guid, types};
 //! # let disk_guid = Guid::ZERO;
 //! # let part_guid = Guid::ZERO;
 //! let mut array = [0u8; globally_unique_identifier_partition_table::ENTRY_ARRAY_BYTES];
-//! let table = Gpt::create(
+//! let table = GloballyUniqueIdentifierPartitionTable::create(
 //!     disk_guid,
 //!     512,
 //!     131_072, // a 64 MiB disk
@@ -125,6 +129,10 @@
 //! `design/decisions/`, 3 in bench transcripts and photographs, and 68 are the old name inside an
 //! account, a measurement or a refusal. The `Gpt` type and the fuzz target are the two a later
 //! ruling might still move; both name the format rather than this crate, which is why they stayed.
+//! A later ruling did move both (calef, 2026-09-19: a crate's own public type named for the
+//! acronym, and a fuzz target named for the crate, follow the crate). The type is
+//! `GloballyUniqueIdentifierPartitionTable` and the fuzz target
+//! `globally_unique_identifier_partition_table`; the counts above were taken before that.
 
 #![no_std]
 // milestone 68's ratchet is workspace-wide (§107); this crate opts out until its 23-item
@@ -154,16 +162,17 @@ pub const MAX_BLOCK_SIZE: usize = 4096;
 /// read anything.
 pub const PRIMARY_HEADER_LBA: u64 = 1;
 
-/// Entries in a table written by [`Gpt::create`] with a [`ENTRY_ARRAY_BYTES`]-sized buffer, and
-/// what every tool in the world writes.
+/// Entries in a table written by [`GloballyUniqueIdentifierPartitionTable::create`] with a
+/// [`ENTRY_ARRAY_BYTES`]-sized buffer, and what every tool in the world writes.
 pub const DEFAULT_ENTRY_COUNT: u32 = 128;
 
 /// 16 KiB: `DEFAULT_ENTRY_COUNT * entry::SIZE`, and the minimum array size UEFI 2.10 §5.3.3
 /// requires of a *conformant writer*.
 ///
-/// [`Gpt::create`] will build a smaller array if handed a smaller buffer, and [`Gpt::parse`] will
-/// read one, because refusing a table we can read perfectly well would be the wrong kind of strict.
-/// Anything writing a real disk should pass a buffer of exactly this size.
+/// [`GloballyUniqueIdentifierPartitionTable::create`] will build a smaller array if handed a
+/// smaller buffer, and [`GloballyUniqueIdentifierPartitionTable::parse`] will read one, because
+/// refusing a table we can read perfectly well would be the wrong kind of strict. Anything writing
+/// a real disk should pass a buffer of exactly this size.
 pub const ENTRY_ARRAY_BYTES: usize = DEFAULT_ENTRY_COUNT as usize * entry::SIZE;
 
 /// True if `len` is a logical block size this crate accepts: a power of two from
@@ -204,14 +213,16 @@ pub enum Error {
     /// The caller supplied fewer entry-array bytes than the header says the array has. Not a
     /// corrupt disk: a caller that read too few blocks.
     EntryArrayLen { need: usize, have: usize },
-    /// [`Gpt::create`] was handed an entry-array buffer that is not a whole number of 128-byte
-    /// entries, or is empty. The buffer's size *is* `NumberOfPartitionEntries`, so it cannot be a
-    /// fractional entry.
+    /// [`GloballyUniqueIdentifierPartitionTable::create`] was handed an entry-array buffer that is
+    /// not a whole number of 128-byte entries, or is empty. The buffer's size *is*
+    /// `NumberOfPartitionEntries`, so it cannot be a fractional entry.
     EntryArrayShape { have: usize },
     /// The entry array's CRC does not match the header's record of it.
     EntryArrayCrc { stored: u32, computed: u32 },
-    /// [`Gpt::parse`] was given a header that says it lives somewhere other than LBA 1. A backup
-    /// header goes to [`Gpt::check_backup`], which knows what to compare it against.
+    /// [`GloballyUniqueIdentifierPartitionTable::parse`] was given a header that says it lives
+    /// somewhere other than LBA 1. A backup header goes to
+    /// [`GloballyUniqueIdentifierPartitionTable::check_backup`], which knows what to compare it
+    /// against.
     NotPrimary { my_lba: u64 },
     /// `FirstUsableLBA` is above `LastUsableLBA`, so the disk has no usable blocks at all.
     UsableRange { first: u64, last: u64 },
@@ -231,7 +242,8 @@ pub enum Error {
     Backup(BackupMismatch),
     /// The protective MBR at LBA 0 is wrong. See [`MbrProblem`].
     Mbr(MbrProblem),
-    /// [`Gpt::create`] was asked to build a table on a disk with no room for the tables themselves.
+    /// [`GloballyUniqueIdentifierPartitionTable::create`] was asked to build a table on a disk with
+    /// no room for the tables themselves.
     DiskTooSmall { blocks: u64, need: u64 },
     /// More partitions than the entry array has room for.
     TooManyPartitions { given: usize, room: u32 },
@@ -287,7 +299,7 @@ pub enum MbrProblem {
 /// Borrows the entry array rather than copying it: 16 KiB is too much to move around a kernel, and
 /// the caller already has the bytes.
 #[derive(Clone, Copy, Debug)]
-pub struct Gpt<'a> {
+pub struct GloballyUniqueIdentifierPartitionTable<'a> {
     header: Header,
     /// Exactly `entry_count * entry_size` bytes, the span the array CRC covers. Trimmed on the way
     /// in so nothing downstream has to remember to.
@@ -295,7 +307,7 @@ pub struct Gpt<'a> {
     block_size: usize,
 }
 
-impl<'a> Gpt<'a> {
+impl<'a> GloballyUniqueIdentifierPartitionTable<'a> {
     /// Parse a primary GPT.
     ///
     /// `header_block` is the single block read from LBA 1; its length is taken as the disk's
@@ -307,10 +319,14 @@ impl<'a> Gpt<'a> {
     /// [`Header::decode`]), the entry array's CRC, that the table fits outside the usable range,
     /// that every used partition lies inside it, and that no two partitions overlap.
     ///
-    /// **This does not look at the backup.** Pass it to [`Gpt::check_backup`], which is separate
-    /// because reading the last block of the disk is a second I/O the caller may not want to do
-    /// before it knows the primary is sound.
-    pub fn parse(header_block: &[u8], entry_array: &'a [u8]) -> Result<Gpt<'a>, Error> {
+    /// **This does not look at the backup.** Pass it to
+    /// [`GloballyUniqueIdentifierPartitionTable::check_backup`], which is separate because reading
+    /// the last block of the disk is a second I/O the caller may not want to do before it knows the
+    /// primary is sound.
+    pub fn parse(
+        header_block: &[u8],
+        entry_array: &'a [u8],
+    ) -> Result<GloballyUniqueIdentifierPartitionTable<'a>, Error> {
         let block_size = header_block.len();
         let header = Header::decode(header_block)?;
 
@@ -362,7 +378,7 @@ impl<'a> Gpt<'a> {
 
         check_partitions(entries, header.entry_size as usize, &header)?;
 
-        Ok(Gpt {
+        Ok(GloballyUniqueIdentifierPartitionTable {
             header,
             entries,
             block_size,
@@ -377,18 +393,18 @@ impl<'a> Gpt<'a> {
     /// included, because a leftover entry from a previous table is a partition that comes back from
     /// the dead.
     ///
-    /// The partitions are checked exactly as [`Gpt::parse`] checks a disk's: inside the usable
-    /// range, non-empty, non-overlapping. **Placement is the caller's job**, deliberately: alignment
-    /// (the 2048-block, 1 MiB convention that keeps a partition from straddling an SSD erase block)
-    /// is policy, and a format crate that silently moved a partition would be doing policy behind
-    /// the caller's back.
+    /// The partitions are checked exactly as [`GloballyUniqueIdentifierPartitionTable::parse`]
+    /// checks a disk's: inside the usable range, non-empty, non-overlapping. **Placement is the
+    /// caller's job**, deliberately: alignment (the 2048-block, 1 MiB convention that keeps a
+    /// partition from straddling an SSD erase block) is policy, and a format crate that silently
+    /// moved a partition would be doing policy behind the caller's back.
     pub fn create(
         disk_guid: Guid,
         block_size: usize,
         block_count: u64,
         partitions: &[Entry],
         entry_array: &'a mut [u8],
-    ) -> Result<Gpt<'a>, Error> {
+    ) -> Result<GloballyUniqueIdentifierPartitionTable<'a>, Error> {
         if !block_size_ok(block_size) {
             return Err(Error::BlockSize(block_size));
         }
@@ -440,7 +456,7 @@ impl<'a> Gpt<'a> {
 
         check_partitions(entry_array, entry::SIZE, &header)?;
 
-        Ok(Gpt {
+        Ok(GloballyUniqueIdentifierPartitionTable {
             header,
             entries: entry_array,
             block_size,
@@ -450,8 +466,8 @@ impl<'a> Gpt<'a> {
     /// Check the backup copy against this one.
     ///
     /// `backup_block` is the last block of the disk; `backup_entries` is read from
-    /// [`Gpt::backup_entry_lba`]. Every field the two headers must share is compared, and the two
-    /// arrays are compared by CRC.
+    /// [`GloballyUniqueIdentifierPartitionTable::backup_entry_lba`]. Every field the two headers
+    /// must share is compared, and the two arrays are compared by CRC.
     ///
     /// **Comparing by CRC rather than byte for byte is deliberate.** The header's array CRC is what
     /// the format itself uses to bind a header to its array, so two arrays that CRC alike and
@@ -553,7 +569,8 @@ impl<'a> Gpt<'a> {
     }
 
     /// The entry array bytes, exactly `entry_count * entry_size` of them: what to write at
-    /// [`Gpt::primary_entry_lba`] and again at [`Gpt::backup_entry_lba`]. Both copies are the same
+    /// [`GloballyUniqueIdentifierPartitionTable::primary_entry_lba`] and again at
+    /// [`GloballyUniqueIdentifierPartitionTable::backup_entry_lba`]. Both copies are the same
     /// bytes, which is why there is one accessor.
     pub fn entry_array(&self) -> &'a [u8] {
         self.entries
@@ -580,9 +597,10 @@ impl<'a> Gpt<'a> {
 
     /// Check the block read from LBA 0 is a protective MBR for this disk.
     ///
-    /// Separate from [`Gpt::parse`] for the same reason [`Gpt::check_backup`] is: it is a different
-    /// block, and a caller that has only read LBA 1 and the array should not be forced to read
-    /// another. See [`mbr`] for what "protective" means and why a hybrid MBR is refused.
+    /// Separate from [`GloballyUniqueIdentifierPartitionTable::parse`] for the same reason
+    /// [`GloballyUniqueIdentifierPartitionTable::check_backup`] is: it is a different block, and a
+    /// caller that has only read LBA 1 and the array should not be forced to read another. See
+    /// [`mbr`] for what "protective" means and why a hybrid MBR is refused.
     pub fn check_protective_mbr(&self, block: &[u8]) -> Result<(), Error> {
         mbr::validate(block, self.block_count())
     }
@@ -597,10 +615,12 @@ impl<'a> Gpt<'a> {
         self.header.encode_into(block)
     }
 
-    /// Write the backup header into `block` (destined for [`Gpt::backup_header_lba`]).
+    /// Write the backup header into `block` (destined for
+    /// [`GloballyUniqueIdentifierPartitionTable::backup_header_lba`]).
     ///
     /// The same header with the two LBA fields swapped and the array pointer moved. Everything else
-    /// is identical, which is what [`Gpt::check_backup`] relies on.
+    /// is identical, which is what [`GloballyUniqueIdentifierPartitionTable::check_backup`] relies
+    /// on.
     pub fn write_backup_header(&self, block: &mut [u8]) -> Result<(), Error> {
         Header {
             my_lba: self.header.alternate_lba,
@@ -614,8 +634,9 @@ impl<'a> Gpt<'a> {
 
 /// Trim the caller's buffer to the array the header describes, and check its CRC.
 ///
-/// Shared by [`Gpt::parse`] and [`Gpt::check_backup`] so that the backup's array is held to the
-/// same standard as the primary's, which is the whole point of having a backup.
+/// Shared by [`GloballyUniqueIdentifierPartitionTable::parse`] and
+/// [`GloballyUniqueIdentifierPartitionTable::check_backup`] so that the backup's array is held to
+/// the same standard as the primary's, which is the whole point of having a backup.
 fn check_entry_array<'a>(header: &Header, supplied: &'a [u8]) -> Result<&'a [u8], Error> {
     if header.entry_size < entry::SIZE_U32 || !header.entry_size.is_multiple_of(8) {
         return Err(Error::EntrySize(header.entry_size));
@@ -789,7 +810,7 @@ pub mod mbr {
 /// tests can see is a helper the documentation cannot use.
 pub mod testing {
     use crate::guid::types;
-    use crate::{ENTRY_ARRAY_BYTES, Entry, Gpt, Guid};
+    use crate::{ENTRY_ARRAY_BYTES, Entry, GloballyUniqueIdentifierPartitionTable, Guid};
 
     /// A 64 MiB, 512-byte-block disk carrying one nife data partition, as a contiguous
     /// buffer: LBA 0 is at offset 0, so slicing by `lba * 512` gets any block.
@@ -807,7 +828,7 @@ pub mod testing {
         )
         .with_name("nife data")
         .expect("twelve characters fit");
-        let table = Gpt::create(
+        let table = GloballyUniqueIdentifierPartitionTable::create(
             Guid::from_bytes([0x22; 16]),
             512,
             131_072,
@@ -958,7 +979,8 @@ mod verification {
     ///
     /// Not "on a well-formed entry": there is no such qualifier, because [`Entry::decode`] judges
     /// nothing. That is what makes the property provable over every input at all, and it is why
-    /// every rule about whether an entry makes sense lives in [`Gpt`] instead.
+    /// every rule about whether an entry makes sense lives in
+    /// [`GloballyUniqueIdentifierPartitionTable`] instead.
     /// Falsification: unfalsified
     #[kani::proof]
     #[kani::unwind(129)]
@@ -1090,19 +1112,20 @@ mod verification {
     /// **The writer never lays out a table its own reader would reject**, for every disk size and
     /// every partition placement.
     ///
-    /// Every geometry rule [`Gpt::parse`] enforces, asserted on what [`Gpt::create`] produced. A
-    /// writer that emitted a table its own reader refuses would be the worst outcome this crate
-    /// has, because it would be discovered on somebody's disk rather than in this file, and the
-    /// dimension where that could hide is the one enumerated tests cover worst: an unusual disk
-    /// size, where the arithmetic that places the backup table runs out of room.
+    /// Every geometry rule [`GloballyUniqueIdentifierPartitionTable::parse`] enforces, asserted on
+    /// what [`GloballyUniqueIdentifierPartitionTable::create`] produced. A writer that emitted a
+    /// table its own reader refuses would be the worst outcome this crate has, because it would be
+    /// discovered on somebody's disk rather than in this file, and the dimension where that could
+    /// hide is the one enumerated tests cover worst: an unusual disk size, where the arithmetic
+    /// that places the backup table runs out of room.
     ///
     /// Stated over the *geometry* rather than over the bytes, deliberately. A byte-level
     /// create-then-parse harness has four symbolic CRC-32 chains in it and did not finish inside
     /// the budget (see `a_headers_fields_survive_the_round_trip` for the measurement). The
-    /// byte-level identity is proved instead where it can be proved *completely*: `Gpt::create`
-    /// reproduces `sgdisk`'s own 512-byte header, backup header and 16 KiB array exactly, in
-    /// `tests/real_disks.rs`. This harness supplies what that test cannot, which is every other
-    /// disk size.
+    /// byte-level identity is proved instead where it can be proved *completely*:
+    /// `GloballyUniqueIdentifierPartitionTable::create` reproduces `sgdisk`'s own 512-byte header,
+    /// backup header and 16 KiB array exactly, in `tests/real_disks.rs`. This harness supplies what
+    /// that test cannot, which is every other disk size.
     ///
     /// `create` is allowed to fail and the harness then returns; what is proved is that whenever it
     /// succeeds, the result satisfies the reader's rules.
@@ -1118,7 +1141,7 @@ mod verification {
         let blocks: u64 = kani::any();
 
         let mut array = [0u8; entry::SIZE];
-        let Ok(table) = Gpt::create(
+        let Ok(table) = GloballyUniqueIdentifierPartitionTable::create(
             Guid::from_bytes([3; 16]),
             MIN_BLOCK_SIZE,
             blocks,
@@ -1133,7 +1156,8 @@ mod verification {
         assert_eq!(table.block_count(), blocks);
         assert_eq!(h.my_lba, PRIMARY_HEADER_LBA);
 
-        // The four inequalities Gpt::parse checks, in the same order.
+        // The four inequalities GloballyUniqueIdentifierPartitionTable::parse checks, in the same
+        // order.
         assert!(h.first_usable_lba <= h.last_usable_lba);
         assert!(h.entry_array_lba > PRIMARY_HEADER_LBA);
         assert!(h.entry_array_lba + span <= h.first_usable_lba);

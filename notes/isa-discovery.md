@@ -119,7 +119,7 @@ a smaller monitor core, described as separate `cpu@` nodes with different `riscv
 kernel that reads the first node and then schedules a thread onto any hart has read the wrong node
 some of the time.
 
-So `dtb` grew [`node_props`](../crates/dtb/src/lib.rs), which answers for every matching node rather
+So `dtb` grew [`node_props`](../crates/device_tree_blob/src/lib.rs), which answers for every matching node rather
 than the first, and the record carries two sets:
 
 - **`common`**, the intersection over every hart that describes itself. This is what "an instruction
@@ -284,7 +284,7 @@ function id to look up, because a kernel entered in S-mode has firmware under it
 QEMU `virt` states `method = "hvc"`, so for a while it looked as though the other branch could only
 be exercised by hand-writing a tree. It cannot, quite: `-machine virt,virtualization=on` puts
 something at EL2 and QEMU's own PSCI moves to EL3, so **the same board, one option different, states
-`smc`**. That dump is `crates/dtb/tests/fixtures/qemu-aarch64-virt-smc.dtb`, and the host test that
+`smc`**. That dump is `crates/device_tree_blob/tests/fixtures/qemu-aarch64-virt-smc.dtb`, and the host test that
 compares the two is the whole finding in one assertion: the conduit is not a property of aarch64, of
 QEMU, or of the `virt` board.
 

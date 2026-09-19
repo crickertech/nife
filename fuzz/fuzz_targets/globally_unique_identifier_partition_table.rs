@@ -31,12 +31,13 @@
 
 #![no_main]
 
-use globally_unique_identifier_partition_table::Gpt;
+use globally_unique_identifier_partition_table::GloballyUniqueIdentifierPartitionTable;
 use libfuzzer_sys::fuzz_target;
 
 /// The block size the fixtures use, and the one every disk this project has met uses. 4K-native
-/// disks exist and `Gpt::parse` takes the block size from the header block's length, so a second
-/// split is worth having eventually; one is enough to keep the seeds meaningful.
+/// disks exist and `GloballyUniqueIdentifierPartitionTable::parse` takes the block size from the
+/// header block's length, so a second split is worth having eventually; one is enough to keep the
+/// seeds meaningful.
 const BLOCK: usize = 512;
 
 fuzz_target!(|data: &[u8]| {
@@ -47,7 +48,7 @@ fuzz_target!(|data: &[u8]| {
     let header_block = &data[BLOCK..BLOCK * 2];
     let entry_array = &data[BLOCK * 2..];
 
-    let Ok(table) = Gpt::parse(header_block, entry_array) else {
+    let Ok(table) = GloballyUniqueIdentifierPartitionTable::parse(header_block, entry_array) else {
         return;
     };
 

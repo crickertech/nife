@@ -82,6 +82,35 @@ mentioned the 62-line test file it removed, so **a documented safeguard disappea
 documents kept describing it in the present tense for five days.** A path check would have failed
 that commit's own CI run.
 
+## The symbol half, which this check strips and a rename walks into
+
+*Added 2026-09-19 by the maintainer, from the `ipc` to `inter_process_communication` rename.*
+
+The check above strips `::symbol` and asserts only the path, so `` `ipc::Endpoint` `` passes as long
+as the crate exists. §113 renamed `Endpoint` to `Rendezvous` on 2026-08-23, and nine prose sites
+still cited `ipc::Endpoint` a month later. A crate-rename sweep would have turned every one into
+`inter_process_communication::Endpoint`, a type that has never existed: design/naming.md's "A sweep
+can turn a stale pointer into a fabricated one" has the case. A symbol that does not resolve is the
+same defect as a path that does not, one `::` further along.
+
+**Measured with a throwaway prototype, 2026-09-19**: over every tracked `.md` file, match
+`` `crate::Symbol` `` where `crate` is a directory in `crates/`, and grep that crate's `src/` for a
+definition of `Symbol`.
+
+- **992** such references; **122** do not resolve (66 in `design/roadmap/`, 9 in
+  `design/decisions/`, the rest in `notes/`).
+- **The precision is poor, and for a reason this proposal's escape does not cover.** The sample
+  mixes true stale pointers (`capability::CSpace`, which §113 renamed) with **kernel modules that
+  share a crate's name**: `pci::find_block_device` and `virtio::register` live in
+  `kernel/src/pci.rs` and `kernel/src/virtio.rs`, not in `crates/pci` or `crates/virtio`.
+
+So the symbol check wants two things the path check does not: **resolve against both namespaces**
+(`crates/<c>/src` and `kernel/src/<c>.rs` or `kernel/src/<c>/`), then remeasure before deciding
+whether the remainder is an allow-list or a gate. Resolution by grep will still miss a symbol made
+by a macro or reached through a re-export, which is a BUGS line for the check rather than a reason
+not to write it. Nothing was fixed from the 122; they want classifying first, by status, as the
+rename procedure says.
+
 ## Index row
 
 262 citations in `notes/` pointed at a crate, a file or a Rust path that had been renamed away, and

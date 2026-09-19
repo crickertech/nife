@@ -17,16 +17,17 @@ use machine_discovery::interrupt_id;
 const QEMU_RISCV_VIRT: &[u8] = include_bytes!("fixtures/qemu-riscv64-virt-smp4.dtb");
 const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");
 const JH7110_VENDOR: &[u8] = include_bytes!("fixtures/jh7110-vendor.dtb");
-// The aarch64 machine's tree lives with the dtb crate's fixture tests; reuse it rather than
-// committing a second copy that could drift from the one the parser is proven against.
-const QEMU_AARCH64_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt.dtb");
+// The aarch64 machine's tree lives with the `device_tree_blob` crate's fixture tests; reuse it
+// rather than committing a second copy that could drift from the one the parser is proven against.
+const QEMU_AARCH64_VIRT: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt.dtb");
 
 /// The console node's name, as `kernel/src/console.rs` pins it: both QEMU riscv64 `virt` and the
 /// JH7110 spell UART0 exactly this way.
 const RISCV_UART: &[u8] = b"serial@10000000";
 
-fn tree(bytes: &[u8]) -> dtb::Dtb<'_> {
-    dtb::Dtb::from_bytes(bytes).expect("fixture is a valid device tree")
+fn tree(bytes: &[u8]) -> device_tree_blob::DeviceTreeBlob<'_> {
+    device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture is a valid device tree")
 }
 
 /// **QEMU `virt` says 10**, the number the old constant hardcoded: on the machine the constant

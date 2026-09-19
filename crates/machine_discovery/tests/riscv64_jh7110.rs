@@ -11,8 +11,8 @@ use machine_discovery::riscv64::*;
 
 const JH7110: &[u8] = include_bytes!("fixtures/jh7110.dtb");
 
-fn tree(bytes: &[u8]) -> dtb::Dtb<'_> {
-    dtb::Dtb::from_bytes(bytes).expect("fixture is a valid device tree")
+fn tree(bytes: &[u8]) -> device_tree_blob::DeviceTreeBlob<'_> {
+    device_tree_blob::DeviceTreeBlob::from_bytes(bytes).expect("fixture is a valid device tree")
 }
 
 /// **The disabled S7 does not speak for the machine.** Four schedulable U74s, `rv64imafdc`, Sv39,

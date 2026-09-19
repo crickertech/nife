@@ -300,8 +300,8 @@ paging	9	the address arithmetic, and the page set for an IOMMU domain
 memory_regions	1	the untyped-region accounting, no double-free
 elf	1	the loader's front half, panic-free on hostile input
 page_frames	4	the physical frame allocator
-dtb	3	the device-tree parser's leaf readers
-ipc	4	the rendezvous state machine
+device_tree_blob	3	the device-tree parser's leaf readers
+inter_process_communication	4	the rendezvous state machine
 generational_table	4	the generational thread table
 intrusive_fifo	9	the scheduler's queue structure
 address_space_identifier	4	the TLB tag allocator

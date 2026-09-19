@@ -177,7 +177,7 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
 - **Milestone 250.** `An unviable mutant is a hole that reads as a pass` already owns the other
   half of what this lane kept meeting. `filesystem_protocol` reports 47 unviable and `elf` 21, and
   no rate here counts them.
-- **Milestone 437.**: the fixture
+- **Milestone 437.** The fixture
   bit-set distinctness tests are hand-maintained lists, and `filesystem_protocol`'s navigation list
   has now gone stale twice, the second time caught by a mutation run rather than a reader. It is
   rung four of AGENTS.md's ladder in a place that has a rung-one answer.
@@ -216,7 +216,6 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   the 77 are bounds or offset shapes, so the reading of the list was close, but only twelve are
   guards a prefix of a valid input can reach, and a prefix loop that asserts only "it returns an
   error" kills half of even those. The note has the argument.
-
 ## Index row
 
 `design/fatal-risks.md`'s risk 3 is AMBER rather than green because 771 survivors from the

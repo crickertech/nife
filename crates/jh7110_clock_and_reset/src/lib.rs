@@ -466,8 +466,10 @@ const VENDOR_RSTGEN_STG_NAME: &[u8] = b"stgcrg";
 ///
 /// # Errors
 ///
-/// Propagates [`dtb::Error`] if the blob is malformed.
-pub fn discover(tree: &dtb::Dtb<'_>) -> Result<Found, dtb::Error> {
+/// Propagates [`device_tree_blob::Error`] if the blob is malformed.
+pub fn discover(
+    tree: &device_tree_blob::DeviceTreeBlob<'_>,
+) -> Result<Found, device_tree_blob::Error> {
     for (compatible, name) in [
         (COMPATIBLE_STGCRG, None),
         (COMPATIBLE_VENDOR_CLKGEN, Some(VENDOR_CLKGEN_STG_NAME)),
@@ -488,13 +490,13 @@ pub fn discover(tree: &dtb::Dtb<'_>) -> Result<Found, dtb::Error> {
 /// One spelling's worth of [`discover`]. `window` is the `reg-names` entry to select, or `None`
 /// for a node whose single `reg` is the answer.
 fn discover_as(
-    tree: &dtb::Dtb<'_>,
+    tree: &device_tree_blob::DeviceTreeBlob<'_>,
     compatible: &'static [u8],
     window: Option<&[u8]>,
-) -> Result<Option<Found>, dtb::Error> {
+) -> Result<Option<Found>, device_tree_blob::Error> {
     // Five, because the vendor `rstgen` node names five windows and a short buffer would silently
     // truncate the list `reg-names` is indexing into.
-    let mut regions = [dtb::Region { start: 0, size: 0 }; 5];
+    let mut regions = [device_tree_blob::Region { start: 0, size: 0 }; 5];
     let n = tree.node_reg_compatible(compatible, &mut regions)?;
     if n == 0 {
         return Ok(None);
@@ -539,14 +541,14 @@ mod tests {
     const CLKGEN_VENDOR: &[u8] = include_bytes!("../tests/fixtures/jh7110-clkgen-vendor.dtb");
     const CLKGEN_VENDOR_UNNAMED: &[u8] =
         include_bytes!("../tests/fixtures/jh7110-clkgen-vendor-unnamed.dtb");
-    /// The blob `crates/dtb`'s own tests boot-verify against, so a change to QEMU's `virt` board
-    /// is caught here rather than surfacing as a mystery at the bench.
+    /// The blob `crates/device_tree_blob`'s own tests boot-verify against, so a change to QEMU's
+    /// `virt` board is caught here rather than surfacing as a mystery at the bench.
     const QEMU_RISCV64_VIRT: &[u8] =
-        include_bytes!("../../dtb/tests/fixtures/qemu-riscv64-virt.dtb");
+        include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 
     #[test]
     fn mainline_stgcrg_is_read_from_its_single_reg() {
-        let tree = dtb::Dtb::from_bytes(STGCRG_MAINLINE).unwrap();
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(STGCRG_MAINLINE).unwrap();
         let found = discover(&tree).unwrap();
         assert_eq!(found.base, 0x1023_0000);
         assert_eq!(found.size, 0x1_0000);
@@ -558,7 +560,7 @@ mod tests {
     fn the_vendor_clkgens_stg_window_is_found_by_name() {
         // The whole point of the vendor arm: `reg[0]` is the SYS domain at 0x13020000, and a
         // driver that took it would enable clock 15 of the wrong controller.
-        let tree = dtb::Dtb::from_bytes(CLKGEN_VENDOR).unwrap();
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(CLKGEN_VENDOR).unwrap();
         let found = discover(&tree).unwrap();
         assert_eq!(found.base, STG_BASE, "the second window, not the first");
         assert_eq!(found.size, 0x1_0000);
@@ -568,7 +570,7 @@ mod tests {
 
     #[test]
     fn a_multi_window_node_without_reg_names_falls_back_rather_than_guessing() {
-        let tree = dtb::Dtb::from_bytes(CLKGEN_VENDOR_UNNAMED).unwrap();
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(CLKGEN_VENDOR_UNNAMED).unwrap();
         let found = discover(&tree).unwrap();
         assert_eq!(found.base, STG_BASE);
         assert!(
@@ -583,7 +585,7 @@ mod tests {
         // This is the path every machine this repository's CI boots takes, and it is why this
         // milestone cannot be gated in an emulator: `virt` has no clock or reset controller to
         // program, so what runs here is the fallback and the arithmetic, never a device.
-        let tree = dtb::Dtb::from_bytes(QEMU_RISCV64_VIRT).unwrap();
+        let tree = device_tree_blob::DeviceTreeBlob::from_bytes(QEMU_RISCV64_VIRT).unwrap();
         let found = discover(&tree).unwrap();
         assert!(!found.from_tree);
         assert_eq!(found.compatible, None);

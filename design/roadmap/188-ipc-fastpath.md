@@ -204,7 +204,7 @@ and a phase-3 lane should price them rather than assume them.**
 ## What correctness must not be lost, and how it would be proved
 
 **The proofs are on the general structure, which is exactly the structure a fastpath exists to
-bypass.** `crates/ipc` carries six `#[kani::proof]` harnesses over `Rendezvous`: that send and recv
+bypass.** `crates/inter_process_communication` carries six `#[kani::proof]` harnesses over `Rendezvous`: that send and recv
 and signal each preserve the one-queue invariant, that a send rendezvouses **iff** a receiver
 waited and with exactly that receiver, that a pending signal is drained before a queued sender, and
 that a collected sender is forgotten by the rendezvous, which is the rendezvous half of the one-shot
@@ -220,7 +220,7 @@ between them is most of phase 4's design:
    first, because it may be most of the win for none of the verification cost.
 2. **The fastpath replicates the decision.** Then it needs its own harnesses, plus something the
    tree does not have today: **an equivalence proof.** The shape is tractable precisely because
-   `crates/ipc` is a pure-logic crate the solver already handles: a harness that seeds a
+   `crates/inter_process_communication` is a pure-logic crate the solver already handles: a harness that seeds a
    nondeterministic `Rendezvous` with `kani::any()`, runs the fastpath's predicate and the general
    `send` over the same state, and asserts the same outcome and the same resulting queue state.
    That harness, not a test, is what would make a second path safe to keep.
@@ -229,7 +229,7 @@ between them is most of phase 4's design:
 A message is delivered to exactly one receiver or to none. A capability is never widened. A Reply is
 consumed on first use. A blocked thread appears on at most one queue. A thread's mailbox is written
 only while it is parked in a role that expects that write. The first four already have harnesses in
-`crates/ipc` or `crates/capability`; the fifth is `ipc_reply`'s `WaitRole::Reply` guard and is
+`crates/inter_process_communication` or `crates/capability`; the fifth is `ipc_reply`'s `WaitRole::Reply` guard and is
 currently held by a comment and a runtime check.
 
 ## How the two paths stay in agreement

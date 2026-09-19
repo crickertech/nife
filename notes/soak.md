@@ -369,7 +369,7 @@ Worth writing down because neither was visible in review and both produced the s
 is a soak reporting workers as wedged when the defect was in the instrument.
 
 **One rendezvous for every waiter starves all but one, on a loaded host.** The first version had a
-single tick route and four waiters blocked on it. `crates/ipc`'s `Rendezvous::recv` takes a
+single tick route and four waiters blocked on it. `crates/inter_process_communication`'s `Rendezvous::recv` takes a
 **pending** signal before it looks at the receiver queue, which is right for a driver (an interrupt
 that already happened must not be missed), and wrong for four peers sharing a source: when ticks
 arrive in a burst, whichever waiter is already running drains the whole backlog through the pending

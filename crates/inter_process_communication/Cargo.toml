@@ -1,0 +1,11 @@
+[package]
+name = "inter_process_communication"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+intrusive_fifo = { version = "0.1.0", path = "../intrusive_fifo" }
+
+[lints]
+workspace = true

@@ -273,13 +273,13 @@ counterparty; the expiry wakes it; it returns.
 
 **A deadline on `Endpoint::RECV`/`CALL` needs two things the other two do not**, and both are concrete:
 
-1. **A targeted unlink from an endpoint's wait queue.** `crates/intrusive_fifo`'s `Fifo` is **singly
-   linked**: one `next` per node, `head`/`tail`/`len`, and its whole API is `push_back`, `pop_front`,
-   `is_empty`, `len`. `ipc::Endpoint` adds only `drain_waiters`, which drains *all* of them. Removing
-   one specific waiter is a new method, O(queue length) from the head, on a crate that carries
-   machine-checked proofs of its one-queue invariant, so the proofs move with it. Bounded by
-   `MAX_THREADS`, paid only on an actual expiry, and the census in section 6 says a queue can really
-   hold most of the table.
+1. **A targeted unlink from an endpoint's wait queue.** `crates/intrusive_fifo`'s `Fifo` is
+   **singly linked**: one `next` per node, `head`/`tail`/`len`, and its whole API is `push_back`,
+   `pop_front`, `is_empty`, `len`. `inter_process_communication::Rendezvous` adds only
+   `drain_waiters`, which drains *all* of them. Removing one specific waiter is a new method,
+   O(queue length) from the head, on a crate that carries machine-checked proofs of its one-queue
+   invariant, so the proofs move with it. Bounded by `MAX_THREADS`, paid only on an actual expiry,
+   and the census in section 6 says a queue can really hold most of the table.
 2. **Nothing else.** The half that looks harder is already built. `thread_wake_handshake`'s undelivered-wake
    gate refuses a wake with `wait_on.is_some()` and nothing delivered (boot 8), so a timeout looks
    like exactly the wake the gate exists to stop; but `Handshake::abort()` already passes the gate for

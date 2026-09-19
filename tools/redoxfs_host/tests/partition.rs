@@ -31,7 +31,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use globally_unique_identifier_partition_table::guid::types;
-use globally_unique_identifier_partition_table::{Entry, Gpt, Guid};
+use globally_unique_identifier_partition_table::{
+    Entry, GloballyUniqueIdentifierPartitionTable, Guid,
+};
 
 /// The built binary, not the library: `cargo test` compiles it and hands us the path.
 const TOOL: &str = env!("CARGO_BIN_EXE_redoxfs_host");
@@ -139,7 +141,7 @@ fn build_device(device: &Path, payload: &[u8], data: (u64, u64), device_blocks: 
             .unwrap(),
     ];
     let mut array = [0u8; globally_unique_identifier_partition_table::ENTRY_ARRAY_BYTES];
-    let table = Gpt::create(
+    let table = GloballyUniqueIdentifierPartitionTable::create(
         guid(0x44),
         LBA as usize,
         device_blocks,

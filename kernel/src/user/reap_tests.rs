@@ -409,9 +409,9 @@ fn reap_refuses_a_recycled_thread_id_rather_than_the_wrong_thread() {
 ///
 /// This was reachable before §32 too, through `MemoryRegion::DESTROY`; every existing caller happened
 /// to receive first, so it never fired. `rendezvous::REAP` makes it easy to reach, which is how it
-/// was found. `crates/ipc`'s `remove_sender` is the fix, and the second half of this test (a
-/// fresh child's death arriving normally on the same rendezvous) is what proves the queue is
-/// genuinely intact rather than merely counted right.
+/// was found. `crates/inter_process_communication`'s `remove_sender` is the fix, and the second
+/// half of this test (a fresh child's death arriving normally on the same rendezvous) is what proves
+/// the queue is genuinely intact rather than merely counted right.
 #[test_case]
 fn reaping_an_uncollected_corpse_leaves_no_ghost_on_the_rendezvous() {
     let (budget, rendezvous_region) = arena();

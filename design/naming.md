@@ -959,7 +959,7 @@ spelling and pays the cost at the reader's expense once, in an expansion written
 meets it. `crates/user_rt/src/initrd.rs` carries that expansion as of 2026-09-13.
 
 **And the defect the pricing found was not the name.** `initrd` appeared about 1,300 times and was
-expanded in full **exactly once**, in `crates/dtb`, a crate about device trees rather than the one
+expanded in full **exactly once**, in `crates/dtb` (`crates/device_tree_blob` since 2026-09-19), a crate about device trees rather than the one
 named for the thing. The abbreviation was never the problem; an unexplained abbreviation was, and
 that is rung three rather than a sweep.
 
@@ -1102,13 +1102,16 @@ names review that performed six renames.
 | Carries the name | Moves? | Why |
 |---|---|---|
 | The crate directory, package name, dependency entries | **Yes** | They *are* the name |
-| A **note filename** (`notes/asids.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **note named for the crate** (`notes/asids.md`, `notes/gpt.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
+| A **note named for the concept or for another thing** (`notes/ipc-naming.md`, about inter-process communication; `notes/ipc-tables-lock-inventory.md`, about the `IPC_TABLES` lock §118 named) | **No** | The ownership test below: it keeps its name when our crate is deleted. The earlier wording of the row above said only "a note filename", and read that way it would have renamed both of these |
 | A **roadmap slug** (`design/roadmap/15-asids.md`) | **No** | Exempt, standing rule: roadmap titles and slugs are drafts, and the number is what people cite |
 | A **hardware field or wire name** (`satp.ASID`, `NVMe 1.4 §3.1`) | **Never** | A citation of somebody else's specification |
+| A **public type named for the acronym** (`Gpt`, `Dtb`) | **Yes** | calef, 2026-09-19: a reader meets the type far more often than the crate, so leaving it short leaves most of the acronym in place. `Nvme` had already moved with its family. **`Guid` stays** under its own 2026-09-13 ruling, which is about byte order rather than length |
+| A **fuzz target named for the crate** (`gpt_table`, `dtb_walk`) | **Yes** | calef, 2026-09-19: named for what it fuzzes |
 | A **`BUILT` block, a transcript, a dated account** | **Never** | The status table above |
 
 **The note half has a cost the crate half does not: every citation of the old path breaks.**
-`notes/gpt.md` is cited by 18 files, `notes/ipc-naming.md` by 24. `script/lint` check 4c verifies that
+`notes/gpt.md` was cited by 18 files when it moved. `script/lint` check 4c verifies that
 a markdown *link* target resolves, so it catches those; it does **not** catch a path written in prose
 outside a link, and both forms exist in this tree. Grep for both.
 
@@ -1207,7 +1210,7 @@ runs, which is not on every build. It is the stale-pointer-upgrade class one lev
 ### `components/` is a second workspace, and `cargo check` is blind to it
 
 The main workspace's check does not compile `components/`, so a rename that breaks a consumer there
-is green until something builds it. `gpt` and `dtb` both have consumers in it; `asid` had only the
+is green until something builds it. `gpt` has consumers in it (the `gpt` rename built and ran them); `dtb` has none, which this line wrongly said it had until the `dtb` lane checked with `git grep`, and `asid` had only the
 kernel, which is why the first three renames never exercised this. **Build both workspaces, or run
 `script/test`, which does.**
 
@@ -1536,6 +1539,42 @@ is one grep per site and it is not optional: the two neighbouring doc comments o
 module point into `hello.rs` for `ep_maker()`, `ep_user()`, `call_server()` and `call_client()`,
 none of which are there either, and they were left alone only because this rename did not touch
 them.
+
+**The seventh rename found the same shape at scale** (`ipc` to `inter_process_communication`,
+2026-09-19). §113 renamed `Endpoint` to `Rendezvous` on 2026-08-23 and nothing moved the prose, so
+nine sites still said `ipc::Endpoint` a month later. A `ipc::` sweep would have turned every one
+into `inter_process_communication::Endpoint`, a type that has never existed. They were classified
+instead: the ones in decided sections are accounts and kept their words with the current name beside
+them, and the ones in notes describing today's code were repointed to `Rendezvous`. Reading those
+lines found two more pointers of the same age (`Rendezvous<Tid>`, and `crates/intrusive` for a
+crate now called `intrusive_fifo`). **A type rename leaves a trail of stale prose, and the next
+crate rename walks straight into it.**
+
+### A tool that does not understand `\b` does not say so
+
+Contributed by the `dtb` and `ipc` renames (2026-09-19), which each lost a count to it. On macOS,
+`git grep` does not support `\b` in its default pattern syntax and **matches nothing**, so
+`git grep -c '\bdtb\b'` reports zero across a tree with eighty-six hits in it. The macOS `sed` drops
+`\b` the same way, so a substitution meant to be word-bounded silently rewrites nothing, or with a
+different pattern rewrites too much. Neither prints a warning.
+
+**Treat a zero as a claim to re-check, never as a result.** Re-run it with `grep -rE` and an
+explicit class (`(^|[^a-z_])ipc::`), or with `git grep -w` where a word match is what you want.
+
+### A `Name:` block can move its own census
+
+The `dtb` block described the crate's files as `.dtb` files, so the rename that wrote the block
+counted it: 88 hits against a census of 86, and two phantom survivors to classify. The block now
+says "the blob files' extension". When the after-census is off by a small number, check the
+provenance block you just wrote before the tree.
+
+### A hand rewrap needs a width check afterwards
+
+Expanding a name lengthens lines, and every rename in this series rewrapped paragraphs by hand or by
+script. Two failures were both invisible to the gates: lines left past the file's hundred columns,
+and a list marker given a second space by a wrap script. After a rewrap, list the added lines longer
+than the file's width (`git diff -U0 | grep '^+[^+]' | awk 'length > 101'`) and read a
+`--word-diff` of the result; the word diff should show only the names you meant to change.
 
 ### The generated roadmap index is not a sweep target, and running the generator proves it
 
