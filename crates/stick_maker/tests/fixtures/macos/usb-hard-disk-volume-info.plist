@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Captured with diskutil info -plist on the development Mac, 2026-09-19; trimmed to the keys stick_maker reads, volume names scrubbed. Its HFS+ volume. -->
+<plist version="1.0">
+<dict>
+	<key>BusProtocol</key>
+	<string>USB</string>
+	<key>Content</key>
+	<string>Apple_HFS</string>
+	<key>DeviceIdentifier</key>
+	<string>disk6s2</string>
+	<key>FilesystemName</key>
+	<string>Journaled HFS+</string>
+	<key>FilesystemType</key>
+	<string>hfs</string>
+	<key>FreeSpace</key>
+	<integer>702070267904</integer>
+	<key>Internal</key>
+	<false/>
+	<key>MountPoint</key>
+	<string>/Volumes/Backups</string>
+	<key>ParentWholeDisk</key>
+	<string>disk6</string>
+	<key>RemovableMedia</key>
+	<false/>
+	<key>Size</key>
+	<integer>3000110108672</integer>
+	<key>VolumeName</key>
+	<string>Backups</string>
+	<key>WholeDisk</key>
+	<false/>
+	<key>Writable</key>
+	<true/>
+</dict>
+</plist>

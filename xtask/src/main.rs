@@ -26,6 +26,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+mod stick;
+
 const TARGET: &str = "aarch64-unknown-none-softfloat";
 const RUNNER: &str = "scripts/qemu-runner-aarch64.sh";
 
@@ -128,6 +130,11 @@ fn main() -> ExitCode {
         "uefi-boot" => uefi_boot(),
         // Milestone 195: the same firmware, the kernel's test binary instead of its tour.
         "uefi-test" => uefi_test(),
+        // The stick (DECISIONS §157): every architecture's boot file, sealed, and `stick_maker`
+        // built around them; then the same directory booted under all three firmwares. See
+        // xtask/src/stick.rs and notes/boot-stick.md. Names provisional (2026-09-19).
+        "stick" => stick::stick(),
+        "stick-boot" => stick::stick_boot(),
         // The documentation store (milestone 40): build it, print what it costs, and optionally
         // answer a query against it with the same reader the guest uses.
         "manual" => manual_store(std::env::args().nth(2)),
@@ -181,7 +188,7 @@ fn main() -> ExitCode {
                 eprintln!("unknown command: {other}\n");
             }
             eprintln!(
-                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
+                "usage: cargo xtask <build|run|shell|shell-check|boot-check|initrd-aarch64|initrd-riscv|initrd-x86|uefi-image|uefi-boot|uefi-test|stick|stick-boot|manual|apropos|std-src|std-stamp|std-exerciser|std-aborts|test|undefined-behavior-check|bench|icount|gdb|objdump|image|board-console|soak-test|board-script> [--hvf]"
             );
             eprintln!("       cargo xtask shell-check [--arch aarch64|riscv64]");
             eprintln!("       cargo xtask boot-check [--arch aarch64|riscv64|x86_64] [--inject]");

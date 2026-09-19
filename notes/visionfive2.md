@@ -894,7 +894,7 @@ Facts documentation could not settle, each an explicit measurement, none guessed
    |---|---|
    | `usb storage` lists the stick and `fatls` shows its files | radon reads USB; a nife boot from the stick is one boot script or one `bootefi` away |
    | `usb start` finds no storage, or the command is missing | this firmware cannot; the next step is a newer StarFive U-Boot in SPI flash, recoverable over UART (boot mode 1:1) |
-   | `help bootefi` prints usage | the universal stick's premise holds on radon (`design/roadmap/proposals/a-program-that-makes-the-stick.md`) |
+   | `help bootefi` prints usage | the universal stick's premise holds on radon; notes/boot-stick.md, "At the bench", has the two commands that then boot it |
    | `boot_targets` contains `usb` | U-Boot scans USB unprompted, with no script |
 
 ## BUGS
