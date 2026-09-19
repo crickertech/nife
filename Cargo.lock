@@ -1023,6 +1023,7 @@ dependencies = [
  "machine_discovery",
  "measured_boot",
  "nifefs",
+ "screen_console",
 ]
 
 [[package]]

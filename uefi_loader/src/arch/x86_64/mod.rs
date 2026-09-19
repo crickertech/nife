@@ -311,6 +311,34 @@ pub fn hand_over(
     // SAFETY: page 0 of the handoff block, 56 bytes.
     unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), start_info_at as *mut u8, START_INFO_LEN) };
 
+    // **The last word anything says before the kernel exists** (milestone 243's early-boot half).
+    //
+    // From `ExitBootServices` to the kernel's own `attach_screen` nothing can speak on a machine
+    // with no serial port: the firmware's console is gone, the kernel's is not up, and a fault in
+    // between (the trampoline below, `boot.s`'s 32-bit half, the page tables, the long-mode jump)
+    // is a triple fault and a silent reset with no IDT to catch it. That window cannot be
+    // *narrated*, because the code in it is 32-bit and has no idea where the screen is. It can be
+    // **bounded**, which is what this does: the screen is cleared and given one sentence, so the
+    // five things a person at a monitor can be looking at are distinguishable rather than four of
+    // them being one black rectangle. `uefi_loader::screen` has the ladder, and so does
+    // notes/serial-less-output.md.
+    //
+    // Painted AFTER `ExitBootServices` on purpose: before it the screen is the firmware's console
+    // and writing the aperture underneath it would race the firmware's own scrolling. The aperture
+    // survives that call, which is milestone 243's founding observation: what ends is the
+    // firmware's *console*, not the *display*.
+    if let Some(found) = screen
+        && let Some(span) = found.span()
+    {
+        // SAFETY: `found` came from this firmware's own `EFI_GRAPHICS_OUTPUT_PROTOCOL` and
+        // `find_screen` checked its span against the aperture size the firmware reported. Boot
+        // services are gone, so no firmware code is drawing there any more, and the kernel has not
+        // started, so nothing else is either: this loader is the only writer in this instant. The
+        // loader runs identity-mapped, so the physical base is the address.
+        let pixels = unsafe { core::slice::from_raw_parts_mut(found.base as *mut u8, span) };
+        let _ = crate::screen::paint_handoff(found, pixels);
+    }
+
     // The trampoline was copied to an executable page below 4 GiB and its GDT pointer patched;
     // every argument is a physical address below 4 GiB, which is the contract stated at the top of
     // leave_long_mode.s. It does not return, so this expression's type is `!` and the `Ok` arm of
