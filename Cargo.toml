@@ -46,6 +46,7 @@ members = [
     "crates/schedule_store",
     "crates/screen_console",
     "crates/pgrep",
+    "crates/portable_executable",
     "crates/pmap",
     "crates/ps",
     "crates/memory_regions",
