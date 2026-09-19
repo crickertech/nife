@@ -7,9 +7,25 @@ its own in `.github/workflows/ci.yml`, and `notes/check-inventory.md`'s row for 
 **no** under required. So it still reports and does not gate, and the one checkbox is still
 unflipped.
 
-**Gate: DECISION.** It is one checkbox in the repository's merge queue ruleset, and only calef can
-flip it: it is a GitHub setting rather than a file in this tree, so no lane and no pull request can
-carry the change. There is nothing to build and nothing to review; the whole item is an ask.
+**Gate: DECISION.** The decision is [§97](../decisions/97-advisory-checks.md), which this block
+did not cite until 2026-09-19. It is one checkbox in the repository's merge queue ruleset, and only
+calef can flip it: it is a GitHub setting rather than a file in this tree, so no lane and no pull
+request can carry the change. There is nothing to build and nothing to review; the whole item is an
+ask.
+
+**§97 is `DECIDED` and its ruleset edit is not performed**, which is what makes this a citation
+rather than a new fork. calef ratified it on 2026-08-25 (*"Ratify as written"*), it holds that four
+advisory checks become required, and its own *Not yet built* section names the ruleset edit first,
+wanting a quiet queue. That is the same checkbox page this block asks for, so `image-permissions`
+rides with it rather than needing a second visit.
+
+**And §97 predicted this block in its own `BUGS`**, which is the part worth citing where a reader
+meets the gate: *"This section names six advisory checks as of 2026-08-18 and nothing keeps that
+list current. A check added to CI is advisory by default, so the list grows silently in the
+direction of less enforcement."* `script/image-permissions` is milestone 208's, filed after that
+date, and it is the seventh. What §97 did **not** decide is this check by name, so the ask is still
+an ask; what it did decide is that the arrangement is wrong and that a fix wants one visit to one
+page. A reader who wants the argument should read §97 and not this paragraph.
 
 **In brief.** Milestone 208 built `script/image-permissions`, which refuses a kernel image carrying
 a writable-and-executable `PT_LOAD`. It runs in CI and its result is visible. It is not on the list

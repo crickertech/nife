@@ -7,10 +7,25 @@ radon run exists: none of `bench/radon-2026-09-04`, `bench/radon-2026-09-05` or
 `bench/radon-2026-09-16` has a `ctx_switch` row. `notes/riscv-tlb-shootdown.md` line 189 also still
 says the VisionFive 2 "has not arrived", which stopped being true on 2026-08-14.
 
-**Gate: HARDWARE, DECISION.** HARDWARE because only a core with a genuinely ASID-tagged TLB can
-charge the right price, which means radon, the VisionFive 2, with a person at the bench rig.
-DECISION because nobody has said which board leg owns a RISC-V number: milestone 58's block points
-the measurement at milestone 24, which is an aarch64 VMM board and cannot take it.
+**Gate: HARDWARE.** Only a core with a genuinely ASID-tagged TLB can charge the right price, which
+means radon, the VisionFive 2, with a person at the bench rig. That has been the whole of it since
+2026-09-16 at the latest, and the second token came off on 2026-09-19.
+
+**The `DECISION` half was `DECISION` from 2026-09-03 to 2026-09-19 and there was no decision behind
+it**, which is recorded rather than quietly dropped because it is the shape milestone 435 was minted
+to find. It stood for *"nobody has said which board leg owns a RISC-V number"*, and the tree had
+answered that by practice before this block was filed: board numbers live in `bench/<board>-<date>/`
+(`bench/radon-2026-09-04`, `bench/radon-2026-09-05`, `bench/radon-2026-09-16`,
+`bench/xenon-2026-09-17`), and `notes/bench-runbook.md` carries a *"radon, in order"* procedure that
+a `ctx_switch` arm is one more step in. Choosing where a log file goes when the convention already
+exists is a lane's call and a reversible one, which is the category AGENTS.md says to decide quickly
+rather than route to calef.
+
+**What is left of that half is a miscitation rather than a fork.** Milestone 58's block points this
+measurement at milestone 24, and milestone 24 is *A second aarch64 board: Virtualization.framework*,
+status `OPTIONAL`: an aarch64 target that cannot produce a RISC-V number under any ruling. Fixing
+the pointer is an edit to milestone 58's block, not a question for anybody, and it is named in the
+handoff rather than done here because this lane does not hold that file.
 
 **In brief.** Milestone 58 removed the unconditional `sfence.vma` from `write_satp` behind a probe,
 which is the whole reason ASIDs exist on RISC-V. The number that would show the win has never been

@@ -6,9 +6,24 @@ unmeasured, and referenced but not answered by milestone 186 (derive the archite
 whose only claim on it is that the bench-tooling caller for the x86 baseline is one of its eleven
 silent gaps. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** Whether to turn `CR4.PCIDE` on is calef's call once the cost is measured; this
-milestone's job is to produce the measurement the decision needs, per the seven-questions rule
-(*"what does each option cost, measured rather than asserted"*).
+**Gate: HARDWARE.** In the second sense `design/roadmap/README.md` names: xenon is here and this
+needs an evening at it. PCID's whole benefit is a TLB that survives a `mov cr3`, and the only
+instrument this tree points at x86_64 counts instructions. QEMU's softmmu TLB is not tagged, so it
+charges for the added gate and credits nothing for the removed flush, which is not a prediction: it
+is what milestone 335 (the `ctx_switch` number on real RISC-V silicon) already measured on the
+identical experiment one ISA over, where icount came back **+1.2%** and the block records it as
+"the measurement reading backwards". The same arithmetic makes this the x86_64 twin of that block
+under DECISIONS §19, and it carries the same gate for the same reason.
+
+**The token was `DECISION` from 2026-09-10 to 2026-09-19**, and it is corrected here rather than
+quietly because it confused this milestone's **output** with its gate. Whether to turn `CR4.PCIDE`
+on is genuinely calef's, and it is what step 3 below exists to bring him; a gate says what stops a
+lane from **starting**, and nothing calef could say today would let this start any sooner. That is
+milestone 421's correction read in the other direction: 421 carried `NONE` while owing a decision,
+and this carried `DECISION` while owing a measurement. No `design/decisions/` section is minted,
+because the section is the deliverable and writing it before the number exists would be the
+asserting this block was filed to stop (per the seven-questions rule, *"what does each option cost,
+measured rather than asserted"*).
 
 ## What is skipping, and why it is not a bug
 
