@@ -31,7 +31,7 @@ named by name-and-version or by content digest), the activation shape, the trans
 `crickertech` runs a source at all. **One consequence is worth stating because it couples two
 rulings**: hosting on GitHub (Releases or GHCR, which is what Homebrew does) forces HTTPS, so
 choosing GitHub as the first host is close to choosing to carry a TLS stack, which
-`design/roadmap/proposals/whether-fetching-a-package-needs-tls.md` prices.
+DECISIONS §196 rules.
 
 **Reversibility.** Clauses 1 to 3 are code and reversible. The irreversible thing this deliberately
 does **not** do is ship a public key in an image somebody else runs, which is why T2 is deferred
