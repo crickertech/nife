@@ -148,7 +148,8 @@ of the **114 citations of a proposal path** in numbered blocks be resolved by a 
 429  2026-09-18  a-lane-that-outlives-its-own-merge
 430  2026-09-18  refusals-written-where-the-tool-cannot-read-them
 431  2026-09-18  the-acpi-walk-is-reachable-and-unproved
-432  2026-09-18  the-riscv-iommu-driver-has-no-proof```
+432  2026-09-18  the-riscv-iommu-driver-has-no-proof
+```
 
 ## What promoting one actually costs, measured rather than guessed
 
