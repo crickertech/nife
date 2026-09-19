@@ -7,9 +7,9 @@ when the lane cut its branch, not the 6,785 the title names and not the 10,680 t
 measured that morning: it grew 4% in the hours between, which is the argument for the timing rather
 than against it.
 
-**Gate: NONE.** No decision was owed. What it needed was a scheduled slot rather than a permission:
-`xtask/src/main.rs` is one of the three merge hotspots every lane wires its test into, so a
-wholesale restructure conflicts with every branch in flight and should run when the board is thin.
+No decision was owed, and what it needed was a scheduled slot rather than a permission:
+`xtask/src/main.rs` was one of the three merge hotspots every lane wires its test into, so a
+wholesale restructure conflicts with every branch in flight and had to run when the board was thin.
 
 **In brief.** Split `xtask/src/main.rs` into modules along the seams it already has, which are the
 commands. The compiler verifies the split completely, so the edit is mechanical and its failure
@@ -158,7 +158,28 @@ is a different milestone with a different argument; nothing about this one requi
 touches `xtask/src/main.rs` conflicts with this wholesale, and the resolution is to move the change
 into the module the code now lives in rather than to merge line by line.
 
+## Follow-on
+
+- **Recorded.** `design/roadmap/365-xtask-in-modules.md`'s BUGS section keeps that the nineteen
+  module names are provisional and want calef's ratification. It is not a milestone of its own:
+  `script/names --unratified` is a worklist, and an unratified name blocks nobody's build.
+- **Recorded.** `design/roadmap/365-xtask-in-modules.md`'s BUGS section keeps that
+  `shell_check.rs` is still 1,866 lines, which is the one module a second split could reach. It is
+  one command, its script table and its two legs; nothing here required cutting it further and the
+  argument for doing so is not this milestone's.
+- **Recorded.** Seven citations of `xtask/src/main.rs` survive in `notes/documentation-audit.md`,
+  `notes/smb.md`, `notes/architecture-list-sweep.md` and `script/audits`, deliberately: they are a
+  captured tool transcript, a struck-through closed row, an SMB prober that no longer exists in
+  xtask, and two observations about which file the commit ranking used to put on top. Eighteen that
+  direct a reader somewhere were repointed at the module that now holds the symbol.
+- **Done.** Milestone 130's Follow-on item, which named this split and said it needed a slot.
+  Its sibling refusal, the `kernel_main` split, stands: this one is the case where the compiler
+  really does verify the whole thing, and the difference is that `xtask` compiles in one
+  configuration with no `cfg`-gated early park.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 `xtask/src/main.rs` was one file with no module structure, 6,785 lines when this was filed on
 2026-09-03 and 11,124 when the lane took it on 2026-09-19. It is now 19 modules plus a 294-line
