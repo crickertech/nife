@@ -8,7 +8,7 @@ expensive category. *(Number provisional until the merge queue lands it.)*
 **Gate: DECISION.** calef, 2026-09-19, correcting the token this block carried on promotion. The
 hardware is not the constraint and never was: QEMU's NVMe is attached on every leg of all three
 runners already (`NIFE_NVME`), and the surveyor's two clients run there today. What stops a lane is
-[§190](../decisions/190-nvme-in-the-block-roster.md), written up on 2026-09-19 when calef asked
+[§191](../decisions/191-nvme-in-the-block-roster.md), written up on 2026-09-19 when calef asked
 whether this gate had a decision behind it and the answer was no: the ask lived only in this block's
 own *What is needed from calef* section, one rung above a chat message. It is the expensive category
 rather than a preference:

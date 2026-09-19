@@ -13,7 +13,7 @@ authority) chose a per-thread grant enforced at the context switch, granted in t
 §139 also says in its own text that neither shape it offers provides what this milestone needs,
 which is cross-thread authority with a named target. So this milestone's own decision survives its
 prior one being settled, and it is
-[§164](../decisions/164-what-a-profiling-session-may-name.md) (what a profiling session's grant
+[§165](../decisions/165-what-a-profiling-session-may-name.md) (what a profiling session's grant
 names), written up 2026-09-19 by milestone 435's lane. The `MILESTONE 75` half stays until that
 block records its own answer.
 

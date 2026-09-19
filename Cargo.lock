@@ -1090,6 +1090,7 @@ dependencies = [
  "documentation",
  "filesystem_protocol",
  "globally_unique_identifier_partition_table",
+ "grant_plan",
  "graphics_protocol",
  "measured_boot",
  "nifefs",

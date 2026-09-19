@@ -5,7 +5,7 @@ capability) lane, which hit it the hard way. *(Number provisional until the merg
 
 **Gate: DECISION.** `USER_STACK_VA` is a constant several programs reason about, so moving it is a
 change two programs agree on, which AGENTS.md puts in the expensive category. It is
-[§168](../decisions/168-where-a-program-image-starts.md) (where a program image starts, and where
+[§169](../decisions/169-where-a-program-image-starts.md) (where a program image starts, and where
 the stack goes), written up 2026-09-19 by milestone 435's lane, which re-measured the spread: the
 symbol appears in 23 files, the protocol-side reference is `counter_frequency_protocol` rather than
 the two crates named below, and `user/link.ld` is now `crates/user_mode_runtime/link.ld`.

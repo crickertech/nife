@@ -11,7 +11,7 @@ rather than fifteen, and changes nothing else. *(Number provisional until the me
 it.)*
 
 **Gate: DECISION.** The decision is
-[§180](../decisions/180-what-no-arguments-means.md) *(number provisional)*, written up 2026-09-19 by
+[§181](../decisions/181-what-no-arguments-means.md) *(number provisional)*, written up 2026-09-19 by
 milestone 435's slice-c lane because this gate named no section.
 Milestone 286 collapsed two enumerations of "the checks that gate a pull
 request" into one table inside `script/ci-build`. The table needs a way to say which checks a

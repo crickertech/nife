@@ -13,7 +13,7 @@ and shipped as `abi::rendezvous::REAP`, whose authorization is the supervision r
 than the rights bit this block proposes. So the block restated a settled question as open, and a
 gate saying `DECISION` for an answered reason spends calef's attention on a decision he has made.
 What remains is fork two, whether a tid becomes a handle, which is
-[§161](../decisions/161-resolving-a-tid-a-supervisor-holds.md) (whether the kernel resolves a tid it
+[§162](../decisions/162-resolving-a-tid-a-supervisor-holds.md) (whether the kernel resolves a tid it
 already sent), written up 2026-09-19 by milestone 435's lane. Both were recorded in
 notes/trusted-init.md as "calef's call, not a thing to slip in", and fork two still is.
 

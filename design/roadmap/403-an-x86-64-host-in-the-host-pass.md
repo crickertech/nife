@@ -12,7 +12,7 @@ option 1 and option 2 a little lower than the proposal assumed.
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§181](../decisions/181-an-x86-64-host-in-the-host-pass.md) *(number provisional)*, written up
+[§182](../decisions/182-an-x86-64-host-in-the-host-pass.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section refuses
 option 1 on a measurement rather than restating the three: the x86_64 runner image is already in use
 by `verify.yml`, so option 1 and option 2 cost the same slot and option 2 buys a symmetric claim for

@@ -78,6 +78,13 @@ does not specify one, because nothing here has met a stranger yet, but it names 
 principle 3's test applied to running rather than to building, and today the answer is a
 `cargo xtask` invocation on a development machine, which is not an install.
 
+**Defined by calef on 2026-09-19**
+([DECISIONS §157](../decisions/157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md)): a
+web page from which one downloads a minimal system, writes it to a USB drive and installs it, and
+which then grows by installing packages over the internet. That puts the format, activation and
+trust forks on the path, and it names work no milestone owns yet (an installer, a real network card
+driver, TLS).
+
 ## Scoped 2026-09-19
 
 A scoping lane (`milestone/198-package-manager-scoping`) built nothing and wrote the forks as
@@ -90,7 +97,7 @@ built, and the gate line above is left as minted because changing it is the firs
 | Package format | [what-a-package-is-on-disk-and-on-the-wire.md](proposals/what-a-package-is-on-disk-and-on-the-wire.md) | Options, no winner: members of the boot archive, one archive file per package, or content-addressed. The measurement table is already a name-to-digest document |
 | Activation | [installing-a-package-mutates-or-composes.md](proposals/installing-a-package-mutates-or-composes.md) | Options, no winner: mutate, compose a union view, or only widen what may be spawned. The program namespace is sealed at boot, and the spawner gives the file service away, so nothing that builds processes can read an installed program today |
 | Trust (found, not briefed) | [what-vouches-for-a-package-the-image-did-not-carry.md](proposals/what-vouches-for-a-package-the-image-did-not-carry.md) | Options, no winner: the image always, a publisher's signature checked in userspace, or the owner. The measured chain makes every runtime-installed package unvouched by construction |
-| Trivial install | [what-trivial-install-means.md](proposals/what-trivial-install-means.md) | **Recommends** a QEMU run bundle a stranger can use with no Rust toolchain as the first rung, and an x86-64 UEFI PC as the second. Carries the proposed first slice |
+| Trivial install | [DECISIONS §157](../decisions/157-a-trivial-install-is-a-web-page-a-usb-drive-and-packages.md) | **Decided 2026-09-19 by calef, not as recommended:** a web page, a download written to a USB drive and installed, then packages over the internet. The lane had recommended a QEMU run bundle as the first rung; its first slice is superseded as a definition and needs rescoping |
 
 **The proposed first slice needs none of the three irreversible rulings**: packages as host-side
 recipes, image composition from a declared set, and a run bundle tested by the stranger harness and

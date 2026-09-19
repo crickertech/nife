@@ -9,7 +9,7 @@ three answers and different politics (print and continue, fault the driver proce
 device), and the block argues for the second without taking it. The small half, clearing the
 overflow bit on drain, needs no decision and has a witness in milestone 29's flood, and should not
 wait on this. The large half is
-[§160](../decisions/160-where-a-device-fault-is-delivered.md) (where a confined device's IOMMU fault
+[§161](../decisions/161-where-a-device-fault-is-delivered.md) (where a confined device's IOMMU fault
 is delivered), written up 2026-09-19 by milestone 435's lane; this gate had named no decision since
 the block was raised, which is the same shape as the three documents deferring to a milestone that
 did not exist.

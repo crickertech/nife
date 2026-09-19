@@ -22,7 +22,7 @@ milestone 286, its work now being `script/ci-build`'s table, which is where `boo
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§183](../decisions/183-where-the-riscv-tour-check-runs.md) *(number provisional)*, written up
+[§184](../decisions/184-where-the-riscv-tour-check-runs.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. **That lane judged
 the gate and not the title**: the title's claim is false as written, the status paragraph above says
 so, and retitling a block is calef's rather than a sweep's.

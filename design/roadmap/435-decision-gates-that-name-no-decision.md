@@ -2,8 +2,9 @@
 
 **Status: BUILT** 2026-09-19, in one evening by three lanes. All forty-five blocks were read, and
 every one of them resolved to one of the three outcomes: 33 decisions written up as
-[§157](../decisions/157-what-a-subshell-copies.md) to
-[§189](../decisions/189-a-checked-direct-map-reader-for-the-acpi-walk.md), 6 blocks that already had a decision and
+[§158](../decisions/158-what-a-subshell-copies.md) to
+[§190](../decisions/190-a-checked-direct-map-reader-for-the-acpi-walk.md), 6 blocks that already had a
+decision and
 gained a citation, and 6 gate tokens that were simply wrong. Minted the same day by calef, from a
 question he asked about one block that turned out to be true of forty-five.
 *(Number provisional until the merge queue lands it.)*
@@ -86,7 +87,7 @@ one reading each, no code touched.
 | the decision existed and the gate did not cite it | 2 | 188 ([§95](../decisions/95-a-proven-ipc-fastpath.md)), 198 ([§151](../decisions/151-repository-goal-is-independent-release.md)) |
 | the token was wrong | 1 | 207, corrected to `NONE` |
 
-**Sections minted: §157 to §168**, provisional until the merge queue lands them.
+**Sections minted: §158 to §169**, provisional until the merge queue lands them.
 
 **The denominator is the useful part, and it argues against this block's own framing.** This
 milestone was written as though the work were mostly writing forks up. In the first slice it mostly
@@ -115,7 +116,7 @@ had since answered it, which took a grep of `design/decisions/` per block and fo
 ## Slice B, fifteen blocks, resolved 2026-09-19
 
 `224 241 260 271 327 328 330 335 340 341 342 347 350 360 388`, on `milestone/435-slice-b`, with
-sections minted in a reserved range of twenty numbers beginning at §169. **Every number here is
+sections minted in a reserved range of twenty numbers beginning at §170. **Every number here is
 provisional until the
 merge queue lands it.**
 
@@ -138,8 +139,8 @@ ruleset edit is `DECIDED` and unperformed and whose `BUGS` predicted this block)
 ([§154](../decisions/154-the-acronym-test-is-whether-the-phrase-is-spoken.md), which rules four of
 that block's five names by name).
 
-**Seven were genuinely owed** and are written up `PROPOSED`: §169 (327), §170 (328), §171 (341),
-§172 (342), §173 (347), §174 (350), §175 (360).
+**Seven were genuinely owed** and are written up `PROPOSED`: §170 (327), §171 (328), §172 (341),
+§173 (342), §174 (347), §175 (350), §176 (360).
 
 **The rate differs sharply between the aged blocks and the promoted ones**, which is a measurement
 about milestone 433's drain rather than about these blocks. Of the four numbered under 327, **three
@@ -154,7 +155,7 @@ booted since 2026-09-05, so half of milestone 241's trigger has fired, and miles
 constant, `KERNEL_WRITER_ANCHORS`, that exists nowhere in the tree.
 
 **And one thing the reserved ranges cost, which the integrator has to resolve rather than a lane.**
-`script/decisions --check` fails on a gap in the numbering, so a slice minting from §169 upward
+`script/decisions --check` fails on a gap in the numbering, so a slice minting from §170 upward
 while the twenty numbers below it are held by another lane is red on its own branch by
 construction. The numbers are
 provisional for exactly this reason; closing the gap is a renumber at merge, in the same breath as
@@ -167,7 +168,7 @@ every other global name.
 makes this slice the cleanest available measurement of whether that drain carried bad tokens across.
 
 **It did not.** Fourteen of the fifteen owed a decision that nobody had written down, and became
-§§176-189 (`PROPOSED`; the lane reserved a range of twenty and the integrator compacted it at
+§§177-190 (`PROPOSED`; the lane reserved a range of twenty and the integrator compacted it at
 merge, which is the renumber slice B's last paragraph predicted). **Zero tokens were wrong.** One, milestone 391, was the
 third outcome: a decision already existed and the gate did not cite it, and the decision is §149,
 which refused this exact question on the ground that the general case must not be settled on the
@@ -180,7 +181,7 @@ retitling to calef. Milestone 415 was suspected of carrying a token that had gon
 the suspicion turns out to be backwards: the item that needed nobody's permission is the one that
 landed, so what remains is more purely `DECISION` than when the gate was written. A **different**
 argument that the token is too strong does exist, on the block's own reversibility paragraph, and
-§187 puts it to calef as its first question rather than a lane deciding it.
+§188 puts it to calef as its first question rather than a lane deciding it.
 
 **What that rate means for the other two slices, which hold aged blocks rather than fresh ones.**
 Fourteen of fifteen is a high owed-decision rate, and the reason is visible in the blocks: a
@@ -254,7 +255,10 @@ reader can open, so the ask exists only as a paragraph inside the block, address
 AGENTS.md says open decisions live in a file rather than in a conversation, and a roadmap block is
 rung three rather than the rung four of chat scrollback, which is why this went unnoticed. calef
 found it by asking whether milestone 421's freshly corrected gate had a decision behind it; it did
-not, and a decision was minted on the spot (now §190; it was minted as §156 and another session's queue landed a different §156 first, which is why anything global stays provisional until the queue lands it). Twenty-four of the forty-five arrived the same evening from
-milestone 433's drain, which carried each proposal's gate token across unchanged. The work is a
+not, and a decision was minted on the spot (now §191). **Two sessions collided on a number twice
+in one evening**, which is why anything global stays provisional until the queue lands it: this one
+was minted §156 and another session's §156 landed first, and then this branch's whole range from
+§157 was displaced by one when that session's §157 landed too. Twenty-four of the forty-five arrived the same
+evening from milestone 433's drain, which carried each proposal's gate token across unchanged. The work is a
 reading per block and one of three outcomes: correct a token that is wrong, write up a fork that is
 genuinely owed, or cite a decision that already exists.

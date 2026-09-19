@@ -7,7 +7,7 @@ together, and the block says not to build from it without that conversation. It 
 after milestone 50, which is BUILT as of 2026-08-14's status catch-up, so that half of the gate is
 satisfied and what remains is exactly the conversation: 50's landing removed most of the
 requirement and changed what is left, which is now the thing to design from. **The fork is
-[§157](../decisions/157-what-a-subshell-copies.md) (what a subshell copies)**, written up
+[§158](../decisions/158-what-a-subshell-copies.md) (what a subshell copies)**, written up
 2026-09-19 by milestone 435's lane because this gate had named no decision since the block was
 recorded, which is the defect that milestone recorded across forty-five blocks. Nothing in the fork
 is answered by writing it down; the conversation calef asked for is still the gate.
