@@ -316,6 +316,16 @@ cycle_counter_grant = []
 # --extra-features fastpath_pad` can compare the padded build against the un-padded baseline while
 # the two run byte-identical IPC work. Off by default: an ordinary build never links the padding
 # in. See kernel/src/fastpath_pad.rs. Name provisional.
+#
+# **Sized, and shiftable, by environment rather than by more features** (milestone 134's layout
+# control, 2026-09-19). `NIFE_FASTPATH_PAD=<units>` sets the sled's length in units of what this
+# feature has always linked (unset is 1, the sled the 2026-09-04 session booted),
+# and `NIFE_FASTPATH_SHIFT=<bytes>` appends unreferenced zeros after it, which moves the same code
+# the pad moves and adds nothing reachable. kernel/build.rs reads both, and only when this feature
+# is on, so an ordinary build cannot see them. Not features because a feature's *name* enters
+# cargo's `-C metadata` hash, which reorders codegen units: seven sibling features were built and
+# measured, and each reshuffled up to 11 KB of code ahead of the sled, drowning the shift it was
+# meant to control. notes/footprint-perturbation.md has the procedure.
 fastpath_pad = []
 # Milestone 134's per-IPC kernel stack depth (kernel/src/ipc_stack_depth.rs): paints a thread's own
 # kernel stack before each IPC operation and scans it after, so the deepest byte one SEND, RECV,
