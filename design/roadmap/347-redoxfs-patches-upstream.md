@@ -1,6 +1,12 @@
-# Offer the two RedoxFS patches upstream
+# 347. Offer the two RedoxFS patches upstream
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 32's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 32's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** `patches/` still holds exactly `redoxfs-no-std-vec-import.patch` and
+`redoxfs-no-std-create-uuid.patch` beside its README, which still opens by saying each exists to be
+upstreamed and still describes the submission route in the future tense (*"fork on
+gitlab.redox-os.org, `git am` this file on a branch, push, open the MR"*). No merge request is
+recorded anywhere in the tree.
 
 **Gate: DECISION, HARDWARE.** DECISION because a merge request is a fact that leaves the machine
 under this project's name, which AGENTS.md puts in the irreversible column. HARDWARE in its second
@@ -45,3 +51,18 @@ Milestone 32's block: *"Offer the two RedoxFS patches upstream.
 written and `patches/README.md` names the route,
 but no merge request exists on gitlab.redox-os.org. So the pin carries divergences that could have
 stopped existing, and every future bump re-applies them by hand."*
+
+## Index row
+
+Two patches against RedoxFS are written, applied and documented, and neither has been offered
+upstream. `redoxfs-no-std-vec-import.patch` fixes the `no_std` build across four `E0425` sites and
+adds a `--no-default-features` CI job so the configuration cannot rot again;
+`redoxfs-no-std-create-uuid.patch` lets a `no_std` caller create a filesystem by supplying the disk
+id, the same way `create` already takes `ctime`. `patches/README.md` says what the directory is for,
+that an entry leaves it when the pin advances past a release containing the fix, and neither entry
+can ever leave because nobody has asked. The concrete cost is per-bump and recurring, since milestone
+203 built the machinery that reports when upstream moves and each report then re-applies both
+divergences by hand; `create-uuid` is written against 0.9.1 so it applies with zero fuzz to the pin,
+and rebasing it onto master gets more expensive the longer nobody does it. There is a second cost
+that is not ours: the `no_std` build of RedoxFS is broken upstream for everyone and this tree has the
+fix sitting in a file. The mechanical part is small and the rest is waiting.

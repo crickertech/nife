@@ -100,18 +100,19 @@ blind; the sets were listed, read, and then edited, which is what caught the rec
 - **A quoted commit subject.** `notes/unsafe-obligations.md` quotes `d5a969a2`, "user_rt: one trap
   instruction, not forty-eight". The quotation keeps its bytes and gains a note beside it saying the
   crate is spelled differently now, so the number stays traceable to the run that produced it.
-- **A quotation from milestone 68's block**, inside
-  `design/roadmap/proposals/pure-halves-of-the-user-rt-crates.md`, for the same reason. The
-  proposal's own prose moved, because a `PROPOSED` proposal is live intent a reader picks up and goes
-  looking with.
+- **A quotation from milestone 68's block**, inside what is now
+  `design/roadmap/345-pure-halves-of-the-user-rt-crates.md`, for the same reason. That block's own
+  prose moved, because it is live intent a reader picks up and goes looking with.
 - **`design/decisions/` and every other milestone's roadmap block**, which are outside a lane's
   reach. The count and the rows that now mislead are in the Follow-on section.
 
 ## BUGS
 
-- **The proposal file is still named `pure-halves-of-the-user-rt-crates.md`.** Renaming it would
-  need an edit to milestone 68's block, which cites the path, and that block is not this lane's to
-  touch. Its body is current; only the filename is stale.
+- **The slug is still `pure-halves-of-the-user-rt-crates`**, now as
+  `design/roadmap/345-pure-halves-of-the-user-rt-crates.md`. The obstacle this entry named is gone:
+  milestone 433 numbered it on 2026-09-19 and milestone 68's bullet became `**Milestone 345.**` with
+  no path in it, so a rename no longer reaches into another block. The body is current; only the
+  slug is stale, and a slug is a name, so it is calef's.
 - **Four `NOT-STARTED` and eight `PARTIAL` roadmap blocks still spell the crate `user_rt`.** They
   are live intent pointing at a directory that no longer exists, and they are listed below rather
   than fixed, for the same reason. Four other blocks had to be touched despite that rule, because

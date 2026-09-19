@@ -1,6 +1,12 @@
-# Five crates whose doctests the host gate never runs
+# 345. Five crates whose doctests the host gate never runs
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 68's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 68's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds.** `xtask/src/main.rs`'s host test invocation still excludes `user_mode_runtime`,
+`swap_protocol`, `virtio`, `supervision_protocol` and `system_initializer` by name (alongside
+`kernel`, `components` and `fixtures`), and the comment above it still carries the whole account: the
+exclusions are `user_mode_runtime` and everything that depends on it, because `--exclude` removes a
+package from the test selection and not from the dependency graph. No crate has been split.
 
 **Gate: NONE.** No decision is owed and nothing is missing. The split is ordinary refactoring inside
 crates this tree owns, and the gate that would prove it is the one already running.
@@ -52,3 +58,19 @@ five crates whose examples can rot unnoticed inside the gate milestone 68 exists
 milestone 68 wrote; everywhere else on this page the crate is spelled the way it is spelled today.
 
 The exclusion and its history are commented at the host-test invocation in `xtask/src/main.rs`.
+
+## Index row
+
+`swap_protocol`, `virtio`, `supervision_protocol` and `system_initializer` each take an
+unconditional dependency on `user_mode_runtime`, which is EL0 syscall `asm!` and cannot compile for
+the host, so all four are excluded from the host pass by name along with `user_mode_runtime` itself.
+Splitting each so the pure logic lives where the host can build it and the syscall half is what
+depends on `user_mode_runtime` lets the host pass run their tests and their doctests instead of
+skipping them. Milestone 68 exists to be the gate that keeps documented examples honest, and inside
+that gate sit five crates whose examples nothing ever compiles, which is the milestone's own failure
+living in its own blind spot. The tree has paid for this class once already: when five crates went
+missing from the host selection by milestone 51 they carried 82 host tests the gate never ran, and
+all 82 passed when finally run, which is the point, because nothing failed and nobody noticed. The
+same unconditional dependencies broke the x86_64 host build on 2026-08-03 and a stranger found it
+eleven days later. Success is mechanical: a crate leaves the `--exclude` list, `script/lint`'s
+derived-set check agrees, and the host pass runs its doctests.
