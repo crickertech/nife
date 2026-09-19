@@ -1218,6 +1218,32 @@ register dump showing a perfectly correct GDT, TSS and IDT. Nothing about the sy
 cause. The fix saves and restores the base around the reload, inside `segments::init`, so the
 ordering constraint stops existing rather than being documented for callers to remember.
 
+## The SMP bug that was a counting bug (2026-09-19)
+
+For a month `arch::x86_64::ap_boot`'s BUGS #1 said a secondary core "fails intermittently", with two
+refuted hypotheses beside it. **No core was failing.** `cpu_start` read the online count before the
+INIT, then read it *again* after the STARTUP IPIs and waited for it to move from the second value; a
+core that checked in during the 200 µs settle delay had already moved it, so the loop waited ten
+seconds for an increment nobody would make and reported a running core as absent. The tell had been
+in every failing transcript: the "failed" core printed its own `cr4.smep : set on core N` line, which
+only that core's `secondary_main` can print, one line above `smp: cpu N did not start`.
+
+26 of 40 four-core boots showed it before the fix; 80 of 80 boots at three, four and eight cores
+brought every core online after it. It also reached two cores (the first secondary is as able to be
+quick as any other), which is the UEFI leg's one-in-three failure recorded in
+`design/roadmap/412-the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`.
+`ap_boot.rs`'s BUGS has the evidence, including the instrumented build that settled it.
+
+## The direct map in blocks (2026-09-19)
+
+`crates/paging` maps 2 MiB and 1 GiB leaves now (`PageSize`, `Mapper::map_span`, `map_block`), and
+the direct map's RAM uses them: **560 KiB of page tables on QEMU's 256 MiB became 60 KiB**, and at
+4 GiB, 8,252 KiB became 64 KiB. 1 GiB leaves are used only where `CPUID` leaf 0x80000001 reports
+`Page1GB` (`mmu::largest_leaf`); `-cpu qemu64` does not, and boots in 2 MiB blocks. Device windows
+and firmware reservations stay in 4 KiB pages, because this kernel does not read the MTRRs and a
+large page spanning two memory types is undefined (`mmu.rs`'s BUGS). aarch64 and riscv64 adopted the
+same rule for their direct maps in the same change, so this is not an x86 difference.
+
 ## What the gates cover, and what they do not
 
 `script/lint` runs clippy over the x86_64 kernel binary at `-D warnings`, which covers every line of

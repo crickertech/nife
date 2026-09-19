@@ -14,6 +14,7 @@
 
 use crate::{
     CAP_DEVICE, CAP_GLOBAL, CAP_KERNEL_EXEC, CAP_USER, CAP_USER_EXEC, CAP_WRITE, Flags, PageFormat,
+    PageSize,
 };
 
 /// Bits [1:0] = 0b11: "valid, and a table pointer" at L0-L2, or **"valid, and a page"** at L3. The
@@ -162,6 +163,25 @@ impl PageFormat for Aarch64 {
         }
         Flags::from_caps(caps)
     }
+
+    /// An L2 (2 MiB) or L1 (1 GiB) **block descriptor**: bits `[1:0]` = `0b01`, valid and *not* a
+    /// table, with the page leaf's attributes in the same positions. The address is masked to the
+    /// block's own alignment: below it, an L2 block's bits `[20:12]` and an L1 block's `[29:12]` are
+    /// `RES0`. (An L0 block would be 512 GiB and does not exist with a 4 KiB granule, which
+    /// [`PageSize`] cannot name anyway.)
+    fn block_entry(pa: u64, flags: Flags, size: PageSize) -> Option<u64> {
+        match size {
+            PageSize::Size4KiB => Some(Self::leaf_entry(pa, flags)),
+            PageSize::Size2MiB | PageSize::Size1GiB => {
+                Some((pa & ADDR_MASK & !(size.bytes() - 1)) | Self::attrs(flags) | VALID)
+            }
+        }
+    }
+
+    /// Above L3, `0b01` is a block and `0b11` a table: the bit that is PAGE at L3 is TABLE here.
+    fn is_block(entry: u64) -> bool {
+        entry & TABLE_OR_PAGE == 0
+    }
 }
 
 #[cfg(test)]
@@ -269,7 +289,7 @@ mod tests {
 #[cfg(kani)]
 mod verification {
     use super::*;
-    use crate::{Half, PAGE_SIZE};
+    use crate::{Half, PAGE_SIZE, PageSize};
 
     /// **The walk never indexes past a table.** For every address and level, the index is < 512.
     /// Falsification: unfalsified
@@ -331,6 +351,58 @@ mod verification {
         if crate::is_user_page_va::<Aarch64>(va) {
             assert!(Aarch64::in_half(Half::Low, va) && !Aarch64::in_half(Half::High, va));
         }
+    }
+
+    /// **A block descriptor keeps the address and the permissions apart and is typed as a block**,
+    /// for every physical address and every `Flags` constructor, at both block sizes. Literals for
+    /// every bit position: bits [1:0] are `0b01` (valid, not a table), the address is [47:21] for
+    /// an L2 block and [47:30] for an L1 block, and what lies below it is `RES0`.
+    /// Falsification: replayable `crates/paging/falsifications/aarch64.verification.a_block_keeps_address_and_permissions_apart.patch`
+    #[kani::proof]
+    fn a_block_keeps_address_and_permissions_apart() {
+        let pa: u64 = kani::any();
+        let two_mib: bool = kani::any();
+        let (size, address_bits) = if two_mib {
+            (PageSize::Size2MiB, 0x0000_ffff_ffe0_0000u64)
+        } else {
+            (PageSize::Size1GiB, 0x0000_ffff_c000_0000u64)
+        };
+        let all = [
+            Flags::kernel_code(),
+            Flags::kernel_rodata(),
+            Flags::kernel_data(),
+            Flags::device(),
+            Flags::user_code(),
+            Flags::user_rodata(),
+            Flags::user_data(),
+            Flags::user_device(),
+        ];
+        let i: usize = kani::any();
+        kani::assume(i < all.len());
+        let flags = all[i];
+
+        let block = Aarch64::block_entry(pa, flags, size).expect("aarch64 encodes both sizes");
+        assert_eq!(
+            block & address_bits,
+            pa & address_bits,
+            "the address left its field"
+        );
+        assert_eq!(
+            block & 0x0000_ffff_ffff_f000 & !address_bits,
+            0,
+            "a RES0 bit below the block's alignment is set"
+        );
+        assert_eq!(block & 0b11, 0b01, "not a block descriptor");
+        assert!(Aarch64::is_block(block));
+        assert_eq!(Aarch64::leaf_flags(block), flags);
+    }
+
+    /// **No table descriptor ever reads as a block**, for every address.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn a_table_entry_is_never_a_block() {
+        let pa: u64 = kani::any();
+        assert!(!Aarch64::is_block(Aarch64::table_entry(pa)));
     }
 
     /// **A leaf keeps the address and the permissions apart, and the permissions round-trip.**

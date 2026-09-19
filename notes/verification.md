@@ -478,6 +478,35 @@ device through a virtqueue descriptor is provably confined to the driver's grant
 a device inside a command payload are confined by the IOMMU alone, that confinement is tested rather
 than proved, and on a board without an IOMMU it does not exist.*
 
+### Blocks: 2 MiB and 1 GiB leaves (milestone 161, 2026-09-19)
+
+`crates/paging` gained a second and third leaf size so the direct map stops costing 0.2% of RAM in
+page tables (560 KiB to 60 KiB on QEMU's 256 MiB x86 machine; 8,252 KiB to 64 KiB at 4 GiB). The
+proofs follow the domain builder's shape above: **the decision that makes a block safe is pulled out
+as loopless arithmetic and proved for every input**, and the walk that writes it stays tested.
+
+| Harness | Property |
+|---|---|
+| `verification::a_chosen_leaf_is_aligned_and_inside_the_span` | **soundness**: every leaf `Mapper::map_span` writes is aligned at both ends, no larger than the caller allowed, and lies wholly inside what is left of the span, so blocks map no byte the equivalent pages would not |
+| `verification::the_chosen_leaf_is_the_largest_that_fits` | **completeness**: no fitting larger leaf is passed over; soundness alone is satisfied by always answering 4 KiB |
+| `x86_64` / `aarch64` / `sv39` `::a_block_keeps_address_and_permissions_apart` | each format's block encoding, over every `u64` address and every `Flags` constructor: the address in its architectural field, nothing set below the block's alignment (reserved on x86, `RES0` on aarch64, a misaligned-superpage fault on Sv39), the format's block marker as a literal bit pattern, and the flags round-tripping; on x86 also W^X on the hardware bits |
+| `x86_64` / `aarch64` / `sv39` `::a_table_entry_is_never_a_block` | no table pointer ever reads as a block, so the walk never stops at a table or descends into a block |
+
+Every assertion is spelled in literals, for milestone 211's and 307's reason. The five
+`replayable` records were swept red on 2026-09-19 (`script/falsifications --sweep paging`: 13 swept,
+0 survivors).
+
+**One lesson worth keeping, because it cost a quarter of an hour.** The first version of
+`PageSize::largest_fitting` looped over the sizes and tested alignment with `%`. CBMC was still
+solving `the_chosen_leaf_is_the_largest_that_fits` after ten minutes; written as two `if`s and a mask
+test, it proves in 0.05 s. Both changes went in together, so which one mattered is not isolated; the
+harnesses themselves still use `%` (`is_multiple_of`) in their assumptions and prove in well under a
+second, which points at the loop.
+
+**The residual is the usual one**: the proofs cover the leaf choice and the encodings, not `Mapper`
+writing the block into a built table. That is tested on all three formats
+(`crates/paging/tests/blocks.rs`) and booted.
+
 ## The calendar, and where BMC's cost actually is
 
 Eleven in `crates/calendar/src/lib.rs`, milestone 51's civil-date arithmetic (see notes/calendar.md
@@ -650,9 +679,9 @@ script/verify
 
 Self-installs Kani on first run (its own nightly toolchain and a CBMC backend, a minute of
 download), then runs `cargo kani` over every package carrying harnesses:
-**170 harnesses** <!--count:kani-harnesses--> **across 26 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
+**178 harnesses** <!--count:kani-harnesses--> **across 26 packages** <!--count:harness-crates-->. (Milestone 304 added two, in
 `kernel/src/arch/x86_64/irq.rs`, which **only the x86_64 job runs**: the count is of the tree, not of
-any one run, and no single host compiles all 170. It fell to 148 from 151 across 26 on
+any one run, and no single host compiles all 178. (Milestone 161 added eight on 2026-09-19, the block-leaf proofs in `crates/paging`.) It fell to 148 from 151 across 26 on
 2026-09-15, when milestone 298 retired `multicast_dns_protocol` and its three. This line said 67 for
 a while after it was 69, then "a few minutes" for a month after that stopped being true, then 107
 after it was 119. Both counts now carry a `<!--count:-->` marker and `script/lint` re-derives them

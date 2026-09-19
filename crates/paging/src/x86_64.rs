@@ -41,6 +41,7 @@
 
 use crate::{
     CAP_DEVICE, CAP_GLOBAL, CAP_KERNEL_EXEC, CAP_USER, CAP_USER_EXEC, CAP_WRITE, Flags, PageFormat,
+    PageSize,
 };
 
 const P: u64 = 1 << 0; // Present
@@ -51,6 +52,11 @@ const PCD: u64 = 1 << 4; // Page-level Cache Disable
 const A: u64 = 1 << 5; // Accessed
 const D: u64 = 1 << 6; // Dirty
 const G: u64 = 1 << 8; // Global (ignored unless CR4.PGE)
+/// Bit 7, Page Size, in a PDPT or PD entry: set, the entry is a 1 GiB or 2 MiB leaf rather than a
+/// pointer to the next table. **The same bit is `PAT` in a bottom-level entry**, which is why
+/// [`PageFormat::is_block`] is only ever asked above the bottom, and it is reserved-must-be-zero in
+/// a PML4 entry, which is why [`Ia32e::block_entry`] declines anything larger than 1 GiB.
+const PS: u64 = 1 << 7;
 const XD: u64 = 1 << 63; // eXecute Disable, and only while IA32_EFER.NXE is set
 
 /// Bit 9, the first of the three "available to software" bits (11:9) in every entry. Used to record
@@ -165,6 +171,33 @@ impl PageFormat for Ia32e {
         }
         Flags::from_caps(caps)
     }
+
+    /// A PD entry (2 MiB) or a PDPT entry (1 GiB) with `PS` set, and otherwise exactly the page
+    /// leaf's bits: every attribute `attrs` sets (`RW`, `US`, `A`, `D`, `G`, `PWT`, `PCD`, `XD`
+    /// and the two software bits) sits in the same position at all three levels.
+    ///
+    /// **Bit 12 is the one that moves.** In a large-page entry it is `PAT`, and bits 20:13 (2 MiB)
+    /// or 29:13 (1 GiB) are reserved-must-be-zero, so the address is masked down to the block's own
+    /// alignment rather than to `ADDR_MASK`: a stray low bit here is a reserved-bit page fault on
+    /// the first touch, not a slightly wrong address. `attrs` never sets bit 12, so `PAT` stays
+    /// 0 and the memory type is the same PAT entry a page leaf with the same flags selects.
+    ///
+    /// **A 1 GiB leaf is encodable on every `x86_64` and usable only where `CPUID` leaf 0x80000001
+    /// reports `Page1GB` (EDX bit 26)**; elsewhere `PS` in a PDPT entry is reserved. This crate
+    /// cannot ask, so the caller passes the largest size it has checked for (see
+    /// [`Mapper::map_span`](crate::Mapper::map_span)).
+    fn block_entry(pa: u64, flags: Flags, size: PageSize) -> Option<u64> {
+        match size {
+            PageSize::Size4KiB => Some(Self::leaf_entry(pa, flags)),
+            PageSize::Size2MiB | PageSize::Size1GiB => {
+                Some((pa & ADDR_MASK & !(size.bytes() - 1)) | P | PS | Self::attrs(flags))
+            }
+        }
+    }
+
+    fn is_block(entry: u64) -> bool {
+        entry & PS != 0
+    }
 }
 
 /// **VT-d's second-level page-table format** (milestone 161, roadmap item 6): what an Intel IOMMU
@@ -257,6 +290,23 @@ impl PageFormat for Vtd {
             caps |= CAP_WRITE;
         }
         Flags::from_caps(caps)
+    }
+
+    /// **Pages only.** VT-d has second-level superpages (bit 7, `SP`), but whether this unit
+    /// walks them is `CAP_REG.SLLPS`'s answer, which this crate cannot read and the driver does not
+    /// check; and bit 7 is outside `VTD_PERMITTED_BITS`, in the reserved range, for exactly that reason.
+    /// A DMA domain is a few granted pages, not a direct map, so there is nothing to win yet.
+    fn block_entry(pa: u64, flags: Flags, size: PageSize) -> Option<u64> {
+        match size {
+            PageSize::Size4KiB => Some(Self::leaf_entry(pa, flags)),
+            PageSize::Size2MiB | PageSize::Size1GiB => None,
+        }
+    }
+
+    /// Bit 7 is what the hardware would read as a superpage, so a walk agrees with it on an entry
+    /// somebody else wrote; this format never writes one.
+    fn is_block(entry: u64) -> bool {
+        entry & (1 << 7) != 0
     }
 }
 
@@ -467,7 +517,7 @@ mod tests {
 #[cfg(kani)]
 mod verification {
     use super::*;
-    use crate::{Half, PAGE_SIZE};
+    use crate::{Half, PAGE_SIZE, PageSize};
 
     /// **The walk never indexes past a table** (four levels here).
     /// Falsification: unfalsified
@@ -600,6 +650,68 @@ mod verification {
 
         let leaf = Ia32e::leaf_entry(pa, all[i]);
         assert!(leaf & XD != 0 || leaf & RW == 0);
+    }
+
+    /// **A block keeps the address and the permissions apart, carries `PS`, and never sets a bit
+    /// the large-page format reserves**, for every physical address and every `Flags` constructor,
+    /// at both block sizes. Every bit position is a literal, for the reason
+    /// `the_leaf_keeps_address_and_permissions_apart` gives: the architecture chooses them.
+    ///
+    /// No assumption on `pa`: masking it down to the block's alignment and the 52-bit field is the
+    /// encoder's job, and a stray bit below the alignment is a reserved-bit fault (bits 20:13 or
+    /// 29:13) or a different memory type (bit 12, `PAT`), so the claim is over every `u64`.
+    /// Falsification: replayable `crates/paging/falsifications/x86_64.verification.a_block_keeps_address_and_permissions_apart.patch`
+    #[kani::proof]
+    fn a_block_keeps_address_and_permissions_apart() {
+        let pa: u64 = kani::any();
+        let two_mib: bool = kani::any();
+        let (size, address_bits) = if two_mib {
+            (PageSize::Size2MiB, 0x000f_ffff_ffe0_0000u64)
+        } else {
+            (PageSize::Size1GiB, 0x000f_ffff_c000_0000u64)
+        };
+        let all = [
+            Flags::kernel_code(),
+            Flags::kernel_rodata(),
+            Flags::kernel_data(),
+            Flags::device(),
+            Flags::user_code(),
+            Flags::user_rodata(),
+            Flags::user_data(),
+            Flags::user_device(),
+        ];
+        let i: usize = kani::any();
+        kani::assume(i < all.len());
+        let flags = all[i];
+
+        let block = Ia32e::block_entry(pa, flags, size).expect("x86 encodes both block sizes");
+        assert_eq!(
+            block & address_bits,
+            pa & address_bits,
+            "the address left its field"
+        );
+        assert_eq!(
+            block & 0x000f_ffff_ffff_f000 & !address_bits,
+            0,
+            "a bit below the block's alignment is set: reserved, or PAT"
+        );
+        assert_eq!(block & 1, 1, "a block must be present");
+        assert_eq!(block & (1 << 7), 1 << 7, "a block must carry PS");
+        assert!(Ia32e::is_block(block));
+        assert_eq!(Ia32e::leaf_flags(block), flags);
+        // W^X survives the move up a level, stated on the hardware bits: executable (XD clear)
+        // means not writable (RW clear).
+        assert!(block & (1 << 63) != 0 || block & (1 << 1) == 0);
+    }
+
+    /// **No table pointer ever reads as a block**, for every address: `table_entry` keeps `PS`
+    /// clear, so the walk never stops early at an entry that points at a table and never takes a
+    /// table's frame for 2 MiB of mapped memory.
+    /// Falsification: unfalsified
+    #[kani::proof]
+    fn a_table_entry_is_never_a_block() {
+        let pa: u64 = kani::any();
+        assert!(!Ia32e::is_block(Ia32e::table_entry(pa)));
     }
 
     /// **No `Vtd` leaf or table entry ever sets a bit VT-d treats as reserved**, over every
