@@ -11,11 +11,12 @@ Every kill was re-run under its mutation; every equivalence claim below is a mut
 still reports. The accounting is in `notes/mutation-testing.md`'s `## 2026-09-19` section, which is
 where the reasons live.
 
-| crate | missed before | missed after | killed | equivalent | recorded gap |
+| crate | missed before | missed after | killed | equivalent | excluded |
 |---|---|---|---|---|---|
 | `capability` | 8 | 3 | 5 | 3 | 0 |
 | `memory_regions` | 8 | 0 | 6 | 0 | 0 |
 | `elf` | 6 | 0 | 6 | 0 | 0 |
+| `timetable` | 48 | 0 | 12 | 0 | 0 |
 
 **Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
 `.cargo/mutants.toml` is where an exclusion goes with its reason, and milestone 85 already set the
