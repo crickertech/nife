@@ -1,8 +1,15 @@
-# Nothing here resolves a hostname, and in a capability system the resolver is a grant
+# 384. Nothing here resolves a hostname, and in a capability system the resolver is a grant
 
-**Status: PROPOSED 2026-09-05.** Found by asking whether a milestone covered `curl` or `wget`. None
-does, and the reason they could not work is smaller and nearer than the HTTP or TLS this tree does
-not have.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal, written after asking whether a
+milestone covered `curl` or `wget`; numbered 2026-09-19 by milestone 433's drain of the proposal
+pile. **Premise re-read against the tree on 2026-09-19 and still true**, with one path correction:
+the `smoltcp` 0.14 dependency moved from `user/Cargo.toml` to `components/Cargo.toml` when milestone
+175 split the program directories, and `socket-dns` is still not among its features. Nothing in
+`crates/` or `components/src/` resolves a name, and the DHCP client still receives a nameserver
+nothing reads. The one thing that changed since filing supports the proposal rather than undercutting
+it: milestone 298 retired the multicast DNS responder on 2026-09-15, and its block cites this
+proposal as the reason the link-local responder was not the answer here.
+*(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** `smoltcp` already ships the socket; enabling it is a feature flag and a program.
 
@@ -79,3 +86,22 @@ Kani-proven not to loop or overrun, is in `crates/multicast_dns_protocol` at com
   grant is named as the obvious middle without evidence that it is workable.
 - **No consumer.** By AGENTS.md's ranking function that is a reason to rank this below anything that
   has one, and there are two proposals in the same condition standing behind it.
+
+## Index row
+
+`components/Cargo.toml` builds `smoltcp` 0.14 without `socket-dns`, and nothing else in the tree
+turns a hostname into an address, so a program cannot reach a host by name even with a perfect HTTP
+implementation behind it, and the nameserver DHCP already hands us is thrown away. The work is worth
+its own block because the interesting question is not the resolver, it is who holds it. On Unix name
+resolution is ambient: `/etc/resolv.conf` is readable by everyone, `getaddrinfo` is in libc, and a
+program that should only ever talk to one host can silently look up any other, with a packet capture
+as the first sign. Here it should be a grant, which makes three things true that are not true on
+Unix: a client granted a resolver that answers for one domain cannot be induced to look up anything
+else whatever injection it carries, the resolver is itself a confined network client rather than a
+library linked into everyone, and a program with no grant and a literal address still works. That is
+the same observation as the trust-store half of milestone 387's TLS fork, and a small concrete
+instance of §145's argument. What it takes: enable `socket-dns`, decide whether the resolver lives
+inside `net_stack` or as its own confined program holding a socket grant (the second is more in
+keeping with the tree and more expensive, so it is argued rather than assumed), decide the
+capability's shape, which is the real design work, and read the nameserver DHCP already receives. It
+has no consumer today, which by AGENTS.md's ranking function ranks it below anything that has one.

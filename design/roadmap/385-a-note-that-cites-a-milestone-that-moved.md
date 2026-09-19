@@ -1,8 +1,14 @@
-# When a milestone's status flips, tell the lane which notes cite it
+# 385. When a milestone's status flips, tell the lane which notes cite it
 
-**Status: PROPOSED 2026-09-05.** Written after six "is there a milestone for X" questions in one
-evening turned up four things wrong on `main` rather than four things missing, all of the same shape:
-prose that was true when written and went silently false when a milestone landed.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal, written after six "is there a
+milestone for X" questions in one evening turned up four things wrong on `main` rather than four
+things missing; numbered 2026-09-19 by milestone 433's drain of the proposal pile. **Premise re-read
+against the tree on 2026-09-19 and still true**: `script/citations` still takes `--check` and
+`--untracked` and nothing else, so there is still no mode that reads a pull request's base commit,
+notices a milestone's status moving, and prints the notes citing it. The instances have been
+corrected, which is the whole point of the block rather than a reason to close it: milestone 99's
+block no longer claims a compressor among the things this tree has or is building, and the other
+three were fixed before the file was written. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** `script/citations` already parses milestone citations and CI already knows a pull
 request's base commit. This is an addition to machinery that exists.
@@ -123,5 +129,25 @@ most citations in `notes/` carry no status word to compare.
 - **The gate that should have caught this file's absence covers only half the places a proposal is
   cited.** `script/roadmap` refuses a `**Proposed.**` entry under `## Follow-on` whose file does not
   exist. Milestone 259 cites this file in its status line instead, so that check never ran, and a
-  backticked path that does not resolve passes every other gate: `design/roadmap/proposals/a-backticked-path-that-does-not-resolve.md`
-  is the general fix, and it is unbuilt too.
+  backticked path that does not resolve passes every other gate: milestone 383,
+  `design/roadmap/383-a-backticked-path-that-does-not-resolve.md`, is the general fix, and it is
+  unbuilt too.
+
+## Index row
+
+Six "is there a milestone for X" questions in one evening turned up four things wrong on `main`
+rather than four things missing, all the same shape: prose that was true when written and went
+silently false when a milestone landed. `notes/why-not-general-purpose.md` told newcomers there was
+no networking, no writable filesystem, no display and no SMP, five of six rows false; milestone 66's
+gap table said TCP listen and accept were absent from the contract a month after milestone 107
+shipped them. Every one is rung four of AGENTS.md's ladder and every one stayed green through every
+gate. The mechanism is a worklist rather than a failure, in the shape `script/names --unratified`
+already uses: when a pull request moves a milestone's status, print the notes that cite that
+milestone, because the lane doing the flipping is the one person who knows what that milestone now
+makes true and is holding that knowledge at exactly the moment the check fires. Four measurements
+decided the design: the median milestone is cited by three notes, so a worklist is readable; 68
+statuses flipped in fourteen days, so it must be scoped to a pull request rather than swept over the
+tree; only 4% of the 1,519 milestone citations in `notes/` carry a gloss, so it keys on the bare
+`milestone N` and not on what `script/citations` checks; and it catches one of the two real cases.
+The half it misses is stated rather than glossed: a page saying "there is no networking" cites
+nothing, so there is no anchor to hang a check on, and that half wants a sweep rather than a gate.

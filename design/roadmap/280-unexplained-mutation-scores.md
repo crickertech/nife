@@ -86,8 +86,8 @@ one level down, at a target rather than a crate.
 
 **So what is left of this milestone is `documentation` at 52%**, and one residue that is already
 tracked elsewhere: excluding `src/main.rs` made the number honest, not the file proved, and whether
-its 790 firmware lines get lifted the way `handoff` and `image` were is
-`design/roadmap/proposals/the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
+its 790 firmware lines get lifted the way `handoff` and `image` were is milestone 381,
+`design/roadmap/381-the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
 
 **Where it sits on that path.** Milestone 277 built the memory bound so a sweep can survive a runaway
 mutant; the first green scheduled run is what proves it. This milestone is what stops the number that
@@ -167,9 +167,10 @@ it."*
 - **Recorded.** A table that spills past `TABLE_ROWS` loses its header emphasis and its column
   alignment in the second chunk, both being properties of a delimiter row that is not carried across
   the flush. In `crates/documentation/src/lib.rs`'s `BUGS`, where a reader meets the table support.
-- **Proposed.** Whether `uefi_loader/src/main.rs`'s 790 firmware lines get lifted the way `handoff`
-  and `image` were is the residue excluding the file made honest rather than proved, and it is
-  already held by `design/roadmap/proposals/the-uefi-loaders-firmware-half-is-proved-by-one-boot.md`.
+- **Milestone 381.** Whether `uefi_loader/src/main.rs`'s 790 firmware lines get lifted the way
+  `handoff` and `image` were is the residue excluding the file made honest rather than proved. It
+  was written up the same day as an unnumbered proposal and numbered on 2026-09-19 by milestone
+  433's drain of the pile.
 - **Done.** The reading calef then does. The clean full sweep this bullet wanted arrived on
   2026-09-14 once milestone 277's memory bound landed, and he read it on 2026-09-19: risk 3 is
   **MEASURED, AMBER**. This milestone's two crates are why the fall was not real, and they are

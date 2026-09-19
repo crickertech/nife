@@ -1,7 +1,15 @@
-# A gate for a backticked in-tree path that does not resolve
+# 383. A gate for a backticked in-tree path that does not resolve
 
-**Status: PROPOSED 2026-09-05.** Found by milestone 259's notes sweep, which spent more than half
-its corrections on this one shape and would have spent none of them if a gate existed.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 259's notes sweep,
+which spent more than half its corrections on this one shape; numbered 2026-09-19 by milestone 433's
+drain of the proposal pile. **Premise re-read against the tree on 2026-09-19 and still true**:
+`script/lint`'s markdown section still checks relative link targets and the `notes/README.md` index
+and nothing else, and its own comment still says backticked repo paths are "deliberately NOT
+checked". That comment has already retracted half its own justification: it was re-measured by
+milestone 93's documentation sweep at 31 unresolvable backticked paths over 379 markdown files,
+where it used to claim a checker would be 100% false positives, and it now rests on the
+false-positive *rate* rather than on perfection. This block is the proposal that the rate is
+enumerable. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** It reads the tree and needs nothing.
 
@@ -73,3 +81,21 @@ Every one of milestone 259's 262 path corrections, and one thing worth more than
 mentioned the 62-line test file it removed, so **a documented safeguard disappeared and two
 documents kept describing it in the present tense for five days.** A path check would have failed
 that commit's own CI run.
+
+## Index row
+
+262 citations in `notes/` pointed at a crate, a file or a Rust path that had been renamed away, and
+every gate in this repository passed them: `script/lint` check 4c verifies a markdown *link* target,
+`script/citations` verifies that a `§N` or a `milestone N` resolves to the thing the author meant,
+and a path in backticks is neither, so `` `crates/fs_proto` `` was unfalsifiable prose for the two
+weeks after §75's naming pass renamed the crate. The check is one pass over every tracked markdown
+file, asserting that a backticked path rooted in a directory that exists really exists, with an
+allow-list carrying a reason per entry in the shape `xtask`'s `ABORTS_ACCEPTED` already uses.
+Milestone 259 hit exactly four kinds of legitimate exception (verbatim transcripts, deliberate past
+tense about deleted code, a path named *because* it does not exist, and elided illustrative paths),
+which is what makes the escape a readable list rather than a shrug. The trap is that a crate is
+named three ways here, as a path, as a Rust path and as a bare word, and the sweep's own first pass
+matched one, reported itself clean and left 167 instances: a check that knows one spelling is worse
+than none, because it retires the worry. What it would have caught, beyond the prose, is the
+deletion of `crates/elf/tests/fuzz_seed.rs` by a commit about `p_paddr` that never mentioned it,
+which left two documents describing a safeguard in the present tense for five days.

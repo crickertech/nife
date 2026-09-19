@@ -1,7 +1,19 @@
-# A provenance token that agrees with its own prose
+# 386. A provenance token that agrees with its own prose
 
-**Status: PROPOSED 2026-09-05.** Found by milestone 264, whose largest single finding was that a
-third of its worklist was this bug rather than missing research.
+**Status: NOT-STARTED.** Filed 2026-09-05 as an unnumbered proposal by milestone 264, whose largest
+single finding was that a third of its worklist was this bug rather than missing research; numbered
+2026-09-19 by milestone 433's drain of the proposal pile. **The premise has decayed and the block is
+still real work, which is a distinction worth keeping.** The *instances* are gone: on 2026-09-05,
+21 of 60 `unrecorded` names carried a complete argument in their own prose; on 2026-09-19
+`script/names` reports **1 unrecorded name of 222**, and that one (`hello`) is honest, saying
+outright that nobody wrote down why it is called that. So the check would fire on nothing today and
+its value is as a regression guard rather than as a sweep. The *gate* is still unbuilt:
+`script/names` has grown `--provisional`, `--recorded` and `--unrecorded` views and still never
+compares a block's leading token against its own prose. One live instance survives outside that
+tool's four kinds (crate, program, script, package): `crates/documentation/src/render.rs`'s
+`unclosed_fence` carries `Name: unrecorded. Provisional, minted by milestone 40's lane on
+2026-08-18 and not put to calef`, which is the contradiction exactly, in a function-level block
+`script/names` does not read. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** It reads the tree.
 
@@ -55,3 +67,21 @@ and no gate compares an entry against the vocabulary it was written under.
 - **It cannot tell a stale `provisional` from a live one.** A name calef has since ratified in
   conversation and nobody transcribed reads exactly like one he has not seen. That is the same limit
   the parent tool records and is not closeable by a script.
+
+## Index row
+
+`script/names` was built with two states and gained `recorded` and `provisional` afterwards, and
+nothing swept the blocks written before the third state existed, so a worklist whose entire job is
+telling a research task from a ruling interleaved the two. On 2026-09-05, 21 of the 60 names it
+reported as `unrecorded` already carried a complete argument with refusals and said "provisional" or
+"not yet put to calef" in their own prose, which over-stated the hardest tier by about a third. The
+check is mechanical and narrow: for a block whose token is `unrecorded`, fail if its own text says
+`provisional`, `not yet put to calef`, `not put to calef` or `Refused`, each of which asserts the
+argument that `unrecorded` denies. It is the corner of `script/names`' own honest `BUGS` gap that a
+script can reach, since it asks not whether the prose is true but whether the prose and the token
+are saying different things about the same block. The general form is worth more than the check: a
+vocabulary change swept the tool and not the records the tool reads, and by 2026-09-05 that shape
+was available in `script/roadmap`, `script/decisions`, `script/falsifications` and `script/audits`
+too. The instances were cleaned up between filing and numbering (one `unrecorded` name of 222 on
+2026-09-19), so what is left to build is a regression guard, and one live contradiction sits in a
+function-level block outside this tool's scope.

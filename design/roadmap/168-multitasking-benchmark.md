@@ -166,10 +166,10 @@ is the most repeatable point on the sweep at 2.7%.
   finished sweep from a wedged one by reading the log, with the reason it
   was deliberately not written blind: the outcome table in `notes/job-mix.md` becomes evidence after
   the first bench evening and a guess before it.
-- **Proposed.** Three of AIM7's categories have no representative in the mix (file operations,
-  process creation, page mapping), and two of them are exactly the jobs that block deep in a kernel
-  path, which is where §96's cost lives.
-  `design/roadmap/proposals/three-aim7-job-categories-the-job-mix-does-not-have.md`.
+- **Milestone 382.** Three of AIM7's categories have no representative in the mix (file
+  operations, process creation, page mapping), and two of them are exactly the jobs that block deep
+  in a kernel path, which is where §96's cost lives. Numbered on 2026-09-19 by milestone 433's
+  drain of the pile.
 - **Recorded.** The mix proportions are chosen rather than derived from an AIM7 workfile, so a
   different mix gives a different number and no result is quotable without saying which mix produced
   it. It stays a limitation: nobody has an AIM7 workfile for a capability microkernel, and inventing
