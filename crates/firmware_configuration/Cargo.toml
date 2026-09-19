@@ -1,0 +1,28 @@
+# Name: **PROVISIONAL** (milestone 243). QEMU spells this interface `fw_cfg`, and every other
+# implementation of it (Linux, EDK2, U-Boot) keeps that spelling. This tree does not: its crate
+# names are spelled out (`address_space_identifier`,
+# `globally_unique_identifier_partition_table`, `inter_process_communication`), and an acronym only
+# its author can expand is the failure mode `design/naming.md` names. So the crate says what the
+# interface is, `firmware_configuration`, and this comment and the module doc both say that QEMU
+# calls it `fw_cfg`, so a reader arriving from QEMU's documentation lands in the right place.
+#
+# Alternatives and why each lost. `fw_cfg` is the outside world's name and would be the shortest
+# thing to type, and it is exactly the abbreviation the convention refuses. `qemu_firmware_config`
+# puts a vendor in a crate name for an interface two other emulators also implement, and abbreviates
+# anyway. `firmware_config` splits the difference and is still an abbreviation.
+#
+# calef names crates (AGENTS.md). This ships provisional and expects to change.
+
+[package]
+name = "firmware_configuration"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The description of a screen, which is the boot handoff's own type: what the emulator is told
+# about and what `screen_console` paints into are one value, not two that can drift.
+machine_discovery = { version = "0.1.0", path = "../machine_discovery" }

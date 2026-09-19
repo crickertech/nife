@@ -33,6 +33,7 @@ members = [
     "crates/entropy_protocol",
     "crates/page_frames",
     "crates/filesystem_protocol",
+    "crates/firmware_configuration",
     "crates/graphics_protocol",
     "crates/glob",
     "crates/globally_unique_identifier_partition_table",
