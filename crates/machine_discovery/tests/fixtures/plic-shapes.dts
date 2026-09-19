@@ -1,0 +1,90 @@
+/dts-v1/;
+
+/*
+ * A hand-written device tree, NOT a dump from any board.
+ *
+ * Three shapes in the PLIC context walk that the JH7110 and QEMU dumps cannot produce, each one
+ * a place where the two walks can fall out of step with each other:
+ *
+ *   interrupt-controller@c000000   the PLIC is named with the same prefix its harts' own
+ *          controllers are, and it is declared BEFORE /cpus. Both trees that spell the PLIC this
+ *          way (the JH7110's) declare it after, so a walk that failed to filter it out by
+ *          `compatible` still happened to get the right answer there. Here it would take slot
+ *          zero and shift every hart by one.
+ *   cpu@0's interrupt-controller has NO phandle, so nothing can name it and it defines no
+ *          context. It still consumes its hart's slot, which is what keeps cpu@1 and cpu@3
+ *          aligned with their own entries.
+ *   cpu@2's reg is 16, which is MAX_CONTEXT_HARTS exactly. The record holds harts 0..16 exclusive,
+ *          so this hart's S context is named by the tree and cannot be stored; an off-by-one in
+ *          that bound writes past the array.
+ *
+ * Regenerate with:
+ *
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/plic-shapes.dtb \
+ *                          crates/machine_discovery/tests/fixtures/plic-shapes.dts
+ */
+
+/ {
+	#address-cells = <2>;
+	#size-cells = <2>;
+	compatible = "nife,plic-context-test";
+
+	interrupt-controller@c000000 {
+		compatible = "riscv,plic0";
+		#interrupt-cells = <1>;
+		interrupt-controller;
+		interrupts-extended = <0x11 9>, <0x12 9>, <0x13 9>;
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			device_type = "cpu";
+			reg = <0x0>;
+			status = "okay";
+			interrupt-controller {
+				compatible = "riscv,cpu-intc";
+				#interrupt-cells = <1>;
+				interrupt-controller;
+			};
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			reg = <0x1>;
+			status = "okay";
+			interrupt-controller {
+				compatible = "riscv,cpu-intc";
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				phandle = <0x11>;
+			};
+		};
+
+		cpu@10 {
+			device_type = "cpu";
+			reg = <0x10>;
+			status = "okay";
+			interrupt-controller {
+				compatible = "riscv,cpu-intc";
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				phandle = <0x12>;
+			};
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			reg = <0x3>;
+			status = "okay";
+			interrupt-controller {
+				compatible = "riscv,cpu-intc";
+				#interrupt-cells = <1>;
+				interrupt-controller;
+				phandle = <0x13>;
+			};
+		};
+	};
+};
