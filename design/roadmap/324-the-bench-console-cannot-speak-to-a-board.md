@@ -206,8 +206,10 @@ now tees the whole boot to a log under `target/` that replays through `script/bo
 
 **All four outcomes were exercised on a machine rather than argued**, which is what makes the
 discrimination a fact: `cargo xtask job-mix` exits **0** on a complete sweep, **2** with
-`--quiet-after 1s` (wedged after the third point), **3** with `--for 12s`, and the refusal path is a
-host test built from `job_mix::FAILED` itself because no kernel here has refused one.
+`--quiet-after 1s`, **3** with `--for 30s`, and the refusal path is a host test built from
+`job_mix::FAILED` itself because no kernel here has refused one. All four were re-run after
+milestone 168 was merged in; the windows moved because the sweep now takes 165 seconds rather than
+28, and the statuses did not.
 
 **Part 3, the prologue as data.** `crates/board_console/src/board.rs` declares a `Profile`: ordered
 `Rung`s, the firmware's own `Refusal`s, and the relocation discriminator. `Stage`'s four firmware
@@ -232,7 +234,8 @@ smallest visible benefit and the one an operator meets: it used to be a two-minu
 **One hoist, and it was not optional.** The sweep's console markers were three private `const`s in
 `kernel/src/job_mix.rs` **and four string literals in `xtask/src/main.rs`**. Adding a recogniser
 would have made a third copy, which is milestone 268's finding 3 exactly. They are now
-`crates/job_mix`'s (`STARTED`, `DONE`, `FAILED`, `POINT`, `SUBRUN`, `CENSUS`), beside the workload
+`crates/job_mix`'s (`STARTED`, `DONE`, `FAILED`, `POINT`, `SUBRUN`, `CENSUS`, and `KIND` once
+milestone 168's per-kind line was merged in), beside the workload
 definition both halves of the instrument already read, on `crates/boot_ladder`'s argument and with
 its stable-head convention. `board_console` takes `job_mix` as a dependency for the same reason it
 took `boot_ladder`: ours, in this workspace, `no_std`, no dependencies of its own, no `unsafe`.
@@ -249,19 +252,70 @@ wire, xenon's *empty* prologue rests on one capture on one day, and argon has no
 
 **One thing this lane chose that calef may want to overrule**, recorded where a reader meets it
 rather than only here: **a sweep has no wall-clock heartbeat**, so its quiet timer cannot be three
-missed beats the way a soak's is. It is sized against the slowest subrun instead: 2.6 seconds
-measured (163,224,570 ticks on a 62.5 MHz counter) in the capture now at
-`crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log`, and
-`script/job-mix` defaults `--quiet-after` to sixty seconds, twenty times that. A board more than
-twenty times slower than that host reads as wedged when it is merely slow; `--quiet-after 0` is the
-escape and it costs the detection. The alternative is a heartbeat in `kernel/src/job_mix.rs`, which
+missed beats the way a soak's is. It is sized against the slowest subrun instead: 4.0 seconds
+measured (249,234,771 ticks on a 62.5 MHz counter) in the capture at
+`crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log`, and
+`script/job-mix` defaults `--quiet-after` to sixty seconds, fifteen times that. A board outside that
+margin reads as wedged when it is merely slow; `--quiet-after 0` is the escape and it costs the
+detection. **The margin was twenty to one when this was written and milestone 168 spent a quarter of
+it the same day**, by taking twenty-one repeats of a seven-kind mix instead of three of a five-kind
+one, which is an argument for the heartbeat rather than for a larger default. The alternative is a heartbeat in `kernel/src/job_mix.rs`, which
 is a kernel change and is recorded below rather than taken.
+
+## The recogniser was broken by another session before it was merged, 2026-09-19
+
+**Worth the section because the mechanism is the finding, not the bug.** While parts 2 and 3 were
+being built, another session's lane finished milestone 168 and landed on `main`. That lane changed
+what `kernel/src/job_mix.rs` prints for a sweep point: `ticks=<t> jpm=<r>`, the best of three,
+became `repeats=21 ticks_min= ticks_median= ticks_max= jpm_median=`, the median of 21 with its two
+ends. The head, `job-mix: tasks=`, did not move.
+
+So the hoist this lane made did its job and the recogniser still broke. Every marker matched;
+`SweepPoint`'s parse read **nothing**, because it looked for `ticks=` and `jpm=` and the line no
+longer carried either. `ticks_min=` does not start with `ticks=`.
+
+**Both branches were green, and that is the part to keep.** The parser and the committed fixture had
+been made from the same pre-168 kernel, so they agreed with each other and neither agreed with the
+kernel. No gate compares a recogniser against a kernel; nothing could have. It was found by reading
+the merged source, which is rung zero of AGENTS.md's ladder.
+
+**What the fix changed.** `SweepPoint` carries the seven fields the line now prints (`tasks`,
+`jobs`, `repeats`, `ticks_min`, `ticks_median`, `ticks_max`, `jpm_median`), spelled exactly as the
+wire spells them so the struct can be diffed against a line by eye. The fixture was re-captured from
+a current kernel and the old one deleted. `crates/job_mix`'s `KIND` joined the six markers, because
+168's lane added a seventh printed line (`job-mix-kind:`) in the style the hoist had just retired.
+
+**The limitation this leaves is recorded rather than fixed**, in
+`crates/board_console/src/progress.rs`'s `BUGS` where the next reader of the parser meets it: the
+markers are shared through `crates/job_mix`, **the field names inside the line are not**. A kernel
+that renames or adds a field still prints a line this recogniser matches and still parses to
+nothing, silently. Sharing the field names the way the heads are shared is the fix and is not taken
+here; it wants a decision about what shape that sharing takes, which is below.
 
 ## Follow-on
 
 - **Done.** Part 2, the job-mix sweep recogniser, and part 3, the board profile, both on
   `milestone/324-sweep-recogniser-and-board-profile` on 2026-09-19. See *What landed, parts 2 and 3*
-  above.
+  above, and the section above that for the defect the merge with milestone 168 created and this
+  branch fixed.
+- **Recorded.** *Milestone 439's block quotes a figure this lane has since re-measured*, here
+  because a developer does not edit another milestone's block and the correction has to live
+  somewhere a reader will meet it. 439's block and its index row quote *2.6 seconds
+  (163,224,570 ticks)* for the slowest subrun, which is this lane's own figure from the capture that
+  milestone 168 invalidated. Re-measured on the merged tree it is **4.0 seconds (249,234,771 ticks
+  on a 62.5 MHz counter)**, and the ratio against the 60-second default is fifteen to one rather
+  than twenty. Corrected everywhere this lane owns; 439's block is another milestone's and a
+  developer does not edit one. The correction strengthens 439's own argument rather than weakening
+  it: the number moved by half again in a day, without anybody touching the watcher.
+- **Recorded.** *A marker is shared and the fields inside the line are not*, in
+  `crates/board_console/src/progress.rs`'s `BUGS` and in `crates/job_mix`'s marker header. This is
+  the second item here a reader may want minted as a milestone. The shape is not obvious and that is
+  why it is not built: a shared `&str` per field would make the kernel's `println!` a format string
+  assembled from constants, which is less readable at the place it matters most; a shared parser in
+  `crates/job_mix` that both the kernel's printer and the recogniser are written against is the
+  stronger version and is a bigger change than this lane's remit. The cheap partial measure is
+  already taken (the struct's fields are spelled as the wire spells them, so a diff by eye works),
+  and the fixture being a real capture means a re-capture catches it the moment somebody re-captures.
 - **Recorded.** *The job-mix sweep has no wall-clock heartbeat, so its wedge timer is a guess with
   headroom*, in the `BUGS` of `script/job-mix` and of `notes/board-console.md`, and beside
   `Stage::Sweep` in `crates/board_console/src/progress.rs`. **This is the one item here that a

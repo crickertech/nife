@@ -209,6 +209,11 @@
 // until this milestone. Three copies of a contract agreeing by a reader having checked is milestone
 // 268's finding 3, and the fix is the one that milestone found: there is one of them.
 //
+// **What is shared is the head, and the fields inside the line are not.** That is the gap
+// `crates/board_console`'s `SweepPoint` carries a `BUGS` entry for, and 2026-09-19 is the day it
+// cost something: the tail of [`POINT`] gained four field names and lost two, every marker here
+// still matched, and the recogniser silently read nothing.
+//
 // They are **stable heads**, on `boot_ladder`'s rule and for its reason: the head is what a matcher
 // keys on and never changes, the tail carries the numbers and is free to improve. A contract on
 // the whole line would make every improvement to the diagnosis a breaking change.
@@ -238,10 +243,19 @@ pub const DONE: &str = "job-mix: done";
 /// of them before [`STARTED`], and all of them followed by a halt. The tail names which.
 pub const FAILED: &str = "job-mix: FAILED: ";
 
-/// **One point of the sweep completed**: `job-mix: tasks=<n> jobs=<j> ticks=<t> jpm=<r>`.
+/// **One point of the sweep completed**: `job-mix: tasks=<n> jobs=<j> repeats=<k> ticks_min=<a>
+/// ticks_median=<b> ticks_max=<c> jpm_median=<r>`.
 ///
-/// One per entry in [`TASK_SWEEP`], printed after that entry's [`REPEATS`] subruns, carrying the
-/// best of them. Counting these is how a reader knows how far along a sweep is.
+/// One per entry in [`TASK_SWEEP`], printed after that entry's [`REPEATS`] subruns, carrying their
+/// [`Spread`] and the jobs-per-minute figure computed from the median. Counting these is how a
+/// reader knows how far along a sweep is.
+///
+/// **The tail changed on 2026-09-19 and this is the record of it.** Until then it was
+/// `ticks=<t> jpm=<r>`, the best of three; [`REPEATS`] explains why the statistic is now the median
+/// of 21 and why the two ends are printed beside it. The head did not move, so a transcript from
+/// either side of that date is still recognisably a sweep, and the two statistics are not
+/// comparable. A reader with an older log has `ticks=` and `jpm=` and should say which it is
+/// quoting.
 pub const POINT: &str = "job-mix: tasks=";
 
 /// **One measured subrun finished**: `job-mix-repeat: tasks=<n> repeat=<r> ticks=<t>`.

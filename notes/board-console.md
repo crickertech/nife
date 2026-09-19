@@ -304,12 +304,18 @@ returns `0` for a sweep that finished, `1` for one the kernel refused to start (
 **The quiet timer is the hard part, and a sweep is harder than a soak.** A soak beats on the wall
 clock every five seconds whatever the workload is doing, so a missed beat is a missed deadline and
 fifteen seconds is three of them. A sweep speaks only when a subrun ends. The longest subrun is the
-top of `job_mix::TASK_SWEEP`, measured at 2.6 seconds
-(`crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log`, 163,224,570
-ticks on a 62.5 MHz counter), so `script/job-mix` defaults `--quiet-after` to sixty seconds, twenty
-times that. A board twenty times slower than that host will be called wedged when it is merely slow;
-`--quiet-after 0` is the answer and it gives up the wedge detection. This is in both `BUGS` sections
-because it is the one number here a bench operator may have to change.
+top of `job_mix::TASK_SWEEP`, measured at 4.0 seconds
+(`crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log`,
+249,234,771 ticks on a 62.5 MHz counter), so `script/job-mix` defaults `--quiet-after` to sixty
+seconds, fifteen times that. A board outside that margin will be called wedged when it is merely
+slow; `--quiet-after 0` is the answer and it gives up the wedge detection. This is in both `BUGS`
+sections because it is the one number here a bench operator may have to change.
+
+**And the margin is spent by changes nowhere near it.** It was twenty to one against a 2.6-second
+subrun when this paragraph was first written, earlier on 2026-09-19. Milestone 168 landed the same
+day and took twenty-one repeats of a seven-kind mix where there had been three of a five-kind one,
+which made the slowest subrun half again as long and cost a quarter of the headroom without anybody
+touching `--quiet-after`. A number quoted from a capture is only as current as the capture.
 
 **And `job-mix: done` joins the quiet exemption**, with `tour` and `prompt`, because the kernel
 halts in `wfi` after it. `sweep` deliberately does not: silence during a sweep is the wedge.
@@ -474,30 +480,44 @@ runs:
 ```
 $ cargo xtask job-mix --arch aarch64 --smp 4
 ...
-job-mix: tasks=32 jobs=4096 ticks=261327895 jpm=58776
+job-mix: tasks=32 jobs=4096 repeats=21 ticks_min=228108401 ticks_median=233958411 \
+  ticks_max=249234771 jpm_median=65652
 job-mix: done
 
-job-mix: reached job-mix sweep complete (5623 bytes in 27.9s)
-job-mix: last point tasks=32 jobs=4096 ticks=261327895 jpm=58776
+job-mix: reached job-mix sweep complete (15924 bytes in 164.9s)
+job-mix: last point tasks=32 jobs=4096 repeats=21 ticks_min=228108401 \
+  ticks_median=233958411 ticks_max=249234771 jpm_median=65652
 $ echo $?
 0
 
 $ cargo xtask job-mix --arch aarch64 --smp 4 --quiet-after 1s
-job-mix: went quiet after job-mix sweep running (4992 bytes in 5.2s)
-job-mix: last point tasks=4 jobs=512 ticks=39210133 jpm=48966
+job-mix: went quiet after job-mix sweep running (8545 bytes in 13.7s)
+job-mix: last point tasks=2 jobs=256 repeats=21 ticks_min=18753659 \
+  ticks_median=20392064 ticks_max=24330391 jpm_median=47077
 $ echo $?
 2
 
-$ cargo xtask job-mix --arch aarch64 --smp 4 --for 12s
-job-mix: time ran out after job-mix sweep running (5243 bytes in 12.0s)
-job-mix: last point tasks=8 jobs=1024 ticks=72411551 jpm=53030
+$ cargo xtask job-mix --arch aarch64 --smp 4 --for 30s
+job-mix: time ran out after job-mix sweep running (9437 bytes in 30.0s)
+job-mix: last point tasks=2 jobs=256 repeats=21 ticks_min=19380785 \
+  ticks_median=23557551 ticks_max=51605248 jpm_median=40751
 $ echo $?
 3
 ```
 
+The point and summary lines are one line each on a terminal; they are folded here with a trailing
+backslash, which is the only edit made to them.
+
 The second is a wedge manufactured with a one-second quiet window rather than a real one: no sweep
 has wedged on a board, and none has been watched on one. The jobs-per-minute figures are a draw and
 not a result; `notes/job-mix.md` has why.
+
+**These three were re-run on 2026-09-19 after milestone 168 landed, and the numbers moved for a
+reason worth knowing.** The earlier transcripts here showed a whole sweep in 27.9 seconds and a
+`--for 12s` cut at the third point. The sweep now takes 164.9 seconds, because each point is
+twenty-one repeats rather than three and the mix has seven job kinds rather than five, so the same
+wall-clock windows cut it far earlier. The commands did not change; the workload underneath them
+did.
 
 At a board the same question is `script/board-console --until sweep-done --for 30m`, and it returns
 the same statuses because it is the same code.

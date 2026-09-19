@@ -25,6 +25,39 @@
 //! **Everything from [`Stage::Banner`] up is the kernel's own ladder**, reachable on all three
 //! architectures since milestone 268, and it is shared by every board this tool will ever watch.
 //! `crates/boot_ladder` holds its markers; a board profile may not name one.
+//!
+//! # BUGS
+//!
+//! **A marker is shared; the fields inside the line are not, and that gap is silent.** The sweep's
+//! seven heads are `crates/job_mix`'s own constants, so a kernel that renames one cannot disagree
+//! with this file. Everything after the head is matched here by a string literal that exists
+//! nowhere else: `tasks=`, `ticks_median=`, `rounds=`, `beat=`. A kernel that renames a field, or
+//! inserts one, still prints a line this recogniser matches, and the parse reads **nothing** while
+//! every test stays green.
+//!
+//! That is not hypothetical. On **2026-09-19** two sessions did it to each other inside a day. One
+//! lane moved the markers into `crates/job_mix`; another changed
+//! `kernel/src/job_mix.rs`'s point line from `ticks=<t> jpm=<r>` to a median of 21 repeats with its
+//! two ends, so `ticks=` and `jpm=` stopped existing. The head `job-mix: tasks=` never moved.
+//! Both branches were green: the parser and the committed fixture had been made from the same old
+//! kernel and agreed with each other, and neither agreed with the kernel. It was found by reading,
+//! which is rung zero of `AGENTS.md`'s ladder.
+//!
+//! Two things blunt it and neither closes it. The fixtures are **captures from a real boot** rather
+//! than hand-written lines, so re-capturing catches a rename the moment somebody re-captures; and
+//! this module's fields are spelled exactly as the wire spells them, so the two can be diffed by
+//! eye. Sharing the field names the way the heads are shared is the fix, and it is not built here.
+//!
+//! **A sweep's longest legitimate silence is a measurement, and it belongs to the machine that
+//! measured it.** The quiet timer that `script/job-mix` and `script/board-console` set against
+//! [`Stage::Sweep`] is sized against the slowest subrun at the top of `job_mix::TASK_SWEEP`, since
+//! a sweep has no wall-clock heartbeat to miss. Under TCG on 2026-09-19 that subrun was
+//! 249,234,771 ticks on a 62.5 MHz counter, which is **4.0 seconds**, from the capture in
+//! `tests/fixtures/captured/`. The default is sixty seconds, fifteen times it. That margin used to
+//! be twenty to one against a 2.6-second subrun, and milestone 168 spent a quarter of it by taking
+//! twenty-one repeats of a seven-kind mix instead of three of a five-kind one; a figure quoted from
+//! a capture is only as current as the capture. A board outside the margin reads as wedged when it
+//! is merely slow, and `--quiet-after 0` is the escape that gives up the detection entirely.
 
 use core::fmt;
 
@@ -313,20 +346,49 @@ pub struct SoakBeat {
 /// **One completed point of the job-mix sweep**, as the kernel printed it (milestone 324 part 2,
 /// from a [`job_mix::POINT`] line).
 ///
-/// One per entry in [`job_mix::TASK_SWEEP`], carrying the best of that entry's [`job_mix::REPEATS`]
-/// subruns. [`jpm`](Self::jpm) is the AIM7-shaped metric; see `crates/job_mix` for what a jobs-per-
-/// minute figure is and is not, and `notes/job-mix.md` for why one boot's is a draw rather than a
-/// result.
+/// One per entry in [`job_mix::TASK_SWEEP`], carrying the [`job_mix::Spread`] of that entry's
+/// [`job_mix::REPEATS`] subruns and the jobs-per-minute figure the kernel computed from the median.
+/// See `crates/job_mix` for what a jobs-per-minute figure is and is not, and `notes/job-mix.md` for
+/// why one boot's is a draw rather than a result.
+///
+/// # Why all seven fields, when liveness needs none of them
+///
+/// Counting points is the ratchet's job, not this struct's: a watcher deciding whether a sweep is
+/// moving reads [`Stage`] and [`SweepSubrun`]. This exists to be **reported**, which is the one
+/// place a person reads a sweep's numbers without opening the log, and that is what settles the
+/// field list.
+///
+/// The kernel prints the fastest and slowest repeats beside the median *so the spread is never
+/// hidden* (`job_mix::REPEATS` carries the argument, and milestone 168 changed the statistic for
+/// exactly that reason). A reader that kept only the median would re-hide it at the last step, and
+/// would have reintroduced the defect one line away from where it was fixed.
+/// [`repeats`](Self::repeats) is here for the same reason and is the one easiest to think
+/// unnecessary: a median of 21 and a median of 3 are different claims, and a struct that drops the
+/// count lets a transcript from either be quoted as the other.
+///
+/// The field names are the wire's, so the struct can be diffed against a [`job_mix::POINT`] line by
+/// eye. That is not tidiness; it is the cheapest defence available against this module's first
+/// `BUGS` entry.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub struct SweepPoint {
     /// Tasks released for this point, an entry of [`job_mix::TASK_SWEEP`].
     pub tasks: u64,
     /// Jobs the pool completed, which is `tasks` times [`job_mix::JOBS_PER_TASK`].
     pub jobs: u64,
-    /// The best subrun's wall-clock ticks, on the kernel's own counter.
-    pub ticks: u64,
-    /// Jobs per minute, as the kernel computed it.
-    pub jpm: u64,
+    /// Subruns measured at this point, which is [`job_mix::REPEATS`] on any kernel that printed
+    /// the field at all. Read from the line rather than assumed, because the whole point of
+    /// reading it is to catch a log whose kernel disagrees with this build.
+    pub repeats: u64,
+    /// The fastest repeat's wall-clock ticks, on the kernel's own counter.
+    pub ticks_min: u64,
+    /// The median repeat's ticks, which is the statistic [`jpm_median`](Self::jpm_median) is
+    /// computed from.
+    pub ticks_median: u64,
+    /// The slowest repeat's ticks. With [`ticks_min`](Self::ticks_min) it is the spread, and the
+    /// spread is what says whether the median means anything on this machine.
+    pub ticks_max: u64,
+    /// Jobs per minute at the median, as the kernel computed it.
+    pub jpm_median: u64,
 }
 
 /// **One completed subrun of the sweep** (a [`job_mix::SUBRUN`] line).
@@ -785,14 +847,28 @@ impl BootProgress {
         }
     }
 
-    /// Pull the numbers out of one `job-mix: tasks=... jobs=... ticks=... jpm=...` line.
+    /// Pull the numbers out of one `job-mix: tasks=... jobs=... repeats=... ticks_min=...
+    /// ticks_median=... ticks_max=... jpm_median=...` line.
+    ///
+    /// Field-name-directed, for [`Self::observe_soak_beat`]'s reason, and **that is not the same as
+    /// safe**: this list held `ticks=` and `jpm=` for a day after the kernel stopped printing
+    /// either, and nothing said so. The module's `BUGS` has it. A line missing a field leaves the
+    /// previous value in place rather than zeroing it, because a garbled line on a serial link is a
+    /// lost measurement and not a measurement of zero.
+    ///
+    /// The seven names are all distinct as substrings, which is what makes [`field`]'s `find` the
+    /// right tool here: `ticks_min=`, `ticks_median=` and `ticks_max=` share a prefix and none is a
+    /// prefix of another, so no search can land on a neighbour's digits.
     fn observe_sweep_point(&mut self, tail: &str) {
         let point = self.sweep_point.get_or_insert_with(SweepPoint::default);
         for (name, slot) in [
             ("tasks=", &mut point.tasks),
             ("jobs=", &mut point.jobs),
-            ("ticks=", &mut point.ticks),
-            ("jpm=", &mut point.jpm),
+            ("repeats=", &mut point.repeats),
+            ("ticks_min=", &mut point.ticks_min),
+            ("ticks_median=", &mut point.ticks_median),
+            ("ticks_max=", &mut point.ticks_max),
+            ("jpm_median=", &mut point.jpm_median),
         ] {
             if let Some(v) = field(tail, name) {
                 *slot = v;
@@ -1449,10 +1525,16 @@ mod tests {
     /// **The sweep, from a real run of `--features job_mix`** (milestone 324 part 2), fed one byte
     /// at a time. This is the test that says the markers are the text a kernel prints: the fixture
     /// is `scripts/qemu-runner-aarch64.sh` on 2026-09-19, unedited, CRLF and all.
+    ///
+    /// **And it is the test that says the *fields* are, which it did not say before.** The capture
+    /// it read until 2026-09-19 was taken from a pre-milestone-168 kernel, so it agreed with a
+    /// parser that had stopped agreeing with the kernel; both were green and both were wrong. This
+    /// one was taken from the merged tree, which is the whole of why it was retaken. See the
+    /// module's `BUGS`.
     #[test]
     fn the_captured_sweep_runs_to_its_done_line() {
         let progress = run(include_str!(
-            "../tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log"
+            "../tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log"
         ));
         assert_eq!(progress.reached(), Stage::SweepDone);
         assert_eq!(progress.failure(), None);
@@ -1468,8 +1550,11 @@ mod tests {
             SweepPoint {
                 tasks: 32,
                 jobs: 4096,
-                ticks: 151_094_072,
-                jpm: 101_658,
+                repeats: 21,
+                ticks_min: 228_108_401,
+                ticks_median: 233_958_411,
+                ticks_max: 249_234_771,
+                jpm_median: 65_652,
             },
             "the last point is the top of job_mix::TASK_SWEEP"
         );
@@ -1479,15 +1564,29 @@ mod tests {
             "the last point is job_mix::MAX_TASKS, and the two agree by the kernel reading it"
         );
         assert_eq!(point.jobs, point.tasks * job_mix::JOBS_PER_TASK);
+        // **The field the parse is most likely to be silently wrong about.** Every other number
+        // here would survive a parser that read nothing, because `Default` is zero and a stale
+        // expectation is also a number; this one is `job_mix::REPEATS` and the kernel printed it,
+        // so the two disagreeing means one of them moved.
+        assert_eq!(
+            point.repeats,
+            job_mix::REPEATS as u64,
+            "the kernel prints job_mix::REPEATS and this build reads the same constant"
+        );
+        assert!(
+            point.ticks_min <= point.ticks_median && point.ticks_median <= point.ticks_max,
+            "the three ticks fields are a sorted spread, and reading them out of order is how a \
+             near-miss parse would look"
+        );
         let subrun = progress.sweep_subrun().expect("the subruns must be parsed");
         assert_eq!(
             *subrun,
             SweepSubrun {
                 tasks: 32,
-                repeat: 2,
-                ticks: 155_603_814,
+                repeat: 20,
+                ticks: 233_743_670,
             },
-            "the last subrun is the last repeat of the last point, and it is NOT the best one"
+            "the last subrun is the last repeat of the last point, and it is NOT the median one"
         );
         // These numbers are a draw rather than a result: TCG models no cache, and milestone 240's
         // census says the placement lottery decides throughput by up to fifteenfold on real
@@ -1502,7 +1601,8 @@ mod tests {
     /// for a wedge: nothing was invented, and the bytes before the cut are bytes a machine printed.
     #[test]
     fn a_sweep_cut_off_partway_has_not_reached_its_done_line() {
-        let whole = include_str!("../tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log");
+        let whole =
+            include_str!("../tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log");
         let cut = whole
             .find("job-mix: tasks=8")
             .expect("the capture has a fourth point to cut before");
@@ -1584,11 +1684,11 @@ mod tests {
         progress.observe_partial("job-mix: started 32 tasks and 2 ser");
         assert_eq!(progress.reached(), Stage::Sweep);
         let mut progress = BootProgress::default();
-        progress.observe_partial("job-mix: tasks=32 jobs=4096 ticks=1510");
+        progress.observe_partial("job-mix: tasks=32 jobs=4096 repeats=21 ticks_min=2281");
         assert_eq!(
             progress.sweep_point(),
             None,
-            "half a point is not a point, and 1510 is not 151094072"
+            "half a point is not a point, and 2281 is not 228108401"
         );
     }
 

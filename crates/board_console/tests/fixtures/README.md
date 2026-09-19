@@ -64,20 +64,31 @@ unedited:
 **And one capture of the job-mix sweep** (milestone 324 part 2), also machine-printed and also not
 off a board:
 
-- **`qemu-2026-09-19-aarch64-job-mix.log`** is a `--features job_mix` kernel on the aarch64 `virt`
-  machine with four cores, taken with `scripts/qemu-bounded.sh` around
+- **`qemu-2026-09-19-aarch64-job-mix-medians.log`** is a `--features job_mix` kernel on the aarch64
+  `virt` machine with four cores, taken with `scripts/qemu-bounded.sh` around
   `scripts/qemu-runner-aarch64.sh` so that the capture is the guest's console and nothing else. It
-  runs the whole sweep, all six points and all eighteen subruns, and ends with `job-mix: done`. It
-  is what turned the sweep's markers from constants somebody wrote into text a kernel printed, and
-  it is where the 2.6-second longest-subrun figure in `script/job-mix`'s `BUGS` comes from
-  (163,224,570 ticks on a 62.5 MHz counter).
+  runs the whole sweep: six points, 126 subruns, seven `job-mix-kind:` lines under each point, and
+  `job-mix: done`. It is what turned the sweep's markers from constants somebody wrote into text a
+  kernel printed, and it is where the 4.0-second longest-subrun figure in `script/job-mix`'s `BUGS`
+  comes from (249,234,771 ticks on a 62.5 MHz counter).
+
+  **It replaced a capture taken the same day, and the replacement is the point** (2026-09-19).
+  `qemu-2026-09-19-aarch64-job-mix.log` was taken from a kernel from before milestone 168 changed
+  the sweep's statistic, and the recogniser's parser had been written against it. When 168 landed,
+  the kernel's point line stopped carrying `ticks=` and `jpm=` and the parser read nothing, while
+  the fixture and the parser went on agreeing with each other. **Two things made from the same
+  stale source do not check each other**, and that is the argument for re-capturing rather than
+  editing: this file is bytes off a current kernel, so the next rename breaks a test instead of
+  going quiet. The old capture is deleted rather than kept beside it, because nothing reads it and
+  a second transcript of a different mix invites a comparison that is not valid.
 
   **The wedge case has no fixture of its own and does not need one.** The test that proves a
   stalled sweep is distinguishable truncates *this* file after its third point, which is the same
   construction `synthetic/vf2-handoff-hang.log` uses one directory over and is honest for the same
   reason: every byte before the cut is a byte a machine printed. The end-to-end proof is separate
   and was run rather than written: `cargo xtask job-mix --quiet-after 1s` exits 2 and
-  `--for 12s` exits 3.
+  `--for 30s` exits 3. Both were re-run against this capture's kernel; the window that used to
+  suffice (`--for 12s`) was against a sweep that finished in 28 seconds and this one takes 165.
 
   **No sweep has been watched on a board.** radon has never run one this tool read, which is
   milestone 168's own HARDWARE gate.

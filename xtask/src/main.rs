@@ -8922,11 +8922,13 @@ fn job_mix_sweep() -> ExitCode {
         // harder to watch than a soak. `kernel/src/soak.rs` beats on the wall clock every five
         // seconds whatever it is doing, so fifteen is three missed beats. A sweep speaks only when
         // a subrun ends, and the longest is the top of `job_mix::TASK_SWEEP`: measured at
-        // 163,224,570 ticks on a 62.5 MHz counter, which is 2.6 seconds, in the capture now at
-        // `crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log`.
-        // Sixty seconds is twenty times that, which is headroom for a slower host and still names
-        // a wedge inside a minute. Overridable, because the number is a default rather than an
-        // agreement.
+        // 249,234,771 ticks on a 62.5 MHz counter, which is 4.0 seconds, in the capture at
+        // `crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log`.
+        // Sixty seconds is fifteen times that, which is headroom for a slower host and still names
+        // a wedge inside a minute. It was twenty times a 2.6-second subrun until milestone 168
+        // took twenty-one repeats of a seven-kind mix instead of three of a five-kind one, which
+        // is the margin being spent by a change nowhere near this line. Overridable, because the
+        // number is a default rather than an agreement.
         quiet_after: Some(Duration::from_secs(60)),
         // Nothing this kernel prints after `job-mix: done` can change the verdict: it halts. The
         // settle window exists for the measured-boot refusal that arrives *after* the awaited rung,
@@ -9150,9 +9152,19 @@ fn job_mix_sweep() -> ExitCode {
     eprintln!();
     eprintln!("job-mix: {}", session.summary());
     match session.progress.sweep_point() {
+        // The spread and not the median alone: the kernel prints the two ends so a figure is
+        // never quoted without them, and a summary that dropped them here would undo that at the
+        // one line a person reads instead of the log.
         Some(point) => eprintln!(
-            "job-mix: last point tasks={} jobs={} ticks={} jpm={}",
-            point.tasks, point.jobs, point.ticks, point.jpm
+            "job-mix: last point tasks={} jobs={} repeats={} ticks_min={} ticks_median={} \
+             ticks_max={} jpm_median={}",
+            point.tasks,
+            point.jobs,
+            point.repeats,
+            point.ticks_min,
+            point.ticks_median,
+            point.ticks_max,
+            point.jpm_median
         ),
         // Said out loud rather than left as an absence, because an empty tail is exactly what a
         // kernel that refused and a kernel that wedged before its first point both look like.

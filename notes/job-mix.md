@@ -243,6 +243,15 @@ script written against an old transcript finds nothing rather than silently read
 best. `jpm_median` is not comparable with an old `jpm` even at the same task count: different
 statistic, different mix.
 
+**"Finds nothing" is the safer failure and it is still a silent one**, which the tree learned the
+same day (2026-09-19). Another session was building `crates/board_console`'s sweep recogniser
+against a capture from the old kernel. When this change landed, its parser went on matching the
+line's head, read none of the four numbers, and reported zeros; its tests stayed green, because the
+fixture it asserted against had been made from the same old kernel and the two agreed with each
+other. The fix re-captured the fixture from a current kernel and the limitation is recorded in
+`crates/board_console/src/progress.rs`'s `BUGS`: the markers are shared through `crates/job_mix`,
+the field names inside the line are not.
+
 **What a `job-mix-kind:` line says.** For one sweep point, summed over every released task and all
 21 repeats: how many jobs of that kind ran, the ticks they took (self-timed by each task, preemption
 included), the average per job, and for `map` and `spawn` the ticks spent inside `SPLIT` and
@@ -430,8 +439,8 @@ path rather than the whole kernel.
   soak. `kernel/src/soak.rs` prints every five seconds whatever the workload is doing, so a missed
   beat is a missed deadline; `kernel/src/job_mix.rs` prints only when a subrun ends, so the longest
   legitimate silence is the slowest subrun and a watcher has to allow for it. The default is sixty
-  seconds against a 2.6-second subrun measured under TCG, twenty to one, and a board slower than
-  that reads as wedged when it is merely slow. `--quiet-after 0` is the escape and it gives up the
+  seconds against a 4.0-second subrun measured under TCG, fifteen to one, and a board outside that
+  margin reads as wedged when it is merely slow. `--quiet-after 0` is the escape and it gives up the
   detection. A heartbeat in the supervisor is the real fix and is a kernel change; milestone 324's
   block records it as follow-on.
 - **There is no committed baseline and no `--check`.** `script/bench` gates because its icount counts
