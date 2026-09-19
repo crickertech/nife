@@ -277,11 +277,11 @@ invisible to ARP from both patagonia and cordoba, so this is a person at the ben
 |---|---|---|
 | `job-mix: FAILED: no 'job_mix_task' program in the initrd archive` | the card carries a kernel and an archive from different builds, or an archive built before this milestone | rebuild with `script/board-image --job-mix --card ...`, which packs the archive before the kernel for exactly this reason |
 | `job-mix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
-| the census, then nothing, ever | a task or a server wedged before the first subrun finished | the hang case. `crates/job_mix`'s `ROUND_TRIP` job is the only one that blocks on another process; a wedged echo server looks exactly like this |
+| the census, then nothing, ever | a task or a server wedged before the first subrun finished | the hang case, and since milestone 324 the tool says so rather than leaving it to the operator: `script/job-mix` and `script/board-console --until sweep-done` both exit **2**. `crates/job_mix`'s `ROUND_TRIP` job is the only one that blocks on another process; a wedged echo server looks exactly like this |
 | `jpm` roughly flat across the whole sweep | this machine's scheduling is not the bottleneck at 32 tasks | **the honest negative**, and it is a result: §96's performance argument does not bite at this scale on this silicon |
 | `jpm` rising and then falling, with a knee | throughput collapsing under task count | the positive result. Record where the knee is and compare it against milestone 134's E1 knee (8 to 11% by 64 to 96 threads on the dev Mac) |
 | `jpm` varying more between boots than across the sweep | the placement lottery dominates | not a result about §96 at all. More boots, and read `notes/soak.md`'s milestone 240 section |
-| `job-mix: done` and six clean points | the sweep ran | record it in this page's own table, below, and in `notes/register-of-measures.md`'s dated row |
+| `job-mix: done` and six clean points | the sweep ran | exit **0**. Record it in this page's own table, below, and in `notes/register-of-measures.md`'s dated row |
 
 ## Results
 
@@ -304,11 +304,19 @@ path rather than the whole kernel.
 
 ## BUGS
 
-- **`crates/board_console` has no recogniser for this run**, so `script/board-console` cannot tell a
-  finished sweep from a wedged one and the operator reads the log. Adding a `Stage` for it was
-  refused in this lane: the console's recogniser is a small piece of shared judgment that the soak
-  and the boot sequence both depend on, and growing it for a run nobody has taken yet would be
-  guessing at what the failure modes are. Proposed as follow-on work in this milestone's block.
+- **The sweep has no wall-clock heartbeat, so a watcher's wedge timer is a guess with headroom.**
+  This entry replaces *"`crates/board_console` has no recogniser for this run"*, which was true when
+  this page was written and stopped being true on **2026-09-19** (milestone 324 part 2): the
+  recogniser has `Stage::Sweep` and `Stage::SweepDone`, reading `crates/job_mix`'s own marker
+  constants, and `script/job-mix` judges with it and returns `script/board-console`'s five exit
+  statuses. What that milestone could not fix is the thing that makes a sweep harder to watch than a
+  soak. `kernel/src/soak.rs` prints every five seconds whatever the workload is doing, so a missed
+  beat is a missed deadline; `kernel/src/job_mix.rs` prints only when a subrun ends, so the longest
+  legitimate silence is the slowest subrun and a watcher has to allow for it. The default is sixty
+  seconds against a 2.6-second subrun measured under TCG, twenty to one, and a board slower than
+  that reads as wedged when it is merely slow. `--quiet-after 0` is the escape and it gives up the
+  detection. A heartbeat in the supervisor is the real fix and is a kernel change; milestone 324's
+  block records it as follow-on.
 - **There is no committed baseline and no `--check`.** `script/bench` gates because its icount counts
   are deterministic; a sweep whose entire subject is scheduling under contention is not, on any
   accelerator this tree has. A gate here would be asserting a tolerance nobody has measured.

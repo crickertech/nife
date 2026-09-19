@@ -61,6 +61,27 @@ unedited:
   it is the only one of the three that carries `wakes=` and a census block that changes between the
   spawn lottery and the settled arrangement.
 
+**And one capture of the job-mix sweep** (milestone 324 part 2), also machine-printed and also not
+off a board:
+
+- **`qemu-2026-09-19-aarch64-job-mix.log`** is a `--features job_mix` kernel on the aarch64 `virt`
+  machine with four cores, taken with `scripts/qemu-bounded.sh` around
+  `scripts/qemu-runner-aarch64.sh` so that the capture is the guest's console and nothing else. It
+  runs the whole sweep, all six points and all eighteen subruns, and ends with `job-mix: done`. It
+  is what turned the sweep's markers from constants somebody wrote into text a kernel printed, and
+  it is where the 2.6-second longest-subrun figure in `script/job-mix`'s `BUGS` comes from
+  (163,224,570 ticks on a 62.5 MHz counter).
+
+  **The wedge case has no fixture of its own and does not need one.** The test that proves a
+  stalled sweep is distinguishable truncates *this* file after its third point, which is the same
+  construction `synthetic/vf2-handoff-hang.log` uses one directory over and is honest for the same
+  reason: every byte before the cut is a byte a machine printed. The end-to-end proof is separate
+  and was run rather than written: `cargo xtask job-mix --quiet-after 1s` exits 2 and
+  `--for 12s` exits 3.
+
+  **No sweep has been watched on a board.** radon has never run one this tool read, which is
+  milestone 168's own HARDWARE gate.
+
 **The first two predate the marker rename and are left exactly as they arrived** (milestone 297,
 2026-09-14: `soak:` became `soak-test:` and `soak-census:` became `soak-test-census:` when
 `script/soak` became `script/soak-test`). A capture is a record, so the respelling happens at read

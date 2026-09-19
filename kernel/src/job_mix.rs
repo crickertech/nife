@@ -24,7 +24,7 @@
 //! the QEMU rehearsal that proves the mechanism before anybody carries a card to a desk.
 //!
 //! It differs from the soak in the one way that matters: **a soak never ends and this one does.**
-//! The sweep is finite, and when it is finished this prints [`DONE_MARKER`] and halts.
+//! The sweep is finite, and when it is finished this prints [`job_mix::DONE`] and halts.
 //!
 //! # The pool is built once and released in slices, which is not how AIM7 does it
 //!
@@ -75,27 +75,20 @@
 //!   is part of finishing) and it is a fixed additive cost that grows with N, so it flatters the
 //!   small subruns by a few microseconds.
 
-use job_mix::{ECHO_SERVERS, MAX_TASKS, REPEATS, TASK_SWEEP};
+// **The six markers in this import moved out of this file** (milestone 324 part 2): `CENSUS`,
+// `DONE`, `FAILED`, `POINT`, `STARTED` and `SUBRUN`. They were three private `const`s here and four
+// string literals in `xtask/src/main.rs`, agreeing with `crates/board_console`'s recogniser by a
+// reader having checked; that is milestone 268's finding 3 wearing different clothes, and the fix
+// is the one that milestone found. They now sit beside the rest of the workload's definition, which
+// both halves of the instrument already read, and `crates/boot_ladder`'s header carries the general
+// argument for why a printed line is a crate rather than a literal.
+use job_mix::{
+    CENSUS, DONE, ECHO_SERVERS, FAILED, MAX_TASKS, POINT, REPEATS, STARTED, SUBRUN, TASK_SWEEP,
+};
 
 use crate::cap::{Rights, rendezvous_cap};
 use crate::user::{self, Spawn};
 use crate::{arch, println, sched, smp};
-
-/// The line that tells a reader, and a log, that a sweep has begun.
-const START_MARKER: &str = "job-mix: started";
-
-/// The line that says the sweep is finished and the machine is about to park.
-///
-/// `script/job-mix` watches for this the way `cargo xtask bench` watches for `bench: done`: the
-/// kernel halts rather than exiting, so the host side is what tears QEMU down.
-const DONE_MARKER: &str = "job-mix: done";
-
-/// The prefix every placement-census line carries.
-///
-/// Its own word rather than `job-mix:`, for the reason `kernel/src/soak.rs`'s own census marker
-/// gives: a census is neither the start of a run nor a result line, and a watcher matching on the
-/// result prefix should not have to be proven harmless against it.
-const CENSUS_MARKER: &str = "job-mix-census:";
 
 /// Run the sweep and never come back. The caller is the boot thread at the end of the tour, and
 /// this replaces its `arch::halt()`.
@@ -103,9 +96,7 @@ pub fn run() -> ! {
     let cores = smp::online_count();
 
     let Some(image) = user::program("job_mix_task") else {
-        println!(
-            "job-mix: FAILED: no 'job_mix_task' program in the initrd archive; nothing to run"
-        );
+        println!("{FAILED}no 'job_mix_task' program in the initrd archive; nothing to run");
         arch::halt();
     };
 
@@ -143,7 +134,7 @@ pub fn run() -> ! {
             )
         });
         let Some((_tid, cpu)) = started else {
-            println!("job-mix: FAILED: could not spawn echo server {i} of {ECHO_SERVERS}");
+            println!("{FAILED}could not spawn echo server {i} of {ECHO_SERVERS}");
             arch::halt();
         };
         placed[i] = u8::try_from(cpu).unwrap_or(u8::MAX);
@@ -177,7 +168,7 @@ pub fn run() -> ! {
             )
         });
         let Some((_tid, cpu)) = started else {
-            println!("job-mix: FAILED: could not spawn task {i} of {MAX_TASKS}");
+            println!("{FAILED}could not spawn task {i} of {MAX_TASKS}");
             arch::halt();
         };
         placed[ECHO_SERVERS + i] = u8::try_from(cpu).unwrap_or(u8::MAX);
@@ -186,7 +177,7 @@ pub fn run() -> ! {
     let hz = arch::timer::frequency();
     println!();
     println!(
-        "{START_MARKER} {MAX_TASKS} tasks and {ECHO_SERVERS} servers on {cores} online core(s), \
+        "{STARTED} {MAX_TASKS} tasks and {ECHO_SERVERS} servers on {cores} online core(s), \
          cntfrq={hz} Hz"
     );
     println!(
@@ -202,7 +193,7 @@ pub fn run() -> ! {
     );
     print_census(&placed);
     println!(
-        "{CENSUS_MARKER} placement decides throughput on real silicon by up to fifteenfold \
+        "{CENSUS} placement decides throughput on real silicon by up to fifteenfold \
          (notes/soak.md, milestone 240), so a jobs-per-minute figure from ONE boot is a draw and \
          not a result; notes/job-mix.md's procedure asks for repeated boots"
     );
@@ -211,17 +202,17 @@ pub fn run() -> ! {
         let mut best = u64::MAX;
         for repeat in 0..REPEATS {
             let ticks = subrun(report, &go[..tasks]);
-            println!("job-mix-repeat: tasks={tasks} repeat={repeat} ticks={ticks}");
+            println!("{SUBRUN}tasks={tasks} repeat={repeat} ticks={ticks}");
             best = best.min(ticks);
         }
         let jobs = tasks as u64 * job_mix::JOBS_PER_TASK;
         println!(
-            "job-mix: tasks={tasks} jobs={jobs} ticks={best} jpm={}",
+            "{POINT}{tasks} jobs={jobs} ticks={best} jpm={}",
             job_mix::jobs_per_minute(jobs, best, hz)
         );
     }
 
-    println!("{DONE_MARKER}");
+    println!("{DONE}");
     // Parked, not exited: the watcher saw the marker and tears the run down, and a forgotten QEMU
     // costs nothing in `wfi` (AGENTS.md's rule).
     arch::halt();
@@ -255,13 +246,13 @@ fn subrun(report: sched::RendezvousId, go: &[sched::RendezvousId]) -> u64 {
 /// is the constraint milestone 240 wrote for itself: if a series of boots shows the rate does not
 /// follow the placement, that is the result, and this must not have prejudged it.
 fn print_census(placed: &[u8]) {
-    println!("{CENSUS_MARKER} where the kernel placed each thread at spawn: S=echo server, T=task");
+    println!("{CENSUS} where the kernel placed each thread at spawn: S=echo server, T=task");
     let mut accounted = 0usize;
     for core in smp::online_cpus() {
         let here = u8::try_from(core).unwrap_or(u8::MAX);
         let n = placed.iter().filter(|&&c| c == here).count();
         accounted += n;
-        crate::print!("{CENSUS_MARKER} core={core} threads={n}");
+        crate::print!("{CENSUS} core={core} threads={n}");
         for (i, &c) in placed.iter().enumerate() {
             if c == here {
                 if i < ECHO_SERVERS {
@@ -281,7 +272,7 @@ fn print_census(placed: &[u8]) {
     if missing != 0 {
         let unknown = placed.iter().filter(|&&c| c == u8::MAX).count();
         println!(
-            "{CENSUS_MARKER} unplaced={missing} of which not-yet-run={unknown} (online={})",
+            "{CENSUS} unplaced={missing} of which not-yet-run={unknown} (online={})",
             smp::online_count()
         );
     }

@@ -13,8 +13,22 @@
 //! seven markers it named. It was silent about two things the board does, and both are here now:
 //! U-Boot refusing outright before the kernel runs, and the line that means our whole boot tour
 //! finished rather than merely started.
+//!
+//! # Two halves, and only one of them is this board's
+//!
+//! **The firmware prologue is a board profile and lives in [`crate::board`]** (milestone 324 part
+//! 3). `U-Boot SPL`, OpenSBI, U-Boot proper and `Starting kernel ...` are radon's firmware chain
+//! and nobody else's; they used to be four `if line.contains(...)` arms here and four variants of
+//! [`Stage`], which is the hard-coding calef's ruling named. They are now declared as data, and a
+//! boot that climbs them reaches [`Stage::Firmware`].
+//!
+//! **Everything from [`Stage::Banner`] up is the kernel's own ladder**, reachable on all three
+//! architectures since milestone 268, and it is shared by every board this tool will ever watch.
+//! `crates/boot_ladder` holds its markers; a board profile may not name one.
 
 use core::fmt;
+
+use crate::board;
 
 /// How far the boot got, as an ordered ladder.
 ///
@@ -28,14 +42,19 @@ pub enum Stage {
     /// or the baud is wrong; the failure-triage ladder's first row covers all three.
     #[default]
     Cold,
-    /// U-Boot SPL announced itself. DRAM and the PLLs are up and we are running out of SRAM.
-    Spl,
-    /// OpenSBI's banner. M-mode firmware is resident and the SBI exists.
-    OpenSbi,
-    /// U-Boot proper: its banner, its countdown, or its `StarFive #` prompt.
-    UBoot,
-    /// `Starting kernel ...`. U-Boot has handed over and everything after this is ours.
-    Handoff,
+    /// **A rung of the active board's firmware prologue** (milestone 324 part 3), which is
+    /// whichever [`board::Profile`] this session was given.
+    ///
+    /// Four variants used to sit here instead (`Spl`, `OpenSbi`, `UBoot`, `Handoff`), and every one
+    /// of them was radon's. They are now [`board::RADON`]'s four rungs, ordered by
+    /// [`board::Rung::depth`], and a board with a different firmware chain declares its own rather
+    /// than sharing radon's words. A board with no prologue this tool recognises, which is what
+    /// xenon's capture shows, never reaches this stage at all and goes straight from
+    /// [`Stage::Cold`] to [`Stage::Banner`].
+    ///
+    /// Below [`Stage::Banner`] because the firmware runs before the kernel does, whatever the
+    /// board: that is what makes one ordering serve every profile.
+    Firmware(&'static board::Rung),
     /// Our own banner (`boot_ladder::BANNER`). The kernel's console works, which on this board is
     /// not a given: the runbook is explicit that this line is the *second* target, after the
     /// DW-8250 driver work.
@@ -96,6 +115,33 @@ pub enum Stage {
     /// seconds whatever the workload is doing, so a gap says the thing that prints is itself
     /// wedged. See `watch::Policy::quiet_after`, which is where that asymmetry is implemented.
     Soak,
+    /// **The job-mix sweep announced itself and is expected to keep making progress** (milestone
+    /// 324 part 2, matching [`job_mix::STARTED`]).
+    ///
+    /// Like [`Stage::Soak`] in the way that matters: it is past the end of the boot tour, and
+    /// silence from here is a failure rather than a kernel that halted on purpose. **Unlike it in
+    /// the way that bites.** A soak beats on the wall clock, so a missed beat is a missed deadline.
+    /// A sweep's finest progress line is [`job_mix::SUBRUN`], one per measured subrun, and a subrun
+    /// takes as long as it takes; the longest legitimate silence is the slowest subrun at the top
+    /// of [`job_mix::TASK_SWEEP`]. `watch::Policy::quiet_after` has to be set against that, and
+    /// this module's `BUGS` carries the measured figure.
+    ///
+    /// Above [`Stage::Soak`] because the enum has to order them somehow and neither is reachable in
+    /// the other's build: `script/job-mix`'s own `BUGS` records that the two features are
+    /// alternatives and that a kernel carrying both would sweep and never soak. Nothing compares
+    /// them, and nothing should.
+    Sweep,
+    /// **The sweep ran to its end** ([`job_mix::DONE`]), and the kernel is parking in `wfi`.
+    ///
+    /// **This is the rung milestone 324 part 2 exists for.** Before it, a finished sweep and a
+    /// wedged one both ended as the clock running out, so they shared an exit status and a bench
+    /// script could not tell them apart. Now `--until sweep-done` is `0` when the sweep finished,
+    /// `2` when it spoke and then stopped, and `3` when the time ran out with points still to
+    /// print.
+    ///
+    /// Silence after this is the correct end state, the same as [`Stage::Tour`]'s, and
+    /// `watch::Policy::quiet_after` exempts it for the same reason.
+    SweepDone,
 }
 
 impl Stage {
@@ -104,16 +150,17 @@ impl Stage {
     pub fn label(self) -> &'static str {
         match self {
             Stage::Cold => "nothing recognisable",
-            Stage::Spl => "U-Boot SPL",
-            Stage::OpenSbi => "OpenSBI",
-            Stage::UBoot => "U-Boot",
-            Stage::Handoff => "kernel handoff",
+            // The profile's own word for the rung, which is why a report can name `U-Boot SPL`
+            // without this file knowing what a VisionFive 2 is.
+            Stage::Firmware(rung) => rung.label(),
             Stage::Banner => "kernel banner",
             Stage::Machine => "machine described",
             Stage::SelfTest => "self-test verdict",
             Stage::Tour => "boot tour complete",
             Stage::Prompt => "shell prompt",
             Stage::Soak => "soak running",
+            Stage::Sweep => "job-mix sweep running",
+            Stage::SweepDone => "job-mix sweep complete",
         }
     }
 }
@@ -131,26 +178,28 @@ impl fmt::Display for Stage {
 /// that has gone silent is not in here; silence is the watcher's business, not the recogniser's.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Failure {
-    /// `Bad Linux RISCV Image magic!`: U-Boot refused the payload. Runbook row three: the file on
-    /// the card is the ELF rather than the `objcopy` output, or the card is stale.
-    BadImageMagic,
+    /// **The board's firmware gave up before the kernel ran**, carrying the profile's own
+    /// diagnosis and, where that firmware puts the reason on the line before, that line.
+    ///
+    /// **One variant for a whole board profile** (milestone 324 part 3), where two used to be hard
+    /// coded here: `BadImageMagic` for U-Boot rejecting the payload's header, and `UBootRefused`
+    /// for `### ERROR ### Please RESET the board ###`. Both are U-Boot's words rather than ours, so
+    /// they are [`board::Refusal`]s declared beside the rungs they belong to, and a board with
+    /// different firmware refuses in its own words without a variant being added here.
+    ///
+    /// `reason` is empty when the firmware said only that it gave up.
+    FirmwareRefused {
+        /// One line naming what went wrong, from [`board::Refusal::diagnosis`].
+        diagnosis: &'static str,
+        /// The line before the refusal, when this firmware puts the reason there.
+        reason: String,
+    },
     /// `MEASURED BOOT REFUSED`: the kernel would not vouch for the archive it was handed. Boot 12
     /// (2026-08-15) is the worked example, and it was `script/board-image` building the pair in the
     /// wrong order rather than anything on the board.
     MeasuredBootRefused,
     /// `[PANIC] ...`: our own panic handler (`kernel/src/panic.rs`), carrying its message.
     KernelPanic(String),
-    /// `### ERROR ### Please RESET the board ###`: U-Boot gave up before the kernel ever ran,
-    /// carrying the line before it, which is where U-Boot says why.
-    ///
-    /// **This is the third outcome, and it is the one documentation did not have.** Captured on
-    /// 2026-09-01 from the extlinux path, where `Device tree not found or missing FDT support` is
-    /// the reason and is exactly the caveat `notes/visionfive2.md` records about U-Boot's fallback
-    /// DTB addresses. It follows `Moving Image from`, so a recogniser that stopped at the stages
-    /// would have watched the image load and then called the silence a hang. It is not a hang. The
-    /// board is sitting at a firmware error waiting to be reset, and saying so is the difference
-    /// between resetting it and going looking for a multicore bug.
-    UBootRefused(String),
     /// **`nife self-test: 4 of 5 passed, 1 FAILED: <names>`**: the kernel tested itself on this
     /// machine and one of the checks did not pass, carrying the names of the ones that did not.
     ///
@@ -164,6 +213,14 @@ pub enum Failure {
     /// well be waiting. What this says is that something the kernel needs is broken, and the board
     /// is worth looking at rather than worth using.
     SelfTestFailed(String),
+    /// **The kernel would not start the job-mix sweep** ([`job_mix::FAILED`]), carrying the reason
+    /// it gave (milestone 324 part 2).
+    ///
+    /// Printed before [`Stage::Sweep`] and followed by a halt, in all three cases
+    /// `kernel/src/job_mix.rs` has: no `job_mix_task` in the archive, or either kind of spawn
+    /// failing. It is a failure rather than a stage for milestone 268's item 5's reason: a board
+    /// that refused to run the workload must not read like one that ran it.
+    SweepFailed(String),
 }
 
 impl Failure {
@@ -171,9 +228,12 @@ impl Failure {
     #[must_use]
     pub fn describe(&self) -> String {
         match self {
-            Failure::BadImageMagic => {
-                "U-Boot rejected the image header (Bad Linux RISCV Image magic!)".to_string()
+            // The profile wrote the sentence; this only decides whether the reason is appended.
+            // `notes/board-console.md` has where each board's wording came from.
+            Failure::FirmwareRefused { diagnosis, reason } if reason.is_empty() => {
+                (*diagnosis).to_string()
             }
+            Failure::FirmwareRefused { diagnosis, reason } => format!("{diagnosis}: {reason}"),
             // Worded carefully, because this is the one failure that is not a defect. The gate
             // did its job: it noticed that the archive on the card is not the one this kernel was
             // built to vouch for, and halted instead of running it. A report that read like a
@@ -185,12 +245,6 @@ impl Failure {
                  which orders those steps"
                 .to_string(),
             Failure::KernelPanic(message) => format!("the kernel panicked: {message}"),
-            Failure::UBootRefused(reason) if reason.is_empty() => {
-                "U-Boot gave up before the kernel ran and wants the board reset".to_string()
-            }
-            Failure::UBootRefused(reason) => {
-                format!("U-Boot gave up before the kernel ran and wants the board reset: {reason}")
-            }
             // Worded to say what happened next, because the obvious reading of "a self-test
             // failed" is that the machine stopped, and it did not. Someone acting on this report
             // needs to know the board is still up and is worth logging into.
@@ -198,6 +252,12 @@ impl Failure {
                 "the kernel's boot self-test failed on this machine: {names}. The boot continued to \
                  userspace anyway (it reports, it does not gate), so the board is up and degraded \
                  rather than dead"
+            ),
+            // Worded to say that nothing ran, because the sweep's own output is absent either way
+            // and an empty log reads the same as a wedge until this line is found.
+            Failure::SweepFailed(why) => format!(
+                "the kernel refused to start the job-mix sweep and halted: {why}. No point of the \
+                 sweep was measured"
             ),
         }
     }
@@ -250,13 +310,52 @@ pub struct SoakBeat {
     pub wakes: u64,
 }
 
+/// **One completed point of the job-mix sweep**, as the kernel printed it (milestone 324 part 2,
+/// from a [`job_mix::POINT`] line).
+///
+/// One per entry in [`job_mix::TASK_SWEEP`], carrying the best of that entry's [`job_mix::REPEATS`]
+/// subruns. [`jpm`](Self::jpm) is the AIM7-shaped metric; see `crates/job_mix` for what a jobs-per-
+/// minute figure is and is not, and `notes/job-mix.md` for why one boot's is a draw rather than a
+/// result.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct SweepPoint {
+    /// Tasks released for this point, an entry of [`job_mix::TASK_SWEEP`].
+    pub tasks: u64,
+    /// Jobs the pool completed, which is `tasks` times [`job_mix::JOBS_PER_TASK`].
+    pub jobs: u64,
+    /// The best subrun's wall-clock ticks, on the kernel's own counter.
+    pub ticks: u64,
+    /// Jobs per minute, as the kernel computed it.
+    pub jpm: u64,
+}
+
+/// **One completed subrun of the sweep** (a [`job_mix::SUBRUN`] line).
+///
+/// Finer than [`SweepPoint`] by a factor of [`job_mix::REPEATS`], and it is the finest progress a
+/// sweep emits. That is what makes it worth keeping separately: a sweep still inside a point has
+/// printed one of these and no point at all, and a watcher deciding whether a sweep is moving has
+/// nothing else to look at.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct SweepSubrun {
+    /// Tasks released for the point this subrun belongs to.
+    pub tasks: u64,
+    /// Which repeat of that point this was, counted from zero.
+    pub repeat: u64,
+    /// Its wall-clock ticks, on the kernel's own counter.
+    pub ticks: u64,
+}
+
 /// The ratchet: how far the boot got, and the first failure it announced.
 ///
 /// It only ever moves forward. That is what lets the caller re-offer a partial line as more bytes
 /// arrive without the recogniser double-counting, which it must do because U-Boot's `StarFive #`
 /// prompt has no newline after it and would otherwise never be seen.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct BootProgress {
+    /// **Which board's firmware prologue to expect** (milestone 324 part 3). Fixed for the life of
+    /// the ratchet: a session watches one board, and a profile swapped halfway through would make
+    /// two rungs at the same depth compare equal while meaning different things.
+    board: &'static board::Profile,
     reached: Stage,
     failure: Option<Failure>,
     relocated: bool,
@@ -273,17 +372,53 @@ pub struct BootProgress {
     /// figure in its summary instead of making a reader go back to a log for it. `None` until a
     /// heartbeat has been seen and parsed.
     soak: Option<SoakBeat>,
+    /// The last job-mix point that printed (milestone 324 part 2). `None` until one has.
+    sweep_point: Option<SweepPoint>,
+    /// The last job-mix subrun that printed. `None` until one has.
+    sweep_subrun: Option<SweepSubrun>,
     /// The last complete non-empty line, kept for exactly one reason: U-Boot's `### ERROR ###`
     /// says that it gave up and the line before it says why, and a reader handed only the first
     /// half has to go back to the log to learn anything.
     last_line: String,
 }
 
+/// A ratchet for [`board::RADON`], which is what every caller watched before board profiles
+/// existed and what `watch::Policy::default` still chooses.
+///
+/// **A default that names a board is a foot gun and says so.** A report from a session that took
+/// this default over an emulator will say `U-Boot SPL` was never reached, which is true and
+/// useless. Prefer [`BootProgress::new`] with the board in hand; see [`board`]'s `BUGS` for why
+/// QEMU's callers do not bother.
+impl Default for BootProgress {
+    fn default() -> Self {
+        Self::new(&board::RADON)
+    }
+}
+
 impl BootProgress {
-    /// A fresh ratchet, before any byte has arrived.
+    /// A fresh ratchet for one board, before any byte has arrived.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(board: &'static board::Profile) -> Self {
+        Self {
+            board,
+            reached: Stage::default(),
+            failure: None,
+            relocated: false,
+            userspace_ran: false,
+            banner_line: None,
+            machine_line: None,
+            self_test_line: None,
+            soak: None,
+            sweep_point: None,
+            sweep_subrun: None,
+            last_line: String::new(),
+        }
+    }
+
+    /// The board profile this ratchet was given.
+    #[must_use]
+    pub fn board(&self) -> &'static board::Profile {
+        self.board
     }
 
     /// The furthest stage recognised so far.
@@ -344,6 +479,26 @@ impl BootProgress {
         self.soak.as_ref()
     }
 
+    /// The last job-mix sweep point that printed, if this session saw one (milestone 324 part 2).
+    ///
+    /// A bench script reading this gets the curve's latest entry without re-parsing the log. What
+    /// it does **not** get is the whole curve: this is a progress ratchet, and the points are in
+    /// the capture. `crates/board_console::lottery` is the precedent for reading a finished log for
+    /// its results.
+    #[must_use]
+    pub fn sweep_point(&self) -> Option<&SweepPoint> {
+        self.sweep_point.as_ref()
+    }
+
+    /// The last job-mix subrun that printed, if this session saw one.
+    ///
+    /// The finest sign a sweep is still moving, and the only one during the long subruns at the top
+    /// of [`job_mix::TASK_SWEEP`], where no point line is due for minutes.
+    #[must_use]
+    pub fn sweep_subrun(&self) -> Option<&SweepSubrun> {
+        self.sweep_subrun.as_ref()
+    }
+
     /// Our banner line exactly as it arrived, which is how the reader learns which architecture
     /// the board that answered actually is.
     #[must_use]
@@ -400,23 +555,17 @@ impl BootProgress {
     fn observe(&mut self, line: &str, complete: bool) {
         let line = line.trim_end_matches(['\r', '\n']);
 
-        // Stages, cheapest first. `contains` rather than `starts_with` throughout, because a
-        // console log interleaves output from more than one stage and a line can arrive with a
-        // hart prefix or a partial line glued to its front.
-        if line.contains("U-Boot SPL") {
-            self.reach(Stage::Spl);
-        }
-        // OpenSBI's banner block ends with a "Platform Name" table, but the version line is the
-        // one the runbook says to record, and it is the only line guaranteed to carry the word
-        // followed by a version.
-        if line.contains("OpenSBI v") {
-            self.reach(Stage::OpenSbi);
-        }
-        if is_u_boot_proper(line, complete) || line.contains("StarFive #") {
-            self.reach(Stage::UBoot);
-        }
-        if line.contains("Starting kernel ...") {
-            self.reach(Stage::Handoff);
+        // **The firmware prologue, from the board profile** (milestone 324 part 3). Four `if`s
+        // with radon's markers written into them used to stand here; the rungs are now declared in
+        // `crate::board` and this loop is the whole of what reads them, which is what makes adding
+        // a board a profile rather than an edit to a recogniser.
+        //
+        // Every rung is offered the line rather than stopping at the first match, because the
+        // ratchet is what decides and a log can carry two rungs on one line.
+        for rung in self.board.prologue {
+            if rung.seen_in(line, complete) {
+                self.reach(Stage::Firmware(rung));
+            }
         }
         // **Every marker below is `boot_ladder`'s rather than a literal** (milestone 268), so this
         // recogniser and the kernel cannot hold two copies of one contract. Before that crate the
@@ -457,7 +606,12 @@ impl BootProgress {
             self.reach(Stage::Prompt);
         }
 
-        if line.contains("Moving Image from") {
+        if self
+            .board
+            .relocation
+            .iter()
+            .any(|marker| line.contains(marker))
+        {
             self.relocated = true;
         }
         // A captured-log marker rather than a live one since milestone 295: no kernel prints
@@ -483,18 +637,58 @@ impl BootProgress {
         if complete && line.contains("soak-test: t=") {
             self.observe_soak_beat(line);
         }
+        // **The job-mix sweep** (milestone 324 part 2). Every marker is `crates/job_mix`'s rather
+        // than a literal, the same move milestone 268 made when it put the boot ladder's markers in
+        // `crates/boot_ladder`: the kernel prints these very constants, so this recogniser and the
+        // thing it recognises cannot hold two copies of one contract. The census prefix
+        // (`job-mix-census:`) is outside all of them, which is what keeps a census block from
+        // reading as a sweep starting.
+        if line.contains(job_mix::STARTED) {
+            self.reach(Stage::Sweep);
+        }
+        if line.contains(job_mix::DONE) {
+            self.reach(Stage::SweepDone);
+        }
+        // Complete lines only, for both. A stage ratchet is monotone so a partial may set it; a
+        // captured number is not, and a truncated `ticks=` would record a figure that has not
+        // finished arriving. Same rule as the self-test verdict above.
+        if complete && let Some(at) = line.find(job_mix::SUBRUN) {
+            self.observe_sweep_subrun(&line[at..]);
+        }
+        if complete && let Some(at) = line.find(job_mix::POINT) {
+            self.observe_sweep_point(&line[at..]);
+        }
 
         // Failures. Recorded once: the first thing that went wrong is the one worth reporting,
         // and everything after it is downstream.
         if self.failure.is_none() {
-            if line.contains("Bad Linux RISCV Image magic!") {
-                self.failure = Some(Failure::BadImageMagic);
+            // **The firmware's own refusals, from the board profile** (milestone 324 part 3).
+            // First, because a firmware that gave up did so before the kernel ran and everything
+            // after it is downstream. `reason_is_the_line_before` deliberately reads `last_line`
+            // before the update at the bottom of this function, because U-Boot puts the refusal on
+            // one line and its reason on the one before.
+            if let Some(refusal) = self
+                .board
+                .refusals
+                .iter()
+                .find(|refusal| line.contains(refusal.marker))
+            {
+                self.failure = Some(Failure::FirmwareRefused {
+                    diagnosis: refusal.diagnosis,
+                    reason: if refusal.reason_is_the_line_before {
+                        self.last_line.clone()
+                    } else {
+                        String::new()
+                    },
+                });
             } else if line.contains("MEASURED BOOT REFUSED") {
                 self.failure = Some(Failure::MeasuredBootRefused);
-            } else if line.contains("### ERROR ### Please RESET the board ###") {
-                // Deliberately reads `last_line` before the update below, because U-Boot puts the
-                // refusal on one line and its reason on the one before.
-                self.failure = Some(Failure::UBootRefused(self.last_line.clone()));
+            } else if complete && let Some(at) = line.find(job_mix::FAILED) {
+                // Before the panic arm because the sweep's refusal is its own announcement and
+                // carries a better reason than the halt that follows it.
+                self.failure = Some(Failure::SweepFailed(
+                    line[at + job_mix::FAILED.len()..].trim().to_string(),
+                ));
             } else if complete && let Some(at) = line.find("[PANIC] ") {
                 self.failure = Some(Failure::KernelPanic(
                     line[at + "[PANIC] ".len()..].to_string(),
@@ -552,14 +746,7 @@ impl BootProgress {
     /// previous value in place rather than zeroing it, because a garbled line on a serial link is
     /// a lost measurement, not a measurement of zero.
     fn observe_soak_beat(&mut self, line: &str) {
-        let field = |name: &str| -> Option<u64> {
-            let at = line.find(name)?;
-            let rest = &line[at + name.len()..];
-            let end = rest
-                .find(|c: char| !c.is_ascii_digit())
-                .unwrap_or(rest.len());
-            rest[..end].parse().ok()
-        };
+        let field = |name: &str| field(line, name);
         let beat = self.soak.get_or_insert_with(SoakBeat::default);
         for (name, slot) in [
             ("t=", &mut beat.seconds),
@@ -579,6 +766,40 @@ impl BootProgress {
         }
     }
 
+    /// Pull the numbers out of one `job-mix-repeat: tasks=... repeat=... ticks=...` line.
+    ///
+    /// Field-name-directed, for [`Self::observe_soak_beat`]'s reason: a field added to the kernel's
+    /// line must not silently shift what this reads. A line missing a field leaves the previous
+    /// value in place rather than zeroing it, because a garbled line on a serial link is a lost
+    /// measurement and not a measurement of zero.
+    fn observe_sweep_subrun(&mut self, tail: &str) {
+        let subrun = self.sweep_subrun.get_or_insert_with(SweepSubrun::default);
+        for (name, slot) in [
+            ("tasks=", &mut subrun.tasks),
+            ("repeat=", &mut subrun.repeat),
+            ("ticks=", &mut subrun.ticks),
+        ] {
+            if let Some(v) = field(tail, name) {
+                *slot = v;
+            }
+        }
+    }
+
+    /// Pull the numbers out of one `job-mix: tasks=... jobs=... ticks=... jpm=...` line.
+    fn observe_sweep_point(&mut self, tail: &str) {
+        let point = self.sweep_point.get_or_insert_with(SweepPoint::default);
+        for (name, slot) in [
+            ("tasks=", &mut point.tasks),
+            ("jobs=", &mut point.jobs),
+            ("ticks=", &mut point.ticks),
+            ("jpm=", &mut point.jpm),
+        ] {
+            if let Some(v) = field(tail, name) {
+                *slot = v;
+            }
+        }
+    }
+
     fn reach(&mut self, stage: Stage) {
         if stage > self.reached {
             self.reached = stage;
@@ -586,27 +807,18 @@ impl BootProgress {
     }
 }
 
-/// Is this U-Boot proper announcing itself, rather than SPL or TPL?
+/// The decimal run after `name=` in `text`, if there is one.
 ///
-/// The three banners all begin `U-Boot`, and telling them apart is the one place this recogniser
-/// has to be careful: `U-Boot SPL 2021.10` and `U-Boot 2021.10` differ by one word. So: the word
-/// after `U-Boot` decides, and `SPL`/`TPL` are the two that are not it.
-///
-/// `complete` is why this takes a second argument. In a partial line the word after `U-Boot ` may
-/// not have finished arriving, and an unterminated word cannot be compared to `SPL`; the honest
-/// answer there is "not yet", not "yes".
-fn is_u_boot_proper(line: &str, complete: bool) -> bool {
-    let Some(at) = line.find("U-Boot ") else {
-        return false;
-    };
-    let rest = &line[at + "U-Boot ".len()..];
-    let word = match rest.find(char::is_whitespace) {
-        Some(end) => &rest[..end],
-        // No whitespace after it: the word is finished only if the line is.
-        None if complete => rest,
-        None => return false,
-    };
-    !word.is_empty() && word != "SPL" && word != "TPL"
+/// Shared by the soak's heartbeat and the sweep's two lines, which is not a tidiness: all three are
+/// `name=value` lines from the same console, and a second copy of this would be a second place for
+/// a trailing `/s` or a comma to be got wrong.
+fn field(text: &str, name: &str) -> Option<u64> {
+    let at = text.find(name)?;
+    let rest = &text[at + name.len()..];
+    let end = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
 }
 
 /// Splits a byte stream into lines, and hands back the incomplete tail as well.
@@ -673,10 +885,26 @@ pub struct Feeding {
 mod tests {
     use super::*;
 
-    /// Offer text to a fresh ratchet the way the watcher does, tail included.
+    /// radon's firmware rung by its `--until` word, which is what `Stage::Spl` and its three
+    /// siblings used to be. Assertions read the same; the rung is now the profile's rather than
+    /// this file's, which is milestone 324 part 3 in one line.
+    fn rung(key: &str) -> Stage {
+        Stage::Firmware(
+            board::RADON
+                .rung(key)
+                .unwrap_or_else(|| panic!("radon has no {key} rung")),
+        )
+    }
+
+    /// Offer text to a fresh radon ratchet the way the watcher does, tail included.
     fn run(text: &str) -> BootProgress {
+        feed(&board::RADON, text)
+    }
+
+    /// [`run`], for a board that is not radon (milestone 324 part 3).
+    fn feed(board: &'static board::Profile, text: &str) -> BootProgress {
         let mut feeder = LineFeeder::new();
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::new(board);
         // One byte at a time, which is the worst case a real UART delivers and the case that
         // catches a recogniser depending on chunk boundaries.
         for byte in text.as_bytes() {
@@ -719,13 +947,14 @@ mod tests {
         let progress = run(include_str!(
             "../tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log"
         ));
-        assert_eq!(progress.reached(), Stage::UBoot);
+        assert_eq!(progress.reached(), rung("uboot"));
         assert!(progress.relocated(), "the image did load and relocate");
         assert_eq!(
             progress.failure(),
-            Some(&Failure::UBootRefused(
-                "Device tree not found or missing FDT support".to_string()
-            )),
+            Some(&Failure::FirmwareRefused {
+                diagnosis: "U-Boot gave up before the kernel ran and wants the board reset",
+                reason: "Device tree not found or missing FDT support".to_string(),
+            }),
             "the reason is the line before the ERROR, and a reader needs it"
         );
     }
@@ -738,7 +967,7 @@ mod tests {
     /// looks like success.
     #[test]
     fn the_ladder_climbs_banner_machine_self_test_prompt() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("nife on aarch64 (EL1, MMU off: physical addresses until mmu::init)");
         assert_eq!(progress.reached(), Stage::Banner);
         progress.observe_line("nife machine: aarch64, 4 processor(s), 256 MiB, 100 Hz");
@@ -770,7 +999,7 @@ mod tests {
                 "nife machine: x86_64, 1 processor(s), 254 MiB, 100 Hz",
             ),
         ] {
-            let mut progress = BootProgress::new();
+            let mut progress = BootProgress::default();
             progress.observe_line(banner);
             progress.observe_line(machine);
             progress.observe_line("nife self-test: 5 of 5 passed");
@@ -787,7 +1016,7 @@ mod tests {
     /// the bench must not read as a good one, and this is the assertion that says so.
     #[test]
     fn a_failed_verdict_is_announced_with_the_names() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("nife machine: riscv64, 4 processor(s), 256 MiB, 100 Hz");
         progress.observe_line("nife self-test: 4 of 5 passed, 1 FAILED: exceptions");
         assert_eq!(
@@ -808,7 +1037,7 @@ mod tests {
     /// the count set to four printed exactly this line, and `boot-check` passed it.
     #[test]
     fn a_green_verdict_over_the_wrong_set_is_a_failure() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("nife self-test: 4 of 4 passed");
         assert_eq!(
             progress.failure(),
@@ -818,7 +1047,7 @@ mod tests {
             ))),
         );
 
-        let mut right = BootProgress::new();
+        let mut right = BootProgress::default();
         right.observe_line(&format!(
             "nife self-test: {n} of {n} passed",
             n = boot_ladder::SELF_TEST_CHECKS.len()
@@ -830,7 +1059,7 @@ mod tests {
     /// them: fixing the first and re-running to discover the second is the loop this avoids.
     #[test]
     fn a_failed_verdict_carries_every_name() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("nife self-test: 3 of 5 passed, 2 FAILED: mapping scheduler");
         assert_eq!(
             progress.failure(),
@@ -843,7 +1072,7 @@ mod tests {
     /// recogniser keying on the word alone would report every such line as a broken self-test.
     #[test]
     fn the_tours_own_failed_token_is_not_a_self_test_failure() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("  FAILED: a spinner did not run, or nothing was preempted.");
         assert_eq!(progress.failure(), None);
     }
@@ -858,14 +1087,14 @@ mod tests {
             "nife self-test: {n} of {n} passed",
             n = boot_ladder::SELF_TEST_CHECKS.len()
         );
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line(&green);
         assert_eq!(progress.failure(), None);
         assert_eq!(progress.self_test_line(), Some(green.as_str()));
 
         // `0 of 0 passed` is the vacuous pass the counts exist to expose, and since the total is
         // checked against `boot_ladder::SELF_TEST_CHECKS` it is red rather than kept as green.
-        let mut vacuous = BootProgress::new();
+        let mut vacuous = BootProgress::default();
         vacuous.observe_line("nife self-test: 0 of 0 passed");
         assert!(matches!(
             vacuous.failure(),
@@ -883,7 +1112,7 @@ mod tests {
     /// truncated line would record a count that has not finished arriving.
     #[test]
     fn a_partial_verdict_ratchets_but_does_not_capture() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_partial("nife self-test: 4 of 5 pas");
         assert_eq!(progress.reached(), Stage::SelfTest);
         assert_eq!(progress.self_test_line(), None);
@@ -911,7 +1140,7 @@ mod tests {
     /// reach U-Boot, one reaches the banner and then the tour, the other never reaches either.
     #[test]
     fn the_tour_line_outranks_the_banner() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("nife on RISC-V (rv64, S-mode, Sv39)");
         assert_eq!(progress.reached(), Stage::Banner);
         progress.observe_line("nife: the capability core runs on RISC-V.");
@@ -1082,8 +1311,14 @@ mod tests {
         let progress = run(include_str!(
             "../tests/fixtures/synthetic/vf2-bad-magic.log"
         ));
-        assert_eq!(progress.reached(), Stage::UBoot);
-        assert_eq!(progress.failure(), Some(&Failure::BadImageMagic));
+        assert_eq!(progress.reached(), rung("uboot"));
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::FirmwareRefused {
+                diagnosis: "U-Boot rejected the image header (Bad Linux RISCV Image magic!)",
+                reason: String::new(),
+            })
+        );
     }
 
     #[test]
@@ -1106,14 +1341,14 @@ mod tests {
     #[test]
     fn spl_is_not_u_boot_proper() {
         let progress = run("U-Boot SPL 2021.10 (Feb 12 2023 - 20:24:34 +0800)\n");
-        assert_eq!(progress.reached(), Stage::Spl);
+        assert_eq!(progress.reached(), rung("spl"));
     }
 
     #[test]
     fn u_boot_proper_is_recognised_by_its_version() {
         let progress =
             run("U-Boot 2021.10 (Feb 12 2023 - 20:24:34 +0800), Build: jenkins-github\n");
-        assert_eq!(progress.reached(), Stage::UBoot);
+        assert_eq!(progress.reached(), rung("uboot"));
     }
 
     /// The prompt has no newline after it. A feeder that only reported complete lines would sit
@@ -1121,13 +1356,13 @@ mod tests {
     #[test]
     fn the_prompt_is_seen_without_a_newline() {
         let mut feeder = LineFeeder::new();
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         let feeding = feeder.feed(b"Hit any key to stop autoboot:  0 \nStarFive # ");
         for line in &feeding.lines {
             progress.observe_line(line);
         }
         progress.observe_partial(&feeding.tail);
-        assert_eq!(progress.reached(), Stage::UBoot);
+        assert_eq!(progress.reached(), rung("uboot"));
         assert_eq!(feeding.tail, "StarFive # ");
     }
 
@@ -1135,7 +1370,7 @@ mod tests {
     #[test]
     fn garbage_bytes_do_not_stop_the_feeder() {
         let mut feeder = LineFeeder::new();
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         let feeding = feeder.feed(&[0xff, 0xfe, 0x80, b'\n', 0xc0]);
         for line in &feeding.lines {
             progress.observe_line(line);
@@ -1149,7 +1384,7 @@ mod tests {
     #[test]
     fn a_marker_split_across_chunks_is_still_seen() {
         let mut feeder = LineFeeder::new();
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         for chunk in [&b"Starting ke"[..], &b"rnel ...\n"[..]] {
             let feeding = feeder.feed(chunk);
             for line in &feeding.lines {
@@ -1157,7 +1392,7 @@ mod tests {
             }
             progress.observe_partial(&feeding.tail);
         }
-        assert_eq!(progress.reached(), Stage::Handoff);
+        assert_eq!(progress.reached(), rung("handoff"));
     }
 
     /// The bug the byte-at-a-time feeding found, kept as its own test because reasoning did not
@@ -1165,13 +1400,13 @@ mod tests {
     /// captured truncated.
     #[test]
     fn a_partial_line_does_not_settle_a_word_or_capture_text() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_partial("U-Boot ");
         assert_eq!(progress.reached(), Stage::Cold);
         progress.observe_partial("U-Boot SPL 2021.10 (Feb");
-        assert_eq!(progress.reached(), Stage::Spl);
+        assert_eq!(progress.reached(), rung("spl"));
 
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_partial("nife on ");
         assert_eq!(progress.reached(), Stage::Banner);
         assert_eq!(progress.banner_line(), None);
@@ -1181,7 +1416,7 @@ mod tests {
             Some("nife on RISC-V (rv64, S-mode, Sv39)")
         );
 
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_partial("[PANIC] hart 3 took");
         assert_eq!(progress.failure(), None);
         progress.observe_line("[PANIC] hart 3 took a load fault");
@@ -1195,10 +1430,10 @@ mod tests {
 
     #[test]
     fn the_ratchet_never_goes_backwards() {
-        let mut progress = BootProgress::new();
+        let mut progress = BootProgress::default();
         progress.observe_line("Starting kernel ...");
         progress.observe_line("U-Boot SPL 2021.10");
-        assert_eq!(progress.reached(), Stage::Handoff);
+        assert_eq!(progress.reached(), rung("handoff"));
     }
 
     /// A carriage return alone ends a line: firmware progress indicators use it to overwrite.
@@ -1209,5 +1444,222 @@ mod tests {
             feeder.feed(b"Hit any key to stop autoboot:  2 \rHit any key to stop autoboot:  1 \r");
         assert_eq!(feeding.lines.len(), 2);
         assert_eq!(feeding.tail, "");
+    }
+
+    /// **The sweep, from a real run of `--features job_mix`** (milestone 324 part 2), fed one byte
+    /// at a time. This is the test that says the markers are the text a kernel prints: the fixture
+    /// is `scripts/qemu-runner-aarch64.sh` on 2026-09-19, unedited, CRLF and all.
+    #[test]
+    fn the_captured_sweep_runs_to_its_done_line() {
+        let progress = run(include_str!(
+            "../tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log"
+        ));
+        assert_eq!(progress.reached(), Stage::SweepDone);
+        assert_eq!(progress.failure(), None);
+        // The whole boot ladder is underneath it, which is what makes the sweep a stage past the
+        // tour rather than a thing beside it.
+        assert_eq!(
+            progress.self_test_line(),
+            Some("nife self-test: 5 of 5 passed")
+        );
+        let point = progress.sweep_point().expect("the points must be parsed");
+        assert_eq!(
+            *point,
+            SweepPoint {
+                tasks: 32,
+                jobs: 4096,
+                ticks: 151_094_072,
+                jpm: 101_658,
+            },
+            "the last point is the top of job_mix::TASK_SWEEP"
+        );
+        assert_eq!(
+            u64::from(u32::try_from(job_mix::MAX_TASKS).expect("the sweep tops out in a u32")),
+            point.tasks,
+            "the last point is job_mix::MAX_TASKS, and the two agree by the kernel reading it"
+        );
+        assert_eq!(point.jobs, point.tasks * job_mix::JOBS_PER_TASK);
+        let subrun = progress.sweep_subrun().expect("the subruns must be parsed");
+        assert_eq!(
+            *subrun,
+            SweepSubrun {
+                tasks: 32,
+                repeat: 2,
+                ticks: 155_603_814,
+            },
+            "the last subrun is the last repeat of the last point, and it is NOT the best one"
+        );
+        // These numbers are a draw rather than a result: TCG models no cache, and milestone 240's
+        // census says the placement lottery decides throughput by up to fifteenfold on real
+        // silicon. See notes/job-mix.md. What is asserted here is the parse, not the figure.
+    }
+
+    /// **The whole of part 2, in one pair of assertions**: a sweep that stops partway is a
+    /// different stage from one that finished, where before this milestone both ended as the clock
+    /// running out and shared an exit status.
+    ///
+    /// The truncation is the real capture cut after the third point, which is the honest stand-in
+    /// for a wedge: nothing was invented, and the bytes before the cut are bytes a machine printed.
+    #[test]
+    fn a_sweep_cut_off_partway_has_not_reached_its_done_line() {
+        let whole = include_str!("../tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix.log");
+        let cut = whole
+            .find("job-mix: tasks=8")
+            .expect("the capture has a fourth point to cut before");
+        let progress = run(&whole[..cut]);
+        assert_eq!(progress.reached(), Stage::Sweep);
+        assert!(
+            progress.reached() < Stage::SweepDone,
+            "a wedged sweep must not read as a finished one"
+        );
+        assert_eq!(progress.failure(), None, "a wedge announces nothing");
+        assert_eq!(
+            progress.sweep_point().map(|p| p.tasks),
+            Some(4),
+            "three points printed and the third was four tasks"
+        );
+    }
+
+    /// The census must be invisible to the recogniser, the same claim
+    /// `the_placement_census_changes_nothing_the_recogniser_reads` makes for the soak and for the
+    /// same reason: `job_mix::CENSUS` is outside `job_mix::STARTED` and `job_mix::POINT`, and that
+    /// is an argument until something checks it. The lines are verbatim from the capture.
+    #[test]
+    fn a_job_mix_census_alone_reaches_nothing() {
+        let progress = run(concat!(
+            "job-mix-census: where the kernel placed each thread at spawn: S=echo server, T=task\n",
+            "job-mix-census: core=0 threads=7 T3 T8 T14 T15 T22 T24 T29\n",
+            "job-mix-census: core=2 threads=10 S0 T2 T4 T9 T11 T17 T18 T20 T27 T28\n",
+        ));
+        assert_eq!(progress.reached(), Stage::Cold);
+        assert_eq!(progress.sweep_point(), None);
+        assert_eq!(progress.failure(), None);
+    }
+
+    /// **A refused sweep is a failure and not a stage**, milestone 268's item 5 applied to the
+    /// workload: a kernel that would not start the sweep must not read like one that ran it.
+    ///
+    /// The line is built from `job_mix::FAILED` rather than written out, so this test cannot
+    /// disagree with the kernel about the prefix; the tail is `kernel/src/job_mix.rs`'s own.
+    #[test]
+    fn a_refused_sweep_is_announced_with_its_reason() {
+        let progress = run(&format!(
+            "{}no 'job_mix_task' program in the initrd archive; nothing to run\n",
+            job_mix::FAILED
+        ));
+        assert_eq!(
+            progress.failure(),
+            Some(&Failure::SweepFailed(
+                "no 'job_mix_task' program in the initrd archive; nothing to run".to_string()
+            ))
+        );
+        assert_eq!(
+            progress.reached(),
+            Stage::Cold,
+            "it refused before the sweep started"
+        );
+        let said = progress.failure().expect("it failed").describe();
+        assert!(
+            said.contains("No point of the sweep was measured"),
+            "an empty log reads like a wedge until the report says nothing ran"
+        );
+    }
+
+    /// The two sweep rungs are an order, and these are the comparisons the tools make.
+    #[test]
+    fn the_sweep_rungs_sit_above_the_boot_ladder() {
+        assert!(Stage::Sweep > Stage::Prompt, "a sweep replaces the handoff");
+        assert!(
+            Stage::SweepDone > Stage::Sweep,
+            "finishing outranks starting, which is the whole of part 2"
+        );
+    }
+
+    /// A partial sweep line ratchets and captures nothing, which is `observe_partial`'s contract.
+    /// The tail is offered again as it grows, so a counter here would double-count and a truncated
+    /// `ticks=` would record a figure that has not finished arriving.
+    #[test]
+    fn a_partial_sweep_line_ratchets_but_does_not_capture() {
+        let mut progress = BootProgress::default();
+        progress.observe_partial("job-mix: started 32 tasks and 2 ser");
+        assert_eq!(progress.reached(), Stage::Sweep);
+        let mut progress = BootProgress::default();
+        progress.observe_partial("job-mix: tasks=32 jobs=4096 ticks=1510");
+        assert_eq!(
+            progress.sweep_point(),
+            None,
+            "half a point is not a point, and 1510 is not 151094072"
+        );
+    }
+
+    /// **The board profile's whole claim, checked against radon's own capture** (milestone 324 part
+    /// 3): the firmware prologue is the profile's and the rest of the ladder is not.
+    ///
+    /// The same bytes, read twice. With radon's profile the boot climbs SPL, OpenSBI, U-Boot and
+    /// the handoff on the way to the tour. With xenon's, whose prologue is empty, it reaches
+    /// exactly the same tour and never reports a firmware rung, because none of those lines are
+    /// xenon's to claim. A hard-coded prologue cannot tell those two readings apart, which is what
+    /// the ruling meant by *the profile is the firmware prologue only*.
+    #[test]
+    fn the_same_capture_climbs_radons_prologue_and_not_xenons() {
+        let log = include_str!("../tests/fixtures/captured/vf2-2026-09-01-manual-boot.log");
+
+        let as_radon = feed(&board::RADON, log);
+        assert_eq!(as_radon.reached(), Stage::Tour);
+        assert!(as_radon.relocated(), "Moving Image from is U-Boot's");
+
+        let as_xenon = feed(&board::XENON, log);
+        assert_eq!(
+            as_xenon.reached(),
+            Stage::Tour,
+            "the kernel's own ladder is shared and is read the same either way"
+        );
+        assert!(
+            !as_xenon.relocated(),
+            "a relocation note belongs to the firmware that printed it"
+        );
+        assert_eq!(as_xenon.board().name, "xenon");
+    }
+
+    /// **xenon's prologue is empty because its capture is**, which is part 3's premise rather than
+    /// an omission. Milestone 324's block says a `--replay` of this file reports the banner, the
+    /// machine line, the five-of-five verdict and the measured-boot refusal; this is that claim as
+    /// an assertion, read through the profile that says xenon has no firmware rungs at all.
+    ///
+    /// The file is `bench/` rather than `tests/fixtures/` on purpose: it is calef's bench record of
+    /// first light on that machine, and a copy here would be a second one to keep in step.
+    #[test]
+    fn xenons_capture_needs_no_prologue_to_be_read_correctly() {
+        let progress = feed(
+            &board::XENON,
+            include_str!("../../../bench/xenon-2026-09-17/first-light-095500.log"),
+        );
+        assert_eq!(
+            progress.banner_line(),
+            Some("nife on x86_64 (long mode, ring 0, 4-level paging)")
+        );
+        assert_eq!(
+            progress.machine_line(),
+            Some("nife machine: x86_64, 4 processor(s), 17119 MiB, 100 Hz")
+        );
+        assert_eq!(
+            progress.self_test_line(),
+            Some("nife self-test: 5 of 5 passed")
+        );
+        assert_eq!(progress.failure(), Some(&Failure::MeasuredBootRefused));
+        assert_eq!(
+            progress.reached(),
+            Stage::SelfTest,
+            "it halted at the trust boundary, after the verdict and before any handoff"
+        );
+    }
+
+    /// `--until spl` against a board with no SPL is a request that can never be satisfied, and
+    /// answering it with a refusal beats watching for two minutes and reporting that time ran out.
+    /// `xtask` is where the refusal is printed; this is the lookup it rests on.
+    #[test]
+    fn a_firmware_rung_is_only_offered_by_a_board_that_has_one() {
+        assert!(board::RADON.rung("spl").is_some());
+        assert!(board::XENON.rung("spl").is_none());
     }
 }

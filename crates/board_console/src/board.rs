@@ -1,0 +1,404 @@
+//! **A board's firmware prologue, declared rather than hard-coded** (milestone 324 part 3).
+//!
+//! calef ruled on 2026-09-19: *one tool with a board profile, and the profile is the firmware
+//! prologue only*. A tool per board would fork 3,545 lines whose portable majority is already
+//! proven shared, and this module is the other half of that ruling: the part that is **not**
+//! shared, written as data instead of as a run of `if line.contains(...)` inside
+//! [`crate::progress`].
+//!
+//! # The split, which was already in the source before it was a design
+//!
+//! [`crate::progress::Stage`] was two things in one enum. Its lower rungs (`U-Boot SPL`, OpenSBI,
+//! U-Boot proper, `Starting kernel ...`) are **the VisionFive 2's firmware chain**, true of radon
+//! and of nothing else this project owns. Its upper rungs (banner, machine, self-test, tour,
+//! prompt, and the workloads above them) are **the kernel's own ladder**, and milestone 268 made
+//! every one of them reachable on all three architectures. Nothing in the file said so. Milestone
+//! 324's block said it, and this module is that sentence made mechanical: the prologue is a
+//! `&'static Profile`, the ladder is the enum, and adding a board is adding a [`Profile`] rather
+//! than editing a recogniser.
+//!
+//! # What a profile may and may not contain
+//!
+//! Only what the **firmware** prints, before the kernel has run an instruction. Three kinds:
+//!
+//! - [`Profile::prologue`], the ordered rungs. Order is the whole of their meaning.
+//! - [`Profile::refusals`], the ways that firmware gives up before handing over. These belong here
+//!   and not in the shared half because `Bad Linux RISCV Image magic!` and
+//!   `### ERROR ### Please RESET the board ###` are U-Boot's words: a board with different
+//!   firmware refuses differently, or does not refuse at all.
+//! - [`Profile::relocation`], a discriminator that is deliberately not a rung. The triage ladder in
+//!   `notes/visionfive2.md` lists `Moving Image from` as the thing to check when
+//!   `Starting kernel ...` is followed by silence, which is a different question from how far the
+//!   boot got.
+//!
+//! Everything the kernel prints stays out. A profile that named our banner would be a second copy
+//! of `crates/boot_ladder`, which is the mistake that crate exists to have already made once.
+//!
+//! # BUGS
+//!
+//! - **Only [`RADON`] has ever been checked against a machine, and [`XENON`]'s emptiness is the
+//!   claim rather than an omission.** radon's four rungs and both refusals are asserted against
+//!   bytes off the wire on 2026-09-01, in `tests/fixtures/captured/`. xenon's prologue is empty
+//!   because `bench/xenon-2026-09-17/first-light-095500.log` shows nothing before our banner that
+//!   this tool matches: it boots through PVH straight into `nife on `, so the portable half of the
+//!   ladder is its whole boot. An empty prologue is therefore a measurement, but it is a
+//!   measurement of **one capture on one day**, and a xenon that fell over inside its firmware
+//!   would print something nothing here would name.
+//! - **argon has no profile and deliberately gets none.** It has never booted nife and sits behind
+//!   milestone 127, which is NOT-STARTED. A profile written for it today would be a Jetson boot
+//!   chain read out of vendor documentation and never watched on a wire, which is the
+//!   assertion-shaped-as-measurement failure this tree keeps catching. Its prologue stays unwritten
+//!   until a board prints something.
+//! - **The default is [`RADON`], and a default that names a board is a foot gun.** It is what every
+//!   caller watched before profiles existed, so taking it changed nothing; what it does is make a
+//!   report from an unconfigured session say it was expecting a VisionFive 2. The three QEMU
+//!   callers in `xtask` (`boot-check`, `soak-test`, `job-mix`) name [`XENON`] instead, which is the
+//!   honest description of a machine with no firmware prologue, and it changes no behaviour either
+//!   way: a marker that never arrives is never matched.
+//! - **A [`Rung`] compares by depth alone**, so rung 2 of one profile equals rung 2 of another.
+//!   This is an accepted exception to *make the wrong state unrepresentable*, and it is a foot gun:
+//!   a session has exactly one profile, chosen once before any byte is read, so two profiles' rungs
+//!   never meet. Making them un-comparable would mean ordering [`crate::progress::Stage`] by hand
+//!   against a profile it does not carry, which is more machinery in exchange for a state nothing
+//!   can reach.
+//! - **Nothing gates a profile against the board it claims to describe.** The same gap
+//!   `crates/boot_ladder` records against the kernel, one level out, and the same mechanism:
+//!   review, plus a capture in `tests/fixtures/captured/` for every rung anybody asserts on.
+//!
+//! Names provisional, this lane's coinage (2026-09-19, milestone 324 part 3). `Profile` is the word
+//! calef's own ruling used (*"a board profile"*), so it is his already; `Rung` is
+//! `crates/boot_ladder`'s word for the same shape one level up and is reused rather than reinvented;
+//! `Sign` was chosen over `Match` (a verb, and the tree asks for nouns) and over `Pattern` (which
+//! promises a regular expression this deliberately is not).
+
+use core::cmp::Ordering;
+
+/// **What text means a rung was reached.**
+///
+/// Two kinds, and the second exists for exactly one real ambiguity rather than for generality:
+/// `U-Boot SPL 2021.10` and `U-Boot 2021.10` differ by one word, and reading the first as the
+/// second reports a board that died in SPL two rungs further along than it got.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Sign {
+    /// The text appears anywhere in the line.
+    ///
+    /// `contains` rather than `starts_with` throughout, because a console log interleaves output
+    /// from more than one stage and a line can arrive with a hart prefix or a partial line glued
+    /// to its front.
+    Text(&'static str),
+    /// `prefix` appears, and the word after it is none of `not`.
+    ///
+    /// Only settles on a **complete** line. In a partial one the word after the prefix may not have
+    /// finished arriving, and an unterminated word cannot be compared to `SPL`; the honest answer
+    /// there is "not yet".
+    WordAfter {
+        /// The text to find, including its trailing space.
+        prefix: &'static str,
+        /// The words that mean this is a different announcement.
+        not: &'static [&'static str],
+    },
+}
+
+impl Sign {
+    /// Is this sign present in `line`? `complete` says whether the line has finished arriving.
+    #[must_use]
+    pub fn seen_in(&self, line: &str, complete: bool) -> bool {
+        match self {
+            Sign::Text(text) => line.contains(text),
+            Sign::WordAfter { prefix, not } => {
+                let Some(at) = line.find(prefix) else {
+                    return false;
+                };
+                let rest = &line[at + prefix.len()..];
+                let word = match rest.find(char::is_whitespace) {
+                    Some(end) => &rest[..end],
+                    // No whitespace after it: the word is finished only if the line is.
+                    None if complete => rest,
+                    None => return false,
+                };
+                !word.is_empty() && !not.contains(&word)
+            }
+        }
+    }
+}
+
+/// **One rung of a board's firmware prologue.**
+///
+/// [`depth`](Self::depth) is the whole of the ordering and the whole of the identity; see this
+/// module's `BUGS` for why that is an accepted exception rather than an oversight.
+#[derive(Debug, Clone, Copy, Eq)]
+pub struct Rung {
+    depth: u8,
+    key: &'static str,
+    label: &'static str,
+    signs: &'static [Sign],
+}
+
+impl Rung {
+    /// Declare a rung. `depth` is its position in the profile, counted from one.
+    ///
+    /// `key` is the word a person types at `--until`; `label` is what a report calls it. They are
+    /// separate because one is an interface and the other is prose: `uboot` is not a thing anyone
+    /// wants to read in a sentence, and `U-Boot` is not a thing anyone wants to type.
+    #[must_use]
+    pub const fn new(
+        depth: u8,
+        key: &'static str,
+        label: &'static str,
+        signs: &'static [Sign],
+    ) -> Self {
+        Self {
+            depth,
+            key,
+            label,
+            signs,
+        }
+    }
+
+    /// Position in the profile's prologue, counted from one.
+    #[must_use]
+    pub const fn depth(&self) -> u8 {
+        self.depth
+    }
+
+    /// The word a person types at `--until` to wait for this rung.
+    #[must_use]
+    pub const fn key(&self) -> &'static str {
+        self.key
+    }
+
+    /// What a report calls this rung.
+    #[must_use]
+    pub const fn label(&self) -> &'static str {
+        self.label
+    }
+
+    /// Does this line say the rung was reached? `complete` says whether the line has finished.
+    #[must_use]
+    pub fn seen_in(&self, line: &str, complete: bool) -> bool {
+        self.signs.iter().any(|sign| sign.seen_in(line, complete))
+    }
+}
+
+// Depth alone, for both. Ord and Eq have to agree or a `Rung` in an ordered collection misbehaves,
+// and depth is the only field whose comparison means anything: a rung's label and signs are how it
+// is recognised, not which rung it is.
+impl PartialEq for Rung {
+    fn eq(&self, other: &Self) -> bool {
+        self.depth == other.depth
+    }
+}
+
+impl PartialOrd for Rung {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Rung {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.depth.cmp(&other.depth)
+    }
+}
+
+/// **A way the firmware gives up before the kernel runs.**
+///
+/// A positive statement printed by something that is still alive. A board that has gone silent is
+/// not in here; silence is the watcher's business, not the recogniser's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Refusal {
+    /// The text that means it refused.
+    pub marker: &'static str,
+    /// One line naming what went wrong, for the report and the exit message.
+    ///
+    /// Written as the whole sentence rather than as a code, because the report is read by somebody
+    /// at a bench deciding what to do next and a token would send them back to the source.
+    pub diagnosis: &'static str,
+    /// Whether the line **before** this one carries the reason.
+    ///
+    /// U-Boot's `### ERROR ###` says that it gave up and the line before it says why, so a reader
+    /// handed only the first half has to go back to the log to learn anything.
+    pub reason_is_the_line_before: bool,
+}
+
+/// **One board's firmware prologue**, and nothing else.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Profile {
+    /// The board this describes, as this project names it.
+    pub name: &'static str,
+    /// The rungs, in the order the firmware climbs them. Declared shallowest first; nothing
+    /// enforces that beyond a test in this module, because the depths are written down beside the
+    /// rungs where a reader meets them.
+    pub prologue: &'static [Rung],
+    /// How this firmware announces that it has given up.
+    pub refusals: &'static [Refusal],
+    /// Text meaning the firmware moved the payload, which is a discriminator and not a rung.
+    pub relocation: &'static [&'static str],
+}
+
+impl Profile {
+    /// The rung a person means by `key`, or `None` if this board has no such rung.
+    ///
+    /// **`None` is the useful half.** `--until spl` against a board with no SPL is a request that
+    /// can never be satisfied, and answering it with a refusal beats watching a board for two
+    /// minutes and then reporting that the time ran out.
+    #[must_use]
+    pub fn rung(&self, key: &str) -> Option<&'static Rung> {
+        self.prologue.iter().find(|rung| rung.key == key)
+    }
+
+    /// Every `--until` word this board understands, for an error message that names them.
+    pub fn keys(&self) -> impl Iterator<Item = &'static str> {
+        self.prologue.iter().map(|rung| rung.key)
+    }
+}
+
+/// **radon, a `StarFive` VisionFive 2** (JH7110), and the only profile checked against a machine.
+///
+/// Every marker was first quoted from `notes/visionfive2.md`'s bench runbook and then checked
+/// against bytes off the wire on 2026-09-01; the captures are in `tests/fixtures/captured/` and the
+/// tests assert on them. See `notes/board-console.md` for the table of where each one came from.
+pub static RADON: Profile = Profile {
+    name: "radon",
+    prologue: &[
+        // DRAM and the PLLs are up and we are running out of SRAM.
+        Rung::new(1, "spl", "U-Boot SPL", &[Sign::Text("U-Boot SPL")]),
+        // OpenSBI's banner block ends with a "Platform Name" table, but the version line is the one
+        // the runbook says to record, and it is the only line guaranteed to carry the word followed
+        // by a version.
+        Rung::new(2, "opensbi", "OpenSBI", &[Sign::Text("OpenSBI v")]),
+        // Two signs, because U-Boot announces itself twice in two shapes: its banner, and the
+        // prompt it offers if the countdown is interrupted. The banner needs the word test; the
+        // prompt is unambiguous text.
+        Rung::new(
+            3,
+            "uboot",
+            "U-Boot",
+            &[
+                Sign::WordAfter {
+                    prefix: "U-Boot ",
+                    not: &["SPL", "TPL"],
+                },
+                Sign::Text("StarFive #"),
+            ],
+        ),
+        // U-Boot has handed over and everything after this is ours.
+        Rung::new(
+            4,
+            "handoff",
+            "kernel handoff",
+            &[Sign::Text("Starting kernel ...")],
+        ),
+    ],
+    refusals: &[
+        Refusal {
+            marker: "Bad Linux RISCV Image magic!",
+            diagnosis: "U-Boot rejected the image header (Bad Linux RISCV Image magic!)",
+            reason_is_the_line_before: false,
+        },
+        Refusal {
+            marker: "### ERROR ### Please RESET the board ###",
+            diagnosis: "U-Boot gave up before the kernel ran and wants the board reset",
+            reason_is_the_line_before: true,
+        },
+    ],
+    relocation: &["Moving Image from"],
+};
+
+/// **xenon, whose firmware prologue is empty, and that is a measurement.**
+///
+/// It boots through PVH straight into `nife on `, so the portable half of the ladder is its whole
+/// boot: `bench/xenon-2026-09-17/first-light-095500.log` is the capture, and a `--replay` of it
+/// reports the banner, the machine line, the five-of-five self-test and the measured-boot refusal
+/// with the right diagnosis without a single rung of prologue. Nothing was added for xenon when
+/// that capture was taken, and this profile is that fact written down rather than a placeholder.
+///
+/// See this module's `BUGS`: one capture on one day is what stands behind the emptiness.
+pub static XENON: Profile = Profile {
+    name: "xenon",
+    prologue: &[],
+    refusals: &[],
+    relocation: &[],
+};
+
+/// The boards a person may name at `--board`, in the order an error message lists them.
+pub static PROFILES: &[&Profile] = &[&RADON, &XENON];
+
+/// The profile a person means by `name`, or `None`.
+#[must_use]
+pub fn profile(name: &str) -> Option<&'static Profile> {
+    PROFILES.iter().copied().find(|p| p.name == name)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The depths are written by hand beside each rung, so something has to say they are the
+    /// positions they claim to be: a duplicate or a gap would make the ratchet compare two rungs
+    /// as equal and silently stop moving.
+    #[test]
+    fn every_profiles_depths_count_from_one_without_gaps() {
+        for profile in PROFILES {
+            for (i, rung) in profile.prologue.iter().enumerate() {
+                assert_eq!(
+                    usize::from(rung.depth()),
+                    i + 1,
+                    "{}'s rung {} declares depth {}",
+                    profile.name,
+                    rung.key(),
+                    rung.depth()
+                );
+            }
+        }
+    }
+
+    /// The `--until` words have to be distinct within a board, or `rung()` answers whichever was
+    /// written first and a person gets a rung they did not ask for.
+    #[test]
+    fn a_boards_rung_keys_are_distinct() {
+        for profile in PROFILES {
+            let mut seen: Vec<&str> = Vec::new();
+            for key in profile.keys() {
+                assert!(
+                    !seen.contains(&key),
+                    "{} repeats --until {key}",
+                    profile.name
+                );
+                seen.push(key);
+            }
+        }
+    }
+
+    /// The distinction the whole prologue turns on, and the one a `contains("U-Boot")` gets wrong.
+    /// Kept here beside the declaration as well as in `progress`, because this is where somebody
+    /// adding a board will copy the shape from.
+    #[test]
+    fn spl_does_not_satisfy_the_u_boot_rung() {
+        let uboot = RADON.rung("uboot").expect("radon has a U-Boot rung");
+        assert!(!uboot.seen_in("U-Boot SPL 2021.10 (Feb 12 2023 - 20:24:34 +0800)", true));
+        assert!(uboot.seen_in("U-Boot 2021.10 (Feb 12 2023 - 20:24:34 +0800)", true));
+        assert!(
+            uboot.seen_in("StarFive # ", false),
+            "the prompt has no newline"
+        );
+        // Mid-word, the line is not yet evidence of anything: the next three bytes may be `SPL`.
+        assert!(!uboot.seen_in("U-Boot ", false));
+    }
+
+    /// A board with no prologue answers every `--until` firmware word with `None`, which is what
+    /// turns `--until spl` against xenon into a refusal rather than a two-minute wait.
+    #[test]
+    fn a_board_without_a_prologue_knows_no_firmware_rungs() {
+        assert!(XENON.rung("spl").is_none());
+        assert!(XENON.rung("uboot").is_none());
+        assert_eq!(XENON.keys().count(), 0);
+    }
+
+    #[test]
+    fn a_board_is_found_by_the_name_this_project_calls_it() {
+        assert_eq!(profile("radon"), Some(&RADON));
+        assert_eq!(profile("xenon"), Some(&XENON));
+        assert_eq!(profile("argon"), None, "argon is deferred, not profiled");
+    }
+}

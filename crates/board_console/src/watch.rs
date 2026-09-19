@@ -25,6 +25,7 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::board;
 use crate::progress::{BootProgress, Failure, LineFeeder, Stage};
 use crate::stop::{Escape, Report};
 
@@ -71,6 +72,16 @@ pub struct Policy {
     ///
     /// Zero disables it, at that cost.
     pub settle: Duration,
+    /// **Which board's firmware prologue to expect** (milestone 324 part 3).
+    ///
+    /// It lives here rather than being a parameter because a `Policy` already describes the session
+    /// rather than only its clocks: [`Self::until`] is a [`Stage`], and a `Stage::Firmware` is a
+    /// rung *of a profile*, so the board was already implicit in this struct and is now written
+    /// down. A session has exactly one, chosen before any byte is read.
+    ///
+    /// The default is [`board::RADON`], which is what every caller watched before profiles existed;
+    /// see [`board`]'s `BUGS` for why that is cheap rather than correct over an emulator.
+    pub board: &'static board::Profile,
 }
 
 impl Default for Policy {
@@ -80,6 +91,7 @@ impl Default for Policy {
             until: Some(Stage::Banner),
             quiet_after: Some(Duration::from_secs(15)),
             settle: Duration::from_secs(2),
+            board: &board::RADON,
         }
     }
 }
@@ -260,7 +272,7 @@ where
 
     let started = Instant::now();
     let mut feeder = LineFeeder::new();
-    let mut progress = BootProgress::new();
+    let mut progress = BootProgress::new(policy.board);
     let mut bytes = 0u64;
     let mut spoke_at: Option<Instant> = None;
     // Set when the wanted stage arrives; the session then ends when the settle window closes, or
@@ -362,9 +374,20 @@ where
         // sitting at a `swish` prompt is quiet because it is *waiting for somebody to type*. Both
         // are correct terminal states of a boot, and since that milestone the prompt is the one a
         // default boot is supposed to reach.
+        //
+        // **[`Stage::SweepDone`] joined it at milestone 324 part 2**, on `Tour`'s reason exactly:
+        // `kernel/src/job_mix.rs` halts in `wfi` after `job-mix: done`. [`Stage::Sweep`] is
+        // deliberately NOT here, and that asymmetry is the whole of what part 2 bought: a sweep
+        // that started and stopped is the wedge this tool exists to name, where before it and a
+        // finished sweep both ended as the clock running out. What the exemption cannot do is
+        // shorten a subrun, so see `Stage::Sweep`'s own documentation on sizing `quiet_after`
+        // against the slowest one.
         if let (Some(limit), Some(last)) = (policy.quiet_after, spoke_at)
             && settling.is_none()
-            && !matches!(progress.reached(), Stage::Tour | Stage::Prompt)
+            && !matches!(
+                progress.reached(),
+                Stage::Tour | Stage::Prompt | Stage::SweepDone
+            )
             && last.elapsed() >= limit
         {
             outcome = Outcome::WentQuiet;
@@ -571,6 +594,9 @@ mod tests {
             until,
             quiet_after,
             settle: Duration::from_millis(50),
+            // radon, the same default `Policy::default` takes, so these tests exercise the
+            // profile-driven prologue rather than an empty one.
+            board: &board::RADON,
         }
     }
 
@@ -595,7 +621,13 @@ mod tests {
         let log = include_bytes!("../tests/fixtures/synthetic/vf2-bad-magic.log");
         let mut sink = Vec::new();
         let session = watch(&log[..], &mut sink, &Policy::default(), false).unwrap();
-        assert_eq!(session.outcome, Outcome::Announced(Failure::BadImageMagic));
+        assert_eq!(
+            session.outcome,
+            Outcome::Announced(Failure::FirmwareRefused {
+                diagnosis: "U-Boot rejected the image header (Bad Linux RISCV Image magic!)",
+                reason: String::new(),
+            })
+        );
         assert_eq!(session.exit_code(), 1);
         assert!(String::from_utf8_lossy(&sink).contains("Bad Linux RISCV Image magic!"));
     }
@@ -636,13 +668,17 @@ mod tests {
             until: Some(Stage::Banner),
             quiet_after: Some(Duration::from_millis(300)),
             settle: Duration::from_millis(50),
+            board: &board::RADON,
         };
         let source =
             SpeaksThenStops::new(&b"Moving Image from 0x40200000\nStarting kernel ...\n"[..]);
         let session = watch(source, &mut sink, &policy, true).unwrap();
         assert_eq!(session.outcome, Outcome::WentQuiet);
         assert_eq!(session.exit_code(), 2);
-        assert_eq!(session.progress.reached(), Stage::Handoff);
+        assert_eq!(
+            session.progress.reached(),
+            Stage::Firmware(board::RADON.rung("handoff").expect("radon hands off"))
+        );
         assert!(session.progress.relocated());
     }
 
@@ -676,7 +712,10 @@ mod tests {
         let session = watch(&log[..at], &mut sink, &policy, false).unwrap();
         assert_eq!(session.outcome, Outcome::Ended);
         assert_eq!(session.exit_code(), 3);
-        assert_eq!(session.progress.reached(), Stage::Handoff);
+        assert_eq!(
+            session.progress.reached(),
+            Stage::Firmware(board::RADON.rung("handoff").expect("radon hands off"))
+        );
     }
 
     /// **The case the third capture forced.** A boot that halts at the measured-boot gate prints
@@ -714,6 +753,7 @@ mod tests {
             until: None,
             quiet_after: Some(Duration::from_millis(100)),
             settle: Duration::from_millis(10),
+            board: &board::RADON,
         };
         // Speaks the whole successful boot, then stops, exactly as the board does.
         let session = watch(SpeaksThenStops::new(full), &mut sink, &policy, true).unwrap();
@@ -740,6 +780,7 @@ mod tests {
             until: None,
             quiet_after: Some(Duration::from_millis(200)),
             settle: Duration::from_millis(10),
+            board: &board::RADON,
         };
         let session = watch(SpeaksThenStops::new(cut), &mut sink, &policy, true).unwrap();
         assert_eq!(session.outcome, Outcome::WentQuiet);
@@ -771,6 +812,7 @@ mod tests {
             until: None,
             quiet_after: Some(Duration::from_secs(30)),
             settle: Duration::from_millis(10),
+            board: &board::RADON,
         };
         let session = watch(SpeaksThenStops::new(full), &mut sink, &policy, true).unwrap();
         assert_eq!(session.outcome, Outcome::RanOut);
@@ -807,6 +849,7 @@ mod tests {
             until: Some(Stage::Tour),
             quiet_after: Some(Duration::from_millis(200)),
             settle: Duration::from_millis(10),
+            board: &board::RADON,
         };
         let session = watch(SpeaksThenStops::new(full), &mut sink, &policy, true).unwrap();
         assert_eq!(session.outcome, Outcome::WentQuiet);
@@ -825,7 +868,7 @@ mod tests {
         assert_eq!(session.exit_code(), 1);
         assert!(matches!(
             session.outcome,
-            Outcome::Announced(crate::progress::Failure::UBootRefused(_))
+            Outcome::Announced(crate::progress::Failure::FirmwareRefused { .. })
         ));
     }
 }
