@@ -8193,14 +8193,36 @@ fn tree_apropos(term: Option<String>) -> bool {
             ranked.offered()
         );
     }
-    for p in &long {
+    // **Only a path this search printed can fail it.** Until 2026-09-19 any over-long path anywhere
+    // in the corpus made every search exit 1 with a warning per file, whatever the term: six
+    // roadmap and decision filenames had grown past the record, so the tool a newcomer is pointed
+    // at failed on its own README example. The rule above still holds for a result somebody is
+    // shown (a path they cannot open is worse than no result, so that exits 1 and names it); a path
+    // that never reached the output is a fact about the corpus and gets one line, not a failure.
+    let max = documentation::index::PATH_MAX;
+    let shown: Vec<&String> = long
+        .iter()
+        .filter(|p| {
+            ranked
+                .results()
+                .iter()
+                .any(|f| p.as_bytes().starts_with(f.origin()) && f.origin().len() == max)
+        })
+        .collect();
+    for p in &shown {
         eprintln!(
-            "apropos: {p} is longer than the {} bytes a page record holds, so its result would be \
-             truncated",
-            documentation::index::PATH_MAX
+            "apropos: {p} is longer than the {max} bytes a page record holds, so the result above \
+             that names it is truncated"
         );
     }
-    long.is_empty()
+    if long.len() > shown.len() {
+        eprintln!(
+            "apropos: {} other paths are longer than the {max} bytes a page record holds; none \
+             is in these results",
+            long.len() - shown.len()
+        );
+    }
+    shown.is_empty()
 }
 
 /// One document offered to the tree index: where it lives, what it is called, and its text.
