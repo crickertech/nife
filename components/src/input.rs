@@ -220,6 +220,14 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
 /// follow-up rather than the end state; functionally it reaches the same prompt and forwards the
 /// same keystrokes, through the same port capability. `yield_now` hands the CPU to the shell and the
 /// line discipline between polls, so a cooperative or preempted schedule interleaves all three.
+///
+/// **What the poll costs, measured by milestone 182 (2026-09-19).** A thread that always yields is
+/// always runnable, so the scheduler's run queue is never empty and its idle loop never runs again
+/// once this driver starts. Two consequences follow. The core never halts: QEMU sat at 99 to 100%
+/// of a host core at an `x86_64` prompt with nothing typed, 76 CPU-seconds in 78 wall-seconds. And
+/// anything the idle loop does stops, `kernel::cap::report_peak` included, so the capability-slot
+/// gauge reports the mark at the hand-over (5 of 24) instead of the peak (17 of 24, read by a
+/// temporary instrument). Both go away with the interrupt-driven follow-up.
 #[cfg(target_arch = "x86_64")]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
