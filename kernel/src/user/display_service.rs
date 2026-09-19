@@ -459,11 +459,10 @@ pub fn start_screen_terminal(
     // The surface: RAM, the contract's run of frames, shared by the driver and the terminal. The
     // same allocation `wire_driver` makes, minus the ring page, because nothing here is a device's
     // DMA: the driver copies it with the CPU.
-    let surface = crate::memory::alloc_contiguous_zeroed(
-        graphics_protocol::SURFACE_PAGE_FRAMES as usize,
-    )
-    .expect("no contiguous surface for the framebuffer driver")
-    .addr();
+    let surface =
+        crate::memory::alloc_contiguous_zeroed(graphics_protocol::SURFACE_PAGE_FRAMES as usize)
+            .expect("no contiguous surface for the framebuffer driver")
+            .addr();
 
     let display_ep = crate::sched::create_rendezvous(); // terminal WRITE (CALL) -> driver READ
     let driver_report = crate::sched::create_rendezvous();
@@ -500,7 +499,7 @@ pub fn start_screen_terminal(
                 arg0: size,
                 arg1: layout,
                 arg2: offset, // where pixel (0, 0) is in the first mapped page
-                grants: &[], // every one of them is placed above, at its own slot
+                grants: &[],  // every one of them is placed above, at its own slot
                 maps: &[],
             },
             device,

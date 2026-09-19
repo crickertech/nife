@@ -266,12 +266,7 @@ impl Aperture {
             1 => PixelOrder::Rgbx,
             _ => return None,
         };
-        Self::checked(
-            size as u32,
-            (size >> 32) as u32,
-            layout as u32,
-            order,
-        )
+        Self::checked(size as u32, (size >> 32) as u32, layout as u32, order)
     }
 
     /// **Copy one rectangle of a surface onto the screen.** `read(x, y)` is the surface's pixel in
@@ -654,7 +649,11 @@ mod tests {
         let (found, mut pixels) = screen(2, 1, PAD, PixelOrder::Bgrx);
         pixels.fill(0xa5);
         let aperture = Aperture::new(&found, 1000, 1000).expect("a real screen");
-        assert_eq!(aperture.size(), (found.width, found.height), "clipped to the screen");
+        assert_eq!(
+            aperture.size(),
+            (found.width, found.height),
+            "clipped to the screen"
+        );
         let (w, h) = aperture.size();
         // Every surface pixel a function of its coordinate, so a misplaced pixel is a wrong value.
         let surface = |x: u32, y: u32| (y << 8) | x;
@@ -666,7 +665,11 @@ mod tests {
                 assert_eq!(pixel(&found, &pixels, x, y), surface(x, y), "({x},{y})");
             }
             let pad = (y * found.stride + w * 4) as usize;
-            assert_eq!(&pixels[pad..pad + PAD as usize], &[0xa5; PAD as usize], "row {y}");
+            assert_eq!(
+                &pixels[pad..pad + PAD as usize],
+                &[0xa5; PAD as usize],
+                "row {y}"
+            );
         }
         assert_eq!(aperture.span(), ((h - 1) * found.stride + w * 4) as usize);
     }
@@ -685,14 +688,20 @@ mod tests {
             order: PixelOrder::Bgrx,
         };
         let aperture = Aperture::new(&found, 924, 344).expect("a real screen");
-        assert_eq!(aperture.size(), (924, 344), "the surface is smaller: it wins");
+        assert_eq!(
+            aperture.size(),
+            (924, 344),
+            "the surface is smaller: it wins"
+        );
         let narrow = Framebuffer {
             width: 800,
             stride: 800 * 4,
             ..found
         };
         assert_eq!(
-            Aperture::new(&narrow, 924, 344).expect("a real screen").size(),
+            Aperture::new(&narrow, 924, 344)
+                .expect("a real screen")
+                .size(),
             (800, 344),
             "a narrow screen clips the surface's width and not its height"
         );
@@ -705,7 +714,14 @@ mod tests {
             (u32::MAX, 0, 2, 1),
         ] {
             assert!(
-                !aperture.copy(x, y, w, h, |_, _| 0, |_, _| panic!("wrote for ({x},{y},{w},{h})")),
+                !aperture.copy(
+                    x,
+                    y,
+                    w,
+                    h,
+                    |_, _| 0,
+                    |_, _| panic!("wrote for ({x},{y},{w},{h})")
+                ),
                 "({x},{y},{w},{h}) should have been refused"
             );
         }
@@ -743,10 +759,21 @@ mod tests {
         use super::Aperture;
         let (found, mut pixels) = screen(1, 1, 0, PixelOrder::Rgbx);
         let aperture = Aperture::new(&found, 1, 1).expect("one pixel");
-        assert!(aperture.copy(0, 0, 1, 1, |_, _| 0x0011_2233, |at, word| {
-            pixels[at..at + 4].copy_from_slice(&word.to_le_bytes());
-        }));
-        assert_eq!(&pixels[0..4], &[0x11, 0x22, 0x33, 0x00], "bytes R, G, B, unused");
+        assert!(aperture.copy(
+            0,
+            0,
+            1,
+            1,
+            |_, _| 0x0011_2233,
+            |at, word| {
+                pixels[at..at + 4].copy_from_slice(&word.to_le_bytes());
+            }
+        ));
+        assert_eq!(
+            &pixels[0..4],
+            &[0x11, 0x22, 0x33, 0x00],
+            "bytes R, G, B, unused"
+        );
     }
 
     /// A framebuffer slice shorter than the geometry claims must truncate the picture, never panic.
