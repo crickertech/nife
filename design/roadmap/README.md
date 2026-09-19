@@ -160,7 +160,6 @@ one of eight dispositions:
 | `**Recorded.**` | It is a limitation and it stays one. | Prose, and any path it cites must exist |
 | `**Refused.**` | Considered and deliberately not taken. | A reason, in prose |
 | `**Decision.**` | It is calef's call, written up as one. | A file under `design/decisions/` |
-| `**Proposed.**` | Named, nobody took it, so it is now a proposal. | A file under `design/roadmap/proposals/` |
 | `**Outstanding.**` | Still this milestone's own remaining scope, checked against the tree and still true. `PARTIAL` blocks only. | What is left, and how you checked |
 
 **`PARTIAL` was added by milestone 252, and it is the harder half.** A finished block is written
@@ -170,12 +169,12 @@ lane reads when deciding what to pick up, so a stale one does not merely misinfo
 that does not exist. Milestone 16 listed three things as remaining, two of them were finished, and
 the block said otherwise for weeks.
 
-**`Outstanding.` is the word a `PARTIAL` block needs that a finished one does not.** The other seven
+**`Outstanding.` is the word a `PARTIAL` block needs that a finished one does not.** The other six
 say where work *went*; a `PARTIAL` block's commonest honest answer is that it has not gone anywhere
-and is still this milestone's own scope. None of the seven can say that without lying, and a lane
+and is still this milestone's own scope. None of the six can say that without lying, and a lane
 forced to choose would write the comfortable word or leave the item out, which is the silence this
 gate exists to stop arriving through the gate. It is refused on a `BUILT` or `REMOVED` block, where
-`Recorded.`, `Proposed.` and `Milestone N.` already cover the ground and a softer synonym would only
+`Recorded.` and `Milestone N.` already cover the ground and a softer synonym would only
 give them somewhere to hide.
 
 **`None.` is refused on a `PARTIAL` block**, which is the one thing this gate can prove rather than
@@ -197,13 +196,17 @@ observation had to resolve to a milestone, would make the honest thing expensive
 the `BUGS` sections out, which costs more than the burial does. Nothing here reads prose looking for
 intent: AGENTS.md priced that at `git grep -w TODO`'s 82% false-positive rate.
 
-**`Proposed.` is the one that carries this milestone's whole subject**, and it went through two
-shapes in a day. A block that wrote its follow-on work down honestly and had nobody pick it up fits
-none of the other words: `Recorded.` lies about intent and `Refused.` lies about the decision, so a
-lane forced to choose writes the more comfortable one. Three lanes that would not lie left the item
-out instead, which is the burial arriving through the gate. It was first spelled `Unclaimed.` and
-took only prose, because a lane could not mint a milestone number and had nothing to point at. That
-constraint went the same day, and the disposition now resolves to a file somebody wrote.
+**`Proposed.` carried this milestone's whole subject and was retired on 2026-09-19**, which leaves
+six words. The problem it solved is real and has not gone away: a block that wrote its follow-on work
+down honestly and had nobody pick it up fits none of the other words, since `Recorded.` lies about
+intent and `Refused.` lies about the decision, so a lane forced to choose writes the more comfortable
+one. Three lanes that would not lie left the item out instead, which is the burial arriving through
+the gate. It went through three shapes: `Unclaimed.`, taking only prose because a lane could not mint
+a number and had nothing to point at; then `Proposed.`, resolving to a file under
+`design/roadmap/proposals/`; and now **`Milestone N.` with N provisional**, because the section below
+lets a lane mint the block itself. The word went because its directory did, and the work it names has
+a stronger home than either earlier shape: a row in the table rather than a file behind a second
+command.
 
 **`Done.` came from the same afternoon and four lanes**, for work a block named that two ordinary
 commits then finished. Each of those lanes resolved it by leaving the item out, which is the silence
@@ -212,51 +215,56 @@ this gate exists to stop, arriving through the gate itself.
 **The whole vocabulary is provisional until calef ratifies it.** `REMOVED` was minted by him and
 these six words are a lane's, offered with the sweep that produced them.
 
-## Anybody may add to this roadmap: `design/roadmap/proposals/`
+## Anybody may add to this roadmap, and what they add is a milestone
 
-Ratified by calef on 2026-09-03, and it dissolves a rule this tree had been treating as one thing.
-**A lane writes a proposal itself**, as `design/roadmap/proposals/<slug>.md`, with no number in the
-name. No coordination, no maintainer in the path, no waiting.
+Ratified by calef on 2026-09-03 and **simplified by him on 2026-09-19**, when the mechanism the first
+ruling invented turned out to cost more than the problem it solved.
+
+**A lane that identifies work writes the milestone block itself**, as
+`design/roadmap/<N>-<slug>.md`, `**Status: NOT-STARTED.**`, with the number **provisional** and said
+to be provisional in its report. No coordination, no maintainer in the path, no waiting.
 
 *"On a human team, anybody should be able to add to the roadmap. That's different than prioritizing
-that roadmap."* Lanes were barred from minting because concurrent lanes cannot see each other and
-two reaching for the same number collide. **The collision is in the number, not in the authority**,
-and conflating them meant a lane that found work had to route it through a report, through the
-maintainer, into a decision that might be deferred. Every hop is a chance to lose it, and on the day
-this landed the maintainer had buried three items by deferring them into chat messages. Prioritising
-the roadmap is still calef's, and so is every number and every name.
+that roadmap."* That is the ruling that stands. Prioritising the roadmap is still calef's, and so is
+every name.
 
-**Why a slug and not a GUID**, which was considered and rejected. Milestones are cited in prose
-constantly and a GUID cannot be said out loud. This tree already found bare numbers too opaque, which
-is why it cites a milestone by number *and* name; a GUID moves further along the axis that already
-needed correcting. The slug is the readable half of a filename this directory already uses, so
-nothing new has to be learned, and two lanes collide only by choosing the same words, which is
-visible rather than silent. Numbers stay for promoted blocks, where they also carry recency for free.
+**What changed is only the number.** The 2026-09-03 ruling routed lanes through an unnumbered
+`design/roadmap/proposals/<slug>.md` because concurrent lanes cannot see each other and two reaching
+for the same number collide: *"the collision is in the number, not in the authority."* True, and the
+remedy was heavier than it needed to be. **This tree already tolerates a provisional number one
+directory over**: AGENTS.md says a lane that must write a `design/decisions/` section to pass its own
+gates gives it a provisional number, says so, and expects renumbering. Milestone numbers are the same
+kind of object.
 
-**A proposal carries the same status and gate lines a numbered block does**, so promotion changes
-almost nothing:
+**A collision is cheap because a new block has no readers.** What makes a number expensive is the
+61 call sites, the reader's head and the vocabulary people argue in; a block minted an hour ago has
+none of them. Two lanes both reaching for 434 land two files whose names begin `434-`, which is
+visible at merge rather than silent, and the merge queue arbitrates as it does for every other global
+name. **The newer file moves and the older number stands**, so a block that has begun collecting
+citations never renumbers.
 
-```markdown
-# <Title, the way a numbered block is titled>
+**What the directory cost, measured rather than argued.** It ran from 2026-09-03 to 2026-09-19 and
+reached 106 files. On the day it was drained, **66 of them carried gate `NONE`**, meaning a lane could
+have started them, and `script/roadmap --ready` printed 69 milestones while reading no proposals at
+all: roughly half the tree's startable work was invisible to the command a lane picks work from.
+Draining it took four lanes an evening, and **46 of the 106 carried something false** by then. The
+graveyard question this section used to ask of itself was answered by the tree: a proposal nobody
+promotes is the same burial in a new location, and that is what happened.
 
-**Status: PROPOSED 2026-09-03.** Written by <who or what>, from milestone <N>'s block.
+**And the decay is same-day, which is what kills the directory rather than merely embarrassing it.**
+Of the proposals whose disposition changed on promotion, most were answered **within a day of
+filing**, several by the very lane that wrote them and then finished the work that evening. So no
+cadence of draining would have helped: the answer arrived before the next merge. Milestone 433 has
+the numbers.
 
-**Gate: NONE.** <what stops a lane starting this>
+**The one thing a lane writes that it did not before.** Every numbered block carries an
+`## Index row` section, which `script/roadmap --check` requires and **none of the 106 proposals had**.
+It is a paragraph in the generated table's voice. That paragraph is the whole additional cost, and
+it is what puts the work in the table instead of behind a second command.
 
-**In brief.** <what the work is>
-```
-
-**Promotion is the integrator's, at merge**, like every other global name: give the file its number,
-`git mv` it up a directory, and run `script/roadmap --write` so the generated table below picks up
-its row. `script/roadmap --check` validates the rest.
-
-**The graveyard question, asked here rather than discovered later.** A proposal nobody promotes is
-the same burial in a new location. Nothing can force a promotion, and a gate that tried ("no proposal
-older than N days") would be routed around by not writing proposals, which is worse than the pile.
-What the gate does instead is make the pile impossible to miss: the status line carries the date it
-was written, `script/roadmap --check` prints the count and the oldest date on every lint run, and
-`--proposed` lists them oldest first. An unread number is still rung two, where a paragraph in a
-finished block was rung four.
+**`**Proposed.**` is gone from the follow-on vocabulary**, which is six words now. A finished block
+that names work nobody has taken writes `**Milestone N.**` with N provisional, the same as any other.
+See `design/decisions/140-follow-on-disposition-vocabulary.md`.
 
 **Reading it.** `script/roadmap --ready` prints only what a lane could pick up now: gate `NONE`, and a
 status of `NOT-STARTED` or `PARTIAL`, because `IN-PROGRESS` has somebody on it and `OPTIONAL` and
