@@ -22,43 +22,142 @@ that the board columns were empty on purpose. They are filled now. The static fo
 still measured on patagonia with `objdump` and no emulator, and the 2026-08-22 figures are still
 labelled as dev-Mac runs.)*
 
-## The next radon evening: what milestone 134 still owes, and how it shares a night with 168
+## The next radon evening: E3 under the layout control, and how it shares a night with 168
 
-*(Added 2026-09-19 by milestone 134's per-IPC stack-depth lane. calef may book one evening for
-this page and notes/job-mix.md together, so this section says what each half needs and in what
-order, and it does not copy either procedure.)*
+*(Written 2026-09-19 by milestone 134's per-IPC stack-depth lane and rewritten the same day by the
+lane that built the control. calef may book one evening for this page and notes/job-mix.md
+together, so this section says what each half needs and in what order, and it does not copy either
+procedure.)*
 
-**What is already taken and does not need the board again.** E1 and E4 ran on radon on
-2026-09-04 and both are single-build sweeps, so the layout confound below does not touch them;
-they are quotable as they stand. The per-IPC kernel stack depth, which E1's prediction used to
-estimate, is now measured (notes/stack-high-water.md, "Per-IPC depth"), and depth is a property of
-the code rather than of timing, so QEMU measured the same release riscv64 kernel radon boots.
+**What is already taken and does not need the board again.** E1 and E4 ran on radon on 2026-09-04
+and both are single-build sweeps, so the confound below does not touch them; they are quotable as
+they stand. The per-IPC kernel stack depth, which E1's prediction used to estimate, is now measured
+(notes/stack-high-water.md, "Per-IPC depth").
 
-**What is owed is E3, and only E3 under a layout control.** Re-running E3 as it is built today
-would reproduce the 2026-09-04 confound exactly (this page's BUGS: a second card or a second board
-changes nothing about layout, so it would look like confirmation). The control is
-`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`, **and it is not
-built**. Its cheapest form is `fastpath_pad` taking a size rather than a boolean, so E3 becomes a
-dose-response over at least four sizes; footprint predicts a monotone curve and layout does not.
+**What is owed is E3, and only E3 under a layout control.** Re-running E3 as it was built would
+reproduce the 2026-09-04 confound exactly (this page's BUGS: a second card or a second board
+changes nothing about addresses, so it would look like confirmation). **The control is built**, as
+of 2026-09-19: `kernel/src/fastpath_pad.rs`, sized by two build-time variables.
 
-So the evening this milestone needs has one hard prerequisite on patagonia before anyone walks to
-the bench: **the layout control exists and `script/fastpath-footprint` confirms each pad size on
-the exact commit to be booted.** Without it, spend the evening on milestone 168 alone.
+### The knob, in one paragraph
 
-### What the evening must produce for milestone 134 to turn BUILT
+`fastpath_pad` still turns E3's padding on. Two environment variables, read by `kernel/build.rs`
+and only when that feature is on, say how much of it there is:
 
-1. **E3 as a dose-response**: `call_reply`, `ipc_rtt` and `ipc_rtt_el0` at pad size 0 and at three
-   or more non-zero sizes, **three boots per size, interleaved** (0, 1, 2, 3, 0, 1, 2, 3, ...), on a
-   `board,bench,single_hart` card, every boot ending in `bench: done` with `cntfrq 4000000`.
-2. **The reading**, recorded in this page's results and the register's E3 row: for each row,
-   whether the effect rises monotonically with pad size beyond the boot-to-boot spread
-   (footprint), jumps and returns (layout), or stays inside the spread (neither). Only the first is
-   a footprint result, and only it routes to milestone 188 phase 4 by the outcome table below.
-3. **The `cycles_per_tick` line from every boot**, which each bench boot already prints, so the E3
-   rows convert to cycles (M5) on the evening's own commit rather than on 2026-09-16's.
+- **`NIFE_FASTPATH_PAD=<units>`** is the sled's length in units of what the feature has always
+  linked (5,092 bytes on riscv64, 5,796 on aarch64). Unset is 1, the sled the 2026-09-04 session
+  booted. **0 is the ladder's zero**: the guard and a `ret`, so every rung runs the same
+  instructions and the guard stops being a difference between conditions.
+- **`NIFE_FASTPATH_SHIFT=<bytes>`** appends that many zero bytes after the sled, under a symbol
+  nothing references. It moves exactly the code the pad moves and adds nothing reachable, which is
+  what makes it a **layout variant**: an un-padded kernel at different addresses.
 
-Everything else a `--bench` boot prints (E1's `ipc_scale_*`, E4's `appdisp_*`) re-dates those two
-rows for free and is worth keeping in the capture, but 134 does not wait on it.
+They are variables rather than a feature per size **because it was built that way first and
+measured**. A feature's name enters cargo's `-C metadata` hash, which renames every symbol and
+reorders codegen units: seven sibling features moved code linked *ahead* of the sled by up to
+11 KB on the card build, and `syscall::dispatch` wandered across 240 of the 256 L1i sets, so each
+image was an uncontrolled layout draw and the size being varied was noise on top of it. With the
+variables, measured on the `board,bench,single_hart,fastpath_pad` build: **every text symbol before
+the sled keeps its address to the byte, all 635 after it move by exactly the bytes asked for, and
+none changes size.**
+
+### The eight images, and why these sizes
+
+| image | `NIFE_FASTPATH_PAD` | `NIFE_FASTPATH_SHIFT` | what moves, riscv64 card build |
+|---|---|---|---|
+| pad 0 | 0 | 0 | the reference for both ladders |
+| pad 1 | 1 (or unset) | 0 | +5,088 bytes, 79.5 L1i sets |
+| pad 2 | 2 | 0 | +10,176, 159 sets |
+| pad 3 | 3 | 0 | +15,264, 238.5 sets |
+| layout A | 0 | 820 | +820, 12.8 sets |
+| layout B | 0 | 1640 | +1,640, 25.6 sets |
+| layout C | 0 | 2460 | +2,460, 38.4 sets |
+| layout D | 0 | 3280 | +3,280, 51.3 sets |
+
+The four layout sizes are **small on purpose**: each moves the trap path by under one 4 KiB page,
+so they vary *where* the hot path lands far more than *how far it is spread*, which is the
+difference E3 is trying to separate. They also differ where the U74 is known to care. Two are 0 and
+two are 4 mod 8, and the manual says the BTB predicts a taken branch or jump with no bubble only
+when the target is 8-byte aligned (`SiFive` U74-MC Core Complex Manual 21G3.02.00, §4.2.6). Their
+64-byte line phases (52, 40, 28, 16) are four values none of the pads takes (32 and 0). And one of
+them leaves `.data` on the same page as pad 0 while three move it by one page, which matters
+because the L1d is 32 KiB 4-way, an 8 KiB way, so an odd page moves every static to a new set
+(§4.4.1).
+
+### Step 0, on patagonia, before anyone walks to the bench
+
+```sh
+git log -1 --format=%h                     # the commit every image below is built from
+for c in 0:0 1:0 2:0 3:0 0:820 0:1640 0:2460 0:3280; do    # pad:shift
+  NIFE_FASTPATH_PAD=${c%%:*} NIFE_FASTPATH_SHIFT=${c##*:} script/fastpath-footprint \
+    --arch riscv64 --features board,bench,single_hart,fastpath_pad --layout
+done
+```
+
+Two lines out of each run are the check, and they are the reason this step exists:
+
+- **`layout: code hash <...>`** must be **the same 16 hex digits for all eight**. It is a hash of
+  every instruction in both IPC closures and the entry set, with address operands normalised away
+  (direct call and branch targets, `auipc`/`adrp` uppers, and the low-12 immediates that pair with
+  them; the script prints how many of each it touched). Equal hashes are the proof that the eight
+  images execute the same code and differ only in where it sits. A different hash means something
+  changed the fastpath itself and the evening is measuring two things again.
+- **`layout: fastpath_pad_body at <addr>, <n> bytes`** must show the sled at the same address in
+  all eight, with the requested length.
+
+Keep the whole readout per image: it carries each hot symbol's address, its L1i set on the U74
+(32 KiB, 2-way, 64-byte lines, virtually indexed, §4.2.2, so 256 sets from address bits 6 to 13),
+its line phase, whether it starts 8-byte aligned, and where `.text` ends and `.data` starts. Those
+are the pre-registered layout facts each image's numbers get read against.
+
+### The boots
+
+```sh
+NIFE_FASTPATH_PAD=0 NIFE_FASTPATH_SHIFT=0 \
+  script/board-image --bench --tftp --extra-features fastpath_pad
+script/board-console --for 20m --until none --log bench/radon-<date>/bench-e3-pad0-1.log
+```
+
+- **Eight images, three boots each, interleaved**, in the order pad0, pad1, pad2, pad3, A, B, C, D,
+  then around again twice. Interleaving is this page's own rule (step 5 below) and it is what keeps
+  a room warming up out of the comparison. Twenty-four boots at about 75 seconds each is roughly
+  half an hour of booting plus a rebuild between images; `--tftp` (milestone 257) makes an image
+  change a rebuild and a power cycle rather than a card write.
+- **Check the first two lines of every capture.** `bench: cntfrq 4000000` says this is the board
+  and not QEMU `virt`. `bench-probe: fastpath_pad units <u> shift <s>` says **which image booted**,
+  which nothing on a card said before 2026-09-19 and which is the mistake an interleaved run of
+  eight images is most likely to make. The last line must be `bench: done`.
+- `script/board-image` echoes the two variables on its `features:` line, and refuses to build if
+  they are set without `fastpath_pad` in the feature list.
+
+### Reading it
+
+Three rows matter, as before: `call_reply` (the shape services run, and the one the verdict should
+rest on), `ipc_rtt`, `ipc_rtt_el0`.
+
+1. **Take the layout distribution first.** The four layout images differ from pad 0 in nothing a
+   CPU executes, so whatever spread appears across those five conditions **is** the layout effect,
+   per row. Report it as a range, not a mean.
+2. **Then read the pad ladder against it.** A row that **rises monotonically with pad size and
+   leaves the layout range** is the only footprint result available here. A row that **jumps and
+   comes back**, or that moves no further than the layout images do, is layout. A row that stays
+   inside the boot-to-boot spread is neither.
+3. **Keep every boot's `cycles_per_tick` line**, so the rows convert to cycles (M5) on the
+   evening's own commit.
+
+| what the capture shows | what it means | where it routes |
+|---|---|---|
+| `call_reply` monotone in pad size and outside the layout range | dispersing the hot path costs measurable time on a 32 KiB L1i | milestone 188 phase 4 has its first real evidence; the magnitude is the payoff to hold a hand-written fastpath to |
+| pad ladder inside the layout range | a doubling and tripling of the *measured* footprint costs no more than moving code a kilobyte does | §95's premise is in serious doubt; route to `design/decisions/95-*`, and 188 phase 4 is a standing verification obligation bought for an effect two boards cannot separate from noise |
+| the layout range is itself large (several percent) | the 2026-09-04 reading was an artifact, as suspected, and **every between-build comparison in `bench/` inherits it** | notes/benchmarks.md, as a caveat on stored baselines |
+| rows disagree (one monotone, one not) | shape-specific, which is a result about *which* path to optimise | 188 phase 4, narrower than sketched |
+
+**What this cannot decide, and it should be said before the numbers exist.** The padding is never
+executed, so it cannot evict anything on its own; the only way it can reach a clock is by moving
+other code. E3 therefore tests whether **the number `script/fastpath-footprint` reports predicts
+latency**, which is what milestone 188 leans on, rather than Liedtke's claim about an *executed*
+footprint. That claim needs either M6 (instruction-cache misses per IPC) or a perturbation that
+adds executed instructions, and neither is this experiment.
 
 **Optional, one boot, if there is time:** a card built with `--extra-features ipc_stack_depth`
 prints the per-IPC depth lines on the board itself. It should reproduce the QEMU release numbers
@@ -68,28 +167,21 @@ are not results, since the instrument paints on every sample.
 
 ### Sharing the night with milestone 168
 
-The two cannot share an image: `script/board-image` refuses `--bench` with `--job-mix`, because both
-replace the end of the boot tour. They share everything else, and the network boot (milestone 257)
-makes switching cheap: `--tftp` means each image change is a rebuild on patagonia and a power cycle,
-with no card written.
+Unchanged from the first version of this section, except that E3 is now eight images rather than
+two. The two halves cannot share an image (`script/board-image` refuses `--bench` with
+`--job-mix`), and `--tftp` makes switching a rebuild and a power cycle.
 
 | order | what | boots | why this order |
 |---|---|---|---|
-| 1 | on patagonia: `git log -1 --format=%h`, then `script/fastpath-footprint --arch riscv64` at each pad size | none | the one check that invalidates the whole E3 block if it fails, and it needs no board |
-| 2 | E3 dose-response, `script/board-image --bench --tftp [--extra-features ...]` per size | 3 per size, interleaved | interleaving is the design (this page, step 5), so it goes first while the room and the board are at one temperature for the whole block |
+| 1 | on patagonia: step 0 above, all eight images | none | the check that invalidates the whole E3 block if it fails, and it needs no board |
+| 2 | E3, `script/board-image --bench --tftp --extra-features fastpath_pad` per image | 3 per image, interleaved | interleaving is the design, so it goes first while the room and the board are at one temperature |
 | 3 | milestone 168's job mix, `script/board-image --job-mix --tftp` | at least 5 | notes/job-mix.md, "The next bench evening on radon", steps 0 to 8, unchanged |
-| 4 | optional: one `--bench --extra-features ipc_stack_depth` boot | 1 | last, because it answers a question nothing is blocked on |
+| 4 | optional: one `--bench --extra-features ipc_stack_depth` boot | 1 | last, because nothing is blocked on it |
 
-Keep the captures apart by name, since both land in `bench/radon-<date>/`: `bench-e3-<size>-<n>.log`
-for this page and `jobmix-boot<n>.log` for 168's, and write down the commit hash once per image
-(`board-image` echoes its `features:` line, and nothing on the board says which build it booted).
-The console rules are notes/job-mix.md's step 0 for both halves: one capture per serial port, and
-clean each log with `tr` before committing it.
-
-**Time**, as far as it is measured: a bench boot took about 75 seconds on 2026-09-04 (this page's
-BUGS); a job-mix boot is "under a minute of sweep" plus U-Boot and the fetch, not yet measured. Four
-pad sizes at three boots each is twelve bench boots, so the E3 block is roughly half an hour of
-boots plus rebuilds, and the job mix after it about as long.
+Log names: `bench-e3-pad<n>-<boot>.log` and `bench-e3-shift<bytes>-<boot>.log` here,
+`jobmix-boot<n>.log` for 168's, both under `bench/radon-<date>/`. Write the commit down once. The
+console rules are notes/job-mix.md's step 0 for both halves: one capture per serial port, and clean
+each log with `tr` before committing it.
 
 ## What the session measured, 2026-09-04
 
@@ -169,9 +261,10 @@ interpretable for the first time: an effect inside the layout distribution is la
 outside it is footprint. The same fix answers the E4 and E1 readings below, which have the same
 exposure.
 
-Written up as `design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`,
-because without it every perturbation experiment in this tree measures footprint and layout summed
-together and reports the total as footprint.
+Written up as a proposal the day this was captured, promoted to **milestone 370**, and **built on
+2026-09-19**: the images and the procedure are in "The next radon evening" above. Without it every perturbation
+experiment in this tree measures footprint and layout summed together and reports the total as
+footprint.
 
 ### E1: the knee is real, it is where the prediction put it, and then it stops
 
@@ -544,14 +637,33 @@ read `ipc_thread_scaling skipped` twenty minutes later.
 
 ## BUGS
 
-- **E3 cannot separate footprint from code layout, and this is the defect that matters.** The
-  experiment varies one Cargo feature, which changes both the amount of resident text and the
-  address of every symbol after it. The 2026-09-04 session found a 193 ns effect with a sign that
-  footprint cannot produce, so the 19 ns effect it *can* produce is not attributable. No reading of
-  E3 taken this way should be quoted as a footprint result until a layout control exists
-  (`design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`). This is a flaw
-  in the experiment's design rather than in its execution, and it was there on patagonia too; the
-  small cache is what made it visible.
+- **E3 could not separate footprint from code layout, which is the defect the control was built
+  for.** The experiment varied one Cargo feature, which changes both the amount of resident text
+  and the address of every symbol after it. The 2026-09-04 session found a 193 ns effect with a
+  sign footprint cannot produce, so the 19 ns effect it *can* produce is not attributable. **No
+  reading taken that way is a footprint result, including the 2026-09-04 table on this page.** The
+  control landed 2026-09-19 (the section above); until an evening is run with it, E3 has no
+  attributable number at all.
+- **The padding is never executed, so it can only ever act through addresses.** A dead sled evicts
+  nothing by itself; what it does is push other code apart. So even a clean dose-response measures
+  whether `script/fastpath-footprint`'s number predicts latency, not Liedtke's claim about an
+  executed footprint. Said in the procedure above as well, because it is the sentence most likely
+  to be dropped when a result is quoted.
+- **Four layout images are a small sample of a distribution.** Stabilizer (Curtsinger and Berger,
+  ASPLOS 2013) randomises layout repeatedly for exactly this reason. Four draws can bound an effect
+  loosely and cannot prove one absent; a pad reading just outside the layout range is weak evidence
+  rather than a finding.
+- **The bench card's kernel is not the kernel the static table below measures.** `bench` changes
+  the IPC path's codegen (`ipc_call_reply` is 5,212 bytes with it against 5,936 without, on
+  riscv64, and the normalised instruction stream differs), and `single_hart` adds four
+  instructions; `board` alone changes nothing. Step 0 above therefore measures the card's own
+  feature set rather than the bare release kernel, which the 2026-09-04 session did not: its
+  "5,936 unpadded, 11,070 padded" is a true statement about a kernel nobody booted that evening.
+  Milestone 134's optional per-IPC-depth boot rests on the same assumption and inherits this.
+- **`cargo xtask bench --riscv --extra-features <f>` silently ignored the features until
+  2026-09-19**, building a plain `bench` kernel and printing its numbers under the flag. Found by
+  this control's QEMU boot proof; fixed in `xtask` (the x86_64 arm had it too). Any riscv64 E3
+  rehearsal taken through that path before this date measured an un-padded kernel.
 - **A bench boot takes about 75 seconds, and step 3's twenty-minute window is therefore very
   generous.** Measured over six boots on 2026-09-04, all of which reached `bench: done`. The
   deadline was the thing this page was most worried about being wrong and it was wrong in the safe
@@ -578,14 +690,19 @@ read `ipc_thread_scaling skipped` twenty minutes later.
 - **The bench card measures fewer things than an ordinary one.** `smp_throughput`, `fs_read` and
   `fs_throughput` self-skip under `single_hart`. A session that wants a multi-core number from
   radon builds a second card without the flag, and that card cannot produce E1 or E4.
-- **The padded and un-padded images are indistinguishable on the card.** Same three filenames, no
-  build stamp in the payload, and nothing on the board prints its feature set. The mitigation is
-  the `features:` line in the build output and the operator's own log filename, which is rung four
-  of AGENTS.md's ladder and is honest about it. A kernel that printed its own feature set at boot
-  would be rung three and is proposed in
-  `design/roadmap/367-a-boot-banner-that-names-the-build.md`.
-- **E3's `black_box` guard is a confound on both shapes now, not one.** `ipc_send` and `ipc_call`
-  each carry one untaken compare-and-branch when the feature is on. `kernel/src/fastpath_pad.rs`'s
+- **The images are still mostly indistinguishable on the card, with one exception since
+  2026-09-19.** Same three filenames, no build stamp in the payload, and nothing on the board
+  prints its feature set, so the mitigation for everything else is the `features:` line in the
+  build output and the operator's own log filename, which is rung four of AGENTS.md's ladder. The
+  exception is exactly the case an eight-image interleave would break on: a `fastpath_pad` bench
+  boot prints `bench-probe: fastpath_pad units <u> shift <s>`, so E3's images name themselves. A
+  kernel that printed its whole feature set would be rung three for the rest and is proposed in
+  `design/roadmap/proposals/a-boot-banner-that-names-the-build.md`.
+- **E3's `black_box` guard is a confound on both shapes, and the dose-response removes it from the
+  comparison rather than from the kernel.** Every image in the ladder above carries the guard,
+  including the zero rung, so it cancels between conditions; it remains a difference between any of
+  them and a build with the feature off, which is what the 2026-09-04 table compared. `ipc_send`
+  and `ipc_call` each carry one untaken compare-and-branch when the feature is on. `kernel/src/fastpath_pad.rs`'s
   module doc prices it at around a nanosecond against a low-microsecond round trip; on radon the
   round trip is longer and the branch is not faster, so the ratio only improves. It is still a real
   asymmetry between the two builds and it is why an effect at the 1% level should not be believed.
