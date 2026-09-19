@@ -58,11 +58,17 @@
 //!   does instead is **print the census** ([`print_census`]) so a run's number is never quotable
 //!   without the arrangement that produced it, and the bench procedure in `notes/job-mix.md` asks
 //!   for repeated boots rather than one. **A single boot's jobs-per-minute figure is not a result.**
-//! - **The best of [`job_mix::REPEATS`] is kept, which is a decision about host noise and not about
-//!   this kernel.** It is `kernel/src/bench.rs`'s own methodology (`tp_best`), and it is right on a
-//!   shared dev Mac. On a board with nothing else running, the spread between repeats is itself
-//!   information, and this throws it away. The per-repeat lines are printed for that reason, so the
-//!   spread is in the log even though the summary line is not.
+//! - **Each point is the median of [`job_mix::REPEATS`], and that is a decision about this
+//!   workload rather than a house rule.** Until 2026-09-19 this kept the best of three, which is
+//!   `kernel/src/bench.rs`'s `tp_best` methodology and is right on a shared dev Mac. On radon the
+//!   spread between repeats is the tasks' own contention, not somebody else's load, and a best-of
+//!   drawn from it moved 29% between boots at `tasks=4`. `job_mix::REPEATS` carries the evidence
+//!   for 21 and the median. The fastest and slowest repeats are printed on the same line so the
+//!   spread is never hidden, and every repeat still gets its own `job-mix-repeat:` line.
+//! - **The breakdown exchange after each subrun is not free for the machine**, only for the clock.
+//!   It is `JOB_KINDS` rendezvous per released task, after the clock stops and before the next
+//!   subrun starts, so it warms the report endpoint and the supervisor's stack between repeats in a
+//!   way the pre-2026-09-19 sweep did not. It is the same for every repeat and every point.
 //! - **This does not compare a process kernel against an event kernel**, and it cannot: there is no
 //!   event kernel to compare against. It measures what this kernel does under multi-tasking load,
 //!   which is the input §96 says it is missing. §96 stays open either way.
@@ -75,18 +81,19 @@
 //!   is part of finishing) and it is a fixed additive cost that grows with N, so it flatters the
 //!   small subruns by a few microseconds.
 
-// **The six markers in this import moved out of this file** (milestone 324 part 2): `CENSUS`,
-// `DONE`, `FAILED`, `POINT`, `STARTED` and `SUBRUN`. They were three private `const`s here and four
+// **The seven markers in this import moved out of this file** (milestone 324 part 2): `CENSUS`,
+// `DONE`, `FAILED`, `KIND`, `POINT`, `STARTED` and `SUBRUN`. They were private `const`s here and
 // string literals in `xtask/src/main.rs`, agreeing with `crates/board_console`'s recogniser by a
 // reader having checked; that is milestone 268's finding 3 wearing different clothes, and the fix
 // is the one that milestone found. They now sit beside the rest of the workload's definition, which
 // both halves of the instrument already read, and `crates/boot_ladder`'s header carries the general
 // argument for why a printed line is a crate rather than a literal.
 use job_mix::{
-    CENSUS, DONE, ECHO_SERVERS, FAILED, MAX_TASKS, POINT, REPEATS, STARTED, SUBRUN, TASK_SWEEP,
+    CENSUS, DONE, ECHO_SERVERS, FAILED, JOB_KINDS, KIND, MAX_TASKS, POINT, REPEATS, STARTED,
+    SUBRUN, TASK_SWEEP,
 };
 
-use crate::cap::{Rights, rendezvous_cap};
+use crate::cap::{Rights, memory_region_cap, rendezvous_cap};
 use crate::user::{self, Spawn};
 use crate::{arch, println, sched, smp};
 
@@ -103,6 +110,25 @@ pub fn run() -> ! {
     let report = sched::create_rendezvous();
     let mut go = [0u64; MAX_TASKS];
     for slot in &mut go {
+        *slot = sched::create_rendezvous();
+    }
+    // One untyped budget and one child-done endpoint per task, for the map and spawn jobs. Built
+    // with the pool rather than per subrun, for the reason the pool is: a subrun should time the
+    // jobs, not the supervisor's set-up. See `job_mix::TASK_BUDGET_PAGES` for why a task never
+    // shares its region.
+    let mut budget = [0u64; MAX_TASKS];
+    for (i, slot) in budget.iter_mut().enumerate() {
+        let Some(region) = crate::memory_region::create(job_mix::TASK_BUDGET_PAGES) else {
+            println!(
+                "{FAILED}could not create task {i}'s {}-page budget",
+                job_mix::TASK_BUDGET_PAGES
+            );
+            arch::halt();
+        };
+        *slot = region;
+    }
+    let mut child_done = [0u64; MAX_TASKS];
+    for slot in &mut child_done {
         *slot = sched::create_rendezvous();
     }
     let mut echo = [0u64; ECHO_SERVERS];
@@ -145,10 +171,17 @@ pub fn run() -> ! {
         // copy of the numbering. The rights are the least each use needs: a task may write its
         // report and may not read other tasks' reports; it may read its own go endpoint and may not
         // release anybody, including itself; it may call a server and may not answer as one.
+        // The budget and the child-done endpoint are the two a task needs to create things: it may
+        // spend its own region and nobody else's, and it hears only from its own children.
         let grants = [
             rendezvous_cap(report, Rights::WRITE),
             rendezvous_cap(go[i], Rights::READ),
             rendezvous_cap(echo[i % ECHO_SERVERS], Rights::WRITE),
+            memory_region_cap(budget[i]),
+            rendezvous_cap(
+                child_done[i],
+                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+            ),
         ];
         let started = sched::spawn_reporting_placement(move || {
             user::run(
@@ -191,6 +224,12 @@ pub fn run() -> ! {
         "job-mix: this measures THIS kernel under multi-tasking load; it compares nothing against an \
          event kernel and does not decide design/decisions/96-process-kernel-or-event-kernel.md"
     );
+    println!(
+        "job-mix: each point is the median of {REPEATS} repeats, with the fastest and slowest \
+         beside it (since 2026-09-19); a transcript before that date printed the best of 3 as \
+         ticks= and jpm=, which is a different statistic from a different mix and is not \
+         comparable with jpm_median="
+    );
     print_census(&placed);
     println!(
         "{CENSUS} placement decides throughput on real silicon by up to fifteenfold \
@@ -199,17 +238,41 @@ pub fn run() -> ! {
     );
 
     for &tasks in &TASK_SWEEP {
-        let mut best = u64::MAX;
-        for repeat in 0..REPEATS {
+        let mut samples = [0u64; REPEATS];
+        let mut kind_ticks = [0u64; JOB_KINDS];
+        let mut region_ticks = [0u64; JOB_KINDS];
+        for (repeat, sample) in samples.iter_mut().enumerate() {
             let ticks = subrun(report, &go[..tasks]);
             println!("{SUBRUN}tasks={tasks} repeat={repeat} ticks={ticks}");
-            best = best.min(ticks);
+            *sample = ticks;
+            breakdown(report, &go[..tasks], &mut kind_ticks, &mut region_ticks);
         }
+        let Some(spread) = job_mix::spread(&mut samples) else {
+            unreachable!("REPEATS is a nonzero constant");
+        };
         let jobs = tasks as u64 * job_mix::JOBS_PER_TASK;
         println!(
-            "{POINT}{tasks} jobs={jobs} ticks={best} jpm={}",
-            job_mix::jobs_per_minute(jobs, best, hz)
+            "{POINT}{tasks} jobs={jobs} repeats={REPEATS} ticks_min={} ticks_median={} \
+             ticks_max={} jpm_median={}",
+            spread.min,
+            spread.median,
+            spread.max,
+            job_mix::jobs_per_minute(jobs, spread.median, hz)
         );
+        // Per kind, summed over every task and every repeat at this point: what each kind of job
+        // cost on average, and how much of that was the region calls. Totals rather than a
+        // per-job figure alone, so a reader can re-derive the division.
+        for kind in 0..JOB_KINDS {
+            let kind_jobs = job_mix::jobs_of_kind(kind as u8) * tasks as u64 * REPEATS as u64;
+            println!(
+                "{KIND} tasks={tasks} kind={} jobs={kind_jobs} ticks={} per_job={} \
+                 region_ticks={}",
+                job_mix::KIND_NAMES[kind],
+                kind_ticks[kind],
+                kind_ticks[kind] / kind_jobs.max(1),
+                region_ticks[kind]
+            );
+        }
     }
 
     println!("{DONE}");
@@ -223,15 +286,55 @@ pub fn run() -> ! {
 /// The clock starts before the first release and stops after the last report, which is AIM7's own
 /// definition of a subrun (it ends when every one of its tasks has completed its jobs) and which
 /// this module's `BUGS` prices.
+///
+/// A task that could not finish reports [`job_mix::REPORT_FAILED`], and this halts on it with the
+/// task, the job kind and the refusal, rather than printing a tick count for work that was not
+/// done. The clock has already been read by then, and no number is printed for the point.
 fn subrun(report: sched::RendezvousId, go: &[sched::RendezvousId]) -> u64 {
     let t0 = arch::timer::now();
     for &ep in go {
-        sched::ipc_send(ep, [0, 0, 0]);
+        sched::ipc_send(ep, [job_mix::GO_RUN, 0, 0]);
     }
+    let mut failure = None;
     for _ in go {
-        let _ = sched::ipc_recv(report);
+        let [jobs, err, who, ..] = sched::ipc_recv(report);
+        if jobs == job_mix::REPORT_FAILED && failure.is_none() {
+            failure = Some((err, who));
+        }
     }
-    arch::timer::now() - t0
+    let ticks = arch::timer::now() - t0;
+    if let Some((err, who)) = failure {
+        let kind = (who >> 32) as usize;
+        println!(
+            "{FAILED}task {} could not finish a {} job: the kernel refused with {}",
+            who & 0xffff_ffff,
+            job_mix::KIND_NAMES.get(kind).copied().unwrap_or("unknown"),
+            err as i64
+        );
+        arch::halt();
+    }
+    ticks
+}
+
+/// Ask each task released in the last subrun for its per-kind breakdown and add it to the running
+/// totals. **After the clock stopped**, so it costs the timed window nothing; it is `JOB_KINDS`
+/// rendezvous per task, which on the largest point is a few hundred, untimed.
+fn breakdown(
+    report: sched::RendezvousId,
+    go: &[sched::RendezvousId],
+    kind_ticks: &mut [u64; JOB_KINDS],
+    region_ticks: &mut [u64; JOB_KINDS],
+) {
+    for &ep in go {
+        sched::ipc_send(ep, [job_mix::GO_BREAKDOWN, 0, 0]);
+        for _ in 0..JOB_KINDS {
+            let [kind, ticks, region, ..] = sched::ipc_recv(report);
+            if let Some(k) = kind_ticks.get_mut(kind as usize) {
+                *k += ticks;
+                region_ticks[kind as usize] += region;
+            }
+        }
+    }
 }
 
 /// **Print which of the pool is on which core, one line per core** (the shape milestone 240 gave

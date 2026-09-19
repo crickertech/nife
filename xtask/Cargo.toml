@@ -55,3 +55,7 @@ compositor = { version = "0.1.0", path = "../crates/compositor" }
 # pixel-for-pixel claim rather than an impression. Text is the case where eyeballing is most
 # tempting and least sufficient.
 video_terminal = { version = "0.1.0", path = "../crates/video_terminal" }
+# The programs the shell can spawn (milestone 150): the packer refuses to build an archive missing
+# one, because a `Prog` whose binary is not packed compiles, passes every host test and cannot be
+# spawned. `no_std` with one in-tree dependency (`glob`), so it costs the host build nothing.
+grant_plan = { version = "0.1.0", path = "../crates/grant_plan" }

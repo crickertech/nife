@@ -33,6 +33,14 @@
 //! - **`VARange` reporting 52 does not mean the kernel could use 52.** ARMv8.2-LVA needs a 64 KiB
 //!   granule and ARMv8.7-LPA2 is a separate feature bit this record does not read. The field is
 //!   reported because it is what the machine says; acting on it is a milestone, not a branch.
+//! - **`TGran4` has two "yes" encodings, and until 2026-09-19 this decoder knew one.** Arm's
+//!   `ID_AA64MMFR0_EL1` page defines `0b0001` as "4KB granule supports 52-bit input addresses and
+//!   can describe 52-bit output addresses", present with `FEAT_LPA2`, so it is a *stronger* yes than
+//!   `0b0000`. Reading it as reserved refused the boot on QEMU's `-cpu max` and on any real part
+//!   with `FEAT_LPA2` (found by milestone 74's aarch64 lane). Fixed, and kept here as a record
+//!   because the three granule fields spend their encodings three different ways (`TGran64` has
+//!   no LPA2 value at all), so a reader tidying the three lines below into one would bring this
+//!   bug or the next one back.
 //! - **`TGran16`'s encoding is inverted relative to its siblings.** `TGran4` and `TGran64` spell
 //!   "supported" as `0b0000` and "not supported" as `0b1111`; `TGran16` spells them `0b0001` and
 //!   `0b0000`. A decoder that treats the three uniformly reports 16 KiB backwards on every part in
@@ -124,10 +132,17 @@ impl Isa {
                 _ => 0,
             },
             granules: Granules {
-                // 0b0000 supported, 0b1111 not. Any other value is reserved and read as absent.
-                k4: f(mmfr0_el1, 28) == 0b0000,
-                // 0b0001 supported, 0b0000 not. The inverted one; see the module BUGS.
-                k16: f(mmfr0_el1, 20) == 0b0001 || f(mmfr0_el1, 20) == 0b0010,
+                // 0b0000 supported, 0b0001 supported with 52-bit input and output addresses
+                // (FEAT_LPA2), 0b1111 not. The LPA2 value is a stronger yes, not a different
+                // answer: this kernel's 4 KiB, 48-bit tables work on it unchanged. Any other value
+                // is reserved and read as absent. Until 2026-09-19 this read `== 0b0000` and
+                // refused every FEAT_LPA2 part, QEMU's `-cpu max` included.
+                k4: matches!(f(mmfr0_el1, 28), 0b0000 | 0b0001),
+                // 0b0001 supported, 0b0010 supported with FEAT_LPA2, 0b0000 not. The inverted one;
+                // see the module BUGS.
+                k16: matches!(f(mmfr0_el1, 20), 0b0001 | 0b0010),
+                // 0b0000 supported, 0b1111 not. No LPA2 value: 64 KiB reaches 52 bits through
+                // FEAT_LVA and FEAT_LPA, which this field does not report.
                 k64: f(mmfr0_el1, 24) == 0b0000,
             },
             va_bits: match f(mmfr2_el1, 16) {

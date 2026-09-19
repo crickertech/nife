@@ -110,7 +110,7 @@ row pretending to be one.
 | E2: thread census on the customer path | 2026-08-22 | `cargo xtask test`, the "E2 thread census" line in `a_host_process_connects_to_the_guest_and_is_answered` (both ISAs) |
 | E3: IPC fastpath footprint doubled, and the latency it costs | **2026-09-04 (radon, 6 boots); confounded, see below**; 2026-08-22 (dev Mac) | `script/fastpath-footprint --features fastpath_pad` (both ISAs); `cargo xtask bench --real --extra-features fastpath_pad` against `cargo xtask bench --real` (aarch64); on radon, `script/board-image --bench [--extra-features fastpath_pad]` and notes/footprint-perturbation.md |
 | E4: application working-set displacement under IPC traffic, at typical (8-pair) and high (48-pair, E1's-knee) background load | **2026-09-04 (radon, 6 boots)**; 2026-08-23 (dev Mac) | `cargo xtask bench --real` (`appdisp_*_ipc`/`appdisp_*_ipc96` rows); on radon, `script/board-image --bench` and notes/footprint-perturbation.md |
-| multi-tasking throughput, jobs per minute against task count (milestone 168) | **no run on silicon** | `script/board-image --job-mix --card ...`, then `script/board-console`; the rehearsal is `script/job-mix` |
+| multi-tasking throughput, jobs per minute against task count (milestone 168) | **2026-09-16 (radon, 5 boots; old instrument, `tasks=4` not a number)** | `script/board-image --job-mix --tftp`, then `script/board-console`, by `notes/job-mix.md`'s bench-evening procedure; the rehearsal is `script/job-mix` |
 
 **E1, E3 and E4 re-taken on radon, 2026-09-04, which is the board all three were designed
 against.** Six boots on a `board,bench,single_hart` card, interleaved unpadded and padded, one
@@ -217,13 +217,15 @@ now pads too, and both shapes read roughly 1.85x on both ISAs. The 2026-08-22 E3
 when taken and describes a quantity that no longer means what it said, which is the exact failure
 this register exists to make visible.
 
-**The milestone 168 row is the register's first `dated` row that has never been taken**, and the
-date column says so in words rather than being left blank, which is the failure mode this file's own
-cross-OS row was written to complain about. The instrument exists, is host-tested and has been
-rehearsed under QEMU on all three architectures; what it lacks is a board. It is `dated` rather than
-`owed` because the command that takes it is written down and runnable today
-(`notes/job-mix.md`'s procedure), which is exactly the line between the two states. The number it
-produces is the input `design/decisions/96-process-kernel-or-event-kernel.md` is holding open for.
+**The milestone 168 row was the register's first `dated` row that had never been taken**, until
+five boots of radon on 2026-09-16. Those boots measured the curve's shape (a knee near four tasks,
+then a plateau with no decline through 32) with an instrument that kept the best of three repeats,
+and showed that `tasks=4` under that rule was not a number: 29.4% across boots of one image. On
+2026-09-19 the instrument changed to the median of 21 repeats and gained a page-mapping job and a
+process-creation job, so **the 2026-09-16 date is a date for a different instrument**, and the row
+says so rather than letting the date imply the current one has been taken. The next radon evening
+re-dates it, and its result is what `design/fatal-risks.md`'s risk 4 and
+`design/decisions/96-process-kernel-or-event-kernel.md` are waiting for.
 
 **The filesystem row is the one on the customer path**, and it is the clearest case in the register
 for why `dated` is a finding rather than a filing. Milestone 55 is a Time Machine target the

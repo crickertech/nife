@@ -890,6 +890,17 @@ $ llvm-objdump -d --demangle std_exerciser/target/aarch64-unknown-nife/release/s
   have made the message true is one comparison against `farm_dir()`. The bullet above says a stale
   farm is reported "honestly and uselessly"; run 5 is the case where it is reported dishonestly,
   because the paths belong to a farm this checkout never built.
+- **The same stale cache has a third face, and it never reaches the foreign-path check.** Found
+  2026-09-19 by milestone 168's lane, twice in a row on one worktree: `script/test` failed at
+  `std-exerciser: building std_exerciser for aarch64-unknown-nife failed`, with ten errors inside
+  the **rustup toolchain's own, unpatched** std (`none of the predicates in this cfg_select
+  evaluated to true` in `sys/alloc/mod.rs`, `sys/io/error/mod.rs`, `sys/thread_local`), while
+  `nife-dev` pointed correctly at this worktree's farm and `rustc --print sysroot` answered the
+  farm. `rm -rf std_exerciser/target` and a rebuild compiled std from the farm and passed at once.
+  So a build under `std_exerciser/target` can pin the plain nightly's `library/` as well as another
+  worktree's, and because the build fails before any dep-info is written, `std-aborts`' foreign
+  check never runs and nothing prints the recovery. The cause of the pinning was not diagnosed.
+  **Recovery is the same line**: `rm -rf std_exerciser/target`.
 - **`std-aborts` is a provisional name** (milestone 64, 2026-08-18). Names are calef's; this one is
   not ratified.
 
