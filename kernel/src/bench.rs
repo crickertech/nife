@@ -75,7 +75,7 @@ pub fn run() -> ! {
     rfence_self();
     // Milestone 74's riscv64 half and milestone 309's x86_64 half. aarch64 is ordered behind
     // milestone 74's own aarch64 half (`PMCCNTR_EL0` reads zero until `PMCR_EL0.E` and
-    // `PMCNTENSET_EL0.C` are written); see design/roadmap/proposals/the-aarch64-half-of-74.md.
+    // `PMCNTENSET_EL0.C` are written); see design/roadmap/353-the-aarch64-half-of-74.md.
     #[cfg(any(target_arch = "riscv64", target_arch = "x86_64"))]
     cycles_per_tick();
     coremark_compute();

@@ -1,6 +1,12 @@
-# Sample `compositor`'s five remaining full-screen sweeps under Miri
+# 349. Sample `compositor`'s five remaining full-screen sweeps under Miri
 
-**Status: PROPOSED 2026-09-03.** Written by the milestone 247 sweep, from milestone 238's block.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
+from milestone 238's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
+it holds exactly.** `crates/compositor/src/lib.rs` still has six `for y in 0..SCREEN_H` full-screen
+sweeps (lines 888, 949, 1029, 1076, 1122 and 1141) and exactly one of them strides:
+`let stride = if cfg!(miri) { 37 } else { 1 };` at line 1074, with the completeness pin at line 1099.
+The other five are untouched, and `.github/workflows/undefined-behavior-check.yml` still carries
+`timeout-minutes: 240`, so the budget is still a ceiling nobody has pushed against.
 
 **Gate: NONE.** The pattern already exists in four crates, the one worked example in `compositor`
 itself is measured, and nothing external blocks it.
@@ -52,3 +58,19 @@ The same block **refused** excluding `compositor` from the Miri run to make it f
 bounds this work: the crate has no `unsafe` today but is central system logic under active
 development, and an excluded crate is one where a future `unsafe` block is silently uncovered. So
 the answer has to be striding, not exclusion.
+
+## Index row
+
+`script/undefined-behavior-check` runs the test suite under Miri, which is roughly three orders of
+magnitude slower than native, and `glob`, `network_time_protocol`, `calendar` and `gpt` already
+handle that by sampling their exhaustive loops under `cfg(miri)`. `compositor` has six full-screen
+per-pixel sweeps and one of them has been strided; it fell from over 44 minutes to 57 seconds. The
+other five are untouched and are now the whole remaining cost of the check, which is currently
+affordable only because its budget was raised to 240 minutes rather than because its cost was
+reduced, so the true end-to-end cost has never been measured. A four-hour budget also decides how the
+check can ever be used, since at that price it is a scheduled job and can be nothing else, and the
+one data point says the available reduction is large. There is a second cost that bites a lane: a red
+Miri run takes up to four hours to say anything, and milestone 232's audit already recorded what
+happens to a slow check that cries wolf. The judgement is in choosing the stride, which must not skip
+an edge case the exhaustive loop was covering. Excluding `compositor` was refused and the reason
+bounds this: an excluded crate is one where a future `unsafe` block is silently uncovered.

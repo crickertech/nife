@@ -182,6 +182,16 @@ It is not a `git mv`, and this block exists partly to say so before four lanes d
    so the integrator regenerates it once at the end. This is the whole collision surface of the pass
    and removing it is why four lanes can run at all.
 
+## Slices done
+
+- **327 to 353**, on `milestone/433-slice-1`, 2026-09-19. Twenty-five `NOT-STARTED`, one `PARTIAL`
+  (343, ten of its twelve comments and its index line fixed since filing) and one `BUILT` (344,
+  answered by calef on 2026-08-18, sixteen days before the proposal asking for it was filed). Eight
+  of the twenty-seven had decayed in some part; two had decayed outright. Twenty-six
+  `**Proposed.**` bullets became `**Milestone N.**`, and three citations outside `design/roadmap/`
+  were repointed: `design/decisions/144-fastpath-footprint-ceiling.md`, `notes/follow-on-work.md`
+  and `kernel/src/bench.rs`.
+
 ## BUGS
 
 - **A promoted block can still be a graveyard, one directory up.** Numbering does not prioritise;

@@ -16,7 +16,7 @@ at every context switch behind the `cycle_counter_grant` feature, and
 on all three architectures, negative case included. Whether 75's row is flipped, and what that
 unblocks, is calef's rather than a lane's; the mechanism cited here is what a reader can check
 today. **The aarch64 half of 74 was out of the riscv64 lane's scope, not blocked by an unanswered
-question**, and what it still needs is in `design/roadmap/proposals/the-aarch64-half-of-74.md`:
+question**, and what it still needs is in `design/roadmap/353-the-aarch64-half-of-74.md`:
 `PMCR_EL0.E` and `PMCNTENSET_EL0.C` are never written by this kernel, so `PMCCNTR_EL0` is a stopped
 counter that reads zero however often a granted thread reads it.
 
@@ -30,7 +30,7 @@ row of `SBI_TABLE`, `kernel/src/arch/riscv64/pmu.rs` asks firmware to find and s
 `SBI_PMU_HW_CPU_CYCLES`, checks it is actually counting, remembers which CSR reads it and records
 why when there is none, the boot prints all of it, and `cargo xtask bench --riscv` prints one
 `cycles_per_tick` probe. **The aarch64 half is not**, and it is a tracked handoff rather than a
-blocked one: `design/roadmap/proposals/the-aarch64-half-of-74.md`.
+blocked one: `design/roadmap/353-the-aarch64-half-of-74.md`.
 
 
 ## What we read today, and why it is not cycles
@@ -134,7 +134,7 @@ divides one counter by itself and prints an exact `1.00` on every part. Mileston
 (milestone 309, `design/roadmap/309-x86-64-core-cycles.md`). It is **not built for aarch64**, and
 that is not blocked by anything architectural either: `PMCCNTR_EL0` reads zero until `PMCR_EL0.E`
 and `PMCNTENSET_EL0.C` are written, which is this milestone's own aarch64 half, and the plan is
-`design/roadmap/proposals/the-aarch64-half-of-74.md`.
+`design/roadmap/353-the-aarch64-half-of-74.md`.
 
 ### The capability half, per ISA
 
@@ -258,11 +258,11 @@ hardware costs. Putting them in one table would be the apples-to-apples failure
 
 **The aarch64 half is untouched by this** and still needs `PMCR_EL0.E` and `PMCNTENSET_EL0.C`
 written before `PMCCNTR_EL0` is anything but a stopped counter reading zero, which is why this block
-stays `PARTIAL`. See `design/roadmap/proposals/the-aarch64-half-of-74.md`.
+stays `PARTIAL`. See `design/roadmap/353-the-aarch64-half-of-74.md`.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/the-aarch64-half-of-74.md`: the aarch64 half. The
+- **Milestone 353.** The aarch64 half. The
   authority mechanism it was thought to be waiting for is built, so what remains is that
   `PMCR_EL0.E` and `PMCNTENSET_EL0.C` are never written and `PMCCNTR_EL0` is therefore a stopped
   counter, plus the two things that are calef's (what `PMCCFILTR_EL0` should count, and what the

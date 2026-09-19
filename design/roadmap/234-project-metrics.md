@@ -91,9 +91,9 @@ file it agreed exactly: **701 outside `arch/`, 253 inside, zero files disagreein
   names do; `script/names --unratified` is the worklist and it does not block anything.
 - **Refused.** Putting `--check` in `script/lint`. Any commit moves `HEAD` and a row records the
   commit it was taken at, so gating it would fail every pull request.
-- **Proposed.** `design/roadmap/proposals/stale-comment-ratio-in-agents-md.md`, Correct AGENTS.md's
-  "kernel/src measures 40% of them" comment ratio. The series puts it at 39.3% eight weeks ago and
-  45.3% now, climbing every week, so the figure a reader meets in the project's own front-door file
+- **Milestone 350.** Correct AGENTS.md's
+  "kernel/src measures 40% of them" comment ratio. The series put it at 39.3% eight weeks before this
+  was written and 45.3% then, and it reached 46.4% on 2026-09-14, climbing every week, so the figure a reader meets in the project's own front-door file
   is wrong and drifting further from true. AGENTS.md is calef's file, so the one-line edit is his to
   make; this page flags the staleness and cannot fix it.
 

@@ -1,7 +1,16 @@
-# The aarch64 half of milestone 74: `PMCCNTR_EL0` counts nothing, because nobody starts it
+# 353. The aarch64 half of milestone 74: `PMCCNTR_EL0` counts nothing, because nobody starts it
 
-**Status: PROPOSED 2026-09-03.** Written by the `milestone/74-cycle-counters-riscv` lane, which
-built 74's riscv64 half and was scoped out of this one.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the
+`milestone/74-cycle-counters-riscv` lane, which built 74's riscv64 half and was scoped out of this
+one; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and the defect is
+unchanged.** `PMCR_EL0` and `PMCNTENSET_EL0` still appear nowhere in this kernel except in comments
+saying they are not written, so `PMCCNTR_EL0` is still a stopped counter, and
+`kernel/src/bench.rs:77` still carries that fact as the reason a cycle number cannot be quoted.
+**One detail below has moved**: milestone 291 split `fixtures/src/hello.rs` into programs on
+2026-09-14, so the EL0 reader this block calls `hello`'s `cycle_counter_child` is now
+`fixtures/src/cycle_counter_reader.rs`, and the "QEMU leaves `PMCR_EL0.E` clear" comment the proposal
+cites at `fixtures/src/hello.rs:358` is in that file and in `crates/capability_witness_protocol`.
+`kernel/src/user/tests.rs:2609` still carries the same note. The sizing is otherwise as written.
 
 **Gate: DECISION.** Not the authority question, which is answered: `design/decisions/139-cycle-counter-authority.md`
 chose option 4 and the mechanism is built and tested on all three architectures. What is owed is
@@ -30,8 +39,9 @@ below were read in the tree on 2026-09-03 rather than recalled.
   it last wrote rather than reading back for the same reason.
 - **The EL0 read is proven, including the negative half.**
   `kernel::user::tests::a_granted_thread_reads_the_cycle_counter_and_an_ungranted_one_faults` passes
-  on aarch64, riscv64 and `x86_64`, and `fixtures/src/hello.rs`'s `cycle_counter_child` is the EL0 side:
-  one `mrs` from `PMCCNTR_EL0`, with an ungranted thread faulting rather than reading.
+  on aarch64, riscv64 and `x86_64`, and `fixtures/src/cycle_counter_reader.rs` is the EL0 side
+  (`hello`'s `cycle_counter_child` until milestone 291 split it out on 2026-09-14): one `mrs` from
+  `PMCCNTR_EL0`, with an ungranted thread faulting rather than reading.
 
 So milestone 75's mechanism is not what stands in the way, and a plan that assumed it was would be
 sizing the wrong work.
@@ -40,8 +50,8 @@ sizing the wrong work.
 
 **The counter is not running.** `PMCR_EL0` and `PMCNTENSET_EL0` appear nowhere in this kernel except
 in comments explaining that they are not written. Two of those comments already say what the
-consequence is: `kernel/src/user/tests.rs:2519` and `fixtures/src/hello.rs:358` both record that QEMU
-leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however many times you read it, and both
+consequence is: `kernel/src/user/tests.rs` and `fixtures/src/cycle_counter_reader.rs` both record
+that QEMU leaves `PMCR_EL0.E` clear, so `PMCCNTR_EL0` reads zero however many times you read it, and both
 tests deliberately carry the values without checking them.
 
 That is exactly the hazard the riscv64 half met on QEMU's `rva23s64` model and now defends against:
@@ -62,8 +72,8 @@ firmware call to blame: the kernel is the thing that failed to start the counter
   decision, and it is calef's**, because it is a fact that leaves the machine.
 - Verify it is counting, and record why not when it is not, in the shape
   `arch::riscv64::pmu::CycleCounter` established.
-- The portable read. `fixtures/src/hello.rs`'s `read_cycle_counter` is deliberately *not* in
-  `crates/user_mode_runtime`, and its own comment says why: *"A portable userspace cycle-counter API is
+- The portable read. `fixtures/src/cycle_counter_reader.rs`'s `read_cycle_counter` is deliberately
+  *not* in `crates/user_mode_runtime`, and its own comment says why: *"A portable userspace cycle-counter API is
   milestone 74's deliverable, and it will want to say what the number means."* That is the naming
   and semantics question, and it is the second thing calef owes here.
 - The harness probe, matching the riscv64 half: one `bench-probe: cycles_per_tick` line, which
@@ -94,3 +104,22 @@ The `milestone/74-cycle-counters-riscv` lane, which was scoped to the riscv64 ha
 that milestone 75 gated the aarch64 one. That gating turned out to be a stale index row rather than
 missing work, and the lane was told mid-flight not to expand into it. This file is that handoff, so
 the sizing above does not have to be re-derived by whoever takes it.
+
+## Index row
+
+`PMCR_EL0.E` and `PMCNTENSET_EL0.C` are never written by this kernel, so `PMCCNTR_EL0` is a
+stopped counter: a thread holding the milestone 229 grant can read it, legally, and gets the same
+number every time. Turning it on is a handful of register writes gated on `ID_AA64DFR0_EL1.PMUVer`,
+and the milestone is what goes around them. Everything the riscv64 half needed from the authority
+side aarch64 already has: the per-thread grant is installed at every context switch, the register
+work is careful about parts with no PMU, and the EL0 read is proven on all three architectures
+including the ungranted thread faulting. What is missing is the same defect the riscv64 half met the
+hard way on QEMU's `rva23s64` model, where firmware described a working 64-bit counter that read zero
+forever, so this wants the same shape: verify the counter is moving and record why not when it is
+not. Two things here are calef's, and both are facts that leave the machine: what
+`user_mode_runtime`'s cycle-counter function is called and what it promises, and whether
+`PMCCFILTR_EL0` counts EL1 and EL2, because a count that excludes the kernel is not comparable to
+seL4's and one that includes it is not comparable to a userspace-only profile. §19 makes this a
+parity gap in the one subsystem whose entire purpose is cross-machine comparison, and milestone 25's
+`sel4bench` needs it. Nothing can be settled on Apple silicon: the PMU is not architected state a
+hypervisor must present, so the machine that decides it is argon, with a person at it.

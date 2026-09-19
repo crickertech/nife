@@ -3,7 +3,7 @@
 **Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal by the milestone 247 sweep,
 from milestone 138's block; numbered 2026-09-19 by milestone 433. **Premise re-checked 2026-09-19 and
 it holds.** No `design/decisions/` entry draws this design: the only sections naming a page cache or
-`mmap` are §34 (RedoxFS primary) and §86 (the EL0 NVMe driver), neither of which is about granting a
+`mmap` are §34 (RedoxFS primary) and §86 (whether an NVMe driver can leave the kernel), neither of which is about granting a
 client readable frames. Milestone 138's block still describes the ~13 us residual in prose at four
 sites, which is what "a frontier described in prose" means.
 

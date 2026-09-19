@@ -1,7 +1,15 @@
-# DECISIONS 113's rename reached the code and stopped there
+# 352. DECISIONS 113's rename reached the code and stopped there
 
-**Status: PROPOSED 2026-09-03.** Found while fixing milestone 133's block for the same reason, which
-is how the scale became visible.
+**Status: NOT-STARTED.** Filed 2026-09-03 as an unnumbered proposal while fixing milestone 133's
+block for the same reason; numbered 2026-09-19 by milestone 433. **Premise re-checked and re-measured
+2026-09-19 and it holds.** `notes/tcb.md` is still named for a retired word and is still indexed in
+`notes/README.md` as "The TCB". Counting only the seven retired spellings that cannot collide with
+ordinary prose (`Aspace`, `Tcb`, `TcbPtr`, `EpId`, `TidSet`, `EpFail`, `FreeVas`), and excluding
+milestone 158's own block, which is the account of the rename and keeps them: **60 occurrences across
+26 files** under `notes/` and `design/roadmap/`. The proposal's 115-across-36 figure also counted
+`Untyped`, `Endpoint`, `Frame` and `Tid`, which are ordinary words as well as retired identifiers and
+need a reader rather than a grep, so the two numbers are not comparable and neither is the smaller
+one a claim that the residue has shrunk.
 
 **Gate: NONE.** It is a rename with a decided target vocabulary and no open question.
 
@@ -34,3 +42,18 @@ pass needs an exclusion list and a reader.
 
 **Not done here, and the reason is scope**: this was found while fixing two files for milestone 133,
 and 36 files is a lane rather than an aside.
+
+## Index row
+
+DECISIONS §113 moved eleven kernel object and identifier names from contraction or borrowed jargon
+to the plain, standard term, decided by calef on 2026-08-23 after he said the old names "are clearly
+not working" because he had repeatedly had to ask what they meant. The code was renamed and the prose
+was not, which produces the worst of both: the reader now meets two vocabularies, the identifiers say
+`ThreadControlBlock` and the explanations say `Tcb`, and nothing tells them these are the same thing.
+That is §113's own reason for existing, inverted, and it is measurable rather than a matter of taste.
+Nothing caught it because no gate reads prose for retired identifiers: `script/lint` checks that
+citations are grounded, that links resolve and that names are ratified, and none of those notices a
+paragraph using a name the code no longer has. The blind-sed hazard is on AGENTS.md's record and
+applies directly, since §113 itself must keep the old names and so must any passage describing the
+rename or quoting a transcript from before it, so a mechanical pass needs an exclusion list and a
+reader.

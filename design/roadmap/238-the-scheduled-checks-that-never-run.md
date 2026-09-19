@@ -258,7 +258,7 @@ ship under a feedback loop that slow.
   considered and dropped: the crate has no `unsafe` today, which is what retired `xtask` and
   `board_console`, but it is central system logic under active development, and an excluded crate is
   one where a future `unsafe` block is silently uncovered.
-- **Proposed.** `design/roadmap/proposals/sampling-the-compositor-sweeps-under-miri.md`, Sample
+- **Milestone 349.** Sample
   `compositor`'s six full-screen per-pixel sweeps under `cfg(miri)`, the way `glob`, `ntp_proto`,
   `calendar` and `gpt` already sample theirs. One was strided and fell from 44+ minutes to 57
   seconds; the other five are untouched and are now the whole remaining cost of
