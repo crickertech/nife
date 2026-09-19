@@ -129,12 +129,22 @@ dequeue_held() {
 }
 
 # The unheld queue, lowest number first. Drafts are excluded: a draft is not asking to be merged.
+#
+# **And only pull requests into `main`.** A pull request stacked on another's branch (the pattern a
+# maintainer uses so a follow-up can be reviewed before its base lands) targets a lane branch, which
+# has no merge queue. `gh pr merge --auto` on it therefore does not enqueue: it merges straight into
+# that branch the moment checks pass. That happened to #964 on 2026-09-19, merged into #963's branch
+# rather than main, and its PR page read MERGED while `main` had none of it. Harmless that time,
+# because it rode into main inside #963; a trap in general, because a stacked PR whose base is later
+# abandoned reads as merged and is on no branch anyone lands. A stacked PR is left alone here, and
+# GitHub retargets it to `main` when its base branch merges and is deleted, which is when it is armed.
 queue() {
 	gh pr list --repo "$REPO" --state open \
-		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName 2>/dev/null |
+		--json number,mergeStateStatus,labels,isDraft,title,body,headRefName,baseRefName 2>/dev/null |
 		jq -r --arg L "$HELD_LABEL" '
 			[ .[]
 			  | select(.isDraft == false)
+			  | select(.baseRefName == "main")
 			  | select((.labels | map(.name) | index($L)) | not) ]
 			| sort_by(.number)' 2>/dev/null || echo '[]'
 }
