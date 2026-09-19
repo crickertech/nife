@@ -1,0 +1,1190 @@
+//! The real board: its serial console (milestone 216), and the U-Boot script that boots it
+//! without a person at its prompt (milestone 218).
+//!
+//! The recogniser that says how far a boot got lives in `board_console`; this keeps the
+//! argument parsing, the log, and the report. See notes/visionfive2.md.
+
+// ---------------------------------------------------------------------------
+// board-console (milestone 216)
+// ---------------------------------------------------------------------------
+
+/// Open a real board's serial console, log every byte, and stop on a deadline.
+///
+/// The engine is `crates/board_console`; this is argument parsing and a report, deliberately, for
+/// the reason every host-logic crate in this tree exists: the interesting half is a recogniser
+/// over text, and a recogniser wants a thousand host tests in milliseconds, not a board.
+///
+/// It returns an [`ExitCode`] of its own rather than the `bool` the rest of `main` uses, because
+/// this command has four answers and not two: reached, announced a failure, went quiet, ran out.
+/// A caller scripting a bench run wants to tell those apart, and squeezing them into
+/// success/failure is exactly the loss of information the milestone is about.
+/// **Read a finished capture of many boots and print what the lottery drew** (milestone 249).
+///
+/// `board_console::lottery` is the whole of the logic and has the tests; this reads a file and
+/// prints. Two exit statuses only, and they are not the watcher's four: this is an analysis of a
+/// log that has already happened, so there is no board to have gone quiet.
+///
+/// `0` even when a series is short or a draw is unjudged, because those are results and the report
+/// says so in words. `4` only when the file cannot be read, which is the same code the watcher
+/// gives an argument it cannot use.
+fn board_console_tally(path: &std::path::Path) -> ExitCode {
+    let log = match std::fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(e) => {
+            eprintln!("board-console: cannot read {}: {e}", path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let series = board_console::lottery::tally(&log);
+    print!("{}", series.report());
+    if series.draws.len() < 50 {
+        eprintln!(
+            "board-console: {} draw(s). Milestone 249 asks for at least fifty before this is a \
+             distribution rather than a handful of boots.",
+            series.draws.len()
+        );
+    }
+    ExitCode::SUCCESS
+}
+
+fn board_console() -> ExitCode {
+    use std::io::Write;
+
+    use board_console::watch::{Policy, watch};
+
+    let args: Vec<String> = std::env::args().skip(2).collect();
+    let mut port: Option<PathBuf> = std::env::var_os("NIFE_BOARD_PORT").map(PathBuf::from);
+    let mut replay: Option<PathBuf> = None;
+    let mut log: Option<PathBuf> = None;
+    let mut policy = Policy::default();
+    // **The writing mode** (milestone 324). `None` is every reading session, which is still the
+    // default and still the common case. `Some(n)` is `--stop-after n`, and `--stop` is `Some(1)`:
+    // one mechanism with two spellings, so the two flags cannot disagree about anything.
+    let mut stop_after: Option<usize> = None;
+    // Whether `--for` and `--until` were given, as opposed to left at their defaults. A stop mode
+    // has to know, because it changes both, and silently overriding something a person typed is
+    // worse than refusing it.
+    let mut until_given = false;
+    let mut cap_given = false;
+
+    let mut i = 0;
+    while i < args.len() {
+        let value = |i: usize| -> Result<&str, ExitCode> {
+            args.get(i + 1).map(String::as_str).ok_or_else(|| {
+                eprintln!("board-console: {} wants a value", args[i]);
+                ExitCode::from(4)
+            })
+        };
+        match args[i].as_str() {
+            "--port" => match value(i) {
+                Ok(v) => port = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--replay" => match value(i) {
+                Ok(v) => replay = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            // **Milestone 249's reader**, and it is the only mode that does not watch anything: it
+            // reads a finished capture of *many* boots and reports what the placement lottery drew
+            // each time. It returns before the log file below is created, because a tally writes no
+            // capture of its own and a fresh empty `board-console-<stamp>.log` beside a fifty-boot
+            // one is litter a reader has to tell apart.
+            "--tally" => match value(i) {
+                Ok(v) => return board_console_tally(std::path::Path::new(v)),
+                Err(code) => return code,
+            },
+            "--log" => match value(i) {
+                Ok(v) => log = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            // **A writing mode, and the only two the ruling permits** (milestone 324). Each is a
+            // command with a purpose rather than a keyboard, which is the decision rather than
+            // caution about it: milestone 249's lane sent this escape by detaching the console,
+            // hit U-Boot's autoboot countdown with it, and paid a power cycle.
+            "--stop" => {
+                stop_after = Some(1);
+                // Not `i += 2` at the bottom of the loop: this flag takes no value, and the
+                // increment below assumes every argument does.
+                i += 1;
+                continue;
+            }
+            "--stop-after" => match value(i).map(str::parse::<usize>) {
+                Ok(Ok(n)) if n >= 1 => stop_after = Some(n),
+                Ok(_) => {
+                    eprintln!(
+                        "board-console: --stop-after wants a count of draws, 1 or more. \
+                         `--stop` is `--stop-after 1`."
+                    );
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--for" | "--timeout" => match value(i).map(parse_duration) {
+                Ok(Some(d)) => {
+                    policy.total = d;
+                    cap_given = true;
+                }
+                Ok(None) => {
+                    eprintln!("board-console: --for wants a duration like 90, 90s, 30m or 2h");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--quiet-after" => match value(i).map(parse_duration) {
+                // Zero disables it: on a long sustained watch, a board that is legitimately quiet
+                // for a while is not a hang, and the operator is the one who knows which.
+                Ok(Some(d)) => policy.quiet_after = if d.is_zero() { None } else { Some(d) },
+                Ok(None) => {
+                    eprintln!("board-console: --quiet-after wants a duration, or 0 to disable");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--until" => match value(i).map(parse_stage) {
+                Ok(Some(stage)) => {
+                    policy.until = stage;
+                    until_given = true;
+                }
+                Ok(None) => {
+                    eprintln!(
+                        "board-console: --until wants spl, opensbi, uboot, handoff, banner, machine, selftest, tour, prompt, soak, or none"
+                    );
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            other => {
+                eprintln!("board-console: unknown argument {other}");
+                eprintln!(
+                    "usage: cargo xtask board-console [--port <dev>] [--replay <log>] \
+                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]\n\
+                     \x20      cargo xtask board-console [--stop | --stop-after <n>]\n\
+                     \x20      cargo xtask board-console --tally <log>"
+                );
+                return ExitCode::from(4);
+            }
+        }
+        i += 2;
+    }
+
+    // **What a writing mode changes about the rest of the session** (milestone 324), decided here
+    // rather than inside the crate because these are argument-shaped decisions and the crate's job
+    // is the decision to send.
+    if let Some(n) = stop_after {
+        // A replay has no board on the other end of it. Refused rather than ignored: a person who
+        // typed `--stop --replay` believes a byte is going somewhere, and silently reading a file
+        // instead would be the tool agreeing with them.
+        if replay.is_some() {
+            eprintln!(
+                "board-console: --stop writes to a board and --replay reads a file, so the \
+                 two cannot be combined. Drop --replay to watch a real port."
+            );
+            return ExitCode::from(4);
+        }
+        // Both answer "when does this session end", and a stage would usually answer it first: a
+        // soak is reached long before its reboot loop arms, so `--until soak --stop` would return
+        // before sending anything. Refused rather than overridden, for the reason above.
+        if until_given && policy.until.is_some() {
+            eprintln!(
+                "board-console: --stop and --until both say when the session ends, and \
+                 --until would win before the escape was ever sent. Drop --until; the stop is \
+                 the ending."
+            );
+            return ExitCode::from(4);
+        }
+        policy.until = None;
+        if !cap_given {
+            // **Derived from the kernel's own draw length rather than picked.** One draw is
+            // `kernel/src/soak.rs`'s `REBOOT_AFTER_SECONDS` (120s) plus the twenty-odd seconds a
+            // boot takes, so 150s per draw, and one draw's slack on top for the session that
+            // attaches mid-draw and has to wait the current one out. `--stop-after 50` then gets
+            // the two unattended hours milestone 249's block prices it at.
+            //
+            // This is a default and not an agreement: getting it wrong costs a re-run with
+            // `--for`, never a wrong answer, which is why the number is duplicated here instead of
+            // being hoisted into a shared crate.
+            policy.total = std::time::Duration::from_secs(
+                150 * u64::try_from(n).unwrap_or(u64::MAX / 300) + 120,
+            );
+        }
+    }
+
+    // The log path is chosen before anything can fail, and it is never optional. A console session
+    // whose evidence exists only in a terminal that has since scrolled is the rung-four failure
+    // this tree keeps writing down; the file is the artifact.
+    let log_path = log.unwrap_or_else(|| {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        PathBuf::from(format!("target/board-console-{stamp}.log"))
+    });
+    if let Some(parent) = log_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        eprintln!("board-console: cannot create {}: {e}", parent.display());
+        return ExitCode::from(4);
+    }
+    let file = match std::fs::File::create(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("board-console: cannot write {}: {e}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let mut sink = Tee {
+        file,
+        terminal: std::io::stdout(),
+    };
+
+    // A replayed log ends; a serial port does not. That single bit is the difference between
+    // "the file is over" and "the board has not said anything yet", and getting it wrong turns
+    // one of them into the other.
+    let session = if let Some(path) = &replay {
+        let captured = match std::fs::File::open(path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("board-console: cannot read {}: {e}", path.display());
+                return ExitCode::from(4);
+            }
+        };
+        eprintln!("--- replaying {} ---", path.display());
+        watch(captured, &mut sink, &policy, false)
+    } else {
+        let path = match board_console::port::choose(port.as_deref()) {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("board-console: {e}");
+                return ExitCode::from(4);
+            }
+        };
+        let (device, complaint) = match board_console::port::open(&path) {
+            Ok(pair) => pair,
+            Err(e) => {
+                eprintln!("board-console: cannot open {}: {e}", path.display());
+                return ExitCode::from(4);
+            }
+        };
+        if let Some(complaint) = complaint {
+            // Not fatal: an adapter whose driver refused one of the flags still delivers bytes,
+            // and the deadline does not depend on the read timeout.
+            eprintln!("board-console: {complaint} (continuing; the deadline does not need it)");
+        }
+        eprintln!(
+            "--- {} at {} baud, logging to {}, up to {:?} ---",
+            path.display(),
+            board_console::port::BAUD,
+            log_path.display(),
+            policy.total
+        );
+        // The write half of the same descriptor. A second handle rather than a shared one because
+        // `watch` moves its source onto the reader thread, and a tty is happy to be read and
+        // written through two descriptors at once.
+        let mut writer = match stop_after {
+            Some(_) => match device.try_clone() {
+                Ok(w) => Some(w),
+                Err(e) => {
+                    eprintln!(
+                        "board-console: cannot open a write handle on {}: {e}",
+                        path.display()
+                    );
+                    return ExitCode::from(4);
+                }
+            },
+            None => None,
+        };
+        let escape = match (stop_after, writer.as_mut()) {
+            (Some(n), Some(w)) => {
+                eprintln!(
+                    "--- stopping after {n} armed draw(s); one byte will be sent to the board \
+                     and printed into the log ---"
+                );
+                Some(board_console::stop::Escape::new(n, w))
+            }
+            _ => None,
+        };
+        board_console::watch::watch_with(device, &mut sink, &policy, true, escape)
+    };
+
+    let session = match session {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("board-console: {e}");
+            eprintln!("board-console: log at {}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+
+    let _ = sink.flush();
+    eprintln!();
+    eprintln!("board-console: {}", session.summary());
+    // The writing mode's own verdict, on its own line, whenever the session did not already end on
+    // it. `--stop` is run to find out one thing and a reader should not have to infer it from an
+    // exit status.
+    if session.outcome != board_console::watch::Outcome::Stopped
+        && let Some(report) = &session.stop
+    {
+        eprintln!("board-console: {}", report.describe());
+    }
+    if let Some(line) = session.progress.banner_line() {
+        eprintln!("board-console: banner: {line}");
+    }
+    // Milestone 268's two summary lines, echoed here so the answer to "what did I boot and did it
+    // work" is in the report rather than a scroll back through a kilobyte of hex.
+    if let Some(line) = session.progress.machine_line() {
+        eprintln!("board-console: machine: {line}");
+    }
+    if let Some(line) = session.progress.self_test_line() {
+        eprintln!("board-console: self-test: {line}");
+    }
+    // The difference between the two captured successes, and the one a reader would otherwise have
+    // to go back to the log for: whether there was an archive on the card at all.
+    if session.progress.userspace_ran() {
+        eprintln!("board-console: the userspace progenitor built its child");
+    }
+    if session.bytes == 0 && replay.is_none() {
+        // The runbook's first triage row, said here so nobody starts by suspecting the kernel.
+        eprintln!(
+            "board-console: not one byte arrived. Check TX/RX are crossed, that the board has \
+             power, that the DIP switches are on QSPI, and that this is the cu.* device."
+        );
+    }
+    eprintln!("board-console: log at {}", log_path.display());
+    ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
+}
+
+/// Write every byte to the log and to this terminal at once.
+///
+/// Both, not either. The file is the artifact a later reader needs and the terminal is what makes
+/// a person at the bench willing to use the tool at all.
+struct Tee {
+    file: std::fs::File,
+    terminal: std::io::Stdout,
+}
+
+impl std::io::Write for Tee {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        // The file first, and its error is the one that propagates: losing the terminal copy is a
+        // cosmetic loss, losing the log is the whole evidence.
+        self.file.write_all(buf)?;
+        let _ = self.terminal.write_all(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = self.terminal.flush();
+        self.file.flush()
+    }
+}
+
+/// `90`, `90s`, `30m`, `2h`. Bare digits are seconds.
+fn parse_duration(text: &str) -> Option<std::time::Duration> {
+    let (digits, scale) = match text.strip_suffix(['s', 'm', 'h']) {
+        Some(rest) => (
+            rest,
+            match text.as_bytes()[text.len() - 1] {
+                b's' => 1,
+                b'm' => 60,
+                _ => 3600,
+            },
+        ),
+        None => (text, 1),
+    };
+    digits
+        .parse::<u64>()
+        .ok()
+        .map(|n| std::time::Duration::from_secs(n * scale))
+}
+
+/// The stage to wait for, or `none` to watch for the whole duration.
+///
+/// `none` is not a formality: sustained watching with nothing to wait for is what
+/// `design/fatal-risks.md`'s multicore entry (risk 5) needs, and it is the case a boot check
+/// cannot cover.
+fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
+    use board_console::progress::Stage;
+    match text {
+        "none" => Some(None),
+        "spl" => Some(Some(Stage::Spl)),
+        "opensbi" => Some(Some(Stage::OpenSbi)),
+        "uboot" => Some(Some(Stage::UBoot)),
+        "handoff" => Some(Some(Stage::Handoff)),
+        "banner" => Some(Some(Stage::Banner)),
+        // Milestone 268's three rungs. `selftest` is the one to reach for: unlike `tour` it is
+        // printed by every architecture, and unlike `banner` it means the kernel proved something
+        // about the machine rather than only that the console works.
+        "machine" => Some(Some(Stage::Machine)),
+        "selftest" => Some(Some(Stage::SelfTest)),
+        "tour" => Some(Some(Stage::Tour)),
+        "prompt" => Some(Some(Stage::Prompt)),
+        // Milestone 219. Useful at a bench as `--until soak`: stop as soon as the workload has
+        // announced itself, which answers "did this build actually start soaking" in seconds
+        // rather than making the operator watch a beat go by.
+        "soak" => Some(Some(Stage::Soak)),
+        _ => None,
+    }
+}
+
+// ===========================================================================================
+// The board's boot script (milestone 218).
+//
+// The VisionFive 2 cannot boot this kernel from an `extlinux.conf`. With no `fdt` line in the
+// label, U-Boot's pxe path hands `bootm` no device tree at all, and RISC-V's `boot_prep_linux`
+// refuses rather than guessing: `Device tree not found or missing FDT support`, then
+// `### ERROR ### Please RESET the board ###`, which is a `hang()` that only the reset button
+// clears. Captured on the board 2026-09-01;
+// crates/board_console/tests/fixtures/captured/vf2-2026-09-01-extlinux-refused.log is the transcript,
+// and it is evidence about U-Boot rather than about this kernel: the payload never ran.
+//
+// So the card carries a U-Boot script instead. `scan_dev_for_scripts` sources it, and it issues
+// exactly the commands a person types at the `StarFive #` prompt today, which is the sequence the
+// same day's successful boot proves (vf2-2026-09-01-manual-boot.log). Nothing about the boot
+// changes; only who types it. See notes/visionfive2.md.
+// ===========================================================================================
+
+/// The script the board runs, verbatim.
+///
+/// **Every line of this is a line already proven on silicon.** It is the manual sequence from
+/// notes/visionfive2.md with two edits, both of which remove a dependency rather than add one:
+/// the load device comes from the variables distro boot has already set for the script it is
+/// running (`boot_a_script` sets `devtype`, `devnum` and `distro_bootpart` before sourcing this),
+/// and the archive's length is stashed under a name of ours the moment `load` reports it, so that
+/// a later command which happens to set `filesize` cannot change what `booti` is told.
+///
+/// Two addresses stay literal because they are choices rather than discoveries, and
+/// notes/visionfive2.md carries the arithmetic for both: `0x8600_0000` for the device tree, inside
+/// the kernel's boot gigapage 2 and clear of both the image and `kernel_comp_addr_r`, and
+/// `0x9000_0000` for the archive, clear of the moved tree.
+///
+/// **No `#` comment lines, deliberately.** U-Boot's parser is a cut-down hush and this file is the
+/// one thing that has to work with nobody watching, so it uses only verbs the bench transcript
+/// already shows working. The explanation lives here instead.
+const BOARD_BOOT_SCRIPT: &str = "\
+echo nife: boot.scr is driving this boot, milestone 218
+load ${devtype} ${devnum}:${distro_bootpart} ${kernel_addr_r} /nife-vf2.img
+load ${devtype} ${devnum}:${distro_bootpart} 0x90000000 /nife-initrd.img
+setenv nife_archive_size ${filesize}
+fdt addr ${fdtcontroladdr}
+fdt move ${fdtcontroladdr} 0x86000000
+booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000
+";
+
+/// The name in the image header. `iminfo` prints it and nothing else reads it.
+const BOARD_BOOT_SCRIPT_NAME: &str = "nife board boot";
+
+/// The address the archive is loaded to, and the one `booti` is then handed. Written once here
+/// because the two have to agree and there are now four places that name it: two `load` lines and
+/// two `tftpboot` lines, in two scripts.
+const BOARD_ARCHIVE_ADDR: &str = "0x90000000";
+
+/// This machine's own private IPv4 addresses, paired with the interface each sits on, in the order
+/// the host's tool lists them.
+///
+/// **There is deliberately no address constant anywhere in this tree**, and that is milestone 256's
+/// lesson applied one layer out: `192.168.8.216` was true on the evening the network boot was
+/// proved by hand, it is checked by nobody afterwards, and a DHCP lease can move it. So the address
+/// baked into a card is the address of the machine that wrote the card, read off that machine at
+/// the moment it writes it, and the script echoes it at boot so the console log says what the card
+/// expects before anything depends on it.
+///
+/// **Why not ask the routing table.** The obvious trick, a connected UDP socket whose local address
+/// the kernel picks from the route, was written first and was wrong on the only machine that
+/// matters: patagonia's default route belongs to a Tailscale interface, so every probe answered
+/// `100.75.22.70`, a CGNAT address on a network radon cannot reach. Interfaces are enumerated
+/// instead and anything not in RFC 1918 space is dropped, because the board is on a private LAN by
+/// construction.
+///
+/// **More than one is normal and is not an error.** patagonia has two addresses on the bench LAN
+/// (`en0` and a USB adapter), and either serves TFTP equally well because the server binds every
+/// interface. The first is taken and all of them are printed, so an operator who needs the other
+/// one can see that it exists and pass `--server`.
+fn host_private_addresses() -> Vec<(String, std::net::Ipv4Addr)> {
+    // BSD/macOS first, then iproute2, because the bench machine is the Mac and CI is Ubuntu.
+    if let Some(out) = host_tool_output("ifconfig", &[]) {
+        let found = parse_ifconfig_addresses(&out);
+        if !found.is_empty() {
+            return found;
+        }
+    }
+    if let Some(out) = host_tool_output("ip", &["-4", "-o", "addr", "show"]) {
+        return parse_ip_addr_addresses(&out);
+    }
+    Vec::new()
+}
+
+/// Run a host tool and hand back its stdout, or `None` if it is not there or refused.
+fn host_tool_output(program: &str, args: &[&str]) -> Option<String> {
+    let out = Command::new(program).args(args).output().ok()?;
+    out.status
+        .success()
+        .then(|| String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Keep only the addresses a board on a private LAN could route to.
+fn keep_private(found: Vec<(String, std::net::Ipv4Addr)>) -> Vec<(String, std::net::Ipv4Addr)> {
+    found
+        .into_iter()
+        .filter(|(_, addr)| addr.is_private())
+        .collect()
+}
+
+/// Parse BSD `ifconfig` output: an interface name in column zero ending in `:`, then indented
+/// `inet <addr> netmask ...` lines belonging to it.
+fn parse_ifconfig_addresses(text: &str) -> Vec<(String, std::net::Ipv4Addr)> {
+    let mut interface = String::new();
+    let mut found = Vec::new();
+    for line in text.lines() {
+        if !line.starts_with(char::is_whitespace) {
+            if let Some(name) = line.split(':').next() {
+                interface = name.to_string();
+            }
+            continue;
+        }
+        let mut words = line.split_whitespace();
+        if words.next() != Some("inet") {
+            continue;
+        }
+        if let Some(Ok(addr)) = words.next().map(str::parse) {
+            found.push((interface.clone(), addr));
+        }
+    }
+    keep_private(found)
+}
+
+/// Parse `ip -4 -o addr show`: `2: en0    inet 192.168.8.216/24 brd ... scope global en0`.
+fn parse_ip_addr_addresses(text: &str) -> Vec<(String, std::net::Ipv4Addr)> {
+    let mut found = Vec::new();
+    for line in text.lines() {
+        let mut words = line.split_whitespace();
+        let (_index, interface) = (words.next(), words.next());
+        let Some(interface) = interface else { continue };
+        if words.next() != Some("inet") {
+            continue;
+        }
+        let Some(cidr) = words.next() else { continue };
+        if let Ok(addr) = cidr.split('/').next().unwrap_or(cidr).parse() {
+            found.push((interface.to_string(), addr));
+        }
+    }
+    keep_private(found)
+}
+
+/// **The network-first script, with the card underneath it** (milestone 257).
+///
+/// The two `load` lines of [`BOARD_BOOT_SCRIPT`] become `dhcp` plus two `tftpboot` lines, and the
+/// card's own copy stays as the fallback. `fdt addr`, `fdt move` and `booti` are byte for byte what
+/// milestone 218 already emits, which is why the 2026-09-04 bench proof of the network path is
+/// evidence about this script and not only about the commands.
+///
+/// **Why the card is still in here at all.** A card written once and left in the board is only an
+/// improvement if it survives the network going away. A cable out of the hub, a router rebooting,
+/// a lease that does not arrive: each of those turns a card that only knows about TFTP into a board
+/// that boots nothing, and the fix is a walk to the bench with a card reader, which is the exact
+/// cost this milestone exists to remove. So the network is an optimisation over the card rather
+/// than a replacement for it.
+///
+/// **The shape, and why it is this shape.** U-Boot's parser is a cut-down hush and nothing here has
+/// been watched running on the board, so the structure is deliberately the dullest one that can
+/// express a fallback: one state variable, `if cmd; then` and `fi`, nesting never deeper than two,
+/// and no `else` anywhere. A chain of guards costs a few more lines than nested branches and has
+/// fewer parser features between us and a board that boots.
+///
+/// **Nothing is loaded twice from two places.** The kernel and the archive are one measured pair
+/// (`script/board-image` says so at length), so a network transfer that gets the kernel and loses
+/// the archive falls all the way back and takes BOTH from the card. Half a pair boots to
+/// `MEASURED BOOT REFUSED`, which is the gate working, and it would be working on a fault we built.
+///
+/// **`autoload no`** because bare `dhcp` in U-Boot means "get an address **and** TFTP the bootfile
+/// from the server DHCP names", not "get an address". Without it the board fetches from whatever the
+/// DHCP server advertises, which on a home network is the router; radon did exactly that on
+/// 2026-09-05, reported `TFTP from server 192.168.8.1` and then `TFTP server died`, and because
+/// `dhcp` returns failure when its autoload fails, the whole network branch was skipped and the card
+/// fallback fired. The boot looked like a clean fallback and was a bug. The line was in the manual
+/// sequence that proved this path on 2026-09-04 and was left out of the transcript the script was
+/// written from, which is why no test could have caught it: every test stubbed `dhcp`.
+///
+/// **`netretry no`** so that a network that is not there fails in seconds instead of retrying while
+/// nobody is watching. That is the whole difference between a fallback and a hang.
+fn board_network_boot_script(server: &str) -> String {
+    let archive = BOARD_ARCHIVE_ADDR;
+    format!(
+        "\
+echo nife: boot.scr is driving this boot, milestones 218 and 257
+setenv nife_source none
+setenv netretry no
+setenv autoload no
+if test x${{nife_boot_server}} = x; then
+setenv nife_boot_server {server}
+fi
+echo nife: tftp server is ${{nife_boot_server}}, setenv nife_boot_server to point somewhere else
+setenv nife_next none
+if dhcp; then
+setenv serverip ${{nife_boot_server}}
+setenv nife_next kernel
+fi
+if test x${{nife_next}} = xkernel; then
+setenv nife_next none
+if tftpboot ${{kernel_addr_r}} nife-vf2.img; then
+setenv nife_next archive
+fi
+fi
+if test x${{nife_next}} = xarchive; then
+setenv nife_next none
+if tftpboot {archive} nife-initrd.img; then
+setenv nife_archive_size ${{filesize}}
+setenv nife_source net
+fi
+fi
+if test x${{nife_source}} = xnone; then
+echo nife: nothing came over the network, falling back to the card
+setenv nife_next kernel
+fi
+if test x${{nife_next}} = xkernel; then
+setenv nife_next none
+if load ${{devtype}} ${{devnum}}:${{distro_bootpart}} ${{kernel_addr_r}} /nife-vf2.img; then
+setenv nife_next archive
+fi
+fi
+if test x${{nife_next}} = xarchive; then
+setenv nife_next none
+if load ${{devtype}} ${{devnum}}:${{distro_bootpart}} {archive} /nife-initrd.img; then
+setenv nife_archive_size ${{filesize}}
+setenv nife_source card
+fi
+fi
+echo nife: payload came from ${{nife_source}}
+if test x${{nife_source}} != xnone; then
+fdt addr ${{fdtcontroladdr}}
+fdt move ${{fdtcontroladdr}} 0x86000000
+booti ${{kernel_addr_r}} {archive}:${{nife_archive_size}} 0x86000000
+fi
+echo nife: still at the prompt, so nothing loaded or booti refused what did
+"
+    )
+}
+
+/// `0x27051956`, the legacy U-Boot image magic, big-endian at offset 0 (u-boot `include/image.h`).
+const UIMAGE_MAGIC: u32 = 0x2705_1956;
+/// The 64-byte header in front of every legacy image.
+const UIMAGE_HEADER_LEN: usize = 64;
+/// The header's fixed-width name field, NUL-padded.
+const UIMAGE_NAME_LEN: usize = 32;
+/// `IH_OS_LINUX`. `source` does not check it; mkimage writes it for scripts and so do we.
+const IH_OS_LINUX: u8 = 5;
+/// `IH_ARCH_RISCV`.
+const IH_ARCH_RISCV: u8 = 26;
+/// `IH_TYPE_SCRIPT`. This one **is** checked: `source` refuses any other type.
+const IH_TYPE_SCRIPT: u8 = 6;
+/// `IH_COMP_NONE`.
+const IH_COMP_NONE: u8 = 0;
+
+/// Wrap `script` in a legacy U-Boot script image, the thing `mkimage -T script` produces.
+///
+/// Written here rather than shelled out to `mkimage` because `mkimage` is a host package this
+/// project does not otherwise need, and a build step that works on the machine that has it and
+/// fails on the machine that does not is exactly the newcomer trap AGENTS.md's third principle
+/// names. The format is 64 bytes and two CRCs, so writing it costs less than requiring it.
+///
+/// The CRC is `globally_unique_identifier_partition_table`'s, which is the tree's one definition of
+/// IEEE CRC-32 and is Kani-proved equal to its own bitwise form. Reaching into the partition-table
+/// crate for it reads oddly and is still the right call: a second copy of a checksum is a second
+/// place to be wrong.
+fn uboot_script_image(name: &str, script: &str) -> Vec<u8> {
+    // A script image's payload is a size table, then the text. `source` reads the first u32 as the
+    // script's length and skips two u32s to reach the bytes (u-boot `cmd/source.c`), so one script
+    // is `[len, 0]` followed by it.
+    let mut data = Vec::new();
+    data.extend_from_slice(
+        &u32::try_from(script.len())
+            .expect("script fits in u32")
+            .to_be_bytes(),
+    );
+    data.extend_from_slice(&0u32.to_be_bytes());
+    data.extend_from_slice(script.as_bytes());
+
+    let mut header: Vec<u8> = Vec::with_capacity(UIMAGE_HEADER_LEN);
+    header.extend_from_slice(&UIMAGE_MAGIC.to_be_bytes());
+    // The header CRC covers the header with this field read as zero, so it is written zero here
+    // and patched below, the same shape `globally_unique_identifier_partition_table`'s header CRC
+    // has.
+    header.extend_from_slice(&0u32.to_be_bytes());
+    // Timestamp. Zero rather than the wall clock, so rebuilding the same payload produces the same
+    // bytes and a card can be diffed against the tree. Nothing on the boot path reads it.
+    header.extend_from_slice(&0u32.to_be_bytes());
+    header.extend_from_slice(
+        &u32::try_from(data.len())
+            .expect("payload fits in u32")
+            .to_be_bytes(),
+    );
+    // Load address and entry point: meaningless for a script, and zero is what mkimage writes.
+    header.extend_from_slice(&0u32.to_be_bytes());
+    header.extend_from_slice(&0u32.to_be_bytes());
+    header.extend_from_slice(
+        &globally_unique_identifier_partition_table::crc::crc32(&data).to_be_bytes(),
+    );
+    header.push(IH_OS_LINUX);
+    header.push(IH_ARCH_RISCV);
+    header.push(IH_TYPE_SCRIPT);
+    header.push(IH_COMP_NONE);
+    let mut name_field = [0u8; UIMAGE_NAME_LEN];
+    let truncated = name.len().min(UIMAGE_NAME_LEN - 1);
+    name_field[..truncated].copy_from_slice(&name.as_bytes()[..truncated]);
+    header.extend_from_slice(&name_field);
+    assert_eq!(
+        header.len(),
+        UIMAGE_HEADER_LEN,
+        "the legacy header is 64 bytes"
+    );
+
+    let header_crc = globally_unique_identifier_partition_table::crc::crc32(&header);
+    header[4..8].copy_from_slice(&header_crc.to_be_bytes());
+
+    header.extend_from_slice(&data);
+    header
+}
+
+/// Write `target/board/boot.scr.uimg`, and the script's text beside it as `target/board/boot.cmd`
+/// so that what the board will run can be read without a hex dump.
+///
+///     cargo xtask board-script                        the card, and only the card (milestone 218)
+///     cargo xtask board-script --tftp                 the network first, the card underneath (257)
+///     cargo xtask board-script --tftp --server 10.0.0.5   ...and say the address rather than ask
+///
+/// The default is the card and stays the card. A network-booting script is a promise about a
+/// machine that has to be running, so it is asked for rather than arrived at.
+fn board_script() -> bool {
+    let mut tftp = false;
+    let mut server: Option<String> = None;
+    let mut args = std::env::args().skip(2);
+    while let Some(arg) = args.next() {
+        match arg.as_str() {
+            "--tftp" => tftp = true,
+            "--server" => match args.next() {
+                Some(value) => server = Some(value),
+                None => {
+                    eprintln!("board-script: --server needs an address");
+                    return false;
+                }
+            },
+            other => {
+                eprintln!("board-script: unknown argument {other} (--tftp, --server <ip>)");
+                return false;
+            }
+        }
+    }
+    if server.is_some() && !tftp {
+        eprintln!("board-script: --server only means something with --tftp");
+        return false;
+    }
+
+    // The address, and the one thing that must never happen: a card carrying a stale one that
+    // nothing announces. Either the operator names it, or this machine reads it off its own
+    // interfaces here and now, or the script is not written at all. There is no built-in default,
+    // on purpose; see `host_private_addresses`.
+    let script = if tftp {
+        let address = match server {
+            Some(given) => {
+                println!("  tftp server: {given} (as given)");
+                given
+            }
+            None => {
+                let candidates = host_private_addresses();
+                let Some((interface, first)) = candidates.first() else {
+                    eprintln!(
+                        "board-script: no private IPv4 address on this machine, so there is no\n\
+                         \x20              address a board could fetch from. Pass --server <ip>."
+                    );
+                    return false;
+                };
+                println!("  tftp server: {first} (this machine, on {interface})");
+                for (other, addr) in candidates.iter().skip(1) {
+                    println!(
+                        "               also here: {addr} on {other}, pass --server to use it"
+                    );
+                }
+                first.to_string()
+            }
+        };
+        board_network_boot_script(&address)
+    } else {
+        BOARD_BOOT_SCRIPT.to_string()
+    };
+    let script = script.as_str();
+
+    let out = Path::new("target/board");
+    if let Err(e) = std::fs::create_dir_all(out) {
+        eprintln!("board-script: cannot create {}: {e}", out.display());
+        return false;
+    }
+    let image = uboot_script_image(BOARD_BOOT_SCRIPT_NAME, script);
+    let image_path = out.join("boot.scr.uimg");
+    let text_path = out.join("boot.cmd");
+    if let Err(e) = std::fs::write(&image_path, &image) {
+        eprintln!("board-script: cannot write {}: {e}", image_path.display());
+        return false;
+    }
+    if let Err(e) = std::fs::write(&text_path, script) {
+        eprintln!("board-script: cannot write {}: {e}", text_path.display());
+        return false;
+    }
+    println!(
+        "  {}  ({} bytes, legacy U-Boot script image)",
+        image_path.display(),
+        image.len()
+    );
+    println!("  {}  (the same script as text)", text_path.display());
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// **The card's boot script is a legacy U-Boot image or it is nothing**, and this reads the
+    /// bytes back the way `source` does rather than trusting the writer that just produced them:
+    /// magic, the type field `source` actually checks, both CRCs recomputed, and the size table
+    /// that tells it where the text starts.
+    #[test]
+    fn the_board_script_is_a_legacy_uboot_script_image() {
+        let image = uboot_script_image("nife test", "echo hi\n");
+        assert!(image.len() > UIMAGE_HEADER_LEN);
+
+        let be = |at: usize| u32::from_be_bytes(image[at..at + 4].try_into().unwrap());
+        assert_eq!(be(0), UIMAGE_MAGIC);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 4], IH_OS_LINUX);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 3], IH_ARCH_RISCV);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 2], IH_TYPE_SCRIPT);
+        assert_eq!(image[UIMAGE_HEADER_LEN - 32 - 1], IH_COMP_NONE);
+
+        let data = &image[UIMAGE_HEADER_LEN..];
+        assert_eq!(
+            be(12) as usize,
+            data.len(),
+            "the header states the payload length"
+        );
+        assert_eq!(
+            be(24),
+            globally_unique_identifier_partition_table::crc::crc32(data),
+            "data CRC"
+        );
+
+        // The header CRC is over the header with its own field zeroed, so the check has to zero it
+        // again; a test that compared the stored value with a CRC of the stored value would pass on
+        // any number at all.
+        let mut header = image[..UIMAGE_HEADER_LEN].to_vec();
+        let stored = u32::from_be_bytes(header[4..8].try_into().unwrap());
+        header[4..8].copy_from_slice(&0u32.to_be_bytes());
+        assert_eq!(
+            stored,
+            globally_unique_identifier_partition_table::crc::crc32(&header),
+            "header CRC"
+        );
+
+        // `source` reads the first u32 as the script length and starts the text after the pair.
+        assert_eq!(
+            u32::from_be_bytes(data[0..4].try_into().unwrap()) as usize,
+            "echo hi\n".len()
+        );
+        assert_eq!(u32::from_be_bytes(data[4..8].try_into().unwrap()), 0);
+        assert_eq!(&data[8..], b"echo hi\n");
+    }
+
+    /// **The script must not reach for anything the bench transcript has not already shown
+    /// working.** Nobody is watching when this runs, and U-Boot's parser is a cut-down hush whose
+    /// failures are silent, so the guard is on the vocabulary rather than on the outcome: no
+    /// comments, no parentheses, no shell forms this project has never seen the board execute. It
+    /// also pins the two addresses whose arithmetic notes/visionfive2.md carries.
+    #[test]
+    fn the_board_script_stays_inside_the_proven_vocabulary() {
+        let script = BOARD_BOOT_SCRIPT;
+        assert!(script.ends_with('\n'), "every line is terminated");
+        assert!(
+            !script.contains('#'),
+            "no comments: hush's handling of them is untested here"
+        );
+        for forbidden in ['(', ')', '`', '\'', '&', '|', '<', '>', ';'] {
+            assert!(
+                !script.contains(forbidden),
+                "{forbidden} is not in the proven vocabulary"
+            );
+        }
+        for line in script.lines() {
+            let verb = line.split_whitespace().next().expect("no blank lines");
+            assert!(
+                matches!(verb, "echo" | "load" | "setenv" | "fdt" | "booti"),
+                "{verb} is a verb the bench transcript does not show"
+            );
+        }
+        assert!(script.contains("fdt move ${fdtcontroladdr} 0x86000000"));
+        assert!(
+            script.contains("booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000")
+        );
+        // The archive's length is captured under our own name the moment `load` reports it, so no
+        // later command that happens to set `filesize` can change what `booti` is handed.
+        let stash = script
+            .find("setenv nife_archive_size")
+            .expect("the archive length is stashed");
+        let boot = script.find("booti").expect("the script boots something");
+        assert!(stash < boot);
+    }
+
+    /// **The address in a card is read off the machine that writes it**, so the reading has to be
+    /// right on both host tools. Both samples below are real output, taken from patagonia on
+    /// 2026-09-05 and from an `ip -4 -o addr show` line, rather than written to suit the parser.
+    ///
+    /// The `utun6` row is the whole reason this function exists. patagonia's default route belongs
+    /// to Tailscale, so the first version of this discovery asked the routing table and got
+    /// `100.75.22.70`, an address radon has no path to. The private-space filter is what drops it,
+    /// and the test asserts the drop rather than only asserting the keeps.
+    #[test]
+    fn the_hosts_own_lan_addresses_are_read_off_both_tools() {
+        let ifconfig = "\
+lo0: flags=8049<UP,LOOPBACK,RUNNING,MULTICAST> mtu 16384
+\tinet 127.0.0.1 netmask 0xff000000
+en0: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+\tinet 192.168.8.216 netmask 0xffffff00 broadcast 192.168.8.255
+en9: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+\tinet 192.168.8.206 netmask 0xffffff00 broadcast 192.168.8.255
+utun6: flags=8051<UP,POINTOPOINT,RUNNING,MULTICAST> mtu 1280
+\tinet 100.75.22.70 --> 100.75.22.70 netmask 0xffffffff
+";
+        let found = parse_ifconfig_addresses(ifconfig);
+        assert_eq!(
+            found,
+            vec![
+                ("en0".to_string(), "192.168.8.216".parse().unwrap()),
+                ("en9".to_string(), "192.168.8.206".parse().unwrap()),
+            ],
+            "loopback and the CGNAT tunnel are both dropped, and en0 comes first"
+        );
+
+        let ip_addr = "\
+1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever preferred_lft forever
+2: eth0    inet 10.1.2.3/24 brd 10.1.2.255 scope global eth0\\       valid_lft forever
+3: wg0    inet 100.64.0.5/32 scope global wg0\\       valid_lft forever
+";
+        assert_eq!(
+            parse_ip_addr_addresses(ip_addr),
+            vec![("eth0".to_string(), "10.1.2.3".parse().unwrap())]
+        );
+    }
+
+    /// The network-first script obeys the same vocabulary rule, plus the two it needs of its own.
+    ///
+    /// **`;` is a command separator in hush**, so a stray one inside an `echo` would run the rest of
+    /// the line as a command. The card script forbids the character outright; this one cannot,
+    /// because `if cmd; then` is how a branch is written, so the rule becomes positional: the only
+    /// `;` on any line is the one immediately before `then`.
+    ///
+    /// **Nesting never goes deeper than two and there is no `else`.** Nothing here has been watched
+    /// running on the board, and every parser feature between us and a booting kernel is a place
+    /// for it to fail with nobody at the bench. The guard is on the shape rather than the outcome,
+    /// which is the same posture the card script's test takes.
+    #[test]
+    fn the_network_script_stays_inside_a_deliberately_dull_shape() {
+        let script = board_network_boot_script("10.1.2.3");
+        assert!(script.ends_with('\n'), "every line is terminated");
+        assert!(!script.contains('#'), "no comments");
+        for forbidden in ['(', ')', '`', '\'', '&', '|', '<', '>'] {
+            assert!(
+                !script.contains(forbidden),
+                "{forbidden} is not in the proven vocabulary"
+            );
+        }
+
+        let mut depth = 0usize;
+        let mut deepest = 0usize;
+        for line in script.lines() {
+            let mut words = line.split_whitespace();
+            let first = words.next().expect("no blank lines");
+
+            // Positional `;`, and only there.
+            let semicolons = line.matches(';').count();
+            if semicolons > 0 {
+                assert_eq!(semicolons, 1, "one `;` per line at most: {line}");
+                assert!(
+                    line.ends_with("; then"),
+                    "the only `;` precedes `then`: {line}"
+                );
+            }
+
+            match first {
+                "if" => {
+                    depth += 1;
+                    deepest = deepest.max(depth);
+                    // The command being branched on has to be a verb too, which a naive first-word
+                    // check would skip entirely.
+                    let guarded = words
+                        .next()
+                        .expect("`if` branches on something")
+                        .trim_end_matches(';');
+                    assert!(
+                        matches!(guarded, "test" | "dhcp" | "tftpboot" | "load"),
+                        "{guarded} is not a status this script knows how to read"
+                    );
+                }
+                "fi" => depth = depth.checked_sub(1).expect("no `fi` without an `if`"),
+                // `else` is deliberately not in this list: a chain of guards costs a few more
+                // lines and needs one fewer parser feature than a branch does.
+                other => assert!(
+                    matches!(other, "echo" | "setenv" | "load" | "fdt" | "booti"),
+                    "{other} is a verb the bench transcript does not show"
+                ),
+            }
+        }
+        assert_eq!(depth, 0, "every `if` is closed");
+        assert!(deepest <= 2, "nesting stays shallow, was {deepest}");
+
+        // The tail milestone 218 proved is unchanged, which is why this is a small change.
+        assert!(script.contains("fdt move ${fdtcontroladdr} 0x86000000"));
+        assert!(
+            script.contains("booti ${kernel_addr_r} 0x90000000:${nife_archive_size} 0x86000000")
+        );
+        // The address is baked, and it is also announced before anything depends on it.
+        assert!(script.contains("setenv nife_boot_server 10.1.2.3"));
+        assert!(script.contains("echo nife: tftp server is ${nife_boot_server}"));
+        // And the card script is untouched by any of this: the default is still the default, and
+        // it still has no network verb in it at all.
+        assert!(!BOARD_BOOT_SCRIPT.contains("tftpboot"));
+        assert!(!BOARD_BOOT_SCRIPT.contains("dhcp"));
+        assert!(!BOARD_BOOT_SCRIPT.contains("if "));
+    }
+
+    /// **The fallback, actually taken.**
+    ///
+    /// The board is not available to this test and will not be, so the branch is exercised where it
+    /// can be: `if cmd; then ... fi`, `test x${v} = xy` and `${v}` expansion are all common to
+    /// U-Boot's hush and POSIX `sh`, so the generated script runs under `/bin/sh` with the six
+    /// U-Boot verbs stubbed as shell functions whose exit status the test chooses.
+    ///
+    /// **What this proves and what it does not.** It proves the control flow: which loads are
+    /// attempted in which order, that a network failure reaches the card, that a half-transfer
+    /// takes BOTH halves from the card rather than mixing a pair, and that `booti` is handed the
+    /// archive length the load that actually happened reported. It proves nothing at all about
+    /// whether U-Boot's parser accepts the file, because `sh` is not hush. That one is still owed
+    /// to a bench session and the block's BUGS says so.
+    ///
+    /// `tftp_fails_at` is a call number rather than a status, because the interesting failure is
+    /// the SECOND transfer: the kernel arrives and the archive does not, which is how a pair gets
+    /// mixed. A single status could not express it.
+    fn run_under_sh(script: &str, dhcp: i32, tftp_fails_at: i32, load: i32) -> String {
+        let preamble = format!(
+            "\
+kernel_addr_r=0x40200000
+fdtcontroladdr=0x4fe00000
+devtype=mmc
+devnum=1
+distro_bootpart=1
+tftp_calls=0
+setenv() {{ name=$1; shift; eval \"$name=\\\"\\$*\\\"\"; }}
+dhcp() {{ echo CALL dhcp; return {dhcp}; }}
+tftpboot() {{
+  tftp_calls=$((tftp_calls + 1))
+  echo CALL tftpboot $1 $2
+  filesize=9044480
+  [ \"$tftp_calls\" != \"{tftp_fails_at}\" ]
+}}
+load() {{ echo CALL load $3 $4; filesize=1234; return {load}; }}
+fdt() {{ echo CALL fdt $*; }}
+booti() {{ echo CALL booti $*; }}
+"
+        );
+        let dir = std::env::temp_dir().join(format!(
+            "nife-boot-script-{}-{dhcp}{tftp_fails_at}{load}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("boot.cmd");
+        std::fs::write(&path, format!("{preamble}{script}")).expect("write the script");
+        let out = Command::new("/bin/sh")
+            .arg(&path)
+            .output()
+            .expect("/bin/sh runs the generated script");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(out.status.success(), "the script itself must not fail");
+        String::from_utf8(out.stdout).expect("utf-8 output")
+    }
+
+    #[test]
+    fn the_network_script_falls_back_to_the_card_when_the_network_is_not_there() {
+        let script = board_network_boot_script("10.1.2.3");
+
+        // Everything works: two TFTP transfers, no card read at all, and the archive length is the
+        // one TFTP reported.
+        let net = run_under_sh(&script, 0, 0, 0);
+        assert!(
+            net.contains("CALL tftpboot 0x40200000 nife-vf2.img"),
+            "{net}"
+        );
+        assert!(
+            net.contains("CALL tftpboot 0x90000000 nife-initrd.img"),
+            "{net}"
+        );
+        assert!(!net.contains("CALL load"), "the card is not touched: {net}");
+        assert!(net.contains("payload came from net"), "{net}");
+        assert!(
+            net.contains("CALL booti 0x40200000 0x90000000:9044480 0x86000000"),
+            "{net}"
+        );
+
+        // No lease: the card path runs, and it is the whole card path rather than a kernel from one
+        // place and an archive from another.
+        let card = run_under_sh(&script, 1, 0, 0);
+        assert!(
+            !card.contains("CALL tftpboot"),
+            "no lease, no transfer: {card}"
+        );
+        assert!(
+            card.contains("CALL load 0x40200000 /nife-vf2.img"),
+            "{card}"
+        );
+        assert!(
+            card.contains("CALL load 0x90000000 /nife-initrd.img"),
+            "{card}"
+        );
+        assert!(card.contains("payload came from card"), "{card}");
+        assert!(
+            card.contains("CALL booti 0x40200000 0x90000000:1234 0x86000000"),
+            "the length is the card load's, not a stale one: {card}"
+        );
+
+        // A lease and a kernel, and then the archive transfer dies. This is the case worth having:
+        // a kernel over TFTP with an archive off the card is a mismatched pair, which halts at
+        // MEASURED BOOT REFUSED, so the fallback has to take BOTH halves from the card.
+        let half = run_under_sh(&script, 0, 2, 0);
+        assert_eq!(
+            half.matches("CALL tftpboot").count(),
+            2,
+            "the kernel arrived and the archive was attempted: {half}"
+        );
+        assert!(
+            half.contains("CALL load 0x40200000 /nife-vf2.img"),
+            "{half}"
+        );
+        assert!(
+            half.contains("CALL load 0x90000000 /nife-initrd.img"),
+            "{half}"
+        );
+        assert!(half.contains("payload came from card"), "{half}");
+        assert!(
+            half.contains("CALL booti 0x40200000 0x90000000:1234 0x86000000"),
+            "and the length is the card's, not the abandoned transfer's: {half}"
+        );
+
+        // The kernel transfer itself failing stops there rather than chasing the archive.
+        let first = run_under_sh(&script, 0, 1, 0);
+        assert_eq!(
+            first.matches("CALL tftpboot").count(),
+            1,
+            "no archive after a failed kernel: {first}"
+        );
+        assert!(first.contains("payload came from card"), "{first}");
+
+        // Neither: nothing is booted, and the board says so rather than jumping into whatever is
+        // at 0x40200000 from a previous boot.
+        let neither = run_under_sh(&script, 1, 0, 1);
+        assert!(!neither.contains("CALL booti"), "{neither}");
+        assert!(!neither.contains("CALL fdt"), "{neither}");
+        assert!(neither.contains("payload came from none"), "{neither}");
+        assert!(neither.contains("still at the prompt"), "{neither}");
+    }
+}
