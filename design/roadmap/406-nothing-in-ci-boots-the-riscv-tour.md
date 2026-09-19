@@ -21,7 +21,12 @@ milestone 286, its work now being `script/ci-build`'s table, which is where `boo
 `script/soak` is `script/soak-test` since milestone 297.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** Where the check goes is calef's: a CI job, a row in `script/ci-build`'s table,
+**Gate: DECISION.** The decision is
+[§204](../decisions/204-where-the-riscv-tour-check-runs.md) *(number provisional)*, written up
+2026-09-19 by milestone 435's slice-c lane because this gate named no section. **That lane judged
+the gate and not the title**: the title's claim is false as written, the status paragraph above says
+so, and retitling a block is calef's rather than a sweep's.
+Where the check goes is calef's: a CI job, a row in `script/ci-build`'s table,
 or a `script/cadence-check` entry. It boots a kernel and it is not free, and milestone 232's own refusal
 to assume CI is the answer for an expensive instrument applies here unchanged. The wiring and the
 measurement are a lane's; the placement is not.

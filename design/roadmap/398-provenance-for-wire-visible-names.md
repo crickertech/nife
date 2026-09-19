@@ -14,8 +14,11 @@ has a first answer**: `pub const <NAME>: &str` matches **77** times across `crat
 since not every one of the 77 is agreed between two binaries.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** What counts as a surface is a scope question, and scope decides how large the
-worklist calef is handed becomes. Whether to widen at all is his call, not a lane's.
+**Gate: DECISION.** The decision is
+[§200](../decisions/200-provenance-for-wire-visible-names.md) *(number provisional)*, written up
+2026-09-19 by milestone 435's slice-c lane because this gate named no section. What counts as a
+surface is a scope question, and scope decides how large the worklist calef is handed becomes.
+Whether to widen at all is his call, not a lane's.
 
 ## In brief
 

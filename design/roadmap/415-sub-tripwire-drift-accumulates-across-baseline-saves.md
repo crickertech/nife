@@ -6,9 +6,26 @@ item 4 is refused. Promoted from the proposal
 which calef asked for after PR #886 found a regression that had hidden under the 10% threshold.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** Two of the four items change how `cargo xtask bench --save` behaves and what a
-save is obliged to record, which is a workflow calef owns; the first item is a one-line CI change
-that is owed already and needs nobody's permission.
+**Gate: DECISION.** The decision is
+[§208](../decisions/208-what-a-baseline-save-must-record.md) *(number provisional)*, written up
+2026-09-19 by milestone 435's slice-c lane because this gate named no section. Items 2 and 3 change
+how `cargo xtask bench --save` behaves and what a save is obliged to record, which is a workflow
+calef owns.
+
+**The clause that used to follow is corrected rather than deleted, because it is the reason this
+gate was suspected of being too strong.** It read *"the first item is a one-line CI change that is
+owed already and needs nobody's permission"*, and item 1 landed on 2026-09-15 as `ba99c83`. So the
+half that needed nobody's permission is gone and the token is **more** purely `DECISION` than when
+it was written, not less, which is the opposite of the promoting lane's hypothesis and is why it was
+not acted on.
+
+**There is a live argument that the token is still too strong, and §208 puts it to calef as its
+first question rather than settling it here.** This block's own reversibility paragraph says items 1
+and 2 are undoable in an afternoon and nobody outside this tree has acted on them, which by
+AGENTS.md's test makes item 2 a decision for whoever is holding the problem. Against that: it
+changes what a person types on every bench evening on every board. The lane did not correct the
+token on its own reading, because a `NONE` here puts this block on `script/roadmap --ready` where a
+lane would stall on item 3, and that is the worse of the two failures.
 
 **Premise re-checked 2026-09-19: one of the four items is already done, and the other three stand.**
 `script/ci-build`'s bench entry now reads

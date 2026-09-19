@@ -58,7 +58,7 @@ what a *shell* grants; nothing in this tree reasons about what a *composer* need
 | | what | cost |
 |---|---|---|
 | **(a)** | extend `address_space_witness` to run something in the space it builds | an afternoon. Same two capabilities, same fixture, more verdict bits, asserted on every pull request, which is where `builder` never was |
-| **(b)** | a new fixture that composes a child from two capabilities and nothing else | an afternoon plus a name. Honest about being a second thing; costs one more program in every archive, which milestone 206 (the 896 KiB image ceiling) is the standing reason to be careful about |
+| **(b)** | a new fixture that composes a child from two capabilities and nothing else | an afternoon plus a name. Honest about being a second thing; costs one more program in every archive, which milestone 206 (a program image has under 896 KiB) is the standing reason to be careful about |
 | **(c)** | prove it host-side: a crate that takes the verb sequence and the capability set and decides whether the set suffices | a week. Kani-reachable, runs in milliseconds, and the only option producing a *proof* rather than a demonstration. It does not witness the kernel actually permitting the sequence, which is the thing `builder` witnessed |
 | **(d)** | decide the claim is not worth a carrier | a sentence. The kernel enforces the floor on every call, 19b proves it does so inside a space a process built, and a demonstration is not evidence a model checker would accept |
 

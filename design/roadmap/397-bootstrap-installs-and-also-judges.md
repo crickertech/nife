@@ -13,8 +13,12 @@ shape rather than the instance: macOS has no fallback and still exits 1 from ins
 step, and so does any Linux box where `script/ci-qemu` cannot run. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: DECISION.** Whether the two jobs split, and if so how the caller asks for one without the
-other, is a change to a canonical "Scripts to Rule Them All" entry point that `script/setup`,
+**Gate: DECISION.** The decision is
+[§199](../decisions/199-bootstrap-provisions-and-judges.md) *(number provisional)*, written up
+2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
+corrects one figure below: the callers that read this exit code are five scripts and **three
+separate `- run: script/bootstrap` steps** in `.github/workflows/ci.yml`, not four callers.
+Whether the two jobs split, and if so how the caller asks for one without the other, is a change to a canonical "Scripts to Rule Them All" entry point that `script/setup`,
 `script/update` and `script/ci-build` all call. The measuring and the wiring are a lane's; whether
 `bootstrap` is allowed to return "installed everything I could, and this machine is still not good
 enough" as a *non-fatal* answer is not.

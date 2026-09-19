@@ -16,7 +16,8 @@ from calef* section, which is one rung above a chat message and below where AGEN
 decision:
 
 > **Open decisions live in a file, not in a conversation.** A decision waiting on calef that exists
-> only in chat scrollback is in exactly the medium milestone 94 was written to abolish.
+> only in chat scrollback is in exactly the medium milestone 94 was written to abolish, and on
+> 2026-08-04 five of them accumulated there in one day while that milestone was being built.
 >
 > -- AGENTS.md
 
@@ -70,6 +71,34 @@ the whole block, and then finds only a paragraph addressed to one person.
 4. **Or cite the decision that exists**, in the gate paragraph, where a reader meets the gate.
 5. **Cite the new section from the block's gate paragraph** either way, so the two records agree.
 
+## What the slices found
+
+**Slice c: 391 394 395 397 398 400 403 404 406 407 408 413 415 419 423**, resolved 2026-09-19 on
+`milestone/435-slice-c`. Fifteen blocks, all of them promoted hours earlier by milestone 433, which
+makes this slice the cleanest available measurement of whether that drain carried bad tokens across.
+
+**It did not.** Fourteen of the fifteen owed a decision that nobody had written down, and became
+§§197-210 (`PROPOSED`, numbers provisional). **Zero tokens were wrong.** One, milestone 391, was the
+third outcome: a decision already existed and the gate did not cite it, and the decision is §149,
+which refused this exact question on the ground that the general case must not be settled on the
+narrow one's momentum and said to answer it when milestone 269 gives it a consumer. So 391 gets a
+citation and deliberately gets no new section.
+
+**Two blocks arrived with a problem already recorded, and both readings held.** Milestone 406's
+title is false as written and its narrower half is the work; that lane judged the gate and left the
+retitling to calef. Milestone 415 was suspected of carrying a token that had gone too strong, and
+the suspicion turns out to be backwards: the item that needed nobody's permission is the one that
+landed, so what remains is more purely `DECISION` than when the gate was written. A **different**
+argument that the token is too strong does exist, on the block's own reversibility paragraph, and
+§208 puts it to calef as its first question rather than a lane deciding it.
+
+**What that rate means for the other two slices, which hold aged blocks rather than fresh ones.**
+Fourteen of fifteen is a high owed-decision rate, and the reason is visible in the blocks: a
+promoted proposal was written by a lane that hit the fork, so its `DECISION` token was minted by
+somebody who had just met the question. An aged block's token is more likely to have been inherited,
+which is the condition under which it goes stale, so slice c's rate should be read as a floor for
+the promoted quarter rather than as a prediction for the other 21.
+
 ## BUGS
 
 - **A written-up fork is still a fork, and this milestone makes calef's queue longer to read before
@@ -79,6 +108,16 @@ the whole block, and then finds only a paragraph addressed to one person.
 - **Section numbers are the expensive half.** Each lane holds a reserved range so two cannot collide,
   and every number in them is provisional until the merge queue lands it, which is the standing rule
   for anything global to the tree.
+- **The reserved ranges make every slice branch fail `script/decisions --check` on its own**, and
+  this was measured rather than predicted: slice c holds §197-216, so with §157-196 living on two
+  branches it cannot see, its own gate reports *"gap in the numbering: §157 ... §196"* and exits 1.
+  The check has no escape hatch and is right not to have one, since a hole is almost always a
+  renumber on merge that nobody meant. **It resolves at merge and only at merge**, which puts two
+  duties on the integrator: land the three slices in one merge-queue group so the group build sees a
+  contiguous tree, and compact the numbering if a lane did not fill its range, because three ranges
+  sized 20 against slices that minted 14, 20 and 20 would leave the same hole in the merged tree.
+  A lane that renumbered into another lane's range to make its own branch green would be claiming a
+  global name, which is the rule this scheme exists to keep.
 - **The three-way judgement is the part no gate can check.** Whether a token is wrong or a decision
   is owed is a reading, and a lane that guesses wrong either mints a decision nobody needs or puts a
   block on the ready list that a lane will stall on. The second failure is worse and lanes are told
