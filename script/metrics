@@ -30,10 +30,15 @@
 #
 # What it does NOT build, and why:
 #
-#   - **Coverage is not recoverable and is left blank historically.** It is computed per-pull-request
-#     in CI and stored nowhere, so backfilling it means a full instrumented build at every one of the
-#     history's checkouts. Nothing here is allowed to build (see `--backfill` below), so the column
-#     starts empty and is filled going forward from an lcov file the caller already has.
+#   - **Coverage is not re-derived here, and that is a rule about this script rather than about
+#     the measurement.** It needs an instrumented build, and nothing here is allowed to build or
+#     check anything out (see `--backfill` below), so the column is only ever filled from an lcov
+#     file a caller already has. The weekly workflow fills the current week that way. A past week
+#     can be filled the same way with `--coverage-for`: check out that week's commit somewhere
+#     else, run THAT tree's own `script/coverage` on THAT tree's pinned nightly, and hand this
+#     script the lcov it wrote. That is what the live cells measured, so the number means the same
+#     thing. notes/project-metrics.md records which weeks were backfilled that way on 2026-09-19,
+#     on which toolchains, and the two that could not be measured exactly.
 #   - **No plotting dependency.** DECISIONS §46 (thin primitives or whole subsystems, and we
 #     write everything in between) makes taking one a decision rather than a shortcut, and a
 #     stacked bar is string formatting. The SVGs below are written by hand and a diff can review them.
@@ -49,8 +54,18 @@
 #                                  because every merge moves the current week's numbers.
 #   script/metrics --charts        regenerate the SVGs from the CSV without touching the CSV
 #
-#   --coverage-from <lcov.info>    fill the coverage cell from an lcov file the caller produced
-#                                  (`script/coverage` writes target/llvm-cov/lcov.info)
+#   --coverage-from <lcov.info>    fill the CURRENT week's coverage cell from an lcov file the
+#                                  caller produced (`script/coverage` writes
+#                                  target/llvm-cov/lcov.info). With --update or --backfill it
+#                                  lands on the week HEAD is in and on no other week.
+#   script/metrics --coverage-for <WEEK> --coverage-from <lcov.info>
+#                                  write that one week's coverage cell and redraw the charts.
+#                                  Refuses a week the CSV does not already have, and changes no
+#                                  other cell: the row is not recomputed, so its commit and every
+#                                  count stay exactly as they were. The lcov must come from that
+#                                  week's own commit; nothing here can check that, so say which
+#                                  commit and toolchain in the commit message. (Flag name
+#                                  provisional, 2026-09-19.)
 #
 # Name: provisional. Minted 2026-09-02. `metrics` is a noun, which DECISIONS §134 puts on the
 # reporting half of the `script/` family (`names`, `citations`, `decisions`, `roadmap`,
@@ -82,8 +97,11 @@
 #   check a reader can run is that the current week's `names_total` equals `script/names`' total.
 # - **The coverage cell is carried, not recomputed.** A `--backfill` or `--update` keeps whatever
 #   coverage a week already had, because it cannot be re-derived without a build. So after the row
-#   is repointed at a later commit, as 2026W38 was on 2026-09-19, the coverage figure describes an
-#   earlier commit of that week than every other cell in the row.
+#   is repointed at a later commit, the coverage figure describes an earlier commit of that week
+#   than every other cell in the row, until someone runs `--coverage-for` against the new commit.
+#   2026W38 was in that state from 2026-09-19 until the backfill the same day re-measured it.
+# - **Nothing ties an lcov file to a commit.** `--coverage-for` believes the caller about which
+#   week the file measured. An lcov produced from the wrong checkout is written without complaint.
 # - **Charts are checked by eye, in a browser.** QuickLook crops an SVG's right edge and made the
 #   legends look clipped on 2026-09-19 when they were not; render with a browser before believing a
 #   layout defect.
@@ -613,8 +631,13 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
     """One stacked bar per week, one colour per series, a legend on the right.
 
     `series` is [(label, [value per week])]. A single-element series is an ordinary bar chart,
-    which is what the density and coverage panels are.
+    which is what the density and coverage panels are. `ceiling` is a number, labelled
+    `ceiling`, or a (number, word) pair when the dashed line is something else: coverage's is
+    `script/coverage`'s per-file floor, and labelling a floor a ceiling says the opposite.
     """
+    line_word = 'ceiling'
+    if isinstance(ceiling, tuple):
+        ceiling, line_word = ceiling
     totals = [sum(s[1][i] for s in series) for i in range(len(weeks))]
     top = max(totals + ([ceiling] if ceiling else []) + [1])
     # An axis a person reads: gridlines at 1, 2, 2.5 or 5 times a power of ten, and whichever of
@@ -677,8 +700,8 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
         out.append('<line x1="%d" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#D55E00" '
                    'stroke-width="1.5" stroke-dasharray="5 4"/>'
                    % (PAD_L, y, PAD_L + plot_w, y))
-        out.append('<text class="mut" x="%.1f" y="%.1f" font-size="10">ceiling %s</text>'
-                   % (PAD_L + plot_w + 6, y + 3, _number(ceiling)))
+        out.append('<text class="mut" x="%.1f" y="%.1f" font-size="10">%s %s</text>'
+                   % (PAD_L + plot_w + 6, y + 3, line_word, _number(ceiling)))
 
     for i, week in enumerate(weeks):
         x = PAD_L + slot * i + (slot - bar_w) / 2
@@ -802,8 +825,8 @@ CHARTS = [
      [('experiment run', 'fatal_risks_tested'), ('not yet tested', 'fatal_risks_untested')],
      1.0, None),
     ('coverage.svg', 'Host-crate line coverage, per cent',
-     'not recoverable from history: it needs an instrumented build at every checkout',
-     [('line coverage', 'coverage_lines_pct')], 1.0, 80),
+     'each week by its own script/coverage; 2026W29 predates the script',
+     [('line coverage', 'coverage_lines_pct')], 1.0, (80, 'floor')),
 ]
 
 
@@ -827,15 +850,40 @@ def print_table(row):
 
 def main(argv):
     coverage = ''
+    coverage_week = ''
     args = []
     i = 0
     while i < len(argv):
-        if argv[i] == '--coverage-from':
-            coverage = coverage_from_lcov(argv[i + 1])
+        if argv[i] in ('--coverage-from', '--coverage-for'):
+            if i + 1 >= len(argv):
+                raise SystemExit('metrics: %s needs an argument' % argv[i])
+            if argv[i] == '--coverage-from':
+                coverage = coverage_from_lcov(argv[i + 1])
+            else:
+                coverage_week = argv[i + 1]
             i += 2
             continue
         args.append(argv[i])
         i += 1
+
+    if coverage_week:
+        # One cell, and only that cell. The row is deliberately NOT recomputed: that would repoint
+        # its commit at whatever history says today and restate every count, which is --update's
+        # job and is not what a caller measuring one historical week asked for.
+        if args:
+            raise SystemExit('metrics: --coverage-for takes no mode; it writes one cell and redraws')
+        if not coverage:
+            raise SystemExit('metrics: --coverage-for needs --coverage-from <lcov.info>')
+        rows = read_csv()
+        if coverage_week not in rows:
+            raise SystemExit('metrics: %s is not a week in %s; --coverage-for only fills a row '
+                             'that already exists' % (coverage_week, CSV_PATH))
+        rows[coverage_week]['coverage_lines_pct'] = coverage
+        CSV_PATH.write_text(write_csv(rows))
+        draw_charts(rows)
+        print('metrics: %s coverage_lines_pct = %s, charts in %s/'
+              % (coverage_week, coverage, DATA_DIR))
+        return 0
 
     mode = args[0] if args else '--table'
     if mode not in ('--table', '--csv', '--backfill', '--update', '--check', '--charts'):
@@ -866,6 +914,7 @@ def main(argv):
     # measurement there will ever be. Milestone 276 found this the way it is usually found: running
     # `--backfill` to add a column, and watching 2026W36's 94.4 disappear with it.
     kept_coverage = {week: row.get('coverage_lines_pct', '') for week, row in rows.items()}
+    current = week_of(git('show', '-s', '--format=%cI', head).decode().strip())
     if mode == '--backfill':
         rows = {}
         targets = weeks.items()
@@ -876,12 +925,15 @@ def main(argv):
         # last eleven minutes before the cron) HEAD was already in the new week and the week that
         # had just finished was never written by anything. A missed or raced run now heals on the
         # next one, and `--check` below fails on a gap rather than passing it every time.
-        current = week_of(git('show', '-s', '--format=%cI', head).decode().strip())
         missing = [w for w in weeks if w not in rows and w != current]
         targets = [(w, weeks[w]) for w in missing] + [(current, weeks.get(current, head))]
 
+    # A fresh lcov describes the tree HEAD is in and nothing else, so it lands on that week only.
+    # It used to be `coverage or kept` for every target, which meant `--backfill --coverage-from`
+    # stamped one measurement across every week in the series and erased the backfilled cells.
     for week, rev in targets:
-        rows[week] = row_for(rev, week, coverage or kept_coverage.get(week, ''))
+        fresh = coverage if week == current else ''
+        rows[week] = row_for(rev, week, fresh or kept_coverage.get(week, ''))
 
     text = write_csv(rows)
     if mode == '--check':
