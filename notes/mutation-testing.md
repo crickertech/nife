@@ -1447,3 +1447,57 @@ stopped counting a file the suite never compiles, not because the suite got bett
 != 0` under `==`, `&` under `|` and `^`, and the reader's sequence comparison, each of which turns
 a bounded retry into one that never exits. The baseline's `clock_protocol` row recorded 7 hangs of 9
 survivors for the same reason.
+
+### `swish`: 20 survivors, 16 killed, 4 equivalent
+
+**Before: 157 caught, 20 missed, 11 timeouts, 12 unviable (89.4% of viable). After: 173 caught, 4
+missed (97.9%).** Every survivor was in the shell's printers or its two smallest accessors, which
+is what a crate that is mostly rendering should be expected to produce.
+
+**One of them is a test that could not fail, and it is the one to read.** `write_found` right-aligns
+a match count and starts every title in the same column, and
+`a_search_answer_names_pages_a_reader_can_type` asserted
+`cols == [APROPOS_TITLE, APROPOS_TITLE]`: the rendering compared against the constant it is derived
+from, which is an identity. Six mutants lived in that one line, one for every `+` in
+`const APROPOS_TITLE: usize = 2 + APROPOS_COUNT + 2 + 28 + 2`, because changing the definition moved
+both sides of the assertion together. The fix is the literal 38, which is what a reader at eighty
+columns actually gets. A seventh survivor was next to it: the digit-counting loop's `count / 10`
+under `%`, invisible because every fixture used a two-digit count, so a new test uses a three-digit
+one and pins the column under the widest row.
+
+**The rest are the ordinary shape.** `write_batch` had no caller in the crate's own tests, so its
+whole body could be `()`: a sweep would have shown a person no set while handing each batch a real
+one, which is exactly the property the batching lane exists to make visible. `Status::from_code` had
+no caller either, so it could be `Default::default()` with two arms deleted; it crosses an atomic
+cell as a `u64`, so the round trip is the contract. `write_apropos`'s `offered() > results().len()`
+under `>=` printed the truncation tail when nothing was truncated, which no test forbade.
+`Sequence::is_plain` could be a constant `true`, and that one is worth naming: it is the
+pre-connector shape test, so a `true` there routes `date && wc` down the single-command path and
+drops everything after the first connector. Every fixture asked it only of a one-segment line.
+
+**And one kill is honest about being a side effect.** `write_duration`'s
+`(nanos % SEC) / MILLI` under `+` is killed by a new assertion that the printer is total on every
+`u64`, which it earns on its own merits (the shell hands it `end - start` off a counter it does not
+own, and a clock that went backwards produces a number nobody chose). It kills the mutant by
+overflow rather than by disagreement, and the two mutants in the smaller units, where the addition
+cannot overflow, are equivalent instead.
+
+**The four equivalents.**
+
+- **`write_duration`'s `(nanos % MILLI) / MICRO` and `nanos % MICRO` under `+` (2).** The fraction
+  is printed digit by digit as `t / 100 % 10`, `t / 10 % 10`, `t % 10`, which is `t mod 1000`. Since
+  `MILLI` and `MICRO` are exact multiples of the unit below, adding one adds exactly 1000 to the
+  quotient, and `(t + 1000) mod 1000 == t mod 1000`. The mutants print the same three digits for
+  every input that does not overflow, and in these two branches the input cannot.
+- **`write_refusal`'s `Refusal::NoSuchProgram => {}` arm deleted (1).** That arm is reached only
+  when the guard above it fails, which is exactly when `spec.prog` is empty. Deleting it sends that
+  case to `_`, which prints a prefix only `if let Some(p) = Prog::from_name(spec.prog)`, and
+  `Prog::from_name(b"")` falls to its `_ => None`. Same output, by two routes.
+- **`Sequence::is_empty` under a constant `false` (1).** The function is documented "never true" and
+  the invariant holds: `split` always produces at least one segment, so `self.n == 0` is `false` for
+  every value this type can take. `-> true` and `==` under `!=` are killed by the assertions added
+  beside `is_plain`; this third one cannot be, because it is what the function already does.
+
+**The 11 timeouts are hangs**, the same loop-control family as `dtb` and `clock_protocol`: `echo`'s
+word cursor under `-=` and `*=`, `write_found`'s digit loop under `>=`, `pad`'s `left -= take` under
+`/=`, and `split`'s segment cursor under `*=`. Each stops the loop advancing.

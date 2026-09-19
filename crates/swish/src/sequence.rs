@@ -246,7 +246,32 @@ mod tests {
             let s = segs(line);
             assert_eq!(s.len(), 1, "{}", core::str::from_utf8(line).unwrap());
             assert!(s.is_plain());
+            // Never empty, whatever was typed: an empty line is one empty segment, which is what
+            // `len`'s "always at least one" means and what `route` relies on.
+            assert!(!s.is_empty());
             assert_eq!(s.segments()[0], (Joint::First, trim(line)));
+        }
+    }
+
+    /// **`is_plain` is the pre-connector shape, so the answer that matters is the `false` one.**
+    /// The test above only ever asks it of a one-segment line; milestone 326's mutation run
+    /// replaced the whole function with `true`, and nothing noticed, which would route a connected
+    /// line straight down the single-command path and drop everything after the first connector.
+    #[test]
+    fn a_connected_line_is_not_plain() {
+        for line in [
+            &b"date ; wc"[..],
+            b"date && wc",
+            b"date || wc",
+            b"a ; b ; c",
+        ] {
+            let s = segs(line);
+            assert!(
+                !s.is_plain(),
+                "{} has a connector on it",
+                core::str::from_utf8(line).unwrap()
+            );
+            assert!(!s.is_empty());
         }
     }
 
