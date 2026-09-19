@@ -10,11 +10,16 @@ does: the gate that says we are over target is measuring an IPC shape that essen
 program in this tree performs, and the largest single item it reports on aarch64 is a symbol of
 which 94% is never fetched.
 
-**Gate: DECISION.** Phase 4 only; phases 1 to 3 needed nobody and are done. Phases 1 to 3 below are a lane's own call and need nobody. Phase 4, a second
-hand-written path through the kernel's IPC, is calef's: it is a standing verification obligation and
-a permanent maintenance cost, and this block recommends against starting it until phases 1 to 3 have
-reported and milestone 74 (cycle counters) on milestone 127 (the seL4 machine) can observe whether
-it bought anything.
+**Gate: DECISION.** Phase 4 only; phases 1 to 3 were a lane's own call, needed nobody, and are done.
+**The decision is [§95](../decisions/95-a-proven-ipc-fastpath.md) (a hand-written IPC fastpath, and
+whether it can stay proven), and this gate did not cite it until 2026-09-19.** It is `DECIDED`, and
+what calef decided is *"don't decide yet"*, in two tiers: the eligibility predicate and its proof in
+`crates/ipc` are ratified as buildable now, and the fastpath itself stays gated on the one
+measurement that would justify it, which is milestone 74 (cycle counters) on milestone 127 (the seL4
+machine). So the token stays `DECISION` because the spend is still calef's, and a reader now reaches
+the reasoning instead of re-deriving it: phase 4 is a standing verification obligation and a
+permanent maintenance cost, and this block recommends against starting it until phases 1 to 3 have
+reported and the measurement exists.
 
 ## The starting numbers, and where each comes from
 

@@ -70,6 +70,43 @@ the whole block, and then finds only a paragraph addressed to one person.
 4. **Or cite the decision that exists**, in the gate paragraph, where a reader meets the gate.
 5. **Cite the new section from the block's gate paragraph** either way, so the two records agree.
 
+## What the first slice found, 2026-09-19
+
+**Slice A, fifteen blocks: 52 66 95 102 105 131 142 147 178 180 188 198 205 206 207.** One lane,
+one reading each, no code touched.
+
+| outcome | count | blocks |
+|---|---|---|
+| a decision was genuinely owed and is now written up | 12 | 52, 66, 95, 102, 105, 131, 142, 147, 178, 180, 205, 206 |
+| the decision existed and the gate did not cite it | 2 | 188 ([§95](../decisions/95-a-proven-ipc-fastpath.md)), 198 ([§151](../decisions/151-repository-goal-is-independent-release.md)) |
+| the token was wrong | 1 | 207, corrected to `NONE` |
+
+**Sections minted: §157 to §168**, provisional until the merge queue lands them.
+
+**The denominator is the useful part, and it argues against this block's own framing.** This
+milestone was written as though the work were mostly writing forks up. In the first slice it mostly
+was, but **three of the fifteen were records that had fallen behind the tree**, and a fourth and
+fifth were blocks whose gate deferred to a decision that had since been taken:
+
+- **Milestone 105's first fork was decided six days before the block was minted.**
+  [§32](../decisions/32-reap-without-build.md) (a supervisor may collect a corpse without being able
+  to build one) ruled it on 2026-07-29 and `abi::rendezvous::REAP` ships it, authorized by the
+  supervision relationship rather than the rights bit the block proposes. The block restated a
+  settled question as open.
+- **Milestone 142's gate names a decision half of which §104 took on 2026-08-20.**
+- **Milestone 147's gate defers to milestone 75, whose question §139 answered on 2026-09-02.**
+  Milestone 75's own block still says `NOT-STARTED` and does not mention §139 at all, which is the
+  same defect one file over and is outside this milestone's list because 75's gate paragraph happens
+  to contain a `§` (to §10) and so was counted as citing.
+
+**So the failure this milestone names has a second direction**, and it is the worse one: a gate that
+says `DECISION` for a reason that was answered months ago spends calef's attention on a decision he
+has already made, and there is nothing in the tree that would notice.
+
+**And the three-way judgement was not the hard part; the stale half was.** Every block in this slice
+was legible about what it wanted. What no reading of the block alone could tell was whether somebody
+had since answered it, which took a grep of `design/decisions/` per block and found four.
+
 ## BUGS
 
 - **A written-up fork is still a fork, and this milestone makes calef's queue longer to read before

@@ -5,7 +5,10 @@ capability) lane. *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** Every future program is written against the answer, which puts it in AGENTS.md's
 irreversible category alongside the syscall surface, so this arrives as options rather than a
-recommendation.
+recommendation. It is [§167](../decisions/167-how-a-foreign-program-is-told-what-to-do.md) (how a
+foreign program is told what to do), written up 2026-09-19 by milestone 435's lane, which also
+corrected one premise: this ABI has no argument *vector*, but it does have arguments, one `u64` and
+a flag bitmask bound into a program's declared manifest by `grant_plan::Endowment`.
 
 **In brief.** Unmodified `ripgrep` runs on nife and stops at argument parsing, because
 **`std::env::args()` compiles std's `unsupported` backend and yields nothing.** The nife ABI has no

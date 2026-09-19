@@ -5,11 +5,17 @@ what would a performance-analysis story look like that CrayPat, Intel VTune and 
 tell, given that all three are built on their host OS's ambient perf-counter interface
 (`perf_event_open` or a vendor driver reachable by any sufficiently-privileged process).
 
-**Gate: MILESTONE 75, DECISION.** Milestone 75 already asks the prior question (whether the cycle
-counter is ambient or a capability) for one consumer (`sel4bench`). This milestone is what that
-decision buys once there is a second consumer: a profiler. It cannot be scoped until 75 answers
-what the grant unit even is, and it adds its own decision, below, about what a profiling session may
-name.
+**Gate: MILESTONE 75, DECISION.** Milestone 75 asks the prior question (whether the cycle counter
+is ambient or a capability) for one consumer (`sel4bench`), and **that question was answered on
+2026-09-02 while this gate went on deferring to it**:
+[§139](../decisions/139-cycle-counter-authority.md) (who may read the cycle counter, and by what
+authority) chose a per-thread grant enforced at the context switch, granted in the spawn manifest.
+§139 also says in its own text that neither shape it offers provides what this milestone needs,
+which is cross-thread authority with a named target. So this milestone's own decision survives its
+prior one being settled, and it is
+[§164](../decisions/164-what-a-profiling-session-may-name.md) (what a profiling session's grant
+names), written up 2026-09-19 by milestone 435's lane. The `MILESTONE 75` half stays until that
+block records its own answer.
 
 **In brief.** Every HPC profiler this note surveyed reads hardware counters through host-OS ambient
 authority: `perf_event_open` targets any pid the caller's privilege reaches, gated only by
