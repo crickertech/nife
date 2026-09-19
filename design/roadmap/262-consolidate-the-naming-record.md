@@ -1,11 +1,13 @@
 # 262. The naming rule is written twice, so changing it means changing two files and remembering to
 
-**Status: PARTIAL.** The note half is done; the `AGENTS.md` half is proposed as a diff and waits for
-calef, which is the split this block's own BUGS section predicted. Minted 2026-09-05 by calef, on finding that a rule change had to land in
+**Status: BUILT 2026-09-19.** The note half was done by this block's lane; the `AGENTS.md` half was
+done by DECISIONS §155 on 2026-09-18, which went further than this block's diff (the naming section
+is 26 lines, a pointer and the authority, and the conventions live only in `design/naming.md`); the
+duplicate heading was renamed on calef's ruling of 2026-09-19. It was PARTIAL from 2026-09-05 with
+the note half done and the `AGENTS.md` half proposed as a diff, which is the split this block's own
+BUGS section predicted. Minted 2026-09-05 by calef, on finding that a rule change had to land in
 `AGENTS.md` and `design/naming.md` together or the note would have contradicted the constitution the
 moment it merged. *(Number provisional until the merge queue lands it.)*
-
-**Gate: NONE.** Moving prose between two files this tree already owns.
 
 ## The measurement
 
@@ -94,15 +96,19 @@ three crates the noun rule settled, and the domain table's two arguments.
 
 ## Follow-on
 
-- **Outstanding.** The `AGENTS.md` diff is in the pull request body and waits for calef to apply it,
-  together with the `agents-md-lines` ceiling drop to 988 in 118's block. It is not a design fork
-  and wants no decisions section: it is an edit a lane is not permitted to make.
-- **Outstanding.** `design/naming.md` carries two sections both titled `## Crates`. A heading is a
-  name, so deduplicating it is calef's call rather than a lane's.
+- **Done.** On 2026-09-19. The `AGENTS.md` half: DECISIONS §155 (2026-09-18) moved the naming
+  conventions out of `AGENTS.md` entirely, superseding this block's diff. The `agents-md-lines`
+  ceiling in 118's block is now 922, the file's exact count after §155, where this item had asked
+  for 988 against the smaller diff.
+- **Done.** On 2026-09-19, `design/naming.md`'s second `## Crates` became
+  `` ## What `crates/` holds ``, calef's ruling that day. Its audience lists now name the crates as
+  they are called today; its census, taken on 2026-08-01, keeps that day's names and now says so.
 - **Recorded.** The merge queue and the lane roles are stated twice in the milder shape, and the
   dependency rule is not; the reading is in the pull request body and the lane report.
 
 ## Index row
+
+**Built:** 2026-09-19
 
 AGENTS.md's naming section is 132 lines, 12% of a file with a zero-headroom ceiling, and
 design/naming.md is 760 more on the same subject. Both stated the rule that changed on 2026-09-05.

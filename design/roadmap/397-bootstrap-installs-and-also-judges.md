@@ -14,7 +14,7 @@ step, and so does any Linux box where `script/ci-qemu` cannot run. *(Number prov
 merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§180](../decisions/180-bootstrap-provisions-and-judges.md) *(number provisional)*, written up
+[§181](../decisions/181-bootstrap-provisions-and-judges.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. That section also
 corrects one figure below: the callers that read this exit code are five scripts and **three
 separate `- run: script/bootstrap` steps** in `.github/workflows/ci.yml`, not four callers.

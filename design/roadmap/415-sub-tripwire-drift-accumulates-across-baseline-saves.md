@@ -7,7 +7,7 @@ which calef asked for after PR #886 found a regression that had hidden under the
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§189](../decisions/189-what-a-baseline-save-must-record.md) *(number provisional)*, written up
+[§190](../decisions/190-what-a-baseline-save-must-record.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section. Items 2 and 3 change
 how `cargo xtask bench --save` behaves and what a save is obliged to record, which is a workflow
 calef owns.
@@ -19,7 +19,7 @@ half that needed nobody's permission is gone and the token is **more** purely `D
 it was written, not less, which is the opposite of the promoting lane's hypothesis and is why it was
 not acted on.
 
-**There is a live argument that the token is still too strong, and §189 puts it to calef as its
+**There is a live argument that the token is still too strong, and §190 puts it to calef as its
 first question rather than settling it here.** This block's own reversibility paragraph says items 1
 and 2 are undoable in an afternoon and nobody outside this tree has acted on them, which by
 AGENTS.md's test makes item 2 a decision for whoever is holding the problem. Against that: it

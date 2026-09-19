@@ -1,17 +1,25 @@
 # 419. `tasks=4` needs more repeats, not more power cycles, and `REPEATS` is one constant for the whole sweep
 
-**Status: NOT-STARTED.** Promoted from the proposal `more-repeats-where-the-job-mix-contends`, filed
+**Status: BUILT** 2026-09-19, by milestone 168's own lane, in a different session and on the same
+day this block was numbered and its decision written up. What landed is **options 1 and 3 together**
+from the list below: a uniform `REPEATS` of 21 for the whole sweep, and the median reported with the
+minimum and maximum beside it. **Option 2, a per-point table, was refused on measured board time**:
+at 21 repeats the timed windows are a small share of a boot, so varying the count per point buys
+nothing it costs. Promoted from the proposal `more-repeats-where-the-job-mix-contends`, filed
 2026-09-16 by the maintainer from the five-boot job-mix session on radon, where the fourth and fifth
 boots each landed outside the range the first three had established. *(Number provisional until the
 merge queue lands it.)*
 
-**Gate: DECISION.** The decision is
-[§190](../decisions/190-job-mix-repeats-and-what-the-line-reports.md) *(number provisional)*,
-written up 2026-09-19 by milestone 435's slice-c lane because this gate named no section.
-`job_mix::REPEATS` decides how long every bench evening takes on every board,
-and the `job-mix-repeat:` line it produces is output two programs read (`script/job-mix`'s
-rehearsal and `crates/board_console`'s recogniser). Changing how many there are, or making the
-count vary per sweep point, changes both.
+**Its `DECISION` gate was answered by a build rather than by calef, and that is worth saying
+plainly.** The gate was right: `job_mix::REPEATS` decides how long every bench evening takes on
+every board, and the `job-mix-repeat:` line is output that two programs read (`script/job-mix`'s
+rehearsal and `crates/board_console`'s recogniser). The lane that built it had the change assigned
+in its maintainer's brief, noted that both readers are in-tree, and recorded the choice in milestone
+168 so it is visible rather than implied. So the question **is** settled in the tree, and it was not
+settled by the person whose call it was.
+[§191](../decisions/191-job-mix-repeats-and-what-the-line-reports.md) stays `PROPOSED` for exactly
+that reason: it is now a ratification or an overrule rather than an open fork, and the difference
+between those two is not a lane's to erase.
 
 **Premise re-checked 2026-09-19 and still true.** `job_mix::REPEATS` is still `3`, one constant for
 the whole sweep, and milestone 168 is still `PARTIAL` for the reason this block names: its status
@@ -66,7 +74,23 @@ option 4, which is what milestone 168's block now does.
 **Blocked until it is answered:** milestone 168 turning `BUILT`. Its own status line says it does
 not, until a number exists, and `tasks=4` does not yet have one.
 
+## Follow-on
+
+- **Milestone 168.** Where the work landed: *"What changed on 2026-09-19"*, with the resampling
+  evidence for 21 and the old-and-new line formats in `notes/job-mix.md`.
+- **Decision.** [`design/decisions/191-job-mix-repeats-and-what-the-line-reports.md`](../decisions/191-job-mix-repeats-and-what-the-line-reports.md),
+  still `PROPOSED`, and now asking calef to ratify or overrule what shipped rather than to choose
+  from four options.
+- **Refused.** *Option 2, a per-point repeat table.* Refused on measured board time rather than on
+  taste: the proposal assumed board time was the cost and it is not.
+- **Recorded.** *Every `job-mix:` line produced before 2026-09-19 is incomparable to one after it*,
+  because the line gained `repeats=`, `ticks_min=`, `ticks_median=` and `ticks_max=` and the
+  statistic changed from best-of-three to median-of-21. Recorded in milestone 168 and in
+  `notes/job-mix.md`, which carries the old-and-new table.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 Milestone 168's sweep reports the best of three repeats per sweep point, and at `tasks=4` the
 underlying distribution is wide enough that the best of three is itself a coin flip: five boots of

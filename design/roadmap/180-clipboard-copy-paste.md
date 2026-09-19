@@ -11,7 +11,7 @@ posture that refused a hung-thread lookup as "list everything and find the match
 OS clipboard is ambient: any process can read whatever the last process wrote, with nothing proven.
 That is precisely the authority model this system exists to not have, so this cannot be scoped
 before that tension is resolved, and resolving it is calef's, not a lane's. The fork is
-[§168](../decisions/168-whether-a-clipboard-exists.md) (whether a clipboard exists here, and what it
+[§169](../decisions/169-whether-a-clipboard-exists.md) (whether a clipboard exists here, and what it
 is scoped to), written up 2026-09-19 by milestone 435's lane; before that this gate named no
 decision, which for a block whose whole finding was that nothing in the tree mentions a clipboard
 left the record one rung lower than it should have been.

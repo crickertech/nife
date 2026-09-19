@@ -11,7 +11,7 @@ now, 1676 when this was written), and `kernel/src/user/console_service.rs` still
 deleted when the question is answered. *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** The decision is
-[§178](../decisions/178-console-server-with-no-client.md) *(number provisional)*, written up
+[§179](../decisions/179-console-server-with-no-client.md) *(number provisional)*, written up
 2026-09-19 by milestone 435's slice-c lane because this gate named no section and the ask lived only
 in the prose below, addressed to one person. calef's, and specifically because the answer is not
 "delete it": this is infrastructure rather than a demonstration, and the lane that found it was told
@@ -20,7 +20,7 @@ to report rather than decide. Nothing is blocked meanwhile; the boot is correct 
 **One record item that lane found and did not fix**, because it is downstream of the answer: the
 `#[expect(dead_code)]`'s `reason` string names *milestone 267's block*, which forwards here, so the
 code is two hops from the question rather than one. When this is answered the `expect` goes, and
-§178 is what its replacement should cite if anything survives it.
+§179 is what its replacement should cite if anything survives it.
 
 **In brief.** On a tour boot (no `shell`, no `initboot`), `kernel/src/main.rs:1676` still runs
 `user::initrd().map(|_| user::console_service::start())`. That spawns `components/src/console.rs`, a real

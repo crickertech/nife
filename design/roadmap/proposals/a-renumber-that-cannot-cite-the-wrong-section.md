@@ -2,13 +2,13 @@
 
 **Status: PROPOSED 2026-09-19.** Filed by the integrator after the third `design/decisions/`
 number collision between two sessions in ninety minutes, on the evening calef ruled that the
-interleaving stays ([§193](../../decisions/193-sessions-interleave-rather-than-serialize.md)).
+interleaving stays ([§194](../../decisions/194-sessions-interleave-rather-than-serialize.md)).
 
 **Gate: NONE.** It is a mode on a script that already exists, over files already in the tree.
 
 **In brief.** When two sessions mint from the same range and one lands first, the other's whole run
-shifts. That happened three times on 2026-09-19: §156, then §157, then §158, moving one branch's
-34 sections from §156-§189 to §159-§192. The shift itself is mechanical. **The hazard is the
+shifts. That happened four times on 2026-09-19 in two and a half hours: §156, then §157, then §158,
+then §159, each landing moving one branch's run up by one, from §156-§189 to §160-§194. The shift itself is mechanical. **The hazard is the
 citations**, and it is specific: a `§` rewritten by number can be silently wrong and still pass
 every gate in the tree, because the section it now names exists. `script/decisions --check` verifies
 that §174 resolves. Nothing can tell it the sentence meant the section that used to be §173.
@@ -33,12 +33,12 @@ Steps 1 to 4 are the mechanism; step 5 is the honest floor under it.
 
 `script/decisions`, as a `--renumber-from <n>` mode, because that script already owns the index, the
 numbering check and the gap check, and whoever is renumbering is already running it. The version
-used on 2026-09-19 lives in a session scratchpad, which is rung four and is why this exists.
+used on 2026-09-19, for the third shift and the fourth, lives in a session scratchpad, which is rung four and is why this exists.
 
 ## BUGS
 
 - **Step 5 cannot be gated.** Telling an intended citation from an unintended one is reading prose
   for intent, which this tree already priced at `git grep -w TODO`'s 82% false-positive rate. The
   tool lists; a person decides.
-- **It does not prevent the collision**, and is not meant to. §193 rules that the interleaving is
+- **It does not prevent the collision**, and is not meant to. §194 rules that the interleaving is
   the condition being modeled rather than a fault to design out.
