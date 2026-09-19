@@ -200,13 +200,46 @@ about.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: MEASURED, 2026-09-19. AMBER, and the amber half is two findings a census bought that no
-sample could.** Ruled by calef against the run of 2026-09-14, closing the re-read this entry had been
-waiting on since 2026-08-03.
+**Status: MEASURED, 2026-09-19. AMBER**, re-read the same day against a census run on purpose rather
+than against the scheduled one. calef ruled amber on the 2026-09-14 numbers, milestone 326 then
+triaged everything the amber half named, and he asked for a fresh census before deciding whether it
+went green. It did not go green, and the reason is the useful part.
 
-**The green half is the arithmetic, and it is better than the entry feared.** Like for like, the 38
-crates the baseline covers scored **93.6% against 92.4%**: the score went *up* over a month in which
-2,529 commits landed. The whole corpus, 64 crates, is **91.7%**. There was no fall.
+**The score fell, with the worklist finished.** Run
+[35421192143](https://github.com/crickertech/nife/actions/runs/35421192143), eight shards, all green,
+dispatched against the branch carrying milestone 326's work.
+
+| | crates | viable | killed |
+|---|---|---|---|
+| baseline, 2026-08-03 | 38 | 5,141 | 92.4% |
+| census, 2026-09-14 | 64 | 9,277 | 91.7% |
+| **census, 2026-09-19** | **62** | **8,925** | **91.4%** |
+| like-for-like, 2026-09-14 | 38 | 6,552 | 93.6% |
+| **like-for-like, 2026-09-19** | **37** | **6,472** | **92.6%** |
+
+**Like for like it lost a full point**, 93.6 to 92.6, in five days that included 77 new tests, 49
+argued equivalences and a fix to the instrument that stopped counting `timetable`'s own Kani
+harnesses against it. Survivors across the corpus fell 771 to 563 and the score still went down.
+
+**The condition this entry set for going green was the wrong test, and that is worth recording
+because it was the maintainer's wording, not calef's.** It read *"when 326's first two parts carry no
+untriaged survivor"*. Those parts are done: `timetable` is 146 caught and zero survivors,
+`memory_regions`, `elf`, `nifefs`, `dma_validator` and `bitmap_font` are all at zero. Taking that
+condition literally would have turned this entry green on a tree whose score had just fallen. **A
+finished worklist is not the same claim as a suite that catches bugs**, and this entry exists to tell
+those apart.
+
+**One crate accounts for the fall and it was not one of the eight.** `machine_discovery` went from 22
+survivors to **77**, at 86.2%, and its Kani harnesses are inline `mod verification` blocks that the
+exclusions do catch, so those 77 are real untested code rather than miscounted proofs. It is the
+crate milestone 319 proved on 2026-09-17: the proofs landed, the parsing around them did not get
+tests, and two days later the census found it. `paging` added 5 and `filesystem_protocol` 3. Against
+them, where triage was spent earlier: `line_editor` −42, `grant_plan` −20, `glob` −14, `pci` −8.
+
+**So the shape of the risk is now measured rather than argued.** Triage works where it is applied and
+the tree adds untested code faster than triage removes it. That is a rate problem, not a quality
+floor, and it is why this stays amber: the number is good, the derivative is not, and a green verdict
+would claim the second.
 
 **The first amber half: seven crates regressed, and three of the baseline's five perfect crates lost
 that score.** `memory_regions` 100% to 88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%, with
@@ -244,9 +277,12 @@ ever turned a score. **Milestone 326 was minted the same day for exactly that ga
 definition of done is milestone 85's rule rather than a target percentage, because a percentage
 target can be met by excluding the awkward crates.
 
-**This entry goes back to green when 326's first two parts carry no untriaged survivor**, not when
-the number rises. That is the condition to hold it to, and it is written here so a later reader can
-check the promise against the block.
+**What would move this entry now, stated better than the condition it replaces.** Not a finished
+worklist, and not a single number either. **Two consecutive censuses where the like-for-like rate
+does not fall**, which is the smallest claim that distinguishes a suite keeping up from a triage pass
+that happened recently. One census is a point; two is a direction, and the direction is what this
+entry is about. The instrument now runs weekly and has completed twice, so this costs waiting rather
+than work.
 
 **The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
 workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped

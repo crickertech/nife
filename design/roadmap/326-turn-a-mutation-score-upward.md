@@ -189,6 +189,16 @@ Parts 1 and 2 only. Each of these was checked against the tree on 2026-09-19, on
   walk in `crates/filesystem_protocol/src/lib.rs` has two mutants no `cargo test` can kill, because
   its checker is `rustc`. The same object as the Kani harnesses, without a module path to exclude by.
 
+- **Outstanding.** *`machine_discovery`'s 55 new survivors, found by the census of 2026-09-19 after
+  this lane had finished the eight crates it knew about.* It is part 1's category rather than part
+  3's: a baseline crate that regressed, 22 survivors to 77, at 86.2%. Checked before filing here, so
+  a lane does not re-derive it: its Kani harnesses are inline `mod verification` blocks in `acpi.rs`,
+  `framebuffer.rs`, `riscv64.rs` and `x86_64.rs`, which the `verification::` exclusion does match, so
+  these are real untested code and not the miscount that inflated `timetable`. Milestone 319 proved
+  the crate on 2026-09-17 and the parsing around the proofs did not get tests. **This single crate
+  accounts for the corpus falling** from 91.7% to 91.4% while 208 survivors were being removed
+  elsewhere, which is `design/fatal-risks.md` risk 3's whole amber argument in one row.
+
 ## Index row
 
 `design/fatal-risks.md`'s risk 3 is AMBER rather than green because 771 survivors from the
