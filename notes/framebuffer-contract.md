@@ -405,12 +405,19 @@ correct by the same diagnostics that found this. Not yet root-caused; see [miles
 177](../design/roadmap/177-graphical-interactive-boot.md)'s own status for the two next steps
 recorded there.
 
+**A data point from the second driver** (milestone 400, 2026-09-19): `framebuffer_driver` serves this
+same contract to the same `display_terminal`, over the real interactive boot's wiring, with no device
+and no interrupt, and every flush returns: the banner, each echoed keystroke, and each command's
+output are all further flushes. That is evidence, not proof, that the hang above lives in
+`gpu_driver`'s completion-interrupt handling rather than in the contract or the terminal.
+
 ## Where the pieces are
 
 | piece | file |
 |---|---|
 | the contract, host-tested | `crates/graphics_protocol/src/lib.rs` |
 | the display driver | `components/src/gpu_driver.rs` |
+| the second driver: a screen the firmware already set up (milestone 400) | `components/src/framebuffer_driver.rs`, its arithmetic in `screen_console::Aperture` |
 | the client that draws | `fixtures/src/painter.rs` |
 | enumeration | `kernel/src/pci.rs` (`find_gpu_device`) |
 | the spawn wiring | `kernel/src/user/display_service.rs` |
