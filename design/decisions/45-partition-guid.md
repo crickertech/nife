@@ -12,6 +12,10 @@ itself does not define one. So one was generated, version 4, on 2026-07-30:
 EC5CC08B-D749-4434-AC38-A274C50385BA      gpt::guid::types::CRICKER_DATA
 ```
 
+(An account of what was generated that day, under the names it had. The constant is
+`globally_unique_identifier_partition_table::guid::types::NIFE_DATA` today: the OS was renamed nife on 2026-08-15 and the crate
+under DECISIONS §154 on 2026-09-18. The GUID itself never changed.)
+
 **It is random on purpose.** A type GUID's entire job is to not collide with anybody else's, and the
 only mechanism for that without a registry is 122 bits of randomness. A memorable value spelling
 something in hex would be a worse GUID for exactly the reason it would be a nicer string.
@@ -32,6 +36,6 @@ Two consequences worth writing down:
   partitioning tool that could only write nife partitions would be useless for the actual job
   (setting up a drive that also carries an EFI system partition and a Linux filesystem).
 
-`crates/gpt` names ten other type GUIDs beside it, and every one of them was read back out of
+`crates/globally_unique_identifier_partition_table` names ten other type GUIDs beside it, and every one of them was read back out of
 `sgdisk` on the machine rather than typed from memory. Four are pinned by the committed fixtures. See
-notes/gpt.md.
+notes/globally-unique-identifier-partition-table.md.

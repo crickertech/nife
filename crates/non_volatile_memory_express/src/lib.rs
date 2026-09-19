@@ -118,6 +118,14 @@
 //! the maintainer's reading of calef's boundary rather than calef's own words**; if the intent was
 //! to move the line instead, this paragraph is what needs correcting.
 //!
+//! **The line did move, the next day, and the paragraph above is kept as the account it now is.**
+//! DECISIONS §154 (2026-09-18) replaced 265's format-versus-protocol boundary with one question,
+//! whether the expansion is a phrase people say. Under it `gpt` expanded after all, to
+//! `globally_unique_identifier_partition_table`, and `pci` stays for a different reason than the
+//! one given above: not because it names a bus, but because nobody says "peripheral component
+//! interconnect". This crate's own name is unchanged by the switch, since "non-volatile memory" is
+//! spoken under either test.
+//!
 //! **Refused `nvm_express`**, which the maintainer recommended and argued was the faithful
 //! spelling, since "NVM Express" is what the standard and its consortium actually call themselves
 //! and `non_volatile_memory_express` expands an acronym nested inside that name. calef's ruling is
