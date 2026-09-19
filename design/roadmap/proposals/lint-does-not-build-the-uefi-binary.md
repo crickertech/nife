@@ -22,10 +22,11 @@ inside `script/test`, which costs an emulator boot.
 
 ## Why it matters more now than it did
 
-Three things landed on 2026-09-19 that all run through that binary: milestone 400 (the shell on the
-firmware screen), milestone 441 (the stick program: one file per architecture, written to a stick),
-and milestone 243 (the loader's pre-jump banner, and `uefi_loader` gaining a screen module). The
-riscv64 payload is now produced through `crates/portable_executable` as well. The loader stopped
+Three things landed on 2026-09-19 that all run through that binary. Milestone 400 (the shell on the
+firmware screen) put a terminal on it. Milestone 441 (the program that makes the stick) has a host
+program write that one file to a stick, per architecture. Milestone 243 (a machine with no serial
+port has no way to say anything) gave the loader a pre-jump banner and a screen module of its own,
+and the riscv64 payload is now produced through `crates/portable_executable`. The loader stopped
 being a thin shim while nothing was watching its build.
 
 ## What to build
