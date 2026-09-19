@@ -57,6 +57,14 @@ fn timed(name: &str, iters: u64, f: impl FnOnce()) {
 pub fn run() -> ! {
     println!();
     println!("bench: cntfrq {}", crate::arch::timer::frequency());
+    // Which E3 image this is (milestone 134's layout control): nothing else on a card says, and E3
+    // interleaves up to eight images through one card or one TFTP slot. A probe, so it is echoed
+    // and never becomes a row. See kernel/src/fastpath_pad.rs for why the numbers are read as data.
+    #[cfg(feature = "fastpath_pad")]
+    {
+        let [units, shift] = *core::hint::black_box(&crate::fastpath_pad::BUILD);
+        println!("bench-probe: fastpath_pad units {units} shift {shift}");
+    }
 
     // Milestone 134's per-IPC stack depth, in the build it is otherwise impossible to measure: the
     // release kernel radon boots. First, so nothing earlier in the suite is on any stack it reads,

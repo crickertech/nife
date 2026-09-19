@@ -36,7 +36,15 @@ prediction assumed. At that size stacks fill a 32 KB L1d near 54 threads, so cap
 explain a knee at 8 to 16; page-aligned stack tops sharing set indices in radon's 4-way L1D would,
 and so would page-aligned TCBs. Tier B's instruments were re-checked the same day (M5 has one on all
 three ISAs; M6 to M8 have none; M9 has the counter but not the stamps). **What 134 still owes is one
-radon evening for E3 under a layout control**, and "Follow-on" says exactly what it must produce.
+radon evening for E3 under a layout control**, and the paragraph below is that control.
+
+**2026-09-19: that control is built**, as milestone 370: `NIFE_FASTPATH_PAD` and
+`NIFE_FASTPATH_SHIFT` size E3's sled and add an un-reachable shift, so E3 runs as a dose-response
+over four pad sizes against four un-padded kernels that differ only in address assignment, and
+`script/fastpath-footprint --layout` proves before a boot that all eight execute the same
+instructions. **What 134 still owes is the radon evening**, and "Follow-on" says what it must
+produce. The procedure is notes/footprint-perturbation.md, "The next radon evening".
+
 
 
 **Extended the same day, at calef's direction**, and the extension changes what this block is. The
@@ -339,24 +347,28 @@ measure this register carries and nobody ever needs is a cheap thing to have bee
   radon on **2026-09-04** (six interleaved boots, `bench/radon-2026-09-04/`, read in
   notes/footprint-perturbation.md), and the Status paragraph above already said so. E1 and E4 from
   that session are single-build sweeps and stand. E3 does not; the next item is what is left.
-- **Outstanding.** The one item between this block and BUILT: **a radon evening for E3 under a
-  layout control.** Its prerequisite is not the board: the control
-  (`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`, cheapest form a
-  sized `fastpath_pad`) is **not built**, and re-running E3 without it reproduces the confound. The
-  evening must produce, on a `board,bench,single_hart` card at the evening's commit: (1) `call_reply`,
-  `ipc_rtt` and `ipc_rtt_el0` at pad size 0 and at least three non-zero sizes, three boots each,
-  interleaved, each ending `bench: done` with `cntfrq 4000000`; (2) the reading per row, monotone
-  with pad size beyond the boot-to-boot spread (footprint), jumping and returning (layout), or
-  inside the spread (neither), written into notes/footprint-perturbation.md and the register's E3
-  row; (3) each boot's `cycles_per_tick` line, so the rows convert to cycles on that commit. **That
-  is sufficient for BUILT**; E1 and E4 re-date for free on the same boots. It combines with
-  milestone 168's job-mix evening by image switching over `--tftp` (the two cannot share one), E3
-  first because it is the interleaved block: notes/footprint-perturbation.md, "The next radon
-  evening", has the order and the log names. **The fork this leaves for calef:** if the layout
-  control is not wanted, E3 can instead be closed as "confounded, not a footprint result" and this
-  block turned BUILT on what exists, at the cost of milestone 188 phase 4 having no footprint
-  evidence either way. The recommendation is to build the control, because phase 4 is a standing
-  verification obligation and E3 is the only instrument pointed at it; it is reversible either way.
+- **Done.** 2026-09-19: the layout control is built: `NIFE_FASTPATH_PAD` and
+  `NIFE_FASTPATH_SHIFT` (kernel/build.rs, kernel/src/fastpath_pad.rs) size E3's sled and append an
+  unreferenced block that moves the same code and adds nothing reachable;
+  `script/fastpath-footprint --layout` proves the eight images share one instruction stream and
+  prints where each one put the hot path; `script/board-image` echoes both values and refuses them
+  without the feature; a `fastpath_pad` bench boot prints `bench-probe: fastpath_pad units <u>
+  shift <s>` so a card says which image it is. Built and booted under QEMU only, which proves the
+  images boot and print and says nothing about timing. Milestone 370 is the block, and it is BUILT.
+- **Outstanding.** The one item between this block and BUILT: **the radon evening.** Its
+  prerequisite is now met, so what is left needs the board. It must produce, at one commit, on
+  `board,bench,single_hart,fastpath_pad` cards: (1) the step-0 static check, eight images with one
+  shared code hash; (2) `call_reply`, `ipc_rtt` and `ipc_rtt_el0` at pad 0, 1, 2 and 3 **and** at
+  the four layout images, three boots each, interleaved, each ending `bench: done` with
+  `cntfrq 4000000` and naming itself in its `fastpath_pad` probe line; (3) the reading per row
+  against the layout range rather than against a single un-padded point, written into
+  notes/footprint-perturbation.md and the register's E3 row; (4) each boot's `cycles_per_tick`
+  line. **That is sufficient for BUILT**; E1 and E4 re-date for free on the same boots. It combines
+  with milestone 168's job-mix evening over `--tftp`, E3 first because it is the interleaved block:
+  notes/footprint-perturbation.md, "The next radon evening", has the order and the log names.
+  **What it still cannot settle**, stated so no one expects it to: a never-executed pad can only
+  act through addresses, so a monotone result says this tree's footprint number predicts latency,
+  not that Liedtke's executed-footprint claim is measured. That is M6.
 - **Recorded.** A correction found on the way, 2026-09-04, which would otherwise have wasted the
   session. E3's padding
   was reachable only from `sched::ipc_send`. Milestone 188 phase 1 (2026-09-04) split the footprint
