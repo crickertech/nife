@@ -122,6 +122,9 @@ inter_process_communication = { version = "0.1.0", path = "../crates/inter_proce
 # decoding of what it finds lives in the crate, host-tested against a real device tree and against
 # words a real part reports, because a parser proved only inside a booting kernel is a parser proved
 # by nothing that runs in milliseconds.
+# The `fw_cfg` wire format (milestone 243), so that the big-endian encoding QEMU's firmware
+# interface wants is proved on the host and the kernel driver is a volatile write and a poll.
+firmware_configuration = { version = "0.1.0", path = "../crates/firmware_configuration" }
 machine_discovery = { version = "0.1.0", path = "../crates/machine_discovery" }
 # The terminal contract's IPC framing (DECISIONS §21): the kernel's display-terminal tests play both
 # an application (OP_WRITE) and an input driver (OP_BYTES), so they speak the same protocol the

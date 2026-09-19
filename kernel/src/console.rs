@@ -265,6 +265,23 @@ pub unsafe fn attach_screen(found: Framebuffer, virt: u64) -> Option<(u32, u32)>
     Some(size)
 }
 
+/// **Which screen this console has, without taking it** (milestone 243).
+///
+/// [`yield_screen`] answers the same question and takes the screen in the same breath, which is
+/// right for its one caller and wrong for a caller that has to decide *whether* to take it: a
+/// refusal after the yield leaves a cleared screen nobody is painting. So the question is separable
+/// and this is the separation.
+///
+/// `None` when there is no screen, or when a userspace terminal already has it.
+pub fn peek_screen() -> Option<Framebuffer> {
+    let guard = CONSOLE.lock();
+    let screen = guard.screen.as_ref()?;
+    if screen.painter != Painter::Kernel {
+        return None;
+    }
+    Some(screen.console.screen())
+}
+
 /// **Stop painting the screen and say which screen it was** (the shell on the firmware screen,
 /// milestone 198's rung 1b), for the one caller that hands it to a userspace terminal.
 ///

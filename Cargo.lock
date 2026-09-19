@@ -508,6 +508,7 @@ dependencies = [
  "entropy_protocol",
  "environment_protocol",
  "filesystem_protocol",
+ "firmware_configuration",
  "generational_table",
  "grant_plan",
  "graphics_protocol",
