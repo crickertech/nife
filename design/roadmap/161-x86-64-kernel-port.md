@@ -1,6 +1,12 @@
 # 161. The x86_64 kernel port: bring up the HAL's third architecture
 
-**Status: PARTIAL.** Minted 2026-08-23, splitting real work out of milestone 20's stale text; early
+**Status: BUILT 2026-09-19.** The four items the 2026-09-03 follow-on left open were closed by the
+lane on `milestone/161-x86-64-port-remainder`; see "Closing the follow-on (2026-09-19)" below the
+follow-on list. What remains is recorded where a reader meets it rather than held here: the
+two-core runner default belongs to milestone 315 (DECISIONS §153), and whether to set `CR4.PGE`
+waits on a machine with a real TLB (`kernel/src/arch/x86_64/mmu.rs`'s BUGS).
+
+*The status history, kept because the rest of the block cites it:* PARTIAL. Minted 2026-08-23, splitting real work out of milestone 20's stale text; early
 boot built and gated the same day. **The kernel boots on QEMU's `q35`, reaches Rust in the high half
 of a 4-level address space, prints over a 16550, installs a GDT/TSS and an IDT, catches a breakpoint
 and steps over it, takes a calibrated timer interrupt, brings up the frame allocator, replaces the
@@ -33,7 +39,7 @@ architecture," singular) -- checked directly, `kernel/src/arch/` holds only `aar
 `riscv64/`, no `x86_64/` exists anywhere in the tree. The x86_64 half of 20's own deliverable was
 never actually tracked as open work; this milestone is that tracking.
 
-**Gate: NONE.** DECISIONS §19 already settled that x86_64 is a target; nothing here needs deciding.
+*While it was open, nothing gated it:* DECISIONS §19 already settled that x86_64 is a target.
 Milestone 87's own text is explicit that this can start now, under QEMU TCG, the way RISC-V's port
 did -- it is not gated on the physical machine.
 
@@ -688,18 +694,18 @@ One thing that is not a step, and is now resolved rather than owed:
 - **Milestone 176.** Item 0's last piece, the CMOS RTC seam, is built rather than "DECIDED but not
   yet built": `kernel/src/arch/x86_64/rtc.rs` reads CMOS at boot and `clock_protocol`'s RTC seam
   carries the seed to the clock service.
-- **Outstanding.** `crates/paging` still maps 4 KiB leaves only, says so in its own x86_64 module
-  and has no block-descriptor path, so the direct map still costs 0.2% of RAM. No milestone and no
-  proposal has been minted for 2 MiB and 1 GiB leaves. Checked 2026-09-03.
+- **Done.** `crates/paging` maps 2 MiB and 1 GiB leaves on all three CPU formats, and
+  all three kernels' direct maps use them for RAM. See "Closing the follow-on" below.
 - **Milestone 215.** Item 2's MSI half is built: an MSI intid is its vector, a `virtio-blk-pci`
   completion reaches a ring-3 driver, and the enable and acknowledge paths are correctly no-ops for
   one.
 - **Refused.** Item 2's other half, PCI interrupt routing over INTx, was deliberately not taken by
   milestone 215: ACPI's `_PRT` is AML and this tree will not grow an interpreter, and hardcoding
   q35's swizzle would pass every gate here and might still fail on xenon.
-- **Outstanding.** The `CR4.PCIDE` and `CR4.PGE` question is still unmeasured.
-  `kernel/src/arch/x86_64/mmu.rs`'s `BUGS` still records both bits off with nothing to measure
-  against, and `script/icount` still takes only the two other architectures. Checked 2026-09-03.
+- **Recorded.** Measured 2026-09-19; both bits stay off: the pinned QEMU flushes its whole TLB
+  on every `CR3` write, so neither this tree's icount instrument nor plain TCG can see what PGE
+  saves. `kernel/src/arch/x86_64/mmu.rs`'s `BUGS` and notes/benchmarks.md's 2026-09-19 section
+  hold the numbers and the trigger (KVM on cordoba, or xenon).
 - **Milestone 186.** The bench tooling item 3 built has no caller: the x86 baseline and its check
   flag exist and CI's bench job runs two legs of three, which 186 tracks as one of its eleven gaps.
 - **Milestone 164.** `fs_server` builds for `x86_64-unknown-none`. One build flag turned exit 101
@@ -722,24 +728,86 @@ One thing that is not a step, and is now resolved rather than owed:
 - **Recorded.** VT-d's scoped-out limits hold as written in `kernel/src/arch/x86_64/iommu.rs`'s
   `BUGS`: one DRHD, no interrupt remapping, global-granularity invalidation only, `RWBF` never
   exercised, and only the first Fault Recording Register decoded.
-- **Outstanding.** SMP failure (1) is unchanged: `kernel/src/arch/x86_64/ap_boot.rs`'s `BUGS` still
-  records a third-or-later secondary failing intermittently with neither hypothesis surviving, and
-  the x86_64 runner still defaults to one core. Checked 2026-09-03.
-- **Outstanding.** SMP failure (3) is unchanged: `kernel/src/arch/x86_64/mod.rs` still reads
-  CPUID leaf 1's initial local APIC id rather than a boot-time record, so half of two-core runs
-  disagree about which core booted. Checked 2026-09-03.
+- **Done.** SMP failure (1), fixed 2026-09-19, was a counting bug in `cpu_start`, not a core failing to
+  start; `kernel/src/arch/x86_64/ap_boot.rs`'s `BUGS` #1 has the evidence.
+- **Milestone 316.** SMP failure (3) was fixed there on 2026-09-17: `boot.s` stamps
+  `BOOT_CPU_ID` once and `boot_cpu_id` reads it. Re-verified against this tree on 2026-09-19.
+- **Milestone 315.** The x86_64 runner's `NIFE_SMP` default moves to 2 as that milestone's closing
+  step (DECISIONS §153, answered 2026-09-18). Nothing in the SMP bring-up holds it at 1 any more.
 - **Milestone 167.** The 1 GHz `cntfrq` fallback for children built through the supervision
   protocol is that block's scope, and it is still NOT-STARTED.
 
+## Closing the follow-on (2026-09-19)
+
+Each item was re-checked against the tree first, because the list above said "Checked 2026-09-03".
+One had already been done by another milestone (SMP failure 3, milestone 316); the other three were
+open as written.
+
+**1. Blocks in `crates/paging`.** `PageFormat` grew two required methods, `block_entry` and
+`is_block`, with no defaults so that a fourth format has to say what it does. `Mapper` gained
+`map_block` and `map_span` (the largest leaf that fits, up to a ceiling the caller passes), and its
+existing walks learned that a block is a leaf met early: `map` refuses to descend through one,
+`unmap` refuses to take a page out of one (`MapError::InsideBlock`), and `translate` stops at one.
+Nothing splits a block. `PageSize`, `map_block`, `map_span`, `InsideBlock` and `UnsupportedSize` are
+**provisional names**. VT-d declines blocks (`UnsupportedSize`) until something reads `SLLPS`.
+
+- **Parity (rule 5):** no scope note is needed. aarch64 and riscv64 had block mappings only in their
+  boot maps (two 1 GiB blocks and six gigapages, hand-built in assembly and Rust respectively); their
+  fine maps used 4 KiB leaves exactly as x86's did. All three formats now encode blocks, all three
+  are proved, and all three kernels put RAM in blocks and devices in pages.
+- **Measured:** x86_64 on QEMU's 256 MiB, 560 KiB of kernel page tables became **60 KiB**; at 4 GiB,
+  8,252 KiB became **64 KiB** (1 GiB leaves) or 72 KiB (`-cpu qemu64`, no `Page1GB`, 2 MiB leaves).
+- **Proofs:** eight new Kani harnesses, two over the leaf choice (soundness: a block never leaves its
+  span; completeness: no larger fitting leaf is skipped) and two per format (the block encoding over
+  every address and flag set; no table pointer reads as a block). No existing harness was changed.
+  Five carry replayable falsification patches, swept red. notes/verification.md has the table.
+- **Recorded, not fixed:** the kernel does not read the MTRRs, so a block over RAM relies on firmware
+  keeping that RAM one memory type (`mmu.rs`'s BUGS).
+- **The fastpath moved by four bytes on aarch64, and by nothing on the other two.** `syscall_entry`
+  goes 1,504 to 1,508 bytes, which is the `is_block` test the walk now makes at each level above the
+  leaf, inlined into `syscall::dispatch`; measured by neutralising the test and remeasuring
+  (1,504 again). riscv64 and x86_64 are byte-identical to the base commit on all four figures. The
+  gate's riscv64 `syscall_entry` and x86_64 numbers already sat above `bench/fastpath-*.txt` before
+  this lane (measured at the base commit: riscv64 1,870 against a 1,828 baseline, x86_64 1,701
+  against 1,637), so that drift is `main`'s and is left for whoever re-saves those baselines.
+
+**2. `CR4.PGE` and `CR4.PCIDE`.** Measured with an initrd attached, so the EL0 benches that switch
+`CR3` actually ran on x86_64: icount tick counts were byte-identical with PGE on and off on every
+line, and plain TCG timing overlapped within 1%. Both are the expected result, because the pinned
+QEMU flushes its whole TLB on every `CR3` write whatever the two bits say, and icount counts
+instructions, which a TLB refill is not. **So the bits stay off and the question is not answered.**
+No `script/icount` x86 leg was built: milestone 78's instrument asserts deadline-timer claims this
+port's periodic LAPIC timer cannot make, and a leg would measure instructions, which is the one
+thing already known not to move. Milestone 186's bench gap (CI running two legs of three) is
+untouched. What would answer it is KVM on cordoba, one `usermod` away, or xenon. PCIDE is a design
+(INVPCID on three flush paths plus a tag-reuse rule), not a bit, and `mmu.rs` says why.
+
+**3. SMP failure (1).** Reproduced at `-smp 4` on the first run: **26 of 40** plain boots reported a
+core "did not start", and the failing core had printed its own `cr4.smep` line from
+`secondary_main` first. An instrumented build confirmed it in three failures of three: `cpu_start`
+re-read the online count after the STARTUP IPIs and waited for it to move again, so a core that
+checked in during the 200 µs settle delay was counted absent. Fixed by reading the count once,
+before the INIT. After: **40 of 40** at `-smp 4`, **20 of 20** at `-smp 8`, **20 of 20** at `-smp 3`,
+all cores online. It could reach two cores as well, which is plausibly the UEFI leg's one-in-three
+(`proposals/the-uefi-boot-gate-asserts-two-cores-that-do-not-always-start.md`, not measured here).
+
+**4. SMP failure (3).** Already fixed by milestone 316 (`BOOT_CPU_ID`); verified in the tree.
+
+**Can the x86_64 runner default to more than one core?** Not from this milestone. Both bring-up bugs
+are closed, and DECISIONS §153 makes the flip milestone 315's closing step, after its port-revoke
+broadcast makes `a_revoked_holder_faults_on_its_next_port_write` reliable at two cores.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 Splits real work out of milestone 20's stale text: DECISIONS §19 declared x86_64 a target,
 milestone 20's own "Deliverable, in two parts" named it, but 20 is BUILT for the HAL split and
-RISC-V alone (`kernel/src/arch/` has no `x86_64/`). Starts under QEMU TCG, not gated on milestone
-87's physical machine, whose serial hardware arrived and is installed as of 2026-08-23. The fine
-map, IO APIC, ring 3, the scheduler/real processes, VT-d, and a real userspace (170 of 237 kernel
-tests pass) are all **BUILT**, and the discovery seam's wide half was split into its own milestone
-(176). **What keeps this PARTIAL is SMP**: INIT-SIPI-SIPI and a real-mode trampoline start a
-second core, but two unresolved bugs (a third-or-later secondary failing intermittently, and two
-idling cores crashing under the real scheduler's cross-core placement/reaping) mean nothing
-downstream of "a second core exists" has been shown safe, so `NIFE_SMP` stays at 1; see the block.
+RISC-V alone (`kernel/src/arch/` has no `x86_64/`). **BUILT 2026-09-19.** The fine map, IO APIC,
+ring 3, real processes, VT-d, a real userspace and SMP bring-up are built; the last four items closed
+together: 2 MiB and 1 GiB leaves in `crates/paging` on all three formats, proved, taking x86's
+direct map from 560 KiB of tables to 60 KiB; SMP failure (1), which was `cpu_start` counting a
+started core as absent (26 of 40 four-core boots before, 80 of 80 at three to eight cores after);
+failure (3), fixed by milestone 316; and `CR4.PGE`/`PCIDE`, measured and left off because the pinned
+QEMU flushes its TLB on every `CR3` write, so no instrument here can see them. The two-core runner
+default is milestone 315's closing step.
