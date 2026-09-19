@@ -100,7 +100,7 @@ interpretable for the first time: an effect inside the layout distribution is la
 outside it is footprint. The same fix answers the E4 and E1 readings below, which have the same
 exposure.
 
-Written up as `design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`,
+Written up as `design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`,
 because without it every perturbation experiment in this tree measures footprint and layout summed
 together and reports the total as footprint.
 
@@ -268,7 +268,7 @@ not tidiness; it is what makes a few-percent difference mean anything.
 They produce the same three filenames, so nothing on the card says which is which;
 `script/board-image` echoes its feature list for exactly this reason and that line belongs in the log
 beside the numbers. **That the card cannot say what it is, is the reason six writes are risky rather
-than merely slow**, and `design/roadmap/proposals/a-boot-banner-that-names-the-build.md` is the fix.
+than merely slow**, and `design/roadmap/367-a-boot-banner-that-names-the-build.md` is the fix.
 
 ## The procedure, in order
 
@@ -472,7 +472,7 @@ read `ipc_thread_scaling skipped` twenty minutes later.
   address of every symbol after it. The 2026-09-04 session found a 193 ns effect with a sign that
   footprint cannot produce, so the 19 ns effect it *can* produce is not attributable. No reading of
   E3 taken this way should be quoted as a footprint result until a layout control exists
-  (`design/roadmap/proposals/a-layout-control-for-the-perturbation-experiments.md`). This is a flaw
+  (`design/roadmap/370-a-layout-control-for-the-perturbation-experiments.md`). This is a flaw
   in the experiment's design rather than in its execution, and it was there on patagonia too; the
   small cache is what made it visible.
 - **A bench boot takes about 75 seconds, and step 3's twenty-minute window is therefore very
@@ -508,7 +508,7 @@ read `ipc_thread_scaling skipped` twenty minutes later.
   the `features:` line in the build output and the operator's own log filename, which is rung four
   of AGENTS.md's ladder and is honest about it. A kernel that printed its own feature set at boot
   would be rung three and is proposed in
-  `design/roadmap/proposals/a-boot-banner-that-names-the-build.md`.
+  `design/roadmap/367-a-boot-banner-that-names-the-build.md`.
 - **E3's `black_box` guard is a confound on both shapes now, not one.** `ipc_send` and `ipc_call`
   each carry one untaken compare-and-branch when the feature is on. `kernel/src/fastpath_pad.rs`'s
   module doc prices it at around a nanosecond against a low-microsecond round trip; on radon the

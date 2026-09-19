@@ -1,7 +1,12 @@
-# A reply capability names a thread, so only a sweep keeps it from answering the wrong call
+# 371. A reply capability names a thread, so only a sweep keeps it from answering the wrong call
 
-**Status: PROPOSED 2026-09-04.** Written by the milestone 254 lane, out of the hazard that
-milestone shipped a mitigation for rather than a fix.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the milestone 254 lane, out of the
+hazard that milestone shipped a mitigation for rather than a fix; promoted by milestone 433 on
+2026-09-19. Read against the tree that day and unchanged: `kernel/src/cap.rs` still declares
+`Reply(crate::thread::ThreadId)` and `reply_cap` still mints it from a thread name alone, so
+`ipc_reply`'s guard can still only ask whether the thread is parked awaiting some reply. The
+property continues to be held by `strand_reply_caller`'s sweep, which is what this file says: the
+hazard is closed, and it is closed at rung two.
 
 **Gate: NONE.** No decision is owed. It changes `Object::Reply`'s payload, which is kernel-internal
 (the capability is minted by the kernel, never forged and never delegated, so no wire format and no
@@ -52,3 +57,16 @@ judgement about capability-table pressure, and it is cheap either way.
 ## What is blocked until it is answered
 
 Nothing. Milestone 254 shipped the mitigation, and the property holds today.
+
+## Index row
+
+`cap::reply_cap` mints `Object::Reply(tid)`, a generational thread name and nothing else, so
+`sched::ipc_reply`'s guard can ask whether a thread is parked awaiting some reply and not whether it
+is awaiting this one. Milestone 254 closed the hazard with a sweep that deletes every
+`Object::Reply(caller)` in the machine before freeing a stranded caller, which is seL4's non-MCS
+answer and is correct today because the sweep runs at all four places a server can stop being able
+to answer. Nothing in the type system says so, and a fifth way to stop answering, added by somebody
+who has not read `strand_reply_caller`, reopens it silently. A call identity in the payload makes a
+stale capability name a call that is over, so the guard compares and refuses and no sweep has to be
+remembered. L4Re and Zircon both document the hazard in their own words. It also removes 128 by 16
+comparisons per caller freed from a teardown path. Nothing is blocked until it is answered.

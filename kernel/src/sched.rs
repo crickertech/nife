@@ -2795,7 +2795,7 @@ pub fn ipc_recv_cap(ep: RendezvousId) -> [u64; 3] {
 /// unrelated `CALL` is that [`strand_reply_caller`] deletes it, not that [`ipc_reply`]'s guard could
 /// tell the two conversations apart. A future path that reached `ipc_reply` without presenting a
 /// capability would reopen that. The structural fix is a call identity in the payload:
-/// `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`.
+/// `design/roadmap/371-a-reply-capability-that-names-a-call.md`.
 pub fn ipc_call(ep: RendezvousId, msg: [u64; 2]) -> [u64; 3] {
     // E3's footprint padding, on the CALL side as well as the SEND side (milestone 134, extended
     // 2026-09-04). It was on `ipc_send` alone, and that was the whole of the fastpath when the

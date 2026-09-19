@@ -152,7 +152,7 @@ split than NVMe was:
   crate made LLVM fold `syscall::dispatch` into the aarch64 exception handler, so the gate reported
   `syscall_entry` 35% smaller while the code a syscall fetches was identical. Closed the way the
   tree already closes this, with `#[inline(never)]` and the reasoning beside it, and written up in
-  `design/roadmap/proposals/a-flat-entry-set-counts-bytes-no-syscall-fetches.md`, which owns the
+  `design/roadmap/368-a-flat-entry-set-counts-bytes-no-syscall-fetches.md`, which owns the
   mechanism question.
 - **Refused.** A general JH7110 clock driver covering all five domains and every clock. The
   milestone's own `BUGS` named unbounded scope as its main risk and the two ends differ by an

@@ -1,7 +1,12 @@
-# A boot banner that names the build, so two cards cannot be confused for one
+# 367. A boot banner that names the build, so two cards cannot be confused for one
 
-**Status: PROPOSED 2026-09-04.** Found by the maintainer/e3-on-radon lane, writing the bench
-procedure for milestone 134's E3.
+**Status: NOT-STARTED.** Filed as a proposal on 2026-09-04 by the `maintainer/e3-on-radon` lane,
+writing the bench procedure for milestone 134's E3; promoted by milestone 433 on 2026-09-19. Checked
+against the tree that day and both halves still hold. `script/board-image` still echoes
+`features: ...` at build time (line 253), which is the rung-four mitigation this file describes, and
+`print_machine_description` in `kernel/src/main.rs` still prints exception level, stack top, memory,
+initrd and the rest with no line naming the feature set, so nothing about which build booted reaches
+the capture.
 
 **Gate: NONE.** Small, and it makes a class of wasted bench session impossible rather than unlikely.
 
@@ -44,3 +49,16 @@ than a debugging aid) and should not ride along on this one.
 ## Where it came from
 
 notes/footprint-perturbation.md's BUGS, "the padded and un-padded images are indistinguishable on the card".
+
+## Index row
+
+E3 compares two kernels that differ in exactly one Cargo feature, both are written to a microSD card
+under the same three filenames, neither prints its feature set, and nothing in the capture says
+which one booted. A session that writes the second card and forgets to relabel its log has compared
+a build against itself, and the capture is indistinguishable from a correct one. The same applies to
+every card this tree writes, since `--soak`, `--job-mix`, `--reboot`, `--bench` and the plain tour
+all produce `nife-vf2.img`. The fix is the kernel printing its own feature set once, in the same
+breath as the banner it already prints, so the fact lives in the capture rather than beside it. Two
+properties to hold it to: one line on an ordinary boot, and the whole feature set rather than a
+curated list, because the next feature somebody adds is the one a curated list will be missing. A
+build identity is the stronger version and is a different decision that should not ride along.

@@ -874,12 +874,12 @@ pins.
 
 What neither can test is the *negative* the argument rested on: nothing proves the sweep runs at
 every future way a server can stop answering, and nothing states the guard's rule anywhere a checker
-can read it. That is `design/roadmap/proposals/a-reply-capability-that-names-a-call.md`, and it is
+can read it. That is `design/roadmap/371-a-reply-capability-that-names-a-call.md`, and it is
 rung one where both sweeps are rung two.
 
 **The claim that `WaitRole` enumerates every blocked thread depends on every block site calling
 `park`, and milestone 133 made that claim load-bearing rather than diagnostic**
-(`design/roadmap/proposals/a-block-site-that-writes-blocked-by-hand.md`). `thread_wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
+(`design/roadmap/366-a-block-site-that-writes-blocked-by-hand.md`). `thread_wake_handshake`'s own `BUGS` says nothing enforces that: the fields are public because the
 kernel has legitimate out-of-protocol writers, so a future block site writing `state = Blocked`
 directly opts out silently and would leave `wait_on` stale. Proposals A, B and C all unlink using
 `wait_on`, so all three inherit that as their sharpest failure mode. I did not audit every write of
