@@ -215,6 +215,13 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 154 | DECIDED | [The acronym test is whether the phrase is spoken, applied recursively](154-the-acronym-test-is-whether-the-phrase-is-spoken.md) |
 | 155 | DECIDED | [The naming conventions move out of the constitution, and the note becomes the rule](155-naming-conventions-move-out-of-the-constitution.md) |
 | 156 | PROPOSED | [What a block-roster entry calls an NVMe disk, and whether it carries more than virtio does](156-nvme-in-the-block-roster.md) |
+| 177 | PROPOSED | [Whether a `credential_protocol` verify endpoint names the identity it asks about](177-credential-endpoint-per-resource.md) |
+| 178 | PROPOSED | [Narrowing the root of the shell's namespace: a verb on the wire, or a shallower root](178-narrowing-the-namespace-root.md) |
+| 179 | PROPOSED | [Which caller each of the three uncalled instruments gets](179-a-caller-for-the-three-uncalled-instruments.md) |
+| 180 | PROPOSED | [Where the kernel's own output goes once userspace owns the console](180-kernel-console-arbitration.md) |
+| 181 | PROPOSED | [Offering the two RedoxFS patches upstream, and under whose name](181-offering-the-redoxfs-patches-upstream.md) |
+| 182 | PROPOSED | [Whether AGENTS.md quotes measured numbers at all](182-measured-numbers-in-the-front-door-file.md) |
+| 183 | PROPOSED | [Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have](183-timer-rearm-seam.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design
