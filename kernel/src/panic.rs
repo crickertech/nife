@@ -40,6 +40,10 @@ fn panic(info: &PanicInfo) -> ! {
         crate::sync::force_reset_ranks();
         crate::console::force_unlock();
     };
+    // A screen a userspace terminal was painting comes back to the kernel, so a machine with no
+    // serial port still shows why it stopped (the shell on the firmware screen). A no-op on every
+    // machine whose screen is still the kernel's or that has none.
+    crate::console::reclaim_screen_for_panic();
 
     println!();
     println!("[PANIC] {info}");

@@ -94,7 +94,10 @@
 //! 1. **output**: the **console** server, reading text from a shared page and writing it to the
 //!    UART, when this boot has no graphical terminal stack. When it does, there is no console
 //!    server at all: `display_terminal` was already built kernel-side, before this process existed,
-//!    and `line_editor` prints through it directly instead.
+//!    and `line_editor` prints through it directly instead. **A terminal with no keyboard of its
+//!    own** (a PC's firmware framebuffer, milestone 198's rung 1b) is neither: the console server is
+//!    built as usual and also writes every byte to that terminal, so the UART and the screen say
+//!    the same thing.
 //! 2. **keystrokes**: the **input** driver, waiting on the UART receive interrupt and forwarding
 //!    bytes, in the same "no graphical stack" case. When there is one, `keyboard_driver` plays this role
 //!    instead, also built kernel-side, `CALL`ing `line_editor`'s own endpoint directly rather than
@@ -398,6 +401,12 @@ pub struct BootEndowment {
     /// console. **Absent** (holds nothing) on a boot with no GPU, no keyboard, or no
     /// `gpu_driver`/`display_terminal`/`keyboard_driver` program in the archive, the same "0/empty means absent"
     /// shape [`fs_ep`](BootEndowment::fs_ep) already carries; [`boot`] probes for it the same way.
+    ///
+    /// **Granted without [`kbd_ep`](BootEndowment::kbd_ep), it is a screen beside the serial
+    /// console** (the shell on the firmware screen, milestone 198's rung 1b): the kernel put
+    /// `display_terminal` on the firmware's framebuffer through `framebuffer_driver`, and the UART
+    /// is still the console and the keystroke source. [`boot`] then hands this to the console
+    /// server, which writes every byte to both, rather than to `line_editor`.
     pub disp_term_ep: u64,
     /// The physical page shared with `display_terminal`, written before an `OP_WRITE` on
     /// [`disp_term_ep`](BootEndowment::disp_term_ep); see that field's own doc for when this is
@@ -412,7 +421,9 @@ pub struct BootEndowment {
     /// terminal endpoint, in place of a self-created one) and `WRITE` to `swish`, exactly the two
     /// views the plain-console boot already carves out of a self-created endpoint of the same
     /// shape. Absent in the same sense as
-    /// [`disp_term_ep`](BootEndowment::disp_term_ep); the two are granted together or not at all.
+    /// [`disp_term_ep`](BootEndowment::disp_term_ep), and additionally on a boot whose terminal is
+    /// a screen beside the serial console (see that field): **this slot is what tells a graphical
+    /// boot from that one.**
     pub kbd_ep: u64,
     /// **Capabilities the kernel granted that the interactive system never uses**, deleted with the
     /// device authority once the drivers exist.
@@ -593,6 +604,12 @@ const LINE_EDITOR_MODE_DISPLAY: u64 = 1;
 
 // The VAs each program hardcodes; they must match console.rs / input.rs / line_editor.rs / swish.rs.
 const CON_SHARED_VA: u64 = 0x0060_0000; // console reads text here; line_editor writes it
+/// Where the console maps the page `display_terminal` reads an `OP_WRITE`'s bytes from, when a
+/// screen was wired beside the UART. Must match `components/src/console.rs`'s `SCREEN_OUT_VA`.
+const CON_SCREEN_OUT_VA: u64 = 0x0068_0000;
+/// `console.rs`'s own `MODE_SCREEN`: [`LINE_EDITOR_MODE_CONSOLE`]'s reasoning, one program over.
+/// `0`, what every other boot passes, is the UART alone.
+const CONSOLE_MODE_SCREEN: u64 = 1;
 /// A child's capability grants and page mappings, the two slices a `ChildEndowment` takes as `caps`
 /// and `maps`. Named so the `x86_64`-vs-others split of the console and input endowments (a port
 /// capability held rather than a page mapped, milestone 299) is a one-line `let` per branch without
@@ -890,7 +907,15 @@ pub fn boot(
     // weight on a graphical boot from this line on (no console, no input driver ever reaches
     // them), so freeing them here, before entropy spends anything, is what buys those two slots
     // back before the peak that needed them.
-    let has_graphical = granted(g.disp_term_ep);
+    //
+    // **A terminal with no keystroke source of its own is a screen beside the serial console**, not
+    // a graphical boot (the shell on the firmware screen, milestone 198's rung 1b). The kernel
+    // grants `disp_term_ep`/`disp_term_page` alone, with `kbd_ep` empty, when it put a terminal on
+    // the firmware's framebuffer (`kernel::user::boot_screen_terminal`): the UART stays the
+    // console and the keystroke source exactly as on a plain boot, and the console server hands
+    // every byte it writes to that terminal as well. So `kbd_ep` is what tells the two apart.
+    let has_graphical = granted(g.disp_term_ep) && granted(g.kbd_ep);
+    let has_screen = !has_graphical && granted(g.disp_term_ep);
     if has_graphical {
         cap_delete(g.uart_dev);
         cap_delete(g.uart_irq);
@@ -1108,35 +1133,68 @@ pub fn boot(
         // reach the port. So `g.uart_dev` moves from a `maps` entry to a `caps` entry on x86, and
         // the UART mapping is dropped. It lands in the child's slot 2; the console never invokes it
         // by slot (it executes `out` directly), it only has to hold it.
+        //
+        // **And a screen beside the UART, when the kernel wired one** (`has_screen`, above): the
+        // terminal's endpoint lands in the console's slot 2, ahead of x86's port range (which the
+        // console holds but never names by slot), and the page that terminal reads is mapped at
+        // `CON_SCREEN_OUT_VA`. Arrays with a count rather than one slice literal per case, because
+        // the screen is a runtime fact and the port range a compile-time one, and four literals
+        // would be four places to get the slot order wrong.
+        let mut con_caps = [(0, 0); 4];
+        let mut con_maps = [(0, 0, 0); 3];
+        let (mut ncaps, mut nmaps) = (0, 0);
+        for cap in [(request, abi::rights::READ), (reply, abi::rights::WRITE)] {
+            con_caps[ncaps] = cap;
+            ncaps += 1;
+        }
+        con_maps[nmaps] = (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO);
+        nmaps += 1;
+        if has_screen {
+            con_caps[ncaps] = (g.disp_term_ep, abi::rights::WRITE);
+            ncaps += 1;
+            con_maps[nmaps] = (
+                CON_SCREEN_OUT_VA,
+                g.disp_term_page,
+                abi::address_space::MAP_RW,
+            );
+            nmaps += 1;
+        }
         #[cfg(not(target_arch = "x86_64"))]
-        let (con_caps, con_maps): EndowmentSlices = (
-            &[(request, abi::rights::READ), (reply, abi::rights::WRITE)],
-            &[
-                (CON_SHARED_VA, con_shared, abi::address_space::MAP_RO),
-                (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO), // mode ignored for a DeviceFrame
-            ],
-        );
+        {
+            // mode ignored for a DeviceFrame
+            con_maps[nmaps] = (CON_UART_VA, g.uart_dev, abi::address_space::MAP_RO);
+            nmaps += 1;
+        }
         #[cfg(target_arch = "x86_64")]
-        let (con_caps, con_maps): EndowmentSlices = (
-            &[
-                (request, abi::rights::READ),
-                (reply, abi::rights::WRITE),
-                (g.uart_dev, abi::rights::WRITE), // COM1's port range, held not mapped
-            ],
-            &[(CON_SHARED_VA, con_shared, abi::address_space::MAP_RO)],
-        );
+        {
+            con_caps[ncaps] = (g.uart_dev, abi::rights::WRITE); // COM1's port range, held not mapped
+            ncaps += 1;
+        }
         let con = must(build_child(
             ut,
             ut,
             &con_elf,
             &ChildEndowment {
-                caps: con_caps,
-                maps: con_maps,
+                caps: &con_caps[..ncaps],
+                maps: &con_maps[..nmaps],
                 stack_pages: CHILD_STACK_PAGES,
                 ..ChildEndowment::new(Retention::Nothing)
             },
         ));
-        must_ok(start_child(con, 0, 0, 0));
+        must_ok(start_child(
+            con,
+            if has_screen { CONSOLE_MODE_SCREEN } else { 0 },
+            0,
+            0,
+        ));
+        // The console holds its own narrowed copies of the terminal's endpoint and page now, and
+        // nothing else in this boot prints to that terminal directly: everyone prints through the
+        // console. Freed here rather than with `request`/`reply` below for the sixteen-slot reason
+        // this function's every early free gives.
+        if has_screen {
+            cap_delete(g.disp_term_ep);
+            cap_delete(g.disp_term_page);
+        }
 
         // 2. The line discipline: serves the terminal endpoint, prints through the console. It is
         // the console's only client; everyone else prints through it. `LINE_EDITOR_MODE_CONSOLE`

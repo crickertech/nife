@@ -339,7 +339,25 @@ pub fn start_terminal(
     );
 
     let (driver_report, display_ep, surface) = wire_driver(driver_image, 0, 0)?;
+    let (term_report, term, out) = spawn_terminal(term_image, display_ep, surface);
+    Some(TerminalWiring {
+        driver_report,
+        term_report,
+        term,
+        out,
+        surface,
+    })
+}
 
+/// **`display_terminal` on a display endpoint and a surface somebody else already serves**: the
+/// half of [`start_terminal`] that does not care which driver is on the other side, shared with
+/// [`start_screen_terminal`] so the terminal's authority is written down once. Returns
+/// `(its report endpoint, the endpoint it serves, its output page)`.
+fn spawn_terminal(
+    term_image: &'static [u8],
+    display_ep: RendezvousId,
+    surface: u64,
+) -> (RendezvousId, RendezvousId, u64) {
     let out = crate::memory::alloc_zeroed()
         .expect("no output-page frame for the display terminal")
         .addr();
@@ -381,6 +399,116 @@ pub fn start_terminal(
     })
     .expect("could not spawn the display terminal");
 
+    (term_report, term, out)
+}
+
+/// Where `framebuffer_driver` finds the covered part of the aperture. **Must match
+/// `components/src/framebuffer_driver.rs`'s `APERTURE_VA`.**
+const SCREEN_APERTURE_VA: u64 = 0x0000_0000_4000_0000;
+
+/// **The most aperture pages this wiring maps**: 8 MiB, four 2 MiB page-table windows. The tables
+/// come out of the driver's own address-space budget (`AS_OVERHEAD`, sixteen pages shared with its
+/// image and stack), so this is a bound rather than a preference. It is far more than the surface
+/// needs: 344 rows at a 3840-pixel pitch is 1,290 pages. A screen whose covered rows would need
+/// more is refused rather than mapped short.
+const MAX_APERTURE_PAGES: u64 = 2048;
+
+// The firmware screen driver's capability table. Must match components/src/framebuffer_driver.rs.
+const SCREEN_SLOT_REPORT: u64 = 0;
+const SCREEN_SLOT_DISPLAY: u64 = 1;
+const SCREEN_SLOT_BUDGET: u64 = 2;
+const SCREEN_SLOT_SURFACE: u64 = 3;
+const _: () = assert!(SCREEN_SLOT_SURFACE < abi::fault::FAULT_EP_SLOT);
+
+/// **The terminal on a screen the firmware already set up** (the shell on the firmware screen,
+/// milestone 198's rung 1b): `framebuffer_driver` serving the framebuffer contract over `screen`,
+/// and `display_terminal` on it exactly as [`start_terminal`] wires it over virtio-gpu. `None`, with
+/// nothing spawned, when the screen cannot show a surface or its covered rows would need more than
+/// [`MAX_APERTURE_PAGES`].
+///
+/// **`screen` must already be off the kernel's console** (`console::yield_screen`): the driver this
+/// spawns paints the aperture, and two painters on one screen is the defect that function exists to
+/// make unrepresentable.
+///
+/// The driver's world is its `Spawn` below, and the security argument is what it lacks: no
+/// interrupt, no DMA, no transport, no physical address, and only the rows of the screen its
+/// surface can reach (`screen_console::Aperture::span`), mapped at spawn so it holds no name for
+/// them. The terminal's world is byte for byte the virtio path's.
+pub fn start_screen_terminal(
+    driver_image: &'static [u8],
+    term_image: &'static [u8],
+    screen: machine_discovery::framebuffer::Framebuffer,
+) -> Option<TerminalWiring> {
+    let aperture = screen_console::Aperture::new(
+        &screen,
+        graphics_protocol::WIDTH,
+        graphics_protocol::HEIGHT,
+    )?;
+    // The aperture need not start on a page: the run is mapped from the page that holds pixel
+    // (0, 0), and the driver is told how far into it that pixel is.
+    let offset = screen.base % FRAME_SIZE;
+    let pages = (offset + aperture.span() as u64).div_ceil(FRAME_SIZE);
+    if pages > MAX_APERTURE_PAGES {
+        crate::println!(
+            "  screen    : not handed on: {pages} pages of aperture exceed this wiring's \
+             {MAX_APERTURE_PAGES}"
+        );
+        return None;
+    }
+
+    // The surface: RAM, the contract's run of frames, shared by the driver and the terminal. The
+    // same allocation `wire_driver` makes, minus the ring page, because nothing here is a device's
+    // DMA: the driver copies it with the CPU.
+    let surface = crate::memory::alloc_contiguous_zeroed(
+        graphics_protocol::SURFACE_PAGE_FRAMES as usize,
+    )
+    .expect("no contiguous surface for the framebuffer driver")
+    .addr();
+
+    let display_ep = crate::sched::create_rendezvous(); // terminal WRITE (CALL) -> driver READ
+    let driver_report = crate::sched::create_rendezvous();
+    let budget =
+        crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the driver");
+    let (size, layout) = aperture.to_words();
+    let device = DeviceRun {
+        va: SCREEN_APERTURE_VA,
+        phys: screen.base - offset,
+        pages,
+    };
+    crate::sched::spawn(move || {
+        crate::sched::grant_at(
+            SCREEN_SLOT_REPORT,
+            rendezvous_cap(driver_report, Rights::WRITE),
+        )
+        .expect("screen driver slot 0 was occupied");
+        crate::sched::grant_at(
+            SCREEN_SLOT_DISPLAY,
+            rendezvous_cap(display_ep, Rights::READ),
+        )
+        .expect("screen driver slot 1 was occupied");
+        crate::sched::grant_at(SCREEN_SLOT_BUDGET, memory_region_cap(budget))
+            .expect("screen driver slot 2 was occupied");
+        grant_run(
+            SCREEN_SLOT_SURFACE,
+            surface,
+            SURFACE_RUN,
+            "the framebuffer driver",
+        );
+        run_with_device_run(
+            driver_image,
+            Spawn {
+                arg0: size,
+                arg1: layout,
+                arg2: offset, // where pixel (0, 0) is in the first mapped page
+                grants: &[], // every one of them is placed above, at its own slot
+                maps: &[],
+            },
+            device,
+        )
+    })
+    .expect("could not spawn the framebuffer driver");
+
+    let (term_report, term, out) = spawn_terminal(term_image, display_ep, surface);
     Some(TerminalWiring {
         driver_report,
         term_report,

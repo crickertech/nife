@@ -1058,8 +1058,36 @@ pub fn spawn_hello(
     held
 }
 
+/// **A run of contiguous device pages mapped into a new process before it starts**, for a window
+/// too large to spell as [`Mapping`]s (the shell on the firmware screen: a screen's aperture is a
+/// thousand pages or more, and the kernel has no heap to build a slice that long in).
+///
+/// Always device-typed and writable, because the one thing that needs it is a driver's view of a
+/// device's memory. Like every [`Spawn::maps`] entry the process holds no *name* for it: it cannot
+/// map it again, delegate it, or revoke it, which is the property `non_volatile_memory_express_service`
+/// and milestone 159's TRNG driver chose spawn-time mappings for. **Name provisional.**
+#[derive(Clone, Copy)]
+pub struct DeviceRun {
+    /// Where the first page lands in the new process.
+    pub va: u64,
+    /// The first page's physical address. Page-aligned.
+    pub phys: u64,
+    /// How many pages. The intermediate page tables come out of the address space's own
+    /// `AS_OVERHEAD`, so a caller bounds this (`display_service`'s `MAX_APERTURE_PAGES`).
+    pub pages: u64,
+}
+
 /// Load the initrd program and become it, handed the world described by `spawn`. Never returns.
 pub fn run(image: &[u8], spawn: Spawn) -> ! {
+    run_with(image, spawn, None)
+}
+
+/// [`run`], with one [`DeviceRun`] mapped as well. Never returns. **Name provisional.**
+pub fn run_with_device_run(image: &[u8], spawn: Spawn, device: DeviceRun) -> ! {
+    run_with(image, spawn, Some(device))
+}
+
+fn run_with(image: &[u8], spawn: Spawn, device: Option<DeviceRun>) -> ! {
     let (mut space, entry) = match load(image) {
         Ok(v) => v,
         Err(e) => {
@@ -1076,6 +1104,17 @@ pub fn run(image: &[u8], spawn: Spawn) -> ! {
         space
             .map_physical(m.va, m.phys, m.flags)
             .expect("could not map a Spawn page into the new address space");
+    }
+    if let Some(d) = device {
+        for k in 0..d.pages {
+            space
+                .map_physical(
+                    d.va + k * FRAME_SIZE,
+                    d.phys + k * FRAME_SIZE,
+                    Flags::user_device(),
+                )
+                .expect("could not map a device run into the new address space");
+        }
     }
 
     crate::sched::adopt_address_space(space);
@@ -1880,6 +1919,36 @@ pub fn boot_progenitor(archive: &'static [u8]) -> Result<crate::thread::ThreadId
     // instead, the same "absence rather than failure" shape as the filesystem pair and the
     // virtio-rng trio. See [`boot_graphical_terminal`].
     let graphical = boot_graphical_terminal(uart_irq);
+    // **Or a terminal on the screen the firmware left running** (the shell on the firmware screen,
+    // milestone 198's rung 1b), when there is no GPU stack: slots 10 and 11 exactly as the
+    // graphical stack fills them, and slot 12 left empty, which is how system_initializer tells a
+    // screen beside the serial console from a graphical boot. `None` on every machine whose
+    // console has no screen, which is every boot but a UEFI one today. See
+    // [`boot_screen_terminal`].
+    let screen = if graphical.is_none() {
+        boot_screen_terminal()
+    } else {
+        None
+    };
+    if let Some(t) = &screen {
+        let s10 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::rendezvous_cap(t.term, Rights::WRITE.union(Rights::GRANT)),
+            Some(10),
+        )
+        .expect("insert the screen terminal's endpoint");
+        assert_eq!(s10, 10);
+        let s11 = crate::sched::thread_control_block_insert_cap(
+            tid,
+            crate::cap::page_frame_cap(
+                t.out,
+                Rights::READ.union(Rights::WRITE).union(Rights::GRANT),
+            ),
+            Some(11),
+        )
+        .expect("insert the screen terminal's output page");
+        assert_eq!(s11, 11);
+    }
     if let Some(g) = &graphical {
         let s10 = crate::sched::thread_control_block_insert_cap(
             tid,
@@ -2457,6 +2526,62 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
         disp_term_page: w.out,
         kbd_ep,
     })
+}
+
+/// **The shell's terminal on the screen the firmware left running** (the shell on the firmware
+/// screen, milestone 198's rung 1b; `design/roadmap/` has its block).
+///
+/// Milestone 243 put the *kernel's* boot tour on a UEFI machine's framebuffer. Since milestone 299
+/// the console is a userspace process that writes COM1, so on a PC with no serial port the tour
+/// scrolled past and the prompt appeared nowhere. This puts `display_terminal` on that same screen,
+/// served by `framebuffer_driver`, and returns what the progenitor needs to hand the console server
+/// so that it writes every byte to the screen as well as to the UART.
+///
+/// **The order is the handover, and it is the point of the function.** The programs are found
+/// first, so a build that lacks one leaves the kernel painting rather than a blank screen. Then
+/// [`crate::console::yield_screen`] clears the screen and stops the kernel's `print!` from painting
+/// it, under the console lock, and only then is the driver spawned. So there is no moment with two
+/// painters, and after this the kernel's own lines (the progenitor's exit, a user fault report) go
+/// to the UART alone. The line announcing the handover is printed *before* the yield, so it is the
+/// last kernel line the screen shows.
+///
+/// If the wiring refuses after the yield (a screen too large to map, [`display_service`]'s
+/// `MAX_APERTURE_PAGES`), the screen is left blank rather than handed back: the boot goes on over
+/// the UART exactly as a machine with no screen does. Recorded here rather than papered over with a
+/// second handover path, because the refusal is a bound no screen in the fleet is near.
+///
+/// Readiness is drained here, [`boot_graphical_terminal`]'s idiom: when this returns, the driver
+/// and the terminal are running and the terminal has painted its blank grid.
+///
+/// Arch-neutral, and `None` on aarch64 and riscv64 today only because nothing there tells the
+/// console about a screen: milestone 157's U-Boot `simple-framebuffer` discovery is what would, and
+/// then this function needs no change. **Name provisional.**
+fn boot_screen_terminal() -> Option<display_service::TerminalWiring> {
+    let driver = program("framebuffer_driver")?;
+    let terminal = program("display_terminal")?;
+    crate::println!("  screen    : handing the framebuffer to a userspace terminal");
+    let screen = crate::console::yield_screen()?;
+    let w = display_service::start_screen_terminal(driver, terminal, screen)?;
+    let [tag, geometry, ..] = crate::sched::ipc_recv(w.driver_report);
+    assert_eq!(
+        tag,
+        graphics_protocol::status::UP,
+        "the framebuffer driver did not come up ({tag:#x})",
+    );
+    let [tag, cells, ..] = crate::sched::ipc_recv(w.term_report);
+    assert_eq!(
+        tag,
+        video_terminal::status::TERM_UP,
+        "the display terminal did not come up ({tag:#x})",
+    );
+    crate::println!(
+        "  screen    : {}x{} pixels of it served by framebuffer_driver, a {}x{} terminal on it",
+        geometry & 0xffff_ffff,
+        geometry >> 32,
+        cells & 0xffff_ffff,
+        cells >> 32,
+    );
+    Some(w)
 }
 
 /// **Wall-clock time** (milestone 51 lane A, DECISIONS §43).

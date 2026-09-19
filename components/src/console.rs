@@ -8,11 +8,32 @@
 //! length faults the *server* (a read out of its own mapping), not the kernel.
 //!
 //! Its whole authority is three things the progenitor hands it: the request endpoint (slot 0, RECV), the reply
-//! endpoint (slot 1, SEND), and the UART registers, plus the shared page mapped read-only. It has no
-//! role selector; a standalone binary needs none. It shares the `user` package's `link.ld` but not a
-//! line of hello's code.
+//! endpoint (slot 1, SEND), and the UART registers, plus the shared page mapped read-only. Its one
+//! mode switch is whether a screen was wired beside the UART (below). It shares the `user`
+//! package's `link.ld` but not a line of hello's code.
 //!
 //! The syscall runtime (`send`/`recv`) comes from the shared `user_mode_runtime` crate (19f.6).
+//!
+//! # A screen beside the wire (the shell on the firmware screen, milestone 198's rung 1b)
+//!
+//! Started with `arg0` = [`MODE_SCREEN`], it also holds a **terminal on a screen**: slot 2 is
+//! `display_terminal`'s served endpoint (`WRITE`) and [`SCREEN_OUT_VA`] maps the page that terminal
+//! reads an `OP_WRITE`'s bytes from. Every byte it puts on the UART it then hands that terminal too,
+//! with one `CALL`, so **the same stream reaches both surfaces**: the prompt, the echo of every
+//! keystroke, and every line a program prints. That is the kernel's own console discipline
+//! (`kernel/src/console.rs`, "both, not either") one privilege level down, and it is what keeps a
+//! machine that has a serial port and a monitor saying the same thing on each: xenon's gates read
+//! the wire, a person at a PC reads the screen.
+//!
+//! **It holds no device for the screen**, which is why this is not the refused option of the console
+//! server painting pixels itself: the pixels are `display_terminal`'s, and the aperture is
+//! `framebuffer_driver`'s. What this gains is one endpoint and one page, the exact authority any
+//! program printing to that terminal holds. The terminal is a full VT (`video_terminal`), so the
+//! escape sequences `line_editor` emits for editing land correctly on the screen as well.
+//!
+//! The screen is a **second** writer after the UART, never instead of it, and the acknowledgement
+//! waits for both: a client that is told its bytes went out is told they went out everywhere this
+//! console sends them.
 //!
 //! Name: ratified 2026-07-30 (calef, DECISIONS §39), among the names recorded there as always
 //! right.
@@ -24,7 +45,8 @@
 #![allow(missing_docs)]
 #![no_main]
 
-use user_mode_runtime::{recv, send};
+use line_editor::proto;
+use user_mode_runtime::{call, recv, send};
 
 /// The PL011's register block, migrated onto `tock_registers` (milestone 139 round 5): every
 /// offset checked at compile time instead of asserted by a hand-written comment, matching
@@ -74,6 +96,18 @@ const SHARED_VA: u64 = 0x0060_0000;
 /// How much of it there is. One frame, which is what `console_service` maps, and the bound every
 /// byte count from a client is clamped to.
 const PAGE: u64 = 4096;
+/// **`arg0` asking for the screen as well as the UART** (the shell on the firmware screen). `0`, the
+/// only value any other boot passes, is the UART alone. Must match `crates/system_initializer`'s
+/// `CONSOLE_MODE_SCREEN`: a spawn-argument convention between a parent and the one program it
+/// spawns, the same kind `line_editor`'s modes are.
+const MODE_SCREEN: u64 = 1;
+/// `display_terminal`'s served endpoint (slot 2, `WRITE`), in [`MODE_SCREEN`] only. Ahead of the
+/// port range on `x86_64`, which this process holds but never names by slot.
+const SCREEN: u64 = 2;
+/// Where the page `display_terminal` reads an `OP_WRITE`'s bytes from is mapped, in [`MODE_SCREEN`]
+/// only. Must match `crates/system_initializer`'s `CON_SCREEN_OUT_VA`.
+const SCREEN_OUT_VA: u64 = 0x0068_0000;
+
 /// The server's device mapping of the UART registers. Must match the progenitor's `CON_UART_VA`.
 // Unused on x86_64: there is no page for it to name (`user::UART_PHYS` is zero, DECISIONS §121),
 // so the arm below traps instead of reading. Kept unconditional rather than cfg'd out because the
@@ -83,7 +117,8 @@ const PAGE: u64 = 4096;
 const UART_VA: u64 = 0x0070_0000;
 
 #[unsafe(no_mangle)]
-pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
+pub extern "C" fn _start(mode: u64, _x1: u64, _x2: u64) -> ! {
+    let screen = mode == MODE_SCREEN;
     loop {
         // Block until a client hands us a length.
         let (len, _, _) = recv(REQUEST);
@@ -107,11 +142,42 @@ pub extern "C" fn _start(_x0: u64, _x1: u64, _x2: u64) -> ! {
             uart_put(byte);
         }
 
+        // Then the screen, the same bytes, so the two surfaces never disagree about what was said.
+        if screen && len > 0 {
+            show(shared, len);
+        }
+
         // Acknowledge with the count actually printed, not the count asked for: a client that
         // asked for more than a page learns that fewer bytes went out rather than being told its
         // whole request was honoured.
         send(REPLY, len, 0, 0);
     }
+}
+
+/// **Hand `len` bytes of the shared page to the terminal on the screen**: copy them into the page
+/// it reads, then one `OP_WRITE` `CALL`, which returns once the terminal has drawn them and its
+/// driver has put them on the screen (the terminal contract's meaning of the reply).
+///
+/// A terminal that refuses or answers short is not an error this process can act on: the UART
+/// already has the bytes, and the UART is the surface every gate reads. So the answer is ignored,
+/// the way `print!` ignores a UART write's.
+fn show(shared: *const u8, len: u64) {
+    let out = SCREEN_OUT_VA as *mut u8;
+    for i in 0..len {
+        // SAFETY: both pages are one frame each, mapped at spawn (the shared page read-only, the
+        // terminal's page read/write), and `len` was clamped to that frame by the caller.
+        unsafe {
+            core::ptr::write_volatile(
+                out.add(i as usize),
+                core::ptr::read_volatile(shared.add(i as usize)),
+            );
+        }
+    }
+    // The bytes must be visible to the terminal before the request that names them. The `CALL`
+    // orders them too (the kernel's IPC lock is the pair), and this is the same belt-and-braces
+    // fence `kernel::user::term_print` keeps for the same contract. See notes/memory-ordering.md.
+    core::sync::atomic::fence(core::sync::atomic::Ordering::SeqCst);
+    let _ = call(SCREEN, proto::req(proto::OP_WRITE, len), 0);
 }
 
 /// Transmit one byte, spinning while the transmit path is busy. The register layout is the one
