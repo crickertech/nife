@@ -19,10 +19,10 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{
-    RISCV_TARGET, TARGET, cargo_profiled, initrd_path, initrd_riscv, profile_dir,
-    riscv_initrd_path, uefi_image, user, workspace_root,
-};
+use super::{RISCV_TARGET, TARGET, cargo_profiled, profile_dir, user};
+use crate::archive::{initrd_path, initrd_riscv, riscv_initrd_path};
+use crate::host::workspace_root;
+use crate::uefi::uefi_image;
 
 /// Where the stick is staged: the layout the program writes, as a directory QEMU can boot.
 pub(super) fn stick_dir() -> PathBuf {

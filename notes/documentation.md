@@ -109,7 +109,7 @@ so a renderer wants both kinds of test and this one had only the first.
 
 **A doc bundle is a package's pages plus its index shard, installed as a unit.** `doc/<bundle>/` in
 the filesystem image, with `doc/bundles` listing the names, built by `cargo xtask manual` from the
-`DOC_BUNDLES` table in `xtask/src/main.rs` and imported into the RedoxFS image by `mkredoxfs`.
+`DOC_BUNDLES` table in `xtask/src/manual.rs` and imported into the RedoxFS image by `mkredoxfs`.
 
 The table names paths that already exist rather than copying notes into crate directories, and that
 is deliberate: **a second copy of a note is a copy that can drift**, and in-tree documentation earns

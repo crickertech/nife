@@ -841,7 +841,7 @@ echo "==> fatal risks"
 # those exclusions carry their own recorded reasons and are judgement rather than physics.
 echo "==> the host pass excludes exactly the bare-metal crates"
 python3 - <<'PYEOF' || exit 1
-import json, subprocess, sys
+import json, pathlib, subprocess, sys
 
 meta = json.loads(subprocess.run(
     ["cargo", "metadata", "--format-version", "1", "--locked"],
@@ -866,7 +866,10 @@ bare = sorted(name_of[m] for m in members
               if name_of[m] == "user_mode_runtime" or reaches_user_mode_runtime(m))
 
 lint = open("script/lint").read()
-xtask = open("xtask/src/main.rs").read()
+# Every xtask source, not `main.rs` alone: milestone 365 split that file into a module per
+# command, and the exclusion list moved to the module that runs the host pass. What this check
+# means is "the list exists somewhere in xtask", so read the directory rather than one file.
+xtask = "".join(open(p).read() for p in sorted(pathlib.Path("xtask/src").glob("*.rs")))
 coverage = open("script/coverage").read()
 mutants = open(".cargo/mutants.toml").read()
 missing = []
@@ -874,7 +877,7 @@ for c in bare:
     if f"--exclude {c}" not in lint:
         missing.append((c, "script/lint"))
     if f'"{c}",' not in xtask:
-        missing.append((c, "xtask/src/main.rs"))
+        missing.append((c, "xtask/src/"))
     # script/coverage has two exclusion mechanisms and a crate needs only the one that fits it:
     # `--exclude` on the run (which `cargo llvm-cov report` has no equivalent of) or the awk filter
     # that drops the file from the report. `virtio` uses only the second and `kernel` only the

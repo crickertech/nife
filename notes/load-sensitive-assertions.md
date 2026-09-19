@@ -40,7 +40,7 @@ lanes held this laptop at a one-minute load average of 45 to 63, with 2 of its 1
 and nothing in any transcript saying so.
 
 **So `xtask` samples it and prints it, and only when a leg goes red.** `HostLoad` in
-`xtask/src/main.rs` reads `uptime` every five seconds for the length of an emulated leg, from the
+`xtask/src/scanout.rs` reads `uptime` every five seconds for the length of an emulated leg, from the
 poll loop the scanout referee already runs, and both kernel legs report on failure:
 
 ```
