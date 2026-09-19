@@ -1195,3 +1195,60 @@ nothing. A mutant that makes a loop stop advancing hangs rather than lying, whic
 the tests noticing; the note's scope section is explicit that a timeout on a mutant that could not
 hang would be triaged as a survivor instead, and none of these is that.
 
+
+## 2026-09-19: milestone 326, triaging the census's regressions
+
+The census of 2026-09-14 produced 771 survivors and nobody had looked at one. `design/fatal-risks.md`'s
+risk 3 is AMBER for exactly that reason, and its stated condition for going back to green is that
+milestone 326's first two parts carry no untriaged survivor. This section is that accounting, crate
+by crate, in the block's own order.
+
+Each crate below was re-derived with `script/mutation -p <crate>` rather than read out of the census
+artifacts, per that block's BUGS section: the identities are not in the tree, only the counts.
+**Every kill here was verified by re-running the sweep**, which is the discipline the ledger above
+argues for ("a verdict reached by reading is wrong about ten percent of the time; a verdict reached
+by running is not"). So is every equivalence claim: the three mutants called equivalent below are
+the three the second run still reports.
+
+### `capability`: 8 survivors, 5 killed, 3 equivalent
+
+**Before: 60 caught, 8 missed, 16 unviable (88.2% of viable). After: 65 caught, 3 missed (95.6%).**
+The baseline's single survivor in this crate was the `1 << 0` degenerate case, which is still here
+and still equivalent; everything else arrived with milestone 126's `SURVEY` predicate and milestone
+231's high-water mark.
+
+**`survey_includes` had no `cargo test` caller at all**, and this is the finding worth reading twice.
+Replacing the whole function with a constant `true` survived, and so did a constant `false`. The
+predicate decides which threads a supervision rendezvous may *see* (milestone 126), and calef's
+ruling of 2026-08-17 that a domain names its members and never acts on them is the reason it is a
+separate right rather than a corner of `READ`. It is proved for every input by two Kani harnesses,
+which is why this is a gap in the suite rather than in the code, but `script/verify` is a different
+gate on a different cadence: a build answering "everyone is in your domain" would have reached a
+reviewer with `script/test` green. Closed by
+`a_survey_shows_this_rendezvous_children_and_nobody_else`, four cases against the four the reap gate
+already had.
+
+**Three mutants in the packed high-water word survived a floor.**
+`the_global_high_water_mark_is_never_below_a_table_that_reached_it` asserts only `peak >= cs.peak()`,
+deliberately, because `PEAK` is one static shared by every `CapabilityTable` in the binary. A floor
+of five does not notice `>>` becoming `<<` in the peak half, or `&` becoming `|` or `^` in the
+ceiling half, because every one of those produces a number that is still larger than five. Closed by
+`the_high_water_word_reports_the_occupancy_and_the_capacity_that_set_it`, which buys exactness back
+from a shared static by setting a record no other test in the module can reach: `fetch_max` only
+raises, so 40 of 64 is the standing record whatever order the harness runs things in.
+
+**The three equivalents, argued from the code and confirmed by the second run.**
+
+- **`Rights::READ`'s `1 << 0` under `1 >> 0` (1).** Both are 1. This is the degenerate case the
+  patterns section above already names, recorded rather than excluded so it stays visible if the
+  constant ever moves off zero.
+- **`grew`'s `self.used > self.peak` under `>=` (1).** The extra branch fires only when `used`
+  already equals `peak`, where the assignment `self.peak = self.used` is a no-op and the
+  `note_peak(self.peak, N)` beside it re-offers a packed word this table has already offered:
+  `peak` is only ever assigned on that line, and `note_peak` is called in the same breath every
+  time it is, so any state with `used == peak` has already published that pair. `fetch_max` is
+  idempotent, so the mutant differs by one relaxed atomic operation and nothing observable.
+- **`note_peak`'s `((peak as u32) << 16) | ceiling` under `^` (1).** The two operands have no bit
+  in common: the shift clears the low sixteen bits, and the line above clamps `ceiling` with
+  `min(ceiling, u16::MAX as usize)` so it cannot reach the high ones. On disjoint bits `|` and `^`
+  are the same function. The clamp is load-bearing for this claim, and it is itself a caught mutant.

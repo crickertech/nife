@@ -1,7 +1,19 @@
 # 326. Nobody has been assigned to turn a mutation score upward
 
-**Status: NOT-STARTED.** Minted 2026-09-19 by calef, from the gap his own fatal-risk-3 ruling named
-the same day. *(Number provisional until the merge queue lands it.)*
+**Status: PARTIAL.** Minted 2026-09-19 by calef, from the gap his own fatal-risk-3 ruling named
+the same day. *(Number provisional until the merge queue lands it.)* Parts 1 and 2 are in progress
+on `milestone/326-mutation-survivor-triage`; parts 3 and 4 are untouched and deliberately so.
+
+## Progress, 2026-09-19
+
+Measured per crate with `script/mutation -p <crate>`, before and after, on the lane's own worktree.
+Every kill was re-run under its mutation; every equivalence claim below is a mutant the second run
+still reports. The accounting is in `notes/mutation-testing.md`'s `## 2026-09-19` section, which is
+where the reasons live.
+
+| crate | missed before | missed after | killed | equivalent | recorded gap |
+|---|---|---|---|---|---|
+| `capability` | 8 | 3 | 5 | 3 | 0 |
 
 **Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
 `.cargo/mutants.toml` is where an exclusion goes with its reason, and milestone 85 already set the
