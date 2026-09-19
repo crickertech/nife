@@ -106,9 +106,12 @@ The CI badge above is green only when **every** gate passes:
 | `script/fmt --check`, coverage | Formatting, and an 80%-per-file line-coverage floor on the host crates. |
 
 CI runs on an **aarch64** runner deliberately: this kernel targets a weakly-ordered machine, and a
-missing `Acquire`/`Release` passes on an x86_64 host and fails only on real ARM. Both the Rust
-toolchain and QEMU are pinned to exact versions, so "the tests passed" means the same thing on a
-laptop and on a runner.
+missing `Acquire`/`Release` passes on an x86_64 host and fails only on real ARM. The Rust toolchain
+is pinned to an exact nightly everywhere. QEMU is pinned to an exact version (`.qemu-version`) on CI
+and on Linux, where `script/ci-qemu` builds it; **on macOS it is whatever Homebrew ships**, because
+Homebrew cannot install an older release, and `script/qemu-check` warns rather than fails when the
+two differ. So on a Mac "the tests passed" means the same thing as on a runner only up to that
+emulator difference, which `script/qemu-check`'s header prices.
 
 ## What it does
 

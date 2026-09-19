@@ -11,10 +11,10 @@ standard is how one of them goes stale.
 
 ## The shortest honest description
 
-A capability microkernel for aarch64 and riscv64, in Rust, from the first instruction, built as a
+A capability microkernel for aarch64, riscv64 and x86_64, in Rust, from the first instruction, built as a
 demonstrator (DECISIONS §14) rather than as a product. The kernel allocates no memory of its own.
 Every driver and server is a userspace process. The security-critical logic carries machine-checked
-proofs. Architectural parity across both ISAs is a gate rather than an aspiration (DECISIONS §19).
+proofs. Architectural parity across all three ISAs is a gate rather than an aspiration (DECISIONS §19).
 
 It is a research project with one architect, so the response you get to a pull request is a real
 person reading it between other things. Both halves of that are honest.
@@ -58,13 +58,18 @@ cannot do.
 git clone https://github.com/crickertech/nife
 cd nife
 script/setup     # installs the pinned Rust toolchain and QEMU, then builds
-script/test      # host crates, then the kernel under QEMU on both ISAs
+script/test      # host crates, then the kernel under QEMU on all three ISAs
 ```
 
 **On Linux, `script/setup` stops at the QEMU check and tells you to run `script/ci-qemu` first.**
 That is the design working: no distribution ships a QEMU with `riscv-iommu-pci`, and the project
 refuses to drop the device because a confinement test that quietly stops testing is worse than a red
 build. Building the pinned QEMU takes about twelve minutes, once.
+
+**Build through `script/*` or `cargo xtask`, never a bare `cargo build` at the root.** The workspace
+holds `no_std` programs that only build for the bare-metal targets, so `cargo build --workspace`
+fails on the host with "unwinding panics are not supported without std", which reads like a broken
+tree and is only the wrong entry point.
 
 The full command reference is [`notes/scripts.md`](notes/scripts.md). The seven worth knowing on day
 one are in the README.
@@ -82,8 +87,8 @@ Concretely, a change is finished when:
   test, because they cost a reader's attention and buy nothing.
 - Pure logic lives in a crate that compiles for the **host**, so it runs in milliseconds without an
   emulator, and so Kani can reach it.
-- It works on **both ISAs**, or a scope note records the gap and the plan. A feature that works on
-  aarch64 and silently not on riscv64 is the bug.
+- It works on **every ISA** (aarch64, riscv64 and x86_64), or a scope note records the gap and the
+  plan. A feature that works on aarch64 and silently not on the others is the bug.
 - Any limitation it has is written in a **`BUGS` section next to the feature**, not in a tracker and
   not left for the reader to discover. This is the convention the project reaches for hardest, and it
   is not modesty: a newcomer who hits a limitation the docs named will trust the docs, and one who
@@ -198,7 +203,7 @@ is dual licensed the same way, with no additional terms. There is no CLA.
   is a file in `design/roadmap/` or `design/decisions/` rather than a thread, which is honest about
   where work lives here and is also more work than opening an issue elsewhere would be. Blank issues
   are off, so there is no way to file something that skips the prompts.
-- **The contribution path assumes you can run QEMU on both ISAs.** A change that only touches the
+- **The contribution path assumes you can run QEMU on all three ISAs.** A change that only touches the
   host-testable crates does not, but nothing here tells you which crates those are without reading
   `script/test`.
 - **Written 2026-08-18 by the third run of milestone 117 (the stranger test), which is an agent and not a person.**
