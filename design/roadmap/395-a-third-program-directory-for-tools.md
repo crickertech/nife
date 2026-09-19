@@ -13,7 +13,10 @@ and `fixtures/Cargo.toml` 40. Two entries in the table below are stale as writte
 written, because a reader needs to see what was counted; this paragraph is the correction.
 *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION.** A top-level directory holding a Cargo package is named exactly as the package,
+**Gate: DECISION.** The decision is
+[§198](../decisions/198-a-third-program-directory.md) *(number provisional)*, written up 2026-09-19
+by milestone 435's slice-c lane because this gate named no section.
+A top-level directory holding a Cargo package is named exactly as the package,
 so this is a name, and names are calef's. It is also the most expensive kind of name in this tree:
 it lands in `xtask`, in four exclusion lists, in `script/lint`, `script/names` and `script/verify`,
 and in every citation that points into it.

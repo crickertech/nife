@@ -234,6 +234,20 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 181 | PROPOSED | [Offering the two RedoxFS patches upstream, and under whose name](181-offering-the-redoxfs-patches-upstream.md) |
 | 182 | PROPOSED | [Whether AGENTS.md quotes measured numbers at all](182-measured-numbers-in-the-front-door-file.md) |
 | 183 | PROPOSED | [Where the timer re-arm seam goes, and which miss behaviour the kernel tick is meant to have](183-timer-rearm-seam.md) |
+| 197 | PROPOSED | [Whether the tour boot keeps starting a console server that has no client](197-console-server-with-no-client.md) |
+| 198 | PROPOSED | [Whether `components/` splits again, for the tools a person invokes](198-a-third-program-directory.md) |
+| 199 | PROPOSED | [May `script/bootstrap` say "installed everything I could, and this machine is still not good enough" without failing?](199-bootstrap-provisions-and-judges.md) |
+| 200 | PROPOSED | [Is a string two binaries agree on a name for `script/names`' purposes, or is it data?](200-provenance-for-wire-visible-names.md) |
+| 201 | PROPOSED | [What `script/ci-build` with no arguments means, and what the two tiers are called](201-what-no-arguments-means.md) |
+| 202 | PROPOSED | [Does the host test pass run on a second architecture, and at what cadence?](202-an-x86-64-host-in-the-host-pass.md) |
+| 203 | PROPOSED | [What carries the claim that userspace composes a process from an authority you can count on one hand](203-composing-a-process-from-two-capabilities.md) |
+| 204 | PROPOSED | [Where a riscv64 tour-boot check runs, what it asserts, and what it is called](204-where-the-riscv-tour-check-runs.md) |
+| 205 | PROPOSED | [One crate per kernel-test pair, or one crate for all of them?](205-crates-for-the-numbers-a-kernel-test-and-its-program-agree-on.md) |
+| 206 | PROPOSED | [What the lifted `fn check(ok: bool)` is called, now that nine programs write it out by hand](206-one-home-for-the-trap-on-false-helper.md) |
+| 207 | PROPOSED | [Which of two definitions `caretaker` carries, and what the translating shape is called](207-what-a-caretaker-is-when-it-translates.md) |
+| 208 | PROPOSED | [Must an icount baseline save record why it moved, and does a second fixed anchor earn its cost?](208-what-a-baseline-save-must-record.md) |
+| 209 | PROPOSED | [Whether the job mix reports the spread rather than the best, and whether `REPEATS` varies by sweep point](209-job-mix-repeats-and-what-the-line-reports.md) |
+| 210 | PROPOSED | [Does the ACPI walk's direct-map read take a bound, and is the bound per-read or a region it holds?](210-a-checked-direct-map-reader-for-the-acpi-walk.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

@@ -10,6 +10,18 @@ becomes a `design/decisions/` section when 269 is taken, not before.
 *(Number provisional until the merge queue lands it.)*
 
 **Gate: DECISION.** This is a design fork about the kernel's shape, not work to schedule.
+**The decision it waits on is [§149](../decisions/149-kernel-served-console-endpoint.md)**, cited
+here on 2026-09-19 by milestone 435's slice-c lane, which found this gate naming no section. §149 is
+`DECIDED` and what it decided about *this* question is to refuse it: it separated the console case
+from kernel introspection in a six-row table, on the ground that the console is **forced** by
+hardware and introspection is **chosen**, and it says in its own words that *"a reader citing this
+section for the general case is misreading it"* and that the introspection question *"should get its
+own section when there is an actual fact to expose rather than in the abstract."*
+
+**So no `design/decisions/` section is minted here, and that is the answer rather than an omission.**
+Milestone 269 is the consumer §149 named, it is still `NOT-STARTED`, and writing this fork up before
+it is taken would put the general case in front of calef on the narrow case's momentum, which is the
+exact thing §149 refused. The section gets minted when 269 is taken.
 
 ## In brief
 

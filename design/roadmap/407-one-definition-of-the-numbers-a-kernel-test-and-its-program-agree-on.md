@@ -15,7 +15,10 @@ with the 19 pairs and 76 names below, and what it establishes is that the shape 
 is now `network_time_client` and its siblings. *(Number provisional until the merge queue lands
 it.)*
 
-**Gate: DECISION.** The sweep itself is mechanical and a lane could start it today; what it cannot
+**Gate: DECISION.** The decision is
+[§205](../decisions/205-crates-for-the-numbers-a-kernel-test-and-its-program-agree-on.md) *(number
+provisional)*, written up 2026-09-19 by milestone 435's slice-c lane because this gate named no
+section. The sweep itself is mechanical and a lane could start it today; what it cannot
 settle is the crate names, and there is no useful half of this work that does not create one. See
 "What a lane cannot decide" below, which prices the two shapes so the question arrives answered.
 
