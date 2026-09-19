@@ -64,8 +64,9 @@ jobs:
           # clone on: a suite whose scope is too small goes green faster.
           fetch-depth: 0
 
-      # Coverage is the one metric that cannot be recovered from history, so it is taken here or it
-      # is never taken for this week. `continue-on-error` because a coverage failure is a coverage
+      # Coverage is the one metric `script/metrics` cannot re-derive, because it needs a build. It
+      # is taken here, or later by hand with `script/metrics --coverage-for` from a checkout of the
+      # week's commit, which costs a worktree and a toolchain. `continue-on-error` because a coverage failure is a coverage
       # problem and the other twenty-odd columns should still be recorded: the alternative is a week
       # missing from the series for a reason unrelated to anything the series measures.
       - name: Install cargo-llvm-cov

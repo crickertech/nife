@@ -65,8 +65,9 @@ in the code or the conversation doesn't make sense, it belongs here.
   `BUGS` sections (where rising is good), the falsification ratio, `unsafe` density, and the fatal
   risks put to an experiment. Every row is a restatement under today's definitions rather than what
   was reported at the time, which is stated on the page because a dashboard is exactly the artifact
-  that stops a reader asking. Coverage is the one series that cannot be recovered from history and
-  is left visibly empty. Name of the page ratified; the script's and the data directory's are
+  that stops a reader asking. Coverage is the exception: each week is measured by its own
+  `script/coverage` on its own pinned nightly, backfilled on 2026-09-19, with 2026W29 left
+  visibly empty because the script did not exist yet. Name of the page ratified; the script's and the data directory's are
   provisional.
 
 - [Citations that name what they cite](citations.md): why a footnote in this tree carries a name
