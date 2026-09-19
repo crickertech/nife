@@ -5942,14 +5942,13 @@ fn shell_check() -> bool {
         None => ArchLegs::All,
         Some("aarch64") => ArchLegs::Aarch64,
         Some("riscv64") => ArchLegs::Riscv64,
-        // x86_64 has no shell leg. Not because it lacks userspace (it has had real userspace
-        // running since milestone 161 item 4 landed); because nothing boots it straight to a real
-        // interactive shell prompt. aarch64 has `spawn_init`, riscv64 has `riscv_shell_boot`;
-        // x86_64 has neither, so there is nothing for this gate to type at yet. See milestone 177's
-        // own third piece (found 2026-08-27, tracing a "both boards" claim that turned out to mean
-        // aarch64/riscv64 only) for where building that entry point is scoped.
+        // The third leg (milestone 182), since milestone 299 gave x86_64 a userspace console to
+        // reach a prompt through. It boots under OVMF rather than PVH; see `shell_check_leg`.
+        Some("x86_64") => ArchLegs::X86_64,
         Some(other) => {
-            eprintln!("shell-check: --arch {other} is not an architecture (aarch64 or riscv64)");
+            eprintln!(
+                "shell-check: --arch {other} is not an architecture (aarch64, riscv64 or x86_64)"
+            );
             return false;
         }
     };
@@ -5971,6 +5970,15 @@ fn shell_check() -> bool {
     // socket and never touches the environment.
     unsafe { std::env::remove_var("NIFE_ACCEL") };
     if graphical || graphical_serial {
+        // No x86_64 graphical leg: milestone 192's x86 half is not built, and the screen x86_64
+        // does have (the firmware's, milestone 400) is read by `cargo xtask uefi-boot` instead.
+        if legs == ArchLegs::X86_64 {
+            eprintln!(
+                "shell-check: there is no graphical leg on x86_64; `cargo xtask uefi-boot` reads \
+                 the shell off the firmware's screen"
+            );
+            return false;
+        }
         let keystrokes = if graphical_serial {
             Keystrokes::Serial
         } else {
@@ -5984,10 +5992,13 @@ fn shell_check() -> bool {
         }
         return true;
     }
-    if legs.aarch64() && !shell_check_leg(false) {
+    if legs.aarch64() && !shell_check_leg("aarch64") {
         return false;
     }
-    if legs.riscv64() && !shell_check_leg(true) {
+    if legs.riscv64() && !shell_check_leg("riscv64") {
+        return false;
+    }
+    if legs.x86_64() && !shell_check_leg("x86_64") {
         return false;
     }
     true
@@ -6385,6 +6396,39 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
+/// **The lines the `x86_64` leg does not type, each with the reason** (milestone 182, under the rule
+/// milestone 150 added: an omitted line carries a stated reason, or it is a gap nobody can see).
+///
+/// A function over the line rather than a second table, so a line added to [`SHELL_CHECK_SCRIPT`]
+/// is typed on `x86_64` by default and an omission is the thing that has to be argued for. `None`
+/// means the line runs.
+fn shell_check_x86_omits(line: &str) -> Option<&'static str> {
+    // `uuid` draws from the entropy service, and the progenitor builds that service only from a
+    // virtio-rng the kernel found. The kernel finds one only on a virtio-mmio slot
+    // (`kernel::user::boot_virtio_rng_device`), `q35` has no mmio bus, and nothing drives
+    // `virtio-rng-pci` on x86_64 yet (DECISIONS §120's stopgap is QEMU-only on every architecture;
+    // x86_64's real source is `rdrand`/`rdseed`, not wired to the service). So these four lines
+    // would test the absence of a device, and the two "empty second stream" checks would fail on
+    // it. `caps uuid` stays: it is a preview of the manifest and needs no device.
+    match line {
+        "uuid > id.txt" | "wc < id.txt" | "uuid 2> ent.txt" | "wc < ent.txt" => Some(
+            "x86_64 has no entropy device the progenitor can build a service from (virtio-rng is \
+             found on virtio-mmio only, and q35 has none)",
+        ),
+        _ => None,
+    }
+}
+
+/// The first thing `x86_hand_over` prints (`kernel/src/main.rs`), where the `x86_64` leg starts
+/// reading for faults; see `after_hand_over` in [`shell_check_leg`]. The same sentence
+/// `uefi_boot` requires.
+const X86_HAND_OVER_START: &str = "nife: handing the system to the userspace progenitor.";
+
+/// The last thing `x86_hand_over` prints (`kernel/src/main.rs`) once the progenitor has outlived
+/// its ten-second watch, which is the ordinary interactive outcome. The `x86_64` leg waits for it
+/// before typing; see [`shell_check_leg`]'s doc.
+const X86_HAND_OVER_REPORT: &str = "as a port capability (milestone 299).";
+
 /// How long to wait for the banner, for one line's echo, and for the whole transcript. Generous:
 /// under TCG on a loaded machine a cold boot to the prompt is seconds, and a gate that flakes on a
 /// busy laptop is a gate people learn to ignore.
@@ -6401,6 +6445,35 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
 /// budget) has not been made.
 const SHELL_CHECK_BOOT_SECS: u64 = 120;
 const SHELL_CHECK_LINE_SECS: u64 = 30;
+
+/// **The `x86_64` leg's per-line bound, three times the others', and measured rather than chosen**
+/// (milestone 182, 2026-09-19).
+///
+/// Under OVMF the console server hands every write to the screen terminal and waits for it to be
+/// drawn (milestone 400), so a line costs what its output costs to paint and copy, not what the
+/// shell costs to run it. Measured on patagonia, one run each, typed to prompt-back:
+///
+/// | leg | 60 or 64 lines | slowest line |
+/// |---|---|---|
+/// | `aarch64` | 6.9 s | `apropos capability` 0.3 s |
+/// | `riscv64` | 7.3 s | `apropos capability` 0.6 s |
+/// | `x86_64` | 321.1 s | `xargs caps rm globmany/m-*.txt` 24.7 s, then `caps ps` 16.7 s |
+///
+/// CI's runner was 1.5x to 1.8x slower than patagonia on this leg (run 35463884897: the guest's
+/// `date` ran 119 s into the leg against 80 s here, and `caps ps`, 16.7 s here, did not finish in
+/// 30 s there), which is how the 30 s bound went red on a line that has no defect. 90 s is 3.6x
+/// the slowest local line and 2x that line at CI's worst measured ratio. A real hang still fails,
+/// ninety seconds later than it would elsewhere.
+///
+/// **Which part is the emulator's.** The same shell over TCG answers every line in under a second
+/// on the other two legs, so the whole difference is the screen path: `display_terminal` paints
+/// the damaged cells (the whole 924x344 surface on every scroll) and `framebuffer_driver` copies
+/// them into an uncacheable aperture one word at a time, both as unoptimised debug builds, each
+/// store through TCG. A real PC pays the same copy in native stores at uncacheable speed, which is
+/// milliseconds per scroll rather than seconds and is not measured on silicon
+/// (`framebuffer_driver`'s BUGS). Milestone 400's BUGS records the design half: the console
+/// blocks on the screen.
+const SHELL_CHECK_X86_LINE_SECS: u64 = 90;
 
 /// How many foreign characters [`find_marker`] will step over inside one marker before it gives up.
 ///
@@ -6660,37 +6733,71 @@ fn boot_claim_complaint(
     }
 }
 
-/// One architecture's leg of [`shell_check`].
-fn shell_check_leg(riscv: bool) -> bool {
+/// One architecture's leg of [`shell_check`]: `aarch64`, `riscv64` or `x86_64`.
+///
+/// # The `x86_64` leg boots under firmware (milestone 182)
+///
+/// **Under OVMF, from the same `\EFI\BOOT\BOOTX64.EFI` `cargo xtask uefi-image` stages for a
+/// USB stick**, not through QEMU's PVH `-kernel` loader. That image is the thing a customer boots
+/// (DECISIONS §157, milestone 198's rung 1), so it is the one worth typing at: the loader, the
+/// firmware's memory map and ACPI tables, and the console server's tee onto the firmware's screen
+/// (milestone 400) are all on the path, and the PVH boot has none of them. What it costs over PVH
+/// is recorded in milestone 182's block, measured rather than asserted.
+///
+/// Three `x86_64` differences, each forced by the machine rather than chosen:
+///
+/// - **The default kernel, not `--features shell`.** `x86_64` has no early hand-over: every boot
+///   runs the tour and then hands over (milestone 268), and `uefi_image` builds exactly that.
+/// - **The kernel's hand-over report lands after the prompt.** `x86_hand_over` watches the
+///   progenitor for ten seconds and then prints two lines, so the transcript does not end in `$ `
+///   until something is typed. The leg waits for that report and then presses Enter once, so the
+///   report cannot splice into a typed line's echo and the first line meets a fresh prompt.
+/// - **No virtio-rng.** Every entropy device the kernel can find is virtio-mmio and `q35` has no
+///   mmio bus, so the progenitor builds no entropy service. [`shell_check_x86_omits`] names the
+///   lines that need one.
+fn shell_check_leg(arch: &str) -> bool {
     use std::io::{Read, Write};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
-    let arch = if riscv { "riscv64" } else { "aarch64" };
+    let riscv = arch == "riscv64";
+    let x86 = arch == "x86_64";
     eprintln!();
-    eprintln!("--- shell-check ({arch}): boot `--features shell` and type at the prompt ---");
+    eprintln!(
+        "--- shell-check ({arch}): boot {} and type at the prompt ---",
+        if x86 {
+            "the UEFI image under OVMF"
+        } else {
+            "`--features shell`"
+        }
+    );
 
     // The same build the interactive boot takes, because a gate that builds something else is
     // gating something else. The FS server first (`user()` packs the initrd by reading the ELF off
     // disk), then the RedoxFS image, because the runner attaches the disk only when the file is
     // there and `<` and `>` need one.
     let target = if riscv { RISCV_TARGET } else { TARGET };
-    let built = if riscv {
+    let built = if x86 {
+        // `uefi_image` packs the archive, builds the kernel against it, and stages the loader;
+        // the FS server has to exist first so the archive carries it.
+        redoxfs_server_build(X86_TARGET) && mkdisk() && mkredoxfs() && uefi_image()
+    } else if riscv {
         redoxfs_server_build(RISCV_TARGET) && mkdisk() && mkredoxfs() && initrd_riscv()
     } else {
         redoxfs_server_build(TARGET) && mkredoxfs() && mkdisk() && user()
-    } && run(
-        "cargo",
-        &[
-            "build",
-            "-p",
-            "kernel",
-            "--features",
-            "shell",
-            "--target",
-            target,
-        ],
-    );
+    } && (x86
+        || run(
+            "cargo",
+            &[
+                "build",
+                "-p",
+                "kernel",
+                "--features",
+                "shell",
+                "--target",
+                target,
+            ],
+        ));
     if !built {
         return false;
     }
@@ -6698,20 +6805,40 @@ fn shell_check_leg(riscv: bool) -> bool {
     // The runner directly rather than through `cargo run`, so the process this owns **is** QEMU
     // (the runner script `exec`s it). A `cargo run` in between would leave the emulator alive when
     // the kill lands on cargo, which is the leak CLAUDE.md's QEMU rule exists about.
-    let mut cmd = Command::new(if riscv {
-        "scripts/qemu-runner-riscv64.sh"
+    let mut cmd = if x86 {
+        // OVMF, one core (the runner's default, for `ap_boot`'s BUGS #3). The runner bounds itself
+        // with `qemu-bounded.sh`; the bound here is every wait below added up, so it only ever
+        // fires on a leg that has already failed.
+        let mut c = Command::new("scripts/qemu-uefi-x86_64.sh");
+        c.arg(esp_dir());
+        c.env(
+            "NIFE_UEFI_TIMEOUT",
+            (SHELL_CHECK_BOOT_SECS * 2
+                + SHELL_CHECK_X86_LINE_SECS * (SHELL_CHECK_SCRIPT.len() as u64 + 2))
+                .to_string(),
+        );
+        c.env_remove("NIFE_NVME");
+        // The RedoxFS disk, which `>`, `<`, `ls` and `rm` need; opt-in on this runner, and its
+        // header says why.
+        c.env("NIFE_UEFI_REDOXFS", "1");
+        c
     } else {
-        RUNNER
-    });
-    cmd.arg(format!("target/{target}/{}/kernel", profile_dir()));
-    cmd.env(
-        "NIFE_INITRD",
-        if riscv {
-            riscv_initrd_path()
+        let mut c = Command::new(if riscv {
+            "scripts/qemu-runner-riscv64.sh"
         } else {
-            initrd_path()
-        },
-    );
+            RUNNER
+        });
+        c.arg(format!("target/{target}/{}/kernel", profile_dir()));
+        c.env(
+            "NIFE_INITRD",
+            if riscv {
+                riscv_initrd_path()
+            } else {
+                initrd_path()
+            },
+        );
+        c
+    };
     cmd.env("NIFE_DISK", disk_path());
     // A virtio-rng device (DECISIONS §120's 2026-08-26 amendment: "grant the QEMU-only virtio-rng
     // stopgap"), unlike the GPU/keyboard/NVMe flags above `test()` sets: this is the interactive
@@ -6790,6 +6917,23 @@ fn shell_check_leg(riscv: bool) -> bool {
         false
     };
 
+    // **What the checks below read, which on x86_64 starts at the hand-over.** The x86_64 kernel
+    // runs its tour before handing over (milestone 268), and the tour's userspace demonstration
+    // kills two threads on purpose (`x86_userspace_demo`'s supervised deaths, reported as "died
+    // at pc ..., delivered to its supervisor"). Those are the kernel's fault path working, printed
+    // before any process this gate is about exists, so the fault check and the "was the kernel
+    // writing during the boot" test both start where the progenitor does. The other two legs boot
+    // `--features shell`, which has no tour, so for them this is the whole transcript.
+    let after_hand_over = |t: &str| -> String {
+        if x86 {
+            t.find(X86_HAND_OVER_START)
+                .map_or(t, |at| &t[at..])
+                .to_string()
+        } else {
+            t.to_string()
+        }
+    };
+
     // Everything below must reach the kill, so failures are recorded rather than returned.
     let mut failed: Vec<String> = Vec::new();
     // The banner is the first claim: the progenitor built the console, the line editor, the input driver and
@@ -6818,7 +6962,7 @@ fn shell_check_leg(riscv: bool) -> bool {
         // A missing marker means a missing marker. The transcript is printed below; that is the
         // evidence, and this line's job is to say which string was wanted and how close it came.
         if let Some(complaint) = boot_claim_complaint(
-            &transcript_now(&seen),
+            &after_hand_over(&transcript_now(&seen)),
             "giving the construction budget away",
             "construction budget dropped; retype answers NoSuchSlot",
             "construction budget NOT dropped",
@@ -6833,26 +6977,62 @@ fn shell_check_leg(riscv: bool) -> bool {
         // sentence is what this gate reads. The other branch names the programs it refused, so a
         // boot that quietly stopped spawning half the prompt's commands fails here.
         if let Some(complaint) = boot_claim_complaint(
-            &transcript_now(&seen),
+            &after_hand_over(&transcript_now(&seen)),
             "measuring the programs it loads",
             "every program measured against the archive table",
             "measurement refused",
         ) {
             failed.push(complaint);
         }
+        // **x86_64: let the kernel finish its hand-over report first**, then press Enter for a
+        // fresh prompt (this function's doc says why). The report is the boot thread's last
+        // output, so after it the shell is the UART's only writer until something faults.
+        let mut ready = true;
+        if x86 {
+            ready = false;
+            if !wait_after(0, X86_HAND_OVER_REPORT, SHELL_CHECK_BOOT_SECS) {
+                failed.push(format!(
+                    "the kernel never printed its hand-over report ({X86_HAND_OVER_REPORT:?}), so \
+                     the progenitor did not outlive `x86_hand_over`'s watch"
+                ));
+            } else if writeln!(stdin).is_err() || stdin.flush().is_err() {
+                failed.push("could not press Enter at the prompt".to_string());
+            } else {
+                ready = true;
+            }
+        }
+        // **How long each line took**, typed to prompt-back, so every run reports its own margin
+        // against the per-line bound rather than leaving it to be guessed after a red one.
+        let line_secs = if x86 {
+            SHELL_CHECK_X86_LINE_SECS
+        } else {
+            SHELL_CHECK_LINE_SECS
+        };
+        let mut took: Vec<(&str, Duration)> = Vec::new();
+        let mut previous: Option<(&str, Instant)> = None;
         for (line, _) in SHELL_CHECK_SCRIPT {
-            if !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
+            if !ready {
+                break;
+            }
+            if x86 && shell_check_x86_omits(line).is_some() {
+                continue;
+            }
+            if !wait_for_prompt(line_secs) {
                 failed.push(format!(
                     "the prompt never came back to take `{line}`; the line before it did not finish"
                 ));
                 break;
             }
+            if let Some((prev, typed)) = previous {
+                took.push((prev, typed.elapsed()));
+            }
+            previous = Some((line, Instant::now()));
             let at = mark();
             if writeln!(stdin, "{line}").is_err() || stdin.flush().is_err() {
                 failed.push(format!("could not type `{line}` at the prompt"));
                 break;
             }
-            if !wait_after(at, &format!("{line}\n"), SHELL_CHECK_LINE_SECS) {
+            if !wait_after(at, &format!("{line}\n"), line_secs) {
                 failed.push(format!("the prompt never echoed `{line}`"));
                 break;
             }
@@ -6860,12 +7040,35 @@ fn shell_check_leg(riscv: bool) -> bool {
         // One more, for the last line: every other answer is bounded by the next line's wait, and
         // the last one has no next line. Without this the transcript is read while the final
         // command is still running.
-        if failed.is_empty() && !wait_for_prompt(SHELL_CHECK_LINE_SECS) {
+        if failed.is_empty() && !wait_for_prompt(line_secs) {
             failed.push("the prompt never came back after the last line".to_string());
         }
+        if let (true, Some((prev, typed))) = (failed.is_empty(), previous) {
+            took.push((prev, typed.elapsed()));
+        }
+        // Every line's time, in script order, beside the transcript when that was asked for.
+        if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
+            for (l, d) in &took {
+                eprintln!("shell-check ({arch}): {:6.2}s  {l}", d.as_secs_f64());
+            }
+        }
+        took.sort_by_key(|t| std::cmp::Reverse(t.1));
+        let total: Duration = took.iter().map(|(_, d)| *d).sum();
+        eprintln!(
+            "shell-check ({arch}): {} lines in {:.1}s; slowest, against a {line_secs}s \
+             bound per line: {}",
+            took.len(),
+            total.as_secs_f64(),
+            took.iter()
+                .take(3)
+                .map(|(l, d)| format!("`{l}` {:.1}s", d.as_secs_f64()))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
     }
 
-    let transcript = seen.lock().expect("transcript lock").clone();
+    let whole = seen.lock().expect("transcript lock").clone();
+    let transcript = after_hand_over(&whole);
     // The transcript is printed on failure below, because that is when somebody needs it. This
     // prints it on success too, and it exists because the notes in this tree quote real prompt
     // sessions: `NIFE_SHOW_TRANSCRIPT=1 script/shell-check --arch aarch64` is where the EXAMPLES
@@ -6873,7 +7076,7 @@ fn shell_check_leg(riscv: bool) -> bool {
     // what they remember the shell saying.
     if std::env::var_os("NIFE_SHOW_TRANSCRIPT").is_some() {
         eprintln!("--- shell-check ({arch}) transcript ---");
-        eprintln!("{transcript}");
+        eprintln!("{whole}");
     }
     if failed.is_empty() {
         // Walked in order with a moving cursor, not searched. The script types `wc < gate.txt`
@@ -6882,6 +7085,9 @@ fn shell_check_leg(riscv: bool) -> bool {
         // truncated.
         let mut cursor = 0usize;
         for (line, want) in SHELL_CHECK_SCRIPT {
+            if x86 && shell_check_x86_omits(line).is_some() {
+                continue;
+            }
             match shell_check_answer(&transcript, cursor, line) {
                 Some((answer, next)) => {
                     cursor = next;
@@ -6962,6 +7168,20 @@ fn shell_check_leg(riscv: bool) -> bool {
     match transcript.lines().rfind(|l| l.contains(SLOT_GAUGE)) {
         Some(line) => {
             eprintln!("shell-check ({arch}):{}", line.trim_end());
+            // **On x86_64 this line is stale, and says so** (milestone 182). The gauge is printed
+            // from the scheduler's idle loop, and x86_64's input driver polls COM1 and yields
+            // rather than blocking (milestone 299), so once it starts the run queue is never empty
+            // and the idle loop never runs again. What prints is the mark at the hand-over, before
+            // the progenitor has built anything. A temporary instrument on 2026-09-19 read 17 of
+            // 24 at this leg's peak; milestone 182's BUGS has it. The `ABOVE` check below cannot
+            // fire here for the same reason, which is a gate that cannot fail, stated rather than
+            // hidden.
+            if x86 {
+                eprintln!(
+                    "shell-check (x86_64): that gauge is the mark at the hand-over, not the peak: \
+                     the idle loop that prints it never runs again while the input driver polls"
+                );
+            }
             if line.contains("ABOVE") {
                 failed.push(format!(
                     "this boot used more capability slots than the tree records: {:?}. The \
@@ -6981,11 +7201,37 @@ fn shell_check_leg(riscv: bool) -> bool {
         )),
     }
 
-    let _ = child.kill();
+    // SIGTERM rather than `kill()`'s SIGKILL on x86_64: that runner is `qemu-bounded.sh`, which
+    // forwards TERM to QEMU (the other two runners `exec` the emulator, so the kill is QEMU's).
+    if x86 {
+        let _ = Command::new("kill")
+            .args(["-TERM", &child.id().to_string()])
+            .status();
+    } else {
+        let _ = child.kill();
+    }
     let _ = child.wait();
     let _ = reader.join();
 
     if failed.is_empty() {
+        // The four lines x86_64 omits are four jobs (two `uuid`s and the two `wc`s reading
+        // what they wrote); see [`shell_check_x86_omits`].
+        let jobs = if x86 { "seventeen" } else { "twenty-one" };
+        if x86 {
+            let omitted: Vec<&str> = SHELL_CHECK_SCRIPT
+                .iter()
+                .map(|(line, _)| *line)
+                .filter(|line| shell_check_x86_omits(line).is_some())
+                .collect();
+            eprintln!(
+                "shell-check (x86_64): booted under OVMF from \\EFI\\BOOT\\BOOTX64.EFI; ran {} \
+                 of {} lines, omitting {}: {:?}",
+                SHELL_CHECK_SCRIPT.len() - omitted.len(),
+                SHELL_CHECK_SCRIPT.len(),
+                omitted.len(),
+                omitted,
+            );
+        }
         eprintln!(
             "shell-check ({arch}): the prompt booted, piped, redirected, appended, named a \
              file to a reader, read the clock, timed a command with a clock of its own, kept \
@@ -6997,14 +7243,14 @@ fn shell_check_leg(riscv: bool) -> bool {
              documentation store and got back pages a following line could then designate, \
              rendered one of those pages straight at the prompt with no `| wc` in front of it, ran \
              a && past a command that succeeded and not past one it refused, and ran \
-             twenty-one jobs through the progenitor's six-job pool after the progenitor gave its construction \
+             {jobs} jobs through the progenitor's six-job pool after the progenitor gave its construction \
              budget away"
         );
         return true;
     }
     eprintln!();
     eprintln!("--- shell-check ({arch}) transcript ---");
-    eprintln!("{transcript}");
+    eprintln!("{whole}");
     eprintln!("--- shell-check ({arch}) FAILED ---");
     for f in &failed {
         eprintln!("  {f}");

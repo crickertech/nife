@@ -213,6 +213,16 @@ scroll is a full-surface copy through an uncacheable mapping (BUGS).
   (the UART gets each write's bytes first, so the wire still shows the line that stalled). Recorded
   in `components/src/console.rs`; decoupling it needs a second thread or milestone 151's
   notification objects.
+  **Measured by milestone 182 (2026-09-19), and it is slow before it is ever wedged.** The x86_64
+  `shell-check` leg types the same 60 lines the other legs type: 321 s under OVMF against 7 s on
+  aarch64 and riscv64, slowest line 24.7 s (`xargs caps rm globmany/m-*.txt`) against 0.6 s, and
+  90 s over PVH with no screen. So nearly all of it is the serial console waiting for the screen:
+  `display_terminal` painting (the whole surface on each scroll) and `framebuffer_driver` copying
+  into an uncacheable aperture, debug builds under TCG. That contradicts `framebuffer_driver`'s
+  own BUGS line ("free under QEMU"), left unedited there only because pull request #991 is in that
+  file. It turned 182's pull request red in CI on a slower runner, and 182 now carries a 90 s
+  per-line bound for that leg, measured and recorded at `SHELL_CHECK_X86_LINE_SECS` in
+  `xtask/src/main.rs`. A real PC pays native stores, not emulated ones; not measured on silicon.
 - **Keystrokes are the serial line's.** A PC with no serial port shows the prompt and cannot type at
   it until milestone 242.
 - **Whether the firmware left the screen in a mode the monitor is showing** is the firmware's choice
