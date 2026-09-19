@@ -2341,11 +2341,10 @@ mod tests {
         for &prog in Prog::ALL {
             let m = prog.manifest();
             let takes_arg = m.arg == ArgSpec::Required;
-            let mut line = String::new();
+            let mut line = String::from(prog.name());
             if let MemSpec::Required { min, .. } = m.mem {
-                line.push_str(&std::format!("--mem {min} "));
+                line.push_str(&std::format!(" --mem {min}"));
             }
-            line.push_str(prog.name());
             line.push_str(" 21");
             let wants_a_name = matches!(m.input, InputSpec::Required { .. })
                 || matches!(m.file, FileSpec::Required { .. });

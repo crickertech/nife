@@ -2503,235 +2503,183 @@ fn riscv_initrd_path() -> String {
         .to_string()
 }
 
-/// **The archive both non-aarch64 ports pack**, one table shared by two callers (milestone 161).
+/// The packages a program can live in (milestone 175's split). See notes/adding-a-program.md for
+/// which one a new program belongs in.
+const PROGRAM_PACKAGES: [&str; 2] = ["components", "fixtures"];
+
+/// **Every program this tree builds, read from the one place it is declared** (milestone 150; name
+/// provisional): the `[[bin]]` blocks in `components/Cargo.toml` and `fixtures/Cargo.toml`, which
+/// cargo needs anyway. All three archives pack exactly this list, so a program is added to them by
+/// adding its `[[bin]]` block and removed by deleting it.
 ///
-/// RISC-V's archive and `x86_64`'s are the same list of programs, and that is a claim rather than a
-/// convenience: every entry here is portable, so a test that passes on one instruction set and not
-/// the other has found a bug rather than a fixture gap. Duplicating the list would have made the
-/// two drift the first time somebody added a program to one of them, which is CLAUDE.md rule 7's
-/// argument (what two things must agree on gets one definition) applied to a table instead of a
-/// wire format.
+/// **This replaced two hand-maintained tables**, `initrd_aarch64()`'s own and the
+/// `portable_archive_entries()` riscv64 and `x86_64` shared. By 2026-09-19 they disagreed about two
+/// programs nobody had decided to leave out (`serial_driver` and `jh7110_entropy` were missing from
+/// aarch64's) and both had missed a third (`pmap`, built and packed nowhere). That was drift rather
+/// than policy, because the rule the shared table's own comment stated is the one this implements:
 ///
-/// `(archive_name, bin_name)`, and since milestone 266 the two are **the same in every row**: the
-/// archive entry `init` was the last place a name meant a different binary depending on the board,
-/// and one progenitor retired it. The pair is kept rather than collapsed to a list because it is
-/// what would let an exception be data instead of a special case in the loop, and because
-/// [`initrd_aarch64`] beside it has the same shape.
+/// **Not filtered per architecture, deliberately.** Several programs cannot do their job everywhere
+/// (`console`, `input` and `keyboard_driver` need port I/O a ring-3 process cannot reach on
+/// `x86_64`, DECISIONS §121; `serial_driver` drives riscv64's UART; `jh7110_entropy` is radon's).
+/// They are packed anyway: an archive entry costs a directory slot and some bytes, nothing spawns a
+/// program by accident, and the tests that would spawn them `skip!()` with the reason. A
+/// per-architecture filter would put the same fact in two places and let them disagree, which is
+/// what the two tables did.
 ///
-/// **Not filtered per architecture, deliberately.** Several of these programs cannot do their job
-/// on `x86_64`: `console`, `input` and `keyboard_driver` all need a device a ring-3 process cannot
-/// reach (COM1 and the PS/2 ports are port I/O, DECISIONS §121).
+/// **Order does not matter.** The progenitor looks entries up by name and [`measurement_table`] is
+/// sorted, so this is `Cargo.toml` order and nothing depends on it.
 ///
-/// **`gpu_driver` was in that list until 2026-09-09 and did not belong there**, which mattered
-/// because it made `x86_64`'s display look foreclosed by a ratified decision when it is not.
-/// virtio-gpu is PCIe, its BARs are memory, and the driver does not map registers at all: it holds
-/// a kernel-mediated `Virtio` capability (`components/src/gpu_driver.rs`). §121 explicitly grants MMIO
-/// devices the mapping-based capability on every architecture. The real reason it does not run
-/// there is that `scripts/qemu-runner-x86_64.sh` wires no `virtio-gpu-pci` onto the bus, which
-/// `kernel/src/user/display_tests.rs` states correctly beside its own skip. A missing device in a
-/// runner script, not a capability that cannot exist. They are packed anyway: an archive entry costs a directory slot and some
-/// bytes, nothing spawns a program by accident, and the tests that would spawn them `skip!()` with
-/// the reason. A per-architecture filter here would put the same fact in two places and let them
-/// disagree.
+/// Refuses, rather than packing a partial archive, when a `[[bin]]` block has a shape
+/// [`bin_names`] does not understand, and when something else in the tree names a program no
+/// `[[bin]]` builds: see [`check_declared_programs`].
+fn declared_programs() -> Result<&'static [String], String> {
+    // Read once per `xtask` run: `test` packs three archives, and they must pack the same list.
+    static DECLARED: std::sync::OnceLock<Result<Vec<String>, String>> = std::sync::OnceLock::new();
+    let declared = DECLARED.get_or_init(|| {
+        let mut names = Vec::new();
+        for package in PROGRAM_PACKAGES {
+            let path = workspace_root().join(package).join("Cargo.toml");
+            let text = std::fs::read_to_string(&path)
+                .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            names.extend(bin_names(&text).map_err(|e| format!("{}: {e}", path.display()))?);
+        }
+        check_declared_programs(&names)?;
+        Ok(names)
+    });
+    declared.as_deref().map_err(Clone::clone)
+}
+
+/// Read the stripped ELF of every [`declared_programs`] entry for one archive, `elf` mapping a
+/// program name to where this architecture's build put it. `None` after saying why on stderr,
+/// prefixed with `archive` so a failure names which of the three packers hit it.
+fn declared_program_blobs(
+    archive: &str,
+    elf: impl Fn(&str) -> String,
+) -> Option<Vec<(&'static str, Vec<u8>)>> {
+    let names = match declared_programs() {
+        Ok(names) => names,
+        Err(e) => {
+            eprintln!("{archive}: {e}");
+            return None;
+        }
+    };
+    let mut blobs = Vec::with_capacity(names.len());
+    for name in names {
+        match read_stripped(&elf(name)) {
+            Ok(b) => blobs.push((name.as_str(), b)),
+            Err(e) => {
+                eprintln!("{archive}: cannot read {}: {e}", elf(name));
+                return None;
+            }
+        }
+    }
+    Some(blobs)
+}
+
+/// The `name` of every `[[bin]]` table in a `Cargo.toml`, in order.
 ///
-/// Order is preserved from the hand-written table this was lifted out of. It is not load-bearing
-/// (the progenitor looks entries up by name) but the measurement table is computed over this sequence, so
-/// reordering would churn two manifests for nothing.
+/// **A reader for the subset of TOML this tree writes, and strict about it**, because DECISIONS
+/// §46 keeps a TOML parser out of `xtask` for one list and a lenient scanner would be the worst of
+/// both: it would silently skip the block it did not understand, and that program would be missing
+/// from every archive. So a key it does not know inside a `[[bin]]` block is an error naming the key.
+/// `required-features` in particular would mean cargo does not build the binary by default, which
+/// is a thing the packer has to be taught rather than guess.
+fn bin_names(manifest: &str) -> Result<Vec<String>, String> {
+    let mut names = Vec::new();
+    let mut in_bin = false;
+    let mut current: Option<String> = None;
+    let finish = |in_bin: bool, current: &mut Option<String>, names: &mut Vec<String>| {
+        if !in_bin {
+            return Ok(());
+        }
+        match current.take() {
+            Some(n) => {
+                names.push(n);
+                Ok(())
+            }
+            None => Err("a [[bin]] block with no `name`".to_string()),
+        }
+    };
+    for (i, raw) in manifest.lines().enumerate() {
+        let line = raw.trim();
+        if line.starts_with('[') {
+            finish(in_bin, &mut current, &mut names)?;
+            in_bin = line == "[[bin]]";
+            continue;
+        }
+        if !in_bin || line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(format!(
+                "line {}: not `key = value` inside a [[bin]] block",
+                i + 1
+            ));
+        };
+        match key.trim() {
+            "name" => {
+                let value = value.trim();
+                let name = value
+                    .strip_prefix('"')
+                    .and_then(|v| v.strip_suffix('"'))
+                    .filter(|v| !v.contains('"'))
+                    .ok_or_else(|| format!("line {}: `name` is not a plain string", i + 1))?;
+                current = Some(name.to_string());
+            }
+            "path" | "test" | "bench" => {}
+            other => {
+                return Err(format!(
+                    "line {}: `{other}` in a [[bin]] block, which `xtask`'s bin_names does not \
+                     know how to pack; teach it what the key means for the archives",
+                    i + 1
+                ));
+            }
+        }
+    }
+    finish(in_bin, &mut current, &mut names)?;
+    Ok(names)
+}
+
+/// **What the declared list must agree with, checked every time an archive is packed.**
 ///
-/// Name provisional (milestone 161): calef names things, and this one is read by anyone adding a
-/// program to the second and third architectures.
-fn portable_archive_entries() -> &'static [(&'static str, &'static str)] {
-    &[
-        // **The first process** (milestone 266). Packed under this name on all three architectures,
-        // and the kernel's `riscv_shell_boot` looks it up by it.
-        ("progenitor", "progenitor"),
-        // **The milestone 7-19 capability demonstrations, one program each** (milestone 291).
-        // Every one of these was a role of `hello`, selected by the word the kernel put in `x0`;
-        // none of them reads that word now. They are packed on every architecture because what
-        // they demonstrate is the kernel's, not a board's.
-        ("image_self_checker", "image_self_checker"),
-        ("console_test_client", "console_test_client"),
-        ("memory_region_depleter", "memory_region_depleter"),
-        ("delegation_granter", "delegation_granter"),
-        ("delegation_receiver", "delegation_receiver"),
-        ("page_frame_producer", "page_frame_producer"),
-        ("page_frame_consumer", "page_frame_consumer"),
-        ("call_server", "call_server"),
-        ("call_client", "call_client"),
-        ("frame_revoker", "frame_revoker"),
-        ("rendezvous_minter", "rendezvous_minter"),
-        ("rendezvous_peer", "rendezvous_peer"),
-        ("address_space_witness", "address_space_witness"),
-        ("cycle_counter_reader", "cycle_counter_reader"),
-        ("least_authority_demo", "least_authority_demo"),
-        ("serial_driver", "serial_driver"),
-        ("os_primitives_benchmarker", "os_primitives_benchmarker"),
-        ("coremark", "coremark"),
-        ("console", "console"),
-        ("input", "input"),
-        ("swish", "swish"),
-        ("line_editor", "line_editor"),
-        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
-        ("rmle", "rmle"),
-        ("terminal_sink_caretaker", "terminal_sink_caretaker"),
-        ("block_driver", "block_driver"),
-        ("allocator_exerciser", "allocator_exerciser"),
-        ("net_stack", "net_stack"),
-        ("memory_grant_depleter", "memory_grant_depleter"),
-        ("fs_test_client", "fs_test_client"),
-        ("fs_file_caretaker", "fs_file_caretaker"),
-        ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("interrupt_heeder", "interrupt_heeder"),
-        ("interrupt_ignorer", "interrupt_ignorer"),
-        // The sustained multicore workload (milestone 219): the program `--features soak_test` builds a
-        // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
-        // because the whole premise is that the same workload runs on QEMU and on all three boards.
-        ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
-        // every archive for the soaker's own reason, that the instrument develops under QEMU and
-        // the number is taken on a board.
-        ("job_mix_task", "job_mix_task"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): a progenitor that hands its
-        // construction authority to a spawner and its restart policy to a supervisor, then drops the
-        // budget. Portable, so both archives carry all four.
-        ("root_supervisor", "root_supervisor"),
-        ("spawner", "spawner"),
-        ("sub_server_supervisor", "sub_server_supervisor"),
-        ("flaky", "flaky"),
-        // The interactive boot's undertaker (milestone 22, the interactive increment): the progenitor
-        // endows every job it builds with one supervision endpoint and this collects the corpses, so
-        // a job's region comes back to the progenitor's budget. Portable, so both archives carry it.
-        ("job_undertaker", "job_undertaker"),
-        // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
-        // into the surface it serves. Portable, so both archives carry both.
-        ("gpu_driver", "gpu_driver"),
-        ("painter", "painter"),
-        // The C seam (milestone 36): the confiner and the Rust shell that links fixtures/c/c_seam.c.
-        // The C is compiled for this ISA by fixtures/build.rs, so the riscv shell carries riscv C.
-        ("c_confiner", "c_confiner"),
-        ("c_shim", "c_shim"),
-        // The compositor and a window client (milestone 33, rung two). Portable, so both archives
-        // carry both: the isolation this rung proves is a property of the kernel's mappings, and it
-        // has to hold on either ISA or it is not a property.
-        ("compositor", "compositor"),
-        ("window", "window"),
-        // The display terminal (milestone 29's text increment): one binary, two wirings. Portable,
-        // so both archives carry it and both ISAs run literally the same test.
-        ("display_terminal", "display_terminal"),
-        // The keyboard driver (milestone 29's input). Portable, so both archives carry it.
-        ("keyboard_driver", "keyboard_driver"),
-        // Live component replacement (milestone 23): the operator, the two instances of the
-        // swappable component (the second computes its answers in C), the client that talks across
-        // the swap, and the queue broker for the opt-in rung. Portable, so both archives carry all
-        // five and both ISAs run literally the same swap.
-        ("swapper", "swapper"),
-        ("rust_swappable", "rust_swappable"),
-        ("c_swappable", "c_swappable"),
-        ("chatty", "chatty"),
-        ("broker", "broker"),
-        // The clock service (milestone 51). Portable, so both archives carry it: it holds both RTC
-        // drivers and the kernel tells it which one the machine has.
-        ("clock", "clock"),
-        // `date` (milestone 51). Portable for the same reason the service is: it reads a page and
-        // formats it, and neither half knows which instruction set it is on.
-        ("date", "date"),
-        // `printenv` (milestone 47's environment-variable fork, DECISIONS §111). `date`'s own
-        // shape, one manifest field over: it reads a page and prints it, and neither half knows
-        // which instruction set it is on.
-        ("printenv", "printenv"),
-        ("rm", "rm"),
-        // The disk surveyor (milestone 57): reads the block-device roster it was granted and the
-        // partition table of the one disk it holds. Portable, so both archives carry it and both
-        // ISAs read literally the same table off literally the same image.
-        ("disk_surveyor", "disk_surveyor"),
-        // The disk partitioner (milestone 57's write half): writes the table the surveyor reads,
-        // and refuses to without an entropy endpoint. Portable, so both archives carry it.
-        ("disk_partitioner", "disk_partitioner"),
-        // The entropy service (milestone 56). Portable, so both archives carry it: it holds the
-        // virtio-rng driver, and the wiring tells it which bus the device came off.
-        ("entropy", "entropy"),
-        // The JH7110 TRNG driver (milestone 159): the entropy backend for real riscv64 hardware,
-        // beside `entropy`'s virtio-rng one. Packed into both archives for the reason the list's
-        // header gives: nothing spawns a program by accident, and the boot tour's wiring resolves
-        // to a skip on any machine whose device tree has no `starfive,jh7110-trng` node, which is
-        // every machine but radon (the `StarFive` VisionFive 2).
-        ("jh7110_entropy", "jh7110_entropy"),
-        // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
-        // process that drives the machine's NVMe controller from ring 3. Portable, so every
-        // archive carries it; the test that spawns it skips on a leg with no controller attached.
-        ("non_volatile_memory_express", "non_volatile_memory_express"),
-        // The credential service and its clients (milestone 56, the credential half). Portable, so
-        // both archives carry both: the claim is that holding the verify endpoint does not let you
-        // read or write the store, and that has to hold on either instruction set or it is not a
-        // claim.
-        ("credentialer", "credentialer"),
-        ("credentialer_test_client", "credentialer_test_client"),
-        // The login service (milestone 49): authenticates against the credential service and mints
-        // a fresh directory capability and budget rather than mutating an identity. Portable, so
-        // both archives carry both, and the claim (a capability set produced rather than an
-        // identity mutated) holds on either instruction set or it is not a claim.
-        ("login", "login"),
-        ("login_test_client", "login_test_client"),
-        // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
-        // its blocking send never parks the whole service.
-        ("audit_sink", "audit_sink"),
-        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
-        // secret into the credential store and MKDIRs its home subtree as one act. Portable, so
-        // both archives carry it and the same guest tests run against either ISA.
-        ("identity_provisioner", "identity_provisioner"),
-        // The boot-time re-deriver (milestone 152's third piece, provisional name). Portable, so
-        // both archives carry it and the same guest tests run against either ISA.
-        ("session_reviver", "session_reviver"),
-        // The network time client (milestone 51), and the two test-only programs it used to carry as
-        // `arg0` roles of one binary until milestone 290 split them out into `fixtures/`. Portable,
-        // so both archives carry all three and both ISAs run the same tests.
-        ("network_time_client", "network_time_client"),
-        ("network_time_test_server", "network_time_test_server"),
-        ("unwritable_clock_witness", "unwritable_clock_witness"),
-        // The outlaw (milestone 19's user-test port): the privilege-boundary programs
-        // kernel::user::tests used to hand-assemble as aarch64 machine code.
-        ("outlaw", "outlaw"),
-        // **`hello` under its own name**, which since milestone 266 is the only name it has on any
-        // board. It held the whole milestone 7-19 role catalogue (the printing client, the untyped
-        // demo, the granter and receiver, the call server) until milestone 291 split that into the
-        // fourteen programs above; what is left is milestone 19d's and 19e's init roles, which
-        // `spawn_hello` enters on aarch64. aarch64 used to pack it as `init` because there it
-        // also carried the boot role; that role is `progenitor` now, and the alias went with it.
-        ("hello", "hello"),
-        // The sink contract's ends (milestone 50), three programs since milestone 292. Portable, so
-        // both archives carry them: the claim is that a program cannot tell what its output slot
-        // holds, and that has to hold on either instruction set or it is not a claim.
-        ("sink_transcript_writer", "sink_transcript_writer"),
-        ("file_sink", "file_sink"),
-        ("file_source", "file_source"),
-        // The consumer (milestone 50). Both archives, for the sink's reason: `date | wc` has to
-        // compose on either instruction set or it is not a claim about the system.
-        ("wc", "wc"),
-        // The viewer (milestone 40). Both archives for the sink's reason: `doc page.md | wc` is a
-        // claim about how the streams compose, and a claim that holds on one instruction set is not
-        // one.
-        ("mdr", "mdr"),
-        // The process listing (milestone 126). Both archives: "a program cannot enumerate the
-        // machine" is a claim about this system, not about an instruction set.
-        ("ps", "ps"),
-        // The filter over that listing (milestone 126). Same reason, and one more: "naming a member
-        // confers nothing over it" is a property of the rights model and holds on both.
-        ("pgrep", "pgrep"),
-        // The scheduler (milestone 129). Both archives: "a scheduled entry can do exactly what it
-        // was granted" is a claim about the capability model, and one that held on one instruction
-        // set would not be one.
-        ("timetable", "timetable"),
-        // Elapsed time on the ambient monotonic counter (milestone 126). Both archives: the
-        // counter it reads is granted unconditionally on every ISA
-        // (kernel/src/arch/*/timer.rs), so the "needed no new capability" claim is about the
-        // capability model and has to hold on both or it is not one.
-        ("uptime", "uptime"),
-        // A version-4 UUID drawn from the entropy service (milestone 111). Both archives: "a
-        // program's dependence on randomness is visible in what it holds" is a claim about the
-        // capability model, and `printenv` is already the same shape one field over.
-        ("uuid", "uuid"),
-    ]
+/// - It is not empty and it holds `progenitor`, so a scanner that stopped finding blocks fails
+///   here rather than packing an archive that boots nothing (a gate that computes the set it
+///   judges goes blind when the set empties; see
+///   design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md).
+/// - No name is declared twice, across both packages.
+/// - Every program `grant_plan` lets the shell spawn is built. Before milestone 150 a `Prog` whose
+///   binary was not packed compiled, passed every host test, and could not be spawned, and nothing
+///   said so until a boot.
+/// - Every program the kernel measures at boot ([`boot_programs`]) is built.
+fn check_declared_programs(names: &[String]) -> Result<(), String> {
+    let has = |n: &str| names.iter().any(|m| m == n);
+    if !has("progenitor") {
+        return Err(format!(
+            "found {} programs and no `progenitor`: the [[bin]] reader is looking at the wrong \
+             files or no longer understands them",
+            names.len()
+        ));
+    }
+    let mut sorted: Vec<&String> = names.iter().collect();
+    sorted.sort();
+    if let Some(w) = sorted.windows(2).find(|w| w[0] == w[1]) {
+        return Err(format!("`{}` is declared by two [[bin]] blocks", w[0]));
+    }
+    for p in grant_plan::Prog::ALL {
+        if !has(p.name()) {
+            return Err(format!(
+                "grant_plan declares `{}` spawnable from the shell, and no [[bin]] in {} builds it",
+                p.name(),
+                PROGRAM_PACKAGES.join(" or ")
+            ));
+        }
+    }
+    for b in boot_programs() {
+        if !has(b) {
+            return Err(format!("`{b}` is a boot program and no [[bin]] builds it"));
+        }
+    }
+    Ok(())
 }
 
 /// **Build the RISC-V userspace archive** (milestone 20, the richer-initrd step). Compiles the
@@ -2749,8 +2697,8 @@ fn initrd_riscv() -> bool {
     // **Builds the whole package rather than naming binaries** (fixed 2026-08-27; see
     // [`initrd_x86`]'s doc comment, which used to describe this as the one structural
     // difference between the two). The `--bin` list this used to carry predated every program
-    // in `user/` compiling for this target, and had to be kept in step with
-    // `portable_archive_entries` by hand; it fell out of step twice in one night when
+    // in `user/` compiling for this target, and had to be kept in step with the packing table
+    // (itself generated since milestone 150, see [`declared_programs`]) by hand; it fell out of step twice in one night when
     // `audit_sink` (milestone 49) landed in `Cargo.toml` and the packaging table but not here,
     // and CI caught it both times with "cannot read .../audit_sink: No such file or directory".
     // Verified 2026-08-27: `cargo build -p user --target riscv64imac-unknown-none-elf`, unfiltered,
@@ -2779,21 +2727,10 @@ fn initrd_riscv() -> bool {
             .display()
             .to_string()
     };
-    // Read each bin's ELF into an owned buffer, then pack. The archive name comes first, the bin
-    // name second; since milestone 266 every row is a name repeated, because `progenitor` retired
-    // the one entry whose name and binary differed. `progenitor`/`console`/`input`/`shell` are the
-    // interactive-shell system (parity D).
-    let entries = portable_archive_entries();
-    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
-    for &(archive_name, bin_name) in entries {
-        match read_stripped(&bin(bin_name)) {
-            Ok(b) => blobs.push((archive_name, b)),
-            Err(e) => {
-                eprintln!("initrd-riscv: cannot read {}: {e}", bin(bin_name));
-                return false;
-            }
-        }
-    }
+    // Every declared program, packed under its own name (milestone 150).
+    let Some(mut blobs) = declared_program_blobs("initrd-riscv", bin) else {
+        return false;
+    };
     // The std demo (milestone 27), built through the nife-dev toolchain for the riscv custom
     // target, rides along when present, exactly as on aarch64. `test` builds it first.
     if let Ok(bytes) = read_stripped(
@@ -2864,15 +2801,15 @@ fn x86_initrd_path() -> String {
 }
 
 /// **Build the `x86_64` userspace archive** (milestone 161, item 4's hand-off). The third archive,
-/// packing the same programs RISC-V's does out of [`portable_archive_entries`], built for
+/// packing the same programs the other two do ([`declared_programs`]), built for
 /// `x86_64-unknown-none`.
 ///
 /// **It builds the whole package rather than naming binaries.** This used to be the one structural
 /// difference from [`initrd_riscv`], whose `--bin` list predated every program in `user/` compiling
 /// for its target and had to be kept in step with the table by hand; that list is gone as of
 /// 2026-08-27 and `initrd_riscv` now builds unfiltered too, the same way this function always has.
-/// A program added to `user/Cargo.toml` and to the shared table is packed here (and by
-/// `initrd_riscv`) with no third edit, on either architecture.
+/// Since milestone 150 there is no packing table either: a `[[bin]]` block is packed here and by
+/// both siblings with no second edit.
 ///
 /// ```text
 /// cargo xtask initrd-x86
@@ -2932,17 +2869,9 @@ fn initrd_x86() -> bool {
             .display()
             .to_string()
     };
-    let entries = portable_archive_entries();
-    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
-    for &(archive_name, bin_name) in entries {
-        match read_stripped(&bin(bin_name)) {
-            Ok(b) => blobs.push((archive_name, b)),
-            Err(e) => {
-                eprintln!("initrd-x86: cannot read {}: {e}", bin(bin_name));
-                return false;
-            }
-        }
-    }
+    let Some(mut blobs) = declared_program_blobs("initrd-x86", bin) else {
+        return false;
+    };
     // The FS server and `mkfs` (milestone 164), on exactly the terms `initrd_riscv` carries them:
     // present iff something built them for this target, absent from a bare `initrd-x86`, and
     // `test` builds them first. Until milestone 164 they could not be built for this target at
@@ -3492,196 +3421,13 @@ const X86_DEBUG_EXIT_SUCCESS: u8 = 3;
 /// that already called this function changed. **Name and subcommand provisional**, per this
 /// repo's naming convention: calef's call to confirm or redirect.
 fn initrd_aarch64() -> bool {
-    // **One table, one loop**, the shape `initrd_riscv` has always had (milestone 130). This
-    // function used to do the same job three ways at once: nineteen hand-rolled `let` bindings of
-    // seven identical lines each, then a loop over a name array doing exactly the same thing, then
-    // a hand-written vector re-listing the nineteen by the same string literals. Adding a program
-    // meant editing four places that all said its name, and the two that were prose rather than
-    // data were the two that drifted.
-    //
-    // `(archive_name, bin_name)`, and since milestone 266 every row is a name repeated: the kernel
-    // loads **`progenitor`**, and `hello` is packed under its own name for the 19d test roles the
-    // boot path shares. The pair is kept rather than collapsed to a list because it is what would
-    // let an exception be data instead of a special case in the loop.
-    //
-    // Order is preserved from the hand-written vector it replaces. It is not load-bearing (the progenitor
-    // looks entries up by name) but the measurement table is computed over this sequence, so
-    // reordering would churn the manifest for nothing.
-    let entries: &[(&str, &str)] = &[
-        // **The first process** (milestone 266). Until then this row read `("init", "hello")` and
-        // aarch64's boot was a role of the demo catalogue.
-        ("progenitor", "progenitor"),
-        // **Milestone 19d's and 19e's init roles, under `hello`'s name.** `spawn_hello` enters
-        // it directly for them, so it is in `boot_programs` and measured. It held the whole
-        // milestone 7-19 catalogue until 291 split that into the fourteen programs below.
-        ("hello", "hello"),
-        // **The milestone 7-19 capability demonstrations, one program each** (milestone 291).
-        // Every one of these was a role of `hello`, selected by the word the kernel put in `x0`;
-        // none of them reads that word now. They are packed on every architecture because what
-        // they demonstrate is the kernel's, not a board's.
-        ("image_self_checker", "image_self_checker"),
-        ("console_test_client", "console_test_client"),
-        ("memory_region_depleter", "memory_region_depleter"),
-        ("delegation_granter", "delegation_granter"),
-        ("delegation_receiver", "delegation_receiver"),
-        ("page_frame_producer", "page_frame_producer"),
-        ("page_frame_consumer", "page_frame_consumer"),
-        ("call_server", "call_server"),
-        ("call_client", "call_client"),
-        ("frame_revoker", "frame_revoker"),
-        ("rendezvous_minter", "rendezvous_minter"),
-        ("rendezvous_peer", "rendezvous_peer"),
-        ("address_space_witness", "address_space_witness"),
-        ("cycle_counter_reader", "cycle_counter_reader"),
-        ("least_authority_demo", "least_authority_demo"),
-        ("console", "console"),
-        ("input", "input"),
-        ("swish", "swish"),
-        // The line discipline between the console and the shell (milestone 28).
-        ("line_editor", "line_editor"),
-        // The smallest real text editor (milestone 169), on line_editor's raw-keystroke primitive.
-        ("rmle", "rmle"),
-        // The terminal's sink adapter (milestone 50), so a declared second stream has somewhere to
-        // go that is not the shell's own output slot.
-        ("terminal_sink_caretaker", "terminal_sink_caretaker"),
-        // The virtio driver (milestone 9), packed here since milestone 291. This is the same
-        // portable binary the other two archives carry; aarch64 used to reach the identical logic
-        // through seven roles of `hello` instead, which is the duplicate 291 removed. The driver
-        // logic was already one `crates/virtio` for both shapes, so what died was a second
-        // dispatch table, not a second driver.
-        ("block_driver", "block_driver"),
-        // The compute workload (19e) and the EL0 microbenchmark program.
-        ("coremark", "coremark"),
-        ("os_primitives_benchmarker", "os_primitives_benchmarker"),
-        // Proves the user_mode_runtime heap (milestone 27).
-        ("allocator_exerciser", "allocator_exerciser"),
-        ("net_stack", "net_stack"),
-        ("memory_grant_depleter", "memory_grant_depleter"),
-        ("fs_test_client", "fs_test_client"),
-        ("fs_file_caretaker", "fs_file_caretaker"),
-        ("fs_subtree_caretaker", "fs_subtree_caretaker"),
-        ("interrupt_heeder", "interrupt_heeder"),
-        ("interrupt_ignorer", "interrupt_ignorer"),
-        // The sustained multicore workload (milestone 219): the program `--features soak_test` builds a
-        // pool of, so that design/fatal-risks.md risk 5 has something to run. In every archive,
-        // because the whole premise is that the same workload runs on QEMU and on all three boards.
-        ("soaker", "soaker"),
-        // The multi-tasking workload's task (milestone 168): what `--features job_mix` sweeps. In
-        // every archive for the soaker's own reason, that the instrument develops under QEMU and
-        // the number is taken on a board.
-        ("job_mix_task", "job_mix_task"),
-        // The authority-shrinking supervision tree (milestone 22 phase B.2): a progenitor that hands its
-        // construction authority to a spawner and its restart policy to a supervisor, then drops
-        // the budget.
-        ("root_supervisor", "root_supervisor"),
-        ("spawner", "spawner"),
-        ("sub_server_supervisor", "sub_server_supervisor"),
-        ("flaky", "flaky"),
-        // The interactive boot's undertaker (milestone 22, the interactive increment): one endpoint
-        // capability and nothing else, so a job's region comes back to the progenitor's budget.
-        ("job_undertaker", "job_undertaker"),
-        // The display pair (milestone 29): the confined virtio-gpu driver and the client that draws
-        // into the surface it serves.
-        ("gpu_driver", "gpu_driver"),
-        ("painter", "painter"),
-        // The EL0 NVMe block server (milestone 261, DECISIONS §86's option 2a): the confined
-        // process that drives the machine's NVMe controller from ring 3. Portable, so every
-        // archive carries it; the test that spawns it skips on a leg with no controller attached.
-        ("non_volatile_memory_express", "non_volatile_memory_express"),
-        // The C seam (milestone 36): the confiner that builds, supervises and checks the foreign
-        // component, and the Rust shell that links it.
-        ("c_confiner", "c_confiner"),
-        ("c_shim", "c_shim"),
-        // The compositor and its window client (milestone 33, rung two).
-        ("compositor", "compositor"),
-        ("window", "window"),
-        // The display terminal (milestone 29's text increment): one binary, two wirings.
-        ("display_terminal", "display_terminal"),
-        // The keyboard driver (milestone 29's input).
-        ("keyboard_driver", "keyboard_driver"),
-        // Live component replacement (milestone 23): the operator, the two instances of the
-        // swappable component (the second computes its answers in C), the client that talks across
-        // the swap, and the queue broker for the opt-in rung.
-        ("swapper", "swapper"),
-        ("rust_swappable", "rust_swappable"),
-        ("c_swappable", "c_swappable"),
-        ("chatty", "chatty"),
-        ("broker", "broker"),
-        // The clock service (milestone 51) and the program that reads the page it publishes.
-        ("clock", "clock"),
-        ("date", "date"),
-        // `printenv` (milestone 47's environment-variable fork, DECISIONS §111): `date`'s own
-        // shape, one manifest field over.
-        ("printenv", "printenv"),
-        // `rm` (milestone 47's rmdir lane): the first program endowed a directory capability.
-        ("rm", "rm"),
-        // The disk surveyor and the partitioner (milestone 57): the same disk authority pointed in
-        // each direction, and the partitioner refuses to write without an entropy endpoint.
-        ("disk_surveyor", "disk_surveyor"),
-        ("disk_partitioner", "disk_partitioner"),
-        // The nameset caretaker (milestone 47's globbing lane): a directory capability attenuated
-        // to the names a pattern matched.
-        ("fs_nameset_caretaker", "fs_nameset_caretaker"),
-        ("entropy", "entropy"),
-        // The credential service and its clients (milestone 56, the credential half).
-        ("credentialer", "credentialer"),
-        ("credentialer_test_client", "credentialer_test_client"),
-        // The login service (milestone 49): authenticates against the credential service and mints
-        // a fresh directory capability and budget rather than mutating an identity.
-        ("login", "login"),
-        ("login_test_client", "login_test_client"),
-        // The audit sink (milestone 49's boot-wiring update): drains login's AUDIT endpoint so
-        // its blocking send never parks the whole service.
-        ("audit_sink", "audit_sink"),
-        // The provisioning tool (milestone 155): a `useradd`-equivalent that PUTs an identity and
-        // secret into the credential store and MKDIRs its home subtree as one act.
-        ("identity_provisioner", "identity_provisioner"),
-        // The boot-time re-deriver (milestone 152's third piece, provisional name): a
-        // root_supervisor-shaped boot-only process that reads the durable schedule store's
-        // manifest and re-derives every identity it names, then deletes its own capabilities.
-        ("session_reviver", "session_reviver"),
-        // The network time client (milestone 51) and the two test-only programs milestone 290 split
-        // out of its binary into `fixtures/`.
-        ("network_time_client", "network_time_client"),
-        ("network_time_test_server", "network_time_test_server"),
-        ("unwritable_clock_witness", "unwritable_clock_witness"),
-        // The outlaw (milestone 19's user-test port): the privilege-boundary programs
-        // kernel::user::tests used to hand-assemble.
-        ("outlaw", "outlaw"),
-        // The sink contract's ends (milestone 50): the writer that cannot tell what it is writing
-        // to, the file behind the slot, and the read-back. Three programs since milestone 292.
-        ("sink_transcript_writer", "sink_transcript_writer"),
-        ("file_sink", "file_sink"),
-        ("file_source", "file_source"),
-        // `wc` (milestone 50): the right-hand side of a pipe, and the first program that reads a
-        // stream.
-        ("wc", "wc"),
-        // `mdr` (milestone 40): the markdown renderer, a filter from markdown to styled text.
-        ("mdr", "mdr"),
-        // `ps` (milestone 126): the process listing over a supervision domain.
-        ("ps", "ps"),
-        // `pgrep` (milestone 126): that listing, filtered to the members a selector names.
-        // It must ship with `ps` because the two together are the claim.
-        ("pgrep", "pgrep"),
-        // `timetable` (milestone 129): scheduled execution whose every entry is a grant.
-        ("timetable", "timetable"),
-        // `uptime` (milestone 126): elapsed time on the ambient monotonic counter, granted to
-        // every process unconditionally.
-        ("uptime", "uptime"),
-        // `uuid` (milestone 111): a version-4 UUID drawn from the entropy service, and the first
-        // program a person can type that needs randomness at all.
-        ("uuid", "uuid"),
-    ];
-    let mut blobs: Vec<(&str, Vec<u8>)> = Vec::new();
-    for &(archive_name, bin_name) in entries {
-        match read_stripped(&bin_elf(bin_name)) {
-            Ok(b) => blobs.push((archive_name, b)),
-            Err(e) => {
-                eprintln!("initrd-aarch64: cannot read {}: {e}", bin_elf(bin_name));
-                return false;
-            }
-        }
-    }
+    // **No table** since milestone 150: every `[[bin]]` in `components/` and `fixtures/`, the
+    // same list the other two archives pack ([`declared_programs`]). This function carried its own
+    // hand-written table before that, and an older three-way copy of it before milestone 130; the
+    // table had drifted from riscv64's and `x86_64`'s by two programs when it was deleted.
+    let Some(blobs) = declared_program_blobs("initrd-aarch64", bin_elf) else {
+        return false;
+    };
     let mut files: Vec<(&str, &[u8])> = blobs.iter().map(|(n, b)| (*n, b.as_slice())).collect();
     // The std demo (milestone 27) rides along IFF it has been built (`cargo xtask std-exerciser`, which
     // `test` runs). It builds through a separate toolchain and target, so an interactive `run` that
@@ -6142,7 +5888,7 @@ fn shell_check() -> bool {
 /// `hello world` plus the newline `echo` adds is twelve bytes; the append arm is exactly twice
 /// that. The numbers are spelled out here rather than derived because this is a **boot** gate: if
 /// the arithmetic and the boot were both wrong, deriving one from the other would hide it.
-const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 63] = [
+const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 64] = [
     ("echo hello world | wc", &["1 2 12"]),
     ("echo hello world > gate.txt", &[]),
     ("wc < gate.txt", &["1 2 12"]),
@@ -6517,6 +6263,14 @@ const SHELL_CHECK_SCRIPT: [(&str, &[&str]); 63] = [
     ("least_authority_demo 6", &["6*6 = 36"]),
     ("least_authority_demo 7", &["7*7 = 49"]),
     ("least_authority_demo 8", &["8*8 = 64"]),
+    // **The one spawnable program that answers in a register and had no line** until milestone
+    // 150's coverage test (`every_spawnable_program_has_a_shell_check_line`) asked. After the six
+    // above, so their count is unchanged; the page count it reports depends on page-table overhead,
+    // so the assertion is the sentence that says the grant was spent rather than the number.
+    (
+        "memory_grant_depleter --mem 4",
+        &["-page budget you granted"],
+    ),
     ("echo shell-boot-gate-done", &["shell-boot-gate-done"]),
 ];
 
@@ -10701,5 +10455,133 @@ booti() {{ echo CALL booti $*; }}
         assert!(!neither.contains("CALL fdt"), "{neither}");
         assert!(neither.contains("payload came from none"), "{neither}");
         assert!(neither.contains("still at the prompt"), "{neither}");
+    }
+
+    /// The `[[bin]]` reader against the shape both packages write, and the two it must refuse
+    /// rather than skip (milestone 150): a key it does not know, and a block with no name.
+    #[test]
+    fn bin_names_reads_the_blocks_and_refuses_what_it_does_not_understand() {
+        let manifest = "[package]\nname = \"components\"\n\n# a comment\n[[bin]]\n\
+                        name = \"wc\"\npath = \"src/wc.rs\"\ntest = false\nbench = false\n\n\
+                        [[bin]]\nname = \"date\"\npath = \"src/date.rs\"\n\n\
+                        [dependencies]\nname = \"not a bin\"\n";
+        assert_eq!(bin_names(manifest).unwrap(), ["wc", "date"]);
+
+        let gated = "[[bin]]\nname = \"x\"\nrequired-features = [\"y\"]\n";
+        let e = bin_names(gated).unwrap_err();
+        assert!(e.contains("required-features"), "{e}");
+
+        let nameless = "[[bin]]\npath = \"src/x.rs\"\n[[bin]]\nname = \"y\"\n";
+        assert!(bin_names(nameless).unwrap_err().contains("no `name`"));
+    }
+
+    /// **The tree's own declaration reads, and agrees with everything that checks it** (milestone
+    /// 150): the two `Cargo.toml`s parse, every program `grant_plan` lets the shell spawn has a
+    /// binary, and so do the boot programs. This is what `initrd_*` runs before packing, run here
+    /// so `script/lint`'s host pass catches a disagreement without building an archive.
+    #[test]
+    fn the_declared_programs_agree_with_grant_plan_and_the_boot_list() {
+        let names = declared_programs().unwrap_or_else(|e| panic!("{e}"));
+        // A floor, not a pin: a reader that silently stopped at the first package would still
+        // find `progenitor`, and would pack a third of the system.
+        assert!(names.len() > 60, "only {} programs declared", names.len());
+        for p in grant_plan::Prog::ALL {
+            assert!(names.iter().any(|n| n == p.name()), "{}", p.name());
+        }
+    }
+
+    /// **Every program something in the tree loads by name is one the tree builds** (milestone
+    /// 150's gate on removal). Deleting a `[[bin]]` block takes the program out of all three
+    /// archives at once, which is the point; this is what stops that being silent when a kernel
+    /// test or the progenitor still asks for it by name. Without it, the test would `skip!()` with
+    /// "no such program in this archive" forever, or the progenitor would fail at boot.
+    ///
+    /// **A textual scan, and rung two rather than rung one**: it reads `program("name")` and
+    /// `.read("name")` string literals out of `kernel/src` and `crates/system_initializer/src`, the
+    /// two places that look programs up in an archive. A name built at runtime, or looked up by some
+    /// other spelling, is invisible to it. The set it judges is counted, so a scan that stopped
+    /// matching fails here rather than passing on nothing.
+    #[test]
+    fn every_program_the_tree_loads_by_name_is_declared() {
+        // Archive entries packed from outside `components/` and `fixtures/`, each present only
+        // when its own build ran (see the `initrd_*` functions).
+        const BUILT_ELSEWHERE: [&str; 4] = ["redoxfs_server", "mkfs", "std_exerciser", "rg"];
+        let declared = declared_programs().unwrap_or_else(|e| panic!("{e}"));
+        fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    out.push(path);
+                }
+            }
+        }
+        let mut files = Vec::new();
+        walk(&workspace_root().join("kernel/src"), &mut files);
+        walk(
+            &workspace_root().join("crates/system_initializer/src"),
+            &mut files,
+        );
+        let mut named = std::collections::BTreeSet::new();
+        for file in &files {
+            let text = std::fs::read_to_string(file).unwrap();
+            for opener in ["program(\"", ".read(\""] {
+                for (at, _) in text.match_indices(opener) {
+                    let rest = &text[at + opener.len()..];
+                    let Some(end) = rest.find("\")") else {
+                        continue;
+                    };
+                    let name = &rest[..end];
+                    if !name.is_empty()
+                        && name
+                            .bytes()
+                            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+                    {
+                        named.insert((name.to_string(), file.clone()));
+                    }
+                }
+            }
+        }
+        assert!(
+            named.len() > 50,
+            "the scan found only {} lookups; it has stopped matching the tree",
+            named.len()
+        );
+        for (name, file) in &named {
+            assert!(
+                declared.iter().any(|d| d == name) || BUILT_ELSEWHERE.contains(&name.as_str()),
+                "{} looks up `{name}` by name, and no [[bin]] in components/ or fixtures/ builds it",
+                file.display()
+            );
+        }
+    }
+
+    /// **Every program the shell can spawn is spawned by `script/shell-check`, or says why not**
+    /// (milestone 150). Before this, a program's presence in the booted system was proven only by a
+    /// transcript line somebody remembered to type, and three of thirteen had none. The check is a
+    /// token match (the program's name as a whole word anywhere in a line), which is weaker than
+    /// "the line ran it" and is enough to make forgetting loud.
+    #[test]
+    fn every_spawnable_program_has_a_shell_check_line() {
+        // Programs a transcript cannot drive, each with the reason. Both run until interrupted,
+        // and this gate types lines; it has no way to send `^C`.
+        const UNSCRIPTED: [&str; 2] = ["interrupt_heeder", "interrupt_ignorer"];
+        for p in grant_plan::Prog::ALL {
+            let name = p.name();
+            let scripted = SHELL_CHECK_SCRIPT
+                .iter()
+                .any(|(line, _)| line.split_whitespace().any(|w| w == name));
+            assert!(
+                scripted != UNSCRIPTED.contains(&name),
+                "`{name}`: {}",
+                if scripted {
+                    "scripted now, so take it off UNSCRIPTED"
+                } else {
+                    "the shell can spawn it and SHELL_CHECK_SCRIPT never does; add a line (see \
+                     notes/adding-a-program.md), or add it to UNSCRIPTED with the reason"
+                }
+            );
+        }
     }
 }

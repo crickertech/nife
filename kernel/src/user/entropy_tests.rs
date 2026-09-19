@@ -113,7 +113,7 @@ fn the_jh7110_backend_refuses_to_wire_where_there_is_no_jh7110() {
     }
     let Some(image) = program("jh7110_entropy") else {
         crate::testing::skip!(
-            "no jh7110_entropy program in this archive (the aarch64 one has none)"
+            "no jh7110_entropy program in this archive (every archive packs one since milestone 150)"
         );
     };
     assert!(
