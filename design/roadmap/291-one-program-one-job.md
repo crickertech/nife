@@ -182,8 +182,8 @@ See the proposal below.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`: the
-  nine roles this milestone left in `hello`. `spawn_progenitor` (`spawn_hello` since milestone
+- **Milestone 405.** The nine roles this milestone left in `hello`. Numbered on 2026-09-19 by
+  milestone 433's drain of the pile. `spawn_progenitor` (`spawn_hello` since milestone
   166) takes the archive entry as a parameter (or a role-to-entry table), the three children
   become their own programs, and the six parents name their child's entry instead of re-entering
   their own image. Gated on milestone 268, which was rebuilding that function beside this lane. It

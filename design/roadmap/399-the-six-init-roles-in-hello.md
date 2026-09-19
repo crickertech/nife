@@ -1,10 +1,24 @@
-# The six `init` roles in `hello`, which milestone 266's title says should not exist
+# 399. The six `init` roles in `hello`, which milestone 266's title says should not exist
 
-**Status: PROPOSED 2026-09-13.** Written by the lane that finished milestone 266's prose sweep, which
-found these while enumerating and could not take them: a role constant is a name, and names are
-calef's.
+**Status: SUPERSEDED.** 2026-09-19, by milestone 405, which was filed one day after this one by a
+lane holding the whole inventory and which takes the same six constants as part of a larger change.
+Filed 2026-09-13 as an unnumbered proposal by the lane that finished milestone 266's prose sweep;
+numbered and disposed of in one act on 2026-09-19 by milestone 433's drain of the proposal pile,
+which is how a proposal reaches a disposition at all. **The premise was checked before it was
+closed, and it is still true**: `fixtures/src/hello.rs` declares all six constants and
+`kernel/src/user/tests.rs` declares all six again, so the defect this names is live. What makes it
+`SUPERSEDED` rather than `NOT-STARTED` is milestone 405's own argument, which this block cannot
+answer: after that split the six parents are programs with their own names and these constants do
+not exist, so renaming them now spends a naming decision, which is calef's scarcest resource, on an
+interim state. 405 quotes his deferral in the same breath (*"If there is anything left then we can
+consider a name for what remains"*). The refusals below are the durable half and are cited from 405,
+because they refuse names that work will reach for. *(Number provisional until the merge queue lands
+it.)*
 
-**Gate: DECISION.** calef names the constants. Everything else here is an afternoon.
+**Gate: NONE.** Nothing gates this because nothing should start it: the work is milestone 405's, and
+this block is the record of what was found and what was refused. The gate was `DECISION` while it
+was open, on the ground that calef names constants, and that is still true of the names 405 will
+reach for.
 
 ## The claim in one line
 
@@ -79,3 +93,22 @@ measurement table are untouched.
 - **This proposal does not argue that six demo roles should exist at all.** Whether the 19d/19e
   catalogue still earns its keep now that the boot role has left it is a separate question, and a
   bigger one.
+
+## Index row
+
+Milestone 266 is titled *"One progenitor, on all three architectures, and `init` stops being a
+role"*, and it is still a role six times in `fixtures/src/hello.rs` and six more as duplicate
+constants in `kernel/src/user/tests.rs`. Traced rather than assumed, none of the six is the first
+process: the role that meant "boot the system" was `INIT_BOOT_ROLE`, which is exactly the one 266
+moved out to `components/src/progenitor.rs`, and what is left is the 19d/19e catalogue in which
+`hello` plays the parent that parses, builds, endows, delegates and collects a report. The
+recommendation was `PARENT_*`, a noun, what the role is, and what the tests already assert about.
+The refusals are the durable half: `PROGENITOR_*` would be false, since the progenitor is one
+program under one archive entry and `hello` entered at role 20 is neither, and replacing a wrong
+name with a wrong name is worse because the second one looks decided; `LOADER_*` names one of three
+things the roles do; `BUILDER_*` and `SPAWNER_*` each collide with a program that already exists
+here, which is the refusal that cost `system_builder` a crate name twice. It is `SUPERSEDED` by
+milestone 405 rather than open, because 405 turns these six parents into programs with their own
+names and the constants stop existing, so the rename would spend a naming decision on an interim;
+405 carries the refusals forward and picks up the one thing this block found that it did not, which
+is that the six role numbers live in two files with nothing gating them against each other.
