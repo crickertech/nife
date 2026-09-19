@@ -66,6 +66,11 @@ pub fn dispatch(frame: &mut TrapFrame) {
     // `TrapFrame::{syscall_nr, arg, set_arg}` hide that mapping so this dispatcher stays portable.
     // See DECISIONS §10/§17.
     let nr = frame.syscall_nr();
+    // Milestone 134's per-IPC stack-depth instrument keys each sample by method, and the method
+    // register may be overwritten by a result before the end of this function. Not in any build
+    // that measures time or footprint: see `crate::ipc_stack_depth`.
+    #[cfg(any(test, feature = "ipc_stack_depth"))]
+    let method = frame.arg(1);
 
     // `exit` never comes back, so it is not part of the result-writing path below.
     if nr == abi::SYS_EXIT {
@@ -104,6 +109,11 @@ pub fn dispatch(frame: &mut TrapFrame) {
             Err(e) => (e as i64) as u64,
         },
     );
+
+    // Last, so the sample covers the whole syscall; one relaxed load for every thread the
+    // instrument is not measuring.
+    #[cfg(any(test, feature = "ipc_stack_depth"))]
+    crate::ipc_stack_depth::after_syscall(nr, method);
 }
 
 /// Act on a capability.
