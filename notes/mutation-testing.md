@@ -1501,3 +1501,69 @@ cannot overflow, are equivalent instead.
 **The 11 timeouts are hangs**, the same loop-control family as `dtb` and `clock_protocol`: `echo`'s
 word cursor under `-=` and `*=`, `write_found`'s digit loop under `>=`, `pad`'s `left -= take` under
 `/=`, and `split`'s segment cursor under `*=`. Each stops the loop advancing.
+
+### `filesystem_protocol`: 59 survivors, 19 killed, 38 equivalent, 2 recorded gaps
+
+**Before: 529 caught, 59 missed, 10 timeouts, 47 unviable (90.1% of viable). After: 548 caught, 40
+missed (93.3%).** This is the crate the baseline already found dominated by equivalents (36 of 46
+under its old name `fs_proto`), and the census's 59 have the same shape: a contract crate is mostly
+constants and packing, and most of the mutants a tool can make there cannot change a value.
+
+**The nineteen real gaps, and four of them are witness bits that report nothing.**
+
+- **`fixture::twodir` had no distinctness test at all (5).** Five of its six bits could each become
+  zero, and two of them are the structural finding `notes/dir-capability.md` records (the endpoint
+  is the boundary, witnessed with two live caretakers). A witness bit of zero is a probe that
+  reports nothing while its boot passes. Closed by `the_two_grant_bits_are_distinct`, in the shape
+  the escape, directory and navigation fixtures already use.
+- **`fixture::navscape`'s list had gone stale again (3).** `BIND_REACHED_TARGET`,
+  `BIND_ASCEND_REACHES_REAL_PARENT` and `BIND_STOPS_AT_TRUE_ROOT` (2026-08-30) were never added to
+  `the_navigation_bits_are_distinct`, whose body already carries a comment about the *previous* six
+  that were added late. That is rung four of AGENTS.md's ladder failing the way rung four does, and
+  this time the mutation run is what noticed rather than a reader. The three are added; the
+  mechanism that would stop it recurring is named in milestone 326's handoff rather than built here.
+- **`fixture::throughput::name` had no caller (9).** The whole function as `None`, as `Some("")` and
+  as `Some("xyzzy")`, plus each of its six arms deleted. The bench boot prints these names beside
+  the numbers, so two phases sharing one is two rows a reader cannot tell apart. Closed by
+  `every_throughput_phase_tag_has_its_own_name`, which also pins the count against `PHASES`.
+- **`statfs::free_bytes` replaced by `0` (1).** Its only assertion was
+  `free_bytes(4096, 0) == 0`, which the mutant satisfies. A volume with room would have reported
+  itself full to everything that asks before it writes.
+- **`statfs::encode`'s `out.len() < LEN` under `<=` (1).** The tests covered `LEN - 1` and 64 and
+  never `LEN` itself, which is the one size a caller sizing its page from the constant would hand
+  it.
+
+**The thirty-eight equivalents, in four groups, so a later reader can re-check them by group rather
+than one at a time.**
+
+- **Packed wire words whose fields are bit-disjoint (8).** `blk::req`, `fs::req` (two), 
+  `fs::rename_dst`, `grant::spec`, `nameset::encode`, `xattr::spec` and `xattr::reply` all build one
+  word as `(field << shift) | (other & mask)`. Each shift clears exactly the bits the mask keeps, so
+  `|` and `^` are the same function on those operands. The disjointness is not assumed: it is what
+  `a_handle_never_collides_with_the_opcode_or_length`, `a_granted_name_survives_the_two_argument_words`
+  and `a_rename_carries_two_directories_and_two_lengths_without_them_bleeding` already prove, and
+  `nameset`'s type bit is `1 << 7` against a length the encoder refuses above `grant::MAX_NAME`.
+- **Unions of distinct single-bit rights (14).** `dir::ALL`, `dir::REMOVE_TREE`, `Verb::mutates`'s
+  mutating mask, and four `needs_any`/`needs_all` rows in `verb::TABLE`. Every operand is a distinct
+  `1 << n`, so `^` is `|`; and that the bits are distinct is itself pinned, by
+  `undefined_rights_bits_cannot_be_smuggled_into_a_root` and by every non-degenerate `1 << n` in
+  `dir` being a caught mutant.
+- **The attrs witness union (7).** `fixture::attrs::EXPECTED` is the eight distinct bits of its own
+  module ored together, and `the_attribute_bits_are_distinct` is what makes the disjointness a fact.
+- **`1 << 0` under `>>` (9).** `dir::ENUMERATE`, `dirent::IS_DIR`, `grant::READ`, and the first bit
+  of six fixture witness sets. Both sides are 1. The degenerate case this file's patterns section
+  already names, recorded rather than excluded so it stays visible if a constant ever moves off zero.
+
+**And two recorded gaps, which are the same object as the Kani harnesses one paragraph down.**
+`verb`'s second `const _: () = { .. }` walks `TABLE` asserting each row sits at its own opcode, and
+its loop bound `i < TABLE.len()` survives under `==` and under `>`: both make the loop body never
+run, so the block compiles and checks nothing. **No `cargo test` can see this**, because the checker
+is `rustc` and the evidence of success is that the build happened. The comment above it already says
+a runtime test cannot do this job (the three caretakers are `no_std` binaries). It is recorded here
+rather than excluded because the exclusion would have to be by line and would hide anything else
+that lands there.
+
+**The 10 timeouts are hangs**, all of them iterator cursors: four `Iterator::next` implementations
+replaced by `Some(Default::default())`, which never consumes its buffer, and six `at += ..` under
+`*=` in the record walkers and the name packers. A walk that stops advancing loops forever, which is
+the tests noticing.

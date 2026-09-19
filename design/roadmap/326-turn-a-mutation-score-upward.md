@@ -20,6 +20,12 @@ where the reasons live.
 | `dtb` | 14 | 1 | 13 | 1 | 0 |
 | `clock_protocol` | 6 | 3 | 0 | 3 | 3 |
 | `swish` | 20 | 4 | 16 | 4 | 0 |
+| `filesystem_protocol` | 59 | 40 | 19 | 38 | 2 |
+
+The `excluded` column counts mutants removed by a `.cargo/mutants.toml` entry this lane added, and
+the two in `filesystem_protocol`'s row are recorded gaps rather than exclusions; each crate's
+paragraph in the note says which. `timetable`'s 36 proof-harness mutants and `clock_protocol`'s 3
+loom-model mutants left through the two globs added here, not through a test.
 
 **Gate: NONE.** Everything this needs exists: `script/mutation -p <crate>` runs one package,
 `.cargo/mutants.toml` is where an exclusion goes with its reason, and milestone 85 already set the
