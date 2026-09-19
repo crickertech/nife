@@ -1233,6 +1233,13 @@ in the code or the conversation doesn't make sense, it belongs here.
   which of the three machines an evening should be spent on and why radon comes first, what a
   result on each would mean for the fatal risks, and what can go wrong that is not the board. It
   points at each procedure rather than repeating it, so the steps cannot drift from their source.
+- [The boot stick, and the program that makes it](boot-stick.md): DECISIONS §157's first rung,
+  built. `stick_maker`, one download per host with every architecture's boot file inside, and the
+  universal stick it writes (`BOOTX64.EFI`, `BOOTAA64.EFI`, `BOOTRISCV64.EFI`, each firmware booting
+  its own). Why the offer rule is the removable-media bit and not "USB" (two backup disks on the
+  development Mac), copy before erase, how the device tree reaches the aarch64 and riscv64 kernels,
+  the riscv64 ELF-to-PE conversion rustc's missing target forced, what ran on which host, and **the
+  bench steps for radon and argon**.
 - [The VisionFive 2: first silicon](visionfive2.md): milestone 16a's board facts, every one with a
   source. The four real differences from QEMU `virt` (DRAM base, the DW-8250 UART, the PLIC context
   map, the disabled S7 hart), the Image-header load path through vendor U-Boot, the microSD payload
