@@ -270,11 +270,12 @@ ship under a feedback loop that slow.
   `script/mutation`, or a `cargo` runner wrapper) and choosing between them is the work. Today one
   mutant goes 1.4 GB to 15.8 GB in twenty seconds and takes the runner agent with it, inside the
   28-to-51-second per-mutant timeout that therefore cannot catch it.
-- **Proposed.** `design/roadmap/proposals/fatal-risk-3-against-the-new-number.md`, Re-read fatal risk
-  3 against the new number, which is calef's call. `design/fatal-risks.md` still reads MEASURED and
-  green on 92.4% from 2026-08-03, while the first published mutation report says 83.4% on a uniform
-  one-eighth sample across all 60 crates. Until somebody decides whether the verdict holds, that
-  file carries a stale figure and tells a reader the refresh arrives on its own.
+- **Done.** Re-read fatal risk 3 against the new number. calef ruled it on 2026-09-19 and
+  `design/fatal-risks.md` now reads **MEASURED, AMBER**. The 83.4% this bullet was written against
+  turned out not to exist: the workflow this milestone repaired went on to complete all eight shards
+  on 2026-09-14, and the census put the tree at 91.7% over 64 crates with the baseline's own 38 up
+  from 92.4% to 93.6%. The amber half is the two findings a census can show and a sample cannot, and
+  they are named in the entry.
 - **Milestone 280.** Promoted 2026-09-13. Measure and answer
   for `uefi_loader` at 15% and `manual` at 52%, the two crates this block names beside
   `system_initializer` as carrying nearly all of the fall from 92.4% to 83.4%. Milestone 244 took

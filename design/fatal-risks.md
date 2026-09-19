@@ -200,11 +200,45 @@ about.
 **The claim:** AGENTS.md's principle 2 says the method works because of the gates, the proofs and the
 review discipline. If the suite would not notice the code being wrong, that sentence is decoration.
 
-**Status: STALE, 2026-09-13, and a census now exists that this entry does not yet read.** Ruled by
-calef: the headline this entry carried, *"MEASURED, and it came back green"*, was true of a run from
-2026-08-03 and nothing has refreshed it since, so it read as a verdict where the evidence underneath
-had become a history. The measurement itself is not in doubt and is kept below; what changed is that
-this entry no longer presents it as current.
+**Status: MEASURED, 2026-09-19. AMBER, and the amber half is two findings a census bought that no
+sample could.** Ruled by calef against the run of 2026-09-14, closing the re-read this entry had been
+waiting on since 2026-08-03.
+
+**The green half is the arithmetic, and it is better than the entry feared.** Like for like, the 38
+crates the baseline covers scored **93.6% against 92.4%**: the score went *up* over a month in which
+2,529 commits landed. The whole corpus, 64 crates, is **91.7%**. There was no fall.
+
+**The first amber half: seven crates regressed, and three of the baseline's five perfect crates lost
+that score.** `memory_regions` 100% to 88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%, with
+`clock_protocol`, `swish`, `dtb` and `filesystem_protocol` behind them. Each is a property that used
+to hold and no longer does, which is a different object from a crate that was never covered. A
+sample cannot surface these at all, because it cannot tell an absent mutant from a killed one, so
+this is the first time in the project's life that the question has been askable.
+
+**The second: new code arrives less tested than old code, and nothing pulls it up.** The 1.9-point
+gap between 93.6% and 91.7% is exactly the 26 crates that did not exist at baseline, and the eight
+worst crates in the tree are all of them new, led by `work_steal_slot` at 54.2% and `timetable` at
+73.6% with 48 survivors. `timetable` holds `next_after`, the property risk 2 below names as its
+strongest counterfactual, which makes it the single survivor set most worth a person's afternoon.
+
+**Why amber rather than green, which is the part worth arguing with.** 91.7% over a full census is a
+good number and a green verdict would be defensible on it. It is refused because this file's job is
+to be the place a green number cannot hide in: milestone 85's own rule is that **every survivor is
+triaged into a test, an exclusion with a reason, or a recorded gap**, and that was done for the
+baseline's 391 survivors and has not been done for the census's **771**. A verdict of green would
+claim the discipline held when what held was the instrument.
+
+**And why not provisional, which was the other option.** Declining a verdict until the 771 are
+triaged would postpone the reading on the grounds that the evidence is good enough to want more of
+it. The census *is* the experiment this entry has been waiting for; it is read here, and what it
+found is recorded as owed work rather than as a reason not to read it.
+
+**What is owed, recorded here because this is where a reader meets the claim.** The 771 survivors of
+the 2026-09-14 census are untriaged, the seven regressions above have no owner, and the workflow has
+succeeded exactly once, so a cadence is claimed by one data point. Nothing in `design/roadmap/`
+currently owns any of it: milestone 85 built the instrument and triaged the baseline, 238 repaired
+the workflow's shard indices, 277 bounded the runaway mutant, and 280 explained the two crates that
+made the fall look real. **Turning a score upward is work nobody has been assigned.**
 
 **The refresh arrived on 2026-09-14 and it is not what the entry below predicts.** The weekly
 workflow completed for the first time, all eight shards, once milestone 277's memory bound stopped
@@ -218,16 +252,6 @@ could not run, and milestone 280 fixed both: `uefi_loader` now scores 100% and `
 the two crates the drop had been blamed on. The 1.9-point gap between the like-for-like 93.6% and
 the corpus 91.7% is the 26 crates that did not exist at baseline, which is a worklist rather than a
 verdict.
-
-**The verdict stays calef's and this entry is not marked settled.**
-`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal that owns the
-re-read, gate `DECISION`, waiting since 2026-09-03; what changed is that it now has its number. Two
-things a reader should weigh before that call, both of which a census shows and a sample cannot.
-**Three of the baseline's five perfect crates lost their perfect score** (`memory_regions` 100% to
-88.9%, `elf` 100% to 94.2%, `capability` 97.4% to 88.2%), which are regressions in properties that
-used to hold. And the tree's worst crate on this measure is `timetable` at 73.6% with 48 survivors,
-which is the crate holding `next_after`, the property risk 2 below names as its strongest
-counterfactual.
 
 `script/mutation` (milestone 85) ran 5,551 mutants over
 38 host crates on 2026-08-03: 4,654 caught, 391 missed, 96 timed out, 410 unviable, which is **92.4%
@@ -263,9 +287,15 @@ this number; it is kept here because it is what this entry was ranked on for ele
 
 **Both repairs landed and the reading arrived.** The runaway mutant was milestone 277, built
 2026-09-12, which made the clean full run possible for the first time since 2026-08-03; the run
-happened two days later. What it means for this entry's verdict remains calef's:
-`design/roadmap/proposals/fatal-risk-3-against-the-new-number.md` is the proposal waiting on it, and
-this entry should not be marked settled again until that one is.
+happened two days later, and calef read it on 2026-09-19. The proposal that had owned the re-read
+since 2026-09-03 was drained with the ruling, which is what a proposal is for.
+
+**The proposal asked the wrong question, and that is worth keeping.** It was written against a fall
+from 92.4% to 83.4% and offered three options about how bad the fall was. By the time it was read the
+fall had been corrected twice, first to 85.3% and then out of existence, so none of its three options
+described the tree. The reading above is against the census instead. It is the fifth proposal in two
+days whose premise expired between filing and reading; milestone 323 carries the argument that
+promotion, not filing, is where that is cheapest to catch.
 
 ## 4. The architecture imposes a per-crossing cost that cannot be engineered away
 
