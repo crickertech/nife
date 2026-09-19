@@ -4805,6 +4805,48 @@ mod tests {
     /// has not taken. That is a real gap and it is recorded where a reader meets it, in
     /// notes/adding-a-program.md's `BUGS` and in its step 6, which says to edit the constant first
     /// and let this test find the rest.
+    /// **The wire ids already shipped, pinned** (milestone 150, written before the bookkeeping was
+    /// generated so that the generation had something to be wrong against).
+    ///
+    /// [`Prog::id`] is a thing two programs agree on: the shell sends it and the progenitor decodes
+    /// it, so a renumbering is a flag day rather than a refactor. Two rules, both checked per row:
+    /// **a name keeps its id** while it exists, and **an id is never reused** by another name once
+    /// its program is gone. Removing a program therefore leaves this table alone and its id a hole;
+    /// a program added later needs no row here, because its id is a literal in its own declaration
+    /// and a change to that literal is visible in review. Rows are only ever appended, and only if
+    /// someone wants a later id pinned the same way.
+    #[test]
+    fn the_wire_ids_already_shipped_never_move() {
+        const SHIPPED: [(&str, u64); 13] = [
+            ("least_authority_demo", 0),
+            ("memory_grant_depleter", 1),
+            ("interrupt_heeder", 2),
+            ("interrupt_ignorer", 3),
+            ("date", 4),
+            ("rm", 5),
+            ("wc", 6),
+            ("mdr", 7),
+            ("ps", 8),
+            ("pgrep", 9),
+            ("uptime", 10),
+            ("printenv", 11),
+            ("uuid", 12),
+        ];
+        for (name, id) in SHIPPED {
+            match Prog::from_name(name.as_bytes()) {
+                Some(p) => assert_eq!(p.id(), id, "`{name}` was renumbered from {id}"),
+                None => {
+                    if let Some(other) = Prog::from_id(id) {
+                        panic!(
+                            "wire id {id} belonged to `{name}` and is now reused by `{}`",
+                            other.name()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     #[test]
     fn prog_id_round_trips() {
         for id in 0..PROG_COUNT as u64 {
