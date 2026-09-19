@@ -214,6 +214,7 @@ place instead of moving text between two systems. Numbers 68 to 73 are the six t
 | 153 | DECIDED | [How a two-core x86_64 test earns its place, when two-core x86_64 is not yet trustworthy](153-two-core-x86-test-sequencing.md) |
 | 154 | DECIDED | [The acronym test is whether the phrase is spoken, applied recursively](154-the-acronym-test-is-whether-the-phrase-is-spoken.md) |
 | 155 | DECIDED | [The naming conventions move out of the constitution, and the note becomes the rule](155-naming-conventions-move-out-of-the-constitution.md) |
+| 156 | DECIDED | [What the package manager waits on: a decision, not milestone 23 and not the repository split](156-the-package-manager-waits-on-a-decision-not-milestone-23.md) |
 
 Two blocks that lived among the decisions are not decisions and moved out with the split, the same
 way milestone 76 moved four essays out of the roadmap: [the open design

@@ -1,13 +1,15 @@
-# What the package manager waits on: a decision, not milestone 23 and not the repository split
+# 156. What the package manager waits on: a decision, not milestone 23 and not the repository split
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's scoping lane
-(`milestone/198-package-manager-scoping`). Shaped as a `design/decisions/` section for the
-integrator to mint; the section number is not this lane's to take.
+**Status: DECIDED.** calef, 2026-09-19 (16:32 UTC), in conversation with the maintainer: *"Yes, drop
+MILESTONE 23 from the gate"*, as recommended below. Milestone 198's gate now reads `DECISION` alone.
+*(Section number provisional until the merge queue lands it.)* Proposed the same day by milestone
+198's scoping lane (`milestone/198-package-manager-scoping`) as
+`design/roadmap/proposals/what-the-package-manager-waits-on.md`, and moved here by the maintainer
+when calef ruled. The text below is the proposal as he ruled on it.
 
-**Gate: DECISION.** calef rules whether milestone 198's `Gate:` line changes from
-`DECISION, MILESTONE 23` to `DECISION` alone, naming the format, activation and trust forks in the
-sibling proposals as the decisions it waits on. Nothing else is blocked on this one; it is a line in
-a roadmap block, and the recommendation is to change it.
+**What it changes.** Milestone 198's `Gate:` line reads `DECISION` alone, naming the format,
+activation and trust forks in the sibling proposals as the decisions it waits on. Milestone 39's gate
+is untouched.
 
 ## What is being decided
 
