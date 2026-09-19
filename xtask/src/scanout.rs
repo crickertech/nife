@@ -5,7 +5,7 @@
 //! pixel format or scanout rectangle would pass it and show garbage on a real screen.
 //!
 //! QEMU's monitor closes that gap, and it works headlessly: `screendump FILE` writes a PPM of the
-//! scanout even with no display backend. So the runners take a monitor socket (NIFE_GPU_MON), and
+//! scanout even with no display backend. So the runners take a monitor socket (`NIFE_GPU_MON`), and
 //! this drives it **while the ordinary test run is happening**, rather than paying for a second boot:
 //! the suite is minutes long per ISA and the pattern stays on the scanout from the display test until
 //! QEMU exits, so there is no need to synchronize with the guest at all. Poll, dump, compare; the
@@ -470,7 +470,7 @@ fn parse_load_average(uptime_output: &str) -> Option<f64> {
 }
 
 /// **Run the kernel test suite for `arch` and prove BOTH scanouts while it runs.** `test_args` is the
-/// cargo invocation the caller would otherwise have handed to [`run`].
+/// cargo invocation the caller would otherwise have handed to [`crate::host::run`].
 ///
 /// **Three** pictures reach the device's scanout over one boot, in this order, because that is the
 /// order the suite runs them in (tests sort by name, so `compositor_tests` comes before

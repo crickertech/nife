@@ -272,8 +272,8 @@ fn user() -> bool {
     ]) && initrd_aarch64()
 }
 
-/// The packed initrd archive ([`initrd_path`]) is what `scripts/qemu-runner-aarch64.sh` passes to QEMU as
-/// `-initrd` (milestone 19f); the raw user ELFs ([`bin_elf`]) are only the input `initrd_aarch64` packs.
+/// The packed initrd archive ([`archive::initrd_path`]) is what `scripts/qemu-runner-aarch64.sh` passes to QEMU as
+/// `-initrd` (milestone 19f); the raw user ELFs ([`host::bin_elf`]) are only the input `initrd_aarch64` packs.
 ///
 /// **Deliberately the same road Linux's initramfs travels**, now literally an archive like theirs.
 /// QEMU loads the file into RAM and writes its address into `/chosen/linux,initrd-start` in the

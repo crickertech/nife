@@ -470,7 +470,7 @@ pub(crate) fn initrd_x86() -> bool {
 /// subcommand**, to match its two siblings ([`initrd_riscv`], [`initrd_x86`]): one job, one
 /// `initrd_<arch>` naming scheme, three matching `cargo xtask initrd-<arch>` subcommands. This
 /// function only packs, unlike its two siblings, which both build-then-pack in one call; `main`'s
-/// `"initrd-aarch64"` arm calls [`user`] (build, then pack) rather than this function alone, so
+/// `"initrd-aarch64"` arm calls [`crate::user`] (build, then pack) rather than this function alone, so
 /// the subcommand is self-contained the same way `initrd-riscv`/`initrd-x86` are. It is still
 /// called internally by `user()` (and so by `build`, `run`, `shell`, and everything else that
 /// boots the aarch64 kernel) exactly as `mkinitrd` was; the new subcommand is additive, so nothing
