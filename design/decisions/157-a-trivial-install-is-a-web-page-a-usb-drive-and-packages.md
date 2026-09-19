@@ -65,7 +65,7 @@ person picks a target is left to the design, and the proposal recommends the uni
    the definition, so the format, activation and trust forks
    (`design/roadmap/proposals/what-a-package-is-on-disk-and-on-the-wire.md`,
    `installing-a-package-mutates-or-composes.md`,
-   `what-vouches-for-a-package-the-image-did-not-carry.md`) are **on this definition's path**. The
+   DECISIONS §195) are **on this definition's path**. The
    lane had sequenced them after a first slice that installed nothing.
 
 ## What the tree has for each step, checked 2026-09-19
