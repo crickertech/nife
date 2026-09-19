@@ -1131,8 +1131,9 @@ pub fn boot(
         // (DECISIONS §121, reversed 2026-09-15): the console holds it as a `PortRange` capability
         // delegated into its table instead, and the kernel's TSS I/O bitmap is what lets its `out`
         // reach the port. So `g.uart_dev` moves from a `maps` entry to a `caps` entry on x86, and
-        // the UART mapping is dropped. It lands in the child's slot 2; the console never invokes it
-        // by slot (it executes `out` directly), it only has to hold it.
+        // the UART mapping is dropped. It lands in the child's next free slot (2, or 3 behind a
+        // screen); the console never invokes it by slot (it executes `out` directly), it only has
+        // to hold it.
         //
         // **And a screen beside the UART, when the kernel wired one** (`has_screen`, above): the
         // terminal's endpoint lands in the console's slot 2, ahead of x86's port range (which the

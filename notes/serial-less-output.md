@@ -226,8 +226,7 @@ Everything is on the monitor. Nothing else is connected.
    refuse it, and the loader started. It also prints the screen it found.
 2. **The screen clears**, which is the kernel's console arming.
 3. The boot tour, beginning `nife on x86_64 (long mode, ring 0, 4-level paging)`, with a
-   `screen      :` line naming the geometry, and ending with
-   `screen    : handing the framebuffer to a userspace terminal`.
+   `screen      :` line naming the geometry.
 4. **The screen clears a second time** and the shell's banner and `$ ` appear in the top-left corner
    (a 132x43 terminal whatever the panel's size). There is no keyboard yet on a machine without a
    serial port (milestone 242), so the prompt is as far as it goes.

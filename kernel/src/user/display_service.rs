@@ -302,6 +302,13 @@ pub struct TerminalWiring {
     /// The scanout frames, so the kernel can read the picture back through the direct map and
     /// grade it against a value it computed itself.
     pub surface: u64,
+    /// **What a caller hands back to end it**: the threads, the region its endpoints live in, and
+    /// the map budgets. Filled by [`start_screen_terminal`], whose endpoints come out of a region
+    /// for exactly this reason (a server parked in `RECV` on the kernel's own endpoint chunks
+    /// cannot be woken to die; `user::holding`'s BUGS). **Empty on the virtio path**, which
+    /// predates it and which no caller tears down. The surface and the output page are not in it:
+    /// they are frames rather than regions, and a caller that releases this frees them after.
+    pub held: super::holding::Holding,
 }
 
 /// **Wire and spawn the GPU driver with a terminal on the whole scanout** (milestone 29's
@@ -339,13 +346,19 @@ pub fn start_terminal(
     );
 
     let (driver_report, display_ep, surface) = wire_driver(driver_image, 0, 0)?;
-    let (term_report, term, out) = spawn_terminal(term_image, display_ep, surface);
+    let t = spawn_terminal(
+        term_image,
+        display_ep,
+        surface,
+        &crate::sched::create_rendezvous,
+    );
     Some(TerminalWiring {
         driver_report,
-        term_report,
-        term,
-        out,
+        term_report: t.term_report,
+        term: t.term,
+        out: t.out,
         surface,
+        held: super::holding::Holding::new(),
     })
 }
 
@@ -353,21 +366,26 @@ pub fn start_terminal(
 /// half of [`start_terminal`] that does not care which driver is on the other side, shared with
 /// [`start_screen_terminal`] so the terminal's authority is written down once. Returns
 /// `(its report endpoint, the endpoint it serves, its output page)`.
+///
+/// `endpoint` makes its two endpoints: the kernel's own chunks on the virtio path, a region the
+/// caller can reclaim on the firmware-screen path (see [`start_screen_terminal`]). The terminal's
+/// thread and its map budget come back beside them, for a caller that tears it down.
 fn spawn_terminal(
     term_image: &'static [u8],
     display_ep: RendezvousId,
     surface: u64,
-) -> (RendezvousId, RendezvousId, u64) {
+    endpoint: &dyn Fn() -> RendezvousId,
+) -> SpawnedTerminal {
     let out = crate::memory::alloc_zeroed()
         .expect("no output-page frame for the display terminal")
         .addr();
 
-    let term_report = crate::sched::create_rendezvous();
-    let term = crate::sched::create_rendezvous();
+    let term_report = endpoint();
+    let term = endpoint();
     let budget =
         crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the terminal");
 
-    crate::sched::spawn(move || {
+    let tid = crate::sched::spawn(move || {
         crate::sched::grant_at(TERM_SLOT_REPORT, rendezvous_cap(term_report, Rights::WRITE))
             .expect("terminal slot 0 was occupied");
         // CALL the driver.
@@ -399,7 +417,22 @@ fn spawn_terminal(
     })
     .expect("could not spawn the display terminal");
 
-    (term_report, term, out)
+    SpawnedTerminal {
+        term_report,
+        term,
+        out,
+        tid,
+        budget,
+    }
+}
+
+/// What [`spawn_terminal`] started, including what a teardown needs.
+struct SpawnedTerminal {
+    term_report: RendezvousId,
+    term: RendezvousId,
+    out: u64,
+    tid: crate::thread::ThreadId,
+    budget: u64,
 }
 
 /// Where `framebuffer_driver` finds the covered part of the aperture. **Must match
@@ -464,8 +497,19 @@ pub fn start_screen_terminal(
             .expect("no contiguous surface for the framebuffer driver")
             .addr();
 
-    let display_ep = crate::sched::create_rendezvous(); // terminal WRITE (CALL) -> driver READ
-    let driver_report = crate::sched::create_rendezvous();
+    // **The four endpoints come out of a region of their own**, `virtio_service::wire_net_server`'s
+    // shape and for its reason: both programs park in `RECV` for good, and reclaiming the region
+    // their endpoints live in is the only thing that wakes them to die. The boot never tears this
+    // down; the suite does, because every service a test leaves standing is frames and region slots
+    // a later test cannot have (`user::holding`). One page per endpoint, and one spare.
+    let ep_region =
+        crate::memory_region::create(5).expect("no endpoint region for the screen terminal");
+    let endpoint = || {
+        crate::sched::create_rendezvous_from(ep_region)
+            .expect("no endpoint for the screen terminal")
+    };
+    let display_ep = endpoint(); // terminal WRITE (CALL) -> driver READ
+    let driver_report = endpoint();
     let budget =
         crate::memory_region::create(MAP_BUDGET_PAGES).expect("no map budget for the driver");
     let (size, layout) = aperture.to_words();
@@ -474,7 +518,7 @@ pub fn start_screen_terminal(
         phys: screen.base - offset,
         pages,
     };
-    crate::sched::spawn(move || {
+    let driver_tid = crate::sched::spawn(move || {
         crate::sched::grant_at(
             SCREEN_SLOT_REPORT,
             rendezvous_cap(driver_report, Rights::WRITE),
@@ -507,13 +551,20 @@ pub fn start_screen_terminal(
     })
     .expect("could not spawn the framebuffer driver");
 
-    let (term_report, term, out) = spawn_terminal(term_image, display_ep, surface);
+    let t = spawn_terminal(term_image, display_ep, surface, &endpoint);
+    let mut held = super::holding::Holding::new();
+    held.add_thread(driver_tid);
+    held.add_thread(t.tid);
+    held.add_region(ep_region);
+    held.add_region_after_death(budget);
+    held.add_region_after_death(t.budget);
     Some(TerminalWiring {
         driver_report,
-        term_report,
-        term,
-        out,
+        term_report: t.term_report,
+        term: t.term,
+        out: t.out,
         surface,
+        held,
     })
 }
 

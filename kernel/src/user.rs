@@ -2542,8 +2542,8 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
 /// [`crate::console::yield_screen`] clears the screen and stops the kernel's `print!` from painting
 /// it, under the console lock, and only then is the driver spawned. So there is no moment with two
 /// painters, and after this the kernel's own lines (the progenitor's exit, a user fault report) go
-/// to the UART alone. The line announcing the handover is printed *before* the yield, so it is the
-/// last kernel line the screen shows.
+/// to the UART alone, including the two this function prints: a line printed on the screen just
+/// before the yield would be cleared by it before anybody could read it.
 ///
 /// If the wiring refuses after the yield (a screen too large to map, [`display_service`]'s
 /// `MAX_APERTURE_PAGES`), the screen is left blank rather than handed back: the boot goes on over
@@ -2559,8 +2559,10 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
 fn boot_screen_terminal() -> Option<display_service::TerminalWiring> {
     let driver = program("framebuffer_driver")?;
     let terminal = program("display_terminal")?;
-    crate::println!("  screen    : handing the framebuffer to a userspace terminal");
     let screen = crate::console::yield_screen()?;
+    crate::println!(
+        "  screen    : handed to a userspace terminal; the kernel writes the UART alone"
+    );
     let w = display_service::start_screen_terminal(driver, terminal, screen)?;
     let [tag, geometry, ..] = crate::sched::ipc_recv(w.driver_report);
     assert_eq!(

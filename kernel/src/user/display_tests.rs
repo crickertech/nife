@@ -512,8 +512,8 @@ fn a_keystroke_from_a_virtio_keyboard_becomes_a_terminal_byte() {
 /// reads back through its own direct map. Every property is one a real machine could present and
 /// OVMF does not:
 ///
-/// - **narrower than the surface** (700 pixels against the contract's 924), so the driver answers
-///   `INFO` with the clipped width and the terminal lays out 100 columns, not 132;
+/// - **narrower than the surface** (21 pixels against the contract's 924), so the driver answers
+///   `INFO` with the clipped width and the terminal lays out 3 columns, not 132;
 /// - **taller than the surface**, so the rows past 344 must never be written (and are never
 ///   mapped: `screen_console::Aperture::span`);
 /// - **a padded stride**, whose padding must survive;
@@ -534,8 +534,12 @@ fn a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver() {
     let driver = program("framebuffer_driver").expect("no framebuffer_driver in the archive");
     let terminal = program("display_terminal").expect("no display_terminal in the archive");
 
-    const WIDTH: u32 = 700;
-    const HEIGHT: u32 = 400;
+    // Three cells wide and one cell row past the surface's height: every property below, in the
+    // fewest frames (thirteen). This suite runs one boot's frame pool through every test and
+    // hands little of it back (`user::holding`'s module note), so a pretend screen the size of a
+    // real one would be spending a few hundred frames on pixels nothing reads.
+    const WIDTH: u32 = 3 * bitmap_font::GLYPH_W;
+    const HEIGHT: u32 = gfx::HEIGHT + bitmap_font::GLYPH_H;
     const PAD: u32 = 64;
     const STRIDE: u32 = WIDTH * 4 + PAD;
     const OFFSET: u64 = 0x140;
@@ -559,7 +563,7 @@ fn a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver() {
     };
 
     let w = display_service::start_screen_terminal(driver, terminal, screen)
-        .expect("a 700x400 screen should be wired");
+        .expect("a 21x352 screen should be wired");
     let [tag, geometry, ..] = sched::ipc_recv(w.driver_report);
     assert_eq!(
         tag,
@@ -633,4 +637,21 @@ fn a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver() {
         PixelOrder::Rgbx.store(red),
         "the red cell is channel-symmetric: the byte-order check above is inert",
     );
+
+    // **Hand everything back**, because this suite runs one boot's frames and region slots through
+    // every test and the next one to allocate pays for whatever this one kept. The first version
+    // kept two parked services, their four regions and 776 frames, and `timetable_tests` later in
+    // the same boot hung on aarch64 three runs out of three, its timetable blocked on a line nobody
+    // was reading; shrinking the frames alone did not help. The two programs die by their endpoint
+    // region being reclaimed (`TerminalWiring::held`); the surface, the output page and the pretend
+    // screen are frames rather than regions, and are freed only after both are gone.
+    w.held
+        .release_or_fail("the framebuffer driver and its terminal");
+    for k in 0..gfx::SURFACE_PAGE_FRAMES as u64 {
+        crate::memory::free(PageFrame::from_addr(w.surface + k * FRAME_SIZE));
+    }
+    crate::memory::free(PageFrame::from_addr(w.out));
+    for k in 0..frames as u64 {
+        crate::memory::free(PageFrame::from_addr(phys + k * FRAME_SIZE));
+    }
 }

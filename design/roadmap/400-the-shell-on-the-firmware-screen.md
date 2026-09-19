@@ -34,15 +34,15 @@ half; keystrokes stay on the serial line until it lands.
 | The handover | `console::yield_screen`, `console::reclaim_screen_for_panic` | see below |
 | The tee | `components/src/console.rs`'s `MODE_SCREEN`, `crates/system_initializer`'s `has_screen` | the console server writes every byte to COM1 and then to the terminal |
 | The gate | `cargo xtask uefi-boot`'s `screen_watch` | three stages read off the screen: the tour, the prompt, and the answer to a serial command |
-| Arch-neutral proof of the driver | `display_tests::a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver` | a pretend screen in RAM the OVMF gate cannot produce: narrower than the surface, taller, padded, rgbx, not page-aligned; runs on all three architectures |
+| Arch-neutral proof of the driver | `display_tests::a_firmware_screen_shows_the_terminal_through_the_framebuffer_driver` | a pretend screen in RAM the OVMF gate cannot produce (21x352: narrower than the surface, taller, padded, rgbx, not page-aligned); runs on all three architectures |
 
 **Measured under OVMF, 2026-09-19** (`cargo xtask uefi-boot`, exit 0):
 
 ```text
-  screen    : handing the framebuffer to a userspace terminal
+  screen    : handed to a userspace terminal; the kernel writes the UART alone
   screen    : 924x344 pixels of it served by framebuffer_driver, a 132x43 terminal on it
 uefi-boot: read 94 non-blank row(s) of the tour back off the framebuffer, ending
-uefi-boot:   |   screen    : handing the framebuffer to a userspace terminal
+uefi-boot:   |   uart irq  : 4 (machine description)
 uefi-boot: the shell is on the screen, and `echo typed on the wire` typed on the serial line answered there:
 uefi-boot:   | nife capability shell. naming a resource in a command IS granting it.
 uefi-boot:   | ...
@@ -105,8 +105,8 @@ the defect milestone 230 found on the UART, with pixels in place of bytes. So:
    `None`, so two userspace painters are unrepresentable rather than unlikely), it clears the screen
    under the same lock every `print!` takes, and it returns the `Framebuffer` the driver needs. The
    driver is spawned only after it returns, so there is no instant with two painters.
-3. After the handover the kernel's own lines go to the UART alone. The line announcing the handover
-   is printed *before* the yield, so it is the last kernel line on the screen.
+3. After the handover the kernel's own lines go to the UART alone, including the two announcing it
+   (a line painted just before the yield would be cleared by it).
 4. **A panic takes the screen back** (`console::reclaim_screen_for_panic`, first thing in the panic
    handler after the lock is broken): clear, and paint the panic. On a machine with no serial port the
    screen is the only place a panic can be read. The cost is recorded rather than avoided: the panic
@@ -148,9 +148,10 @@ of milestone 243's open xenon defect (below).
 3. **What the monitor should show, in order**: the loader's lines; the screen clearing and the
    kernel's tour; the screen clearing a second time; then, in the **top-left corner only** (132x43
    cells, 924x344 pixels, whatever the panel's size), the shell's banner and `$ `.
-4. **What the serial console should show**: the same tour, the two `screen    :` lines, and the same
-   banner and `$ `. Type `echo typed on the wire` on the serial console. The monitor should show
-   `$ echo typed on the wire`, then `typed on the wire`, then a fresh `$ `.
+4. **What the serial console should show**: the same tour, then two `screen    :` lines (the UART
+   alone has them), and the same banner and `$ `. Type `echo typed on the wire` on the serial
+   console. The monitor should show `$ echo typed on the wire`, then `typed on the wire`, then a
+   fresh `$ `.
 5. Photograph the monitor after step 4 and file it with the serial log under `bench/`.
 
 **Reading the result against milestone 243's grid.** On 2026-09-04 and 2026-09-17 xenon's monitor
@@ -182,16 +183,18 @@ scroll is a full-surface copy through an uncacheable mapping (BUGS).
   line) reaches the UART only; a panic reclaims the screen and can be overdrawn by another core
   (`kernel/src/console.rs`, `reclaim_screen_for_panic`'s doc).
 - **Recorded.** The tour stage of `uefi-boot` now has a window: the kernel paints the tour only until
-  the handover clears it, so the watcher polls every ~200 ms until it has the tour. Measured
-  comfortable under TCG on this machine; a much faster host or a slower screendump could miss it, and
-  the gate fails loudly rather than passing (`xtask`'s `screen_watch`).
-- **Recorded.** On an x86 boot that has a virtio-gpu, `boot_graphical_terminal` still spawns the
-  virtio stack and then returns `None` (its serial keystroke source, `input_service::start_direct`,
-  refuses x86, a doc-comment reason milestone 299 made stale), and this path takes the firmware
-  screen as well. Harmless (the virtio terminal idles) and reachable only by attaching a GPU to the
-  UEFI runner by hand. Its home is milestone 192's x86 half.
+  the handover clears it, so the watcher polls about every 200 ms until it has the tour. It caught
+  the tour on every OVMF run this lane made, and the window was not timed; a much faster guest or a
+  slower screendump could miss it, and the gate then fails loudly rather than passing (`xtask`'s
+  `screen_watch`).
+- **Milestone 192.** On an x86 boot that has a virtio-gpu, `boot_graphical_terminal` still spawns
+  the virtio stack and then returns `None` (its serial keystroke source, `input_service::start_direct`,
+  refuses x86 for a reason milestone 299 made stale), and this path takes the firmware screen as
+  well. Harmless (the virtio terminal idles) and reachable only by attaching a GPU to the UEFI runner
+  by hand; it belongs to 192's x86 half.
 - **Milestone 182.** `script/shell-check` still has no x86_64 leg, and its `--arch` refusal says x86
-  has no prompt, which milestone 299 made untrue. That is milestone 182's third leg, already tracked there.
+  has no prompt, which milestone 299 made untrue. That is milestone 182's third leg, already
+  tracked there.
 - **Proposed.** Two screendump decoders, `design/roadmap/proposals/one-screendump-decoder-not-two.md`
   (existing).
 
