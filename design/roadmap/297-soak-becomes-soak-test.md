@@ -136,6 +136,9 @@ Those magnitudes are a Linux container under TCG and are not comparable with any
   features, and one lists them as a build command that will now fail**:
   `board-only-features-nothing-compiles.md` (`board,soak,reboot_soak`),
   `select-the-padding-at-boot-not-at-compile-time.md`, `nothing-in-ci-boots-the-riscv-tour.md`
+  (the first two are `design/roadmap/373-board-only-features-nothing-compiles.md` and
+  `design/roadmap/379-select-the-padding-at-boot-not-at-compile-time.md` since milestone 433
+  numbered them, and both still carry the old spellings in their bodies)
   (`script/soak --arch riscv64`, `--features soak`) and
   `board-console-cannot-speak-to-the-board.md` (`soak-reboot: DISARMED`). All four are `PROPOSED`,
   so by `design/naming.md`'s status table they **should** have moved. They did not because a
