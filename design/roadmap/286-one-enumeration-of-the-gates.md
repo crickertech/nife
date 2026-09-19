@@ -154,9 +154,11 @@ now records that it asserted the opposite for a month.
   `design/roadmap/proposals/instruments-nothing-runs.md` (a `PROPOSED` proposal whose `Gate:` line
   asks which instrument joins the retired script). The other fifteen blocks and the four
   `design/roadmap/README.md` rows are accounts and keep the old name.
-- **Proposed.** `script/bootstrap` conflates installing what is missing with verifying the
-  environment is adequate, and the second failing is what costs a developer the whole local tier:
-  `design/roadmap/proposals/bootstrap-installs-and-also-judges.md`.
+- **Milestone 397.** `script/bootstrap` conflates installing what is missing with verifying the
+  environment is adequate, and the second failing is what costs a developer the whole local tier.
+  Numbered on 2026-09-19 by milestone 433's drain of the pile, with the note that milestone 287's
+  Linux source-build fallback landed the same day this was written and covers the container failure
+  it was measured on.
 - **Recorded.** `notes/scripts.md` claimed `script/lint`'s row was the longest markdown line in the
   repository; the counted-claim marker vouches for the number and nothing vouched for which line
   carried it, and it had moved to `design/roadmap/README.md`. Corrected in place.

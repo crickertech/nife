@@ -1,7 +1,15 @@
-# An apt QEMU that is installed and then shadowed
+# 396. An apt QEMU that is installed and then shadowed
 
-**Status: PROPOSED 2026-09-13.** Found by milestone 287 while making `script/bootstrap` finish on a
-stock Linux box. Not taken there because the evidence stops short of the claim.
+**Status: NOT-STARTED.** Filed 2026-09-13 as an unnumbered proposal by milestone 287, which found it
+while making `script/bootstrap` finish on a stock Linux box and did not take it because the evidence
+stops short of the claim; numbered 2026-09-19 by milestone 433's drain of the proposal pile.
+**`script/bootstrap` was re-read on 2026-09-19 and the premise is intact.** Its Linux branch still
+runs `sudo apt-get install -y qemu-system-arm qemu-system-misc qemu-system-x86 ipxe-qemu ovmf`
+(line 78), and it still sources `scripts/qemu-path.sh` at line 18 before any `command -v` probe and
+again at line 198 after `script/ci-qemu` builds the pinned QEMU, so the three emulator packages are
+still shadowed for the life of the checkout. The only change to the file since this was written is a
+documentation path, in `9dc04b0` on 2026-09-18. *(Number provisional until the merge queue lands
+it.)*
 
 **Gate: NONE.** Nothing here needs calef. It needs four gate runs on a Linux box with the packages
 absent, listed below, and a lane can do all four.
@@ -72,3 +80,22 @@ comes from apt and which from the prefix, so the next person does not have to re
 A few hundred megabytes and one less confusing step on a first clone. **Not correctness**: the
 current arrangement works, it is merely wasteful and it reads as though apt's QEMU matters when it
 does not. Priced accordingly.
+
+## Index row
+
+On a cold Linux clone `script/bootstrap` installs five apt packages and then, minutes later on the
+same run, builds QEMU 11.0.2 from source because no Ubuntu release ships one with
+`riscv-iommu-pci`; from that moment `scripts/qemu-path.sh` puts the built prefix ahead of `/usr/bin`
+on `PATH`, so the three emulator packages are a few hundred megabytes downloaded to be overridden
+for the life of the checkout. The two firmware packages were the reason to be careful and are
+probably redundant too: the prefix QEMU's own `make install` lays down `efi-virtio.rom` and thirteen
+`edk2-*` firmware images, and `scripts/qemu-uefi-x86_64.sh` already searches the prefix ahead of
+`/usr/share/OVMF`. Milestone 287 did not act on that, and the restraint is the point: the prefix
+containing the files is not the same claim as the gates passing without the packages, and removing
+one on that evidence would be the shape 287 exists to correct. So the work is four runs on a Linux
+box with `ipxe-qemu` and `ovmf` purged: `cargo xtask uefi-image` and `uefi-boot`,
+`script/netboot-rehearsal`, and `script/test` on all three ISAs. If all four pass, the five packages
+leave the Linux branch and the comment that currently explains at length why the firmware packages
+are needed is the thing being falsified. If any fail, the finding is worth as much: name in that
+comment which file comes from apt and which from the prefix. It is worth a few hundred megabytes and
+one less confusing step on a first clone, and it is not correctness.
