@@ -41,6 +41,17 @@ Reversible: signing can be added to the release process later without changing t
 it would take is an Apple Developer ID with notarization, and a Windows code-signing certificate;
 neither is bought.
 
+**And the stick is for any architecture, made from any machine** (calef, 17:19 UTC the same day):
+
+> I'd like the program on windows, linux, or macos to be able to build a stick that works on any
+> architecture. If that means one stick that is universal for any architecture or one needs to
+> specify the target when building, I don't really care. The point is from any machine you should
+> be able to build a boot for any other machine.
+
+So the program embeds a boot payload for every architecture nife supports, and runs on every host
+it ships for, whatever that host's own architecture. Whether one stick carries all of them or the
+person picks a target is left to the design, and the proposal recommends the universal stick.
+
 ## What the ruling contains, step by step
 
 1. **A web page.** Publishing it is the moment calef's no-third-parties precondition is spent
