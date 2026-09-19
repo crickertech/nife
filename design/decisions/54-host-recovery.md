@@ -32,7 +32,7 @@ Worth recording because it is not the reason anyone expected. `FileSystem::creat
 and un-gating it is mechanical **for every call but one**: `Header::new` stamps a v4 UUID, which is
 `getrandom`, and a `no_std` engine has no randomness.
 
-**The same wall appears twice in this milestone.** `notes/gpt.md` already refuses to invent a
+**The same wall appears twice in this milestone.** `notes/globally-unique-identifier-partition-table.md` already refuses to invent a
 partition GUID for the identical reason. So partitioning *and* formatting from the target are gated
 on the entropy service reaching the program that does them, and on nothing else.
 
@@ -43,7 +43,7 @@ format the drive **today**, which is what actually gets a disk ready for the boa
 
 ## BUGS
 
-- **The host tool reads an image file, not a partitioned device.** Both halves exist (`crates/gpt`
+- **The host tool reads an image file, not a partitioned device.** Both halves exist (`crates/globally_unique_identifier_partition_table`
   and the engine); the join does not.
 - **An unlinked-but-open file loses its attributes immediately**, unlike POSIX, because the purge
   has to be inside the unlink's transaction to be crash-atomic with it.

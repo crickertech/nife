@@ -1105,10 +1105,12 @@ names review that performed six renames.
 | A **note filename** (`notes/asids.md`) | **Yes** | A note is an interface: a reader meets it by name, and `script/apropos` and every citation address it that way |
 | A **roadmap slug** (`design/roadmap/15-asids.md`) | **No** | Exempt, standing rule: roadmap titles and slugs are drafts, and the number is what people cite |
 | A **hardware field or wire name** (`satp.ASID`, `NVMe 1.4 §3.1`) | **Never** | A citation of somebody else's specification |
+| A **public type named for the acronym** (`Gpt`, `Dtb`) | **Yes** | calef, 2026-09-19: a reader meets the type far more often than the crate, so leaving it short leaves most of the acronym in place. `Nvme` had already moved with its family. **`Guid` stays** under its own 2026-09-13 ruling, which is about byte order rather than length |
+| A **fuzz target named for the crate** (`gpt_table`, `dtb_walk`) | **Yes** | calef, 2026-09-19: named for what it fuzzes |
 | A **`BUILT` block, a transcript, a dated account** | **Never** | The status table above |
 
 **The note half has a cost the crate half does not: every citation of the old path breaks.**
-`notes/gpt.md` is cited by 18 files, `notes/ipc-naming.md` by 24. `script/lint` check 4c verifies that
+`notes/gpt.md` was cited by 18 files when it moved, and `notes/ipc-naming.md` is cited by 24. `script/lint` check 4c verifies that
 a markdown *link* target resolves, so it catches those; it does **not** catch a path written in prose
 outside a link, and both forms exist in this tree. Grep for both.
 
@@ -1207,7 +1209,7 @@ runs, which is not on every build. It is the stale-pointer-upgrade class one lev
 ### `components/` is a second workspace, and `cargo check` is blind to it
 
 The main workspace's check does not compile `components/`, so a rename that breaks a consumer there
-is green until something builds it. `gpt` and `dtb` both have consumers in it; `asid` had only the
+is green until something builds it. `gpt` and `dtb` both have consumers in it (the `gpt` rename built and ran them); `asid` had only the
 kernel, which is why the first three renames never exercised this. **Build both workspaces, or run
 `script/test`, which does.**
 
