@@ -959,7 +959,7 @@ spelling and pays the cost at the reader's expense once, in an expansion written
 meets it. `crates/user_rt/src/initrd.rs` carries that expansion as of 2026-09-13.
 
 **And the defect the pricing found was not the name.** `initrd` appeared about 1,300 times and was
-expanded in full **exactly once**, in `crates/dtb`, a crate about device trees rather than the one
+expanded in full **exactly once**, in `crates/device_tree_blob`, a crate about device trees rather than the one
 named for the thing. The abbreviation was never the problem; an unexplained abbreviation was, and
 that is rung three rather than a sweep.
 

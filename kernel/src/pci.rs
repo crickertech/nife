@@ -955,7 +955,7 @@ mod tests {
         };
 
         let dt = crate::device_tree().expect("device tree is unreadable");
-        let mut regs = [dtb::Region { start: 0, size: 0 }; 1];
+        let mut regs = [device_tree_blob::Region { start: 0, size: 0 }; 1];
         let n = dt
             .node_reg_compatible(b"pci-host-ecam-generic", &mut regs)
             .expect("the bridge's reg parses");

@@ -37,7 +37,7 @@ second customer possible, rather than beside it.
 
 **Part 1: `tar`, written here.** A `ustar` header is 512 bytes of fixed-offset fields with an octal
 checksum and the format is a loop over headers. Pure logic, so it belongs in `crates/` where it is
-host-testable and Kani-reachable, which is what AGENTS.md prescribes and what `globally_unique_identifier_partition_table`, `elf`, `dtb`
+host-testable and Kani-reachable, which is what AGENTS.md prescribes and what `globally_unique_identifier_partition_table`, `elf`, `device_tree_blob`
 and `nifefs` already are.
 
 **The security-relevant decisions in `tar` are policy rather than specification**, and they are the

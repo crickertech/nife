@@ -96,18 +96,19 @@ pub static DTB: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsiz
 /// **The boot device tree, parsed**, or the parse error if this machine did not hand us one.
 ///
 /// **This exists so the "is that pointer real" argument is made once.** Five places used to read
-/// [`DTB`] (or take the same value as an argument) and hand it to `dtb::Dtb::from_ptr` under a
-/// hand-written `// SAFETY:` comment, each rewording the same two facts: the pointer is the one
-/// firmware put in `x0`/`a1` and [`kernel_main`] stashed here before anything else ran, and it is
-/// physical, so it is named through the direct map. That is one fact about this module's own
-/// static, and this module is the only place it can be checked. Milestone 139 round 8, and
-/// DECISIONS §94's rule about a body copied verbatim into every caller.
+/// [`DTB`] (or take the same value as an argument) and hand it to
+/// `device_tree_blob::DeviceTreeBlob::from_ptr` under a hand-written `// SAFETY:` comment, each
+/// rewording the same two facts: the pointer is the one firmware put in `x0`/`a1` and
+/// [`kernel_main`] stashed here before anything else ran, and it is physical, so it is named
+/// through the direct map. That is one fact about this module's own static, and this module is the
+/// only place it can be checked. Milestone 139 round 8, and DECISIONS §94's rule about a body
+/// copied verbatim into every caller.
 ///
 /// Returns `Err` rather than panicking, because two of the callers legitimately continue without a
 /// tree: the early RISC-V console keeps its defaults, and `x86_64` stores a PVH `hvm_start_info`
 /// pointer in [`DTB`] rather than an FDT, so the magic check inside `from_ptr` is what tells those
 /// callers apart from a real failure. Callers that cannot continue keep their own `expect`.
-pub fn device_tree() -> Result<dtb::Dtb<'static>, dtb::Error> {
+pub fn device_tree() -> Result<device_tree_blob::DeviceTreeBlob<'static>, device_tree_blob::Error> {
     let phys = DTB.load(core::sync::atomic::Ordering::Relaxed) as u64;
     // SAFETY: `kernel_main` stores the boot pointer here as its first statement, before any of
     // this function's callers can run, and firmware's blob stays where it is for the life of the
@@ -115,7 +116,9 @@ pub fn device_tree() -> Result<dtb::Dtb<'static>, dtb::Error> {
     // physical addresses and we are running virtual), so the direct map names it. `from_ptr`
     // re-checks the magic before trusting anything else in the blob, which is what makes a wrong
     // pointer survivable rather than fatal.
-    unsafe { dtb::Dtb::from_ptr(arch::mmu::phys_to_virt(phys) as *const u8) }
+    unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(arch::mmu::phys_to_virt(phys) as *const u8)
+    }
 }
 
 /// The kernel's Rust entry point, called from `_start` once we have a stack and a

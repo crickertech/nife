@@ -354,7 +354,7 @@ impl Psci {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn f(dt: &dtb::Dtb<'_>) -> Result<(), dtb::Error> {
+    /// # fn f(dt: &device_tree_blob::DeviceTreeBlob<'_>) -> Result<(), device_tree_blob::Error> {
     /// use machine_discovery::aarch64::{Conduit, PSCI_CPU_ON_64, Psci};
     /// let psci = Psci::from_device_tree(dt)?.expect("QEMU virt has a /psci node");
     /// assert_eq!(psci.conduit, Some(Conduit::Hvc));
@@ -362,7 +362,9 @@ impl Psci {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn from_device_tree(dt: &dtb::Dtb<'_>) -> Result<Option<Psci>, dtb::Error> {
+    pub fn from_device_tree(
+        dt: &device_tree_blob::DeviceTreeBlob<'_>,
+    ) -> Result<Option<Psci>, device_tree_blob::Error> {
         let method = dt.node_prop(b"psci", b"method")?;
         let cpu_on = dt.node_prop(b"psci", b"cpu_on")?;
         let compatible = dt.node_prop(b"psci", b"compatible")?;

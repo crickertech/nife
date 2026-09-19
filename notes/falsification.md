@@ -366,7 +366,7 @@ Grouped, because the reasons repeat and a reader deciding whether their own new 
 risk wants the pattern rather than 135 rows:
 
 - **The claim is stated in arithmetic the implementation does not own.** `kernel`'s two run
-  harnesses do it in `u128`, `dtb::be32_reads_big_endian_when_in_bounds` writes the four shifts
+  harnesses do it in `u128`, `device_tree_blob::be32_reads_big_endian_when_in_bounds` writes the four shifts
   out, `paging`'s `the_indices_and_offset_tile_the_address` reconstructs the address by hand.
   This is the shape every rewrite above converged on.
 - **Two independent implementations are compared on purpose.**
@@ -424,7 +424,7 @@ so often a recomputation, and that recomputation is the virtue. The defect is th
 crate produced **neither** side: no rewrite of the code can then change whether the assertion
 holds.
 
-`dtb::be32_reads_big_endian_when_in_bounds` writes the four shifts out and compares them against
+`device_tree_blob::be32_reads_big_endian_when_in_bounds` writes the four shifts out and compares them against
 `be32`'s answer: subject from the crate, expectation from the format. `nifefs`'s harness wrote
 both sides itself. Same shape at a glance, opposite in what they prove.
 

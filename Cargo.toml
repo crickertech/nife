@@ -28,7 +28,7 @@ members = [
     "crates/login_protocol",
     "crates/nifefs",
     "crates/dma_validator",
-    "crates/dtb",
+    "crates/device_tree_blob",
     "crates/elf",
     "crates/entropy_protocol",
     "crates/page_frames",

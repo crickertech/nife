@@ -18,10 +18,8 @@
 //! milliseconds against a real device tree dumped from QEMU, instead of booting an
 //! emulator. See DECISIONS §7.
 //!
-//! Name: provisional, and ruled: calef ruled **`device_tree_blob`** on 2026-09-18
-//! (`design/decisions/` §154), **deratifying the 2026-08-01 ratification** to do it. The block stays
-//! `provisional` because the ratified name is not this crate's until the rename is performed, and
-//! until then `dtb` belongs on `script/names --unratified` rather than off it. Refused `dtb`.
+//! Name: ratified 2026-09-18 (calef, `design/decisions/` §154), **deratifying the 2026-08-01
+//! ratification** to do it, and performed 2026-09-19. Refused `dtb`.
 //!
 //! §154's test is whether the expansion is a phrase people actually say. "device tree blob" is,
 //! so it goes, where `pci` stays because "peripheral component interconnect" is not.
@@ -33,7 +31,15 @@
 //! **Known cost**: datasheets, error messages and this kernel's own output say `dtb`, so a reader
 //! grepping the word the machine printed will not find this identifier. Weighed and accepted.
 //!
-//! **Not yet performed**: milestones 320 and 321 are live lanes in files a sweep would touch.
+//! **Performed 2026-09-19**, with the type (`Dtb` to `DeviceTreeBlob`) and the fuzz target
+//! (`dtb_walk` to `device_tree_blob_walk`, dictionary included) under calef's rulings of that
+//! day. Census of `dtb` as a word, not counting the `.dtb` suffix or `dtc -I dtb`: 327 before, 159
+//! after. Of the survivors, 64 name **the blob rather than the crate** and pass the ownership test
+//! the other way: `let dtb`, `kernel_main(dtb)`, `crate::DTB`, `dtb_ptr`, `configure_from_dtb`,
+//! and the test file `crates/pci/tests/qemu_virt_dtb.rs`. 15 are in `design/decisions/`, 2 are this
+//! block's refusal and known cost, and 78 are the old name in an account, a measurement or a
+//! ruling. **The `.dtb` extension did not move**: 86 occurrences and 20 files before and after,
+//! every filename unchanged, the five fixtures here included (their directory moved, they did not).
 
 #![cfg_attr(not(test), no_std)]
 
@@ -53,15 +59,16 @@ impl Region {
     /// whose values came out of a blob the firmware wrote. `start + size` on a hostile pair wraps,
     /// and under the dev profile's overflow checks that is a panic on the boot path:
     /// `kernel/src/memory.rs`'s `place_bitmap` calls this on every RAM region the device tree
-    /// declares, before there is any way to report a failure. Found by `fuzz/fuzz_targets/dtb_walk`
-    /// on 2026-08-02; see the regression test in `tests/hostile.rs`.
+    /// declares, before there is any way to report a failure. Found by
+    /// `fuzz/fuzz_targets/device_tree_blob_walk` on 2026-08-02; see the regression test in
+    /// `tests/hostile.rs`.
     ///
     /// The same argument `elf::Segment::page_range` records: a type anyone can construct has to hold
     /// on its own, whatever the parser that usually builds it has already checked.
     ///
-    /// **A saturated end is still a lie**, which is why [`Dtb::memory_regions`] and its siblings
-    /// refuse a wrapping region outright ([`Error::RegionOverflow`]) rather than passing one out and
-    /// relying on this. This is the backstop, not the check.
+    /// **A saturated end is still a lie**, which is why [`DeviceTreeBlob::memory_regions`] and its
+    /// siblings refuse a wrapping region outright ([`Error::RegionOverflow`]) rather than passing
+    /// one out and relying on this. This is the backstop, not the check.
     pub fn end(&self) -> u64 {
         self.start.saturating_add(self.size)
     }
@@ -118,14 +125,14 @@ fn be64(bytes: &[u8], at: usize) -> Result<u64, Error> {
 
 /// A parsed, borrowed device tree blob.
 #[derive(Debug)]
-pub struct Dtb<'a> {
+pub struct DeviceTreeBlob<'a> {
     bytes: &'a [u8],
     off_struct: usize,
     off_strings: usize,
     off_rsvmap: usize,
 }
 
-impl<'a> Dtb<'a> {
+impl<'a> DeviceTreeBlob<'a> {
     /// # Safety
     ///
     /// `ptr` must point at a device tree blob that stays valid for `'a`. We read the
@@ -169,7 +176,7 @@ impl<'a> Dtb<'a> {
             return Err(Error::UnsupportedVersion(last_comp_version));
         }
 
-        let dtb = Dtb {
+        let dtb = DeviceTreeBlob {
             off_struct: be32(bytes, 8)? as usize,
             off_strings: be32(bytes, 12)? as usize,
             off_rsvmap: be32(bytes, 16)? as usize,
@@ -851,7 +858,7 @@ impl<'a> Dtb<'a> {
     /// # Examples
     ///
     /// ```no_run
-    /// # fn f(dt: &dtb::Dtb<'_>) -> Result<(), dtb::Error> {
+    /// # fn f(dt: &device_tree_blob::DeviceTreeBlob<'_>) -> Result<(), device_tree_blob::Error> {
     /// let mut isa = [None; 8];
     /// let harts = dt.node_props(b"cpu@", b"riscv,isa", &mut isa)?;
     /// assert!(harts <= isa.len(), "more harts than slots: widen the array");

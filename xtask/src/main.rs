@@ -4962,8 +4962,8 @@ impl ArchLegs {
 
 /// Host tests first, then the kernel under QEMU.
 ///
-/// The host crates (`dtb`, `frames`) hold the pure logic and run in *milliseconds* with no
-/// emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
+/// The host crates (`device_tree_blob`, `frames`) hold the pure logic and run in *milliseconds*
+/// with no emulator, so they fail fast and cheap. Only once they pass is it worth spending twenty
 /// seconds booting QEMU. See DECISIONS §7.
 ///
 /// Four flags narrow what runs, and all four default to today's behaviour:

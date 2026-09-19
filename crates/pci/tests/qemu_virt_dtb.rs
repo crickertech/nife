@@ -7,12 +7,13 @@
 //! on the machine. What is still a hardcode under witness: `PCI_IRQ_BASE` in each
 //! kernel/src/arch/*/mmu.rs and the swizzle in this crate (`intx_irq`); a bare-metal crate
 //! cannot be a dev-dependency, so those values are asserted as literals, the same
-//! hardcode-with-a-witness pattern as the UART test in the dtb crate.
+//! hardcode-with-a-witness pattern as the UART test in the `device_tree_blob` crate.
 
-use dtb::{Dtb, Region};
+use device_tree_blob::{DeviceTreeBlob, Region};
 use pci::{intx_irq, mem32_window};
 
-const QEMU_RISCV_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-riscv64-virt.dtb");
+const QEMU_RISCV_VIRT: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb");
 
 /// The discovery `memory::init` performs, over the riscv `virt` tree: the node found by its
 /// binding, the ECAM window from its `reg`, the BAR window from its `ranges`. The pinned values
@@ -22,7 +23,7 @@ const QEMU_RISCV_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-ris
 /// test in kernel/src/pci.rs.
 #[test]
 fn discovery_finds_the_riscv_windows_the_constants_named() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let mut regs = [Region { start: 0, size: 0 }; 2];
     assert_eq!(
         dtb.node_reg_compatible(b"pci-host-ecam-generic", &mut regs)
@@ -55,7 +56,7 @@ const JH7110: &[u8] = include_bytes!("../../machine_discovery/tests/fixtures/jh7
 /// DRAM base, and mapping it collided with the direct map (notes/visionfive2.md).
 #[test]
 fn the_jh7110_has_no_generic_ecam_bridge_and_discovery_says_none() {
-    let dtb = Dtb::from_bytes(JH7110).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(JH7110).unwrap();
     let mut regs = [Region { start: 0, size: 0 }; 2];
     assert_eq!(
         dtb.node_reg_compatible(b"pci-host-ecam-generic", &mut regs)
@@ -81,7 +82,7 @@ fn the_jh7110_has_no_generic_ecam_bridge_and_discovery_says_none() {
 /// happen to attach.
 #[test]
 fn the_intx_swizzle_matches_the_interrupt_map() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let map = dtb
         .node_prop(b"pci@", b"interrupt-map")
         .unwrap()
@@ -106,7 +107,8 @@ fn the_intx_swizzle_matches_the_interrupt_map() {
     }
 }
 
-const QEMU_AARCH64_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-aarch64-virt.dtb");
+const QEMU_AARCH64_VIRT: &[u8] =
+    include_bytes!("../../device_tree_blob/tests/fixtures/qemu-aarch64-virt.dtb");
 
 /// The aarch64 discovery, same claim as the riscv one, with the machine's own twist: the ECAM is
 /// the **highmem** window. The node is named `pcie@10000000` (the low MMIO base) but its `reg`
@@ -114,7 +116,7 @@ const QEMU_AARCH64_VIRT: &[u8] = include_bytes!("../../dtb/tests/fixtures/qemu-a
 /// witness exists to catch.
 #[test]
 fn discovery_finds_the_aarch64_windows_the_constants_named() {
-    let dtb = Dtb::from_bytes(QEMU_AARCH64_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_AARCH64_VIRT).unwrap();
     let mut regs = [Region { start: 0, size: 0 }; 2];
     assert_eq!(
         dtb.node_reg_compatible(b"pci-host-ecam-generic", &mut regs)
@@ -146,7 +148,7 @@ fn discovery_finds_the_aarch64_windows_the_constants_named() {
 /// base, from arch/aarch64/mmu.rs) must reproduce `32 + SPI` for all sixteen.
 #[test]
 fn the_intx_swizzle_matches_the_aarch64_interrupt_map() {
-    let dtb = Dtb::from_bytes(QEMU_AARCH64_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_AARCH64_VIRT).unwrap();
     let map = dtb
         .node_prop(b"pcie@", b"interrupt-map")
         .unwrap()

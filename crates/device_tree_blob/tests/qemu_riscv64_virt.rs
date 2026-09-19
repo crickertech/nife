@@ -10,18 +10,18 @@
 //! Regenerate the fixture with:
 //!
 //!     qemu-system-riscv64 -machine virt,dumpdtb=f.dtb -nographic
-//!     dtc -I dtb -O dts f.dtb -o crates/dtb/tests/fixtures/qemu-riscv64-virt.dts
+//!     dtc -I dtb -O dts f.dtb -o crates/device_tree_blob/tests/fixtures/qemu-riscv64-virt.dts
 //!     (re-add the /reserved-memory node; see the comment in the .dts for why it is hand-added)
-//!     dtc -I dts -O dtb crates/dtb/tests/fixtures/qemu-riscv64-virt.dts \
-//!         -o crates/dtb/tests/fixtures/qemu-riscv64-virt.dtb
+//!     dtc -I dts -O dtb crates/device_tree_blob/tests/fixtures/qemu-riscv64-virt.dts \
+//!         -o crates/device_tree_blob/tests/fixtures/qemu-riscv64-virt.dtb
 
-use dtb::{Dtb, Region};
+use device_tree_blob::{DeviceTreeBlob, Region};
 
 const QEMU_RISCV_VIRT: &[u8] = include_bytes!("fixtures/qemu-riscv64-virt.dtb");
 
 #[test]
 fn finds_the_ram() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let mut regions = [Region { start: 0, size: 0 }; 8];
     let n = dtb.memory_regions(&mut regions).unwrap();
 
@@ -41,7 +41,7 @@ fn finds_the_ram() {
 /// prevent; get it wrong and the decoded address is garbage, silently.
 #[test]
 fn finds_the_plic_nested_under_soc() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let mut regions = [Region { start: 0, size: 0 }; 4];
     let n = dtb.node_reg(b"plic@", &mut regions).unwrap();
 
@@ -63,7 +63,7 @@ fn finds_the_plic_nested_under_soc() {
 /// used to assume; reading it from the machine is what lets the JH7110's different answer in.
 #[test]
 fn finds_the_plics_context_list_by_compatible() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let prop = dtb
         .node_prop_compatible(b"sifive,plic-1.0.0", b"interrupts-extended")
         .unwrap()
@@ -94,7 +94,7 @@ fn finds_the_plics_context_list_by_compatible() {
 /// faults on a PMP violation, in code nowhere near the allocator.
 #[test]
 fn finds_opensbis_reserved_memory() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let mut regions = [Region { start: 0, size: 0 }; 8];
     let n = dtb.reserved_memory_regions(&mut regions).unwrap();
 
@@ -120,7 +120,7 @@ fn finds_opensbis_reserved_memory() {
 /// (`rtc@101000`) shares no prefix with aarch64's `pl031@9010000`.
 #[test]
 fn finds_the_rtc_by_compatible() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let mut regs = [Region { start: 0, size: 0 }; 2];
 
     assert_eq!(
@@ -141,7 +141,7 @@ fn finds_the_rtc_by_compatible() {
 /// answers the code takes every time it runs.
 #[test]
 fn the_pl031_is_absent_on_riscv() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
     let mut regs = [Region { start: 0, size: 0 }; 2];
     assert_eq!(dtb.node_reg_compatible(b"arm,pl031", &mut regs).unwrap(), 0);
 }
@@ -155,7 +155,7 @@ fn the_pl031_is_absent_on_riscv() {
 /// property is a different answer from a node that does not exist.
 #[test]
 fn reads_a_property_from_every_matching_node() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
 
     let mut isa = [None; 4];
     assert_eq!(
@@ -188,7 +188,7 @@ fn reads_a_property_from_every_matching_node() {
 /// machine has four harts and I read two" and "this machine has two harts".
 #[test]
 fn more_nodes_than_slots_reports_the_real_count() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
 
     // Every node under the root, matched by the empty prefix, into no space at all. The count is
     // the honest one; nothing was written, because there was nowhere to write it.
@@ -207,7 +207,7 @@ fn more_nodes_than_slots_reports_the_real_count() {
 /// which is the case `node_prop_inherited` exists for.
 #[test]
 fn follows_the_serial_interrupt_parent_to_the_plic() {
-    let dtb = Dtb::from_bytes(QEMU_RISCV_VIRT).unwrap();
+    let dtb = DeviceTreeBlob::from_bytes(QEMU_RISCV_VIRT).unwrap();
 
     let parent = dtb
         .node_prop_inherited(b"serial@", b"interrupt-parent")

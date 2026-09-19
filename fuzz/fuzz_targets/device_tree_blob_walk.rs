@@ -6,15 +6,15 @@
 //! bytes are written by QEMU, by OpenSBI, or by a board's firmware, and none of those is us. A panic
 //! here is a kernel that cannot boot and cannot say why.
 //!
-//! **What it adds over the Kani proofs.** `crates/dtb`'s four harnesses prove the *leaf readers*
-//! total: `be32` and `be64` never panic for any offset into any buffer. They deliberately do not
-//! reach the seven walkers above them, because a walker is an unbounded loop over a symbolic blob
-//! and that is where bounded model checking stops. The walkers are where the state lives: a depth
-//! counter, two 16-entry per-depth cell-count stacks, a "which node am I inside" slot. Every one of
-//! those is indexed by a number the blob controls.
+//! **What it adds over the Kani proofs.** `crates/device_tree_blob`'s four harnesses prove the
+//! *leaf readers* total: `be32` and `be64` never panic for any offset into any buffer. They
+//! deliberately do not reach the seven walkers above them, because a walker is an unbounded loop
+//! over a symbolic blob and that is where bounded model checking stops. The walkers are where the
+//! state lives: a depth counter, two 16-entry per-depth cell-count stacks, a "which node am I
+//! inside" slot. Every one of those is indexed by a number the blob controls.
 //!
 //! That is not a hypothetical division of labour. This target found a real out-of-bounds index in
-//! `node_reg` within seconds of its first run; see `crates/dtb/tests/hostile.rs`.
+//! `node_reg` within seconds of its first run; see `crates/device_tree_blob/tests/hostile.rs`.
 //!
 //! **Every accessor, not just `from_bytes`.** A blob that parses is not a blob that is safe to walk,
 //! and the kernel calls all of these on the same blob during boot. (An earlier draft said "all
@@ -23,11 +23,11 @@
 
 #![no_main]
 
-use dtb::{Dtb, Region};
+use device_tree_blob::{DeviceTreeBlob, Region};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
-    let Ok(dtb) = Dtb::from_bytes(data) else {
+    let Ok(dtb) = DeviceTreeBlob::from_bytes(data) else {
         return;
     };
 
