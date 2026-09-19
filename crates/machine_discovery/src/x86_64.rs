@@ -14,9 +14,9 @@
 //! # Why the decoding is here and not in `arch/x86_64/`
 //!
 //! Because it is a parser, and a parser proved only inside a booting kernel is a parser proved by
-//! nothing that runs in milliseconds. Same reason `crates/dtb` exists rather than a device-tree
-//! reader living in `arch/aarch64/`: this file compiles for the host, its tests run without an
-//! emulator, and the kernel side is reduced to reading a pointer through the direct map.
+//! nothing that runs in milliseconds. Same reason `crates/device_tree_blob` exists rather than a
+//! device-tree reader living in `arch/aarch64/`: this file compiles for the host, its tests run
+//! without an emulator, and the kernel side is reduced to reading a pointer through the direct map.
 //!
 //! # The structure, from Xen's `start_info.h`
 //!
@@ -103,9 +103,9 @@ impl BootInfo {
     /// Decode `bytes`, which must begin at the structure.
     ///
     /// The magic is checked first and everything else is refused until it passes, which is the same
-    /// discipline `dtb::Dtb::from_ptr` follows and for the same reason: this is the first thing the
-    /// kernel does with a pointer somebody else chose, so a wrong pointer must produce an error
-    /// rather than a plausible-looking memory map.
+    /// discipline `device_tree_blob::DeviceTreeBlob::from_ptr` follows and for the same reason:
+    /// this is the first thing the kernel does with a pointer somebody else chose, so a wrong
+    /// pointer must produce an error rather than a plausible-looking memory map.
     pub fn parse(bytes: &[u8]) -> Result<Self, BootInfoError> {
         if bytes.len() < V0_LEN {
             return Err(BootInfoError::Truncated);

@@ -8,7 +8,7 @@
 //!
 //! That is the silent degradation this test exists to make loud, and it costs a millisecond. The
 //! other three targets seed from fixtures that already have tests of their own
-//! (`crates/dtb/tests/qemu_aarch64_virt.rs`,
+//! (`crates/device_tree_blob/tests/qemu_aarch64_virt.rs`,
 //! `crates/globally_unique_identifier_partition_table/tests/real_disks.rs`); these seeds had none,
 //! because they have no other reason to exist.
 //!

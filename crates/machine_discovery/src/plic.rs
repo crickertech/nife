@@ -46,9 +46,9 @@
 //!
 //! Name: provisional (`plic` for the module, `PlicContexts` for the record), named for the
 //! controller whose property it decodes; the naming tenet's "standard terms are already right"
-//! group is the intent, as with the `dtb` crate.
+//! group is the intent, as with the `device_tree_blob` crate.
 
-use dtb::{Dtb, Error};
+use device_tree_blob::{DeviceTreeBlob, Error};
 
 use crate::cpu_list::CpuList;
 
@@ -95,7 +95,7 @@ impl PlicContexts {
     /// **Read the context layout.** A tree without a PLIC (aarch64, or a malformed board file) is
     /// an empty map, not an error, for the same reason [`CpuList::from_device_tree`] treats a bare
     /// `/cpus` that way: the caller falls back to what it would otherwise have assumed, and says so.
-    pub fn from_device_tree(dt: &Dtb<'_>) -> Result<PlicContexts, Error> {
+    pub fn from_device_tree(dt: &DeviceTreeBlob<'_>) -> Result<PlicContexts, Error> {
         let mut out = PlicContexts::default();
 
         // Two strings, because real trees do not agree on which one they carry. QEMU virt's PLIC

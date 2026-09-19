@@ -29,9 +29,11 @@ const CTX_UNKNOWN: usize = usize::MAX;
 pub fn init_contexts(dtb_ptr: usize) {
     // SAFETY: the pointer firmware handed us, already parsed by memory::init on this boot, named
     // through the direct map.
-    let Ok(dt) =
-        (unsafe { dtb::Dtb::from_ptr(super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8) })
-    else {
+    let Ok(dt) = (unsafe {
+        device_tree_blob::DeviceTreeBlob::from_ptr(
+            super::mmu::phys_to_virt(dtb_ptr as u64) as *const u8
+        )
+    }) else {
         return;
     };
     let Ok(ctx) = machine_discovery::plic::PlicContexts::from_device_tree(&dt) else {
@@ -226,9 +228,12 @@ mod tests {
     fn the_context_table_is_the_machines_own_and_matches_the_formula_here() {
         let ptr = crate::DTB.load(core::sync::atomic::Ordering::Relaxed);
         // SAFETY: the pointer firmware handed us, already parsed several times on this boot.
-        let dt =
-            unsafe { dtb::Dtb::from_ptr(crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8) }
-                .expect("device tree is unreadable");
+        let dt = unsafe {
+            device_tree_blob::DeviceTreeBlob::from_ptr(
+                crate::arch::mmu::phys_to_virt(ptr as u64) as *const u8
+            )
+        }
+        .expect("device tree is unreadable");
         let ctx = machine_discovery::plic::PlicContexts::from_device_tree(&dt)
             .expect("the PLIC wiring parses");
 
