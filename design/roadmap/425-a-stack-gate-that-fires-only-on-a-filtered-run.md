@@ -1,4 +1,4 @@
-# A stack gate that fires only on a filtered run
+# 425. A stack gate that fires only on a filtered run
 
 **Status: PROPOSED 2026-09-17.** Raised by milestone 313's security audit while gating (finding 7),
 outside its lens.

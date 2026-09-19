@@ -1,4 +1,4 @@
-# Proposal: what the weekly Miri run should cost
+# 428. What the weekly Miri run should cost
 
 **Status: PROPOSED 2026-09-17.** Raised by the milestone 310 lane on the first measurement of a
 run that actually finished. The cadence itself is calef's call; the measurement and the cut below

@@ -1,4 +1,4 @@
-# A sweep for specification fields that are stored one less than their value
+# 426. A sweep for specification fields that are stored one less than their value
 
 **Status: PROPOSED 2026-09-17.** Found by milestone 319, which met this shape twice in one crate,
 broken once and correct once, with nothing at either site saying which.

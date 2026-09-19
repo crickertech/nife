@@ -1,4 +1,4 @@
-# A checked direct-map reader for the x86 ACPI walk
+# 423. A checked direct-map reader for the x86 ACPI walk
 
 **Status: PROPOSED 2026-09-17.** Found by milestone 319, which proved the parsing half and so
 narrowed what the volatile half is actually for.

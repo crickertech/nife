@@ -1,4 +1,4 @@
-# The documentation sweep the worklist already ranks
+# 427. The documentation sweep the worklist already ranks
 
 **Status: PROPOSED 2026-09-17.** Raised by milestone 311 alongside its security sibling; the same
 repaired tripwire reports both.

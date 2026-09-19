@@ -1,4 +1,4 @@
-# What a `caretaker` is, when the thing it holds is not the thing it hands out
+# 413. What a `caretaker` is, when the thing it holds is not the thing it hands out
 
 **Status: PROPOSED 2026-09-14.** Found by the milestone 292 lane while naming the program that puts a
 file behind a byte sink, which had been `ROLE_FILE` inside a three-role binary and so had never

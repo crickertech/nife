@@ -1,4 +1,4 @@
-# A lane that outlives its own merge, and the checklist line that would end it
+# 429. A lane that outlives its own merge, and the checklist line that would end it
 
 **Status: PROPOSED 2026-09-18.** Found by the maintainer when milestone 310's lane reported
 "ready for review, all gates green" about a pull request that had merged **18 hours earlier**.

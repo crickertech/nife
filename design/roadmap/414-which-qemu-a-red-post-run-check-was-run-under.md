@@ -1,4 +1,4 @@
-# A red post-run check does not say which emulator produced it
+# 414. A red post-run check does not say which emulator produced it
 
 **Status: PROPOSED 2026-09-14.** Found by milestone 288 while establishing that a red kernel leg was
 the environment rather than its change, on a box that happens to have two QEMUs installed.

@@ -1,4 +1,4 @@
-# One machine description, not a description and a narrative saying the same thing
+# 409. One machine description, not a description and a narrative saying the same thing
 
 **Status: PROPOSED 2026-09-14.** Found by milestone 268's lane, which caused it: the machine
 description now prints on all three architectures, and on two of them the arm above it had already

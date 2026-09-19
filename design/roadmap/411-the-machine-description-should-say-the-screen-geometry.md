@@ -1,4 +1,4 @@
-# The machine description should say the screen's geometry, not just its address
+# 411. The machine description should say the screen's geometry, not just its address
 
 **Status: PROPOSED 2026-09-14.** Found by milestone 268's lane while writing
 `kernel/src/console.rs`'s `print_summary`.

@@ -1,4 +1,4 @@
-# The RISC-V IOMMU driver has no counterpart to the SMMU's proofs
+# 432. The RISC-V IOMMU driver has no counterpart to the SMMU's proofs
 
 **Status: PROPOSED 2026-09-18.** Written from milestone 322's confirmation pass, which went looking
 for an unexercised IOMMU configuration, found that all three architectures already boot behind one,

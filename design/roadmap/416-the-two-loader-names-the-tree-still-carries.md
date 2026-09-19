@@ -1,4 +1,4 @@
-# Two loader names the tree still carries, and neither one exists
+# 416. Two loader names the tree still carries, and neither one exists
 
 **Status: PROPOSED 2026-09-15.** Surfaced by the lane that performed milestone 166's ratified
 `spawn_progenitor` -> `spawn_hello` rename (PR #884), which found them while enumerating and

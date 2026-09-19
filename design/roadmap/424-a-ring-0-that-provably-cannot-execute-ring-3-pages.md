@@ -1,4 +1,4 @@
-# A ring 0 that provably cannot execute ring-3 pages, and SMAP with a number
+# 424. A ring 0 that provably cannot execute ring-3 pages, and SMAP with a number
 
 **Status: PROPOSED 2026-09-17.** Raised by milestone 313's security audit (findings 3 and 6).
 

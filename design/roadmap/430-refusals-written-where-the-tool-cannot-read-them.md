@@ -1,4 +1,4 @@
-# Refusals written where `script/names` cannot read them
+# 430. Refusals written where `script/names` cannot read them
 
 **Status: PROPOSED 2026-09-18.** Found by the maintainer while recording calef's rulings, by
 noticing that the refusal count went **down** by three after a commit that added one.

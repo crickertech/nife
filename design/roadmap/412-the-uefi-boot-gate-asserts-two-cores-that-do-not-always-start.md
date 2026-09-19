@@ -1,4 +1,4 @@
-# `script/test`'s UEFI leg asserts two cores online, and the second one does not always start
+# 412. `script/test`'s UEFI leg asserts two cores online, and the second one does not always start
 
 **Status: PROPOSED 2026-09-14.**
 

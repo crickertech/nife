@@ -1,4 +1,4 @@
-# Six copies of the shared-frame accessors
+# 410. Six copies of the shared-frame accessors
 
 **Status: PROPOSED 2026-09-14.** Counted by milestone 290, which added the sixth copy and is saying
 so rather than hiding it. Five existed before; the split of the `ntp` binary into three programs put

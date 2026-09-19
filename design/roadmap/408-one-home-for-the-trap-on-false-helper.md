@@ -1,4 +1,4 @@
-# One home for `fn check(ok: bool)`, which nine programs now write out by hand
+# 408. One home for `fn check(ok: bool)`, which nine programs now write out by hand
 
 **Status: PROPOSED 2026-09-14.** Filed by milestone 291's lane, which added seven of the nine
 copies and is saying so rather than leaving the count to be re-derived.

@@ -1,4 +1,4 @@
-# x86_64 has one fixture of five and no NIC, GPU, keyboard or RNG, so its skip count is a device list
+# 420. x86_64 has one fixture of five and no NIC, GPU, keyboard or RNG, so its skip count is a device list
 
 **Status: PROPOSED 2026-09-16.** Written by the milestone 303 lane (x86_64's FS disk), which
 attached the RedoxFS image and deliberately stopped there so that one milestone proved one thing.

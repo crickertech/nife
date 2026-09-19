@@ -1,4 +1,4 @@
-# A usurper that reports instead of hanging, so row 26 can be falsified
+# 417. A usurper that reports instead of hanging, so row 26 can be falsified
 
 **Status: PROPOSED 2026-09-16.** Found by milestone 305, which wrote the honest defect for
 `notes/confinement-claims.md`'s row 26 and could not use the result.

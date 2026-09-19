@@ -1,4 +1,4 @@
-# Sub-tripwire drift accumulates across baseline saves, and one architecture has no gate at all
+# 415. Sub-tripwire drift accumulates across baseline saves, and one architecture has no gate at all
 
 **Status: PROPOSED 2026-09-15.** Written by the baseline-audit lane, which calef asked for after
 PR #886 found a regression that had hidden under the 10% threshold.

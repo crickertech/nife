@@ -1,4 +1,4 @@
-# The ACPI walk is reachable by the prover for the first time, and proved by nothing
+# 431. The ACPI walk is reachable by the prover for the first time, and proved by nothing
 
 **Status: PROPOSED 2026-09-18.** Split out of milestone 304's `## Follow-on`, which named this work
 against the proposal 304 was itself promoted from. That proposal is discharged, so the work it

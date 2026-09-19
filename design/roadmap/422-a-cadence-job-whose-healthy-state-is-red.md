@@ -1,4 +1,4 @@
-# A cadence job whose healthy state is red, and nothing that notices it repeating
+# 422. A cadence job whose healthy state is red, and nothing that notices it repeating
 
 **Status: PROPOSED 2026-09-17.** Found by milestone 311, which was minted to fix a path and found
 that the path was the smaller half.

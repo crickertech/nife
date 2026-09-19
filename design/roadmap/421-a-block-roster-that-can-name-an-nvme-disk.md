@@ -1,4 +1,4 @@
-# The block roster cannot name an NVMe disk, and the reason it could not has just gone away
+# 421. The block roster cannot name an NVMe disk, and the reason it could not has just gone away
 
 **Status: PROPOSED 2026-09-17.** Written by the milestone 261 lane (the EL0 NVMe server), which
 closed the question this was waiting on and deliberately did not take the work, because the work is
