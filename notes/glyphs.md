@@ -725,5 +725,5 @@ property this increment was asked to keep and did.
 | enumeration | `kernel/src/pci.rs` (`find_input_device`) |
 | the wiring | `kernel/src/user/display_service.rs` (`start_terminal`), `kernel/src/user/compositor_service.rs` (`spawn_terminal`), `kernel/src/user/keyboard_service.rs` |
 | the tests | `kernel/src/user/display_tests.rs`, `kernel/src/user/compositor_tests.rs` |
-| the host-side text check and its negative control | `xtask/src/main.rs` |
+| the host-side text check and its negative control | `xtask/src/scanout.rs` |
 | the device lines | `scripts/qemu-runner-aarch64.sh`, `scripts/qemu-runner-riscv64.sh` (`NIFE_KBD`) |

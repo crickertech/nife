@@ -287,7 +287,7 @@ same machine could say yesterday.
   last line reads as two blanks and a number on the screen. The serial console shows it correctly and
   the two transcripts therefore differ by exactly the non-ASCII characters in them.
 - **`board_console::screen` duplicates a decoder `xtask` already has.** Milestone 177's graphical
-  `shell-check` leg carries `parse_ppm`, `decode_cell` and `scanout_rows` in `xtask/src/main.rs`,
+  `shell-check` leg carries `parse_ppm`, `decode_cell` and `scanout_rows` in `xtask/src/scanout.rs`,
   hardcoded to the compositor's geometry and the terminal's default colours. The two should be one
   crate; unifying them touches another milestone's gate and is a proposal rather than a drive-by.
 - **The other two architectures have no screen at all.** This is x86_64/UEFI only. Milestone 157 is

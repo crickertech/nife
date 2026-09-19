@@ -857,7 +857,7 @@ Still unopened after four runs: **every file under `design/decisions/`**, `notes
   design/naming.md's `BUGS`.
 - **The two archives boot different binaries under the name `init`**, `hello` on aarch64 and
   `builder` on riscv64, in a project whose loudest claim is architectural parity. The stranger
-  reported this as undocumented and was wrong: `xtask/src/main.rs` says it, in a comment on the
+  reported this as undocumented and was wrong: `xtask/src/archive.rs` says it, in a comment on the
   aarch64 table's `hello` row, about 200 lines from the riscv table it describes. **A stranger who
   read both tables in the same minute still called it invisible**, which is a placement finding
   rather than an absence, and is run 3's closing diagnosis reproduced by a different reader.

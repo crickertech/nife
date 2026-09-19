@@ -2525,7 +2525,7 @@ needed no change to run on this ISA. What is missing is everything *around* it:
   self-contained tour with no `#[cfg(feature = "bench")]` branch at all (the other two architectures
   have had one since milestone 21); it now diverges into `bench::run()` right after
   `smp::bring_up_secondaries()`, the same position the aarch64 half of `kernel_main` uses. `cargo
-  xtask bench --x86` builds and runs it; see `bench_x86()` in `xtask/src/main.rs`.
+  xtask bench --x86` builds and runs it; see `bench_x86()` in `xtask/src/bench.rs`.
 
 Every EL0-plane bench (`null_syscall_el0`, `ctx_switch_el0`, `ipc_rtt_el0`, `sink_throughput`,
 `map_el0`, `spawn_el0`) self-skips on this leg through the mechanism they already had (`crate::
@@ -2658,7 +2658,7 @@ why: it has to translate `isa-debug-exit`'s always-odd exit status). So `run_ben
 wrapper shell, not QEMU, on this leg only; killing it after `bench: done` orphaned the real
 `qemu-system-x86_64` process rather than ending it. Under plain TCG that orphan idles at ~0% CPU in
 `hlt` and is easy to miss; under `-icount sleep=off` a parked guest's virtual clock never waits on
-the host, so the orphan spun a full core indefinitely. Fixed in `run_bench` itself (`xtask/src/main.rs`):
+the host, so the orphan spun a full core indefinitely. Fixed in `run_bench` itself (`xtask/src/bench.rs`):
 `pkill -9 -P <runner pid>` runs before the runner is killed, reaping any QEMU it spawned. This is a
 no-op for aarch64 and riscv64, whose runners already `exec` (their `Child` PID already is QEMU, so
 `pkill -P` finds no children), so nothing about the shared bench path changed for them.
