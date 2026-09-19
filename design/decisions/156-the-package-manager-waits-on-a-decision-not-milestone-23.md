@@ -45,7 +45,8 @@ checked:
    distributed to someone who cannot rebuild it". **That trigger fires for a package built at one
    commit and installed onto a system built at another. It does not fire for a whole image built
    from one commit**, because every component in it compiled against the same contract crates. So a
-   first slice that composes whole images (see `what-trivial-install-means.md`) does not need
+   first slice that composes whole images (see `what-trivial-install-means.md`, now §157, whose
+   ruling put runtime install on the path) does not need
    versions. Runtime install of a separately built package does, and that is a protocol question
    (the note prices it: the `fs_proto` request word is full, so a version is a connect-time
    handshake), not a question about repositories.

@@ -1,12 +1,49 @@
-# What "trivial install" means, measured against a stranger's first ten minutes today
+# 157. A trivial install is a web page, a USB drive, and packages over the internet
 
-**Status: PROPOSED 2026-09-19.** Written by milestone 198's scoping lane
-(`milestone/198-package-manager-scoping`). Shaped as a `design/decisions/` section for the
-integrator to mint, and it carries the proposed first slice of milestone 198.
+**Status: DECIDED.** calef, 2026-09-19 (16:40 UTC), in conversation with the maintainer:
 
-**Gate: DECISION.** calef rules the definition below. It is a definition and a sequencing choice,
-both reversible, so this proposal **recommends**. Blocked until answered: milestone 198's second
-half, which its own `BUGS` says "cannot be completed or even scoped" without one.
+> A trivial install is a web page that lets one download and install a minimal system via a USB
+> drive. That minimal system can then be expanded by installing packages over the internet.
+
+*(Section number provisional until the merge queue lands it.)* This **replaces** the definition the
+scoping lane recommended below (D2, a downloadable QEMU run bundle as the first rung). It is closest
+to the lane's D1, and goes past it in two ways D1 did not: the system is **installed** onto the
+machine, not only run from the stick, and it **grows over the network** afterwards. The lane's
+proposal follows unchanged as the evidence he ruled on; its "Recommendation" and "proposed first
+slice" are therefore superseded as a definition, though its measurements of today stand.
+
+## What the ruling contains, step by step
+
+1. **A web page.** Publishing it is the moment calef's no-third-parties precondition is spent
+   and DECISIONS §135's amendment 1 starts applying, so putting it up is his act, not a lane's.
+   Where it is hosted is not decided here.
+2. **Download a minimal system, and write it to a USB drive.** A PC-shaped machine is implied; the
+   x86_64 UEFI boot is already one 10 MB file on a stick (the lane's measurement below).
+3. **Install it.** The minimal system writes itself onto the machine's own disk and boots from it
+   afterwards, without the stick.
+4. **Expand it with packages over the internet.** Installing onto a running system is now part of
+   the definition, so the format, activation and trust forks
+   (`design/roadmap/proposals/what-a-package-is-on-disk-and-on-the-wire.md`,
+   `installing-a-package-mutates-or-composes.md`,
+   `what-vouches-for-a-package-the-image-did-not-carry.md`) are **on this definition's path**. The
+   lane had sequenced them after a first slice that installed nothing.
+
+## What the tree has for each step, checked 2026-09-19
+
+| Step | Present | Missing, and where it is tracked |
+|---|---|---|
+| Boot from a USB drive on a PC | x86_64 UEFI boot from one file (xenon, milestone 87) | an interactive prompt on the PC (milestone 182, PARTIAL); a keyboard that is not a UART (milestone 242, NOT-STARTED; milestone 192, PARTIAL) |
+| Install onto the machine's disk | a GPT parser; an NVMe driver on xenon (milestone 261, PARTIAL) | an installer; partitioning and formatting a disk this system did not create (milestone 140, NOT-STARTED, is the read half); a bootloader written to that disk. **No milestone owns the installer yet** |
+| Packages over the internet | a network stack (smoltcp) and a userspace virtio-net driver (milestone 30) | a driver for a real network card (only virtio-net exists); DNS was not checked; TLS does not exist in the tree, and taking one is a dependency decision (§46) |
+| A web page | nothing | hosting and publication, calef's |
+
+## What this does not decide
+
+- **Which PC is the reference machine.** xenon is the one on the bench; a stranger's may differ.
+- **The package format, activation shape and trust model.** They stay separate rulings, now needed.
+- **Whether the QEMU run bundle is still built.** It is no longer the first rung of the definition.
+  It may still earn a place as the stranger harness's vehicle or a developer convenience; that is a
+  lane's reversible call when the first slice is rescoped.
 
 ## What is being decided
 

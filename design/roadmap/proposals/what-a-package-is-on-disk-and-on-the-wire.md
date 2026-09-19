@@ -8,8 +8,9 @@ integrator to mint.
 it and the target code that reads it), so it is in AGENTS.md's irreversible category. **This
 proposal gives options and no winner**, per "recommend on reversible forks; give options only on
 irreversible ones." Blocked until it is answered: any package that leaves the machine that built it.
-Not blocked: the first slice in `what-trivial-install-means.md`, which composes whole images on the
-host and conveys no package separately.
+**On the install path since 2026-09-19**: DECISIONS §157 defines a trivial install as including
+packages fetched over the internet, so a package does leave the machine that built it. (This line
+said the first slice was not blocked, when that slice composed whole images and conveyed nothing.)
 
 ## What is being decided
 
