@@ -2501,6 +2501,23 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
         video_terminal::status::TERM_UP,
         "the display terminal did not come up",
     );
+    // **The driver's third report, and the second flush's hang** (milestone 177). `gpu_driver`
+    // sends `FLUSHED` once, after serving its first flush, and `SEND` blocks until somebody
+    // receives it. The terminal's first flush is the blank grid it paints before `TERM_UP`, so by
+    // now the driver is parked in that `SEND` and not in `RECV` on its display endpoint. Until this
+    // receive existed nothing ever took the message: the terminal's second `FLUSH` (the banner)
+    // queued behind a driver that would never serve again, and no prompt reached the screen. Every
+    // other spawner of this driver is a test that reads the digest, and two of them say in a
+    // comment that they must. The boot has no use for the digest; it only has to take it.
+    let [tag, _, pixels, ..] = crate::sched::ipc_recv(w.driver_report);
+    assert_eq!(
+        (tag, pixels),
+        (
+            graphics_protocol::status::FLUSHED,
+            graphics_protocol::PIXELS as u64
+        ),
+        "the GPU driver did not serve the terminal's first flush ({tag:#x})",
+    );
 
     let kbd_ep = crate::sched::create_rendezvous();
 
@@ -2512,7 +2529,7 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
     let keystrokes = match program("keyboard_driver")
         .and_then(|keyboard_driver| keyboard_service::start_direct(keyboard_driver, kbd_ep))
     {
-        Some(_) => KeystrokeSource::Keyboard,
+        Some(()) => KeystrokeSource::Keyboard,
         None => {
             let input = program("input")?;
             input_service::start_direct(input, kbd_ep, uart_rx_intid)?;

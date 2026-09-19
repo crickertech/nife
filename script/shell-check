@@ -70,8 +70,11 @@
 # every boot went unnoticed through passing runs (`components/src/login.rs`'s own BUGS). That assertion is
 # the obvious next ratchet and belongs with the fix for it.
 #
-# **The two graphical legs are red** behind milestone 177's display driver bug, and neither
-# `script/ci-build` nor CI runs them.
+# **The two graphical legs prove one key, not the script.** They are green since milestone 177 found
+# the hang that kept them red (the boot never received two drivers' one-time reports, so both
+# drivers sat in a blocking SEND; notes/framebuffer-contract.md has the evidence), and they are the
+# `shell-check-graphical` row of `script/ci-build`. What they check is a prompt on the screen and one
+# typed key echoed beside it; nothing past that is asserted on the graphical path.
 #
 # Name: provisional, and this lane proposes a rename. Introduced 2026-08-02. It boots the kernel's
 # `--features shell` configuration and types at the prompt. Two problems, and the first is the one
