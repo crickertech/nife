@@ -65,18 +65,33 @@
 //!   leaves (one PDPT covers 512 GiB) is the fix, and it needs a `CPUID` check for `PDPE1GB`.
 //!
 //! - **`CR4.PGE` is off, so the `G` bit the kernel's `Flags` set is ignored.** Every `mov cr3`
-//!   therefore flushes the whole TLB, which is correct and slow. It stays off through roadmap item
-//!   3 on purpose: nothing here switches address spaces often enough to measure yet, so turning it
-//!   on would be a change whose benefit could only be asserted. When it is turned on it has to be
-//!   *after* the fine map is installed, or the boot map's non-global entries are the ones that get
-//!   pinned.
+//!   therefore discards the kernel's own translations as well as the outgoing process's, which is
+//!   correct and costs a TLB refill of whatever kernel pages the next thread touches. **Measured
+//!   2026-09-19 (milestone 161) and left off, because the only instrument this tree has cannot see
+//!   the thing PGE changes.** QEMU 11.0.2's `cpu_x86_update_cr3` (`target/i386/helper.c`) calls
+//!   `tlb_flush` on every `CR3` write, whatever `PGE` and `PCIDE` say, so under TCG a global entry
+//!   never survives a switch; and icount counts retired guest instructions, which a TLB refill is
+//!   not. The x86 bench with an initrd (so `ctx_switch`, two processes and a `CR3` write per
+//!   switch, runs) printed **byte-identical tick counts on every line** with PGE on and off, which
+//!   is the proof of the first half rather than a result about the second. notes/benchmarks.md's
+//!   2026-09-19 section has the numbers and what would measure it: KVM on cordoba (blocked on one
+//!   `usermod`) or a bench boot on xenon. Turning it on is a two-line change after `install` in
+//!   [`init`] and [`init_secondary`] (after the fine map, or the boot map's entries are the ones
+//!   pinned), and nothing else here depends on it being off: kernel mappings are already global,
+//!   user mappings already are not, and every kernel unmap already ends in `invlpg`, which does
+//!   invalidate a global entry.
 //!
 //! - **`CR4.PCIDE` is off, so an address space has no hardware tag.** `crates/address_space_identifier` hands every
 //!   space a number and this architecture has nowhere to put it: PCID is `CR3[11:0]`, and with
 //!   PCIDE clear those bits are reserved-zero rather than a tag. [`ttbr0_value`] therefore drops the
 //!   number and [`flush_asid`] flushes the whole TLB rather than one space's entries. Both say so in
-//!   their own words; neither pretends to a selectivity the hardware does not have. Same reason as
-//!   PGE above: there is nothing to measure it against yet.
+//!   their own words; neither pretends to a selectivity the hardware does not have. **Unmeasured for
+//!   the same reason as PGE, and not a bit to flip**: with PCIDE on, `invlpg` and a plain `CR3`
+//!   write act on the *current* PCID only, so [`unmap_user_at`] on a space that is not installed,
+//!   [`flush_asid`] and the NMI shootdown's discard-everything arm would each leave another space's
+//!   tagged entries alive. That is a stale-translation defect (memory reading back as its previous
+//!   owner's), and closing it is `INVPCID` (checked in `CPUID`) on every one of those paths plus a
+//!   rule for tag reuse, which is a milestone rather than a line.
 //!
 //! - **The cacheable fill follows the firmware's map only as far as that map describes memory
 //!   *contiguously*** ([`firmware_fill_ceiling`]). That is a claim about how firmware writes
