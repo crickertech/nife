@@ -14,7 +14,7 @@ isolation is proved, its code is W^X, capabilities are unforgeable), and a compr
 unchecked, and its *authority* is broad, so within that authority a corrupted init can do real harm
 (endow malicious children, deny the system it was meant to start).
 
-**Deliverable, three halves.**
+**Deliverable, three parts.**
 
 1. **Verify init before it runs. (Phase B.1, BUILT 2026-07-29.)** A measured boot step: the kernel
    checks init's hash before dropping to EL0/U-mode at its entry. seL4's high-assurance deployments do

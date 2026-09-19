@@ -10,7 +10,7 @@ this block says so rather than inventing it.
 realized instance of principle 1: a real Mac's own `mount_smbfs` mounted a share served by nife's
 userspace SMB adapter over its own TCP stack, read files byte-correct, remounted, **wrote**, reported
 the volume's real free space, served **subdirectories**, and from 2026-08-17 **knew who was asking**.
-Four halves landed over three days and each was gated on both ISAs.
+Four pieces landed over three days and each was gated on both ISAs.
 
 **notes/smb.md is the record**, kept in full: what was demonstrated and when, the architecture, what
 was measured, what never worked, the scale of what was deleted, and why. A future reader deciding
