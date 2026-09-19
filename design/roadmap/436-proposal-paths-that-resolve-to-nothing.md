@@ -1,9 +1,13 @@
-# 435. Forty citations of a proposal path that now resolve to nothing
+# 436. Forty citations of a proposal path that now resolve to nothing
 
-**Status: NOT-STARTED.** Minted 2026-09-19 by milestone 434's lane, which found these while
-verifying that nothing still referenced the directory it was cutting. *(Number provisional.
-Milestone numbers are the integrator's at merge; on a collision the newer file moves and the older
-number stands, per `design/roadmap/README.md`.)*
+**Status: NOT-STARTED.** Minted 2026-09-19 by milestone 434's lane, which found the citations while
+retiring the token and deliberately did not fix them. **It minted this as 435 and the integrator
+renumbered it to 436 at merge**, because a concurrently-running maintainer session had minted 435 for
+a different sweep from a commit this lane's base predates. That is the collision the rule adopted the
+same evening predicts, on its first use, resolved the way that rule says: the newer file moves and
+the older number stands, so a block already collecting citations never renumbers. It cost one
+`git mv` and four lines of `sed`, which is the measured answer to whether provisional numbering is
+affordable. *(Number provisional until the merge queue lands it.)*
 
 **Gate: NONE.** Every one of them is a path in a file already in this tree, and the hard half is
 reading rather than deciding.

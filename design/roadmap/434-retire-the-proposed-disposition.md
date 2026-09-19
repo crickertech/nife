@@ -119,7 +119,7 @@ lane merged, and no gate in this tree can tell a stale paragraph from a current 
 was a person reading the file to change it, which is rung four, and this block does not fix that.
 
 **About forty citations of `design/roadmap/proposals/<slug>.md` still dangle**, in milestone blocks,
-notes, two audit reports and one shell script. They are untouched here and are milestone 435:
+notes, two audit reports and one shell script. They are untouched here and are milestone 436:
 433 chose deliberately to keep the slug on promotion so that a reader can resolve one with a single
 `ls design/roadmap/ | grep <slug>`, which makes them readable but does not make them true.
 
@@ -129,7 +129,7 @@ when it next runs, and nothing here touches the generated file.
 
 ## Follow-on
 
-- **Milestone 435.** About forty citations of `design/roadmap/proposals/<slug>.md` still dangle,
+- **Milestone 436.** About forty citations of `design/roadmap/proposals/<slug>.md` still dangle,
   across roughly twenty-seven files, and a handful of finished blocks still describe the directory
   in the present tense. Found while verifying that nothing referenced what this block was cutting,
   deliberately not fixed here, and minted as its own block under the convention this one finishes.
