@@ -473,6 +473,28 @@ mod tests {
         assert_eq!(info.memmap_entries, 4);
     }
 
+    /// **The words the boot print uses for each kind of range.**
+    ///
+    /// The memory map is printed once, at boot, and it is the only place anyone sees what the
+    /// firmware said about a range before the frame allocator acts on it. A line that named every
+    /// range the same way, or named none of them, would make the one useful thing about that
+    /// print (which ranges are RAM and which only look like it) unreadable.
+    #[test]
+    fn every_kind_of_range_has_its_own_word_for_the_boot_print() {
+        for (raw, word) in [
+            (1u32, "ram"),
+            (2, "reserved"),
+            (3, "acpi"),
+            (4, "acpi-nvs"),
+            (5, "unusable"),
+            (6, "disabled"),
+            (7, "pmem"),
+            (8, "unknown"),
+        ] {
+            assert_eq!(MemoryKind::from_raw(raw).name(), word, "type {raw}");
+        }
+    }
+
     /// Lay `entries` out as a memory map. A fixed-size buffer rather than a `Vec` because this
     /// crate is `no_std` in its test build too, which is the same constraint the kernel side has.
     fn entry_bytes<const N: usize>(entries: &[(u64, u64, u32)]) -> [u8; N] {
