@@ -44,7 +44,9 @@
 #   script/metrics --csv           print the current commit's row as one CSV line
 #   script/metrics --backfill      rewrite every week's row from git history, then the charts
 #   script/metrics --update        recompute THIS week's row in place, then the charts
-#   script/metrics --check         non-zero if --update would change anything (the gate)
+#   script/metrics --check         non-zero if --update would change anything, a missing week
+#                                  included. NOTHING RUNS IT: it cannot gate a pull request,
+#                                  because every merge moves the current week's numbers.
 #   script/metrics --charts        regenerate the SVGs from the CSV without touching the CSV
 #
 #   --coverage-from <lcov.info>    fill the coverage cell from an lcov file the caller produced
@@ -68,6 +70,23 @@
 # It is ISO 8601's designation with the hyphen dropped. It still sorts lexically, it still cannot be
 # mistaken for an ordinary number the way a bare `202636` can, and it is the dictionary key that
 # makes a rerun replace a row rather than append one.
+#
+# BUGS
+#
+# - **Which files carry a name is written twice**: here in `name_surfaces`, and in `script/names`'
+#   SURFACES table. The parse is shared (`scripts/name_provenance.py`); the enumeration is not,
+#   because this script reads a historical `git ls-tree` and that one reads the working tree. The
+#   two drifted once already: milestone 175 moved programs to `components/` and `fixtures/` on
+#   2026-09-13, `script/names` was told and this was not, and `names_total` showed a collapse from
+#   204 to 133 that never happened until 2026-09-19. Nothing compares the two counts. The cheap
+#   check a reader can run is that the current week's `names_total` equals `script/names`' total.
+# - **The coverage cell is carried, not recomputed.** A `--backfill` or `--update` keeps whatever
+#   coverage a week already had, because it cannot be re-derived without a build. So after the row
+#   is repointed at a later commit, as 2026W38 was on 2026-09-19, the coverage figure describes an
+#   earlier commit of that week than every other cell in the row.
+# - **Charts are checked by eye, in a browser.** QuickLook crops an SVG's right edge and made the
+#   legends look clipped on 2026-09-19 when they were not; render with a browser before believing a
+#   layout defect.
 
 set -e
 cd "$(dirname "$0")/.."
@@ -269,7 +288,15 @@ def name_surfaces(tree):
             continue
         if parts[0] == 'crates' and len(parts) > 2:
             crates.add(parts[1])
-        elif len(parts) == 3 and parts[:2] == ['user', 'src'] and path.endswith('.rs'):
+        # Programs lived in `user/src/` until milestone 175 split it into `components/src/` and
+        # `fixtures/src/` on 2026-09-13. This enumeration was not told, so from 2026W37 about ninety
+        # programs dropped out of `names_total` (204 to 133) and the chart showed a collapse that
+        # never happened, while `script/names`, which was told, went on reading 222. All three
+        # directories are read because history holds both layouts and a week is counted from the
+        # tree it had. The enumeration is still a second copy of `script/names`' SURFACES table;
+        # the BUGS entry in this file's header says so rather than pretend it cannot drift again.
+        elif (len(parts) == 3 and parts[1] == 'src' and path.endswith('.rs')
+              and parts[0] in ('user', 'components', 'fixtures')):
             out.append((parts[2][:-3], path, '//!'))
         elif len(parts) == 2 and parts[0] == 'script':
             out.append((parts[1], path, '#'))
@@ -522,19 +549,44 @@ def write_csv(rows):
 # between) makes taking one a decision, and a stacked bar is arithmetic and
 # string formatting. The side benefit is that a diff can review one, which a binary PNG refuses.
 #
-# Colours are Okabe-Ito, chosen because they hold their distinctions for the common forms of colour
-# blindness and read on both a white and a near-black ground. Only the text, axis and background
-# change between themes, which is why the palette is written once.
+# Colours are one categorical order with a LIGHT and a DARK step per hue, chosen for each surface
+# rather than one set of hexes asked to serve both. Validated on 2026-09-19 with the dataviz
+# skill's six-check validator against GitHub's own surfaces (#ffffff, #0d1117): every check passes
+# in both modes, worst adjacent colour-blind separation 9.1 light and 8.4 dark (OKLab x100, target
+# 8). This replaced Okabe-Ito, whose reputation is colour-blind separation and not contrast: its
+# yellow read at 1.32:1 on white, which made the milestones chart's "Removed" band nearly
+# invisible, and its gray failed the chroma floor. Three light steps still sit under 3:1 on white,
+# which is legal only with relief, and each chart carries three kinds: the legend, a <title> on
+# every segment, and weekly.csv as the table view. Slots are assigned in this fixed order and never
+# cycled; no chart uses more than seven.
 
-PALETTE = ['#0072B2', '#E69F00', '#009E73', '#CC79A7',
-           '#56B4E9', '#D55E00', '#F0E442', '#999999']
+PALETTE_LIGHT = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#4a3aa7']
+PALETTE_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#008300', '#9085e9']
 
 CHART_W, CHART_H = 860, 380
 PAD_L, PAD_R, PAD_T, PAD_B = 64, 210, 58, 56
+LEGEND_WRAP = 22   # characters per legend line before a label wraps to a second
 
 
 def esc(text):
     return (text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+
+def _wrap(text, width):
+    """Split a legend label on word boundaries into lines of at most `width` characters.
+
+    The legend column clipped six labels on 2026-09-19 because the width a label needs depends on
+    whichever font the viewer's machine substitutes, and the arithmetic had assumed a narrow one.
+    Wrapping is robust to that; a guess at glyph widths is not.
+    """
+    lines, line = [], ''
+    for word in text.split():
+        if line and len(line) + 1 + len(word) > width:
+            lines.append(line)
+            line = word
+        else:
+            line = word if not line else line + ' ' + word
+    return lines + ([line] if line else [])
 
 
 def week_label(week):
@@ -581,8 +633,15 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
            % (CHART_W, CHART_H, CHART_W, CHART_H, esc(title)),
            '<style>',
            '  .bg{fill:#ffffff} .fg{fill:#1f2328} .mut{fill:#59636e} .grid{stroke:#d1d9e0}',
+           '  .seg{stroke:#ffffff;stroke-width:1}',
+           # A halo in the surface colour behind each value label, so a total that lands on the
+           # dashed ceiling (the unsafe chart's 77s against its 88) stays legible.
+           '  .val{paint-order:stroke;stroke:#ffffff;stroke-width:3px;stroke-linejoin:round}',
+           ''.join('  .s%d{fill:%s}' % (j, c) for j, c in enumerate(PALETTE_LIGHT)),
            '  @media (prefers-color-scheme: dark){',
-           '    .bg{fill:#0d1117} .fg{fill:#e6edf3} .mut{fill:#9198a1} .grid{stroke:#30363d}}',
+           '    .bg{fill:#0d1117} .fg{fill:#e6edf3} .mut{fill:#9198a1} .grid{stroke:#30363d}',
+           '    .seg{stroke:#0d1117} .val{stroke:#0d1117}'
+           + ''.join(' .s%d{fill:%s}' % (j, c) for j, c in enumerate(PALETTE_DARK)) + '}',
            '  text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,'
            'sans-serif}',
            '</style>',
@@ -601,24 +660,9 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
         out.append('<text class="mut" x="%d" y="%.1f" font-size="10" text-anchor="end">%s</text>'
                    % (PAD_L - 8, y + 3, label))
 
-    for i, week in enumerate(weeks):
-        x = PAD_L + slot * i + (slot - bar_w) / 2
-        base = 0.0
-        for j, (_label, values) in enumerate(series):
-            value = values[i]
-            if not value:
-                continue
-            height = plot_h * value / axis_top
-            out.append('<rect x="%.1f" y="%.1f" width="%.1f" height="%.1f" fill="%s"/>'
-                       % (x, y_of(base + value), bar_w, height, PALETTE[j % len(PALETTE)]))
-            base += value
-        out.append('<text class="mut" x="%.1f" y="%d" font-size="10" text-anchor="middle">%s</text>'
-                   % (x + bar_w / 2, PAD_T + plot_h + 18, esc(week_label(week))))
-        if totals[i]:
-            out.append('<text class="fg" x="%.1f" y="%.1f" font-size="10" '
-                       'text-anchor="middle">%s</text>'
-                       % (x + bar_w / 2, y_of(totals[i]) - 5, _number(totals[i])))
-
+    # The ceiling is drawn BEFORE the bars and their value labels, so a total landing on it
+    # sits on top of the line rather than under it. It used to be drawn last and struck
+    # through the unsafe chart's 77s, three of them, sitting just under its 88.
     if ceiling:
         y = y_of(ceiling)
         out.append('<line x1="%d" y1="%.1f" x2="%.1f" y2="%.1f" stroke="#D55E00" '
@@ -627,13 +671,50 @@ def svg_chart(title, subtitle, weeks, series, path, ceiling=None):
         out.append('<text class="mut" x="%.1f" y="%.1f" font-size="10">ceiling %s</text>'
                    % (PAD_L + plot_w + 6, y + 3, _number(ceiling)))
 
+    for i, week in enumerate(weeks):
+        x = PAD_L + slot * i + (slot - bar_w) / 2
+        base = 0.0
+        top_j = max((j for j, (_l, v) in enumerate(series) if v[i]), default=None)
+        for j, (label, values) in enumerate(series):
+            value = values[i]
+            if not value:
+                continue
+            height = plot_h * value / axis_top
+            y = y_of(base + value)
+            # Every segment is stroked in the surface colour, which leaves a 2px gap between
+            # neighbours so a stack reads as parts even where two fills are close in lightness.
+            # Only the top of the whole bar is rounded: rounding every segment would make a
+            # stack look like beads.
+            tip = '<title>%s, %s: %s</title>' % (esc(week_label(week)), esc(label), _number(value))
+            r = min(4.0, height / 2, bar_w / 2) if j == top_j else 0.0
+            if r:
+                d = ('M%.1f,%.1f V%.1f Q%.1f,%.1f %.1f,%.1f H%.1f Q%.1f,%.1f %.1f,%.1f V%.1f Z'
+                     % (x, y + height, y + r, x, y, x + r, y, x + bar_w - r,
+                        x + bar_w, y, x + bar_w, y + r, y + height))
+                out.append('<path class="seg s%d" d="%s">%s</path>' % (j, d, tip))
+            else:
+                out.append('<rect class="seg s%d" x="%.1f" y="%.1f" width="%.1f" height="%.1f">'
+                           '%s</rect>' % (j, x, y, bar_w, height, tip))
+            base += value
+        out.append('<text class="mut" x="%.1f" y="%d" font-size="10" text-anchor="middle">%s</text>'
+                   % (x + bar_w / 2, PAD_T + plot_h + 18, esc(week_label(week))))
+        if totals[i]:
+            out.append('<text class="fg val" x="%.1f" y="%.1f" font-size="10" '
+                       'text-anchor="middle">%s</text>'
+                       % (x + bar_w / 2, y_of(totals[i]) - 5, _number(totals[i])))
+
+
     legend_x = CHART_W - PAD_R + 22
+    y = PAD_T + 6
     for j, (label, _values) in enumerate(series):
-        y = PAD_T + 6 + j * 19
-        out.append('<rect x="%d" y="%d" width="11" height="11" fill="%s"/>'
-                   % (legend_x, y, PALETTE[j % len(PALETTE)]))
-        out.append('<text class="fg" x="%d" y="%d" font-size="11">%s</text>'
-                   % (legend_x + 17, y + 10, esc(label)))
+        out.append('<rect class="s%d" x="%d" y="%d" width="11" height="11" rx="2"/>'
+                   % (j, legend_x, y))
+        lines = _wrap(label, LEGEND_WRAP)
+        spans = ''.join('<tspan x="%d" dy="%s">%s</tspan>'
+                        % (legend_x + 17, '0' if k == 0 else '13', esc(line))
+                        for k, line in enumerate(lines))
+        out.append('<text class="fg" y="%d" font-size="11">%s</text>' % (y + 10, spans))
+        y += 19 + 13 * (len(lines) - 1)
     out.append('</svg>')
     path.write_text('\n'.join(out) + '\n')
 
@@ -779,8 +860,15 @@ def main(argv):
         rows = {}
         targets = weeks.items()
     else:
+        # The current week, AND every week history has that the CSV does not. This is what closed
+        # the 2026W37 gap: the weekly workflow fires at 06:00 UTC on Monday and used to write only
+        # the week HEAD falls in, so when a lane merged after midnight (nine did on 2026-09-14, the
+        # last eleven minutes before the cron) HEAD was already in the new week and the week that
+        # had just finished was never written by anything. A missed or raced run now heals on the
+        # next one, and `--check` below fails on a gap rather than passing it every time.
         current = week_of(git('show', '-s', '--format=%cI', head).decode().strip())
-        targets = [(current, weeks.get(current, head))]
+        missing = [w for w in weeks if w not in rows and w != current]
+        targets = [(w, weeks[w]) for w in missing] + [(current, weeks.get(current, head))]
 
     for week, rev in targets:
         rows[week] = row_for(rev, week, coverage or kept_coverage.get(week, ''))
