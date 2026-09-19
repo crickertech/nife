@@ -84,6 +84,7 @@ version = "0.1.0"
 dependencies = [
  "bitmap_font",
  "boot_ladder",
+ "job_mix",
  "machine_discovery",
  "screen_console",
 ]

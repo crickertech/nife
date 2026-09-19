@@ -69,6 +69,11 @@ pub(crate) fn board_console() -> ExitCode {
     // worse than refusing it.
     let mut until_given = false;
     let mut cap_given = false;
+    // **`--until` is resolved after the loop** (milestone 324 part 3), because four of its words
+    // name rungs of a board's firmware prologue and `--board` may come after it on the line.
+    // Parsing it in place would make argument order load-bearing, which is the kind of thing
+    // nobody remembers.
+    let mut until_word: Option<String> = None;
 
     let mut i = 0;
     while i < args.len() {
@@ -143,24 +148,43 @@ pub(crate) fn board_console() -> ExitCode {
                 }
                 Err(code) => return code,
             },
-            "--until" => match value(i).map(parse_stage) {
-                Ok(Some(stage)) => {
-                    policy.until = stage;
+            "--until" => match value(i) {
+                Ok(v) => {
+                    until_word = Some(v.to_string());
                     until_given = true;
                 }
-                Ok(None) => {
-                    eprintln!(
-                        "board-console: --until wants spl, opensbi, uboot, handoff, banner, machine, selftest, tour, prompt, soak, or none"
-                    );
-                    return ExitCode::from(4);
-                }
+                Err(code) => return code,
+            },
+            // **Which board is on the other end** (milestone 324 part 3). It chooses the firmware
+            // prologue and nothing else: everything from the kernel banner up is shared, which is
+            // what calef's ruling settled and what `crates/board_console::board` implements.
+            "--board" => match value(i) {
+                Ok(v) => match board_console::board::profile(v) {
+                    Some(p) => policy.board = p,
+                    None => {
+                        eprintln!(
+                            "board-console: unknown board {v}. Known: {}.",
+                            board_console::board::PROFILES
+                                .iter()
+                                .map(|p| p.name)
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        );
+                        eprintln!(
+                            "board-console: argon has no profile on purpose; it has never booted \
+                             nife and a prologue read out of vendor documentation would be a guess."
+                        );
+                        return ExitCode::from(4);
+                    }
+                },
                 Err(code) => return code,
             },
             other => {
                 eprintln!("board-console: unknown argument {other}");
                 eprintln!(
                     "usage: cargo xtask board-console [--port <dev>] [--replay <log>] \
-                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>]\n\
+                     [--log <file>] [--for <duration>] [--until <stage>] [--quiet-after <duration>] \
+                     [--board <name>]\n\
                      \x20      cargo xtask board-console [--stop | --stop-after <n>]\n\
                      \x20      cargo xtask board-console --tally <log>"
                 );
@@ -168,6 +192,23 @@ pub(crate) fn board_console() -> ExitCode {
             }
         }
         i += 2;
+    }
+
+    // `--until`, now that `--board` is known. A word this board has no rung for is refused rather
+    // than watched for: `--until spl` against a machine with no SPL can only ever end in the time
+    // running out, and a refusal that names the words it does know costs the operator nothing.
+    if let Some(word) = &until_word {
+        match parse_stage(policy.board, word) {
+            Some(stage) => policy.until = stage,
+            None => {
+                eprintln!(
+                    "board-console: --until {word} is not a stage {} reaches. Known: {}.",
+                    policy.board.name,
+                    stage_words(policy.board)
+                );
+                return ExitCode::from(4);
+            }
+        }
     }
 
     // **What a writing mode changes about the rest of the session** (milestone 324), decided here
@@ -403,14 +444,23 @@ pub(crate) fn parse_duration(text: &str) -> Option<std::time::Duration> {
 /// `none` is not a formality: sustained watching with nothing to wait for is what
 /// `design/fatal-risks.md`'s multicore entry (risk 5) needs, and it is the case a boot check
 /// cannot cover.
-fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
+///
+/// **It takes a board** (milestone 324 part 3), because four of these words name rungs of a
+/// firmware prologue and a prologue belongs to a board. `spl` against xenon is not a stage this
+/// tool is missing, it is a line that machine will never print, and answering it with `None` here
+/// is what turns a two-minute wait into a refusal that says so.
+fn parse_stage(
+    board: &'static board_console::board::Profile,
+    text: &str,
+) -> Option<Option<board_console::progress::Stage>> {
     use board_console::progress::Stage;
+    // The firmware prologue first, because a board may name a rung whatever it likes and the
+    // portable words below are not a board's to redefine.
+    if let Some(rung) = board.rung(text) {
+        return Some(Some(Stage::Firmware(rung)));
+    }
     match text {
         "none" => Some(None),
-        "spl" => Some(Some(Stage::Spl)),
-        "opensbi" => Some(Some(Stage::OpenSbi)),
-        "uboot" => Some(Some(Stage::UBoot)),
-        "handoff" => Some(Some(Stage::Handoff)),
         "banner" => Some(Some(Stage::Banner)),
         // Milestone 268's three rungs. `selftest` is the one to reach for: unlike `tour` it is
         // printed by every architecture, and unlike `banner` it means the kernel proved something
@@ -423,8 +473,30 @@ fn parse_stage(text: &str) -> Option<Option<board_console::progress::Stage>> {
         // announced itself, which answers "did this build actually start soaking" in seconds
         // rather than making the operator watch a beat go by.
         "soak" => Some(Some(Stage::Soak)),
+        // Milestone 324 part 2, and `sweep-done` is the one a bench script wants: it is the only
+        // answer that separates a finished sweep from a wedged one. `sweep` alone answers the
+        // quicker question, whether this build started sweeping at all.
+        "sweep" => Some(Some(Stage::Sweep)),
+        "sweep-done" => Some(Some(Stage::SweepDone)),
         _ => None,
     }
+}
+
+/// The `--until` words this board understands, for the message printed when one is refused.
+fn stage_words(board: &'static board_console::board::Profile) -> String {
+    let mut words: Vec<&str> = board.keys().collect();
+    words.extend([
+        "banner",
+        "machine",
+        "selftest",
+        "tour",
+        "prompt",
+        "soak",
+        "sweep",
+        "sweep-done",
+        "none",
+    ]);
+    words.join(", ")
 }
 
 // ===========================================================================================

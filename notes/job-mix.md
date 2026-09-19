@@ -243,6 +243,15 @@ script written against an old transcript finds nothing rather than silently read
 best. `jpm_median` is not comparable with an old `jpm` even at the same task count: different
 statistic, different mix.
 
+**"Finds nothing" is the safer failure and it is still a silent one**, which the tree learned the
+same day (2026-09-19). Another session was building `crates/board_console`'s sweep recogniser
+against a capture from the old kernel. When this change landed, its parser went on matching the
+line's head, read none of the four numbers, and reported zeros; its tests stayed green, because the
+fixture it asserted against had been made from the same old kernel and the two agreed with each
+other. The fix re-captured the fixture from a current kernel and the limitation is recorded in
+`crates/board_console/src/progress.rs`'s `BUGS`: the markers are shared through `crates/job_mix`,
+the field names inside the line are not.
+
 **What a `job-mix-kind:` line says.** For one sweep point, summed over every released task and all
 21 repeats: how many jobs of that kind ran, the ticks they took (self-timed by each task, preemption
 included), the average per job, and for `map` and `spawn` the ticks spent inside `SPLIT` and
@@ -364,11 +373,11 @@ spread per point, and the census summary.
 | `job-mix: FAILED: could not spawn task N of 32` | the board ran out of memory or thread slots partway through building the pool | a real finding: `job_mix::MAX_TASKS` is 32 against `sched::MAX_THREADS`'s 256, so this is memory. Record N and reduce `MAX_TASKS` |
 | `job-mix: FAILED: could not create task N's 25-page budget` | the kernel could not carve a task's untyped region | memory again, before any subrun; the same routing as the line above |
 | `job-mix: FAILED: task N could not finish a map job` (or `spawn`) | the kernel refused a verb inside the job; the error is printed | a budget constant is too small for this machine (`job_mix::MAP_REGION_PAGES`, `CHILD_PAGES`), since QEMU passes on all three architectures. Record the error and raise the constant |
-| the census, then nothing, ever | a task, a server or a child wedged before the first subrun finished | the hang case. `ROUND_TRIP` blocks on a server and `SPAWN` on a child; either wedged looks exactly like this |
+| the census, then nothing, ever | a task, a server or a child wedged before the first subrun finished | the hang case, and since milestone 324 the tool says so rather than leaving it to the operator: `script/job-mix` and `script/board-console --until sweep-done` both exit **2**. `ROUND_TRIP` blocks on a server and `SPAWN` on a child; either wedged looks exactly like this |
 | `jpm_median` roughly flat across the whole sweep | this machine's scheduling is not the bottleneck at 32 tasks | **the honest negative**, and it is a result: see step 7 |
 | `jpm_median` rising and then falling, with a knee | throughput collapsing under task count | the positive result. Record where the knee is, which `job-mix-kind:` lines grew, and compare against milestone 134's E1 knee (8 to 11% by 64 to 96 threads on the dev Mac) |
 | `jpm_median` varying more between boots than across the sweep | the placement lottery dominates | not a result about §96 at all. More boots, and read `notes/soak.md`'s milestone 240 section |
-| `job-mix: done` and six clean points | the sweep ran | step 8 |
+| `job-mix: done` and six clean points | the sweep ran | exit **0**, and step 8 |
 
 ## Results
 
@@ -421,12 +430,19 @@ path rather than the whole kernel.
 
 ## BUGS
 
-- **`crates/board_console` has no recogniser for this run**, so `script/board-console` cannot tell a
-  finished sweep from a wedged one and the operator reads the log. Adding a `Stage` for it was
-  refused in this lane: the console's recogniser is a small piece of shared judgment that the soak
-  and the boot sequence both depend on, and growing it for a run nobody had taken would have been
-  guessing at what the failure modes are. Five boots have now been taken; milestone 324 owns the
-  recogniser, and the 2026-09-19 line formats (above) are what it should match.
+- **The sweep has no wall-clock heartbeat, so a watcher's wedge timer is a guess with headroom.**
+  This entry replaces *"`crates/board_console` has no recogniser for this run"*, which was true when
+  this page was written and stopped being true on **2026-09-19** (milestone 324 part 2): the
+  recogniser has `Stage::Sweep` and `Stage::SweepDone`, reading `crates/job_mix`'s own marker
+  constants, and `script/job-mix` judges with it and returns `script/board-console`'s five exit
+  statuses. What that milestone could not fix is the thing that makes a sweep harder to watch than a
+  soak. `kernel/src/soak.rs` prints every five seconds whatever the workload is doing, so a missed
+  beat is a missed deadline; `kernel/src/job_mix.rs` prints only when a subrun ends, so the longest
+  legitimate silence is the slowest subrun and a watcher has to allow for it. The default is sixty
+  seconds against a 4.0-second subrun measured under TCG, fifteen to one, and a board outside that
+  margin reads as wedged when it is merely slow. `--quiet-after 0` is the escape and it gives up the
+  detection. A heartbeat in the supervisor is the real fix and is a kernel change; milestone 324's
+  block records it as follow-on.
 - **There is no committed baseline and no `--check`.** `script/bench` gates because its icount counts
   are deterministic; a sweep whose entire subject is scheduling under contention is not, on any
   accelerator this tree has. A gate here would be asserting a tolerance nobody has measured.

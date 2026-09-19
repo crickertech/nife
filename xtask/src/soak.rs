@@ -25,13 +25,52 @@ use crate::{
 /// radon, by `notes/job-mix.md`'s procedure. What this proves is that the workload runs, that the
 /// sweep completes, and that the output is the shape the bench evening will read.
 ///
-/// The marker loop is `run_bench`'s, for `run_bench`'s reason: the kernel parks in `wfi` rather
-/// than exiting, so the host side owns the process and tears it down when it sees the done line.
-/// See `script/job-mix`.
+/// **The judging is `board_console`'s**, not this function's (milestone 324 part 2), which is the
+/// same move `soak_test` below already made and for the same reason: a second reader drifts from
+/// the bench-side one the first time either changes, and the cheapest way for two things to agree
+/// is for there to be one of them. What stood here instead was a loop over `starts_with("job-mix")`
+/// with no timeout at all, so a sweep that wedged mid-subrun hung this command forever and a
+/// finished sweep and a dead one shared an exit status. That is the limitation milestone 168's lane
+/// filed and milestone 324's part 2 names.
+///
+/// The kernel parks in `wfi` rather than exiting, so the host side owns the process and tears it
+/// down; that half is `run_bench`'s and is unchanged. See `script/job-mix`.
 pub(crate) fn job_mix_sweep() -> ExitCode {
+    use std::io::Write;
+    use std::time::Duration;
+
+    use board_console::progress::Stage;
+    use board_console::watch::{Policy, watch};
+
     let args: Vec<String> = std::env::args().skip(2).collect();
     let mut arch = "aarch64".to_string();
     let mut smp: Option<String> = None;
+    let mut log: Option<PathBuf> = None;
+    let mut policy = Policy {
+        // Ten minutes. The whole sweep is eighteen subruns and took well under a minute on the
+        // machine this was written on; the cap is for the run that never finishes, and a cap that
+        // is too generous costs a slow failure where one that is too tight costs a wrong answer.
+        total: Duration::from_secs(600),
+        until: Some(Stage::SweepDone),
+        // **Sized against a subrun, not against a heartbeat**, which is the one way a sweep is
+        // harder to watch than a soak. `kernel/src/soak.rs` beats on the wall clock every five
+        // seconds whatever it is doing, so fifteen is three missed beats. A sweep speaks only when
+        // a subrun ends, and the longest is the top of `job_mix::TASK_SWEEP`: measured at
+        // 249,234,771 ticks on a 62.5 MHz counter, which is 4.0 seconds, in the capture at
+        // `crates/board_console/tests/fixtures/captured/qemu-2026-09-19-aarch64-job-mix-medians.log`.
+        // Sixty seconds is fifteen times that, which is headroom for a slower host and still names
+        // a wedge inside a minute. It was twenty times a 2.6-second subrun until milestone 168
+        // took twenty-one repeats of a seven-kind mix instead of three of a five-kind one, which
+        // is the margin being spent by a change nowhere near this line. Overridable, because the
+        // number is a default rather than an agreement.
+        quiet_after: Some(Duration::from_secs(60)),
+        // Nothing this kernel prints after `job-mix: done` can change the verdict: it halts. The
+        // settle window exists for the measured-boot refusal that arrives *after* the awaited rung,
+        // and a sweep that has printed its last point is past every such gate.
+        settle: Duration::from_secs(0),
+        // An emulator has no firmware prologue to climb; see `boot_check`'s note.
+        board: &board_console::board::XENON,
+    };
     // `--hvf` and `--release` (added 2026-09-19 for the HVF cross-check in notes/job-mix.md): the
     // two flags the tree already spells this way, `run`'s and `bench`'s, rather than new ones. HVF
     // is aarch64 on an Apple host only, and release is what `script/board-image` builds for radon,
@@ -68,10 +107,34 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
                 Ok(v) => smp = Some(v.to_string()),
                 Err(code) => return code,
             },
+            "--log" => match value(i) {
+                Ok(v) => log = Some(PathBuf::from(v)),
+                Err(code) => return code,
+            },
+            "--for" | "--timeout" => match value(i).map(parse_duration) {
+                Ok(Some(d)) => policy.total = d,
+                Ok(None) => {
+                    eprintln!("job-mix: --for wants a duration like 90, 90s, 30m or 2h");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
+            "--quiet-after" => match value(i).map(parse_duration) {
+                // Zero disables it, for the operator who knows their board is slower than any
+                // number written here and would rather wait out the cap than be told it wedged.
+                Ok(Some(d)) => policy.quiet_after = if d.is_zero() { None } else { Some(d) },
+                Ok(None) => {
+                    eprintln!("job-mix: --quiet-after wants a duration, or 0 to disable");
+                    return ExitCode::from(4);
+                }
+                Err(code) => return code,
+            },
             other => {
                 eprintln!("job-mix: unknown argument {other}");
                 eprintln!(
-                    "usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>] [--hvf] [--release]"
+                    "usage: cargo xtask job-mix [--arch aarch64|riscv64|x86_64] [--smp <n>] \
+                     [--hvf] [--release] [--for <duration>] [--quiet-after <duration>] \
+                     [--log <file>]"
                 );
                 return ExitCode::from(4);
             }
@@ -137,6 +200,33 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
         return ExitCode::from(4);
     }
 
+    // The log is not optional, for `soak-test`'s reason: a console session whose evidence exists
+    // only in a terminal that has since scrolled is the failure this tree keeps writing down, and a
+    // capture can be re-read with `script/board-console --replay`.
+    let log_path = log.unwrap_or_else(|| {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        PathBuf::from(format!("target/job-mix-{arch}-{stamp}.log"))
+    });
+    if let Some(parent) = log_path.parent()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        eprintln!("job-mix: cannot create {}: {e}", parent.display());
+        return ExitCode::from(4);
+    }
+    let file = match std::fs::File::create(&log_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("job-mix: cannot write {}: {e}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+    let mut sink = Tee {
+        file,
+        terminal: std::io::stdout(),
+    };
+
     let mut cmd = Command::new(runner);
     cmd.arg(format!(
         "{}/target/{target}/{}/kernel",
@@ -148,10 +238,14 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
         cmd.env("NIFE_SMP", n);
     }
     cmd.stdout(std::process::Stdio::piped());
+    // The runner's diagnostics stay on this terminal rather than joining the captured stream, so
+    // that a replay of the log sees what a serial cable would have seen. `soak_test`'s reason.
     cmd.stderr(std::process::Stdio::inherit());
 
     eprintln!(
-        "--- job-mix: {arch}, a rehearsal; the number is taken on radon (notes/job-mix.md) ---"
+        "--- job-mix: {arch}, a rehearsal; the number is taken on radon (notes/job-mix.md), \
+         logging to {} ---",
+        log_path.display()
     );
     let mut child = match cmd.spawn() {
         Ok(c) => c,
@@ -167,26 +261,10 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
         return ExitCode::from(4);
     };
 
-    use std::io::BufRead;
-    let mut done = false;
-    let mut points = 0usize;
-    let mut failed = false;
-    for line in std::io::BufReader::new(stdout).lines() {
-        let Ok(line) = line else { break };
-        if line.starts_with("job-mix") {
-            println!("{line}");
-        }
-        if line.contains("job-mix: FAILED") {
-            failed = true;
-        }
-        if line.starts_with("job-mix: tasks=") {
-            points += 1;
-        }
-        if line.trim_end() == "job-mix: done" {
-            done = true;
-            break;
-        }
-    }
+    // `false`, not `true`: a pipe from a process really does end when that process dies, which a
+    // serial port never does.
+    let session = watch(stdout, &mut sink, &policy, false);
+
     // The children first and then the wrapper, `run_bench`'s order and for its reason: the x86
     // runner does not `exec`, so killing the wrapper alone orphans the emulator.
     let _ = Command::new("pkill")
@@ -194,22 +272,49 @@ pub(crate) fn job_mix_sweep() -> ExitCode {
         .status();
     let _ = child.kill();
     let _ = child.wait();
+    let _ = sink.flush();
 
-    if failed {
-        eprintln!("job-mix: the kernel refused to start the sweep; see the lines above");
-        return ExitCode::from(1);
-    }
-    if !done {
-        eprintln!("job-mix: QEMU ended before printing `job-mix: done`; {points} point(s) printed");
-        return ExitCode::from(3);
-    }
+    let session = match session {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("job-mix: {e}");
+            eprintln!("job-mix: log at {}", log_path.display());
+            return ExitCode::from(4);
+        }
+    };
+
     eprintln!();
-    eprintln!("job-mix: the sweep completed, {points} point(s).");
+    eprintln!("job-mix: {}", session.summary());
+    match session.progress.sweep_point() {
+        // The spread and not the median alone: the kernel prints the two ends so a figure is
+        // never quoted without them, and a summary that dropped them here would undo that at the
+        // one line a person reads instead of the log.
+        Some(point) => eprintln!(
+            "job-mix: last point tasks={} jobs={} repeats={} ticks_min={} ticks_median={} \
+             ticks_max={} jpm_median={}",
+            point.tasks,
+            point.jobs,
+            point.repeats,
+            point.ticks_min,
+            point.ticks_median,
+            point.ticks_max,
+            point.jpm_median
+        ),
+        // Said out loud rather than left as an absence, because an empty tail is exactly what a
+        // kernel that refused and a kernel that wedged before its first point both look like.
+        None => eprintln!("job-mix: no point of the sweep was measured"),
+    }
+    eprintln!("job-mix: log at {}", log_path.display());
+    // Said on every clean run, on purpose, for `soak_test`'s reason: this is the sentence that gets
+    // dropped when a number is quoted.
     eprintln!(
         "job-mix: these magnitudes are NOT the measurement. TCG models no cache and HVF puts a \
          host scheduler under every guest thread; DECISIONS \u{a7}96's number is taken on radon."
     );
-    ExitCode::SUCCESS
+    // **The same five statuses `script/board-console` returns**, computed by the same code. `2` is
+    // new here and it is part 2's whole point: a sweep that spoke and then stopped is a hang, where
+    // before this it was indistinguishable from one that finished.
+    ExitCode::from(u8::try_from(session.exit_code()).unwrap_or(4))
 }
 
 /// **The QEMU half of milestone 219's sustained run.** Boot a `--features soak_test` kernel, watch it
@@ -245,6 +350,8 @@ pub(crate) fn soak_test() -> ExitCode {
         until: None,
         quiet_after: Some(Duration::from_secs(15)),
         settle: Duration::from_secs(0),
+        // An emulator has no firmware prologue to climb; see `boot_check`'s note above.
+        board: &board_console::board::XENON,
     };
 
     let mut i = 0;

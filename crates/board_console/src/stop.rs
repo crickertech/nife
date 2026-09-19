@@ -642,7 +642,7 @@ mod tests {
         ] {
             // Only the lines this module wrote, which are the ones beginning `board-console:`.
             for line in log.lines().filter(|l| l.starts_with("board-console:")) {
-                let mut progress = crate::progress::BootProgress::new();
+                let mut progress = crate::progress::BootProgress::default();
                 progress.observe_line(line);
                 assert_eq!(
                     progress.reached(),
