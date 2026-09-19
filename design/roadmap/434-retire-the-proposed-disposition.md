@@ -1,13 +1,14 @@
 # 434. Retire the `Proposed.` disposition and the machinery that read its directory
 
-**Status: NOT-STARTED.** Minted 2026-09-19 by this lane under the convention it exists to finish:
-the ruling of the same day says a lane that identifies work writes the numbered block itself, with
-the number **provisional**, so this is that rule's first use. *(Number provisional. Milestone numbers
-are the integrator's at merge; on a collision the newer file moves and the older number stands, per
-`design/roadmap/README.md`.)*
+**Status: BUILT** 2026-09-19, in one lane. Minted the same day by that lane under the convention it
+exists to finish: the ruling of 2026-09-19 says a lane that identifies work writes the numbered
+block itself, with the number **provisional**, so this is that rule's first use. *(Number
+provisional. Milestone numbers are the integrator's at merge; on a collision the newer file moves
+and the older number stands, per `design/roadmap/README.md`.)*
 
-**Gate: NONE.** The decision is already made and written down in two places. What is left is the
-code that has not caught up.
+**It carried `Gate: NONE` while it was open**, because the decision was already made and written
+down in two places and what was left was the code that had not caught up. The line is gone because a
+finished block's gate can only be stale.
 
 ## The contradiction this closes
 
@@ -120,7 +121,38 @@ notes, two audit reports and one shell script. They are untouched here and are m
 by `.github/workflows/metrics.yml` on a schedule, this week's `proposals_unnumbered` will fall to 0
 when it next runs, and nothing here touches the generated file.
 
+## Follow-on
+
+- **Milestone 435.** About forty citations of `design/roadmap/proposals/<slug>.md` still dangle,
+  across roughly twenty-seven files, and a handful of finished blocks still describe the directory
+  in the present tense. Found while verifying that nothing referenced what this block was cutting,
+  deliberately not fixed here, and minted as its own block under the convention this one finishes.
+  Number provisional.
+- **Recorded.** *The question check 6b asked is still open and this block did not answer it.* A risk
+  entry in `design/fatal-risks.md` that cites a `NOT-STARTED` or `PARTIAL` milestone which changed
+  under it is invisible, because check 6a reads only the roadmap's recorded Built date and 6b, which
+  read git, went with the directory it was scoped to. Recorded in `script/fatal-risks`' own header
+  beside check 6, where the next person to touch that gate is already reading, with the reason it is
+  not taken here: widening the git half to every cited path trades a one-path noise surface for a
+  tree-wide one, which is a judgement about what the gate should accept.
+- **Recorded.** *Nothing re-reads a script header.* The prose cut here had been wrong since the hour
+  milestone 433's last lane merged, and no gate in this tree can tell a stale paragraph from a
+  current one. Recorded in this block's `BUGS` above. It is the same blind spot `script/roadmap`
+  records for well-formed-but-wrong citations, one layer out, and a gate that tried to read prose
+  for intent is what AGENTS.md priced at `git grep -w TODO`'s 82% false-positive rate.
+- **Done.** *`script/metrics --check` is red and stays red until the scheduled run.* Nothing here
+  touches `notes/project-metrics/weekly.csv`, which `.github/workflows/metrics.yml` regenerates with
+  `--update`; it was already red on this block's base commit `d6db414` for reasons of its own. The
+  branch that carries this block leaves the generated file alone on purpose, because two maintainer
+  branches were open against that CSV when this landed.
+- **Refused.** *Deleting `scripts/roadmap_proposals.py`.* It was the expected answer and it is
+  wrong: `script/metrics --backfill` restates every week from git history, so removing the parse
+  would rewrite two true weeks (74 at 2026W36, 93 at 2026W38) to zero, which is the dashboard lying
+  about a fortnight that happened. The module keeps its parse half and lost `promoted_from`.
+
 ## Index row
+
+**Built:** 2026-09-19
 
 The tree contradicted itself for an afternoon. calef retired the `Proposed.` disposition and the
 `design/roadmap/proposals/` directory on 2026-09-19, milestone 433 drained all 106 files out of it,
