@@ -693,6 +693,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "portable_executable"
+version = "0.1.0"
+
+[[package]]
 name = "proc-macro2"
 version = "1.0.107"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -812,6 +816,13 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
+
+[[package]]
+name = "stick_maker"
+version = "0.1.0"
+dependencies = [
+ "measured_boot",
+]
 
 [[package]]
 name = "subtle"
@@ -997,8 +1008,11 @@ checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
 name = "uefi_loader"
 version = "0.1.0"
 dependencies = [
+ "device_tree_blob",
  "elf",
  "machine_discovery",
+ "measured_boot",
+ "nifefs",
 ]
 
 [[package]]
@@ -1094,6 +1108,7 @@ dependencies = [
  "graphics_protocol",
  "measured_boot",
  "nifefs",
+ "portable_executable",
  "video_terminal",
 ]
 

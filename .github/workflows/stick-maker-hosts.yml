@@ -1,0 +1,102 @@
+name: stick_maker on Linux and Windows
+
+# **Why this exists: it is the only place the Linux and Windows halves of `stick_maker` run.** The
+# program is developed on a Mac, where its macOS half is proved against hdiutil-attached files
+# (scripts/stick-maker-proof.sh). Its Linux half (sysfs discovery, `sfdisk` and `mkfs.vfat`,
+# mounting) and its Windows half (four `kernel32` calls) can be cross-built from that Mac only in
+# part and executed there not at all. These two jobs execute them on their own operating systems:
+# Linux against a loop device, which is that host's file-backed disk, through both the erase and the
+# copy paths; Windows through discovery, which is all it automates (see src/windows.rs's BUGS).
+#
+# Cheap by construction: it builds only `stick_maker`, around a stand-in boot file, not nife. The
+# boot files are proved elsewhere (`cargo xtask stick-boot`); what is under test here is the program
+# that finds a disk and writes to it.
+#
+# **It runs on drafts, unlike ci.yml, and it is not a required check.** It is path-filtered to the
+# program, takes a few minutes on two small runners, and the lane building the program needs its
+# answer before the pull request is ready, not after. Not being required means a failure here
+# informs a merge rather than jamming the queue. Name: provisional, 2026-09-19.
+
+on:
+  pull_request:
+    paths:
+      - "crates/stick_maker/**"
+      - ".github/workflows/stick-maker-hosts.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stick-maker-hosts-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    name: stick_maker on Linux (loop device)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: host tests
+        run: cargo test -p stick_maker
+
+      - name: build around a stand-in boot file
+        run: |
+          mkdir -p payload/EFI/BOOT
+          printf 'a stand-in for BOOTX64.EFI\n' > payload/EFI/BOOT/BOOTX64.EFI
+          NIFE_STICK_PAYLOADS="$PWD/payload" NIFE_STICK_BUILD=ci cargo build -p stick_maker --release
+
+      - name: the runner's own disks are never offered
+        run: |
+          target/release/stick_maker --list --all
+          target/release/stick_maker --list | grep -q "No removable disk found."
+
+      - name: the erase path, on a blank loop device
+        run: |
+          truncate -s 64M stick.img
+          dev="$(sudo losetup -fP --show stick.img)"
+          echo "DEV=$dev" >> "$GITHUB_ENV"
+          sudo target/release/stick_maker --include-disk-images --disk "${dev#/dev/}" --erase
+          sudo mkdir -p /mnt/stick
+          sudo mount "${dev}p1" /mnt/stick
+          cmp /mnt/stick/EFI/BOOT/BOOTX64.EFI payload/EFI/BOOT/BOOTX64.EFI
+          cat /mnt/stick/NIFE.TXT
+          sudo blkid "${dev}p1"
+          sudo blkid "${dev}p1" | grep -q 'TYPE="vfat"'
+
+      - name: the copy path, on the same device, keeping a file already there
+        run: |
+          echo "a photo" | sudo tee /mnt/stick/holiday.txt > /dev/null
+          sudo rm /mnt/stick/EFI/BOOT/BOOTX64.EFI
+          sudo target/release/stick_maker --include-disk-images --disk "${DEV#/dev/}" --yes
+          sudo mount "${DEV}p1" /mnt/stick 2> /dev/null || true
+          cmp /mnt/stick/EFI/BOOT/BOOTX64.EFI payload/EFI/BOOT/BOOTX64.EFI
+          grep -q "a photo" /mnt/stick/holiday.txt
+
+  windows:
+    name: stick_maker on Windows (discovery)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: host tests
+        run: cargo test -p stick_maker
+
+      - name: build around a stand-in boot file, for x86_64 and arm64
+        run: |
+          mkdir -p payload/EFI/BOOT
+          printf 'a stand-in for BOOTX64.EFI\n' > payload/EFI/BOOT/BOOTX64.EFI
+          rustup target add aarch64-pc-windows-msvc
+          NIFE_STICK_PAYLOADS="$PWD/payload" NIFE_STICK_BUILD=ci cargo build -p stick_maker --release
+          NIFE_STICK_PAYLOADS="$PWD/payload" NIFE_STICK_BUILD=ci cargo build -p stick_maker --release --target aarch64-pc-windows-msvc
+
+      - name: the runner's own drives are never offered
+        run: |
+          target/release/stick_maker.exe --list --all
+          target/release/stick_maker.exe --list | grep -q "No removable disk found."
