@@ -3,7 +3,10 @@
 **Status: PARTIAL.** Minted 2026-09-09 by calef, from milestone 267's measurement and the parity
 review that followed it. *(Number provisional until the merge queue lands it.)*
 
-**Gate: DECISION, MILESTONE 182.** The ladder itself is decided (calef, 2026-09-09, in
+**Gate: NONE.** *(2026-09-19, milestone 182's lane, edited because `script/roadmap` refuses a gate
+on a BUILT milestone: DECISIONS §149 was resolved 2026-09-15, milestone 299 put a prompt on x86_64,
+and milestone 182 is BUILT with a `shell-check` leg typing at it. The rest of this paragraph is the
+record of what the gate was.)* The ladder itself is decided (calef, 2026-09-09, in
 conversation) and nothing in it is a design fork. What is gated is only its **last rung on
 x86_64**: that architecture cannot reach a prompt until DECISIONS §149 says how `swish` gets a
 console there. Milestone 182's entry point, the other half of this gate, was built on 2026-09-14

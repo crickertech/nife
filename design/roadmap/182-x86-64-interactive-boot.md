@@ -1,21 +1,18 @@
 # 182. x86_64's own interactive-boot entry point
 
-**Status: PARTIAL.** Split off from [milestone 177](177-graphical-interactive-boot.md),
+**Status: BUILT.** 2026-09-19. Split off from [milestone 177](177-graphical-interactive-boot.md),
 2026-08-27, once that milestone's build lane found piece 3 (originally scoped as "build x86_64's
 own interactive-boot entry point first") needs a from-scratch ELF-loading boot path, not wiring: a
 substantially larger, separate undertaking than pieces 1-2's device attachment and program swap.
 Built in part on 2026-09-14, inside [milestone 268](268-the-boot-ladder.md)'s lane, because 268's
-top rung on x86_64 is not reachable any other way.
+top rung on x86_64 is not reachable any other way; the prompt came with
+[milestone 299](299-x86-port-capability.md) on 2026-09-15; the third `script/shell-check` leg,
+the last outstanding item, on 2026-09-19 (below, "The third leg").
 
-**Gate: NONE.** **Resolved 2026-09-15**, and milestone 299 is now BUILT, so this no longer waits on
-it. The entry point is built and the progenitor runs
-at ring 3 from the archive. What was left, a console `swish` can reach, was DECISIONS §149; calef
-resolved it 2026-09-15 by reversing DECISIONS §121 (`AMENDED`): x86's console is a userspace driver
-holding a port-range capability, not a kernel thread. Building that capability and moving the driver
-is [milestone 299](299-x86-port-capability.md), which reaches the prompt this milestone and 268 both
-left Outstanding. The `shell-check` leg lands with 299. The narrative below predates the ruling and
-still weighs §149's options; it is kept as the record and the `## What §149 would take from here`
-section is answered by 299.
+DECISIONS §149 was resolved 2026-09-15 by reversing DECISIONS §121 (`AMENDED`):
+x86's console is a userspace driver holding a port-range capability, not a kernel thread. The
+narrative from the next paragraph down to "The third leg" predates that ruling and still weighs
+§149's options; it is kept as the record, and its BUGS entries that 299 answered are marked so.
 
 **Amended 2026-09-09: this block's central premise no longer holds, and the milestone is smaller
 than it reads.** It says the graphical stack is x86_64's *only possible* route to an interactive
@@ -58,8 +55,7 @@ the 2026-09-09 amendment above; kept as the record of what was believed.)*
    2026-09-14.**
 2. **The x86_64-specific capability grants** the other two boots each hand-assemble for their own
    architecture. **Built for everything but the console**, which is the §149 question.
-3. **A third `script/shell-check` `--arch` leg.** Not built: there is no prompt to type at until
-   §149 is decided.
+3. **A third `script/shell-check` `--arch` leg.** **Built 2026-09-19**; see "The third leg".
 
 ## What was built (2026-09-14)
 
@@ -167,6 +163,97 @@ Priced against the tree as it stands, so the ruling can be made without reading 
   xenon has neither device, and `board_console` cannot read a monitor, so the bench loses its
   serial path.
 
+## The third leg (2026-09-19)
+
+`script/shell-check --arch x86_64` boots x86_64 to its prompt and types the same
+`SHELL_CHECK_SCRIPT` the other two legs type, over COM1, and checks every answer. `script/shell-check`
+with no arguments now runs all three.
+
+### Which boot it drives, and what that costs
+
+**The UEFI image under OVMF**: `cargo xtask uefi-image`'s `target/esp/EFI/BOOT/BOOTX64.EFI`, the file
+a customer copies to a USB stick (DECISIONS §157, milestone 198's rung 1), booted by
+`scripts/qemu-uefi-x86_64.sh`. Not QEMU's PVH `-kernel` path, which `script/test`'s x86_64 suite and
+`script/boot-check` use.
+
+Measured on patagonia, 2026-09-19, one core, the same kernel and archive, a temporary switch in the
+leg selecting the runner (not committed):
+
+| | PVH (`qemu-runner-x86_64.sh`) | UEFI (`qemu-uefi-x86_64.sh`) |
+|---|---|---|
+| runner start to the shell's banner | 2.0 s, 1.9 s | 6.0 s |
+| the 60 typed lines | 78 s, 79 s | 325 s |
+| whole leg, warm target directory | 90 s | 341 s |
+
+**So the UEFI leg costs about four minutes more per run**, and the cause is known rather than
+guessed: under firmware the kernel hands the screen to a userspace terminal (milestone 400), and
+the console server writes every byte to COM1 and then waits for the terminal to draw it before
+acknowledging the write (`components/src/console.rs`, milestone 400's BUGS). Under TCG that draw
+is a CPU copy through an emulated framebuffer, once per write.
+
+**Why UEFI anyway.** It is the one a customer boots, and it carries four things PVH does not: the
+loader, the firmware's memory map and ACPI tables (2 GiB of RAM, tables above 1 GiB where a real
+machine puts them), OVMF's placement of the PCI functions' BARs, and the screen tee. A shell
+regression on any of those passes a PVH leg. The four minutes are also a finding rather than
+overhead: they are what milestone 400's "the serial console now waits for the screen" costs, now
+measured at the prompt instead of described. Would UEFI still win if both cost the same? Yes; this
+was not decided on effort, and the cost it does carry is stated so it can be weighed.
+
+**What it costs CI.** `script/ci-build`'s `shell-check` row runs every leg, so CI's `build + test`
+job gains this one with no workflow change. That job took 12.6 to 13.4 minutes green on the three
+most recent runs, against a 30-minute timeout; the leg adds about six minutes on patagonia and
+probably more on a GitHub runner. Not yet measured in CI; the first green run of this pull request
+is that measurement. `.github/workflows/ci.yml` says where the leg goes if it pushes the job
+toward its timeout.
+
+### What differs from the other two legs, and why
+
+- **The default kernel, tour first.** x86_64 has no early hand-over under `--features shell`; every
+  boot runs the tour and then hands over (milestone 268), and `uefi_image` builds exactly that.
+- **The checks read from the hand-over on.** The tour's userspace demonstration kills two threads on
+  purpose (`x86_userspace_demo`'s supervised deaths), so the killed-thread check and the
+  "was the kernel writing during the boot" test start at `nife: handing the system to the userspace
+  progenitor.` The first version read the whole transcript and failed on those two deaths, which is
+  how this was found.
+- **It waits for the kernel's hand-over report, then presses Enter.** `x86_hand_over` watches the
+  progenitor for ten seconds and prints two lines after the prompt, so the transcript does not end
+  in `$ ` and a line typed in that window could have the report spliced through its echo. The leg
+  waits for the report's last line and presses Enter once for a fresh prompt. This is ordering the
+  gate's own reads, not a readiness signal for input: typing before the prompt works (below).
+- **The RedoxFS disk is attached under firmware too, on request.** `scripts/qemu-uefi-x86_64.sh`
+  attaches `nifefs-redoxfs.img` as a second `virtio-blk-pci` function when `NIFE_UEFI_REDOXFS` is set
+  (name provisional), because `>`, `<`, `ls` and `rm` need a filesystem. The leg sets it; nothing
+  else does. It is opt-in rather than the PVH runner's attach-when-present because attaching it
+  unconditionally turned `uefi-test` red (see BUGS).
+
+### The script lines, and the four it omits
+
+**60 of 64 lines run.** The omitted four are `uuid > id.txt`, `wc < id.txt`, `uuid 2> ent.txt` and
+`wc < ent.txt`, each carrying its reason in `shell_check_x86_omits` (`xtask/src/main.rs`), under the
+rule milestone 150 added. The reason: `uuid` draws from the entropy service, which the progenitor
+builds only from a virtio-rng the kernel found, and the kernel finds one only on a virtio-mmio slot
+(`kernel::user::boot_virtio_rng_device`); `q35` has no mmio bus. `caps uuid` still runs, because it
+is a preview of the manifest and needs no device. A line added to the script runs on x86_64 unless
+someone argues it out.
+
+### Capability slots at peak
+
+**17 of 24**, read by a temporary instrument (a kernel loop printing `capability::highest_seen()`
+whenever it rose, not committed). That is five below aarch64 and riscv64's 22, consistent with the
+three virtio-rng slots x86_64 does not grant and the entropy endowment it does not build. Not tighter.
+
+**The number the leg itself prints is 5 of 24, and it is wrong**, which is the finding worth more
+than the number. See BUGS.
+
+### Verified
+
+`script/shell-check --arch x86_64` green on seven runs on 2026-09-19: four at one core (the default),
+two at `NIFE_SMP=2`, one with the final code. Typing before the prompt was also probed directly, at
+two cores: a line written to COM1 the moment the serial log showed `handing the system`,
+`every program measured` and `nife capability shell` was answered every time, within a second. So a
+keystroke that arrives before the input driver is polling waits in the 16550 and is not lost, under
+QEMU at least.
+
 ## What this does not decide
 
 Whether x86_64's own boot path needs anything architecture-specific beyond the ELF-loading
@@ -176,40 +263,61 @@ before assuming parity with aarch64/riscv64 on every point.
 
 ## What this unblocks
 
-x86_64 joining aarch64/riscv64 as a real interactive-boot target once §149 is decided, and with it
-milestone 268's top rung on all three architectures.
+**Milestone 268's top rung on x86_64**: a default x86_64 boot reaches `swish`, and now a gate types
+at it. What 268 still owes there is its own item, `script/boot-check` asserting the prompt, which
+this milestone does not build.
 
 ## BUGS
 
-- **There is no prompt on x86_64**, and the boot says so in its last two lines rather than going
-  quiet. That is §149, recorded under the gate above.
-- **Slot 1 is a placeholder frame on x86_64.** Marked as a foot gun at the grant in
-  `kernel::user::riscv_shell_boot`. Whatever §149 decides replaces it; until then a program that
-  maps it gets a zeroed read-only page and nothing else.
-- **`riscv_shell_boot` is now wrong on one of its two architectures.** It was kept rather than
-  renamed, because a rename is calef's. `boot_via_progenitor` is taken by the aarch64 path, so the
-  obvious noun is spoken for. Proposed: a portable name for the function both architectures enter,
-  decided with `riscv_hand_over`/`x86_hand_over`, which are provisional and one shape away from
-  being one function.
-- **Two of the progenitor's children die at every x86_64 boot**, on purpose, and each death prints a
-  kernel fault report. A reader meeting `user thread 6 killed` on a healthy boot has to read
-  `x86_hand_over`'s summary line to learn it is expected.
-- **`x86_hand_over` watches for ten seconds** before it prints its summary. On a boot where the
-  progenitor keeps running, which is every boot now, that is ten seconds between the hand-over and
-  the last line. The bound is generous for TCG and is not measured on xenon.
+- **The x86_64 capability-slot gauge reports the hand-over, not the peak.** The gauge is printed from
+  the scheduler's idle loop (`kernel::cap::report_peak`). x86_64's input driver polls COM1 and
+  yields rather than blocking (milestone 299), so it is always runnable, the run queue is never
+  empty, and the idle loop never runs again once it starts. The leg prints 5 of 24 and says beside
+  it that the number is stale; the real peak was 17. The `ABOVE` check beside it cannot fire on
+  x86_64, which is a gate that cannot fail, stated rather than hidden. Recorded at the gauge's use in
+  `xtask/src/main.rs` and in `components/src/input.rs`.
+- **An x86_64 prompt holds a host core at 100%.** Same cause: the idle loop never runs, so the core
+  never halts. QEMU used 76 CPU-seconds in 78 wall-seconds sitting at the prompt with nothing typed.
+  On a PC that is a fan and a battery. Recorded in `components/src/input.rs`; proposed in Follow-on.
+- **The x86_64 leg is four times slower than the other two**, because the console waits for the
+  screen (above). A wedged screen terminal would stall this leg's serial transcript as well, which is
+  milestone 400's BUGS entry, not a new one.
+- **`x86_hand_over` still watches for ten seconds** before its summary, and on this path the summary
+  lands after the prompt. The leg orders around it; a person at a serial console sees two kernel lines
+  appear under the `$ ` ten seconds after it.
+- **`uefi-test` fails with the RedoxFS disk attached**, which is why that runner attaches it only on
+  request. With it attached, `dir_capability_tests::a_full_directory_capability_does_everything_inside_and_nothing_outside`
+  failed under OVMF ("the full directory capability could not do what it was granted"), one run,
+  2026-09-19. The PVH leg a minute earlier passed the same test against the same image and wrote to
+  it, so the likeliest reading is `mkredoxfs`'s own second-boot case (a mount of an image a previous
+  boot wrote), not firmware. Not investigated. Recorded at the runner's opt-in.
+- **Answered by milestone 299, kept as the record:** "there is no prompt on x86_64" (there is), "slot
+  1 is a placeholder frame" (it holds COM1's `PortRange`), and "two of the progenitor's children die
+  at every x86_64 boot" (zero do; the report says `0 of the processes it built stopped`).
+- **Answered by a ratification:** `riscv_shell_boot` is `user::boot_progenitor` (ratified
+  2026-09-15). `riscv_hand_over`/`x86_hand_over` are still provisional.
 
 ## Follow-on
 
-- **Decision.** `design/decisions/149-kernel-served-console-endpoint.md`: how `swish` reaches a
-  console on x86_64. The per-option cost is above.
-- **Outstanding.** The third `script/shell-check` leg (item 3), and the prompt it types at, both
-  waiting on §149.
-- **Milestone 268.** Its top rung on x86_64 is this milestone's prompt.
-- **Recorded.** The `riscv_shell_boot` naming and the slot 1 placeholder, both in BUGS above.
+- **Proposed.** `design/roadmap/proposals/an-x86-64-input-driver-that-never-lets-the-core-idle.md`:
+  interrupt-driven x86_64 input. Milestone 299 recorded the poll as a latency and CPU limitation; this
+  milestone measured that it also starves the idle loop, which takes the slot gauge and the core's
+  halt with it.
+- **Recorded.** The stale gauge and the 100% core, in BUGS above and in `components/src/input.rs`.
+- **Recorded.** `uefi-test` red with the RedoxFS disk attached, in BUGS above and at
+  `scripts/qemu-uefi-x86_64.sh`'s `NIFE_UEFI_REDOXFS`.
+- **Recorded.** The leg's CI cost, in `script/shell-check`'s header and `.github/workflows/ci.yml`;
+  measured in CI by this pull request's first green run.
+- **Milestone 268.** Its x86_64 top rung is reachable and gated by this leg; 268's own
+  `boot-check`-asserts-the-prompt item is 268's.
+- **Milestone 192.** No x86_64 graphical leg; `--graphical --arch x86_64` refuses and points at
+  `cargo xtask uefi-boot`, which reads the shell off the firmware screen (milestone 400).
 
 ## Index row
 
-Split from milestone 177 once its build lane found this piece needs a from-scratch ELF-loading
-boot path (`spawn_init`/`riscv_shell_boot`'s own shape), not wiring: x86_64 has no plain-console
-fallback at all (DECISIONS §121, permanently kernel-resident), so its only route to an interactive
-shell is through 177's graphical stack.
+**Built:** 2026-09-19
+
+x86_64's interactive boot: the kernel hands over to the progenitor through the shared
+`boot_progenitor`, the console is a userspace driver on a port-range capability (milestone 299), and
+`script/shell-check`'s third leg boots the customer's UEFI image under OVMF and types the shared
+script at the prompt, 60 of 64 lines, the four `uuid` lines omitted for want of an entropy device.
