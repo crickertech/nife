@@ -1996,7 +1996,8 @@ pub mod fs_service;
 ///
 /// The kernel's part is small and stops early: scan the buses, write the page, confine one device
 /// under a block server, spawn. It never reads a partition table. Every byte of GPT judgement is in
-/// `crates/gpt`, whose tests run on the host against tables `sgdisk` and macOS `diskutil` wrote.
+/// `crates/globally_unique_identifier_partition_table`, whose tests run on the host against tables
+/// `sgdisk` and macOS `diskutil` wrote.
 ///
 /// Arch-neutral, like the clock and entropy wirings: one portable binary over one host-tested
 /// contract, so **both ISAs run literally the same test** (DECISIONS §19).

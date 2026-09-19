@@ -97,7 +97,8 @@ impl Header {
     ///   the header would have to change [`REVISION`] too, which this crate refuses outright;
     /// - a non-zero reserved word at offset 20, or a non-zero byte anywhere after the header in the
     ///   block. UEFI 2.10 §5.3.2 requires both to be zero. This is the strictest check in the crate
-    ///   and the one most likely to need relaxing if a real disk ever trips it; see notes/gpt.md;
+    ///   and the one most likely to need relaxing if a real disk ever trips it; see
+    ///   notes/globally-unique-identifier-partition-table.md;
     /// - a header CRC that does not match. Computed the way the spec defines it, over `header_size`
     ///   bytes with the CRC field itself taken as zero.
     pub fn decode(block: &[u8]) -> Result<Header, Error> {
@@ -138,7 +139,8 @@ impl Header {
     /// separately from the **integrity**, which is what keeps the layout proof affordable: a
     /// harness that went through the CRC would have to reason about a 92-byte polynomial over
     /// symbolic bytes, which costs minutes of solver time to prove a fact about byte offsets. See
-    /// `verification::a_headers_fields_survive_the_round_trip` and notes/gpt.md.
+    /// `verification::a_headers_fields_survive_the_round_trip` and
+    /// notes/globally-unique-identifier-partition-table.md.
     pub(crate) fn decode_fields(block: &[u8]) -> Header {
         Header {
             my_lba: le64(block, at::MY_LBA),

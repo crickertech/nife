@@ -41,7 +41,7 @@ in `Cargo.toml` and `rustfmt.toml` rather than silently omitted.
 - **`items_after_statements`**: all 43 hits are a `const` sitting beside its use, under the comment
   that explains it. Obeying it separates every one from its explanation.
 - **`format_code_in_doc_comments`** (rustfmt): destroyed an authored alignment column inside
-  `crates/gpt`'s module example, and emitted trailing whitespace into a doc comment.
+  `crates/globally_unique_identifier_partition_table`'s module example, and emitted trailing whitespace into a doc comment.
 
 `doc_markdown` is the same story with the opposite ending: 416 hits, about half wanting backticks
 around `RedoxFS`, `PCIe` and `OpenSBI`, which are proper nouns that would then render as code a

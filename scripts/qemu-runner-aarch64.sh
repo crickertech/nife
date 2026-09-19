@@ -293,9 +293,10 @@ if [ -n "$NIFE_DISK" ]; then
     # FIRST on the command line because the slot assignment is the reverse of command-line order, so
     # the four land at nifefs=0, redoxfs=1, crash=2, gpt=3, which is what `find_block_device_n`
     # counts and what `disk_service::GPT_DISK` asks for. This one carries no filesystem at all: the
-    # bytes are the `sgdisk` fixture from crates/gpt/tests/fixtures, so the guest reads a partition
-    # table written by gptfdisk rather than by us. Soft, like the others: present only when the test
-    # flow built it (cargo xtask test).
+    # bytes are the `sgdisk` fixture from
+    # crates/globally_unique_identifier_partition_table/tests/fixtures, so the guest reads a
+    # partition table written by gptfdisk rather than by us. Soft, like the others: present only
+    # when the test flow built it (cargo xtask test).
     GPT_DISK_IMG="${NIFE_DISK%.img}-gpt.img"
     GPT_MMIO=""
     if [ -f "$GPT_DISK_IMG" ]; then

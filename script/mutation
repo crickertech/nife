@@ -10,7 +10,7 @@
 #
 #   script/mutation                        full run over the host crates (hours; see the note)
 #   script/mutation --shard 1/4            one quarter of the mutants, for splitting across jobs
-#   script/mutation -p gpt -p network_time_protocol    just those packages
+#   script/mutation -p calendar -p network_time_protocol    just those packages
 #   script/mutation --list                 enumerate the mutants without running anything
 #   script/mutation --report [DIR...]      per-crate table from finished run output, vs the baseline
 #   script/mutation --save-baseline [DIR...]  rewrite .cargo/mutants-baseline.txt from run output
@@ -47,7 +47,7 @@ usage: script/mutation [--report [DIR...]] [--save-baseline [DIR...]] [cargo-mut
 
   --report         summarize finished run output (default mutants.out) against the baseline
   --save-baseline  rewrite .cargo/mutants-baseline.txt from finished run output
-  anything else    forwarded to `cargo mutants --workspace` (e.g. --shard 2/4, -p gpt, --list)
+  anything else    forwarded to `cargo mutants --workspace` (e.g. --shard 2/4, -p calendar, --list)
 EOF
 }
 

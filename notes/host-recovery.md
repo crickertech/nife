@@ -261,7 +261,7 @@ is the Mac's own addition to a freshly written file, not something out of the im
 ## A device and a partition, not only an image file (milestone 110)
 
 A real disk has a partition table where an image has a filesystem, so the tool now takes a device
-plus a **partition selector** and does the offset itself. `crates/gpt` reads the table, the
+plus a **partition selector** and does the offset itself. `crates/globally_unique_identifier_partition_table` reads the table, the
 partition's first LBA becomes block zero of a `PartitionDisk`, and nothing above the disk layer
 knows a partition was involved. That is the same shape the board's own `mkfs` uses
 (`redoxfs_server/src/bin/mkfs.rs`), which is why the host reads the partition by the same rules the board
@@ -282,7 +282,7 @@ have been: it shows the capability *moved* rather than being written twice.
 | Type GUID | `--partition-type EC5CC08B-...` | A program. It names what the partition **is**, so it survives a disk being re-partitioned, and it is how the guest finds its own data partition (DECISIONS §45) |
 
 **Not the partition name.** GPT labels are cosmetic and frequently absent: macOS writes none at all
-(notes/gpt.md), so a selector keyed on one would fail on exactly the disk the recovery story is
+(notes/globally-unique-identifier-partition-table.md), so a selector keyed on one would fail on exactly the disk the recovery story is
 about. Both flag names are **provisional** (CLAUDE.md: names are calef's call).
 
 The selector is **refused on `mkfs`, `put` and `import`**. Those verbs open read-write, recovery
@@ -377,7 +377,7 @@ wrong. `blank_check_after_run` closes that, because the table it reads was writt
   it and nothing on the blk wire reports it (`disk_surveyor`'s BUGS). A wrong guess fails on the
   signature rather than reading a plausible wrong table, but a disk with some other block size is
   not read at all.
-- **A hybrid MBR is refused by `crates/gpt`**, so a disk that Boot Camp or an old macOS installer
+- **A hybrid MBR is refused by `crates/globally_unique_identifier_partition_table`**, so a disk that Boot Camp or an old macOS installer
   touched will not parse here even though its GPT is fine. That refusal is deliberate (the same disk
   described twice, by two tables that can disagree) and it is inherited, not decided here.
 - **`--partition` on the write verbs is refused rather than implemented.** Formatting one partition

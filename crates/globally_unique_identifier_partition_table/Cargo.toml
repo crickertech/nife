@@ -1,5 +1,5 @@
 [package]
-name = "gpt"
+name = "globally_unique_identifier_partition_table"
 version = "0.1.0"
 edition = "2024"
 license.workspace = true
@@ -8,7 +8,8 @@ license.workspace = true
 # build one. No I/O of any kind, so it compiles for the host and its tests run in milliseconds
 # against disks made by real tools (`sgdisk` and macOS's `diskutil`, both committed as fixtures),
 # the same split `dtb` makes for the device tree. Milestone 57's mandatory half: you cannot find a
-# partition on a real disk without reading the table. See notes/gpt.md.
+# partition on a real disk without reading the table. See
+# notes/globally-unique-identifier-partition-table.md.
 
 [lints]
 workspace = true

@@ -163,7 +163,7 @@ same assertions over both buses (`kernel/src/user/entropy_tests.rs`):
 **And since 2026-08-03 the endpoint is load-bearing for something a machine cannot do without it.**
 Milestone 57's write half made this service the thing that decides whether a disk can be partitioned
 or formatted at all: a GPT partition and a RedoxFS volume each carry an identifier that must be
-globally unique, and neither `crates/gpt` nor a `no_std` RedoxFS has any randomness of its own. So
+globally unique, and neither `crates/globally_unique_identifier_partition_table` nor a `no_std` RedoxFS has any randomness of its own. So
 `disk_partitioner` and `mkfs` hold this endpoint beside their disk, and **withholding it is what
 the test does to prove the pair is necessary**: the same binary, the same disk, one capability fewer,
 and a disk that afterwards still reads as unpartitioned. That is a stronger statement of "an

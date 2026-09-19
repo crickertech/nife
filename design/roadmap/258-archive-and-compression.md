@@ -22,7 +22,7 @@ Every git object is zlib-compressed, and so are packfiles, so `git` cannot read 
 database without inflate. **The emphasised clause is false for the compressor**: there is no
 compression code anywhere in this tree, in any form, and nothing is building any. Checked
 2026-09-05 across `crates/`, `kernel/src/` and `user/src/`; the only greps that matched were a
-comment about load inflating a median and `crates/gpt`'s note naming the zlib CRC-32 polynomial.
+comment about load inflating a median and `crates/globally_unique_identifier_partition_table`'s note naming the zlib CRC-32 polynomial.
 
 That matters beyond bookkeeping, because 99's whole case is that unlike Vaultwarden it needs nothing
 that does not exist. One of its five things does not exist.
@@ -37,7 +37,7 @@ second customer possible, rather than beside it.
 
 **Part 1: `tar`, written here.** A `ustar` header is 512 bytes of fixed-offset fields with an octal
 checksum and the format is a loop over headers. Pure logic, so it belongs in `crates/` where it is
-host-testable and Kani-reachable, which is what AGENTS.md prescribes and what `gpt`, `elf`, `dtb`
+host-testable and Kani-reachable, which is what AGENTS.md prescribes and what `globally_unique_identifier_partition_table`, `elf`, `dtb`
 and `nifefs` already are.
 
 **The security-relevant decisions in `tar` are policy rather than specification**, and they are the

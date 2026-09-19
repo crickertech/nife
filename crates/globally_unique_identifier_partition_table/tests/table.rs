@@ -5,8 +5,8 @@
 //! partitions that overlap by exactly one block, a disk too small for its own table, a header with
 //! a stray byte after it.
 
-use gpt::guid::{Guid, types};
-use gpt::{
+use globally_unique_identifier_partition_table::guid::{Guid, types};
+use globally_unique_identifier_partition_table::{
     DEFAULT_ENTRY_COUNT, ENTRY_ARRAY_BYTES, Entry, Error, Gpt, Header, MbrProblem, block_size_ok,
     entry, mbr, testing,
 };
@@ -545,7 +545,7 @@ fn the_documentation_sample_is_a_valid_disk() {
 fn reforge(block: &mut [u8]) {
     let hsize = u32::from_le_bytes(block[12..16].try_into().unwrap()) as usize;
     block[16..20].fill(0);
-    let crc = gpt::crc::crc32(&block[..hsize]);
+    let crc = globally_unique_identifier_partition_table::crc::crc32(&block[..hsize]);
     block[16..20].copy_from_slice(&crc.to_le_bytes());
 }
 

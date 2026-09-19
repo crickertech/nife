@@ -7,13 +7,13 @@
 `open_ro` hands a `DiskFile` straight to `FileSystem::open` with no offset, so the bytes at offset
 zero have to be the filesystem. A real drive has a partition table there.
 
-Everything the join needs already exists. `crates/gpt` parses and validates a GUID partition table.
+Everything the join needs already exists. `crates/globally_unique_identifier_partition_table` parses and validates a GUID partition table.
 The tool has the recovery verbs. What is missing is the arithmetic between them: open the device,
 read the table, and start the engine at the partition's first LBA.
 
 **The gap has a witness, which is the argument for closing it.** Milestone 57's post-run check
 (`blank_check_after_run`, `xtask/src/main.rs:2015`) needs to read a filesystem the guest created
-*inside a partition*. So it parses the table with `crates/gpt` and **slices the partition out into
+*inside a partition*. So it parses the table with `crates/globally_unique_identifier_partition_table` and **slices the partition out into
 its own file** before handing that file to the tool. The note's verdict: "Twenty lines, on the host,
 in a build script: that is the join, written in the wrong place."
 
@@ -62,6 +62,6 @@ partition index is the acceptance evidence.
 **Built:** 2026-08-04
 
 `tools/redoxfs_host` reads a whole-device image; a real drive has a partition table at offset
-zero. `crates/gpt` and the recovery verbs both exist and nothing joins them, except in xtask's
+zero. `crates/globally_unique_identifier_partition_table` and the recovery verbs both exist and nothing joins them, except in xtask's
 post-run check, which slices the partition into a temp file: twenty lines of the join, written in
 the wrong place. Milestone 57's residual, and small

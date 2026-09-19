@@ -285,7 +285,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "gpt"
+name = "globally_unique_identifier_partition_table"
 version = "0.1.0"
 
 [[package]]
@@ -517,7 +517,7 @@ dependencies = [
  "abi",
  "entropy_protocol",
  "filesystem_protocol",
- "gpt",
+ "globally_unique_identifier_partition_table",
  "redox_syscall",
  "redoxfs",
  "user_mode_heap",

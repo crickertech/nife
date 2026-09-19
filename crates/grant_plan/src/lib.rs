@@ -245,12 +245,13 @@ pub enum Prog {
     /// `date`.
     ///
     /// **It is `disk_partitioner`'s draw with the disk taken away**, which is what makes it an
-    /// honest consumer rather than a demonstration. Both call `gpt::guid::Guid::v4_from_random`
-    /// over sixteen bytes from the same service, because a GPT gives every partition a random
-    /// globally unique id and `crates/gpt` refuses to invent one. The partitioner needs a disk
-    /// capability this shell does not hold and cannot attenuate; the sixteen bytes and the stamping
-    /// are the half that does not, so this program is the part of that path a prompt can reach
-    /// today.
+    /// honest consumer rather than a demonstration. Both call
+    /// `globally_unique_identifier_partition_table::guid::Guid::v4_from_random` over sixteen bytes
+    /// from the same service, because a GPT gives every partition a random globally unique id and
+    /// `crates/globally_unique_identifier_partition_table` refuses to invent one. The partitioner
+    /// needs a disk capability this shell does not hold and cannot attenuate; the sixteen bytes and
+    /// the stamping are the half that does not, so this program is the part of that path a prompt
+    /// can reach today.
     ///
     /// Takes no argument, no memory, no file: its whole authority is the client view of the entropy
     /// service. `OutputSpec::BytesAndDiagnostics` for [`Prog::Ps`]'s reason, and here the second
@@ -258,8 +259,9 @@ pub enum Prog {
     /// `uuid > id.txt` **empty** and say why on the terminal, because a file containing a
     /// predictable identifier is worse than a file containing nothing.
     ///
-    /// **Provisional name.** RFC 9562's own term for the object, and `crates/gpt` calls the same
-    /// sixteen bytes a `Guid` because that is what GPT's spec calls them.
+    /// **Provisional name.** RFC 9562's own term for the object, and
+    /// `crates/globally_unique_identifier_partition_table` calls the same sixteen bytes a `Guid`
+    /// because that is what GPT's spec calls them.
     Uuid,
 }
 

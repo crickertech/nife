@@ -285,7 +285,8 @@ fn is_fence(line: &str) -> bool {
 /// input, cover every construct it parses, and do run under Miri; what this one adds is corpus
 /// breadth, which is a documentation claim rather than a soundness one.
 ///
-/// So this is the `cfg(miri)` sampling convention the other suites use (`gpt`'s corruption sweeps,
+/// So this is the `cfg(miri)` sampling convention the other suites use
+/// (`globally_unique_identifier_partition_table`'s corruption sweeps,
 /// `glob`'s strides, `network_time_protocol`'s 10^9-value sweep), taken to its limit: the sampled paths here are
 /// the nineteen unit tests, and the corpus stays native-only. See notes/undefined-behavior.md.
 ///

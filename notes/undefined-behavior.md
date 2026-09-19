@@ -105,8 +105,8 @@ written next to the test:
 | `glob` `greedy_agrees_with_exhaustive_search_over_every_short_pattern` | all 2,657,200 pattern/name pairs | every 61st pattern, 43,720 pairs, the completeness pin adjusted to the exact sample |
 | `glob` `the_worst_case_over_the_proof_domain_is_what_the_unwind_bounds_are_set_from` | ~1.8M runs, pins the exact argmax | skipped: a sample that misses the argmax fails against correct code |
 | `glob` pathological/quadratic bound tests | 100,000- and 2,000-byte names | 2,000 and 200; both assertions still run |
-| `gpt` header and entry-array corruption sweeps (`real_disks.rs`; two live, one already `#[ignore]`) | 260k+ parses, each re-CRCing 16 KiB | skipped; the clean-fixture tests walk the same paths |
-| `gpt` small-table sweep (`table.rs`) | 261,120 parses | skipped, same reason |
+| `globally_unique_identifier_partition_table` header and entry-array corruption sweeps (`real_disks.rs`; two live, one already `#[ignore]`) | 260k+ parses, each re-CRCing 16 KiB | skipped; the clean-fixture tests walk the same paths |
+| `globally_unique_identifier_partition_table` small-table sweep (`table.rs`) | 261,120 parses | skipped, same reason |
 | `cred` store tests via `cheap()` | Argon2id at m=256 KiB, t=2 | Argon2's floor (m=8 KiB, t=1); same paths, fewer blocks. The known-answer vector tests keep their published costs |
 | `cred` `an_unknown_identity_costs_what_a_known_one_costs` | 50 timed KDF runs | skipped: a wall-clock ratio under an interpreter measures Miri, not the KDF |
 | `compositor` `a_damaged_composite_leaves_the_rest_of_the_screen_alone` | all 317,856 screen pixels, 20 ms | every 37th row plus every row the damage rectangle touches, 15,708 pixels, pinned exactly |
@@ -135,7 +135,7 @@ layers. See notes/check-inventory.md and `script/cadence-check`, which exists so
 cadence is noticed in days rather than weeks.
 
 So a green `script/undefined-behavior-check` certifies the memory rules on every path the sampled suite executes, and
-does not restate the exhaustive claims; those stay native-only, in `script/test`. The skipped `gpt`
+does not restate the exhaustive claims; those stay native-only, in `script/test`. The skipped `globally_unique_identifier_partition_table`
 sweeps lose nothing Miri-specific: what they add natively is completeness of the CRC argument,
 which is not a memory property.
 
@@ -176,7 +176,7 @@ native gates in `script/test`.
 
 ```
 script/undefined-behavior-check              # everything, what the weekly workflow runs
-script/undefined-behavior-check -p gpt       # one crate
+script/undefined-behavior-check -p globally_unique_identifier_partition_table   # one crate
 script/undefined-behavior-check -p glob -- greedy   # any cargo-miri-test args pass through
 ```
 

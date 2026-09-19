@@ -8,8 +8,9 @@
 //!
 //! That is the silent degradation this test exists to make loud, and it costs a millisecond. The
 //! other three targets seed from fixtures that already have tests of their own
-//! (`crates/dtb/tests/qemu_aarch64_virt.rs`, `crates/gpt/tests/real_disks.rs`); these seeds had none, because
-//! they have no other reason to exist.
+//! (`crates/dtb/tests/qemu_aarch64_virt.rs`,
+//! `crates/globally_unique_identifier_partition_table/tests/real_disks.rs`); these seeds had none,
+//! because they have no other reason to exist.
 //!
 //! **There is one seed per machine nife runs, and that is milestone 288's doing.** There used to be
 //! one, `EM_AARCH64`, with the honest note that a `riscv64` build would reject it. An `x86_64` build

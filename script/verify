@@ -250,6 +250,9 @@ set -- -j "${VERIFY_JOBS:-4}" --output-format=terse
 #     gpt             1.1 min    3.5%
 #     the other 15    1.4 min    4.2%
 #
+# The rows keep the names the run measured: `gpt` is `globally_unique_identifier_partition_table`
+# since 2026-09-18 (DECISIONS §154), and the shard table below uses the current name.
+#
 # **They drift, and a stale number costs balance rather than correctness**: a shard that is slower
 # than its sibling still proves exactly the same harnesses, so this table can never make the proofs
 # wrong. Re-measure by reading the `==> kani:` timestamps out of a CI log, which is what produced
@@ -307,7 +310,7 @@ pci	6	config-space decode on hostile-device input
 non_volatile_memory_express	2	the queue rings never index out, and the doorbell/PRP arithmetic is total
 dma_validator	175	the DMA-confinement validator, no descriptor escapes the grant
 network_time_protocol	17	the 1900-epoch era pivot, and no hostile packet moves the clock
-gpt	64	the partition table's CRC-32, its round trips, and partitions that overlap
+globally_unique_identifier_partition_table	64	the partition table's CRC-32, its round trips, and partitions that overlap
 calendar	600	the civil-date arithmetic, and the parser on hostile text
 glob	902	matching is total, and a hostile pattern cannot be made to blow up
 filesystem_protocol	1	a directory capability's child never exceeds its parent, at any depth

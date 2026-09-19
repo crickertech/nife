@@ -44,12 +44,12 @@ filesystem_protocol = { version = "0.1.0", path = "../../crates/filesystem_proto
 
 # The partition table, from the crate that already parses it (milestone 110). A real disk has a GPT
 # where an image file has a filesystem, so finding the filesystem means reading the table first, and
-# `gpt` is the same parser the guest's `mkfs` and `disk_surveyor` use. That identity is the point:
-# the host reads the partition by the same rules the board wrote it by, rather than by a second
-# implementation that could disagree about which bytes are the partition. `no_std` with no
-# dependencies of its own, so it costs this build nothing, and it crosses the workspace boundary the
-# same way `filesystem_protocol` already does.
-gpt = { version = "0.1.0", path = "../../crates/gpt" }
+# `globally_unique_identifier_partition_table` is the same parser the guest's `mkfs` and
+# `disk_surveyor` use. That identity is the point: the host reads the partition by the same rules
+# the board wrote it by, rather than by a second implementation that could disagree about which
+# bytes are the partition. `no_std` with no dependencies of its own, so it costs this build nothing,
+# and it crosses the workspace boundary the same way `filesystem_protocol` already does.
+globally_unique_identifier_partition_table = { version = "0.1.0", path = "../../crates/globally_unique_identifier_partition_table" }
 
 # The same redox_syscall (lib name `syscall`) the engine uses, so an error out of `find_node` can be
 # read by its errno. Recovery needs exactly one of those. **`ENOENT` is the only error that may be

@@ -39,8 +39,9 @@ imports_granularity = "Module"
 # than merely omitted. It looked like the natural partner to this milestone's doctests: an example
 # is compiled and run, so it is code, and code here is formatted.
 #
-# Running it over the tree showed otherwise. In `crates/gpt`'s module example it collapsed a
-# deliberately aligned column of trailing comments:
+# Running it over the tree showed otherwise. In
+# `crates/globally_unique_identifier_partition_table`'s module example it collapsed a deliberately
+# aligned column of trailing comments:
 #
 #     table.write_backup_header(&mut block)?;  // to table.backup_header_lba()
 #     let bytes = table.entry_array();          // to LBA 2 and to table.backup_entry_lba()

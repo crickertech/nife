@@ -16,7 +16,7 @@
 //! with its own tests rather than three open-coded divisions in a driver.
 //!
 //! ```
-//! # use gpt::span::Span;
+//! # use globally_unique_identifier_partition_table::span::Span;
 //! // The primary header: LBA 1 of a 512-byte-block disk, fetched 4096 bytes at a time.
 //! let s = Span::covering(512, 512, 4096).unwrap();
 //! assert_eq!((s.first_block, s.blocks, s.offset), (0, 1, 512));

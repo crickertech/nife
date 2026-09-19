@@ -22,7 +22,8 @@ finding rather than a disappointment.
 
 **Most of the parsing is not in `user/` any more.** Rule 7 (anything two binaries agree on is a
 crate) and the host-testability discipline have already lifted it out: the initrd parser is
-`nifefs`, the ELF front half is `elf`, the partition table is `gpt`, the directory entries are
+`nifefs`, the ELF front half is `elf`, the partition table is
+`globally_unique_identifier_partition_table`, the directory entries are
 `filesystem_protocol`, the terminal escapes are
 `video_terminal`, the shell's routing is `swish`, the pattern matcher is `glob`. Every one of those
 is in `script/verify`'s table already. What is left in `components/src/*.rs` and `fixtures/src/*.rs`

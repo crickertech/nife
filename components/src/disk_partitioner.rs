@@ -1,4 +1,5 @@
-//! **`disk_partitioner`**: writes the map `disk_surveyor` reads (milestone 57, notes/gpt.md).
+//! **`disk_partitioner`**: writes the map `disk_surveyor` reads (milestone 57,
+//! notes/globally-unique-identifier-partition-table.md).
 //!
 //! The destructive half of the pair, and the one whose endowment is the point. It holds exactly
 //! two things:
@@ -11,7 +12,8 @@
 //!
 //! **Both are required and neither is sufficient**, which is a claim the wiring can make and
 //! `parted` cannot. A GPT gives every partition a globally unique id, and an id that is not random
-//! is not unique; `crates/gpt` therefore refuses to invent one (notes/gpt.md), so this program
+//! is not unique; `crates/globally_unique_identifier_partition_table` therefore refuses to invent
+//! one (notes/globally-unique-identifier-partition-table.md), so this program
 //! **without the entropy endpoint writes nothing at all** rather than falling back to a counter.
 //! The kernel-side test spawns it both ways and reads the disk afterwards to see which happened.
 //!
@@ -96,10 +98,10 @@
 //! `/dev/urandom` always there for the asking. This program was handed one disk and there is no
 //! path to type. Borrowing the name would borrow the authority model this program exists to
 //! contrast with, which is the fault `flaky` was renamed for the same day. Refused `gpt_writer`,
-//! which names the format rather than the act, spends a stem `crates/gpt` already holds, and would
-//! go stale the first time a second table type was written. Refused `disk_formatter`: formatting
-//! makes a filesystem, which is `redoxfs_server`'s `mkfs`, and this writes a partition map and
-//! touches no filesystem.
+//! which names the format rather than the act, spends a stem
+//! `crates/globally_unique_identifier_partition_table` already holds, and would go stale the first
+//! time a second table type was written. Refused `disk_formatter`: formatting makes a filesystem,
+//! which is `redoxfs_server`'s `mkfs`, and this writes a partition map and touches no filesystem.
 
 #![no_std]
 // Program entry points, not the crates/ library surface milestone 68's ratchet tracks
@@ -111,9 +113,10 @@
 use entropy_protocol as entropy;
 use filesystem_protocol::fixture::blank;
 use filesystem_protocol::{blk, req};
-use gpt::entry::Entry;
-use gpt::guid::{Guid, types};
-use gpt::{ENTRY_ARRAY_BYTES, Gpt};
+use globally_unique_identifier_partition_table::entry::{Entry, NAME_UNITS};
+use globally_unique_identifier_partition_table::guid::{Guid, types};
+use globally_unique_identifier_partition_table::span::Span;
+use globally_unique_identifier_partition_table::{ENTRY_ARRAY_BYTES, Gpt, PRIMARY_HEADER_LBA, mbr};
 use user_mode_runtime::{call, send};
 
 /// Slot 0: where the verdict goes. An endpoint with `WRITE`.
@@ -238,8 +241,8 @@ fn partition() -> ! {
     let entries: &[u8] = table.entry_array();
 
     let steps: [(u64, Option<&[u8]>); 5] = [
-        (0, None),                       // the protective MBR
-        (gpt::PRIMARY_HEADER_LBA, None), // the primary header
+        (0, None),                  // the protective MBR
+        (PRIMARY_HEADER_LBA, None), // the primary header
         (table.primary_entry_lba(), Some(entries)),
         (table.backup_entry_lba(), Some(entries)),
         (table.backup_header_lba(), None), // the backup header, on the last block
@@ -291,7 +294,7 @@ fn verify() -> ! {
     }
     let head: &[u8] = head;
 
-    if gpt::mbr::validate(&head[..LBA as usize], block_count).is_ok() {
+    if mbr::validate(&head[..LBA as usize], block_count).is_ok() {
         flags |= F_MBR;
     }
     let Ok(table) = Gpt::parse(
@@ -309,8 +312,7 @@ fn verify() -> ! {
     let backup_blocks = block_count.saturating_sub(backup_lba);
     let tail = backup();
     if backup_blocks > 1
-        && let Some(span) =
-            gpt::span::Span::covering(backup_lba * LBA, backup_blocks * LBA, TRANSFER)
+        && let Some(span) = Span::covering(backup_lba * LBA, backup_blocks * LBA, TRANSFER)
         && span.blocks as usize * blk::BLOCK_SIZE <= tail.len()
         && read_span(span, &mut tail[..])
     {
@@ -337,7 +339,7 @@ fn verify() -> ! {
             flags |= F_NIFE;
             data_first_lba = part.first_lba;
         }
-        let mut label = [0u8; 4 * gpt::entry::NAME_UNITS];
+        let mut label = [0u8; 4 * NAME_UNITS];
         if let Ok(n) = part.name_utf8(&mut label)
             && i < blank::NAMES.len()
             && &label[..n] == blank::NAMES[i].as_bytes()
@@ -420,15 +422,15 @@ fn write_at(first_lba: u64, data: &[u8]) -> bool {
 /// Read `into.len()` bytes starting at logical block `first_lba`. `into` must be a whole number of
 /// transfer blocks and `first_lba` must land on one.
 fn read_at(first_lba: u64, into: &mut [u8]) -> bool {
-    match gpt::span::Span::covering(first_lba * LBA, into.len() as u64, TRANSFER) {
+    match Span::covering(first_lba * LBA, into.len() as u64, TRANSFER) {
         Some(span) if span.offset == 0 => read_span(span, into),
         _ => false,
     }
 }
 
-/// Fetch a [`gpt::span::Span`] of transfer blocks into `into`, one `CALL` per block, copying each
-/// out of the shared page before the next request lands in it.
-fn read_span(span: gpt::span::Span, into: &mut [u8]) -> bool {
+/// Fetch a [`Span`] of transfer blocks into `into`, one `CALL` per block, copying each out of the
+/// shared page before the next request lands in it.
+fn read_span(span: Span, into: &mut [u8]) -> bool {
     for i in 0..span.blocks {
         let at = i as usize * blk::BLOCK_SIZE;
         if at + blk::BLOCK_SIZE > into.len() {

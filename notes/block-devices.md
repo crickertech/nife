@@ -1,7 +1,7 @@
 # Block devices: what is attached, and what holding one means
 
-Milestone 57's block-device lane. `crates/gpt` had been able to read a partition table since
-2026-07-30 and was wired to nothing; notes/gpt.md said so plainly, under "what this crate does not
+Milestone 57's block-device lane. `crates/globally_unique_identifier_partition_table` had been able to read a partition table since
+2026-07-30 and was wired to nothing; notes/globally-unique-identifier-partition-table.md said so plainly, under "what this crate does not
 do": *"No I/O, by design. Somebody still has to read LBA 1. That is the block-device lane of
 milestone 57, and it is separate on purpose."* This is that lane.
 
@@ -10,12 +10,12 @@ Two things came out of it, and the second is the one worth arguing about.
 ## 1. The machine reads a table it did not write
 
 `disk_surveyor` holds a block-service endpoint, reads LBA 0 through 33 of the
-disk behind it, hands the bytes to `crates/gpt`, and reports what is there. Then it reads the 33
+disk behind it, hands the bytes to `crates/globally_unique_identifier_partition_table`, and reports what is there. Then it reads the 33
 blocks at the far end and checks the backup table against the primary. The kernel never sees a
 partition table; every byte of judgement happens in a userspace crate whose tests run on the host.
 
 **The provenance is the point.** The test image is built by `xtask::mkgptdisk` from
-`crates/gpt/tests/fixtures/sgdisk-64m.{head,tail}`: the first 34 and last 33 blocks of a 64 MiB disk
+`crates/globally_unique_identifier_partition_table/tests/fixtures/sgdisk-64m.{head,tail}`: the first 34 and last 33 blocks of a 64 MiB disk
 that `sgdisk` 1.0.10 (gptfdisk, C++) partitioned, with the 64 MiB of nothing between them left out
 and put back as zeros. So the guest parses a table written by people who have never heard of this
 project. A reader tested against its own writer proves almost nothing, because every mistake it
@@ -32,7 +32,7 @@ a program holds moves one **filesystem block** per request, 4096 bytes, because 
 So "read LBA 1" is "read transfer block 0, take bytes 512..1024", and the backup table's 33 logical
 blocks start partway into a transfer block at an offset that depends on the disk's size.
 
-`gpt::span::Span::covering(byte_offset, len, transfer)` is that arithmetic, in one host-tested
+`globally_unique_identifier_partition_table::span::Span::covering(byte_offset, len, transfer)` is that arithmetic, in one host-tested
 place, because three open-coded divisions in a driver is how you get an off-by-one that reads a
 plausible-looking buffer full of the wrong bytes and then blames the CRC. It does not break the
 crate's no-I/O rule: it computes *where* to read and the caller reads.
@@ -48,7 +48,7 @@ On the 64 MiB test disk the three reads work out as:
 ### The 512 assumption, stated where a reader meets it
 
 The block protocol (`filesystem_protocol::blk`) carries **no logical block size**. There is nowhere for the
-surveyor to read the device's from, so it assumes 512. `crates/gpt` handles 4096 and has a test at
+surveyor to read the device's from, so it assumes 512. `crates/globally_unique_identifier_partition_table` handles 4096 and has a test at
 it; a 4Kn disk would be read here as though its LBA 1 were at byte 512, which is a wrong answer
 rather than an error. The fix is a field on the wire, not a change in the program.
 
@@ -138,7 +138,7 @@ the lane that took the vendor divergence. They are recorded here because they ch
 above: **there is now a fifth mmio disk, at slot 4, and it is blank on purpose.**
 
 - **`disk_partitioner`** (provisional name) writes the table `disk_surveyor` reads, drawing its
-  unique GUIDs from the entropy service. notes/gpt.md has the details, including why every write is
+  unique GUIDs from the entropy service. notes/globally-unique-identifier-partition-table.md has the details, including why every write is
   a read-modify-write.
 - **`mkfs`** (provisional name) creates a RedoxFS filesystem inside the nife data
   partition of that table. notes/fs-server.md has the details, including the vendor divergence it
@@ -197,7 +197,7 @@ is a different signal from one every few milestones.
 
 ## See also
 
-- [The GUID Partition Table](gpt.md) for the format, the fixtures and the proofs.
+- [The GUID Partition Table](globally-unique-identifier-partition-table.md) for the format, the fixtures and the proofs.
 - [The RedoxFS filesystem server](fs-server.md) for the block server and the blk protocol.
 - [Reading the backup from a MacBook or a Linux host](host-recovery.md) for the other half of "the
   board is dead, can I get my data".

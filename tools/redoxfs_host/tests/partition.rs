@@ -8,9 +8,10 @@
 //! **The filesystem is built as an image and then placed**, rather than written through the offset
 //! disk under test. That is what makes this a test of the arithmetic: the bytes in the partition
 //! were produced by a writer that knew nothing about partitions, so if the offset is wrong by one
-//! block in either direction nothing opens. The table is built with `crates/gpt`, which is the
-//! parser the reader uses, so the one thing this cannot catch is a table both halves agree is
-//! wrong; `blank_check_after_run` in xtask closes that by reading a table the *guest* wrote.
+//! block in either direction nothing opens. The table is built with
+//! `crates/globally_unique_identifier_partition_table`, which is the parser the reader uses, so the
+//! one thing this cannot catch is a table both halves agree is wrong; `blank_check_after_run` in
+//! xtask closes that by reading a table the *guest* wrote.
 //!
 //! The layout deliberately has three partitions:
 //!
@@ -29,8 +30,8 @@ use std::os::unix::fs::FileExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use gpt::guid::types;
-use gpt::{Entry, Gpt, Guid};
+use globally_unique_identifier_partition_table::guid::types;
+use globally_unique_identifier_partition_table::{Entry, Gpt, Guid};
 
 /// The built binary, not the library: `cargo test` compiles it and hands us the path.
 const TOOL: &str = env!("CARGO_BIN_EXE_redoxfs_host");
@@ -137,7 +138,7 @@ fn build_device(device: &Path, payload: &[u8], data: (u64, u64), device_blocks: 
             .with_name("nife data")
             .unwrap(),
     ];
-    let mut array = [0u8; gpt::ENTRY_ARRAY_BYTES];
+    let mut array = [0u8; globally_unique_identifier_partition_table::ENTRY_ARRAY_BYTES];
     let table = Gpt::create(
         guid(0x44),
         LBA as usize,
@@ -165,8 +166,11 @@ fn build_device(device: &Path, payload: &[u8], data: (u64, u64), device_blocks: 
     table
         .write_primary_header(&mut block)
         .expect("primary header");
-    file.write_all_at(&block, gpt::PRIMARY_HEADER_LBA * LBA)
-        .unwrap();
+    file.write_all_at(
+        &block,
+        globally_unique_identifier_partition_table::PRIMARY_HEADER_LBA * LBA,
+    )
+    .unwrap();
     table
         .write_backup_header(&mut block)
         .expect("backup header");

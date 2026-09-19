@@ -1,9 +1,10 @@
 //! Fuzz the GUID partition table parser with the head of an arbitrary disk.
 //!
 //! **Why this target exists.** A partition table is read from a disk somebody else formatted, with
-//! somebody else's tool, possibly years ago and possibly on purpose. `crates/gpt` is what stands
-//! between that and the block layer deciding which LBA range is a filesystem, so every field it
-//! trusts is a field an attacker who can hand us a disk image gets to choose.
+//! somebody else's tool, possibly years ago and possibly on purpose.
+//! `crates/globally_unique_identifier_partition_table` is what stands between that and the block
+//! layer deciding which LBA range is a filesystem, so every field it trusts is a field an attacker
+//! who can hand us a disk image gets to choose.
 //!
 //! **The input is a disk prefix, not three separate buffers.** Byte 0 onward is LBA 0, so:
 //!
@@ -11,13 +12,15 @@
 //!   * `data[512..1024]`   LBA 1, the primary header (its length is the block size, hence 512)
 //!   * `data[1024..]`      the entry array
 //!
-//! That layout is not a convenience. It makes `crates/gpt/tests/fixtures/*.head`, which are real
-//! disks formatted by `sgdisk` and by Apple's Disk Utility, directly usable as seeds: the fuzzer
-//! starts from two tables the format's own tools produced rather than from `[]`.
+//! That layout is not a convenience. It makes
+//! `crates/globally_unique_identifier_partition_table/tests/fixtures/*.head`, which are real disks
+//! formatted by `sgdisk` and by Apple's Disk Utility, directly usable as seeds: the fuzzer starts
+//! from two tables the format's own tools produced rather than from `[]`.
 //!
-//! **What it adds over the Kani proofs and the mutation tests.** `crates/gpt` is the most heavily
-//! checked parser in the tree: eight harnesses, plus exhaustive mutation tests that flip every byte
-//! of a real header and a real entry array to every other value, 460,000 validations. Both are
+//! **What it adds over the Kani proofs and the mutation tests.**
+//! `crates/globally_unique_identifier_partition_table` is the most heavily checked parser in the
+//! tree: eight harnesses, plus exhaustive mutation tests that flip every byte of a real header and
+//! a real entry array to every other value, 460,000 validations. Both are
 //! *single-field* explorations around a valid table. Neither can build a table whose `entry_size`,
 //! `entry_count`, `entry_array_lba`, `first_usable_lba` and `alternate_lba` are hostile
 //! **together**, which is where the interesting arithmetic is: `entry_count * entry_size`,
@@ -28,7 +31,7 @@
 
 #![no_main]
 
-use gpt::Gpt;
+use globally_unique_identifier_partition_table::Gpt;
 use libfuzzer_sys::fuzz_target;
 
 /// The block size the fixtures use, and the one every disk this project has met uses. 4K-native
@@ -65,7 +68,7 @@ fuzz_target!(|data: &[u8]| {
     let _ = table.entry_count();
     let _ = table.entry_array();
 
-    let mut name = [0u8; 4 * gpt::entry::NAME_UNITS];
+    let mut name = [0u8; 4 * globally_unique_identifier_partition_table::entry::NAME_UNITS];
     for (index, entry) in table.partitions() {
         let _ = index;
         let _ = entry.is_used();

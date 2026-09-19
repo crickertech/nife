@@ -327,7 +327,7 @@ this same package does create one, on the target, over the same blk wire.
 `FileSystem::create` and `create_reserved` carry `#[cfg(feature = "std")]`, and un-gating them is
 mechanical for every call but one: `Header::new` stamps a v4 UUID through `Uuid::new_v4`, which is
 `getrandom`. So the blocker is that **a filesystem needs a unique identifier and a `no_std` engine
-has no randomness**, which is the same wall `crates/gpt` hits one crate over (notes/gpt.md refuses
+has no randomness**, which is the same wall `crates/globally_unique_identifier_partition_table` hits one crate over (notes/globally-unique-identifier-partition-table.md refuses
 to invent a partition GUID for the identical reason).
 
 The first divergence taken for it, on the morning of 2026-08-03, made `Header::update_hash` public
@@ -382,7 +382,7 @@ Two details worth carrying:
   two-capability claim.
 
 The evidence is not the guest's. After the run, `cargo xtask test` parses the table the guest wrote
-with `crates/gpt`, checks that every unique GUID is distinct and version 4, slices the data partition
+with `crates/globally_unique_identifier_partition_table`, checks that every unique GUID is distinct and version 4, slices the data partition
 out of the image, and has the **host** engine read back the file the guest wrote into the filesystem
 it made.
 

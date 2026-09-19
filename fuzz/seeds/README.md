@@ -12,7 +12,7 @@ tree**, committed for their own reasons and tested by their own tests:
 | Target | Seeds from | What they are |
 |---|---|---|
 | `dtb_walk` | `crates/dtb/tests/fixtures/` | three real device trees, dumped from the boards we boot |
-| `gpt_table` | `crates/gpt/tests/fixtures/` | two real disks, formatted by `sgdisk` and by Apple's Disk Utility |
+| `gpt_table` | `crates/globally_unique_identifier_partition_table/tests/fixtures/` | two real disks, formatted by `sgdisk` and by Apple's Disk Utility |
 | `elf_parse` | here | the three files below, because nothing else in the tree is a small ELF |
 | `nifefs_roundtrip` | nothing | the input is a *structure*, not bytes; the fuzzer builds file sets from scratch and reaches the interesting shapes immediately |
 

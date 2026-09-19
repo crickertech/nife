@@ -64,7 +64,7 @@ libfuzzer-sys = "0.4"
 nifefs = { path = "../crates/nifefs" }
 dtb = { path = "../crates/dtb" }
 elf = { path = "../crates/elf" }
-gpt = { path = "../crates/gpt" }
+globally_unique_identifier_partition_table = { path = "../crates/globally_unique_identifier_partition_table" }
 
 # **Overflow checks and debug assertions ON in an optimised build**, which is not cargo-fuzz's
 # default profile text but is what its CLI already does. Stated here so the profile is true whatever
