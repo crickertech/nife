@@ -390,26 +390,51 @@ Deliberately not in rung one, each with the seam it will use:
 
 ## BUGS
 
-**A second `FLUSH` through the real interactive boot's own driver instance does not return**
-(found 2026-08-27, milestone 177's boot-wiring lane). The kernel test harness and the boot's own
-first "blank grid" present both prove a *first* `FLUSH` completes; nothing before this milestone
-exercised a *second*, externally-triggered flush through this exact live sequence (`line_editor` ->
-`display_terminal` -> the driver, over the real boot's own capability wiring rather than the
-isolated test harness). Live thread-dump diagnosis found `display_terminal` blocked in `CALL` to
-the driver's serving endpoint indefinitely, with nothing receiving on it; ruled out an
-entropy/virtio-rng interaction (reproduces identically with `NIFE_RNG` unset). Best-supported
-hypothesis, not yet confirmed: the driver is stuck on its own completion IRQ for the second flush,
-which would make this a pre-existing characteristic of this file's own IRQ handling rather than
-something milestone 177's capability wiring introduced, since that wiring is independently verified
-correct by the same diagnostics that found this. Not yet root-caused; see [milestone
-177](../design/roadmap/177-graphical-interactive-boot.md)'s own status for the two next steps
-recorded there.
+**Every spawner of `gpu_driver` must receive `FLUSHED`, or the driver serves exactly one flush.**
+`FLUSHED` is a blocking `SEND` the driver makes from inside its serving loop, right after replying to
+its first flush, and while it waits there nothing is in `RECV` on the display endpoint. The three
+test spawners read it because they want the digest; the boot now reads it because it must. Nothing
+enforces this: `display_service::start_terminal`'s doc says so and names it a foot gun, because the
+tests need the digest and the wiring function therefore cannot swallow it for them.
 
-**A data point from the second driver** (milestone 400, 2026-09-19): `framebuffer_driver` serves this
-same contract to the same `display_terminal`, over the real interactive boot's wiring, with no device
-and no interrupt, and every flush returns: the banner, each echoed keystroke, and each command's
-output are all further flushes. That is evidence, not proof, that the hang above lives in
-`gpu_driver`'s completion-interrupt handling rather than in the contract or the terminal.
+**RESOLVED 2026-09-19 (milestone 177): the second `FLUSH` on the real boot never returned because
+nobody received the driver's `FLUSHED` report.** Found 2026-08-27 by milestone 177's boot-wiring lane
+and carried here, unexplained, for three weeks. The hypothesis recorded at the time (the driver stuck
+waiting on its own completion interrupt) was wrong, and so was the reading of the data point below.
+
+What the boot did: `kernel::user::boot_graphical_terminal` received `UP` from the driver and `TERM_UP`
+from the terminal and stopped. But the terminal paints its blank grid, which is a first `FLUSH`,
+*before* it sends `TERM_UP`, so by then the driver had already replied to that flush and was blocked
+sending `FLUSHED`. The terminal's second `FLUSH` (the banner) queued on the display endpoint behind a
+driver that would never `RECV` again.
+
+The evidence, read from the boot rather than inferred. A kernel thread dumped every thread twenty
+seconds into an aarch64 `--features shell` boot with a GPU and a keyboard, with the endpoints named
+first (`display_ep=0xa`, `driver_report=0xb`):
+
+```
+tid=0x0009 state=Blocked ... wait=0xb/Sender          <- gpu_driver, in SEND on its report endpoint
+tid=0x000a state=Blocked ... wait=0xa/Reply           <- display_terminal, CALLing the driver
+ep=0x000a senders=1 receivers=0 pending=0
+ep=0x000b senders=1 receivers=0 pending=0
+```
+
+The same thread then received on `0xb`, got `[0xd150002, <digest>, 0x4d9a0, ..]`, which is
+`FLUSHED` with the surface's pixel count, and a second dump ten seconds later showed the driver back
+in `RECV` on `0xa` and the terminal in `RECV` on its own endpoint: the queued flush had been served.
+No interrupt, fence or used-ring index was involved.
+
+**The keyboard had the identical hang one step later.** `keyboard_driver` sends `KEYBOARD_UP` before
+its first `WAIT`, and the boot discarded the report endpoint `keyboard_service::start_direct`
+returned, so with the display fixed the prompt appeared and a key pressed with `sendkey` still never
+echoed. `start_direct` now takes that report itself and no longer returns the endpoint, so no caller
+can drop it again. The serial source (`input`) sends no report, which is why
+`--graphical-serial` went green with the `FLUSHED` fix alone.
+
+**The data point from the second driver, reread** (milestone 400, 2026-09-19): `framebuffer_driver`
+serves the same contract to the same `display_terminal` over the real boot's wiring and every flush
+returns. That was read as pointing at `gpu_driver`'s interrupt handling. The real difference is that
+`framebuffer_driver` sends `UP` and nothing after it: it has no `FLUSHED` witness to block on.
 
 ## Where the pieces are
 

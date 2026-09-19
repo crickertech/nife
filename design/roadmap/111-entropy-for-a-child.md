@@ -152,11 +152,12 @@ row, and exactly one program in the whole manifest table declares the field.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/spawn-can-place-a-capability-at-a-named-slot.md`: give the
-  kernel's `Spawn` a `placed` list the way `supervision_proto::ChildEndowment` already has one, so
-  the guest suite can spawn a program holding a capability at the slot its manifest names. It would
-  close this block's first `BUGS` entry, `date`'s second-stream gap, and every future named slot's
-  in one change.
+- **Milestone 390.** Give the kernel's `Spawn` a `placed` list the way
+  `supervision_protocol::ChildEndowment` already has one, so the guest suite can spawn a program
+  holding a capability at the slot its manifest names. It would close this block's first `BUGS`
+  entry, `date`'s second-stream gap, and every future named slot's in one change. Numbered on
+  2026-09-19 by milestone 433's drain of the pile; the crate was `supervision_proto` when this
+  bullet was written and is `supervision_protocol` since milestone 265.
 - **Recorded.** `disk_partitioner` still cannot be typed at a prompt, and this milestone does not
   claim it can. The EL0 NVMe driver whose
   milestone calef minted on 2026-09-05 (the block above names it without a number, because the

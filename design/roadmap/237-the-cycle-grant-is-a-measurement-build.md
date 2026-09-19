@@ -202,14 +202,17 @@ that a footprint change is intended and understood; do it in the commit that cau
 - **Recorded.** The feature name `cycle_counter_grant` is provisional, like everything a lane mints;
   names are calef's. It is the field it builds rather than a new word for the same thing.
   `kernel/Cargo.toml`.
-- **Proposed.** `design/roadmap/proposals/unattributed-fastpath-residuals.md`, Attribute the riscv64
+- **Milestone 361.** `design/roadmap/361-unattributed-fastpath-residuals.md`, attribute the riscv64
   and x86_64 fastpath residuals, then re-record those baselines in the commit that does it. riscv64
-  sits at 5132 against a 5106 baseline and x86_64 at 6687 against 6639, and neither gap is bisected
-  to a milestone, so re-saving them today would be the absorb-the-growth move this block exists to
-  refuse. Only aarch64 was re-recorded here.
-- **Proposed.** `design/roadmap/proposals/fastpath-footprint-against-main.md`, Whether the fastpath
-  footprint gate should compare against `main` rather than a stored baseline file. It is calef's
-  call and has costs on both sides. Two lanes each measured "within bound" against the same stale
+  sat at 5132 against a 5106 baseline and x86_64 at 6687 against 6639, neither gap bisected to a
+  milestone, so re-saving them then would have been the absorb-the-growth move this block exists to
+  refuse. Only aarch64 was re-recorded here. That block is SUPERSEDED: milestone 188's phases 1 to 3
+  changed what the gate measures and re-recorded all three baselines on 2026-09-04, so the numbers
+  above no longer exist to bisect against.
+- **Milestone 336.** `design/roadmap/336-fastpath-footprint-against-main.md`, whether the fastpath
+  footprint gate should compare against `main` rather than a stored baseline file. DECISIONS §144
+  answered it on 2026-09-04 (both, with a 16 KiB ceiling) and the building is what remains. Two
+  lanes each measured "within bound" against the same stale
   baseline and neither re-saved it, so aarch64 headroom fell from 3.9 points to 1.5 with nothing
   firing. This milestone fixed the instance, not the mechanism.
 

@@ -226,12 +226,11 @@ keeps comparing two derivations of one fact; that check fired on the first run h
 
 ## Follow-on
 
-- **Proposed.** A bounded wait for the usurper in `kernel::user::live_swap_tests`, so that a client
+- **Milestone 417.** A bounded wait for the usurper in `kernel::user::live_swap_tests`, so that a client
   the kernel fails to refuse reports an escape instead of taking the honest server's message and
   hanging the run. Row 26 of `notes/confinement-claims.md` is `unfalsified` for exactly this reason,
   measured here as a 60-second lost-wakeup watchdog. It needs a non-blocking or timed `RECV_CAP`,
-  which is the syscall surface and therefore calef's; the file is
-  `design/roadmap/proposals/a-usurper-that-reports-instead-of-hanging.md`.
+  which is the syscall surface and therefore calef's.
 - **Recorded.** In `script/falsifications`' own `BUGS`: a kernel record costs about a minute rather
   than a second, so `--sweep` is no longer a thirty-second command; `--affected-since`, the per-PR
   half, covers only the Kani records; a kernel record is swept on the one architecture its patch

@@ -284,6 +284,9 @@ fn wire_driver(
 /// contract promised it would, so what it needs from rung one is a display endpoint to CALL and the
 /// frames the device scans out. Nothing about the driver changes, which is the claim
 /// notes/framebuffer-contract.md made when it said routing was by endpoint.
+///
+/// The caller must receive `FLUSHED` on the report endpoint after the client's first flush, or
+/// the driver never serves a second one; see [`start_terminal`].
 pub fn start_driver(driver_image: &'static [u8]) -> Option<(RendezvousId, RendezvousId, u64)> {
     wire_driver(driver_image, 0, 0)
 }
@@ -323,6 +326,16 @@ pub struct TerminalWiring {
 /// What it adds over `painter`'s wiring is two things, and both are the terminal contract's, not
 /// the framebuffer's: an endpoint it **serves** (the terminal contract's IPC half), and a page an
 /// application writes bytes into (DECISIONS §10's control-by-message, bulk-by-shared-page split).
+///
+/// **The caller must receive three reports, not two, or the screen freezes after one frame**
+/// (milestone 177). `driver_report` carries `UP` and then, once the terminal's first flush (its
+/// blank grid) is served, `FLUSHED`; `term_report` carries `TERM_UP`. All three are blocking
+/// `SEND`s, and the driver sends `FLUSHED` from inside its serving loop, so a caller that stops
+/// after `UP` and `TERM_UP` leaves the driver parked there and every later flush unanswered. That is
+/// the bug the real boot shipped with. **This is a foot gun kept on purpose, at rung three**: the
+/// tests that call this read the digest `FLUSHED` carries as the driver-side witness, so the
+/// function cannot swallow it for them, and the boot, the only other caller, takes it in
+/// `kernel::user::boot_graphical_terminal`. [`start_driver`] has the same obligation.
 pub fn start_terminal(
     driver_image: &'static [u8],
     term_image: &'static [u8],

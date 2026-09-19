@@ -258,9 +258,16 @@ jobs:
       # the channel it was supposed to appear on. Three debug kernels against this job's warm target
       # directory is about a minute.
       #
+      # `shell-check-graphical` rides here too (milestone 177), on the same argument: it boots the
+      # same `--features shell` kernels `shell-check` just built, with a virtio-gpu attached, and
+      # reads the prompt and one typed key back off the screen, four boots in all (a keyboard and
+      # the UART as the keystroke source, on both architectures). Measured on 2026-09-19 against a
+      # warm target directory on the dev Mac: 48 seconds for all four. Until then nothing ran it,
+      # and the graphical boot had never once drawn a prompt.
+      #
       # The suite first, because it is the broader signal and should be what fails first when both
       # would.
-      - run: script/ci-build test shell-check boot-check
+      - run: script/ci-build test shell-check shell-check-graphical boot-check
         if: steps.scope.outputs.needed == 'true'
 
   cpu-matrix:

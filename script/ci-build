@@ -35,7 +35,7 @@
 # comment can no longer claim a membership the code contradicts. Each `ci` row below says why.
 #
 # **The tier tags and the no-argument meaning are PROVISIONAL** pending calef:
-# `design/roadmap/proposals/what-no-arguments-means.md` states the options and their costs.
+# milestone 400, `design/roadmap/400-what-no-arguments-means.md`, states the options and their costs.
 #
 # **Order is cheapest first, and it is the table's order.** That is the whole value of the
 # no-argument path to a developer: a formatting slip costs twenty seconds rather than ten minutes.
@@ -111,6 +111,7 @@ icount|local|script/icount
 build-is-reproducible|local|script/build-is-reproducible
 test|local|script/test
 shell-check|local|script/shell-check
+shell-check-graphical|local|script/shell-check --graphical && script/shell-check --graphical-serial
 boot-check|local|script/boot-check
 hvf|local|hvf_leg
 fastpath-footprint|ci|script/fastpath-footprint
@@ -229,8 +230,8 @@ run_one() {
 case "$1" in
 --list)
     [ $# -eq 1 ] || { usage; exit 2; }
-    printf '%-20s %-6s %s\n' check tier runs
-    checks | awk -F'|' '{ printf "%-20s %-6s %s\n", $1, $2, $3 }'
+    printf '%-22s %-6s %s\n' check tier runs
+    checks | awk -F'|' '{ printf "%-22s %-6s %s\n", $1, $2, $3 }'
     exit 0
     ;;
 -h | --help)

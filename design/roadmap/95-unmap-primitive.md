@@ -6,7 +6,10 @@ largest residual left standing after the interactive boot gave away its authorit
 **Gate: DECISION.** An unmap method is a syscall-surface addition, which the block calls a design
 fork for calef before it is a task: whether unmap belongs on the address space or on the frame,
 what it does to a mapping another holder also has, and whether restructuring the loader to map one
-page at a time avoids the new method entirely.
+page at a time avoids the new method entirely. **It is
+[§162](../decisions/162-giving-up-a-mapping.md) (whether a holder can give up a mapping)**, written
+up 2026-09-19 by milestone 435's lane, which found this gate naming no decision though the block had
+called it a fork since 2026-08-04.
 
 **The finding.** `build_child` maps each page it lays down for a child into init's own address
 space to write it, and **never unmaps it**, because nothing in the ABI can: there is no unmap.

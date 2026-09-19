@@ -6,8 +6,8 @@
  * isa::interrupt_id, and nothing else reads this tree.
  *
  * Regenerate:
- *     dtc -I dts -O dtb -o crates/isa/tests/fixtures/interrupt-shapes.dtb \
- *         crates/isa/tests/fixtures/interrupt-shapes.dts
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/interrupt-shapes.dtb \
+ *         crates/machine_discovery/tests/fixtures/interrupt-shapes.dts
  */
 
 / {
@@ -28,6 +28,12 @@
 	/* PPI bank: <1 n flags> with n under 16 decodes to 16 + n. */
 	timer@3000 {
 		interrupts = <1 13 4>;
+	};
+
+	/* PPI 16: the first number past the bank's sixteen slots, which is SPI 0's INTID if the
+	 * bound is read as inclusive. The refusal has to be exact here, not merely eventual. */
+	edgeppi@3800 {
+		interrupts = <1 16 4>;
 	};
 
 	/* PPI number out of range: refused, not folded into the bank. */

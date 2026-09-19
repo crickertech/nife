@@ -182,17 +182,17 @@ See the proposal below.
 
 ## Follow-on
 
-- **Proposed.** `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`: the
-  nine roles this milestone left in `hello`. `spawn_progenitor` (`spawn_hello` since milestone
+- **Milestone 405.** The nine roles this milestone left in `hello`. Numbered on 2026-09-19 by
+  milestone 433's drain of the pile. `spawn_progenitor` (`spawn_hello` since milestone
   166) takes the archive entry as a parameter (or a role-to-entry table), the three children
   become their own programs, and the six parents name their child's entry instead of re-entering
   their own image. Gated on milestone 268, which was rebuilding that function beside this lane. It
   is also what would settle the name: after it, either `hello` is deleted or there is something
   left that a name can describe.
-- **Proposed.** `design/roadmap/proposals/one-home-for-the-trap-on-false-helper.md`: `fn check(ok:
-  bool)` now has nine copies across `fixtures/` and `components/`, seven of them added here. All of
-  them are `if !ok { user_rt::trap() }` or a panic reaching the same instruction. `user_rt` is the
-  obvious home; the decision is the public function name, which is calef's.
+- **Milestone 408.** `fn check(ok: bool)` now has nine copies across `fixtures/` and `components/`,
+  seven of them added here. All of them are `if !ok { user_rt::trap() }` or a panic reaching the same
+  instruction. `user_rt` is the obvious home; the decision is the public function name, which is
+  calef's, so the block carries a `DECISION` gate.
 - **Recorded.** `fixtures/src/hello.rs`'s own `BUGS` carries the two limitations a reader of that
   file meets: the name still does not describe the contents (nine roles of userspace process
   construction, which `hello` describes no better than it described thirty-one), and a caller that

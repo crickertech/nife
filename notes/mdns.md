@@ -36,7 +36,7 @@ exchange.
 
 **The one real loss** is general DNS message and name parsing, Kani-checked at the name decoder
 (compression pointers cannot loop or overrun), which sat beside the Time Machine records. A unicast
-resolver would want that half; `design/roadmap/proposals/a-name-resolver-and-who-holds-it.md` says
+resolver would want that half; milestone 384, `design/roadmap/384-a-name-resolver-and-who-holds-it.md`, says
 where to find it.
 
 Milestone 55's second protocol. A Mac's Time Machine UI lists only servers it discovered over

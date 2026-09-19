@@ -233,7 +233,7 @@ cargo clippy -p components -p fixtures -p user_mode_runtime --target x86_64-unkn
 # (the boot block is `cfg(not(test))`).
 #
 # **The list below is written out, not globbed, and that is the property to keep** (milestone 296,
-# which removed `initboot` from it). `design/roadmap/proposals/a-gate-that-selects-the-set-it-judges.md`
+# which removed `initboot` from it). Milestone 401, `design/roadmap/401-a-gate-that-selects-the-set-it-judges.md`,
 # is the class: a gate that computes the set it judges goes BLIND rather than red when the set
 # empties, which is how milestone 265's crate check passed by checking zero crates. This loop cannot
 # do that -- an empty `for` list is visible in the diff and in the output, since every iteration
@@ -1008,7 +1008,7 @@ MUTEOF
 # to prefer it: `script/coverage`'s per-feature line is now belt and braces rather than the mechanism.
 #
 # **Not the same question as the four-list problem beside it**, which is worth saying because the two
-# read alike. `design/roadmap/proposals/the-host-excluded-crate-set-lives-in-four-places.md` is about
+# read alike. Milestone 393, `design/roadmap/393-the-host-excluded-crate-set-lives-in-four-places.md`, is about
 # which CRATES cannot compile for the host, restated in four files where one derives it. This is
 # about a crate that compiles perfectly well and a feature of it that a single-package test run does
 # not turn on. Solving either leaves the other exactly where it was.

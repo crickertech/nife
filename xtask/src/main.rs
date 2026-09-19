@@ -7137,14 +7137,9 @@ fn shell_check_leg_graphical(riscv: bool, keystrokes: Keystrokes) -> bool {
     // **The serial arm attaches no virtio-rng**, and that is the point of it rather than an
     // omission: `NIFE_RNG` is a QEMU-only stopgap (DECISIONS §120) and none of the three target
     // machines has such a device, so an option-A leg standing in for a board should not have one
-    // either. The device arm keeps it, unchanged, because that is milestone 177's leg.
-    //
-    // It also currently makes the difference between a prompt and no prompt, which is how the
-    // asymmetry got noticed: **the interactive boot traps in the progenitor on both architectures whenever
-    // a virtio-rng is attached**, so `shell_check_leg`'s own plain legs are red on `main` for a
-    // reason that has nothing to do with either graphical leg. Reproduced at 8167d806 on
-    // nightly-2026-09-01 as well as -09-02, so it is not the toolchain bump. See
-    // design/roadmap/192-keyboard-on-real-silicon.md's own note; it is nobody's milestone yet.
+    // either. The device arm keeps it, unchanged, because that is milestone 177's leg. (A trap in
+    // the progenitor whenever a virtio-rng was attached, recorded here on 2026-09-02, no longer
+    // reproduces: on 2026-09-19 both arms reached a prompt, the device arm with the RNG attached.)
     if keystrokes == Keystrokes::Device {
         cmd.env("NIFE_RNG", "1");
     }

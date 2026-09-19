@@ -518,6 +518,8 @@ mod tests {
             "screen=0x8000,800,600,3200,bgrx,7", // a field nobody wrote
             "screen=0x8000,0,600,3200,bgrx",     // no pixels
             "screen=0x8000,800,600,100,bgrx",    // a stride narrower than a row
+            "screen=0x,800,600,3200,bgrx",       // the prefix and no digits after it
+            "screen=0x8000,800,60:,3200,bgrx",   // the character after '9' is not a tenth digit
         ] {
             assert_eq!(Framebuffer::parse(bad), None, "{bad:?} should not parse");
         }
@@ -542,6 +544,11 @@ mod tests {
         const GREEN: u32 = 0x0000_ff00;
         assert_eq!(PixelOrder::Bgrx.store(GREEN), GREEN);
         assert_eq!(PixelOrder::Rgbx.store(GREEN), GREEN);
+        // And blue, which is the only one of the three that travels UP the word. Red's byte is
+        // already at the top, so red alone cannot tell a sixteen-bit shift from either direction.
+        const BLUE: u32 = 0x0000_00ff;
+        assert_eq!(PixelOrder::Bgrx.store(BLUE), 0x0000_00ff);
+        assert_eq!(PixelOrder::Rgbx.store(BLUE), 0x00ff_0000);
     }
 
     /// The span is what bounds every write a console makes, so a geometry whose arithmetic

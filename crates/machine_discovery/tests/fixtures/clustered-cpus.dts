@@ -25,8 +25,8 @@
  *
  * Regenerate with:
  *
- *     dtc -I dts -O dtb -o crates/isa/tests/fixtures/clustered-cpus.dtb \
- *                          crates/isa/tests/fixtures/clustered-cpus.dts
+ *     dtc -I dts -O dtb -o crates/machine_discovery/tests/fixtures/clustered-cpus.dtb \
+ *                          crates/machine_discovery/tests/fixtures/clustered-cpus.dts
  */
 
 / {

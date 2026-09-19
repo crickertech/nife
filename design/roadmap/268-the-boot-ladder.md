@@ -169,13 +169,12 @@ prints, and not a marker that exists on one architecture, which is the defect be
   packs every portable program and `std_exerciser` ran there at milestone 184; and the same day the progenitor itself was loaded
   from the archive and ran at ring 3 on `x86_64`. The two passages are kept as written because they
   are the record of the reasoning; the retirement they discussed went ahead anyway.
-- **Proposed.** `design/roadmap/proposals/one-machine-description-not-two.md`. **Trim the
+- **Milestone 409.** **Trim the
   duplicated bring-up narrative on riscv64 and `x86_64`**, now that the
   machine description answers the same questions in one block on every architecture. The constraint
   to respect is the one that put those lines there: a `test` or `bench` boot compiles the description
   out and still has to say what machine it ran on.
-- **Proposed.**
-  `design/roadmap/proposals/the-machine-description-should-say-the-screen-geometry.md`. **A
+- **Milestone 411.** **A
   machine-description line for the framebuffer's geometry.**
   `console::print_summary` reports a screen's address and length, which is what the kernel holds; the
   width, height and pixel order arrive in the handoff and are printed by the `x86_64` arm alone. A
@@ -432,8 +431,8 @@ transcript is kept as the record of the first pass.
   the description then answers the same questions again in one block. The duplication is noise
   rather than a defect, and trimming the arms' copies is not free: the riscv64 arm's `isa` and
   `firmware` lines exist so that `test` and `bench` boots, which compile the description out, still
-  report what machine they ran on. Proposed in
-  `design/roadmap/proposals/one-machine-description-not-two.md`, which is listed under Follow-on
+  report what machine they ran on. It is milestone 409
+  (`design/roadmap/409-one-machine-description-not-two.md`), which is listed under Follow-on
   above.
 - **Closed 2026-09-14: "Nothing proves an architecture ran the right five checks."** See "Second
   pass". What remains is narrower and is recorded in `boot_ladder::SELF_TEST_CHECKS`'s own doc: the

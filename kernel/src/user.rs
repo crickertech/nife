@@ -842,7 +842,7 @@ pub const PROGENITOR_ENTRY: &str = "progenitor";
 ///
 /// **It was the whole milestone 7-19 role catalogue until milestone 291**, thirty-one roles in one
 /// binary. Twenty-two of them are their own programs or `block_driver`'s roles now; nine are left,
-/// and `design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md` is what would
+/// and milestone 405, `design/roadmap/405-nine-init-roles-and-the-entry-the-kernel-picks.md`, is what would
 /// take them, since splitting them is a change to [`spawn_hello`]'s choice of entry rather
 /// than to `fixtures/`.
 ///
@@ -890,7 +890,7 @@ pub const PROGENITOR_ROLE: u64 = 27;
 /// five capabilities those roles use.
 ///
 /// **`hello` still has nine roles**, and splitting them is a follow-on to milestone 291
-/// (`design/roadmap/proposals/nine-init-roles-and-the-entry-the-kernel-picks.md`): six are separate
+/// (milestone 405, `design/roadmap/405-nine-init-roles-and-the-entry-the-kernel-picks.md`): six are separate
 /// programs waiting to happen, and each would need its own archive entry named here.
 ///
 /// Name: ratified 2026-09-15 (calef, this header). Refused keeping `spawn_progenitor`, the name
@@ -2501,6 +2501,23 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
         video_terminal::status::TERM_UP,
         "the display terminal did not come up",
     );
+    // **The driver's third report, and the second flush's hang** (milestone 177). `gpu_driver`
+    // sends `FLUSHED` once, after serving its first flush, and `SEND` blocks until somebody
+    // receives it. The terminal's first flush is the blank grid it paints before `TERM_UP`, so by
+    // now the driver is parked in that `SEND` and not in `RECV` on its display endpoint. Until this
+    // receive existed nothing ever took the message: the terminal's second `FLUSH` (the banner)
+    // queued behind a driver that would never serve again, and no prompt reached the screen. Every
+    // other spawner of this driver is a test that reads the digest, and two of them say in a
+    // comment that they must. The boot has no use for the digest; it only has to take it.
+    let [tag, _, pixels, ..] = crate::sched::ipc_recv(w.driver_report);
+    assert_eq!(
+        (tag, pixels),
+        (
+            graphics_protocol::status::FLUSHED,
+            graphics_protocol::PIXELS as u64
+        ),
+        "the GPU driver did not serve the terminal's first flush ({tag:#x})",
+    );
 
     let kbd_ep = crate::sched::create_rendezvous();
 
@@ -2512,7 +2529,7 @@ fn boot_graphical_terminal(uart_rx_intid: u32) -> Option<GraphicalTerminal> {
     let keystrokes = match program("keyboard_driver")
         .and_then(|keyboard_driver| keyboard_service::start_direct(keyboard_driver, kbd_ep))
     {
-        Some(_) => KeystrokeSource::Keyboard,
+        Some(()) => KeystrokeSource::Keyboard,
         None => {
             let input = program("input")?;
             input_service::start_direct(input, kbd_ep, uart_rx_intid)?;

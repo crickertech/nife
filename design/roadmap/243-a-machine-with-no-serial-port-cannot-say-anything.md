@@ -133,13 +133,13 @@ replacing it is harder than it looks.
 
 ## Follow-on
 
-- **Proposed.** A gate that can read a serial-less machine on real hardware, which is the half of
-  this block that QEMU answered and silicon did not.
-  `design/roadmap/proposals/a-gate-that-can-read-a-machine-with-no-serial-port.md`.
-- **Proposed.** One screendump decoder rather than two: milestone 177's graphical `shell-check` leg
-  carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this milestone wrote a second,
-  more general one in `board_console::screen`.
-  `design/roadmap/proposals/one-screendump-decoder-not-two.md`.
+- **Milestone 369.** A gate that can read a serial-less machine on real hardware, which is the half
+  of this block that QEMU answered and silicon did not.
+  `design/roadmap/369-a-gate-that-can-read-a-machine-with-no-serial-port.md`.
+- **Milestone 377.** One screendump decoder rather than two: milestone 177's graphical
+  `shell-check` leg carries `parse_ppm`/`decode_cell`/`scanout_rows` inside `xtask` and this
+  milestone wrote a second, more general one in `board_console::screen`.
+  `design/roadmap/377-one-screendump-decoder-not-two.md`.
 - **Outstanding.** Problem 3, early boot, is untouched: nothing before `kernel_main` can say
   anything on a machine with no serial port, and a fault there is a black screen. Checked against
   the tree: `kernel/src/arch/x86_64/boot.s` writes to no device, and the screen cannot be armed
