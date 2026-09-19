@@ -109,8 +109,11 @@ the promoted quarter rather than as a prediction for the other 21.
   and every number in them is provisional until the merge queue lands it, which is the standing rule
   for anything global to the tree.
 - **The reserved ranges make every slice branch fail `script/decisions --check` on its own**, and
-  this was measured rather than predicted: slice c holds §197-216, so with §157-196 living on two
-  branches it cannot see, its own gate reports *"gap in the numbering: §157 ... §196"* and exits 1.
+  this was measured rather than predicted: slice c holds the range beginning at 197, so with the two
+  ranges below it living on branches it cannot see, its own gate reports a gap in the numbering
+  across the whole of 157 to 196 and exits 1. (The numbers are written without their sigil here on
+  purpose: a range written with it is read as a citation, and `script/decisions` then reports the
+  range's endpoints as citations to sections that do not exist.)
   The check has no escape hatch and is right not to have one, since a hole is almost always a
   renumber on merge that nobody meant. **It resolves at merge and only at merge**, which puts two
   duties on the integrator: land the three slices in one merge-queue group so the group build sees a
